@@ -95,13 +95,14 @@ function validateFile(file: File): UploadErrorKey | null {
 
 interface CvUploadFormProps {
   /**
-   * ADR 0077 STEG 5 — om satt anropas denna med `parsedResumeId` vid 201 i
-   * STÄLLET för `router.push('/cv/granska/${id}')`. Låter welcome-modalen stå
-   * kvar och visa bekräftelse-steget i stället för att navigera bort.
-   * Default-beteendet (navigera till granska-vyn) är oförändrat när proppen
-   * utelämnas.
+   * ADR 0077 STEG 5 — om satt anropas denna med `parsedResumeId` (och det valda
+   * filnamnet) vid 201 i STÄLLET för `router.push('/cv/granska/${id}')`. Låter en
+   * host-modal stå kvar och visa bekräftelse-steget i stället för att navigera
+   * bort. `fileName` driver "CV inläst: {filnamn}"-plattan (epik #526); äldre
+   * konsumenter som ignorerar andra-argumentet är opåverkade. Default-beteendet
+   * (navigera till granska-vyn) är oförändrat när proppen utelämnas.
    */
-  readonly onUploaded?: (parsedResumeId: string) => void;
+  readonly onUploaded?: (parsedResumeId: string, fileName?: string) => void;
 }
 
 export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
@@ -163,7 +164,7 @@ export function CvUploadForm({ onUploaded }: CvUploadFormProps = {}) {
       // låt den styra nästa steg (bekräftelse i modalen) i stället för att
       // navigera bort. Default = oförändrad navigation till granska-vyn.
       if (onUploaded) {
-        onUploaded(parsedResumeId);
+        onUploaded(parsedResumeId, file.name);
         return;
       }
       router.push(`/cv/granska/${parsedResumeId}`);

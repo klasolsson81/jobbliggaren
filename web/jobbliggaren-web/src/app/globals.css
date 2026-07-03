@@ -3617,6 +3617,703 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   color: var(--jp-info);
 }
 
+/* ══ Match-setup-rail-modal (epik #526, förslag 2a "Steglistan") ══════════════
+   EN modal med fast storlek (1000×648) som ersätter det gamla fem-modal-flödet.
+   Komponerar på .jp-stdmodal (skin) + .jp-wizard--rail (fast mått + rad-layout:
+   272px rail + 1fr huvudyta). Återanvänder .jp-wizard__note / .jp-wizard__skip /
+   .jp-wizard__foot / .jp-clearlink / .jp-chip / .jp-checkitem / .jp-matchdialog__*
+   (sektionerna) och lägger 2a-looket (vald-chip/yrkecard/read-only-chip) på via
+   scoped additiv CSS. Token-only färger; ingen ny hex, ingen radie > 8px, ingen
+   gradient/glow/shadow utöver modal-skuggan. Dark följer med automatiskt med de
+   medvetna accent-700-på-ram-i-dark-valen (fill-kontraktet består för fyllda
+   indikatorer). K2-kontrast validerad i copy-facit. */
+
+/* Skalet: fast 1000×648, body scrollar (aldrig skalet). Override:ar .jp-stdmodal
+   (column → row, 86vh → 90vh) via källordning (denna regel ligger efter). */
+.jp-wizard--rail {
+  width: 1000px;
+  max-width: 96vw;
+  height: 648px;
+  max-height: 90vh;
+  padding: 0;
+  flex-direction: row;
+  overflow: hidden;
+}
+/* Stäng-krysset (radix Close = enda direkt-barn-<button>): 36px, top/right 14. */
+.jp-wizard--rail > button {
+  top: 14px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+}
+
+/* ── Railen (272px): brand-rad + steg-lista + räknarkort ── */
+.jp-wizard__rail {
+  flex: 0 0 272px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--jp-surface-2);
+  border-right: 1px solid var(--jp-border-soft);
+}
+.jp-wizard__railbrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 18px 12px;
+}
+.jp-wizard__railbrand-mark {
+  flex: 0 0 auto;
+}
+.jp-wizard__railbrand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.jp-wizard__railbrand-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+}
+.jp-wizard__railbrand-sub {
+  font-size: 12.5px;
+  color: var(--jp-ink-2);
+}
+.jp-wizard__raillist {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* Hela raden är en knapp (fri navigering). Aktiv rad = accent-50-bg + 3px grön
+   vänsterbar (samma mönster som .jp-popover-row[aria-pressed=true]). */
+.jp-wizard__railitem {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 12px;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  background: transparent;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: var(--jp-r-md);
+  cursor: pointer;
+}
+.jp-wizard__railitem:hover {
+  background: var(--jp-surface-3);
+}
+.jp-wizard__railitem[data-state="active"] {
+  background: var(--jp-accent-50);
+  border-left-color: var(--jp-accent-700);
+}
+/* Indikator 22px: klar = accent-800-fyllning + vit bock (fill-kontraktet, tema-
+   stabil); aktiv = vit med grön ram + grön siffra; kommande = vit med grå ram. */
+.jp-wizard__railind {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--jp-r-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--jp-surface);
+  border: 2px solid var(--jp-border-input);
+  color: var(--jp-ink-2);
+}
+.jp-wizard__railind[data-state="done"] {
+  background: var(--jp-accent-800);
+  border-color: var(--jp-accent-800);
+  color: #fff;
+}
+.jp-wizard__railind[data-state="active"] {
+  border-color: var(--jp-accent-700);
+  color: var(--jp-accent-700);
+}
+.jp-wizard__railnum {
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.jp-wizard__railitem-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.jp-wizard__railitem-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--jp-ink-2);
+}
+.jp-wizard__railitem[data-state="done"] .jp-wizard__railitem-label {
+  color: var(--jp-ink-1);
+}
+/* Aktiv label: mörk grön-svart (#0B2A1E) i ljust. accent-900 skiftas ej → sätt
+   den ljusa text-tiern i dark så den läses mot accent-50-dark (annars osynlig). */
+.jp-wizard__railitem[data-state="active"] .jp-wizard__railitem-label {
+  color: var(--jp-accent-900);
+}
+[data-theme="dark"]
+  .jp-wizard__railitem[data-state="active"]
+  .jp-wizard__railitem-label {
+  color: var(--jp-accent-700);
+}
+.jp-wizard__railmeta {
+  max-width: 100%;
+  font-size: 12px;
+  color: var(--jp-ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Räknarkortet (railens nederkant) ── */
+.jp-wizard__countcard {
+  margin: 12px;
+  padding: 13px 15px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-wizard__countcard-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.jp-wizard__countcard-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-success);
+  animation: jp-wizard-count-pulse 2.4s ease-in-out infinite;
+}
+.jp-wizard__countcard-label {
+  font-family: var(--jp-font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--jp-ink-2);
+}
+.jp-wizard__countcard-num {
+  margin: 4px 0 2px;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-1);
+}
+.jp-wizard__countcard-unit {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--jp-ink-2);
+}
+/* Dekorativ puls (opacitet, ingen scale) — stängs av vid reduced-motion. */
+@keyframes jp-wizard-count-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jp-wizard__countcard-dot {
+    animation: none;
+  }
+}
+
+/* ── Huvudytan: head (stegräknare + H2 + intro) · body (scroll) · footer ── */
+.jp-wizard__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.jp-wizard__mainhead {
+  position: relative;
+  padding: 18px 62px 15px 28px;
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-wizard__stepcounter {
+  display: block;
+  margin: 0 0 6px;
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-2);
+}
+/* Stegnamnet i räknaren visas bara på mobil ("STEG 4 AV 6 · ORTER"). */
+.jp-wizard__stepcounter-name {
+  display: none;
+}
+.jp-wizard__h2 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--jp-ink-1);
+}
+.jp-wizard--rail .jp-wizard__intro {
+  margin: 6px 0 0;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--jp-ink-2);
+}
+.jp-wizard__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 28px;
+  display: flex;
+  flex-direction: column;
+}
+.jp-wizard__body--center {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+/* Footern (återanvänder .jp-wizard__foot) spänner bara huvudytan → nolla dess
+   botten-radier (modalens overflow:hidden + 8px-radie klipper hörnen). */
+.jp-wizard--rail .jp-wizard__foot {
+  padding: 13px 20px;
+  border-radius: 0;
+}
+
+/* ── Steg 1 Start: pitch + CV-dropzon / "CV inläst"-platta ── */
+.jp-wizard__start {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.jp-wizard__pitch {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.jp-wizard__pitch-mark {
+  flex: 0 0 auto;
+}
+.jp-wizard__pitch-title {
+  margin: 2px 0 0;
+  font-size: 17.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--jp-ink-1);
+}
+.jp-wizard__pitch-body {
+  margin: 6px 0 0;
+  max-width: 56ch;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--jp-ink-2);
+}
+.jp-wizard__upload {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.jp-wizard__upload-title {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+}
+.jp-wizard__upload-body {
+  margin: 4px 0 0;
+  max-width: 60ch;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--jp-ink-2);
+}
+/* Restyla den återanvända CvUploadForm-dropzonen till 2a (1.5px dashed
+   border-input + accent-50-hover), scoped till rail-modalen. */
+.jp-wizard--rail .jp-cvupload {
+  max-width: none;
+}
+.jp-wizard--rail .jp-cvupload__drop {
+  border: 1.5px dashed var(--jp-border-input);
+}
+.jp-wizard--rail .jp-cvupload__drop:hover {
+  background: var(--jp-accent-50);
+  border-color: var(--jp-accent-700);
+}
+/* "Fortsätt utan CV" — grön länk-knapp (aldrig danger; skip ≠ destruktivt). */
+.jp-wizard__nocv {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  color: var(--jp-ink-2);
+}
+.jp-wizard__startlink {
+  color: var(--jp-accent-700);
+  font: inherit;
+  font-weight: 600;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.jp-wizard__startlink:hover {
+  color: var(--jp-accent-600);
+}
+/* "CV inläst"-plattan: success-bg + fylld grön bock-cirkel + ärlig copy. */
+.jp-wizard__cvdone {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--jp-success-bg);
+  border-radius: var(--jp-r-md);
+}
+.jp-wizard__cvdone-badge {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-success);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.jp-wizard__cvdone-title {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+}
+.jp-wizard__cvdone-body {
+  margin: 3px 0 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--jp-ink-2);
+}
+
+/* ── Mono-caption (VALDA … (n) + Granska-rubriker) ── */
+.jp-wizard__groupcaption {
+  font-family: var(--jp-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-2);
+}
+.jp-wizard__groupcaption-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+/* Tomt-läges-wrappen (notis + "Återställ förslagen"-knapp). */
+.jp-wizard__emptywrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+/* Sektionerna monteras med showHeading={false}: dölj deras inbyggda clear-only-
+   rad (railen renderar egna captions; Kompetenser bär sin egen "Rensa alla"). */
+.jp-wizard--rail .jp-matchdialog__sectionhead--clearonly {
+  display: none;
+}
+
+/* ── Vald-chip (.jp-chip--valid) + de återanvända borttagbara sektions-chipsen ──
+   accent-50-bg + 1.5px accent-800-ram + ledande grön bock. Texten läser --jp-ink-1
+   (bas-chippen) → tema-adaptiv (≈#0B2A1E i ljust, ljus i dark) i st f accent-900
+   som skulle bli osynlig mot accent-50-dark. */
+.jp-chip--valid,
+.jp-wizard--rail .jp-chip--removable {
+  background: var(--jp-accent-50);
+  border: 1.5px solid var(--jp-accent-800);
+  font-weight: 600;
+}
+.jp-chip--valid::before,
+.jp-wizard--rail .jp-chip--removable::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+  background-color: var(--jp-accent-800);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='3.5'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M20%206%209%2017l-5-5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='3.5'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M20%206%209%2017l-5-5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+/* Dark: vald-chipens ram + bock läser accent-700 (text/border-tiern), inte den
+   tema-stabila accent-800-fyllnaden (som blir osynlig ram i dark). */
+[data-theme="dark"] .jp-chip--valid,
+[data-theme="dark"] .jp-wizard--rail .jp-chip--removable {
+  border-color: var(--jp-accent-700);
+}
+[data-theme="dark"] .jp-chip--valid::before,
+[data-theme="dark"] .jp-wizard--rail .jp-chip--removable::before {
+  background-color: var(--jp-accent-700);
+}
+
+/* ── Förslags-chip (.jp-chip--suggest) — vit, streckad ram, ledande plus ──
+   Definierad per CSS-planen. Sektionerna renderar i dag inga förslags-chips
+   (CV-förslagen pre-addas som valda; manuell tillägg sker via "Lägg till"-CTA +
+   sök/kaskad) — klassen finns tillgänglig för framtida förslags-ytor. */
+.jp-chip--suggest {
+  background: var(--jp-surface);
+  border: 1px dashed var(--jp-border-input);
+  color: var(--jp-ink-1);
+  font-weight: 500;
+}
+.jp-chip--suggest::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  background-color: var(--jp-accent-800);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='3'%20stroke-linecap='round'%3E%3Cpath%20d='M12%205v14M5%2012h14'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='3'%20stroke-linecap='round'%3E%3Cpath%20d='M12%205v14M5%2012h14'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+.jp-chip--suggest:hover {
+  background: var(--jp-accent-50);
+  border-color: var(--jp-accent-700);
+}
+[data-theme="dark"] .jp-chip--suggest::before {
+  background-color: var(--jp-accent-700);
+}
+
+/* ── Steg 2 Yrken: yrkecard (restyla den återanvända .jp-occexp-raden) ──
+   Raden blir ett kort (vit, 1.5px grön ram) med fylld bock-cirkel + namn + X +
+   "År i yrket"-fält. Den inre chippen görs plan (kortet bär ramen). */
+.jp-wizard--rail .jp-occexp {
+  gap: 10px;
+}
+.jp-wizard--rail .jp-occexp__row {
+  flex-wrap: nowrap;
+  padding: 12px 14px;
+  gap: 12px;
+  background: var(--jp-surface);
+  border: 1.5px solid var(--jp-accent-800);
+  border-radius: var(--jp-r-md);
+}
+[data-theme="dark"] .jp-wizard--rail .jp-occexp__row {
+  border-color: var(--jp-accent-700);
+}
+.jp-wizard--rail .jp-occexp__chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* Fylld grön bock-cirkel (22px, vit bock) — fill-kontraktet, tema-stabil. */
+.jp-wizard--rail .jp-occexp__chip::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-accent-800)
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23fff'%20stroke-width='3.4'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M20%206%209%2017l-5-5'/%3E%3C/svg%3E")
+    center / 13px no-repeat;
+}
+/* Den inre yrkes-chippen blir plan (kortet äger ramen/bakgrunden). */
+.jp-wizard--rail .jp-occexp__row .jp-chip--removable {
+  background: transparent;
+  border: 0;
+  padding-left: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.jp-wizard--rail .jp-occexp__row .jp-chip--removable::before {
+  display: none;
+}
+
+/* ── Steg 5 Anställningsform: checklista i ram (radseparerare); göm pinnade
+   chips (2a visar bara checklistan, det ikryssade bärs av rutorna). ── */
+.jp-wizard__formercheck .jp-matchdialog__pinned {
+  display: none;
+}
+.jp-wizard--rail .jp-matchdialog__list .jp-checkitem + .jp-checkitem {
+  border-top: 1px solid var(--jp-border-soft);
+}
+
+/* ── Steg 6 Granska: fyra grupper (caption + "Ändra"-länk + read-only-chips) ── */
+.jp-wizard__review {
+  display: flex;
+  flex-direction: column;
+}
+.jp-wizard__reviewgroup {
+  padding: 16px 0;
+}
+.jp-wizard__reviewgroup:first-child {
+  padding-top: 0;
+}
+.jp-wizard__reviewgroup + .jp-wizard__reviewgroup {
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-wizard__reviewhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.jp-wizard__editlink {
+  color: var(--jp-accent-700);
+  font-size: 13px;
+  font-weight: 600;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.jp-wizard__editlink:hover {
+  color: var(--jp-accent-600);
+}
+
+/* ── Klart-läget (efter Spara): centrerad bock-cirkel + typografisk bekräftelse ── */
+.jp-wizard__done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: 46ch;
+}
+.jp-wizard__done-badge {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-success-bg);
+  color: var(--jp-success);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.jp-wizard__done-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--jp-ink-1);
+}
+.jp-wizard__done-body {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--jp-ink-2);
+}
+
+/* ── Mobil-only element (dolda på desktop) ── */
+.jp-wizard__mobilebar {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 56px 12px 20px;
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-wizard__mobilebar-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--jp-ink-1);
+}
+.jp-wizard__mobileprog {
+  display: none;
+  gap: 4px;
+  margin: 0 0 8px;
+}
+.jp-wizard__mobileseg {
+  flex: 1 1 0;
+  height: 3px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-border);
+}
+.jp-wizard__mobileseg--on {
+  background: var(--jp-accent-800);
+}
+.jp-wizard__mobilecount {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-1);
+}
+.jp-wizard__mobilecount-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-success);
+}
+
+/* ── Mobil (< 720px): fullskärms-sheet, ingen rail, progressremsa + sticky
+   footer med räknarremsa. Alla hit targets ≥ 44px (WCAG 2.5.5). ── */
+@media (max-width: 719px) {
+  .jp-wizard--rail {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    flex-direction: column;
+  }
+  .jp-wizard__rail {
+    display: none;
+  }
+  .jp-wizard__mobilebar {
+    display: flex;
+  }
+  .jp-wizard__mobileprog {
+    display: flex;
+  }
+  .jp-wizard__stepcounter-name {
+    display: inline;
+  }
+  .jp-wizard__mobilecount {
+    display: inline-flex;
+    order: -1;
+    flex-basis: 100%;
+  }
+  .jp-wizard__mainhead {
+    padding: 14px 56px 12px 20px;
+  }
+  .jp-wizard__body {
+    padding: 18px 20px;
+  }
+  .jp-wizard--rail .jp-wizard__foot [data-slot="button"] {
+    min-height: 44px;
+  }
+  .jp-wizard--rail .jp-wizard__skip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  /* Stäng-krysset ≥ 44px på mobil-sheeten (WCAG 2.5.5, facit §108-114). */
+  .jp-wizard--rail > button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 /* ── Välkomst-/första-setup-modal (.jp-welcome) — ADR 0077 STEG 5 / 0079 STEG 1 ──
    Standardmodal med tre interna steg: upload → gapfill → done. Upload/done är
    smala (.jp-stdmodal--narrow); gapfill (in-modal CV-komplettering, STEG 1) är

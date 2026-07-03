@@ -20,8 +20,8 @@ export const SETUP_WELCOMED_COOKIE = "__Host-jobbliggaren_setup_welcomed";
  * Läser setup-welcome-cookien server-side i RSC-context. Returnerar `true` om
  * användaren redan stängt/skippat välkomst-modalen i denna webbläsare.
  *
- * Används i `(app)/oversikt/page.tsx` för att SSR:a `showWelcome`-prop till
- * `<WelcomeSetupModal>` utan hydration-flash.
+ * Används i `(app)/oversikt/page.tsx` för att SSR:a auto-open-beslutet till
+ * `<MatchSetupLauncher>` (epik #526) utan hydration-flash.
  */
 export async function hasSeenSetupWelcome(): Promise<boolean> {
   const cookieStore = await cookies();

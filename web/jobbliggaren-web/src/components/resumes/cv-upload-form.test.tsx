@@ -77,8 +77,9 @@ describe("CvUploadForm — onUploaded-callback (ADR 0077 STEG 5)", () => {
     );
 
     await waitFor(() => expect(onUploaded).toHaveBeenCalledTimes(1));
-    expect(onUploaded).toHaveBeenCalledWith(PARSED_ID);
-    // Callback-vägen navigerar INTE bort (welcome-modalen stannar öppen).
+    // Epik #526: onUploaded får nu även filnamnet (driver "CV inläst: {filnamn}").
+    expect(onUploaded).toHaveBeenCalledWith(PARSED_ID, "cv.pdf");
+    // Callback-vägen navigerar INTE bort (host-modalen stannar öppen).
     expect(pushMock).not.toHaveBeenCalled();
   });
 

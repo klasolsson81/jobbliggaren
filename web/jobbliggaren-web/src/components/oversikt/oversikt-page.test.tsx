@@ -89,7 +89,8 @@ describe("OversiktPage — matchnings-nudge ömsesidig uteslutning", () => {
     renderOversikt(false);
 
     const nudgeCta = screen.getByRole("link", { name: /Ställ in matchning/ });
-    expect(nudgeCta).toHaveAttribute("href", "/installningar#matchning");
+    // Epik #526 — notisen öppnar matchnings-setup-modalen via ?matchsetup=1.
+    expect(nudgeCta).toHaveAttribute("href", "/oversikt?matchsetup=1");
 
     // Match-notisen (CTA "Visa annonser") får INTE finnas samtidigt.
     expect(

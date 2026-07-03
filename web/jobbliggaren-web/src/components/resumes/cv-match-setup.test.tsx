@@ -123,12 +123,14 @@ describe("CvMatchSetup — post-promote-prompt (design C.3)", () => {
     ).toBeNull();
   });
 
-  it("öppnar wizarden från prompt-knappen", async () => {
+  it("öppnar modalen från prompt-knappen", async () => {
     const user = userEvent.setup();
     renderSetup({ showPrompt: true });
     await user.click(screen.getByRole("button", { name: "Ställ in matchning" }));
-    // Wizardens steg 1 monteras (STEG 3 / ADR 0079: nu 5 steg).
-    expect(await screen.findByText("Steg 1 av 5")).toBeInTheDocument();
+    // Epik #526: rail-modalen öppnar på Yrken (initialStep=1) för /cv-vägen.
+    expect(
+      await screen.findByRole("heading", { name: "Yrken" })
+    ).toBeInTheDocument();
   });
 });
 

@@ -16,7 +16,7 @@ import type {
   TaxonomyRegion,
 } from "@/lib/dto/taxonomy";
 import type { SkillGroup } from "@/lib/dto/skills";
-import { MatchSetupWizard } from "@/components/settings/match-setup-wizard";
+import { MatchSetupRailModal } from "@/components/settings/match-setup-rail-modal";
 
 interface CvMatchSetupProps {
   readonly occupationFields: ReadonlyArray<TaxonomyOccupationField>;
@@ -152,9 +152,13 @@ export function CvMatchSetup({
         </section>
       )}
 
-      <MatchSetupWizard
+      <MatchSetupRailModal
         open={open}
         onOpenChange={setOpen}
+        // /cv: användaren har redan ett CV och uppdaterar sin matchning → öppna
+        // på Yrken (steg 1), inte det redundanta välkomst-/upload-steget. CV-
+        // förslag kommer från det befordrade CV:t (autoSuggestFromCv).
+        initialStep={1}
         occupationFields={occupationFields}
         regions={regions}
         employmentTypes={employmentTypes}

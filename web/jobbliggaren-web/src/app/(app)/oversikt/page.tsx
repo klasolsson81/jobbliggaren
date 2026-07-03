@@ -11,7 +11,7 @@ import { fetchLandingStats } from "@/lib/api/landing";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { hasSeenSetupWelcome } from "@/lib/onboarding/setup-welcome";
 import { OversiktPage } from "@/components/oversikt/oversikt-page";
-import { WelcomeSetupModal } from "@/components/onboarding/welcome-setup-modal";
+import { MatchSetupLauncher } from "@/components/onboarding/match-setup-launcher";
 import { ResetMyDataNote } from "@/components/dev/reset-my-data-note";
 
 /** CV-importflödets route (wizardens yrkes-steg tom-state-länk). */
@@ -26,7 +26,13 @@ const IMPORT_CV_HREF = "/cv/importera";
  */
 export const dynamic = "force-dynamic";
 
-export default async function OversiktRoute() {
+export default async function OversiktRoute({
+  searchParams,
+}: {
+  // ?matchsetup=1 — notisen "Ställ in matchning" öppnar rail-modalen (epik #526);
+  // mirror /cv:s ?matchning=1-prompt-precedent.
+  searchParams: Promise<{ matchsetup?: string }>;
+}) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
@@ -110,17 +116,27 @@ export default async function OversiktRoute() {
   // (ADR 0076 Decision 3). Setup-nudgen i Översikt-feeden lever kvar som
   // komplementär post-skip-påminnelse.
   const setupWelcomeSeen = await hasSeenSetupWelcome();
-  const showWelcome =
-    profile.kind === "ok" &&
-    !profile.data.hasStatedDesiredOccupation &&
-    !setupWelcomeSeen;
+  const { matchsetup: matchsetupParam } = await searchParams;
 
-  // Taxonomi hämtas ENBART när välkomsten faktiskt ska visas (wizardens
-  // yrkes-/region-/anställningsform-väljare behöver trädet). Ingen extra fetch
-  // för de allra flesta sid-laddningar. Degraderar civilt: utan taxonomi visas
-  // ingen wizard (väljaren vore tom) → modalen utelämnas hellre än renderas
-  // trasig.
-  const taxonomy = showWelcome
+  // Matchnings-setup behövs så länge inget yrke angetts. Modalen auto-öppnas i
+  // två fall: (a) nytt konto som inte redan stängt/skippat den i denna webbläsare
+  // (cookien), ELLER (b) användaren klickade notisen "Ställ in matchning"
+  // (?matchsetup=1). Notisen visas bara för needsSetup-användare, så param-vägen
+  // ligger alltid inom needsSetup. Cookien bryter "om-nagg vid tom preferens"-
+  // loopen utan backend-skrivning (ADR 0076 Decision 3); notisen är den
+  // komplementära post-skip-ingången.
+  const needsSetup =
+    profile.kind === "ok" && !profile.data.hasStatedDesiredOccupation;
+  const showWelcome = needsSetup && !setupWelcomeSeen;
+  const openSetupFromParam = matchsetupParam === "1";
+  const shouldMountSetup = needsSetup && (showWelcome || openSetupFromParam);
+
+  // Taxonomi hämtas ENBART när modalen faktiskt ska monteras (yrkes-/region-/
+  // anställningsform-väljaren behöver trädet). Ingen extra fetch för de allra
+  // flesta sid-laddningar (användare med angivet yrke betalar den aldrig).
+  // Degraderar civilt: utan taxonomi visas ingen modal (väljaren vore tom) →
+  // modalen utelämnas hellre än renderas trasig.
+  const taxonomy = shouldMountSetup
     ? await getTaxonomyTree().then((r) => (r.kind === "ok" ? r.data : null))
     : null;
 
@@ -138,9 +154,9 @@ export default async function OversiktRoute() {
         matchCount={matchCountValue}
         newMatchCount={newMatchCountValue}
       />
-      {showWelcome && taxonomy !== null && profile.kind === "ok" && (
-        <WelcomeSetupModal
-          showWelcome
+      {shouldMountSetup && taxonomy !== null && profile.kind === "ok" && (
+        <MatchSetupLauncher
+          autoOpen
           occupationFields={taxonomy.occupationFields}
           regions={taxonomy.regions}
           employmentTypes={taxonomy.employmentTypes}

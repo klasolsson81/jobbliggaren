@@ -310,6 +310,103 @@ public class CvReviewEngineTests
             "En kvantifierad och en icke-kvantifierad punkt → A1 Warn (#487).");
     }
 
+    // ===============================================================
+    // 1b. A1 second Fail clause — ">50 % av punkterna saknar mätbarhet"
+    //     is a CRITICAL Fail, not a Warn (#489)
+    // ===============================================================
+
+    [Fact]
+    public async Task ReviewAsync_ShouldFailA1_WhenMoreThanHalfTheBulletsLackMeasurability()
+    {
+        // #489 second Fail clause: rubric atsFailSignal "... ELLER >50 % av punkterna saknar
+        // mätbarhet". Two of three bullets unquantified (0.67 > 0.50) → the Critical A1 FAILS.
+        // Pre-fix ANY missing bullet was only a Warn, suppressing this critical-fail surface.
+        var resume = Resume(experience:
+        [
+            Experience(bullets:
+            [
+                "Ökade konverteringen med 23 procent.",
+                "Ansvarade för teamets dagliga arbete.",
+                "Deltog i möten och interna samarbeten.",
+            ]),
+        ]);
+
+        var a1 = Verdict(await ReviewAsync(resume), "A1");
+        a1.Verdict.ShouldBe(CriterionVerdict.Fail,
+            "Över hälften av punkterna utan mätbarhet → A1 (Kritisk) Fail (#489).");
+        a1.Evidence.ShouldContain(e => e is TextSpanEvidence);
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldSurfaceTheA1SecondClauseFailInCriticalFails()
+    {
+        // A1 is a CriticalFailId — the >50 % Fail must surface in CriticalFails, which is the whole
+        // point of #489 (the suppressed critical-fail surface).
+        var resume = Resume(experience:
+        [
+            Experience(bullets:
+            [
+                "Ökade konverteringen med 23 procent.",
+                "Ansvarade för dagliga uppgifter.",
+                "Deltog i möten.",
+            ]),
+        ]);
+
+        var result = await ReviewAsync(resume);
+        result.CriticalFails.Select(v => v.CriterionId).ShouldContain("A1");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldWarnA1_WhenExactlyHalfTheBulletsLackMeasurability()
+    {
+        // Boundary: exactly 50 % missing is NOT > 50 % → Warn, not Fail (strict boundary, parity the
+        // existing 1-of-2 Warn case). Pins that the clause fires strictly ABOVE half.
+        var resume = Resume(experience:
+        [
+            Experience(bullets:
+            [
+                "Ökade försäljningen med 20 procent.",
+                "Sänkte kostnaden med 15 procent.",
+                "Ansvarade för dagliga uppgifter.",
+                "Deltog i teammöten regelbundet.",
+            ]),
+        ]);
+
+        Verdict(await ReviewAsync(resume), "A1").Verdict.ShouldBe(CriterionVerdict.Warn,
+            "Exakt 50 % saknad mätbarhet är inte > 50 % → A1 Warn (#489-gränsen).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_A1MissingRatioShouldMatchTheRubricProse_GoldenDriftGuard()
+    {
+        // Golden drift-guard (#489, parity A7/C3): derive the A1 missing-measurability Fail ratio
+        // from the versioned rubric prose (atsFailSignal ">50 % av punkterna saknar mätbarhet").
+        var a1 = RealRubric().Criteria.Single(c => c.Id == "A1");
+        var failPercent = PercentInSignal(a1.AtsFailSignal!);   // 50 (the "%"-bearing number, not the "0")
+        var failRatio = failPercent / 100.0;                    // 0.50
+
+        // 10 bullets: missingAbove/10 strictly exceeds the ratio; missingAt/10 sits at it.
+        var missingAbove = (int)Math.Floor(failRatio * 10) + 1;     // 6 → 0.60 > 0.50
+        var missingAt = (int)Math.Floor(failRatio * 10);            // 5 → 0.50, not > 0.50
+
+        Verdict(await ReviewAsync(BulletsResume(missingAbove, 10)), "A1").Verdict
+            .ShouldBe(CriterionVerdict.Fail, $"{missingAbove}/10 saknad > {failRatio:0.0#} → Fail.");
+        Verdict(await ReviewAsync(BulletsResume(missingAt, 10)), "A1").Verdict
+            .ShouldNotBe(CriterionVerdict.Fail, $"{missingAt}/10 saknad = {failRatio:0.0#} → inte Fail.");
+
+        // `total` bullets, `missing` without a metric and the rest with one.
+        static ParsedResume BulletsResume(int missing, int total)
+        {
+            var bullets = new List<string>();
+            for (var i = 0; i < total; i++)
+            {
+                bullets.Add(i < missing ? "Ansvarade för dagliga uppgifter" : "Ökade resultatet med 20 procent");
+            }
+
+            return Resume(experience: [Experience(bullets: [.. bullets])]);
+        }
+    }
+
     // ── #487 date-MASKING isolation (StripDates): an inline date inside a bullet (not a
     // standalone period line, so it survives DescriptionLines) must not count as a metric.
     // These are the vectors that go RED if ContainsMeasurableDigit degrades to ContainsDigit.
@@ -672,6 +769,27 @@ public class CvReviewEngineTests
             new string(prose.SkipWhile(c => !char.IsDigit(c)).TakeWhile(char.IsDigit).ToArray()),
             System.Globalization.CultureInfo.InvariantCulture);
 
+    // The integer that bears the "%" sign in a rubric prose signal (">50 % ..." → 50), so a signal
+    // whose FIRST number is not the percentage ("0 siffror ... ELLER >50 % ...") is read correctly.
+    private static int PercentInSignal(string prose)
+    {
+        var pct = prose.IndexOf('%', StringComparison.Ordinal);
+        var i = pct - 1;
+        while (i >= 0 && !char.IsDigit(prose[i]))
+        {
+            i--;   // skip the space between the number and the % sign
+        }
+
+        var end = i + 1;
+        while (i >= 0 && char.IsDigit(prose[i]))
+        {
+            i--;   // walk back over the digits
+        }
+
+        return int.Parse(
+            prose.AsSpan(i + 1, end - (i + 1)), provider: System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     // ===============================================================
     // 4. A8 Profiltext — length-based; TextSpan/structural on the profile
     // ===============================================================
@@ -685,6 +803,66 @@ public class CvReviewEngineTests
         var result = await ReviewAsync(resume);
 
         Verdict(result, "A8").Verdict.ShouldBe(CriterionVerdict.Fail);
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldFailA8_WhenProfileExceedsTheWordLimit()
+    {
+        // #489 Warn-where-Fail: rubric atsFailSignal "... ELLER >100 ord ...". An over-long profile
+        // FAILS — pre-fix it was only a Warn, contradicting the versioned rubric.
+        var resume = Resume(profile: string.Join(" ", Enumerable.Repeat("erfarenhet", 101)));
+
+        Verdict(await ReviewAsync(resume), "A8").Verdict.ShouldBe(CriterionVerdict.Fail,
+            ">100 ord är en rubrik-Fail, inte en Warn (#489).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldFailA8_WhenProfileIsABareAdjectiveList()
+    {
+        // #489: rubric atsFailSignal "... ELLER ren adjektivlista ...". A short profile dominated by
+        // curated soft-skill adjectives with no concrete example FAILS — pre-fix such a 3-word
+        // profile PASSED vacuously.
+        var resume = Resume(profile: "Social, noggrann, flexibel, stresstålig.");
+
+        Verdict(await ReviewAsync(resume), "A8").Verdict.ShouldBe(CriterionVerdict.Fail,
+            "En ren adjektivlista av personlighetsadjektiv → A8 Fail (#489).");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldPassA8_WhenAdjectivesSitInARealSummaryWithAConcreteExample()
+    {
+        // The adjective-list Fail must NOT catch a real summary that HAPPENS to use a couple of
+        // soft-skill words but carries a concrete example (the measurable digit guard).
+        var resume = Resume(profile:
+            "Erfaren och social projektledare, noggrann i uppföljning av 12 projekt under 2024.");
+
+        Verdict(await ReviewAsync(resume), "A8").Verdict.ShouldBe(CriterionVerdict.Pass,
+            "Adjektiv i en riktig mening med konkret exempel ska inte flaggas som ren adjektivlista.");
+    }
+
+    [Fact]
+    public async Task ReviewAsync_ShouldPassA8_WhenProfileIsAReasonableSummary()
+    {
+        // A normal 2-sentence summary within the word limit and not an adjective list → Pass.
+        var resume = Resume(profile:
+            "Erfaren backend-utvecklare med 8 års erfarenhet av betalsystem. "
+            + "Levererade 3 plattformsmigrationer under 2024 med hög driftsäkerhet.");
+
+        Verdict(await ReviewAsync(resume), "A8").Verdict.ShouldBe(CriterionVerdict.Pass);
+    }
+
+    [Fact]
+    public async Task ReviewAsync_A8WordLimitShouldMatchTheRubricProse_GoldenDriftGuard()
+    {
+        // Golden drift-guard (#489, parity A7/A1/C3): derive the A8 word limit from the versioned
+        // rubric prose (atsFailSignal ">100 ord") — a profile at the limit Passes, just over Fails.
+        var a8 = RealRubric().Criteria.Single(c => c.Id == "A8");
+        var wordLimit = FirstInt(a8.AtsFailSignal!);   // 100
+
+        Verdict(await ReviewAsync(Resume(profile: string.Join(" ", Enumerable.Repeat("ord", wordLimit)))), "A8")
+            .Verdict.ShouldNotBe(CriterionVerdict.Fail, $"{wordLimit} ord (vid gränsen) → inte Fail.");
+        Verdict(await ReviewAsync(Resume(profile: string.Join(" ", Enumerable.Repeat("ord", wordLimit + 1)))), "A8")
+            .Verdict.ShouldBe(CriterionVerdict.Fail, $"{wordLimit + 1} ord (> gränsen) → Fail.");
     }
 
     // ===============================================================

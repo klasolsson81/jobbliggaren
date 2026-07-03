@@ -108,13 +108,28 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
     {
         var ct = TestContext.Current.CancellationToken;
 
-        // Seed: Identity-user UTAN matchande JobSeeker (orphan från tidigare körning)
+        // Seed: Identity-user UTAN matchande JobSeeker (orphan från tidigare körning).
+        //
+        // #508 grace-fönster: sweepen sopar numera en JobSeeker-lös Identity-user ENDAST
+        // om den är ÄLDRE än 1h-fönstret (en färsk orphan presumeras mid-registrering per
+        // ADR 0024 två-boundary och sopas aldrig). Detta test är regressions-guarden
+        // "åldrade orphans sopas fortfarande" → vi ÅLDRAR därför den seedade orphanen
+        // förbi grace-fönstret. CreatedAt sätts explicit FÖRE CreateAsync: kolumnen är
+        // ValueGeneratedOnAdd (store-default now()), som bara fyller CLR-sentinelen
+        // default(DateTimeOffset) — ett explicit värde insertas verbatim och gör
+        // användaren sweepbar. Åldern mäts mot AccountHardDeleters DI-resolvade
+        // IDateTimeProvider (riktig systemklocka), därför en real-tid-offset.
         var orphanEmail = $"orphan-{Guid.NewGuid():N}@test.local";
         Guid orphanUserId;
         using (var scope = _fixture.Services.CreateScope())
         {
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var user = new ApplicationUser { UserName = orphanEmail, Email = orphanEmail };
+            var user = new ApplicationUser
+            {
+                UserName = orphanEmail,
+                Email = orphanEmail,
+                CreatedAt = DateTimeOffset.UtcNow.AddHours(-2), // äldre än #508 1h-grace → sweepbar
+            };
             var result = await userManager.CreateAsync(user, "OrphanPass123!");
             result.Succeeded.ShouldBeTrue("seed: Identity-user måste skapas");
             orphanUserId = user.Id;
@@ -130,6 +145,124 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             var orphan = await userManager.FindByIdAsync(orphanUserId.ToString());
             orphan.ShouldBeNull("orphan Identity-rad ska rensas av Steg 0");
         }
+    }
+
+    [Fact]
+    public async Task CleanupIdentityOrphans_DoesNotSweepIdentityUserWithinGraceWindow()
+    {
+        // #508 (epik #482 PR-2) — CTO-bunden RED-test. En Identity-user UTAN JobSeeker
+        // som är YNGRE än grace-fönstret (1h) presumeras vara mid-registrering: per
+        // ADR 0024 två-boundary commit:as Identity-raden FÖRE JobSeeker-raden, så en
+        // helt färsk JobSeeker-lös Identity-user är förväntad och transient — den ska
+        // ALDRIG sopas som orphan.
+        //
+        // RÖD mot nuvarande kod: CleanupIdentityOrphansAsync saknar än så länge ålders-
+        // filtret och sopar VARJE JobSeeker-lös Identity-user oavsett ålder → den färska
+        // användaren nedan raderas och FindByIdAsync returnerar null. GRÖN efter att
+        // grace-filtret (CreatedAt <= clock.UtcNow − 1h) landat.
+        var ct = TestContext.Current.CancellationToken;
+
+        // Seed: FÄRSK Identity-user utan JobSeeker. CreatedAt lämnas OSATT ⇒ store-
+        // defaulten now() (ValueGeneratedOnAdd) stämplar en tidpunkt inom grace-fönstret
+        // ⇒ mid-registrering-presumtionen gäller. Distinkt e-post för test-isolering.
+        var freshEmail = $"fresh-orphan-{Guid.NewGuid():N}@test.local";
+        Guid freshUserId;
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = new ApplicationUser { UserName = freshEmail, Email = freshEmail };
+            var result = await userManager.CreateAsync(user, "FreshOrphanPass123!");
+            result.Succeeded.ShouldBeTrue("seed: färsk Identity-user måste skapas");
+            freshUserId = user.Id;
+        }
+
+        // Akt: kör jobbet (Steg 0 orphan-cleanup).
+        await RunJobAsync(DateTimeOffset.UtcNow, ct);
+
+        // Verifiera: den färska användaren finns KVAR.
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var fresh = await userManager.FindByIdAsync(freshUserId.ToString());
+            fresh.ShouldNotBeNull(
+                "Identity-user inom grace-fönstret (mid-registrering, ADR 0024 två-boundary) ska ALDRIG sopas");
+        }
+    }
+
+    [Fact]
+    public async Task CleanupIdentityOrphans_DoesNotDeleteReverseOrphan_AndForwardSweepStillRuns()
+    {
+        // #508 defense-in-depth (non-destruktivt). En REVERSE orphan är en JobSeeker vars
+        // UserId saknar motsvarande Identity-user (ADR 0024 två-boundary-glapp åt andra
+        // hållet). Grace-sweepen DETEKTERAR + LOGGAR (Warning, count-only) sådana rader men
+        // RADERAR dem ALDRIG här — reverse-orphan-radering är en separat concern (#524).
+        //
+        // Vad testet BEVISAR (och namnet speglar): det bindande beteende-kontraktet —
+        // reverse orphan RADERAS ALDRIG, och detektionen STÖR INTE den ordinarie
+        // forward-sweepen. Detektionens LOGG-emission (Warning, count-only) asserteras
+        // medvetet INTE: en ren fångst av ILogger<AccountHardDeleter> hade krävt antingen en
+        // ny testpaketberoende (Microsoft.Extensions.Diagnostics.Testing, §9.2-diskussion) eller
+        // en in-memory ILoggerProvider i den DELADE WorkerTestFixture (fixture-kirurgi som
+        // övriga Worker-tester inte ska bära) — oproportionerligt för en ren synlighetssignal.
+        // Warning-loggen är i stället verifierad via code review (alla tre review-agenter läste
+        // LogReverseOrphansDetected). Ett kast i jobbet fäller testet direkt (klausul (a)).
+        var ct = TestContext.Current.CancellationToken;
+
+        // Seed A — REVERSE orphan: en JobSeeker med slumpad UserId (ingen Identity-user),
+        // INTE soft-deletad (så hard-delete-steget, som bara plockar mogna soft-deletade
+        // konton, aldrig rör den).
+        var reverseOrphanUserId = Guid.NewGuid();
+        JobSeekerId reverseOrphanSeekerId;
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var clock = new FixedClock(DateTimeOffset.UtcNow.AddDays(-1));
+            var seeker = JobSeeker.Register(reverseOrphanUserId, "Reverse Orphan", clock).Value;
+            db.JobSeekers.Add(seeker);
+            await db.SaveChangesAsync(ct);
+            reverseOrphanSeekerId = seeker.Id;
+        }
+
+        // Seed B — legit ÅLDRAD forward orphan: Identity-user utan JobSeeker, CreatedAt 2h
+        // bakåt (äldre än 1h-grace ⇒ sweepbar). CreatedAt sätts FÖRE CreateAsync
+        // (ValueGeneratedOnAdd insertar värdet verbatim; real-tid-offset mot AccountHardDeleters
+        // DI-resolvade systemklocka).
+        var forwardEmail = $"fwd-orphan-{Guid.NewGuid():N}@test.local";
+        Guid forwardUserId;
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = new ApplicationUser
+            {
+                UserName = forwardEmail,
+                Email = forwardEmail,
+                CreatedAt = DateTimeOffset.UtcNow.AddHours(-2), // äldre än #508 1h-grace → sweepbar
+            };
+            var result = await userManager.CreateAsync(user, "FwdOrphanPass123!");
+            result.Succeeded.ShouldBeTrue("seed: åldrad forward-orphan Identity-user måste skapas");
+            forwardUserId = user.Id;
+        }
+
+        // Akt: (a) inget kast får ske — ett kast fäller testet via oavlyssnad exception.
+        await RunJobAsync(DateTimeOffset.UtcNow, ct);
+
+        using var verifyScope = _fixture.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var verifyUserManager = verifyScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        // (b) reverse-orphan JobSeeker finns KVAR — reverse orphans är LOG-ONLY här.
+        var reverseSeekerAfter = await verifyDb.JobSeekers
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(js => js.Id == reverseOrphanSeekerId, ct);
+        reverseSeekerAfter.ShouldNotBeNull(
+            "reverse orphan (JobSeeker utan Identity-user) ska DETEKTERAS men ALDRIG raderas här (log-only, #524)");
+
+        // (c) den åldrade forward-orphanen sopades — reverse-orphan-detektionen får inte
+        // störa den ordinarie forward-sweepen.
+        var forwardAfter = await verifyUserManager.FindByIdAsync(forwardUserId.ToString());
+        forwardAfter.ShouldBeNull(
+            "åldrad forward orphan ska fortfarande sopas — reverse-orphan-detektion får inte störa forward-sweepen");
     }
 
     [Fact]

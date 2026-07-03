@@ -55,10 +55,18 @@ out-of-band om de vill återställa.
 
 Hangfire-jobb kör 04:00 UTC daily. Tre steg:
 
-**Steg 0 — Orphan-cleanup:**
+**Steg 0 — Orphan-cleanup (#508 grace-fönster + reverse-orphan-detektor):**
 - Hitta `ApplicationUser` utan matchande `JobSeeker` (varken aktiv eller soft-deletad)
-- För varje orphan: `UserManager.DeleteAsync`
+- **Grace-fönster (1 h):** sopa ENDAST en JobSeeker-lös Identity-user som är ÄLDRE än
+  `now − 1h` (`ApplicationUser.CreatedAt`). En yngre presumeras vara mid-registrering —
+  registrering commit:ar Identity-raden FÖRE JobSeeker-raden (ADR 0024 två-boundary, med en
+  Redis-roundtrip i fönstret), så en helt färsk JobSeeker-lös Identity-user är förväntad och
+  transient. Utan fönstret raderades ett live-konto mitt i registrering permanent (#508 TOCTOU).
+- För varje mogen orphan: `UserManager.DeleteAsync`
 - Plockar upp Identity-rader som hängde kvar från tidigare körning där Steg 2 h failade
+- **Reverse-orphan-detektor (defense-in-depth, log-only):** en `JobSeeker` vars `UserId` saknar
+  Identity-user (spegelbilden av samma race — ett utelåst konto som ej kan utöva Art. 17) LOGGAS
+  (Warning, count-only) men RADERAS ALDRIG här. Remediation (åter-länkning/radering) ägs av #524.
 
 **Steg 1 — Hämta mogna konton:**
 - `JobSeeker WHERE deleted_at < (UTC.Now - 30 days)` (`IgnoreQueryFilters`)
@@ -96,6 +104,13 @@ HardDeleteAccountsJob: hittade {N} konton mogna för hard-delete (cutoff YYYY-MM
 HardDeleteAccountsJob: klart — {N} konton hard-deletade
 ```
 
+Vid reverse-orphan (defense-in-depth, `AccountHardDeleter`, EventId 2503, Warning):
+
+```
+CleanupIdentityOrphansAsync: {N} reverse-orphan JobSeeker(s) saknar Identity-user (utelåst
+konto, kan ej utöva Art. 17) — loggas för utredning, raderas ej här (#508/#524)
+```
+
 ### 3.3 Verifiera flöde-state
 
 ```sql
@@ -113,11 +128,24 @@ FROM audit_log
 WHERE user_id IS NULL AND aggregate_type = 'JobSeeker';
 
 -- Identity-orphans (ApplicationUser utan JobSeeker — bör vara 0)
+-- OBS #508 grace-fönster: en rad < 1h gammal (created_at) är förväntad mid-registrering,
+-- INTE en orphan. Filtrera bort den för att matcha vad sweepen faktiskt agerar på:
 -- KÖR i AppIdentityDbContext-schemat:
-SELECT u.id, u.user_name
+SELECT u.id, u.user_name, u.created_at
 FROM identity.asp_net_users u
 LEFT JOIN public.job_seekers js ON js.user_id = u.id
-WHERE js.id IS NULL;
+WHERE js.id IS NULL
+  AND u.created_at <= NOW() - INTERVAL '1 hour';
+
+-- Reverse-orphans (#508): JobSeeker vars UserId saknar Identity-user (utelåst konto).
+-- Motsvarar Warning-loggens count (EventId 2503). En LITEN count kan vara TRANSIENT: en
+-- samtidig registrering som racear sweepens två snapshot-läsningar ger en spurios rad utan
+-- att något är fel → UTRED, behandla inte som incident. En ihållande/växande count = en
+-- verklig lucka (#524).
+SELECT js.id, js.user_id
+FROM public.job_seekers js
+LEFT JOIN identity.asp_net_users u ON u.id = js.user_id
+WHERE u.id IS NULL;
 ```
 
 ---

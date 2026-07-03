@@ -32,7 +32,7 @@ internal sealed class PersonnummerStripTransform : ICvTransform
             replacement: null,
             operation: new StructuralOperation(
                 StructuralTransformKind.RemovePersonnummer, $"{outcome.Count} personnummer-förekomst(er)"),
-            rationale: "Ta bort personnummer ur CV:t (GDPR — Jobbliggaren ber dig aldrig lägga in det).",
+            rationale: "Ta bort personnummer ur CV:t (GDPR: Jobbliggaren ber dig aldrig lägga in det).",
             provenance: new StructuralTransformProvenance(StructuralTransformKind.RemovePersonnummer),
             pureTransform: null);
     }

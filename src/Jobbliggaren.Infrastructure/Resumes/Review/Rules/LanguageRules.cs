@@ -30,13 +30,13 @@ internal sealed partial class C2ToneRule : ICriterionRule
         if (shouting.Success)
         {
             return CvCriterionVerdict.Assessed("C2", category, CriterionVerdict.Warn,
-                ReviewText.Cite(ReviewText.Span(prose, shouting.Value, "versalt 'skrik' — håll en saklig, neutral ton")));
+                ReviewText.Cite(ReviewText.Span(prose, shouting.Value, "versalt 'skrik': håll en saklig, neutral ton")));
         }
 
         if (exclamations >= 2)
         {
             return CvCriterionVerdict.Assessed("C2", category, CriterionVerdict.Warn,
-                ReviewText.Cite(ReviewText.Structural($"{exclamations} utropstecken — håll en saklig, neutral ton.")));
+                ReviewText.Cite(ReviewText.Structural($"{exclamations} utropstecken: håll en saklig, neutral ton.")));
         }
 
         return CvCriterionVerdict.Assessed("C2", category, CriterionVerdict.Pass,
@@ -146,7 +146,7 @@ internal sealed partial class C4PerspectiveRule : ICriterionRule
         if (match.Success)
         {
             return CvCriterionVerdict.Assessed("C4", category, CriterionVerdict.Warn,
-                ReviewText.Cite(ReviewText.Span(prose, match.Value, "tredje person — använd konsekvent perspektiv (svensk standard: utan pronomen)")));
+                ReviewText.Cite(ReviewText.Span(prose, match.Value, "tredje person: använd konsekvent perspektiv (svensk standard: utan pronomen)")));
         }
 
         // Pass is scoped to what C4 actually checks — third-person PRONOUNS. Name-as-subject
@@ -193,7 +193,7 @@ internal sealed partial class C6AbbreviationsRule : ICriterionRule
         {
             return CvCriterionVerdict.Assessed("C6", category, CriterionVerdict.Warn,
                 ReviewText.Cite(ReviewText.Span(prose, acronyms[0],
-                    $"{acronyms.Count} förkortningar utan förklaring — skriv ut första gången")));
+                    $"{acronyms.Count} förkortningar utan förklaring: skriv ut första gången")));
         }
 
         return CvCriterionVerdict.Assessed("C6", category, CriterionVerdict.Pass,

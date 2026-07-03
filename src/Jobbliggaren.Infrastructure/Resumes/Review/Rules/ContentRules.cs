@@ -156,7 +156,7 @@ internal sealed class A4GapsRule : ICriterionRule
         if (dated.Count == 0)
         {
             return CvCriterionVerdict.NotAssessed(
-                "A4", category, "Perioderna kunde inte tolkas till datum — tidsluckor bedöms ej v1.");
+                "A4", category, "Perioderna kunde inte tolkas till datum. Tidsluckor bedöms ej v1.");
         }
 
         if (dated.Count == 1)

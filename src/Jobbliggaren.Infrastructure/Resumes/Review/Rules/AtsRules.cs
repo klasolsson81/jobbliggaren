@@ -23,7 +23,7 @@ internal sealed class D1FileFormatRule : ICriterionRule
             ParseFallbackReason.ScannedImageNoText => CvCriterionVerdict.Assessed(
                 "D1", category, CriterionVerdict.Fail,
                 ReviewText.Cite(ReviewText.Structural(
-                    "Inscannad bild-PDF utan textlager — texten kan inte extraheras av ett ATS."))),
+                    "Inscannad bild-PDF utan textlager: texten kan inte extraheras av ett ATS."))),
 
             ParseFallbackReason.ExtractionFailed or ParseFallbackReason.EncodingSuspect =>
                 CvCriterionVerdict.Assessed("D1", category, CriterionVerdict.Warn,
@@ -32,7 +32,7 @@ internal sealed class D1FileFormatRule : ICriterionRule
 
             _ => CvCriterionVerdict.Assessed("D1", category, CriterionVerdict.Pass,
                 ReviewText.Cite(ReviewText.Structural(
-                    $"Textbaserad fil ({context.Resume.SourceContentType}) — texten kan extraheras."))),
+                    $"Textbaserad fil ({context.Resume.SourceContentType}): texten kan extraheras."))),
         };
     }
 }

@@ -62,6 +62,31 @@ public class ClicheLexiconTests
     }
 
     [Fact]
+    public void GetClicheList_ShouldHaveNoEmDashInRenderedFields_WhenCalled()
+    {
+        // #579 (epic #478 follow-track a): the lexicon's RENDERED fields must not carry an em-dash
+        // (U+2014), forbidden in UI copy (CLAUDE.md §5). Rendered = `Why` (ClicheTransform surfaces it
+        // as the improvement `ProposedChange.Rationale` → CvImprovementDto → SuggestCvImprovementsQuery)
+        // AND a present `DropInReplacement` (applied verbatim as the replacement `After`,
+        // ClicheTransform.cs). All drop-ins are null today (see below), so that arm is a forward-safe
+        // guarantee. This is the KB-DATA counterpart to the C# source-scan in
+        // EmDashInReviewCopyGuardTests, pinned HERE at the lexicon's own invariant home because a
+        // source-scan cannot know KB projection semantics. `Guidance` is NOT rendered (surfaced
+        // nowhere), so an em-dash there is allowed and deliberately not asserted.
+        var offending = LoadList().Entries
+            .Where(e => e.Why.Contains('—')
+                        || (e.DropInReplacement is not null && e.DropInReplacement.Contains('—')))
+            .Select(e => e.Phrase)
+            .ToList();
+
+        offending.ShouldBeEmpty(
+            "Följande cliché-entries har em-dash (U+2014) i ett RENDERAT fält (`why` visas som " +
+            "improvement-rationale; `dropInReplacement` appliceras verbatim) — förbjudet i UI-copy " +
+            "(CLAUDE.md §5). Ersätt med kolon/komma/punkt. (`guidance` renderas ej och kontrolleras " +
+            "avsiktligt inte.) Träffar: " + string.Join(", ", offending));
+    }
+
+    [Fact]
     public void GetClicheList_ShouldHaveUniquePhrases_WhenCalled()
     {
         // No duplicate phrase (case-insensitive) — a duplicate would double-flag the same span and

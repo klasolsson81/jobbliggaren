@@ -27,7 +27,7 @@ internal static class ReviewEvidenceLabels
         ParsedSectionKind.Skills => "kompetenser",
         ParsedSectionKind.Languages => "språk",
         _ => throw new ArgumentOutOfRangeException(
-            nameof(kind), kind, "New ParsedSectionKind has no Swedish label — add it to ReviewEvidenceLabels."),
+            nameof(kind), kind, "New ParsedSectionKind has no Swedish label. Add it to ReviewEvidenceLabels."),
     };
 
     /// <summary>The Swedish reason for a degraded/uncertain parse (D1) — so the evidence explains
@@ -40,6 +40,6 @@ internal static class ReviewEvidenceLabels
         ParseFallbackReason.EncodingSuspect => "teckenkodningen ser felaktig ut",
         ParseFallbackReason.ScannedImageNoText => "inscannad bild utan textlager",
         _ => throw new ArgumentOutOfRangeException(
-            nameof(reason), reason, "New ParseFallbackReason has no Swedish label — add it to ReviewEvidenceLabels."),
+            nameof(reason), reason, "New ParseFallbackReason has no Swedish label. Add it to ReviewEvidenceLabels."),
     };
 }

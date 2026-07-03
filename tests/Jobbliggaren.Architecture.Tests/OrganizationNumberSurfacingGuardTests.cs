@@ -57,6 +57,11 @@ public class OrganizationNumberSurfacingGuardTests
         // raw org.nr from the job_ads shadow column server-side to GROUP BY (masked + flagged before
         // it leaves the handler; never logged).
         "src/Jobbliggaren.Application/Applications/Queries/GetEmployerApplicationHistory/GetEmployerApplicationHistoryQueryHandler.cs",
+        // #446 (ADR 0087 D8 / ADR 0090 D1) — the /jobb card count overlay reads the page ads' raw
+        // org.nr (via IJobAdEmployerReader) + the caller's applications' org.nr server-side, purely as
+        // the in-memory GROUP key. It is NEVER surfaced (the DTO is Guid -> int, no org.nr member) nor
+        // logged — this scan pins that.
+        "src/Jobbliggaren.Application/Applications/Queries/GetEmployerApplicationCountBatch/GetEmployerApplicationCountBatchQueryHandler.cs",
         // #454 (ADR 0088) — the lookup handler reads the raw org.nr (VO + registry entry) into
         // scope; the cache decorator + providers see the raw value inside Infrastructure.
         "src/Jobbliggaren.Application/Companies/Queries/LookupCompany/LookupCompanyQueryHandler.cs",

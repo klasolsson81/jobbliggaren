@@ -207,6 +207,11 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # #549 WS5: typography/color literal guard on globals.css - zero
+      # hardcoded font-size/color outside token definitions + guard-allow.
+      - name: CSS guard
+        run: pnpm run guard:css
+
       - name: Typecheck
         run: pnpm exec tsc --noEmit
 

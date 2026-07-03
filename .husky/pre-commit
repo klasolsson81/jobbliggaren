@@ -39,8 +39,8 @@ fi
 
 # Web-gates (aktiveras när web/jobbliggaren-web/ finns OCH web-filer är stage:ade)
 if [ -d "$WEB_DIR" ] && [ -n "$WEB_CHANGED" ]; then
-    echo "[pre-commit] Web lint + typecheck..."
-    (cd "$WEB_DIR" && pnpm lint && pnpm tsc --noEmit) || exit 1
+    echo "[pre-commit] Web lint + CSS-guard + typecheck..."
+    (cd "$WEB_DIR" && pnpm lint && pnpm run guard:css && pnpm tsc --noEmit) || exit 1
 elif [ -d "$WEB_DIR" ]; then
     echo "[pre-commit] Inga web-filer stage:ade — hoppar över web-gates."
 fi

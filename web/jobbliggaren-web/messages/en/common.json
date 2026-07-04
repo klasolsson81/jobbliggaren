@@ -4,6 +4,7 @@
     "oversikt": "Overview",
     "jobb": "Jobs",
     "ansokningar": "My applications",
+    "foretag": "Companies",
     "cv": "CV",
     "brandHome": "Jobbliggaren, start page"
   },
@@ -25,7 +26,6 @@
     "senasteSokningar": "Recent searches",
     "sparadeAnnonser": "Saved job ads",
     "minaMatchningar": "My matches",
-    "bevakadeForetag": "Followed companies",
     "minaCv": "My CVs",
     "granskning": "Audit log",
     "loggaUt": "Log out"

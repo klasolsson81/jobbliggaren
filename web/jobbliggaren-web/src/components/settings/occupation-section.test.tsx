@@ -5,13 +5,11 @@ import userEvent from "@testing-library/user-event";
 import type { TaxonomyOccupationField } from "@/lib/dto/taxonomy";
 import type { CvSuggestResult } from "@/lib/actions/match-preferences";
 
-const { deriveMock, cvSuggestMock, parsedSuggestMock } = vi.hoisted(() => ({
-  deriveMock: vi.fn(),
+const { cvSuggestMock, parsedSuggestMock } = vi.hoisted(() => ({
   cvSuggestMock: vi.fn(),
   parsedSuggestMock: vi.fn(),
 }));
 vi.mock("@/lib/actions/match-preferences", () => ({
-  deriveOccupationsAction: deriveMock,
   suggestOccupationsFromCvAction: cvSuggestMock,
   suggestOccupationsFromParsedResumeAction: parsedSuggestMock,
 }));
@@ -79,7 +77,6 @@ function Host({
 }
 
 beforeEach(() => {
-  deriveMock.mockReset();
   cvSuggestMock.mockReset();
   parsedSuggestMock.mockReset();
   cvSuggestMock.mockResolvedValue({ kind: "noCv" } satisfies CvSuggestResult);
@@ -111,7 +108,6 @@ describe("OccupationSection — yrkestitel-fältet borttaget", () => {
       screen.queryByLabelText("Föreslå utifrån en yrkestitel")
     ).toBeNull();
     expect(screen.queryByRole("button", { name: "Föreslå" })).toBeNull();
-    expect(deriveMock).not.toHaveBeenCalled();
   });
 });
 

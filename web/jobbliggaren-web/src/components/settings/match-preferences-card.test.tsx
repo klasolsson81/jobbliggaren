@@ -13,14 +13,12 @@ import type {
 // SkillSection som refererar dem.
 const {
   updateMock,
-  deriveMock,
   cvSuggestMock,
   parsedSuggestMock,
   skillSearchMock,
   skillSuggestMock,
 } = vi.hoisted(() => ({
   updateMock: vi.fn(),
-  deriveMock: vi.fn(),
   cvSuggestMock: vi.fn(),
   parsedSuggestMock: vi.fn(),
   skillSearchMock: vi.fn(),
@@ -28,7 +26,6 @@ const {
 }));
 vi.mock("@/lib/actions/match-preferences", () => ({
   updateMatchPreferencesAction: updateMock,
-  deriveOccupationsAction: deriveMock,
   suggestOccupationsFromCvAction: cvSuggestMock,
   suggestOccupationsFromParsedResumeAction: parsedSuggestMock,
   searchSkillsAction: skillSearchMock,
@@ -94,13 +91,11 @@ function renderCard(
 
 beforeEach(() => {
   updateMock.mockReset();
-  deriveMock.mockReset();
   cvSuggestMock.mockReset();
   parsedSuggestMock.mockReset();
   skillSearchMock.mockReset();
   skillSuggestMock.mockReset();
   updateMock.mockResolvedValue({ success: true });
-  deriveMock.mockResolvedValue({ success: true, candidates: [] });
   cvSuggestMock.mockResolvedValue({ kind: "noCv" });
   parsedSuggestMock.mockResolvedValue({ kind: "noCv" });
   skillSearchMock.mockResolvedValue({ success: true, options: [] });

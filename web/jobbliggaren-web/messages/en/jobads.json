@@ -161,7 +161,9 @@
       "description": "Ad description",
       "openAd": "Open the ad",
       "appliedNotice": "You have marked this ad as applied. See it in",
-      "appliedNoticeLink": "My applications"
+      "appliedNoticeLink": "My applications",
+      "previousApplications": "You have {count, plural, one {# previous application} other {# previous applications}} to this employer.",
+      "previousApplicationsLink": "View application history"
     },
     "match": {
       "heading": "Match against your profile",

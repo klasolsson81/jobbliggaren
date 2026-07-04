@@ -6,6 +6,7 @@ import { isJobAdSaved } from "@/lib/api/saved-job-ads";
 import { hasAppliedJobAd } from "@/lib/api/job-ad-status";
 import { getCompanyWatchStatus, markFollowedCompanyAdSeen } from "@/lib/api/company-follows";
 import { getJobAdMatchDetail } from "@/lib/api/job-ad-match";
+import { getEmployerApplicationCounts } from "@/lib/api/employer-application-counts";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { buildOrtGranularityMap } from "@/lib/job-ads/ort-granularity";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
@@ -49,16 +50,22 @@ export default async function JobbDetailPage({
       // Promise.all undviker waterfall; båda misslyckas civilt (returnerar false).
       // F4-16 — matchnings-detalj i samma Promise.all (degraderar till null =
       // ingen sektion).
-      const [initialSaved, initialApplied, followState, match] = await Promise.all([
-        isJobAdSaved(id),
-        hasAppliedJobAd(id),
-        getCompanyWatchStatus(id),
-        getJobAdMatchDetail(id, includeRelated),
-        // #453 (cross-channel dedup) — opening the ad in-app marks any Pending follow-hit for it seen,
-        // so the follow-digest suppresses the redundant email. Fire-and-forget in the fan-out (parallel,
-        // no hot-path latency; never throws; SeenAt is not rendered so no read-your-write ordering).
-        markFollowedCompanyAdSeen(id),
-      ]);
+      const [initialSaved, initialApplied, followState, match, employerCounts] =
+        await Promise.all([
+          isJobAdSaved(id),
+          hasAppliedJobAd(id),
+          getCompanyWatchStatus(id),
+          getJobAdMatchDetail(id, includeRelated),
+          // #593 (#446-uppföljning) — the caller's prior-application count for THIS ad's employer, so the
+          // detail view can link to /foretag#ansokningshistorik. Positive-only; anon/error → empty.
+          getEmployerApplicationCounts([id]),
+          // #453 (cross-channel dedup) — opening the ad in-app marks any Pending follow-hit for it seen,
+          // so the follow-digest suppresses the redundant email. Fire-and-forget in the fan-out (parallel,
+          // no hot-path latency; never throws; SeenAt is not rendered so no read-your-write ordering).
+          markFollowedCompanyAdSeen(id),
+        ]);
+      // Positive-only map: an absent key means zero (the detail view renders no history line).
+      const previousApplicationCount = employerCounts.countsByJobAdId[id];
       // Spår 3 PR-D — taxonomin behövs BARA när det finns en match (annars
       // byggs ingen granularitets-karta). En inloggad användare utan match
       // ska inte betala för round-trippen (cleanup-pass: gate guest-prefetch).
@@ -92,6 +99,7 @@ export default async function JobbDetailPage({
               followState={followState}
               match={match}
               ortGranularityByLabel={ortGranularityByLabel}
+              previousApplicationCount={previousApplicationCount}
             />
           </div>
         </div>

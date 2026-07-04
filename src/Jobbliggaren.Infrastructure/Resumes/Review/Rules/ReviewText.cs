@@ -47,11 +47,15 @@ internal static class ReviewText
             ? $"Arbetslivserfarenheten saknar beskrivande punkter att bedöma {subject} på."
             : $"Ingen arbetslivserfarenhet att bedöma {subject} på.";
 
-    // The description lines of one experience entry: its RawText lines, EXCLUDING the header
-    // line (title/organisation — always the first line the segmenter emits) and any line that
-    // is purely the period or the organisation on its own line (the "Title\nCompany\nDates"
-    // layout). Reuses the already-structured ParsedExperience fields rather than re-guessing.
-    private static IEnumerable<string> DescriptionLines(ParsedExperience experience)
+    /// <summary>
+    /// The description lines of one experience entry: its RawText lines, EXCLUDING the header
+    /// line (title/organisation — always the first line the segmenter emits) and any line that
+    /// is purely the period or the organisation on its own line (the "Title\nCompany\nDates"
+    /// layout). Reuses the already-structured ParsedExperience fields rather than re-guessing.
+    /// Shared with the improve engine's <c>WeakVerbTransform</c> so the review (A2) and improve
+    /// sides score the SAME bullet unit (#487 review side, #534 improve side).
+    /// </summary>
+    internal static IEnumerable<string> DescriptionLines(ParsedExperience experience)
     {
         var lines = experience.RawText
             .Split('\n')

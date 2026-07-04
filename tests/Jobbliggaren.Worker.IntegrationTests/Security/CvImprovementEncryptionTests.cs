@@ -79,7 +79,10 @@ public class CvImprovementEncryptionTests(WorkerTestFixture fixture)
             [
                 new ParsedExperience(
                     "Backend-utvecklare", "Acme AB", "01/2022 – 06/2024",
-                    $"{SeededWeakVerb} ett område utan tydligt resultat."),
+                    // #534: RawText is the realistic segmenter block — header line + period line +
+                    // description bullet. WeakVerbTransform scores the DESCRIPTION line (the opener),
+                    // not the header, so the weak verb must live on its own line below the header.
+                    $"Backend-utvecklare — Acme AB\n01/2022 – 06/2024\n{SeededWeakVerb} ett område utan tydligt resultat."),
             ],
             education: [new ParsedEducation("KTH", "Civilingenjör", "2016–2021", "KTH 2016–2021")],
             skills: ["C#", "PostgreSQL"],

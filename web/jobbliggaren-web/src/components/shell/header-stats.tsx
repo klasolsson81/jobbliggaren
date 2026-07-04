@@ -116,6 +116,7 @@ export function HeaderStats({
   return (
     <div
       className="jp-header-stats"
+      role="group"
       aria-label={t("header.statsAriaLabel")}
     >
       <div className="jp-header-stats__item">

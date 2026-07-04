@@ -34,6 +34,16 @@ describe("HeaderStats (ADR 0064 — inloggad live-stats + delta)", () => {
     expect(screen.queryByText(/^\+\d+$/)).not.toBeInTheDocument();
   });
 
+  it("names the live-stats cluster via role=group (not aria-label on a role=generic div) — #609", () => {
+    render(<HeaderStats initialStats={INITIAL} />);
+    // `aria-label` on a bare `<div>` lands on role=generic (name-from-author
+    // prohibited). `role="group"` makes the statsAriaLabel reliably announced.
+    // Bites on revert: without the role the div is role=generic and getByRole throws.
+    expect(
+      screen.getByRole("group", { name: "Liveräkning från Platsbanken" }),
+    ).toBeInTheDocument();
+  });
+
   it("visar +N delta när polling ger högre newToday", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(

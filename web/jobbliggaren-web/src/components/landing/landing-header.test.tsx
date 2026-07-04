@@ -54,4 +54,15 @@ describe("LandingHeader (LP-4, #257)", () => {
       screen.queryByRole("group", { name: /Språk|Language/i }),
     ).not.toBeInTheDocument();
   });
+
+  it("names the live-stats cluster via role=group (not aria-label on a role=generic div) — #609", () => {
+    render(<LandingHeader stats={STATS_MOCK} />);
+    // A bare `aria-label` on a `<div>` lands on role=generic, where ARIA-in-HTML
+    // prohibits name-from-author (SR support is inconsistent). `role="group"`
+    // supports naming, so the stats-group label is reliably announced. Bites on
+    // revert: without the role the div is role=generic and getByRole("group") throws.
+    expect(
+      screen.getByRole("group", { name: "Liveräkning från Platsbanken" }),
+    ).toBeInTheDocument();
+  });
 });

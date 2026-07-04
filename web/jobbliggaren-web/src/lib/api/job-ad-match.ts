@@ -1,6 +1,6 @@
 import "server-only";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   jobAdMatchBatchSchema,
   jobAdMatchDetailSchema,
@@ -9,13 +9,6 @@ import {
 } from "@/lib/dto/job-ad-match";
 
 const EMPTY_BATCH: JobAdMatchBatch = { entries: {} };
-
-function authHeaders(sessionId: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${sessionId}`,
-    "Content-Type": "application/json",
-  };
-}
 
 /**
  * F4-13 (ADR 0076) — batch graderade match-taggar för `/jobb`-listan. Speglar
@@ -42,11 +35,9 @@ export async function getJobAdMatchTags(
   if (!sessionId) return EMPTY_BATCH;
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/me/job-ad-match-tags`, {
+    const res = await authedFetch(sessionId, "/api/v1/me/job-ad-match-tags", {
       method: "POST",
-      headers: authHeaders(sessionId),
       body: JSON.stringify({ jobAdIds, includeRelated }),
-      cache: "no-store",
     });
     if (!res.ok) return EMPTY_BATCH;
     const data: unknown = await res.json();
@@ -81,12 +72,9 @@ export async function getJobAdMatchDetail(
   if (!sessionId) return null;
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/me/job-ad-match-tags/${jobAdId}?includeRelated=${includeRelated}`,
-      {
-        headers: authHeaders(sessionId),
-        cache: "no-store",
-      }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/me/job-ad-match-tags/${jobAdId}?includeRelated=${includeRelated}`
     );
     if (!res.ok) return null;
     const data: unknown = await res.json();

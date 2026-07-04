@@ -220,7 +220,7 @@ public class AdminRedactRecruiterPiiTests(ApiFactory factory)
         await userManager.AddToRoleAsync(user, Roles.Admin);
 
         var sessionStore = scope.ServiceProvider.GetRequiredService<ISessionStore>();
-        var newSession = await sessionStore.CreateAsync(userId, ct);
+        var newSession = await sessionStore.CreateAsync(userId, SessionLifetime.Legacy, ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", newSession.Id.Reveal());
 
         return client;

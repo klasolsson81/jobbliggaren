@@ -1,19 +1,12 @@
 import "server-only";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   listRecentSearchesResultSchema,
   type ListRecentSearchesResult,
 } from "@/lib/dto/recent-searches";
 import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
 import { isValidId } from "@/lib/validation/guid";
-
-function authHeaders(sessionId: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${sessionId}`,
-    "Content-Type": "application/json",
-  };
-}
 
 /**
  * Klient-side timeout för list-anropet. ADR 0060 Beslut 4 accepterar N+1
@@ -65,15 +58,13 @@ export async function getRecentSearches(
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
 
-  const url = `${env.BACKEND_URL}/api/v1/me/recent-searches?includeCount=${includeCount}`;
+  const path = `/api/v1/me/recent-searches?includeCount=${includeCount}`;
   const timeoutMs = includeCount
     ? LIST_TIMEOUT_WITH_COUNT_MS
     : LIST_TIMEOUT_COMPACT_MS;
 
   try {
-    const res = await fetch(url, {
-      headers: authHeaders(sessionId),
-      cache: "no-store",
+    const res = await authedFetch(sessionId, path, {
       signal: AbortSignal.timeout(timeoutMs),
     });
     return await responseToResult(
@@ -100,9 +91,10 @@ export async function deleteRecentSearch(
   if (!isValidId(id)) return { kind: "notFound" };
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/me/recent-searches/${encodeURIComponent(id)}`,
-      { method: "DELETE", headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/me/recent-searches/${encodeURIComponent(id)}`,
+      { method: "DELETE" }
     );
     if (res.status === 204) return { kind: "ok", data: undefined };
     if (res.status === 401) return { kind: "unauthorized" };

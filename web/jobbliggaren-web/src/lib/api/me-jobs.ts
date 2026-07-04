@@ -1,12 +1,8 @@
 import "server-only";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import { jobsWatermarkSchema, type JobsWatermark } from "@/lib/dto/me-jobs";
 import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
-
-function authHeaders(sessionId: string): HeadersInit {
-  return { Authorization: `Bearer ${sessionId}` };
-}
 
 /**
  * #293 / #306 (ADR 0042 Beslut E-amendment 2026-06-28) — användarens
@@ -24,10 +20,7 @@ export async function getJobsWatermark(): Promise<ApiResult<JobsWatermark>> {
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/me/jobs/watermark`, {
-      headers: authHeaders(sessionId),
-      cache: "no-store",
-    });
+    const res = await authedFetch(sessionId, "/api/v1/me/jobs/watermark");
     return await responseToResult(
       res,
       jobsWatermarkSchema,
@@ -55,10 +48,8 @@ export async function markJobsSeen(): Promise<ApiResult<void>> {
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/me/jobs/seen`, {
+    const res = await authedFetch(sessionId, "/api/v1/me/jobs/seen", {
       method: "POST",
-      headers: authHeaders(sessionId),
-      cache: "no-store",
     });
     if (res.status === 204) return { kind: "ok", data: undefined };
     if (res.status === 401) return { kind: "unauthorized" };

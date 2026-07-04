@@ -1031,14 +1031,25 @@ public static class DependencyInjection
         services
             .AddIdentity<ApplicationUser, IdentityRole<Guid>>(opts =>
             {
-                // NIST SP 800-63B: längd är primärt skydd, komplexitet sekundärt.
-                // PwnedPasswords-integration planeras för Fas 1 (MAJOR-1, security-audit 2026-04-20).
+                // NIST SP 800-63B: length is the primary defense, complexity secondary.
+                // PwnedPasswords integration (breach-corpus check on registration/change)
+                // deferred to #616 (sibling to epic #481) — an external k-anonymity
+                // integration with its own GDPR-egress + security gate (senior-cto-advisor #503 G4/SoC).
                 opts.Password.RequiredLength = 12;
                 opts.Password.RequireNonAlphanumeric = false;
                 opts.Password.RequireDigit = false;
                 opts.Password.RequireUppercase = false;
                 opts.Password.RequireLowercase = false;
                 opts.User.RequireUniqueEmail = true;
+
+                // #503 (OWASP A07 / NIST SP 800-63B §5.2.2): per-account anti-automation on
+                // login. ValidateCredentialsAsync (UserAccountService) counts failed attempts
+                // via AccessFailedAsync and short-circuits locked accounts via IsLockedOutAsync.
+                // Temporary, auto-expiring lockout (avoid self-DoS): 5 attempts -> 15 min, on
+                // top of the per-IP AuthWrite throttle (20/min).
+                opts.Lockout.MaxFailedAccessAttempts = 5;
+                opts.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+                opts.Lockout.AllowedForNewUsers = true;
             })
             .AddEntityFrameworkStores<AppIdentityDbContext>()
             .AddDefaultTokenProviders();

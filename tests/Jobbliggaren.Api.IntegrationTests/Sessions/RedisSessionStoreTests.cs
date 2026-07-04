@@ -39,7 +39,7 @@ public class RedisSessionStoreTests : IAsyncLifetime
             cache,
             _mux,
             _time,
-            Options.Create(new SessionStoreOptions { Ttl = TimeSpan.FromDays(14) }));
+            Options.Create(new SessionStoreOptions { Legacy = new SessionLifetimeProfile { SlidingTtl = TimeSpan.FromDays(14) } }));
     }
 
     public async ValueTask DisposeAsync()
@@ -56,14 +56,14 @@ public class RedisSessionStoreTests : IAsyncLifetime
     public async Task CreateAsync_ShouldReturnSessionWithMatchingUserId_WhenCalled()
     {
         var userId = Guid.NewGuid();
-        var session = await _store.CreateAsync(userId, TestContext.Current.CancellationToken);
+        var session = await _store.CreateAsync(userId, SessionLifetime.Legacy, TestContext.Current.CancellationToken);
         session.UserId.ShouldBe(userId);
     }
 
     [Fact]
     public async Task CreateAsync_ShouldReturnSessionWithNonEmptyId_WhenCalled()
     {
-        var session = await _store.CreateAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
+        var session = await _store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, TestContext.Current.CancellationToken);
         session.Id.Reveal().ShouldNotBeNullOrEmpty();
     }
 
@@ -71,15 +71,15 @@ public class RedisSessionStoreTests : IAsyncLifetime
     public async Task CreateAsync_ShouldReturnUniqueIds_WhenCalledTwice()
     {
         var ct = TestContext.Current.CancellationToken;
-        var s1 = await _store.CreateAsync(Guid.NewGuid(), ct);
-        var s2 = await _store.CreateAsync(Guid.NewGuid(), ct);
+        var s1 = await _store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
+        var s2 = await _store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
         s1.Id.Reveal().ShouldNotBe(s2.Id.Reveal());
     }
 
     [Fact]
     public async Task CreateAsync_ShouldSetExpiresAtTo14DaysAfterCreatedAt_WhenCalled()
     {
-        var session = await _store.CreateAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
+        var session = await _store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, TestContext.Current.CancellationToken);
         (session.ExpiresAt - session.CreatedAt).ShouldBe(TimeSpan.FromDays(14));
     }
 
@@ -91,7 +91,7 @@ public class RedisSessionStoreTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
 
-        var created = await _store.CreateAsync(userId, ct);
+        var created = await _store.CreateAsync(userId, SessionLifetime.Legacy, ct);
         var fetched = await _store.GetAsync(created.Id, ct);
 
         fetched.ShouldNotBeNull();
@@ -114,7 +114,7 @@ public class RedisSessionStoreTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var session = await _store.CreateAsync(Guid.NewGuid(), ct);
+        var session = await _store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
         await _store.InvalidateAsync(session.Id, ct);
         var result = await _store.GetAsync(session.Id, ct);
 
@@ -138,7 +138,7 @@ public class RedisSessionStoreTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var session = await _store.CreateAsync(Guid.NewGuid(), ct);
+        var session = await _store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
         var result = await _store.InvalidateAsync(session.Id, ct);
 
         result.ShouldBeTrue();
@@ -159,7 +159,7 @@ public class RedisSessionStoreTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var session = await _store.CreateAsync(Guid.NewGuid(), ct);
+        var session = await _store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
         await _store.InvalidateAsync(session.Id, ct);
         var result = await _store.InvalidateAsync(session.Id, ct);
 
@@ -184,7 +184,7 @@ public class RedisSessionStoreTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
 
-        var created = await _store.CreateAsync(userId, ct);
+        var created = await _store.CreateAsync(userId, SessionLifetime.Legacy, ct);
         var fetched = await _store.GetAsync(created.Id, ct);
 
         fetched.ShouldNotBeNull();
@@ -201,7 +201,7 @@ public class RedisSessionStoreTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
 
         // Pre-create session for lookup
-        var session = await _store.CreateAsync(Guid.NewGuid(), ct);
+        var session = await _store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
 
         // Warmup
         for (var i = 0; i < 10; i++)

@@ -35,9 +35,9 @@ public class RedisSessionStoreFailureTests : IAsyncLifetime
             cache,
             _mux,
             FakeDateTimeProvider.Now,
-            Options.Create(new SessionStoreOptions { Ttl = TimeSpan.FromDays(14) }));
+            Options.Create(new SessionStoreOptions { Legacy = new SessionLifetimeProfile { SlidingTtl = TimeSpan.FromDays(14) } }));
 
-        _existingSession = await _store.CreateAsync(Guid.NewGuid(), default);
+        _existingSession = await _store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, default);
     }
 
     public async ValueTask DisposeAsync()
@@ -65,7 +65,7 @@ public class RedisSessionStoreFailureTests : IAsyncLifetime
         await _redis.StopAsync(ct);
 
         await Should.ThrowAsync<SessionStoreUnavailableException>(
-            () => _store.CreateAsync(Guid.NewGuid(), ct));
+            () => _store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct));
     }
 
     [Fact]

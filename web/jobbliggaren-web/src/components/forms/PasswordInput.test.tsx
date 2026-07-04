@@ -33,6 +33,23 @@ describe("PasswordInput (#586 show/hide toggle)", () => {
     ).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("disables the toggle when the field is disabled and cannot reveal (#613)", async () => {
+    const user = userEvent.setup();
+    render(
+      <PasswordInput id="password" name="password" aria-label="Lösenord" disabled />,
+    );
+    const input = screen.getByLabelText("Lösenord");
+    expect(input).toBeDisabled();
+
+    const toggle = screen.getByRole("button", { name: "Visa lösenord" });
+    expect(toggle).toBeDisabled();
+
+    // Clicking a disabled toggle must not reveal the value.
+    await user.click(toggle);
+    expect(input).toHaveAttribute("type", "password");
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("forwards field props to the underlying input", () => {
     render(
       <PasswordInput

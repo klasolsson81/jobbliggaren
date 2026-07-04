@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Identity;
@@ -42,12 +43,32 @@ public sealed class UserAccountService(
         var user = await userManager.FindByEmailAsync(email);
         if (user is null)
             return Result.Failure<UserCredentials>(
-                DomainError.Validation("Auth.InvalidCredentials", "E-post eller lösenord är felaktigt."));
+                DomainError.Validation(AuthErrorCodes.InvalidCredentials, "E-post eller lösenord är felaktigt."));
 
-        var valid = await userManager.CheckPasswordAsync(user, password);
-        if (!valid)
+        // #503 (OWASP A07, senior-cto-advisor G1): honor Identity's lockout BEFORE the
+        // hash check. A locked account is rejected without burning a password comparison
+        // and without incrementing further. A distinct internal code (AccountLocked) lets
+        // the Api handler emit an account_locked_out audit — the wire response is however
+        // normalized to a byte-identical InvalidCredentials (AuthEndpoints.ToErrorResult)
+        // so lockout state does not leak as an account-enumeration or DoS-target oracle.
+        // Requires LockoutEnabled=true on the row, which UserManager.CreateAsync stamps
+        // from opts.Lockout.AllowedForNewUsers (DependencyInjection).
+        if (await userManager.IsLockedOutAsync(user))
             return Result.Failure<UserCredentials>(
-                DomainError.Validation("Auth.InvalidCredentials", "E-post eller lösenord är felaktigt."));
+                DomainError.Validation(AuthErrorCodes.AccountLocked, "E-post eller lösenord är felaktigt."));
+
+        if (!await userManager.CheckPasswordAsync(user, password))
+        {
+            // Count the failed attempt. AccessFailedAsync auto-sets LockoutEnd once
+            // MaxFailedAccessAttempts is reached (opts.Lockout, DependencyInjection).
+            await userManager.AccessFailedAsync(user);
+            return Result.Failure<UserCredentials>(
+                DomainError.Validation(AuthErrorCodes.InvalidCredentials, "E-post eller lösenord är felaktigt."));
+        }
+
+        // A successful verify resets the counter (only when >0 to avoid a needless write).
+        if (user.AccessFailedCount > 0)
+            await userManager.ResetAccessFailedCountAsync(user);
 
         var roles = await userManager.GetRolesAsync(user);
         return Result.Success(new UserCredentials(user.Id, roles.ToList()));

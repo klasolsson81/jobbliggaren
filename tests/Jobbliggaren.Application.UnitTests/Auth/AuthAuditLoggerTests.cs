@@ -95,6 +95,46 @@ public class AuthAuditLoggerTests
     }
 
     [Fact]
+    public void AccountLockedOut_EmitsEventId1004_Warning()
+    {
+        // #503 G3(b): a dedicated attack-signal event, distinct from login_failed (1002)
+        // so a lockout storm from one emailHash/IP can be alarmed (TD-77).
+        var (sut, recorder) = CreateLogger();
+
+        sut.AccountLockedOut("deadbeef1234");
+
+        recorder.Latest.EventId.Id.ShouldBe(1004);
+        recorder.Latest.Level.ShouldBe(LogLevel.Warning);
+    }
+
+    [Fact]
+    public void AccountLockedOut_ContainsEmailHashNotRawEmail()
+    {
+        // GDPR / CLAUDE.md §5: the audit event carries the SHA-256 hash, never the raw
+        // email — same PII-free shape as login_failed.
+        var (sut, recorder) = CreateLogger();
+        const string rawEmail = "locked@example.com";
+        const string emailHash = "f00dcafe";
+
+        sut.AccountLockedOut(emailHash);
+
+        recorder.Latest.Message.ShouldContain(emailHash);
+        recorder.Latest.Message.ShouldNotContain(rawEmail);
+    }
+
+    [Fact]
+    public void AccountLockedOut_AnonymizesIpv4ToSlash24()
+    {
+        // ADR 0024 D7: the lockout event's IP is /24-masked too.
+        var (sut, recorder) = CreateLogger(ip: "198.51.100.77");
+
+        sut.AccountLockedOut("hash");
+
+        recorder.Latest.Message.ShouldContain("198.51.100.0");
+        recorder.Latest.Message.ShouldNotContain("198.51.100.77");
+    }
+
+    [Fact]
     public void LogoutSucceeded_EmitsEventId1003_Information()
     {
         var (sut, recorder) = CreateLogger();

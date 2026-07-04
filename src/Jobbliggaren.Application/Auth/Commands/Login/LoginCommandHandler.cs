@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Dtos;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
@@ -21,7 +22,14 @@ public sealed class LoginCommandHandler(
 
         if (credentialsResult.IsFailure)
         {
-            auditLogger.LoginFailed(HashEmail(command.Email!));
+            // #503 G3(b): discriminate a lockout from an ordinary wrong password for attack
+            // telemetry (account_locked_out is a targeted-brute-force signal). The wire
+            // response is identical for both (AuthEndpoints normalizes) — only the audit
+            // event differs.
+            if (credentialsResult.Error.Code == AuthErrorCodes.AccountLocked)
+                auditLogger.AccountLockedOut(HashEmail(command.Email!));
+            else
+                auditLogger.LoginFailed(HashEmail(command.Email!));
             return Result.Failure<SessionDto>(credentialsResult.Error);
         }
 
@@ -55,11 +63,13 @@ public sealed class LoginCommandHandler(
             auditLogger.LoginFailed(HashEmail(command.Email!));
             return Result.Failure<SessionDto>(
                 DomainError.Validation(
-                    "Auth.InvalidCredentials",
+                    AuthErrorCodes.InvalidCredentials,
                     "E-post eller lösenord är felaktigt."));
         }
 
-        var session = await sessionStore.CreateAsync(userId, cancellationToken);
+        // Legacy profile = today's reach (14d/30d). The opt-in "Håll mig inloggad"
+        // choice that produces Session/Persistent sessions ships in the follow-up PR.
+        var session = await sessionStore.CreateAsync(userId, SessionLifetime.Legacy, cancellationToken);
 
         auditLogger.LoginSucceeded(userId, session.Id.ToString());
 

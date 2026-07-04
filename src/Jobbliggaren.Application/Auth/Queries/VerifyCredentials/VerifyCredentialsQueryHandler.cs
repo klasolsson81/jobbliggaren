@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Mediator;
@@ -27,10 +28,16 @@ public sealed class VerifyCredentialsQueryHandler(
         if (string.IsNullOrEmpty(email))
             return InvalidCredentials();
 
-        // NOTE: ValidateCredentialsAsync uppdaterar Identitys lockout-räknare
-        // vid failure även när vi returnerar Result.Failure — det är önskat
-        // beteende (brute-force-skydd) men är ett observable side-effect även
-        // för "read-only" query.
+        // #503 (OWASP A07): ValidateCredentialsAsync now honors Identity's lockout — it
+        // short-circuits locked accounts (IsLockedOutAsync) and counts failed attempts
+        // (AccessFailedAsync). That is a deliberate, observable side-effect (a write) even
+        // in this "read-only" query: re-authentication is as valid a brute-force surface as
+        // login and shares the same anti-automation (without it /verify would be an unlocked
+        // bypass of the login lockout). A locked account yields Auth.AccountLocked
+        // internally, but the wire response is normalized to Auth.InvalidCredentials
+        // (AuthEndpoints) so lockout state does not leak. (Verify does not audit the lockout
+        // event — just as it does not audit login_failed; the login handler is the primary
+        // brute-force telemetry surface.)
         var credentialsResult = await userAccountService.ValidateCredentialsAsync(
             email, query.Password!, cancellationToken);
 
@@ -50,5 +57,5 @@ public sealed class VerifyCredentialsQueryHandler(
 
     private static Result InvalidCredentials() =>
         Result.Failure(
-            DomainError.Validation("Auth.InvalidCredentials", "E-post eller lösenord är felaktigt."));
+            DomainError.Validation(AuthErrorCodes.InvalidCredentials, "E-post eller lösenord är felaktigt."));
 }

@@ -1,6 +1,6 @@
 import "server-only";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   getResumesResultSchema,
   resumeDetailDtoSchema,
@@ -28,13 +28,6 @@ import {
 } from "@/lib/dto/match-preferences";
 import { isValidId } from "@/lib/validation/guid";
 
-function authHeaders(sessionId: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${sessionId}`,
-    "Content-Type": "application/json",
-  };
-}
-
 export async function getResumes(
   page = 1,
   pageSize = 20
@@ -48,10 +41,7 @@ export async function getResumes(
   });
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/resumes?${params}`, {
-      headers: authHeaders(sessionId),
-      cache: "no-store",
-    });
+    const res = await authedFetch(sessionId, `/api/v1/resumes?${params}`);
     return await responseToResult(
       res,
       getResumesResultSchema,
@@ -90,9 +80,9 @@ export async function getLatestPendingParsedResume(): Promise<PendingParsedResum
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/resumes/parsed/latest-pending`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      "/api/v1/resumes/parsed/latest-pending"
     );
     const result = await responseToResult(
       res,
@@ -129,9 +119,9 @@ export async function getParsedResumeOccupations(
   if (!isValidId(id)) return { kind: "notFound" };
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/resumes/parsed/${encodeURIComponent(id)}/occupations`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/resumes/parsed/${encodeURIComponent(id)}/occupations`
     );
     const result = await responseToResult(
       res,
@@ -167,9 +157,9 @@ export async function getResumeById(
   if (!isValidId(id)) return { kind: "notFound" };
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/resumes/${encodeURIComponent(id)}`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/resumes/${encodeURIComponent(id)}`
     );
     return await responseToResult(
       res,
@@ -197,9 +187,9 @@ export async function getParsedResume(
   if (!isValidId(id)) return { kind: "notFound" };
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/resumes/parsed/${encodeURIComponent(id)}`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/resumes/parsed/${encodeURIComponent(id)}`
     );
     return await responseToResult(
       res,
@@ -230,9 +220,9 @@ export async function getCvReview(
   const params = new URLSearchParams({ profile });
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/resumes/parsed/${encodeURIComponent(id)}/review?${params}`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/resumes/parsed/${encodeURIComponent(id)}/review?${params}`
     );
     return await responseToResult(
       res,
@@ -265,9 +255,9 @@ export async function getCvImprovements(
   const params = new URLSearchParams({ profile });
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/resumes/parsed/${encodeURIComponent(id)}/improvements?${params}`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/resumes/parsed/${encodeURIComponent(id)}/improvements?${params}`
     );
     return await responseToResult(
       res,

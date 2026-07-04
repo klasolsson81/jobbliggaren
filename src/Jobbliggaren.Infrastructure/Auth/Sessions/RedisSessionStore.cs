@@ -21,7 +21,7 @@ public sealed class RedisSessionStore(
     // IConnectionMultiplexer direkt — håll prefixet identiskt.
     private const string KeyPrefix = "jobbliggaren:";
 
-    private readonly TimeSpan _ttl = options.Value.Ttl;
+    private readonly SessionStoreOptions _options = options.Value;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -44,15 +44,61 @@ public sealed class RedisSessionStore(
         var payload = JsonSerializer.Deserialize<SessionPayload>(json, JsonOptions);
         if (payload is null) return null;
 
-        var expiresAt = dateTimeProvider.UtcNow + _ttl;
+        var now = dateTimeProvider.UtcNow;
 
-        // Reset sliding expiration on read
+        // The session keeps the lifetime profile it was created under (persisted in the
+        // payload). A pre-profiles payload has no Lifetime field → deserializes to
+        // Legacy (ordinal 0) → today's reach, so no session breaks on the deploy.
+        var profile = _options.ProfileFor(payload.Lifetime);
+
+        // Absolute lifetime cap (#481 Low): a session may not outlive CreatedAt +
+        // AbsoluteTtl, however actively it is used. Past the cap, evict it (drops the
+        // main key AND its user-index membership via InvalidateAsync) and treat it as
+        // gone, so the auth handler rejects the request. CreatedAt is the sole anchor
+        // — it is never rewritten, so the cap cannot be reset by continued use.
+        // Inclusive (>=): at exactly the ceiling the session is already spent, and it
+        // guarantees capRemaining is strictly positive below (a zero SlidingExpiration
+        // throws).
+        if (now - payload.CreatedAt >= profile.AbsoluteTtl)
+        {
+            await InvalidateAsync(sessionId, ct);
+            return null;
+        }
+
+        // Slide up to SlidingTtl, but never past the absolute cap: a key's TTL must
+        // not outlive the cap (defense-in-depth beside the check above, and it frees
+        // Redis memory promptly at the ceiling).
+        var capRemaining = payload.CreatedAt + profile.AbsoluteTtl - now;
+        var slidingTtl = capRemaining < profile.SlidingTtl ? capRemaining : profile.SlidingTtl;
+        var expiresAt = now + slidingTtl;
+        var sessionKey = Key(sessionId);
+
+        // Reset sliding expiration on read — for BOTH the secondary user-sessions-
+        // index AND the main session key, so the index never dies before the
+        // session it tracks (#502 / ADR 0024 D4). CreateAsync sets the set-TTL once
+        // at login; without refreshing it here the set expires SlidingTtl after the LAST
+        // login while GetAsync slides the main key forward indefinitely →
+        // InvalidateAllForUserAsync iterates an empty set and the token keeps
+        // authenticating after account deletion (Art. 17). Re-SADD is required (not
+        // just KeyExpire): if the set already expired, KeyExpire on the gone key is
+        // a no-op — the membership must be recreated. Order mirrors CreateAsync
+        // (SADD before KeyExpire, sequentially awaited) so a reordered KeyExpire can
+        // never set a TTL on a not-yet-created set and leave it immortal. Non-atomic,
+        // same accepted worst-case as CreateAsync (TD-23 — now a third such site).
         try
         {
+            var db = redis.GetDatabase();
+            var setKey = UserSessionsKey(payload.UserId);
+            await db.SetAddAsync(setKey, sessionKey);
+            // The index SET keeps the full sliding window (it must outlive the sessions
+            // it tracks, #502); a member whose capped main key has expired is a benign
+            // orphan (RemoveAsync is a no-op on it).
+            await db.KeyExpireAsync(setKey, profile.SlidingTtl);
+
             await cache.SetStringAsync(
-                Key(sessionId),
+                sessionKey,
                 json,
-                new DistributedCacheEntryOptions { SlidingExpiration = _ttl },
+                new DistributedCacheEntryOptions { SlidingExpiration = slidingTtl },
                 ct);
         }
         catch (RedisConnectionException ex)
@@ -63,13 +109,17 @@ public sealed class RedisSessionStore(
         return new Session(sessionId, payload.UserId, payload.CreatedAt, expiresAt);
     }
 
-    public async Task<Session> CreateAsync(Guid userId, CancellationToken ct)
+    public async Task<Session> CreateAsync(Guid userId, SessionLifetime lifetime, CancellationToken ct)
     {
         var sessionId = SessionId.Generate();
         var now = dateTimeProvider.UtcNow;
-        var expiresAt = now + _ttl;
+        var profile = _options.ProfileFor(lifetime);
+        // Fresh session: CreatedAt == now, so the absolute cap (>= SlidingTtl) never
+        // binds tighter than the sliding window at creation. RotatedAt starts at
+        // CreatedAt (unused until the rotation seam ships in 2b).
+        var expiresAt = now + profile.SlidingTtl;
 
-        var payload = new SessionPayload(userId, now);
+        var payload = new SessionPayload(userId, now, now, lifetime);
         var json = JsonSerializer.Serialize(payload, JsonOptions);
         var sessionKey = Key(sessionId);
 
@@ -94,13 +144,13 @@ public sealed class RedisSessionStore(
             var db = redis.GetDatabase();
             var setKey = UserSessionsKey(userId);
             await db.SetAddAsync(setKey, sessionKey);
-            await db.KeyExpireAsync(setKey, _ttl);
+            await db.KeyExpireAsync(setKey, profile.SlidingTtl);
 
             // Primär session-rad efter SADD
             await cache.SetStringAsync(
                 sessionKey,
                 json,
-                new DistributedCacheEntryOptions { SlidingExpiration = _ttl },
+                new DistributedCacheEntryOptions { SlidingExpiration = profile.SlidingTtl },
                 ct);
         }
         catch (RedisConnectionException ex)
@@ -193,5 +243,12 @@ public sealed class RedisSessionStore(
     private static string UserSessionsKey(Guid userId) =>
         string.Create(CultureInfo.InvariantCulture, $"{KeyPrefix}user:{userId}:sessions");
 
-    private sealed record SessionPayload(Guid UserId, DateTimeOffset CreatedAt);
+    // RotatedAt + Lifetime are written from PR2a. Older payloads lack them: Lifetime
+    // deserializes to Legacy (ordinal 0) and RotatedAt to default — both handled at the
+    // read site (profile selection). RotatedAt is unused until the rotation seam (2b).
+    private sealed record SessionPayload(
+        Guid UserId,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset RotatedAt,
+        SessionLifetime Lifetime);
 }

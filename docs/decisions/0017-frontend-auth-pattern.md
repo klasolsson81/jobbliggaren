@@ -48,6 +48,38 @@ Auth.js (NextAuth) or Better Auth, using:
    Facebook) and unique `(Provider, ProviderUserId)` constraint via a
    migration in this STEG. No OAuth endpoints are wired.
 
+## Amendment 2026-07-04 (#607, PR #608): dead client-side session helper removed
+
+*Affects Decision points 3, 4, and 6 above.*
+
+Decision point 3's "thin client-side session helper" (`SessionProvider`
+exposing `useSession()` by fetching `/api/me` on mount) was already dead code:
+it had zero importers repo-wide and embodied the `useEffect`-for-data-fetching
+anti-pattern CLAUDE.md §4 forbids. It was deleted on 2026-07-04, together with
+its orphaned proxy route, by PR #608 ("fix(web): remove dead SessionProvider +
+orphaned /api/me proxy route (#485)") — external-audit residual, epic #485
+item b, surfaced by code-reviewer on PR #608 and tracked to issue #607 for
+this ADR-lifecycle correction.
+
+- **Deleted:** `src/lib/auth/session-provider.tsx` (the `SessionProvider`
+  component / `useSession()` hook described in Decision point 3) and
+  `src/app/api/me/route.ts` (the Next.js `/api/me` GET proxy route —
+  `SessionProvider` was its only caller, so it was orphaned once
+  `SessionProvider` was removed).
+- **Unaffected:** Decision point 4's `getServerSession()`
+  (`src/lib/auth/session.ts`, `server-only`, cached via `React.cache()`) is
+  retained. Its "/api/me" shorthand denotes the **backend** `/api/v1/me`
+  endpoint (server-to-server, `Authorization: Bearer <session-id>`), not the
+  removed Next.js route — `getServerSession()` never depended on the deleted
+  route. Decision point 6's cookie→Bearer proxy pattern is therefore intact
+  and unchanged. The `/api/me` sub-routes (`match-count-preview`,
+  `recent-searches/counts`) are separate route files and were untouched.
+- **Net effect:** Client Components no longer have — or need — a
+  client-side session helper; `getServerSession()` in Server Components
+  remains the sole session-read path. The core decision (custom cookie auth,
+  opaque server-side Redis sessions) is unaffected: this is dead-mechanism
+  drift correction, not a decision reversal.
+
 ## Considered Alternatives
 
 ### Auth.js v5 (NextAuth)

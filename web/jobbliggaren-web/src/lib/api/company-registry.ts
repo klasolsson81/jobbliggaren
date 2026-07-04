@@ -1,6 +1,6 @@
 import "server-only";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   companyLookupSchema,
   type CompanyLookup,
@@ -23,14 +23,9 @@ export async function lookupCompany(
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/companies/lookup`, {
+    const res = await authedFetch(sessionId, "/api/v1/companies/lookup", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${sessionId}`,
-        "Content-Type": "application/json",
-      },
       body: JSON.stringify({ organizationNumber: orgNr }),
-      cache: "no-store",
     });
     return await responseToResult(
       res,

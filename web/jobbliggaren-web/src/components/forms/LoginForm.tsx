@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/forms/PasswordInput";
 import { loginAction, type AuthActionState } from "@/lib/auth/actions";
 
 export function LoginForm() {
@@ -51,10 +52,9 @@ export function LoginForm() {
         <label htmlFor="password" className="text-label font-medium text-text-primary">
           {t("auth.login.passwordLabel")}
         </label>
-        <Input
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="current-password"
           required
           aria-required="true"

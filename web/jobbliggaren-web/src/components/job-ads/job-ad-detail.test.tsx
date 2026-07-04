@@ -70,4 +70,37 @@ describe("JobAdDetail (ADR 0053 Fas-3 fält-set)", () => {
     // Status-pill renderas fortfarande (i body) i headless-läge.
     expect(screen.getByText("Aktiv")).toBeInTheDocument();
   });
+
+  // #593 (#446-uppföljning) — "tidigare ansökningar till detta företag" som LÄNK. POSITIVE-ONLY.
+  it("does NOT render the previous-applications line without the prop (POSITIVE-ONLY)", () => {
+    render(<JobAdDetail jobAd={baseAd} />);
+    expect(screen.queryByText(/tidigare ansökning/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Visa ansökningshistorik" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("does NOT render the previous-applications line when the count is 0", () => {
+    render(<JobAdDetail jobAd={baseAd} previousApplicationCount={0} />);
+    expect(screen.queryByText(/tidigare ansökning/i)).not.toBeInTheDocument();
+  });
+
+  it("renders the previous-applications line as a LINK to /foretag#ansokningshistorik when count > 0", () => {
+    render(<JobAdDetail jobAd={baseAd} previousApplicationCount={3} />);
+    // Plural sentence + a valid link (the detail view has no outer <a>, unlike the list card). The
+    // count is a plain integer — org.nr is never passed to this component (§5, enskild firma =
+    // personnummer), so the affordance structurally cannot surface one.
+    expect(
+      screen.getByText("Du har 3 tidigare ansökningar till detta företag.")
+    ).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Visa ansökningshistorik" });
+    expect(link).toHaveAttribute("href", "/foretag#ansokningshistorik");
+  });
+
+  it("renders the singular previous-applications sentence for count 1", () => {
+    render(<JobAdDetail jobAd={baseAd} previousApplicationCount={1} />);
+    expect(
+      screen.getByText("Du har 1 tidigare ansökan till detta företag.")
+    ).toBeInTheDocument();
+  });
 });

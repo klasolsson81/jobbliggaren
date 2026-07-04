@@ -65,6 +65,16 @@ interface JobAdDetailProps {
    * bevisform (degraderad taxonomi).
    */
   ortGranularityByLabel?: Record<string, OrtGranularity>;
+  /**
+   * #593 (#446-uppföljning, #311) — antalet av den inloggade användarens EGNA tidigare (inskickade)
+   * ansökningar till annonsens arbetsgivare (samma org.nr), server-resolverat via
+   * `getEmployerApplicationCounts` (#446). `undefined`/0 → renderas EJ (anonym/gäst, eller inga tidigare
+   * ansökningar — POSITIVE-ONLY, paritet #446-kort-badgen). Till skillnad från /jobb-list-kortet (ETT
+   * ytter-`<Link>` → nästlad länk ogiltig, B1/Fork 3C) har detaljvyn inget ytter-ankare, så den renderas
+   * som en `<Link>` till `/foretag#ansokningshistorik`. Rent heltal; INGET org.nr i text/attribut/URL
+   * (CLAUDE.md §5 — enskild firma = personnummer).
+   */
+  previousApplicationCount?: number;
 }
 
 // Active/Expired/Archived → .jp-pill-variant. Speglar
@@ -84,6 +94,7 @@ export function JobAdDetail({
   followState,
   match,
   ortGranularityByLabel,
+  previousApplicationCount,
 }: JobAdDetailProps) {
   // Synchronous next-intl translators — keep JobAdDetail a non-async RSC (it is
   // shared by the full page and the @modal serialized slot, with sync tests).
@@ -139,6 +150,25 @@ export function JobAdDetail({
             <dd>{jobAd.id}</dd>
           </div>
         </dl>
+
+        {/* #593 (#446-uppföljning) — "Du har X tidigare ansökningar till detta företag" som LÄNK till
+            ansökningshistoriken. POSITIVE-ONLY (bara > 0). Giltig länk här (ingen ytter-`<a>` på
+            detaljvyn, till skillnad från list-kortet — B1/Fork 3C). Rent heltal, inget org.nr. */}
+        {previousApplicationCount != null && previousApplicationCount > 0 && (
+          <p className="text-body-sm">
+            {tUi("detail.previousApplications", { count: previousApplicationCount })}{" "}
+            {/* Understrykning i vilo-läge (design-reviewer, WCAG 1.4.1/F73): en in-prose-länk får inte
+                skiljas från brödtexten enbart med färg (<3:1 mot body-ink i båda teman). Basankaret
+                (globals.css a:not(.jp-btn)) sätter bara color; text-body-sm ärver ingen understrykning
+                (till skillnad från .jp-muted a). Tailwind-utility, ingen globals.css-touch (hotspot). */}
+            <Link
+              href="/foretag#ansokningshistorik"
+              className="underline underline-offset-2"
+            >
+              {tUi("detail.previousApplicationsLink")}
+            </Link>
+          </p>
+        )}
 
         {/* F4-16 — matchnings-sektionen ovanför Annonsbeskrivning (design §2.A:
             "passar jobbet mig" är frågan modalen öppnas för → före annons-prosan).

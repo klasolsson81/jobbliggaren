@@ -161,7 +161,9 @@
       "description": "Annonsbeskrivning",
       "openAd": "Öppna annonsen",
       "appliedNotice": "Du har markerat denna annons som ansökt. Se i",
-      "appliedNoticeLink": "Mina ansökningar"
+      "appliedNoticeLink": "Mina ansökningar",
+      "previousApplications": "Du har {count, plural, one {# tidigare ansökan} other {# tidigare ansökningar}} till detta företag.",
+      "previousApplicationsLink": "Visa ansökningshistorik"
     },
     "match": {
       "heading": "Matchning mot din profil",

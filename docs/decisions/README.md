@@ -28,7 +28,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0014 | Refresh tokens i DB + Redis för access-token jti (avviker från BUILD.md §11.2) | Accepted | 2026-04-19 | [0014-refresh-token-strategy.md](./0014-refresh-token-strategy.md) |
 | 0015 | Frontend-stack för Jobbliggaren (STEG 4a) | Accepted | 2026-05-06 | [0015-frontend-stack.md](./0015-frontend-stack.md) |
 | 0016 | Civic design language som arkitekturkrav (amended 2026-05-19 av [ADR 0052](./0052-design-system-v3-modern-civic.md) — radius-golv; civic-ton bevarad) | Accepted | 2026-05-06 | [0016-civic-design-language.md](./0016-civic-design-language.md) |
-| 0017 | Frontend Authentication Pattern (Custom, Cookie-Based) | Accepted | 2026-05-06 | [0017-frontend-auth-pattern.md](./0017-frontend-auth-pattern.md) |
+| 0017 | Frontend Authentication Pattern (Custom, Cookie-Based) (amended 2026-07-04 — dead client-side SessionProvider/useSession helper + orphaned Next.js /api/me proxy route removed per PR #608 / #607, epic #485; core decision unchanged) | Accepted | 2026-05-06 | [0017-frontend-auth-pattern.md](./0017-frontend-auth-pattern.md) |
 | 0018 | Cookie and CSRF Strategy for Frontend Auth | Accepted | 2026-05-06 | [0018-cookie-and-csrf-strategy.md](./0018-cookie-and-csrf-strategy.md) |
 | 0019 | Solo direct-push till main | Superseded by 0065 | 2026-05-07 | [0019-solo-direct-push-to-main.md](./0019-solo-direct-push-to-main.md) |
 | 0020 | Frontend-DTO-validering vid HTTP-gränsen med Zod | Accepted | 2026-05-11 | [0020-frontend-dto-validation-with-zod.md](./0020-frontend-dto-validation-with-zod.md) |

@@ -14,6 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/forms/PasswordInput";
 import { Label } from "@/components/ui/label";
 import { deleteAccountAction } from "@/lib/actions/me";
 import {
@@ -123,9 +124,8 @@ export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) 
             <Label htmlFor="delete-password">
               {ts("account.delete.passwordLabel")}
             </Label>
-            <Input
+            <PasswordInput
               id="delete-password"
-              type="password"
               autoComplete="current-password"
               disabled={isPending}
               aria-invalid={errors.password ? true : undefined}

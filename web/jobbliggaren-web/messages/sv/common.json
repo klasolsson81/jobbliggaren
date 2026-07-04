@@ -4,6 +4,7 @@
     "oversikt": "Översikt",
     "jobb": "Jobb",
     "ansokningar": "Mina ansökningar",
+    "foretag": "Företag",
     "cv": "CV",
     "brandHome": "Jobbliggaren, startsida"
   },
@@ -25,7 +26,6 @@
     "senasteSokningar": "Senaste sökningar",
     "sparadeAnnonser": "Sparade annonser",
     "minaMatchningar": "Mina matchningar",
-    "bevakadeForetag": "Bevakade företag",
     "minaCv": "Mina CV",
     "granskning": "Granskning",
     "loggaUt": "Logga ut"

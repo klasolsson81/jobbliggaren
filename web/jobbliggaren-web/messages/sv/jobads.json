@@ -49,6 +49,18 @@
       "all": "Alla annonser"
     }
   },
+  "applicationHistory": {
+    "listLabel": "Ansökningshistorik per arbetsgivare",
+    "emptyTitle": "Du har ingen ansökningshistorik än",
+    "emptyBody": "Sök jobb under Jobb och skicka en ansökan, så samlas historiken här per arbetsgivare.",
+    "unknownCompany": "Företagets namn är inte tillgängligt",
+    "orgNr": "Org.nr {orgNr}",
+    "protectedIdentity": "Skyddad identitet",
+    "protectedIdentityHint": "Organisationsnumret visas inte eftersom det kan vara ett personnummer.",
+    "applicationCount": "{count, plural, one {# skickad ansökan} other {# skickade ansökningar}}",
+    "showApplications": "{count, plural, one {Visa ansökan} other {Visa ansökningar}}",
+    "appliedAt": "Ansökt {date}"
+  },
   "companyLookup": {
     "heading": "Sök företag",
     "lede": "Hitta ett företag via organisationsnummer och bevaka det, även om det inte har några annonser just nu.",

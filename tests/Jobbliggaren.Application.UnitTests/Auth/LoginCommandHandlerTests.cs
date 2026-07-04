@@ -42,7 +42,7 @@ public class LoginCommandHandlerTests
 
         var sessionStore = Substitute.For<ISessionStore>();
         var sessionId = SessionId.Generate();
-        sessionStore.CreateAsync(userId, Arg.Any<CancellationToken>())
+        sessionStore.CreateAsync(userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
             .Returns(new Session(sessionId, userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(14)));
 
         var handler = CreateHandler(userAccountService: userAccountService, sessionStore: sessionStore);
@@ -78,14 +78,14 @@ public class LoginCommandHandlerTests
             .Returns(Result.Success(new UserCredentials(userId, new List<string>())));
 
         var sessionStore = Substitute.For<ISessionStore>();
-        sessionStore.CreateAsync(userId, Arg.Any<CancellationToken>())
+        sessionStore.CreateAsync(userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
             .Returns(new Session(SessionId.Generate(), userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(14)));
 
         var handler = CreateHandler(userAccountService: userAccountService, sessionStore: sessionStore);
 
         await handler.Handle(ValidCommand(), CancellationToken.None);
 
-        await sessionStore.Received(1).CreateAsync(userId, Arg.Any<CancellationToken>());
+        await sessionStore.Received(1).CreateAsync(userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class LoginCommandHandlerTests
             .Returns(Result.Success(new UserCredentials(userId, new List<string>())));
 
         var sessionStore = Substitute.For<ISessionStore>();
-        sessionStore.CreateAsync(userId, Arg.Any<CancellationToken>())
+        sessionStore.CreateAsync(userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
             .Returns(new Session(SessionId.Generate(), userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(14)));
 
         var auditLogger = Substitute.For<IAuthAuditLogger>();
@@ -178,7 +178,7 @@ public class LoginCommandHandlerTests
             "soft-deletad konto ska returnera samma felkod som okänd email/fel lösen — undviker info disclosure");
 
         // Session ska INTE skapas för soft-deletad konto
-        await sessionStore.DidNotReceive().CreateAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await sessionStore.DidNotReceive().CreateAsync(Arg.Any<Guid>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -201,7 +201,7 @@ public class LoginCommandHandlerTests
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var sessionStore = Substitute.For<ISessionStore>();
-        sessionStore.CreateAsync(userId, Arg.Any<CancellationToken>())
+        sessionStore.CreateAsync(userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
             .Returns(new Session(SessionId.Generate(), userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(14)));
 
         var handler = CreateHandler(db: db, userAccountService: userAccountService, sessionStore: sessionStore);
@@ -209,6 +209,6 @@ public class LoginCommandHandlerTests
         var result = await handler.Handle(ValidCommand(), TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        await sessionStore.Received(1).CreateAsync(userId, Arg.Any<CancellationToken>());
+        await sessionStore.Received(1).CreateAsync(userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>());
     }
 }

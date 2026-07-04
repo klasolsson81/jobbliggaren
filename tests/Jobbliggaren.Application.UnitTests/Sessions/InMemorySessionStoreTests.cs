@@ -8,7 +8,7 @@ namespace Jobbliggaren.Application.UnitTests.Sessions;
 public class InMemorySessionStoreTests
 {
     private static readonly IOptions<SessionStoreOptions> DefaultOptions =
-        Options.Create(new SessionStoreOptions { SlidingTtl = TimeSpan.FromDays(14) });
+        Options.Create(new SessionStoreOptions { Legacy = new SessionLifetimeProfile { SlidingTtl = TimeSpan.FromDays(14) } });
 
     private static InMemorySessionStore CreateStore(MutableFakeDateTimeProvider? time = null) =>
         new(time ?? new MutableFakeDateTimeProvider(), DefaultOptions);
@@ -22,7 +22,7 @@ public class InMemorySessionStoreTests
         var userId = Guid.NewGuid();
         var ct = TestContext.Current.CancellationToken;
 
-        var session = await store.CreateAsync(userId, ct);
+        var session = await store.CreateAsync(userId, SessionLifetime.Legacy, ct);
 
         session.UserId.ShouldBe(userId);
     }
@@ -33,7 +33,7 @@ public class InMemorySessionStoreTests
         var store = CreateStore();
         var ct = TestContext.Current.CancellationToken;
 
-        var session = await store.CreateAsync(Guid.NewGuid(), ct);
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
 
         session.Id.Reveal().ShouldNotBeNullOrEmpty();
     }
@@ -44,8 +44,8 @@ public class InMemorySessionStoreTests
         var store = CreateStore();
         var ct = TestContext.Current.CancellationToken;
 
-        var s1 = await store.CreateAsync(Guid.NewGuid(), ct);
-        var s2 = await store.CreateAsync(Guid.NewGuid(), ct);
+        var s1 = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
+        var s2 = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
 
         s1.Id.Reveal().ShouldNotBe(s2.Id.Reveal());
     }
@@ -57,7 +57,7 @@ public class InMemorySessionStoreTests
         var store = CreateStore(time);
         var ct = TestContext.Current.CancellationToken;
 
-        var session = await store.CreateAsync(Guid.NewGuid(), ct);
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
 
         (session.ExpiresAt - session.CreatedAt).ShouldBe(TimeSpan.FromDays(14));
     }
@@ -71,7 +71,7 @@ public class InMemorySessionStoreTests
         var userId = Guid.NewGuid();
         var ct = TestContext.Current.CancellationToken;
 
-        var created = await store.CreateAsync(userId, ct);
+        var created = await store.CreateAsync(userId, SessionLifetime.Legacy, ct);
         var fetched = await store.GetAsync(created.Id, ct);
 
         fetched.ShouldNotBeNull();
@@ -96,7 +96,7 @@ public class InMemorySessionStoreTests
         var store = CreateStore();
         var ct = TestContext.Current.CancellationToken;
 
-        var session = await store.CreateAsync(Guid.NewGuid(), ct);
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
         await store.InvalidateAsync(session.Id, ct);
         var result = await store.GetAsync(session.Id, ct);
 
@@ -110,7 +110,7 @@ public class InMemorySessionStoreTests
         var store = CreateStore(time);
         var ct = TestContext.Current.CancellationToken;
 
-        var session = await store.CreateAsync(Guid.NewGuid(), ct);
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
         var originalExpiry = session.ExpiresAt;
 
         time.UtcNow = time.UtcNow.AddDays(1);
@@ -129,8 +129,8 @@ public class InMemorySessionStoreTests
         var store = CreateStore(time);
         var ct = TestContext.Current.CancellationToken;
 
-        await store.CreateAsync(Guid.NewGuid(), ct);
-        var session = await store.CreateAsync(Guid.NewGuid(), ct);
+        await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
 
         time.UtcNow = time.UtcNow.AddDays(15);
 
@@ -151,7 +151,7 @@ public class InMemorySessionStoreTests
         var store = CreateStore(time);
         var ct = TestContext.Current.CancellationToken;
 
-        var session = await store.CreateAsync(Guid.NewGuid(), ct);
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
 
         time.UtcNow = time.UtcNow.AddDays(10);
         (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
@@ -172,7 +172,7 @@ public class InMemorySessionStoreTests
         var store = CreateStore(time);
         var ct = TestContext.Current.CancellationToken;
 
-        var session = await store.CreateAsync(Guid.NewGuid(), ct);
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
 
         time.UtcNow = time.UtcNow.AddDays(10);
         (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
@@ -192,7 +192,7 @@ public class InMemorySessionStoreTests
         var store = CreateStore(time);
         var ct = TestContext.Current.CancellationToken;
 
-        var session = await store.CreateAsync(Guid.NewGuid(), ct);
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
 
         // Slide with reads inside the 14d window so only the cap (not inactivity) binds.
         time.UtcNow = time.UtcNow.AddDays(10);
@@ -206,6 +206,43 @@ public class InMemorySessionStoreTests
         fetched.ShouldNotBeNull();
         (fetched!.ExpiresAt - time.UtcNow).ShouldBe(TimeSpan.FromDays(1));
         fetched.ExpiresAt.ShouldBe(session.CreatedAt.AddDays(30));
+    }
+
+    // #626: the session keeps the lifetime profile it was created under. A Persistent
+    // session uses the 180d cap (default profile), so it survives well past the 30d
+    // Legacy ceiling that a default session would hit — proving profile selection.
+    [Fact]
+    public async Task GetAsync_ShouldUsePersistentCap_WhenCreatedPersistent()
+    {
+        var time = new MutableFakeDateTimeProvider();
+        var store = CreateStore(time);
+        var ct = TestContext.Current.CancellationToken;
+
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Persistent, ct);
+
+        // Slide with reads inside the 30d persistent window, out to +40d — impossible
+        // for a Legacy session (30d cap). Still valid → the Persistent profile is used.
+        time.UtcNow = time.UtcNow.AddDays(20);
+        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+        time.UtcNow = time.UtcNow.AddDays(20); // +40d
+        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+    }
+
+    // A Session-profile (unticked "Håll mig inloggad") session is short-lived: past its
+    // 24h ceiling it is gone, where a Legacy session would still be valid.
+    [Fact]
+    public async Task GetAsync_ShouldUseSessionCap_WhenCreatedSession()
+    {
+        var time = new MutableFakeDateTimeProvider();
+        var store = CreateStore(time);
+        var ct = TestContext.Current.CancellationToken;
+
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Session, ct);
+
+        time.UtcNow = time.UtcNow.AddHours(12);
+        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+        time.UtcNow = time.UtcNow.AddHours(13); // +25h → past the 24h cap
+        (await store.GetAsync(session.Id, ct)).ShouldBeNull();
     }
 
     [Fact]
@@ -227,7 +264,7 @@ public class InMemorySessionStoreTests
         var store = CreateStore();
         var ct = TestContext.Current.CancellationToken;
 
-        var session = await store.CreateAsync(Guid.NewGuid(), ct);
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
         var result = await store.InvalidateAsync(session.Id, ct);
 
         result.ShouldBeTrue();
@@ -250,7 +287,7 @@ public class InMemorySessionStoreTests
         var store = CreateStore();
         var ct = TestContext.Current.CancellationToken;
 
-        var session = await store.CreateAsync(Guid.NewGuid(), ct);
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
         await store.InvalidateAsync(session.Id, ct);
         var result = await store.InvalidateAsync(session.Id, ct);
 
@@ -277,7 +314,7 @@ public class InMemorySessionStoreTests
         var ct = TestContext.Current.CancellationToken;
 
         var sessions = await Task.WhenAll(
-            Enumerable.Range(0, 100).Select(_ => store.CreateAsync(Guid.NewGuid(), ct)));
+            Enumerable.Range(0, 100).Select(_ => store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct)));
 
         sessions.Select(s => s.Id.Reveal()).Distinct().Count().ShouldBe(100);
     }
@@ -288,7 +325,7 @@ public class InMemorySessionStoreTests
         var store = CreateStore();
         var ct = TestContext.Current.CancellationToken;
 
-        var session = await store.CreateAsync(Guid.NewGuid(), ct);
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
 
         var results = await Task.WhenAll(
             store.InvalidateAsync(session.Id, ct),
@@ -305,7 +342,7 @@ public class InMemorySessionStoreTests
         var store2 = CreateStore();
         var ct = TestContext.Current.CancellationToken;
 
-        var session = await store1.CreateAsync(Guid.NewGuid(), ct);
+        var session = await store1.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
         var result = await store2.GetAsync(session.Id, ct);
 
         result.ShouldBeNull();

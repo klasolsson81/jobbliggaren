@@ -67,7 +67,9 @@ public sealed class LoginCommandHandler(
                     "E-post eller lösenord är felaktigt."));
         }
 
-        var session = await sessionStore.CreateAsync(userId, cancellationToken);
+        // Legacy profile = today's reach (14d/30d). The opt-in "Håll mig inloggad"
+        // choice that produces Session/Persistent sessions ships in the follow-up PR.
+        var session = await sessionStore.CreateAsync(userId, SessionLifetime.Legacy, cancellationToken);
 
         auditLogger.LoginSucceeded(userId, session.Id.ToString());
 

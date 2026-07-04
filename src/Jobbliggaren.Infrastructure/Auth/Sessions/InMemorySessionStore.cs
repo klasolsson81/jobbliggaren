@@ -9,10 +9,9 @@ public sealed class InMemorySessionStore(
     IDateTimeProvider dateTimeProvider,
     IOptions<SessionStoreOptions> options) : ISessionStore
 {
-    private readonly TimeSpan _slidingTtl = options.Value.SlidingTtl;
-    private readonly TimeSpan _absoluteTtl = options.Value.AbsoluteTtl;
+    private readonly SessionStoreOptions _options = options.Value;
 
-    private readonly ConcurrentDictionary<string, (Guid UserId, DateTimeOffset CreatedAt, DateTimeOffset ExpiresAt)>
+    private readonly ConcurrentDictionary<string, (Guid UserId, DateTimeOffset CreatedAt, DateTimeOffset ExpiresAt, SessionLifetime Lifetime)>
         _sessions = new();
 
     public Task<Session?> GetAsync(SessionId sessionId, CancellationToken ct)
@@ -28,32 +27,34 @@ public sealed class InMemorySessionStore(
             return Task.FromResult<Session?>(null);
         }
 
+        var profile = _options.ProfileFor(entry.Lifetime);
+
         // Absolute lifetime cap (#481 Low) — mirrors RedisSessionStore so fake-store
         // unit tests and Testcontainers integration tests agree. Inclusive (>=) for
         // parity: at exactly the ceiling the session is spent.
-        if (now - entry.CreatedAt >= _absoluteTtl)
+        if (now - entry.CreatedAt >= profile.AbsoluteTtl)
         {
             _sessions.TryRemove(key, out _);
             return Task.FromResult<Session?>(null);
         }
 
         // Slide up to SlidingTtl, clamped so it never passes the absolute cap.
-        var capRemaining = entry.CreatedAt + _absoluteTtl - now;
-        var slidingTtl = capRemaining < _slidingTtl ? capRemaining : _slidingTtl;
+        var capRemaining = entry.CreatedAt + profile.AbsoluteTtl - now;
+        var slidingTtl = capRemaining < profile.SlidingTtl ? capRemaining : profile.SlidingTtl;
         var newExpiry = now + slidingTtl;
-        _sessions.TryUpdate(key, (entry.UserId, entry.CreatedAt, newExpiry), entry);
+        _sessions.TryUpdate(key, (entry.UserId, entry.CreatedAt, newExpiry, entry.Lifetime), entry);
 
         return Task.FromResult<Session?>(
             new Session(sessionId, entry.UserId, entry.CreatedAt, newExpiry));
     }
 
-    public Task<Session> CreateAsync(Guid userId, CancellationToken ct)
+    public Task<Session> CreateAsync(Guid userId, SessionLifetime lifetime, CancellationToken ct)
     {
         var sessionId = SessionId.Generate();
         var now = dateTimeProvider.UtcNow;
-        var expiresAt = now + _slidingTtl;
+        var expiresAt = now + _options.ProfileFor(lifetime).SlidingTtl;
 
-        _sessions[sessionId.Reveal()] = (userId, now, expiresAt);
+        _sessions[sessionId.Reveal()] = (userId, now, expiresAt, lifetime);
 
         return Task.FromResult(new Session(sessionId, userId, now, expiresAt));
     }

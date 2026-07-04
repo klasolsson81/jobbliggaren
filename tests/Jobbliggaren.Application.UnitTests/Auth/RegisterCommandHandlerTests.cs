@@ -38,7 +38,7 @@ public class RegisterCommandHandlerTests
     private static ISessionStore DefaultSessionStore(Guid userId)
     {
         var store = Substitute.For<ISessionStore>();
-        store.CreateAsync(userId, Arg.Any<CancellationToken>())
+        store.CreateAsync(userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
             .Returns(new Session(SessionId.Generate(), userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(14)));
         return store;
     }
@@ -53,7 +53,7 @@ public class RegisterCommandHandlerTests
 
         var sessionId = SessionId.Generate();
         var sessionStore = Substitute.For<ISessionStore>();
-        sessionStore.CreateAsync(userId, Arg.Any<CancellationToken>())
+        sessionStore.CreateAsync(userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
             .Returns(new Session(sessionId, userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(14)));
 
         var handler = CreateHandler(userAccountService: userAccountService, sessionStore: sessionStore);

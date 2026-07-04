@@ -159,7 +159,7 @@ internal sealed class B6DateFormatRule : ICriterionRule
         if (formats.Count == 0)
         {
             return CvCriterionVerdict.NotAssessed(
-                "B6", category, "Perioderna kunde inte tolkas — datumformat-konsekvens bedöms ej v1.");
+                "B6", category, "Perioderna kunde inte tolkas. Datumformat-konsekvens bedöms ej v1.");
         }
 
         return formats.Count == 1
@@ -183,7 +183,7 @@ internal sealed class B7ChronologyRule : ICriterionRule
         if (dated.Count == 0)
         {
             return CvCriterionVerdict.NotAssessed(
-                "B7", category, "Perioderna kunde inte tolkas — kronologi bedöms ej v1.");
+                "B7", category, "Perioderna kunde inte tolkas. Kronologi bedöms ej v1.");
         }
 
         if (dated.Count == 1)
@@ -221,7 +221,7 @@ internal sealed partial class B8FileNameRule : ICriterionRule
         if (string.IsNullOrWhiteSpace(fileName))
         {
             return CvCriterionVerdict.NotAssessed(
-                "B8", category, "Källfilens namn saknas — filnamnsrekommendationen bedöms ej.");
+                "B8", category, "Källfilens namn saknas. Filnamnsrekommendationen bedöms ej.");
         }
 
         if (RecommendedRegex().IsMatch(fileName))

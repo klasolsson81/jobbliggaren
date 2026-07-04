@@ -40,7 +40,7 @@
     {
       "phrase": "Stresstålig",
       "kind": "softSkill",
-      "why": "Säg det inte — visa det",
+      "why": "Säg det inte, visa det",
       "guidance": "\"Levererade migrationen av 28 system inom 6 veckor med samtidig daglig drift\""
     },
     {
@@ -52,7 +52,7 @@
     {
       "phrase": "Resultatorienterad",
       "kind": "cliche",
-      "why": "Vag — kvantifiera istället",
+      "why": "Vag: kvantifiera istället",
       "guidance": "Skriv siffrorna direkt"
     },
     {
@@ -76,7 +76,7 @@
     {
       "phrase": "Passionerad",
       "kind": "softSkill",
-      "why": "Översatt \"passionate\" — känns konstruerat",
+      "why": "Översatt \"passionate\", känns konstruerat",
       "guidance": "Specifikt: \"Har följt och bidragit till open-source-projekt X i 3 år\""
     },
     {

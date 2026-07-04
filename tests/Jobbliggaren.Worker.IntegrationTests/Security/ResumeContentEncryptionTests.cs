@@ -11,11 +11,13 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.Infrastructure.Persistence.Migrations;
 using Jobbliggaren.Worker.Auditing;
 using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using NSubstitute;
 using Shouldly;
 
@@ -23,11 +25,12 @@ namespace Jobbliggaren.Worker.IntegrationTests.Security;
 
 /// <summary>
 /// TD-13 FAS 3.5 batch <b>C4.4 — integration-svit för den verkliga #1c-mekaniken</b>
-/// (ADR 0049 Mekanik-not 6 Form B) på <c>resume_versions.content</c>: domän-VO
+/// (ADR 0049 Mekanik-not 6 Form B) på <c>resume_versions.content_enc</c>: domän-VO
 /// <see cref="ResumeVersion.Content"/> är EF-<c>Ignore</c>:ad, JSON-serialiseras
-/// → krypteras → skrivs till krypterad text-shadow <c>content_enc</c>, med
-/// legacy klartext-jsonb-rå-shadow (<c>content</c>) som backfill-fallback. Mot
-/// riktig Postgres (Testcontainers via <see cref="WorkerTestFixture"/>) — exakt
+/// → krypteras → skrivs till krypterad text-shadow <c>content_enc</c> (enda
+/// källan post-cutover #507a; legacy <c>content</c>-plaintext-fallbacken
+/// retirerad, se HISTORICAL-noten nedan). Mot riktig Postgres (Testcontainers
+/// via <see cref="WorkerTestFixture"/>) — exakt
 /// samma stack/disciplin som C3-sviten
 /// (<see cref="FieldEncryptionInterceptorTests"/>): InMemory förbjudet
 /// (CLAUDE.md/test-stack; ADR 0049 Mekanik-not 4), interceptor↔Npgsql-
@@ -46,7 +49,10 @@ namespace Jobbliggaren.Worker.IntegrationTests.Security;
 /// </para>
 ///
 /// <para>
-/// <b>Backfill-fallback (Beslut 5 steg 2, Mekanik-not 5b ärvd):</b>
+/// <b>Backfill-fallback RETIRED post-cutover (#507a / ADR 0049 Beslut 5 steg 3;
+/// the description below is HISTORICAL: content_enc is now the sole source,
+/// EncryptedFieldRegistry LegacyShadowProperty = null, and a content_enc IS NULL
+/// row materializes Content as null in every scope, see scenario 3):</b>
 /// <c>content_enc</c> null/icke-sentinel ⇒ läs legacy klartext-JSON ur
 /// <c>content</c>-jsonb (rå-shadow <c>ContentLegacyJson</c>, ingen decrypt,
 /// ingen DEK, ALLA scopes inkl. system). Sentinel + ägar-scope + cachad DEK ⇒
@@ -302,109 +308,183 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
             "(ResumeVersionConfiguration: ContentLegacyJson PropertySaveBehavior.Ignore)");
     }
 
-    // ── 3. Legacy jsonb-tolerans (backfill dual-read) ───────────────────
+    // ── 3. Post-cutover: legacy plaintext fallback retired (#507a) ───────────────────
+    // #507a / ADR 0049 Beslut 5 steg 3. Before the cutover a content_enc-null row
+    // with legacy `content` jsonb materialized Content via the fallback. After the
+    // mapping flip (EncryptedFieldRegistry LegacyShadowProperty = null) the fallback
+    // is gone: such a row materializes Content == null in EVERY scope and never
+    // throws (content_enc is null, so the encrypted-branch fail-closed is never
+    // reached). The fitness gate + null-out migration guarantee no such row exists
+    // in prod; this test locks the flip.
     [Fact]
-    public async Task LegacyJsonbRow_MaterializesViaFallback_WithAndWithoutPrefetch()
+    public async Task PostCutover_LegacyOnlyRow_FallbackRetired_MaterializesNull()
     {
         var ct = TestContext.Current.CancellationToken;
         var seeker = await SeedJobSeekerAsync(ct);
-        var legacy = RichContent("Legacy Jsonb Person");
+        var legacy = RichContent("Legacy Jsonb Person (post-cutover)");
         var legacyJson = JsonSerializer.Serialize(legacy, CanonicalJson);
 
         var (resumeId, versionId) =
             await RawInsertLegacyResumeAsync(seeker.Id, legacyJson, ct);
 
-        // (a) Autentiserad scope MED prefetch — legacy-grenen returnerar tidigt
-        // (content_enc NULL ⇒ ingen decrypt/DEK), Content ska ändå materialiseras
-        // ur content-jsonb-fallbacken.
+        // (a) Authenticated scope WITH prefetch: content_enc is null so no decrypt,
+        // and the legacy fallback is retired, so Content stays null and no throw.
         using (var withScope = _fixture.Services.CreateScope())
         {
             await PrefetchOwnerDekAsync(withScope, seeker.Id, ct);
             var db = withScope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var resume = await db.Resumes
-                .AsNoTracking().Include(r => r.Versions)
-                .SingleAsync(r => r.Id == resumeId, ct);
-            ShouldDeepEqual(resume.MasterVersion.Content, legacy);
-        }
-
-        // (b) System-scope UTAN prefetch/owner — legacy-fallback kräver ingen
-        // DEK ⇒ måste materialisera ändå (ingen fail-closed på legacy-vägen).
-        using (var sysScope = _fixture.Services.CreateScope())
-        {
-            var owner = sysScope.ServiceProvider.GetRequiredService<ICurrentDataOwner>();
-            owner.JobSeekerId.ShouldBeNull(
-                "system-scope: ingen owner satt (vakt mot felaktig fixtur-default)");
-            var db = sysScope.ServiceProvider.GetRequiredService<AppDbContext>();
-
             Resume? loaded = null;
             await Should.NotThrowAsync(async () =>
                 loaded = await db.Resumes
                     .AsNoTracking().Include(r => r.Versions)
                     .SingleAsync(r => r.Id == resumeId, ct));
             loaded.ShouldNotBeNull();
-            ShouldDeepEqual(loaded.MasterVersion.Content, legacy);
+            loaded.Versions.ShouldHaveSingleItem().Content.ShouldBeNull(
+                "post-cutover: a content_enc IS NULL row no longer falls back to " +
+                "legacy plaintext (LegacyShadowProperty = null)");
         }
 
-        _ = versionId;
+        // (b) System-scope WITHOUT prefetch/owner: same outcome, no fallback, no
+        // throw, Content null. (Pre-cutover this materialized the legacy plaintext.)
+        using (var sysScope = _fixture.Services.CreateScope())
+        {
+            sysScope.ServiceProvider.GetRequiredService<ICurrentDataOwner>()
+                .JobSeekerId.ShouldBeNull(
+                    "system-scope: no owner set (guard against fixture default)");
+            var db = sysScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Resume? loaded = null;
+            await Should.NotThrowAsync(async () =>
+                loaded = await db.Resumes
+                    .AsNoTracking().Include(r => r.Versions)
+                    .SingleAsync(r => r.Id == resumeId, ct));
+            loaded.ShouldNotBeNull();
+            loaded.Versions.ShouldHaveSingleItem().Content.ShouldBeNull();
+        }
+
+        // The legacy plaintext still sits on disk (physical DROP deferred, Beslut 5
+        // steg 4) but is no longer reachable through the app.
+        using var verifyScope = _fixture.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await RawScalarAsync(
+                verifyDb,
+                $"SELECT content FROM resume_versions WHERE id = '{versionId.Value}'",
+                ct))
+            .ShouldNotBeNull(
+                "the raw-inserted legacy row keeps its plaintext on disk until the " +
+                "deferred physical DROP; it is just unreachable now");
     }
 
-    // ── 4. Legacy lazy-migrerar vid nästa write ─────────────────────────
+    // ── 4. Cutover migration: embedded fail-loud guard (#507a) ─────────────────────────
+    // Seeds one legacy-only row and runs the exact guard SQL (SPOT constant);
+    // expects raise_exception (P0001) so the cutover cannot silently orphan CVs.
     [Fact]
-    public async Task LegacyJsonbRow_LazyMigratesToContentEnc_OnNextWrite()
+    public async Task CutoverGuard_LegacyOnlyRowPresent_RaisesAndAborts()
     {
         var ct = TestContext.Current.CancellationToken;
         var seeker = await SeedJobSeekerAsync(ct);
-        var legacy = RichContent("Lazy Migrerings Person");
-        var legacyJson = JsonSerializer.Serialize(legacy, CanonicalJson);
-
-        var (resumeId, versionId) =
+        var legacyJson = JsonSerializer.Serialize(
+            RichContent("Guard trips on me"), CanonicalJson);
+        var (resumeId, _) =
             await RawInsertLegacyResumeAsync(seeker.Id, legacyJson, ct);
 
-        // Ladda + tracked-prop-ändring (UpdateMasterContent) + save MED prefetch.
-        // Encrypt-on-write kräver varm ägar-DEK i write-scopet.
-        var updated = RichContent("Lazy Migrerings Person UPPDATERAD");
-        using (var writeScope = _fixture.Services.CreateScope())
+        using (var scope = _fixture.Services.CreateScope())
         {
-            await PrefetchOwnerDekAsync(writeScope, seeker.Id, ct);
-            var db = writeScope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var resume = await db.Resumes
-                .Include(r => r.Versions)
-                .SingleAsync(r => r.Id == resumeId, ct);
-            resume.UpdateMasterContent(updated, new FixedClock(DateTimeOffset.UtcNow))
-                .IsSuccess.ShouldBeTrue();
-            await db.SaveChangesAsync(ct);
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var ex = await Record.ExceptionAsync(async () =>
+                await db.Database.ExecuteSqlRawAsync(
+                    NullResumeVersionLegacyContent.PreconditionGuardSql, ct));
+
+            ex.ShouldNotBeNull(
+                "the guard must abort when a legacy-only row (content_enc IS NULL " +
+                "AND content IS NOT NULL) remains");
+            var pg = ex.ShouldBeOfType<PostgresException>();
+            pg.SqlState.ShouldBe("P0001",
+                "PL/pgSQL RAISE EXCEPTION maps to SQLSTATE raise_exception");
+            pg.MessageText.ShouldContain("plaintext cutover precondition failed");
         }
 
-        using var verifyScope = _fixture.Services.CreateScope();
-        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        // Cleanup: this legacy-only row would otherwise persist in the shared
+        // [Collection("Worker")] DB and could trip a later global fitness assertion.
+        using (var cleanupScope = _fixture.Services.CreateScope())
+        {
+            var cleanupDb = cleanupScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            // ExecuteSqlAsync parameterizes the interpolation hole (EF1002-safe).
+            await cleanupDb.Database.ExecuteSqlAsync(
+                $"DELETE FROM resumes WHERE id = {resumeId.Value}", ct);
+        }
+    }
 
-        var contentEnc = await RawScalarAsync(
-            verifyDb,
-            $"SELECT content_enc FROM resume_versions WHERE id = '{versionId.Value}'",
-            ct);
-        contentEnc.ShouldNotBeNull(
-            "legacy-rad ska ha lazy-migrerats till content_enc-ciphertext vid nästa write");
-        // Shouldly 4.3: ShouldStartWith(string, X) tolkar 2:a arg som Case
-        // (ingen customMessage-overload) — paritet med C3-filen som använder
-        // 1-arg ShouldStartWith. Syftet bärs av testnamn + ShouldNotBeNull ovan.
-        contentEnc.ShouldStartWith("v1:");
-        contentEnc.ShouldNotContain("Lazy Migrerings Person", Case.Sensitive);
+    // ── 4b. Cutover migration: null-out UPDATE effect ───────────────────
+    // #507a. The null-out clears legacy `content` for every migrated (content_enc)
+    // row while content_enc still round-trips. Seeds a real ciphertext row, force-
+    // writes dual-state legacy `content`, runs the exact null-out SQL (SPOT
+    // constant), then asserts content IS NULL on disk and content_enc round-trips.
+    [Fact]
+    public async Task CutoverNullOut_DualStateRow_ClearsPlaintext_ContentEncRoundTrips()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var original = RichContent("Dual-state Person NO-10");
 
-        // Legacy `content` lämnas orört (EF skriver aldrig den —
-        // PropertySaveBehavior.Ignore på before+after-save).
-        var legacyContentRaw = await RawScalarAsync(
-            verifyDb,
-            $"SELECT content FROM resume_versions WHERE id = '{versionId.Value}'",
-            ct);
-        legacyContentRaw.ShouldNotBeNull(
-            "legacy `content`-jsonb ska stå kvar oförändrad (EF write-ignore:ad)");
-        // Shouldly 4.3: ShouldContain/ShouldNotContain(string, Case) har INGEN
-        // 3-arg (string, Case, customMessage)-overload (paritet med C3-filens
-        // not). Assert-syftet bärs av testnamnet + v1:-assertionen ovan: legacy
-        // `content` står kvar med ORIGINAL-klartexten, EF skriver aldrig den
-        // uppdaterade ("UPPDATERAD") texten tillbaka.
-        legacyContentRaw.ShouldContain("Lazy Migrerings Person", Case.Sensitive);
-        legacyContentRaw.ShouldNotContain("UPPDATERAD", Case.Sensitive);
+        var (resumeId, versionId, owner) = await SeedEncryptedMasterAsync(original, ct);
+
+        // Force the dual-state the backfill produced: a real content_enc ciphertext
+        // row that ALSO still carries legacy plaintext `content` (raw write bypasses
+        // the EF write-ignore).
+        var legacyJson = JsonSerializer.Serialize(original, CanonicalJson);
+        using (var seedScope = _fixture.Services.CreateScope())
+        {
+            var seedDb = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var conn = seedDb.Database.GetDbConnection();
+            if (conn.State != System.Data.ConnectionState.Open)
+                await conn.OpenAsync(ct);
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText =
+                $"UPDATE resume_versions SET content = CAST(@c AS jsonb) " +
+                $"WHERE id = '{versionId.Value}'";
+            AddParam(cmd, "@c", legacyJson);
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+
+        // Arrange guard: the row is genuinely dual-state before the null-out.
+        using (var preScope = _fixture.Services.CreateScope())
+        {
+            var preDb = preScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await RawScalarAsync(preDb,
+                    $"SELECT content FROM resume_versions WHERE id = '{versionId.Value}'",
+                    ct))
+                .ShouldNotBeNull("arrange: legacy content is present pre-null-out");
+        }
+
+        // Act: run the exact migration null-out SQL (SPOT constant).
+        using (var actScope = _fixture.Services.CreateScope())
+        {
+            var actDb = actScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await actDb.Database.ExecuteSqlRawAsync(
+                NullResumeVersionLegacyContent.NullOutSql, ct);
+        }
+
+        // Assert (a): legacy plaintext is gone on disk.
+        using (var verifyScope = _fixture.Services.CreateScope())
+        {
+            var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await RawScalarAsync(verifyDb,
+                    $"SELECT content FROM resume_versions WHERE id = '{versionId.Value}'",
+                    ct))
+                .ShouldBeNull("null-out cleared legacy plaintext for the content_enc row");
+        }
+
+        // Assert (b): content_enc still round-trips to the original CV content.
+        using (var readScope = _fixture.Services.CreateScope())
+        {
+            await PrefetchOwnerDekAsync(readScope, owner, ct);
+            var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var resume = await readDb.Resumes
+                .AsNoTracking().Include(r => r.Versions)
+                .SingleAsync(r => r.Id == resumeId, ct);
+            var loaded = resume.MasterVersion.Content;
+            loaded.ShouldNotBeNull("content_enc must still decrypt after the null-out");
+            ShouldDeepEqual(loaded, original);
+        }
     }
 
     // ── 5. Fail-closed (KMS down on write) ──────────────────────────────

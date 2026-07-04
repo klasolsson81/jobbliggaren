@@ -17,7 +17,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <para>
 /// Invariant: en query/command vars resultat härleds från en krypterad
 /// kolumn (<c>cover_letter</c>/<c>application_notes.content</c>/
-/// <c>follow_ups.note</c>/<c>resume_versions.content</c>) får INTE
+/// <c>follow_ups.note</c>/<c>resume_versions.content_enc</c>) får INTE
 /// SQL-projicera det krypterade fältet (`.Select(... x.CoverLetter ...)`) —
 /// då kringgås <c>FieldDecryptionMaterializationInterceptor</c> (EF Core 10:
 /// interceptorn triggar endast vid entitets-materialisering) och ciphertext

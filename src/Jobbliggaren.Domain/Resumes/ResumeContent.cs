@@ -1,7 +1,8 @@
 namespace Jobbliggaren.Domain.Resumes;
 
 /// <summary>
-/// Strukturerat CV-innehåll. Lagras som JSONB i resume_versions.content.
+/// Strukturerat CV-innehåll. Persisteras krypterat i resume_versions.content_enc
+/// (ADR 0049 Form B; legacy plaintext-content nullställd vid cutover #507a).
 /// </summary>
 /// <remarks>
 /// OBS: equality på collection-properties är reference-baserad (inte value-baserad)

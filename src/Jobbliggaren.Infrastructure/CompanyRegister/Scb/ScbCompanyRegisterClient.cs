@@ -42,19 +42,11 @@ internal sealed partial class ScbCompanyRegisterClient(
     // SCB category names (smoke-verified request shape, issue #560).
     private const string CatSatesKommun = "SätesKommun";
     private const string CatJuridiskForm = "Juridisk form";
-    private const string CatBransch = "Bransch";
 
     // Juridisk form 10 = Fysiska personer (enskild firma / sole traders). Excluding it at the SCB
     // query is the PRIMARY legal-entities-only filter (ADR 0091). Every other code (21..99) is a
     // legal entity.
     private const string SoleTraderJuridiskForm = "10";
-
-    // SNI 2025 avdelningar (top-level sections) A..U — the Bransch niva-1 partition rung for the few
-    // (municipality × legal form) partitions that still exceed the row cap (the storstad tail Klas
-    // confirmed at smoke-test). A stable, closed reference set (not a CV-engine rubric list) — kept
-    // as a constant rather than a code-table round-trip.
-    private static readonly string[] SniSections =
-        ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U"];
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -83,8 +75,13 @@ internal sealed partial class ScbCompanyRegisterClient(
             yield break;
         }
 
-        // Seed = one municipality × all legal forms. Ladder narrows an over-cap partition by a single
-        // legal form, then by SNI section (avdelning).
+        // Seed = one municipality × all legal forms. The ladder narrows an over-cap partition by a
+        // single legal form — the only deep-split dimension verified against the LIVE API. (A Bransch/
+        // SNI-section rung returned HTTP 400 at the population run; a working deep-split needs the exact
+        // SCB koptakategorier filter shape — deferred follow-up.) Municipality × single-form counts are
+        // modest (even Stockholm's were ≤ the cap at the live run), so the few partitions still over cap
+        // truncate at the cap and the run marks itself truncated (deregister sweep disabled) rather than
+        // losing them silently.
         var seeds = kommunCodes
             .Select(code => new ScbQuery([
                 new ScbCategoryFilter(CatSatesKommun, [code]),
@@ -95,7 +92,6 @@ internal sealed partial class ScbCompanyRegisterClient(
         var ladder = new ScbFacet[]
         {
             new(CatJuridiskForm, legalForms),
-            new(CatBransch, SniSections, BranschNiva: 1),
         };
 
         await foreach (var leaf in ScbPartitionPlanner.PlanAsync(
@@ -123,7 +119,15 @@ internal sealed partial class ScbCompanyRegisterClient(
         using var response = await httpClient
             .PostAsJsonAsync(RaknaEndpoint, ToFilterRequest(query), JsonOptions, cancellationToken)
             .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            // A single partition query error (e.g. an unexpected SCB 400/500) must NOT crash the whole
+            // ~1-3 h run. Log it, mark the run truncated (deregister sweep disabled — never falsely
+            // deregister on incomplete data), and skip this partition.
+            LogPartitionRequestFailed(logger, RaknaEndpoint, (int)response.StatusCode);
+            outcome.MarkTruncatedOrErrored();
+            return 0;
+        }
 
         // raknaforetag returns the count as the JSON body — accept a bare number or a small object
         // that wraps it (e.g. {"Antal":n}); take the first integer we find.
@@ -149,7 +153,13 @@ internal sealed partial class ScbCompanyRegisterClient(
         using var response = await httpClient
             .PostAsJsonAsync(HamtaEndpoint, ToFilterRequest(query), JsonOptions, cancellationToken)
             .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            // Non-fatal (as in CountAsync): log, mark truncated, skip this partition — don't crash the run.
+            LogPartitionRequestFailed(logger, HamtaEndpoint, (int)response.StatusCode);
+            outcome.MarkTruncatedOrErrored();
+            return [];
+        }
 
         using var doc = await JsonDocument
             .ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false),
@@ -181,7 +191,13 @@ internal sealed partial class ScbCompanyRegisterClient(
             .PostAsJsonAsync(KodtabellEndpoint, new ScbKodtabellRequest { Kategori = category },
                 JsonOptions, cancellationToken)
             .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            // A code-table failure means we cannot bound the extract — return empty; the caller marks
+            // the run truncated and yields nothing (never a crash).
+            LogPartitionRequestFailed(logger, KodtabellEndpoint, (int)response.StatusCode);
+            return [];
+        }
 
         using var doc = await JsonDocument
             .ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false),
@@ -311,4 +327,8 @@ internal sealed partial class ScbCompanyRegisterClient(
     [LoggerMessage(EventId = 5701, Level = LogLevel.Error,
         Message = "ScbCompanyRegisterClient: kodtabell tom — kommuner={KommunCount}, legalForms={LegalFormCount}. Avbryter (markerar trunkerad; ingen sweep).")]
     private static partial void LogCodeTablesEmpty(ILogger logger, int kommunCount, int legalFormCount);
+
+    [LoggerMessage(EventId = 5702, Level = LogLevel.Warning,
+        Message = "ScbCompanyRegisterClient: SCB {Endpoint} svarade {StatusCode} — partitionen hoppas över, körningen markeras trunkerad (ingen falsk avregistrering). Loggar aldrig org.nr.")]
+    private static partial void LogPartitionRequestFailed(ILogger logger, string endpoint, int statusCode);
 }

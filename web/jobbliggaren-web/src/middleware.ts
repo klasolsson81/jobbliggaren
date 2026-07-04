@@ -1,19 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { PROTECTED_PREFIXES } from "@/lib/auth/protected-routes";
 
-// Defense-in-depth (ADR 0017): middleware blockerar oautentiserad noise innan
-// request når BE; layout/page re-verifierar via getServerSession().
-// security-auditor M-2 (2026-05-24): listan ska spegla `(app)`-route-listan.
-const PROTECTED_PREFIXES = [
-  "/installningar",
-  "/mig",
-  "/ansokningar",
-  "/cv",
-  "/oversikt",
-  "/jobb",
-  "/sokningar",
-  "/sparade",
-  "/foretag",
-];
+// Defense-in-depth (ADR 0017): middleware blocks unauthenticated noise before it
+// reaches the BE; the layout/page re-verifies via getServerSession(). The
+// PROTECTED_PREFIXES list mirrors the `(app)` route group — invariant frozen by
+// protected-routes.test.ts (security-auditor M-2, 2026-05-24).
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

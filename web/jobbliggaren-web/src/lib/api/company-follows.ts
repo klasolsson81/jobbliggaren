@@ -1,6 +1,6 @@
 import "server-only";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   companyWatchStatusBatchSchema,
   followCompanyResultSchema,
@@ -12,13 +12,6 @@ import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
 import { isValidId } from "@/lib/validation/guid";
 
 const BASE = "/api/v1/me/company-watches";
-
-function authHeaders(sessionId: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${sessionId}`,
-    "Content-Type": "application/json",
-  };
-}
 
 /**
  * #455 (ADR 0087 D8(c), Approach A) — follow a job ad's employer. The FE passes the non-PII JobAdId;
@@ -34,10 +27,8 @@ export async function followCompanyFromJobAd(
   if (!isValidId(jobAdId)) return { kind: "notFound" };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}${BASE}/by-job-ad/${encodeURIComponent(jobAdId)}`, {
+    const res = await authedFetch(sessionId, `${BASE}/by-job-ad/${encodeURIComponent(jobAdId)}`, {
       method: "POST",
-      headers: authHeaders(sessionId),
-      cache: "no-store",
     });
     if (res.status === 201) {
       const parsed = followCompanyResultSchema.safeParse(await res.json());
@@ -69,11 +60,9 @@ export async function followCompany(
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}${BASE}`, {
+    const res = await authedFetch(sessionId, BASE, {
       method: "POST",
-      headers: authHeaders(sessionId),
       body: JSON.stringify({ organizationNumber: orgNr }),
-      cache: "no-store",
     });
     if (res.status === 201) {
       const parsed = followCompanyResultSchema.safeParse(await res.json());
@@ -98,10 +87,8 @@ export async function unfollowCompany(companyWatchId: string): Promise<ApiResult
   if (!isValidId(companyWatchId)) return { kind: "notFound" };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}${BASE}/${encodeURIComponent(companyWatchId)}`, {
+    const res = await authedFetch(sessionId, `${BASE}/${encodeURIComponent(companyWatchId)}`, {
       method: "DELETE",
-      headers: authHeaders(sessionId),
-      cache: "no-store",
     });
     if (res.status === 204) return { kind: "ok", data: undefined };
     if (res.status === 401) return { kind: "unauthorized" };
@@ -125,11 +112,9 @@ export async function getCompanyWatchStatus(jobAdId: string): Promise<CompanyFol
   if (!isValidId(jobAdId)) return fallback;
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}${BASE}/status`, {
+    const res = await authedFetch(sessionId, `${BASE}/status`, {
       method: "POST",
-      headers: authHeaders(sessionId),
       body: JSON.stringify({ jobAdIds: [jobAdId] }),
-      cache: "no-store",
     });
     if (!res.ok) return fallback;
     const parsed = companyWatchStatusBatchSchema.safeParse(await res.json());
@@ -157,12 +142,11 @@ export async function markFollowedCompanyAdSeen(jobAdId: string): Promise<ApiRes
   if (!isValidId(jobAdId)) return { kind: "notFound" };
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}${BASE}/ad-hits/${encodeURIComponent(jobAdId)}/seen`,
+    const res = await authedFetch(
+      sessionId,
+      `${BASE}/ad-hits/${encodeURIComponent(jobAdId)}/seen`,
       {
         method: "POST",
-        headers: authHeaders(sessionId),
-        cache: "no-store",
       }
     );
     if (res.status === 204) return { kind: "ok", data: undefined };
@@ -184,10 +168,7 @@ export async function getCompanyWatches(): Promise<ApiResult<ListCompanyWatchesR
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}${BASE}`, {
-      headers: authHeaders(sessionId),
-      cache: "no-store",
-    });
+    const res = await authedFetch(sessionId, BASE);
     return await responseToResult(
       res,
       listCompanyWatchesResultSchema,

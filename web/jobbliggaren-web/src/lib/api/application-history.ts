@@ -1,6 +1,6 @@
 import "server-only";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   applicationHistoryResultSchema,
   type ApplicationHistoryResult,
@@ -19,13 +19,7 @@ export async function getApplicationHistory(): Promise<ApiResult<ApplicationHist
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/me/application-history`, {
-      headers: {
-        Authorization: `Bearer ${sessionId}`,
-        "Content-Type": "application/json",
-      },
-      cache: "no-store",
-    });
+    const res = await authedFetch(sessionId, "/api/v1/me/application-history");
     return await responseToResult(
       res,
       applicationHistoryResultSchema,

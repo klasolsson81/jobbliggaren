@@ -1,6 +1,6 @@
 import "server-only";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   matchListSchema,
   newMatchCountSchema,
@@ -8,10 +8,6 @@ import {
   type NewMatchCount,
 } from "@/lib/dto/me-matches";
 import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
-
-function authHeaders(sessionId: string): HeadersInit {
-  return { Authorization: `Bearer ${sessionId}` };
-}
 
 /**
  * ADR 0080 Vag 4 PR-5 — antalet bakgrundsmatchningar NYA sedan senaste besök,
@@ -27,10 +23,7 @@ export async function getNewMatchCount(): Promise<ApiResult<NewMatchCount>> {
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/me/new-match-count`, {
-      headers: authHeaders(sessionId),
-      cache: "no-store",
-    });
+    const res = await authedFetch(sessionId, "/api/v1/me/new-match-count");
     return await responseToResult(
       res,
       newMatchCountSchema,
@@ -53,10 +46,7 @@ export async function getMyMatches(): Promise<ApiResult<MatchList>> {
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/me/matches`, {
-      headers: authHeaders(sessionId),
-      cache: "no-store",
-    });
+    const res = await authedFetch(sessionId, "/api/v1/me/matches");
     return await responseToResult(res, matchListSchema, "GET /api/v1/me/matches");
   } catch {
     return { kind: "error" };
@@ -77,10 +67,8 @@ export async function markMatchesSeen(): Promise<ApiResult<void>> {
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/me/matches/seen`, {
+    const res = await authedFetch(sessionId, "/api/v1/me/matches/seen", {
       method: "POST",
-      headers: authHeaders(sessionId),
-      cache: "no-store",
     });
     if (res.status === 204) return { kind: "ok", data: undefined };
     if (res.status === 401) return { kind: "unauthorized" };

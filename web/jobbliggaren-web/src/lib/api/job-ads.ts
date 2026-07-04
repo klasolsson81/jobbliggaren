@@ -1,6 +1,6 @@
 import "server-only";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   jobAdDtoSchema,
   listJobAdsResultSchema,
@@ -65,13 +65,6 @@ export interface ListJobAdsQuery {
   commit?: boolean;
 }
 
-function authHeaders(sessionId: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${sessionId}`,
-    "Content-Type": "application/json",
-  };
-}
-
 function buildQuery(query: ListJobAdsQuery): string {
   const params = new URLSearchParams();
   params.set("page", String(query.page));
@@ -125,9 +118,9 @@ export async function getJobAds(
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/job-ads?${buildQuery(query)}`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/job-ads?${buildQuery(query)}`
     );
     return await responseToResult(
       res,
@@ -157,9 +150,9 @@ export async function getJobAd(
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/job-ads/${encodeURIComponent(id)}`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/job-ads/${encodeURIComponent(id)}`
     );
     return await responseToResult(
       res,
@@ -194,9 +187,9 @@ export async function suggestJobAdTerms(
   });
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/job-ads/suggest?${params.toString()}`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/job-ads/suggest?${params.toString()}`
     );
     return await responseToResult(
       res,
@@ -249,9 +242,9 @@ export async function getFacetCounts(
   if (filter.q) params.set("q", filter.q);
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/job-ads/facet-counts?${params.toString()}`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/job-ads/facet-counts?${params.toString()}`
     );
     return await responseToResult(
       res,

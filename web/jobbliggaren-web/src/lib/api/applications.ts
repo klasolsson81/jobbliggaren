@@ -1,6 +1,6 @@
 import "server-only";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   applicationDetailDtoSchema,
   getApplicationsResultSchema,
@@ -23,22 +23,12 @@ import {
 } from "@/lib/dto/_helpers";
 import { isValidId } from "@/lib/validation/guid";
 
-function authHeaders(sessionId: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${sessionId}`,
-    "Content-Type": "application/json",
-  };
-}
-
 export async function getPipeline(): Promise<ApiResult<PipelineGroupDto[]>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/applications/pipeline`, {
-      headers: authHeaders(sessionId),
-      cache: "no-store",
-    });
+    const res = await authedFetch(sessionId, "/api/v1/applications/pipeline");
     return await responseToResult(
       res,
       pipelineResponseSchema,
@@ -64,10 +54,7 @@ export async function getApplications(
   if (status) params.set("status", status);
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/applications?${params}`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
-    );
+    const res = await authedFetch(sessionId, `/api/v1/applications?${params}`);
     return await responseToResult(
       res,
       getApplicationsResultSchema,
@@ -96,9 +83,9 @@ export async function getActivityReport(
   const qs = params.toString();
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/applications/activity-report${qs ? `?${qs}` : ""}`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/applications/activity-report${qs ? `?${qs}` : ""}`
     );
     return await responseToResult(
       res,
@@ -119,10 +106,7 @@ export async function getApplicationStats(): Promise<
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/applications/stats`, {
-      headers: authHeaders(sessionId),
-      cache: "no-store",
-    });
+    const res = await authedFetch(sessionId, "/api/v1/applications/stats");
     return await responseToResult(
       res,
       applicationStatsDtoSchema,
@@ -143,9 +127,9 @@ export async function getApplicationById(
   if (!isValidId(id)) return { kind: "notFound" };
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/applications/${encodeURIComponent(id)}`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/applications/${encodeURIComponent(id)}`
     );
     return await responseToResult(
       res,

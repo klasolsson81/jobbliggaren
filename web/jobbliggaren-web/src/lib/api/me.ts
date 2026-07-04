@@ -1,8 +1,8 @@
 import "server-only";
 
 import { cache } from "react";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   jobSeekerProfileSchema,
   type DigestCadence,
@@ -20,10 +20,7 @@ export const getMyProfile = cache(
     if (!sessionId) return { kind: "unauthorized" };
 
     try {
-      const res = await fetch(`${env.BACKEND_URL}/api/v1/me/profile`, {
-        headers: { Authorization: `Bearer ${sessionId}` },
-        cache: "no-store",
-      });
+      const res = await authedFetch(sessionId, "/api/v1/me/profile");
       return await responseToResult(
         res,
         jobSeekerProfileSchema,
@@ -56,19 +53,15 @@ export async function updateNotificationConsent(input: {
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/me/notification-consent`,
+    const res = await authedFetch(
+      sessionId,
+      "/api/v1/me/notification-consent",
       {
         method: "PUT",
-        headers: {
-          Authorization: `Bearer ${sessionId}`,
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({
           enabled: input.enabled,
           cadence: input.cadence,
         }),
-        cache: "no-store",
       }
     );
 

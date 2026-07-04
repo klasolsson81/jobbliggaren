@@ -1,19 +1,12 @@
 import "server-only";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   hasAppliedSchema,
   jobAdStatusBatchSchema,
   type JobAdStatusBatch,
 } from "@/lib/dto/job-ad-status";
 import { isValidId } from "@/lib/validation/guid";
-
-function authHeaders(sessionId: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${sessionId}`,
-    "Content-Type": "application/json",
-  };
-}
 
 /**
  * ADR 0063 — batch-status för `/jobb`-listans Sparad/Har-ansökt-taggar.
@@ -29,11 +22,9 @@ export async function getJobAdStatusBatch(
   if (!sessionId) return { savedIds: [], appliedIds: [] };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/me/job-ad-status`, {
+    const res = await authedFetch(sessionId, "/api/v1/me/job-ad-status", {
       method: "POST",
-      headers: authHeaders(sessionId),
       body: JSON.stringify({ jobAdIds }),
-      cache: "no-store",
     });
     if (!res.ok) return { savedIds: [], appliedIds: [] };
     const data = await res.json();
@@ -55,9 +46,9 @@ export async function hasAppliedJobAd(jobAdId: string): Promise<boolean> {
   if (!isValidId(jobAdId)) return false;
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/me/applications/has-applied/${encodeURIComponent(jobAdId)}`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/me/applications/has-applied/${encodeURIComponent(jobAdId)}`
     );
     if (!res.ok) return false;
     const data = await res.json();

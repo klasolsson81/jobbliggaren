@@ -1,19 +1,12 @@
 import "server-only";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   employerApplicationCountBatchSchema,
   type EmployerApplicationCountBatch,
 } from "@/lib/dto/employer-application-counts";
 
 const EMPTY_BATCH: EmployerApplicationCountBatch = { countsByJobAdId: {} };
-
-function authHeaders(sessionId: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${sessionId}`,
-    "Content-Type": "application/json",
-  };
-}
 
 /**
  * #446 (#311) — batch-räknare för /jobb-listans "Du har X tidigare ansökningar
@@ -34,13 +27,12 @@ export async function getEmployerApplicationCounts(
   if (!sessionId) return EMPTY_BATCH;
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/me/application-history/counts`,
+    const res = await authedFetch(
+      sessionId,
+      "/api/v1/me/application-history/counts",
       {
         method: "POST",
-        headers: authHeaders(sessionId),
         body: JSON.stringify({ jobAdIds }),
-        cache: "no-store",
       }
     );
     if (!res.ok) return EMPTY_BATCH;

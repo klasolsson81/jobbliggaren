@@ -255,12 +255,26 @@ public class AuditingLayerTests
             .Select(t => t.Name)
             .ToList();
 
-        var allowed = new[] { "SystemEventAuditor", "DependencyInjection" };
+        var allowed = new[]
+        {
+            "SystemEventAuditor",
+            "DependencyInjection",
+            // #560 (ADR 0091, senior-cto-advisor Fork 2) — the SCB register refresh ORCHESTRATOR is the
+            // first NON-impl Infrastructure consumer of ISystemEventAuditor. It lives in Infrastructure
+            // (not Application, unlike the other system jobs) because it writes the Infra-internal
+            // company_register replica via the concrete AppDbContext — an Application job would need a
+            // store port ADR 0009 rejects. It writes ONE CompanyRegisterSynced run-completion audit
+            // (GDPR Art. 30 accountability + the deregister-sweep floor baseline), parity the Application
+            // jobs' JobAdsSynced. Additive ratchet; the audit-bypass discipline is preserved (a single
+            // aggregate run-completion row, no per-item bypass into command-handlers).
+            "ScbCompanyRegisterRefresher",
+        };
         var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
 
         unauthorized.ShouldBeEmpty(
             $"ISystemEventAuditor i Infrastructure får endast konsumeras av " +
-            $"SystemEventAuditor (impl) eller DependencyInjection (registrering). " +
+            $"SystemEventAuditor (impl), DependencyInjection (registrering) eller " +
+            $"ScbCompanyRegisterRefresher (#560 register-orchestrator, ADR 0091). " +
             $"Otillåtna: {string.Join(", ", unauthorized)}");
     }
 

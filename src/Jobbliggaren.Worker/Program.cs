@@ -88,6 +88,14 @@ builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackgroundMatchingWorker>
 // dep failar först vid Hangfire-invocation 03:25 UTC).
 builder.Services.AddScoped<Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan.CompanyWatchScanJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.CompanyWatchScanWorker>();
+// #560 (ADR 0091) — SCB company-register population module + Worker wrapper. AddScbCompanyRegister
+// registers the refresh orchestrator + bulk store + partition planner, and (only when
+// ScbRegister:Enabled=true) the real cert-based client with the process-wide 10/10s limiter; else a
+// Null source so cert-less dev/CI stay dark. Worker-only (the Api never populates — parity the
+// registry-free company-watch scan). Wrapper + module in the same commit (TD-103: Worker
+// ValidateOnBuild=false → a missing dep fails first at Hangfire-invocation, verified manually in dev).
+builder.Services.AddScbCompanyRegister(builder.Configuration);
+builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ScbCompanyRegisterSyncWorker>();
 // ADR 0080 Vag 4 PR-4b — Strong-digest-dispatch (kadens-cap:ad sammanfattning). Två cron-ingångar
 // (Daglig/Veckovis) via DigestDispatchWorker; jobbet filtrerar konsenterade användare på den kadens
 // det anropas för (cron = fönstret). Cap via IOptions (Digest-sektionen, ValidateDataAnnotations +

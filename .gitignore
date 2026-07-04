@@ -16,6 +16,13 @@ appsettings.Local.json
 # RSA keys and other local secrets (never commit)
 .secrets/
 
+# #560 (ADR 0091) — SCB client certificates + provisioning docs (personal credential, never commit).
+# gitleaks is text/regex-based and can miss a binary .pfx, so this ignore is the load-bearing guard
+# against an accidental `git add` of the cert (contract breach + API-Id ban risk).
+*.pfx
+*.p12
+docs/scb/
+
 # Fas 4 STEG C — machine-generated motor-stresstest findings report (regenerated via
 # `dotnet test`; the emitter is the committed deliverable, the artifact is not)
 tests/Jobbliggaren.QA.Corpus/artifacts/

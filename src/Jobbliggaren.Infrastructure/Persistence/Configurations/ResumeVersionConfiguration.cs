@@ -41,15 +41,17 @@ public sealed class ResumeVersionConfiguration : IEntityTypeConfiguration<Resume
         builder.Property<string>("ContentEnc")
             .HasColumnName("content_enc");
 
-        // Legacy klartext-jsonb-rå-shadow (backfill-fallback, Beslut 5 steg 2).
-        // RÅ string mot jsonb (Npgsql text-hämtning) — INGEN JSON-VC (en VC
-        // skulle återinföra C4.0-RED: ConvertFromProvider före interceptorn).
-        // HÅRT read-only: PropertySaveBehavior.Ignore på BÅDE before/after-save
-        // → EF skriver ALDRIG `content` (varken på INSERT eller UPDATE), så
-        // klartext-JSON kan aldrig write-back:as under dual-state-fönstret
-        // (architect 2026-05-19; striktare, ej svagare — paritet Not 5b).
-        // Kolumnen är fortfarande materialiserbar på read (Ignore styr endast
-        // write-paths) → MaterializationInterceptorn läser den vid fallback.
+        // Legacy plaintext-jsonb raw shadow. POST-CUTOVER (ADR 0049 Beslut 5
+        // steg 3; #507a / #482): the interceptor fallback that read this column is
+        // RETIRED (EncryptedFieldRegistry LegacyShadowProperty = null) and the
+        // fitness-gated null-out migration cleared `content`. This mapping is now
+        // INERT and retained ONLY so the EF model keeps `content` mapped — the
+        // ModelSnapshot stays == physical schema until the deferred physical DROP
+        // (Beslut 5 steg 4), which removes this mapping + the column together via a
+        // tool-generated DropColumn. HARD read-only kept: PropertySaveBehavior
+        // .Ignore on both before/after-save → EF never writes `content` (INSERT or
+        // UPDATE). No JSON ValueConverter (a VC would re-introduce C4.0-RED:
+        // ConvertFromProvider running before the interceptor).
         builder.Property<string>("ContentLegacyJson")
             .HasColumnName("content")
             .HasColumnType("jsonb");

@@ -38,7 +38,7 @@ import type { LandingStatsDto } from "@/lib/dto/landing";
  * Theme/lang-toggles flyttade till Inställningar + landing-footer (HANDOVER §0.7).
  */
 
-type NavLabelKey = "oversikt" | "jobb" | "ansokningar" | "cv";
+type NavLabelKey = "oversikt" | "jobb" | "ansokningar" | "foretag" | "cv";
 
 type NavItem = {
   href: string;
@@ -52,6 +52,12 @@ const PRIMARY_NAV: NavItem[] = [
   { href: "/oversikt", labelKey: "oversikt", icon: LayoutDashboard },
   { href: "/jobb", labelKey: "jobb", icon: Briefcase },
   { href: "/ansokningar", labelKey: "ansokningar", icon: Inbox },
+  // #582 (Klas 2026-07-04) — the Företag-hubb (bevakade företag + ansökningshistorik, #448) promoted to
+  // a primary header quick-link (+ mobile drawer), grouped with the job-hunt items. It stays in the
+  // UserMenu too — the structural precedent is /cv, also present in both the nav and the UserMenu (that
+  // one uses distinct labels, nav.cv "CV" vs userMenu.minaCv "Mina CV"; /foretag instead reuses the
+  // shared nav.foretag label in both so they never drift — #582 label-align). Building2 already imported.
+  { href: "/foretag", labelKey: "foretag", icon: Building2 },
   { href: "/cv", labelKey: "cv", icon: ScrollText },
 ];
 
@@ -205,7 +211,9 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
             className="jp-usermenu__item"
             onClick={() => setOpen(false)}
           >
-            <Building2 size={16} aria-hidden="true" /> {t("userMenu.bevakadeForetag")}
+            {/* #582 — reuse the shared nav label "Företag" (hub noun) so the header quick-link and the
+                UserMenu item never drift; the old "Bevakade företag" label is dropped. */}
+            <Building2 size={16} aria-hidden="true" /> {t("nav.foretag")}
           </Link>
           <Link
             href="/cv"

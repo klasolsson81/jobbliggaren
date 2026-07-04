@@ -39,7 +39,7 @@ public class RedisSessionStoreTests : IAsyncLifetime
             cache,
             _mux,
             _time,
-            Options.Create(new SessionStoreOptions { Ttl = TimeSpan.FromDays(14) }));
+            Options.Create(new SessionStoreOptions { SlidingTtl = TimeSpan.FromDays(14) }));
     }
 
     public async ValueTask DisposeAsync()

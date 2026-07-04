@@ -35,7 +35,7 @@ public class RedisSessionStoreFailureTests : IAsyncLifetime
             cache,
             _mux,
             FakeDateTimeProvider.Now,
-            Options.Create(new SessionStoreOptions { Ttl = TimeSpan.FromDays(14) }));
+            Options.Create(new SessionStoreOptions { SlidingTtl = TimeSpan.FromDays(14) }));
 
         _existingSession = await _store.CreateAsync(Guid.NewGuid(), default);
     }

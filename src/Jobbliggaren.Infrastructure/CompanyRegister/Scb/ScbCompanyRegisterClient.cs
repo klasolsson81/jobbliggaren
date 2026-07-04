@@ -188,15 +188,20 @@ internal sealed partial class ScbCompanyRegisterClient(
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
-        if (doc.RootElement.ValueKind != JsonValueKind.Array)
+        // SCB kodtabell shape (live-verified): an object with a "VardeLista" array of {"Varde","Text"}.
+        if (doc.RootElement.ValueKind != JsonValueKind.Object
+            || !doc.RootElement.TryGetProperty("VardeLista", out var vardeLista)
+            || vardeLista.ValueKind != JsonValueKind.Array)
+        {
             return [];
+        }
 
         var codes = new List<string>();
-        foreach (var row in doc.RootElement.EnumerateArray())
+        foreach (var row in vardeLista.EnumerateArray())
         {
-            var code = TryGetString(row, "Kod", "Varde", "Värde", "Value");
+            var code = TryGetString(row, "Varde", "Kod", "Värde", "Value");
             if (!string.IsNullOrWhiteSpace(code))
-                codes.Add(code);
+                codes.Add(code.Trim());
         }
         return codes;
     }
@@ -228,32 +233,36 @@ internal sealed partial class ScbCompanyRegisterClient(
         return null;
     }
 
+    // The 5 SNI code fields on a hamtaforetag row (live-verified flat shape). "Bransch_nP, kod" is the
+    // dotted variant — we take the plain 5-digit "Bransch_n, kod".
+    private static readonly string[] SniCodeKeys =
+        ["Bransch_1, kod", "Bransch_2, kod", "Bransch_3, kod", "Bransch_4, kod", "Bransch_5, kod"];
+
     private static ScbCompanyRecord? MapRow(JsonElement row)
     {
-        // OrgNr: SCB gives the 10-digit form directly for legal entities. Fall back to PeOrgNr with the
-        // 16-prefix stripped (legal entities are 16 + 10-digit org.nr).
-        var orgNr = FirstNonEmpty(
-            GetVariable(row, "OrgNr", "Organisationsnummer"),
-            StripLegalPeOrgNr(GetVariable(row, "PeOrgNr")));
-        var name = FirstNonEmpty(GetVariable(row, "Företagsnamn", "Foretagsnamn", "Namn"));
+        // hamtaforetag returns a FLAT object per company (live-verified): OrgNr is the 10-digit form
+        // directly; fall back to PeOrgNr with the 16-prefix stripped (legal entities are 16 + 10-digit).
+        var orgNr = FirstNonEmpty(GetProp(row, "OrgNr"), StripLegalPeOrgNr(GetProp(row, "PeOrgNr")));
+        var name = GetProp(row, "Företagsnamn", "Firma");
         if (string.IsNullOrWhiteSpace(orgNr) || string.IsNullOrWhiteSpace(name))
             return null; // an unparseable row is dropped (counted as excluded-invalid downstream)
 
-        var (kommunCode, kommunName) = GetCategory(row, "SätesKommun", "SatesKommun", "Säteskommun");
-        var sniCodes = GetCategoryCodes(row, "Bransch");
-        var reklamCode = GetCategory(row, "Reklam").Code;
-        var status = FirstNonEmpty(
-            TryGetString(row, "Företagsstatus", "Foretagsstatus"),
-            GetCategory(row, "Företagsstatus", "Foretagsstatus").Code) ?? string.Empty;
+        var sniCodes = new List<string>(5);
+        foreach (var key in SniCodeKeys)
+        {
+            var code = GetProp(row, key)?.Trim();
+            if (!string.IsNullOrWhiteSpace(code)) // blank slots come back as spaces
+                sniCodes.Add(code);
+        }
 
         return new ScbCompanyRecord(
             OrganizationNumber: orgNr!.Trim(),
             Name: name!.Trim(),
-            SeatMunicipalityCode: kommunCode ?? string.Empty,
-            SeatMunicipalityName: kommunName,
+            SeatMunicipalityCode: GetProp(row, "Säteskommun, kod")?.Trim() ?? string.Empty,
+            SeatMunicipalityName: GetProp(row, "Säteskommun")?.Trim(),
             SniCodes: sniCodes,
-            HasAdvertisingBlock: IsAdvertisingBlocked(reklamCode),
-            RawStatusCode: status);
+            HasAdvertisingBlock: IsAdvertisingBlocked(GetProp(row, "Reklam, kod")),
+            RawStatusCode: (GetProp(row, "Företagsstatus, kod") ?? string.Empty).Trim());
     }
 
     // Reklam 21/22/23 = has opted out (reklamspärr); 11/12/13 = accepts. Anything starting with '2'
@@ -275,73 +284,16 @@ internal sealed partial class ScbCompanyRegisterClient(
     private static string? FirstNonEmpty(params string?[] candidates) =>
         candidates.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
 
-    // Walks the row's "Variabler" array ({Namn, Värde}) for a value by candidate names; also accepts a
-    // top-level property of the same name.
-    private static string? GetVariable(JsonElement row, params string[] names)
+    // Reads a flat string property from a hamtaforetag row by candidate names (SCB's real shape — the
+    // fields sit directly on the object, e.g. "OrgNr", "Säteskommun, kod").
+    private static string? GetProp(JsonElement row, params string[] names)
     {
         foreach (var name in names)
         {
-            if (row.TryGetProperty(name, out var direct) && direct.ValueKind == JsonValueKind.String)
-                return direct.GetString();
-        }
-        if (TryGetArray(row, out var variabler, "Variabler", "variabler"))
-        {
-            foreach (var v in variabler.EnumerateArray())
-            {
-                var vName = TryGetString(v, "Namn", "namn", "Variabel");
-                if (vName is not null && names.Contains(vName, StringComparer.OrdinalIgnoreCase))
-                    return TryGetString(v, "Värde", "Varde", "Value", "värde");
-            }
+            if (row.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.String)
+                return prop.GetString();
         }
         return null;
-    }
-
-    // Walks the row's "Kategorier" array ({Kategori/Kategori_id, Kod, Klartext}) for the first match.
-    private static (string? Code, string? Text) GetCategory(JsonElement row, params string[] names)
-    {
-        if (TryGetArray(row, out var kategorier, "Kategorier", "kategorier"))
-        {
-            foreach (var k in kategorier.EnumerateArray())
-            {
-                var kName = TryGetString(k, "Kategori_id", "Kategori", "kategori", "Namn");
-                if (kName is not null && names.Contains(kName, StringComparer.OrdinalIgnoreCase))
-                    return (TryGetString(k, "Kod", "Value", "Varde"), TryGetString(k, "Klartext", "Text", "klartext"));
-            }
-        }
-        return (null, null);
-    }
-
-    private static List<string> GetCategoryCodes(JsonElement row, params string[] names)
-    {
-        var codes = new List<string>();
-        if (TryGetArray(row, out var kategorier, "Kategorier", "kategorier"))
-        {
-            foreach (var k in kategorier.EnumerateArray())
-            {
-                var kName = TryGetString(k, "Kategori_id", "Kategori", "kategori", "Namn");
-                if (kName is not null && names.Contains(kName, StringComparer.OrdinalIgnoreCase))
-                {
-                    var code = TryGetString(k, "Kod", "Value", "Varde");
-                    if (!string.IsNullOrWhiteSpace(code))
-                        codes.Add(code);
-                }
-            }
-        }
-        return codes;
-    }
-
-    private static bool TryGetArray(JsonElement element, out JsonElement array, params string[] names)
-    {
-        foreach (var name in names)
-        {
-            if (element.TryGetProperty(name, out var candidate) && candidate.ValueKind == JsonValueKind.Array)
-            {
-                array = candidate;
-                return true;
-            }
-        }
-        array = default;
-        return false;
     }
 
     private static string? TryGetString(JsonElement element, params string[] names)

@@ -19,21 +19,22 @@ namespace Jobbliggaren.Application.UnitTests.CompanyRegister;
 /// </summary>
 public class ScbCompanyRegisterClientTests
 {
-    // Assumed hamtaforetag envelope: one legal entity (Volvo), advertising-blocked (Reklam 21),
-    // active (Företagsstatus 1), one SNI code, seat Stockholm.
+    // Live-verified hamtaforetag envelope: a FLAT object per company. One legal entity (Volvo),
+    // advertising-blocked (Reklam 21), active (Företagsstatus 1), one SNI code, seat Stockholm.
     private const string HamtaJson = """
         [
           {
-            "Företagsstatus": "1",
-            "Variabler": [
-              { "Namn": "OrgNr", "Värde": "5560125790" },
-              { "Namn": "Företagsnamn", "Värde": "Volvo AB" }
-            ],
-            "Kategorier": [
-              { "Kategori_id": "SätesKommun", "Kod": "0180", "Klartext": "Stockholm" },
-              { "Kategori_id": "Bransch", "Kod": "29100", "Klartext": "Motorfordon" },
-              { "Kategori_id": "Reklam", "Kod": "21", "Klartext": "Har frånsagt sig reklam" }
-            ]
+            "PeOrgNr": "165560125790",
+            "OrgNr": "5560125790",
+            "Företagsnamn": "Volvo AB",
+            "Säteskommun, kod": "0180",
+            "Säteskommun": "Stockholm",
+            "Företagsstatus, kod": "1",
+            "Företagsstatus": "Är verksam",
+            "Reklam, kod": "21",
+            "Juridisk form, kod": "49",
+            "Bransch_1, kod": "29100",
+            "Bransch_2, kod": "     "
           }
         ]
         """;
@@ -128,8 +129,8 @@ public class ScbCompanyRegisterClientTests
             if (path.EndsWith("kodtabell", StringComparison.Ordinal))
             {
                 return body.Contains("Juridisk form", StringComparison.Ordinal)
-                    ? Json("""[{"Kod":"10","Text":"Fysiska personer"},{"Kod":"49","Text":"Övriga aktiebolag"}]""")
-                    : Json("""[{"Kod":"0180","Text":"Stockholm"}]""");
+                    ? Json("""{"VardeLista":[{"Varde":"10","Text":"Fysiska personer"},{"Varde":"49","Text":"Övriga aktiebolag"}]}""")
+                    : Json("""{"VardeLista":[{"Varde":"0180","Text":"Stockholm"}]}""");
             }
             if (path.EndsWith("raknaforetag", StringComparison.Ordinal))
                 return Json("2");
@@ -159,8 +160,8 @@ public class ScbCompanyRegisterClientTests
             if (path.EndsWith("kodtabell", StringComparison.Ordinal))
             {
                 return body.Contains("Juridisk form", StringComparison.Ordinal)
-                    ? Json("""[{"Kod":"49"}]""")
-                    : Json("""[{"Kod":"0180"}]""");
+                    ? Json("""{"VardeLista":[{"Varde":"49"}]}""")
+                    : Json("""{"VardeLista":[{"Varde":"0180"}]}""");
             }
             // Unrecognized count envelope (no bare number, no Antal/Count).
             return Json("""{"unexpected":true}""");

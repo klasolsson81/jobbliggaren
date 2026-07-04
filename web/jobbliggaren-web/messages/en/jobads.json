@@ -49,6 +49,18 @@
       "all": "All ads"
     }
   },
+  "applicationHistory": {
+    "listLabel": "Application history per employer",
+    "emptyTitle": "You have no application history yet",
+    "emptyBody": "Search for jobs under Jobs and submit an application. Your history is collected here, grouped by employer.",
+    "unknownCompany": "The company name is not available",
+    "orgNr": "Org. no. {orgNr}",
+    "protectedIdentity": "Protected identity",
+    "protectedIdentityHint": "The organisation number is hidden because it may be a personal identity number.",
+    "applicationCount": "{count, plural, one {# submitted application} other {# submitted applications}}",
+    "showApplications": "{count, plural, one {Show application} other {Show applications}}",
+    "appliedAt": "Applied {date}"
+  },
   "companyLookup": {
     "heading": "Search for a company",
     "lede": "Find a company by organisation number and follow it, even if it has no ads right now.",

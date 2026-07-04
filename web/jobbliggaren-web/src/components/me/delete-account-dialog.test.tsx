@@ -67,6 +67,50 @@ describe("DeleteAccountDialog", () => {
     ).not.toBeDisabled();
   });
 
+  // #595 — the password field is the shared PasswordInput (show/hide toggle).
+  // The RHF `register("password")` ref + `watch("password")` must still reach
+  // the native input through PasswordInput → ui/Input (React 19 ref-as-prop
+  // spread). These two tests pin that the swap did not sever that path.
+  it("masks the password by default and reveals it via the toggle (#595)", async () => {
+    const user = userEvent.setup();
+    render(<DeleteAccountDialog currentEmail="anna@example.se" />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Radera konto permanent" })
+    );
+
+    const password = screen.getByLabelText("Lösenord");
+    expect(password).toHaveAttribute("type", "password");
+
+    await user.click(screen.getByRole("button", { name: "Visa lösenord" }));
+    expect(password).toHaveAttribute("type", "text");
+
+    await user.click(screen.getByRole("button", { name: "Dölj lösenord" }));
+    expect(password).toHaveAttribute("type", "password");
+  });
+
+  it("still enables submit after revealing the password (ref/watch intact, #595)", async () => {
+    const user = userEvent.setup();
+    render(<DeleteAccountDialog currentEmail="anna@example.se" />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Radera konto permanent" })
+    );
+
+    await user.type(
+      screen.getByLabelText(/Skriv din e-postadress/),
+      "anna@example.se"
+    );
+    // Reveal first, then type — the revealed (type="text") input must still be
+    // wired to RHF so `watch` drives the local activation guard.
+    await user.click(screen.getByRole("button", { name: "Visa lösenord" }));
+    await user.type(screen.getByLabelText("Lösenord"), "S3kret!pass");
+
+    expect(
+      screen.getByRole("button", { name: "Radera mitt konto" })
+    ).not.toBeDisabled();
+  });
+
   it("keeps submit disabled when email mismatches", async () => {
     const user = userEvent.setup();
     render(<DeleteAccountDialog currentEmail="anna@example.se" />);

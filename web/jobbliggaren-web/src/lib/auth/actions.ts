@@ -86,12 +86,13 @@ export async function registerAction(
   formData: FormData
 ): Promise<AuthActionState> {
   const t = await getTranslations("pages");
+  const displayName = formData.get("displayName") as string | null;
   const email = formData.get("email") as string | null;
   const password = formData.get("password") as string | null;
   const next = safeRedirectPath(formData.get("next") as string | null);
 
-  if (!email || !password) {
-    return { error: t("auth.actions.credentialsRequired") };
+  if (!displayName || !email || !password) {
+    return { error: t("auth.actions.registrationFieldsRequired") };
   }
 
   let sessionId: string;
@@ -100,7 +101,7 @@ export async function registerAction(
     const res = await fetch(`${env.BACKEND_URL}/api/v1/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ displayName, email, password }),
       cache: "no-store",
     });
 

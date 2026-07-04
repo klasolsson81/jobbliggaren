@@ -20,6 +20,24 @@ export function RegisterForm() {
       <input type="hidden" name="next" value={searchParams.get("next") ?? "/jobb"} />
 
       <div className="flex flex-col gap-1.5">
+        <label htmlFor="displayName" className="text-label font-medium text-text-primary">
+          {t("auth.register.nameLabel")}
+        </label>
+        <Input
+          id="displayName"
+          name="displayName"
+          type="text"
+          autoComplete="name"
+          required
+          aria-required="true"
+          aria-describedby="name-hint"
+        />
+        <p id="name-hint" className="text-body-sm text-text-primary">
+          {t("auth.register.nameHint")}
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
         <label htmlFor="email" className="text-label font-medium text-text-primary">
           {t("auth.register.emailLabel")}
         </label>

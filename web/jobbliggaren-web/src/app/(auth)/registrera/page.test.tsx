@@ -29,12 +29,17 @@ describe("RegistreraPage (#265 — open public registration)", () => {
       screen.getByRole("heading", { level: 1, name: "Skapa konto" }),
     ).toBeInTheDocument();
 
-    // RegisterForm fields are present (email + password) and carry both the
-    // native `required` and the design-a11y §5 `aria-required="true"` marker.
+    // RegisterForm fields are present (name + email + password) and carry both
+    // the native `required` and the design-a11y §5 `aria-required="true"` marker.
+    // The name field is #541: the backend RegisterCommandValidator requires
+    // DisplayName, so the open-registration form must collect it.
+    const name = screen.getByLabelText("Namn");
     const email = screen.getByLabelText("E-postadress");
     const password = screen.getByLabelText("Lösenord");
+    expect(name).toBeInTheDocument();
     expect(email).toBeInTheDocument();
     expect(password).toBeInTheDocument();
+    expect(name).toHaveAttribute("aria-required", "true");
     expect(email).toHaveAttribute("aria-required", "true");
     expect(password).toHaveAttribute("aria-required", "true");
 

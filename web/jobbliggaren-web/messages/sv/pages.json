@@ -168,6 +168,8 @@
     "register": {
       "title": "Skapa konto",
       "brand": "Jobbliggaren",
+      "nameLabel": "Namn",
+      "nameHint": "Namnet visas i ditt konto.",
       "emailLabel": "E-postadress",
       "emailHint": "Formatet är namn@domän.se",
       "passwordLabel": "Lösenord",
@@ -179,6 +181,7 @@
     },
     "actions": {
       "credentialsRequired": "E-post och lösenord krävs.",
+      "registrationFieldsRequired": "Namn, e-post och lösenord krävs.",
       "loginFailed": "Inloggningen misslyckades. Kontrollera e-post och lösenord.",
       "unexpectedError": "Ett oväntat fel uppstod. Försök igen.",
       "serverUnreachable": "Kunde inte nå servern. Försök igen.",

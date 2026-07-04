@@ -220,7 +220,7 @@ public class CvImprovementEngineTests
         var mapping = RealVerbMapping().WeakVerbs[0]; // "var ansvarig för" → "ansvarade för"
         var resume = Resume(experience:
         [
-            Experience(rawText: $"{Capitalize(mapping.Weak)} ett område utan tydligt resultat."),
+            Experience(bullets: [$"{Capitalize(mapping.Weak)} ett område utan tydligt resultat."]),
         ]);
 
         var change = Single(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade);
@@ -243,7 +243,7 @@ public class CvImprovementEngineTests
         var strong = RealVerbMapping().StrongVerbGroups[0].Verbs[0]; // "ledde"
         var resume = Resume(experience:
         [
-            Experience(rawText: $"{Capitalize(strong)} teamet om 8 personer med tydligt resultat 2024."),
+            Experience(bullets: [$"{Capitalize(strong)} teamet om 8 personer med tydligt resultat 2024."]),
         ]);
 
         Of(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade).ShouldBeEmpty();
@@ -259,7 +259,7 @@ public class CvImprovementEngineTests
         var notSafe = RealVerbMapping().WeakVerbs.First(w => !w.DropInSafe); // "var med och"
         var resume = Resume(experience:
         [
-            Experience(rawText: $"{Capitalize(notSafe.Weak)} ett projekt utan tydligt resultat."),
+            Experience(bullets: [$"{Capitalize(notSafe.Weak)} ett projekt utan tydligt resultat."]),
         ]);
 
         Of(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade).ShouldBeEmpty(
@@ -274,7 +274,7 @@ public class CvImprovementEngineTests
         var safe = RealVerbMapping().WeakVerbs.First(w => w.DropInSafe && w.Weak == "hade hand om");
         var resume = Resume(experience:
         [
-            Experience(rawText: $"{Capitalize(safe.Weak)} budget och personal."),
+            Experience(bullets: [$"{Capitalize(safe.Weak)} budget och personal."]),
         ]);
 
         var change = Single(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade);
@@ -285,15 +285,16 @@ public class CvImprovementEngineTests
     [Fact]
     public async Task SuggestAsync_ShouldAlignBeforeWithTheVerbatimOpener_WhenBulletHasLeadingWhitespace()
     {
-        // Regression guard on the load-bearing Trim: the transform does experience.RawText.Trim()
-        // BEFORE the slice bullet[..Weak.Length], so the cited Before equals the verbatim opener
-        // even when the raw text has leading whitespace. (The #494 audit called the naive slice a
-        // misalignment; it is NOT one while the Trim stands — this test red-flags any future edit
-        // that removes the Trim and lets leading whitespace mis-cite the user's span.)
+        // Regression guard on the load-bearing per-line Trim: ReviewText.DescriptionLines trims each
+        // description line BEFORE the transform slices bullet[..Weak.Length], so the cited Before
+        // equals the verbatim opener even when the line carries leading whitespace. (The #494 audit
+        // called the naive slice a misalignment; it is NOT one while the trim stands — this red-flags
+        // any future edit that drops the trim and lets leading whitespace mis-cite the user's span.)
+        // #534: the whitespace lives on the DESCRIPTION line, not the header.
         var safe = RealVerbMapping().WeakVerbs[0]; // "var ansvarig för" (drop-in-safe)
         var resume = Resume(experience:
         [
-            Experience(rawText: $"   {Capitalize(safe.Weak)} ett område."),
+            Experience(bullets: [$"   {Capitalize(safe.Weak)} ett område."]),
         ]);
 
         var change = Single(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade);
@@ -314,7 +315,7 @@ public class CvImprovementEngineTests
         {
             var resume = Resume(experience:
             [
-                Experience(rawText: $"{Capitalize(w.Weak)} verksamheten under 2024."),
+                Experience(bullets: [$"{Capitalize(w.Weak)} verksamheten under 2024."]),
             ]);
 
             var changes = Of(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade);
@@ -347,9 +348,9 @@ public class CvImprovementEngineTests
 
         var resume = Resume(experience:
         [
-            Experience(rawText: $"{Capitalize(safeA.Weak)} ett affärsområde."),
-            Experience(rawText: $"{Capitalize(unsafeB.Weak)} ett projekt."),
-            Experience(rawText: $"{Capitalize(safeC.Weak)} budget och personal."),
+            Experience(bullets: [$"{Capitalize(safeA.Weak)} ett affärsområde."]),
+            Experience(bullets: [$"{Capitalize(unsafeB.Weak)} ett projekt."]),
+            Experience(bullets: [$"{Capitalize(safeC.Weak)} budget och personal."]),
         ]);
 
         var changes = Of(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade);
@@ -359,6 +360,133 @@ public class CvImprovementEngineTests
             "Varje föreslagen ändring bär ett unikt stabilt targetId.");
         changes.ShouldAllBe(c => safeAfters.Contains(c.Replacement!.After),
             "Ingen syntes — varje After är ett verbatim drop-in-säkert KB-värde.");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldProposeWeakVerbUpgrade_WhenADescriptionBulletOpensWithAWeakVerb_ThoughTheTitleDoesNot()
+    {
+        // #534 (improve-side analog of the review-side #487): on a REAL parsed CV the entry's
+        // RawText opens with the title/organisation HEADER, not a description verb. The transform
+        // must score the DESCRIPTION bullets (ReviewText.DescriptionLines), so a weak opener in a
+        // bullet is caught even though the header ("Backend-utvecklare — Acme AB") is not a weak
+        // verb. Pre-#534 the transform read the whole block and matched the TITLE, so weak-verb
+        // rewrites never fired in production. This is the load-bearing regression proof.
+        var safe = RealVerbMapping().WeakVerbs[0]; // "var ansvarig för" → "ansvarade för" (drop-in-safe)
+        var resume = Resume(experience:
+        [
+            Experience(
+                title: "Backend-utvecklare",
+                organization: "Acme AB",
+                bullets: [$"{Capitalize(safe.Weak)} ett affärsområde."]),
+        ]);
+
+        var change = Single(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade);
+        change.Replacement!.Before.ShouldBe(Capitalize(safe.Weak),
+            "Before ska vara det verbatim inledande verbet i BESKRIVNINGSraden, inte titelraden (#534).");
+        change.Replacement!.After.ShouldBe(safe.SuggestedStrong,
+            "After ska vara EXAKT SuggestedStrong ur verb-mapping (ingen syntes).");
+        change.Evidence.ShouldBeOfType<TextSpanEvidence>().Span.Quote.ShouldBe(change.Replacement.Before);
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldNotProposeWeakVerbUpgrade_WhenOnlyTheTitleLineOpensWithAWeakVerb()
+    {
+        // #534: the header line (title/organisation) is NOT a scored bullet. A weak-verb-shaped
+        // TITLE must never be rewritten — only description bullets are scored. Pre-#534 the
+        // transform read the whole block and WOULD have proposed a rewrite of the title (a false
+        // positive on a job title that happens to open with a weak-verb phrase).
+        var safe = RealVerbMapping().WeakVerbs[0]; // "var ansvarig för"
+        var resume = Resume(experience:
+        [
+            Experience(
+                title: $"{Capitalize(safe.Weak)} verksamheten",
+                organization: "Acme AB",
+                bullets: ["Ledde teamet om 8 personer och ökade konverteringen med 23 procent."]),
+        ]);
+
+        Of(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade).ShouldBeEmpty(
+            "Titelraden får aldrig poängsättas som en bulletöppnare (#534).");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldProposeAnUpgradePerDescriptionBullet_WhenOneExperienceHasTwoWeakOpeners()
+    {
+        // #534: an experience with several description bullets is scored PER bullet. Two drop-in-safe
+        // weak openers in one entry yield two proposals with distinct, stable targetIds (a single
+        // running index across all bullets of all experiences).
+        var safeA = RealVerbMapping().WeakVerbs.First(w => w.DropInSafe && w.Weak == "var ansvarig för");
+        var safeC = RealVerbMapping().WeakVerbs.First(w => w.DropInSafe && w.Weak == "hade hand om");
+        var resume = Resume(experience:
+        [
+            Experience(
+                title: "Projektledare",
+                organization: "Acme AB",
+                bullets:
+                [
+                    $"{Capitalize(safeA.Weak)} ett affärsområde.",
+                    $"{Capitalize(safeC.Weak)} budget och personal.",
+                ]),
+        ]);
+
+        var changes = Of(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade);
+        changes.Count.ShouldBe(2, "Varje beskrivningsrad med ett svagt inledande verb ger ett förslag (#534).");
+        changes.Select(c => c.TargetId).ShouldBe(["weakverb:0", "weakverb:1"],
+            "Varje förslag bär ett unikt stabilt targetId — löpande index från 0 över alla bullets.");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldNotProposeWeakVerbUpgrade_WhenTheEntryHasNoDescriptionBullets()
+    {
+        // #534: an experience with only a header/period line (no description bullets) yields nothing
+        // to score — even if the TITLE is shaped like a weak verb. Guards the empty-DescriptionLines
+        // loop boundary directly.
+        var safe = RealVerbMapping().WeakVerbs[0]; // "var ansvarig för"
+        var resume = Resume(experience:
+        [
+            Experience(title: $"{Capitalize(safe.Weak)} verksamheten", organization: "Acme AB", bullets: []),
+        ]);
+
+        Of(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade).ShouldBeEmpty(
+            "En post utan beskrivningsrader ger inget förslag, oavsett titelns form (#534).");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldProposeExactlyOneUpgradeForTheBullet_WhenBothTitleAndBulletOpenWithAWeakVerb()
+    {
+        // #534: even when the TITLE also opens with a (different) weak verb, only the DESCRIPTION
+        // bullet is scored — the header never ADDS a proposal. Distinct verbs on the two lines make
+        // the assertion unambiguous: exactly one change, citing the bullet's opener, not the title's.
+        var titleVerb = RealVerbMapping().WeakVerbs.First(w => w.DropInSafe && w.Weak == "hade hand om");
+        var bulletVerb = RealVerbMapping().WeakVerbs.First(w => w.DropInSafe && w.Weak == "var ansvarig för");
+        var resume = Resume(experience:
+        [
+            Experience(
+                title: $"{Capitalize(titleVerb.Weak)} verksamheten",
+                organization: "Acme AB",
+                bullets: [$"{Capitalize(bulletVerb.Weak)} ett affärsområde."]),
+        ]);
+
+        var change = Single(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade);
+        change.Replacement!.Before.ShouldBe(Capitalize(bulletVerb.Weak),
+            "Endast beskrivningsradens öppnare citeras — titelraden adderar aldrig ett förslag (#534).");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldRunTheTargetIdIndexAcrossExperiences_WhenSeveralEntriesHaveWeakOpeners()
+    {
+        // #534: the running index spans ALL bullets of ALL experiences, so targetIds stay unique and
+        // continuous across entry boundaries (not reset per experience).
+        var safeA = RealVerbMapping().WeakVerbs.First(w => w.DropInSafe && w.Weak == "var ansvarig för");
+        var safeC = RealVerbMapping().WeakVerbs.First(w => w.DropInSafe && w.Weak == "hade hand om");
+        var resume = Resume(experience:
+        [
+            Experience(title: "Projektledare", bullets: [$"{Capitalize(safeA.Weak)} ett affärsområde."]),
+            Experience(title: "Teamledare", bullets: [$"{Capitalize(safeC.Weak)} budget och personal."]),
+        ]);
+
+        var changes = Of(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade);
+        changes.Select(c => c.TargetId).ShouldBe(["weakverb:0", "weakverb:1"],
+            "Index löper över alla erfarenheter — inte per post (#534).");
     }
 
     // ===============================================================
@@ -755,7 +883,7 @@ public class CvImprovementEngineTests
             [
                 Experience(
                     period: "jan 2022 - juni 2024",
-                    rawText: $"{Capitalize(RealVerbMapping().WeakVerbs[0].Weak)} ett område jan 2022 - juni 2024."),
+                    bullets: [$"{Capitalize(RealVerbMapping().WeakVerbs[0].Weak)} ett område jan 2022 - juni 2024."]),
             ]);
 
         var first = await SuggestAsync(resume);
@@ -784,7 +912,7 @@ public class CvImprovementEngineTests
             [
                 Experience(title: "Backend Engineer", organization: "Acme Inc",
                     period: "01/2022 – 06/2024",
-                    rawText: "Led a team of 8 and increased conversion by 23% in 2024."),
+                    bullets: ["Led a team of 8 and increased conversion by 23% in 2024."]),
             ]);
 
         var act = async () => await SuggestAsync(resume);

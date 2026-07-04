@@ -81,8 +81,41 @@ internal static class CvImprovementFixtures
         string? title = "Backend-utvecklare",
         string? organization = "Acme AB",
         string? period = "2021–2024",
-        string? rawText = null) =>
-        new(title, organization, period, rawText ?? $"{title}, {organization}, {period}");
+        string? rawText = null,
+        IReadOnlyList<string>? bullets = null) =>
+        new(title, organization, period,
+            rawText ?? BuildEntryRawText(title, organization, period, bullets));
+
+    // The realistic entry shape HeadingDrivenResumeSegmenter emits (parity CvReviewFixtures,
+    // #487/#534): a header line (title — organisation), the period on its own line, then the
+    // description bullets one per line. The scored bullet openers (A2 / WeakVerbUpgrade) are the
+    // DESCRIPTION lines — never the header/period (ReviewText.DescriptionLines). Passing `bullets`
+    // builds that multi-line shape; a null `bullets` keeps the pre-#534 single-line default
+    // byte-identical, so every non-WeakVerb default-experience test is unaffected.
+    private static string BuildEntryRawText(
+        string? title, string? organization, string? period, IReadOnlyList<string>? bullets)
+    {
+        if (bullets is null)
+        {
+            return $"{title}, {organization}, {period}";
+        }
+
+        var lines = new List<string>();
+        var header = string.Join(" — ",
+            new[] { title, organization }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        if (header.Length > 0)
+        {
+            lines.Add(header);
+        }
+
+        if (!string.IsNullOrWhiteSpace(period))
+        {
+            lines.Add(period);
+        }
+
+        lines.AddRange(bullets);
+        return string.Join('\n', lines);
+    }
 
     internal static ParsedEducation Education(
         string? institution = "KTH",

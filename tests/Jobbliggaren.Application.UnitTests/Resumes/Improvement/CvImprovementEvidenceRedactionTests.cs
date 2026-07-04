@@ -72,16 +72,20 @@ public class CvImprovementEvidenceRedactionTests
     {
         // The period is quoted verbatim by DateNormalization; it must (i) carry a digit and
         // (ii) NOT parse via PeriodParser ("jan" is a month NAME, not a recognised point) so the
-        // transform flags it. The pnr lives inside the period AND inside the bullet rawText, so the
+        // transform flags it. The pnr lives inside the period AND inside the bullet, so the
         // located span's Quote contains the pnr.
         var pnrPeriod = $"jan 2022 - {Pnr}";
         var bullet = $"Var ansvarig för betalsystem. Kontakt-pnr i CV: {Pnr}. Period: {pnrPeriod}.";
 
+        // #534: the weak-verb bullet must be a DESCRIPTION line (not the entry header) for
+        // WeakVerbTransform to fire — pass it via `bullets`. NB the non-canonical `pnrPeriod` is
+        // rejected by PeriodParser, so it also surfaces as a description line; harmless here (it
+        // does not open with a weak verb, and DateNormalization still redacts its pnr).
         return Resume(
             profile: $"Brinner för systemutveckling. Personnummer: {Pnr}.",
             experience:
             [
-                Experience(period: pnrPeriod, rawText: bullet),
+                Experience(period: pnrPeriod, bullets: [bullet]),
             ],
             education:
             [

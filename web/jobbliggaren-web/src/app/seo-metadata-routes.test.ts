@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { SITE_URL } from "@/lib/site-url";
 import robots from "./robots";
 import sitemap from "./sitemap";
+import { PROTECTED_PREFIXES } from "@/lib/auth/protected-routes";
 
 // SEO foundation (#264) — pins the /robots.txt + /sitemap.xml App Router metadata routes:
 // the public marketing surface is indexable, the authed app + API + /gast demo are not, and
@@ -28,14 +29,20 @@ describe("robots.ts", () => {
     expect(disallow).toContain("/gast");
   });
 
-  it("disallows every authenticated app prefix (mirrors middleware + the (app) routes)", () => {
-    // The middleware PROTECTED_PREFIXES + the remaining (app) routes — private areas, never indexed.
-    for (const authed of [
-      "/oversikt", "/jobb", "/ansokningar", "/cv", "/installningar",
-      "/sokningar", "/sparade", "/matchningar", "/aktivitetsrapport", "/ny-ansokan", "/admin",
-    ]) {
+  it("disallows every authenticated app prefix (single-sourced from PROTECTED_PREFIXES + /admin)", () => {
+    // Authed (app) areas are single-sourced from PROTECTED_PREFIXES (frozen to the (app) route
+    // group by protected-routes.test.ts — #513); /admin is the robots-local admin surface.
+    for (const authed of [...PROTECTED_PREFIXES, "/admin"]) {
       expect(disallow).toContain(authed);
     }
+  });
+
+  it("carries no authed (app) prefix beyond PROTECTED_PREFIXES (frozen to the source of truth)", () => {
+    // The (app)-slice of the disallow list = everything except the robots-local, non-(app) extras.
+    const seoLocal = new Set(["/api/", "/gast", "/admin"]);
+    const appSlice = disallow.filter((entry) => !seoLocal.has(entry)).sort();
+
+    expect(appSlice).toEqual([...PROTECTED_PREFIXES].sort());
   });
 });
 

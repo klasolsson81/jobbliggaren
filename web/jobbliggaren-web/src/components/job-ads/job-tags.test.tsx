@@ -76,17 +76,18 @@ describe("JobTags (NY = oläst, #293/#306)", () => {
     expect(screen.queryByText("Ny")).not.toBeInTheDocument();
   });
 
-  // #293/#306 — a11y-paritet med /matchningar: NY-taggen bär en aria-label så
-  // skärmläsaren får full kontext (texten "Ny" ensam är terse). Färg är aldrig
-  // ensam signal (WCAG 1.4.1) — texten + label bär betydelsen.
-  it("NY-taggen har en beskrivande aria-label", () => {
-    const { container } = render(<JobTags isNew={true} freshnessLabel={null} />);
-    const ny = container.querySelector('[data-tag="new"]');
-    expect(ny).not.toBeNull();
-    expect(ny).toHaveAttribute(
-      "aria-label",
-      "Nytt jobb sedan ditt senaste besök",
-    );
+  // #293/#306 + #485 — a11y-paritet med /matchningar: NY-taggen bär full
+  // skärmläsar-kontext via en sr-only-text (aria-label är ogiltig på en generisk
+  // <span>/role=generic). Färg är aldrig ensam signal (WCAG 1.4.1) — synlig text
+  // "Ny" plus sr-only-kontexten bär betydelsen.
+  it("NY-taggen bär skärmläsar-kontext via sr-only text, inte aria-label", () => {
+    render(<JobTags isNew={true} freshnessLabel={null} />);
+    const ny = screen.getByText("Ny");
+    expect(ny).toHaveAttribute("data-tag", "new");
+    expect(ny).not.toHaveAttribute("aria-label");
+    expect(
+      screen.getByText("Nytt jobb sedan ditt senaste besök"),
+    ).toBeInTheDocument();
   });
 
   it("renders freshness label when provided", () => {

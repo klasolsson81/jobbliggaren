@@ -3,7 +3,7 @@ using System.Collections.Frozen;
 namespace Jobbliggaren.Application.BackgroundJobs;
 
 /// <summary>
-/// Single source of truth for the 16 Hangfire recurring-job ids. Used both by the
+/// Single source of truth for the 17 Hangfire recurring-job ids. Used both by the
 /// Worker's <c>RecurringJobRegistrar</c> (registration) and by the admin operator
 /// surface's trigger validator (the closed allowlist).
 ///
@@ -42,6 +42,10 @@ public static class RecurringJobIds
     public const string DigestDispatchWeekly = "digest-dispatch-weekly";
     public const string RefreshLandingStats = "refresh-landing-stats";
 
+    /// <summary>#560 (ADR 0091) — full SCB company-register population/refresh (legal-entities-only,
+    /// count-then-slice, ~1–3 h). Cron is config-driven (<c>ScbRegister:SyncCadenceCron</c>).</summary>
+    public const string SyncScbCompanyRegister = "sync-scb-company-register";
+
     /// <summary>
     /// The closed set of triggerable recurring-job ids. Ordinal comparison — these
     /// are stable internal slugs, not user text.
@@ -64,5 +68,6 @@ public static class RecurringJobIds
         DigestDispatchDaily,
         DigestDispatchWeekly,
         RefreshLandingStats,
+        SyncScbCompanyRegister,
     }.ToFrozenSet(StringComparer.Ordinal);
 }

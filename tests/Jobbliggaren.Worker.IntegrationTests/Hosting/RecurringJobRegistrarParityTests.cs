@@ -1,6 +1,8 @@
 using Hangfire;
 using Jobbliggaren.Application.BackgroundJobs;
+using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Worker.Hosting;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
 
@@ -34,13 +36,17 @@ public class RecurringJobRegistrarParityTests
     private static async Task<IReadOnlyList<string>> CapturedRegisteredIdsAsync()
     {
         var manager = Substitute.For<IRecurringJobManager>();
-        var registrar = new RecurringJobRegistrar(manager);
+        // #560 — the registrar now reads the SCB refresh cron from IOptions<ScbRegisterOptions>; the
+        // exact cron is irrelevant to the id-parity assertion (any non-empty value works).
+        var registrar = new RecurringJobRegistrar(
+            manager,
+            Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 3 * * 1" }));
 
         await registrar.StartAsync(CancellationToken.None);
 
         // Read the recurringJobId (first arg) of every interface AddOrUpdate(string, Job, string,
         // RecurringJobOptions) call recorded on the substitute. The generic AddOrUpdate<T> extension
-        // funnels here, so this captures all 16 registrations regardless of the worker type.
+        // funnels here, so this captures all 17 registrations regardless of the worker type.
         return manager.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(IRecurringJobManager.AddOrUpdate))
             .Select(c => (string)c.GetArguments()[0]!)

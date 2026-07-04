@@ -1,14 +1,18 @@
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Threading.RateLimiting;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
+using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
+using Jobbliggaren.Infrastructure.CompanyRegister;
+using Jobbliggaren.Infrastructure.CompanyRegister.Scb;
 using Jobbliggaren.Infrastructure.Email;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.JobSources;
@@ -123,6 +127,80 @@ public static class DependencyInjection
                 sp.GetRequiredService<Microsoft.Extensions.Caching.Distributed.IDistributedCache>(),
                 sp.GetRequiredService<IOptions<CompanyRegistry.CompanyRegistryOptions>>());
         });
+
+        return services;
+    }
+
+    /// <summary>
+    /// #560 (ADR 0091) — SCB company-register POPULATION module (Worker-only; deliberately NOT part of
+    /// <see cref="AddInfrastructure"/> — the Api never populates, only the Worker's recurring job does).
+    /// Registers the refresh orchestrator (<see cref="IScbCompanyRegisterRefresher"/>), the bulk store,
+    /// and the partition planner unconditionally, and wires the REAL cert-based client ONLY when
+    /// <c>ScbRegister:Enabled=true</c> (otherwise <see cref="NullScbCompanyRegisterSource"/> — the
+    /// certificate is never touched in CI / cert-less dev). The typed HttpClient gets the client
+    /// certificate (loaded from the Windows cert-store by thumbprint — no password in config) plus a
+    /// PROCESS-WIDE 10-calls/10-s rate limiter FIRST in the resilience pipeline: a per-endpoint policy
+    /// cannot protect SCB's per-API-Id budget, and a breach risks a ban (§12 STOPP condition).
+    /// </summary>
+    public static IServiceCollection AddScbCompanyRegister(
+        this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<ScbRegisterOptions>()
+            .Bind(configuration.GetSection(ScbRegisterOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddScoped<ScbCompanyRegisterStore>();
+        services.AddScoped<IScbCompanyRegisterRefresher, ScbCompanyRegisterRefresher>();
+
+        var enabled = configuration.GetValue<bool>($"{ScbRegisterOptions.SectionName}:Enabled");
+        if (!enabled)
+        {
+            // Prod-dark / CI: no SCB source, no certificate loaded. The refresh job no-ops.
+            services.AddSingleton<IScbCompanyRegisterSource, NullScbCompanyRegisterSource>();
+            return services;
+        }
+
+        var thumbprint = configuration[$"{ScbRegisterOptions.SectionName}:CertThumbprint"];
+        if (string.IsNullOrWhiteSpace(thumbprint))
+        {
+            throw new InvalidOperationException(
+                "ScbRegister:Enabled=true kräver ScbRegister:CertThumbprint (gitignored appsettings.Local.json " +
+                "eller env-override ScbRegister__CertThumbprint). Certet får aldrig committas (ADR 0091).");
+        }
+
+        services.AddSingleton<ScbClientCertificateProvider>();
+        services.AddHttpClient<IScbCompanyRegisterSource, ScbCompanyRegisterClient>((sp, client) =>
+            {
+                var opts = sp.GetRequiredService<IOptions<ScbRegisterOptions>>().Value;
+                client.BaseAddress = new Uri(opts.BaseUrl);
+                client.Timeout = TimeSpan.FromMinutes(opts.HttpTimeoutMinutes);
+            })
+            // Load the client cert once and keep the handler for the app lifetime — the ~1–3 h run must
+            // not rotate the handler mid-flight (which would reload the cert repeatedly).
+            .SetHandlerLifetime(Timeout.InfiniteTimeSpan)
+            .ConfigurePrimaryHttpMessageHandler(sp =>
+            {
+                var cert = sp.GetRequiredService<ScbClientCertificateProvider>().Load();
+                var handler = new HttpClientHandler { ClientCertificateOptions = ClientCertificateOption.Manual };
+                handler.ClientCertificates.Add(cert);
+                return handler;
+            })
+            .AddResilienceHandler("scb-register", builder =>
+            {
+                // Rate-limiter FIRST so retries also count against the SCB budget (parity jobstream).
+                builder.AddRateLimiter(_scbRegisterRateLimiter);
+                builder.AddRetry(new HttpRetryStrategyOptions
+                {
+                    MaxRetryAttempts = 3,
+                    BackoffType = DelayBackoffType.Exponential,
+                });
+                builder.AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
+                {
+                    MinimumThroughput = 5,
+                    BreakDuration = TimeSpan.FromMinutes(5),
+                });
+            });
 
         return services;
     }
@@ -597,6 +675,24 @@ public static class DependencyInjection
             PermitLimit = 1,
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 2,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            AutoReplenishment = true,
+        });
+
+    // #560 (ADR 0091, senior-cto-advisor Fork 7) — process-wide SCB upstream limiter. SCB caps each
+    // API-Id at 10 calls / 10 s; a per-endpoint policy cannot protect a per-credential budget, and a
+    // breach risks a ban (a §12 STOPP condition). PermitLimit is deliberately set BELOW 10 (8) as a
+    // safety margin against fixed-window boundary bursts (two adjacent windows could otherwise emit up
+    // to 2×PermitLimit within a sliding 10 s span). The refresh streams sequentially (at most one
+    // waiter), but QueueLimit is generous so a throttled call ALWAYS waits rather than being
+    // rejected+retried. App-lifetime static (parity _streamRateLimiter); the IDisposable-at-shutdown
+    // warning is an accepted bagatelle.
+    private static readonly FixedWindowRateLimiter _scbRegisterRateLimiter = new(
+        new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 8,
+            Window = TimeSpan.FromSeconds(10),
+            QueueLimit = 256,
             QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
             AutoReplenishment = true,
         });

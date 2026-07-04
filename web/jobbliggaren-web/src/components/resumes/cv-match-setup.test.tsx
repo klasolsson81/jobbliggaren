@@ -9,14 +9,12 @@ import type {
 
 const {
   updateMock,
-  deriveMock,
   cvSuggestMock,
   parsedSuggestMock,
   skillSearchMock,
   skillSuggestMock,
 } = vi.hoisted(() => ({
   updateMock: vi.fn(),
-  deriveMock: vi.fn(),
   cvSuggestMock: vi.fn(),
   parsedSuggestMock: vi.fn(),
   skillSearchMock: vi.fn(),
@@ -24,7 +22,6 @@ const {
 }));
 vi.mock("@/lib/actions/match-preferences", () => ({
   updateMatchPreferencesAction: updateMock,
-  deriveOccupationsAction: deriveMock,
   suggestOccupationsFromCvAction: cvSuggestMock,
   suggestOccupationsFromParsedResumeAction: parsedSuggestMock,
   searchSkillsAction: skillSearchMock,

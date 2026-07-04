@@ -90,45 +90,6 @@ export async function updateMatchPreferencesAction(
   return { success: true };
 }
 
-export type DeriveResult =
-  | { success: true; candidates: ReadonlyArray<OccupationCandidate> }
-  | { success: false; error: string };
-
-/**
- * Tunn server-action-wrapper kring `deriveOccupations`-BFF:en så
- * matchnings-kortets klient-ö kan be om yrkestitel-förslag UTAN att läsa
- * backend direkt (server-only-gränsen bevaras; Bearer-sessionen exponeras
- * aldrig mot klienten). Förslagen skrivs ALDRIG — användaren bekräftar genom
- * att toggla kryssrutorna och därefter spara (propose-and-approve, ADR 0040
- * Beslut 4).
- */
-export async function deriveOccupationsAction(
-  title: string
-): Promise<DeriveResult> {
-  const ts = await getTranslations("settings");
-  if (typeof title !== "string") {
-    return { success: false, error: ts("matchPrefs.errors.invalidTitle") };
-  }
-
-  const result = await deriveOccupations(title);
-  switch (result.kind) {
-    case "ok":
-      return { success: true, candidates: result.data.candidates };
-    case "unauthorized":
-      return { success: false, error: ts("matchPrefs.errors.notLoggedIn") };
-    case "rateLimited":
-      return {
-        success: false,
-        error: ts("matchPrefs.errors.tooManyAttempts"),
-      };
-    default:
-      return {
-        success: false,
-        error: ts("matchPrefs.errors.suggestFailed"),
-      };
-  }
-}
-
 /**
  * F4-rework STEG A (ADR 0076) — diskriminerad union för "Föreslå utifrån mitt
  * CV". Varje variant motsvarar EN distinkt UI-state i dialogens YRKEN-sektion:

@@ -1,4 +1,5 @@
 using Jobbliggaren.Api.RateLimiting;
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.Login;
 using Jobbliggaren.Application.Auth.Commands.Logout;
 using Jobbliggaren.Application.Auth.Commands.Register;
@@ -65,10 +66,19 @@ public static class AuthEndpoints
     // deleted-account oracle-avoidance (a soft-deleted login returns the same Auth.InvalidCredentials
     // as a wrong password — docs/runbooks/account-deletion.md). Every other Auth failure delegates
     // to the central kind-mapper so the 400/404/409/410 rule lives in exactly one place (DRY).
+    //
+    // #503 G3 (senior-cto-advisor): AccountLocked is an INTERNAL discriminant (it lets the login
+    // handler emit an account_locked_out audit) that MUST render byte-identically to a wrong-password
+    // 401 — same status, title AND detail — so lockout state leaks neither account existence
+    // (enumeration) nor a DoS-target confirmation. The arm reuses the InvalidCredentials literals
+    // verbatim and never surfaces error.Code/error.Message from the AccountLocked error. Pinned by
+    // the oracle-parity integration tests (LockoutTests).
     private static IResult ToErrorResult(DomainError error) => error.Code switch
     {
-        "Auth.InvalidCredentials" => Results.Problem(
-            detail: error.Message, title: error.Code, statusCode: StatusCodes.Status401Unauthorized),
+        AuthErrorCodes.InvalidCredentials or AuthErrorCodes.AccountLocked => Results.Problem(
+            detail: "E-post eller lösenord är felaktigt.",
+            title: AuthErrorCodes.InvalidCredentials,
+            statusCode: StatusCodes.Status401Unauthorized),
         _ => error.ToProblemResult(),
     };
 }

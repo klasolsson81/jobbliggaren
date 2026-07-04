@@ -29,3 +29,25 @@ export const PROTECTED_PREFIXES = [
   "/sparade",
   "/statistik",
 ] as const;
+
+/**
+ * Boundary-aware protected-route check (#583).
+ *
+ * A bare `PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))` match has no
+ * segment boundary: the authed prefix `/cv` therefore also swallows the PUBLIC
+ * marketing page `/cv-granskning` (`"/cv-granskning".startsWith("/cv") === true`),
+ * redirecting a logged-out visitor to `/logga-in`. Matching only on a segment
+ * boundary — the exact prefix, or the prefix followed by `/` — protects `/cv` and
+ * `/cv/123` while leaving `/cv-granskning` (and any future public sibling that
+ * shares an authed prefix) reachable. Today `/cv` is the only real collision; the
+ * boundary forecloses the whole class. (The public `/matchning` explainer never
+ * collided: it is shorter than the authed `/matchningar` prefix, so even a bare
+ * `startsWith` never matched it. It is pinned public below as a guard.)
+ *
+ * Edge-runtime safe: pure string logic, no Node / `next/headers` imports.
+ */
+export function isProtectedPath(pathname: string): boolean {
+  return PROTECTED_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}

@@ -2,7 +2,7 @@ import { readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { PROTECTED_PREFIXES } from "./protected-routes";
+import { isProtectedPath, PROTECTED_PREFIXES } from "./protected-routes";
 
 /**
  * Freezes the ADR 0017 defense-in-depth invariant: `PROTECTED_PREFIXES` mirrors
@@ -62,5 +62,40 @@ describe("PROTECTED_PREFIXES", () => {
     const actual = [...PROTECTED_PREFIXES].sort();
 
     expect(actual).toEqual(expected);
+  });
+});
+
+/**
+ * Regression guard for #583: the gate must match on a segment boundary, not a bare
+ * `startsWith`. Before the fix, the authed prefix `/cv` swallowed the PUBLIC
+ * `/cv-granskning` (redirecting logged-out visitors to `/logga-in`).
+ */
+describe("isProtectedPath (#583 segment boundary)", () => {
+  it("protects every (app) prefix at its exact path", () => {
+    for (const prefix of PROTECTED_PREFIXES) {
+      expect(isProtectedPath(prefix)).toBe(true);
+    }
+  });
+
+  it("protects nested paths under an (app) prefix", () => {
+    expect(isProtectedPath("/cv/123")).toBe(true);
+    expect(isProtectedPath("/ansokningar/42/redigera")).toBe(true);
+    expect(isProtectedPath("/matchningar/inkorg")).toBe(true);
+  });
+
+  it("does NOT protect the public /cv-granskning that shares the /cv prefix", () => {
+    // The bug this fix closes: "/cv-granskning".startsWith("/cv") === true.
+    expect(isProtectedPath("/cv-granskning")).toBe(false);
+  });
+
+  it("leaves the public /matchning explainer unprotected (shorter than authed /matchningar; never collided)", () => {
+    expect(isProtectedPath("/matchning")).toBe(false);
+  });
+
+  it("does NOT protect unrelated public paths or bare-prefix look-alikes", () => {
+    expect(isProtectedPath("/")).toBe(false);
+    expect(isProtectedPath("/om")).toBe(false);
+    expect(isProtectedPath("/cvxyz")).toBe(false);
+    expect(isProtectedPath("/jobber")).toBe(false);
   });
 });

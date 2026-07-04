@@ -24,25 +24,55 @@ describe("robots.ts", () => {
     expect(result.sitemap).toBe(`${SITE_URL}/sitemap.xml`);
   });
 
-  it("disallows the API and the /gast demo sandbox", () => {
+  it("disallows the API, the /gast demo sandbox, and the admin surface (subtree-scoped)", () => {
     expect(disallow).toContain("/api/");
-    expect(disallow).toContain("/gast");
+    expect(disallow).toContain("/gast/");
+    expect(disallow).toContain("/admin/");
   });
 
-  it("disallows every authenticated app prefix (single-sourced from PROTECTED_PREFIXES + /admin)", () => {
+  it("disallows every authenticated app prefix at a segment boundary (#583: P$ exact + P/ subtree)", () => {
     // Authed (app) areas are single-sourced from PROTECTED_PREFIXES (frozen to the (app) route
-    // group by protected-routes.test.ts — #513); /admin is the robots-local admin surface.
-    for (const authed of [...PROTECTED_PREFIXES, "/admin"]) {
-      expect(disallow).toContain(authed);
+    // group by protected-routes.test.ts — #513). Each prefix is emitted as BOTH the exact anchor
+    // `P$` and the subtree `P/`, mirroring the middleware isProtectedPath predicate so a bare
+    // `Disallow: /cv` can never shadow the public /cv-granskning again.
+    for (const authed of PROTECTED_PREFIXES) {
+      expect(disallow).toContain(`${authed}$`);
+      expect(disallow).toContain(`${authed}/`);
     }
   });
 
-  it("carries no authed (app) prefix beyond PROTECTED_PREFIXES (frozen to the source of truth)", () => {
+  it("carries no authed (app) entry beyond the boundary-encoded PROTECTED_PREFIXES (frozen to the source of truth)", () => {
     // The (app)-slice of the disallow list = everything except the robots-local, non-(app) extras.
-    const seoLocal = new Set(["/api/", "/gast", "/admin"]);
+    const seoLocal = new Set(["/api/", "/gast/", "/admin/"]);
     const appSlice = disallow.filter((entry) => !seoLocal.has(entry)).sort();
+    const expected = [...PROTECTED_PREFIXES]
+      .flatMap((prefix) => [`${prefix}$`, `${prefix}/`])
+      .sort();
 
-    expect(appSlice).toEqual([...PROTECTED_PREFIXES].sort());
+    expect(appSlice).toEqual(expected);
+  });
+
+  it("does not shadow the public /cv-granskning while still blocking /cv and its subtree (#583)", () => {
+    // Emulate a crawler's robots.txt path matching for our entries: `$` = end-anchor, else prefix.
+    // (We emit no `*`; longest-match-wins is moot because `allow` is only the root `/`.)
+    const isDisallowed = (path: string): boolean =>
+      disallow.some((entry) =>
+        entry.endsWith("$")
+          ? path === entry.slice(0, -1)
+          : path.startsWith(entry)
+      );
+
+    // The #583 regression: the public CV-review explainer must stay crawlable.
+    expect(isDisallowed("/cv-granskning")).toBe(false);
+    // The authed /cv and its subtree must stay blocked.
+    expect(isDisallowed("/cv")).toBe(true);
+    expect(isDisallowed("/cv/123")).toBe(true);
+    // The public /matchning explainer is spared; the authed /matchningar is blocked.
+    expect(isDisallowed("/matchning")).toBe(false);
+    expect(isDisallowed("/matchningar")).toBe(true);
+    // Other public marketing pages are unaffected; the demo subtree is blocked.
+    expect(isDisallowed("/om")).toBe(false);
+    expect(isDisallowed("/gast/jobb")).toBe(true);
   });
 });
 

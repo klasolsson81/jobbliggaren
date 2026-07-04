@@ -101,6 +101,23 @@ public class ScbCompanyRegisterClientTests
         outcome.TruncatedOrErrored.ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task StreamLegalEntitiesAsync_MarksTruncated_AndDoesNotThrow_OnPartitionHttpError()
+    {
+        // A single SCB partition error (HTTP 400) must NOT crash the ~1-3 h run — the client logs it,
+        // marks the run truncated (deregister sweep disabled), and skips the partition. Pins the fix
+        // for the live-run crash on the Bransch split.
+        var client = BuildClient(new BadRequestCountHandler());
+        var outcome = new ScbSyncOutcome();
+
+        await foreach (var _ in client.StreamLegalEntitiesAsync(
+            outcome, TestContext.Current.CancellationToken))
+        {
+        }
+
+        outcome.TruncatedOrErrored.ShouldBeTrue();
+    }
+
     private static ScbCompanyRegisterClient BuildClient(HttpMessageHandler handler)
     {
         var httpClient = new HttpClient(handler)
@@ -145,6 +162,29 @@ public class ScbCompanyRegisterClientTests
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(Json("[]"));
+    }
+
+    // Code tables seed normally, but raknaforetag returns HTTP 400 (a partition error).
+    private sealed class BadRequestCountHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            var body = request.Content is null
+                ? string.Empty
+                : await request.Content.ReadAsStringAsync(cancellationToken);
+            if (path.EndsWith("kodtabell", StringComparison.Ordinal))
+            {
+                return body.Contains("Juridisk form", StringComparison.Ordinal)
+                    ? Json("""{"VardeLista":[{"Varde":"49"}]}""")
+                    : Json("""{"VardeLista":[{"Varde":"0180"}]}""");
+            }
+            return new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent("bad request", Encoding.UTF8, "text/plain"),
+            };
+        }
     }
 
     // Code tables seed normally, but raknaforetag returns an object with no recognizable count field.

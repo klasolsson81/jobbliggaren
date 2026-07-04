@@ -97,8 +97,8 @@ public class AuthAuditLoggerTests
     [Fact]
     public void AccountLockedOut_EmitsEventId1004_Warning()
     {
-        // #503 G3(b): dedikerat attack-signal-event, skilt från login_failed (1002)
-        // sa en lockout-storm fran en emailHash/IP kan larmas (TD-77).
+        // #503 G3(b): a dedicated attack-signal event, distinct from login_failed (1002)
+        // so a lockout storm from one emailHash/IP can be alarmed (TD-77).
         var (sut, recorder) = CreateLogger();
 
         sut.AccountLockedOut("deadbeef1234");
@@ -110,8 +110,8 @@ public class AuthAuditLoggerTests
     [Fact]
     public void AccountLockedOut_ContainsEmailHashNotRawEmail()
     {
-        // GDPR / CLAUDE.md §5: audit-eventet bar SHA-256-hash, aldrig ra e-post —
-        // samma PII-fria shape som login_failed.
+        // GDPR / CLAUDE.md §5: the audit event carries the SHA-256 hash, never the raw
+        // email — same PII-free shape as login_failed.
         var (sut, recorder) = CreateLogger();
         const string rawEmail = "locked@example.com";
         const string emailHash = "f00dcafe";
@@ -125,7 +125,7 @@ public class AuthAuditLoggerTests
     [Fact]
     public void AccountLockedOut_AnonymizesIpv4ToSlash24()
     {
-        // ADR 0024 D7: aven lockout-eventets IP ar /24-maskad.
+        // ADR 0024 D7: the lockout event's IP is /24-masked too.
         var (sut, recorder) = CreateLogger(ip: "198.51.100.77");
 
         sut.AccountLockedOut("hash");

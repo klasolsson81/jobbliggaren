@@ -122,16 +122,16 @@ public class LoginCommandHandlerTests
         await handler.Handle(ValidCommand(), CancellationToken.None);
 
         auditLogger.Received(1).LoginFailed(Arg.Any<string>());
-        // #503 G3(b): vanligt fel-losen ar INTE en lockout — det dedikerade
-        // account_locked_out-eventet far inte emitteras har.
+        // #503 G3(b): an ordinary wrong password is NOT a lockout — the dedicated
+        // account_locked_out event must not be emitted here.
         auditLogger.DidNotReceive().AccountLockedOut(Arg.Any<string>());
     }
 
     [Fact]
     public async Task Handle_WithLockedOutAccount_EmitsAccountLockedOutAudit_NotLoginFailed()
     {
-        // #503 G3(b): ett last konto (ValidateCredentialsAsync -> Auth.AccountLocked)
-        // ska emit:a den dedikerade attack-signalen, INTE det generiska login_failed.
+        // #503 G3(b): a locked account (ValidateCredentialsAsync -> Auth.AccountLocked)
+        // must emit the dedicated attack signal, NOT the generic login_failed.
         var userAccountService = Substitute.For<IUserAccountService>();
         userAccountService.ValidateCredentialsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Result.Failure<UserCredentials>(

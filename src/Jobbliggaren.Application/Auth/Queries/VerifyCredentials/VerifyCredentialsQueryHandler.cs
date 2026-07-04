@@ -28,15 +28,16 @@ public sealed class VerifyCredentialsQueryHandler(
         if (string.IsNullOrEmpty(email))
             return InvalidCredentials();
 
-        // #503 (OWASP A07): ValidateCredentialsAsync hedrar nu Identitys lockout —
-        // den kortsluter låsta konton (IsLockedOutAsync) och räknar upp misslyckade
-        // försök (AccessFailedAsync). Det är en avsiktlig, observerbar side-effect
-        // (skrivning) även i denna "read-only" query: re-autentisering är en lika
-        // giltig brute-force-yta som login och delar samma anti-automation. Ett låst
-        // konto ger Auth.AccountLocked internt, men wire-svaret normaliseras till
-        // Auth.InvalidCredentials (AuthEndpoints) så lockout-tillståndet inte läcker.
-        // (Verify auditerar inte lockout-eventet — precis som den inte auditerar
-        // login_failed; login-handlern är den primära brute-force-telemetriytan.)
+        // #503 (OWASP A07): ValidateCredentialsAsync now honors Identity's lockout — it
+        // short-circuits locked accounts (IsLockedOutAsync) and counts failed attempts
+        // (AccessFailedAsync). That is a deliberate, observable side-effect (a write) even
+        // in this "read-only" query: re-authentication is as valid a brute-force surface as
+        // login and shares the same anti-automation (without it /verify would be an unlocked
+        // bypass of the login lockout). A locked account yields Auth.AccountLocked
+        // internally, but the wire response is normalized to Auth.InvalidCredentials
+        // (AuthEndpoints) so lockout state does not leak. (Verify does not audit the lockout
+        // event — just as it does not audit login_failed; the login handler is the primary
+        // brute-force telemetry surface.)
         var credentialsResult = await userAccountService.ValidateCredentialsAsync(
             email, query.Password!, cancellationToken);
 

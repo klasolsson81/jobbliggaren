@@ -22,10 +22,10 @@ public sealed class LoginCommandHandler(
 
         if (credentialsResult.IsFailure)
         {
-            // #503 G3(b): diskriminera lockout från vanligt fel-lösen för attack-
-            // telemetri (account_locked_out är en riktad-brute-force-signal). Wire-
-            // svaret är identiskt för båda (AuthEndpoints normaliserar) — bara
-            // audit-eventet skiljer.
+            // #503 G3(b): discriminate a lockout from an ordinary wrong password for attack
+            // telemetry (account_locked_out is a targeted-brute-force signal). The wire
+            // response is identical for both (AuthEndpoints normalizes) — only the audit
+            // event differs.
             if (credentialsResult.Error.Code == AuthErrorCodes.AccountLocked)
                 auditLogger.AccountLockedOut(HashEmail(command.Email!));
             else

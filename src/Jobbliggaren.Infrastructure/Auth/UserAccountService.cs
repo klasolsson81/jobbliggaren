@@ -45,28 +45,28 @@ public sealed class UserAccountService(
             return Result.Failure<UserCredentials>(
                 DomainError.Validation(AuthErrorCodes.InvalidCredentials, "E-post eller lösenord är felaktigt."));
 
-        // #503 (OWASP A07, senior-cto-advisor G1): hedra Identitys lockout FÖRE
-        // hash-verifiering. Ett låst konto avvisas utan att bränna en lösenords-
-        // jämförelse och utan att räkna upp vidare. Distinkt intern kod (AccountLocked)
-        // så Api-handlern kan emit:a account_locked_out-audit — wire-svaret normaliseras
-        // dock till byte-identiskt InvalidCredentials (AuthEndpoints.ToErrorResult) så
-        // lockout-tillståndet inte läcker som konto-enumererings- eller DoS-orakel.
-        // Kräver LockoutEnabled=true på raden, vilket UserManager.CreateAsync stämplar
-        // från opts.Lockout.AllowedForNewUsers (DependencyInjection).
+        // #503 (OWASP A07, senior-cto-advisor G1): honor Identity's lockout BEFORE the
+        // hash check. A locked account is rejected without burning a password comparison
+        // and without incrementing further. A distinct internal code (AccountLocked) lets
+        // the Api handler emit an account_locked_out audit — the wire response is however
+        // normalized to a byte-identical InvalidCredentials (AuthEndpoints.ToErrorResult)
+        // so lockout state does not leak as an account-enumeration or DoS-target oracle.
+        // Requires LockoutEnabled=true on the row, which UserManager.CreateAsync stamps
+        // from opts.Lockout.AllowedForNewUsers (DependencyInjection).
         if (await userManager.IsLockedOutAsync(user))
             return Result.Failure<UserCredentials>(
                 DomainError.Validation(AuthErrorCodes.AccountLocked, "E-post eller lösenord är felaktigt."));
 
         if (!await userManager.CheckPasswordAsync(user, password))
         {
-            // Räkna det misslyckade försöket. AccessFailedAsync auto-sätter LockoutEnd
-            // när MaxFailedAccessAttempts nås (opts.Lockout, DependencyInjection).
+            // Count the failed attempt. AccessFailedAsync auto-sets LockoutEnd once
+            // MaxFailedAccessAttempts is reached (opts.Lockout, DependencyInjection).
             await userManager.AccessFailedAsync(user);
             return Result.Failure<UserCredentials>(
                 DomainError.Validation(AuthErrorCodes.InvalidCredentials, "E-post eller lösenord är felaktigt."));
         }
 
-        // Lyckad verifiering nollar räknaren (bara vid >0 → undvik onödig skrivning).
+        // A successful verify resets the counter (only when >0 to avoid a needless write).
         if (user.AccessFailedCount > 0)
             await userManager.ResetAccessFailedCountAsync(user);
 

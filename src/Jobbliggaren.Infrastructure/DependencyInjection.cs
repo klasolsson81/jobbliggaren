@@ -932,10 +932,10 @@ public static class DependencyInjection
         services
             .AddIdentity<ApplicationUser, IdentityRole<Guid>>(opts =>
             {
-                // NIST SP 800-63B: längd är primärt skydd, komplexitet sekundärt.
-                // PwnedPasswords-integration (breach-corpus-check vid registrering/byte)
-                // deferrad till #616 (syskon till epic #481) — extern k-anonymity-
-                // integration med egen GDPR-egress- + security-gate (senior-cto-advisor #503 G4/SoC).
+                // NIST SP 800-63B: length is the primary defense, complexity secondary.
+                // PwnedPasswords integration (breach-corpus check on registration/change)
+                // deferred to #616 (sibling to epic #481) — an external k-anonymity
+                // integration with its own GDPR-egress + security gate (senior-cto-advisor #503 G4/SoC).
                 opts.Password.RequiredLength = 12;
                 opts.Password.RequireNonAlphanumeric = false;
                 opts.Password.RequireDigit = false;
@@ -943,11 +943,11 @@ public static class DependencyInjection
                 opts.Password.RequireLowercase = false;
                 opts.User.RequireUniqueEmail = true;
 
-                // #503 (OWASP A07 / NIST SP 800-63B §5.2.2): per-konto anti-automation vid
-                // login. ValidateCredentialsAsync (UserAccountService) räknar misslyckade
-                // försök via AccessFailedAsync och kortsluter låsta konton via
-                // IsLockedOutAsync. Temporär, auto-utgående låsning (undvik själv-DoS):
-                // 5 försök -> 15 min, ovanpå per-IP AuthWrite-throttle (20/min).
+                // #503 (OWASP A07 / NIST SP 800-63B §5.2.2): per-account anti-automation on
+                // login. ValidateCredentialsAsync (UserAccountService) counts failed attempts
+                // via AccessFailedAsync and short-circuits locked accounts via IsLockedOutAsync.
+                // Temporary, auto-expiring lockout (avoid self-DoS): 5 attempts -> 15 min, on
+                // top of the per-IP AuthWrite throttle (20/min).
                 opts.Lockout.MaxFailedAccessAttempts = 5;
                 opts.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
                 opts.Lockout.AllowedForNewUsers = true;

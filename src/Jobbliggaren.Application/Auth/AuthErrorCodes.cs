@@ -1,26 +1,26 @@
 namespace Jobbliggaren.Application.Auth;
 
 /// <summary>
-/// Centraliserade <see cref="Jobbliggaren.Domain.Common.DomainError"/>-koder för
-/// auth-flödet. Håller kontroll-flödes-diskriminanter och wire-mappning på EN plats
-/// (§5 — inga magiska strängar spridda över Application/Infrastructure/Api).
+/// Centralized <see cref="Jobbliggaren.Domain.Common.DomainError"/> codes for the
+/// auth flow. Keeps control-flow discriminants and wire mapping in ONE place
+/// (§5 — no magic strings scattered across Application/Infrastructure/Api).
 /// </summary>
 public static class AuthErrorCodes
 {
     /// <summary>
-    /// Generiskt, medvetet vagt credential-fel: okänd e-post, fel lösenord eller
-    /// soft-deletat konto. Renderas som 401 (AuthEndpoints) med copy som aldrig
-    /// avslöjar vilken av orsakerna som gällde (konto-enumererings-skydd).
+    /// Generic, deliberately vague credential failure: unknown email, wrong password
+    /// or a soft-deleted account. Rendered as 401 (AuthEndpoints) with copy that never
+    /// reveals which of the causes applied (account-enumeration avoidance).
     /// </summary>
     public const string InvalidCredentials = "Auth.InvalidCredentials";
 
     /// <summary>
-    /// Internt lockout-verdikt (#503, OWASP A07): kontot är tillfälligt låst efter
-    /// för många misslyckade försök. Diskriminerar audit-eventet
-    /// (<c>account_locked_out</c>) i Api-handlern MEN normaliseras till ett
-    /// byte-identiskt <see cref="InvalidCredentials"/>-svar på wire
-    /// (<c>AuthEndpoints.ToErrorResult</c>) så lockout-tillståndet aldrig läcker som
-    /// konto-enumererings- eller DoS-orakel. Denna kod får ALDRIG nå klienten.
+    /// Internal lockout verdict (#503, OWASP A07): the account is temporarily locked
+    /// after too many failed attempts. Discriminates the audit event
+    /// (<c>account_locked_out</c>) in the Api handler BUT is normalized to a
+    /// byte-identical <see cref="InvalidCredentials"/> response on the wire
+    /// (<c>AuthEndpoints.ToErrorResult</c>) so lockout state never leaks as an
+    /// account-enumeration or DoS-target oracle. This code must NEVER reach the client.
     /// </summary>
     public const string AccountLocked = "Auth.AccountLocked";
 }

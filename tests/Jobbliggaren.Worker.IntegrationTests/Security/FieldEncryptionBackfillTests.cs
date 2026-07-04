@@ -1,6 +1,5 @@
 using System.Data.Common;
 using System.Security.Cryptography;
-using System.Text.Json;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Security;
@@ -8,7 +7,6 @@ using Jobbliggaren.Application.Security.Jobs.BackfillFieldEncryption;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
-using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.EntityFrameworkCore;
@@ -21,10 +19,10 @@ namespace Jobbliggaren.Worker.IntegrationTests.Security;
 /// <summary>
 /// TD-13 FAS 3.5 batch <b>C5 — integration-svit för fält-krypterings-backfillen</b>
 /// (ADR 0049 Beslut 4 + C5, dotnet-architect-låst 2026-05-19). Driver lazy-
-/// migreringen deterministiskt till 100 % ciphertext över de fyra user-ägda
-/// PII-kolumnerna (<c>applications.cover_letter</c>,
-/// <c>application_notes.content</c>, <c>follow_ups.note</c>,
-/// <c>resume_versions.content_enc</c>) mot riktig Postgres (Testcontainers via
+/// migreringen deterministiskt till 100 % ciphertext över de tre user-ägda
+/// Form A PII-text-kolumnerna (<c>applications.cover_letter</c>,
+/// <c>application_notes.content</c>, <c>follow_ups.note</c>) mot riktig Postgres
+/// (Testcontainers via
 /// <see cref="WorkerTestFixture"/>) — InMemory förbjudet (CLAUDE.md/test-stack;
 /// ADR 0049 Mekanik-not 4): interceptor↔Npgsql-materialiserings-ordningen och
 /// den force-Modified-baserade re-write-mekaniken är load-bearing och måste
@@ -32,8 +30,8 @@ namespace Jobbliggaren.Worker.IntegrationTests.Security;
 ///
 /// <para>
 /// <b>Seedning av legacy-rader:</b> rå INSERT förbi interceptor-paret (ingen
-/// <c>v1:</c>-sentinel; resume_versions med klartext-jsonb <c>content</c> +
-/// NULL <c>content_enc</c>) — exakt C3/C4.4-precedensens
+/// <c>v1:</c>-sentinel; tre Form A text-kolumner — resume_versions Form B-armen
+/// pensionerad vid cutover, #507a, seedas ej) — exakt C3/C4.4-precedensens
 /// <c>RawInsertLegacy*</c>-mönster. <b>KMS</b> är den delade deterministiska
 /// fake-KMS:en som <see cref="WorkerTestFixture"/> sista-vinner-registrerar
 /// (ingen riktig AWS, produktkod orörd).
@@ -66,13 +64,6 @@ public class FieldEncryptionBackfillTests(WorkerTestFixture fixture)
 {
     private readonly WorkerTestFixture _fixture = fixture;
 
-    /// <summary>Kanonisk JSON-policy — speglar EncryptedFieldRegistry.ContentJsonOptions (SPOT).</summary>
-    private static readonly JsonSerializerOptions CanonicalJson = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false,
-    };
-
     private sealed class FixedClock(DateTimeOffset utcNow) : IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = utcNow;
@@ -90,26 +81,6 @@ public class FieldEncryptionBackfillTests(WorkerTestFixture fixture)
         await db.SaveChangesAsync(ct);
         return seeker;
     }
-
-    private static ResumeContent RichContent(string fullNameMarker) =>
-        new(
-            new PersonalInfo(
-                fullNameMarker, "anna@example.com", "070-1234567", "Stockholm"),
-            experiences:
-            [
-                new Experience(
-                    "Acme AB", "Backend-utvecklare",
-                    new DateOnly(2021, 1, 1), new DateOnly(2024, 6, 30),
-                    "Byggde betaltjänster i .NET."),
-            ],
-            educations:
-            [
-                new Education(
-                    "KTH", "Civilingenjör Datateknik",
-                    new DateOnly(2016, 8, 20), new DateOnly(2021, 6, 10)),
-            ],
-            skills: [new Skill("C#", 5)],
-            summary: "Erfaren backend-utvecklare.");
 
     /// <summary>
     /// Simulerar <c>FieldEncryptionKeyPrefetchBehavior</c>: värmer ägar-DEK +
@@ -148,31 +119,13 @@ public class FieldEncryptionBackfillTests(WorkerTestFixture fixture)
         cmd.Parameters.Add(p);
     }
 
-    private static void ShouldDeepEqual(ResumeContent actual, ResumeContent expected)
-    {
-        actual.PersonalInfo.ShouldBe(expected.PersonalInfo);
-        actual.Summary.ShouldBe(expected.Summary);
-        actual.Experiences.Count.ShouldBe(expected.Experiences.Count);
-        for (var i = 0; i < expected.Experiences.Count; i++)
-            actual.Experiences[i].ShouldBe(expected.Experiences[i]);
-        actual.Educations.Count.ShouldBe(expected.Educations.Count);
-        for (var i = 0; i < expected.Educations.Count; i++)
-            actual.Educations[i].ShouldBe(expected.Educations[i]);
-        actual.Skills.Count.ShouldBe(expected.Skills.Count);
-        for (var i = 0; i < expected.Skills.Count; i++)
-            actual.Skills[i].ShouldBe(expected.Skills[i]);
-        JsonSerializer.Serialize(actual, CanonicalJson)
-            .ShouldBe(JsonSerializer.Serialize(expected, CanonicalJson));
-    }
-
     /// <summary>
     /// Rå INSERT förbi interceptor-paret av en pre-migrerings-ägare:
     /// en Application med klartext <c>cover_letter</c> + ett
     /// <c>application_notes</c>-barn (klartext content) + ett <c>follow_ups</c>-
-    /// barn (klartext note) + en Resume med en Master-<c>resume_versions</c>-rad
-    /// (klartext-jsonb <c>content</c>, <c>content_enc</c> NULL). Alla utan
-    /// <c>v1:</c>-sentinel ⇒ legacy on-disk. Kolumn-listorna speglar
-    /// ApplicationConfiguration / ResumeVersionConfiguration (snake_case;
+    /// barn (klartext note). Alla utan <c>v1:</c>-sentinel ⇒ legacy on-disk
+    /// (resume_versions Form B-armen pensionerad vid cutover, #507a — seedas ej).
+    /// Kolumn-listorna speglar ApplicationConfiguration (snake_case;
     /// Status/Kind som string-namn; deleted_at NULL ⇒ passerar global filter).
     /// </summary>
     private async Task<LegacyOwnerIds> RawInsertLegacyOwnerAsync(
@@ -181,10 +134,6 @@ public class FieldEncryptionBackfillTests(WorkerTestFixture fixture)
         var appId = ApplicationId.New();
         var noteId = ApplicationNoteId.New();
         var followUpId = FollowUpId.New();
-        var resumeId = ResumeId.New();
-        var versionId = ResumeVersionId.New();
-        var legacyContent = RichContent($"{marker} CV");
-        var legacyContentJson = JsonSerializer.Serialize(legacyContent, CanonicalJson);
 
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -241,49 +190,13 @@ public class FieldEncryptionBackfillTests(WorkerTestFixture fixture)
             await cmd.ExecuteNonQueryAsync(ct);
         }
 
-        await using (var cmd = conn.CreateCommand())
-        {
-            cmd.CommandText =
-                """
-                INSERT INTO resumes
-                    (id, job_seeker_id, name, created_at, updated_at)
-                VALUES
-                    (@id, @js, @name, now(), now())
-                """;
-            AddParam(cmd, "@id", resumeId.Value);
-            AddParam(cmd, "@js", jobSeekerId.Value);
-            AddParam(cmd, "@name", $"{marker} Legacy-CV");
-            await cmd.ExecuteNonQueryAsync(ct);
-        }
-
-        await using (var cmd = conn.CreateCommand())
-        {
-            cmd.CommandText =
-                """
-                INSERT INTO resume_versions
-                    (id, resume_id, kind, content, content_enc,
-                     created_at, updated_at)
-                VALUES
-                    (@id, @rid, 'Master', CAST(@content AS jsonb), NULL,
-                     now(), now())
-                """;
-            AddParam(cmd, "@id", versionId.Value);
-            AddParam(cmd, "@rid", resumeId.Value);
-            AddParam(cmd, "@content", legacyContentJson);
-            await cmd.ExecuteNonQueryAsync(ct);
-        }
-
-        return new LegacyOwnerIds(
-            appId, noteId, followUpId, resumeId, versionId, legacyContent, marker);
+        return new LegacyOwnerIds(appId, noteId, followUpId, marker);
     }
 
     private sealed record LegacyOwnerIds(
         ApplicationId AppId,
         ApplicationNoteId NoteId,
         FollowUpId FollowUpId,
-        ResumeId ResumeId,
-        ResumeVersionId VersionId,
-        ResumeContent LegacyContent,
         string Marker);
 
     private async Task BackfillOwnerAsync(JobSeekerId owner, CancellationToken ct)
@@ -293,9 +206,9 @@ public class FieldEncryptionBackfillTests(WorkerTestFixture fixture)
         await backfiller.BackfillOwnerAsync(owner.Value, ct);
     }
 
-    // ── 1. Backfill krypterar legacy över alla fyra kolumnerna ───────────
+    // ── 1. Backfill krypterar legacy över de tre text-kolumnerna ───────────
     [Fact]
-    public async Task Backfill_EncryptsLegacyAcrossAllFourColumns_OnDisk()
+    public async Task Backfill_EncryptsLegacyAcrossThreeTextColumns_OnDisk()
     {
         var ct = TestContext.Current.CancellationToken;
         var seeker = await SeedJobSeekerAsync(ct);
@@ -323,20 +236,6 @@ public class FieldEncryptionBackfillTests(WorkerTestFixture fixture)
         followUpNote.ShouldNotBeNull();
         followUpNote.ShouldStartWith("v1:");
         followUpNote.ShouldNotContain("klartext-uppföljning", Case.Sensitive);
-
-        var contentEnc = await RawScalarAsync(
-            db, $"SELECT content_enc FROM resume_versions WHERE id = '{ids.VersionId.Value}'", ct);
-        contentEnc.ShouldNotBeNull(
-            "resume_versions ska ha lazy-migrerats till content_enc-ciphertext (Form B)");
-        contentEnc.ShouldStartWith("v1:");
-        contentEnc.ShouldNotContain(ids.Marker, Case.Sensitive);
-
-        // Legacy `content`-jsonb orört (PropertySaveBehavior.Ignore — Form B).
-        var legacyContentRaw = await RawScalarAsync(
-            db, $"SELECT content FROM resume_versions WHERE id = '{ids.VersionId.Value}'", ct);
-        legacyContentRaw.ShouldNotBeNull(
-            "legacy `content`-jsonb ska stå kvar oförändrad (EF write-ignore:ad)");
-        legacyContentRaw.ShouldContain(ids.Marker, Case.Sensitive);
     }
 
     // ── 2. Round-trip post-backfill — allt dekrypterar till original ─────
@@ -363,13 +262,6 @@ public class FieldEncryptionBackfillTests(WorkerTestFixture fixture)
             "cover_letter ska dekryptera till ursprungsklartexten");
         app.Notes.ShouldHaveSingleItem().Content.ShouldBe("BACKFILL-S2 klartext-anteckning");
         app.FollowUps.ShouldHaveSingleItem().Note.ShouldBe("BACKFILL-S2 klartext-uppföljning");
-
-        var resume = await db.Resumes
-            .AsNoTracking()
-            .Include(r => r.Versions)
-            .SingleAsync(r => r.Id == ids.ResumeId, ct);
-        resume.MasterVersion.Content.ShouldNotBeNull();
-        ShouldDeepEqual(resume.MasterVersion.Content, ids.LegacyContent);
     }
 
     // ── 3. Idempotens — andra körning är no-op (byte-identisk ciphertext) ─
@@ -383,15 +275,14 @@ public class FieldEncryptionBackfillTests(WorkerTestFixture fixture)
         await BackfillOwnerAsync(seeker.Id, ct);
 
         // Kapa ciphertext efter run 1 (rådata förbi interceptorn).
-        async Task<(string Cl, string Note, string Fu, string Enc)> SnapshotAsync()
+        async Task<(string Cl, string Note, string Fu)> SnapshotAsync()
         {
             using var s = _fixture.Services.CreateScope();
             var db = s.ServiceProvider.GetRequiredService<AppDbContext>();
             return (
                 (await RawScalarAsync(db, $"SELECT cover_letter FROM applications WHERE id = '{ids.AppId.Value}'", ct))!,
                 (await RawScalarAsync(db, $"SELECT content FROM application_notes WHERE id = '{ids.NoteId.Value}'", ct))!,
-                (await RawScalarAsync(db, $"SELECT note FROM follow_ups WHERE id = '{ids.FollowUpId.Value}'", ct))!,
-                (await RawScalarAsync(db, $"SELECT content_enc FROM resume_versions WHERE id = '{ids.VersionId.Value}'", ct))!);
+                (await RawScalarAsync(db, $"SELECT note FROM follow_ups WHERE id = '{ids.FollowUpId.Value}'", ct))!);
         }
 
         var afterRun1 = await SnapshotAsync();
@@ -408,8 +299,6 @@ public class FieldEncryptionBackfillTests(WorkerTestFixture fixture)
             "redan-ciphertext note-content får ALDRIG re-krypteras");
         afterRun2.Fu.ShouldBe(afterRun1.Fu,
             "redan-ciphertext follow_up-note får ALDRIG re-krypteras");
-        afterRun2.Enc.ShouldBe(afterRun1.Enc,
-            "redan-ciphertext content_enc får ALDRIG re-krypteras (legacy-on-disk-precision)");
 
         using var fitnessScope = _fixture.Services.CreateScope();
         var backfiller = fitnessScope.ServiceProvider
@@ -437,11 +326,10 @@ public class FieldEncryptionBackfillTests(WorkerTestFixture fixture)
                 "minst denna seedade ägares cover_letter är legacy före backfill");
             before.ApplicationNoteContent.ShouldBeGreaterThan(0);
             before.FollowUpNote.ShouldBeGreaterThan(0);
-            before.ResumeVersionContent.ShouldBeGreaterThan(0);
             before.Total.ShouldBe(
                 before.CoverLetter + before.ApplicationNoteContent
-                + before.FollowUpNote + before.ResumeVersionContent,
-                "Total = summan av de fyra per-kolumn-räkningarna");
+                + before.FollowUpNote,
+                "Total = summan av de tre per-kolumn-räkningarna");
         }
 
         // Driv HELA databasen (alla ägare) till 0 — den deterministiska gaten.
@@ -454,12 +342,11 @@ public class FieldEncryptionBackfillTests(WorkerTestFixture fixture)
         after.CoverLetter.ShouldBe(0);
         after.ApplicationNoteContent.ShouldBe(0);
         after.FollowUpNote.ShouldBe(0);
-        after.ResumeVersionContent.ShouldBe(0);
         after.Total.ShouldBe(0,
             "CountRemainingLegacyAsync().Total == 0 är den deterministiska klar-gaten");
     }
 
-    // ── 5. GetOwnersWithLegacyFieldsAsync — vilken som helst av 4 kolumner ─
+    // ── 5. GetOwnersWithLegacyFieldsAsync — vilken som helst av 3 kolumner ─
     [Fact]
     public async Task GetOwnersWithLegacy_ReturnsOwnersWithAnyLegacyColumn_RespectsBatchSize_EmptyWhenDone()
     {
@@ -476,7 +363,7 @@ public class FieldEncryptionBackfillTests(WorkerTestFixture fixture)
 
             var owners = await backfiller.GetOwnersWithLegacyFieldsAsync(1000, ct);
             owners.ShouldContain(seekerA.Id.Value,
-                "ägare A har legacy i alla fyra kolumnerna");
+                "ägare A har legacy i de tre kolumnerna");
             owners.ShouldContain(seekerB.Id.Value);
 
             var batched = await backfiller.GetOwnersWithLegacyFieldsAsync(1, ct);

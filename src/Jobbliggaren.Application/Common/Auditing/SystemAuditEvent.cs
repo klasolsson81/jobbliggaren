@@ -101,8 +101,7 @@ public sealed record FieldEncryptionBackfillRun(
     int OwnersFailed,
     long RemainingCoverLetter,
     long RemainingApplicationNoteContent,
-    long RemainingFollowUpNote,
-    long RemainingResumeVersionContent)
+    long RemainingFollowUpNote)
     : SystemAuditEvent(
         EventType: "System.FieldEncryptionBackfillRun",
         AggregateType: "System.FieldEncryptionBackfill",

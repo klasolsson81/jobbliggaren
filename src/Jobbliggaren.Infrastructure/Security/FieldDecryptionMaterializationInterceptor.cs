@@ -142,8 +142,10 @@ public sealed class FieldDecryptionMaterializationInterceptor : IMaterialization
 
                 // Backfill-fallback: legacy klartext-JSON (ingen sentinel) →
                 // ingen decrypt/DEK/owner (lazy-tolerans, Beslut 4/5; alla
-                // scopes inkl. system). Greenfield-entiteter (F4-8 ParsedResume)
-                // saknar legacy-shadow (null) → ingen fallback att läsa.
+                // scopes inkl. system). Numera ONÅBAR för båda Form B-fälten:
+                // ParsedResume (greenfield) OCH ResumeVersion (fallback retirerad
+                // vid cutover #507a) har LegacyShadowProperty = null → ingen
+                // fallback att läsa. Generisk mekanism behållen (Variant A).
                 if (field.LegacyShadowProperty is { } legacyShadow)
                 {
                     var legacy = materializationData.GetPropertyValue<string>(legacyShadow);

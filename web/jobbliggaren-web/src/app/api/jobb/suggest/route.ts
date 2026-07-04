@@ -6,7 +6,7 @@ import { SUGGEST_MIN_PREFIX } from "@/lib/dto/job-ads";
  * ADR 0042 Beslut C — typeahead-proxy. Client-komponenten (JobAdTypeahead)
  * kan inte anropa den `server-only` `suggestJobAdTerms`-fetchern direkt
  * (session-cookie + BACKEND_URL är serverkontext). Denna route-handler
- * speglar `/api/me/route.ts`-mönstret: validerar prefix, delegerar till
+ * följer samma server-only-proxy-mönster: validerar prefix, delegerar till
  * server-fetchern, mappar `ApiResult` → HTTP-status.
  *
  * DoS-yta (ADR 0042 Beslut C): prefix < SUGGEST_MIN_PREFIX avvisas här

@@ -9,19 +9,23 @@ namespace Jobbliggaren.Application.Security.Jobs.BackfillFieldEncryption;
 /// (JobSeekerId är Domain), impl wrappar internt.
 ///
 /// <para>
-/// Driver lazy-migreringen deterministiskt till 100 % ciphertext över de fyra
-/// user-ägda PII-kolumnerna (cover_letter / application_notes.content /
-/// follow_ups.note / resume_versions.content_enc). Bounded, idempotent,
-/// cancellation-bar (Ford/Parsons/Kua 2017 — migration med deterministiskt
-/// slut). Cutover-flippen (Beslut 5 steg 3) är INTE denna ports ansvar — den
-/// är en separat Klas-STOPP-migration.
+/// Drives the lazy migration deterministically to 100% ciphertext over the
+/// three user-owned Form A PII text columns (cover_letter /
+/// application_notes.content / follow_ups.note). Bounded, idempotent,
+/// cancellation-aware (Ford/Parsons/Kua 2017 — migration with a deterministic
+/// end). The resume_versions Form B arm was RETIRED at cutover (#507a / ADR
+/// 0049 Beslut 5 steg 3): the read-interceptor plaintext fallback it depended
+/// on to materialize legacy content before re-encryption is gone, content_enc
+/// is now the sole source, and there is no legacy resume content left to
+/// migrate (the fitness gate proved 0 before the mapping flip).
 /// </para>
 /// </summary>
 public interface IFieldEncryptionBackfiller
 {
     /// <summary>
     /// Distinkta JobSeeker-id (max <paramref name="batchSize"/>) som har minst
-    /// en legacy (icke-ciphertext) PII-rad i någon av de fyra kolumnerna.
+    /// en legacy (icke-ciphertext) PII-rad i någon av de tre Form A-kolumnerna
+    /// (resume_versions Form B-armen pensionerad vid cutover, #507a).
     /// Read-only, system-scope (ingen DEK). Krymper monotont per backfill-batch
     /// → bounded yttre loop.
     /// </summary>
@@ -47,15 +51,16 @@ public interface IFieldEncryptionBackfiller
 }
 
 /// <summary>
-/// TD-13 (ADR 0049) — per-kolumn legacy-räkning (fitness). Value object
-/// (CLAUDE.md §3.3 — ej fyra parallella lösa <see cref="long"/>).
+/// TD-13 (ADR 0049) — per-column legacy count (fitness). Value object
+/// (CLAUDE.md §3.3 — not three loose parallel <see cref="long"/>). The
+/// resume_versions Form B count was retired at cutover (#507a); only the three
+/// Form A text columns remain.
 /// </summary>
 public readonly record struct LegacyFieldCounts(
     long CoverLetter,
     long ApplicationNoteContent,
-    long FollowUpNote,
-    long ResumeVersionContent)
+    long FollowUpNote)
 {
     public long Total =>
-        CoverLetter + ApplicationNoteContent + FollowUpNote + ResumeVersionContent;
+        CoverLetter + ApplicationNoteContent + FollowUpNote;
 }

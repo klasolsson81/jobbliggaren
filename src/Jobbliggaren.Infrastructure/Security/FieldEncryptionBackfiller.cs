@@ -2,7 +2,6 @@ using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.Security.Jobs.BackfillFieldEncryption;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.JobSeekers;
-using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,7 +11,8 @@ namespace Jobbliggaren.Infrastructure.Security;
 /// <summary>
 /// TD-13 (ADR 0049 Beslut 4 + C5, dotnet-architect-låst 2026-05-19) —
 /// <see cref="IFieldEncryptionBackfiller"/>-impl. Driver lazy-migreringen till
-/// 100 % ciphertext över de fyra user-ägda PII-kolumnerna.
+/// 100 % ciphertext över de tre Form A user-ägda PII-text-kolumnerna
+/// (resume_versions Form B-armen pensionerad vid cutover, #507a).
 ///
 /// <para>
 /// <b>Per-owner fresh DI-scope (load-bearing, §5.1):</b>
@@ -31,11 +31,11 @@ namespace Jobbliggaren.Infrastructure.Security;
 /// markerar den krypterade propertyn/shadow:en
 /// <c>Entry(e).Property(name).IsModified = true</c> — EF Core 10:s minimala
 /// re-write-trigger. Form A: domän-string-property (CoverLetter/Content/Note).
-/// Form B: shadow <c>ContentEnc</c> (Content är Ignore:ad; ContentLegacyJson
-/// är PropertySaveBehavior.Ignore → legacy <c>content</c> rörs aldrig). Detta
-/// muterar inte domäntillståndet. Encrypt-on-write-interceptorn fyrar
-/// (entry Modified) och krypterar; redan-ciphertext-rader markeras INTE
-/// (idempotent — re-run no-op).
+/// (Form B — resume_versions shadow <c>ContentEnc</c> — pensionerad vid cutover,
+/// #507a: read-interceptor-fallbacken som armen berodde på för att materialisera
+/// legacy-content före omkryptering är borta.) Detta muterar inte
+/// domäntillståndet. Encrypt-on-write-interceptorn fyrar (entry Modified) och
+/// krypterar; redan-ciphertext-rader markeras INTE (idempotent — re-run no-op).
 /// </para>
 ///
 /// <para>
@@ -78,23 +78,10 @@ public sealed class FieldEncryptionBackfiller(
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        // Form B — content_enc/content är shadow-properties (ej i EF-modellen
-        // som queryable domän-properties) → parameterlös konstant-predikat raw
-        // SQL (CLAUDE.md §5.4-konform: ingen användardata, ingen concatenation).
-        var formBOwners = await db.Database
-            .SqlQueryRaw<Guid>(
-                """
-                SELECT DISTINCT r.job_seeker_id AS "Value"
-                FROM resume_versions rv
-                JOIN resumes r ON r.id = rv.resume_id
-                WHERE rv.content_enc IS NULL AND rv.content IS NOT NULL
-                """)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-
+        // Form B (resume_versions) retired at cutover (#507a / ADR 0049 Beslut 5
+        // steg 3): content_enc is the sole source, so there is no legacy resume
+        // content left to discover (the fitness gate proved 0 before the flip).
         return formAOwners
-            .Concat(formBOwners)
-            .Distinct()
             .Take(batchSize)
             .ToList();
     }
@@ -154,20 +141,9 @@ public sealed class FieldEncryptionBackfiller(
             cancellationToken, jobSeekerId, LegacyLikePredicateValue)
             .ConfigureAwait(false);
 
-        var legacyResumeVersionIds = await ScalarIdsAsync(
-            scopedDb,
-            """
-            SELECT rv.id AS "Value" FROM resume_versions rv
-            JOIN resumes r ON r.id = rv.resume_id
-            WHERE r.job_seeker_id = {0}
-              AND rv.content_enc IS NULL AND rv.content IS NOT NULL
-            """,
-            cancellationToken, jobSeekerId).ConfigureAwait(false);
-
         if (legacyCoverLetterAppIds.Count == 0
             && legacyNoteIds.Count == 0
-            && legacyFollowUpIds.Count == 0
-            && legacyResumeVersionIds.Count == 0)
+            && legacyFollowUpIds.Count == 0)
         {
             return; // Inget legacy kvar för ägaren (idempotent no-op).
         }
@@ -183,17 +159,9 @@ public sealed class FieldEncryptionBackfiller(
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var resumes = await scopedDb.Resumes
-            .IgnoreQueryFilters()
-            .Include(r => r.Versions)
-            .Where(r => r.JobSeekerId == owner)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-
         var coverLetterSet = legacyCoverLetterAppIds.ToHashSet();
         var noteSet = legacyNoteIds.ToHashSet();
         var followUpSet = legacyFollowUpIds.ToHashSet();
-        var resumeVersionSet = legacyResumeVersionIds.ToHashSet();
 
         foreach (var app in applications)
         {
@@ -213,23 +181,6 @@ public sealed class FieldEncryptionBackfiller(
                 if (followUpSet.Contains(followUp.Id.Value))
                     scopedDb.Entry(followUp).Property(nameof(FollowUp.Note))
                         .IsModified = true;
-            }
-        }
-
-        foreach (var resume in resumes)
-        {
-            foreach (var version in resume.Versions)
-            {
-                if (resumeVersionSet.Contains(version.Id.Value))
-                {
-                    // Form B: shadow ContentEnc (Content är Ignore:ad).
-                    // Content materialiserades ur legacy `content` av read-
-                    // interceptorns fallback; write-interceptorn serialiserar
-                    // + krypterar → content_enc. Legacy `content` rörs aldrig
-                    // (PropertySaveBehavior.Ignore).
-                    scopedDb.Entry(version).Property("ContentEnc")
-                        .IsModified = true;
-                }
             }
         }
 
@@ -263,21 +214,10 @@ public sealed class FieldEncryptionBackfiller(
                 cancellationToken)
             .ConfigureAwait(false);
 
-        // content_enc/content shadows → parameterlös konstant-predikat raw SQL.
-        var resumeVersionContent = (await db.Database
-            .SqlQueryRaw<long>(
-                """
-                SELECT count(*) AS "Value" FROM resume_versions
-                WHERE content_enc IS NULL AND content IS NOT NULL
-                """)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false))[0];
-
         return new LegacyFieldCounts(
             CoverLetter: coverLetter,
             ApplicationNoteContent: noteContent,
-            FollowUpNote: followUpNote,
-            ResumeVersionContent: resumeVersionContent);
+            FollowUpNote: followUpNote);
     }
 
     private static async Task<List<Guid>> ScalarIdsAsync(

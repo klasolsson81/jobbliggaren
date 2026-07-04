@@ -6,8 +6,9 @@ namespace Jobbliggaren.Application.Security.Jobs.BackfillFieldEncryption;
 
 /// <summary>
 /// TD-13 (ADR 0049 Beslut 4 + C5) — Hangfire-orchestrator som driver lazy-
-/// migreringen deterministiskt till 100 % ciphertext över de fyra user-ägda
-/// PII-kolumnerna. Samma chassi som <c>HardDeleteAccountsJob</c> /
+/// migreringen deterministiskt till 100 % ciphertext över de tre Form A user-
+/// ägda PII-text-kolumnerna (resume_versions Form B-armen pensionerad vid
+/// cutover, #507a). Samma chassi som <c>HardDeleteAccountsJob</c> /
 /// <c>PurgeStaleRawPayloadsJob</c>: orchestratorn håller loop +
 /// cancel-token-management + progress-log + audit; implementation-detaljerna
 /// (per-owner DEK, interceptor-interplay, forced-Modified) ligger i
@@ -105,8 +106,7 @@ public sealed partial class BackfillFieldEncryptionJob(
                 OwnersFailed: failed,
                 RemainingCoverLetter: remaining.CoverLetter,
                 RemainingApplicationNoteContent: remaining.ApplicationNoteContent,
-                RemainingFollowUpNote: remaining.FollowUpNote,
-                RemainingResumeVersionContent: remaining.ResumeVersionContent),
+                RemainingFollowUpNote: remaining.FollowUpNote),
             cancellationToken);
     }
 

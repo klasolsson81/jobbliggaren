@@ -129,9 +129,12 @@
     "loadErrorTitle": "Kunde inte ladda sparade annonser"
   },
   "foretag": {
-    "title": "Bevakade företag",
-    "lede": "Företag du bevakar. Du börjar bevaka ett företag från en annons under Jobb.",
-    "loadErrorTitle": "Kunde inte ladda bevakade företag"
+    "title": "Företag",
+    "lede": "Företag du bevakar och din ansökningshistorik per arbetsgivare.",
+    "watchesHeading": "Bevakade företag",
+    "historyHeading": "Ansökningshistorik",
+    "loadErrorTitle": "Kunde inte ladda bevakade företag",
+    "historyLoadErrorTitle": "Kunde inte ladda ansökningshistoriken"
   },
   "matchningar": {
     "title": "Mina matchningar",

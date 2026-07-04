@@ -4,5 +4,14 @@ public interface IAuthAuditLogger
 {
     void LoginSucceeded(Guid userId, string sessionIdPrefix);
     void LoginFailed(string emailHash);
+
+    /// <summary>
+    /// A login/re-auth attempt hit a temporarily locked-out account (#503, OWASP A07).
+    /// Distinct from <see cref="LoginFailed"/> so a burst from one emailHash/IP is a
+    /// targeted-brute-force signal for TD-77-alarming — the wire response stays identical
+    /// to a wrong-password 401 (oracle-avoidance), only the audit event differs.
+    /// </summary>
+    void AccountLockedOut(string emailHash);
+
     void LogoutSucceeded(Guid userId, string sessionIdPrefix);
 }

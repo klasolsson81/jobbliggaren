@@ -122,6 +122,29 @@ public class LoginCommandHandlerTests
         await handler.Handle(ValidCommand(), CancellationToken.None);
 
         auditLogger.Received(1).LoginFailed(Arg.Any<string>());
+        // #503 G3(b): an ordinary wrong password is NOT a lockout — the dedicated
+        // account_locked_out event must not be emitted here.
+        auditLogger.DidNotReceive().AccountLockedOut(Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task Handle_WithLockedOutAccount_EmitsAccountLockedOutAudit_NotLoginFailed()
+    {
+        // #503 G3(b): a locked account (ValidateCredentialsAsync -> Auth.AccountLocked)
+        // must emit the dedicated attack signal, NOT the generic login_failed.
+        var userAccountService = Substitute.For<IUserAccountService>();
+        userAccountService.ValidateCredentialsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<UserCredentials>(
+                DomainError.Validation("Auth.AccountLocked", "E-post eller lösenord är felaktigt.")));
+
+        var auditLogger = Substitute.For<IAuthAuditLogger>();
+        var handler = CreateHandler(userAccountService: userAccountService, auditLogger: auditLogger);
+
+        var result = await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        result.IsFailure.ShouldBeTrue();
+        auditLogger.Received(1).AccountLockedOut(Arg.Any<string>());
+        auditLogger.DidNotReceive().LoginFailed(Arg.Any<string>());
     }
 
     // ─── ADR 0024 D5: D5-blockering vid soft-deletad JobSeeker ───

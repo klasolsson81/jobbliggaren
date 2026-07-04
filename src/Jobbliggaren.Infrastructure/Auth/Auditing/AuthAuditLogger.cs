@@ -23,6 +23,12 @@ public sealed partial class AuthAuditLogger(
         LogLoginFailed(logger, "login_failed", emailHash, resolvedIp, resolvedAgent);
     }
 
+    public void AccountLockedOut(string emailHash)
+    {
+        var (resolvedIp, resolvedAgent) = ExtractRequestContext();
+        LogAccountLockedOut(logger, "account_locked_out", emailHash, resolvedIp, resolvedAgent);
+    }
+
     public void LogoutSucceeded(Guid userId, string sessionIdPrefix)
     {
         var (resolvedIp, _) = ExtractRequestContext();
@@ -54,6 +60,11 @@ public sealed partial class AuthAuditLogger(
     [LoggerMessage(1002, LogLevel.Warning,
         "AuditEvent={AuditEvent} EmailHash={EmailHash} Ip={Ip} UserAgent={UserAgent}")]
     private static partial void LogLoginFailed(
+        ILogger logger, string auditEvent, string emailHash, string ip, string userAgent);
+
+    [LoggerMessage(1004, LogLevel.Warning,
+        "AuditEvent={AuditEvent} EmailHash={EmailHash} Ip={Ip} UserAgent={UserAgent}")]
+    private static partial void LogAccountLockedOut(
         ILogger logger, string auditEvent, string emailHash, string ip, string userAgent);
 
     [LoggerMessage(1003, LogLevel.Information,

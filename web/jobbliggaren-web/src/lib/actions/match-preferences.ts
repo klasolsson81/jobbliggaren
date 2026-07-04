@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import { deriveOccupations } from "@/lib/api/occupation-derive";
 import { getResumes, getParsedResumeOccupations } from "@/lib/api/resumes";
 import { getParsedResumeSkills, searchSkills } from "@/lib/api/skills";
@@ -15,17 +15,9 @@ import {
   type SetMatchPreferencesInput,
 } from "./match-preferences-schemas";
 import { mapActionError } from "./_action-error";
+import type { ActionResult } from "./_action-result";
 
-function authHeaders(sessionId: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${sessionId}`,
-    "Content-Type": "application/json",
-  };
-}
-
-export type ActionResult =
-  | { success: true }
-  | { success: false; error: string };
+export type { ActionResult };
 
 /**
  * F4-12 PR-B (ADR 0076) — sparar användarens matchnings-önskemål
@@ -65,11 +57,9 @@ export async function updateMatchPreferencesAction(
   }
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/me/match-preferences`, {
+    const res = await authedFetch(sessionId, `/api/v1/me/match-preferences`, {
       method: "PUT",
-      headers: authHeaders(sessionId),
       body: JSON.stringify(parsed.data),
-      cache: "no-store",
     });
 
     if (!res.ok) {

@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { env } from "@/lib/env";
 import { deleteSessionCookie, getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import { updateNotificationConsent } from "@/lib/api/me";
 import {
   makeDeleteMyAccountSchema,
@@ -15,17 +15,9 @@ import {
   type UpdateNotificationConsentInput,
 } from "./me-schemas";
 import { mapActionError } from "./_action-error";
+import type { ActionResult } from "./_action-result";
 
-function authHeaders(sessionId: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${sessionId}`,
-    "Content-Type": "application/json",
-  };
-}
-
-export type ActionResult =
-  | { success: true }
-  | { success: false; error: string };
+export type { ActionResult };
 
 export async function updateMyProfileAction(
   input: UpdateMyProfileInput
@@ -46,11 +38,9 @@ export async function updateMyProfileAction(
   }
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/me/profile`, {
+    const res = await authedFetch(sessionId, `/api/v1/me/profile`, {
       method: "PATCH",
-      headers: authHeaders(sessionId),
       body: JSON.stringify(parsed.data),
-      cache: "no-store",
     });
 
     if (!res.ok) {
@@ -166,11 +156,9 @@ export async function deleteAccountAction(
 
   // Steg 1 — verifiera lösenord (re-auth)
   try {
-    const verifyRes = await fetch(`${env.BACKEND_URL}/api/v1/auth/verify`, {
+    const verifyRes = await authedFetch(sessionId, `/api/v1/auth/verify`, {
       method: "POST",
-      headers: authHeaders(sessionId),
       body: JSON.stringify({ password: parsed.data.password }),
-      cache: "no-store",
     });
 
     if (verifyRes.status === 401) {
@@ -191,10 +179,8 @@ export async function deleteAccountAction(
 
   // Steg 2 — radera kontot
   try {
-    const deleteRes = await fetch(`${env.BACKEND_URL}/api/v1/me/`, {
+    const deleteRes = await authedFetch(sessionId, `/api/v1/me/`, {
       method: "DELETE",
-      headers: authHeaders(sessionId),
-      cache: "no-store",
     });
 
     if (!deleteRes.ok) {

@@ -3,8 +3,8 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   makeCreateResumeSchema,
   makeRenameResumeSchema,
@@ -16,15 +16,9 @@ import { createdResourceSchema } from "@/lib/dto/common";
 import { parseResponse } from "@/lib/dto/_helpers";
 import { mapActionError } from "./_action-error";
 import { isValidId } from "@/lib/validation/guid";
+import type { ActionResult } from "./_action-result";
 
-function authHeaders(sessionId: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${sessionId}`,
-    "Content-Type": "application/json",
-  };
-}
-
-export type ActionResult = { success: true } | { success: false; error: string };
+export type { ActionResult };
 
 export async function createResumeAction(
   _prevState: ActionResult | null,
@@ -49,11 +43,9 @@ export async function createResumeAction(
 
   let resumeId: string;
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/resumes`, {
+    const res = await authedFetch(sessionId, `/api/v1/resumes`, {
       method: "POST",
-      headers: authHeaders(sessionId),
       body: JSON.stringify(parsed.data),
-      cache: "no-store",
     });
 
     if (!res.ok) {
@@ -99,13 +91,12 @@ export async function renameResumeAction(
   }
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/resumes/${encodeURIComponent(parsed.data.resumeId)}`,
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/resumes/${encodeURIComponent(parsed.data.resumeId)}`,
       {
         method: "PATCH",
-        headers: authHeaders(sessionId),
         body: JSON.stringify({ name: parsed.data.name }),
-        cache: "no-store",
       }
     );
 
@@ -143,13 +134,12 @@ export async function updateMasterContentAction(
   }
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/resumes/${encodeURIComponent(parsed.data.resumeId)}/master`,
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/resumes/${encodeURIComponent(parsed.data.resumeId)}/master`,
       {
         method: "PUT",
-        headers: authHeaders(sessionId),
         body: JSON.stringify(parsed.data.content),
-        cache: "no-store",
       }
     );
 
@@ -181,13 +171,10 @@ export async function deleteResumeAction(
   }
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/resumes/${encodeURIComponent(resumeId)}`,
-      {
-        method: "DELETE",
-        headers: authHeaders(sessionId),
-        cache: "no-store",
-      }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/resumes/${encodeURIComponent(resumeId)}`,
+      { method: "DELETE" }
     );
 
     if (!res.ok) {
@@ -237,16 +224,15 @@ async function promoteParsedResumeCore(
   }
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/resumes/parsed/${encodeURIComponent(parsed.data.parsedResumeId)}/promote`,
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/resumes/parsed/${encodeURIComponent(parsed.data.parsedResumeId)}/promote`,
       {
         method: "POST",
-        headers: authHeaders(sessionId),
         body: JSON.stringify({
           name: parsed.data.name,
           content: parsed.data.content,
         }),
-        cache: "no-store",
       }
     );
 

@@ -112,6 +112,11 @@ public sealed class WorkerTestFixture : IAsyncLifetime
         services.AddScoped<Jobbliggaren.Application.Resumes.Jobs.ParsedResumeRetention.ParsedResumeRetentionJob>();
         services.AddScoped<Jobbliggaren.Worker.Hosting.ParsedResumeRetentionWorker>();
 
+        // #560 (ADR 0091) — the SCB register bulk store, resolved per child scope by
+        // ScbCompanyRegisterRefresher. Registered directly (concrete, no port — Fork 2) so the
+        // orchestrator Testcontainers test can drive the real filter -> upsert -> sweep -> audit path.
+        services.AddScoped<Jobbliggaren.Infrastructure.CompanyRegister.ScbCompanyRegisterStore>();
+
         services.AddSingleton<ICurrentUser, WorkerSystemUser>();
         services.AddScoped<ICorrelationIdProvider, WorkerCorrelationIdProvider>();
         services.AddScoped<IRequestContextProvider, WorkerRequestContextProvider>();

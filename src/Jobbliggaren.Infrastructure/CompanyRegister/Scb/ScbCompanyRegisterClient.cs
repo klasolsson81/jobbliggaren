@@ -99,16 +99,26 @@ internal sealed partial class ScbCompanyRegisterClient(
         };
 
         await foreach (var leaf in ScbPartitionPlanner.PlanAsync(
-            seeds, ladder, options.Value.BatchSize, CountAsync, outcome, cancellationToken)
+            seeds, ladder, options.Value.BatchSize,
+            (query, ct) => CountAsync(query, outcome, ct), outcome, cancellationToken)
             .ConfigureAwait(false))
         {
-            var records = await FetchAsync(leaf.Query, cancellationToken).ConfigureAwait(false);
+            var records = await FetchAsync(leaf.Query, outcome, cancellationToken).ConfigureAwait(false);
+
+            // Fail-safe against envelope drift: a partition the planner counted as non-empty that
+            // fetches/maps to zero rows is a parse problem, NOT a legitimately empty slice — treat the
+            // run as truncated so the deregister sweep is disabled (a silent under-count must never let
+            // the sweep flag those companies Deregistered). Belt-and-braces with the per-response
+            // fail-safes in CountAsync/FetchAsync.
+            if (records.Count == 0 && leaf.Count > 0)
+                outcome.MarkTruncatedOrErrored();
+
             outcome.RecordFetched(records.Count);
             yield return records;
         }
     }
 
-    private async Task<int> CountAsync(ScbQuery query, CancellationToken cancellationToken)
+    private async Task<int> CountAsync(ScbQuery query, ScbSyncOutcome outcome, CancellationToken cancellationToken)
     {
         using var response = await httpClient
             .PostAsJsonAsync(RaknaEndpoint, ToFilterRequest(query), JsonOptions, cancellationToken)
@@ -121,11 +131,20 @@ internal sealed partial class ScbCompanyRegisterClient(
             .ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false),
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
-        return ExtractCount(doc.RootElement);
+
+        var count = ExtractCount(doc.RootElement);
+        if (count is null)
+        {
+            // A count we cannot parse (envelope drift) must NOT look like a legitimate 0 — that would
+            // silently skip the partition and let the sweep deregister its companies. Fail safe.
+            outcome.MarkTruncatedOrErrored();
+            return 0;
+        }
+        return count.Value;
     }
 
     private async Task<IReadOnlyList<ScbCompanyRecord>> FetchAsync(
-        ScbQuery query, CancellationToken cancellationToken)
+        ScbQuery query, ScbSyncOutcome outcome, CancellationToken cancellationToken)
     {
         using var response = await httpClient
             .PostAsJsonAsync(HamtaEndpoint, ToFilterRequest(query), JsonOptions, cancellationToken)
@@ -137,14 +156,16 @@ internal sealed partial class ScbCompanyRegisterClient(
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
-        var rows = doc.RootElement.ValueKind == JsonValueKind.Array
-            ? doc.RootElement
-            : default;
-        if (rows.ValueKind != JsonValueKind.Array)
+        if (doc.RootElement.ValueKind != JsonValueKind.Array)
+        {
+            // Expected an array of companies — an unrecognized shape is envelope drift, not an empty
+            // partition. Fail safe (disables the sweep).
+            outcome.MarkTruncatedOrErrored();
             return [];
+        }
 
-        var records = new List<ScbCompanyRecord>(rows.GetArrayLength());
-        foreach (var row in rows.EnumerateArray())
+        var records = new List<ScbCompanyRecord>(doc.RootElement.GetArrayLength());
+        foreach (var row in doc.RootElement.EnumerateArray())
         {
             var record = MapRow(row);
             if (record is not null)
@@ -190,7 +211,9 @@ internal sealed partial class ScbCompanyRegisterClient(
 
     // --- Tolerant response extraction (verified against the live envelope at the population run) ---
 
-    private static int ExtractCount(JsonElement element)
+    // Returns null (NOT 0) for an unrecognized envelope, so the caller can fail safe (mark truncated)
+    // rather than mistake a parse-miss for a legitimately empty partition.
+    private static int? ExtractCount(JsonElement element)
     {
         if (element.ValueKind == JsonValueKind.Number && element.TryGetInt32(out var bare))
             return bare;
@@ -202,7 +225,7 @@ internal sealed partial class ScbCompanyRegisterClient(
                     return wrapped;
             }
         }
-        return 0;
+        return null;
     }
 
     private static ScbCompanyRecord? MapRow(JsonElement row)

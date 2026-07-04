@@ -681,17 +681,20 @@ public static class DependencyInjection
 
     // #560 (ADR 0091, senior-cto-advisor Fork 7) — process-wide SCB upstream limiter. SCB caps each
     // API-Id at 10 calls / 10 s; a per-endpoint policy cannot protect a per-credential budget, and a
-    // breach risks a ban (a §12 STOPP condition). PermitLimit is deliberately set BELOW 10 (8) as a
-    // safety margin against fixed-window boundary bursts (two adjacent windows could otherwise emit up
-    // to 2×PermitLimit within a sliding 10 s span). The refresh streams sequentially (at most one
-    // waiter), but QueueLimit is generous so a throttled call ALWAYS waits rather than being
-    // rejected+retried. App-lifetime static (parity _streamRateLimiter); the IDisposable-at-shutdown
-    // warning is an accepted bagatelle.
-    private static readonly FixedWindowRateLimiter _scbRegisterRateLimiter = new(
-        new FixedWindowRateLimiterOptions
+    // breach risks an API-Id ban (a §12 STOPP condition). A SLIDING window (10 × 1 s segments)
+    // guarantees the rolling-10 s permit sum never exceeds PermitLimit — unlike a FIXED window, which
+    // can emit up to 2×PermitLimit across a boundary (code-reviewer 2026-07-04 Major: 2×8 > 10). The
+    // planner issues many small kodtabell/raknaforetag calls, so that burst is not hypothetical.
+    // PermitLimit=9 keeps a 1-call safety margin under SCB's 10 (clock skew / SCB-side window). The
+    // refresh streams sequentially (at most one waiter), but QueueLimit is generous so a throttled call
+    // ALWAYS waits rather than being rejected+retried. App-lifetime static (parity _streamRateLimiter);
+    // the IDisposable-at-shutdown warning is an accepted bagatelle.
+    private static readonly SlidingWindowRateLimiter _scbRegisterRateLimiter = new(
+        new SlidingWindowRateLimiterOptions
         {
-            PermitLimit = 8,
+            PermitLimit = 9,
             Window = TimeSpan.FromSeconds(10),
+            SegmentsPerWindow = 10,
             QueueLimit = 256,
             QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
             AutoReplenishment = true,

@@ -34,6 +34,27 @@ public class ScbLegalEntityFilterTests
         result.ExcludedInvalid.ShouldBe(0);
     }
 
+    [Theory]
+    [InlineData("8512319876", true)]   // 3rd digit '1' < '2' → personnummer-shaped → excluded
+    [InlineData("2120000142", false)]  // 3rd digit '2' → legal entity → kept
+    public void Apply_HandlesTheExactPersonnummerShapeBoundary(string orgNr, bool expectedExcluded)
+    {
+        // The GDPR boundary lives in OrganizationNumber.IsPersonnummerShaped (3rd digit < '2'); pin it
+        // explicitly AT the persistence guard so a regression there is readable here, not only in the VO.
+        var result = ScbLegalEntityFilter.Apply([Record(orgNr)]);
+
+        if (expectedExcluded)
+        {
+            result.Entries.ShouldBeEmpty();
+            result.ExcludedPersonnummerShaped.ShouldBe(1);
+        }
+        else
+        {
+            result.Entries.ShouldHaveSingleItem().OrganizationNumber.ShouldBe(orgNr);
+            result.ExcludedPersonnummerShaped.ShouldBe(0);
+        }
+    }
+
     [Fact]
     public void Apply_ExcludesInvalidOrgNr()
     {

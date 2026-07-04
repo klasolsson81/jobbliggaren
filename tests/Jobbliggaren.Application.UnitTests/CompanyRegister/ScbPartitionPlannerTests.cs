@@ -53,6 +53,23 @@ public class ScbPartitionPlannerTests
     }
 
     [Fact]
+    public async Task PlanAsync_VisitsEverySeed_YieldsLeafPerNonZeroSeed()
+    {
+        // Production seeds ~290 municipalities; pin that every seed is visited and a non-zero seed
+        // yields a leaf (the reverse-push order is cosmetic, but coverage must not rest on a single seed).
+        var s1 = new ScbQuery([new ScbCategoryFilter(Kommun, ["0180"])]);
+        var s2 = new ScbQuery([new ScbCategoryFilter(Kommun, ["1480"])]);
+        var s3 = new ScbQuery([new ScbCategoryFilter(Kommun, ["9999"])]); // 0 → skipped
+        var outcome = new ScbSyncOutcome();
+
+        var leaves = await CollectAsync(
+            [s1, s2, s3], [], Counts(new() { [Sig(s1)] = 100, [Sig(s2)] = 200 }), outcome);
+
+        leaves.Select(l => l.Count).OrderBy(c => c).ShouldBe([100, 200]);
+        outcome.PartitionsCounted.ShouldBe(3); // all three seeds counted
+    }
+
+    [Fact]
     public async Task PlanAsync_SkipsZeroCountPartitions_NoFetch()
     {
         var seed = new ScbQuery([new ScbCategoryFilter(Kommun, ["9999"])]);

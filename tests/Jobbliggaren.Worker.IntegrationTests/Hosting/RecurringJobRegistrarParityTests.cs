@@ -72,7 +72,7 @@ public class RecurringJobRegistrarParityTests
     {
         var registered = await CapturedRegisteredIdsAsync();
 
-        // 16 calls, all distinct — guards a copy-paste double-registration (which a set comparison
+        // 17 calls, all distinct — guards a copy-paste double-registration (which a set comparison
         // alone would silently absorb).
         registered.Count.ShouldBe(RecurringJobIds.All.Count);
         registered.Distinct(StringComparer.Ordinal).Count().ShouldBe(registered.Count);

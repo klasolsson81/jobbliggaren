@@ -36,9 +36,12 @@ public sealed class ScbSyncOutcome
     public int TotalRowsFetched => _totalRowsFetched;
 
     /// <summary>
-    /// True when the extract did not complete cleanly: an SCB error interrupted a partition, or a
-    /// partition still exceeded the row cap after the facet ladder was exhausted (so its rows are
-    /// incomplete). The orchestrator MUST skip the deregister sweep when this is set.
+    /// True when the extract did not complete cleanly for a reason that is NOT itself an exception: a
+    /// partition still exceeded the row cap after the facet ladder was exhausted, an empty code table,
+    /// or an unrecognized SCB response envelope (fail-safe in the client). The orchestrator skips the
+    /// deregister sweep when this is set. (A hard SCB HTTP error is handled differently — it throws out
+    /// of <c>RefreshAsync</c> before the sweep is ever reached, so the same net invariant — never
+    /// deregister on incomplete data — holds via both paths.)
     /// </summary>
     public bool TruncatedOrErrored => _truncatedOrErrored;
 

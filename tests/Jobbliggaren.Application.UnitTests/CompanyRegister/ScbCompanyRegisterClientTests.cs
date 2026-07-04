@@ -81,6 +81,25 @@ public class ScbCompanyRegisterClientTests
         outcome.TruncatedOrErrored.ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task StreamLegalEntitiesAsync_MarksTruncated_WhenCountEnvelopeUnrecognized()
+    {
+        // Fail-safe (dotnet-architect Minor): a raknaforetag body we cannot parse must NOT look like a
+        // legitimate 0 (which would silently skip the partition and let the sweep deregister it). Code
+        // tables seed fine, but the count is an unrecognized shape → the run is marked truncated → the
+        // sweep is disabled downstream.
+        var client = BuildClient(new UnparseableCountHandler());
+        var outcome = new ScbSyncOutcome();
+
+        await foreach (var _ in client.StreamLegalEntitiesAsync(
+            outcome, TestContext.Current.CancellationToken))
+        {
+            // no batches expected (count parsed as 0)
+        }
+
+        outcome.TruncatedOrErrored.ShouldBeTrue();
+    }
+
     private static ScbCompanyRegisterClient BuildClient(HttpMessageHandler handler)
     {
         var httpClient = new HttpClient(handler)
@@ -125,5 +144,26 @@ public class ScbCompanyRegisterClientTests
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(Json("[]"));
+    }
+
+    // Code tables seed normally, but raknaforetag returns an object with no recognizable count field.
+    private sealed class UnparseableCountHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            var body = request.Content is null
+                ? string.Empty
+                : await request.Content.ReadAsStringAsync(cancellationToken);
+            if (path.EndsWith("kodtabell", StringComparison.Ordinal))
+            {
+                return body.Contains("Juridisk form", StringComparison.Ordinal)
+                    ? Json("""[{"Kod":"49"}]""")
+                    : Json("""[{"Kod":"0180"}]""");
+            }
+            // Unrecognized count envelope (no bare number, no Antal/Count).
+            return Json("""{"unexpected":true}""");
+        }
     }
 }

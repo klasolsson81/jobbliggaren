@@ -3,8 +3,8 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   makeCreateApplicationSchema,
   makeTransitionStatusSchema,
@@ -16,15 +16,9 @@ import { createdResourceSchema } from "@/lib/dto/common";
 import { parseResponse } from "@/lib/dto/_helpers";
 import { mapActionError } from "./_action-error";
 import { isValidId } from "@/lib/validation/guid";
+import type { ActionResult } from "./_action-result";
 
-function authHeaders(sessionId: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${sessionId}`,
-    "Content-Type": "application/json",
-  };
-}
-
-export type ActionResult = { success: true } | { success: false; error: string };
+export type { ActionResult };
 
 export type CreateApplicationFromJobAdResult =
   | { success: true; applicationId: string }
@@ -51,13 +45,10 @@ export async function createApplicationFromJobAdAction(
   if (!isValidId(jobAdId)) return { success: false, error: t("actions.invalidJobAdId") };
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/applications/from-job-ad/${encodeURIComponent(jobAdId)}`,
-      {
-        method: "POST",
-        headers: authHeaders(sessionId),
-        cache: "no-store",
-      }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/applications/from-job-ad/${encodeURIComponent(jobAdId)}`,
+      { method: "POST" }
     );
 
     if (!res.ok) {
@@ -106,9 +97,8 @@ export async function createApplicationAction(
   // source — manuell ansökan är implicit Source=Manual).
   let applicationId: string;
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/applications`, {
+    const res = await authedFetch(sessionId, `/api/v1/applications`, {
       method: "POST",
-      headers: authHeaders(sessionId),
       body: JSON.stringify({
         coverLetter: parsed.data.coverLetter ?? null,
         manual: {
@@ -118,7 +108,6 @@ export async function createApplicationAction(
           expiresAt: parsed.data.expiresAt ?? null,
         },
       }),
-      cache: "no-store",
     });
 
     if (!res.ok) {
@@ -155,13 +144,12 @@ export async function transitionStatusAction(
   }
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/applications/${encodeURIComponent(parsed.data.applicationId)}/transition`,
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/applications/${encodeURIComponent(parsed.data.applicationId)}/transition`,
       {
         method: "POST",
-        headers: authHeaders(sessionId),
         body: JSON.stringify({ targetStatus }),
-        cache: "no-store",
       }
     );
 
@@ -198,17 +186,16 @@ export async function addFollowUpAction(
   }
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/applications/${encodeURIComponent(parsed.data.applicationId)}/follow-ups`,
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/applications/${encodeURIComponent(parsed.data.applicationId)}/follow-ups`,
       {
         method: "POST",
-        headers: authHeaders(sessionId),
         body: JSON.stringify({
           channel: parsed.data.channel,
           scheduledAt: parsed.data.scheduledAt,
           note: parsed.data.note ?? null,
         }),
-        cache: "no-store",
       }
     );
 
@@ -242,13 +229,12 @@ export async function addNoteAction(
   }
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/applications/${encodeURIComponent(parsed.data.applicationId)}/notes`,
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/applications/${encodeURIComponent(parsed.data.applicationId)}/notes`,
       {
         method: "POST",
-        headers: authHeaders(sessionId),
         body: JSON.stringify({ content: parsed.data.content }),
-        cache: "no-store",
       }
     );
 
@@ -284,13 +270,12 @@ export async function recordFollowUpOutcomeAction(
   }
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/applications/${encodeURIComponent(parsed.data.applicationId)}/follow-ups/${encodeURIComponent(parsed.data.followUpId)}/outcome`,
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/applications/${encodeURIComponent(parsed.data.applicationId)}/follow-ups/${encodeURIComponent(parsed.data.followUpId)}/outcome`,
       {
         method: "POST",
-        headers: authHeaders(sessionId),
         body: JSON.stringify({ outcome: parsed.data.outcome }),
-        cache: "no-store",
       }
     );
 

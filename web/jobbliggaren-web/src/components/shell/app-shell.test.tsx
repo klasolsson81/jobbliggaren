@@ -53,6 +53,18 @@ describe("AppShell (v3 header-shell)", () => {
     expect(screen.getByRole("main")).toHaveTextContent("Innehåll");
   });
 
+  it("#582 — header-nav har en Företag-snabblänk till /foretag", () => {
+    render(
+      <AppShell email="k@example.se" isAdmin={false} initialStats={STATS_FIXTURE}>
+        <p />
+      </AppShell>,
+    );
+    const nav = screen.getByRole("navigation", { name: "Huvudnavigation" });
+    expect(
+      within(nav).getByRole("link", { name: "Företag" }),
+    ).toHaveAttribute("href", "/foretag");
+  });
+
   it("markerar aktiv nav-länk via aria-current=page", () => {
     pathnameMock.mockReturnValue("/ansokningar/123");
     render(

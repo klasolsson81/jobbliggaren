@@ -45,12 +45,29 @@ public sealed class RedisSessionStore(
         if (payload is null) return null;
 
         var expiresAt = dateTimeProvider.UtcNow + _ttl;
+        var sessionKey = Key(sessionId);
 
-        // Reset sliding expiration on read
+        // Reset sliding expiration on read — for BOTH the secondary user-sessions-
+        // index AND the main session key, so the index never dies before the
+        // session it tracks (#502 / ADR 0024 D4). CreateAsync sets the set-TTL once
+        // at login; without refreshing it here the set expires _ttl after the LAST
+        // login while GetAsync slides the main key forward indefinitely →
+        // InvalidateAllForUserAsync iterates an empty set and the token keeps
+        // authenticating after account deletion (Art. 17). Re-SADD is required (not
+        // just KeyExpire): if the set already expired, KeyExpire on the gone key is
+        // a no-op — the membership must be recreated. Order mirrors CreateAsync
+        // (SADD before KeyExpire, sequentially awaited) so a reordered KeyExpire can
+        // never set a TTL on a not-yet-created set and leave it immortal. Non-atomic,
+        // same accepted worst-case as CreateAsync (TD-23 — now a third such site).
         try
         {
+            var db = redis.GetDatabase();
+            var setKey = UserSessionsKey(payload.UserId);
+            await db.SetAddAsync(setKey, sessionKey);
+            await db.KeyExpireAsync(setKey, _ttl);
+
             await cache.SetStringAsync(
-                Key(sessionId),
+                sessionKey,
                 json,
                 new DistributedCacheEntryOptions { SlidingExpiration = _ttl },
                 ct);

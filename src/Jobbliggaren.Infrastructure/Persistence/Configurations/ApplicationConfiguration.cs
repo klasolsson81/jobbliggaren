@@ -146,6 +146,44 @@ public sealed class ApplicationConfiguration : IEntityTypeConfiguration<DomainAp
             .IsRequired()
             .OnDelete(DeleteBehavior.Cascade);
 
+        // #506 (persistence audit #482, ADR 0045 query-hygiene): applications
+        // carried no index on its owner key job_seeker_id (the pre-existing
+        // ix_applications_stale_detection is a partial index on
+        // last_status_change_at for the ghosting job — orthogonal), so every
+        // owner-scoped read and both account-delete cascades sequential-scanned
+        // the hottest per-user table. One composite index closes it (net 1:
+        // senior-cto-advisor re-triage supersedes the
+        // 2026-07-02 net-2 bind — the second, bare (job_ad_id) index served no
+        // read path this prefix does not already cover; see below).
+        //
+        // Composite (job_seeker_id, status). CREATE INDEX takes a SHARE lock
+        // (blocks writes, allows reads) — NOT the ACCESS EXCLUSIVE full-rewrite of
+        // the sibling ADD COLUMN STORED migrations; see the migration comment. The
+        // btree leftmost-prefix serves:
+        //   - the owner-scoped equality EVERY read applies (GetApplications /
+        //     GetApplicationStats / GetPipeline / ActivityReport / EmployerHistory
+        //     / EmployerCountBatch / HasApplied: Where(JobSeekerId == x));
+        //   - both account cascades (soft: DeleteAccountCommandHandler; hard:
+        //     AccountHardDeleter, IgnoreQueryFilters) — which is why it is
+        //     deliberately NOT partial on "deleted_at IS NULL": the hard-delete
+        //     cascade must resolve soft-deleted rows a partial index would miss;
+        //   - the owner-scoped TWO-column (job_seeker_id + job_ad_id) lookups over
+        //     the tiny per-seeker partition — HasAppliedQueryHandler,
+        //     GetJobAdStatusBatchQueryHandler, and the /jobb applied/not-applied
+        //     EXISTS in PerUserJobAdSearchQuery. No non-owner-scoped
+        //     "applicants-to-this-ad" read exists, so a bare (job_ad_id) index
+        //     would add write-amplification for zero read benefit (measure-first,
+        //     ADR 0045 §2.5; in-house #348 precedent, GetApplicationsQueryHandler).
+        // The second column serves the #383 status filter (GetApplications: AND
+        // Status == s); the composite also replaces the need for a bare
+        // (job_seeker_id) index (leftmost prefix).
+        //
+        // Pre-named remedy (NOT now — only a future MEASURED hot path): a partial
+        // (job_seeker_id, job_ad_id) WHERE job_ad_id IS NOT NULL for the two-column
+        // seek (mirrors ux_saved_job_ads_seeker_jobad; the #348 pattern).
+        builder.HasIndex(a => new { a.JobSeekerId, a.Status })
+            .HasDatabaseName("ix_applications_job_seeker_id_status");
+
         builder.HasQueryFilter(a => a.DeletedAt == null);
 
         builder.Ignore(a => a.DomainEvents);

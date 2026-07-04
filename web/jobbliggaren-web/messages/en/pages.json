@@ -129,9 +129,12 @@
     "loadErrorTitle": "Could not load saved listings"
   },
   "foretag": {
-    "title": "Followed companies",
-    "lede": "Companies you follow. You start following a company from an ad under Jobs.",
-    "loadErrorTitle": "Could not load followed companies"
+    "title": "Companies",
+    "lede": "Companies you follow and your application history per employer.",
+    "watchesHeading": "Followed companies",
+    "historyHeading": "Application history",
+    "loadErrorTitle": "Could not load followed companies",
+    "historyLoadErrorTitle": "Could not load application history"
   },
   "matchningar": {
     "title": "My matches",

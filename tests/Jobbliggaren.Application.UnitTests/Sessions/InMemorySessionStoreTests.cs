@@ -8,7 +8,7 @@ namespace Jobbliggaren.Application.UnitTests.Sessions;
 public class InMemorySessionStoreTests
 {
     private static readonly IOptions<SessionStoreOptions> DefaultOptions =
-        Options.Create(new SessionStoreOptions { Ttl = TimeSpan.FromDays(14) });
+        Options.Create(new SessionStoreOptions { SlidingTtl = TimeSpan.FromDays(14) });
 
     private static InMemorySessionStore CreateStore(MutableFakeDateTimeProvider? time = null) =>
         new(time ?? new MutableFakeDateTimeProvider(), DefaultOptions);
@@ -137,6 +137,75 @@ public class InMemorySessionStoreTests
         var result = await store.GetAsync(session.Id, ct);
 
         result.ShouldBeNull();
+    }
+
+    // #481 Low / #620: the absolute lifetime cap ends a session at CreatedAt +
+    // AbsoluteTtl (default 30d) however actively it is used. Reads at 10d and 20d
+    // slide it (well within the 14d sliding window because each read resets it), yet
+    // the read at 31d must return null — proving the cap binds AND that reads never
+    // reset CreatedAt (else 31d would still be "10d since last read" and survive).
+    [Fact]
+    public async Task GetAsync_ShouldReturnNull_WhenAbsoluteCapExceeded_DespiteActiveReads()
+    {
+        var time = new MutableFakeDateTimeProvider();
+        var store = CreateStore(time);
+        var ct = TestContext.Current.CancellationToken;
+
+        var session = await store.CreateAsync(Guid.NewGuid(), ct);
+
+        time.UtcNow = time.UtcNow.AddDays(10);
+        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+        time.UtcNow = time.UtcNow.AddDays(10); // +20d, last read 10d ago → within sliding window
+        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+
+        time.UtcNow = time.UtcNow.AddDays(11); // +31d total → past the 30d absolute cap
+        (await store.GetAsync(session.Id, ct)).ShouldBeNull();
+    }
+
+    // Boundary (#620 review): exactly at CreatedAt + AbsoluteTtl the session is spent —
+    // returns null, and must NOT reach the clamp (a zero-length sliding window throws on
+    // the Redis path). Inclusive (>=) check. Reads slide it to the ceiling first.
+    [Fact]
+    public async Task GetAsync_ShouldReturnNull_WhenExactlyAtAbsoluteCap()
+    {
+        var time = new MutableFakeDateTimeProvider();
+        var store = CreateStore(time);
+        var ct = TestContext.Current.CancellationToken;
+
+        var session = await store.CreateAsync(Guid.NewGuid(), ct);
+
+        time.UtcNow = time.UtcNow.AddDays(10);
+        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+        time.UtcNow = time.UtcNow.AddDays(10); // +20d
+        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+
+        time.UtcNow = session.CreatedAt.AddDays(30); // exactly the 30d ceiling
+        (await store.GetAsync(session.Id, ct)).ShouldBeNull();
+    }
+
+    // The clamp: near the cap, a read slides the session only up to the ceiling, never
+    // past it — so ExpiresAt tracks the cap, not a full fresh sliding window.
+    [Fact]
+    public async Task GetAsync_ShouldClampExpiryToAbsoluteCap_WhenNearCeiling()
+    {
+        var time = new MutableFakeDateTimeProvider();
+        var store = CreateStore(time);
+        var ct = TestContext.Current.CancellationToken;
+
+        var session = await store.CreateAsync(Guid.NewGuid(), ct);
+
+        // Slide with reads inside the 14d window so only the cap (not inactivity) binds.
+        time.UtcNow = time.UtcNow.AddDays(10);
+        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+        time.UtcNow = time.UtcNow.AddDays(10); // +20d
+        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+
+        time.UtcNow = time.UtcNow.AddDays(9); // +29d, 1 day of absolute cap remains (< 14d sliding)
+        var fetched = await store.GetAsync(session.Id, ct);
+
+        fetched.ShouldNotBeNull();
+        (fetched!.ExpiresAt - time.UtcNow).ShouldBe(TimeSpan.FromDays(1));
+        fetched.ExpiresAt.ShouldBe(session.CreatedAt.AddDays(30));
     }
 
     [Fact]

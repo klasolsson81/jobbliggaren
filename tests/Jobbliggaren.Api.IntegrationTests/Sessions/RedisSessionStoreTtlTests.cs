@@ -20,9 +20,13 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
     private RedisSessionStore _shortTtlStore = null!;
     private RedisSessionStore _mediumTtlStore = null!;
     private RedisSessionStore _defaultStore = null!;
+    private RedisSessionStore _cappedStore = null!;
     private IDatabase _db = null!;
     private ConnectionMultiplexer _mux = null!;
     private FakeDateTimeProvider _time = null!;
+    // Time-travelable clock driving the absolute-cap test (the real Redis key TTL is
+    // 14d wall-clock so the key survives the sub-second run while the fake clock jumps).
+    private readonly MutableFakeDateTimeProvider _capClock = new();
 
     public async ValueTask InitializeAsync()
     {
@@ -41,19 +45,31 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
             cache,
             _mux,
             _time,
-            Options.Create(new SessionStoreOptions { Ttl = TimeSpan.FromSeconds(ShortTtlSeconds) }));
+            Options.Create(new SessionStoreOptions { SlidingTtl = TimeSpan.FromSeconds(ShortTtlSeconds) }));
 
         _mediumTtlStore = new RedisSessionStore(
             cache,
             _mux,
             _time,
-            Options.Create(new SessionStoreOptions { Ttl = TimeSpan.FromSeconds(MediumTtlSeconds) }));
+            Options.Create(new SessionStoreOptions { SlidingTtl = TimeSpan.FromSeconds(MediumTtlSeconds) }));
 
         _defaultStore = new RedisSessionStore(
             cache,
             _mux,
             _time,
-            Options.Create(new SessionStoreOptions { Ttl = TimeSpan.FromDays(14) }));
+            Options.Create(new SessionStoreOptions { SlidingTtl = TimeSpan.FromDays(14) }));
+
+        // 14d sliding + 30d absolute cap, driven by the mutable clock so the cap test
+        // can jump time. Real Redis key TTL stays 14d (wall-clock) → key alive for the run.
+        _cappedStore = new RedisSessionStore(
+            cache,
+            _mux,
+            _capClock,
+            Options.Create(new SessionStoreOptions
+            {
+                SlidingTtl = TimeSpan.FromDays(14),
+                AbsoluteTtl = TimeSpan.FromDays(30),
+            }));
     }
 
     public async ValueTask DisposeAsync()
@@ -245,6 +261,46 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
         revoked.ShouldBe(2);
         (await _mediumTtlStore.GetAsync(sessionA.Id, ct)).ShouldBeNull();
         (await _mediumTtlStore.GetAsync(sessionB.Id, ct)).ShouldBeNull();
+    }
+
+    // #481 Low / #620: the absolute cap must end a session at CreatedAt + AbsoluteTtl
+    // even when it is actively read. Reads at +10d and +20d slide it (each within the
+    // 14d window); the read at +31d crosses the 30d cap → null, and the session is
+    // evicted from BOTH the main key and the user index (so InvalidateAllForUser → 0).
+    [Fact]
+    public async Task GetAsync_ShouldReturnNullAndEvict_WhenAbsoluteCapExceeded_DespiteActiveReads()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var session = await _cappedStore.CreateAsync(userId, ct);
+
+        _capClock.UtcNow = _capClock.UtcNow.AddDays(10);
+        (await _cappedStore.GetAsync(session.Id, ct)).ShouldNotBeNull();
+        _capClock.UtcNow = _capClock.UtcNow.AddDays(10); // +20d, read 10d ago → still valid
+        (await _cappedStore.GetAsync(session.Id, ct)).ShouldNotBeNull();
+
+        _capClock.UtcNow = _capClock.UtcNow.AddDays(11); // +31d → past the 30d absolute cap
+        (await _cappedStore.GetAsync(session.Id, ct)).ShouldBeNull();
+
+        (await _db.KeyExistsAsync(RedisKey(session.Id))).ShouldBeFalse();
+        (await _cappedStore.InvalidateAllForUserAsync(userId, ct)).ShouldBe(0);
+    }
+
+    // The clamp: a read near the ceiling sets the Redis key TTL to the remaining cap
+    // window, not a full 14d — so the key never outlives CreatedAt + AbsoluteTtl.
+    [Fact]
+    public async Task GetAsync_ShouldClampRedisTtlToRemainingCap_WhenNearCeiling()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var session = await _cappedStore.CreateAsync(Guid.NewGuid(), ct);
+
+        _capClock.UtcNow = _capClock.UtcNow.AddDays(29); // 1 day of cap remains (< 14d sliding)
+        (await _cappedStore.GetAsync(session.Id, ct)).ShouldNotBeNull();
+
+        var ttl = await _db.KeyTimeToLiveAsync(RedisKey(session.Id));
+        ttl.ShouldNotBeNull();
+        // ~1 day, not ~14 days: clamped to the remaining absolute window.
+        ttl!.Value.ShouldBeLessThan(TimeSpan.FromDays(2));
     }
 
     // Secondary user-sessions-index key as built by RedisSessionStore.UserSessionsKey

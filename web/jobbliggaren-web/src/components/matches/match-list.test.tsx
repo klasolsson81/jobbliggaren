@@ -46,15 +46,18 @@ describe("MatchList (ADR 0080 Vag 4 PR-5)", () => {
     expect(screen.getByText("14 jun 2026")).toBeInTheDocument();
   });
 
-  it("isNew=true → 'Ny'-indikator med text (aldrig färg-ensam) + aria-label", () => {
+  it("isNew=true → 'Ny'-indikator med text (aldrig färg-ensam) + sr-only-kontext, ingen aria-label", () => {
     render(<MatchList items={[{ ...baseItem, isNew: true }]} />);
 
+    // Synlig text "Ny" (färg är aldrig ensam signal, WCAG 1.4.1).
     const badge = screen.getByText("Ny");
-    expect(badge).toBeInTheDocument();
-    expect(badge).toHaveAttribute(
-      "aria-label",
-      "Ny matchning sedan ditt senaste besök"
-    );
+    expect(badge).toHaveAttribute("data-tag", "new");
+    // #485: aria-label på en generisk <span> är ogiltig → borttagen; den rika
+    // kontexten bärs av en sr-only-text.
+    expect(badge).not.toHaveAttribute("aria-label");
+    expect(
+      screen.getByText("Ny matchning sedan ditt senaste besök")
+    ).toBeInTheDocument();
   });
 
   it("isNew=false → ingen 'Ny'-indikator", () => {

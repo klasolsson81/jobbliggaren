@@ -39,7 +39,8 @@ const MORE_MATCHES_HREF = "/jobb?matchGrades=Good&matchGrades=Strong";
  *   (--jp-surface-3 / ink-1) — grönt är reserverat för match-grad-chip:en, så
  *   `[data-tag="new"]`-overriden flyttar NY av den gamla leaf-gröna globalt
  *   (avsiktligt tvär-yta per CTO). TEXTEN "Ny" bär betydelsen → färg är aldrig
- *   ensam signal (WCAG 1.4.1); en `aria-label` ger skärmläsaren full kontext.
+ *   ensam signal (WCAG 1.4.1); en `sr-only`-text ger skärmläsaren full kontext
+ *   (`aria-label` är ogiltig på en generisk span / role=generic).
  * - Titeln länkar till den interna annonsdetaljen (`/jobb/{id}`, paritet
  *   `/sparade`); den externa annons-URL:en yttas som sekundär `ExternalLink`-
  *   action ENBART när den finns.
@@ -79,12 +80,9 @@ export function MatchList({ items }: MatchListProps) {
                     {item.title}
                   </Link>
                   {item.isNew && (
-                    <span
-                      className="jp-tag jp-tag--accent"
-                      data-tag="new"
-                      aria-label={t("newBadgeAriaLabel")}
-                    >
+                    <span className="jp-tag jp-tag--accent" data-tag="new">
                       {t("newBadge")}
+                      <span className="sr-only">{t("newBadgeAriaLabel")}</span>
                     </span>
                   )}
                 </h3>

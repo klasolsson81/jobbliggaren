@@ -65,12 +65,11 @@ export function JobTags({
   return (
     <span className="jp-job-tags">
       {isNew && (
-        <span
-          className="jp-tag jp-tag--accent"
-          data-tag="new"
-          aria-label={t("tags.newAriaLabel")}
-        >
+        <span className="jp-tag jp-tag--accent" data-tag="new">
           {t("tags.new")}
+          {/* aria-label är ogiltig på en generisk <span> (role=generic); den rika
+              skärmläsar-kontexten bärs pålitligt av en sr-only-text i stället. */}
+          <span className="sr-only">{t("tags.newAriaLabel")}</span>
         </span>
       )}
       {freshnessLabel && (

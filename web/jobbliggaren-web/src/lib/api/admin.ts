@@ -1,7 +1,7 @@
 import "server-only";
 
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   auditLogPagedResultSchema,
   failedJobsResponseSchema,
@@ -31,13 +31,10 @@ export async function getAuditLog(
     params.set("aggregateType", filter.aggregateType);
 
   const query = params.toString();
-  const url = `${env.BACKEND_URL}/api/v1/admin/audit-log${query ? `?${query}` : ""}`;
+  const path = `/api/v1/admin/audit-log${query ? `?${query}` : ""}`;
 
   try {
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${sessionId}` },
-      cache: "no-store",
-    });
+    const res = await authedFetch(sessionId, path);
     return await responseToResult(
       res,
       auditLogPagedResultSchema,
@@ -61,13 +58,8 @@ export async function getRecurringJobs(): Promise<
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
 
-  const url = `${env.BACKEND_URL}/api/v1/admin/jobs/recurring`;
-
   try {
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${sessionId}` },
-      cache: "no-store",
-    });
+    const res = await authedFetch(sessionId, "/api/v1/admin/jobs/recurring");
     return await responseToResult(
       res,
       recurringJobsResponseSchema,
@@ -88,13 +80,8 @@ export async function getFailedJobs(): Promise<ApiResult<FailedJobsResponse>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
 
-  const url = `${env.BACKEND_URL}/api/v1/admin/jobs/failed`;
-
   try {
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${sessionId}` },
-      cache: "no-store",
-    });
+    const res = await authedFetch(sessionId, "/api/v1/admin/jobs/failed");
     return await responseToResult(
       res,
       failedJobsResponseSchema,

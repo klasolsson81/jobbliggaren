@@ -1,19 +1,12 @@
 import "server-only";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   listSavedJobAdsResultSchema,
   type ListSavedJobAdsResult,
 } from "@/lib/dto/saved-job-ads";
 import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
 import { isValidId } from "@/lib/validation/guid";
-
-function authHeaders(sessionId: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${sessionId}`,
-    "Content-Type": "application/json",
-  };
-}
 
 /**
  * F6 P5 Punkt 2 Del A — hämta inloggad användares bokmärken.
@@ -28,10 +21,7 @@ export async function getSavedJobAds(): Promise<
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/me/saved-job-ads`, {
-      headers: authHeaders(sessionId),
-      cache: "no-store",
-    });
+    const res = await authedFetch(sessionId, "/api/v1/me/saved-job-ads");
     return await responseToResult(
       res,
       listSavedJobAdsResultSchema,
@@ -54,9 +44,10 @@ export async function saveJobAd(jobAdId: string): Promise<ApiResult<void>> {
   if (!isValidId(jobAdId)) return { kind: "notFound" };
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/me/saved-job-ads/${encodeURIComponent(jobAdId)}`,
-      { method: "POST", headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/me/saved-job-ads/${encodeURIComponent(jobAdId)}`,
+      { method: "POST" }
     );
     if (res.status === 204) return { kind: "ok", data: undefined };
     if (res.status === 401) return { kind: "unauthorized" };
@@ -77,9 +68,10 @@ export async function unsaveJobAd(jobAdId: string): Promise<ApiResult<void>> {
   if (!isValidId(jobAdId)) return { kind: "notFound" };
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/me/saved-job-ads/${encodeURIComponent(jobAdId)}`,
-      { method: "DELETE", headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/me/saved-job-ads/${encodeURIComponent(jobAdId)}`,
+      { method: "DELETE" }
     );
     if (res.status === 204) return { kind: "ok", data: undefined };
     if (res.status === 401) return { kind: "unauthorized" };

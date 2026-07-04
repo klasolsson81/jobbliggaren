@@ -1,6 +1,7 @@
 import "server-only";
 import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   taxonomyTreeSchema,
   taxonomyLabelsResultSchema,
@@ -71,7 +72,7 @@ export async function getTaxonomyTree(): Promise<ApiResult<TaxonomyTree>> {
  * 0043-notatet 2026-06-09 — kommentaren här släpade på ×2).
  *
  * Cache: backend skickar `private, no-store` (varierar per ids, auth) →
- * vi sätter `cache: "no-store"` för att inte cacha per-användar-svar.
+ * `authedFetch` tvingar `cache: "no-store"` så per-användar-svaret ej cachas.
  */
 export async function resolveTaxonomyLabels(
   ids: ReadonlyArray<string>
@@ -86,9 +87,9 @@ export async function resolveTaxonomyLabels(
   for (const id of ids) params.append("ids", id);
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/job-ads/taxonomy/labels?${params.toString()}`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/job-ads/taxonomy/labels?${params.toString()}`
     );
     return await responseToResult(
       res,

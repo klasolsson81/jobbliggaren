@@ -1,6 +1,6 @@
 import "server-only";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   myMatchCountSchema,
   type MyMatchCount,
@@ -26,10 +26,7 @@ export async function getMatchCount(): Promise<ApiResult<MyMatchCount>> {
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/me/match-count`, {
-      headers: { Authorization: `Bearer ${sessionId}` },
-      cache: "no-store",
-    });
+    const res = await authedFetch(sessionId, "/api/v1/me/match-count");
     return await responseToResult(
       res,
       myMatchCountSchema,
@@ -58,21 +55,17 @@ export async function getDraftMatchCount(
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/me/match-count-preview`,
+    const res = await authedFetch(
+      sessionId,
+      "/api/v1/me/match-count-preview",
       {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${sessionId}`,
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({
           occupationGroups: body.occupationGroups,
           regions: body.regions,
           municipalities: body.municipalities,
           employmentTypes: body.employmentTypes,
         }),
-        cache: "no-store",
       }
     );
     return await responseToResult(

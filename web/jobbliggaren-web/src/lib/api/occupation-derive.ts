@@ -1,6 +1,6 @@
 import "server-only";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   occupationDerivationResultSchema,
   type OccupationDerivationResult,
@@ -37,15 +37,9 @@ export async function deriveOccupations(
   const params = new URLSearchParams({ title: trimmed });
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/saved-searches/derive?${params.toString()}`,
-      {
-        headers: {
-          Authorization: `Bearer ${sessionId}`,
-          "Content-Type": "application/json",
-        },
-        cache: "no-store",
-      }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/saved-searches/derive?${params.toString()}`
     );
     return await responseToResult(
       res,

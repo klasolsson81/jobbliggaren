@@ -30,7 +30,11 @@ export function LandingHeader({ stats }: { stats: LandingStats }) {
         <Link href="/" className="jp-brand" aria-label={t("brand.homeAriaLabel")}>
           <BrandLogo />
         </Link>
-        <div className="jp-head__stats" aria-label={t("topbar.statsAriaLabel")}>
+        <div
+          className="jp-head__stats"
+          role="group"
+          aria-label={t("topbar.statsAriaLabel")}
+        >
           <div className="jp-head__stat">
             <span className="jp-head__stat-num">
               {formatNumber(format, activeCount)}

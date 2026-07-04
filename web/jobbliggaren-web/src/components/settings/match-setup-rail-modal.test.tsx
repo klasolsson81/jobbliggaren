@@ -26,7 +26,6 @@ const {
 }));
 vi.mock("@/lib/actions/match-preferences", () => ({
   updateMatchPreferencesAction: updateMock,
-  deriveOccupationsAction: vi.fn(),
   suggestOccupationsFromCvAction: cvSuggestMock,
   suggestOccupationsFromParsedResumeAction: parsedSuggestMock,
   searchSkillsAction: skillSearchMock,

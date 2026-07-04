@@ -1,6 +1,6 @@
 import "server-only";
-import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
+import { authedFetch } from "@/lib/http/authed-fetch";
 import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
 import {
   skillProposalGroupsSchema,
@@ -8,13 +8,6 @@ import {
   type SkillGroup,
 } from "@/lib/dto/skills";
 import { isValidId } from "@/lib/validation/guid";
-
-function authHeaders(sessionId: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${sessionId}`,
-    "Content-Type": "application/json",
-  };
-}
 
 /**
  * STEG 3 / ADR 0079 (Beslut 1) — the OWNER's CV-resolved skill proposals for a
@@ -44,9 +37,9 @@ export async function getParsedResumeSkills(
   if (!isValidId(id)) return { kind: "notFound" };
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/resumes/parsed/${encodeURIComponent(id)}/skills`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/resumes/parsed/${encodeURIComponent(id)}/skills`
     );
     return await responseToResult(
       res,
@@ -92,9 +85,9 @@ export async function searchSkills(
   const params = new URLSearchParams({ q: trimmed });
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/job-ads/taxonomy/skills/search?${params.toString()}`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/job-ads/taxonomy/skills/search?${params.toString()}`
     );
     return await responseToResult(
       res,
@@ -143,9 +136,9 @@ export async function resolveSkillLabels(
   for (const id of conceptIds) params.append("ids", id);
 
   try {
-    const res = await fetch(
-      `${env.BACKEND_URL}/api/v1/job-ads/taxonomy/skills/labels?${params.toString()}`,
-      { headers: authHeaders(sessionId), cache: "no-store" }
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/job-ads/taxonomy/skills/labels?${params.toString()}`
     );
     return await responseToResult(
       res,

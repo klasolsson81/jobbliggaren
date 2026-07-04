@@ -34,7 +34,8 @@ public sealed class RegisterCommandHandler(
 
         db.JobSeekers.Add(seekerResult.Value);
 
-        var session = await sessionStore.CreateAsync(userId, cancellationToken);
+        // Legacy profile = today's reach; the opt-in persistent choice ships in 2b.
+        var session = await sessionStore.CreateAsync(userId, SessionLifetime.Legacy, cancellationToken);
 
         auditLogger.LoginSucceeded(userId, session.Id.ToString());
 

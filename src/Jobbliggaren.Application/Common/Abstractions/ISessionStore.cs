@@ -46,11 +46,35 @@ public sealed record Session(
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt);
 
+/// <summary>
+/// Which lifetime profile a session was created under (#481 persistent-login).
+/// The value is persisted in the session payload, so a session keeps its profile
+/// across reads. <see cref="Legacy"/> is ordinal 0 on purpose: a pre-profiles
+/// payload (which has no lifetime field) deserializes to 0 → Legacy → today's
+/// reach, so no user is logged out on the deploy that introduces this.
+/// </summary>
+public enum SessionLifetime
+{
+    /// <summary>Pre-profiles reach (the value in effect before opt-in persistence).</summary>
+    Legacy = 0,
+
+    /// <summary>Short-lived: "Håll mig inloggad" unchecked. Dies quickly, never rotates.</summary>
+    Session = 1,
+
+    /// <summary>"Håll mig inloggad" checked: long sliding window, hard cap, rotates on interval.</summary>
+    Persistent = 2,
+}
+
 public interface ISessionStore
 {
     Task<Session?> GetAsync(SessionId sessionId, CancellationToken ct);
 
-    Task<Session> CreateAsync(Guid userId, CancellationToken ct);
+    // Creates a session under the given lifetime profile (#481 persistent-login).
+    // Session-id rotation + the /auth/refresh seam that drives it land in the follow-up
+    // PR (2b) together with the "Håll mig inloggad" checkbox that first produces a
+    // rotating Persistent session — until then every session is Legacy (no rotation),
+    // so rotation is dormant and is designed there against the real RedisCache format.
+    Task<Session> CreateAsync(Guid userId, SessionLifetime lifetime, CancellationToken ct);
 
     Task<bool> InvalidateAsync(SessionId sessionId, CancellationToken ct);
 

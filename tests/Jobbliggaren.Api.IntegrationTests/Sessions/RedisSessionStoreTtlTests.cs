@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Options;
 using Shouldly;
@@ -23,6 +24,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
     private RedisSessionStore _cappedStore = null!;
     private IDatabase _db = null!;
     private ConnectionMultiplexer _mux = null!;
+    private RedisCache _cache = null!;
     private FakeDateTimeProvider _time = null!;
     // Time-travelable clock driving the absolute-cap test (the real Redis key TTL is
     // 14d wall-clock so the key survives the sub-second run while the fake clock jumps).
@@ -36,8 +38,9 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
         _mux = (ConnectionMultiplexer)await ConnectionMultiplexer.ConnectAsync(cs);
         _db = _mux.GetDatabase();
 
-        var cache = new RedisCache(Options.Create(
+        _cache = new RedisCache(Options.Create(
             new RedisCacheOptions { Configuration = cs, InstanceName = "jobbliggaren:" }));
+        var cache = _cache;
 
         _time = FakeDateTimeProvider.Now;
 
@@ -45,19 +48,19 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
             cache,
             _mux,
             _time,
-            Options.Create(new SessionStoreOptions { SlidingTtl = TimeSpan.FromSeconds(ShortTtlSeconds) }));
+            Options.Create(new SessionStoreOptions { Legacy = new SessionLifetimeProfile { SlidingTtl = TimeSpan.FromSeconds(ShortTtlSeconds) } }));
 
         _mediumTtlStore = new RedisSessionStore(
             cache,
             _mux,
             _time,
-            Options.Create(new SessionStoreOptions { SlidingTtl = TimeSpan.FromSeconds(MediumTtlSeconds) }));
+            Options.Create(new SessionStoreOptions { Legacy = new SessionLifetimeProfile { SlidingTtl = TimeSpan.FromSeconds(MediumTtlSeconds) } }));
 
         _defaultStore = new RedisSessionStore(
             cache,
             _mux,
             _time,
-            Options.Create(new SessionStoreOptions { SlidingTtl = TimeSpan.FromDays(14) }));
+            Options.Create(new SessionStoreOptions { Legacy = new SessionLifetimeProfile { SlidingTtl = TimeSpan.FromDays(14) } }));
 
         // 14d sliding + 30d absolute cap, driven by the mutable clock so the cap test
         // can jump time. Real Redis key TTL stays 14d (wall-clock) → key alive for the run.
@@ -67,8 +70,11 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
             _capClock,
             Options.Create(new SessionStoreOptions
             {
-                SlidingTtl = TimeSpan.FromDays(14),
-                AbsoluteTtl = TimeSpan.FromDays(30),
+                Legacy = new SessionLifetimeProfile
+                {
+                    SlidingTtl = TimeSpan.FromDays(14),
+                    AbsoluteTtl = TimeSpan.FromDays(30),
+                },
             }));
     }
 
@@ -84,7 +90,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
     public async Task CreateAsync_ShouldSetRedisTtlToApproximately14Days_WhenCalled()
     {
         var ct = TestContext.Current.CancellationToken;
-        var session = await _defaultStore.CreateAsync(Guid.NewGuid(), ct);
+        var session = await _defaultStore.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
 
         var ttl = await _db.KeyTimeToLiveAsync(RedisKey(session.Id));
 
@@ -98,7 +104,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
     public async Task GetAsync_ShouldResetRedisTtlToFullWindow_WhenSessionExists()
     {
         var ct = TestContext.Current.CancellationToken;
-        var session = await _shortTtlStore.CreateAsync(Guid.NewGuid(), ct);
+        var session = await _shortTtlStore.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
 
         // Wait past half the TTL so the remaining TTL is visibly shorter
         await Task.Delay(TimeSpan.FromSeconds(ShortTtlSeconds / 2.0 + 0.5), ct);
@@ -117,7 +123,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
     public async Task GetAsync_ShouldReturnNull_WhenSessionExpiredInRedis()
     {
         var ct = TestContext.Current.CancellationToken;
-        var session = await _shortTtlStore.CreateAsync(Guid.NewGuid(), ct);
+        var session = await _shortTtlStore.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
 
         await Task.Delay(TimeSpan.FromSeconds(ShortTtlSeconds + 1), ct);
 
@@ -130,7 +136,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
     public async Task InvalidateAsync_ShouldRemoveKeyImmediately_WhenCalled()
     {
         var ct = TestContext.Current.CancellationToken;
-        var session = await _defaultStore.CreateAsync(Guid.NewGuid(), ct);
+        var session = await _defaultStore.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
 
         await _defaultStore.InvalidateAsync(session.Id, ct);
 
@@ -151,7 +157,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
         var userId = Guid.NewGuid();
         // Medium TTL (5s) rather than short (3s) so the "before" measurement keeps a
         // ~2s wall-clock margin — the SET must still be alive when ttlBeforeGet is read.
-        var session = await _mediumTtlStore.CreateAsync(userId, ct);
+        var session = await _mediumTtlStore.CreateAsync(userId, SessionLifetime.Legacy, ct);
         var setKey = UserSessionsKey(userId);
 
         // Wait past half the TTL so the remaining SET TTL is visibly shorter
@@ -177,7 +183,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
-        var session = await _defaultStore.CreateAsync(userId, ct);
+        var session = await _defaultStore.CreateAsync(userId, SessionLifetime.Legacy, ct);
         var setKey = UserSessionsKey(userId);
 
         // Simulate the orphan state directly: index gone, main key alive. No wall-clock
@@ -200,7 +206,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
-        var session = await _shortTtlStore.CreateAsync(userId, ct);
+        var session = await _shortTtlStore.CreateAsync(userId, SessionLifetime.Legacy, ct);
         var setKey = UserSessionsKey(userId);
 
         // Let both the main key and the SET expire (delay strictly exceeds the TTL).
@@ -219,7 +225,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
-        var session = await _mediumTtlStore.CreateAsync(userId, ct);
+        var session = await _mediumTtlStore.CreateAsync(userId, SessionLifetime.Legacy, ct);
         var setKey = UserSessionsKey(userId);
 
         // Two reads at ~0.6×TTL each: the second read lands PAST the original
@@ -246,8 +252,8 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
-        var sessionA = await _mediumTtlStore.CreateAsync(userId, ct);
-        var sessionB = await _mediumTtlStore.CreateAsync(userId, ct);
+        var sessionA = await _mediumTtlStore.CreateAsync(userId, SessionLifetime.Legacy, ct);
+        var sessionB = await _mediumTtlStore.CreateAsync(userId, SessionLifetime.Legacy, ct);
 
         await Task.Delay(TimeSpan.FromSeconds(MediumTtlSeconds * 0.6), ct);
         (await _mediumTtlStore.GetAsync(sessionA.Id, ct)).ShouldNotBeNull();
@@ -272,7 +278,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
-        var session = await _cappedStore.CreateAsync(userId, ct);
+        var session = await _cappedStore.CreateAsync(userId, SessionLifetime.Legacy, ct);
 
         _capClock.UtcNow = _capClock.UtcNow.AddDays(10);
         (await _cappedStore.GetAsync(session.Id, ct)).ShouldNotBeNull();
@@ -292,7 +298,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
     public async Task GetAsync_ShouldClampRedisTtlToRemainingCap_WhenNearCeiling()
     {
         var ct = TestContext.Current.CancellationToken;
-        var session = await _cappedStore.CreateAsync(Guid.NewGuid(), ct);
+        var session = await _cappedStore.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
 
         _capClock.UtcNow = _capClock.UtcNow.AddDays(29); // 1 day of cap remains (< 14d sliding)
         (await _cappedStore.GetAsync(session.Id, ct)).ShouldNotBeNull();
@@ -301,6 +307,47 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
         ttl.ShouldNotBeNull();
         // ~1 day, not ~14 days: clamped to the remaining absolute window.
         ttl!.Value.ShouldBeLessThan(TimeSpan.FromDays(2));
+    }
+
+    // #626 back-compat: a pre-profiles payload has only userId + createdAt (no Lifetime
+    // / RotatedAt). It must deserialize to Legacy (ordinal 0) and honour today's 30d cap
+    // — so nobody is logged out on the deploy that introduces lifetime profiles. Seeds
+    // the legacy JSON directly through the cache (RedisCache hash format) so GetAsync
+    // reads it exactly as it would a real pre-2a session.
+    [Fact]
+    public async Task GetAsync_ShouldTreatLegacyPayloadAsLegacyProfile_WhenLifetimeFieldAbsent()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var sessionId = SessionId.Generate();
+        var member = SessionMember(sessionId);
+        var setKey = UserSessionsKey(userId);
+
+        var createdAt = _capClock.UtcNow;
+        var legacyJson = $"{{\"userId\":\"{userId}\",\"createdAt\":\"{createdAt:O}\"}}";
+        await _cache.SetStringAsync(
+            member,
+            legacyJson,
+            new DistributedCacheEntryOptions { SlidingExpiration = TimeSpan.FromDays(14) },
+            ct);
+        await _db.SetAddAsync(setKey, member);
+        await _db.KeyExpireAsync(setKey, TimeSpan.FromDays(14));
+
+        // Missing Lifetime → Legacy → session is found and honours the 30d cap.
+        (await _cappedStore.GetAsync(sessionId, ct)).ShouldNotBeNull();
+
+        // Past the 30d Legacy ceiling it is evicted (not silently treated as a longer profile).
+        _capClock.UtcNow = _capClock.UtcNow.AddDays(31);
+        (await _cappedStore.GetAsync(sessionId, ct)).ShouldBeNull();
+    }
+
+    // Unprefixed session member (what RedisSessionStore stores in the user-index SET and
+    // passes to IDistributedCache, which adds the jobbliggaren: instance prefix itself).
+    private static string SessionMember(SessionId sessionId)
+    {
+        Span<byte> hash = stackalloc byte[32];
+        SHA256.HashData(Encoding.UTF8.GetBytes(sessionId.Reveal()), hash);
+        return $"session:{Convert.ToBase64String(hash).TrimEnd('=').Replace('+', '-').Replace('/', '_')}";
     }
 
     // Secondary user-sessions-index key as built by RedisSessionStore.UserSessionsKey

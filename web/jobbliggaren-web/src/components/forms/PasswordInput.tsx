@@ -29,7 +29,8 @@ export function PasswordInput({ className, ...props }: PasswordInputProps) {
         onClick={() => setVisible((v) => !v)}
         aria-pressed={visible}
         aria-label={visible ? t("auth.hidePassword") : t("auth.showPassword")}
-        className="absolute inset-y-0 right-0 flex items-center rounded-r-md px-3 text-text-secondary transition-colors duration-75 hover:text-text-primary focus-visible:text-text-primary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        // px-3.5 → 44px hit-target width (matches the 44px height; JobbPilot touch rule).
+        className="absolute inset-y-0 right-0 flex items-center rounded-r-md px-3.5 text-text-secondary transition-colors duration-75 hover:text-text-primary focus-visible:text-text-primary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         {visible ? (
           <EyeOff className="size-4" aria-hidden="true" />

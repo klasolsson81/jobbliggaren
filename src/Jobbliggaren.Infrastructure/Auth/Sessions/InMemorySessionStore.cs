@@ -29,8 +29,9 @@ public sealed class InMemorySessionStore(
         }
 
         // Absolute lifetime cap (#481 Low) — mirrors RedisSessionStore so fake-store
-        // unit tests and Testcontainers integration tests agree.
-        if (now - entry.CreatedAt > _absoluteTtl)
+        // unit tests and Testcontainers integration tests agree. Inclusive (>=) for
+        // parity: at exactly the ceiling the session is spent.
+        if (now - entry.CreatedAt >= _absoluteTtl)
         {
             _sessions.TryRemove(key, out _);
             return Task.FromResult<Session?>(null);

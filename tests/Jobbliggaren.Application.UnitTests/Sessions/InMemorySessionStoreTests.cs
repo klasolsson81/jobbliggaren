@@ -162,6 +162,27 @@ public class InMemorySessionStoreTests
         (await store.GetAsync(session.Id, ct)).ShouldBeNull();
     }
 
+    // Boundary (#620 review): exactly at CreatedAt + AbsoluteTtl the session is spent —
+    // returns null, and must NOT reach the clamp (a zero-length sliding window throws on
+    // the Redis path). Inclusive (>=) check. Reads slide it to the ceiling first.
+    [Fact]
+    public async Task GetAsync_ShouldReturnNull_WhenExactlyAtAbsoluteCap()
+    {
+        var time = new MutableFakeDateTimeProvider();
+        var store = CreateStore(time);
+        var ct = TestContext.Current.CancellationToken;
+
+        var session = await store.CreateAsync(Guid.NewGuid(), ct);
+
+        time.UtcNow = time.UtcNow.AddDays(10);
+        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+        time.UtcNow = time.UtcNow.AddDays(10); // +20d
+        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+
+        time.UtcNow = session.CreatedAt.AddDays(30); // exactly the 30d ceiling
+        (await store.GetAsync(session.Id, ct)).ShouldBeNull();
+    }
+
     // The clamp: near the cap, a read slides the session only up to the ceiling, never
     // past it — so ExpiresAt tracks the cap, not a full fresh sliding window.
     [Fact]

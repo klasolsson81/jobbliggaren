@@ -52,7 +52,10 @@ public sealed class RedisSessionStore(
         // main key AND its user-index membership via InvalidateAsync) and treat it as
         // gone, so the auth handler rejects the request. CreatedAt is the sole anchor
         // — it is never rewritten, so the cap cannot be reset by continued use.
-        if (now - payload.CreatedAt > _absoluteTtl)
+        // Inclusive (>=): at exactly the ceiling the session is already spent, and it
+        // guarantees capRemaining is strictly positive below (a zero SlidingExpiration
+        // throws).
+        if (now - payload.CreatedAt >= _absoluteTtl)
         {
             await InvalidateAsync(sessionId, ct);
             return null;

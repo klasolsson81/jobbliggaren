@@ -157,6 +157,8 @@
     "profileLoadError": "Profilen kunde inte hämtas just nu. Försök ladda om sidan om en stund."
   },
   "auth": {
+    "showPassword": "Visa lösenord",
+    "hidePassword": "Dölj lösenord",
     "login": {
       "title": "Logga in",
       "brand": "Jobbliggaren",

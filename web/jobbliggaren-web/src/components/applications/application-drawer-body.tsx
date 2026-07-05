@@ -1,4 +1,6 @@
 import { useTranslations } from "next-intl";
+import { DrawerLogFollowUpButton } from "@/components/applications/drawer-log-follow-up-button";
+import { DrawerStatusActions } from "@/components/applications/drawer-status-actions";
 import { FollowUpsSection } from "@/components/applications/follow-ups-section";
 import { NotesSection } from "@/components/applications/notes-section";
 import { PreservedAdPanel } from "@/components/applications/preserved-ad-panel";
@@ -20,19 +22,21 @@ interface ApplicationDrawerBodyProps {
 }
 
 /**
- * ApplicationDrawerBody — read-mode detail panel content (#630 PR 6, design
- * handoff §8). Pure presentational Server Component rendered as children of the
- * client ApplicationDrawerShell (the shell owns the head: role + company + close).
+ * ApplicationDrawerBody — detail panel content (#630 PR 6 läs-läge; PR 7 gör
+ * den interaktiv per design §8). Server Component rendered as children of the
+ * client ApplicationDrawerShell (the shell owns the head: role + company +
+ * close); mutationsmaskineriet är KLIENT-öar som får serialiserbara props
+ * (DrawerStatusActions, DrawerLogFollowUpButton, NotesSection).
  *
- * §8 order: status block → UPPFÖLJNINGAR (list-only) → ANNONSEN·SPARAD KOPIA
- * (fallback) → TIDSLINJE (real, newest-first, always open) → ANTECKNINGAR (kept
- * interactive) → cover letter.
+ * §8 order: status block → primär-CTA + stegväljare + AVSLUTA ELLER PARKERA
+ * (PR 7, §8.3–8.5) → UPPFÖLJNINGAR (statisk lista + "+ Lägg till" →
+ * Logga-uppföljning-dialogen, Klas-låst §8.6) → ANNONSEN·SPARAD KOPIA
+ * (fallback) → TIDSLINJE (real, newest-first, always open) → ANTECKNINGAR
+ * (interactive) → cover letter.
  *
- * Strict read-mode (Klas 2026-07-05): NO StatusEditCard / Withdraw / step-picker /
- * primary CTA / dialogs — all status mutation is PR 7. The status block's day-count
- * and the timeline derive from REAL recorded StatusChanges (composeTimeline /
- * daysInCurrentStep); the retired `updatedAt` synthesis is never used here (§5,
- * never fabricate a transition).
+ * The status block's day-count and the timeline derive from REAL recorded
+ * StatusChanges (composeTimeline / daysInCurrentStep); the retired `updatedAt`
+ * synthesis is never used here (§5, never fabricate a transition).
  */
 export function ApplicationDrawerBody({
   application,
@@ -44,6 +48,12 @@ export function ApplicationDrawerBody({
   const { jobAd } = application;
   const preservedAd = application.preservedAd ?? null;
   const showPreservedAd = jobAd == null && preservedAd != null;
+  // Toast-visningsnamn ("{company}: …"): företag (live → sparad kopia) före
+  // det korta id:t — samma precedens som drawer-headern.
+  const displayName =
+    jobAd?.company ??
+    preservedAd?.company ??
+    `#${application.id.slice(0, 8)}`;
 
   const variant = PILL_VARIANT_CLASS[STATUS_BADGE_VARIANT[application.status]];
   const statusLabel = applicationStatusLabel(t, application.status);
@@ -111,11 +121,29 @@ export function ApplicationDrawerBody({
         </div>
       </div>
 
-      {/* Uppföljningar (§8.6) — list-only i PR 6 (add-dialog → PR 7). */}
+      {/* Statusmaskineriet (§8.3–8.5, PR 7): primär-CTA + stegväljare +
+          AVSLUTA ELLER PARKERA — klient-ö, direktbyten med ångra-toast. */}
+      <DrawerStatusActions
+        applicationId={application.id}
+        status={application.status}
+        displayName={displayName}
+      />
+
+      {/* Uppföljningar (§8.6) — statisk lista; "+ Lägg till" öppnar
+          Logga-uppföljning-dialogen (Klas-låst, prototyp-trogen). */}
       <FollowUpsSection
         applicationId={application.id}
         followUps={application.followUps}
         readOnly
+        emptyLabel={tUi("followUps.emptyDrawer")}
+        headerAction={
+          <DrawerLogFollowUpButton
+            applicationId={application.id}
+            contextTitle={jobAd?.title ?? preservedAd?.title ?? null}
+            contextCompany={jobAd?.company ?? preservedAd?.company ?? null}
+            toastCompany={displayName}
+          />
+        }
       />
 
       {/* Om annonsen (sparad kopia) (§8.7) — fallback när live-annonsen är

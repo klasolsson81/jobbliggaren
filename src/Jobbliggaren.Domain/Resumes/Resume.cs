@@ -19,6 +19,23 @@ public sealed class Resume : AggregateRoot<ResumeId>
     public DateTimeOffset UpdatedAt { get; private set; }
     public DateTimeOffset? DeletedAt { get; private set; }
 
+    // Fas 4b PR-3 (ADR 0096, CTO-bind D1/D5d/D9): non-PII source metadata + template
+    // options as plain columns on the root (ADR 0059 parity) — every field enumerated
+    // or a timestamp, deliberately no free text (pinned by ResumeRootPlainColumnGuardTests).
+    // Origin is set by construction only (CreateFromParsed => Import, Create => Template;
+    // pre-PR-3 rows carry the honest Legacy default — provenance is never fabricated).
+    public ResumeSourceOrigin Origin { get; private set; } = ResumeSourceOrigin.Legacy;
+
+    // One-way adoption stamp (CTO-bind D9; DeletedAt/AppliedAt idiom — a nullable
+    // timestamp self-documents the one-way semantics and keeps WHEN, which the
+    // raise-only domain event would otherwise lose). Flipped exactly once via Adopt().
+    public DateTimeOffset? AdoptedAt { get; private set; }
+
+    /// <summary>True once the CV's design has been adopted (one-way, <see cref="Adopt"/>).</summary>
+    public bool IsAdopted => AdoptedAt is not null;
+
+    public CvTemplateOptions TemplateOptions { get; private set; } = CvTemplateOptions.Default;
+
     // Denormaliserade projektion-fält per ADR 0059 — drivs av ADR 0049
     // envelope-encryption som gör Content opaque för SQL. Mutation sker
     // endast via ApplyDenormalizedProjection (synkront i samma aggregat-metod).
@@ -63,10 +80,13 @@ public sealed class Resume : AggregateRoot<ResumeId>
         ResumeId id,
         JobSeekerId jobSeekerId,
         string name,
+        ResumeSourceOrigin origin,
         DateTimeOffset now) : base(id)
     {
         JobSeekerId = jobSeekerId;
         Name = name;
+        Origin = origin;
+        TemplateOptions = CvTemplateOptions.Default;
         CreatedAt = now;
         UpdatedAt = now;
     }
@@ -99,7 +119,9 @@ public sealed class Resume : AggregateRoot<ResumeId>
 
         var now = clock.UtcNow;
         var id = ResumeId.New();
-        var resume = new Resume(id, jobSeekerId, name.Trim(), now);
+        // Origin by construction (ADR 0096): Create is the in-app/template path — the
+        // handoff's "mall"-CV ("Börja från profilen"). Immutable thereafter.
+        var resume = new Resume(id, jobSeekerId, name.Trim(), ResumeSourceOrigin.Template, now);
 
         var initialContent = ResumeContent.Empty(fullName.Trim());
         var master = ResumeVersion.CreateMaster(initialContent, clock);
@@ -148,7 +170,9 @@ public sealed class Resume : AggregateRoot<ResumeId>
 
         var now = clock.UtcNow;
         var id = ResumeId.New();
-        var resume = new Resume(id, jobSeekerId, name.Trim(), now);
+        // Origin by construction (ADR 0096): promoting a parsed import IS the import
+        // path — "promote sets källa=import" is satisfied here, not by a setter.
+        var resume = new Resume(id, jobSeekerId, name.Trim(), ResumeSourceOrigin.Import, now);
 
         var master = ResumeVersion.CreateMaster(content, clock);
         resume._versions.Add(master);
@@ -226,6 +250,63 @@ public sealed class Resume : AggregateRoot<ResumeId>
         Language = language;
         UpdatedAt = clock.UtcNow;
         RaiseDomainEvent(new ResumeLanguageChangedDomainEvent(Id, language, clock.UtcNow));
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Adopts the CV's design ("Adoptera min design", handoff §10.2 — Fas 4b CTO-bind
+    /// D9, ADR 0096). ONE-WAY: stamps <see cref="AdoptedAt"/> exactly once; a second
+    /// call is a Conflict (parity with <c>ParsedResume.Promote</c> — not idempotent).
+    /// Precondition: only an imported CV can be adopted (adoption means recreating an
+    /// UPLOADED file's design in-app; a Template-origin CV is already app-rendered,
+    /// and a Legacy row's origin is unknown — both refused). The handoff's "Ångra
+    /// adoptionen" is a pre-commit UI affordance, not a domain-state reversal (D9
+    /// governs). Raise-only event; the audit row for the user action arrives with the
+    /// Fas C adopt command (PR-11) — no command calls this yet.
+    /// </summary>
+    public Result Adopt(IDateTimeProvider clock)
+    {
+        if (AdoptedAt is not null)
+            return Result.Failure(DomainError.Conflict(
+                "Resume.AlreadyAdopted", "CV:t är redan adopterat."));
+
+        if (Origin != ResumeSourceOrigin.Import)
+            return Result.Failure(DomainError.Validation(
+                "Resume.OnlyImportedCanBeAdopted",
+                "Endast importerade CV:n kan adopteras."));
+
+        var now = clock.UtcNow;
+        AdoptedAt = now;
+        UpdatedAt = now;
+        RaiseDomainEvent(new ResumeAdoptedDomainEvent(Id, now));
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Replaces the CV's template/display options (Fas 4b PR-3, ADR 0096 — the other
+    /// half of the <see cref="CvTemplateOptions"/> lifecycle; the builder UI arrives
+    /// in PR-8b). The VO's members are type-guaranteed valid; the only reachable
+    /// invalid states are a null options object or a null member (positional record —
+    /// no ctor guard, <c>Preferences</c> precedent), both refused here at the single
+    /// mutation path. Unchanged options are a no-op without an event
+    /// (<see cref="SetLanguage"/> parity).
+    /// </summary>
+    public Result ChangeTemplateOptions(CvTemplateOptions? options, IDateTimeProvider clock)
+    {
+        if (options is null)
+            return Result.Failure(DomainError.Validation(
+                "Resume.TemplateOptionsRequired", "Mallinställningar krävs."));
+
+        if (!options.IsComplete)
+            return Result.Failure(DomainError.Validation(
+                "Resume.TemplateOptionsIncomplete", "Alla mallinställningar måste anges."));
+
+        if (TemplateOptions == options)
+            return Result.Success();
+
+        TemplateOptions = options;
+        UpdatedAt = clock.UtcNow;
+        RaiseDomainEvent(new ResumeTemplateOptionsChangedDomainEvent(Id, clock.UtcNow));
         return Result.Success();
     }
 

@@ -172,6 +172,47 @@ public class ScbCompanyRegisterClientTests
         outcome.TruncatedOrErrored.ShouldBeFalse();    // empty SNI table alone must not mark truncated
     }
 
+    [Fact]
+    public async Task StreamLegalEntitiesAsync_ProtectsOverCapFiveDigitTail_WithoutLatching()
+    {
+        // #640 (Guard 1): a 5-digit Bransch leaf (0180 × form 49 × 70100) is STILL over cap (2809). The
+        // planner emits it over-cap; the client bounds it to the (kommun, SNI) key and records a protected
+        // partition — the run stays clean (its sibling 70200 completes the 2-digit parent's count, so the
+        // completeness reconciliation passes), so the sweep runs elsewhere and skips only that key.
+        var client = BuildClient(new ProtectedTailHandler());
+        var outcome = new ScbSyncOutcome();
+
+        await foreach (var _ in client.StreamLegalEntitiesAsync(
+            outcome, TestContext.Current.CancellationToken))
+        {
+        }
+
+        outcome.TruncatedOrErrored.ShouldBeFalse();                 // partition-scoped, not whole-run
+        outcome.ReconciliationGaps.ShouldBe(0);
+        var protectedPartition = outcome.ProtectedPartitions.ShouldHaveSingleItem();
+        protectedPartition.SeatMunicipalityCode.ShouldBe("0180");
+        protectedPartition.SniCode.ShouldBe("70100");
+    }
+
+    [Fact]
+    public async Task StreamLegalEntitiesAsync_LatchesTruncated_WhenOverCapLeafIsNotASingleKommunSniPair()
+    {
+        // #640 fail-safe: with the SNI table empty the client falls back to the form-only ladder, so an
+        // over-cap partition bottoms out at (kommun, form) with NO 5-digit Bransch. That coarse leaf cannot
+        // be bounded to a tight (kommun, SNI) key, so the client latches the WHOLE run truncated rather than
+        // narrow the sweep unsafely — the extraction-miss IS the whole-run latch. No key is protected.
+        var client = BuildClient(new CoarseOverCapHandler());
+        var outcome = new ScbSyncOutcome();
+
+        await foreach (var _ in client.StreamLegalEntitiesAsync(
+            outcome, TestContext.Current.CancellationToken))
+        {
+        }
+
+        outcome.TruncatedOrErrored.ShouldBeTrue();
+        outcome.ProtectedPartitions.ShouldBeEmpty();
+    }
+
     private static bool IsFilterEndpoint(string path) =>
         path.EndsWith("raknaforetag", StringComparison.Ordinal)
         || path.EndsWith("hamtaforetag", StringComparison.Ordinal);
@@ -322,6 +363,69 @@ public class ScbCompanyRegisterClientTests
             if (path.EndsWith("raknaforetag", StringComparison.Ordinal))
                 // 5-digit leaf (Bransch, capital B) ≤ cap; everything above (seed/form/2-digit) over cap.
                 return body.Contains("\"Bransch\"", StringComparison.Ordinal) ? Json("5") : Json("3000");
+            if (path.EndsWith("hamtaforetag", StringComparison.Ordinal))
+                return Json(HamtaJson);
+            return Json("[]");
+        }
+    }
+
+    // #640: drills to a 5-digit Bransch leaf that is STILL over cap (70100 = 2809). Its sibling 70200 = 191
+    // completes the 2-digit parent's count (2809 + 191 = 3000) so the completeness reconciliation passes —
+    // the over-cap 70100 tail is a single (kommun, SNI) pair the client protects without latching.
+    private sealed class ProtectedTailHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            var body = request.Content is null
+                ? string.Empty
+                : await request.Content.ReadAsStringAsync(cancellationToken);
+
+            if (path.EndsWith("kodtabell", StringComparison.Ordinal))
+            {
+                if (body.Contains("\"Bransch\"", StringComparison.Ordinal))
+                    return Json("""{"VardeLista":[{"Varde":"70100"},{"Varde":"70200"}]}""");
+                return body.Contains("Juridisk form", StringComparison.Ordinal)
+                    ? Json("""{"VardeLista":[{"Varde":"49"}]}""")
+                    : Json("""{"VardeLista":[{"Varde":"0180"}]}""");
+            }
+            if (path.EndsWith("raknaforetag", StringComparison.Ordinal))
+            {
+                if (body.Contains("70100", StringComparison.Ordinal))
+                    return Json("2809"); // 5-digit tail, still over cap → protected
+                if (body.Contains("70200", StringComparison.Ordinal))
+                    return Json("191");  // sibling leaf, under cap (2809 + 191 = 3000 = 2-digit parent)
+                return Json("3000");     // seed / form / 2-digit division — all over cap
+            }
+            if (path.EndsWith("hamtaforetag", StringComparison.Ordinal))
+                return Json(HamtaJson);
+            return Json("[]");
+        }
+    }
+
+    // #640 fail-safe: empty SNI table → form-only ladder; the form partition stays over cap and bottoms out
+    // at (kommun, form) with no 5-digit code, so the client cannot bound a (kommun, SNI) key → whole-run latch.
+    private sealed class CoarseOverCapHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            var body = request.Content is null
+                ? string.Empty
+                : await request.Content.ReadAsStringAsync(cancellationToken);
+
+            if (path.EndsWith("kodtabell", StringComparison.Ordinal))
+            {
+                if (body.Contains("\"Bransch\"", StringComparison.Ordinal))
+                    return Json("""{"VardeLista":[]}"""); // empty SNI table → form-only fallback
+                return body.Contains("Juridisk form", StringComparison.Ordinal)
+                    ? Json("""{"VardeLista":[{"Varde":"49"}]}""")
+                    : Json("""{"VardeLista":[{"Varde":"0180"}]}""");
+            }
+            if (path.EndsWith("raknaforetag", StringComparison.Ordinal))
+                return Json("3000"); // over cap at every level; form-only ladder cannot slice further
             if (path.EndsWith("hamtaforetag", StringComparison.Ordinal))
                 return Json(HamtaJson);
             return Json("[]");

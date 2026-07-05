@@ -1,6 +1,7 @@
 using System.Data;
 using System.Globalization;
 using System.Text.Json;
+using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -79,21 +80,59 @@ internal sealed class ScbCompanyRegisterStore(AppDbContext db)
 
     /// <summary>
     /// Flips every Active row NOT touched by this run (<c>synced_at &lt; runStartedAt</c>) to
-    /// Deregistered. NEVER hard-deletes. The caller MUST gate this behind the truncation + floor
-    /// checks — a partial extract must never reach here. Returns rows de-registered.
+    /// Deregistered, EXCEPT rows inside a protected (kommun, SNI) partition (#640, partition-scoped
+    /// sweep). NEVER hard-deletes. The caller MUST gate this behind the truncation + floor checks — a
+    /// partial extract must never reach here. Returns rows de-registered.
+    ///
+    /// <para>
+    /// #640: <paramref name="protectedPartitions"/> are the over-cap 5-digit tails the run could only
+    /// partially fetch. The (kommun, SNI) codes are unzipped HERE — never passed as two pre-split arrays —
+    /// so the two SQL arrays are guaranteed non-empty together or empty together (a kommun list without its
+    /// paired SNI list would collapse the protection to a no-op and false-deregister the very rows it must
+    /// shield). An empty collection → two empty arrays → the exclusion predicate degenerates to a no-op
+    /// (<c>ANY('{}')</c> is false), i.e. an unrestricted sweep (#628 back-compat). The arrays are bound
+    /// as an EXPLICIT non-null empty <c>text[]</c>: a NULL array would make the predicate NULL and
+    /// silently deregister NOTHING (fail-closed but a mystery), so it is bound explicitly.
+    /// </para>
+    ///
+    /// <para>
+    /// The exclusion protects the CROSS-PRODUCT <c>(sate_kommun_code ∈ kommun) AND (sni_codes ⋂ sni)</c>,
+    /// a superset of the exact protected pairs. Over-protection only leaves some dead rows Active longer
+    /// (self-healing on the next clean run) — it can NEVER false-deregister a live company. The <c>AND</c>
+    /// (not <c>OR</c>) keeps the shield tight enough that the sweep still runs across the dense-metro cell's
+    /// other SNI codes and every other municipality.
+    /// </para>
     /// </summary>
     public async Task<int> DeregisterMissingAsync(
-        DateTimeOffset runStartedAt, CancellationToken cancellationToken)
+        DateTimeOffset runStartedAt,
+        IReadOnlyCollection<ScbProtectedPartition> protectedPartitions,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(protectedPartitions);
+
+        // Unzip HERE (desync-proof): both arrays are non-empty together or empty together.
+        var protectedKommun = protectedPartitions.Select(p => p.SeatMunicipalityCode).Distinct().ToArray();
+        var protectedSni = protectedPartitions.Select(p => p.SniCode).Distinct().ToArray();
+
         var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var cmd = connection.CreateCommand();
         // status is stored by NAME (varchar) — compare against the literal enum name.
         cmd.CommandText = """
             UPDATE company_register
             SET status = 'Deregistered'
-            WHERE synced_at < @run_started_at AND status <> 'Deregistered';
+            WHERE synced_at < @run_started_at AND status <> 'Deregistered'
+              AND NOT (sate_kommun_code = ANY(@protected_kommun) AND sni_codes && @protected_sni);
             """;
         cmd.Parameters.AddWithValue("@run_started_at", NpgsqlDbType.TimestampTz, runStartedAt);
+        // Explicit non-null empty text[] when there is nothing to protect (never bind DBNull — see the doc).
+        cmd.Parameters.Add(new NpgsqlParameter("@protected_kommun", NpgsqlDbType.Array | NpgsqlDbType.Text)
+        {
+            Value = protectedKommun,
+        });
+        cmd.Parameters.Add(new NpgsqlParameter("@protected_sni", NpgsqlDbType.Array | NpgsqlDbType.Text)
+        {
+            Value = protectedSni,
+        });
         return await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 

@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Worker.IntegrationTests.Common;
@@ -28,12 +29,13 @@ public class ScbCompanyRegisterStoreTests(WorkerTestFixture fixture)
         string orgNr,
         string name = "Acme AB",
         CompanyRegisterStatus status = CompanyRegisterStatus.Active,
+        string municipality = "0180",
         params string[] sni) =>
         new()
         {
             OrganizationNumber = orgNr,
             Name = name,
-            SeatMunicipalityCode = "0180",
+            SeatMunicipalityCode = municipality,
             SeatMunicipalityName = "Stockholm",
             SniCodes = [.. sni],
             HasAdvertisingBlock = false,
@@ -70,13 +72,60 @@ public class ScbCompanyRegisterStoreTests(WorkerTestFixture fixture)
         // Second run (started at T1) touches only …23; …34 becomes stale (synced_at T0 < T1).
         await store.UpsertBatchAsync([Entry("5560000023")], T1, ct);
 
-        var deregistered = await store.DeregisterMissingAsync(T1, ct);
+        var deregistered = await store.DeregisterMissingAsync(T1, [], ct);
 
         deregistered.ShouldBe(1);
         var rows = await ReadAllAsync(ctx.Db, ct);
         rows.Count.ShouldBe(2);                                              // nothing hard-deleted
         rows.Single(r => r.OrganizationNumber == "5560000023").Status.ShouldBe(CompanyRegisterStatus.Active);
         rows.Single(r => r.OrganizationNumber == "5560000034").Status.ShouldBe(CompanyRegisterStatus.Deregistered);
+    }
+
+    [Fact]
+    public async Task DeregisterMissing_ProtectsOverCapPartitionTail_SweepsEverywhereElse()
+    {
+        // #640 (Guard 1): a dense-metro (kommun 0180, SNI 70100) tail was only partially fetched, so its
+        // stale rows must be EXCLUDED from the sweep while every other stale row is still deregistered.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await FreshContextAsync(ct);
+        var store = new ScbCompanyRegisterStore(ctx.Db);
+
+        // First run (T0) touches all four.
+        await store.UpsertBatchAsync(
+        [
+            Entry("5560000101", sni: "70100"),   // protected tail (0180 × 70100) — must survive the sweep
+            Entry("5560000102", sni: "70100"),   // protected tail — must survive
+            Entry("5560000103", sni: "62010"),   // same kommun, different SNI — swept
+            Entry("5560000104", sni: "70100", municipality: "1480"),  // 70100 but different kommun — swept
+        ], T0, ct);
+        // Second run (T1) re-touches none of them → all four are stale (synced_at T0 < T1).
+        var deregistered = await store.DeregisterMissingAsync(
+            T1, [new ScbProtectedPartition("0180", "70100")], ct);
+
+        deregistered.ShouldBe(2);   // only …103 and …104 flip; the (0180, 70100) pair is shielded
+        var rows = await ReadAllAsync(ctx.Db, ct);
+        rows.Single(r => r.OrganizationNumber == "5560000101").Status.ShouldBe(CompanyRegisterStatus.Active);
+        rows.Single(r => r.OrganizationNumber == "5560000102").Status.ShouldBe(CompanyRegisterStatus.Active);
+        rows.Single(r => r.OrganizationNumber == "5560000103").Status.ShouldBe(CompanyRegisterStatus.Deregistered);
+        rows.Single(r => r.OrganizationNumber == "5560000104").Status.ShouldBe(CompanyRegisterStatus.Deregistered);
+    }
+
+    [Fact]
+    public async Task DeregisterMissing_ProtectsRowCarryingProtectedSni_AmongOtherCodes()
+    {
+        // The `sni_codes && @protected_sni` overlap protects a multi-SNI row if ANY of its codes is the
+        // protected one — the row could be part of the over-cap tail counted under that 5-digit code.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await FreshContextAsync(ct);
+        var store = new ScbCompanyRegisterStore(ctx.Db);
+
+        await store.UpsertBatchAsync([Entry("5560000201", sni: ["46900", "70100", "62010"])], T0, ct);
+
+        var deregistered = await store.DeregisterMissingAsync(
+            T1, [new ScbProtectedPartition("0180", "70100")], ct);
+
+        deregistered.ShouldBe(0);   // the row carries 70100 → shielded
+        (await ReadAllAsync(ctx.Db, ct)).Single().Status.ShouldBe(CompanyRegisterStatus.Active);
     }
 
     [Fact]
@@ -87,7 +136,7 @@ public class ScbCompanyRegisterStoreTests(WorkerTestFixture fixture)
         var store = new ScbCompanyRegisterStore(ctx.Db);
 
         await store.UpsertBatchAsync([Entry("5560000045")], T0, ct);
-        await store.DeregisterMissingAsync(T1, ct);   // …45 (synced_at T0 < T1) → Deregistered
+        await store.DeregisterMissingAsync(T1, [], ct);   // …45 (synced_at T0 < T1) → Deregistered
         (await ReadAllAsync(ctx.Db, ct)).Single().Status.ShouldBe(CompanyRegisterStatus.Deregistered);
 
         // It reappears in a later extract as Active → resurrected.

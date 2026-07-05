@@ -40,7 +40,8 @@ internal sealed partial class ScbCompanyRegisterRefresher(
             return new ScbCompanyRegisterRefreshResult(
                 RowsUpserted: 0, RowsDeregistered: 0, RowsExcludedPersonnummerShaped: 0,
                 RowsExcludedInvalid: 0, TotalRowsFetched: 0, SweepApplied: false,
-                SweepSkipReason: "disabled", StartedAt: startedAt, CompletedAt: clock.UtcNow);
+                SweepSkipReason: "disabled", ProtectedPartitionCount: 0,
+                StartedAt: startedAt, CompletedAt: clock.UtcNow);
         }
 
         var runId = Guid.NewGuid();
@@ -78,6 +79,15 @@ internal sealed partial class ScbCompanyRegisterRefresher(
         var (sweepApplied, rowsDeregistered, skipReason) =
             await MaybeDeregisterAsync(outcome, startedAt, opts, cancellationToken).ConfigureAwait(false);
 
+        var protectedPartitionCount = outcome.ProtectedPartitions.Count;
+
+        // #640 (Guard 2) — a distinct diagnostic for a no-SNI completeness gap: the binary truncation
+        // latch collapses every skip reason to one string, so surface the reconciliation gap explicitly
+        // (counts only, never an org.nr). A gap is believed non-existent — if it ever fires, it means an
+        // entity carries a division but no listed 5-digit SNI, which the ladder cannot see.
+        if (outcome.ReconciliationGaps > 0)
+            LogReconciliationGap(logger, outcome.ReconciliationGaps);
+
         var completedAt = clock.UtcNow;
 
         await using (var auditScope = scopeFactory.CreateAsyncScope())
@@ -93,6 +103,7 @@ internal sealed partial class ScbCompanyRegisterRefresher(
                 TotalRowsFetched: outcome.TotalRowsFetched,
                 SweepApplied: sweepApplied,
                 SweepSkipReason: skipReason,
+                ProtectedPartitionCount: protectedPartitionCount,
                 StartedAt: startedAt,
                 CompletedAt: completedAt), cancellationToken).ConfigureAwait(false);
         }
@@ -109,6 +120,7 @@ internal sealed partial class ScbCompanyRegisterRefresher(
             TotalRowsFetched: outcome.TotalRowsFetched,
             SweepApplied: sweepApplied,
             SweepSkipReason: skipReason,
+            ProtectedPartitionCount: protectedPartitionCount,
             StartedAt: startedAt,
             CompletedAt: completedAt);
     }
@@ -138,7 +150,11 @@ internal sealed partial class ScbCompanyRegisterRefresher(
             return (false, 0, skipReason);
         }
 
-        var rows = await store.DeregisterMissingAsync(runStartedAt, ct).ConfigureAwait(false);
+        // #640 — the sweep runs, but excludes the over-cap (kommun, SNI) tails the run could only
+        // partially fetch (partition-scoped sweep). An empty set → unrestricted sweep (#628 back-compat).
+        var rows = await store
+            .DeregisterMissingAsync(runStartedAt, outcome.ProtectedPartitions, ct)
+            .ConfigureAwait(false);
         return (true, rows, null);
     }
 
@@ -159,4 +175,8 @@ internal sealed partial class ScbCompanyRegisterRefresher(
     [LoggerMessage(EventId = 5713, Level = LogLevel.Warning,
         Message = "ScbCompanyRegisterRefresher: deregister-sweep SKIPPAD ({Reason}) — fetched={Fetched}. Ingen falsk avregistrering.")]
     private static partial void LogSweepSkipped(ILogger logger, string reason, int fetched);
+
+    [LoggerMessage(EventId = 5714, Level = LogLevel.Warning,
+        Message = "ScbCompanyRegisterRefresher: SNI-fullständighetsgap upptäckt ({Gaps} st) — en division saknar 5-siffrig täckning; körningen markeras trunkerad (sweep avstängd). Loggar aldrig org.nr.")]
+    private static partial void LogReconciliationGap(ILogger logger, int gaps);
 }

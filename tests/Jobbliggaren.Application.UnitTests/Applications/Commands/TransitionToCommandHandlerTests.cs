@@ -126,8 +126,10 @@ public class TransitionToCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_InvalidTransition_ReturnsFailureWithCorrectErrorCode()
+    public async Task Handle_FreeSkipTransition_DraftToAccepted_ReturnsSuccess()
     {
+        // ADR 0092 D3: fria övergångar — ett hopp Draft → Accepted som tidigare
+        // avvisades (Application.InvalidTransition) lyckas nu via handlern.
         var db = TestAppDbContextFactory.Create();
         var (_, app) = await SeedAsync(db, _userId);
 
@@ -136,8 +138,29 @@ public class TransitionToCommandHandlerTests
 
         var result = await handler.Handle(command, CancellationToken.None);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Application.InvalidTransition");
+        result.IsSuccess.ShouldBeTrue();
+
+        var updated = await db.Applications.FindAsync([app.Id], TestContext.Current.CancellationToken);
+        updated!.Status.ShouldBe(ApplicationStatus.Accepted);
+    }
+
+    [Fact]
+    public async Task Handle_ManualGhostedFromSubmitted_ReturnsSuccess()
+    {
+        // ADR 0092 D3: manuell Ghosted routas nu genom TransitionTo-handlern
+        // (tidigare blockerad av validatorn "Ghosted sätts automatiskt av systemet").
+        var db = TestAppDbContextFactory.Create();
+        var (_, app) = await SeedAsync(db, _userId);
+        var handler = new TransitionToCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
+
+        var submit = await handler.Handle(new TransitionToCommand(app.Id.Value, "Submitted"), CancellationToken.None);
+        submit.IsSuccess.ShouldBeTrue();
+
+        var result = await handler.Handle(new TransitionToCommand(app.Id.Value, "Ghosted"), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var updated = await db.Applications.FindAsync([app.Id], TestContext.Current.CancellationToken);
+        updated!.Status.ShouldBe(ApplicationStatus.Ghosted);
     }
 
     [Fact]

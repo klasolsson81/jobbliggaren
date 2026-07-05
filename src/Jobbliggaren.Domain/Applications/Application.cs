@@ -160,12 +160,33 @@ public sealed class Application : AggregateRoot<ApplicationId>
         return Result.Success(application);
     }
 
+    /// <summary>
+    /// Move the application to <paramref name="target"/>. ADR 0092 D3: transitions
+    /// are FREE — any of the ten statuses is a valid target (forward, backward, or
+    /// to Ghosted). The removed state-machine grind is replaced by an undo-toast +
+    /// full audit (the command is <c>IAuditableCommand</c>) + the StatusChange
+    /// timeline, so every free move is fully traceable and reversible.
+    /// <see cref="ApplicationStatus.RecommendedNextStatuses"/> is now advisory (a UI
+    /// hint), not a guard. Two hard guards remain: a soft-deleted application cannot
+    /// transition, and a self-transition is a no-op. The AppliedAt write-once stamp
+    /// and the one-way terminal AdSnapshot minimisation below are preserved.
+    /// </summary>
     public Result TransitionTo(ApplicationStatus target, IDateTimeProvider clock)
     {
-        if (!Status.AllowedTransitions.Contains(target))
+        // Invariant 1 (ADR 0092 D3): a soft-deleted aggregate is out of its
+        // lifecycle and cannot transition. The read side already filters
+        // DeletedAt != null, so this is defence-in-depth for any path that loads a
+        // deleted aggregate (e.g. IgnoreQueryFilters on the hard-delete cascade).
+        if (DeletedAt is not null)
             return Result.Failure(DomainError.Validation(
-                "Application.InvalidTransition",
-                $"Övergång från {Status.Name} till {target.Name} är inte tillåten."));
+                "Application.DeletedCannotTransition",
+                "Det går inte att ändra status på en borttagen ansökan."));
+
+        // A self-transition is a no-op: succeed without recording a From==To entry
+        // on the timeline. The UI never fires it (the current step is marked "NU"),
+        // but the aggregate stays defensive against a redundant call.
+        if (target == Status)
+            return Result.Success();
 
         // Capture the transition instant ONCE (Create-factory precedent) so
         // UpdatedAt, LastStatusChangeAt, the recorded StatusChange, and the
@@ -191,9 +212,11 @@ public sealed class Application : AggregateRoot<ApplicationId>
         // stats/identity metadata (title/employer/location/dates). NEVER cleared
         // because the source ad disappeared — that is exactly when it is needed.
         // Idempotent, mirroring the AppliedAt stamp above. Ghosted is not
-        // terminal (reactivatable), so the body is never minimised there; and
-        // terminal statuses have no outgoing transitions, so a re-activation
-        // cannot regress an already-minimised snapshot.
+        // terminal (reactivatable), so the body is never minimised there.
+        // Minimisation is monotonic: WithoutDescription only ever strips, never
+        // restores, and runs solely on a terminal TARGET — so a free reopen out of
+        // a terminal (ADR 0092 D3, e.g. Accepted→Submitted) can never regress an
+        // already-dropped description.
         if (IsTerminal(target))
             AdSnapshot = AdSnapshot?.WithoutDescription();
 

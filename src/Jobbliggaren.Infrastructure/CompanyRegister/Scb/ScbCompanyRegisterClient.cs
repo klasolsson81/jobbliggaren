@@ -39,9 +39,17 @@ internal sealed partial class ScbCompanyRegisterClient(
     private const string RaknaEndpoint = "api/je/raknaforetag";
     private const string HamtaEndpoint = "api/je/hamtaforetag";
 
-    // SCB category names (smoke-verified request shape, issue #560).
+    // SCB category names (smoke-verified request shape, issue #560; SNI split live-verified #628).
     private const string CatSatesKommun = "SätesKommun";
     private const string CatJuridiskForm = "Juridisk form";
+
+    // SNI deep-split categories (#628, live-verified). "2-siffrig bransch 1" filters on the 2-digit
+    // division; "Bransch" with BranschNiva 3 filters on the 5-digit detaljgrupp. There is NO
+    // "Avdelning" category — the v1 assumption of a "Bransch niva 1 (A-U)" section rung returned
+    // HTTP 400 live and was dropped.
+    private const string CatTwoDigitBransch = "2-siffrig bransch 1";
+    private const string CatBransch = "Bransch";
+    private const int BranschNivaFiveDigit = 3;
 
     // Juridisk form 10 = Fysiska personer (enskild firma / sole traders). Excluding it at the SCB
     // query is the PRIMARY legal-entities-only filter (ADR 0091). Every other code (21..99) is a
@@ -60,28 +68,22 @@ internal sealed partial class ScbCompanyRegisterClient(
         ArgumentNullException.ThrowIfNull(outcome);
 
         // Seeds + ladder are built from the live code tables so the partition dimensions stay in sync
-        // with SCB (single source of truth) — no hardcoded municipality/legal-form lists.
-        var kommunCodes = await GetCodeTableAsync(CatSatesKommun, cancellationToken).ConfigureAwait(false);
-        var legalForms = (await GetCodeTableAsync(CatJuridiskForm, cancellationToken).ConfigureAwait(false))
+        // with SCB (single source of truth) — no hardcoded municipality/legal-form/SNI lists.
+        var kommunCodes = await GetCodeTableAsync(CatSatesKommun, branschNiva: null, cancellationToken).ConfigureAwait(false);
+        var legalForms = (await GetCodeTableAsync(CatJuridiskForm, branschNiva: null, cancellationToken).ConfigureAwait(false))
             .Where(code => !string.Equals(code, SoleTraderJuridiskForm, StringComparison.Ordinal))
             .ToArray();
 
         if (kommunCodes.Count == 0 || legalForms.Length == 0)
         {
-            // A missing code table means we cannot bound the extract — treat as truncated so the
+            // A missing seed code table means we cannot bound the extract — treat as truncated so the
             // caller skips the deregister sweep, and yield nothing.
             LogCodeTablesEmpty(logger, kommunCodes.Count, legalForms.Length);
             outcome.MarkTruncatedOrErrored();
             yield break;
         }
 
-        // Seed = one municipality × all legal forms. The ladder narrows an over-cap partition by a
-        // single legal form — the only deep-split dimension verified against the LIVE API. (A Bransch/
-        // SNI-section rung returned HTTP 400 at the population run; a working deep-split needs the exact
-        // SCB koptakategorier filter shape — deferred follow-up.) Municipality × single-form counts are
-        // modest (even Stockholm's were ≤ the cap at the live run), so the few partitions still over cap
-        // truncate at the cap and the run marks itself truncated (deregister sweep disabled) rather than
-        // losing them silently.
+        // Seed = one municipality × all legal forms.
         var seeds = kommunCodes
             .Select(code => new ScbQuery([
                 new ScbCategoryFilter(CatSatesKommun, [code]),
@@ -89,10 +91,7 @@ internal sealed partial class ScbCompanyRegisterClient(
             ]))
             .ToArray();
 
-        var ladder = new ScbFacet[]
-        {
-            new(CatJuridiskForm, legalForms),
-        };
+        var ladder = await BuildLadderAsync(legalForms, cancellationToken).ConfigureAwait(false);
 
         await foreach (var leaf in ScbPartitionPlanner.PlanAsync(
             seeds, ladder, options.Value.BatchSize,
@@ -184,11 +183,47 @@ internal sealed partial class ScbCompanyRegisterClient(
         return records;
     }
 
+    // Builds the partition ladder from the live SNI code table. Rung 1 = single Juridisk form; rung 2 =
+    // 2-digit SNI division ("2-siffrig bransch 1"); rung 3 = 5-digit Bransch (niva 3), fanned by the
+    // parent's 2-digit prefix. The 2-digit values and the prefix map are both DERIVED from the single
+    // niva-3 code table (SNI 2007 is strictly nested: the first two chars of a 5-digit code ARE its
+    // division), so the map is total over the 2-digit values (every division has ≥1 child). If the
+    // niva-3 table is unavailable, fall back to the pre-#628 legal-form-only ladder — the run still
+    // bounds partitions by form and per-partition ladder-exhaustion latches truncated where genuinely
+    // over cap (no preemptive whole-run truncation).
+    private async Task<IReadOnlyList<IScbRung>> BuildLadderAsync(
+        IReadOnlyList<string> legalForms, CancellationToken cancellationToken)
+    {
+        var fiveDigit = await GetCodeTableAsync(CatBransch, BranschNivaFiveDigit, cancellationToken).ConfigureAwait(false);
+
+        var prefixMap = fiveDigit
+            .Where(code => code.Length >= 2)
+            .GroupBy(code => code[..2], StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)[.. g], StringComparer.Ordinal);
+
+        if (prefixMap.Count == 0)
+        {
+            // No usable SNI table — bound only by legal form (pre-#628 behaviour), never crash.
+            LogSniTableEmpty(logger, fiveDigit.Count);
+            return [new ScbStaticRung(CatJuridiskForm, legalForms)];
+        }
+
+        var twoDigit = prefixMap.Keys.OrderBy(key => key, StringComparer.Ordinal).ToArray();
+
+        return
+        [
+            new ScbStaticRung(CatJuridiskForm, legalForms),
+            new ScbStaticRung(CatTwoDigitBransch, twoDigit),
+            new ScbPrefixRung(CatTwoDigitBransch, CatBransch, BranschNivaFiveDigit, prefixMap),
+        ];
+    }
+
     private async Task<IReadOnlyList<string>> GetCodeTableAsync(
-        string category, CancellationToken cancellationToken)
+        string category, int? branschNiva, CancellationToken cancellationToken)
     {
         using var response = await httpClient
-            .PostAsJsonAsync(KodtabellEndpoint, new ScbKodtabellRequest { Kategori = category },
+            .PostAsJsonAsync(KodtabellEndpoint,
+                new ScbKodtabellRequest { Kategori = category, BranschNiva = branschNiva },
                 JsonOptions, cancellationToken)
             .ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
@@ -331,4 +366,8 @@ internal sealed partial class ScbCompanyRegisterClient(
     [LoggerMessage(EventId = 5702, Level = LogLevel.Warning,
         Message = "ScbCompanyRegisterClient: SCB {Endpoint} svarade {StatusCode} — partitionen hoppas över, körningen markeras trunkerad (ingen falsk avregistrering). Loggar aldrig org.nr.")]
     private static partial void LogPartitionRequestFailed(ILogger logger, string endpoint, int statusCode);
+
+    [LoggerMessage(EventId = 5703, Level = LogLevel.Warning,
+        Message = "ScbCompanyRegisterClient: SNI-kodtabell (Bransch niva 3) tom ({RowCount} rader) — faller tillbaka till Juridisk form-only-liggaren (djupdelning inaktiverad denna körning).")]
+    private static partial void LogSniTableEmpty(ILogger logger, int rowCount);
 }

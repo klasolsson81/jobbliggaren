@@ -2,6 +2,7 @@ using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.Login;
 using Jobbliggaren.Application.Auth.Commands.Logout;
+using Jobbliggaren.Application.Auth.Commands.RefreshSession;
 using Jobbliggaren.Application.Auth.Commands.Register;
 using Jobbliggaren.Application.Auth.Queries.VerifyCredentials;
 using Jobbliggaren.Domain.Common;
@@ -41,6 +42,19 @@ public static class AuthEndpoints
             await mediator.Send(new LogoutCommand(), ct);
             // Cookie-radering sker i Next.js-proxyn (ADR 0018) — backend är cookie-agnostiskt.
             return Results.NoContent();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.AuthLoosePolicy);
+
+        // Slides the current session and rotates its id if due (#481 persistent-login).
+        // Called by the Next.js middleware refresh seam. The id is validated + slid by the
+        // auth pipeline (GetAsync), then rotated-if-due. On { rotated: true } the proxy
+        // replaces the __Host- cookie value with the returned sessionId (ADR 0018 — backend
+        // sets no cookies). Dormant until the activation PR wires the middleware driver.
+        // AuthLoose rate-limit: same interval-driven profile as logout.
+        group.MapPost("/refresh", async (IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new RefreshSessionCommand(), ct);
+            return Results.Ok(result);
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.AuthLoosePolicy);
 

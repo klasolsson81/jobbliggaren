@@ -21,7 +21,7 @@ public class SessionStoreOptionsBindingTests
                 ["Session:Session:AbsoluteTtl"] = "1.00:00:00",
                 ["Session:Session:RotationInterval"] = "00:00:00",
                 ["Session:Persistent:SlidingTtl"] = "30.00:00:00",
-                ["Session:Persistent:AbsoluteTtl"] = "180.00:00:00",
+                ["Session:Persistent:AbsoluteTtl"] = "30.00:00:00",
                 ["Session:Persistent:RotationInterval"] = "1.00:00:00",
             })
             .Build();
@@ -44,7 +44,7 @@ public class SessionStoreOptionsBindingTests
         options.Session.AbsoluteTtl.ShouldBe(TimeSpan.FromHours(24));
 
         options.Persistent.SlidingTtl.ShouldBe(TimeSpan.FromDays(30));
-        options.Persistent.AbsoluteTtl.ShouldBe(TimeSpan.FromDays(180));
+        options.Persistent.AbsoluteTtl.ShouldBe(TimeSpan.FromDays(30));
         options.Persistent.RotationInterval.ShouldBe(TimeSpan.FromHours(24));
     }
 
@@ -58,6 +58,6 @@ public class SessionStoreOptionsBindingTests
         options.ProfileFor(Application.Common.Abstractions.SessionLifetime.Session)
             .AbsoluteTtl.ShouldBe(TimeSpan.FromHours(24));
         options.ProfileFor(Application.Common.Abstractions.SessionLifetime.Persistent)
-            .AbsoluteTtl.ShouldBe(TimeSpan.FromDays(180));
+            .AbsoluteTtl.ShouldBe(TimeSpan.FromDays(30));
     }
 }

@@ -65,16 +65,27 @@ public enum SessionLifetime
     Persistent = 2,
 }
 
+/// <summary>Result of a due session-id rotation: the freshly minted id and its expiry.</summary>
+public sealed record SessionRotation(SessionId NewId, DateTimeOffset ExpiresAt);
+
 public interface ISessionStore
 {
     Task<Session?> GetAsync(SessionId sessionId, CancellationToken ct);
 
     // Creates a session under the given lifetime profile (#481 persistent-login).
-    // Session-id rotation + the /auth/refresh seam that drives it land in the follow-up
-    // PR (2b) together with the "Håll mig inloggad" checkbox that first produces a
-    // rotating Persistent session — until then every session is Legacy (no rotation),
-    // so rotation is dormant and is designed there against the real RedisCache format.
     Task<Session> CreateAsync(Guid userId, SessionLifetime lifetime, CancellationToken ct);
+
+    /// <summary>
+    /// Rotates the session id if the session's profile has a rotation interval that has
+    /// elapsed since the last rotation, collapsing a captured token's replay window to
+    /// that interval (security C3). Preserves the original CreatedAt (so the absolute cap
+    /// never resets) and the lifetime profile; the old id is invalidated. Returns null
+    /// when rotation is not due, the session is gone, or a concurrent refresh won the
+    /// single-winner election. The caller (the /auth/refresh seam) writes the new id into
+    /// the cookie — the backend cannot set cookies (ADR 0018). Dormant until the
+    /// activation PR threads rememberMe -> Persistent and wires the middleware driver.
+    /// </summary>
+    Task<SessionRotation?> RotateAsync(SessionId current, CancellationToken ct);
 
     Task<bool> InvalidateAsync(SessionId sessionId, CancellationToken ct);
 

@@ -208,24 +208,26 @@ public class InMemorySessionStoreTests
         fetched.ExpiresAt.ShouldBe(session.CreatedAt.AddDays(30));
     }
 
-    // #626: the session keeps the lifetime profile it was created under. A Persistent
-    // session uses the 180d cap (default profile), so it survives well past the 30d
-    // Legacy ceiling that a default session would hit — proving profile selection.
+    // #626/#2b1: the session keeps the lifetime profile it was created under. A
+    // Persistent session has a 30d sliding window, so a single read at +20d keeps it
+    // alive — where a Legacy session (14d sliding) would already be dead from
+    // inactivity. Proves profile selection. (Persistent's cap stays 30d until the
+    // rotation driver ships; the longer 180d reach lands there.)
     [Fact]
-    public async Task GetAsync_ShouldUsePersistentCap_WhenCreatedPersistent()
+    public async Task GetAsync_ShouldUsePersistentSlidingWindow_WhenCreatedPersistent()
     {
         var time = new MutableFakeDateTimeProvider();
         var store = CreateStore(time);
         var ct = TestContext.Current.CancellationToken;
 
-        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Persistent, ct);
+        var persistent = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Persistent, ct);
+        var legacy = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
 
-        // Slide with reads inside the 30d persistent window, out to +40d — impossible
-        // for a Legacy session (30d cap). Still valid → the Persistent profile is used.
+        // +20d since the single create-time activity: within Persistent's 30d window,
+        // past Legacy's 14d window.
         time.UtcNow = time.UtcNow.AddDays(20);
-        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
-        time.UtcNow = time.UtcNow.AddDays(20); // +40d
-        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+        (await store.GetAsync(persistent.Id, ct)).ShouldNotBeNull();
+        (await store.GetAsync(legacy.Id, ct)).ShouldBeNull();
     }
 
     // A Session-profile (unticked "Håll mig inloggad") session is short-lived: past its
@@ -254,6 +256,102 @@ public class InMemorySessionStoreTests
         var result = await store.GetAsync(SessionId.FromRaw(string.Empty), ct);
 
         result.ShouldBeNull();
+    }
+
+    // ── RotateAsync (#2b1) ─────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RotateAsync_ShouldMintNewIdAndRetireOld_WhenDue()
+    {
+        var time = new MutableFakeDateTimeProvider();
+        var store = CreateStore(time);
+        var ct = TestContext.Current.CancellationToken;
+
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Persistent, ct);
+
+        time.UtcNow = time.UtcNow.AddHours(25); // past the 24h rotation interval
+
+        var rotation = await store.RotateAsync(session.Id, ct);
+
+        rotation.ShouldNotBeNull();
+        rotation!.NewId.Reveal().ShouldNotBe(session.Id.Reveal());
+        // Old id retired, new id valid.
+        (await store.GetAsync(session.Id, ct)).ShouldBeNull();
+        (await store.GetAsync(rotation.NewId, ct)).ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task RotateAsync_ShouldPreserveCreatedAt_WhenRotated()
+    {
+        var time = new MutableFakeDateTimeProvider();
+        var store = CreateStore(time);
+        var ct = TestContext.Current.CancellationToken;
+
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Persistent, ct);
+        var originalCreatedAt = session.CreatedAt;
+
+        time.UtcNow = time.UtcNow.AddHours(25);
+        var rotation = await store.RotateAsync(session.Id, ct);
+
+        var rotated = await store.GetAsync(rotation!.NewId, ct);
+        // CreatedAt carried verbatim → the absolute cap cannot be reset by rotation.
+        rotated!.CreatedAt.ShouldBe(originalCreatedAt);
+    }
+
+    [Fact]
+    public async Task RotateAsync_ShouldReturnNull_WhenNotDue()
+    {
+        var time = new MutableFakeDateTimeProvider();
+        var store = CreateStore(time);
+        var ct = TestContext.Current.CancellationToken;
+
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Persistent, ct);
+
+        time.UtcNow = time.UtcNow.AddHours(1); // well within the 24h interval
+
+        (await store.RotateAsync(session.Id, ct)).ShouldBeNull();
+        // Still the same, valid session.
+        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task RotateAsync_ShouldReturnNull_ForNonRotatingProfile()
+    {
+        var time = new MutableFakeDateTimeProvider();
+        var store = CreateStore(time);
+        var ct = TestContext.Current.CancellationToken;
+
+        // Legacy has RotationInterval = 0 → never rotates, however long we wait.
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
+        time.UtcNow = time.UtcNow.AddDays(5);
+
+        (await store.RotateAsync(session.Id, ct)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task RotateAsync_ShouldReturnNull_WhenSessionMissing()
+    {
+        var store = CreateStore();
+        var ct = TestContext.Current.CancellationToken;
+
+        (await store.RotateAsync(SessionId.FromRaw("never-existed"), ct)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task RotateAsync_ShouldElectSingleWinner_WhenConcurrent()
+    {
+        var time = new MutableFakeDateTimeProvider();
+        var store = CreateStore(time);
+        var ct = TestContext.Current.CancellationToken;
+
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Persistent, ct);
+        time.UtcNow = time.UtcNow.AddHours(25);
+
+        var results = await Task.WhenAll(
+            Enumerable.Range(0, 20).Select(_ => store.RotateAsync(session.Id, ct)));
+
+        // Exactly one caller rotates; the rest lose the election and get null.
+        results.Count(r => r is not null).ShouldBe(1);
     }
 
     // ── InvalidateAsync ───────────────────────────────────────────────────────

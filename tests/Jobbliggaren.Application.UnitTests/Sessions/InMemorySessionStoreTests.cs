@@ -211,8 +211,9 @@ public class InMemorySessionStoreTests
     // #626/#2b1: the session keeps the lifetime profile it was created under. A
     // Persistent session has a 30d sliding window, so a single read at +20d keeps it
     // alive — where a Legacy session (14d sliding) would already be dead from
-    // inactivity. Proves profile selection. (Persistent's cap stays 30d until the
-    // rotation driver ships; the longer 180d reach lands there.)
+    // inactivity. Proves profile selection. (Persistent's absolute cap is now 180d, live
+    // as of the #481 2b-3b activation; this test exercises the 30d *sliding* window, which
+    // is unchanged.)
     [Fact]
     public async Task GetAsync_ShouldUsePersistentSlidingWindow_WhenCreatedPersistent()
     {

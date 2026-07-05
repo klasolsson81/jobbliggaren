@@ -82,8 +82,8 @@ public interface ISessionStore
     /// never resets) and the lifetime profile; the old id is invalidated. Returns null
     /// when rotation is not due, the session is gone, or a concurrent refresh won the
     /// single-winner election. The caller (the /auth/refresh seam) writes the new id into
-    /// the cookie — the backend cannot set cookies (ADR 0018). Dormant until the
-    /// activation PR threads rememberMe -> Persistent and wires the middleware driver.
+    /// the cookie — the backend cannot set cookies (ADR 0018). Driven by the Next.js proxy
+    /// refresh seam as of the 2b-3b activation (rememberMe -> Persistent + the refresh driver).
     /// </summary>
     Task<SessionRotation?> RotateAsync(SessionId current, CancellationToken ct);
 

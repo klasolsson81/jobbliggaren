@@ -49,8 +49,8 @@ public static class AuthEndpoints
         // Called by the Next.js middleware refresh seam. The id is validated + slid by the
         // auth pipeline (GetAsync), then rotated-if-due. On { rotated: true } the proxy
         // replaces the __Host- cookie value with the returned sessionId (ADR 0018 — backend
-        // sets no cookies). Dormant until the activation PR wires the middleware driver.
-        // AuthLoose rate-limit: same interval-driven profile as logout.
+        // sets no cookies). Driven by the Next.js proxy refresh seam wired in the 2b-3b
+        // activation. AuthLoose rate-limit: same interval-driven profile as logout.
         group.MapPost("/refresh", async (IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new RefreshSessionCommand(), ct);

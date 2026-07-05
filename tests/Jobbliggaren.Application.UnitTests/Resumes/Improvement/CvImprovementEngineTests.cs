@@ -20,7 +20,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Improvement;
 /// QuestPDF: Phase A is the BCL-only engine + contracts; the IDocument renderer is Phase B.
 ///
 /// Golden expectations come from the REAL committed assets via the real loaders
-/// (<c>cliche-list.v2.json</c> / <c>verb-mapping.v1.json</c> / <c>rubric.v1.1.0.json</c>), so
+/// (<c>cliche-list.v2.json</c> / <c>verb-mapping.v1.json</c> / <c>rubric.v1.2.0.json</c>), so
 /// the <c>After</c>-text can never drift from the data the engine actually reads. The cliché
 /// drop-in arm is driven via a fake <c>IClicheLexicon</c> because today's real asset carries no
 /// genuine drop-in (#495 — advisory guidance is never applied verbatim).

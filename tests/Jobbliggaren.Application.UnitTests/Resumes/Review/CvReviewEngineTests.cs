@@ -14,7 +14,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// Fas 4 STEG 9 (F4-9, ADR 0071/0074) — the deterministic CV-review engine. NO AI/LLM:
 /// every verdict is a rule over the parsed CV + the versioned knowledge bank, with cited
 /// evidence (CLAUDE.md §5). Golden expectations are derived from the REAL committed assets
-/// (rubric.v1.1.0.json / cliche-list.v2.json / verb-mapping.v1.json) via the real loaders,
+/// (rubric.v1.2.0.json / cliche-list.v2.json / verb-mapping.v1.json) via the real loaders,
 /// so the tests can never drift from the data the engine actually reads.
 ///
 /// The internal sealed <see cref="CvReviewEngine"/> is constructed directly (Infrastructure
@@ -55,9 +55,9 @@ public class CvReviewEngineTests
     {
         var result = await ReviewAsync(Resume(), RenderProfile.Ats);
 
-        // Bumped 1.0.1 → 1.1.0 by #488 (asset renamed rubric.v1.1.0.json; §2.8 minor =
-        // C5 reclassified not_assessed_v1 → scoring-behaviour change on the Språk band).
-        result.RubricVersion.ShouldBe(RubricVersion.Parse("1.1.0"));
+        // Bumped 1.1.0 → 1.2.0 by #654 (Fas 4b PR-5: thresholds-as-data + styleOnly;
+        // §2.8 minor — values relocated from code literals, unchanged). Prior: #488.
+        result.RubricVersion.ShouldBe(RubricVersion.Parse("1.2.0"));
         result.Profile.ShouldBe(RenderProfile.Ats);
     }
 
@@ -1368,7 +1368,7 @@ public class CvReviewEngineTests
     // Test F — code-side civic FALLBACK when the asset omits notAssessedReason (N-1 asset).
     // Driven via a substitute IRubricProvider whose A5 criterion has NotAssessedReason ==
     // null, proving Evaluate resolves `criterion.NotAssessedReason ?? <civic fallback>` and
-    // never throws. The real v1.1.0 asset always authors the field (Test G part 2 guards
+    // never throws. The real v1.2.0 asset always authors the field (Test G part 2 guards
     // that), so this fallback is only reachable through an older (N-1) provider — exactly
     // the seam this test drives.
     [Fact]

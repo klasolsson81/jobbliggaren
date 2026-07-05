@@ -21,7 +21,8 @@
     "followUpOutcome": {
       "Pending": "Inväntar svar",
       "Responded": "Svar mottaget",
-      "NoResponse": "Inget svar"
+      "NoResponse": "Inget svar",
+      "Logged": "Kontakt loggad"
     },
     "source": {
       "Platsbanken": "Platsbanken",

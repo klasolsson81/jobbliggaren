@@ -45,6 +45,25 @@ public sealed class Application : AggregateRoot<ApplicationId>
     public DateTimeOffset? AppliedAt { get; private set; }
 
     public int GhostedThresholdDays { get; private set; }
+
+    /// <summary>
+    /// The moment of the most recent follow-up on this application. Any follow-up
+    /// creation bumps it — a scheduled reminder via <see cref="AddFollowUp"/> or a
+    /// logged contact via <see cref="LogFollowUp"/>. ADR 0092 D5: projected into the
+    /// read DTO to drive <c>effectiveWaitDays = min(daysSinceLastEvent,
+    /// daysSinceLastFollowUp)</c>, so logging a follow-up resets the "no response"
+    /// wait and lifts the card out of the queue until the threshold is crossed
+    /// again. null until the first follow-up. Denormalised (write-maintained scalar,
+    /// like <see cref="LastStatusChangeAt"/>/<see cref="AppliedAt"/>), not a
+    /// correlated MAX subquery — cheaper on every read row (ADR 0048).
+    /// Forward-only: it is never recomputed. Safe today because there is no
+    /// per-follow-up delete/undo path (only the aggregate <see cref="SoftDelete"/>,
+    /// which filters the whole row out on read). If such a path is ever added,
+    /// recompute this from the surviving follow-ups so a removed one cannot suppress
+    /// a signal on false grounds (same accepted tradeoff as <see cref="LastStatusChangeAt"/>).
+    /// </summary>
+    public DateTimeOffset? LastFollowUpAt { get; private set; }
+
     public DateTimeOffset? DeletedAt { get; private set; }
 
     private readonly List<FollowUp> _followUps = [];
@@ -318,6 +337,35 @@ public sealed class Application : AggregateRoot<ApplicationId>
             return Result.Failure<FollowUpId>(result.Error);
 
         _followUps.Add(result.Value);
+        // ADR 0092 D5: any follow-up creation bumps the denormalised
+        // LastFollowUpAt so effectiveWaitDays resets. Uses the follow-up's own
+        // CreatedAt so the scalar matches the record.
+        LastFollowUpAt = result.Value.CreatedAt;
+        RaiseDomainEvent(new FollowUpAddedDomainEvent(Id, result.Value.Id, clock.UtcNow));
+        return Result.Success(result.Value.Id);
+    }
+
+    /// <summary>
+    /// Log a completed contact today (ADR 0092 D4/D5 "Logga uppföljning"): a
+    /// lightweight follow-up (channel <see cref="FollowUpChannel.Other"/>, scheduled
+    /// = now, outcome <see cref="FollowUpOutcome.Logged"/>) that appears on the
+    /// follow-ups list + timeline and bumps <see cref="LastFollowUpAt"/> so the
+    /// effective wait counter resets. Blocked on a closed application, like
+    /// <see cref="AddFollowUp"/>.
+    /// </summary>
+    public Result<FollowUpId> LogFollowUp(string? note, IDateTimeProvider clock)
+    {
+        if (IsClosedForActivity())
+            return Result.Failure<FollowUpId>(DomainError.Validation(
+                "Application.FollowUpNotAllowed",
+                "Det går inte att lägga till uppföljning på en avslutad ansökan."));
+
+        var result = FollowUp.CreateLogged(note, clock);
+        if (result.IsFailure)
+            return Result.Failure<FollowUpId>(result.Error);
+
+        _followUps.Add(result.Value);
+        LastFollowUpAt = result.Value.CreatedAt;
         RaiseDomainEvent(new FollowUpAddedDomainEvent(Id, result.Value.Id, clock.UtcNow));
         return Result.Success(result.Value.Id);
     }

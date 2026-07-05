@@ -21,7 +21,8 @@
     "followUpOutcome": {
       "Pending": "Awaiting reply",
       "Responded": "Reply received",
-      "NoResponse": "No reply"
+      "NoResponse": "No reply",
+      "Logged": "Contact logged"
     },
     "source": {
       "Platsbanken": "Platsbanken",

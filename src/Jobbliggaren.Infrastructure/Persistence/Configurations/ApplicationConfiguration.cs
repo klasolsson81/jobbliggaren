@@ -124,6 +124,10 @@ public sealed class ApplicationConfiguration : IEntityTypeConfiguration<DomainAp
         // date; the value is stamped on the first Submitted transition
         // (Application.TransitionTo) and never overwritten.
         builder.Property(a => a.AppliedAt).HasColumnName("applied_at");
+        // ADR 0092 D5: denormalised last-follow-up scalar (nullable — null until the
+        // first follow-up), write-maintained by AddFollowUp/LogFollowUp. Drives
+        // effectiveWaitDays on the read side, projected into ApplicationDto.
+        builder.Property(a => a.LastFollowUpAt).HasColumnName("last_follow_up_at");
         builder.Property(a => a.GhostedThresholdDays)
             .IsRequired()
             .HasDefaultValue(21);

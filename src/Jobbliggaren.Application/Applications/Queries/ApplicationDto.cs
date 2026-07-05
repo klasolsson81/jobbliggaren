@@ -29,6 +29,11 @@ public sealed record ApplicationDto(
     // Projected (not a new config threshold) so the pure Application-layer
     // evaluator can honour the per-aggregate value without a magic number.
     int GhostedThresholdDays,
+    // ADR 0092 D5: the moment of the most recent follow-up (Application.LastFollowUpAt),
+    // null until the first. Drives effectiveWaitDays = min(daysSinceLastEvent,
+    // daysSinceLastFollowUp) in the evaluator, so a logged follow-up resets the
+    // no-response / nudge wait. Denormalised scalar projected like LastStatusChangeAt.
+    DateTimeOffset? LastFollowUpAt,
     // #343 (ADR 0085 §3, CTO Option a): the single highest-priority reason this
     // application needs action now, computed ONCE on the read side by
     // ApplicationAttentionEvaluator.Evaluate (the SSOT) and projected here so the

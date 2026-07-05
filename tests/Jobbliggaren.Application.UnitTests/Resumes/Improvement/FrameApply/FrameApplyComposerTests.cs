@@ -218,4 +218,47 @@ public class FrameApplyComposerTests
         result.IsFailure.ShouldBeTrue();
         result.Error.Kind.ShouldBe(ErrorKind.Conflict);
     }
+
+    [Fact]
+    public void ApplyToContent_ShouldReplaceASectionEntryLine_AndLeaveSiblingLinesUntouched()
+    {
+        // Code review Minor 4: the dynamic-sections arm of the apply walk (the third and
+        // last search surface) — the matching entry line is swapped, siblings and the
+        // entry title stay untouched, and the original content is unmutated.
+        var content = new ResumeContent(
+            new PersonalInfo("Klas Olsson", null, null, null),
+            sections:
+            [
+                new ResumeSection("Kurser",
+                [
+                    new SectionEntry("HLR", ["Grundkurs", "Gammal rad", "Repetition"]),
+                ]),
+            ]);
+
+        var result = FrameApplyComposer.ApplyToContent(content, "Gammal rad", "Ny rad");
+
+        result.IsSuccess.ShouldBeTrue();
+        var entry = result.Value.Sections.ShouldHaveSingleItem().Entries.ShouldHaveSingleItem();
+        entry.Title.ShouldBe("HLR");
+        entry.Lines.ShouldBe(["Grundkurs", "Ny rad", "Repetition"]);
+        content.Sections[0].Entries[0].Lines.ShouldBe(["Grundkurs", "Gammal rad", "Repetition"],
+            "the original content must be left unmutated.");
+    }
+
+    [Fact]
+    public void ResolveFinding_ShouldLocateASectionEntryLine_WhenTheQuoteLivesInADynamicSection()
+    {
+        // Code review Minor 4: the location walk's Sections arm mirrors the apply walk.
+        const string line = "Ansvarig för utbildningsinsatser";
+        var content = new ResumeContent(
+            new PersonalInfo("Klas Olsson", null, null, null),
+            sections: [new ResumeSection("Övrigt", [new SectionEntry("Utbildning", [line])])]);
+        var verdict = Fail("C3", "Ansvarig", RubricCategory.Language);
+
+        var result = FrameApplyComposer.ResolveFinding(
+            ResultWith(verdict), "C3", Fingerprint(verdict), content);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Line.ShouldBe(line);
+    }
 }

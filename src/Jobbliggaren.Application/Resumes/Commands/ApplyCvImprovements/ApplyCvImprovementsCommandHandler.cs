@@ -78,7 +78,7 @@ public sealed class ApplyCvImprovementsCommandHandler(
         }
 
         var catalog = frameProvider.GetFrameCatalog();
-        var strongVerbs = StrongVerbSet(verbMapper.GetVerbMapping(), catalog);
+        var strongVerbs = FrameApplyComposer.BuildStrongVerbSet(verbMapper.GetVerbMapping(), catalog);
 
         // Pre-apply review over the CURRENT canonical content — the substrate every
         // change's fingerprint and Before line resolve against (server recompute, §D2).
@@ -119,8 +119,10 @@ public sealed class ApplyCvImprovementsCommandHandler(
             if (grounding.IsFailure)
                 return grounding;
 
-            // Grounding passed, so the factory cannot throw — it re-runs the same rules
-            // (defense-in-depth) and is the ONLY builder of the After (no client text).
+            // Grounding passed and the validator bans braces in slot values, so the factory
+            // does not throw on client-shaped input — it re-runs the same rules plus a
+            // residual-placeholder guard (defense-in-depth) and is the ONLY builder of the
+            // After (no client text). A throw here is a server bug, not a client error.
             var proposed = ProposedChange.FromFrame(
                 targetId: $"frame:{change.CriterionId}",
                 category: resolved.Value.Verdict.Category,
@@ -168,10 +170,15 @@ public sealed class ApplyCvImprovementsCommandHandler(
         {
             var verdict = postReview.Verdicts.FirstOrDefault(v =>
                 string.Equals(v.CriterionId, criterionId, StringComparison.Ordinal));
-            if (verdict is null
-                || verdict.Verdict is CriterionVerdict.Fail or CriterionVerdict.Warn)
+
+            // "Genuinely cleared" (CTO D-D) means an ASSESSED Pass — a still-flagged
+            // Fail/Warn is a partial fix (stays Open, honestly), and a NotAssessed post
+            // verdict is "could not assess", never evidence the finding is gone (unreachable
+            // in the frame flow — a rewrite replaces a line, never removes one — but the
+            // narrow condition keeps the honesty doctrine literal; code review Minor 3).
+            if (verdict is null || verdict.Verdict != CriterionVerdict.Pass)
             {
-                continue; // still flagged (a partial fix) — the finding stays Open, honestly.
+                continue;
             }
 
             var fingerprint = FindingTargetFingerprint.Compute(postReview.RubricVersion, verdict);
@@ -179,28 +186,18 @@ public sealed class ApplyCvImprovementsCommandHandler(
                 postReview.RubricVersion.ToString(), criterionId,
                 ReviewFindingStatus.Resolved, fingerprint, clock);
             if (set.IsFailure)
-                return set;
+            {
+                // Post-write failure path (code review Minor 1): the content write above
+                // WILL be persisted by the unconditional UnitOfWork SaveChanges, so a
+                // Result failure here would return an error for a mutation that persists.
+                // These inputs are server-derived (version/criterion/fingerprint shapes by
+                // construction), so a failure is a server bug — fail loud, not half-true.
+                throw new InvalidOperationException(
+                    $"Auto-resolve failed for server-derived finding-status inputs " +
+                    $"({set.Error.Code}) — inconsistent post-apply state.");
+            }
         }
 
         return Result.Success();
-    }
-
-    // The invariant-b membership closure: every strong verb across the mapping's groups,
-    // case-folded. The catalog's verbMappingVersion is loader-pinned to the mapping's
-    // version in production (PR-5 equality pin); re-check here so a wiring drift fails
-    // loud instead of endorsing verbs from the wrong list version.
-    private static HashSet<string> StrongVerbSet(VerbMapping mapping, FrameCatalog catalog)
-    {
-        if (!string.Equals(mapping.Version, catalog.VerbMappingVersion, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException(
-                $"Frame catalog pins verb-mapping v{catalog.VerbMappingVersion} but the loaded " +
-                $"mapping is v{mapping.Version} — the ADR 0093 §D2 verb invariant is version-bound.");
-        }
-
-        return mapping.StrongVerbGroups
-            .SelectMany(g => g.Verbs)
-            .Select(v => v.Trim())
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 }

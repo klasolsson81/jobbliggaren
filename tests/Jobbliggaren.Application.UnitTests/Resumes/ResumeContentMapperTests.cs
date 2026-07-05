@@ -294,4 +294,52 @@ public class ResumeContentMapperTests
         dto.Sections!.ShouldHaveSingleItem().Entries!.ShouldHaveSingleItem()
             .Lines.ShouldBe(["Grundkurs", "Repetition"]);
     }
+
+    [Fact]
+    public void ToDto_MapsEveryFieldDirectly_AgainstAHandBuiltExpectedDto()
+    {
+        // Security review Minor 1: the round-trip pin above only catches ASYMMETRY between
+        // ToDto and ToDomain — a field dropped by BOTH directions would round-trip cleanly.
+        // This direct pin compares ToDto's output to a hand-built expected DTO, so a field
+        // silently dropped by ToDto (= a field the personnummer guard never scans on the
+        // apply path) fails HERE regardless of what ToDomain does.
+        var content = new ResumeContent(
+            new PersonalInfo("Anna Andersson", "anna@example.com", "0701234567", "Stockholm"),
+            experiences:
+            [
+                new Experience("Beta AB", "Backend-utvecklare",
+                    new DateOnly(2021, 1, 1), new DateOnly(2024, 6, 30), "Byggde betaltjänster."),
+            ],
+            educations:
+            [
+                new Education("KTH", "Civilingenjör", new DateOnly(2013, 9, 1), new DateOnly(2018, 6, 1)),
+            ],
+            skills: [new Skill("C#", 8)],
+            summary: "Erfaren backend-utvecklare.",
+            languages: [new SpokenLanguage("Svenska", LanguageProficiency.Native)],
+            skillGroups: [new SkillGroup("Backend", ["C#"])],
+            sections: [new ResumeSection("Kurser", [new SectionEntry("HLR", ["Grundkurs"])])]);
+
+        var expected = new ResumeContentDto(
+            new PersonalInfoDto("Anna Andersson", "anna@example.com", "0701234567", "Stockholm"),
+            Experiences:
+            [
+                new ExperienceDto("Beta AB", "Backend-utvecklare",
+                    new DateOnly(2021, 1, 1), new DateOnly(2024, 6, 30), "Byggde betaltjänster."),
+            ],
+            Educations:
+            [
+                new EducationDto("KTH", "Civilingenjör", new DateOnly(2013, 9, 1), new DateOnly(2018, 6, 1)),
+            ],
+            Skills: [new SkillDto("C#", 8)],
+            Summary: "Erfaren backend-utvecklare.",
+            Languages: [new SpokenLanguageDto("Svenska", "Native")],
+            SkillGroups: [new SkillGroupDto("Backend", ["C#"])],
+            Sections: [new ResumeSectionDto("Kurser", [new SectionEntryDto("HLR", ["Grundkurs"])])]);
+
+        var dto = ResumeContentMapper.ToDto(content);
+
+        System.Text.Json.JsonSerializer.Serialize(dto)
+            .ShouldBe(System.Text.Json.JsonSerializer.Serialize(expected));
+    }
 }

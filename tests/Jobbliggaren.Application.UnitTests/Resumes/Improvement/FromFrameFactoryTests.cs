@@ -276,4 +276,44 @@ public class FromFrameFactoryTests
 
         act.ShouldThrow<ArgumentException>();
     }
+
+    [Fact]
+    public void FromFrame_ShouldSubstituteEveryOccurrence_WhenTheTemplateRepeatsASlot()
+    {
+        // Code review Minor 4: a template may reference the same slot twice — the
+        // mechanical substitution replaces ALL occurrences (string.Replace semantics),
+        // leaving no residual placeholder to trip the leftover-brace guard.
+        var frame = new CvFrame(
+            "sentence-repeat",
+            FrameKind.Sentence,
+            ["A2"],
+            "ledde",
+            [new FrameSlot("del1", FrameSlotKind.Noun)],
+            "Ledde {del1} och utvecklade {del1} vidare.");
+
+        var change = ProposedChange.FromFrame(
+            TargetId,
+            RubricCategory.Content,
+            criterionId: "A2",
+            evidence: Line(FrameFixtures.WeakLine),
+            frame: frame,
+            slotInputs: new Dictionary<string, string> { ["del1"] = "kundtjänst" },
+            strongVerbSet: FrameFixtures.StrongVerbs("ledde"),
+            rationale: Rationale);
+
+        change.Replacement!.After.ShouldBe("Ledde kundtjänst och utvecklade kundtjänst vidare.");
+    }
+
+    [Fact]
+    public void FromFrame_ShouldThrow_WhenATextSlotInjectsAPlaceholderReference()
+    {
+        // Code review Minor 4: a Text slot smuggling "{antal}" would leave a residual
+        // placeholder after substitution (the number slot was already consumed) — the
+        // leftover-brace guard fails loud. Unreachable from clients (the shared validator
+        // bans braces in slot values) — this pins the factory's defense-in-depth layer.
+        var act = () => BuildMeasure(FrameFixtures.MeasureSlots(period: "{antal}"));
+
+        var ex = act.ShouldThrow<ArgumentException>();
+        ex.Message.ShouldContain("0093");
+    }
 }

@@ -78,11 +78,10 @@ public sealed class PreviewCvImprovementQueryHandler(
                 "Resume.FrameCriterionMismatch", "Ramen åtgärdar inte det angivna kriteriet."));
         }
 
-        var mapping = verbMapper.GetVerbMapping();
-        var strongVerbs = mapping.StrongVerbGroups
-            .SelectMany(g => g.Verbs)
-            .Select(v => v.Trim())
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Shared builder incl. the version guard (code review Minor 2) — a verb-mapping/
+        // catalog wiring drift fails loud on the preview surface too, keeping "a preview
+        // that succeeds is an apply that will succeed" true for the verb invariant.
+        var strongVerbs = FrameApplyComposer.BuildStrongVerbSet(verbMapper.GetVerbMapping(), catalog);
 
         // Server recompute over the CURRENT canonical content (ADR 0074 — no client text).
         var content = resume.MasterVersion.Content;

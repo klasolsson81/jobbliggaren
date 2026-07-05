@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Common;
@@ -28,6 +29,33 @@ public sealed record LocatedFinding(CvCriterionVerdict Verdict, string Line, str
 /// </summary>
 public static class FrameApplyComposer
 {
+    /// <summary>
+    /// The invariant-b membership closure BOTH handlers consume (code review Minor 2 —
+    /// one builder, one version guard): every strong verb across the mapping's groups,
+    /// case-folded. The catalog's verbMappingVersion is loader-pinned to the mapping's
+    /// version in production (PR-5 equality pin); re-checking here means a wiring drift
+    /// fails loud on BOTH surfaces — so "a preview that succeeds is an apply that will
+    /// succeed" holds for the verb invariant too, instead of preview passing and apply
+    /// throwing.
+    /// </summary>
+    public static HashSet<string> BuildStrongVerbSet(VerbMapping mapping, FrameCatalog catalog)
+    {
+        ArgumentNullException.ThrowIfNull(mapping);
+        ArgumentNullException.ThrowIfNull(catalog);
+
+        if (!string.Equals(mapping.Version, catalog.VerbMappingVersion, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Frame catalog pins verb-mapping v{catalog.VerbMappingVersion} but the loaded " +
+                $"mapping is v{mapping.Version} — the ADR 0093 §D2 verb invariant is version-bound.");
+        }
+
+        return mapping.StrongVerbGroups
+            .SelectMany(g => g.Verbs)
+            .Select(v => v.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
     /// <summary>
     /// The apply-side resolve: verifies the client's echoed <paramref name="clientFingerprint"/>
     /// against the freshly computed one BEFORE locating (a stale finding must 409 rather than

@@ -1,4 +1,5 @@
 using FluentValidation;
+using Jobbliggaren.Application.Resumes.Improvement.FrameApply;
 
 namespace Jobbliggaren.Application.Resumes.Commands.ApplyCvImprovements;
 
@@ -6,7 +7,10 @@ namespace Jobbliggaren.Application.Resumes.Commands.ApplyCvImprovements;
 /// Input-shape validation for the frame-apply command (Fas 4b PR-7, #656). Bounded
 /// machine tokens only — the semantic rules (frame existence, criterion match, slot
 /// grounding, fingerprint equality) live in the handler/composer where the live review
-/// is available; this layer rejects malformed shapes before any work is done.
+/// is available; this layer rejects malformed shapes before any work is done. The
+/// per-change shape rules are the SHARED <see cref="FrameInputRules"/> (one rule source
+/// with the preview validator — architect review Minor 1); only the fingerprint echo is
+/// apply-specific (the preview MINTS it, so it has none to validate).
 /// </summary>
 public sealed class ApplyCvImprovementsCommandValidator : AbstractValidator<ApplyCvImprovementsCommand>
 {
@@ -22,30 +26,14 @@ public sealed class ApplyCvImprovementsCommandValidator : AbstractValidator<Appl
 
         RuleForEach(c => c.Changes).ChildRules(change =>
         {
-            // One uppercase letter + 1-2 digits — the rubric's criterion-id shape
-            // (parity Resume.SetFindingStatus's IsValidCriterionId).
-            change.RuleFor(x => x.CriterionId)
-                .Matches("^[A-Z][0-9]{1,2}$")
-                .WithMessage("Kriterie-id måste vara en bokstav följd av 1–2 siffror.");
-
-            change.RuleFor(x => x.FrameId)
-                .NotEmpty().WithMessage("Ram-id krävs.")
-                .MaximumLength(64).WithMessage("Ram-id får vara högst 64 tecken.");
+            change.RuleFor(x => x.CriterionId).MustBeCriterionIdShape();
+            change.RuleFor(x => x.FrameId).MustBeFrameIdShape();
+            change.RuleFor(x => x.SlotInputs).MustBeSlotInputsShape();
 
             // Full SHA-256 as lowercase hex (parity the ledger's fingerprint shape).
             change.RuleFor(x => x.FindingFingerprint)
                 .Matches("^[0-9a-f]{64}$")
                 .WithMessage("Fingeravtrycket måste vara 64 hexadecimala tecken.");
-
-            change.RuleFor(x => x.SlotInputs)
-                .NotEmpty().WithMessage("Ram-fälten krävs.")
-                .Must(s => s.Count <= 12).WithMessage("Högst tolv ram-fält.")
-                .Must(s => s.Keys.All(k => !string.IsNullOrWhiteSpace(k) && k.Length <= 32))
-                .WithMessage("Ram-fältens namn får vara högst 32 tecken.")
-                .Must(s => s.Values.All(v => v is { Length: <= 200 }))
-                .WithMessage("Ram-fältens värden får vara högst 200 tecken.")
-                .Must(s => s.Values.All(v => v is null || !v.Any(char.IsControl)))
-                .WithMessage("Ram-fältens värden får inte innehålla kontrolltecken.");
         });
     }
 }

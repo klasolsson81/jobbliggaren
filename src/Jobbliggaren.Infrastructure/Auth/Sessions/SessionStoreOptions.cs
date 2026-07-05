@@ -30,15 +30,24 @@ public sealed class SessionStoreOptions
         RotationInterval = TimeSpan.Zero,
     };
 
-    // Persistent = "Håll mig inloggad" checked. LinkedIn-like reach (30d sliding /
-    // 180d cap) with mandatory session-id rotation every 24h (security C3, required
-    // because the cap exceeds 30d).
+    // Persistent = "Håll mig inloggad" checked. 30d sliding + session-id rotation every
+    // 24h. The cap stays <= 30d until the rotation DRIVER (the middleware that calls
+    // /auth/refresh) ships in the activation PR — security C3/COND-2: no > 30d reach
+    // until rotation is actually driven, at which point the cap is bumped to 180d
+    // atomically with the driver. Rotation is defined here but dormant (nothing threads
+    // rememberMe -> Persistent yet).
     public SessionLifetimeProfile Persistent { get; init; } = new()
     {
         SlidingTtl = TimeSpan.FromDays(30),
-        AbsoluteTtl = TimeSpan.FromDays(180),
+        AbsoluteTtl = TimeSpan.FromDays(30),
         RotationInterval = TimeSpan.FromHours(24),
     };
+
+    // How long a rotation "claim" key lives (SET NX) — just long enough to serialize a
+    // concurrent burst of refresh requests so exactly one rotates. After a rotation the
+    // interval-gate (RotatedAt) blocks re-rotation for RotationInterval, so this only
+    // guards the momentary race, not the steady state.
+    public TimeSpan RotationClaimTtl { get; init; } = TimeSpan.FromSeconds(30);
 
     public SessionLifetimeProfile ProfileFor(SessionLifetime lifetime) => lifetime switch
     {

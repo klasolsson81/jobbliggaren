@@ -22,6 +22,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
     private RedisSessionStore _mediumTtlStore = null!;
     private RedisSessionStore _defaultStore = null!;
     private RedisSessionStore _cappedStore = null!;
+    private RedisSessionStore _rotatingStore = null!;
     private IDatabase _db = null!;
     private ConnectionMultiplexer _mux = null!;
     private RedisCache _cache = null!;
@@ -76,6 +77,10 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
                     AbsoluteTtl = TimeSpan.FromDays(30),
                 },
             }));
+
+        // Default profiles (Persistent 30d/30d + 24h rotation), driven by the mutable
+        // clock so the rotation tests can jump past the interval.
+        _rotatingStore = new RedisSessionStore(cache, _mux, _capClock, Options.Create(new SessionStoreOptions()));
     }
 
     public async ValueTask DisposeAsync()
@@ -339,6 +344,72 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
         // Past the 30d Legacy ceiling it is evicted (not silently treated as a longer profile).
         _capClock.UtcNow = _capClock.UtcNow.AddDays(31);
         (await _cappedStore.GetAsync(sessionId, ct)).ShouldBeNull();
+    }
+
+    // #2b1: rotation mints a new id, hard-deletes the old key, preserves CreatedAt (the
+    // cap anchor), and updates the user index so InvalidateAllForUser still revokes the
+    // rotated session.
+    [Fact]
+    public async Task RotateAsync_ShouldMintNewIdHardDeleteOldAndKeepIndex_WhenDue()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var session = await _rotatingStore.CreateAsync(userId, SessionLifetime.Persistent, ct);
+
+        _capClock.UtcNow = _capClock.UtcNow.AddHours(25); // past the 24h rotation interval
+
+        var rotation = await _rotatingStore.RotateAsync(session.Id, ct);
+
+        rotation.ShouldNotBeNull();
+        rotation!.NewId.Reveal().ShouldNotBe(session.Id.Reveal());
+
+        // Old key hard-deleted; new session valid with CreatedAt carried verbatim.
+        (await _db.KeyExistsAsync(RedisKey(session.Id))).ShouldBeFalse();
+        var rotated = await _rotatingStore.GetAsync(rotation.NewId, ct);
+        rotated.ShouldNotBeNull();
+        rotated!.CreatedAt.ShouldBe(session.CreatedAt);
+
+        // Index followed the rotation: bulk-invalidate revokes exactly the new session.
+        (await _rotatingStore.InvalidateAllForUserAsync(userId, ct)).ShouldBe(1);
+        (await _rotatingStore.GetAsync(rotation.NewId, ct)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task RotateAsync_ShouldReturnNull_WhenNotDue()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var session = await _rotatingStore.CreateAsync(Guid.NewGuid(), SessionLifetime.Persistent, ct);
+
+        _capClock.UtcNow = _capClock.UtcNow.AddHours(1); // within the 24h interval
+
+        (await _rotatingStore.RotateAsync(session.Id, ct)).ShouldBeNull();
+        (await _rotatingStore.GetAsync(session.Id, ct)).ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task RotateAsync_ShouldReturnNull_ForNonRotatingProfile()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var session = await _rotatingStore.CreateAsync(Guid.NewGuid(), SessionLifetime.Legacy, ct);
+
+        _capClock.UtcNow = _capClock.UtcNow.AddDays(5);
+
+        (await _rotatingStore.RotateAsync(session.Id, ct)).ShouldBeNull();
+    }
+
+    // True concurrency against real Redis: the SET NX claim elects exactly one rotator.
+    [Fact]
+    public async Task RotateAsync_ShouldElectSingleWinner_WhenConcurrent()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var session = await _rotatingStore.CreateAsync(Guid.NewGuid(), SessionLifetime.Persistent, ct);
+
+        _capClock.UtcNow = _capClock.UtcNow.AddHours(25);
+
+        var results = await Task.WhenAll(
+            Enumerable.Range(0, 20).Select(_ => _rotatingStore.RotateAsync(session.Id, ct)));
+
+        results.Count(r => r is not null).ShouldBe(1);
     }
 
     // Unprefixed session member (what RedisSessionStore stores in the user-index SET and

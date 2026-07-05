@@ -233,7 +233,7 @@ describe("AuthCard", () => {
     const password = screen.getByLabelText("Lösenord");
     expect(password).toHaveAttribute("aria-describedby", "password-hint");
     const hint = document.getElementById("password-hint");
-    expect(hint).toHaveTextContent("Minst 8 tecken.");
+    expect(hint).toHaveTextContent("Minst 12 tecken.");
   });
 
   it("shows the register fine-print only on the register tab", async () => {

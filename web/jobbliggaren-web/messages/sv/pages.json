@@ -180,7 +180,7 @@
       "emailLabel": "E-postadress",
       "emailHint": "Formatet är namn@domän.se",
       "passwordLabel": "Lösenord",
-      "passwordHint": "Minst 8 tecken.",
+      "passwordHint": "Minst 12 tecken.",
       "rememberMeLabel": "Håll mig inloggad",
       "rememberMeHint": "Du förblir inloggad på den här enheten i upp till 180 dagar och kan logga ut när du vill. På en delad dator bör du lämna rutan omarkerad.",
       "submit": "Skapa konto",

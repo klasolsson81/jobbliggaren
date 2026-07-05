@@ -147,6 +147,22 @@ public class PromoteParsedResumeCommandHandlerTests
         reloaded.DeletedAt.ShouldBe(FakeDateTimeProvider.Default.UtcNow);
     }
 
+    [Fact]
+    public async Task Handle_PromotesWithImportOrigin()
+    {
+        // Fas 4b PR-3 (ADR 0096): promoting a parsed import must stamp the canonical Resume's
+        // provenance as Import — set by CreateFromParsed construction, never by a setter.
+        var db = TestAppDbContextFactory.Create();
+        var (parsed, _) = await SeedOwnedAsync(db, _userId);
+
+        var result = await CreateSut(db).Handle(
+            Command(parsed.Id.Value), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        var resume = db.Resumes.Local.ShouldHaveSingleItem();
+        resume.Origin.ShouldBe(ResumeSourceOrigin.Import);
+    }
+
     // ===============================================================
     // Auth / not-found
     // ===============================================================

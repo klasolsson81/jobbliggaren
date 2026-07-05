@@ -230,7 +230,7 @@ describe("ApplicationRow (v3 .jp-app)", () => {
     render(<ApplicationRow application={makeApplication()} now={FIXED_NOW} />);
     expect(
       screen.getByRole("link", {
-        name: "Backend-utvecklare – Volvo – Skickad",
+        name: "Backend-utvecklare, Volvo, Skickad",
       })
     ).toBeInTheDocument();
   });

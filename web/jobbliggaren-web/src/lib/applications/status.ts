@@ -56,6 +56,41 @@ export const PIPELINE_ORDER: ApplicationStatus[] = [
 ];
 
 /**
+ * De aktiva stegen på pipelinevägen (Utkast → Erbjudande). Resten
+ * (Accepterad/Nekad/Återtagen/Ghosted) är terminala/vilande och grupperas under
+ * "AVSLUT & VILANDE"-kickern i Lista-vyn (design 2a §5) och får `--jp-surface-2`
+ * i stegrailen (§7). SSOT — delas av containern, stegrailen och Lista-sektionerna
+ * så partitionen aldrig kan drifta isär (CLAUDE.md §9.1 DRY).
+ */
+export const ACTIVE_PIPELINE_STATUSES: ApplicationStatus[] = [
+  "Draft",
+  "Submitted",
+  "Acknowledged",
+  "InterviewScheduled",
+  "Interviewing",
+  "OfferReceived",
+];
+
+const ACTIVE_PIPELINE_STATUS_SET: ReadonlySet<ApplicationStatus> = new Set(
+  ACTIVE_PIPELINE_STATUSES,
+);
+
+export function isActivePipelineStatus(status: ApplicationStatus): boolean {
+  return ACTIVE_PIPELINE_STATUS_SET.has(status);
+}
+
+/**
+ * Status → statusvariant-nyckel ("info"/"brand"/"success"/"warning"/"danger"/
+ * "neutral") för `data-status-variant`-attributet. Återbrukar
+ * STATUS_BADGE_VARIANT + PILL_VARIANT_CLASS (samma källa som status-taggen och
+ * modalens status-block) så stegrailens 3px-toppkant färgkodas mot EXAKT samma
+ * status-tokens — ingen ny token, ingen drift (CLAUDE.md §9.1 DRY, DESIGN.md).
+ */
+export function getStatusVariantKey(status: ApplicationStatus): string {
+  return PILL_VARIANT_CLASS[STATUS_BADGE_VARIANT[status]];
+}
+
+/**
  * BadgeVariant → v3 `.jp-pill--{variant}`-suffix. Speglar
  * STATUS_BADGE_VARIANT-semantiken mot v3 .jp-pill-systemet
  * (HANDOVER §5.7). Delas av app-row v3 och ansökan-modalen så

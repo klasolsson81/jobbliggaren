@@ -12,7 +12,7 @@
     "statsAriaLabel": "Liveräkning från Platsbanken",
     "activeCount": "{count, plural, one {aktiv annons} other {aktiva annonser}}",
     "newToday": "nya idag",
-    "deltaAriaLabel": "{count} nya sedan senaste kontroll",
+    "deltaAriaLabel": "{count, plural, one {# ny} other {# nya}} sedan senaste kontroll",
     "openMenu": "Öppna meny"
   },
   "notifications": {

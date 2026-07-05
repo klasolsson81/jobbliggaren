@@ -73,6 +73,67 @@ describe("HeaderStats (ADR 0064 — inloggad live-stats + delta)", () => {
     expect(screen.getByText("+3")).toBeInTheDocument();
   });
 
+  it("annonserar delta via en alltid-monterad role=status live-region; visuella pillen är aria-hidden — #624", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          activeCount: 45_585,
+          newToday: 315,
+          isStale: false,
+          refreshedAt: "2026-05-24T03:10:00+00:00",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    global.fetch = fetchSpy;
+
+    render(<HeaderStats initialStats={INITIAL} />);
+
+    // Live-regionen är ALLTID monterad (en skärmläsare annonserar bara
+    // ändringar i en region som redan finns) och tom före första delta →
+    // ingen falsk annons vid initial render.
+    expect(screen.getByRole("status").textContent).toBe("");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+    });
+
+    // Delta uppträdde → live-regionen bär annonseringsmeningen. Biter vid
+    // revert: utan role=status (åter till aria-label på generisk span) kastar
+    // getByRole.
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "3 nya sedan senaste kontroll",
+    );
+    // Den visuella +N-pillen är aria-hidden → skärmläsaren läser inte "+3"
+    // separat (annonsen kommer från live-regionen). Biter om aria-hidden tas bort.
+    expect(screen.getByText("+3")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("live-region böjer singular korrekt vid exakt 1 ny (ICU-plural) — #624", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          activeCount: 45_581,
+          newToday: 313,
+          isStale: false,
+          refreshedAt: "2026-05-24T03:10:00+00:00",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    global.fetch = fetchSpy;
+
+    render(<HeaderStats initialStats={INITIAL} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+    });
+
+    // 312 → 313 = +1: singular "1 ny", inte "1 nya". Biter om ICU-pluralen tas bort.
+    expect(screen.getByRole("status").textContent).toBe(
+      "1 ny sedan senaste kontroll",
+    );
+  });
+
   it("uppdaterar siffrorna men visar INGEN delta när newToday ej ökat", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(

@@ -143,10 +143,37 @@ worktrees can share the index state — never `git commit -a` (memory
 
 ### 3.4 Cleanup
 
+**Automated (issue #673, ADR 0094 — observe-only until the Klas ratchet).** Two
+hooks keep merged worktrees from piling up (the 2026-07-05 hygiene pass had to
+remove 61 by hand):
+
+- `SessionEnd` (`.claude/hooks/session-end.sh`) writes a **close-stamp** into the
+  current worktree's per-worktree marker `.jbl-worktree.json` — but only on a
+  genuinely-terminal reason (`logout` / `prompt_input_exit`), **never** on
+  `clear`/`resume` (a `/clear` fires `SessionEnd(reason=clear)` and would else
+  falsely retire a live worktree). The hook never deletes anything.
+- `SessionStart` (`.claude/hooks/worktree-reaper.sh`) opens the marker for the
+  current worktree and **reaps** every OTHER worktree that is, by *conjunction*:
+  a linked worktree (not the main copy), not the current cwd, on a feature
+  branch, **close-stamped**, **clean**, and whose **PR is MERGED**
+  (`gh pr --state merged`, the squash-safe oracle). Any doubt → skip-and-report.
+
+The reaper is **observe-only by default** — it logs `WOULD reap …` to
+`docs/sessions/worktree-reaper-<date>.log` and does nothing. It only performs
+the local, recoverable ops (`worktree remove` → `rm -rf` leftover → `branch -D`)
+when `JBL_WORKTREE_REAP=live` is set (the Klas ratchet). The **shared remote is
+never auto-touched**: merged branches are listed as `git push origin --delete`
+candidates for the babysitter/manual sweep, never deleted by the hook. See ADR
+0094 for the full safe-to-reap predicate and the must-not invariants.
+
+**Manual (always available; the fallback for anything the reaper skips — crashed
+sessions, pre-marker worktrees, remote branches):**
+
 ```powershell
 git worktree remove C:/tmp/jbl-<context>   # after merge
 git worktree prune                          # drop stale registrations
 git branch -d feat/<context>-<slug>
+git push origin --delete feat/<context>-<slug>   # remote (never automated)
 ```
 
 ---

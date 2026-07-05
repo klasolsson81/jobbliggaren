@@ -6,6 +6,10 @@
 .claude/backups/
 .claude/tasks/
 .claude/scheduled_tasks.lock
+# Per-worktree provenance marker (worktree-reaper, issue #673) — one per worktree
+# root, never committed; must stay ignored so it never dirties the reaper clean-check.
+# The trailing * also covers the transient .tmp.<pid> write file (atomic write + mv).
+.jbl-worktree.json*
 
 # Environment files (dev secrets)
 .env

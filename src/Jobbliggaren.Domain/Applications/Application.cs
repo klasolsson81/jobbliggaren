@@ -49,9 +49,19 @@ public sealed class Application : AggregateRoot<ApplicationId>
 
     private readonly List<FollowUp> _followUps = [];
     private readonly List<ApplicationNote> _notes = [];
+    private readonly List<StatusChange> _statusChanges = [];
 
     public IReadOnlyList<FollowUp> FollowUps => _followUps.AsReadOnly();
     public IReadOnlyList<ApplicationNote> Notes => _notes.AsReadOnly();
+
+    /// <summary>
+    /// Append-only history of status transitions (ADR 0092 D4), recorded inside
+    /// <see cref="TransitionTo"/> / <see cref="MarkGhosted"/> so it is atomically
+    /// consistent with <see cref="Status"/>. Empty for applications created before
+    /// the timeline shipped — history is never backfilled/fabricated; it starts
+    /// forward from the first post-ship transition. Detail-only projection.
+    /// </summary>
+    public IReadOnlyList<StatusChange> StatusChanges => _statusChanges.AsReadOnly();
 
     // EF Core constructor
     private Application() { }
@@ -157,10 +167,15 @@ public sealed class Application : AggregateRoot<ApplicationId>
                 "Application.InvalidTransition",
                 $"Övergång från {Status.Name} till {target.Name} är inte tillåten."));
 
+        // Capture the transition instant ONCE (Create-factory precedent) so
+        // UpdatedAt, LastStatusChangeAt, the recorded StatusChange, and the
+        // domain event all carry the exact same timestamp — one transition is one
+        // moment, and the timeline's ChangedAt must equal LastStatusChangeAt.
+        var now = clock.UtcNow;
         var previous = Status;
         Status = target;
-        UpdatedAt = clock.UtcNow;
-        LastStatusChangeAt = clock.UtcNow;
+        UpdatedAt = now;
+        LastStatusChangeAt = now;
 
         // Stamp the apply date on the FIRST submit only (idempotent). A
         // Ghosted→Submitted reactivation (ApplicationStatus.cs:47) finds
@@ -168,7 +183,7 @@ public sealed class Application : AggregateRoot<ApplicationId>
         // month you originally applied, not the month you re-opened a ghosted
         // thread (issue #316; senior-cto-advisor 2026-06-28 D3 amendment).
         if (target == ApplicationStatus.Submitted && AppliedAt is null)
-            AppliedAt = clock.UtcNow;
+            AppliedAt = now;
 
         // Retention / GDPR data-minimisation (issue #315, ADR 0086 D3, GDPR Art.
         // 5(1)(c)): on the user's TERMINAL transition (Accepted/Rejected/
@@ -182,8 +197,13 @@ public sealed class Application : AggregateRoot<ApplicationId>
         if (IsTerminal(target))
             AdSnapshot = AdSnapshot?.WithoutDescription();
 
+        // ADR 0092 D4: record the transition on the append-only timeline in the
+        // same aggregate mutation (one UnitOfWork), so the timeline can never
+        // diverge from the current Status.
+        RecordStatusChange(previous, target, now);
+
         RaiseDomainEvent(
-            new ApplicationStatusTransitionedDomainEvent(Id, JobSeekerId, previous, target, clock.UtcNow));
+            new ApplicationStatusTransitionedDomainEvent(Id, JobSeekerId, previous, target, now));
         return Result.Success();
     }
 
@@ -192,14 +212,26 @@ public sealed class Application : AggregateRoot<ApplicationId>
         if (Status != ApplicationStatus.Submitted && Status != ApplicationStatus.Acknowledged)
             return Result.Success(); // idempotent — inget att göra
 
+        var now = clock.UtcNow;
         var previous = Status;
         Status = ApplicationStatus.Ghosted;
-        UpdatedAt = clock.UtcNow;
-        LastStatusChangeAt = clock.UtcNow;
+        UpdatedAt = now;
+        LastStatusChangeAt = now;
+        // System-detected ghosting is still a status change — record it on the
+        // timeline (ADR 0092 D4) so a ghosted thread shows how it got there.
+        RecordStatusChange(previous, ApplicationStatus.Ghosted, now);
         RaiseDomainEvent(
-            new ApplicationGhostedDomainEvent(Id, JobSeekerId, previous, clock.UtcNow));
+            new ApplicationGhostedDomainEvent(Id, JobSeekerId, previous, now));
         return Result.Success();
     }
+
+    // Append a transition to the timeline. Single writer for both TransitionTo
+    // and MarkGhosted so the two status-change paths record identically (ADR
+    // 0092 D4). The caller passes the transition's own timestamp so ChangedAt is
+    // consistent with LastStatusChangeAt.
+    private void RecordStatusChange(
+        ApplicationStatus from, ApplicationStatus to, DateTimeOffset changedAt) =>
+        _statusChanges.Add(StatusChange.Create(from, to, changedAt));
 
     /// <summary>
     /// True unless the application has reached a terminal status
@@ -306,6 +338,7 @@ public sealed class Application : AggregateRoot<ApplicationId>
         DeletedAt = clock.UtcNow;
         foreach (var followUp in _followUps) followUp.SoftDelete(clock);
         foreach (var note in _notes) note.SoftDelete(clock);
+        foreach (var change in _statusChanges) change.SoftDelete(clock);
         RaiseDomainEvent(new ApplicationDeletedDomainEvent(Id, JobSeekerId, clock.UtcNow));
     }
 

@@ -146,6 +146,15 @@ public sealed class ApplicationConfiguration : IEntityTypeConfiguration<DomainAp
             .IsRequired()
             .OnDelete(DeleteBehavior.Cascade);
 
+        // StatusChange timeline (ADR 0092 D4) — same shadow-FK + cascade pattern
+        // as FollowUps/Notes above (a related aggregate-owned entity, not an EF
+        // owned type); config in StatusChangeConfiguration.
+        builder.HasMany(a => a.StatusChanges)
+            .WithOne()
+            .HasForeignKey("ApplicationId")
+            .IsRequired()
+            .OnDelete(DeleteBehavior.Cascade);
+
         // #506 (persistence audit #482, ADR 0045 query-hygiene): applications
         // carried no index on its owner key job_seeker_id (the pre-existing
         // ix_applications_stale_detection is a partial index on

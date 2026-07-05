@@ -19,7 +19,7 @@ internal sealed class A1MeasurableResultsRule : ICriterionRule
     // (parity A7/C3 #489).
     private const double MissingFailRatio = 0.50;
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
         var bullets = ReviewText.ExperienceBullets(context);
@@ -69,7 +69,7 @@ internal sealed class A2ActionVerbsRule : ICriterionRule
 {
     public string CriterionId => "A2";
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
         var bullets = ReviewText.ExperienceBullets(context);
@@ -127,13 +127,13 @@ internal sealed class A2ActionVerbsRule : ICriterionRule
     }
 
     private static bool StartsWithStrongVerb(
-        CvReviewContext context, string bullet, IReadOnlyCollection<string> strongOpeners)
+        CriterionEvaluationContext context, string bullet, IReadOnlyCollection<string> strongOpeners)
     {
         var first = FirstLexeme(context, bullet);
         return first.Length > 0 && strongOpeners.Contains(first);
     }
 
-    private static string FirstLexeme(CvReviewContext context, string text)
+    private static string FirstLexeme(CriterionEvaluationContext context, string text)
     {
         var lexemes = context.Analyzer.ToLexemes(text, context.Language);
         return lexemes.Count > 0 ? lexemes[0] : string.Empty;
@@ -145,7 +145,7 @@ internal sealed class A4GapsRule : ICriterionRule
 {
     public string CriterionId => "A4";
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
         var dated = context.DatedExperiences
@@ -211,7 +211,7 @@ internal sealed class A6ConcretionRule : ICriterionRule
 {
     public string CriterionId => "A6";
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
         var bullets = ReviewText.ExperienceBullets(context);
@@ -262,7 +262,7 @@ internal sealed class A7ClicheRule : ICriterionRule
 {
     public string CriterionId => "A7";
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
         var prose = ReviewText.AllProse(context);
@@ -309,7 +309,7 @@ internal sealed class A8ProfileRule : ICriterionRule
     // A7/A1/C3 #489). Pre-fix ">100 ord" was only a Warn, contradicting the versioned rubric.
     private const int MaxWords = 100;
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
         var profile = context.Content.Profile;
@@ -369,7 +369,7 @@ internal sealed class A9SoftSkillsRule : ICriterionRule
 {
     public string CriterionId => "A9";
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
         var prose = ReviewText.AllProse(context);
@@ -417,7 +417,7 @@ internal sealed class A10EducationRule : ICriterionRule
 {
     public string CriterionId => "A10";
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
         var education = context.Content.Education;

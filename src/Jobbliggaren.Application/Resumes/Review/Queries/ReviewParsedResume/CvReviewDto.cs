@@ -35,6 +35,13 @@ public sealed record CvReviewCategoryDto(
 /// review reads for a job-seeker, not a developer (CLAUDE.md §10). <see cref="CriterionId"/>
 /// (e.g. "A1") rides along as a de-emphasised support reference, never the primary label.
 /// </para>
+/// <para>
+/// <see cref="UserStatus"/>/<see cref="UserStatusStaleAt"/> (Fas 4b PR-4, ADR 0093
+/// §D2(e)) carry the persisted finding-status overlay on the CANONICAL review — the
+/// status name ("Resolved"/"Ignored"/"Open") the user recorded, and the staleness stamp
+/// when the CV changed under a Resolved decision that is still present. Null on the
+/// staging review and when no (surviving) decision exists.
+/// </para>
 /// </summary>
 public sealed record CvCriterionVerdictDto(
     string CriterionId,
@@ -42,7 +49,9 @@ public sealed record CvCriterionVerdictDto(
     string Category,
     string Verdict,
     IReadOnlyList<CitedEvidenceDto> Evidence,
-    string? NotAssessedReason);
+    string? NotAssessedReason,
+    string? UserStatus = null,
+    DateTimeOffset? UserStatusStaleAt = null);
 
 /// <summary>
 /// Tagged transport form of <see cref="CitedEvidence"/>: <c>Kind</c> is "TextSpan" or

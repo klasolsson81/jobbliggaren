@@ -19,7 +19,7 @@ internal sealed partial class C2ToneRule : ICriterionRule
     [GeneratedRegex(@"\p{Lu}{5,}", RegexOptions.CultureInvariant)]
     private static partial Regex ShoutingRegex();
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
         var prose = ReviewText.AllProse(context);
@@ -75,7 +75,7 @@ internal sealed partial class C3ActiveVoiceRule : ICriterionRule
     // drift-guard so code that drifts from the rubric fails CI (parity A7 #489).
     private const double FailRatio = 0.30;
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
         var prose = ReviewText.AllProse(context);
@@ -137,7 +137,7 @@ internal sealed partial class C4PerspectiveRule : ICriterionRule
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex ThirdPersonRegex();
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
         var prose = ReviewText.AllProse(context);
@@ -175,7 +175,7 @@ internal sealed partial class C6AbbreviationsRule : ICriterionRule
     [GeneratedRegex(@"\b\p{Lu}{2,5}\b", RegexOptions.CultureInvariant)]
     private static partial Regex AcronymRegex();
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
         var prose = ReviewText.AllProse(context);

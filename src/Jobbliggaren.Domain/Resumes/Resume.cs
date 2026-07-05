@@ -47,6 +47,15 @@ public sealed class Resume : AggregateRoot<ResumeId>
     private readonly List<ResumeVersion> _versions = [];
     public IReadOnlyList<ResumeVersion> Versions => _versions.AsReadOnly();
 
+    // Fas 4b PR-4 (ADR 0093 §D2(e), CTO-bind PR-4 Q1/Q2): the DEK-free finding-status
+    // ledger — a child collection INSIDE the aggregate so a decision and the content
+    // change that invalidates it serialize on the same xmin token (never eventual
+    // consistency inside one aggregate). Bounded: ≤ criteria-count per rubric version
+    // the user has acted on. Loaded explicitly (Include) on the write path and the
+    // review-merge read path only — never on list queries (§3.6).
+    private readonly List<ResumeFindingStatus> _findingStatuses = [];
+    public IReadOnlyList<ResumeFindingStatus> FindingStatuses => _findingStatuses.AsReadOnly();
+
     /// <summary>
     /// Returnerar Master-versionen. Kastar <see cref="DomainException"/> om invarianten
     /// "exakt en aktiv Master" bryts (audit-trail-kontextuell signal istället för
@@ -210,10 +219,24 @@ public sealed class Resume : AggregateRoot<ResumeId>
             return validation;
 
         var master = MasterVersion;
+        var now = clock.UtcNow;
         master.UpdateContent(content, clock);
         ApplyDenormalizedProjection(content);
-        UpdatedAt = clock.UtcNow;
-        RaiseDomainEvent(new ResumeContentUpdatedDomainEvent(Id, master.Id, clock.UtcNow));
+
+        // Fas 4b PR-4 (ADR 0093 §D2(e), CTO-bind PR-4 Q2/Q3): a content change
+        // invalidates previously-resolved findings — the text they were resolved
+        // against may have moved. Stamped HERE, transactionally with the content
+        // write, so a resolved badge can never survive a change it has not seen.
+        // Only Resolved rows go stale (Ignored is a content-independent rule
+        // opt-out; Open has nothing to invalidate). Requires the caller to have
+        // loaded the FindingStatuses collection (write-path Include contract).
+        foreach (var finding in _findingStatuses)
+        {
+            finding.MarkStaleIfResolved(now);
+        }
+
+        UpdatedAt = now;
+        RaiseDomainEvent(new ResumeContentUpdatedDomainEvent(Id, master.Id, now));
         return Result.Success();
     }
 
@@ -311,6 +334,81 @@ public sealed class Resume : AggregateRoot<ResumeId>
         RaiseDomainEvent(new ResumeTemplateOptionsChangedDomainEvent(Id, now));
         return Result.Success();
     }
+
+    /// <summary>
+    /// Records the user's decision on one review finding (Fas 4b PR-4, ADR 0093 §D2(e);
+    /// handoff §5.3 "markera som klar" / "ignorera regeln"). Upserts the ledger row keyed
+    /// (<paramref name="rubricVersion"/>, <paramref name="criterionId"/>) — the SINGLE
+    /// mutation path for the finding-status child collection (CTO-bind PR-4 Q1/Q2). A
+    /// fresh decision clears any staleness stamp. The fingerprint is server-derived by
+    /// the command handler from the engine's current finding (never client-submitted,
+    /// ADR 0074 Invariant 2); this method validates shape, not provenance.
+    /// </summary>
+    public Result SetFindingStatus(
+        string? rubricVersion,
+        string? criterionId,
+        ReviewFindingStatus? status,
+        string? targetFingerprint,
+        IDateTimeProvider clock)
+    {
+        if (!IsValidRubricVersion(rubricVersion))
+            return Result.Failure(DomainError.Validation(
+                "Resume.RubricVersionInvalid", "Rubrikversion måste ha formen major.minor.patch."));
+
+        if (!IsValidCriterionId(criterionId))
+            return Result.Failure(DomainError.Validation(
+                "Resume.CriterionIdInvalid", "Kriterie-id måste vara en bokstav följd av 1–2 siffror."));
+
+        if (status is null)
+            return Result.Failure(DomainError.Validation(
+                "Resume.FindingStatusRequired", "Status krävs."));
+
+        if (!IsValidFingerprint(targetFingerprint))
+            return Result.Failure(DomainError.Validation(
+                "Resume.FingerprintInvalid", "Fingeravtrycket måste vara 64 hexadecimala tecken."));
+
+        var now = clock.UtcNow;
+        var existing = _findingStatuses.FirstOrDefault(f =>
+            f.RubricVersion == rubricVersion && f.CriterionId == criterionId);
+
+        if (existing is null)
+        {
+            _findingStatuses.Add(ResumeFindingStatus.Create(
+                rubricVersion!, criterionId!, status, targetFingerprint!, now));
+        }
+        else
+        {
+            existing.ChangeStatus(status, targetFingerprint!, now);
+        }
+
+        UpdatedAt = now;
+        RaiseDomainEvent(new ResumeFindingStatusChangedDomainEvent(
+            Id, rubricVersion!, criterionId!, status, now));
+        return Result.Success();
+    }
+
+    // "major.minor.patch", each part 1–4 digits — a bounded machine token (parity with
+    // the Application-side RubricVersion.TryParse), deliberately no free text.
+    private static bool IsValidRubricVersion([NotNullWhen(true)] string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version) || version.Length > 14)
+            return false;
+
+        var parts = version.Split('.');
+        return parts.Length == 3
+            && parts.All(p => p.Length is >= 1 and <= 4 && p.All(char.IsAsciiDigit));
+    }
+
+    // One uppercase category letter + 1–2 digits ("A1".."E12") — the rubric's id shape.
+    private static bool IsValidCriterionId([NotNullWhen(true)] string? id) =>
+        id is { Length: 2 or 3 }
+        && char.IsAsciiLetterUpper(id[0])
+        && id[1..].All(char.IsAsciiDigit);
+
+    // Full SHA-256 as lowercase hex (CTO-bind PR-4 Q4 — never truncated).
+    private static bool IsValidFingerprint([NotNullWhen(true)] string? fingerprint) =>
+        fingerprint is { Length: 64 }
+        && fingerprint.All(c => char.IsAsciiDigit(c) || c is >= 'a' and <= 'f');
 
     /// <summary>
     /// Soft-raderar en version. Master-versionen kan aldrig raderas (bryter invarianten

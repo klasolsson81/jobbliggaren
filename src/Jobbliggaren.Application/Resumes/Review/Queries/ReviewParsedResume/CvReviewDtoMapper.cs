@@ -13,14 +13,18 @@ internal static class CvReviewDtoMapper
     // verdict (which is the assessment OUTCOME). The handler supplies the criterionId→Name
     // lookup from the rubric so the DTO carries the readable heading from its single source
     // of truth — never a duplicated FE-side code→title map (CTO Decision, CLAUDE.md §10/§5).
+    // statusOverlay (Fas 4b PR-4, D2(e)): criterionId → the surviving user decision, supplied
+    // only by the canonical review handler (staging has no ledger — passes nothing).
     public static CvReviewDto ToDto(
-        this CvReviewResult result, IReadOnlyDictionary<string, string> nameByCriterionId) =>
+        this CvReviewResult result,
+        IReadOnlyDictionary<string, string> nameByCriterionId,
+        IReadOnlyDictionary<string, (string Status, DateTimeOffset? StaleAt)>? statusOverlay = null) =>
         new(
             RubricVersion: result.RubricVersion.ToString(),
             Profile: result.Profile.ToString(),
             Categories: result.Categories.Select(ToDto).ToList(),
-            Verdicts: result.Verdicts.Select(v => ToDto(v, nameByCriterionId)).ToList(),
-            CriticalFails: result.CriticalFails.Select(v => ToDto(v, nameByCriterionId)).ToList(),
+            Verdicts: result.Verdicts.Select(v => ToDto(v, nameByCriterionId, statusOverlay)).ToList(),
+            CriticalFails: result.CriticalFails.Select(v => ToDto(v, nameByCriterionId, statusOverlay)).ToList(),
             AssessedCount: result.AssessedCount,
             TotalCount: result.TotalCount);
 
@@ -34,8 +38,16 @@ internal static class CvReviewDtoMapper
             Band: category.Band.ToString());
 
     private static CvCriterionVerdictDto ToDto(
-        CvCriterionVerdict verdict, IReadOnlyDictionary<string, string> nameByCriterionId) =>
-        new(
+        CvCriterionVerdict verdict,
+        IReadOnlyDictionary<string, string> nameByCriterionId,
+        IReadOnlyDictionary<string, (string Status, DateTimeOffset? StaleAt)>? statusOverlay)
+    {
+        var status = statusOverlay is not null
+            && statusOverlay.TryGetValue(verdict.CriterionId, out var s)
+            ? s
+            : default((string Status, DateTimeOffset? StaleAt)?);
+
+        return new(
             CriterionId: verdict.CriterionId,
             // Fall back to the id if the rubric somehow lacks the criterion (defensive — an
             // N-1/synthetic asset); never throw on a missing heading.
@@ -43,7 +55,10 @@ internal static class CvReviewDtoMapper
             Category: verdict.Category.ToString(),
             Verdict: verdict.Verdict.ToString(),
             Evidence: verdict.Evidence.Select(ToDto).ToList(),
-            NotAssessedReason: verdict.NotAssessedReason);
+            NotAssessedReason: verdict.NotAssessedReason,
+            UserStatus: status?.Status,
+            UserStatusStaleAt: status?.StaleAt);
+    }
 
     private static CitedEvidenceDto ToDto(CitedEvidence evidence) => evidence switch
     {

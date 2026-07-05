@@ -29,8 +29,13 @@ public sealed class UpdateMasterContentCommandHandler(
             .FirstOrDefaultAsync(cancellationToken);
 
         var resumeId = new ResumeId(command.ResumeId);
+        // FindingStatuses is part of the write-path Include contract (Fas 4b PR-4,
+        // CTO-bind Q2): UpdateMasterContent stamps staleness on previously-resolved
+        // findings IN the same transaction — an unloaded collection would silently
+        // skip the stamp.
         var resume = await db.Resumes
             .Include(r => r.Versions)
+            .Include(r => r.FindingStatuses)
             .FirstOrDefaultAsync(r => r.Id == resumeId && r.JobSeekerId == jobSeekerId, cancellationToken);
 
         if (resume is null)

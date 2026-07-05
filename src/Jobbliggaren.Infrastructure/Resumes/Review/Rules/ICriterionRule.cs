@@ -15,5 +15,5 @@ internal interface ICriterionRule
     string CriterionId { get; }
 
     /// <summary>Produces the verdict + cited evidence for this criterion (Invariant 2).</summary>
-    CvCriterionVerdict Evaluate(CvReviewContext context);
+    CvCriterionVerdict Evaluate(CriterionEvaluationContext context);
 }

@@ -1,6 +1,7 @@
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,10 +10,11 @@ namespace Jobbliggaren.Application.UnitTests.Common;
 
 internal static class TestAppDbContextFactory
 {
-    internal static AppDbContext Create()
+    internal static AppDbContext Create(params IInterceptor[] interceptors)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptors)
             // ADR 0062 — JobAdConfiguration mappar shadow-propertyn
             // JobAd.SearchVector (NpgsqlTsVector, STORED tsvector generated
             // column). Den EF Core InMemory-providern saknar stöd för

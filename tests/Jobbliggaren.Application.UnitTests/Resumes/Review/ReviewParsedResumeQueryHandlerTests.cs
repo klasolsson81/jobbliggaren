@@ -23,9 +23,10 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 ///
 /// The <see cref="ICvReviewEngine"/> is NSubstitute-mocked — the handler under test is the
 /// ownership/cross-user/null-return orchestration, NOT the engine internals (those are
-/// CvReviewEngineTests). The seeded ParsedResume is read back IN THE SAME CONTEXT so the
-/// EF-Ignore'd Content shadow does not need re-materialization (InMemory cannot decrypt the
-/// Form-B shadow — parity with the GetResumeByIdQueryHandler resume-found note).
+/// CvReviewEngineTests). Since Fas 4b PR-4 the handler builds the unified adapter input
+/// (CvReviewContext.FromParsed) itself, so the EF-Ignore'd Content is hydrated on
+/// materialization by <see cref="FakeContentHydrationInterceptor"/> (the production
+/// decryption interceptor's test double; InMemory cannot decrypt the Form-B shadow).
 ///
 /// SPEC-DRIVEN. RED until the query + handler + DTO + ICvReviewEngine ship.
 ///
@@ -51,16 +52,24 @@ public class ReviewParsedResumeQueryHandlerTests
     private ReviewParsedResumeQueryHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>
         new(db, _currentUser, _engine, _rubricProvider, _failedAccess);
 
+    private static ParsedResumeContent TestContent() => new(
+        new ParsedContact("Anna Andersson", "anna@example.com", "070-1234567", "Stockholm"),
+        profile: "Erfaren backend-utvecklare.",
+        experience: [new ParsedExperience("Backend-utvecklare", "Acme AB", "2021–2024", "raw")]);
+
+    // Fas 4b PR-4 (ADR 0093 §D8): the handler now builds the unified CvReviewContext
+    // (CvReviewContext.FromParsed) BEFORE the mocked engine, so it dereferences the
+    // EF-Ignore'd Content that only the decryption interceptor populates — hydrate it
+    // on materialization exactly like production does (FakeContentHydrationInterceptor;
+    // the real decrypt path stays proven by the Api integration tests).
+    private static Infrastructure.Persistence.AppDbContext CreateDb() =>
+        TestAppDbContextFactory.Create(new FakeContentHydrationInterceptor(parsedContent: TestContent()));
+
     private static ParsedResume BuildParsedResume(JobSeekerId owner)
     {
-        var content = new ParsedResumeContent(
-            new ParsedContact("Anna Andersson", "anna@example.com", "070-1234567", "Stockholm"),
-            profile: "Erfaren backend-utvecklare.",
-            experience: [new ParsedExperience("Backend-utvecklare", "Acme AB", "2021–2024", "raw")]);
-
         return ParsedResume.Create(
             owner, "CV_Anna.pdf", "application/pdf", ResumeLanguage.Sv,
-            content, "Anna Andersson\nLedde teamet.", CvReviewFixtures.ConfidentConfidence(),
+            TestContent(), "Anna Andersson\nLedde teamet.", CvReviewFixtures.ConfidentConfidence(),
             PersonnummerScanOutcome.None, [], CvReviewFixtures.FixedClock.Default).Value;
     }
 
@@ -76,7 +85,7 @@ public class ReviewParsedResumeQueryHandlerTests
     }
 
     private void StubEngine(CvReviewResult result) =>
-        _engine.ReviewAsync(Arg.Any<ParsedResume>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>())
+        _engine.ReviewAsync(Arg.Any<CvReviewContext>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<CvReviewResult>(result));
 
     // The engine returns the rich Application result; the handler maps it to the transport
@@ -110,7 +119,7 @@ public class ReviewParsedResumeQueryHandlerTests
     [Fact]
     public async Task Handle_ShouldReturnDto_WhenOwnerRequestsOwnParsedResume()
     {
-        var db = TestAppDbContextFactory.Create();
+        var db = CreateDb();
         var (parsed, _) = await SeedOwnedAsync(db, _userId);
         StubEngine(SampleResult());
 
@@ -137,13 +146,13 @@ public class ReviewParsedResumeQueryHandlerTests
         result.Verdicts.ShouldContain(v => v.CriterionId == "B3" && v.Name == "Kontaktuppgifter kompletta");
 
         await _engine.Received(1).ReviewAsync(
-            Arg.Any<ParsedResume>(), RenderProfile.Ats, Arg.Any<CancellationToken>());
+            Arg.Any<CvReviewContext>(), RenderProfile.Ats, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Handle_ShouldPassParsedVisualProfileToEngine_WhenProfileIsVisual()
     {
-        var db = TestAppDbContextFactory.Create();
+        var db = CreateDb();
         var (parsed, _) = await SeedOwnedAsync(db, _userId);
         StubEngine(SampleResult());
 
@@ -151,7 +160,7 @@ public class ReviewParsedResumeQueryHandlerTests
             new ReviewParsedResumeQuery(parsed.Id.Value, "Visual"), TestContext.Current.CancellationToken);
 
         await _engine.Received(1).ReviewAsync(
-            Arg.Any<ParsedResume>(), RenderProfile.Visual, Arg.Any<CancellationToken>());
+            Arg.Any<CvReviewContext>(), RenderProfile.Visual, Arg.Any<CancellationToken>());
     }
 
     // ===============================================================
@@ -161,7 +170,7 @@ public class ReviewParsedResumeQueryHandlerTests
     [Fact]
     public async Task Handle_ShouldReturnNull_WhenUserIdIsNull()
     {
-        var db = TestAppDbContextFactory.Create();
+        var db = CreateDb();
         var (parsed, _) = await SeedOwnedAsync(db, _userId);
 
         var anon = Substitute.For<ICurrentUser>();
@@ -177,7 +186,7 @@ public class ReviewParsedResumeQueryHandlerTests
     [Fact]
     public async Task Handle_ShouldReturnNull_WhenJobSeekerNotFound()
     {
-        var db = TestAppDbContextFactory.Create(); // no JobSeeker for _userId
+        var db = CreateDb(); // no JobSeeker for _userId
 
         var result = await CreateSut(db).Handle(
             new ReviewParsedResumeQuery(Guid.NewGuid(), "Ats"), TestContext.Current.CancellationToken);
@@ -188,7 +197,7 @@ public class ReviewParsedResumeQueryHandlerTests
     [Fact]
     public async Task Handle_ShouldReturnNullAndNotCallEngine_WhenParsedResumeNotFound()
     {
-        var db = TestAppDbContextFactory.Create();
+        var db = CreateDb();
         var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -198,13 +207,13 @@ public class ReviewParsedResumeQueryHandlerTests
 
         result.ShouldBeNull();
         await _engine.DidNotReceive().ReviewAsync(
-            Arg.Any<ParsedResume>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>());
+            Arg.Any<CvReviewContext>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Handle_ShouldReturnNullAndLogCrossUserAttempt_WhenParsedResumeBelongsToOtherUser()
     {
-        var db = TestAppDbContextFactory.Create();
+        var db = CreateDb();
         // Another user's parsed resume.
         var (otherParsed, _) = await SeedOwnedAsync(db, Guid.NewGuid());
         // The requesting user has a job seeker but does not own the artifact.
@@ -219,6 +228,6 @@ public class ReviewParsedResumeQueryHandlerTests
         _failedAccess.Received(1).LogCrossUserAttempt(
             "ParsedResume", otherParsed.Id.Value, _userId, Arg.Any<string>());
         await _engine.DidNotReceive().ReviewAsync(
-            Arg.Any<ParsedResume>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>());
+            Arg.Any<CvReviewContext>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>());
     }
 }

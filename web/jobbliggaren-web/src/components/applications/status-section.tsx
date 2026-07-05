@@ -78,7 +78,13 @@ export function StatusSection({
           className="jp-section__head jp-section__toggle jp-section__toggle--group"
           aria-expanded={open}
           aria-controls={listId}
-          onClick={() => setOpenState((v) => !v)}
+          // Under forceOpen (aktivt filter/sök) är sektionen låst öppen; klicket
+          // muterar då INTE openState (annars läcker ett dolt kollapsat läge fram
+          // när filtret rensas — code-review Nit). Utan forceOpen togglar det som
+          // vanligt.
+          onClick={() => {
+            if (!forceOpen) setOpenState((v) => !v);
+          }}
         >
           <ChevronDown
             size={18}

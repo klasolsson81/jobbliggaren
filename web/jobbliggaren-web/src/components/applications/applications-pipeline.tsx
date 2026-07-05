@@ -24,10 +24,13 @@ const DEFAULT_OPEN_STATUSES: ReadonlySet<ApplicationStatus> = new Set<
 >(["Submitted", "InterviewScheduled", "OfferReceived"]);
 
 interface ApplicationsPipelineProps {
-  // Serialiserad pipeline-data från RSC (page.tsx) — alla 10 grupper, även tomma,
-  // var och en med backend-`count` + `applications` (var och en bär
-  // `attentionSignal`). ADR 0092 D2: ren data över RSC→Client-gränsen, aldrig en
-  // funktion eller ett renderat träd; ön renderar raderna själv (rowSlots borta).
+  // Serialiserad pipeline-data från RSC (page.tsx) — de ICKE-tomma statusgrupperna
+  // (backend `GroupBy(Status)` utelämnar tomma statusar helt), var och en med
+  // backend-`count` + `applications` (var och en bär `attentionSignal`). Ön är
+  // defensiv mot en frånvarande status (`byStatus.get() ?? 0`) så en tom eller
+  // gles svarsform aldrig kraschar. ADR 0092 D2: ren data över RSC→Client-gränsen,
+  // aldrig en funktion eller ett renderat träd; ön renderar raderna själv (rowSlots
+  // borta).
   groups: PipelineGroupDto[];
   // Server-beräknad referenstidpunkt som ISO-sträng (#336-determinism). En
   // referenspunkt per request; rekonstrueras EN gång här och trådas ned till

@@ -9,7 +9,7 @@ import {
 } from "@/lib/applications/status";
 import { formatDate } from "@/lib/i18n/format";
 import { daysSince } from "@/lib/i18n/relative-time";
-import type { ApplicationDto } from "@/lib/types/applications";
+import type { ApplicationDto } from "@/lib/dto/applications";
 
 interface ApplicationRowProps {
   application: ApplicationDto;
@@ -57,9 +57,9 @@ interface ApplicationRowProps {
  * när ingen kopplad/manuell annons finns (tillstånd 3).
  */
 export function ApplicationRow({ application, now }: ApplicationRowProps) {
-  // Synchronous next-intl translator — keeps ApplicationRow a non-async RSC so
-  // it remains server-renderable as a serialized slot (the page.tsx pattern)
-  // and its synchronous render test stays green.
+  // Synchronous next-intl client hooks — the row is a client component (#630
+  // PR 5) rendered by the client island straight from serialized DTO data; the
+  // synchronous render keeps its render test simple and deterministic.
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
   const format = useFormatter();

@@ -90,6 +90,39 @@ describe("ApplicationsPipeline — Lista-sektioner (2a)", () => {
     expect(draftIdx).toBeLessThan(acceptedIdx);
   });
 
+  it("gles svarsform: utelämnade statusar (group == null) kraschar inte", () => {
+    // Backend GroupBy(Status) utelämnar tomma statusar HELT — svaret är glest,
+    // inte alla 10 grupper med count:0. Ön måste vara defensiv (byStatus.get()
+    // ?? 0). Bygg bara två grupper; railen ska ändå rendera alla 10 celler med
+    // 0 för de frånvarande.
+    const sparse: PipelineGroupDto[] = [
+      {
+        status: "Submitted",
+        count: 2,
+        applications: [
+          makeApplication({ id: "sp-s0", status: "Submitted" }),
+          makeApplication({ id: "sp-s1", status: "Submitted" }),
+        ],
+      },
+      {
+        status: "OfferReceived",
+        count: 1,
+        applications: [makeApplication({ id: "sp-o0", status: "OfferReceived" })],
+      },
+    ];
+    render(<ApplicationsPipeline groups={sparse} nowIso={FIXED_NOW_ISO} />);
+
+    expect(document.getElementById("status-Submitted")).not.toBeNull();
+    expect(document.getElementById("status-OfferReceived")).not.toBeNull();
+    expect(document.getElementById("status-Draft")).toBeNull();
+    // Railen renderar alla 10 celler; en frånvarande status visar 0.
+    const rail = screen.getByRole("group", { name: "Filtrera på steg" });
+    expect(within(rail).getAllByRole("button")).toHaveLength(10);
+    const draftCell = within(rail).getByRole("button", { name: /Utkast/ });
+    expect(draftCell.querySelector(".jp-steprail__count")).toHaveTextContent("0");
+    expect(draftCell).toHaveAttribute("data-empty", "true");
+  });
+
   it("default-öppna = Skickad/Intervju bokad/Erbjudande; övriga kollapsade", () => {
     renderPipeline(
       makePipeline({
@@ -227,6 +260,31 @@ describe("ApplicationsPipeline — sök", () => {
     expect(
       within(section).queryByText("Rejected-titel-0"),
     ).not.toBeInTheDocument();
+  });
+
+  it("klick på header under forceOpen läcker inte fram ett dolt kollapsat läge", async () => {
+    const user = userEvent.setup();
+    renderPipeline(makePipeline({ Rejected: 1 }));
+
+    // Rejected är default-kollapsad. Sök tvingar den öppen.
+    const search = screen.getByRole("searchbox", {
+      name: "Sök bland ansökningar",
+    });
+    await user.type(search, "Rejected-titel-0");
+    const toggle = within(document.getElementById("status-Rejected")!).getByRole(
+      "button",
+      { name: /Nekad/ },
+    );
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    // Klick under forceOpen är inert (muterar inte openState).
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    // Rensa söket → Rejected återgår till sitt default (kollapsad), inte ett
+    // läckt öppet läge.
+    await user.clear(search);
+    expect(document.getElementById("status-Rejected-list")).toBeNull();
   });
 
   it("sök som inte matchar visar tomläge för Alla ansökningar", async () => {

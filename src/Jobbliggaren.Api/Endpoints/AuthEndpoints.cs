@@ -54,7 +54,9 @@ public static class AuthEndpoints
         group.MapPost("/refresh", async (IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new RefreshSessionCommand(), ct);
-            return Results.Ok(result);
+            return result.IsFailure
+                ? ToErrorResult(result.Error)
+                : Results.Ok(result.Value);
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.AuthLoosePolicy);
 

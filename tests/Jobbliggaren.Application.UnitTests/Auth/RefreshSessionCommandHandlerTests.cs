@@ -25,9 +25,9 @@ public class RefreshSessionCommandHandlerTests
         var result = await CreateHandler().Handle(
             new RefreshSessionCommand(), TestContext.Current.CancellationToken);
 
-        result.Rotated.ShouldBeTrue();
-        result.SessionId.ShouldBe("rotated-id");
-        result.ExpiresAt.ShouldBe(expiresAt);
+        result.Value.Rotated.ShouldBeTrue();
+        result.Value.SessionId.ShouldBe("rotated-id");
+        result.Value.ExpiresAt.ShouldBe(expiresAt);
     }
 
     [Fact]
@@ -41,9 +41,9 @@ public class RefreshSessionCommandHandlerTests
         var result = await CreateHandler().Handle(
             new RefreshSessionCommand(), TestContext.Current.CancellationToken);
 
-        result.Rotated.ShouldBeFalse();
-        result.SessionId.ShouldBeNull();
-        result.ExpiresAt.ShouldBeNull();
+        result.Value.Rotated.ShouldBeFalse();
+        result.Value.SessionId.ShouldBeNull();
+        result.Value.ExpiresAt.ShouldBeNull();
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class RefreshSessionCommandHandlerTests
         var result = await CreateHandler().Handle(
             new RefreshSessionCommand(), TestContext.Current.CancellationToken);
 
-        result.Rotated.ShouldBeFalse();
+        result.Value.Rotated.ShouldBeFalse();
         await _sessionStore.DidNotReceive().RotateAsync(Arg.Any<SessionId>(), Arg.Any<CancellationToken>());
     }
 }

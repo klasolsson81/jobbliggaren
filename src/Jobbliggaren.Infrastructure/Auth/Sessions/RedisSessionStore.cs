@@ -267,8 +267,8 @@ public sealed class RedisSessionStore(
             // one may rotate. SET NX on a short-lived claim key; a loser returns null and
             // keeps using `current` (still valid). The claim self-expires, so a crash
             // between claim and rotation just defers rotation to the next interval.
-            var claimKey = $"{KeyPrefix}{Key(current)}:rotating";
-            if (!await db.StringSetAsync(claimKey, "1", _options.RotationClaimTtl, When.NotExists))
+            if (!await db.StringSetAsync(
+                    RotationClaimKey(current), RotationClaimValue, _options.RotationClaimTtl, When.NotExists))
                 return null;
 
             var newId = SessionId.Generate();
@@ -325,6 +325,11 @@ public sealed class RedisSessionStore(
     // direkt (inte IDistributedCache som auto-prefixar via InstanceName).
     private static string UserSessionsKey(Guid userId) =>
         string.Create(CultureInfo.InvariantCulture, $"{KeyPrefix}user:{userId}:sessions");
+
+    // Single-winner rotation claim (SET NX). Manually prefixed since it goes via
+    // IConnectionMultiplexer, not IDistributedCache. The value is an unused sentinel.
+    private const string RotationClaimValue = "1";
+    private static string RotationClaimKey(SessionId sessionId) => $"{KeyPrefix}{Key(sessionId)}:rotating";
 
     // RotatedAt + Lifetime are written from PR2a. Older payloads lack them: Lifetime
     // deserializes to Legacy (ordinal 0) and RotatedAt to default — both handled at the

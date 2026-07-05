@@ -21,10 +21,18 @@ namespace Jobbliggaren.Application.Resumes.Common;
 /// <c>Resume</c> aggregate's <c>ValidateContent</c> owns structure; the guard operates on the
 /// transport <see cref="ResumeContentDto"/> (the raw text the scanner needs), before
 /// <c>ResumeContentMapper.ToDomain</c>. An architecture test
-/// (<c>ResumeContentPersonnummerGuardTests</c>) requires EVERY command handler whose command
-/// carries a <see cref="ResumeContentDto"/> to call this guard — fail-closed for future write
-/// surfaces (e.g. a <c>CreateTailored</c> handler, latent today), backstopped by per-handler
-/// unit tests.</para>
+/// (<c>ResumeContentPersonnummerGuardTests</c>, #499/#650) requires EVERY command handler that
+/// is a resume-content write surface to call this guard, keyed on the UNION of two probes:
+/// its command carries a <see cref="ResumeContentDto"/> anywhere in the public property graph,
+/// OR the handler (transitively, within the Application module) calls a <c>Resume</c>/
+/// <c>ResumeVersion</c> member taking a Domain <c>ResumeContent</c> — the sink-keyed tripwire.
+/// The sink key is what makes the backstop fail-closed for a future TargetId-based apply
+/// command (ids + frame inputs only, no DTO on the command) that composes content server-side:
+/// the aggregate sink call, not the command shape, is the invariant point. Backstopped by
+/// per-handler unit tests; non-Mediator write paths, sink calls delegated to a Domain
+/// collaborator (the walk is Application-bounded, issue #669), and non-devirtualized
+/// interface dispatch remain outside the tripwire's subject set (known residuals, documented
+/// in the test).</para>
 /// </summary>
 internal static class ResumeContentPersonnummerGuard
 {

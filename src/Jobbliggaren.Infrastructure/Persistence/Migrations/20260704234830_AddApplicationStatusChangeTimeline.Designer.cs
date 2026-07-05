@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using NpgsqlTypes;
@@ -13,9 +14,11 @@ using NpgsqlTypes;
 namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260704234830_AddApplicationStatusChangeTimeline")]
+    partial class AddApplicationStatusChangeTimeline
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -990,71 +993,6 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_saved_searches_job_seeker_id");
 
                     b.ToTable("saved_searches", (string)null);
-                });
-
-            modelBuilder.Entity("Jobbliggaren.Infrastructure.CompanyRegister.ScbCompanyRegisterEntry", b =>
-                {
-                    b.Property<string>("OrganizationNumber")
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
-                        .HasColumnName("organization_number");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<bool>("HasAdvertisingBlock")
-                        .HasColumnType("boolean")
-                        .HasColumnName("reklamsparr");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("company_name");
-
-                    b.Property<string>("ScbStatusRaw")
-                        .HasMaxLength(2)
-                        .HasColumnType("character varying(2)")
-                        .HasColumnName("scb_status_raw");
-
-                    b.Property<string>("SeatMunicipalityCode")
-                        .IsRequired()
-                        .HasMaxLength(4)
-                        .HasColumnType("character varying(4)")
-                        .HasColumnName("sate_kommun_code");
-
-                    b.Property<string>("SeatMunicipalityName")
-                        .HasColumnType("text")
-                        .HasColumnName("sate_kommun_name");
-
-                    b.PrimitiveCollection<List<string>>("SniCodes")
-                        .IsRequired()
-                        .HasColumnType("text[]")
-                        .HasColumnName("sni_codes");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
-                    b.Property<DateTimeOffset>("SyncedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("synced_at");
-
-                    b.HasKey("OrganizationNumber")
-                        .HasName("pk_company_register");
-
-                    b.HasIndex("SeatMunicipalityCode")
-                        .HasDatabaseName("ix_company_register_sate_kommun_code");
-
-                    b.HasIndex("Status")
-                        .HasDatabaseName("ix_company_register_status");
-
-                    b.HasIndex("SyncedAt")
-                        .HasDatabaseName("ix_company_register_synced_at");
-
-                    b.ToTable("company_register", (string)null);
                 });
 
             modelBuilder.Entity("Jobbliggaren.Infrastructure.JobAds.SnapshotMisses.JobAdSnapshotMiss", b =>

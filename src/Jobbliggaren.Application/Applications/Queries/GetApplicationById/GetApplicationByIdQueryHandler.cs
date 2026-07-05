@@ -39,12 +39,15 @@ public sealed class GetApplicationByIdQueryHandler(
         var applicationId = new Jobbliggaren.Domain.Applications.ApplicationId(query.Id);
 
         // Materialisera aggregatet (interceptorn dekrypterar krypterade fält).
-        // IdentityResolution dedupar Notes/FollowUps utan kartesisk dubblering
-        // (AsSplitQuery är relational-only, ej tillgänglig via IAppDbContext).
+        // IdentityResolution dedupar Notes/FollowUps/StatusChanges utan kartesisk
+        // dubblering (AsSplitQuery är relational-only, ej tillgänglig via
+        // IAppDbContext). StatusChanges är okrypterad (ADR 0092 D4) men följer
+        // samma materialiserings-väg för enhetlighet.
         var app = await db.Applications
             .AsNoTrackingWithIdentityResolution()
             .Include(a => a.FollowUps)
             .Include(a => a.Notes)
+            .Include(a => a.StatusChanges)
             .FirstOrDefaultAsync(
                 a => a.Id == applicationId && a.JobSeekerId == jobSeekerId,
                 cancellationToken);
@@ -116,6 +119,12 @@ public sealed class GetApplicationByIdQueryHandler(
                 f.Outcome.Name, f.OutcomeAt, f.CreatedAt))],
             [.. app.Notes.Select(n => new NoteDto(
                 n.Id.Value, n.Content, n.CreatedAt))],
+            // ADR 0092 D4: chronological (oldest-first); the FE reverses for a
+            // newest-first timeline. Explicit OrderBy so the order is
+            // deterministic and not left to EF collection-load order.
+            [.. app.StatusChanges
+                .OrderBy(s => s.ChangedAt)
+                .Select(s => new StatusChangeDto(s.From.Name, s.To.Name, s.ChangedAt))],
             jobAd,
             preservedAd);
     }

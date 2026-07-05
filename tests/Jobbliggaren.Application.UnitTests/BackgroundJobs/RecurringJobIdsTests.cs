@@ -7,13 +7,13 @@ namespace Jobbliggaren.Application.UnitTests.BackgroundJobs;
 /// #204 / TD-83 PR2 — locks the closed trigger allowlist <see cref="RecurringJobIds.All"/>.
 /// This set is the security boundary for the admin "trigger now" surface (fan-out/RCE
 /// prevention, security-auditor T7): a change to its membership is a security-relevant
-/// change and must be deliberate. The exact-16 count + distinctness + Ordinal comparer are
+/// change and must be deliberate. The exact-17 count + distinctness + Ordinal comparer are
 /// asserted here; the registrar-parity (registered ids == this set, no drift) is asserted in
 /// <c>RecurringJobRegistrarParityTests</c> (Worker side).
 /// </summary>
 public class RecurringJobIdsTests
 {
-    // The 15 constants, listed independently of RecurringJobIds.All so the test is a real
+    // The 17 constants, listed independently of RecurringJobIds.All so the test is a real
     // second source of truth (a drift between the constants and All would surface here).
     private static readonly string[] ExpectedIds =
     [
@@ -33,12 +33,13 @@ public class RecurringJobIdsTests
         RecurringJobIds.DigestDispatchDaily,
         RecurringJobIds.DigestDispatchWeekly,
         RecurringJobIds.RefreshLandingStats,
+        RecurringJobIds.SyncScbCompanyRegister,
     ];
 
     [Fact]
-    public void All_HasExactlySixteenMembers()
+    public void All_HasExactlySeventeenMembers()
     {
-        RecurringJobIds.All.Count.ShouldBe(16);
+        RecurringJobIds.All.Count.ShouldBe(17);
     }
 
     [Fact]
@@ -46,8 +47,8 @@ public class RecurringJobIdsTests
     {
         // FrozenSet dedups silently; assert against the raw constant list so a duplicated
         // const value (copy-paste slip) is caught rather than absorbed by the set.
-        ExpectedIds.Length.ShouldBe(16);
-        ExpectedIds.Distinct(StringComparer.Ordinal).Count().ShouldBe(16);
+        ExpectedIds.Length.ShouldBe(17);
+        ExpectedIds.Distinct(StringComparer.Ordinal).Count().ShouldBe(17);
     }
 
     [Fact]

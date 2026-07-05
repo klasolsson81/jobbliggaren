@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using NpgsqlTypes;
@@ -13,9 +14,11 @@ using NpgsqlTypes;
 namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260704145053_AddCompanyRegister")]
+    partial class AddCompanyRegister
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -174,45 +177,6 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_follow_ups_application_id");
 
                     b.ToTable("follow_ups", (string)null);
-                });
-
-            modelBuilder.Entity("Jobbliggaren.Domain.Applications.StatusChange", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("ApplicationId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("application_id");
-
-                    b.Property<DateTimeOffset>("ChangedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("changed_at");
-
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("deleted_at");
-
-                    b.Property<string>("From")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("from_status");
-
-                    b.Property<string>("To")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("to_status");
-
-                    b.HasKey("Id")
-                        .HasName("pk_application_status_changes");
-
-                    b.HasIndex("ApplicationId")
-                        .HasDatabaseName("ix_application_status_changes_application_id");
-
-                    b.ToTable("application_status_changes", (string)null);
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.Auditing.AuditLogEntry", b =>
@@ -1330,16 +1294,6 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_follow_ups_applications_application_id");
                 });
 
-            modelBuilder.Entity("Jobbliggaren.Domain.Applications.StatusChange", b =>
-                {
-                    b.HasOne("Jobbliggaren.Domain.Applications.Application", null)
-                        .WithMany("StatusChanges")
-                        .HasForeignKey("ApplicationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_application_status_changes_applications_application_id");
-                });
-
             modelBuilder.Entity("Jobbliggaren.Domain.JobAds.JobAd", b =>
                 {
                     b.OwnsOne("Jobbliggaren.Domain.JobAds.Company", "Company", b1 =>
@@ -1456,8 +1410,6 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                     b.Navigation("FollowUps");
 
                     b.Navigation("Notes");
-
-                    b.Navigation("StatusChanges");
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.Resumes.Resume", b =>

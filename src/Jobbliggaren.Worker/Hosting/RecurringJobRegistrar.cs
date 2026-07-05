@@ -7,7 +7,9 @@ using Jobbliggaren.Application.JobAds.Jobs.ExpireJobAds;
 using Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 using Jobbliggaren.Application.JobAds.Jobs.RetainPlatsbankenJobAds;
 using Jobbliggaren.Application.Landing.Jobs.RefreshLandingStats;
+using Jobbliggaren.Infrastructure.CompanyRegister;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Jobbliggaren.Worker.Hosting;
 
@@ -44,7 +46,9 @@ namespace Jobbliggaren.Worker.Hosting;
 /// 02:00 UTC motsvarar svensk natt (03:00 vintertid / 04:00 sommartid) —
 /// lägst belastning på dev-DB och ingen konflikt med interaktiv användning.
 /// </summary>
-public sealed class RecurringJobRegistrar(IRecurringJobManager manager) : IHostedService
+public sealed class RecurringJobRegistrar(
+    IRecurringJobManager manager,
+    IOptions<ScbRegisterOptions> scbOptions) : IHostedService
 {
     public Task StartAsync(CancellationToken cancellationToken)
     {
@@ -146,6 +150,17 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager manager) : IHoste
             RecurringJobIds.RefreshLandingStats,
             job => job.RunAsync(CancellationToken.None),
             "*/5 * * * *");
+
+        // #560 (ADR 0091) — full SCB company-register population/refresh. Config-driven cron
+        // (ScbRegister:SyncCadenceCron; default weekly Mon 03:00 UTC per senior-cto-advisor Fork 3 —
+        // matches SCB's own weekly register update). Long-running (~1–3 h under the 10-calls/10-s
+        // throttle) → DisableConcurrentExecution(4h)-guarded. When ScbRegister:Enabled=false the job is
+        // still registered but the orchestrator no-ops (no SCB call, no cert) so the schedule stays
+        // drift-free with the RecurringJobIds allowlist.
+        manager.AddOrUpdate<ScbCompanyRegisterSyncWorker>(
+            RecurringJobIds.SyncScbCompanyRegister,
+            job => job.RunAsync(CancellationToken.None),
+            scbOptions.Value.SyncCadenceCron);
 
         return Task.CompletedTask;
     }

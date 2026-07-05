@@ -103,9 +103,9 @@ public class ScbPartitionPlannerTests
         var table = new Dictionary<string, int>
         {
             [$"{Form}=49|{Kommun}=0180"] = 5000,                     // seed + form-split → over cap
-            [$"{TwoDigit}=70|{Form}=49|{Kommun}=0180"] = 3000,       // 2-digit 70 → still over cap
+            [$"{TwoDigit}=70|{Form}=49|{Kommun}=0180"] = 2400,       // 2-digit 70 → still over cap (= Σ children)
             [$"{Bransch}=70100|{Form}=49|{Kommun}=0180"] = 1500,     // 5-digit 70100 → leaf (2-digit stripped)
-            [$"{Bransch}=70200|{Form}=49|{Kommun}=0180"] = 900,      // 5-digit 70200 → leaf
+            [$"{Bransch}=70200|{Form}=49|{Kommun}=0180"] = 900,      // 5-digit 70200 → leaf (Σ = 2400 = parent)
         };
         var outcome = new ScbSyncOutcome();
 
@@ -113,16 +113,19 @@ public class ScbPartitionPlannerTests
 
         leaves.Select(l => l.Count).OrderBy(c => c).ShouldBe([900, 1500]);
         leaves.ShouldAllBe(l => l.Count <= Cap);              // THE invariant
-        outcome.TruncatedOrErrored.ShouldBeFalse();           // clean run → sweep may apply
-        outcome.PartitionsCounted.ShouldBe(5);                // seed + form + 2-digit + 2×5-digit
+        leaves.ShouldAllBe(l => !l.OverCap);                  // #640: every leaf sliced clean, none over-cap
+        outcome.TruncatedOrErrored.ShouldBeFalse();           // clean run (Σ children = parent) → sweep may apply
+        outcome.PartitionsCounted.ShouldBe(5);                // seed + form + 2-digit + 2×5-digit (each counted once)
     }
 
     [Fact]
-    public async Task PlanAsync_MarksTruncated_WhenDeepestSniLeafStillOverCap()
+    public async Task PlanAsync_YieldsOverCapLeaf_WithoutLatching_WhenDeepestSniLeafStillOverCap()
     {
         // The dense-metro tail (e.g. Stockholm 0180 × form 49 × SNI 70100 = 2809 > 2000): even the
-        // 5-digit rung leaves it over cap and there is no finer SNI level, so the planner fetches what
-        // it can (client caps the rows) but latches truncated → the caller SKIPS the deregister sweep.
+        // 5-digit rung leaves it over cap and there is no finer SNI level. #640: the planner NO LONGER
+        // latches the run — it yields an OVER-CAP leaf and lets the client decide whether to protect the
+        // (kommun, SNI) key-space (partition-scoped sweep) or latch. Here the 2-digit parent equals the
+        // single 5-digit child (2809), so the completeness reconciliation passes — the run stays clean.
         var seed = new ScbQuery([
             new ScbCategoryFilter(Kommun, ["0180"]),
             new ScbCategoryFilter(Form, ["49"]),
@@ -137,24 +140,27 @@ public class ScbPartitionPlannerTests
         var table = new Dictionary<string, int>
         {
             [$"{Form}=49|{Kommun}=0180"] = 5000,
-            [$"{TwoDigit}=70|{Form}=49|{Kommun}=0180"] = 3000,
+            [$"{TwoDigit}=70|{Form}=49|{Kommun}=0180"] = 2809,
             [$"{Bransch}=70100|{Form}=49|{Kommun}=0180"] = 2809, // deepest rung, still over cap
         };
         var outcome = new ScbSyncOutcome();
 
         var leaves = await CollectAsync([seed], ladder, Counts(table), outcome);
 
-        leaves.ShouldContain(l => l.Count == 2809);
-        outcome.TruncatedOrErrored.ShouldBeTrue();
+        leaves.ShouldContain(l => l.Count == 2809 && l.OverCap);   // emitted over-cap for the client to bound
+        outcome.TruncatedOrErrored.ShouldBeFalse();                 // planner no longer latches on over-cap
+        outcome.ReconciliationGaps.ShouldBe(0);                     // Σ children (2809) = parent → no gap
+        outcome.PartitionsCounted.ShouldBe(4);                      // seed + form + 2-digit + 1×5-digit
     }
 
     [Fact]
-    public async Task PlanAsync_MarksTruncated_WhenPrefixRungHasNoChildrenForParentCode()
+    public async Task PlanAsync_YieldsOverCapLeaf_WithoutLatching_WhenPrefixRungHasNoChildrenForParentCode()
     {
         // Defensive: a prefix rung whose map has no entry for the parent's 2-digit code cannot split →
-        // Expand returns empty → same safe semantics as an exhausted ladder (fetch what we can, latch
-        // truncated). Shouldn't happen once the map is derived from the same niva-3 table, but the
-        // over-cap partition must never vanish silently.
+        // Expand returns empty → the planner yields the over-cap partition as an OVER-CAP leaf (no latch).
+        // The client cannot bound a (kommun, 5-digit-SNI) key from a 2-digit-level leaf, so IT latches
+        // truncated — verified in the client tests. Shouldn't happen once the map is derived from the same
+        // niva-3 table, but the over-cap partition must never vanish silently.
         var seed = new ScbQuery([
             new ScbCategoryFilter(Kommun, ["0180"]),
             new ScbCategoryFilter(TwoDigit, ["99"]),
@@ -172,8 +178,68 @@ public class ScbPartitionPlannerTests
 
         var leaves = await CollectAsync([seed], ladder, Counts(table), outcome);
 
-        leaves.ShouldContain(l => l.Count == 4000);
-        outcome.TruncatedOrErrored.ShouldBeTrue();
+        leaves.ShouldContain(l => l.Count == 4000 && l.OverCap);
+        outcome.TruncatedOrErrored.ShouldBeFalse();   // planner defers the protect-vs-latch call to the client
+    }
+
+    [Fact]
+    public async Task PlanAsync_MarksTruncated_WhenFiveDigitChildrenSumBelowParent_SniGap()
+    {
+        // #640 (Guard 2, no-SNI completeness): the 2-digit division counts 3000 but its 5-digit children
+        // sum to only 1800 — 1200 entities carry division "70" with no listed 5-digit subcode, invisible
+        // to every child. The planner reconciles at the 5-digit split and latches the run truncated so the
+        // steady-state sweep never mistakes those entities for de-registered companies.
+        var seed = new ScbQuery([
+            new ScbCategoryFilter(Kommun, ["0180"]),
+            new ScbCategoryFilter(Form, ["49"]),
+        ]);
+        var ladder = new IScbRung[]
+        {
+            new ScbStaticRung(Form, ["49"]),
+            new ScbStaticRung(TwoDigit, ["70"]),
+            new ScbPrefixRung(TwoDigit, Bransch, ChildBranschNiva: 3,
+                new Dictionary<string, IReadOnlyList<string>> { ["70"] = ["70100", "70200"] }),
+        };
+        var table = new Dictionary<string, int>
+        {
+            [$"{Form}=49|{Kommun}=0180"] = 5000,
+            [$"{TwoDigit}=70|{Form}=49|{Kommun}=0180"] = 3000,   // parent
+            [$"{Bransch}=70100|{Form}=49|{Kommun}=0180"] = 1000, // Σ children = 1800 < 3000 → gap
+            [$"{Bransch}=70200|{Form}=49|{Kommun}=0180"] = 800,
+        };
+        var outcome = new ScbSyncOutcome();
+
+        var leaves = await CollectAsync([seed], ladder, Counts(table), outcome);
+
+        leaves.Select(l => l.Count).OrderBy(c => c).ShouldBe([800, 1000]); // children still fetched
+        outcome.ReconciliationGaps.ShouldBe(1);
+        outcome.TruncatedOrErrored.ShouldBeTrue();                          // gap disables the whole sweep
+    }
+
+    [Fact]
+    public async Task PlanAsync_DoesNotReconcile_AtNonReconcilingStaticRung()
+    {
+        // Scoping: a static rung (Juridisk form, 2-digit division) does NOT reconcile — its children may
+        // legitimately sum below the parent (an entity with no code on that facet), and reconciling there
+        // would only spuriously latch on mid-run SCB count drift. Only the 5-digit prefix rung reconciles.
+        var seed = new ScbQuery([new ScbCategoryFilter(Kommun, ["0180"])]);
+        var ladder = new IScbRung[]
+        {
+            new ScbStaticRung(Form, ["49", "51"]),   // static rung, sums below parent, must NOT latch
+        };
+        var table = new Dictionary<string, int>
+        {
+            [$"{Kommun}=0180"] = 5000,                 // parent over cap
+            [$"{Form}=49|{Kommun}=0180"] = 1000,       // Σ children = 1500 < 5000, but static → no reconcile
+            [$"{Form}=51|{Kommun}=0180"] = 500,
+        };
+        var outcome = new ScbSyncOutcome();
+
+        var leaves = await CollectAsync([seed], ladder, Counts(table), outcome);
+
+        leaves.Select(l => l.Count).OrderBy(c => c).ShouldBe([500, 1000]);
+        outcome.ReconciliationGaps.ShouldBe(0);
+        outcome.TruncatedOrErrored.ShouldBeFalse();   // static-rung shortfall is not a completeness gap
     }
 
     [Fact]

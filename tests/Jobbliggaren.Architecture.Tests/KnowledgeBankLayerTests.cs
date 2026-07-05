@@ -11,11 +11,13 @@ namespace Jobbliggaren.Architecture.Tests;
 /// branches cannot creep in (ADR 0071/0074; CLAUDE.md §5).
 ///
 /// Goodhart parity with MatchScorerLayerTests / FullMatchScorerLayerTests:
-///   - RubricCriterion is pinned to exactly its 10 named props and asserted to carry
-///     NO numeric property — a criterion must never become a hidden opaque score.
+///   - RubricCriterion is pinned to exactly its 13 named props and asserted to carry
+///     NO scalar numeric property — a criterion must never become a hidden opaque score.
+///     (Per-criterion thresholds are a NAMED keyed dict — rubric v1.2, PR-5 CTO-bind D1 —
+///     explainable tuning data, not a scalar grade; the shape-pin admits it deliberately.)
 ///   - Rubric is pinned to EXPOSE Weights/CategoryWeights/Bands/CriticalFailIds/
 ///     Criteria, forcing the thresholds into DATA fields (loaded from JSON) rather than
-///     C# literals inside a scorer.
+///     C# literals inside a scorer — realised per-criterion in rubric v1.2.
 ///
 /// HONEST LIMIT (stated for the reviewer): reflection proves the contract SHAPE — that
 /// the thresholds are carried as data fields and the criterion has no numeric score. It

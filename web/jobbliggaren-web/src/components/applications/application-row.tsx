@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import { ChevronRight } from "lucide-react";
@@ -7,7 +9,7 @@ import {
 } from "@/lib/applications/status";
 import { formatDate } from "@/lib/i18n/format";
 import { daysSince } from "@/lib/i18n/relative-time";
-import type { ApplicationDto } from "@/lib/types/applications";
+import type { ApplicationDto } from "@/lib/dto/applications";
 
 interface ApplicationRowProps {
   application: ApplicationDto;
@@ -44,16 +46,20 @@ interface ApplicationRowProps {
  *
  * Hela raden är en Link till `/ansokningar/[id]` → vid soft-nav fångar
  * `@modal/(.)ansokningar/[id]` den och visar modal; hard-nav / delad länk
- * renderar fullsidan (ADR 0053, speglar F3 JobAdCard exakt). Förblir Server
- * Component (server-renderas i page.tsx, passas som serialiserbar slot).
+ * renderar fullsidan (ADR 0053, speglar F3 JobAdCard exakt). #630 PR 5 (ADR
+ * 0092 D2): raden är nu en KLIENTkomponent — ön (ApplicationsPipeline) tar emot
+ * serialiserbar data (`PipelineGroupDto[]` + `nowIso`) och renderar raden
+ * direkt; en klient-ö kan inte importera en Server Component, och rowSlots-
+ * slot-mappen (eece124-workaround) är därmed borta. Radens 2a-redesign (3-zons-
+ * grid, statusmeny, "Flytta till"-knapp) landar i PR 7 med sitt maskineri.
  *
  * Primär identitet = jobtitel; företag separat. Fallback till mono-kort-id
  * när ingen kopplad/manuell annons finns (tillstånd 3).
  */
 export function ApplicationRow({ application, now }: ApplicationRowProps) {
-  // Synchronous next-intl translator — keeps ApplicationRow a non-async RSC so
-  // it remains server-renderable as a serialized slot (the page.tsx pattern)
-  // and its synchronous render test stays green.
+  // Synchronous next-intl client hooks — the row is a client component (#630
+  // PR 5) rendered by the client island straight from serialized DTO data; the
+  // synchronous render keeps its render test simple and deterministic.
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
   const format = useFormatter();

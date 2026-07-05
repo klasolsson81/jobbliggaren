@@ -66,8 +66,8 @@
     },
     "row": {
       "fallbackTitle": "Application #{shortId}",
-      "ariaLabelWithIdentity": "{title} – {company} – {status}",
-      "ariaLabelFallback": "{title} – {status}",
+      "ariaLabelWithIdentity": "{title}, {company}, {status}",
+      "ariaLabelFallback": "{title}, {status}",
       "applyBy": "Apply by",
       "relativeApplied": "Submitted {days, plural, =0 {today} =1 {yesterday} other {# days ago}}",
       "relativeDraftUpdated": "Updated {days, plural, =0 {today} =1 {yesterday} other {# days ago}}"
@@ -79,7 +79,33 @@
       "emptyBody": "Select another tab or create a new application.",
       "attentionTitle": "Needs action",
       "sectionShownOfTotal": "showing {shown} of {total}",
-      "showMore": "Show more ({count})"
+      "showMore": "Show more ({count})",
+      "clickToShow": "Click to show"
+    },
+    "queue": {
+      "title": "Needs action",
+      "sortHint": "Sorted by how urgent it is",
+      "lede": "The most important first. Click a card for all the details.",
+      "empty": "Nothing needs action right now.",
+      "showMore": "Show {count} more",
+      "showFewer": "Show fewer"
+    },
+    "all": {
+      "title": "All applications",
+      "hint": "Click a row or a card for all the details",
+      "terminalKicker": "Closed and dormant",
+      "noResults": "No applications match the search or filter."
+    },
+    "controls": {
+      "searchAriaLabel": "Search applications",
+      "filterPrefix": "Filter:",
+      "clearFilterAriaLabel": "Remove the {step} filter"
+    },
+    "rail": {
+      "kicker": "All 10 steps",
+      "hint": "Click a step to filter the list, click again to clear",
+      "ariaLabel": "Filter by step",
+      "cellAriaLabel": "{step}, {count, plural, =0 {no applications} =1 {one application} other {# applications}}"
     },
     "attention": {
       "reason": {

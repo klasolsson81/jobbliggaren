@@ -52,10 +52,28 @@ internal sealed partial class ScbCompanyRegisterRefresher(
         var excludedPersonnummerShaped = 0;
         var excludedInvalid = 0;
 
+        // Heartbeat state for the long (~1–3 h) run — see the emit site in the loop below.
+        var batchesProcessed = 0;
+        var lastHeartbeat = startedAt;
+        var heartbeatInterval = TimeSpan.FromSeconds(60);
+
         await foreach (var batch in source
             .StreamLegalEntitiesAsync(outcome, cancellationToken).ConfigureAwait(false))
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            // Heartbeat: a healthy population runs ~1–3 h and otherwise emits nothing between the start
+            // and completion lines. Emit a progress line at most every heartbeatInterval — counts only,
+            // never an org.nr (§5). Before the empty-batch continue so it fires even through a run of
+            // fully-filtered batches (senior-cto-advisor 2026-07-05 live-observability guardrail).
+            batchesProcessed++;
+            var heartbeatNow = clock.UtcNow;
+            if (heartbeatNow - lastHeartbeat >= heartbeatInterval)
+            {
+                LogHeartbeat(logger, batchesProcessed, rowsUpserted, outcome.TotalRowsFetched,
+                    (heartbeatNow - startedAt).TotalMinutes);
+                lastHeartbeat = heartbeatNow;
+            }
 
             // The legal-entities-only ingest guard (pure, unit-tested in ScbLegalEntityFilter): drops
             // invalid org.nrs AND — defense-in-depth behind the SCB Juridisk-form ≠ 10 query filter —
@@ -162,6 +180,10 @@ internal sealed partial class ScbCompanyRegisterRefresher(
     [LoggerMessage(EventId = 5710, Level = LogLevel.Information,
         Message = "ScbCompanyRegisterRefresher: startad (population/refresh).")]
     private static partial void LogStarted(ILogger logger);
+
+    [LoggerMessage(EventId = 5715, Level = LogLevel.Information,
+        Message = "ScbCompanyRegisterRefresher: pågår — batchar={Batches}, upserted={Upserted}, fetched={Fetched}, förfluten min={ElapsedMin}. Loggar aldrig org.nr.")]
+    private static partial void LogHeartbeat(ILogger logger, int batches, int upserted, int fetched, double elapsedMin);
 
     [LoggerMessage(EventId = 5711, Level = LogLevel.Information,
         Message = "ScbCompanyRegisterRefresher: ScbRegister:Enabled=false — no-op (ingen SCB-anrop, inget cert).")]

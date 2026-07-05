@@ -7126,3 +7126,291 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-admintable__dense {
   font-size: var(--text-micro);
 }
+
+/* ══ Mina ansökningar 2a — Lista + delad chrome (#630 PR 5, ADR 0092) ═══════
+   "Kräver åtgärd"-kö (åtgärdskort-rutnät) + kontrollrad (sök + filterchip) +
+   stegrail "ALLA 10 STEG" + "Alla ansökningar"-Lista. Endast befintliga
+   --jp-*-tokens (DESIGN.md §14 — inga nya hex/radier). Rad-chassit (.jp-app)
+   återbrukas orört; stegrailens toppkant-färg keyar off data-status-variant,
+   samma status-tokens som status-taggen (CLAUDE.md §9.1 DRY). */
+
+/* Sektionsrubrik med STARK underlinje (design §3/§5 — border-strong mot
+   accordion-headens ordinarie border) + höger-justerad hint-slot. Delar
+   .jp-section__head-flexet. */
+.jp-section__head--strong {
+  border-bottom-color: var(--jp-border-strong);
+}
+.jp-section__hint {
+  margin-left: auto;
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+.jp-section__closedhint {
+  margin-left: 12px;
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+
+/* ── Kräver åtgärd-kön ── */
+.jp-attentionqueue {
+  margin-top: 8px;
+}
+.jp-attentionqueue__lede {
+  margin: 10px 0 14px;
+  max-width: 68ch;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+.jp-actioncard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(600px, 1fr));
+  gap: 12px;
+}
+@media (max-width: 680px) {
+  .jp-actioncard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.jp-actioncard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jp-actioncard__reason {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  /* Aldrig grå: informationsbärande text, hög kontrast (WCAG 1.4.1). */
+  color: var(--jp-ink-1);
+}
+.jp-actioncard__text {
+  max-width: 68ch;
+}
+/* Liten färgkodad indikator — färgen REINFORCERAR, texten bär meningen.
+   ALDRIG grön (grön = interaktion/grad). Buckets: success/warning/info. */
+.jp-actioncard__dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-ink-3);
+}
+.jp-actioncard__reason[data-signal="success"] .jp-actioncard__dot {
+  background: var(--jp-success);
+}
+.jp-actioncard__reason[data-signal="warning"] .jp-actioncard__dot {
+  background: var(--jp-warning);
+}
+.jp-actioncard__reason[data-signal="info"] .jp-actioncard__dot {
+  background: var(--jp-info);
+}
+.jp-attentionqueue__empty {
+  padding: 20px 22px;
+  border: 1px dashed var(--jp-border-strong);
+  border-radius: var(--jp-r-md);
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+.jp-attentionqueue__more {
+  margin-top: 12px;
+}
+
+/* ── Alla ansökningar (Lista) ── */
+.jp-allapps {
+  margin-top: 44px;
+}
+.jp-allapps__empty {
+  margin-top: 16px;
+  padding: 20px 22px;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+.jp-allapps__restkicker {
+  margin: 28px 0 4px;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+}
+
+/* ── Kontrollrad (sök + filterchip) ── */
+.jp-appcontrols {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+.jp-appcontrols__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 300px;
+  max-width: 100%;
+}
+.jp-appcontrols__searchicon {
+  position: absolute;
+  left: 12px;
+  color: var(--jp-ink-2);
+  pointer-events: none;
+}
+.jp-appcontrols__input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px 0 36px;
+  border: 1px solid var(--jp-border-strong);
+  border-radius: var(--jp-r-sm);
+  background: var(--jp-surface);
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-appcontrols__input:focus {
+  outline: none;
+  border-color: var(--jp-accent-700);
+  box-shadow: 0 0 0 2px var(--jp-accent-100);
+}
+.jp-listfilterchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding: 0 0 0 10px;
+  border: 1px solid var(--jp-accent-700);
+  border-radius: var(--jp-r-sm);
+  background: var(--jp-accent-50);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--jp-accent-900);
+}
+/* Hit-arean fyller chipens 32px-höjd × 32px (a11y-skillens 32×32-golv,
+   design-reviewer Minor 1) — ikonen förblir 14px, centrerad. */
+.jp-listfilterchip__rm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  color: var(--jp-accent-700);
+  cursor: pointer;
+}
+.jp-listfilterchip__rm:hover {
+  color: var(--jp-accent-900);
+}
+
+/* ── Stegrail "ALLA 10 STEG" ── */
+.jp-steprail {
+  margin: 12px 0 20px;
+}
+.jp-steprail__labelrow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.jp-steprail__kicker {
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+}
+.jp-steprail__hint {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+.jp-steprail__cells {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  overflow: hidden;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-steprail__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 0;
+  border-top: 3px solid var(--jp-border);
+  border-left: 1px solid var(--jp-border-soft);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 80ms;
+}
+.jp-steprail__cell:first-child {
+  border-left: 0;
+}
+.jp-steprail__cell:not(:disabled):hover {
+  background: var(--jp-surface-2);
+}
+/* Tomt steg = disabled (design-reviewer Blocker): 0.55-dimningen är compliant
+   på en disabled-kontroll (kontrast-undantagen, båda teman). Ingen pekare. */
+.jp-steprail__cell:disabled {
+  cursor: default;
+}
+.jp-steprail__cell[data-terminal="true"] {
+  background: var(--jp-surface-2);
+}
+.jp-steprail__cell[data-divider="true"] {
+  border-left: 1px solid var(--jp-border-strong);
+}
+/* Toppkant i stegets statusfärg (samma tokens som status-taggen). */
+.jp-steprail__cell[data-status-variant="info"] {
+  border-top-color: var(--jp-info);
+}
+.jp-steprail__cell[data-status-variant="brand"] {
+  border-top-color: var(--jp-accent-700);
+}
+.jp-steprail__cell[data-status-variant="success"] {
+  border-top-color: var(--jp-success);
+}
+.jp-steprail__cell[data-status-variant="warning"] {
+  border-top-color: var(--jp-warning);
+}
+.jp-steprail__cell[data-status-variant="danger"] {
+  border-top-color: var(--jp-danger);
+}
+.jp-steprail__cell[data-status-variant="neutral"] {
+  border-top-color: var(--jp-ink-3);
+}
+/* Tomt steg (antal 0): dimmat + grå topp — helhetsbilden får aldrig försvinna
+   (design §7). Placerad EFTER variant-reglerna så kaskaden ger grå sista ordet. */
+.jp-steprail__cell[data-empty="true"] {
+  border-top-color: var(--jp-border);
+  opacity: 0.55;
+}
+/* Vald cell (aktivt stegfilter) — accent-yta, vinner över terminal-ytan. */
+.jp-steprail__cell[aria-pressed="true"],
+.jp-steprail__cell[data-terminal="true"][aria-pressed="true"] {
+  background: var(--jp-accent-50);
+}
+.jp-steprail__cell:focus-visible {
+  outline: 2px solid var(--jp-accent-700);
+  outline-offset: -2px;
+}
+.jp-steprail__count {
+  font-size: var(--text-h3);
+  font-weight: var(--jp-fw-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-1);
+}
+.jp-steprail__name {
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  color: var(--jp-ink-2);
+}

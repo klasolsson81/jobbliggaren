@@ -130,6 +130,73 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         result.Notes[0].Content.ShouldBe("Bra arbetsgivare.");
     }
 
+    // ---------------------------------------------------------------
+    // ADR 0092 D4 — StatusChange-timelinen surfaceras oldest-first i detail-DTO:n,
+    // och är TOM för en ansökan utan transitions (back-compat, ingen backfill).
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task Handle_WhenApplicationHasTransitions_PopulatesStatusChangesOldestFirst()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var (_, app) = await SeedAsync(scope, db, clock, _userId);
+
+        // Fasta, distinkta klockor per transition → deterministisk oldest-first
+        // ordning + exakta ChangedAt-assertions (0 sub-sekund → round-trippar
+        // exakt genom Postgres timestamptz).
+        var t1 = new DateTimeOffset(2026, 5, 8, 12, 0, 0, TimeSpan.Zero);
+        var t2 = t1.AddDays(2);
+        app.TransitionTo(ApplicationStatus.Submitted, ClockAt(t1));
+        app.TransitionTo(ApplicationStatus.Acknowledged, ClockAt(t2));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
+
+        var result = await handler.Handle(new GetApplicationByIdQuery(app.Id.Value), CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result!.StatusChanges.Count.ShouldBe(2);
+        // Oldest-first (handlern OrderBy(ChangedAt)); FE vänder för newest-first.
+        result.StatusChanges[0].From.ShouldBe("Draft");
+        result.StatusChanges[0].To.ShouldBe("Submitted");
+        result.StatusChanges[0].ChangedAt.ShouldBe(t1);
+        result.StatusChanges[1].From.ShouldBe("Submitted");
+        result.StatusChanges[1].To.ShouldBe("Acknowledged");
+        result.StatusChanges[1].ChangedAt.ShouldBe(t2);
+    }
+
+    [Fact]
+    public async Task Handle_WhenApplicationHasNoTransitions_ReturnsEmptyStatusChanges()
+    {
+        // Draft-ansökan utan transitions (t.ex. pre-timeline-rad) → tom lista,
+        // ingen krasch. Bevisar att timelinen aldrig fabriceras/backfillas.
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var (_, app) = await SeedAsync(scope, db, clock, _userId);
+
+        var handler = new GetApplicationByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
+
+        var result = await handler.Handle(new GetApplicationByIdQuery(app.Id.Value), CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result!.StatusChanges.ShouldBeEmpty();
+    }
+
+    // Fast klocka per transition (StatusChange.ChangedAt fångas från clock.UtcNow).
+    // NSubstitute — samma mock-bibliotek som resten av sviten; ett värde per
+    // instans gör transitions-ordningen deterministisk.
+    private static IDateTimeProvider ClockAt(DateTimeOffset instant)
+    {
+        var clock = Substitute.For<IDateTimeProvider>();
+        clock.UtcNow.Returns(instant);
+        return clock;
+    }
+
     [Fact]
     public async Task Handle_WhenApplicationNotFound_ReturnsNull()
     {

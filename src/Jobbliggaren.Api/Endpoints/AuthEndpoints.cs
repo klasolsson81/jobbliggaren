@@ -1,10 +1,12 @@
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Commands.ChangePassword;
 using Jobbliggaren.Application.Auth.Commands.Login;
 using Jobbliggaren.Application.Auth.Commands.Logout;
 using Jobbliggaren.Application.Auth.Commands.RefreshSession;
 using Jobbliggaren.Application.Auth.Commands.Register;
 using Jobbliggaren.Application.Auth.Queries.VerifyCredentials;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Mediator;
 
@@ -73,7 +75,70 @@ public static class AuthEndpoints
                 : ToErrorResult(result.Error);
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+
+        // Self-service change-password + C6 (#678, epik #481). The CURRENT password is the re-auth
+        // credential: ReauthenticationBehavior verifies it server-side BEFORE the handler (a hijacked
+        // long-lived session can't change the password without it); a wrong current password throws
+        // ReauthenticationFailedException -> byte-identical 401 (Program.cs). A weak new password is
+        // a 400 (validator) before UserManager runs. On success the endpoint owns C6 (below) and
+        // returns the re-issued { sessionId, persistent } like /login (ADR 0018 — backend sets no
+        // cookies; the Next layer re-sets the __Host- cookie). AuthWrite rate-limit — same
+        // credential-risk profile as /login and /verify.
+        group.MapPost("/change-password", async (
+            ChangePasswordRequest body,
+            IMediator mediator,
+            ISessionStore sessions,
+            ICurrentUser currentUser,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(
+                new ChangePasswordCommand(body.CurrentPassword, body.NewPassword), ct);
+            if (result.IsFailure)
+                return ToErrorResult(result.Error);
+
+            // The handler returns the authenticated user id (also the User.PasswordChanged audit
+            // aggregate id) — use it directly, no second ICurrentUser read.
+            var userId = result.Value;
+
+            // C6 — logout-everywhere + re-issue the current session so THIS device stays logged in.
+            // Read the current session's lifetime first so the replacement keeps the same profile
+            // (a "Håll mig inloggad" persistent login is not silently downgraded); default to the
+            // short Session profile in the can't-happen case that the session id is absent post-auth.
+            var lifetime = SessionLifetime.Session;
+            if (currentUser.SessionId is { } sessionId)
+            {
+                var current = await sessions.GetAsync(sessionId, CancellationToken.None);
+                if (current is not null)
+                    lifetime = current.Lifetime;
+            }
+
+            // Invalidate-BEFORE-create is a correctness invariant: CreateAsync SADDs into the user
+            // index that InvalidateAllForUserAsync snapshots-then-deletes, so create-first would be
+            // swept. InvalidateAll plants the COND-B tombstone; the fresh CreateAsync is not blocked
+            // by it (only RotateAsync fails closed on :revoked), so the new session authenticates
+            // immediately while every other device is logged out.
+            //
+            // CancellationToken.None: the password is already changed (committed above); a client
+            // disconnect must not leave the account half-rotated (all sessions killed, none
+            // re-issued). Mirrors the /me/delete post-commit teardown.
+            await sessions.InvalidateAllForUserAsync(userId, CancellationToken.None);
+            var reissued = await sessions.CreateAsync(userId, lifetime, CancellationToken.None);
+
+            return Results.Ok(new
+            {
+                sessionId = reissued.Id.Reveal(),
+                persistent = lifetime == SessionLifetime.Persistent,
+            });
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
     }
+
+    /// <summary>
+    /// POST /auth/change-password body — the current password (server-side re-auth via
+    /// ReauthenticationBehavior) and the new password (strength-validated by
+    /// ChangePasswordCommandValidator). A pure transport DTO; neither value is logged.
+    /// </summary>
+    public sealed record ChangePasswordRequest(string? CurrentPassword, string? NewPassword);
 
     // 401 is an authentication-identity status ("who are you"), a different axis from the
     // request/resource-semantics the kind-union models (400/404/409/410) — so it stays an

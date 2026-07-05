@@ -231,6 +231,26 @@ public class InMemorySessionStoreTests
         (await store.GetAsync(legacy.Id, ct)).ShouldBeNull();
     }
 
+    // #678 C6-D2a: the Session must expose the lifetime it was created under, both from CreateAsync
+    // and (round-tripped) from GetAsync, so the change-password re-issue can mint the replacement
+    // under the same profile and derive the persistent-cookie flag without a second store read.
+    [Fact]
+    public async Task CreateAndGet_ShouldExposeLifetime_ForEachProfile()
+    {
+        var store = CreateStore();
+        var ct = TestContext.Current.CancellationToken;
+
+        foreach (var lifetime in new[] { SessionLifetime.Session, SessionLifetime.Persistent, SessionLifetime.Legacy })
+        {
+            var created = await store.CreateAsync(Guid.NewGuid(), lifetime, ct);
+            created.Lifetime.ShouldBe(lifetime);
+
+            var fetched = await store.GetAsync(created.Id, ct);
+            fetched.ShouldNotBeNull();
+            fetched.Lifetime.ShouldBe(lifetime);
+        }
+    }
+
     // A Session-profile (unticked "Håll mig inloggad") session is short-lived: past its
     // 24h ceiling it is gone, where a Legacy session would still be valid.
     [Fact]

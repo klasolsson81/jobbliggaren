@@ -63,7 +63,7 @@ public sealed class InMemorySessionStore(
         // ceiling set at rotation). Mirrors RedisSessionStore.GetAsync's short-circuit.
         if (entry.SupersededAt is not null)
             return Task.FromResult<Session?>(
-                new Session(sessionId, entry.UserId, entry.CreatedAt, entry.ExpiresAt));
+                new Session(sessionId, entry.UserId, entry.CreatedAt, entry.ExpiresAt, entry.Lifetime));
 
         // Slide up to SlidingTtl, clamped so it never passes the absolute cap.
         var capRemaining = entry.CreatedAt + profile.AbsoluteTtl - now;
@@ -72,7 +72,7 @@ public sealed class InMemorySessionStore(
         _sessions.TryUpdate(key, (entry.UserId, entry.CreatedAt, entry.RotatedAt, newExpiry, entry.Lifetime, entry.SupersededAt), entry);
 
         return Task.FromResult<Session?>(
-            new Session(sessionId, entry.UserId, entry.CreatedAt, newExpiry));
+            new Session(sessionId, entry.UserId, entry.CreatedAt, newExpiry, entry.Lifetime));
     }
 
     public Task<Session> CreateAsync(Guid userId, SessionLifetime lifetime, CancellationToken ct)
@@ -84,7 +84,7 @@ public sealed class InMemorySessionStore(
         // RotatedAt starts at CreatedAt (== now); SupersededAt null (live).
         _sessions[sessionId.Reveal()] = (userId, now, now, expiresAt, lifetime, null);
 
-        return Task.FromResult(new Session(sessionId, userId, now, expiresAt));
+        return Task.FromResult(new Session(sessionId, userId, now, expiresAt, lifetime));
     }
 
     public Task<SessionRotation?> RotateAsync(SessionId current, CancellationToken ct)

@@ -27,6 +27,25 @@ export type DeleteMyAccountInput = z.infer<
   ReturnType<typeof makeDeleteMyAccountSchema>
 >;
 
+/**
+ * #678 — change-password. Client-side structural check (the backend is the last
+ * barrier). `currentPassword` is the re-auth credential: presence only (a length
+ * rule on a re-auth field could reject/echo a supplied credential). `newPassword`
+ * mirrors the backend floor (12, PasswordRules / Identity RequiredLength). The
+ * new/confirm match is a CARD-level `canSubmit` gate (client friction only), so it
+ * is not part of this action schema.
+ */
+export function makeChangePasswordSchema(t: ValidationTranslator) {
+  return z.object({
+    currentPassword: z.string().min(1, t("profile.passwordRequired")),
+    newPassword: z.string().min(12, t("profile.newPasswordTooShort")),
+  });
+}
+
+export type ChangePasswordInput = z.infer<
+  ReturnType<typeof makeChangePasswordSchema>
+>;
+
 export function makeUpdateMyProfileSchema(t: ValidationTranslator) {
   return z.object({
     displayName: z

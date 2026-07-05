@@ -159,6 +159,8 @@
   "auth": {
     "showPassword": "Show password",
     "hidePassword": "Hide password",
+    "showPasswordNamed": "Show {field}",
+    "hidePasswordNamed": "Hide {field}",
     "login": {
       "title": "Log in",
       "brand": "Jobbliggaren",

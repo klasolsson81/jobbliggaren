@@ -14,7 +14,7 @@ import { parseResponse } from "@/lib/dto/_helpers";
 
 // F6 P5 Punkt 4 svans-PR3 (2026-05-24, Klas-feedback "kom direkt till jobb"):
 // /jobb och rot / hoppar över next-param och defaultar till /oversikt.
-// Skäl: middleware-flödet redirektar unauth user från /jobb → /logga-in?next=/jobb,
+// Skäl: proxy-flödet redirektar unauth user från /jobb → /logga-in?next=/jobb,
 // vilket bevarade /jobb som login-target trots Klas-intent "/oversikt är start-
 // sidan". Andra deep links (/ansokningar/abc-123, /cv/xyz) respekteras fortfarande
 // — användare som faktiskt klickat en deep link ska komma dit, men "passiv"

@@ -3,8 +3,8 @@
  *
  * INVARIANT: this list MUST mirror the top-level URL segments of `src/app/(app)/`.
  * Every `(app)` route renders behind `AppLayout`, which re-verifies the session
- * server-side (`getServerSession`) and redirects unauthenticated users. The edge
- * middleware uses this list as a cheap first gate (cookie presence) so an
+ * server-side (`getServerSession`) and redirects unauthenticated users. The proxy
+ * (`src/proxy.ts`) uses this list as a cheap first gate (cookie presence) so an
  * unauthenticated deep-link is redirected to `/logga-in?next=<pathname>` before it
  * reaches the Server Component.
  *
@@ -12,8 +12,9 @@
  * set by reading the `(app)` directory — so adding an `(app)` route without listing
  * it here (or leaving a stale prefix) fails CI. See #513.
  *
- * Edge-runtime safe: pure data, no Node / `next/headers` imports (the middleware
- * this feeds runs on the edge runtime).
+ * Runtime-agnostic: pure data, no Node / `next/headers` imports, so it is safe to
+ * import from the proxy (`src/proxy.ts`, nodejs runtime) and from route/metadata
+ * handlers alike.
  */
 export const PROTECTED_PREFIXES = [
   "/aktivitetsrapport",
@@ -44,7 +45,7 @@ export const PROTECTED_PREFIXES = [
  * collided: it is shorter than the authed `/matchningar` prefix, so even a bare
  * `startsWith` never matched it. It is pinned public below as a guard.)
  *
- * Edge-runtime safe: pure string logic, no Node / `next/headers` imports.
+ * Runtime-agnostic: pure string logic, no Node / `next/headers` imports.
  */
 export function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PREFIXES.some(

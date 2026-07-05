@@ -28,6 +28,18 @@ import { env } from "@/lib/env";
 // touch this drives is cheap; 15 min keeps the session fresh without amplifying load.
 const REFRESH_THROTTLE_SECONDS = 15 * 60;
 
+// On a failed/slow refresh, back off only briefly (not the full window) before the next
+// attempt, so a degraded backend is not re-hit on every navigation while recovery stays
+// prompt. A truly-gone session self-heals: getServerSession() returns null downstream and
+// the render redirects to /logga-in regardless.
+const REFRESH_ERROR_BACKOFF_SECONDS = 30;
+
+// Bound the refresh round-trip: a stalled (accepted-but-not-answering) backend must never
+// hang a protected navigation. undici's default headersTimeout is ~300s, far too long for a
+// hot-path nav; on timeout the fetch rejects with AbortError, which the catch below swallows
+// into a plain passthrough (§2.5 hot-path; navigation must never break here).
+const REFRESH_TIMEOUT_MS = 2500;
+
 // The __Host- attribute set shared by every cookie this proxy writes. Never weaken
 // these: __Host- requires Secure + Path=/ + no Domain, and the session/companion
 // cookies stay HttpOnly + SameSite=Strict.
@@ -94,6 +106,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
       method: "POST",
       headers: { Authorization: `Bearer ${sessionId}` },
       cache: "no-store",
+      signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
     });
     if (res.ok) {
       refresh = parseRefresh(await res.json());
@@ -103,10 +116,21 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   }
 
   if (!refresh) {
-    return NextResponse.next();
+    // Refresh failed (timeout / network error / non-OK / malformed body). Advance the
+    // throttle by a short backoff so a degraded backend is not re-hit on every navigation,
+    // while recovery stays prompt (a truly-expired session self-heals to /logga-in on the
+    // downstream render). The session cookie is left untouched.
+    const response = NextResponse.next();
+    setThrottleCookie(
+      response,
+      nowSeconds + REFRESH_ERROR_BACKOFF_SECONDS,
+      REFRESH_ERROR_BACKOFF_SECONDS
+    );
+    response.headers.set("Cache-Control", "no-store");
+    return response;
   }
 
-  const nextRefreshAfter = String(nowSeconds + REFRESH_THROTTLE_SECONDS);
+  const nextRefreshAfter = nowSeconds + REFRESH_THROTTLE_SECONDS;
 
   if (refresh.rotated && refresh.sessionId) {
     const newId = refresh.sessionId;
@@ -129,7 +153,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
       ...HOST_COOKIE_ATTRS,
       maxAge: PERSISTENT_MAX_AGE_SECONDS,
     });
-    setThrottleCookie(response, nextRefreshAfter);
+    setThrottleCookie(response, nextRefreshAfter, REFRESH_THROTTLE_SECONDS);
     // A rotated Set-Cookie must never be cached.
     response.headers.set("Cache-Control", "no-store");
     return response;
@@ -138,15 +162,21 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   // rotated:false — the session only slid (or was Session-scoped). Advance the
   // throttle and leave the session cookie untouched.
   const response = NextResponse.next();
-  setThrottleCookie(response, nextRefreshAfter);
+  setThrottleCookie(response, nextRefreshAfter, REFRESH_THROTTLE_SECONDS);
   response.headers.set("Cache-Control", "no-store");
   return response;
 }
 
-function setThrottleCookie(response: NextResponse, value: string): void {
-  response.cookies.set(REFRESH_AFTER_COOKIE_NAME, value, {
+// Writes the throttle companion cookie: its VALUE is the epoch second the next refresh is
+// due, and its own Max-Age matches that window so it expires exactly when it becomes due.
+function setThrottleCookie(
+  response: NextResponse,
+  dueAtEpochSeconds: number,
+  maxAgeSeconds: number
+): void {
+  response.cookies.set(REFRESH_AFTER_COOKIE_NAME, String(dueAtEpochSeconds), {
     ...HOST_COOKIE_ATTRS,
-    maxAge: REFRESH_THROTTLE_SECONDS,
+    maxAge: maxAgeSeconds,
   });
 }
 
@@ -182,7 +212,9 @@ function rewriteCookieHeader(
     return pair;
   }
   let found = false;
-  const rewritten = cookieHeader.split("; ").map((part) => {
+  // Split on ';' with optional whitespace — browsers always send "; ", but tolerate a
+  // non-standard separator so the old value is replaced (not appended alongside).
+  const rewritten = cookieHeader.split(/;\s*/).map((part) => {
     const eq = part.indexOf("=");
     const key = (eq === -1 ? part : part.slice(0, eq)).trim();
     if (key === name) {

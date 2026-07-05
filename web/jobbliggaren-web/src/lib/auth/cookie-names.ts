@@ -15,4 +15,6 @@ export const REFRESH_AFTER_COOKIE_NAME = "__Host-jobbliggaren_refresh_after";
 // Persistent ("Håll mig inloggad" ticked) cookie Max-Age = the 180d absolute cap. The
 // server is the SSOT for expiry (30d sliding + 180d cap from CreatedAt); this is just the
 // finite ceiling so the cookie survives browser restarts (never an infinite cookie).
+// MIRROR of the backend `SessionStoreOptions.Persistent.AbsoluteTtl` (180d) — if the
+// server cap ever changes, update both sides (the cookie must not outlive the server cap).
 export const PERSISTENT_MAX_AGE_SECONDS = 180 * 24 * 60 * 60;

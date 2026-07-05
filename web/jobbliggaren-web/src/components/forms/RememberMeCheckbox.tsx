@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { Check } from "lucide-react";
 
 // "Håll mig inloggad" opt-in for the auth forms (PR2b-3b, epic #481).
@@ -24,6 +25,9 @@ interface RememberMeCheckboxProps {
 }
 
 export function RememberMeCheckbox({ label, hint }: RememberMeCheckboxProps) {
+  // useId keeps the hint association unique even if both auth forms are ever mounted
+  // together (today AuthCard mounts only the active tab, but this removes the latent trap).
+  const hintId = useId();
   return (
     <div className="flex flex-col gap-1.5">
       {/* Implicit label wraps the control: one large, gap-free hit target
@@ -34,7 +38,7 @@ export function RememberMeCheckbox({ label, hint }: RememberMeCheckboxProps) {
           <input
             name="rememberMe"
             type="checkbox"
-            aria-describedby="rememberMe-hint"
+            aria-describedby={hintId}
             className="peer size-5 cursor-pointer appearance-none rounded-sm border-2 border-border-strong bg-surface-primary transition-colors duration-75 checked:border-brand-600 checked:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
           />
           <Check
@@ -45,7 +49,9 @@ export function RememberMeCheckbox({ label, hint }: RememberMeCheckboxProps) {
         </span>
         {label}
       </label>
-      <p id="rememberMe-hint" className="text-body-sm text-text-secondary">
+      {/* text-text-primary (not -secondary) to match the sibling field hints in the same
+          form and honour the high-contrast, no-muted-text copy rule. */}
+      <p id={hintId} className="text-body-sm text-text-primary">
         {hint}
       </p>
     </div>

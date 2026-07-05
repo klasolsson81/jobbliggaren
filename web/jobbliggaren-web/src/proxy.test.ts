@@ -160,7 +160,7 @@ describe("proxy refresh driver (PR2b-3b)", () => {
     expect(res.headers.get("x-middleware-next")).toBe("1");
   });
 
-  it("refresh 401 — swallowed, navigation not broken, session cookie + throttle untouched", async () => {
+  it("refresh 401 — swallowed, navigation not broken, session cookie untouched, throttle backed off briefly", async () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 401 }));
 
     const res = await proxy(
@@ -170,11 +170,17 @@ describe("proxy refresh driver (PR2b-3b)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(res.headers.get("x-middleware-next")).toBe("1");
     expect(res.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
-    // On failure the throttle is NOT advanced so the next navigation retries.
-    expect(res.cookies.get(REFRESH_AFTER_COOKIE_NAME)).toBeUndefined();
+    // On failure the throttle is advanced by a SHORT backoff (not the full window) so a
+    // degraded backend is not re-hit on every navigation, while recovery stays prompt.
+    const throttle = res.cookies.get(REFRESH_AFTER_COOKIE_NAME);
+    expect(throttle?.value).toBeDefined();
+    expect(Number(throttle!.value) - nowSeconds()).toBeGreaterThan(0);
+    expect(Number(throttle!.value) - nowSeconds()).toBeLessThanOrEqual(30);
+    expect(throttle?.maxAge).toBeLessThanOrEqual(30);
+    expect(res.headers.get("cache-control")).toBe("no-store");
   });
 
-  it("refresh network error — swallowed, navigation not broken", async () => {
+  it("refresh network error — swallowed, navigation not broken, throttle backed off briefly", async () => {
     fetchMock.mockRejectedValue(new Error("network down"));
 
     const res = await proxy(
@@ -184,6 +190,58 @@ describe("proxy refresh driver (PR2b-3b)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(res.headers.get("x-middleware-next")).toBe("1");
     expect(res.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
+    const throttle = res.cookies.get(REFRESH_AFTER_COOKIE_NAME);
+    expect(throttle?.value).toBeDefined();
+    expect(Number(throttle!.value) - nowSeconds()).toBeLessThanOrEqual(30);
+  });
+
+  it("rotated:true but sessionId missing — falls to the slide branch, session cookie untouched, throttle advanced", async () => {
+    // Defensive: a malformed rotated:true without an id must NOT clear or corrupt the
+    // cookie — it is treated as a plain slide.
+    fetchMock.mockResolvedValue(refreshResponse({ rotated: true, sessionId: null }));
+
+    const res = await proxy(
+      makeRequest("/oversikt", { cookies: { [SESSION_COOKIE_NAME]: "OLDID" } })
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(res.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
+    expect(res.headers.get("x-middleware-override-headers")).toBeNull();
+    // Full-window throttle (a successful, non-rotating refresh), not the error backoff.
+    const throttle = res.cookies.get(REFRESH_AFTER_COOKIE_NAME);
+    expect(Number(throttle!.value) - nowSeconds()).toBeGreaterThan(60);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("throttle elapsed (past epoch) — refresh is due, backend called", async () => {
+    fetchMock.mockResolvedValue(refreshResponse({ rotated: false, sessionId: null }));
+
+    const res = await proxy(
+      makeRequest("/oversikt", {
+        cookies: {
+          [SESSION_COOKIE_NAME]: "OLDID",
+          [REFRESH_AFTER_COOKIE_NAME]: String(nowSeconds() - 5),
+        },
+      })
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(res.cookies.get(REFRESH_AFTER_COOKIE_NAME)?.value).toBeDefined();
+  });
+
+  it("throttle cookie is junk (non-numeric) — treated as due, backend called", async () => {
+    fetchMock.mockResolvedValue(refreshResponse({ rotated: false, sessionId: null }));
+
+    await proxy(
+      makeRequest("/oversikt", {
+        cookies: {
+          [SESSION_COOKIE_NAME]: "OLDID",
+          [REFRESH_AFTER_COOKIE_NAME]: "not-a-number",
+        },
+      })
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("unauthenticated on a protected path — redirects to /logga-in, no backend call", async () => {

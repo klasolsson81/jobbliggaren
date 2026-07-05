@@ -42,7 +42,7 @@ export type CurrentUser = CurrentUserDto;
  * konsistens med övriga 7 (app)-sidor som använder samma pattern.
  *
  * Returnerar `null` vid avsaknad av session-cookie, backend-fel eller
- * DTO-parsningsfel — alla mappas till "ingen session" så middleware/page
+ * DTO-parsningsfel — alla mappas till "ingen session" så proxy/page
  * kan redirecta till `/logga-in`.
  */
 export const getServerSession = cache(

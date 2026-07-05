@@ -212,6 +212,16 @@ describe("getJobAdMatchDetail", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("ogiltigt jobAdId (icke-GUID) → null UTAN backend-rundtur (SSRF/path-injektion-guard, #621)", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    // Allowlist-guarden kortsluter före fetch: ett path-injektions-försök når
+    // aldrig backend-URL:en. Biter vid revert (utan guarden anropas fetch).
+    expect(await getJobAdMatchDetail("../../secret")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("200 med giltig detalj → parsad; GET med Bearer mot /{jobAdId}", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(validDetail));
     global.fetch = fetchMock;

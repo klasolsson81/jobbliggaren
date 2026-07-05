@@ -37,7 +37,7 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "ix_resume_finding_statuses_resume_version_criterion",
+                name: "ux_resume_finding_statuses_resume_version_criterion",
                 table: "resume_finding_statuses",
                 columns: new[] { "resume_id", "rubric_version", "criterion_id" },
                 unique: true);

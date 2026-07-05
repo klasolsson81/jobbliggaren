@@ -59,6 +59,6 @@ public sealed class ResumeFindingStatusConfiguration : IEntityTypeConfiguration<
         // shadow property is declared by the parent's HasMany in ResumeConfiguration.
         builder.HasIndex("ResumeId", nameof(ResumeFindingStatus.RubricVersion), nameof(ResumeFindingStatus.CriterionId))
             .IsUnique()
-            .HasDatabaseName("ix_resume_finding_statuses_resume_version_criterion");
+            .HasDatabaseName("ux_resume_finding_statuses_resume_version_criterion");
     }
 }

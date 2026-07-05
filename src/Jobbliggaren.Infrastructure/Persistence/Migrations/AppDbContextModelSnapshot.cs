@@ -929,7 +929,7 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ResumeId", "RubricVersion", "CriterionId")
                         .IsUnique()
-                        .HasDatabaseName("ix_resume_finding_statuses_resume_version_criterion");
+                        .HasDatabaseName("ux_resume_finding_statuses_resume_version_criterion");
 
                     b.ToTable("resume_finding_statuses", (string)null);
                 });

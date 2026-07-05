@@ -52,12 +52,15 @@
       "createdPrefix": "Skapad",
       "statusLabel": "Status",
       "nextFollowUp": "Nästa uppföljning:",
+      "daysInStep": "{days, plural, =0 {mindre än en dag i detta steg} one {# dag i detta steg} other {# dagar i detta steg}}",
+      "latestEvent": "Senaste: {event}",
       "timelineLabel": "Tidslinje",
       "eventCreated": "Ansökan skapades",
       "eventNoteAdded": "Anteckning tillagd",
       "eventFollowUpScheduled": "Uppföljning ({channel}) schemalagd",
       "eventOutcome": "Utfall: {outcome}",
-      "eventStatus": "Status: {status}",
+      "eventStatusChange": "Status: {from} → {to}",
+      "eventStatusChangeShort": "{from} → {to}",
       "coverLetterLabel": "Personligt brev"
     },
     "modalShell": {

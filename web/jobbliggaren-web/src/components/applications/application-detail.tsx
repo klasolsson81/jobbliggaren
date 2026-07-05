@@ -1,16 +1,15 @@
-import { ExternalLink } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { StatusEditCard } from "@/components/applications/status-edit-card";
 import { FollowUpsSection } from "@/components/applications/follow-ups-section";
 import { NotesSection } from "@/components/applications/notes-section";
+import { PreservedAdPanel } from "@/components/applications/preserved-ad-panel";
+import { TimelineList } from "@/components/applications/timeline-list";
 import {
-  applicationSourceLabel,
   applicationStatusLabel,
-  channelLabel,
-  followUpOutcomeLabel,
   PILL_VARIANT_CLASS,
   STATUS_BADGE_VARIANT,
 } from "@/lib/applications/status";
+import { composeTimeline } from "@/lib/applications/timeline";
 import { formatDate } from "@/lib/i18n/format";
 import type { ApplicationDetailDto } from "@/lib/types/applications";
 
@@ -26,24 +25,22 @@ interface ApplicationDetailProps {
   headless?: boolean;
 }
 
-interface TimelineEvent {
-  date: string;
-  label: string;
-  primary?: boolean;
-}
-
 /**
  * ApplicationDetail — ren presentational Server Component (ingen "use
- * client"). Delas av fullsidan (`/ansokningar/[id]`) och ansökan-modalen
- * (`@modal/(.)ansokningar/[id]`) per ADR 0053 (en presentations-komponent,
- * två kontexter — DRY, speglar F3 JobAdDetail exakt).
+ * client"). Delas av fullsidan (`/ansokningar/[id]`) och gäst-modalen
+ * (`(guest)/gast/@modal/(.)ansokningar/[id]`). Den inloggade /ansokningar-
+ * routens `@modal`-slot renderar numera en DRAWER (ApplicationDrawerBody, #630
+ * PR 6 / ADR 0092 D7) — den läge-avskalade motsvarigheten till denna full-
+ * interaktiva vy; de delar tidslinje- och preserved-ad-kunskapen (composeTimeline
+ * / TimelineList / PreservedAdPanel), inte layouten.
  *
  * Innehållet är REAL ApplicationDetailDto (no-mock): status-block
- * (statusbadge-ikon + "Status"-label + STATUS_LABELS), Tidslinje komponerad
- * av REALA events (createdAt + notes[].createdAt + followUps[]
- * scheduledAt/outcomeAt + updatedAt, sorterade), Anteckningar (real notes[]
- * + AddNoteForm), Uppföljningar (real followUps[] + AddFollowUpForm +
- * RecordFollowUpOutcomeForm), Personligt brev om coverLetter finns.
+ * (statusbadge-ikon + "Status"-label + STATUS_LABELS), Tidslinje via den delade
+ * composeTimeline-hjälparen (REALA events: createdAt + notes + followUps +
+ * statusChanges, nyast först — den tidigare updatedAt-syntesen är pensionerad,
+ * §5), Anteckningar (real notes[] + AddNoteForm), Uppföljningar (real followUps[]
+ * + AddFollowUpForm + RecordFollowUpOutcomeForm), Personligt brev om coverLetter
+ * finns.
  *
  * "Uppdatera status" + destruktiv-bekräftelse återanvänder den befintliga
  * StatusEditCard (REAL transition-wiring via getAllowedTransitions +
@@ -84,15 +81,8 @@ export function ApplicationDetail({
   const variant = PILL_VARIANT_CLASS[STATUS_BADGE_VARIANT[application.status]];
   const statusLabel = applicationStatusLabel(t, application.status);
 
-  // #315: bevarad annons-metadata, formaterad för panelen nedan. Rader utelämnas
-  // när källfältet är null (samma omissions-mönster som resten av detaljen — inga
-  // platshållar-streck). Datum via den delade formatDate-hjälparen (locale-YMD).
-  const preservedPublished = formatDate(format, preservedAd?.publishedAt);
-  const preservedExpires = formatDate(format, preservedAd?.expiresAt);
-  const preservedCaptured = formatDate(format, preservedAd?.capturedAt);
-  const preservedSourceLabel = preservedAd
-    ? applicationSourceLabel(t, preservedAd.source)
-    : null;
+  // createdAt formatteras för den generiska subtitle-fallbacken i headern.
+  const createdAt = formatDate(format, application.createdAt);
 
   // Nästa öppna uppföljning (tidigast schemalagd, ej besvarad) → "Nästa"-
   // raden i status-blocket. REAL fält (followUps[].scheduledAt), ej v3-mock.
@@ -105,49 +95,12 @@ export function ApplicationDetail({
     )[0];
   const nextDate = formatDate(format, nextFollowUp?.scheduledAt);
 
-  // Tidslinje: komponera REALA händelser, nyast först. Ingen mock.
-  const timeline: TimelineEvent[] = [];
-  const createdAt = formatDate(format, application.createdAt);
-  if (createdAt) {
-    timeline.push({ date: createdAt, label: tUi("detail.eventCreated") });
-  }
-  for (const note of application.notes) {
-    const d = formatDate(format, note.createdAt);
-    if (d) timeline.push({ date: d, label: tUi("detail.eventNoteAdded") });
-  }
-  for (const fu of application.followUps) {
-    const scheduled = formatDate(format, fu.scheduledAt);
-    if (scheduled) {
-      timeline.push({
-        date: scheduled,
-        label: tUi("detail.eventFollowUpScheduled", {
-          channel: channelLabel(t, fu.channel),
-        }),
-      });
-    }
-    if (fu.outcome !== "Pending" && fu.outcomeAt) {
-      const outcomeAt = formatDate(format, fu.outcomeAt);
-      if (outcomeAt) {
-        timeline.push({
-          date: outcomeAt,
-          label: tUi("detail.eventOutcome", {
-            outcome: followUpOutcomeLabel(t, fu.outcome),
-          }),
-        });
-      }
-    }
-  }
-  const updatedAt = formatDate(format, application.updatedAt);
-  if (updatedAt) {
-    timeline.push({
-      date: updatedAt,
-      label: tUi("detail.eventStatus", { status: statusLabel }),
-      primary: true,
-    });
-  }
-  timeline.sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
+  // Tidslinje via den delade composeTimeline-hjälparen — REALA händelser
+  // (createdAt + notes + followUps + statusChanges), nyast först. Den tidigare
+  // updatedAt-SYNTESEN av ett status-event är pensionerad: ett status-event
+  // härleds ENBART ur en inspelad StatusChange (CLAUDE.md §5, aldrig fabricera
+  // en övergång som inte loggats). Delad med drawer-bodyn (SPOT).
+  const timeline = composeTimeline(application);
 
   return (
     <>
@@ -267,22 +220,7 @@ export function ApplicationDetail({
               </svg>
               {tUi("detail.timelineLabel")}
             </summary>
-            <ul className="jp-timeline__list">
-              {timeline.map((e, i) => (
-                <li key={`${e.date}-${i}`} className="jp-timeline__item">
-                  <span className="jp-mono jp-timeline__date">{e.date}</span>
-                  <span
-                    className={
-                      e.primary
-                        ? "jp-timeline__label jp-timeline__label--primary"
-                        : "jp-timeline__label"
-                    }
-                  >
-                    {e.label}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <TimelineList events={timeline} />
           </details>
         )}
 
@@ -304,128 +242,9 @@ export function ApplicationDetail({
 
         {/* Om annonsen (sparad kopia) — #315 (ADR 0086). Renderas ENDAST som
             fallback när live-annonsen är arkiverad (jobAd == null) men en kopia
-            fångades vid ansökningstillfället. Detta är den ENDA platsen annons-
-            texten visas på ansökningsdetaljen, så bevarad description renderas
-            som läsbar prosa (samma .jp-modal__description .jp-detail-prose-
-            behandling som personligt brev, ~68ch). Lugn, informativ ton — inte
-            varning/fel (design-reviewer: calm notice, ej alert). */}
-        {showPreservedAd && (
-          <section aria-labelledby="jp-preserved-ad-title">
-            <div className="jp-section-label" id="jp-preserved-ad-title">
-              {tUi("preservedAd.panelTitle")}
-            </div>
-
-            {/* Lugn "sparad kopia"-not: den befintliga neutrala bordered
-                surface-2-rutan (.jp-modal__match), ingen status-färg, ingen
-                varningston. */}
-            <div className="jp-modal__match">
-              <div className="jp-modal__match__expl">
-                {tUi("preservedAd.savedNotice", {
-                  date: preservedCaptured ?? "",
-                })}
-              </div>
-            </div>
-
-            {/* Bevarad metadata: label · värde-rader, hårfin separator
-                (.jp-modal__matchrow återbrukad — ingen ny klass). Rader
-                utelämnas när källfältet är null. */}
-            <dl className="jp-modal__matchrows" style={{ marginTop: "12px" }}>
-              <div className="jp-modal__matchrow">
-                <dt className="jp-modal__matchrow-label">
-                  {tUi("preservedAd.company")}
-                </dt>
-                <dd className="jp-modal__matchrow-evidence">
-                  {preservedAd.company}
-                </dd>
-              </div>
-
-              {preservedAd.location && (
-                <div className="jp-modal__matchrow">
-                  <dt className="jp-modal__matchrow-label">
-                    {tUi("preservedAd.location")}
-                  </dt>
-                  <dd className="jp-modal__matchrow-evidence">
-                    {preservedAd.location}
-                  </dd>
-                </div>
-              )}
-
-              {preservedPublished && (
-                <div className="jp-modal__matchrow">
-                  <dt className="jp-modal__matchrow-label">
-                    {tUi("preservedAd.published")}
-                  </dt>
-                  <dd className="jp-modal__matchrow-evidence jp-mono">
-                    {preservedPublished}
-                  </dd>
-                </div>
-              )}
-
-              {preservedExpires && (
-                <div className="jp-modal__matchrow">
-                  <dt className="jp-modal__matchrow-label">
-                    {tUi("preservedAd.applyBy")}
-                  </dt>
-                  <dd className="jp-modal__matchrow-evidence jp-mono">
-                    {preservedExpires}
-                  </dd>
-                </div>
-              )}
-
-              {preservedSourceLabel && (
-                <div className="jp-modal__matchrow">
-                  <dt className="jp-modal__matchrow-label">
-                    {tUi("preservedAd.source")}
-                  </dt>
-                  <dd className="jp-modal__matchrow-evidence">
-                    {preservedSourceLabel}
-                  </dd>
-                </div>
-              )}
-            </dl>
-
-            {/* Säker länk (befintlig F3-behandling, speglar JobAdDetail):
-                jp-btn--secondary + ExternalLink-ikon, ny flik, noopener/
-                noreferrer. aria-label bär källa + "öppnas i ny flik" så
-                den utgående länken annonseras tydligt. */}
-            {preservedAd.url && (
-              <p style={{ marginTop: "12px" }}>
-                <a
-                  href={preservedAd.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={tUi("preservedAd.viewAdAriaLabel", {
-                    source: preservedSourceLabel ?? preservedAd.source,
-                  })}
-                  className="jp-btn jp-btn--secondary"
-                >
-                  <ExternalLink size={14} aria-hidden="true" />{" "}
-                  {tUi("preservedAd.viewAd")}
-                </a>
-              </p>
-            )}
-
-            {/* Annonstexten. Vid description == null (terminal status →
-                retention-minimering) visas EJ en tom kropp: en kort, neutral
-                not förklarar att texten rensats men metadatan finns kvar. */}
-            <div style={{ marginTop: "16px" }}>
-              <div className="jp-section-label">
-                {tUi("preservedAd.descriptionLabel")}
-              </div>
-              {preservedAd.description ? (
-                <p className="jp-modal__description jp-detail-prose">
-                  {preservedAd.description}
-                </p>
-              ) : (
-                <div className="jp-modal__match">
-                  <div className="jp-modal__match__expl">
-                    {tUi("preservedAd.minimizedNotice")}
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
-        )}
+            fångades vid ansökningstillfället. Delad PreservedAdPanel (samma
+            komponent som drawer-bodyn — SPOT). */}
+        {showPreservedAd && <PreservedAdPanel preservedAd={preservedAd} />}
 
         {/* Personligt brev — endast om coverLetter finns. Sist + 68ch
             läsbredd (#344). */}

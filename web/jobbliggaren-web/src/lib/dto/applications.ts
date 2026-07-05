@@ -106,6 +106,22 @@ export const noteDtoSchema = z.object({
 });
 export type NoteDto = z.infer<typeof noteDtoSchema>;
 
+// ADR 0092 D4 — one status transition on the detail timeline. `from`/`to` are
+// ApplicationStatus SmartEnum names (backend `StatusChangeDto.From/To`), resolved
+// to Swedish labels FE-side via next-intl exactly like `status`. `changedAt` is
+// an ISO datetime (z.string(), same convention as the other date fields). The
+// backend returns these chronological (oldest-first); the FE reverses for a
+// newest-first timeline. Detail-only — NOT on the list ApplicationDto (CQRS
+// list != detail). This is the real source of the drawer's TIDSLINJE and the
+// "N dagar i detta steg" derivation — the previous `updatedAt`-synthesised status
+// event is retired (never fabricate a transition that was not recorded, §5).
+export const statusChangeDtoSchema = z.object({
+  from: applicationStatusSchema,
+  to: applicationStatusSchema,
+  changedAt: z.string(),
+});
+export type StatusChangeDto = z.infer<typeof statusChangeDtoSchema>;
+
 // #315 (ADR 0086) — frozen ad-text snapshot captured at apply-time. Mirrors the
 // backend AdSnapshot projected on the detail read. It is the FALLBACK that lets
 // the ad text survive the source JobAd being archived/soft-deleted (the existing
@@ -131,6 +147,11 @@ export const applicationDetailDtoSchema = applicationDtoSchema.extend({
   coverLetter: z.string().nullable(),
   followUps: z.array(followUpDtoSchema),
   notes: z.array(noteDtoSchema),
+  // ADR 0092 D4 — the status-transition timeline (chronological from the backend).
+  // .optional() for deploy-skew resilience (an older BE response without the field
+  // does not crash parse — same convention as `jobAd`/`appliedAt`/`preservedAd`);
+  // consumers read it as `?? []`.
+  statusChanges: z.array(statusChangeDtoSchema).optional(),
   // null for manual/cover-letter-only and pre-#315 applications; present for
   // JobAd-linked ones (including while the live ad still exists). .nullable()
   // .optional() for deploy-skew resilience — same convention as `jobAd`/

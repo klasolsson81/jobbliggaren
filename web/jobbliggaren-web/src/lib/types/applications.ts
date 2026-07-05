@@ -9,6 +9,7 @@ export type {
   ApplicationDto,
   FollowUpDto,
   NoteDto,
+  StatusChangeDto,
   ApplicationDetailDto,
   PipelineGroupDto,
   GetApplicationsResult,

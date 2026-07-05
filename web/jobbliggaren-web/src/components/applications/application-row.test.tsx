@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { ApplicationRow } from "./application-row";
 import type {
   ApplicationDto,
@@ -8,6 +8,14 @@ import type {
 } from "@/lib/types/applications";
 
 // next/link renderas som <a> i jsdom utan extra mock (Next client Link).
+
+// #630 PR 6: radklick sätter drawer-ankaret (klick-Y + trigger-element) för
+// höger-drawern (Approach A). Mocka storen så vi kan verifiera anropen.
+const setDrawerAnchor = vi.fn();
+vi.mock("@/components/applications/drawer-anchor", () => ({
+  setDrawerAnchor: (clientY: number, trigger: HTMLElement | null) =>
+    setDrawerAnchor(clientY, trigger),
+}));
 
 // Fast referenstid → den relativa tids-taggen är deterministisk (injicerad
 // `now`, ingen new Date() i raden). Undviker date-flake-klassen
@@ -217,13 +225,32 @@ describe("ApplicationRow (v3 .jp-app)", () => {
     expect(screen.getByText("#11111111")).toBeInTheDocument();
   });
 
-  it("länkar hela raden till /ansokningar/<id> (intercept → modal)", () => {
+  it("länkar hela raden till /ansokningar/<id> (intercept → drawer)", () => {
     render(<ApplicationRow application={makeApplication()} now={FIXED_NOW} />);
     const link = screen.getByRole("link");
     expect(link).toHaveAttribute(
       "href",
       "/ansokningar/11111111-2222-3333-4444-555555555555"
     );
+  });
+
+  // #630 PR 6 (Approach A): vanligt klick sätter drawer-ankaret (klick-Y +
+  // trigger); modifierat klick (ny flik/fönster) navigerar till fullsidan och
+  // sätter EJ ankaret (drawern öppnas inte där).
+  it("sätter drawer-ankaret vid vanligt klick men inte vid modifierat klick", () => {
+    setDrawerAnchor.mockClear();
+    render(<ApplicationRow application={makeApplication()} now={FIXED_NOW} />);
+    const link = screen.getByRole("link");
+
+    fireEvent.click(link, { clientY: 420 });
+    expect(setDrawerAnchor).toHaveBeenCalledTimes(1);
+    expect(setDrawerAnchor).toHaveBeenCalledWith(420, link);
+
+    fireEvent.click(link, { clientY: 420, metaKey: true });
+    fireEvent.click(link, { clientY: 420, ctrlKey: true });
+    fireEvent.click(link, { clientY: 420, shiftKey: true });
+    // Fortfarande bara det första (vanliga) klicket räknat.
+    expect(setDrawerAnchor).toHaveBeenCalledTimes(1);
   });
 
   it("har en tillgänglig aria-label med titel, företag och status", () => {

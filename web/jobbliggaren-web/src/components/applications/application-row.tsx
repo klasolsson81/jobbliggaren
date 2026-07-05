@@ -7,6 +7,7 @@ import {
   applicationStatusLabel,
   getStatusTagDataAttr,
 } from "@/lib/applications/status";
+import { setDrawerAnchor } from "@/components/applications/drawer-anchor";
 import { formatDate } from "@/lib/i18n/format";
 import { daysSince } from "@/lib/i18n/relative-time";
 import type { ApplicationDto } from "@/lib/dto/applications";
@@ -45,8 +46,9 @@ interface ApplicationRowProps {
  *     relevant innan du sökt; efter inskickad är den irrelevant).
  *
  * Hela raden är en Link till `/ansokningar/[id]` → vid soft-nav fångar
- * `@modal/(.)ansokningar/[id]` den och visar modal; hard-nav / delad länk
- * renderar fullsidan (ADR 0053, speglar F3 JobAdCard exakt). #630 PR 5 (ADR
+ * `@modal/(.)ansokningar/[id]` den och visar en höger-DRAWER (#630 PR 6, ADR
+ * 0092 D7); hard-nav / delad länk renderar fullsidan (ADR 0053, speglar F3
+ * JobAdCard exakt). #630 PR 5 (ADR
  * 0092 D2): raden är nu en KLIENTkomponent — ön (ApplicationsPipeline) tar emot
  * serialiserbar data (`PipelineGroupDto[]` + `nowIso`) och renderar raden
  * direkt; en klient-ö kan inte importera en Server Component, och rowSlots-
@@ -92,6 +94,15 @@ export function ApplicationRow({ application, now }: ApplicationRowProps) {
     <Link
       href={`/ansokningar/${application.id}`}
       className="jp-app"
+      // #630 PR 6 (ADR 0092 D7): record the click's viewport Y + this row (the
+      // trigger) so the intercepting-route drawer opens near the click (handoff
+      // §9) and returns focus here on close. href is kept — a modified click
+      // (new tab/window) navigates to the full page instead, so we skip the
+      // anchor for those (the drawer never opens).
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        setDrawerAnchor(e.clientY, e.currentTarget);
+      }}
       aria-label={
         hasIdentity
           ? tUi("row.ariaLabelWithIdentity", {

@@ -188,3 +188,33 @@ public class ScbCompanyRegisterStoreTests(WorkerTestFixture fixture)
         public ValueTask DisposeAsync() => scope.DisposeAsync();
     }
 }
+
+/// <summary>
+/// #688 (ADR 0091 amendment 2026-07-05) — value-pin for the two per-command timeout constants on
+/// <see cref="ScbCompanyRegisterStore"/>. Raw <c>NpgsqlCommand</c>s inherit the 30 s connection-string
+/// default; these explicit timeouts (120 s population / 600 s full-table sweep) are a deliberate speed
+/// bump — changing the numbers must be a conscious edit. A <c>const</c> read needs no DB, so this is a
+/// PLAIN class (deliberately NOT in the Testcontainers <c>[Collection("Worker")]</c>): it runs without
+/// Docker. The behavioral proof that the commands still execute WITH these timeouts applied lives in the
+/// Testcontainers <see cref="ScbCompanyRegisterStoreTests"/> (upsert + sweep). Per the CTO bind (Q6),
+/// a live-command <c>CommandTimeout</c> reflection assertion is deliberately NOT attempted (low ROI —
+/// the command is internal and disposed).
+/// </summary>
+public class ScbCompanyRegisterStoreTimeoutConstantsTests
+{
+    [Fact]
+    public void ScbCompanyRegisterStore_CommandTimeoutSeconds_Is120()
+    {
+        // Applied to the jsonb batch upsert and the baseline-read scalar — ~4x the 30 s that failed under
+        // contention on the first live run, still bounded so a genuinely hung command fails loud.
+        ScbCompanyRegisterStore.CommandTimeoutSeconds.ShouldBe(120);
+    }
+
+    [Fact]
+    public void ScbCompanyRegisterStore_SweepCommandTimeoutSeconds_Is600()
+    {
+        // Applied to the full-table single-column deregister UPDATE over ~1.17M rows; anchored to the
+        // in-repo MigrationsOptionsFactory 600 s bulk-statement precedent, not an invented value.
+        ScbCompanyRegisterStore.SweepCommandTimeoutSeconds.ShouldBe(600);
+    }
+}

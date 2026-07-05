@@ -242,11 +242,9 @@ builder.Services.AddHangfire(cfg => cfg
     .UseSimpleAssemblyNameTypeSerializer()
     .UsePostgreSqlStorage(
         opts => opts.UseNpgsqlConnection(hangfireConnectionString),
-        new PostgreSqlStorageOptions
-        {
-            SchemaName = "hangfire",
-            PrepareSchemaIfNecessary = hangfireOpts.PrepareSchemaIfNecessary,
-        }));
+        // #688 — factory sets UseSlidingInvisibilityTimeout=true (long jobs keep their fetch
+        // lease via heartbeat instead of being re-fetched at the 30-min invisibility ceiling).
+        HangfireStorageOptionsFactory.Create(hangfireOpts.PrepareSchemaIfNecessary)));
 
 // Worker-count explicit satt — default Environment.ProcessorCount blir 1 i Fargate-container
 // med 1 vCPU. 4 är lämpligt för IO-bundna Mediator-jobb.

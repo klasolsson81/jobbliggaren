@@ -1,9 +1,8 @@
 # gitleaks false-positive allowlist (pre-push hook: full-history scan over the SHARED
 # object database - findings on sibling worktree branches block every session's push).
-
-# FALSE POSITIVE (verified 2026-07-05, #688 session; Klas-approved same day): hardcoded
-# TEST password fixture 'NyttL0senord123456' in an integration test on the in-flight
-# auth-lane branch feat/change-password-678 (NOT main). Flagged as generic-api-key.
-# Durable fix owned by the auth lane (fixture rename or their own entry) - see issue
-# #678 comment 2026-07-05.
-10f55b900ce7063e97ff74673e3ae7e5be658a99:tests/Jobbliggaren.Api.IntegrationTests/Auth/ChangePasswordTests.cs:generic-api-key:40
+#
+# The 'NyttL0senord123456' test-fixture false positive that the #688 session temporarily
+# fingerprinted here (auth-lane branch feat/change-password-678) now has its durable fix: an
+# inline `gitleaks:allow` on the declaration in ChangePasswordTests.cs. That is stable across
+# rebase + squash-merge, whereas a commit fingerprint here re-breaks on every re-SHA. Prefer an
+# inline allow (or a fixture rename) over a fingerprint for in-flight branch content.

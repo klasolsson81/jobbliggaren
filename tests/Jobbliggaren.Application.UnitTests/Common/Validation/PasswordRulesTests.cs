@@ -5,9 +5,11 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Common.Validation;
 
 /// <summary>
-/// Pins the shared password-strength rule (the single source of truth applied by every command
-/// that accepts a new password). The length must stay in lockstep with Identity's
-/// <c>RequiredLength = 12</c>; this test fails loudly if the constant drifts.
+/// Pins the shared password-strength rule and its Application-side length constant. This is a
+/// regression guard on the Application literal (12) — it does NOT, and cannot, prove lockstep with
+/// Identity's <c>RequiredLength</c> (Application may not reference Infrastructure to assert it); the
+/// lockstep is maintained by the doc-note on <see cref="PasswordRules"/>. If the Identity option
+/// changes, update <see cref="PasswordRules.MinimumLength"/> in the same change.
 /// </summary>
 public class PasswordRulesTests
 {
@@ -21,22 +23,22 @@ public class PasswordRulesTests
     private readonly ProbeValidator _validator = new();
 
     [Fact]
-    public void MinimumLength_mirrors_Identity_RequiredLength_of_12()
+    public void MinimumLength_IsTwelve()
         => PasswordRules.MinimumLength.ShouldBe(12);
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public void Password_null_or_empty_fails(string? password)
+    public void Validate_NullOrEmpty_Fails(string? password)
         => _validator.Validate(new Probe(password)).IsValid.ShouldBeFalse();
 
     [Fact]
-    public void Password_one_below_minimum_fails()
+    public void Validate_OneBelowMinimum_Fails()
         => _validator.Validate(new Probe(new string('a', PasswordRules.MinimumLength - 1)))
             .IsValid.ShouldBeFalse();
 
     [Fact]
-    public void Password_at_minimum_passes()
+    public void Validate_AtMinimum_Passes()
         => _validator.Validate(new Probe(new string('a', PasswordRules.MinimumLength)))
             .IsValid.ShouldBeTrue();
 }

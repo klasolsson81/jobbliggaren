@@ -44,7 +44,16 @@ public sealed record Session(
     SessionId Id,
     Guid UserId,
     DateTimeOffset CreatedAt,
-    DateTimeOffset ExpiresAt);
+    DateTimeOffset ExpiresAt,
+    // The lifetime profile the session was created under (#481). Exposed so a caller that
+    // re-issues the current session (change-password C6, #678) can mint the replacement under
+    // the SAME profile and tell the Next layer whether the cookie is persistent — without a
+    // second store round-trip or a new port method. Every store read/create populates this
+    // authoritatively from the payload/param. The Legacy default is purely a construction
+    // convenience for test doubles that don't assert on it — it is NOT the pre-profiles
+    // back-compat mechanism, which lives separately in SessionPayload deserialization (a
+    // pre-profiles JSON without a Lifetime field decodes to ordinal 0 = Legacy there).
+    SessionLifetime Lifetime = SessionLifetime.Legacy);
 
 /// <summary>
 /// Which lifetime profile a session was created under (#481 persistent-login).

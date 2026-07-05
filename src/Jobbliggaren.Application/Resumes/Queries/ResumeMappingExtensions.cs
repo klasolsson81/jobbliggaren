@@ -20,7 +20,7 @@ internal static class ResumeMappingExtensions
             .Select(s => new SkillDto(s.Name, s.YearsExperience))
             .ToList(),
         c.Summary,
-        // Fas 4b AppCopy superset (ADR 0094). Proficiency projects the SmartEnum Name token.
+        // Fas 4b AppCopy superset (ADR 0095). Proficiency projects the SmartEnum Name token.
         c.Languages
             .Select(l => new SpokenLanguageDto(l.Name, l.Proficiency.Name))
             .ToList(),

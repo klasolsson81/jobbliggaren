@@ -6,7 +6,7 @@ namespace Jobbliggaren.Infrastructure.Security;
 
 /// <summary>
 /// System.Text.Json converter for the <see cref="LanguageProficiency"/> SmartEnum inside the
-/// Form B encrypted <c>content_enc</c> blob (ADR 0049 Form B / ADR 0094 D-C). SmartEnums have a
+/// Form B encrypted <c>content_enc</c> blob (ADR 0049 Form B / ADR 0095 D-C). SmartEnums have a
 /// private constructor and do not round-trip through STJ by default; this writes the stable Name
 /// token (e.g. "Native") and reads it back. The read is <b>tolerant</b> — an unknown, absent, or
 /// null token materialises <see cref="LanguageProficiency.NotStated"/> and never throws (parity

@@ -39,7 +39,7 @@ internal static class EncryptedFieldRegistry
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = false,
-        // Fas 4b (ADR 0094 D-C): the LanguageProficiency SmartEnum inside ResumeContent
+        // Fas 4b (ADR 0095 D-C): the LanguageProficiency SmartEnum inside ResumeContent
         // does not round-trip through STJ by default (private ctor) → a Name-token converter.
         Converters = { new LanguageProficiencyJsonConverter() },
     };

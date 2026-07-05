@@ -223,7 +223,7 @@ public class CvRendererTests
     }
 
     // ----- CvDocumentModel.From(ResumeContent) — Fas 4b superset language projection (#651) -----
-    // Since the AppCopy superset (ADR 0094 D-C) the promoted content carries spoken languages, so
+    // Since the AppCopy superset (ADR 0095 D-C) the promoted content carries spoken languages, so
     // their NAMES feed the existing languages slot (proficiency + the other superset fields are not
     // rendered yet). This is a pure BCL projection (Phase A) — no PDF render, no I/O.
 
@@ -241,7 +241,7 @@ public class CvRendererTests
 
         var model = CvDocumentModel.From(content, "pågående");
 
-        // Names only, in order; the proficiency level is not projected (later PR, ADR 0094 D-E).
+        // Names only, in order; the proficiency level is not projected (later PR, ADR 0095 D-E).
         model.Languages.ShouldBe(["Svenska", "Tyska"]);
     }
 

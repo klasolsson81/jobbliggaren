@@ -6,7 +6,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Resumes;
 
 /// <summary>
-/// Fas 4b AppCopy superset (#651, ADR 0093 D1 / LRM ADR 0094) — Form B expand read-tolerance
+/// Fas 4b AppCopy superset (#651, ADR 0093 D1 / LRM ADR 0095) — Form B expand read-tolerance
 /// (ADR 0049 Beslut 5). A legacy <c>content_enc</c> blob written before the superset existed
 /// carries only the four original section keys (no <c>languages</c>/<c>skillGroups</c>/
 /// <c>sections</c>). Deserialising it through the PRODUCTION serialization SPOT
@@ -127,7 +127,7 @@ public class ResumeContentBackCompatDeserializationTests
     [Fact]
     public void Deserialize_ContentWithUnknownFutureKey_IsIgnored_RollbackDirectionPinned()
     {
-        // The ROLLBACK direction of the Form B expand/contract (ADR 0094 D-D): if newer code
+        // The ROLLBACK direction of the Form B expand/contract (ADR 0095 D-D): if newer code
         // wrote a blob with a key this code version does not know, deserialization must skip
         // it, not throw — pins that ContentJsonOptions keeps STJ's default unmapped-member
         // handling (Skip). A future switch to JsonUnmappedMemberHandling.Disallow on the SPOT

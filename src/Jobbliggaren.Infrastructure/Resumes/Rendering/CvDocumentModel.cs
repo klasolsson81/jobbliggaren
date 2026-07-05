@@ -51,11 +51,11 @@ internal sealed record CvDocumentModel(
     /// <c>DateOnly</c> periods are formatted to the same year-span display form the parsed path
     /// already uses (CTO D1 / Variant A) via <see cref="FormatPeriod"/>; the experience body is the
     /// user's own <c>Description</c> (verbatim, never synthesised — §5) and education has no body.
-    /// Since the Fas 4b superset (ADR 0094 D-C), the promoted content carries spoken languages, so
+    /// Since the Fas 4b superset (ADR 0095 D-C), the promoted content carries spoken languages, so
     /// their names feed the existing languages slot (an empty list still renders as an honest
     /// partial — the composer omits the empty section). The proficiency level and the other superset
     /// fields (skill groups, dynamic sections) are not rendered yet — their render surfaces are a
-    /// later PR (ADR 0094 D-E). <paramref name="ongoingLabel"/> is the localised word that closes an
+    /// later PR (ADR 0095 D-E). <paramref name="ongoingLabel"/> is the localised word that closes an
     /// open-ended period (resolved by the renderer from <see cref="CvRenderStrings.Labels.Ongoing"/>).
     /// </summary>
     public static CvDocumentModel From(ResumeContent content, string ongoingLabel) =>

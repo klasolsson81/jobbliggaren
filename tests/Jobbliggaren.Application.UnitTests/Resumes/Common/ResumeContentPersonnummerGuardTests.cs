@@ -32,7 +32,7 @@ public class ResumeContentPersonnummerGuardTests
     private static EducationDto CleanEducation() =>
         new("KTH", "Civilingenjör", new DateOnly(2013, 9, 1), new DateOnly(2018, 6, 1));
 
-    // Fas 4b AppCopy superset (ADR 0094 D-E) clean free-text fixtures. The proficiency token
+    // Fas 4b AppCopy superset (ADR 0095 D-E) clean free-text fixtures. The proficiency token
     // ("Native") is a closed vocabulary, not scanned free text, so it never carries a personnummer.
     private static SpokenLanguageDto CleanLanguage() =>
         new("Svenska", "Native");
@@ -54,7 +54,7 @@ public class ResumeContentPersonnummerGuardTests
             Summary: "Erfaren backend-utvecklare.");
 
     // One entry per free-text field class CollectFreeText concatenates — 17 in total (11 original
-    // + the 6 Fas 4b AppCopy superset free-text fields, ADR 0094 D-E; SkillGroup.Members scanned
+    // + the 6 Fas 4b AppCopy superset free-text fields, ADR 0095 D-E; SkillGroup.Members scanned
     // directly per security-auditor 2026-07-05 so the guard is self-contained). If a field is ever
     // dropped from CollectFreeText its entry here fails (the personnummer is no longer seen), so
     // field-completeness is pinned rather than merely reviewed.
@@ -83,7 +83,7 @@ public class ResumeContentPersonnummerGuardTests
         yield return ["Skill.Name",
             Clean() with { Skills = [new SkillDto($"Kompetens {Pnr}", 3)] }];
 
-        // Fas 4b AppCopy superset free text (ADR 0094 D-E). A personnummer typed into any of
+        // Fas 4b AppCopy superset free text (ADR 0095 D-E). A personnummer typed into any of
         // these five must be flagged — dropping the corresponding CollectFreeText line fails here.
         yield return ["SpokenLanguage.Name",
             Clean() with { Languages = [CleanLanguage() with { Name = $"Svenska {Pnr}" }] }];

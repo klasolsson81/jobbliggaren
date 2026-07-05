@@ -107,7 +107,7 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = false,
-        // Fas 4b (ADR 0094 D-C): the mirror MUST carry the LanguageProficiency Name-token converter
+        // Fas 4b (ADR 0095 D-C): the mirror MUST carry the LanguageProficiency Name-token converter
         // now that production's ContentJsonOptions does — otherwise the canonical re-serialisation
         // of a SmartEnum would diverge from the real Form B blob (#651).
         Converters = { new LanguageProficiencyJsonConverter() },
@@ -159,7 +159,7 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
             ],
             summary: "Erfaren backend-utvecklare med fokus på betaltjänster.");
 
-    // Fas 4b AppCopy superset (#651, ADR 0094 D-A/B/C): RichContent PLUS spoken languages
+    // Fas 4b AppCopy superset (#651, ADR 0095 D-A/B/C): RichContent PLUS spoken languages
     // (one Native, one NotStated — the load-bearing distinct SmartEnum tokens), one skill group
     // referencing the two existing flat skills (membership invariant holds), and one dynamic
     // section with an entry. Valid content that passes ValidateContent via UpdateMasterContent.
@@ -274,7 +274,7 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
         for (var i = 0; i < expected.Skills.Count; i++)
             actual.Skills[i].ShouldBe(expected.Skills[i]);
 
-        // Fas 4b AppCopy superset (#651, ADR 0094). SpokenLanguage has no collection member so
+        // Fas 4b AppCopy superset (#651, ADR 0095). SpokenLanguage has no collection member so
         // record value-equality holds; SkillGroup/ResumeSection carry lists (reference-based
         // record equality) so they are compared field-by-field like Experiences/Educations.
         actual.Languages.Count.ShouldBe(expected.Languages.Count);
@@ -334,7 +334,7 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
         ShouldDeepEqual(loaded, original);
     }
 
-    // ── 1b. Round-trip deep equality — Fas 4b AppCopy superset (#651, ADR 0094) ──────────
+    // ── 1b. Round-trip deep equality — Fas 4b AppCopy superset (#651, ADR 0095) ──────────
     // The superset fields (languages incl. Native + NotStated, a skill group, a dynamic section)
     // must survive encrypt → content_enc → decrypt with deep value-equality, exercising the
     // LanguageProficiencyJsonConverter inside the real Form B mechanism against real Postgres.

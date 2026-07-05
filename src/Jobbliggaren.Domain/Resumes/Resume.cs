@@ -361,7 +361,7 @@ public sealed class Resume : AggregateRoot<ResumeId>
                     "Slutdatum får inte vara före startdatum."));
         }
 
-        // Fas 4b AppCopy superset (ADR 0094 D-E). Validation parity with the existing
+        // Fas 4b AppCopy superset (ADR 0095 D-E). Validation parity with the existing
         // rules: label fields are required-only (no max, like Company/Role/Skill.Name);
         // prose bodies are capped like Summary. Proficiency is type-guaranteed valid
         // (SmartEnum) so it needs no check.
@@ -372,7 +372,7 @@ public sealed class Resume : AggregateRoot<ResumeId>
                     "Resume.LanguageNameRequired", "Språknamn krävs."));
         }
 
-        // Grouped-skills overlay reference invariant (ADR 0094 D-A): every group member
+        // Grouped-skills overlay reference invariant (ADR 0095 D-A): every group member
         // must reference a skill that exists in the flat, authoritative Skills list — no
         // dangling reference, so no phantom skill the user did not write (CLAUDE.md §5).
         // Not every skill need be grouped (design handoff P4). Skill names were already

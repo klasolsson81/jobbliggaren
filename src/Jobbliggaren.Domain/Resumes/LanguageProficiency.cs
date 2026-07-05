@@ -4,7 +4,7 @@ namespace Jobbliggaren.Domain.Resumes;
 
 /// <summary>
 /// Self-declared proficiency level for a spoken language on a canonical CV
-/// (Fas 4b AppCopy superset, ADR 0093 D1 / LRM ADR 0094 D-C). A closed, ordered
+/// (Fas 4b AppCopy superset, ADR 0093 D1 / LRM ADR 0095 D-C). A closed, ordered
 /// vocabulary — the wizard offers exactly these levels (design handoff §4
 /// <c>niva</c>: modersmål/flytande/god/grundläggande), so a SmartEnum, not a free
 /// string, guards it (CLAUDE.md §5 — no magic strings, no primitive obsession).

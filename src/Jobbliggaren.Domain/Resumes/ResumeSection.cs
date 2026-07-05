@@ -3,7 +3,7 @@ namespace Jobbliggaren.Domain.Resumes;
 /// <summary>
 /// A dynamic, profession-driven CV section beyond the four standard ones (Erfarenhet /
 /// Utbildning / Kompetenser / Språk) — Fas 4b AppCopy superset <c>sektioner</c>,
-/// ADR 0093 D1 / LRM ADR 0094 D-B (design handoff §7: "Projekt och arbetsprov",
+/// ADR 0093 D1 / LRM ADR 0095 D-B (design handoff §7: "Projekt och arbetsprov",
 /// "Legitimation och intyg", "Kurser och certifikat", "Referenser", …).
 /// <paramref name="Heading"/> is <b>free user text</b>, never a SmartEnum: the file may
 /// introduce an arbitrary section and it is always shown (design handoff P4 — "the file

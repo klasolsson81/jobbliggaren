@@ -2,7 +2,7 @@ namespace Jobbliggaren.Application.Resumes.Queries;
 
 /// <summary>
 /// Transport shape for the canonical CV content. The Fas 4b AppCopy superset fields
-/// (<see cref="Languages"/>, <see cref="SkillGroups"/>, <see cref="Sections"/>, ADR 0094)
+/// (<see cref="Languages"/>, <see cref="SkillGroups"/>, <see cref="Sections"/>, ADR 0095)
 /// are <b>optional with a null default</b> so a pre-superset client (which omits them)
 /// deserialises cleanly; the mapper coalesces null to an empty list. The four original
 /// fields keep their established all-required contract.

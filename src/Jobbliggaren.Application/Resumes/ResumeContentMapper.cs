@@ -32,7 +32,7 @@ internal static class ResumeContentMapper
             .Select(s => new Skill(s.Name, s.YearsExperience))
             .ToList();
 
-        // Fas 4b AppCopy superset (ADR 0094). The new collections are optional on the
+        // Fas 4b AppCopy superset (ADR 0095). The new collections are optional on the
         // transport (a pre-superset client omits them → null); coalesce to empty — the
         // NESTED lists too (STJ passes null for an omitted member; a partial-but-parseable
         // payload must map, not NRE→500). An unknown/absent proficiency token maps to

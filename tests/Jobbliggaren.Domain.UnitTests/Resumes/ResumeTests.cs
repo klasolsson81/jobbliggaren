@@ -1262,7 +1262,7 @@ public class ResumeTests
     }
 
     // ---------------------------------------------------------------
-    // UpdateMasterContent — Fas 4b AppCopy superset invariants (ADR 0094 D-E, #651).
+    // UpdateMasterContent — Fas 4b AppCopy superset invariants (ADR 0095 D-E, #651).
     // ValidateContent is shared with CreateFromParsed/CreateTailored, so pinning the codes
     // here covers every write surface.
     // ---------------------------------------------------------------
@@ -1300,7 +1300,7 @@ public class ResumeTests
     public void UpdateMasterContent_WithSkillGroupMemberNotInSkills_ReturnsSkillGroupMemberUnknown()
     {
         // A group member absent from the flat Skills list is a dangling reference — a phantom
-        // skill the user did not write (ADR 0094 D-A membership invariant, CLAUDE.md §5).
+        // skill the user did not write (ADR 0095 D-A membership invariant, CLAUDE.md §5).
         var resume = CreateValidResume();
         var content = new ResumeContent(
             new PersonalInfo(ValidFullName, null, null, null),
@@ -1499,7 +1499,7 @@ public class ResumeTests
     // Hjälpmetoder
     // ---------------------------------------------------------------
 
-    // Rich, valid content exercising every Fas 4b superset field (ADR 0094 D-E). The skill-group
+    // Rich, valid content exercising every Fas 4b superset field (ADR 0095 D-E). The skill-group
     // members are a subset of the flat Skills list so the membership invariant holds.
     private static ResumeContent FullSupersetContent() => new(
         new PersonalInfo("Klas Olsson", "klas@example.com", "0701234567", "Stockholm"),

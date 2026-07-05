@@ -59,7 +59,7 @@ internal static class ResumeContentPersonnummerGuard
     /// sees the whole surface (DQ6 — name/contact, summary, experience company/role/description,
     /// education institution/degree, skill names, and the Fas 4b superset free text: spoken-language
     /// names, skill-group names + members, and dynamic-section headings/entry titles/lines —
-    /// ADR 0094 D-E, mandatory: a personnummer typed into any of these must be flagged). Order is
+    /// ADR 0095 D-E, mandatory: a personnummer typed into any of these must be flagged). Order is
     /// irrelevant — the scanner only flags. The superset collections (top-level AND nested) are
     /// optional on the transport (a pre-superset or partial client omits them → null); each is
     /// null-guarded.
@@ -95,7 +95,7 @@ internal static class ResumeContentPersonnummerGuard
         foreach (var s in content.Skills)
             sb.AppendLine(s.Name);
 
-        // Fas 4b AppCopy superset free text (ADR 0094 D-E). Nested collections are
+        // Fas 4b AppCopy superset free text (ADR 0095 D-E). Nested collections are
         // null-guarded like the top-level ones (STJ passes null for an omitted member —
         // the guard must scan a partial payload, never NRE on it).
         foreach (var lang in content.Languages ?? [])

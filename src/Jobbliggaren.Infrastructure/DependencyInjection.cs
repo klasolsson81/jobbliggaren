@@ -188,12 +188,23 @@ public static class DependencyInjection
             })
             .AddResilienceHandler("scb-register", builder =>
             {
-                // Rate-limiter FIRST so retries also count against the SCB budget (parity jobstream).
+                // Rate-limiter registered FIRST = Polly-outermost (the framework's default order): it
+                // paces NEW pipeline executions to <=6/10 s. Retries run INSIDE a single acquired permit
+                // and do not re-acquire, so the <=6-calls/10-s ceiling to SCB is upheld by the SEQUENTIAL
+                // single-in-flight client (exec N+1 awaits exec N's retries) + exponential backoff +
+                // 429-fail-fast (ScbRetryPolicy), not by per-attempt throttling (parity jobstream order).
                 builder.AddRateLimiter(_scbRegisterRateLimiter);
                 builder.AddRetry(new HttpRetryStrategyOptions
                 {
                     MaxRetryAttempts = 3,
                     BackoffType = DelayBackoffType.Exponential,
+                    // Fail fast on HTTP 429 (ScbRetryPolicy): SCB has explicitly signalled overload, so
+                    // the extra attempts would only add rejected calls to the API-Id ban counter and mask
+                    // the signal. Everything else keeps the framework's default transient handling. A
+                    // propagated 429 still trips the circuit breaker below — persistent 429 opens it for
+                    // 5 min, the intended backpressure (senior-cto-advisor 2026-07-05).
+                    ShouldHandle = static args =>
+                        ValueTask.FromResult(ScbRetryPolicy.ShouldRetry(args.Outcome)),
                 });
                 builder.AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
                 {
@@ -685,14 +696,18 @@ public static class DependencyInjection
     // guarantees the rolling-10 s permit sum never exceeds PermitLimit — unlike a FIXED window, which
     // can emit up to 2×PermitLimit across a boundary (code-reviewer 2026-07-04 Major: 2×8 > 10). The
     // planner issues many small kodtabell/raknaforetag calls, so that burst is not hypothetical.
-    // PermitLimit=9 keeps a 1-call safety margin under SCB's 10 (clock skew / SCB-side window). The
-    // refresh streams sequentially (at most one waiter), but QueueLimit is generous so a throttled call
-    // ALWAYS waits rather than being rejected+retried. App-lifetime static (parity _streamRateLimiter);
-    // the IDisposable-at-shutdown warning is an accepted bagatelle.
+    // PermitLimit=6 (60% of SCB's 10) keeps a deliberate 4-call safety margin — far beyond any clock
+    // skew / SCB-side window edge (≤1-2 calls) — because exceeding the cap risks an API-Id BAN
+    // (catastrophic, §12) whereas running slower costs only ~10-30 min extra on a night run Klas
+    // explicitly accepted (senior-cto-advisor 2026-07-05: ban-risk-minimization > tempo; supersedes the
+    // 1-call margin at 9, honouring Fork 7's "rate budget is code, not config" ruling). The refresh
+    // streams sequentially (at most one waiter), but QueueLimit is generous so a throttled call ALWAYS
+    // waits rather than being rejected+retried. App-lifetime static (parity _streamRateLimiter); the
+    // IDisposable-at-shutdown warning is an accepted bagatelle.
     private static readonly SlidingWindowRateLimiter _scbRegisterRateLimiter = new(
         new SlidingWindowRateLimiterOptions
         {
-            PermitLimit = 9,
+            PermitLimit = 6,
             Window = TimeSpan.FromSeconds(10),
             SegmentsPerWindow = 10,
             QueueLimit = 256,

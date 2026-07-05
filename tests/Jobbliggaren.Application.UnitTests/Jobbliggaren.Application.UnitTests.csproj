@@ -27,6 +27,15 @@
     <EmbeddedResource Include="KnowledgeBank\Fixtures\rubric.v1.0.0-no-reason-synthetic.json">
       <LogicalName>Jobbliggaren.Application.UnitTests.KnowledgeBank.Fixtures.rubric.v1.0.0-no-reason-synthetic.json</LogicalName>
     </EmbeddedResource>
+    <!-- Rubric v1.2 (PR-5 CTO-bind D1) — synthetic N-1 (pre-thresholds/styleOnly) v1.1.0 rubric
+         fixture for RubricThresholdsBackcompatTests. Embedded so the test runs the real
+         RubricLoader.LoadFrom(Stream) path over a stream the TEST assembly owns. Every criterion
+         OMITS 'thresholds' and 'styleOnly' → must map to Thresholds == null (N-1 tolerance) and
+         StyleOnly == false (fail-closed), never throw. LogicalName pinned + referenced verbatim
+         by the test. -->
+    <EmbeddedResource Include="KnowledgeBank\Fixtures\rubric.v1.1.0-no-thresholds-synthetic.json">
+      <LogicalName>Jobbliggaren.Application.UnitTests.KnowledgeBank.Fixtures.rubric.v1.1.0-no-thresholds-synthetic.json</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>

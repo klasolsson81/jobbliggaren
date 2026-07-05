@@ -2050,6 +2050,135 @@ public class CvReviewEngineTests
         span.Span.Quote.ShouldBe("Hon");
     }
 
+    // ===============================================================
+    // 17. A2/A6/A4 prose↔data golden drift-guards (rubric v1.2, PR-5 CTO-bind D1)
+    //     — the numeric thresholds relocated to RubricCriterion.Thresholds must
+    //     still equal the numbers their user-facing prose signals carry (DRY: one
+    //     knowledge piece, two representations that must agree), AND the engine
+    //     must behave at the DERIVED boundary. Parity with the A1/A7/A8/C3 guards.
+    //     These are among the exact thresholds this PR moves, so guarding them IS
+    //     the move's Definition of Done — never a fresh hardcoded expectation.
+    // ===============================================================
+
+    [Fact]
+    public async Task ReviewAsync_A2ThresholdsShouldMatchTheRubricProse_GoldenDriftGuard()
+    {
+        // A2 PASS "≥80 %" → thresholds.passRatio 0.80; FAIL "<50 %" → thresholds.failRatio 0.50.
+        // Both are the "%"-bearing numbers, read with PercentInSignal (parity A1's helper).
+        var a2 = RealRubric().Criteria.Single(c => c.Id == "A2");
+        var passPercent = PercentInSignal(a2.AtsPassSignal!);   // 80
+        var failPercent = PercentInSignal(a2.AtsFailSignal!);   // 50
+
+        a2.RequiredThreshold(RubricThresholdKeys.PassRatio).ShouldBe(passPercent / 100.0, 1e-9);
+        a2.RequiredThreshold(RubricThresholdKeys.FailRatio).ShouldBe(failPercent / 100.0, 1e-9);
+
+        // Behaviour at the derived boundary: strong-opener share ≥ passRatio → Pass; below → not
+        // Pass; strictly below failRatio → Fail; exactly at failRatio → Warn (strict <, not Fail).
+        VerdictOf(await ReviewAsync(A2Bullets(strong: 8, total: 10)), "A2")
+            .ShouldBe(CriterionVerdict.Pass, "8/10 starka (0,80 ≥ passRatio) → Pass.");
+        VerdictOf(await ReviewAsync(A2Bullets(strong: 7, total: 10)), "A2")
+            .ShouldNotBe(CriterionVerdict.Pass, "7/10 (0,70 < passRatio) → inte Pass.");
+        VerdictOf(await ReviewAsync(A2Bullets(strong: 4, total: 10)), "A2")
+            .ShouldBe(CriterionVerdict.Fail, "4/10 (0,40 < failRatio) → Fail.");
+        var a2AtFail = Verdict(await ReviewAsync(A2Bullets(strong: 5, total: 10)), "A2").Verdict;
+        a2AtFail.ShouldBe(CriterionVerdict.Warn, "5/10 (exakt 0,50, inte < failRatio) → Warn.");
+        a2AtFail.ShouldNotBe(CriterionVerdict.Fail);
+
+        // `total` bullets; `strong` open with a strong mapping verb, the rest with a NEUTRAL
+        // (non-strong, non-weak) opener so the non-strong share is honest and never a weak-verb Fail.
+        static ParsedResume A2Bullets(int strong, int total)
+        {
+            var strongVerb = RealVerbMapper().GetVerbMapping()
+                .StrongVerbGroups.SelectMany(g => g.Verbs).First();
+            var bullets = new List<string>();
+            for (var i = 0; i < total; i++)
+            {
+                bullets.Add(i < strong
+                    ? $"{Capitalize(strongVerb)} teamet mot tydliga mål"
+                    : "Övriga uppgifter enligt plan");
+            }
+
+            return Resume(experience: [Experience(bullets: [.. bullets])]);
+        }
+    }
+
+    [Fact]
+    public async Task ReviewAsync_A6ThresholdsShouldMatchTheRubricProse_GoldenDriftGuard()
+    {
+        // A6 PASS "≥70 %" → thresholds.passRatio 0.70; FAIL ">50 % generiska" → thresholds.failRatio
+        // 0.50. The FAIL prose numeral is 50; the rule fails when the CONCRETE ratio < 0.50 (i.e.
+        // more than 50 % generic). The guard pins the DATA against the prose NUMERALS, so a copy
+        // edit to the signal that changes the number can never silently diverge from the threshold.
+        var a6 = RealRubric().Criteria.Single(c => c.Id == "A6");
+        var passPercent = PercentInSignal(a6.AtsPassSignal!);   // 70
+        var failPercent = PercentInSignal(a6.AtsFailSignal!);   // 50
+
+        a6.RequiredThreshold(RubricThresholdKeys.PassRatio).ShouldBe(passPercent / 100.0, 1e-9);
+        a6.RequiredThreshold(RubricThresholdKeys.FailRatio).ShouldBe(failPercent / 100.0, 1e-9);
+
+        // Behaviour at the derived boundary: concrete share ≥ passRatio → Pass; below → not Pass;
+        // strictly below failRatio → Fail; exactly at failRatio → Warn (strict <, not Fail).
+        VerdictOf(await ReviewAsync(A6Bullets(concrete: 7, total: 10)), "A6")
+            .ShouldBe(CriterionVerdict.Pass, "7/10 konkreta (0,70 ≥ passRatio) → Pass.");
+        VerdictOf(await ReviewAsync(A6Bullets(concrete: 6, total: 10)), "A6")
+            .ShouldNotBe(CriterionVerdict.Pass, "6/10 (0,60 < passRatio) → inte Pass.");
+        VerdictOf(await ReviewAsync(A6Bullets(concrete: 4, total: 10)), "A6")
+            .ShouldBe(CriterionVerdict.Fail, "4/10 konkreta (0,40 < failRatio) → Fail.");
+        var a6AtFail = Verdict(await ReviewAsync(A6Bullets(concrete: 5, total: 10)), "A6").Verdict;
+        a6AtFail.ShouldBe(CriterionVerdict.Warn, "5/10 konkreta (exakt 0,50, inte < failRatio) → Warn.");
+        a6AtFail.ShouldNotBe(CriterionVerdict.Fail);
+
+        // `total` bullets; `concrete` carry a measurable metric (a concrete artefact), the rest are
+        // generic (no digit, no capitalised named system). Dates are irrelevant here.
+        static ParsedResume A6Bullets(int concrete, int total)
+        {
+            var bullets = new List<string>();
+            for (var i = 0; i < total; i++)
+            {
+                bullets.Add(i < concrete
+                    ? "Ökade resultatet med 20 procent"
+                    : "ansvarade för dagliga arbetsuppgifter");
+            }
+
+            return Resume(experience: [Experience(bullets: [.. bullets])]);
+        }
+    }
+
+    [Fact]
+    public async Task ReviewAsync_A4MaxGapMonthsShouldMatchTheRubricProse_GoldenDriftGuard()
+    {
+        // A4 maxGapMonths is derived from the PASS signal "Inga oförklarade gaps >6 mån" (FirstInt).
+        // The FAIL signal ("≥1 oförklarat gap >6 mån ...") LEADS with "1", so FirstInt on it would
+        // wrongly read 1 — the guard reads the PASS signal, exactly as the CTO record directs.
+        var a4 = RealRubric().Criteria.Single(c => c.Id == "A4");
+        var gapMonths = FirstInt(a4.AtsPassSignal!);   // 6
+
+        ((int)a4.RequiredThreshold(RubricThresholdKeys.MaxGapMonths)).ShouldBe(gapMonths,
+            "A4 maxGapMonths-DATA måste vara samma tal som prosans \">6 mån\".");
+
+        // Boundary behaviour at the derived value: a gap of exactly `gapMonths` months is NOT > the
+        // threshold → Pass; one month more → Warn (strict >). Parity with the existing A4 Theory,
+        // but with the boundary DERIVED from the data rather than hardcoded.
+        VerdictOf(await ReviewAsync(TwoRolesWithGap(gapMonths)), "A4")
+            .ShouldBe(CriterionVerdict.Pass, $"exakt {gapMonths} mån är inte > {gapMonths} → Pass.");
+        VerdictOf(await ReviewAsync(TwoRolesWithGap(gapMonths + 1)), "A4")
+            .ShouldBe(CriterionVerdict.Warn, $"{gapMonths + 1} mån > {gapMonths} → Warn.");
+
+        // Role A ends 2020-01; role B starts `gapMonths` months later (both parseable MM/YYYY, no
+        // unparseable period so A4 is assessed). The gap in whole months from the running max end
+        // is the offset from January 2020.
+        static ParsedResume TwoRolesWithGap(int gapMonths)
+        {
+            var startMonth = 1 + gapMonths;   // months after 2020-01; stays within the year for 6/7
+            var second = $"{startMonth:00}/2020 – 12/2020";
+            return Resume(experience:
+            [
+                Experience(period: "06/2019 – 01/2020", rawText: "Roll A 06/2019 – 01/2020"),
+                Experience(period: second, rawText: $"Roll B {second}"),
+            ]);
+        }
+    }
+
     private static string Capitalize(string s) =>
         string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s[1..];
 }

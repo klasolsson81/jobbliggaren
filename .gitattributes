@@ -12,3 +12,8 @@
 *.aff -text
 src/Jobbliggaren.Infrastructure/TextAnalysis/swedish.stop -text
 src/Jobbliggaren.Infrastructure/TextAnalysis/english.stop -text
+
+# Shell hooks must keep LF endings (repo default is core.autocrlf=true). A CRLF `\r`
+# breaks bash `case`/`[[ ]]`/`read` matching in the worktree-reaper/session-end hooks
+# (issue #673) — pin them so checkout never converts to CRLF.
+.claude/hooks/*.sh text eol=lf

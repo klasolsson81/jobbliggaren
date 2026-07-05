@@ -227,6 +227,89 @@ public sealed class RedisSessionStore(
         }
     }
 
+    public async Task<SessionRotation?> RotateAsync(SessionId current, CancellationToken ct)
+    {
+        string? json;
+        try
+        {
+            json = await cache.GetStringAsync(Key(current), ct);
+        }
+        catch (RedisConnectionException ex)
+        {
+            throw new SessionStoreUnavailableException("Redis-session-store är inte tillgänglig.", ex);
+        }
+
+        if (json is null) return null;
+
+        var payload = JsonSerializer.Deserialize<SessionPayload>(json, JsonOptions);
+        if (payload is null) return null;
+
+        var profile = _options.ProfileFor(payload.Lifetime);
+        if (profile.RotationInterval <= TimeSpan.Zero) return null; // profile never rotates
+
+        var now = dateTimeProvider.UtcNow;
+
+        // Defensive: never rotate a session already past its absolute cap (GetAsync would
+        // have evicted it first on the refresh request, but RotateAsync is public).
+        if (now - payload.CreatedAt >= profile.AbsoluteTtl) return null;
+
+        // Interval-gate: rotate only once RotationInterval has elapsed since the last
+        // rotation (or, for a never-rotated session, since it was created — a legacy
+        // payload with RotatedAt == default anchors on CreatedAt).
+        var rotatedAt = payload.RotatedAt == default ? payload.CreatedAt : payload.RotatedAt;
+        if (now - rotatedAt < profile.RotationInterval) return null;
+
+        try
+        {
+            var db = redis.GetDatabase();
+
+            // Single-winner election: of a concurrent burst of refresh requests, exactly
+            // one may rotate. SET NX on a short-lived claim key; a loser returns null and
+            // keeps using `current` (still valid). The claim self-expires, so a crash
+            // between claim and rotation just defers rotation to the next interval.
+            if (!await db.StringSetAsync(
+                    RotationClaimKey(current), RotationClaimValue, _options.RotationClaimTtl, When.NotExists))
+                return null;
+
+            var newId = SessionId.Generate();
+            var newKey = Key(newId);
+            var setKey = UserSessionsKey(payload.UserId);
+
+            // Preserve CreatedAt + Lifetime verbatim (the cap anchor must never reset);
+            // stamp RotatedAt = now.
+            var rotatedPayload = payload with { RotatedAt = now };
+            var rotatedJson = JsonSerializer.Serialize(rotatedPayload, JsonOptions);
+
+            // Slide the new key up to SlidingTtl, clamped to the absolute cap (as GetAsync).
+            var capRemaining = payload.CreatedAt + profile.AbsoluteTtl - now;
+            var slidingTtl = capRemaining < profile.SlidingTtl ? capRemaining : profile.SlidingTtl;
+
+            // New index member FIRST (mirror of CreateAsync) so InvalidateAllForUserAsync
+            // can never miss the rotated session during the transition; the old member is
+            // removed after, leaving at worst a benign transient double-membership.
+            await db.SetAddAsync(setKey, newKey);
+            await cache.SetStringAsync(
+                newKey,
+                rotatedJson,
+                new DistributedCacheEntryOptions { SlidingExpiration = slidingTtl },
+                ct);
+            await db.KeyExpireAsync(setKey, profile.SlidingTtl);
+
+            // Retire the old id. Hard delete: the in-flight-render grace window (where a
+            // navigation that triggered rotation still carries the old id) lands with the
+            // middleware driver in the activation PR, where that race actually occurs —
+            // rotation is dormant until then.
+            await db.SetRemoveAsync(setKey, Key(current));
+            await cache.RemoveAsync(Key(current), ct);
+
+            return new SessionRotation(newId, now + slidingTtl);
+        }
+        catch (RedisConnectionException ex)
+        {
+            throw new SessionStoreUnavailableException("Redis-session-store är inte tillgänglig.", ex);
+        }
+    }
+
     // Session-id hashas med SHA-256 → base64url innan det används som Redis-nyckel.
     // Skyddar mot Redis-dump-läckage: raw token aldrig synligt i Redis.
     // (jobbliggaren:-prefixet läggs till automatiskt av IDistributedCache-konfigurationen)
@@ -242,6 +325,11 @@ public sealed class RedisSessionStore(
     // direkt (inte IDistributedCache som auto-prefixar via InstanceName).
     private static string UserSessionsKey(Guid userId) =>
         string.Create(CultureInfo.InvariantCulture, $"{KeyPrefix}user:{userId}:sessions");
+
+    // Single-winner rotation claim (SET NX). Manually prefixed since it goes via
+    // IConnectionMultiplexer, not IDistributedCache. The value is an unused sentinel.
+    private const string RotationClaimValue = "1";
+    private static string RotationClaimKey(SessionId sessionId) => $"{KeyPrefix}{Key(sessionId)}:rotating";
 
     // RotatedAt + Lifetime are written from PR2a. Older payloads lack them: Lifetime
     // deserializes to Legacy (ordinal 0) and RotatedAt to default — both handled at the

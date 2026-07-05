@@ -11,7 +11,7 @@ public sealed class InMemorySessionStore(
 {
     private readonly SessionStoreOptions _options = options.Value;
 
-    private readonly ConcurrentDictionary<string, (Guid UserId, DateTimeOffset CreatedAt, DateTimeOffset ExpiresAt, SessionLifetime Lifetime)>
+    private readonly ConcurrentDictionary<string, (Guid UserId, DateTimeOffset CreatedAt, DateTimeOffset RotatedAt, DateTimeOffset ExpiresAt, SessionLifetime Lifetime)>
         _sessions = new();
 
     public Task<Session?> GetAsync(SessionId sessionId, CancellationToken ct)
@@ -42,7 +42,7 @@ public sealed class InMemorySessionStore(
         var capRemaining = entry.CreatedAt + profile.AbsoluteTtl - now;
         var slidingTtl = capRemaining < profile.SlidingTtl ? capRemaining : profile.SlidingTtl;
         var newExpiry = now + slidingTtl;
-        _sessions.TryUpdate(key, (entry.UserId, entry.CreatedAt, newExpiry, entry.Lifetime), entry);
+        _sessions.TryUpdate(key, (entry.UserId, entry.CreatedAt, entry.RotatedAt, newExpiry, entry.Lifetime), entry);
 
         return Task.FromResult<Session?>(
             new Session(sessionId, entry.UserId, entry.CreatedAt, newExpiry));
@@ -54,9 +54,47 @@ public sealed class InMemorySessionStore(
         var now = dateTimeProvider.UtcNow;
         var expiresAt = now + _options.ProfileFor(lifetime).SlidingTtl;
 
-        _sessions[sessionId.Reveal()] = (userId, now, expiresAt, lifetime);
+        // RotatedAt starts at CreatedAt (== now).
+        _sessions[sessionId.Reveal()] = (userId, now, now, expiresAt, lifetime);
 
         return Task.FromResult(new Session(sessionId, userId, now, expiresAt));
+    }
+
+    public Task<SessionRotation?> RotateAsync(SessionId current, CancellationToken ct)
+    {
+        var key = current.Reveal();
+        if (!_sessions.TryGetValue(key, out var entry))
+            return Task.FromResult<SessionRotation?>(null);
+
+        var profile = _options.ProfileFor(entry.Lifetime);
+        if (profile.RotationInterval <= TimeSpan.Zero)
+            return Task.FromResult<SessionRotation?>(null);
+
+        var now = dateTimeProvider.UtcNow;
+        if (now - entry.CreatedAt >= profile.AbsoluteTtl)
+            return Task.FromResult<SessionRotation?>(null);
+
+        var rotatedAt = entry.RotatedAt == default ? entry.CreatedAt : entry.RotatedAt;
+        if (now - rotatedAt < profile.RotationInterval)
+            return Task.FromResult<SessionRotation?>(null);
+
+        // Single-winner: the caller that removes the old key wins (mirrors the Redis
+        // SET NX election). A loser gets null and keeps using `current`. No grace window
+        // — that is a Redis transport detail for the concurrent-render race; the observable
+        // contract (single-winner, CreatedAt preserved, new id valid, old id retired) is
+        // identical.
+        if (!_sessions.TryRemove(key, out var claimed))
+            return Task.FromResult<SessionRotation?>(null);
+
+        var newId = SessionId.Generate();
+        var capRemaining = claimed.CreatedAt + profile.AbsoluteTtl - now;
+        var slidingTtl = capRemaining < profile.SlidingTtl ? capRemaining : profile.SlidingTtl;
+        var expiresAt = now + slidingTtl;
+
+        // Preserve CreatedAt + Lifetime verbatim (cap anchor never resets); RotatedAt = now.
+        _sessions[newId.Reveal()] = (claimed.UserId, claimed.CreatedAt, now, expiresAt, claimed.Lifetime);
+
+        return Task.FromResult<SessionRotation?>(new SessionRotation(newId, expiresAt));
     }
 
     public Task<bool> InvalidateAsync(SessionId sessionId, CancellationToken ct)

@@ -52,12 +52,15 @@
       "createdPrefix": "Created",
       "statusLabel": "Status",
       "nextFollowUp": "Next follow-up:",
+      "daysInStep": "{days, plural, =0 {less than a day in this step} one {# day in this step} other {# days in this step}}",
+      "latestEvent": "Latest: {event}",
       "timelineLabel": "Timeline",
       "eventCreated": "Application created",
       "eventNoteAdded": "Note added",
       "eventFollowUpScheduled": "Follow-up ({channel}) scheduled",
       "eventOutcome": "Outcome: {outcome}",
-      "eventStatus": "Status: {status}",
+      "eventStatusChange": "Status: {from} → {to}",
+      "eventStatusChangeShort": "{from} → {to}",
       "coverLetterLabel": "Cover letter"
     },
     "modalShell": {

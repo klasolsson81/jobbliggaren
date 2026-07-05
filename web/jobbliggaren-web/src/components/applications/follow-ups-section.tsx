@@ -15,6 +15,14 @@ import type { FollowUpDto } from "@/lib/types/applications";
 interface FollowUpsSectionProps {
   applicationId: string;
   followUps: ReadonlyArray<FollowUpDto>;
+  /**
+   * Read-mode (#630 PR 6 drawer): render the follow-ups as a static list only —
+   * no expand, no "Lägg till", no record-outcome form. Capability-gating, not a
+   * separate component: the "present follow-ups" responsibility is unchanged;
+   * PR 7 re-enables mutation by simply omitting this flag (OCP). Default false =
+   * the full interactive disclosure (full-page / current behaviour, unchanged).
+   */
+  readOnly?: boolean;
 }
 
 /**
@@ -38,12 +46,14 @@ interface FollowUpsSectionProps {
 export function FollowUpsSection({
   applicationId,
   followUps,
+  readOnly = false,
 }: FollowUpsSectionProps) {
   const tUi = useTranslations("applications.ui");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
   useEffect(() => {
+    if (readOnly) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
         setExpandedId(null);
@@ -52,7 +62,7 @@ export function FollowUpsSection({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [readOnly]);
 
   const sorted = [...followUps].sort(
     (a, b) =>
@@ -74,7 +84,8 @@ export function FollowUpsSection({
               key={fu.id}
               followUp={fu}
               applicationId={applicationId}
-              expanded={expandedId === fu.id}
+              readOnly={readOnly}
+              expanded={!readOnly && expandedId === fu.id}
               onToggle={() =>
                 setExpandedId((prev) => (prev === fu.id ? null : fu.id))
               }
@@ -84,28 +95,30 @@ export function FollowUpsSection({
         </ul>
       )}
 
-      <div className="mt-4">
-        {!addOpen ? (
-          <button
-            type="button"
-            className="jp-btn jp-btn--secondary"
-            onClick={() => setAddOpen(true)}
-          >
-            {tUi("followUps.add")}
-          </button>
-        ) : (
-          <div className="jp-disclosure-body">
-            <h3 className="mb-3 text-body font-medium text-text-primary">
-              {tUi("followUps.addHeading")}
-            </h3>
-            <AddFollowUpForm
-              applicationId={applicationId}
-              onSuccess={() => setAddOpen(false)}
-              onCancel={() => setAddOpen(false)}
-            />
-          </div>
-        )}
-      </div>
+      {!readOnly && (
+        <div className="mt-4">
+          {!addOpen ? (
+            <button
+              type="button"
+              className="jp-btn jp-btn--secondary"
+              onClick={() => setAddOpen(true)}
+            >
+              {tUi("followUps.add")}
+            </button>
+          ) : (
+            <div className="jp-disclosure-body">
+              <h3 className="mb-3 text-body font-medium text-text-primary">
+                {tUi("followUps.addHeading")}
+              </h3>
+              <AddFollowUpForm
+                applicationId={applicationId}
+                onSuccess={() => setAddOpen(false)}
+                onCancel={() => setAddOpen(false)}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -116,6 +129,7 @@ interface FollowUpRowProps {
   expanded: boolean;
   onToggle: () => void;
   onClose: () => void;
+  readOnly?: boolean;
 }
 
 function FollowUpRow({
@@ -124,6 +138,7 @@ function FollowUpRow({
   expanded,
   onToggle,
   onClose,
+  readOnly = false,
 }: FollowUpRowProps) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
@@ -140,6 +155,35 @@ function FollowUpRow({
     ? (followUp.note.split(/\r?\n/)[0] ?? null)
     : null;
 
+  // Shared row summary (channel + outcome pill + note first line + date).
+  const summary = (
+    <>
+      <span className="jp-disclosure-row__primary">{channel}</span>
+      <span
+        className={`jp-pill jp-pill--${recorded ? (followUp.outcome === "Responded" ? "success" : "neutral") : "info"} jp-disclosure-row__pill`}
+      >
+        <span className="jp-pill__dot" aria-hidden="true" />
+        {outcomeLabel}
+      </span>
+      {noteFirstLine && (
+        <span className="jp-disclosure-row__note">{noteFirstLine}</span>
+      )}
+      <span className="jp-disclosure-row__date jp-mono">{scheduledLabel}</span>
+    </>
+  );
+
+  // Read-mode (#630 PR 6): a static, non-interactive list row — no expand button,
+  // no chevron, no record form. Same visual as the disclosure summary (DRY).
+  if (readOnly) {
+    return (
+      <li>
+        <div className="jp-disclosure-row jp-disclosure-row--static">
+          {summary}
+        </div>
+      </li>
+    );
+  }
+
   return (
     <li>
       <button
@@ -148,19 +192,7 @@ function FollowUpRow({
         aria-expanded={expanded}
         onClick={onToggle}
       >
-        <span className="jp-disclosure-row__primary">{channel}</span>
-        <span
-          className={`jp-pill jp-pill--${recorded ? (followUp.outcome === "Responded" ? "success" : "neutral") : "info"} jp-disclosure-row__pill`}
-        >
-          <span className="jp-pill__dot" aria-hidden="true" />
-          {outcomeLabel}
-        </span>
-        {noteFirstLine && (
-          <span className="jp-disclosure-row__note">{noteFirstLine}</span>
-        )}
-        <span className="jp-disclosure-row__date jp-mono">
-          {scheduledLabel}
-        </span>
+        {summary}
         <ChevronDown
           size={16}
           className="jp-disclosure-row__chevron"

@@ -83,13 +83,36 @@ describe("ApplicationDetail", () => {
     expect(screen.getAllByText("Status").length).toBeGreaterThanOrEqual(2);
   });
 
-  it("komponerar tidslinjen av REALA events (skapad + status)", () => {
-    render(<ApplicationDetail application={makeDetail()} />);
+  it("komponerar tidslinjen av REALA events (skapad + inspelat statusbyte)", () => {
+    render(
+      <ApplicationDetail
+        application={makeDetail({
+          statusChanges: [
+            {
+              from: "Draft",
+              to: "Submitted",
+              changedAt: "2026-05-02T08:00:00Z",
+            },
+          ],
+        })}
+      />
+    );
     expect(screen.getByText("Tidslinje")).toBeInTheDocument();
     // Native <details> håller barnen i DOM även kollapsad (jsdom renderar inte
     // display:none-dolning) → events resolvar fortfarande via getByText.
     expect(screen.getByText("Ansökan skapades")).toBeInTheDocument();
-    expect(screen.getByText("Status: Skickad")).toBeInTheDocument();
+    // Riktigt inspelat statusbyte → "Status: {från} → {till}" (ADR 0092 D4).
+    expect(
+      screen.getByText("Status: Utkast → Skickad")
+    ).toBeInTheDocument();
+  });
+
+  it("fabricerar ALDRIG ett statusbyte ur updatedAt (inga statusChanges → inget statusbyte)", () => {
+    // Den pensionerade updatedAt-syntesen (§5, aldrig fabricera en övergång som
+    // inte loggats): utan inspelade statusChanges finns INGET "Status:"-event.
+    render(<ApplicationDetail application={makeDetail()} />);
+    expect(screen.getByText("Ansökan skapades")).toBeInTheDocument();
+    expect(screen.queryByText("Status: Skickad")).not.toBeInTheDocument();
   });
 
   it("tidslinjen är kollapsad som default (<details> utan open-attribut)", () => {

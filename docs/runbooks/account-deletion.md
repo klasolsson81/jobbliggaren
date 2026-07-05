@@ -34,8 +34,9 @@ Användaren skickar `DELETE /api/v1/me` med giltigt session-token. Backend:
 4. **Idempotens-check:** om `DeletedAt is not null` → return Success (ingen ny audit-rad)
 5. Cascade `SoftDelete(clock)` på alla `Application`, `Resume` (deras barn cascadar internt) och `JobSeeker`
 6. `UnitOfWorkBehavior` committar alla soft-deletes + audit-rad atomic
-7. **Post-commit:** `ISessionStore.InvalidateAllForUserAsync(userId)` invaliderar alla aktiva sessioner via Redis secondary-set
-8. Klient får `204 No Content`
+7. **Post-commit (Layer 2 backstop, PR2c-0):** `ISessionStore.MarkUserDeletedAsync(userId)` planterar en per-user `jobbliggaren:user:{userId}:deleted`-tombstone (TTL = 30-dagars restore-fönstret) FÖRE invalideringen — `GetAsync` fail-closed-avvisar (och self-heal-evicerar) varje session som överlever en partiell invalidering (Redis-blip / race), så läs-vägens Art. 17-radering håller även om fast-path-invalideringen delvis failar
+8. **Post-commit (fast path):** `ISessionStore.InvalidateAllForUserAsync(userId)` invaliderar alla aktiva sessioner via Redis secondary-set
+9. Klient får `204 No Content`
 
 ### 2.2 Login under restore-fönstret
 
@@ -211,6 +212,14 @@ WHERE js.user_id = '<userId>'::uuid AND a.deleted_at IS NULL;
 COMMIT;
 ```
 
+**Redis-tombstone (PR2c-0 Layer 2) — OBLIGATORISKT vid restore:** soft-delete
+planterade en `jobbliggaren:user:<userId>:deleted`-tombstone som `GetAsync`
+fail-closed-avvisar ALLA sessioner mot (inklusive färska sessioner efter en ny
+login — `GetAsync` kollar tombstonen, `CreateAsync` gör det inte). Rensa den efter
+SQL-restore, annars kan den återställda användaren inte hålla sig inloggad förrän
+tombstonen självdör (≤30 dagar): `DEL jobbliggaren:user:<userId>:deleted`. En
+framtida `AccountRestored`-command (Fas 6) MÅSTE anropa motsvarande rensning.
+
 **Audit-trail:** restore-händelsen skrivs INTE automatiskt (saknas
 `AccountRestored`-command i Fas 1). Logga manuellt i ops-channel.
 
@@ -229,13 +238,19 @@ COMMIT;
 - Kontot ÄR soft-deletat (DB-state korrekt)
 - Sessioner kan kvarstå tills sliding-expiry (default 14 dagar)
 - D5-blockering hindrar ny login → ingen säkerhetsrisk inom samma session
-- Men: aktiv session-token kan fortsätta auth:as för read-operationer tills den expirerar
+- **Läs-vägen är dock stängd av Layer 2-tombstonen (PR2c-0):** `MarkUserDeletedAsync`
+  körs FÖRE `InvalidateAllForUserAsync`, så i detta scenario (invalideringen failade)
+  är `jobbliggaren:user:<userId>:deleted` redan planterad → `GetAsync`
+  fail-closed-avvisar (och evicerar) kvarvarande sessioner. Endast om Redis var nere för
+  BÅDA anropen (500:an kommer då från `MarkUserDeletedAsync`) saknas tombstonen — se Åtgärd steg 3.
 
 **Åtgärd:**
 1. Verifiera DB-state (§3.3) — JobSeeker.DeletedAt ska vara satt
-2. Manuellt rensa Redis: `DEL jobbpilot:user:<userId>:sessions` + iterera
-   och radera individuella `jobbpilot:session:*`-keys (om kända)
-3. Eller acceptera och vänta på TTL — säkerhetsrisken är låg eftersom
+2. Manuellt rensa Redis: `DEL jobbliggaren:user:<userId>:sessions` + iterera
+   och radera individuella `jobbliggaren:session:*`-keys (om kända)
+3. Om Redis var helt nere vid delete (tombstonen planterades aldrig): plantera den
+   manuellt så läs-vägen stängs — `SET jobbliggaren:user:<userId>:deleted 1 EX 2592000` (30 dagar)
+4. Eller acceptera och vänta på TTL — säkerhetsrisken är låg eftersom
    aktiv session bara har user:s egna data och D5 blockerar ny inloggning
 
 ### 5.2 HardDeleteAccountsJob failar mid-loop

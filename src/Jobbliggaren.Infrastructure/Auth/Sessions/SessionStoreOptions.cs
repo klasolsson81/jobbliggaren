@@ -64,6 +64,15 @@ public sealed class SessionStoreOptions
     // the maximum runtime of a single rotation.
     public TimeSpan RevocationTombstoneTtl { get; init; } = TimeSpan.FromSeconds(60);
 
+    // PR2c-0 Layer 2 — account-deletion tombstone: MarkUserDeletedAsync plants a per-user
+    // `user:{id}:deleted` key on account deletion, and GetAsync fail-closed rejects (and
+    // self-heals) any session that survived the best-effort InvalidateAllForUserAsync. TTL =
+    // the 30-day soft-delete restore window (paired with HardDeleteAccountsJob.RestoreWindowDays
+    // — the value, not a shared constant, per the ADR 0024 cross-layer convention): the tombstone
+    // must outlive every restorable session and self-expires exactly when hard-delete makes the id
+    // moot. A future in-window restore MUST clear the tombstone (docs/runbooks/account-deletion.md).
+    public TimeSpan DeletionTombstoneTtl { get; init; } = TimeSpan.FromDays(30);
+
     public SessionLifetimeProfile ProfileFor(SessionLifetime lifetime) => lifetime switch
     {
         SessionLifetime.Persistent => Persistent,

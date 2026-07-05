@@ -18,7 +18,7 @@ namespace Jobbliggaren.Api.IntegrationTests.MyProfile;
 /// <item>Cascade soft-delete på JobSeeker + ev. user-ägda aggregat</item>
 /// <item>Audit-rad Account.Deleted skrivs av AuditBehavior</item>
 /// <item>Login-blockering efter radering (Auth.AccountPendingDeletion)</item>
-/// <item>Session-invalidering post-commit (secondary Redis-set)</item>
+/// <item>Session-invalidering post-commit (secondary Redis-set) + Layer 2 :deleted-tombstone (durabelt read-path-backstopp)</item>
 /// <item>Idempotency vid retry</item>
 /// </list>
 /// </summary>

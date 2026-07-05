@@ -14,14 +14,14 @@ internal static class ReviewText
 {
     /// <summary>
     /// The scored description bullets across all experience entries — the DESCRIPTION lines,
-    /// NOT the whole entry block. Each entry's <see cref="ParsedExperience.RawText"/> is the
-    /// verbatim block the segmenter emits (a header line with the title/organisation, the
-    /// period on its own line, then the description). A1/A2/A6 must read the description, so
-    /// the header line and any pure-period / organisation line are excluded (#487) — pre-fix
-    /// the whole block was one "bullet", so A1 counted the employment DATES as a measurable
-    /// result and A2 read the job TITLE instead of a verb.
+    /// NOT the whole entry block. A1/A2/A6 must read the description, so on the staging arm
+    /// (where <c>Text</c> is the segmenter's verbatim block: header line, period line, then
+    /// the description) the header and any pure-period / organisation line are excluded
+    /// (#487) — pre-fix the whole block was one "bullet", so A1 counted the employment DATES
+    /// as a measurable result and A2 read the job TITLE instead of a verb. On the canonical
+    /// arm <c>Text</c> is already the pure description (Fas 4b PR-4, D8).
     /// </summary>
-    public static IReadOnlyList<string> ExperienceBullets(CvReviewContext context)
+    public static IReadOnlyList<string> ExperienceBullets(CriterionEvaluationContext context)
     {
         var bullets = new List<string>();
         foreach (var experience in context.Content.Experience)
@@ -35,33 +35,47 @@ internal static class ReviewText
     /// <summary>True if the CV states at least one experience entry (regardless of whether any
     /// carries description bullets) — lets A1/A2/A6 tell "no experience stated" apart from
     /// "experience stated but no scorable description lines" in their honest reason (#487).</summary>
-    public static bool HasExperienceEntries(CvReviewContext context) =>
+    public static bool HasExperienceEntries(CriterionEvaluationContext context) =>
         context.Content.Experience.Count > 0;
 
     /// <summary>The honest NotAssessed reason A1/A2/A6 carry when there are no scorable
     /// bullets — distinguishing "no experience stated" from "experience stated but no
     /// description lines to score" (#487; civic Swedish, §10). <paramref name="subject"/> is
     /// the criterion's aspect ("mätbarhet"/"handlingsverb"/"konkretion").</summary>
-    public static string NoBulletsReason(CvReviewContext context, string subject) =>
+    public static string NoBulletsReason(CriterionEvaluationContext context, string subject) =>
         HasExperienceEntries(context)
             ? $"Arbetslivserfarenheten saknar beskrivande punkter att bedöma {subject} på."
             : $"Ingen arbetslivserfarenhet att bedöma {subject} på.";
 
     /// <summary>
-    /// The description lines of one experience entry: its RawText lines, EXCLUDING the header
-    /// line (title/organisation — always the first line the segmenter emits) and any line that
-    /// is purely the period or the organisation on its own line (the "Title\nCompany\nDates"
-    /// layout). Reuses the already-structured ParsedExperience fields rather than re-guessing.
-    /// Shared with the improve engine's <c>WeakVerbTransform</c> so the review (A2) and improve
-    /// sides score the SAME bullet unit (#487 review side, #534 improve side).
+    /// The description lines of one experience entry in the unified view (Fas 4b PR-4,
+    /// ADR 0093 §D8). A canonical entry's <c>Text</c> IS the pure description
+    /// (<c>TextIsDescriptionOnly</c>) — every non-empty line is a bullet. A staging
+    /// entry's <c>Text</c> is the segmenter's verbatim block, so the header line
+    /// (title/organisation — always the first line the segmenter emits) and any line
+    /// that is purely the period or the organisation on its own line (the
+    /// "Title\nCompany\nDates" layout) are excluded (#487). Shared with the improve
+    /// engine's <c>WeakVerbTransform</c> (via the <see cref="ParsedExperience"/>
+    /// overload) so the review (A2) and improve sides score the SAME bullet unit
+    /// (#487 review side, #534 improve side).
     /// </summary>
-    internal static IEnumerable<string> DescriptionLines(ParsedExperience experience)
+    internal static IEnumerable<string> DescriptionLines(ReviewableExperience experience)
     {
-        var lines = experience.RawText
+        var lines = experience.Text
             .Split('\n')
             .Select(l => l.Trim())
             .Where(l => l.Length > 0)
             .ToList();
+
+        if (experience.TextIsDescriptionOnly)
+        {
+            foreach (var line in lines)
+            {
+                yield return line;
+            }
+
+            yield break;
+        }
 
         // lines[0] is the header (title/organisation, possibly with a trailing period the
         // segmenter recovered separately) — never a description bullet.
@@ -86,13 +100,23 @@ internal static class ReviewText
         }
     }
 
+    /// <summary>
+    /// The staging-shaped overload the improve engine's <c>WeakVerbTransform</c> scores by
+    /// (#534 — the improve flow stays <c>ParsedResume</c>-scoped until PR-7). Delegates to
+    /// the unified-view logic above so the bullet unit stays ONE definition (#487).
+    /// </summary>
+    internal static IEnumerable<string> DescriptionLines(ParsedExperience experience) =>
+        DescriptionLines(new ReviewableExperience(
+            experience.Title, experience.Organization, experience.Period,
+            null, null, experience.RawText, TextIsDescriptionOnly: false));
+
     /// <summary>Profile + all experience text joined, for whole-CV prose scans (lowercased on demand).
     /// <para>NB (#478 Low, v1 scope): a citation resolved against this concatenation carries an offset
     /// into the SYNTHETIC joined string, not into any single <c>RawText</c> field. The verbatim
     /// <c>Quote</c> is the ground truth the UI highlights by; the offset is a positional hint only and
     /// has no UI consumer today, so a precise per-field offset is deferred. What must never happen is a
     /// FABRICATED offset when the quote is absent — see <see cref="Span"/> / <see cref="TextSpan.NotLocated"/>.</para></summary>
-    public static string AllProse(CvReviewContext context)
+    public static string AllProse(CriterionEvaluationContext context)
     {
         var sb = new StringBuilder();
         if (!string.IsNullOrWhiteSpace(context.Content.Profile))
@@ -102,9 +126,9 @@ internal static class ReviewText
 
         foreach (var experience in context.Content.Experience)
         {
-            if (!string.IsNullOrWhiteSpace(experience.RawText))
+            if (!string.IsNullOrWhiteSpace(experience.Text))
             {
-                sb.AppendLine(experience.RawText);
+                sb.AppendLine(experience.Text);
             }
         }
 

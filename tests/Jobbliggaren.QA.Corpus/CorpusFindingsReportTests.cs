@@ -113,7 +113,7 @@ public sealed class CorpusFindingsReportTests : IAsyncLifetime
         {
             try
             {
-                var r = await engine.ReviewAsync(c.Cv, RenderProfile.Ats, ct);
+                var r = await engine.ReviewAsync(CvReviewContext.FromParsed(c.Cv), RenderProfile.Ats, ct);
                 rubricVersion = r.RubricVersion.ToString();
                 foreach (var v in r.Verdicts)
                 {

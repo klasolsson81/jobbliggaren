@@ -877,6 +877,63 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                     b.ToTable("resumes", (string)null);
                 });
 
+            modelBuilder.Entity("Jobbliggaren.Domain.Resumes.ResumeFindingStatus", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CriterionId")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("criterion_id");
+
+                    b.Property<Guid>("ResumeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resume_id");
+
+                    b.Property<string>("RubricVersion")
+                        .IsRequired()
+                        .HasMaxLength(14)
+                        .HasColumnType("character varying(14)")
+                        .HasColumnName("rubric_version");
+
+                    b.Property<DateTimeOffset?>("StaleAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("stale_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TargetFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("target_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_resume_finding_statuses");
+
+                    b.HasIndex("ResumeId", "RubricVersion", "CriterionId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_resume_finding_statuses_resume_version_criterion");
+
+                    b.ToTable("resume_finding_statuses", (string)null);
+                });
+
             modelBuilder.Entity("Jobbliggaren.Domain.Resumes.ResumeVersion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1510,6 +1567,16 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Jobbliggaren.Domain.Resumes.ResumeFindingStatus", b =>
+                {
+                    b.HasOne("Jobbliggaren.Domain.Resumes.Resume", null)
+                        .WithMany("FindingStatuses")
+                        .HasForeignKey("ResumeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_resume_finding_statuses_resumes_resume_id");
+                });
+
             modelBuilder.Entity("Jobbliggaren.Domain.Resumes.ResumeVersion", b =>
                 {
                     b.HasOne("Jobbliggaren.Domain.Resumes.Resume", null)
@@ -1531,6 +1598,8 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Jobbliggaren.Domain.Resumes.Resume", b =>
                 {
+                    b.Navigation("FindingStatuses");
+
                     b.Navigation("Versions");
                 });
 #pragma warning restore 612, 618

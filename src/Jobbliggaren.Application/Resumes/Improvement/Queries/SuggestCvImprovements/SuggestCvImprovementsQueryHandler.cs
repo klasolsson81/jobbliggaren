@@ -62,7 +62,10 @@ public sealed class SuggestCvImprovementsQueryHandler(
 
         // The validator guarantees a parseable RenderProfile (fail-loud, case-sensitive).
         var profile = Enum.Parse<RenderProfile>(query.Profile);
-        var review = await reviewEngine.ReviewAsync(resume, profile, cancellationToken);
+        // Staging adapter (Fas 4b PR-4, ADR 0093 §D8) — the improve flow stays
+        // staging-scoped; the apply-half over canonical content is PR-7.
+        var review = await reviewEngine.ReviewAsync(
+            CvReviewContext.FromParsed(resume), profile, cancellationToken);
         var result = await improvementEngine.SuggestAsync(resume, review, profile, cancellationToken);
         return result.ToDto();
     }

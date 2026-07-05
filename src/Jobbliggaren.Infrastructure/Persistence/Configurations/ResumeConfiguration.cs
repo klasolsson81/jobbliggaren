@@ -144,6 +144,20 @@ public sealed class ResumeConfiguration : IEntityTypeConfiguration<Resume>
             .FindNavigation(nameof(Resume.Versions))!
             .SetPropertyAccessMode(PropertyAccessMode.Field);
 
+        // Fas 4b PR-4 (ADR 0093 §D2(e), local ADR 0097): DEK-free finding-status ledger
+        // as a child collection (ResumeVersion precedent). FK cascade = the Art. 17
+        // path; rows are written only through Resume root methods and loaded explicitly
+        // (Include) on the write and review-merge paths — never on list queries (§3.6).
+        builder.HasMany(r => r.FindingStatuses)
+            .WithOne()
+            .HasForeignKey("ResumeId")
+            .IsRequired()
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Metadata
+            .FindNavigation(nameof(Resume.FindingStatuses))!
+            .SetPropertyAccessMode(PropertyAccessMode.Field);
+
         builder.HasQueryFilter(r => r.DeletedAt == null);
 
         builder.Ignore(r => r.DomainEvents);

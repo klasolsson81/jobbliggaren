@@ -6,6 +6,7 @@ using Jobbliggaren.Application.Resumes.Commands.DeleteResumeVersion;
 using Jobbliggaren.Application.Resumes.Commands.ImportResume;
 using Jobbliggaren.Application.Resumes.Commands.PromoteParsedResume;
 using Jobbliggaren.Application.Resumes.Commands.RenameResume;
+using Jobbliggaren.Application.Resumes.Commands.SetFindingStatus;
 using Jobbliggaren.Application.Resumes.Commands.SetResumeLanguage;
 using Jobbliggaren.Application.Resumes.Commands.UpdateMasterContent;
 using Jobbliggaren.Application.Resumes.Improvement.Queries.SuggestCvImprovements;
@@ -19,6 +20,7 @@ using Jobbliggaren.Application.Resumes.Queries.GetResumes;
 using Jobbliggaren.Application.Resumes.Rendering.Queries.RenderCv;
 using Jobbliggaren.Application.Resumes.Rendering.Queries.RenderResume;
 using Jobbliggaren.Application.Resumes.Review.Queries.ReviewParsedResume;
+using Jobbliggaren.Application.Resumes.Review.Queries.ReviewResume;
 using Mediator;
 using Microsoft.AspNetCore.Http.Features;
 
@@ -228,6 +230,35 @@ public static class ResumesEndpoints
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.ResumeRenderPolicy);
 
+        // Deterministic CV review of a PROMOTED/app-built canonical Resume (Fas 4b PR-4,
+        // #653, ADR 0093 §D8) — the same rubric engine as the parsed review above, via the
+        // canonical adapter over the shared linearizer. Verdicts are computed on demand
+        // (ADR 0074) and merged with the persisted finding-status overlay (D2(e)); the
+        // evidence is pnr-redacted at the engine choke point exactly like the parsed path.
+        // Owner-scoped; ?profile= must be Ats|Visual (validator fails loud → 400).
+        group.MapGet("/{id:guid}/review", async (
+            Guid id, string? profile, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new ReviewResumeQuery(id, profile ?? string.Empty), ct);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // The user's decision on one review finding — "markera som klar" (Resolved),
+        // "ignorera regeln" (Ignored) or a revert (Open); handoff §5.3, D2(e). Writes only
+        // a status enum + a SERVER-derived fingerprint into the DEK-free ledger (no CV
+        // text; the fingerprint is recomputed from the engine's current finding — never
+        // client-submitted, Invariant 2). Owner-scoped; audited via IAuditableCommand.
+        group.MapPut("/{id:guid}/review/findings/{criterionId}/status", async (
+            Guid id, string criterionId, SetFindingStatusBody body, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new SetFindingStatusCommand(id, criterionId, body.Status), ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
         // Promote a PendingReview parsed CV into a canonical Resume (Fas 4 STEG A). The body
         // carries the full, user-approved gap-filled ResumeContentDto (DQ1 Variant A — the
         // approved content IS the Resume; the handler re-scans personnummer over the submitted
@@ -310,5 +341,6 @@ public static class ResumesEndpoints
     private sealed record CreateResumeBody(string Name, string FullName);
     private sealed record RenameResumeBody(string Name);
     private sealed record SetLanguageBody(string Language);
+    private sealed record SetFindingStatusBody(string Status);
     private sealed record PromoteParsedResumeBody(string Name, ResumeContentDto Content);
 }

@@ -12,7 +12,7 @@ internal sealed class B1SectionsRule : ICriterionRule
 {
     public string CriterionId => "B1";
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
         var content = context.Content;
@@ -59,7 +59,7 @@ internal sealed class B3ContactRule : ICriterionRule
 {
     public string CriterionId => "B3";
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
         var contact = context.Content.Contact;
@@ -107,10 +107,24 @@ internal sealed class B4PersonnummerRule : ICriterionRule
 {
     public string CriterionId => "B4";
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
-        var outcome = context.Resume.Personnummer;
+        var outcome = context.Personnummer;
+
+        // Canonical arm (Fas 4b PR-4, CTO-bind Q6): the canonical Resume is
+        // personnummer-guarded BY CONSTRUCTION — ResumeContentPersonnummerGuard runs on
+        // every write path (promote gap-fill + master edits) and EnsureReadyForPromotion
+        // blocks a flagged import. B4's clean verdict is a KNOWN result here, evidenced
+        // structurally (OQ3 cuts both ways: never fabricate a pass, never hide a known
+        // one). The adapter supplies the clean outcome; this branch carries the honest
+        // provenance of that knowledge in its citation.
+        if (context.Source == CvReviewSourceKind.Canonical)
+        {
+            return CvCriterionVerdict.Assessed("B4", category, CriterionVerdict.Pass,
+                ReviewText.Cite(ReviewText.Structural(
+                    "Inget personnummer i CV-texten. Innehållet kontrolleras vid varje sparning.")));
+        }
 
         // Auto-fail when a personnummer is present IN THE CV BODY — cite only the count/
         // structure, NEVER the raw value or offsets (ADR 0074 Invariant 1; the outcome is
@@ -147,7 +161,7 @@ internal sealed class B6DateFormatRule : ICriterionRule
 {
     public string CriterionId => "B6";
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
         var formats = context.DatedExperiences
@@ -175,7 +189,7 @@ internal sealed class B7ChronologyRule : ICriterionRule
 {
     public string CriterionId => "B7";
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
         var dated = context.DatedExperiences.Where(d => d.Parsed).ToList();
@@ -213,10 +227,12 @@ internal sealed partial class B8FileNameRule : ICriterionRule
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex RecommendedRegex();
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
-        var fileName = context.Resume.SourceFileName ?? string.Empty;
+        // Canonical CVs carry no filename until PR-9's Form C stores the original file —
+        // the empty-name branch below reports the honest NotAssessed (CTO-bind Q6).
+        var fileName = context.SourceFileName ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(fileName))
         {

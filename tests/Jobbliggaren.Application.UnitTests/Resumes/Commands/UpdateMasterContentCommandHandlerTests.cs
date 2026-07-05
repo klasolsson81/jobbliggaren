@@ -123,6 +123,47 @@ public class UpdateMasterContentCommandHandlerTests
     }
 
     // ===============================================================
+    // Fas 4b PR-4 (ADR 0093 §D2(e), CTO-bind Q2/Q3 + dotnet-architect Viktigt): the
+    // staleness stamp lives in Resume.UpdateMasterContent and only fires when the
+    // handler has Included the FindingStatuses collection — this test pins that
+    // write-path Include contract END-TO-END through the handler, so a future caller
+    // (PR-7 apply) or a refactor that drops the Include fails HERE, not silently in
+    // production. Resolved goes stale; Ignored (content-independent rule opt-out)
+    // does not.
+    // ===============================================================
+
+    [Fact]
+    public async Task Handle_WithResolvedAndIgnoredFindings_StampsStaleOnlyOnResolved()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var resume = await SeedResumeAsync(db, _userId);
+
+        var fingerprint = new string('a', 64);
+        resume.SetFindingStatus(
+            "1.1.0", "A7", ReviewFindingStatus.Resolved, fingerprint, FakeDateTimeProvider.Default)
+            .IsSuccess.ShouldBeTrue();
+        resume.SetFindingStatus(
+            "1.1.0", "C2", ReviewFindingStatus.Ignored, fingerprint, FakeDateTimeProvider.Default)
+            .IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new UpdateMasterContentCommandHandler(
+            db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
+        var command = new UpdateMasterContentCommand(
+            resume.Id.Value, BuildContent(summary: "Uppdaterad sammanfattning."));
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var resolved = resume.FindingStatuses.Single(f => f.CriterionId == "A7");
+        var ignored = resume.FindingStatuses.Single(f => f.CriterionId == "C2");
+        resolved.StaleAt.ShouldNotBeNull(
+            "a content change must invalidate a previously-resolved finding in the same transaction");
+        ignored.StaleAt.ShouldBeNull(
+            "ignorerad is a rule-scoped opt-out that survives content changes (CTO-bind Q3)");
+    }
+
+    // ===============================================================
     // #499 (ADR 0074 Invariant 1): UpdateMasterContent ran only structural ValidateContent,
     // so a personnummer typed into the master-edit payload reached an UNFLAGGED canonical
     // Resume (render/PDF). The shared ResumeContentPersonnummerGuard now re-scans the RAW

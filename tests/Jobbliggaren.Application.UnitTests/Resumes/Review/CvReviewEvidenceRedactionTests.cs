@@ -39,7 +39,7 @@ public class CvReviewEvidenceRedactionTests
         new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer());
 
     private static async Task<CvReviewResult> ReviewAsync(ParsedResume resume, RenderProfile profile) =>
-        await NewEngine().ReviewAsync(resume, profile, TestContext.Current.CancellationToken);
+        await NewEngine().ReviewAsync(CvReviewContext.FromParsed(resume), profile, TestContext.Current.CancellationToken);
 
     /// <summary>
     /// A CV that deliberately carries the personnummer where the present-text rules quote it:

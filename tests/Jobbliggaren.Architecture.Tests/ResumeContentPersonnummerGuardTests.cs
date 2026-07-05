@@ -198,12 +198,31 @@ public class ResumeContentPersonnummerGuardTests
         // Negative control (the tripwire must be proven to TRIP, not just to pass): if a future
         // bug made the guard probe return true unconditionally, the fail-closed backstop would
         // silently fail-open — a green build while a handler drops the guard.
-        // CreateResumeCommandHandler creates a Resume from a name, never calls the guard, so the
-        // reachable-set IL-scan (own methods + async state machine + followed Application-module
-        // calls) must return false for it.
+        // RenameResumeCommandHandler mutates only the CV label (never canonical content free
+        // text), never calls the guard, so the reachable-set IL-scan (own methods + async state
+        // machine + followed Application-module calls) must return false for it.
+        // (CreateResumeCommandHandler was the original control; since Fas 4b PR-4 it GUARDS the
+        // template fullName write path — security-auditor Major — and moved to the positive
+        // anchor below.)
         using var module = ModuleDefinition.ReadModule(typeof(ResumeContentDto).Assembly.Location);
 
-        AnyGuardCall(ReachableMethodsOf(module, typeof(CreateResumeCommandHandler))).ShouldBeFalse();
+        AnyGuardCall(ReachableMethodsOf(module, typeof(RenameResumeCommandHandler))).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void GuardProbe_ReturnsTrue_ForTheGuardedTemplateCreatePath()
+    {
+        // Fas 4b PR-4 (security-auditor Major): the template path writes fullName into
+        // canonical Master content, so CreateResumeCommandHandler now calls the shared guard —
+        // and because CreateResumeCommand carries only strings (no ResumeContentDto), this
+        // anchor also proves the guard-call probe follows a NON-DTO-keyed handler. The
+        // canonical B4 verdict's "checked on every save" claim rests on this call staying put.
+        using var module = ModuleDefinition.ReadModule(typeof(ResumeContentDto).Assembly.Location);
+
+        AnyGuardCall(ReachableMethodsOf(module, typeof(CreateResumeCommandHandler)))
+            .ShouldBeTrue(
+                $"CreateResumeCommandHandler must call {GuardTypeName}.Check(...) on the " +
+                "template fullName (canonical free-text write path, ADR 0074 Invariant 1)");
     }
 
     // ===============================================================

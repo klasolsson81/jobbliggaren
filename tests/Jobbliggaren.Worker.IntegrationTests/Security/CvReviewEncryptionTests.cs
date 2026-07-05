@@ -138,7 +138,7 @@ public class CvReviewEncryptionTests(WorkerTestFixture fixture)
         parsed.Content.Contact.FullName.ShouldBe(ContactNameMarker);
         parsed.RawText.ShouldContain(RawTextMarker);
 
-        var result = await engine.ReviewAsync(parsed, RenderProfile.Ats, ct);
+        var result = await engine.ReviewAsync(CvReviewContext.FromParsed(parsed), RenderProfile.Ats, ct);
 
         result.ShouldNotBeNull();
         result.RubricVersion.ToString().ShouldNotBeNullOrWhiteSpace();
@@ -191,7 +191,7 @@ public class CvReviewEncryptionTests(WorkerTestFixture fixture)
         // The engine reads the PII-safe outcome (count/found), never the raw value.
         parsed.Personnummer.Found.ShouldBeTrue();
 
-        var result = await engine.ReviewAsync(parsed, RenderProfile.Ats, ct);
+        var result = await engine.ReviewAsync(CvReviewContext.FromParsed(parsed), RenderProfile.Ats, ct);
 
         // B4 (Personnummer ej angivet) is a critical FAIL when flagged — and it surfaces in
         // CriticalFails citing the count/structure, never the raw personnummer (Inv.1).

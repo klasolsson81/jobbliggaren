@@ -61,7 +61,10 @@ public sealed class ReviewParsedResumeQueryHandler(
 
         // The validator guarantees a parseable RenderProfile (fail-loud, case-sensitive).
         var profile = Enum.Parse<RenderProfile>(query.Profile);
-        var result = await engine.ReviewAsync(resume, profile, cancellationToken);
+        // Staging adapter (Fas 4b PR-4, ADR 0093 §D8): the parsed CV reviews against its
+        // own RawText substrate — same engine as the canonical review, different adapter.
+        var result = await engine.ReviewAsync(
+            CvReviewContext.FromParsed(resume), profile, cancellationToken);
 
         // Supply the criterionId→Name lookup from the rubric (the single source of truth for
         // the human heading) so the DTO leads with a readable title, not the cryptic id.

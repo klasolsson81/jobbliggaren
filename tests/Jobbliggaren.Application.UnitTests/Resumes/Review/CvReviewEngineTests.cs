@@ -44,7 +44,7 @@ public class CvReviewEngineTests
 
     private static async Task<CvReviewResult> ReviewAsync(
         ParsedResume resume, RenderProfile profile = RenderProfile.Ats) =>
-        await NewEngine().ReviewAsync(resume, profile, TestContext.Current.CancellationToken);
+        await NewEngine().ReviewAsync(CvReviewContext.FromParsed(resume), profile, TestContext.Current.CancellationToken);
 
     // ===============================================================
     // 0. Result envelope — version stamped, assessed/total counts honest
@@ -1381,7 +1381,7 @@ public class CvReviewEngineTests
             Analyzer());
 
         var result = await engine.ReviewAsync(
-            Resume(), RenderProfile.Ats, TestContext.Current.CancellationToken);
+            CvReviewContext.FromParsed(Resume()), RenderProfile.Ats, TestContext.Current.CancellationToken);
 
         var a5 = Verdict(result, "A5");
         a5.Verdict.ShouldBe(CriterionVerdict.NotAssessed);

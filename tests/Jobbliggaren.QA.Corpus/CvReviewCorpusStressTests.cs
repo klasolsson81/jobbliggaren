@@ -66,8 +66,8 @@ public class CvReviewCorpusStressTests
             c => c.Stratum,
             async (c, t) =>
             {
-                _ = await engine.ReviewAsync(c.Cv, RenderProfile.Ats, t);
-                _ = await engine.ReviewAsync(c.Cv, RenderProfile.Visual, t);
+                _ = await engine.ReviewAsync(CvReviewContext.FromParsed(c.Cv), RenderProfile.Ats, t);
+                _ = await engine.ReviewAsync(CvReviewContext.FromParsed(c.Cv), RenderProfile.Visual, t);
             },
             ct);
 
@@ -93,7 +93,7 @@ public class CvReviewCorpusStressTests
 
         foreach (var c in Corpus())
         {
-            var result = await engine.ReviewAsync(c.Cv, RenderProfile.Ats, ct);
+            var result = await engine.ReviewAsync(CvReviewContext.FromParsed(c.Cv), RenderProfile.Ats, ct);
 
             result.Profile.ShouldBe(RenderProfile.Ats, $"{c.Label}: the result echoes the requested profile.");
             result.Verdicts.ShouldNotBeEmpty($"{c.Label}: at least one criterion per profile.");
@@ -136,7 +136,7 @@ public class CvReviewCorpusStressTests
 
         foreach (var c in pnrCases)
         {
-            var result = await engine.ReviewAsync(c.Cv, RenderProfile.Ats, ct);
+            var result = await engine.ReviewAsync(CvReviewContext.FromParsed(c.Cv), RenderProfile.Ats, ct);
 
             // B4 (personnummeravsnitt) is a critical criterion — a flagged pnr must NOT pass.
             var b4 = result.Verdicts.SingleOrDefault(v => v.CriterionId == "B4");
@@ -166,7 +166,7 @@ public class CvReviewCorpusStressTests
         {
             foreach (var profile in new[] { RenderProfile.Ats, RenderProfile.Visual })
             {
-                var result = await engine.ReviewAsync(c.Cv, profile, ct);
+                var result = await engine.ReviewAsync(CvReviewContext.FromParsed(c.Cv), profile, ct);
                 foreach (var s in result.Verdicts.SelectMany(EvidenceStrings))
                     foreach (var fake in SwedishCorpusLexicon.FakePersonnummer)
                         s.Contains(fake, StringComparison.Ordinal).ShouldBeFalse(
@@ -188,7 +188,7 @@ public class CvReviewCorpusStressTests
         // real rules ran against the real knowledge bank (not a stub returning NotAssessed).
         var clean = Corpus().First(c => c.Stratum == CorpusStratum.CleanExactTitle);
 
-        var result = await NewEngine().ReviewAsync(clean.Cv, RenderProfile.Ats, ct);
+        var result = await NewEngine().ReviewAsync(CvReviewContext.FromParsed(clean.Cv), RenderProfile.Ats, ct);
 
         result.AssessedCount.ShouldBeGreaterThan(0, "a clean CV must have assessed criteria.");
         result.Verdicts.ShouldContain(v => v.Verdict == CriterionVerdict.Pass,

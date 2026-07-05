@@ -7,16 +7,32 @@ namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 // via the parse-confidence signal) and D6 (standard headings, via the detected sections) are
 // assessable from the text parse; D2/D3/D4/D5/D7 (layout geometry), D8 (needs a target ad),
 // and D9/D10 (file metadata) have no rule and fall through to the engine's honest NotAssessed.
+// Fas 4b PR-4 (ADR 0093 §D8): on the CANONICAL arm both rules verdict on what is known BY
+// CONSTRUCTION — app-managed content has no parsed source file, and its sections come from
+// the shared linearizer's structure, not heading heuristics (D4-bind parity: app-generated
+// CVs report Pass with StructuralEvidence).
 
 /// <summary>D1 Filformat (Critical) — a scanned image-PDF without a text layer is not ATS-parsable.</summary>
 internal sealed class D1FileFormatRule : ICriterionRule
 {
     public string CriterionId => "D1";
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
-        var fallback = context.Resume.Confidence.Fallback;
+
+        // Canonical arm: there is no source FILE under review — the content is
+        // app-managed and its exports are generated text-based by construction
+        // (QuestPDF ATS profile). A genuine, evidenced Pass (D4-bind parity), never
+        // NotAssessed (the answer is known, hiding it would misreport — OQ3).
+        if (context.Source == CvReviewSourceKind.Canonical)
+        {
+            return CvCriterionVerdict.Assessed("D1", category, CriterionVerdict.Pass,
+                ReviewText.Cite(ReviewText.Structural(
+                    "App-hanterat innehåll: genererade exporter är textbaserade och kan läsas av ett ATS.")));
+        }
+
+        var fallback = context.ParseFallback ?? ParseFallbackReason.None;
 
         return fallback switch
         {
@@ -32,7 +48,7 @@ internal sealed class D1FileFormatRule : ICriterionRule
 
             _ => CvCriterionVerdict.Assessed("D1", category, CriterionVerdict.Pass,
                 ReviewText.Cite(ReviewText.Structural(
-                    $"Textbaserad fil ({context.Resume.SourceContentType}): texten kan extraheras."))),
+                    $"Textbaserad fil ({context.SourceContentType}): texten kan extraheras."))),
         };
     }
 }
@@ -42,25 +58,27 @@ internal sealed class D6StandardHeadingsRule : ICriterionRule
 {
     public string CriterionId => "D6";
 
-    public CvCriterionVerdict Evaluate(CvReviewContext context)
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
-        var detected = context.Resume.Confidence.Sections
-            .Where(s => s.Level != SectionConfidenceLevel.NotFound)
-            .Select(s => s.Kind)
-            .Distinct()
-            .ToList();
+        var detected = context.DetectedSections;
 
         if (detected.Count == 0)
         {
+            // Staging: no heading heuristic hit (creative headings?). Canonical: the
+            // content genuinely carries no standard section — same honest Warn.
             return CvCriterionVerdict.Assessed("D6", category, CriterionVerdict.Warn,
                 ReviewText.Cite(ReviewText.Structural(
-                    "Inga standardsektioner kunde identifieras via rubriker (kreativa rubriker?).")));
+                    context.Source == CvReviewSourceKind.Canonical
+                        ? "CV:t saknar standardsektioner (erfarenhet, utbildning, kompetenser)."
+                        : "Inga standardsektioner kunde identifieras via rubriker (kreativa rubriker?).")));
         }
 
         var labels = detected.Select(ReviewEvidenceLabels.Section);
         return CvCriterionVerdict.Assessed("D6", category, CriterionVerdict.Pass,
             ReviewText.Cite(ReviewText.Structural(
-                $"Standardsektioner identifierade via rubriker: {string.Join(", ", labels)}.")));
+                context.Source == CvReviewSourceKind.Canonical
+                    ? $"Standardsektioner finns i CV-strukturen: {string.Join(", ", labels)}."
+                    : $"Standardsektioner identifierade via rubriker: {string.Join(", ", labels)}.")));
     }
 }

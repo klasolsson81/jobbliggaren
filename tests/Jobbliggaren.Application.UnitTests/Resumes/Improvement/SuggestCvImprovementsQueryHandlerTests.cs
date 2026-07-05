@@ -46,16 +46,22 @@ public class SuggestCvImprovementsQueryHandlerTests
     private SuggestCvImprovementsQueryHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>
         new(db, _currentUser, _reviewEngine, _improvementEngine, _failedAccess);
 
+    private static ParsedResumeContent TestContent() => new(
+        new ParsedContact("Anna Andersson", "anna@example.com", "070-1234567", "Stockholm"),
+        profile: "Erfaren backend-utvecklare.",
+        experience: [new ParsedExperience("Backend-utvecklare", "Acme AB", "2021–2024", "raw")]);
+
+    // Fas 4b PR-4 (ADR 0093 §D8): the handler builds CvReviewContext.FromParsed BEFORE
+    // the mocked review engine — hydrate the EF-Ignore'd Content on materialization
+    // (production decryption interceptor's test double; real path proven by integration).
+    private static Infrastructure.Persistence.AppDbContext CreateDb() =>
+        TestAppDbContextFactory.Create(new FakeContentHydrationInterceptor(parsedContent: TestContent()));
+
     private static ParsedResume BuildParsedResume(JobSeekerId owner)
     {
-        var content = new ParsedResumeContent(
-            new ParsedContact("Anna Andersson", "anna@example.com", "070-1234567", "Stockholm"),
-            profile: "Erfaren backend-utvecklare.",
-            experience: [new ParsedExperience("Backend-utvecklare", "Acme AB", "2021–2024", "raw")]);
-
         return ParsedResume.Create(
             owner, "CV_Anna.pdf", "application/pdf", ResumeLanguage.Sv,
-            content, "Anna Andersson\nLedde teamet.", CvImprovementFixtures.ConfidentConfidence(),
+            TestContent(), "Anna Andersson\nLedde teamet.", CvImprovementFixtures.ConfidentConfidence(),
             PersonnummerScanOutcome.None, [], CvImprovementFixtures.FixedClock.Default).Value;
     }
 
@@ -71,7 +77,7 @@ public class SuggestCvImprovementsQueryHandlerTests
     }
 
     private void StubReview() =>
-        _reviewEngine.ReviewAsync(Arg.Any<ParsedResume>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>())
+        _reviewEngine.ReviewAsync(Arg.Any<CvReviewContext>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<CvReviewResult>(
                 new CvReviewResult(RubricVersion.Parse("1.0.0"), RenderProfile.Ats, [], [], [], 0, 0)));
 
@@ -111,7 +117,7 @@ public class SuggestCvImprovementsQueryHandlerTests
     [Fact]
     public async Task Handle_ShouldReturnDto_WhenOwnerRequestsOwnParsedResume()
     {
-        var db = TestAppDbContextFactory.Create();
+        var db = CreateDb();
         var parsed = await SeedOwnedAsync(db, _userId);
         StubReview();
         StubImprove(SampleResult());
@@ -144,7 +150,7 @@ public class SuggestCvImprovementsQueryHandlerTests
         structural.Operation.ShouldNotBeNull();
 
         await _reviewEngine.Received(1).ReviewAsync(
-            Arg.Any<ParsedResume>(), RenderProfile.Ats, Arg.Any<CancellationToken>());
+            Arg.Any<CvReviewContext>(), RenderProfile.Ats, Arg.Any<CancellationToken>());
         await _improvementEngine.Received(1).SuggestAsync(
             Arg.Any<ParsedResume>(), Arg.Any<CvReviewResult?>(), RenderProfile.Ats, Arg.Any<CancellationToken>());
     }
@@ -152,7 +158,7 @@ public class SuggestCvImprovementsQueryHandlerTests
     [Fact]
     public async Task Handle_ShouldPassVisualProfileToBothEngines_WhenProfileIsVisual()
     {
-        var db = TestAppDbContextFactory.Create();
+        var db = CreateDb();
         var parsed = await SeedOwnedAsync(db, _userId);
         StubReview();
         StubImprove(SampleResult());
@@ -161,7 +167,7 @@ public class SuggestCvImprovementsQueryHandlerTests
             new SuggestCvImprovementsQuery(parsed.Id.Value, "Visual"), TestContext.Current.CancellationToken);
 
         await _reviewEngine.Received(1).ReviewAsync(
-            Arg.Any<ParsedResume>(), RenderProfile.Visual, Arg.Any<CancellationToken>());
+            Arg.Any<CvReviewContext>(), RenderProfile.Visual, Arg.Any<CancellationToken>());
         await _improvementEngine.Received(1).SuggestAsync(
             Arg.Any<ParsedResume>(), Arg.Any<CvReviewResult?>(), RenderProfile.Visual, Arg.Any<CancellationToken>());
     }
@@ -173,7 +179,7 @@ public class SuggestCvImprovementsQueryHandlerTests
     [Fact]
     public async Task Handle_ShouldReturnNull_WhenUserIdIsNull()
     {
-        var db = TestAppDbContextFactory.Create();
+        var db = CreateDb();
         var parsed = await SeedOwnedAsync(db, _userId);
 
         var anon = Substitute.For<ICurrentUser>();
@@ -189,7 +195,7 @@ public class SuggestCvImprovementsQueryHandlerTests
     [Fact]
     public async Task Handle_ShouldReturnNull_WhenJobSeekerNotFound()
     {
-        var db = TestAppDbContextFactory.Create();
+        var db = CreateDb();
 
         var result = await CreateSut(db).Handle(
             new SuggestCvImprovementsQuery(Guid.NewGuid(), "Ats"), TestContext.Current.CancellationToken);
@@ -200,7 +206,7 @@ public class SuggestCvImprovementsQueryHandlerTests
     [Fact]
     public async Task Handle_ShouldReturnNullAndNotCallEngines_WhenParsedResumeNotFound()
     {
-        var db = TestAppDbContextFactory.Create();
+        var db = CreateDb();
         var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -216,7 +222,7 @@ public class SuggestCvImprovementsQueryHandlerTests
     [Fact]
     public async Task Handle_ShouldReturnNullAndLogCrossUserAttempt_WhenParsedResumeBelongsToOtherUser()
     {
-        var db = TestAppDbContextFactory.Create();
+        var db = CreateDb();
         var otherParsed = await SeedOwnedAsync(db, Guid.NewGuid());
         var self = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);

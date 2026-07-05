@@ -1,6 +1,7 @@
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,10 +10,26 @@ namespace Jobbliggaren.Application.UnitTests.Common;
 
 internal static class TestAppDbContextFactory
 {
-    internal static AppDbContext Create()
+    internal static AppDbContext Create(params IInterceptor[] interceptors)
     {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+        var builder = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString());
+
+        if (interceptors.Length > 0)
+        {
+            // IMaterializationInterceptor is a SINGLETON interceptor: EF captures the
+            // first instance in the CACHED internal service provider and reuses it for
+            // every later context with equivalent options — another test class's
+            // hydrator then silently "wins" over this one (suite-order contamination:
+            // class green in isolation, red in the full suite). Caching is disabled
+            // per-context when instance interceptors are supplied, so every test gets
+            // ITS OWN interceptor; the interceptor-free default path keeps the cache.
+            builder = builder
+                .AddInterceptors(interceptors)
+                .EnableServiceProviderCaching(false);
+        }
+
+        var options = builder
             // ADR 0062 — JobAdConfiguration mappar shadow-propertyn
             // JobAd.SearchVector (NpgsqlTsVector, STORED tsvector generated
             // column). Den EF Core InMemory-providern saknar stöd för

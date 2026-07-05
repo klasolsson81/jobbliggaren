@@ -64,6 +64,11 @@ public class ResumeRootPlainColumnGuardTests
         [nameof(Resume.AdoptedAt)] = "one-way adoption stamp (ADR 0096)",
         [nameof(Resume.IsAdopted)] = "computed (EF-ignored)",
         [nameof(Resume.TemplateOptions)] = "owned VO, fully enumerated (ADR 0096)",
+        // Fas 4b PR-4 (ADR 0093 §D2(e), lokal ADR 0097) — parity with the Versions entry
+        [nameof(Resume.FindingStatuses)] =
+            "child collection (DEK-free status ledger: closed enum + bounded tokens + " +
+            "fingerprint + timestamps; content lives nowhere — shape pinned fail-closed " +
+            "by ResumeFindingStatusColumnGuardTests)",
     };
 
     [Fact]

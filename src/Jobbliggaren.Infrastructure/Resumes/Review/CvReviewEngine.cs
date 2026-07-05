@@ -10,13 +10,16 @@ using Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 namespace Jobbliggaren.Infrastructure.Resumes.Review;
 
 /// <summary>
-/// The deterministic CV-review engine (Fas 4 STEG 9, F4-9, ADR 0071/0074 — NO AI/LLM). Scores
-/// an already-materialised <see cref="ParsedResume"/> against the versioned F4-7 rubric and
-/// produces a per-criterion PASS/WARN/FAIL/NotAssessed verdict with cited evidence (Inv.2),
-/// category-primary with no opaque total (Goodhart). Stateless singleton (senior-cto-advisor
-/// V-D): consumes only the immutable knowledge-bank ports + the thread-safe NLP analyzer,
-/// takes the CV as a method parameter, and never touches the DbContext, the DEK pipeline, or
-/// a logger (so CV-PII is never read via a plain query nor logged — Inv.3 / §5).
+/// The deterministic CV-review engine (Fas 4 STEG 9, F4-9, ADR 0071/0074 — NO AI/LLM;
+/// unified input Fas 4b PR-4, ADR 0093 §D8). Scores a <see cref="CvReviewContext"/> —
+/// built by the staging (<c>FromParsed</c>) or canonical (<c>FromCanonical</c>) adapter —
+/// against the versioned F4-7 rubric and produces a per-criterion PASS/WARN/FAIL/
+/// NotAssessed verdict with cited evidence (Inv.2), category-primary with no opaque total
+/// (Goodhart). ONE engine, one assessment path, regardless of which aggregate supplied
+/// the content (D8). Stateless singleton (senior-cto-advisor V-D): consumes only the
+/// immutable knowledge-bank ports + the thread-safe NLP analyzer, takes the CV as a
+/// method parameter, and never touches the DbContext, the DEK pipeline, or a logger (so
+/// CV-PII is never read via a plain query nor logged — Inv.3 / §5).
 /// </summary>
 internal sealed class CvReviewEngine : ICvReviewEngine
 {
@@ -60,24 +63,24 @@ internal sealed class CvReviewEngine : ICvReviewEngine
     }
 
     public ValueTask<CvReviewResult> ReviewAsync(
-        ParsedResume parsedResume, RenderProfile profile, CancellationToken cancellationToken)
+        CvReviewContext context, RenderProfile profile, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(parsedResume);
+        ArgumentNullException.ThrowIfNull(context);
 
         var rubric = _rubricProvider.GetRubric();
         var cliches = _clicheLexicon.GetClicheList();
         var verbs = _verbMapper.GetVerbMapping();
-        var language = parsedResume.DetectedLanguage == ResumeLanguage.En ? TextLanguage.English : TextLanguage.Swedish;
-        var datedExperiences = BuildDatedExperiences(parsedResume);
+        var language = context.Language == ResumeLanguage.En ? TextLanguage.English : TextLanguage.Swedish;
+        var datedExperiences = BuildDatedExperiences(context);
 
         var inProfile = rubric.Criteria.Where(c => InProfile(c.Profile, profile)).ToList();
 
         var scored = new List<CvCriterionVerdict>(inProfile.Count);
         foreach (var criterion in inProfile)
         {
-            var context = new CvReviewContext(
-                parsedResume, criterion, profile, language, cliches, verbs, _analyzer, datedExperiences);
-            scored.Add(Evaluate(context));
+            var evaluation = new CriterionEvaluationContext(
+                context, criterion, profile, language, cliches, verbs, _analyzer, datedExperiences);
+            scored.Add(Evaluate(evaluation));
         }
 
         // PII hardening (ADR 0074 Invariant 1, security-auditor binding obligation): strip any
@@ -98,7 +101,7 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         return ValueTask.FromResult(result);
     }
 
-    private CvCriterionVerdict Evaluate(CvReviewContext context)
+    private CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var criterion = context.Criterion;
 
@@ -145,11 +148,29 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         new D6StandardHeadingsRule(),
     ];
 
-    private static List<DatedExperience> BuildDatedExperiences(ParsedResume resume) =>
-        resume.Content.Experience
-            .Select(experience => PeriodParser.TryParse(experience.Period, out var start, out var end, out var format)
-                ? new DatedExperience(experience, start, end, format)
-                : new DatedExperience(experience, null, null, null))
+    // Canonical structured dates are month-granular by construction — one shared token,
+    // the same one PeriodParser emits for month-granular points, so B6 verdicts them as
+    // ONE consistent format (never "blandade" against itself).
+    private const string CanonicalFormatToken = "MM/YYYY";
+
+    private static List<DatedExperience> BuildDatedExperiences(CvReviewContext review) =>
+        review.Content.Experience
+            .Select(experience =>
+            {
+                // Canonical arm (D8): structured DateOnly maps directly — no period
+                // parsing. An ongoing role (open end) uses the same far-future sentinel
+                // PeriodParser emits, so gap/chronology maths work without a clock.
+                if (experience.StartDate is { } start)
+                {
+                    return new DatedExperience(
+                        experience, start, experience.EndDate ?? DateOnly.MaxValue, CanonicalFormatToken);
+                }
+
+                // Staging arm: the freeform period string is date-parsed exactly as before.
+                return PeriodParser.TryParse(experience.PeriodText, out var s, out var end, out var format)
+                    ? new DatedExperience(experience, s, end, format)
+                    : new DatedExperience(experience, null, null, null);
+            })
             .ToList();
 
     private static bool InProfile(RubricProfile criterionProfile, RenderProfile renderProfile) =>

@@ -137,7 +137,7 @@ public class ReviewTextSpanTests
         var engine = new CvReviewEngine(
             RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer());
 
-        var result = await engine.ReviewAsync(resume, RenderProfile.Ats, TestContext.Current.CancellationToken);
+        var result = await engine.ReviewAsync(CvReviewContext.FromParsed(resume), RenderProfile.Ats, TestContext.Current.CancellationToken);
 
         var a1 = Verdict(result, "A1");
         a1.Verdict.ShouldBe(CriterionVerdict.Fail, "a digit-free experience fails the measurable-results criterion.");

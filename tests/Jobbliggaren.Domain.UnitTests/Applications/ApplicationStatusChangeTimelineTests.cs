@@ -8,13 +8,13 @@ using Shouldly;
 namespace Jobbliggaren.Domain.UnitTests.Applications;
 
 // Spec: ADR 0092 D4 — append-only StatusChange-timeline. Varje status transition
-// (TransitionTo + MarkGhosted) registrerar EN StatusChange i SAMMA aggregat-mutation
+// via TransitionTo registrerar EN StatusChange i SAMMA aggregat-mutation
 // (en UnitOfWork), så timelinen aldrig kan divergera från Status. Ett transition är
 // ETT ögonblick: now fångas EN gång, så
 // UpdatedAt == LastStatusChangeAt == StatusChange.ChangedAt == event-timestampen.
 // ADR 0092 D3: övergångar är FRIA (ingen state-machine-guard kvar). De två
 // kvarvarande guard-vägarna registrerar INGET: en soft-deletad ansökan (Failure)
-// och en self-transition (no-op-Success). MarkGhosted:s no-op-väg registrerar INGET.
+// och en self-transition (no-op-Success).
 // SoftDelete kaskaderar till varje StatusChange (paritet med FollowUps/Notes).
 // Speglar ApplicationAppliedAtTests / ApplicationAdSnapshotRetentionTests-mönstret
 // (dedikerad concern-fil).
@@ -117,60 +117,6 @@ public class ApplicationStatusChangeTimelineTests
         result.IsSuccess.ShouldBeTrue();
         app.Status.ShouldBe(ApplicationStatus.Draft);
         app.StatusChanges.ShouldBeEmpty();
-    }
-
-    // ---------------------------------------------------------------
-    // MarkGhosted registrerar previous→Ghosted
-    // ---------------------------------------------------------------
-
-    [Fact]
-    public void MarkGhosted_FromSubmitted_RecordsSubmittedToGhostedStatusChange()
-    {
-        var app = CreateDraft(T0);
-        app.TransitionTo(ApplicationStatus.Submitted, FakeDateTimeProvider.At(T1));
-
-        app.MarkGhosted(FakeDateTimeProvider.At(T2));
-
-        app.StatusChanges.Count.ShouldBe(2);
-        var ghostChange = app.StatusChanges[1];
-        ghostChange.From.ShouldBe(ApplicationStatus.Submitted);
-        ghostChange.To.ShouldBe(ApplicationStatus.Ghosted);
-        ghostChange.ChangedAt.ShouldBe(T2);
-        ghostChange.ChangedAt.ShouldBe(app.LastStatusChangeAt);
-    }
-
-    // ---------------------------------------------------------------
-    // MarkGhosted no-op registrerar INGET och ändrar inte status
-    // ---------------------------------------------------------------
-
-    [Fact]
-    public void MarkGhosted_FromDraft_NoOp_RecordsNoStatusChangeAndKeepsStatus()
-    {
-        // Draft är varken Submitted eller Acknowledged → idempotent no-op.
-        var app = CreateDraft(T0);
-
-        var result = app.MarkGhosted(FakeDateTimeProvider.At(T1));
-
-        result.IsSuccess.ShouldBeTrue();
-        app.Status.ShouldBe(ApplicationStatus.Draft);
-        app.StatusChanges.ShouldBeEmpty();
-    }
-
-    [Fact]
-    public void MarkGhosted_FromTerminal_NoOp_RecordsNoStatusChangeAndKeepsStatus()
-    {
-        // Submitted→Rejected (terminal, 2 changes). MarkGhosted från Rejected är
-        // no-op → ingen NY change, status kvar Rejected.
-        var app = CreateDraft(T0);
-        app.TransitionTo(ApplicationStatus.Submitted, FakeDateTimeProvider.At(T1));
-        app.TransitionTo(ApplicationStatus.Rejected, FakeDateTimeProvider.At(T2));
-        var countBefore = app.StatusChanges.Count;
-
-        var result = app.MarkGhosted(FakeDateTimeProvider.At(T3));
-
-        result.IsSuccess.ShouldBeTrue();
-        app.Status.ShouldBe(ApplicationStatus.Rejected);
-        app.StatusChanges.Count.ShouldBe(countBefore);
     }
 
     // ---------------------------------------------------------------

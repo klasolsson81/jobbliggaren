@@ -131,7 +131,7 @@ public class AuditLogEntryTests
     [Fact]
     public void Create_WithNullUserId_AllowsNull()
     {
-        // System-jobb-fall: Worker-jobb (t.ex. MarkGhosted) har ingen inloggad user.
+        // System-jobb-fall: Worker-jobb (t.ex. HardDeleteAccountsJob) har ingen inloggad user.
         var entry = AuditLogEntry.Create(
             occurredAt: OccurredAt,
             correlationId: CorrelationId,

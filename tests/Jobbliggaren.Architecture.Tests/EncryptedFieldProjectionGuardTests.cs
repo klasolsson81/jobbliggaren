@@ -62,9 +62,8 @@ public class EncryptedFieldProjectionGuardTests
     /// <c>ICurrentDataOwner</c> ⇒ <c>FieldDecryptionMaterializationInterceptor</c>
     /// lämnar fältet som ciphertext (CTO #3 (iv) passthrough, ingen kast). Om
     /// ett system-jobb läser fältet får det tyst ciphertext — en data-
-    /// korruptions-/läckage-risk. <c>MarkGhostedCommandHandler</c> +
-    /// <c>AccountHardDeleter</c> är referens-mönstret (rör aldrig
-    /// klartext-fältet).
+    /// korruptions-/läckage-risk. <c>AccountHardDeleter</c> är
+    /// referens-mönstret (rör aldrig klartext-fältet).
     /// </para>
     ///
     /// <para>
@@ -77,8 +76,6 @@ public class EncryptedFieldProjectionGuardTests
     /// </para>
     /// </summary>
     [Theory]
-    [InlineData(
-        "src/Jobbliggaren.Application/Applications/Commands/MarkGhosted/MarkGhostedCommandHandler.cs")]
     [InlineData(
         "src/Jobbliggaren.Infrastructure/Auth/AccountHardDeleter.cs")]
     public void SystemScopeHandler_MustNotReference_EncryptedProperties(
@@ -108,7 +105,7 @@ public class EncryptedFieldProjectionGuardTests
             "ICurrentDataOwner) — materialiserar krypterade aggregat men FÅR " +
             "INTE läsa de krypterade fälten (CTO #3 (iv): interceptorn lämnar " +
             "ciphertext orört i system-scope ⇒ en läsning ger TYST CIPHERTEXT). " +
-            "Referens-mönster: MarkGhostedCommandHandler/AccountHardDeleter rör " +
+            "Referens-mönster: AccountHardDeleter rör " +
             "aldrig klartext-fältet. Brott: " + string.Join(", ", violations));
     }
 

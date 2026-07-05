@@ -12,9 +12,9 @@ namespace Jobbliggaren.Domain.Applications;
 /// <see cref="Application.LastStatusChangeAt"/> scalar, so before this type there
 /// was no history of intermediate transitions (ADR 0092 D4; the reason the stats
 /// funnel under-counted mid-funnel reach — ApplicationStatsDto). Recorded
-/// synchronously inside <see cref="Application.TransitionTo"/> and
-/// <see cref="Application.MarkGhosted"/>, so the timeline is atomically consistent
-/// with the current status (one UnitOfWork), the same idempotent-side-effect
+/// synchronously inside <see cref="Application.TransitionTo"/>, so the timeline
+/// is atomically consistent with the current status (one UnitOfWork), the same
+/// idempotent-side-effect
 /// pattern as the AppliedAt stamp. Owned child of the aggregate (referenced by id
 /// only; a real status change is never created outside the aggregate — hence the
 /// <c>internal</c> factory). Plaintext: status names + timestamps are not PII

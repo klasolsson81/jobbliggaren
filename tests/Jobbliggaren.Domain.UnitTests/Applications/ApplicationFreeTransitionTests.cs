@@ -119,8 +119,6 @@ public class ApplicationFreeTransitionTests
         evt.Previous.ShouldBe(ApplicationStatus.Submitted);
         evt.Next.ShouldBe(ApplicationStatus.Ghosted);
         evt.OccurredAt.ShouldBe(T2);
-        // Manuell Ghosted är INTE systemets MarkGhosted → inget ApplicationGhostedDomainEvent.
-        app.DomainEvents.ShouldNotContain(e => e is ApplicationGhostedDomainEvent);
     }
 
     [Fact]

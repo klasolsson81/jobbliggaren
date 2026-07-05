@@ -252,7 +252,7 @@ public class ApplicationResumeVersionTests
 
     /// <summary>
     /// Bygger en Application vars Status är satt till <paramref name="target"/>.
-    /// Använder transition-/MarkGhosted-vägar för att nå varje status utan att
+    /// Använder TransitionTo-vägar för att nå varje status utan att
     /// exponera privat state (samma mönster som ApplicationTests, utökat med
     /// Ghosted-vägen).
     /// </summary>
@@ -265,10 +265,11 @@ public class ApplicationResumeVersionTests
         app.TransitionTo(ApplicationStatus.Submitted, Clock);
         if (target == ApplicationStatus.Submitted) return app;
 
-        // Ghosted nås via MarkGhosted (automatisk), inte TransitionTo.
+        // Ghosted nås som vilken annan status som helst via TransitionTo (fria
+        // övergångar, ADR 0092 D3).
         if (target == ApplicationStatus.Ghosted)
         {
-            app.MarkGhosted(Clock);
+            app.TransitionTo(ApplicationStatus.Ghosted, Clock);
             return app;
         }
 

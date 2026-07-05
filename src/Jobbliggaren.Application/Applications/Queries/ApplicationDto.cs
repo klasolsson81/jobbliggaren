@@ -24,11 +24,6 @@ public sealed record ApplicationDto(
     // and its ScheduledAt has passed. Projected at the read boundary as a
     // correlated EXISTS (CQRS list ≠ detail — no followUps[] hydration, ADR 0048 Alt C rejected).
     bool HasOverdueFollowUp,
-    // #342 (ADR 0085 §3): the per-aggregate ghosted threshold
-    // (Application.GhostedThresholdDays, default 21), reused by attention signal 4.
-    // Projected (not a new config threshold) so the pure Application-layer
-    // evaluator can honour the per-aggregate value without a magic number.
-    int GhostedThresholdDays,
     // ADR 0092 D5: the moment of the most recent follow-up (Application.LastFollowUpAt),
     // null until the first. Drives effectiveWaitDays = min(daysSinceLastEvent,
     // daysSinceLastFollowUp) in the evaluator, so a logged follow-up resets the

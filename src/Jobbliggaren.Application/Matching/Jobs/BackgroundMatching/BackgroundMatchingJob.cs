@@ -17,7 +17,7 @@ namespace Jobbliggaren.Application.Matching.Jobs.BackgroundMatching;
 /// against their DEK-free profile and persists a <see cref="UserJobAdMatch"/> for each
 /// notifiable grade (Good/Strong/Top — Basic / no-grade is the honest floor, never persisted).
 /// Registered as a Hangfire RecurringJob (~03:20 UTC, after the snapshot settles, before the
-/// hard-delete window), mirroring <c>DetectGhostedApplicationsJob</c>. NO AI/LLM (ADR 0071).
+/// hard-delete window), mirroring <c>HardDeleteAccountsJob</c>. NO AI/LLM (ADR 0071).
 /// <para>
 /// <b>DEK-free (the STEG 3 enabler):</b> the profile comes from
 /// <see cref="IMatchProfileBuilder.BuildFullForUserIdAsync"/> (plaintext PreferredSkills +

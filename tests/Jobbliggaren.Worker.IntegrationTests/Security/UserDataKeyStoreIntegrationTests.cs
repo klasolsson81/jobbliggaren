@@ -30,7 +30,7 @@ namespace Jobbliggaren.Worker.IntegrationTests.Security;
 /// ingen riktig AWS, ingen prod-override-yta, produktkod orörd. Scenario 7
 /// mäter Decrypt-count mot den delade fakens räknare (Worker-collection seriell
 /// ⇒ deterministiskt). Scenario 9 (fail-closed) direkt-konstruerar ensamt
-/// store+cache+failing-KMS (husets DetectGhostedApplicationsJob-precedens —
+/// store+cache+failing-KMS (husets HardDeleteAccountsJob-precedens —
 /// fail-closed-vägen behöver ej DbContext-grafens äkthet, bara att store kastar
 /// + cachen är tom). Postgres är riktig (<c>user_data_keys</c> är en riktig
 /// tabell — InMemory förbjudet, CLAUDE.md/test-stack).
@@ -241,7 +241,7 @@ public class UserDataKeyStoreIntegrationTests(WorkerTestFixture fixture)
 
         // Seam 1 (architect: scenario 9 ensamt direkt-konstruerar store+cache+
         // failing-KMS — fail-closed-vägen behöver ej DI-grafens äkthet, bara
-        // att store kastar + cachen tom. Husets DetectGhostedApplicationsJob-
+        // att store kastar + cachen tom. Husets HardDeleteAccountsJob-
         // precedens). DbContext resolvas ur en scope så wrapped-raden finns.
         using var dbScope = _fixture.Services.CreateScope();
         var db = dbScope.ServiceProvider.GetRequiredService<AppDbContext>();

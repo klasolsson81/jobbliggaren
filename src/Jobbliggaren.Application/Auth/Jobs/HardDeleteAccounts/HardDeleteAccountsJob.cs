@@ -16,7 +16,7 @@ namespace Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 /// Implementation-detaljer ligger i <see cref="IAccountHardDeleter"/>-port.
 /// Orchestratorn håller bara loop + cancel-token-management + progress-log.
 ///
-/// Cron 04:00 UTC daily (1h efter retention/detect-ghosted) per ADR 0024 D6.
+/// Cron 04:00 UTC daily (1h efter audit-log-retention) per ADR 0024 D6.
 /// Idempotent — failed run plockas upp av nästa cron-körning utan biverkningar.
 /// </summary>
 public sealed partial class HardDeleteAccountsJob(
@@ -58,7 +58,7 @@ public sealed partial class HardDeleteAccountsJob(
         }
 
         // Steg 2 — Per-account hard-delete. Per-id loop matchar audit-paritet-
-        // mönstret från DetectGhostedApplicationsJob (ADR 0023): isolering per
+        // mönstret från BackgroundMatchingJob (ADR 0023): isolering per
         // konto, en failure rullar inte tillbaka andra.
         //
         // TD-25: per-konto try/catch så ett enskilt fel (korrupt data, transient

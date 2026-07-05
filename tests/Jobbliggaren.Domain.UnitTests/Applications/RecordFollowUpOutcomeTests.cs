@@ -91,7 +91,7 @@ public class RecordFollowUpOutcomeTests
         var application = CreateActiveApplication();
         var followUpId = AddPendingFollowUp(application);
         application.TransitionTo(ApplicationStatus.Submitted, Clock);
-        application.MarkGhosted(Clock);
+        application.TransitionTo(ApplicationStatus.Ghosted, Clock);
 
         var result = application.RecordFollowUpOutcome(followUpId, FollowUpOutcome.NoResponse, LaterClock);
 

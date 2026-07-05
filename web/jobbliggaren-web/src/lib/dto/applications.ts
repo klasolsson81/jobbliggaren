@@ -77,8 +77,9 @@ export const applicationDtoSchema = z.object({
       "OfferAwaitingReply",
       "OverdueFollowUp",
       "DraftDeadlineApproaching",
-      "NoResponseLong",
-      "ProactiveFollowUpNudge",
+      "GhostSuggested",
+      "NoResponseNudge",
+      "SilentAfterInterview",
     ])
     .optional(),
 });

@@ -25,6 +25,15 @@ namespace Jobbliggaren.Infrastructure.CompanyRegister;
 /// </summary>
 internal sealed class ScbCompanyRegisterStore(AppDbContext db)
 {
+    // #688 — explicit per-command timeouts on the population path (raw NpgsqlCommands get the
+    // connection-string default of 30 s; an EF-level SetCommandTimeout would not reach them). The
+    // 2000-row jsonb upsert exceeded 30 s under DB contention on the first live run, and the
+    // full-table sweep UPDATE over ~1.17M rows can exceed 30 s even on a healthy isolated run.
+    // Reviewed constants, not config (ADR 0091 amendment 2026-07-05 #688); never 0/infinite —
+    // a genuinely hung command must still fail loud.
+    internal const int CommandTimeoutSeconds = 120;
+    internal const int SweepCommandTimeoutSeconds = 600;
+
     private static readonly JsonSerializerOptions BatchJson = new();
 
     /// <summary>
@@ -51,6 +60,7 @@ internal sealed class ScbCompanyRegisterStore(AppDbContext db)
 
         var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
         cmd.CommandText = """
             INSERT INTO company_register (
                 organization_number, company_name, sate_kommun_code, sate_kommun_name,
@@ -116,6 +126,7 @@ internal sealed class ScbCompanyRegisterStore(AppDbContext db)
 
         var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = SweepCommandTimeoutSeconds;
         // status is stored by NAME (varchar) — compare against the literal enum name.
         cmd.CommandText = """
             UPDATE company_register
@@ -149,6 +160,7 @@ internal sealed class ScbCompanyRegisterStore(AppDbContext db)
 
         var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
         cmd.CommandText = """
             SELECT MAX((payload->>'TotalRowsFetched')::int) AS max_fetched
             FROM audit_log

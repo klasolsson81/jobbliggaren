@@ -281,7 +281,7 @@
       "description": "Vilka kakor (cookies) Jobbliggaren använder och varför. Endast nödvändiga och funktionella kakor, ingen spårning och ingen samtyckesbanner."
     },
     "title": "Cookiepolicy",
-    "updated": "Senast uppdaterad: 2026-06-28",
+    "updated": "Senast uppdaterad: 2026-07-05",
     "intro": "Den här cookiepolicyn beskriver vilka kakor (cookies) och liknande lagringstekniker Jobbliggaren använder, varför de används och hur du kontrollerar dem. Policyn är informativ. Jobbliggaren använder inga spårnings-, analys- eller marknadsföringskakor, och därför visas ingen samtyckesbanner.",
     "sections": [
       {
@@ -294,10 +294,12 @@
       {
         "heading": "Nödvändiga cookies",
         "paragraphs": [
-          "Nödvändiga cookies krävs för att grundläggande funktioner ska fungera, framför allt inloggning. Utan dem kan du inte logga in eller använda ditt konto. Dessa kakor sätts inte för besökare som inte loggar in."
+          "Nödvändiga cookies krävs för att grundläggande funktioner ska fungera, framför allt inloggning. Utan dem kan du inte logga in eller använda ditt konto. Dessa kakor sätts inte för besökare som inte loggar in.",
+          "När du loggar in kan du välja Håll mig inloggad. Lämnar du rutan otickad sätts en sessionskaka som försvinner när du stänger webbläsaren, vilket är det säkra standardvalet på delade datorer. Tickar du i rutan sätts en permanent kaka så att du förblir inloggad på den här enheten i upp till 180 dagar. Av säkerhetsskäl byts sessions-id:t automatiskt ut med jämna mellanrum, utan att du loggas ut. Du kan när som helst logga ut med Logga ut, som finns på varje inloggad sida, vilket tar bort kakan direkt."
         ],
         "list": [
-          "__Host-jobbliggaren_session: håller dig inloggad. Innehåller endast ett slumpmässigt sessions-id, inga personuppgifter. Sätts med HttpOnly, Secure och SameSite=Strict och varar i 14 dagar.",
+          "__Host-jobbliggaren_session: håller dig inloggad. Innehåller endast ett slumpmässigt sessions-id, inga personuppgifter. Sätts med HttpOnly, Secure och SameSite=Strict. Om du valt Håll mig inloggad varar den i upp till 180 dagar, annars försvinner den när du stänger webbläsaren.",
+          "__Host-jobbliggaren_refresh_after: en teknisk hjälpkaka utan personuppgifter som styr hur ofta din inloggning förnyas i bakgrunden. Innehåller endast en tidsstämpel.",
           "Skydd mot förfalskade förfrågningar (CSRF): Jobbliggaren skyddar dig mot så kallade cross-site request forgery-attacker. Skyddet bygger på hur sessionskakan är inställd (SameSite=Strict) tillsammans med kontroll på serversidan av varifrån förfrågan kommer. Det krävs ingen särskild, separat skyddskaka."
         ]
       },

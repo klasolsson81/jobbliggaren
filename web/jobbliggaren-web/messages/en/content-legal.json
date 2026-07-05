@@ -281,7 +281,7 @@
       "description": "Which cookies Jobbliggaren uses and why. Only necessary and functional cookies, no tracking and no consent banner."
     },
     "title": "Cookie policy",
-    "updated": "Last updated: 2026-06-28",
+    "updated": "Last updated: 2026-07-05",
     "intro": "This cookie policy describes which cookies and similar storage techniques Jobbliggaren uses, why they are used and how you control them. The policy is informational. Jobbliggaren uses no tracking, analytics or marketing cookies, and therefore no consent banner is shown.",
     "sections": [
       {
@@ -294,10 +294,12 @@
       {
         "heading": "Necessary cookies",
         "paragraphs": [
-          "Necessary cookies are required for basic functions to work, above all login. Without them you cannot log in or use your account. These cookies are not set for visitors who do not log in."
+          "Necessary cookies are required for basic functions to work, above all login. Without them you cannot log in or use your account. These cookies are not set for visitors who do not log in.",
+          "When you log in you can choose Keep me logged in. If you leave the box unticked, a session cookie is set that disappears when you close the browser, which is the safe default on shared computers. If you tick the box, a persistent cookie is set so that you stay logged in on this device for up to 180 days. For security the session id is automatically rotated at regular intervals without logging you out. You can log out at any time with Log out, which is available on every signed-in page and removes the cookie immediately."
         ],
         "list": [
-          "__Host-jobbliggaren_session: keeps you logged in. It contains only a random session id, no personal data. It is set with HttpOnly, Secure and SameSite=Strict and lasts 14 days.",
+          "__Host-jobbliggaren_session: keeps you logged in. It contains only a random session id, no personal data. It is set with HttpOnly, Secure and SameSite=Strict. If you chose Keep me logged in it lasts up to 180 days, otherwise it disappears when you close the browser.",
+          "__Host-jobbliggaren_refresh_after: a technical helper cookie with no personal data that governs how often your login is refreshed in the background. It contains only a timestamp.",
           "Protection against forged requests (CSRF): Jobbliggaren protects you against so-called cross-site request forgery attacks. The protection builds on how the session cookie is configured (SameSite=Strict) together with a server-side check of where the request comes from. No special, separate protection cookie is required."
         ]
       },

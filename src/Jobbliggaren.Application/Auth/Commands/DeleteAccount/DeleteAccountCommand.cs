@@ -17,12 +17,15 @@ namespace Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 /// Hard-delete + Identity-DELETE + audit-anonymisering sker av HardDeleteAccountsJob
 /// efter 30-dagars restore-fönster (ADR 0024 D5+D6).
 ///
-/// Anropas från DELETE /me-endpoint. Endpoint ansvarar för
-/// <c>ISessionStore.InvalidateAllForUserAsync</c>-anrop post-commit för att
-/// avsluta alla aktiva sessioner.
+/// Anropas från POST /me/delete-endpoint. Kräver re-autentisering (lösenord):
+/// <c>IReauthenticatingRequest</c> gör att <c>ReauthenticationBehavior</c> verifierar lösenordet
+/// server-side FÖRE handlern körs (C5, epik #481) — en kapad long-lived session kan alltså inte
+/// radera kontot utan lösenordet. Lösenordet når aldrig handlern och loggas aldrig. Endpoint
+/// ansvarar för <c>ISessionStore.MarkUserDeletedAsync</c> + <c>InvalidateAllForUserAsync</c>
+/// post-commit för att avsluta alla aktiva sessioner.
 /// </summary>
-public sealed record DeleteAccountCommand
-    : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>
+public sealed record DeleteAccountCommand(string? Password)
+    : ICommand<Result<Guid>>, IAuthenticatedRequest, IReauthenticatingRequest, IAuditableCommand<Result<Guid>>
 {
     public string EventType => "Account.Deleted";
     public string AggregateType => "JobSeeker";

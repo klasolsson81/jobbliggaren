@@ -175,6 +175,14 @@ app.Use(async (ctx, next) =>
         ctx.Response.StatusCode = 401;
         await ctx.Response.WriteAsJsonAsync(new { error = ex.Message });
     }
+    catch (ReauthenticationFailedException)
+    {
+        // Server-enforced re-auth failure (PR2c/C5) — render the SAME ProblemDetails 401 as
+        // /auth/verify (AuthProblem is the single source), so wrong-password / locked /
+        // soft-deleted are byte-identical on the wire and none leaks which cause applied
+        // (GDPR Art. 32 oracle-avoidance). No credential material is logged or echoed.
+        await AuthProblem.InvalidCredentials().ExecuteAsync(ctx);
+    }
     catch (ForbiddenException ex)
     {
         ctx.Response.StatusCode = 403;

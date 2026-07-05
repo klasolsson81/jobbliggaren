@@ -71,6 +71,9 @@ public class WorkerLayerTests
             typeof(ValidationBehavior<,>),
             typeof(AuthorizationBehavior<,>),
             typeof(AdminAuthorizationBehavior<,>),
+            // PR2c (C5, epik #481) tillagd 2026-07-05 — server-enforced re-auth för
+            // IReauthenticatingRequest, efter auth och före DEK-prefetch/UnitOfWork/Audit.
+            typeof(ReauthenticationBehavior<,>),
             // TD-13 (ADR 0049 Mekanik-not 3/4) tillagd 2026-05-18 — DEK-prefetch
             // efter auth, före UnitOfWork.
             typeof(FieldEncryptionKeyPrefetchBehavior<,>),

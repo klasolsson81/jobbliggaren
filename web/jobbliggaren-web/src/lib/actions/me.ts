@@ -114,15 +114,19 @@ export async function updateNotificationConsentAction(
 }
 
 /**
- * TD-28 — radera konto. Tre-stegs flöde:
- *   1. Validera typed-confirmation (e-postmatch) + lösenords-form
- *   2. POST /api/v1/auth/verify med lösenord (re-auth, ingen session-mutation)
- *   3. DELETE /api/v1/me (soft-delete + cascade-invalidering av alla sessioner)
- * Vid success: ta bort lokal cookie + redirect till /logga-in.
+ * TD-28 / PR2c-1 — delete account with server-enforced re-auth. Two steps:
+ *   1. Validate the typed confirmation (email-match) + password form (client
+ *      friction only).
+ *   2. POST /api/v1/me/delete with `{ password }`. The server re-authenticates
+ *      the password (wrong -> 401, empty -> 400, correct -> 204) AND performs
+ *      the soft-delete + cascade session-invalidation in the same operation.
+ *      The password travels with the delete; there is no separate
+ *      /api/v1/auth/verify pre-call any more.
+ * On 204: drop the local cookie + redirect to /logga-in.
  *
- * Action returnerar inte vid success — `redirect` throw:ar. Vid failure
- * returneras `ActionResult` med svensk felmeddelande. PII (lösenord, e-post)
- * loggas ALDRIG på error-path.
+ * The action does not return on success — `redirect` throws. On failure it
+ * returns an `ActionResult` with a Swedish message. PII (password, email) is
+ * NEVER logged on the error path.
  */
 export async function deleteAccountAction(
   input: DeleteMyAccountInput,
@@ -139,8 +143,8 @@ export async function deleteAccountAction(
     };
   }
 
-  // Email-match — case-insensitive, trim. Görs här (inte i Zod) så vi kan
-  // jämföra mot currentEmail (server-trusted) snarare än klient-input ensam.
+  // Email-match — case-insensitive, trimmed. Done here (not in Zod) so we can
+  // compare against currentEmail (server-trusted) rather than client input alone.
   const confirm = parsed.data.confirmEmail.trim().toLowerCase();
   const expected = currentEmail.trim().toLowerCase();
   if (confirm !== expected) {
@@ -154,22 +158,28 @@ export async function deleteAccountAction(
   if (!sessionId)
     return { success: false, error: ts("account.errors.notLoggedIn") };
 
-  // Steg 1 — verifiera lösenord (re-auth)
+  // Delete the account — the password travels with the operation and the server
+  // re-authenticates it. `authedFetch` returns the raw Response and never reads
+  // the body, so we branch on the status code only.
   try {
-    const verifyRes = await authedFetch(sessionId, `/api/v1/auth/verify`, {
+    const res = await authedFetch(sessionId, `/api/v1/me/delete`, {
       method: "POST",
       body: JSON.stringify({ password: parsed.data.password }),
     });
 
-    if (verifyRes.status === 401) {
+    if (res.status === 401) {
       return { success: false, error: ts("account.errors.wrongPassword") };
     }
-    if (!verifyRes.ok) {
+    if (res.status === 400) {
+      return { success: false, error: ts("account.errors.invalidInput") };
+    }
+    if (res.status !== 204) {
       return {
         success: false,
-        error: mapActionError(verifyRes, ts("account.errors.verifyFailed"), te),
+        error: mapActionError(res, ts("account.errors.deleteFailed"), te),
       };
     }
+    // 204 — falls through to the cookie removal + redirect below.
   } catch {
     return {
       success: false,
@@ -177,26 +187,8 @@ export async function deleteAccountAction(
     };
   }
 
-  // Steg 2 — radera kontot
-  try {
-    const deleteRes = await authedFetch(sessionId, `/api/v1/me/`, {
-      method: "DELETE",
-    });
-
-    if (!deleteRes.ok) {
-      return {
-        success: false,
-        error: mapActionError(deleteRes, ts("account.errors.deleteFailed"), te),
-      };
-    }
-  } catch {
-    return {
-      success: false,
-      error: ts("account.errors.network"),
-    };
-  }
-
-  // Backend har invaliderat alla sessioner — ta bort lokal cookie + redirect.
+  // The backend has invalidated all sessions — drop the local cookie + redirect.
+  // `redirect` throws NEXT_REDIRECT, so it must stay outside the try/catch.
   await deleteSessionCookie();
   redirect("/logga-in");
 }

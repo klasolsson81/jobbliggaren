@@ -91,7 +91,7 @@ public interface ISessionStore
 
     /// <summary>
     /// Invaliderar alla aktiva sessioner för en användare. Anropas vid
-    /// kontoradering (DELETE /me) post-commit per ADR 0024 D4 + ADR 0017
+    /// kontoradering (POST /me/delete) post-commit per ADR 0024 D4 + ADR 0017
     /// "Out of Scope (Deferred)"-sektion (account-deletion-flow).
     ///
     /// Implementation: Redis secondary index `user:{userId}:sessions`

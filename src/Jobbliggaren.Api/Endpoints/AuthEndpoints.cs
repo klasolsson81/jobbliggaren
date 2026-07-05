@@ -91,10 +91,9 @@ public static class AuthEndpoints
     // the oracle-parity integration tests (LockoutTests).
     private static IResult ToErrorResult(DomainError error) => error.Code switch
     {
-        AuthErrorCodes.InvalidCredentials or AuthErrorCodes.AccountLocked => Results.Problem(
-            detail: "E-post eller lösenord är felaktigt.",
-            title: AuthErrorCodes.InvalidCredentials,
-            statusCode: StatusCodes.Status401Unauthorized),
+        // Byte-identical 401 shared with the central ReauthenticationFailedException arm
+        // (Program.cs) via AuthProblem — see AuthProblem for the oracle rationale.
+        AuthErrorCodes.InvalidCredentials or AuthErrorCodes.AccountLocked => AuthProblem.InvalidCredentials(),
         _ => error.ToProblemResult(),
     };
 }

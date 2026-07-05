@@ -172,11 +172,12 @@
       "description": "This action cannot be undone. Your account and all linked data will be deleted. You will be logged out immediately after the deletion is complete.",
       "confirmEmailLabel": "Enter your email address to confirm",
       "expected": "Expected: {email}",
-      "passwordLabel": "Password",
       "cancel": "Cancel",
       "deleting": "Deleting…",
-      "submit": "Delete my account",
-      "invalidInput": "Invalid details."
+      "submit": "Delete my account"
+    },
+    "reauth": {
+      "passwordLabel": "Password"
     },
     "errors": {
       "notLoggedIn": "You are not logged in.",
@@ -184,7 +185,6 @@
       "updateFailed": "Could not update the profile.",
       "network": "Could not reach the server. Check your network connection.",
       "emailMismatch": "The email address does not match your account.",
-      "verifyFailed": "Could not verify the password.",
       "wrongPassword": "The password is incorrect.",
       "deleteFailed": "Could not delete the account."
     }

@@ -15,6 +15,15 @@ public static class AuthErrorCodes
     public const string InvalidCredentials = "Auth.InvalidCredentials";
 
     /// <summary>
+    /// The single user-facing detail for the <see cref="InvalidCredentials"/> 401. Rendered on the
+    /// wire ONLY via <c>AuthProblem.InvalidCredentials()</c> (Api); referenced from here so the
+    /// Result-idiom <c>DomainError</c> message in <c>ReauthenticationService</c> (which never reaches
+    /// the wire — normalized by AuthProblem in both the behavior and /auth/verify paths) cannot
+    /// silently drift from the authoritative copy (dotnet-architect PR2c-1 Minor — single source).
+    /// </summary>
+    public const string InvalidCredentialsMessage = "E-post eller lösenord är felaktigt.";
+
+    /// <summary>
     /// Internal lockout verdict (#503, OWASP A07): the account is temporarily locked
     /// after too many failed attempts. Discriminates the audit event
     /// (<c>account_locked_out</c>) in the Api handler BUT is normalized to a

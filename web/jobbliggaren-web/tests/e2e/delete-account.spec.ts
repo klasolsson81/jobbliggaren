@@ -108,7 +108,8 @@ test.describe("Radera konto (/mig)", () => {
     await page.getByLabel("Lösenord").fill("WrongPassword!");
     await page.getByRole("button", { name: "Radera mitt konto" }).click();
 
-    // POST /auth/verify → 401 → action returnerar { success:false, error:"Lösenordet är felaktigt." }
+    // PR2c-1: re-auth är server-enforced — POST /api/v1/me/delete med fel lösenord → 401 →
+    // action returnerar { success:false, error:"Lösenordet är felaktigt." } (inget separat /auth/verify-steg)
     await expect(page.getByRole("alert")).toContainText(
       "Lösenordet är felaktigt"
     );

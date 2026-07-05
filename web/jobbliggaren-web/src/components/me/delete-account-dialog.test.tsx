@@ -13,6 +13,12 @@ vi.mock("@/lib/actions/me", () => ({
     deleteAccountActionMock(input, currentEmail),
 }));
 
+// PR2c-1 — DeleteAccountDialog is now a thin wrapper over the generic
+// <ReAuthDialog>. These tests still assert the delete-specific behaviour end to
+// end (typed email-confirmation + password, action wiring, server error, PII
+// safety), proving the refactor is behaviour-neutral (#595). The password now
+// travels with the delete operation itself; the action is mocked here so the
+// test verifies exactly the { confirmEmail, password } payload it receives.
 describe("DeleteAccountDialog", () => {
   beforeEach(() => {
     deleteAccountActionMock.mockReset();
@@ -223,5 +229,35 @@ describe("DeleteAccountDialog", () => {
       expect(stringified).not.toContain("SuperSecretPwd123!");
     }
     consoleSpy.mockRestore();
+  });
+
+  // Reset-on-close is now split: ReAuthDialog resets the password (RHF reset) and
+  // this wrapper resets the typed email via `onOpenChange`. Pin that reopening
+  // clears both, so a previous attempt never leaks into the next.
+  it("resets the typed email and password after close + reopen", async () => {
+    const user = userEvent.setup();
+    render(<DeleteAccountDialog currentEmail="anna@example.se" />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Radera konto permanent" })
+    );
+    await user.type(
+      screen.getByLabelText(/Skriv din e-postadress/),
+      "anna@example.se"
+    );
+    await user.type(screen.getByLabelText("Lösenord"), "S3kret!pass");
+
+    // Close via Avbryt and wait for the dialog content to unmount.
+    await user.click(screen.getByRole("button", { name: "Avbryt" }));
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Lösenord")).not.toBeInTheDocument()
+    );
+
+    // Reopen — both fields must be empty again.
+    await user.click(
+      screen.getByRole("button", { name: "Radera konto permanent" })
+    );
+    expect(screen.getByLabelText(/Skriv din e-postadress/)).toHaveValue("");
+    expect(screen.getByLabelText("Lösenord")).toHaveValue("");
   });
 });

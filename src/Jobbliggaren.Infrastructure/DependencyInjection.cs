@@ -1110,6 +1110,13 @@ public static class DependencyInjection
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddScoped<IAuthAuditLogger, AuthAuditLogger>();
 
+        // PR2c (C5, epik #481) — the single re-auth check (consumed by ReauthenticationBehavior +
+        // the /auth/verify handler). Registered ONLY in the Api composition: it depends on
+        // ISessionStore/ICurrentUser (above), which the HTTP-free Worker (ADR 0023) does not have.
+        // ReauthenticationBehavior injects IEnumerable<IReauthenticationService> so it still
+        // constructs in the Worker (empty sequence → the re-auth guard never fires there).
+        services.AddScoped<IReauthenticationService, Jobbliggaren.Application.Auth.ReauthenticationService>();
+
         return services;
     }
 

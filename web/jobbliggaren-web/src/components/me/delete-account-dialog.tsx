@@ -1,166 +1,72 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
+// Thin wrapper over the generic <ReAuthDialog> (PR2c-1). It owns only the
+// delete-specific bits: the typed confirm-email field (injected via `children`),
+// the email-match gate (`canSubmit`), and the action binding. The password field,
+// the Dialog shell, RHF/useTransition, the server-error line and reset-on-close
+// all live in ReAuthDialog. Behaviour and copy are unchanged from #595.
+
+import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { PasswordInput } from "@/components/forms/PasswordInput";
 import { Label } from "@/components/ui/label";
+import { ReAuthDialog } from "@/components/forms/reauth-dialog";
 import { deleteAccountAction } from "@/lib/actions/me";
-import {
-  makeDeleteMyAccountSchema,
-  type DeleteMyAccountInput,
-} from "@/lib/actions/me-schemas";
 
 interface DeleteAccountDialogProps {
   currentEmail: string;
 }
 
-const FORM_ERROR_ID = "delete-account-error";
-
 export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) {
-  const t = useTranslations("validation");
   const ts = useTranslations("settings");
-  const schema = useMemo(() => makeDeleteMyAccountSchema(t), [t]);
-  const [open, setOpen] = useState(false);
-  const [isPending, startTransition] = useTransition();
-  const [serverError, setServerError] = useState<string | null>(null);
+  const confirmEmailId = useId();
+  const [confirmEmail, setConfirmEmail] = useState("");
 
-  const {
-    register,
-    handleSubmit,
-    watch,
-    reset,
-    formState: { errors },
-  } = useForm<DeleteMyAccountInput>({
-    defaultValues: { confirmEmail: "", password: "" },
-    shouldUnregister: false,
-  });
-
-  const confirmEmail = watch("confirmEmail");
-  const password = watch("password");
-  // Lokal aktivering: båda fält ifyllda + e-postmatchning. Server-side
-  // validering är auktoritativ — detta är bara klient-UX-skydd.
-  const canSubmit =
-    !isPending &&
-    !!password &&
+  // Case-insensitive, trimmed match against the signed-in account. This is
+  // client-side friction only (GitHub/Stripe typed-confirmation pattern); the
+  // Server Action re-checks it against the server-trusted email.
+  const emailMatches =
     confirmEmail.trim().toLowerCase() === currentEmail.trim().toLowerCase();
 
-  function handleOpenChange(next: boolean) {
-    if (isPending) return;
-    setOpen(next);
-    if (!next) {
-      reset();
-      setServerError(null);
-    }
-  }
-
-  function onSubmit(values: DeleteMyAccountInput) {
-    const parsed = schema.safeParse(values);
-    if (!parsed.success) {
-      setServerError(
-        parsed.error.issues[0]?.message ?? ts("account.delete.invalidInput")
-      );
-      return;
-    }
-
-    setServerError(null);
-    startTransition(async () => {
-      const result = await deleteAccountAction(parsed.data, currentEmail);
-      if (!result.success) {
-        setServerError(result.error);
-      }
-      // Vid success kastar deleteAccountAction redirect — vi når aldrig hit.
-    });
-  }
-
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
+    <ReAuthDialog
+      trigger={
         <Button type="button" variant="destructive">
           {ts("account.delete.trigger")}
         </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{ts("account.delete.title")}</DialogTitle>
-          <DialogDescription>
-            {ts("account.delete.description")}
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          onSubmit={handleSubmit(onSubmit)}
-          className="flex flex-col gap-4"
-          noValidate
-        >
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="delete-confirm-email">
-              {ts("account.delete.confirmEmailLabel")}
-            </Label>
-            <Input
-              id="delete-confirm-email"
-              type="email"
-              autoComplete="off"
-              spellCheck={false}
-              disabled={isPending}
-              aria-invalid={errors.confirmEmail ? true : undefined}
-              {...register("confirmEmail")}
-            />
-            <p className="text-body-sm text-text-primary">
-              {ts("account.delete.expected", { email: currentEmail })}
-            </p>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="delete-password">
-              {ts("account.delete.passwordLabel")}
-            </Label>
-            <PasswordInput
-              id="delete-password"
-              autoComplete="current-password"
-              disabled={isPending}
-              aria-invalid={errors.password ? true : undefined}
-              {...register("password")}
-            />
-          </div>
-          {serverError && (
-            <p
-              id={FORM_ERROR_ID}
-              role="alert"
-              className="text-body-sm text-danger-600"
-            >
-              {serverError}
-            </p>
-          )}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={isPending}
-              onClick={() => handleOpenChange(false)}
-            >
-              {ts("account.delete.cancel")}
-            </Button>
-            <Button
-              type="submit"
-              variant="destructive"
-              disabled={!canSubmit}
-              aria-describedby={serverError ? FORM_ERROR_ID : undefined}
-            >
-              {isPending ? ts("account.delete.deleting") : ts("account.delete.submit")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      }
+      title={ts("account.delete.title")}
+      description={ts("account.delete.description")}
+      confirmLabel={ts("account.delete.submit")}
+      pendingLabel={ts("account.delete.deleting")}
+      cancelLabel={ts("account.delete.cancel")}
+      variant="destructive"
+      // The password travels with the delete; the server re-authenticates it.
+      action={(password) =>
+        deleteAccountAction({ confirmEmail, password }, currentEmail)
+      }
+      canSubmit={() => emailMatches}
+      onOpenChange={(open) => {
+        if (!open) setConfirmEmail("");
+      }}
+    >
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={confirmEmailId}>
+          {ts("account.delete.confirmEmailLabel")}
+        </Label>
+        <Input
+          id={confirmEmailId}
+          type="email"
+          autoComplete="off"
+          spellCheck={false}
+          value={confirmEmail}
+          onChange={(event) => setConfirmEmail(event.target.value)}
+        />
+        <p className="text-body-sm text-text-primary">
+          {ts("account.delete.expected", { email: currentEmail })}
+        </p>
+      </div>
+    </ReAuthDialog>
   );
 }

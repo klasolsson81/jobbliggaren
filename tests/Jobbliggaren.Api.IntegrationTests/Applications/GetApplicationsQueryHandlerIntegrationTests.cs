@@ -236,12 +236,12 @@ public class GetApplicationsQueryHandlerIntegrationTests
     }
 
     [Fact]
-    public async Task Handle_ProjectsAttentionEnvelope_HasOverdueFollowUpAndGhostedThreshold()
+    public async Task Handle_ProjectsAttentionEnvelope_HasOverdueFollowUpAndLastStatusChange()
     {
-        // #342: the attention envelope (HasOverdueFollowUp EXISTS, LastStatusChangeAt,
-        // GhostedThresholdDays) is projected in BOTH read handlers. The pipeline suite
-        // owns the exhaustive EXISTS cases; this pins the GetApplications call-site so
-        // its identical projection cannot silently drift (ADR 0044 coverage symmetry).
+        // #342 / #630 PR 4: the attention envelope (HasOverdueFollowUp EXISTS,
+        // LastStatusChangeAt, LastFollowUpAt) is projected in BOTH read handlers. The
+        // pipeline suite owns the exhaustive EXISTS cases; this pins the GetApplications
+        // call-site so its identical projection cannot silently drift (ADR 0044 coverage symmetry).
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
@@ -259,7 +259,6 @@ public class GetApplicationsQueryHandlerIntegrationTests
 
         var dto = result.Items.Single();
         dto.HasOverdueFollowUp.ShouldBeTrue();
-        dto.GhostedThresholdDays.ShouldBe(21);
         dto.LastStatusChangeAt.ShouldBe(app.LastStatusChangeAt, TimeSpan.FromSeconds(1));
         // #343 (CTO Option a): the paged handler must stamp AttentionSignal too —
         // lockstep with GetPipeline so the shared ApplicationDto is truthful on BOTH

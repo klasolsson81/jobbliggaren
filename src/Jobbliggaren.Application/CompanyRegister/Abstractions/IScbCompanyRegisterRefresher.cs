@@ -43,6 +43,10 @@ public interface IScbCompanyRegisterRefresher
 /// (truncated/errored extract or below the safety floors).</param>
 /// <param name="SweepSkipReason">Why the sweep was skipped, when <paramref name="SweepApplied"/> is
 /// false; null otherwise.</param>
+/// <param name="ProtectedPartitionCount">#640 — how many (kommun, SNI) partitions the sweep EXCLUDED
+/// because their over-cap 5-digit tail could only be partially fetched (partition-scoped sweep). 0 on a
+/// run with no dense-metro tail. The operational signal that Guard 1 engaged (and, if chronically
+/// non-zero, that the ladder may need deepening later).</param>
 /// <param name="StartedAt">Run start (from <c>IDateTimeProvider</c>).</param>
 /// <param name="CompletedAt">Run completion (from <c>IDateTimeProvider</c>).</param>
 public sealed record ScbCompanyRegisterRefreshResult(
@@ -53,5 +57,6 @@ public sealed record ScbCompanyRegisterRefreshResult(
     int TotalRowsFetched,
     bool SweepApplied,
     string? SweepSkipReason,
+    int ProtectedPartitionCount,
     DateTimeOffset StartedAt,
     DateTimeOffset CompletedAt);

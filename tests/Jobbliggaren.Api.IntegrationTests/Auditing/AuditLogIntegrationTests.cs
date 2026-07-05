@@ -4,10 +4,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
-using Jobbliggaren.Application.Applications.Commands.MarkGhosted;
 using Jobbliggaren.Domain.Auditing;
 using Jobbliggaren.Infrastructure.Persistence;
-using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -15,7 +13,7 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.Auditing;
 
 /// <summary>
-/// Verifierar audit-paritet per ADR 0022. För varje markerad command (10 st)
+/// Verifierar audit-paritet per ADR 0022. För varje markerad command (9 st)
 /// kör en lyckad mutation och verifiera att exakt en audit-rad skrivs till
 /// audit_log-tabellen med korrekta fält. Plus två failure-cases.
 /// </summary>
@@ -178,44 +176,6 @@ public class AuditLogIntegrationTests(ApiFactory factory)
         var entries = await ReadEntriesAsync(_factory, id, ct);
         entries.Count.ShouldBe(countBefore + 1);
         entries.Last().EventType.ShouldBe("Application.NoteAdded");
-        entries.Last().AggregateType.ShouldBe("Application");
-        entries.Last().AggregateId.ShouldBe(id);
-    }
-
-    [Fact]
-    public async Task MarkGhosted_OnSuccess_WritesAuditEntryWithMarkedGhostedEventType()
-    {
-        // MarkGhosted har ingen HTTP-endpoint i Fas 1 — den körs av Worker (Fas 3).
-        // Vi anropar via Mediator med scope:ad ICurrentUser (worker-stub har null
-        // UserId men i Fas 1 körs vi i HTTP-context med inloggad user). Här är
-        // det viktiga att audit-raden skapas och persisteras.
-        var ct = TestContext.Current.CancellationToken;
-        var (client, _) = await AuthenticateAsync(ct);
-
-        var post = await client.PostAsJsonAsync("/api/v1/applications", CreateApplicationBody, ct);
-        var id = Guid.Parse((await post.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("id").GetString()!);
-
-        // Skicka till Submitted först — MarkGhosted kräver icke-Draft state per
-        // domain-invariant.
-        var transition = await client.PostAsJsonAsync(
-            $"/api/v1/applications/{id}/transition",
-            new { targetStatus = "Submitted" },
-            ct);
-        transition.StatusCode.ShouldBe(HttpStatusCode.OK);
-
-        var countBefore = (await ReadEntriesAsync(_factory, id, ct)).Count;
-
-        // Anropa MarkGhostedCommand direkt via Mediator
-        using (var scope = _factory.Services.CreateScope())
-        {
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-            var result = await mediator.Send(new MarkGhostedCommand(id), ct);
-            result.IsSuccess.ShouldBeTrue();
-        }
-
-        var entries = await ReadEntriesAsync(_factory, id, ct);
-        entries.Count.ShouldBe(countBefore + 1);
-        entries.Last().EventType.ShouldBe("Application.MarkedGhosted");
         entries.Last().AggregateType.ShouldBe("Application");
         entries.Last().AggregateId.ShouldBe(id);
     }

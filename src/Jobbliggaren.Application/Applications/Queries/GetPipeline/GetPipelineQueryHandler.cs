@@ -69,8 +69,10 @@ public sealed class GetPipelineQueryHandler(
                         : null,
                 r.a.AppliedAt,
                 // #342 (ADR 0085 §3): attention envelope, projected at the read
-                // boundary. LastStatusChangeAt anchors signal 4; GhostedThresholdDays
-                // is the reused per-aggregate value; HasOverdueFollowUp is signal 2.
+                // boundary. LastStatusChangeAt anchors the effective-wait signals;
+                // HasOverdueFollowUp is signal 2. The former GhostedThresholdDays
+                // projection was dropped in PR 4 — ghost-suggest now keys on the
+                // operator option GhostSuggestDays, not the per-aggregate field.
                 r.a.LastStatusChangeAt,
                 // Correlated EXISTS — no followUps[] hydration (CQRS list ≠ detail,
                 // ADR 0048 Alt C rejected). Soft-delete exclusion is carried by the
@@ -90,7 +92,6 @@ public sealed class GetPipelineQueryHandler(
                 // gain, 2x storage). See ADR 0085 §3.
                 r.a.FollowUps.Any(f =>
                     f.Outcome == FollowUpOutcome.Pending && f.ScheduledAt < now),
-                r.a.GhostedThresholdDays,
                 // ADR 0092 D5: denormalised last-follow-up scalar (lockstep with
                 // GetApplications) — drives effectiveWaitDays in the evaluator.
                 r.a.LastFollowUpAt))

@@ -27,6 +27,9 @@ public sealed record CompanyRegisterSynced(
     int TotalRowsFetched,
     bool SweepApplied,
     string? SweepSkipReason,
+    // #640 — count of (kommun, SNI) partitions the sweep excluded (partition-scoped sweep); 0 when no
+    // dense-metro over-cap tail existed. Aggregate count only, no org.nr (CLAUDE.md §5).
+    int ProtectedPartitionCount,
     DateTimeOffset StartedAt,
     DateTimeOffset CompletedAt)
     : SystemAuditEvent(

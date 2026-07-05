@@ -3,7 +3,7 @@ using System.Collections.Frozen;
 namespace Jobbliggaren.Application.BackgroundJobs;
 
 /// <summary>
-/// Single source of truth for the 17 Hangfire recurring-job ids. Used both by the
+/// Single source of truth for the 16 Hangfire recurring-job ids. Used both by the
 /// Worker's <c>RecurringJobRegistrar</c> (registration) and by the admin operator
 /// surface's trigger validator (the closed allowlist).
 ///
@@ -31,7 +31,6 @@ public static class RecurringJobIds
     public const string RetainPlatsbankenJobAds = "retain-platsbanken-job-ads";
     public const string BackgroundMatching = "background-matching";
     public const string CompanyWatchScan = "company-watch-scan";
-    public const string DetectGhosted = "detect-ghosted";
     public const string ExpireJobAds = "expire-job-ads";
     public const string HardDeleteAccounts = "hard-delete-accounts";
     public const string PurgeStaleRawPayloads = "purge-stale-raw-payloads";
@@ -58,7 +57,6 @@ public static class RecurringJobIds
         RetainPlatsbankenJobAds,
         BackgroundMatching,
         CompanyWatchScan,
-        DetectGhosted,
         ExpireJobAds,
         HardDeleteAccounts,
         PurgeStaleRawPayloads,

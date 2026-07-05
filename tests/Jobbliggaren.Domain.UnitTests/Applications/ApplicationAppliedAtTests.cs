@@ -73,13 +73,13 @@ public class ApplicationAppliedAtTests
     [Fact]
     public void TransitionTo_ReactivationFromGhosted_KeepsOriginalAppliedAt()
     {
-        // Submitted (stämpla t1) → MarkGhosted → TransitionTo(Submitted) vid t2.
+        // Submitted (stämpla t1) → TransitionTo(Ghosted) → TransitionTo(Submitted) vid t2.
         // AppliedAt ska vara t1, inte t2 — AF-rapporten vill månaden man
         // URSPRUNGLIGEN sökte, inte månaden man återöppnade en ghosted tråd.
         var t2 = T1.AddDays(30);
         var application = CreateValidApplication(FakeDateTimeProvider.At(T1));
         application.TransitionTo(ApplicationStatus.Submitted, FakeDateTimeProvider.At(T1));
-        application.MarkGhosted(FakeDateTimeProvider.At(T1.AddDays(22)));
+        application.TransitionTo(ApplicationStatus.Ghosted, FakeDateTimeProvider.At(T1.AddDays(22)));
 
         application.TransitionTo(ApplicationStatus.Submitted, FakeDateTimeProvider.At(t2));
 
@@ -89,12 +89,12 @@ public class ApplicationAppliedAtTests
     }
 
     [Fact]
-    public void MarkGhosted_DoesNotChangeAppliedAt()
+    public void TransitionTo_ToGhosted_DoesNotChangeAppliedAt()
     {
         var application = CreateValidApplication(FakeDateTimeProvider.At(T1));
         application.TransitionTo(ApplicationStatus.Submitted, FakeDateTimeProvider.At(T1));
 
-        application.MarkGhosted(FakeDateTimeProvider.At(T1.AddDays(22)));
+        application.TransitionTo(ApplicationStatus.Ghosted, FakeDateTimeProvider.At(T1.AddDays(22)));
 
         application.AppliedAt.ShouldBe(T1);
     }

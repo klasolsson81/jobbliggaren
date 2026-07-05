@@ -171,16 +171,18 @@ export const ATTENTION_SIGNAL_ORDER: Exclude<
   "OfferAwaitingReply",
   "OverdueFollowUp",
   "DraftDeadlineApproaching",
-  "NoResponseLong",
-  "ProactiveFollowUpNudge",
+  "GhostSuggested",
+  "NoResponseNudge",
+  "SilentAfterInterview",
 ];
 
 /**
  * Colour bucket for the feed item's leading indicator, emitted as a
  * `data-signal` attribute the `.jp-attention__dot` CSS resolves to a status
- * token. NEVER green (green = interaction/grade, design-reviewer bind): offer →
- * success, the overdue/deadline/no-response trio → warning, the proactive nudge
- * → info. Colour only REINFORCES; the reason text carries the meaning
+ * token. NEVER green (green = interaction/grade, design-reviewer bind), mirroring
+ * design §11 "Urgensregler": offer → success, the overdue/draft-deadline pair →
+ * warning, the no-response trio (ghost-suggest, no-response nudge, silent-after-
+ * interview) → info. Colour only REINFORCES; the reason text carries the meaning
  * (WCAG 1.4.1 — not colour alone).
  */
 export const ATTENTION_SIGNAL_BUCKET: Record<
@@ -190,8 +192,9 @@ export const ATTENTION_SIGNAL_BUCKET: Record<
   OfferAwaitingReply: "success",
   OverdueFollowUp: "warning",
   DraftDeadlineApproaching: "warning",
-  NoResponseLong: "warning",
-  ProactiveFollowUpNudge: "info",
+  GhostSuggested: "info",
+  NoResponseNudge: "info",
+  SilentAfterInterview: "info",
 };
 
 /**

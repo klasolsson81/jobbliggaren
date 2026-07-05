@@ -34,9 +34,9 @@ public class GetPipelineQueryHandlerIntegrationTests
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
     private readonly Guid _userId = Guid.NewGuid();
 
-    // #343: the read handlers now inject IOptions<ApplicationAttentionOptions> to
-    // stamp AttentionSignal. The defaults (FollowUpNudgeDays=7, DraftDeadlineDays=5)
-    // are what these tests assert against.
+    // #343 / #630 PR 4: the read handlers inject IOptions<ApplicationAttentionOptions>
+    // to stamp AttentionSignal. The defaults (NoResponseNudgeDays=14, GhostSuggestDays=30,
+    // SilentAfterInterviewDays=7, DraftDeadlineDays=7) are what these tests assert against.
     private static readonly IOptions<ApplicationAttentionOptions> AttentionOptions =
         Options.Create(new ApplicationAttentionOptions());
 
@@ -394,7 +394,7 @@ public class GetPipelineQueryHandlerIntegrationTests
     }
 
     [Fact]
-    public async Task Handle_ProjectsLastStatusChangeAtAndGhostedThreshold()
+    public async Task Handle_ProjectsLastStatusChangeAt()
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -413,7 +413,6 @@ public class GetPipelineQueryHandlerIntegrationTests
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
         // Postgres timestamptz truncates .NET ticks to microseconds → tolerance.
         dto.LastStatusChangeAt.ShouldBe(app.LastStatusChangeAt, TimeSpan.FromSeconds(1));
-        dto.GhostedThresholdDays.ShouldBe(21); // per-aggregate default, reused by signal 4
         dto.HasOverdueFollowUp.ShouldBeFalse();
     }
 
@@ -489,8 +488,8 @@ public class GetPipelineQueryHandlerIntegrationTests
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
-        // Submitted just now: within the 7-day nudge and 21-day ghosted windows, no
-        // follow-up → None. Proves the "Kräver åtgärd" feed is not a dumping ground —
+        // Submitted just now: within the 14-day nudge and 30-day ghost-suggest windows,
+        // no follow-up → None. Proves the "Kräver åtgärd" feed is not a dumping ground —
         // a calm application surfaces no signal.
         dto.AttentionSignal.ShouldBe(ApplicationAttentionSignal.None);
     }

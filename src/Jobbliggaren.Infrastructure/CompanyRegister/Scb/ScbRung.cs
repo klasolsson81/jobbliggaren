@@ -17,10 +17,20 @@ internal interface IScbRung
 {
     /// <summary>
     /// Produces the child partitions to split <paramref name="parent"/> into. An empty result means
-    /// "cannot split further" — the planner treats it exactly like an exhausted ladder (fetch what it
-    /// can, latch the run truncated so the deregister sweep is skipped).
+    /// "cannot split further" — the planner yields the partition as an over-cap leaf and the client
+    /// decides whether it can be bounded to a protected (kommun, SNI) key or must latch the run truncated.
     /// </summary>
     IReadOnlyList<ScbQuery> Expand(ScbQuery parent);
+
+    /// <summary>
+    /// #640 (Guard 2) — whether the planner must reconcile <c>sum(child counts)</c> against the parent
+    /// count when it splits via this rung. True only where the child value set may not fully cover the
+    /// parent (the 5-digit <c>Bransch</c> split — an entity with the parent's division but no listed
+    /// 5-digit subcode is invisible to every child); a gap latches the run truncated. False for rungs
+    /// whose children exhaust the parent by construction (single-valued Juridisk form), where
+    /// reconciliation could only spuriously latch on mid-run SCB count drift.
+    /// </summary>
+    bool ReconcileChildren { get; }
 }
 
 /// <summary>
@@ -28,8 +38,14 @@ internal interface IScbRung
 /// constraint on <paramref name="Category"/>. Used for the parent-independent rungs: Juridisk form and
 /// the 2-digit SNI division (<c>"2-siffrig bransch 1"</c>).
 /// </summary>
-internal sealed record ScbStaticRung(string Category, IReadOnlyList<string> Values, int? BranschNiva = null)
-    : IScbRung
+internal sealed record ScbStaticRung(
+    string Category,
+    IReadOnlyList<string> Values,
+    int? BranschNiva = null,
+    // #640: reconciliation is OFF by default for static rungs. The extension point exists so the 2-digit
+    // division rung could opt in later (its children exhaust the parent only IF "2-siffrig bransch 1"
+    // maps to a single membership slot — unconfirmed at #640, so left off; see #640 / ADR 0091 amendment).
+    bool ReconcileChildren = false) : IScbRung
 {
     public IReadOnlyList<ScbQuery> Expand(ScbQuery parent) =>
         [.. Values.Select(value => parent.With(Category, [value], BranschNiva))];
@@ -50,6 +66,10 @@ internal sealed record ScbPrefixRung(
     int ChildBranschNiva,
     IReadOnlyDictionary<string, IReadOnlyList<string>> PrefixMap) : IScbRung
 {
+    // #640 (Guard 2) — the 5-digit split is the one point where children may not cover the parent (an
+    // entity with the division but no listed 5-digit subcode), so the planner reconciles here.
+    public bool ReconcileChildren => true;
+
     public IReadOnlyList<ScbQuery> Expand(ScbQuery parent)
     {
         // The parent must carry exactly one 2-digit code on ParentCategory; anything else is a

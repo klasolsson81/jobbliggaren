@@ -98,6 +98,21 @@ internal sealed partial class ScbCompanyRegisterClient(
             (query, ct) => CountAsync(query, outcome, ct), outcome, cancellationToken)
             .ConfigureAwait(false))
         {
+            // #640 (Guard 1): the planner bounded this partition as far as the ladder allows but it is
+            // STILL over the fetch cap — we will fetch only the first cap rows, so its tail is un-observed.
+            // If it reduces to exactly one SätesKommun + one 5-digit Bransch we protect just that
+            // (kommun, SNI) key-space and keep sweeping the clean 99%+ (partition-scoped sweep). If it does
+            // NOT (a coarser over-cap leaf, e.g. the defensive empty-children path at the 2-digit level),
+            // we cannot bound the unfetched tail to a tight key and must disable the WHOLE sweep — a
+            // fail-safe: the client's extraction-miss IS the whole-run truncation latch.
+            if (leaf.OverCap)
+            {
+                if (TryExtractProtectedKey(leaf.Query, out var kommunCode, out var sniCode))
+                    outcome.RecordProtectedPartition(kommunCode, sniCode);
+                else
+                    outcome.MarkTruncatedOrErrored();
+            }
+
             var records = await FetchAsync(leaf.Query, outcome, cancellationToken).ConfigureAwait(false);
 
             // Fail-safe against envelope drift: a partition the planner counted as non-empty that
@@ -264,6 +279,30 @@ internal sealed partial class ScbCompanyRegisterClient(
                 .Select(f => new ScbCategoryRequest { Kategori = f.Category, Kod = f.Codes, BranschNiva = f.BranschNiva })
                 .ToArray(),
         };
+
+    // #640 (Guard 1) — a STRICT bound: an over-cap leaf can be protected as a partition-scoped (kommun,
+    // SNI) key ONLY when it carries exactly ONE SätesKommun code AND exactly ONE 5-digit Bransch (niva 3)
+    // code. Any coarser over-cap leaf (2-digit level, seed level, the defensive empty-children path)
+    // returns false → the caller latches the whole run truncated (fail-safe: a key we cannot tighten to a
+    // single (kommun, SNI) pair must never narrow the sweep's protected set and risk a false deregister).
+    private static bool TryExtractProtectedKey(ScbQuery query, out string kommunCode, out string sniCode)
+    {
+        kommunCode = string.Empty;
+        sniCode = string.Empty;
+
+        var kommunFilter = query.Filters.FirstOrDefault(
+            f => string.Equals(f.Category, CatSatesKommun, StringComparison.Ordinal));
+        var branschFilter = query.Filters.FirstOrDefault(
+            f => string.Equals(f.Category, CatBransch, StringComparison.Ordinal)
+                && f.BranschNiva == BranschNivaFiveDigit);
+
+        if (kommunFilter is not { Codes.Count: 1 } || branschFilter is not { Codes.Count: 1 })
+            return false;
+
+        kommunCode = kommunFilter.Codes[0];
+        sniCode = branschFilter.Codes[0];
+        return true;
+    }
 
     // --- Tolerant response extraction (verified against the live envelope at the population run) ---
 

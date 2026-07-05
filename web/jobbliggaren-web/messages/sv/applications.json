@@ -86,8 +86,9 @@
         "OfferAwaitingReply": "Erbjudande väntar på svar.",
         "OverdueFollowUp": "Uppföljningen har passerat sin tid.",
         "DraftDeadlineApproaching": "Utkastet stänger snart för ansökan.",
-        "NoResponseLong": "Inget svar på länge.",
-        "ProactiveFollowUpNudge": "Dags att följa upp."
+        "GhostSuggested": "Inget svar på länge.",
+        "NoResponseNudge": "Dags att följa upp.",
+        "SilentAfterInterview": "Tyst efter intervjun."
       }
     },
     "followUps": {

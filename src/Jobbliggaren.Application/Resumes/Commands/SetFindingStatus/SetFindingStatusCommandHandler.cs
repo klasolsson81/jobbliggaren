@@ -99,6 +99,19 @@ public sealed class SetFindingStatusCommandHandler(
                 "Kriteriet har ingen anmärkning att markera i den aktuella granskningen."));
         }
 
+        // Ignored is a style opt-out only (handoff §5.3 "Ignorera regeln endast för
+        // stilfrågor"; PR-5 CTO-bind D2): a non-style rule is a substance finding the user
+        // cannot silence by choice. Server-enforced here — the criterion's StyleOnly flag
+        // is versioned rubric DATA (fail-closed default false), never trusted from the
+        // client and never a hardcoded C# category list (§5). Resolved ("jag fixar det
+        // själv") and Open stay allowed on every criterion.
+        if (status == ReviewFindingStatus.Ignored && !criterion.StyleOnly)
+        {
+            return Result.Failure(DomainError.Validation(
+                "Resume.FindingNotIgnorable",
+                "Den här regeln kan inte ignoreras. Bara stilregler kan ignoreras."));
+        }
+
         var fingerprint = FindingTargetFingerprint.Compute(result.RubricVersion, verdict);
         return resume.SetFindingStatus(
             result.RubricVersion.ToString(), command.CriterionId, status, fingerprint, clock);

@@ -20,7 +20,9 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Commands.SetFindingStatus;
 /// finding. The fingerprint that identifies the finding instance is SERVER-derived: the handler
 /// recomputes the review through the canonical adapter and fingerprints the CURRENT finding (never
 /// client-submitted, ADR 0074 Invariant 2). A decision needs a finding to be about — the criterion's
-/// current verdict must be Fail or Warn — except reverting to Open, always allowed.
+/// current verdict must be Fail or Warn — except reverting to Open, always allowed. Ignored is
+/// additionally gated on the criterion's StyleOnly flag (rubric v1.2 data, PR-5 CTO-bind D2):
+/// only style rules can be silenced (handoff §5.3), server-enforced fail-closed.
 ///
 /// The <see cref="ICvReviewEngine"/> is NSubstitute-mocked (the handler under test is the
 /// orchestration + the actionability guard, not the engine's verdict logic); the REAL
@@ -97,8 +99,33 @@ public class SetFindingStatusCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ShouldPersistIgnoredRow_WhenVerdictIsWarn()
+    public async Task Handle_ShouldPersistIgnoredRow_WhenCriterionIsStyleAndVerdictIsWarn()
     {
+        // B5 (Konsekvent formatering) is styleOnly in rubric v1.2 — the only class of
+        // criterion the user may Ignore (handoff §5.3, PR-5 CTO-bind D2). The engine is
+        // stubbed to a Warn so the actionability guard passes and the style gate is the
+        // decision under test.
+        var db = TestAppDbContextFactory.Create();
+        var resume = await SeedResumeAsync(db, _userId);
+        StubEngine(ResultWith(Verdict("B5", CriterionVerdict.Warn, RubricCategory.Structure)));
+
+        var result = await CreateSut(db).Handle(
+            new SetFindingStatusCommand(resume.Id.Value, "B5", "Ignored"), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        resume.FindingStatuses.ShouldHaveSingleItem().Status.ShouldBe(ReviewFindingStatus.Ignored);
+    }
+
+    // ===============================================================
+    // Style gate (PR-5 CTO-bind D2): Ignored only on styleOnly criteria
+    // ===============================================================
+
+    [Fact]
+    public async Task Handle_ShouldReturnFindingNotIgnorable_WhenCriterionIsNotStyleAndStatusIsIgnored()
+    {
+        // A7 (klyschor) is SUBSTANCE, not style — a Warn finding on it can be Resolved
+        // but never Ignored (server-enforced; the flag is versioned rubric data,
+        // fail-closed default false).
         var db = TestAppDbContextFactory.Create();
         var resume = await SeedResumeAsync(db, _userId);
         StubEngine(ResultWith(Verdict("A7", CriterionVerdict.Warn)));
@@ -106,8 +133,26 @@ public class SetFindingStatusCommandHandlerTests
         var result = await CreateSut(db).Handle(
             new SetFindingStatusCommand(resume.Id.Value, "A7", "Ignored"), CancellationToken.None);
 
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.FindingNotIgnorable");
+        result.Error.Kind.ShouldBe(ErrorKind.Validation);
+        resume.FindingStatuses.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_ShouldAllowResolved_WhenCriterionIsNotStyle()
+    {
+        // The style gate keys STRICTLY on Ignored — "jag fixar det själv" (Resolved)
+        // stays allowed on every criterion.
+        var db = TestAppDbContextFactory.Create();
+        var resume = await SeedResumeAsync(db, _userId);
+        StubEngine(ResultWith(Verdict("A7", CriterionVerdict.Warn)));
+
+        var result = await CreateSut(db).Handle(
+            new SetFindingStatusCommand(resume.Id.Value, "A7", "Resolved"), CancellationToken.None);
+
         result.IsSuccess.ShouldBeTrue();
-        resume.FindingStatuses.ShouldHaveSingleItem().Status.ShouldBe(ReviewFindingStatus.Ignored);
+        resume.FindingStatuses.ShouldHaveSingleItem().Status.ShouldBe(ReviewFindingStatus.Resolved);
     }
 
     // ===============================================================

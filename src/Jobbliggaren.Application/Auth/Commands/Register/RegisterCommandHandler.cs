@@ -34,9 +34,10 @@ public sealed class RegisterCommandHandler(
 
         db.JobSeekers.Add(seekerResult.Value);
 
-        // "Håll mig inloggad" checked → a rotating Persistent session; unchecked/absent →
-        // today's reach (Legacy). See LoginCommandHandler for the flip sequencing.
-        var lifetime = command.RememberMe ? SessionLifetime.Persistent : SessionLifetime.Legacy;
+        // Activation (#481 2b-3b): "Håll mig inloggad" checked → a rotating Persistent
+        // session; unchecked/absent → a short session-scoped Session (the safe default).
+        // See LoginCommandHandler for the full flip rationale.
+        var lifetime = command.RememberMe ? SessionLifetime.Persistent : SessionLifetime.Session;
         var session = await sessionStore.CreateAsync(userId, lifetime, cancellationToken);
 
         auditLogger.LoginSucceeded(userId, session.Id.ToString());

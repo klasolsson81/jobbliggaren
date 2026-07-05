@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { deleteSessionCookie, setSessionCookie } from "@/lib/auth/session";
+import { SESSION_COOKIE_NAME } from "@/lib/auth/cookie-names";
 import { env } from "@/lib/env";
 import {
   registrationValidationErrorSchema,
@@ -13,7 +14,7 @@ import { parseResponse } from "@/lib/dto/_helpers";
 
 // F6 P5 Punkt 4 svans-PR3 (2026-05-24, Klas-feedback "kom direkt till jobb"):
 // /jobb och rot / hoppar över next-param och defaultar till /oversikt.
-// Skäl: middleware-flödet redirektar unauth user från /jobb → /logga-in?next=/jobb,
+// Skäl: proxy-flödet redirektar unauth user från /jobb → /logga-in?next=/jobb,
 // vilket bevarade /jobb som login-target trots Klas-intent "/oversikt är start-
 // sidan". Andra deep links (/ansokningar/abc-123, /cv/xyz) respekteras fortfarande
 // — användare som faktiskt klickat en deep link ska komma dit, men "passiv"
@@ -44,6 +45,9 @@ export async function loginAction(
   const t = await getTranslations("pages");
   const email = formData.get("email") as string | null;
   const password = formData.get("password") as string | null;
+  // A native checkbox posts "on" when checked, nothing when unchecked — a pure
+  // boolean opt-in ("Håll mig inloggad"), no client-supplied duration.
+  const rememberMe = formData.get("rememberMe") === "on";
   const next = safeRedirectPath(formData.get("next") as string | null);
 
   if (!email || !password) {
@@ -56,7 +60,7 @@ export async function loginAction(
     const res = await fetch(`${env.BACKEND_URL}/api/v1/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, rememberMe }),
       cache: "no-store",
     });
 
@@ -77,7 +81,7 @@ export async function loginAction(
     return { error: t("auth.actions.serverUnreachable") };
   }
 
-  await setSessionCookie(sessionId);
+  await setSessionCookie(sessionId, rememberMe);
   redirect(next);
 }
 
@@ -89,6 +93,8 @@ export async function registerAction(
   const displayName = formData.get("displayName") as string | null;
   const email = formData.get("email") as string | null;
   const password = formData.get("password") as string | null;
+  // Same opt-in as login: checked native checkbox posts "on", unchecked posts nothing.
+  const rememberMe = formData.get("rememberMe") === "on";
   const next = safeRedirectPath(formData.get("next") as string | null);
 
   if (!displayName || !email || !password) {
@@ -101,7 +107,7 @@ export async function registerAction(
     const res = await fetch(`${env.BACKEND_URL}/api/v1/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ displayName, email, password }),
+      body: JSON.stringify({ displayName, email, password, rememberMe }),
       cache: "no-store",
     });
 
@@ -134,13 +140,13 @@ export async function registerAction(
     return { error: t("auth.actions.serverUnreachable") };
   }
 
-  await setSessionCookie(sessionId);
+  await setSessionCookie(sessionId, rememberMe);
   redirect(next);
 }
 
 export async function logoutAction(): Promise<void> {
   const cookieStore = await cookies();
-  const sessionId = cookieStore.get("__Host-jobbliggaren_session")?.value;
+  const sessionId = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
   if (sessionId) {
     try {

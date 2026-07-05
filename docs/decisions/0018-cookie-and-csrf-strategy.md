@@ -127,3 +127,54 @@ See ADR 0017.
 - MDN: Set-Cookie `__Host-` prefix
 - Next.js Server Actions security model
 - ADR 0017
+
+---
+
+## Amendment 2026-07-05 (#481 2b-3b) — persistent-login activation: branch-dependent cookie lifetime + cookie-name correction
+
+**Datum:** 2026-07-05
+**Källa/Trigger:** #481 epic, PR2b-3b (persistent-login frontend activation) — corrects two claims
+in the original 2026-05-06 decision above that this session's work made stale.
+
+*Affects the "Cookie attributes (session cookie)" table and the "Logout" section above. The
+original decision — topology, CSRF strategy, `__Host-` attribute discipline, the three-layer CSRF
+mitigation — is unchanged and remains Accepted.*
+
+### Correction 1 — cookie name
+
+The table above lists `Name: __Host-jobbpilot_session` — a pre-rename artifact of the product's
+original name (see ADR 0069, JobbPilot → Jobbliggaren). The cookie has always actually shipped, and
+is read/written throughout the codebase, as **`__Host-jobbliggaren_session`**
+(`web/jobbliggaren-web/src/lib/auth/session.ts`, `SESSION_COOKIE_NAME`; also the presence check in
+`proxy.ts`). This is a documentation correction, not a behaviour change.
+
+### Correction 2 — `Max-Age` is now branch-dependent, not a flat 14 days
+
+The original "Max-Age: 14 days (sliding, refreshed on use)" row described the single,
+always-persistent session profile that existed until 2026-07-05 — every login received the same
+silent 14-day cookie, with no user choice. Per **ADR 0093** (persistent-login opt-in activation —
+full GDPR/ePrivacy legal-basis analysis there; local-only file per the ADR 0072 docs-privacy
+convention), the cookie now branches on an explicit "Håll mig inloggad" checkbox at login/register:
+
+| Choice | Cookie `Max-Age` | Server-side lifetime |
+|---|---|---|
+| Unticked (default) | none — true session cookie, dies on browser close | 24h sliding / 24h absolute cap |
+| Ticked | 180 days (finite ceiling) | 30d sliding / 180d absolute cap, anchored to `SessionPayload.CreatedAt`; session-id rotated every 24h |
+
+The server remains the source of truth for actual expiry in both branches — the cookie's `Max-Age`
+never grants more reach than the server will still honour. Rotation (Persistent branch only)
+re-sets `__Host-jobbliggaren_session` via a Next.js proxy refresh seam (`proxy.ts`, nodejs runtime
+per the Next 16 `middleware`→`proxy` codemod), throttled by a companion `HttpOnly`
+`__Host-jobbliggaren_refresh_after` cookie (a non-secret timestamp only, read server-side by the
+proxy); the `HttpOnly`/`Secure`/`SameSite=Strict`/`Path=/`/no-`Domain` attribute discipline from
+the original decision is unchanged on every rotation.
+
+Sessions created before this activation (the prior always-14-day default) are untouched — ship
+silently, no forced re-login — and continue to present their original `Max-Age` until natural
+expiry.
+
+### Disciplin
+
+Additive amendment — the original 2026-05-06 decision text above is unchanged; no content beyond
+this appended block was edited. See ADR 0093 for the legal-basis rationale (why opt-in rather than
+silent-default, why 180 days, why mandatory rotation above 30 days).

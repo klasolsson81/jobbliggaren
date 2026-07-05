@@ -64,7 +64,8 @@ public class RegisterCommandHandlerTests
         result.Value.SessionId.ShouldBe(sessionId.Reveal());
     }
 
-    // #2b2: rememberMe at registration mirrors login — checked → Persistent, absent → Legacy.
+    // #2b2 / #2b3b activation: rememberMe at registration mirrors login — checked →
+    // Persistent, unchecked/absent → the short session-scoped Session (not Legacy).
     [Fact]
     public async Task Handle_WithRememberMe_CreatesPersistentSession()
     {
@@ -81,7 +82,7 @@ public class RegisterCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WithoutRememberMe_CreatesLegacySession()
+    public async Task Handle_WithoutRememberMe_CreatesSessionScopedSession()
     {
         var userId = Guid.NewGuid();
         var userAccountService = Substitute.For<IUserAccountService>();
@@ -92,7 +93,8 @@ public class RegisterCommandHandlerTests
 
         await handler.Handle(ValidCommand(), CancellationToken.None);
 
-        await sessionStore.Received(1).CreateAsync(userId, SessionLifetime.Legacy, Arg.Any<CancellationToken>());
+        // Activation flip: unticked → the short session-scoped Session, not Legacy.
+        await sessionStore.Received(1).CreateAsync(userId, SessionLifetime.Session, Arg.Any<CancellationToken>());
     }
 
     [Fact]

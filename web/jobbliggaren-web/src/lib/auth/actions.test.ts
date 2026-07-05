@@ -59,8 +59,34 @@ describe("registerAction (#541 — DisplayName must reach the backend)", () => {
       displayName: "Anna Andersson",
       email: "anna@example.se",
       password: "password1",
+      // PR2b-3b: no rememberMe in the form → a session-scoped session (false).
+      rememberMe: false,
     });
-    expect(setSessionCookieMock).toHaveBeenCalledWith("sess-1");
+    // Second arg is the persistent flag (false when the box is unticked).
+    expect(setSessionCookieMock).toHaveBeenCalledWith("sess-1", false);
+  });
+
+  it("threads rememberMe=true through the payload and cookie flag when the box is ticked", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => ({ status: 200, ok: true }) as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      registerAction(
+        null,
+        formOf({
+          displayName: "Anna Andersson",
+          email: "anna@example.se",
+          password: "password1",
+          // A checked native checkbox posts the literal "on".
+          rememberMe: "on",
+        }),
+      ),
+    ).rejects.toThrow(/REDIRECT/);
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    const body = JSON.parse(init.body as string);
+    expect(body.rememberMe).toBe(true);
+    expect(setSessionCookieMock).toHaveBeenCalledWith("sess-1", true);
   });
 
   it("blocks submit without calling fetch when displayName is missing", async () => {

@@ -30,16 +30,16 @@ public sealed class SessionStoreOptions
         RotationInterval = TimeSpan.Zero,
     };
 
-    // Persistent = "Håll mig inloggad" checked. 30d sliding + session-id rotation every
-    // 24h. The cap stays <= 30d until the rotation DRIVER (the middleware that calls
-    // /auth/refresh) ships in the activation PR — security C3/COND-2: no > 30d reach
-    // until rotation is actually driven, at which point the cap is bumped to 180d
-    // atomically with the driver. Rotation is defined here but dormant (nothing threads
-    // rememberMe -> Persistent yet).
+    // Persistent = "Håll mig inloggad" checked. 30d sliding + 180d absolute cap + session-id
+    // rotation every 24h. The 180d cap is now LIVE: the activation PR (#481 2b-3b) ships the
+    // rotation DRIVER (the Next.js refresh seam that calls /auth/refresh), so security
+    // C3/COND-1 is satisfied — a > 30d reach is only ever exposed WITH a working rotation
+    // that collapses a captured token's replay window to RotationInterval. 180d sits well
+    // under CNIL's 13-month cookie ceiling (§9.5 web-check 2026-07-04).
     public SessionLifetimeProfile Persistent { get; init; } = new()
     {
         SlidingTtl = TimeSpan.FromDays(30),
-        AbsoluteTtl = TimeSpan.FromDays(30),
+        AbsoluteTtl = TimeSpan.FromDays(180),
         RotationInterval = TimeSpan.FromHours(24),
     };
 

@@ -67,11 +67,14 @@ public sealed class LoginCommandHandler(
                     "E-post eller lösenord är felaktigt."));
         }
 
-        // "Håll mig inloggad" checked → a rotating Persistent session; unchecked/absent →
-        // today's reach (Legacy). The unchecked → short Session flip lands with the
-        // checkbox + policy in the activation PR (Persistent's cap stays <= 30d until the
-        // rotation driver ships, so this is within the no-rotation frame).
-        var lifetime = command.RememberMe ? SessionLifetime.Persistent : SessionLifetime.Legacy;
+        // Activation (#481 2b-3b): "Håll mig inloggad" checked → a rotating Persistent
+        // session (30d sliding / 180d absolute cap, id rotates every 24h — the refresh
+        // driver that drives that rotation ships in this same PR, so the > 30d reach is
+        // only ever exposed WITH rotation, per security C3/COND-1). Unchecked/absent → a
+        // short session-scoped Session (dies on browser close, the Art. 25(2) safe default
+        // for shared computers). No new login lands on Legacy any more; existing Legacy
+        // sessions keep today's reach until they expire (ship-silently).
+        var lifetime = command.RememberMe ? SessionLifetime.Persistent : SessionLifetime.Session;
         var session = await sessionStore.CreateAsync(userId, lifetime, cancellationToken);
 
         auditLogger.LoginSucceeded(userId, session.Id.ToString());

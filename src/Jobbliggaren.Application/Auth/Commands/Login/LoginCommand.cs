@@ -4,9 +4,9 @@ using Mediator;
 
 namespace Jobbliggaren.Application.Auth.Commands.Login;
 
-// RememberMe = the "Håll mig inloggad" opt-in. true → a Persistent session (long sliding
-// window + rotation); false/absent → today's reach (Legacy) until the checkbox + the
-// safe-default flip (unticked → short Session) ship together in the activation PR.
+// RememberMe = the "Håll mig inloggad" opt-in (#481). true → a Persistent session (long
+// sliding window + id rotation); false/absent → a short session-scoped Session (the safe
+// default). Both branches are live as of the 2b-3b activation (checkbox + refresh driver).
 public sealed record LoginCommand(
     string? Email,
     string? Password,

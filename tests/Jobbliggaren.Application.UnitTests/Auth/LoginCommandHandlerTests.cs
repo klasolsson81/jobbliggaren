@@ -88,8 +88,9 @@ public class LoginCommandHandlerTests
         await sessionStore.Received(1).CreateAsync(userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>());
     }
 
-    // #2b2: "Håll mig inloggad" checked → Persistent; unchecked/absent → Legacy (today's
-    // reach). The unchecked → Session flip lands with the checkbox in the activation PR.
+    // #2b2 / #2b3b activation: "Håll mig inloggad" checked → Persistent; unchecked/absent →
+    // the short session-scoped Session (the safe-default flip — no login lands on Legacy any
+    // more; existing Legacy sessions are untouched).
     [Fact]
     public async Task Handle_WithRememberMe_CreatesPersistentSession()
     {
@@ -110,7 +111,7 @@ public class LoginCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WithoutRememberMe_CreatesLegacySession()
+    public async Task Handle_WithoutRememberMe_CreatesSessionScopedSession()
     {
         var userId = Guid.NewGuid();
         var userAccountService = Substitute.For<IUserAccountService>();
@@ -119,13 +120,15 @@ public class LoginCommandHandlerTests
 
         var sessionStore = Substitute.For<ISessionStore>();
         sessionStore.CreateAsync(userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
-            .Returns(new Session(SessionId.Generate(), userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(14)));
+            .Returns(new Session(SessionId.Generate(), userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(24)));
 
         var handler = CreateHandler(userAccountService: userAccountService, sessionStore: sessionStore);
 
         await handler.Handle(ValidCommand(), CancellationToken.None);
 
-        await sessionStore.Received(1).CreateAsync(userId, SessionLifetime.Legacy, Arg.Any<CancellationToken>());
+        // Activation flip: unticked "Håll mig inloggad" no longer lands on Legacy — it is the
+        // short, session-scoped Session profile (dies on browser close, Art. 25(2) safe default).
+        await sessionStore.Received(1).CreateAsync(userId, SessionLifetime.Session, Arg.Any<CancellationToken>());
     }
 
     [Fact]

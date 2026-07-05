@@ -57,7 +57,12 @@ internal static class ResumeContentPersonnummerGuard
     /// <summary>
     /// Concatenates every user free-text field of the submitted content so the personnummer scan
     /// sees the whole surface (DQ6 — name/contact, summary, experience company/role/description,
-    /// education institution/degree, skill names). Order is irrelevant — the scanner only flags.
+    /// education institution/degree, skill names, and the Fas 4b superset free text: spoken-language
+    /// names, skill-group names + members, and dynamic-section headings/entry titles/lines —
+    /// ADR 0094 D-E, mandatory: a personnummer typed into any of these must be flagged). Order is
+    /// irrelevant — the scanner only flags. The superset collections (top-level AND nested) are
+    /// optional on the transport (a pre-superset or partial client omits them → null); each is
+    /// null-guarded.
     /// </summary>
     private static string CollectFreeText(ResumeContentDto content)
     {
@@ -89,6 +94,34 @@ internal static class ResumeContentPersonnummerGuard
 
         foreach (var s in content.Skills)
             sb.AppendLine(s.Name);
+
+        // Fas 4b AppCopy superset free text (ADR 0094 D-E). Nested collections are
+        // null-guarded like the top-level ones (STJ passes null for an omitted member —
+        // the guard must scan a partial payload, never NRE on it).
+        foreach (var lang in content.Languages ?? [])
+            sb.AppendLine(lang.Name);
+
+        foreach (var group in content.SkillGroups ?? [])
+        {
+            sb.AppendLine(group.Name);
+            // Members are name references that ValidateContent later constrains to the
+            // (already scanned) Skill.Names — but the highest-priority guard stays
+            // self-contained (security-auditor 2026-07-05): scan them directly rather
+            // than rely on a collaborator invariant a future PR could relax silently.
+            foreach (var member in group.Members ?? [])
+                sb.AppendLine(member);
+        }
+
+        foreach (var section in content.Sections ?? [])
+        {
+            sb.AppendLine(section.Heading);
+            foreach (var entry in section.Entries ?? [])
+            {
+                sb.AppendLine(entry.Title);
+                foreach (var line in entry.Lines ?? [])
+                    sb.AppendLine(line);
+            }
+        }
 
         return sb.ToString();
     }

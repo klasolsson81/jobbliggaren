@@ -32,6 +32,36 @@ internal static class ResumeContentMapper
             .Select(s => new Skill(s.Name, s.YearsExperience))
             .ToList();
 
-        return new ResumeContent(personalInfo, experiences, educations, skills, dto.Summary);
+        // Fas 4b AppCopy superset (ADR 0094). The new collections are optional on the
+        // transport (a pre-superset client omits them → null); coalesce to empty — the
+        // NESTED lists too (STJ passes null for an omitted member; a partial-but-parseable
+        // payload must map, not NRE→500). An unknown/absent proficiency token maps to
+        // NotStated (tolerant, never synthesised — CLAUDE.md §5; the level is the user's
+        // to state).
+        var languages = (dto.Languages ?? [])
+            .Select(l => new SpokenLanguage(l.Name, ToProficiency(l.Proficiency)))
+            .ToList();
+
+        var skillGroups = (dto.SkillGroups ?? [])
+            .Select(g => new SkillGroup(g.Name, (g.Members ?? []).ToList()))
+            .ToList();
+
+        var sections = (dto.Sections ?? [])
+            .Select(s => new ResumeSection(
+                s.Heading,
+                (s.Entries ?? [])
+                    .Select(e => new SectionEntry(e.Title, (e.Lines ?? []).ToList()))
+                    .ToList()))
+            .ToList();
+
+        return new ResumeContent(
+            personalInfo, experiences, educations, skills, dto.Summary,
+            languages, skillGroups, sections);
     }
+
+    private static LanguageProficiency ToProficiency(string? token) =>
+        token is not null
+        && LanguageProficiency.TryFromName(token, ignoreCase: true, out var proficiency)
+            ? proficiency
+            : LanguageProficiency.NotStated;
 }

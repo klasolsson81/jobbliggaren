@@ -51,10 +51,12 @@ internal sealed record CvDocumentModel(
     /// <c>DateOnly</c> periods are formatted to the same year-span display form the parsed path
     /// already uses (CTO D1 / Variant A) via <see cref="FormatPeriod"/>; the experience body is the
     /// user's own <c>Description</c> (verbatim, never synthesised — §5) and education has no body.
-    /// The promoted content carries no languages section, so it renders as an honest partial (the
-    /// composer omits the empty section) — never a placeholder. <paramref name="ongoingLabel"/> is
-    /// the localised word that closes an open-ended period (resolved by the renderer from
-    /// <see cref="CvRenderStrings.Labels.Ongoing"/>).
+    /// Since the Fas 4b superset (ADR 0094 D-C), the promoted content carries spoken languages, so
+    /// their names feed the existing languages slot (an empty list still renders as an honest
+    /// partial — the composer omits the empty section). The proficiency level and the other superset
+    /// fields (skill groups, dynamic sections) are not rendered yet — their render surfaces are a
+    /// later PR (ADR 0094 D-E). <paramref name="ongoingLabel"/> is the localised word that closes an
+    /// open-ended period (resolved by the renderer from <see cref="CvRenderStrings.Labels.Ongoing"/>).
     /// </summary>
     public static CvDocumentModel From(ResumeContent content, string ongoingLabel) =>
         new(
@@ -72,7 +74,7 @@ internal sealed record CvDocumentModel(
                     e.Institution, e.Degree, FormatPeriod(e.StartDate, e.EndDate, ongoingLabel), string.Empty))
                 .ToList(),
             content.Skills.Select(s => s.Name).ToList(),
-            []);
+            content.Languages.Select(l => l.Name).ToList());
 
     // The en-dash (U+2013) range separator — the canonical year-span form the parsed periods
     // already use (e.g. "2021–2024"); NOT the §5-forbidden em-dash (U+2014).

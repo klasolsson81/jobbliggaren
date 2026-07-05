@@ -32,6 +32,20 @@ public class ResumeContentPersonnummerGuardTests
     private static EducationDto CleanEducation() =>
         new("KTH", "Civilingenjör", new DateOnly(2013, 9, 1), new DateOnly(2018, 6, 1));
 
+    // Fas 4b AppCopy superset (ADR 0094 D-E) clean free-text fixtures. The proficiency token
+    // ("Native") is a closed vocabulary, not scanned free text, so it never carries a personnummer.
+    private static SpokenLanguageDto CleanLanguage() =>
+        new("Svenska", "Native");
+
+    private static SkillGroupDto CleanSkillGroup() =>
+        new("Backend", ["C#"]);
+
+    private static SectionEntryDto CleanSectionEntry() =>
+        new("Projekt X", ["Byggde en betaltjänst."]);
+
+    private static ResumeSectionDto CleanSection() =>
+        new("Projekt", [CleanSectionEntry()]);
+
     private static ResumeContentDto Clean() =>
         new(CleanPersonalInfo(),
             Experiences: [CleanExperience()],
@@ -39,9 +53,11 @@ public class ResumeContentPersonnummerGuardTests
             Skills: [new SkillDto("C#", 8)],
             Summary: "Erfaren backend-utvecklare.");
 
-    // One entry per free-text field class CollectFreeText concatenates — 11 in total. If a field
-    // is ever dropped from CollectFreeText its entry here fails (the personnummer is no longer
-    // seen), so field-completeness is pinned rather than merely reviewed.
+    // One entry per free-text field class CollectFreeText concatenates — 17 in total (11 original
+    // + the 6 Fas 4b AppCopy superset free-text fields, ADR 0094 D-E; SkillGroup.Members scanned
+    // directly per security-auditor 2026-07-05 so the guard is self-contained). If a field is ever
+    // dropped from CollectFreeText its entry here fails (the personnummer is no longer seen), so
+    // field-completeness is pinned rather than merely reviewed.
     public static IEnumerable<object[]> PersonnummerInEachFreeTextField()
     {
         yield return ["PersonalInfo.FullName",
@@ -66,6 +82,21 @@ public class ResumeContentPersonnummerGuardTests
             Clean() with { Educations = [CleanEducation() with { Degree = $"Examen {Pnr}" }] }];
         yield return ["Skill.Name",
             Clean() with { Skills = [new SkillDto($"Kompetens {Pnr}", 3)] }];
+
+        // Fas 4b AppCopy superset free text (ADR 0094 D-E). A personnummer typed into any of
+        // these five must be flagged — dropping the corresponding CollectFreeText line fails here.
+        yield return ["SpokenLanguage.Name",
+            Clean() with { Languages = [CleanLanguage() with { Name = $"Svenska {Pnr}" }] }];
+        yield return ["SkillGroup.Name",
+            Clean() with { SkillGroups = [CleanSkillGroup() with { Name = $"Grupp {Pnr}" }] }];
+        yield return ["SkillGroup.Members",
+            Clean() with { SkillGroups = [CleanSkillGroup() with { Members = [$"Kompetens {Pnr}"] }] }];
+        yield return ["Section.Heading",
+            Clean() with { Sections = [CleanSection() with { Heading = $"Rubrik {Pnr}" }] }];
+        yield return ["SectionEntry.Title",
+            Clean() with { Sections = [new ResumeSectionDto("Projekt", [CleanSectionEntry() with { Title = $"Titel {Pnr}" }])] }];
+        yield return ["SectionEntry.Lines",
+            Clean() with { Sections = [new ResumeSectionDto("Projekt", [CleanSectionEntry() with { Lines = [$"Rad {Pnr}"] }])] }];
     }
 
     [Theory]
@@ -86,6 +117,71 @@ public class ResumeContentPersonnummerGuardTests
         // 10-digit phone number ("0701234567" is a \d{6}\d{4} candidate SHAPE, gated only by
         // the date+Luhn check) must pass. Exercises the guard's success branch on a rich payload.
         var result = ResumeContentPersonnummerGuard.Check(Clean());
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    // The 12-digit full-century form (YYYYMMDD[sep]XXXX) in each Fas 4b superset field. Same
+    // significant digits as Pnr (century-prefixed), so it passes the SAME date+Luhn gate
+    // (Personnummer.TryParse) — a random 12-digit run would be a false vector.
+    private const string PnrTwelveDigit = "19811218-9876";
+
+    public static IEnumerable<object[]> TwelveDigitPersonnummerInEachSupersetField()
+    {
+        yield return ["SpokenLanguage.Name",
+            Clean() with { Languages = [CleanLanguage() with { Name = $"Svenska {PnrTwelveDigit}" }] }];
+        yield return ["SkillGroup.Name",
+            Clean() with { SkillGroups = [CleanSkillGroup() with { Name = $"Grupp {PnrTwelveDigit}" }] }];
+        yield return ["Section.Heading",
+            Clean() with { Sections = [CleanSection() with { Heading = $"Rubrik {PnrTwelveDigit}" }] }];
+        yield return ["SectionEntry.Title",
+            Clean() with { Sections = [new ResumeSectionDto("Projekt", [CleanSectionEntry() with { Title = $"Titel {PnrTwelveDigit}" }])] }];
+        yield return ["SectionEntry.Lines",
+            Clean() with { Sections = [new ResumeSectionDto("Projekt", [CleanSectionEntry() with { Lines = [$"Rad {PnrTwelveDigit}"] }])] }];
+    }
+
+    [Theory]
+    [MemberData(nameof(TwelveDigitPersonnummerInEachSupersetField))]
+    public void Check_WhenTwelveDigitPersonnummerInAnySupersetField_ReturnsMustBeRemoved(
+        string field, ResumeContentDto content)
+    {
+        var result = ResumeContentPersonnummerGuard.Check(content);
+
+        result.IsFailure.ShouldBeTrue($"a 12-digit personnummer in {field} must be blocked");
+        result.Error.Code.ShouldBe(ExpectedCode);
+    }
+
+    [Fact]
+    public void Check_WhenCleanFullyPopulatedSupersetContent_Succeeds()
+    {
+        // The success branch over a rich payload that also fills every superset collection with
+        // clean text — the widened CollectFreeText must not over-block legitimate content.
+        var content = Clean() with
+        {
+            Languages = [CleanLanguage()],
+            SkillGroups = [CleanSkillGroup()],
+            Sections = [CleanSection()],
+        };
+
+        var result = ResumeContentPersonnummerGuard.Check(content);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Check_WhenNestedSupersetCollectionsAreNull_Succeeds_NoNre()
+    {
+        // STJ passes null for an omitted JSON member (NRT is not runtime-enforced), so a
+        // partial-but-parseable payload like {"sections":[{"heading":"Projekt"}]} reaches the
+        // guard with null NESTED lists. The guard must scan it (null-guarded), never NRE→500
+        // (dotnet-architect 2026-07-05).
+        var content = Clean() with
+        {
+            SkillGroups = [new SkillGroupDto("Backend")],
+            Sections = [new ResumeSectionDto("Projekt"), new ResumeSectionDto("Kurser", [new SectionEntryDto("HLR")])],
+        };
+
+        var result = ResumeContentPersonnummerGuard.Check(content);
 
         result.IsSuccess.ShouldBeTrue();
     }

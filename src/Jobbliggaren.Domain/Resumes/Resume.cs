@@ -361,6 +361,59 @@ public sealed class Resume : AggregateRoot<ResumeId>
                     "Slutdatum får inte vara före startdatum."));
         }
 
+        // Fas 4b AppCopy superset (ADR 0094 D-E). Validation parity with the existing
+        // rules: label fields are required-only (no max, like Company/Role/Skill.Name);
+        // prose bodies are capped like Summary. Proficiency is type-guaranteed valid
+        // (SmartEnum) so it needs no check.
+        foreach (var language in content.Languages)
+        {
+            if (string.IsNullOrWhiteSpace(language.Name))
+                return Result.Failure(DomainError.Validation(
+                    "Resume.LanguageNameRequired", "Språknamn krävs."));
+        }
+
+        // Grouped-skills overlay reference invariant (ADR 0094 D-A): every group member
+        // must reference a skill that exists in the flat, authoritative Skills list — no
+        // dangling reference, so no phantom skill the user did not write (CLAUDE.md §5).
+        // Not every skill need be grouped (design handoff P4). Skill names were already
+        // validated non-empty above, so the set is clean.
+        var skillNames = new HashSet<string>(
+            content.Skills.Select(s => s.Name), StringComparer.Ordinal);
+
+        foreach (var group in content.SkillGroups)
+        {
+            if (string.IsNullOrWhiteSpace(group.Name))
+                return Result.Failure(DomainError.Validation(
+                    "Resume.SkillGroupNameRequired", "Namn på kompetensgrupp krävs."));
+
+            foreach (var member in group.Members)
+            {
+                if (!skillNames.Contains(member))
+                    return Result.Failure(DomainError.Validation(
+                        "Resume.SkillGroupMemberUnknown",
+                        "En kompetensgrupp får bara referera kompetenser som finns i CV:t."));
+            }
+        }
+
+        foreach (var section in content.Sections)
+        {
+            if (string.IsNullOrWhiteSpace(section.Heading))
+                return Result.Failure(DomainError.Validation(
+                    "Resume.SectionHeadingRequired", "Rubrik krävs på sektion."));
+
+            foreach (var entry in section.Entries)
+            {
+                if (string.IsNullOrWhiteSpace(entry.Title))
+                    return Result.Failure(DomainError.Validation(
+                        "Resume.SectionEntryTitleRequired", "Titel krävs på sektionspost."));
+
+                if (entry.Lines.Sum(l => l?.Length ?? 0) > 2_000)
+                    return Result.Failure(DomainError.Validation(
+                        "Resume.SectionEntryTooLong",
+                        "En sektionspost får innehålla max 2 000 tecken."));
+            }
+        }
+
         return Result.Success();
     }
 }

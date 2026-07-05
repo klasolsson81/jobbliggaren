@@ -43,13 +43,39 @@ internal static class ImprovementEvidenceRedactor
     {
         var redactedEvidence = RedactEvidence(change.Evidence);
         var redactedReplacement = RedactReplacement(change.Replacement, change.Provenance);
+        var redactedProvenance = RedactProvenance(change.Provenance);
 
         // Nothing carried a personnummer (the common case) — keep the original instance, no allocation.
         if (ReferenceEquals(redactedEvidence, change.Evidence)
-            && ReferenceEquals(redactedReplacement, change.Replacement))
+            && ReferenceEquals(redactedReplacement, change.Replacement)
+            && redactedProvenance is null)
             return change;
 
-        return ProposedChange.ForRedaction(change, redactedEvidence, redactedReplacement);
+        return ProposedChange.ForRedaction(change, redactedEvidence, redactedReplacement, redactedProvenance);
+    }
+
+    // Fas 4b PR-7 (#656, CTO D-B iv): the frame arm is the ONLY provenance carrying user
+    // text (the raw slot inputs) — a personnummer smuggled through a free-echo Text slot
+    // must be masked INSIDE the provenance too. KB/Structural provenances carry no user
+    // text and are never touched. Returns null when nothing carried a pnr (same-instance
+    // discipline as the other channels).
+    private static UserParameterizedFrameProvenance? RedactProvenance(ChangeProvenance provenance)
+    {
+        if (provenance is not UserParameterizedFrameProvenance frame)
+            return null;
+
+        Dictionary<string, string>? redacted = null;
+        foreach (var (key, value) in frame.UserInputs)
+        {
+            var masked = PersonnummerRedactor.Redact(value);
+            if (!string.Equals(masked, value, StringComparison.Ordinal))
+            {
+                redacted ??= new Dictionary<string, string>(frame.UserInputs, StringComparer.Ordinal);
+                redacted[key] = masked;
+            }
+        }
+
+        return redacted is null ? null : frame with { UserInputs = redacted };
     }
 
     private static CitedEvidence RedactEvidence(CitedEvidence evidence)
@@ -105,8 +131,10 @@ internal static class ImprovementEvidenceRedactor
 
         // A knowledge-bank After is a curated KB value (never user PII), pinned to that value by the
         // no-synthesis contract — leave it. A structural After is a pure transform of the user's
-        // Before, so it can inherit a personnummer — redact it (CTO D1 = Variant B).
-        var redactedAfter = provenance is StructuralTransformProvenance
+        // Before, and a frame After is user-derived text (noun slots from the Before line + free-echo
+        // Text slots), so both can inherit a personnummer — redact them (CTO D1 = Variant B;
+        // Fas 4b PR-7 CTO D-B iv for the frame arm).
+        var redactedAfter = provenance is StructuralTransformProvenance or UserParameterizedFrameProvenance
             ? PersonnummerRedactor.Redact(replacement.After)
             : replacement.After;
 

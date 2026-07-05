@@ -14,6 +14,7 @@ import {
   type FacetCounts,
 } from "@/lib/dto/job-ads";
 import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
+import { isValidId } from "@/lib/validation/guid";
 
 export interface ListJobAdsQuery {
   page: number;
@@ -148,6 +149,12 @@ export async function getJobAd(
 ): Promise<ApiResult<JobAdDto>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
+  // Allowlist-guard: reject a non-GUID before the id reaches the backend URL
+  // (SSRF barrier + path-injection guard, parity with getApplicationById and
+  // getJobAdMatchDetail). A malformed id can never resolve to a real ad, so it
+  // short-circuits to notFound — the same shape the endpoint's genuine 404 maps
+  // to. encodeURIComponent below is the complementary second layer (guid.ts).
+  if (!isValidId(id)) return { kind: "notFound" };
 
   try {
     const res = await authedFetch(

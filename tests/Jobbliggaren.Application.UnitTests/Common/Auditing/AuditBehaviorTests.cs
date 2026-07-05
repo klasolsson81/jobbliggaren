@@ -205,7 +205,7 @@ public class AuditBehaviorTests
     [Fact]
     public async Task Handle_WhenCurrentUserHasNoUserId_WritesUserIdAsNull()
     {
-        // System-jobb-fall: t.ex. MarkGhosted från Worker — ingen inloggad user.
+        // System-jobb-fall: t.ex. HardDeleteAccountsJob från Worker — ingen inloggad user.
         var workerCurrentUser = Substitute.For<ICurrentUser>();
         workerCurrentUser.UserId.Returns((Guid?)null);
 

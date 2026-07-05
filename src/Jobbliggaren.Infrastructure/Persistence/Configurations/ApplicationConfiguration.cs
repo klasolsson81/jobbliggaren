@@ -128,6 +128,8 @@ public sealed class ApplicationConfiguration : IEntityTypeConfiguration<DomainAp
         // first follow-up), write-maintained by AddFollowUp/LogFollowUp. Drives
         // effectiveWaitDays on the read side, projected into ApplicationDto.
         builder.Property(a => a.LastFollowUpAt).HasColumnName("last_follow_up_at");
+        // Dormant since #630 PR 4 (ADR 0092 D6): the auto-ghost job that read this
+        // was deleted; the column is kept (no destructive drop on a hotspot table).
         builder.Property(a => a.GhostedThresholdDays)
             .IsRequired()
             .HasDefaultValue(21);

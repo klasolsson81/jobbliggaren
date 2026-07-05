@@ -71,7 +71,7 @@ namespace Jobbliggaren.Worker.IntegrationTests.Security;
 /// (a) autentiserad ägar-scope (<c>ICurrentDataOwner.JobSeekerId is not null</c>)
 /// ⇒ <see cref="CryptographicException"/> (felkonfig-användar-read får ALDRIG
 /// tyst ciphertext); (b) system/Hangfire-scope (ingen owner satt — t.ex.
-/// MarkGhosted/AccountHardDeleter) ⇒ lämna ciphertext orört, kasta INTE
+/// HardDeleteAccountsJob/AccountHardDeleter) ⇒ lämna ciphertext orört, kasta INTE
 /// (drift får ej krascha; konfidentialitet bevarad). Verifieras av
 /// <c>SystemScope_NoOwnerContext_MaterializesEncrypted_LeavesCiphertext_NoThrow</c>
 /// + regressionsskyddet <c>AuthenticatedScope_NoCachedDek_StillThrows</c>.
@@ -680,7 +680,7 @@ public class FieldEncryptionInterceptorTests(WorkerTestFixture fixture)
     public async Task SystemScope_NoOwnerContext_MaterializesEncrypted_LeavesCiphertext_NoThrow()
     {
         // CTO #3 (iv) 2026-05-18 / ADR 0049 Mekanik-not 5b: ett system-jobb
-        // (MarkGhosted/AccountHardDeleter-mönstret) materialiserar en krypterad
+        // (HardDeleteAccountsJob/AccountHardDeleter-mönstret) materialiserar en krypterad
         // Application UTAN att ICurrentDataOwner är satt och UTAN prefetch.
         // Förväntat: ingen exception (drift får ej krascha), CoverLetter förblir
         // ciphertext (konfidentialitet bevarad — exponeras aldrig som plaintext),
@@ -703,7 +703,7 @@ public class FieldEncryptionInterceptorTests(WorkerTestFixture fixture)
 
         // Ny scope: INGEN PrefetchOwnerDekAsync ⇒ tom DEK-cache OCH
         // ICurrentDataOwner.JobSeekerId == null (system-scope, simulerar
-        // MarkGhosted/Hangfire-jobb som aldrig sätter owner).
+        // HardDeleteAccountsJob/Hangfire-jobb som aldrig sätter owner).
         using var systemScope = _fixture.Services.CreateScope();
         var currentDataOwner =
             systemScope.ServiceProvider.GetRequiredService<ICurrentDataOwner>();

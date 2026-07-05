@@ -1388,7 +1388,6 @@ Health-check-kravet `/api/ready` → 200 inom 30 s består oavsett plattform.
 | `audit-log-retention` | 03:00 daglig | Atomisk partition-DDL, rullar 90-dagars audit-retention (ADR 0024) |
 | `retain-platsbanken-job-ads` | 03:15 daglig | Snapshot-miss-retention (ADR 0032-amend) |
 | `background-matching` | 03:20 daglig | Per-user matchnings-scan: JobAds → `UserJobAdMatch` (ADR 0080 Våg 4) |
-| `detect-ghosted` | 03:30 daglig | Submitted/Acknowledged → Ghosted efter threshold |
 | `expire-job-ads` | 03:45 daglig | `ExpiresAt`-cron, defense-in-depth (ADR 0032-amend) |
 | `hard-delete-accounts` | 04:00 daglig | Permanent radera soft-deleted efter 30 dagar (GDPR Art. 17) |
 | `purge-stale-raw-payloads` | 04:30 daglig | Rensa mognad `raw_payload`-jsonb (TD-73 p2) |

@@ -86,8 +86,9 @@
         "OfferAwaitingReply": "Offer awaiting your reply.",
         "OverdueFollowUp": "Follow-up is past due.",
         "DraftDeadlineApproaching": "Draft deadline is approaching.",
-        "NoResponseLong": "No reply for a long time.",
-        "ProactiveFollowUpNudge": "Time to follow up."
+        "GhostSuggested": "No reply for a long time.",
+        "NoResponseNudge": "Time to follow up.",
+        "SilentAfterInterview": "Silent since the interview."
       }
     },
     "followUps": {

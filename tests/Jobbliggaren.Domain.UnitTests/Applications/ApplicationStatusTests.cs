@@ -58,8 +58,8 @@ public class ApplicationStatusTests
     [Fact]
     public void RecommendedNextStatuses_Submitted_DoesNotRecommendGhosted()
     {
-        // Ghosted is not a conventional onward step from Submitted (the system sets
-        // it via MarkGhosted). Manual Ghosted is nonetheless a LEGAL free transition
+        // Ghosted is not a conventional onward step from Submitted, so it is not
+        // recommended here. Manual Ghosted is nonetheless a LEGAL free transition
         // via TransitionTo (ADR 0092 D3) — the absence here is advisory, not a guard.
         ApplicationStatus.Submitted.RecommendedNextStatuses.ShouldNotContain(ApplicationStatus.Ghosted);
     }

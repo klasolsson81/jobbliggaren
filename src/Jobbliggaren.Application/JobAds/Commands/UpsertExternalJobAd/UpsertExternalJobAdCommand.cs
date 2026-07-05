@@ -11,7 +11,7 @@ namespace Jobbliggaren.Application.JobAds.Commands.UpsertExternalJobAd;
 /// (efter P8b-handler-refaktor) av admin-trigger-flödet via snapshot-handlern.
 ///
 /// System-command — saknar medvetet <c>IAuthenticatedRequest</c> (anropas från
-/// Hangfire-worker utan inloggad user, samma mönster som <c>MarkGhostedCommand</c>).
+/// Hangfire-worker utan inloggad user, samma mönster som <c>HardDeleteAccountsJob</c>).
 /// Får INTE exponeras via API-endpoint utan dedikerad RBAC-policy.
 ///
 /// Aggregerad audit per job-run skrivs av orchestrator (CTO-rond 6 punkt 1 +

@@ -70,7 +70,7 @@ public sealed class FieldDecryptionMaterializationInterceptor : IMaterialization
                     // (prefetch förväntades ha kört) → kasta (felkonfig-
                     // användar-read får ALDRIG tyst ciphertext). System/
                     // Hangfire-scope (ingen ICurrentDataOwner, ingen auth —
-                    // t.ex. MarkGhosted/AccountHardDeleter som materialiserar
+                    // t.ex. HardDeleteAccountsJob/AccountHardDeleter som materialiserar
                     // men aldrig läser plaintext-fältet) → lämna ciphertext
                     // orört, kasta INTE (drift får ej krascha; konfidentialitet
                     // bevarad; encrypt-interceptorn idempotent-skippar re-save).

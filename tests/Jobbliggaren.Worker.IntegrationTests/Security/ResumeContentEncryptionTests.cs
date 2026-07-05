@@ -649,7 +649,7 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
         var (resumeId, _, owner) = await SeedEncryptedMasterAsync(original, ct);
 
         // (a) System-scope: INGEN prefetch ⇒ tom DEK-cache OCH
-        // ICurrentDataOwner.JobSeekerId == null (MarkGhosted/Hangfire-mönster).
+        // ICurrentDataOwner.JobSeekerId == null (HardDeleteAccountsJob/Hangfire-mönster).
         // Krypterad rad ⇒ passthrough: ingen exception, Content stays null
         // (konfidentialitet bevarad, drift kraschar ej).
         using (var systemScope = _fixture.Services.CreateScope())

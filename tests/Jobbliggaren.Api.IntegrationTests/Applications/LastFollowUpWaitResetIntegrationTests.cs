@@ -119,7 +119,7 @@ public class LastFollowUpWaitResetIntegrationTests
     }
 
     [Fact]
-    public async Task GetApplications_AfterLoggedFollowUp_NoResponseLongSignalResetsToNone()
+    public async Task GetApplications_AfterLoggedFollowUp_GhostSuggestSignalResetsToNone()
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -136,13 +136,13 @@ public class LastFollowUpWaitResetIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        // "now" is 30 days later — past the 21-day ghosted threshold → NoResponseLong.
+        // "now" is 30 days later — at the 30-day ghost-suggest window → GhostSuggested.
         var now = t0.AddDays(30);
         var nowClock = new FakeDateTimeProvider(now);
         var handler = new GetApplicationsQueryHandler(db, _currentUser, nowClock, AttentionOptions);
 
         var before = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
-        before.Items.Single().AttentionSignal.ShouldBe(ApplicationAttentionSignal.NoResponseLong);
+        before.Items.Single().AttentionSignal.ShouldBe(ApplicationAttentionSignal.GhostSuggested);
 
         // Log a follow-up "today" (at now) → LastFollowUpAt = now, resetting the wait.
         app.LogFollowUp(null, nowClock);

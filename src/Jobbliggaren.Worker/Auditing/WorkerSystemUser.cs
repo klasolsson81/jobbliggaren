@@ -11,7 +11,7 @@ namespace Jobbliggaren.Worker.Auditing;
 /// vid jobb-execution.
 ///
 /// <c>AuthorizationBehavior</c> i Worker-pipelinen släpper igenom commands som
-/// inte implementerar <c>IAuthenticatedRequest</c> (t.ex. <c>MarkGhostedCommand</c>).
+/// inte implementerar <c>IAuthenticatedRequest</c> (t.ex. <c>UpsertExternalJobAdCommand</c>).
 /// Commands som kräver autentisering ska aldrig dispatchas från Worker.
 /// </summary>
 public sealed class WorkerSystemUser : ICurrentUser

@@ -13,12 +13,6 @@ internal sealed class A1MeasurableResultsRule : ICriterionRule
 {
     public string CriterionId => "A1";
 
-    // A1's SECOND Fail clause the rubric prose fixes (atsFailSignal "... ELLER >50 % av punkterna
-    // saknar mätbarhet"). A code operationalisation of versioned rubric prose (documented v1
-    // posture), pinned by the A1 golden drift-guard so code that drifts from the rubric fails CI
-    // (parity A7/C3 #489).
-    private const double MissingFailRatio = 0.50;
-
     public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
@@ -50,9 +44,10 @@ internal sealed class A1MeasurableResultsRule : ICriterionRule
         var offending = bullets.First(b => !ReviewText.ContainsMeasurableDigit(b));
 
         // #489 second Fail clause: ">50 % av punkterna saknar mätbarhet" is a CRITICAL Fail, not a
-        // Warn. Pre-fix ANY missing bullet was only a Warn regardless of ratio, suppressing this
-        // critical-fail surface on the Critical A1 criterion.
-        if ((double)missing / bullets.Count > MissingFailRatio)
+        // Warn. The ratio is rubric v1.2 DATA (thresholds.failRatio — atsFailSignal "... ELLER
+        // >50 % ..."), read fail-loud; the A1 golden drift-guard pins prose↔data agreement (#489).
+        if ((double)missing / bullets.Count
+            > context.Criterion.RequiredThreshold(RubricThresholdKeys.FailRatio))
         {
             return CvCriterionVerdict.Assessed("A1", category, CriterionVerdict.Fail,
                 ReviewText.Cite(ReviewText.Span(
@@ -109,8 +104,10 @@ internal sealed class A2ActionVerbsRule : ICriterionRule
             }
         }
 
+        // Pass/Fail ratio bounds are rubric v1.2 DATA (thresholds.passRatio "≥80 %" /
+        // thresholds.failRatio "<50 %"), read fail-loud — never a C# literal.
         var ratio = (double)strong / bullets.Count;
-        if (ratio >= 0.8)
+        if (ratio >= context.Criterion.RequiredThreshold(RubricThresholdKeys.PassRatio))
         {
             var strongBullet = bullets.First(b => StartsWithStrongVerb(context, b, strongOpeners));
             return CvCriterionVerdict.Assessed("A2", category, CriterionVerdict.Pass,
@@ -121,7 +118,9 @@ internal sealed class A2ActionVerbsRule : ICriterionRule
         var note = weakOpener is not null
             ? "inleds med ett svagt verb (se verb-mappningen)"
             : "inleds inte med ett starkt handlingsverb";
-        var verdict = (weakOpener is not null || ratio < 0.5) ? CriterionVerdict.Fail : CriterionVerdict.Warn;
+        var verdict = (weakOpener is not null
+            || ratio < context.Criterion.RequiredThreshold(RubricThresholdKeys.FailRatio))
+            ? CriterionVerdict.Fail : CriterionVerdict.Warn;
         return CvCriterionVerdict.Assessed("A2", category, verdict,
             ReviewText.Cite(ReviewText.Span(context.RawText, cite, note)));
     }
@@ -165,6 +164,10 @@ internal sealed class A4GapsRule : ICriterionRule
                 ReviewText.Cite(ReviewText.Structural("En daterad roll; inga tidsluckor att bedöma.")));
         }
 
+        // The gap bound is rubric v1.2 DATA (thresholds.maxGapMonths, atsFailSignal "> 6 mån"),
+        // read fail-loud — never a C# literal. Also drives the cited copy below.
+        var maxGapMonths = context.Criterion.RequiredThreshold(RubricThresholdKeys.MaxGapMonths);
+
         var gaps = new List<string>();
         var maxEnd = dated[0].End!.Value;
         for (var i = 1; i < dated.Count; i++)
@@ -175,7 +178,7 @@ internal sealed class A4GapsRule : ICriterionRule
             // immediately-previous role by start-order — an overlapping/parallel role that ends
             // earlier must not fabricate a gap once a longer role already covers the span (#493).
             var months = ((nextStart.Year - maxEnd.Year) * 12) + (nextStart.Month - maxEnd.Month);
-            if (months > 6)
+            if (months > maxGapMonths)
             {
                 gaps.Add($"{maxEnd:yyyy-MM} → {nextStart:yyyy-MM} ({months} mån)");
             }
@@ -200,9 +203,11 @@ internal sealed class A4GapsRule : ICriterionRule
 
         return gaps.Count == 0
             ? CvCriterionVerdict.Assessed("A4", category, CriterionVerdict.Pass,
-                ReviewText.Cite(ReviewText.Structural("Inga oförklarade tidsluckor > 6 mån mellan daterade roller.")))
+                ReviewText.Cite(ReviewText.Structural(
+                    $"Inga oförklarade tidsluckor > {maxGapMonths:0} mån mellan daterade roller.")))
             : CvCriterionVerdict.Assessed("A4", category, CriterionVerdict.Warn,
-                ReviewText.Cite(ReviewText.Structural($"Tidslucka(or) > 6 mån: {string.Join("; ", gaps)}.")));
+                ReviewText.Cite(ReviewText.Structural(
+                    $"Tidslucka(or) > {maxGapMonths:0} mån: {string.Join("; ", gaps)}.")));
     }
 }
 
@@ -221,16 +226,19 @@ internal sealed class A6ConcretionRule : ICriterionRule
                 "A6", category, ReviewText.NoBulletsReason(context, "konkretion"));
         }
 
+        // Pass/Fail ratio bounds are rubric v1.2 DATA (thresholds.passRatio "≥70 %" /
+        // thresholds.failRatio ">50 % generiska"), read fail-loud — never a C# literal.
         var concrete = bullets.Where(IsConcrete).ToList();
         var ratio = (double)concrete.Count / bullets.Count;
-        if (ratio >= 0.7)
+        if (ratio >= context.Criterion.RequiredThreshold(RubricThresholdKeys.PassRatio))
         {
             return CvCriterionVerdict.Assessed("A6", category, CriterionVerdict.Pass,
                 ReviewText.Cite(ReviewText.Span(context.RawText, concrete[0], "konkret artefakt (siffra/namngivet system)")));
         }
 
         var vague = bullets.First(b => !IsConcrete(b));
-        var verdict = ratio < 0.5 ? CriterionVerdict.Fail : CriterionVerdict.Warn;
+        var verdict = ratio < context.Criterion.RequiredThreshold(RubricThresholdKeys.FailRatio)
+            ? CriterionVerdict.Fail : CriterionVerdict.Warn;
         return CvCriterionVerdict.Assessed("A6", category, verdict,
             ReviewText.Cite(ReviewText.Span(context.RawText, vague, "generisk punkt utan konkret artefakt")));
     }
@@ -275,25 +283,27 @@ internal sealed class A7ClicheRule : ICriterionRule
             .Where(e => e.Kind == ClicheKind.Cliche && ReviewText.ContainsWord(prose, e.Phrase))
             .ToList();
 
-        // Thresholds reconciled with the versioned rubric prose (#489): atsPassSignal
-        // "<2 förekomster" → 0-1 hits Pass; atsFailSignal "≥3 klyschor" → 3+ Fail; the 2-hit band
-        // between them is Warn. Pre-fix 1 hit was a spurious Warn where the rubric says Pass.
+        // Thresholds are rubric v1.2 DATA (thresholds.passBelowCount "<2 förekomster" /
+        // thresholds.failFromCount "≥3 klyschor"), read fail-loud; the band between them is
+        // Warn. Prose↔data agreement pinned by the A7 golden drift-guard (#489).
         if (hits.Count == 0)
         {
             return CvCriterionVerdict.Assessed("A7", category, CriterionVerdict.Pass,
                 ReviewText.Cite(ReviewText.Structural("Inga klyschor från klyscha-listan funna i profil/erfarenhet.")));
         }
 
-        if (hits.Count < 2)
+        var passBelow = context.Criterion.RequiredThreshold(RubricThresholdKeys.PassBelowCount);
+        if (hits.Count < passBelow)
         {
-            // A single cliché is under the rubric's "<2" Pass threshold — cite it so the pass is
+            // A single cliché is under the rubric's Pass threshold — cite it so the pass is
             // transparent (§5 explainability), never a hidden flag.
             return CvCriterionVerdict.Assessed("A7", category, CriterionVerdict.Pass,
                 ReviewText.Cite(ReviewText.SpanWord(prose, hits[0].Phrase,
-                    $"enstaka klyscha under gränsen (<2): \"{hits[0].Phrase}\"")));
+                    $"enstaka klyscha under gränsen (<{passBelow:0}): \"{hits[0].Phrase}\"")));
         }
 
-        var verdict = hits.Count >= 3 ? CriterionVerdict.Fail : CriterionVerdict.Warn;
+        var verdict = hits.Count >= context.Criterion.RequiredThreshold(RubricThresholdKeys.FailFromCount)
+            ? CriterionVerdict.Fail : CriterionVerdict.Warn;
         return CvCriterionVerdict.Assessed("A7", category, verdict,
             ReviewText.Cite(ReviewText.SpanWord(prose, hits[0].Phrase, $"klyscha: \"{hits[0].Phrase}\"")));
     }
@@ -303,11 +313,6 @@ internal sealed class A7ClicheRule : ICriterionRule
 internal sealed class A8ProfileRule : ICriterionRule
 {
     public string CriterionId => "A8";
-
-    // The A8 length Fail the rubric prose fixes (atsFailSignal "... ELLER >100 ord ..."). A code
-    // operationalisation of versioned rubric prose, pinned by the A8 golden drift-guard (parity
-    // A7/A1/C3 #489). Pre-fix ">100 ord" was only a Warn, contradicting the versioned rubric.
-    private const int MaxWords = 100;
 
     public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
@@ -320,13 +325,16 @@ internal sealed class A8ProfileRule : ICriterionRule
                 ReviewText.Cite(ReviewText.Structural("Profiltext saknas helt.")));
         }
 
+        // The length Fail bound is rubric v1.2 DATA (thresholds.maxWords, atsFailSignal
+        // "... ELLER >100 ord ..."), read fail-loud; prose↔data agreement pinned by the A8
+        // golden drift-guard (#489 — ">100 ord" is a rubric Fail, not a Warn).
+        var maxWords = context.Criterion.RequiredThreshold(RubricThresholdKeys.MaxWords);
         var words = profile.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
-        if (words > MaxWords)
+        if (words > maxWords)
         {
-            // #489: ">100 ord" is a rubric Fail, not a Warn.
             return CvCriterionVerdict.Assessed("A8", category, CriterionVerdict.Fail,
                 ReviewText.Cite(ReviewText.Span(
-                    context.RawText, Truncate(profile), $"profiltext är för lång ({words} ord, gränsen är {MaxWords})")));
+                    context.RawText, Truncate(profile), $"profiltext är för lång ({words} ord, gränsen är {maxWords:0})")));
         }
 
         // #489: the rubric's "Objective: To obtain..."-USA-style clause. A Swedish CV profile opening
@@ -401,9 +409,12 @@ internal sealed class A9SoftSkillsRule : ICriterionRule
                     "Personlighetsadjektiv styrks med konkret exempel i samma mening.")));
         }
 
-        // An unsupported adjective LIST (≥2) is the rubric's Fail case ("adjektivlista utan
-        // exempel"); a single unbacked adjective is a Warn (advise a concrete example).
-        var verdict = unsupported.Count >= 2 ? CriterionVerdict.Fail : CriterionVerdict.Warn;
+        // An unsupported adjective LIST is the rubric's Fail case ("adjektivlista utan
+        // exempel"); a single unbacked adjective is a Warn (advise a concrete example). The
+        // list floor is rubric v1.2 DATA (thresholds.failFromCount), read fail-loud.
+        var verdict = unsupported.Count
+            >= context.Criterion.RequiredThreshold(RubricThresholdKeys.FailFromCount)
+            ? CriterionVerdict.Fail : CriterionVerdict.Warn;
         var note = verdict == CriterionVerdict.Fail
             ? "personlighetsadjektiv utan konkret exempel"
             : "personlighetsadjektiv – styrk med konkret exempel";

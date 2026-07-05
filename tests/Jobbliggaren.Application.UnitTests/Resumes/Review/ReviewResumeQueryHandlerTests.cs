@@ -254,6 +254,34 @@ public class ReviewResumeQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ShouldNotCarryV110StatusOntoV120Review_WhenTheRubricMinorBumped()
+    {
+        // Fas 4b PR-5 CTO In-block fix 5 / ADR 0097 §5: the Ignored/Resolved invalidation axis IS
+        // the rubric-version key. A status persisted under rubric_version "1.1.0" must NOT surface
+        // on a review COMPUTED under v1.2.0 (the #654 minor bump: thresholds-as-data + styleOnly).
+        // The v1.1 Ignored/Resolved reset to Open under v1.2 is BY DESIGN, not a regression (any
+        // user-facing release note is a PR-8 concern). Sibling to
+        // Handle_ShouldNotOverlay_WhenRowKeyedToAnotherRubricVersion, pinned on the concrete
+        // 1.1.0 → 1.2.0 boundary this PR introduces.
+        var db = CreateDb();
+        var resume = await SeedOwnedResumeAsync(db, _userId, r =>
+            r.SetFindingStatus("1.1.0", "A7", ReviewFindingStatus.Resolved,
+                FindingTargetFingerprint.Compute(RubricVersion.Parse("1.1.0"), A7Fail()),
+                FakeDateTimeProvider.Default));
+        // The review rides the SHIPPED v1.2.0 rubric version (stamped on every result).
+        StubEngine(new CvReviewResult(
+            RubricVersion.Parse("1.2.0"), RenderProfile.Ats, [], [A7Fail()], [], 1, 1));
+
+        var result = await CreateSut(db).Handle(
+            new ReviewResumeQuery(resume.Id.Value, "Ats"), TestContext.Current.CancellationToken);
+
+        result.ShouldNotBeNull();
+        result.RubricVersion.ShouldBe("1.2.0");
+        // The 1.1.0 decision never carries onto a 1.2.0 review (rubric-version key boundary).
+        result.Verdicts.Single(v => v.CriterionId == "A7").UserStatus.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task Handle_ShouldClearStaleResolvedRow_WhenFingerprintNoLongerMatches()
     {
         var db = CreateDb();

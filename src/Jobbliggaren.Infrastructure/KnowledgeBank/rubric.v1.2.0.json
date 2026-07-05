@@ -1,18 +1,50 @@
 {
-  "rubricVersion": "1.1.0",
-  "effectiveDate": "2026-07-02",
-  "weights": { "Kritisk": 3, "Hög": 2, "Medel": 1, "Låg": 0.5 },
+  "rubricVersion": "1.2.0",
+  "effectiveDate": "2026-07-05",
+  "weights": {
+    "Kritisk": 3,
+    "Hög": 2,
+    "Medel": 1,
+    "Låg": 0.5
+  },
   "categoryWeights": {
-    "ats": { "A": 0.5, "B": 0.2, "C": 0.15, "D": 0.15 },
-    "visual": { "A": 0.5, "B": 0.15, "C": 0.15, "E": 0.2 }
+    "ats": {
+      "A": 0.5,
+      "B": 0.2,
+      "C": 0.15,
+      "D": 0.15
+    },
+    "visual": {
+      "A": 0.5,
+      "B": 0.15,
+      "C": 0.15,
+      "E": 0.2
+    }
   },
   "bands": [
-    { "minInclusive": 0, "label": "EjRedo" },
-    { "minInclusive": 50, "label": "BehöverOmarbetning" },
-    { "minInclusive": 70, "label": "Konkurrenskraftigt" },
-    { "minInclusive": 85, "label": "Toppskikt" }
+    {
+      "minInclusive": 0,
+      "label": "EjRedo"
+    },
+    {
+      "minInclusive": 50,
+      "label": "BehöverOmarbetning"
+    },
+    {
+      "minInclusive": 70,
+      "label": "Konkurrenskraftigt"
+    },
+    {
+      "minInclusive": 85,
+      "label": "Toppskikt"
+    }
   ],
-  "criticalFailIds": ["A1", "B4", "C1", "D1"],
+  "criticalFailIds": [
+    "A1",
+    "B4",
+    "C1",
+    "D1"
+  ],
   "criteria": [
     {
       "id": "A1",
@@ -24,7 +56,10 @@
       "atsPassSignal": "≥1 kvantifierad uppgift per roll de senaste 10 åren (siffra, %, valuta, antal, tid)",
       "atsFailSignal": "0 siffror i hela arbetslivserfarenheten ELLER >50 % av punkterna saknar mätbarhet",
       "visualPassSignal": "Samma som ATS",
-      "visualFailSignal": "Samma som ATS"
+      "visualFailSignal": "Samma som ATS",
+      "thresholds": {
+        "failRatio": 0.5
+      }
     },
     {
       "id": "A2",
@@ -36,7 +71,11 @@
       "atsPassSignal": "≥80 % av punkterna börjar med starkt svenskt handlingsverb i preteritum (se verb-mappningen)",
       "atsFailSignal": "<50 % har action verb i början, eller börjar med \"Ansvarig för\", \"Arbetsuppgifter:\", \"Var med och\"",
       "visualPassSignal": "Samma",
-      "visualFailSignal": "Samma"
+      "visualFailSignal": "Samma",
+      "thresholds": {
+        "passRatio": 0.8,
+        "failRatio": 0.5
+      }
     },
     {
       "id": "A3",
@@ -61,7 +100,10 @@
       "atsPassSignal": "Inga oförklarade gaps >6 mån, eller gaps förklaras explicit (föräldraledighet, studier, sjukskrivning)",
       "atsFailSignal": "≥1 oförklarat gap >6 mån OCH inkonsekvent datering",
       "visualPassSignal": "Samma",
-      "visualFailSignal": "Samma"
+      "visualFailSignal": "Samma",
+      "thresholds": {
+        "maxGapMonths": 6
+      }
     },
     {
       "id": "A5",
@@ -86,7 +128,11 @@
       "atsPassSignal": "≥70 % av punkterna innehåller konkret artefakt (verktyg, system, kund, projekt, leverans)",
       "atsFailSignal": ">50 % generiska punkter (\"ansvarade för dagliga arbetsuppgifter\")",
       "visualPassSignal": "Samma",
-      "visualFailSignal": "Samma"
+      "visualFailSignal": "Samma",
+      "thresholds": {
+        "passRatio": 0.7,
+        "failRatio": 0.5
+      }
     },
     {
       "id": "A7",
@@ -98,7 +144,11 @@
       "atsPassSignal": "<2 förekomster av tomma fraser (se klyscha-listan) utan styrkande exempel",
       "atsFailSignal": "≥3 klyschor utan stöd; profiltext är >50 % personlighetsadjektiv",
       "visualPassSignal": "Samma",
-      "visualFailSignal": "Samma"
+      "visualFailSignal": "Samma",
+      "thresholds": {
+        "passBelowCount": 2,
+        "failFromCount": 3
+      }
     },
     {
       "id": "A8",
@@ -110,7 +160,10 @@
       "atsPassSignal": "2–4 meningar, ~40–60 ord, innehåller roll/år/specialisering + 1 resultat. Ingen \"Objective\"-USA-stil",
       "atsFailSignal": "Saknas helt ELLER >100 ord ELLER ren adjektivlista ELLER \"Objective: To obtain...\"",
       "visualPassSignal": "Samma",
-      "visualFailSignal": "Samma"
+      "visualFailSignal": "Samma",
+      "thresholds": {
+        "maxWords": 100
+      }
     },
     {
       "id": "A9",
@@ -122,7 +175,10 @@
       "atsPassSignal": "Mjuka egenskaper nämns endast med konkret exempel (\"ledde team om 8\")",
       "atsFailSignal": "Adjektivlista utan exempel (\"kommunikativ, driven, social\")",
       "visualPassSignal": "Samma",
-      "visualFailSignal": "Samma"
+      "visualFailSignal": "Samma",
+      "thresholds": {
+        "failFromCount": 2
+      }
     },
     {
       "id": "A10",
@@ -196,7 +252,8 @@
       "atsFailSignal": "Blandning av punkter, fonter, storlekar",
       "visualPassSignal": "Samma",
       "visualFailSignal": "Samma",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV."
+      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "styleOnly": true
     },
     {
       "id": "B6",
@@ -208,7 +265,10 @@
       "atsPassSignal": "Samma format genomgående. Säkrast för ATS: MM/YYYY – MM/YYYY eller MM/YYYY – Nuvarande",
       "atsFailSignal": "Blandning \"2022 – idag\" + \"jan-22 – mar 2024\"; \"'21\"; säsong",
       "visualPassSignal": "Konsekvens räcker; \"jan 2022 – mar 2024\" OK",
-      "visualFailSignal": "Inkonsekvens"
+      "visualFailSignal": "Inkonsekvens",
+      "thresholds": {
+        "maxDistinctDateFormats": 1
+      }
     },
     {
       "id": "B7",
@@ -232,7 +292,8 @@
       "atsPassSignal": "CV_Förnamn_Efternamn.pdf (Arbetsförmedlingen-rek.)",
       "atsFailSignal": "cv.pdf, document(1).pdf",
       "visualPassSignal": "Samma",
-      "visualFailSignal": "Samma"
+      "visualFailSignal": "Samma",
+      "styleOnly": true
     },
     {
       "id": "C1",
@@ -257,7 +318,10 @@
       "atsPassSignal": "Saklig, neutral, faktabaserad. Lagom utan amerikansk \"sales pitch\"",
       "atsFailSignal": "\"Rockstar\", \"ninja\", \"stellar track record\"; ELLER överdriven blygsamhet (\"har lite erfarenhet av\")",
       "visualPassSignal": "Samma",
-      "visualFailSignal": "Samma"
+      "visualFailSignal": "Samma",
+      "thresholds": {
+        "warnFromExclamationCount": 2
+      }
     },
     {
       "id": "C3",
@@ -269,7 +333,10 @@
       "atsPassSignal": "≥80 % aktiva verb, få passiveringar",
       "atsFailSignal": ">30 % passiv form (\"ansvarades för\", \"utfördes av\")",
       "visualPassSignal": "Samma",
-      "visualFailSignal": "Samma"
+      "visualFailSignal": "Samma",
+      "thresholds": {
+        "failRatio": 0.3
+      }
     },
     {
       "id": "C4",
@@ -306,7 +373,10 @@
       "atsPassSignal": "Branschspecifika förkortningar skrivs ut första gången",
       "atsFailSignal": "Förkortningar utan kontext",
       "visualPassSignal": "Samma",
-      "visualFailSignal": "Samma"
+      "visualFailSignal": "Samma",
+      "thresholds": {
+        "maxUnexplainedAcronyms": 2
+      }
     },
     {
       "id": "D1",
@@ -447,7 +517,8 @@
       "assessability": "deterministic",
       "visualPassSignal": "Max 2 typsnitt (1 rubrik, 1 brödtext); max 3 textstilar (vanlig/fet/kursiv)",
       "visualFailSignal": "≥3 typsnitt; blandning versaler/kapitäler",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV."
+      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "styleOnly": true
     },
     {
       "id": "E4",
@@ -458,7 +529,8 @@
       "assessability": "deterministic",
       "visualPassSignal": "Max 2–3 färger inkl. svart/vit. Accentfärg i rubriker. WCAG AA-kontrast ≥4,5:1",
       "visualFailSignal": "≥4 färger; ljus färg på vit bakgrund",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV."
+      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "styleOnly": true
     },
     {
       "id": "E5",
@@ -491,7 +563,8 @@
       "assessability": "deterministic",
       "visualPassSignal": "Konsekventa symboler (• eller –); enhetlig indrag; vänsterjusterad",
       "visualFailSignal": "Center; höger-justerade bullets; emoji som bullets",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV."
+      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "styleOnly": true
     },
     {
       "id": "E8",
@@ -502,7 +575,8 @@
       "assessability": "deterministic",
       "visualPassSignal": "Inget halvtomt sista-blad; ingen bullet bruten över sida",
       "visualFailSignal": "Stort tomrum sist; sektion delad olämpligt",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV."
+      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "styleOnly": true
     }
   ]
 }

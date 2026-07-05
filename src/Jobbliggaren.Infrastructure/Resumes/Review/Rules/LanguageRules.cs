@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.Common.Abstractions.TextAnalysis;
+using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
@@ -33,7 +34,10 @@ internal sealed partial class C2ToneRule : ICriterionRule
                 ReviewText.Cite(ReviewText.Span(prose, shouting.Value, "versalt 'skrik': håll en saklig, neutral ton")));
         }
 
-        if (exclamations >= 2)
+        // The exclamation Warn floor is rubric v1.2 DATA (thresholds.warnFromExclamationCount),
+        // read fail-loud; the 5+-uppercase shout-run regex above is detection SHAPE and stays
+        // code (CTO-bind D1: "algorithms are code", ADR 0093 §D3).
+        if (exclamations >= context.Criterion.RequiredThreshold(RubricThresholdKeys.WarnFromExclamationCount))
         {
             return CvCriterionVerdict.Assessed("C2", category, CriterionVerdict.Warn,
                 ReviewText.Cite(ReviewText.Structural($"{exclamations} utropstecken: håll en saklig, neutral ton.")));
@@ -70,11 +74,6 @@ internal sealed partial class C3ActiveVoiceRule : ICriterionRule
         "skämdes", "mindes", "nöjdes", "envisades", "samsades", "avundades",
     };
 
-    // The C3 Fail ratio the rubric prose fixes (atsFailSignal ">30 % passiv form"). A code
-    // operationalisation of versioned rubric PROSE (documented v1 posture), pinned by the C3 golden
-    // drift-guard so code that drifts from the rubric fails CI (parity A7 #489).
-    private const double FailRatio = 0.30;
-
     public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
@@ -88,7 +87,10 @@ internal sealed partial class C3ActiveVoiceRule : ICriterionRule
         var sentenceCount = Math.Max(1, ReviewText.Sentences(prose).Count);
         var ratio = (double)passives.Count / sentenceCount;
 
-        if (ratio > FailRatio)
+        // The Fail ratio is rubric v1.2 DATA (thresholds.failRatio, atsFailSignal ">30 %
+        // passiv form"), read fail-loud; prose↔data agreement pinned by the C3 golden
+        // drift-guard (#489).
+        if (ratio > context.Criterion.RequiredThreshold(RubricThresholdKeys.FailRatio))
         {
             return CvCriterionVerdict.Assessed("C3", category, CriterionVerdict.Fail,
                 ReviewText.Cite(ReviewText.Span(prose, passives[0], "hög andel passiv form, föredra aktivt språk")));
@@ -188,8 +190,11 @@ internal sealed partial class C6AbbreviationsRule : ICriterionRule
         var hasExpansion = prose.Contains('(');
 
         // A couple of acronyms are typically universal (AB, EU, IT); flag only a heavier,
-        // unexplained load.
-        if (acronyms.Count > 2 && !hasExpansion)
+        // unexplained load. The count bound is rubric v1.2 DATA (thresholds.maxUnexplainedAcronyms),
+        // read fail-loud; the 2–5-letter candidate regex above is detection SHAPE and stays code
+        // (CTO-bind D1, ADR 0093 §D3).
+        if (acronyms.Count > context.Criterion.RequiredThreshold(RubricThresholdKeys.MaxUnexplainedAcronyms)
+            && !hasExpansion)
         {
             return CvCriterionVerdict.Assessed("C6", category, CriterionVerdict.Warn,
                 ReviewText.Cite(ReviewText.Span(prose, acronyms[0],

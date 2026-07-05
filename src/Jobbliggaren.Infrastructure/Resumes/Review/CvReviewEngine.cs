@@ -23,15 +23,16 @@ namespace Jobbliggaren.Infrastructure.Resumes.Review;
 /// </summary>
 internal sealed class CvReviewEngine : ICvReviewEngine
 {
-    // v1 threshold posture (senior-cto-advisor M1=(a), 2026-06-15 — documented v1, NO TD):
-    // each criterion's PASS/FAIL CONDITION is human-readable PROSE in the F4-7 rubric
-    // (AtsPassSignal/AtsFailSignal, F4-7 DQ8 by design); the per-criterion NUMERIC thresholds
-    // that operationalise those prose signals (e.g. A2 "≥80 %" → ratio >= 0.8) live as code in
-    // the rules. This is honest because the rubric is VERSIONED (rubric@x.y.z, §2.8 minor =
-    // tröskel) and the version rides on every CvReviewResult — a threshold change bumps the
-    // rubric minor AND the engine together, auditably. A machine-readable per-criterion
-    // threshold schema is a future rubric-vN / F4-10 forward-note (ADR 0074 discovery→STEG),
-    // NOT a TD. The §5-correct LISTS (cliché/verb) ARE data (consumed via IClicheLexicon/IVerbMapper).
+    // Threshold posture (rubric v1.2, Fas 4b PR-5 CTO-bind D1 — RETIRES the v1 M1=(a) posture
+    // of 2026-06-15, which had the numeric thresholds living as code in the rules): the
+    // per-criterion NUMERIC thresholds are versioned DATA in RubricCriterion.Thresholds (named
+    // RubricThresholdKeys, e.g. A2 "≥80 %" → thresholds.passRatio 0.8), read fail-loud via
+    // RequiredThreshold — no literal fallback. The PROSE signals (AtsPassSignal/AtsFailSignal)
+    // remain the user-facing civic explanation; golden drift-guards pin prose↔data agreement
+    // where the prose carries the number. A threshold change is now a rubric-asset edit alone
+    // (§2.8 minor bump; the version rides on every CvReviewResult, auditably). Detection-shape
+    // constants (regex bounds, structural factors) stay CODE per ADR 0093 §D3 "algorithms are
+    // code". The §5-correct LISTS (cliché/verb) were already data (IClicheLexicon/IVerbMapper).
     //
     // rubric.CategoryWeights (the cross-category ATS/Visual BLEND) is loaded by RubricLoader but
     // DELIBERATELY UNCONSUMED in F4-9: a cross-category blend exists only to compute an opaque

@@ -97,7 +97,8 @@ public sealed class RedisSessionStore(
         // check above stays ahead, so a superseded-but-past-cap key is still evicted.
         if (payload.SupersededAt is { } supersededAt)
             return new Session(
-                sessionId, payload.UserId, payload.CreatedAt, supersededAt + _options.RotationGraceWindow);
+                sessionId, payload.UserId, payload.CreatedAt, supersededAt + _options.RotationGraceWindow,
+                payload.Lifetime);
 
         // Slide up to SlidingTtl, but never past the absolute cap: a key's TTL must
         // not outlive the cap (defense-in-depth beside the check above, and it frees
@@ -139,7 +140,7 @@ public sealed class RedisSessionStore(
             throw new SessionStoreUnavailableException("Redis-session-store är inte tillgänglig.", ex);
         }
 
-        return new Session(sessionId, payload.UserId, payload.CreatedAt, expiresAt);
+        return new Session(sessionId, payload.UserId, payload.CreatedAt, expiresAt, payload.Lifetime);
     }
 
     public async Task<Session> CreateAsync(Guid userId, SessionLifetime lifetime, CancellationToken ct)
@@ -191,7 +192,7 @@ public sealed class RedisSessionStore(
             throw new SessionStoreUnavailableException("Redis-session-store är inte tillgänglig.", ex);
         }
 
-        return new Session(sessionId, userId, now, expiresAt);
+        return new Session(sessionId, userId, now, expiresAt, lifetime);
     }
 
     public async Task<bool> InvalidateAsync(SessionId sessionId, CancellationToken ct)

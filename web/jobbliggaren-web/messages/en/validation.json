@@ -21,6 +21,7 @@
   "profile": {
     "confirmEmailInvalid": "Enter a valid email address.",
     "passwordRequired": "Password is required.",
+    "newPasswordTooShort": "New password must be at least 12 characters.",
     "displayNameRequired": "Display name is required.",
     "displayNameMax": "Display name may be at most 200 characters.",
     "languageInvalid": "Choose a valid language."

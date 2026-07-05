@@ -179,6 +179,24 @@
     "reauth": {
       "passwordLabel": "Password"
     },
+    "changePassword": {
+      "title": "Change password",
+      "description": "Choose a new password. Changing it logs you out on all other devices.",
+      "trigger": "Change password",
+      "dialogDescription": "Enter your current password and choose a new one. You are logged out on all other devices but stay logged in here.",
+      "currentPasswordLabel": "Current password",
+      "currentPasswordFieldName": "current password",
+      "newPasswordLabel": "New password",
+      "newPasswordFieldName": "new password",
+      "newPasswordHint": "At least 12 characters.",
+      "confirmPasswordLabel": "Confirm new password",
+      "confirmPasswordFieldName": "confirm new password",
+      "passwordsDontMatch": "The passwords do not match.",
+      "submit": "Change password",
+      "pending": "Changing…",
+      "cancel": "Cancel",
+      "success": "Your password has been changed. You are still logged in here but logged out on all other devices."
+    },
     "errors": {
       "notLoggedIn": "You are not logged in.",
       "invalidInput": "Invalid details.",
@@ -186,7 +204,8 @@
       "network": "Could not reach the server. Check your network connection.",
       "emailMismatch": "The email address does not match your account.",
       "wrongPassword": "The password is incorrect.",
-      "deleteFailed": "Could not delete the account."
+      "deleteFailed": "Could not delete the account.",
+      "changePasswordFailed": "Could not change the password."
     }
   }
 }

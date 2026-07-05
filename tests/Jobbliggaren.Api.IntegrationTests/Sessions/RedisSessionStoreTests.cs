@@ -99,6 +99,45 @@ public class RedisSessionStoreTests : IAsyncLifetime
         fetched.UserId.ShouldBe(userId);
     }
 
+    // #678 C6-D2a: the lifetime must survive the Redis payload JSON round-trip so the change-password
+    // re-issue can read the current profile from GetAsync and re-mint under it.
+    [Fact]
+    public async Task GetAsync_ShouldRoundTripLifetime_ThroughThePayload()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var created = await _store.CreateAsync(Guid.NewGuid(), SessionLifetime.Persistent, ct);
+        created.Lifetime.ShouldBe(SessionLifetime.Persistent);
+
+        var fetched = await _store.GetAsync(created.Id, ct);
+
+        fetched.ShouldNotBeNull();
+        fetched!.Lifetime.ShouldBe(SessionLifetime.Persistent);
+    }
+
+    // #678 C6 Variant A (COND-B safety): the re-issue calls InvalidateAllForUserAsync (which plants
+    // the 60s :revoked tombstone) then CreateAsync. The fresh session must authenticate immediately —
+    // GetAsync gates on :deleted (not :revoked) and CreateAsync never reads :revoked — while every
+    // prior session for the user is swept. This is the store-level proof of logout-everywhere +
+    // keep-this-device.
+    [Fact]
+    public async Task CreateAsync_AfterInvalidateAll_ShouldAuthenticate_DespiteRevocationTombstone()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+
+        var old = await _store.CreateAsync(userId, SessionLifetime.Persistent, ct);
+        await _store.InvalidateAllForUserAsync(userId, ct);
+        (await _store.GetAsync(old.Id, ct)).ShouldBeNull("logout-everywhere must kill the prior session");
+
+        var reissued = await _store.CreateAsync(userId, SessionLifetime.Persistent, ct);
+        var fetched = await _store.GetAsync(reissued.Id, ct);
+
+        fetched.ShouldNotBeNull("the re-issued session must authenticate even while :revoked is live");
+        fetched!.UserId.ShouldBe(userId);
+        fetched.Lifetime.ShouldBe(SessionLifetime.Persistent);
+    }
+
     [Fact]
     public async Task GetAsync_ShouldReturnNull_WhenSessionDoesNotExist()
     {

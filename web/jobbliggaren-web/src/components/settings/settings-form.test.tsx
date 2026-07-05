@@ -66,11 +66,14 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
     // h2-rubrik.
     // TD-115 (2026-06-25): det gamla "Aviseringar"-kortet (EmailNotifications +
     // WeeklySummary) togs bort — Matchningsnotiser är nu den enda notis-ytan.
+    // #678: the change-password card sits in the second column, before Sekretess
+    // och data (privacy/danger zone) and Logga ut.
     expect(headings).toEqual([
       "Personuppgifter",
       "Matchning",
       "Visning",
       "Matchningsnotiser",
+      "Byt lösenord",
       "Sekretess och data",
       "Logga ut",
     ]);

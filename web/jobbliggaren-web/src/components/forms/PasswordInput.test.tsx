@@ -50,6 +50,26 @@ describe("PasswordInput (#586 show/hide toggle)", () => {
     expect(toggle).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("disambiguates the toggle's accessible name via fieldName (#678)", async () => {
+    const user = userEvent.setup();
+    render(
+      <PasswordInput
+        id="new-password"
+        name="newPassword"
+        aria-label="Nytt lösenord"
+        fieldName="nytt lösenord"
+      />,
+    );
+
+    // Named toggle instead of the bare "Visa lösenord", so multiple password fields
+    // in one form have distinguishable toggles.
+    const show = screen.getByRole("button", { name: "Visa nytt lösenord" });
+    await user.click(show);
+    expect(
+      screen.getByRole("button", { name: "Dölj nytt lösenord" }),
+    ).toBeInTheDocument();
+  });
+
   it("forwards field props to the underlying input", () => {
     render(
       <PasswordInput

@@ -30,6 +30,29 @@ public sealed class UserAccountService(
         return Result.Success(user.Id);
     }
 
+    public async Task<Result> ChangePasswordAsync(
+        Guid userId, string currentPassword, string newPassword, CancellationToken ct)
+    {
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return Result.Failure(
+                DomainError.NotFound("Auth.UserNotFound", "Användaren hittades inte."));
+
+        // ChangePasswordAsync verifies the current password, sets the new one, and rotates the
+        // security stamp — atomically. Enforces the registered password policy (RequiredLength = 12
+        // -> PasswordTooShort). Map the first error the same way as CreateUserAsync so the central
+        // DomainError.ToProblemResult mapping resolves the status (Validation -> 400).
+        var result = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);
+        if (!result.Succeeded)
+        {
+            var error = result.Errors.First();
+            return Result.Failure(
+                DomainError.Validation($"Auth.{error.Code}", error.Description));
+        }
+
+        return Result.Success();
+    }
+
     public async Task DeleteUserAsync(Guid userId, CancellationToken ct)
     {
         var user = await userManager.FindByIdAsync(userId.ToString());

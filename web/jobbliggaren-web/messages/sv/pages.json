@@ -159,6 +159,8 @@
   "auth": {
     "showPassword": "Visa lösenord",
     "hidePassword": "Dölj lösenord",
+    "showPasswordNamed": "Visa {field}",
+    "hidePasswordNamed": "Dölj {field}",
     "login": {
       "title": "Logga in",
       "brand": "Jobbliggaren",

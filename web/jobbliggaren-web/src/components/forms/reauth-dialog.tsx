@@ -58,8 +58,27 @@ export interface ReAuthDialogProps {
    * control never resolves back here.
    */
   action: (password: string) => Promise<ActionResult>;
-  /** Extra fields rendered above the password (e.g. delete's confirm-email). */
+  /** Extra fields rendered next to the password (e.g. delete's confirm-email). */
   children?: ReactNode;
+  /**
+   * Where `children` render relative to the password field. `"before"` (default)
+   * keeps delete's confirm-email-then-password order; `"after"` puts the password
+   * first so change-password reads current -> new -> confirm.
+   */
+  childrenPosition?: "before" | "after";
+  /**
+   * Overrides the password field label. Defaults to the shared "Lösenord"; a
+   * consumer whose re-auth field is the *current* password (change-password)
+   * passes "Nuvarande lösenord" for clarity.
+   */
+  passwordLabel?: string;
+  /**
+   * Disambiguates the password field's show/hide toggle accessible name when the
+   * form has multiple password fields (change-password injects new + confirm via
+   * `children`). Passed to <PasswordInput fieldName>. Omitted → the bare toggle
+   * label (unchanged for delete, which has one password field).
+   */
+  passwordFieldName?: string;
   /**
    * Extra client-side submit gating on top of "password is non-empty" (e.g.
    * delete's email-match). Receives the current password. Server-side
@@ -72,6 +91,15 @@ export interface ReAuthDialogProps {
    * server error are reset here automatically.
    */
   onOpenChange?: (open: boolean) => void;
+  /**
+   * Invoked when the action resolves `{ success: true }` — the STAY-ON-PAGE path
+   * (change-password). ReAuthDialog resets its password field, clears the error,
+   * and closes before calling this, so the consumer just clears its own injected
+   * state and surfaces a confirmation. When omitted, the legacy contract holds:
+   * the action is expected to redirect on success (delete), so control never
+   * returns here and nothing is called.
+   */
+  onSuccess?: () => void;
 }
 
 interface ReAuthFormValues {
@@ -88,8 +116,12 @@ export function ReAuthDialog({
   variant = "default",
   action,
   children,
+  childrenPosition = "before",
+  passwordLabel,
+  passwordFieldName,
   canSubmit,
   onOpenChange,
+  onSuccess,
 }: ReAuthDialogProps) {
   const ts = useTranslations("settings");
   const tv = useTranslations("validation");
@@ -142,8 +174,18 @@ export function ReAuthDialog({
       const result = await action(parsed.data.password);
       if (!result.success) {
         setServerError(result.error);
+        return;
       }
-      // On success the action redirects — control never returns here.
+      // Stay-on-page success (e.g. change-password): reset, close, and notify the
+      // consumer so it can clear its injected fields and show a confirmation. Without
+      // onSuccess the legacy contract holds — the action redirected and control never
+      // reaches here (delete).
+      if (onSuccess) {
+        reset();
+        setServerError(null);
+        setOpen(false);
+        onSuccess();
+      }
     });
   }
 
@@ -167,19 +209,21 @@ export function ReAuthDialog({
             disabled={isPending}
             className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0"
           >
-            {children}
+            {childrenPosition === "before" && children}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor={passwordId}>
-                {ts("account.reauth.passwordLabel")}
+                {passwordLabel ?? ts("account.reauth.passwordLabel")}
               </Label>
               <PasswordInput
                 id={passwordId}
                 autoComplete="current-password"
+                fieldName={passwordFieldName}
                 aria-invalid={serverError ? true : undefined}
                 aria-describedby={serverError ? errorId : undefined}
                 {...register("password")}
               />
             </div>
+            {childrenPosition === "after" && children}
           </fieldset>
           {serverError && (
             <p

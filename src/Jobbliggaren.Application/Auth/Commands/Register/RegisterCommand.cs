@@ -4,7 +4,9 @@ using Mediator;
 
 namespace Jobbliggaren.Application.Auth.Commands.Register;
 
+// RememberMe mirrors LoginCommand — the "Håll mig inloggad" opt-in at registration.
 public sealed record RegisterCommand(
     string? Email,
     string? Password,
-    string? DisplayName) : ICommand<Result<SessionDto>>;
+    string? DisplayName,
+    bool RememberMe = false) : ICommand<Result<SessionDto>>;

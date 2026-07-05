@@ -88,6 +88,46 @@ public class LoginCommandHandlerTests
         await sessionStore.Received(1).CreateAsync(userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>());
     }
 
+    // #2b2: "Håll mig inloggad" checked → Persistent; unchecked/absent → Legacy (today's
+    // reach). The unchecked → Session flip lands with the checkbox in the activation PR.
+    [Fact]
+    public async Task Handle_WithRememberMe_CreatesPersistentSession()
+    {
+        var userId = Guid.NewGuid();
+        var userAccountService = Substitute.For<IUserAccountService>();
+        userAccountService.ValidateCredentialsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new UserCredentials(userId, new List<string>())));
+
+        var sessionStore = Substitute.For<ISessionStore>();
+        sessionStore.CreateAsync(userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
+            .Returns(new Session(SessionId.Generate(), userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(30)));
+
+        var handler = CreateHandler(userAccountService: userAccountService, sessionStore: sessionStore);
+
+        await handler.Handle(ValidCommand() with { RememberMe = true }, CancellationToken.None);
+
+        await sessionStore.Received(1).CreateAsync(userId, SessionLifetime.Persistent, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WithoutRememberMe_CreatesLegacySession()
+    {
+        var userId = Guid.NewGuid();
+        var userAccountService = Substitute.For<IUserAccountService>();
+        userAccountService.ValidateCredentialsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new UserCredentials(userId, new List<string>())));
+
+        var sessionStore = Substitute.For<ISessionStore>();
+        sessionStore.CreateAsync(userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
+            .Returns(new Session(SessionId.Generate(), userId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(14)));
+
+        var handler = CreateHandler(userAccountService: userAccountService, sessionStore: sessionStore);
+
+        await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        await sessionStore.Received(1).CreateAsync(userId, SessionLifetime.Legacy, Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task Handle_WithValidCredentials_EmitsAuditLog()
     {

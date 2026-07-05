@@ -34,8 +34,10 @@ public sealed class RegisterCommandHandler(
 
         db.JobSeekers.Add(seekerResult.Value);
 
-        // Legacy profile = today's reach; the opt-in persistent choice ships in 2b.
-        var session = await sessionStore.CreateAsync(userId, SessionLifetime.Legacy, cancellationToken);
+        // "Håll mig inloggad" checked → a rotating Persistent session; unchecked/absent →
+        // today's reach (Legacy). See LoginCommandHandler for the flip sequencing.
+        var lifetime = command.RememberMe ? SessionLifetime.Persistent : SessionLifetime.Legacy;
+        var session = await sessionStore.CreateAsync(userId, lifetime, cancellationToken);
 
         auditLogger.LoginSucceeded(userId, session.Id.ToString());
 

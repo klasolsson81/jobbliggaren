@@ -67,9 +67,12 @@ public sealed class LoginCommandHandler(
                     "E-post eller lösenord är felaktigt."));
         }
 
-        // Legacy profile = today's reach (14d/30d). The opt-in "Håll mig inloggad"
-        // choice that produces Session/Persistent sessions ships in the follow-up PR.
-        var session = await sessionStore.CreateAsync(userId, SessionLifetime.Legacy, cancellationToken);
+        // "Håll mig inloggad" checked → a rotating Persistent session; unchecked/absent →
+        // today's reach (Legacy). The unchecked → short Session flip lands with the
+        // checkbox + policy in the activation PR (Persistent's cap stays <= 30d until the
+        // rotation driver ships, so this is within the no-rotation frame).
+        var lifetime = command.RememberMe ? SessionLifetime.Persistent : SessionLifetime.Legacy;
+        var session = await sessionStore.CreateAsync(userId, lifetime, cancellationToken);
 
         auditLogger.LoginSucceeded(userId, session.Id.ToString());
 

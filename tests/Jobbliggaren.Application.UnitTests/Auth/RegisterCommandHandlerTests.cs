@@ -64,6 +64,37 @@ public class RegisterCommandHandlerTests
         result.Value.SessionId.ShouldBe(sessionId.Reveal());
     }
 
+    // #2b2: rememberMe at registration mirrors login — checked → Persistent, absent → Legacy.
+    [Fact]
+    public async Task Handle_WithRememberMe_CreatesPersistentSession()
+    {
+        var userId = Guid.NewGuid();
+        var userAccountService = Substitute.For<IUserAccountService>();
+        userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(userId));
+        var sessionStore = DefaultSessionStore(userId);
+        var handler = CreateHandler(userAccountService: userAccountService, sessionStore: sessionStore);
+
+        await handler.Handle(ValidCommand() with { RememberMe = true }, CancellationToken.None);
+
+        await sessionStore.Received(1).CreateAsync(userId, SessionLifetime.Persistent, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WithoutRememberMe_CreatesLegacySession()
+    {
+        var userId = Guid.NewGuid();
+        var userAccountService = Substitute.For<IUserAccountService>();
+        userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(userId));
+        var sessionStore = DefaultSessionStore(userId);
+        var handler = CreateHandler(userAccountService: userAccountService, sessionStore: sessionStore);
+
+        await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        await sessionStore.Received(1).CreateAsync(userId, SessionLifetime.Legacy, Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task Handle_WhenCreateUserFails_ReturnsFailure()
     {

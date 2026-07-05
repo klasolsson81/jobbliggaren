@@ -141,11 +141,31 @@ export function HeaderStats({
           <span
             key={deltaKey}
             className="jp-header-stats__delta"
-            aria-label={t("header.deltaAriaLabel", { count: deltaToday })}
+            aria-hidden="true"
           >
             +{formatNumber(format, deltaToday)}
           </span>
         )}
+        {/*
+         * Live region for the delta. The visual pill above is `aria-hidden`:
+         * an `aria-label` on that role=generic <span> is dropped by ARIA-in-HTML
+         * (name-from-author prohibited) — the #624 bug. Because the delta
+         * appears *dynamically* on a poll that finds new jobs it must be
+         * *announced*, not merely named, so a screen-reader-only role="status"
+         * live region carries the text. It is always mounted (a screen reader
+         * only announces changes to a region that already exists) and holds the
+         * sentence only while the pill is visible; polite = routine update.
+         */}
+        <span
+          className="sr-only"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {deltaToday > 0
+            ? t("header.deltaAriaLabel", { count: deltaToday })
+            : ""}
+        </span>
       </div>
     </div>
   );

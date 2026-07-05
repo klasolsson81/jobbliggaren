@@ -21,9 +21,13 @@ namespace Jobbliggaren.Application.CompanyRegister.Abstractions;
 /// </summary>
 public sealed class ScbSyncOutcome
 {
+    // #640: keys the deregister sweep must SKIP. A HashSet de-duplicates a key the client may record more
+    // than once; the class is sequential by design (see the type doc), so a plain HashSet is safe.
+    private readonly HashSet<ScbProtectedPartition> _protectedPartitions = [];
     private int _partitionsCounted;
     private int _partitionsFetched;
     private int _totalRowsFetched;
+    private int _reconciliationGaps;
     private bool _truncatedOrErrored;
 
     /// <summary>Number of <c>raknaforetag</c> partitions counted this run.</summary>
@@ -52,6 +56,22 @@ public sealed class ScbSyncOutcome
     /// </summary>
     public bool TruncatedOrErrored => _truncatedOrErrored;
 
+    /// <summary>
+    /// #640 — the (SätesKommun, 5-digit SNI) partitions whose unfetched over-cap tail the deregister sweep
+    /// must SKIP (the partition-scoped sweep). Empty on a run with no over-cap 5-digit tail, in which case
+    /// the sweep runs unrestricted (#628 behaviour). Deduplicated. Read by the orchestrator after
+    /// streaming and passed to <c>DeregisterMissingAsync</c>.
+    /// </summary>
+    public IReadOnlyCollection<ScbProtectedPartition> ProtectedPartitions => _protectedPartitions;
+
+    /// <summary>
+    /// #640 — how many times the no-SNI completeness reconciliation (Guard 2) detected
+    /// <c>sum(child counts) &lt; parent count</c> at a 5-digit split. Non-zero implies
+    /// <see cref="TruncatedOrErrored"/> is latched (the gap disables the whole sweep). Surfaced for a
+    /// distinct diagnostic log — the binary latch alone collapses every reason to one string.
+    /// </summary>
+    public int ReconciliationGaps => _reconciliationGaps;
+
     /// <summary>Records that one partition was counted (before deciding to fetch or split it).</summary>
     public void RecordCounted() => _partitionsCounted++;
 
@@ -60,6 +80,26 @@ public sealed class ScbSyncOutcome
     {
         _partitionsFetched++;
         _totalRowsFetched += rows;
+    }
+
+    /// <summary>
+    /// #640 — records that an over-cap 5-digit partition's tail must be excluded from the sweep. The
+    /// sweep keeps running everywhere else (partition-scoped). Idempotent per key (deduplicated).
+    /// </summary>
+    public void RecordProtectedPartition(string seatMunicipalityCode, string sniCode) =>
+        _protectedPartitions.Add(new ScbProtectedPartition(seatMunicipalityCode, sniCode));
+
+    /// <summary>
+    /// #640 (Guard 2) — records a no-SNI completeness gap (a 5-digit split whose child counts sum below
+    /// the parent) and latches the run truncated so the sweep is disabled: an entity carrying a division
+    /// but no listed 5-digit subcode is invisible to every child and must never be mistaken for a
+    /// de-registered company. Kept distinct from a plain <see cref="MarkTruncatedOrErrored"/> only for
+    /// diagnostics — the safety effect is identical.
+    /// </summary>
+    public void RecordReconciliationGap()
+    {
+        _reconciliationGaps++;
+        _truncatedOrErrored = true;
     }
 
     /// <summary>Latches the truncated/errored verdict (idempotent — once set, stays set).</summary>

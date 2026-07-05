@@ -5,9 +5,13 @@ namespace Jobbliggaren.Infrastructure.CompanyRegister.Scb;
 
 /// <summary>
 /// #560 (ADR 0091) — one partition ready to fetch: a <see cref="ScbQuery"/> the planner has verified
-/// (via a count) will return at most the SCB fetch cap of rows.
+/// (via a count) will return at most the SCB fetch cap of rows — UNLESS <paramref name="OverCap"/> is
+/// set. #640: <paramref name="OverCap"/> marks a partition the ladder could not slice below the cap
+/// (its <paramref name="Count"/> exceeds the cap). The client fetches only the first cap rows and
+/// decides whether the tail can be bounded to a protected (kommun, SNI) key (partition-scoped sweep) or
+/// the run must latch truncated — the planner is category-agnostic and never makes that call.
 /// </summary>
-internal sealed record ScbLeaf(ScbQuery Query, int Count);
+internal sealed record ScbLeaf(ScbQuery Query, int Count, bool OverCap = false);
 
 /// <summary>
 /// #560 (ADR 0091) — the adaptive count-then-slice partition planner. SCB caps <c>hamtaforetag</c>
@@ -24,19 +28,22 @@ internal sealed record ScbLeaf(ScbQuery Query, int Count);
 /// → Bransch niva 3 (5-digit SNI, fanned by the parent's 2-digit prefix — <see cref="ScbPrefixRung"/>).
 /// Each rung only applies when the partition still exceeds the cap. If the deepest rung is exhausted —
 /// or a rung reports it cannot split further (<see cref="IScbRung.Expand"/> returns empty) — and a
-/// partition is STILL over the cap, the planner yields it anyway and latches
-/// <see cref="ScbSyncOutcome.MarkTruncatedOrErrored"/> — the client fetches the first cap rows and
-/// the run is marked incomplete, which (critically) DISABLES the deregister sweep so the missing
-/// tail is never mistaken for de-registered companies.
+/// partition is STILL over the cap, the planner yields it as an OVER-CAP leaf
+/// (<see cref="ScbLeaf.OverCap"/>). #640 moved the truncate-or-protect decision OUT of the planner: the
+/// client (which owns the SCB category semantics) decides whether the over-cap tail can be bounded to a
+/// protected (kommun, SNI) key (partition-scoped sweep) or the run must latch truncated. The planner
+/// stays purely about slicing; it touches <paramref name="outcome"/> only to count nodes and, at a
+/// reconciling rung, to latch a no-SNI completeness gap (Guard 2).
 /// </para>
 /// </summary>
 internal static class ScbPartitionPlanner
 {
     /// <summary>
-    /// Walks each seed down the ladder, counting before fetching, and yields cap-sized leaves.
-    /// Records one <see cref="ScbSyncOutcome.RecordCounted"/> per <c>raknaforetag</c>. Zero-count
-    /// partitions are skipped (no fetch). Depth-first via an explicit stack (bounded by ladder depth
-    /// × max fan-out — no deep recursion).
+    /// Walks each seed down the ladder, counting before fetching, and yields cap-sized leaves (plus
+    /// over-cap leaves the ladder could not slice — flagged <see cref="ScbLeaf.OverCap"/>). Records one
+    /// <see cref="ScbSyncOutcome.RecordCounted"/> per node (a node counted while reconciling its parent's
+    /// split carries that count and is not re-counted). Zero-count partitions are skipped (no fetch).
+    /// Depth-first via an explicit stack (bounded by ladder depth × max fan-out — no deep recursion).
     /// </summary>
     public static async IAsyncEnumerable<ScbLeaf> PlanAsync(
         IReadOnlyList<ScbQuery> seeds,
@@ -53,20 +60,30 @@ internal static class ScbPartitionPlanner
         if (maxRows < 1)
             throw new ArgumentOutOfRangeException(nameof(maxRows), maxRows, "maxRows måste vara >= 1.");
 
-        // Depth = how many ladder rungs have already been applied to this query. Depth 0 = a seed.
-        var stack = new Stack<(ScbQuery Query, int Depth)>();
-        // Push in reverse so the first seed is processed first (cosmetic — order does not affect
-        // correctness, only the deterministic call sequence the client tests assert against).
+        // Stack item: the query, how many ladder rungs already applied (depth 0 = a seed), and — for a
+        // node whose count was already taken while reconciling its parent's split (Guard 2, eager child
+        // count) — that known count so the node is never re-counted. Push in reverse so the first seed is
+        // processed first (cosmetic — order does not affect correctness).
+        var stack = new Stack<(ScbQuery Query, int Depth, int? KnownCount)>();
         for (var i = seeds.Count - 1; i >= 0; i--)
-            stack.Push((seeds[i], 0));
+            stack.Push((seeds[i], 0, null));
 
         while (stack.Count > 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var (query, depth) = stack.Pop();
+            var (query, depth, knownCount) = stack.Pop();
 
-            var count = await countAsync(query, cancellationToken).ConfigureAwait(false);
-            outcome.RecordCounted();
+            // Count exactly once per node: a reconciled child already carries its count.
+            int count;
+            if (knownCount is { } known)
+            {
+                count = known;
+            }
+            else
+            {
+                count = await countAsync(query, cancellationToken).ConfigureAwait(false);
+                outcome.RecordCounted();
+            }
 
             if (count == 0)
                 continue;
@@ -77,32 +94,50 @@ internal static class ScbPartitionPlanner
                 continue;
             }
 
+            // Over cap and either the ladder is exhausted or the next rung cannot split this partition.
+            // Yield it as an OVER-CAP leaf and let the client decide protect-vs-latch (#640) — the planner
+            // is category-agnostic and never bounds a (kommun, SNI) key itself.
             if (depth >= ladder.Count)
             {
-                // Ladder exhausted, still over the cap. Fetch what we can (client caps at maxRows) but
-                // mark the run truncated so the caller SKIPS the deregister sweep — a partition whose
-                // tail we could not fetch must never look like de-registered companies.
-                outcome.MarkTruncatedOrErrored();
-                yield return new ScbLeaf(query, count);
+                yield return new ScbLeaf(query, count, OverCap: true);
                 continue;
             }
 
-            var children = ladder[depth].Expand(query);
+            var rung = ladder[depth];
+            var children = rung.Expand(query);
             if (children.Count == 0)
             {
-                // The rung cannot split this partition (e.g. a prefix rung with no children for the
-                // parent's 2-digit code — defensive; the derived prefix map should always have one).
-                // Same safe semantics as an exhausted ladder: fetch what we can, latch truncated so the
-                // caller SKIPS the deregister sweep. Never let an over-cap partition vanish silently.
-                outcome.MarkTruncatedOrErrored();
-                yield return new ScbLeaf(query, count);
+                yield return new ScbLeaf(query, count, OverCap: true);
                 continue;
             }
 
-            // Fan out one child partition per rung child; re-count each before fetching (guarantees the
-            // ≤ cap invariant at the leaf). Push in reverse for a stable, deterministic pop order.
-            for (var i = children.Count - 1; i >= 0; i--)
-                stack.Push((children[i], depth + 1));
+            // Guard 2 (#640) — eager child count: count every direct child NOW (recording each) so the sum
+            // of child counts can be reconciled against this parent BEFORE recursing. Each surviving child
+            // is pushed WITH its known count, so it is fetched-or-split on pop without a second count
+            // (RecordCounted stays exactly once per node). Zero-count children are counted into the sum but
+            // never pushed (nothing to fetch).
+            var childrenWithCounts = new List<(ScbQuery Query, int Count)>(children.Count);
+            var childSum = 0;
+            foreach (var child in children)
+            {
+                var childCount = await countAsync(child, cancellationToken).ConfigureAwait(false);
+                outcome.RecordCounted();
+                childSum += childCount;
+                if (childCount > 0)
+                    childrenWithCounts.Add((child, childCount));
+            }
+
+            // No-SNI completeness reconciliation: at a reconciling rung (the 5-digit Bransch split), a
+            // child sum below the parent means an entity carries the parent's division but no listed
+            // 5-digit subcode — invisible to every child. Latch the run truncated so the sweep is disabled
+            // (a steady-state refresh must never mistake such an entity for a de-registered company). NB:
+            // this UNDER-detects — an entity double-counted across several 5-digit codes inflates the sum
+            // and can mask a real gap; the truncation latch + floors remain the primary safeguards.
+            if (rung.ReconcileChildren && childSum < count)
+                outcome.RecordReconciliationGap();
+
+            for (var i = childrenWithCounts.Count - 1; i >= 0; i--)
+                stack.Push((childrenWithCounts[i].Query, depth + 1, childrenWithCounts[i].Count));
         }
     }
 }

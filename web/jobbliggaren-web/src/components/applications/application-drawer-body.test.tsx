@@ -6,11 +6,14 @@ import type {
   ApplicationDetailDto,
 } from "@/lib/types/applications";
 
-// Client islands inside the body (NotesSection add form) consume the actions.
+// Client islands inside the body (NotesSection add form, DrawerStatusActions,
+// DrawerLogFollowUpButton) consume the actions.
 vi.mock("@/lib/actions/applications", () => ({
   addNoteAction: vi.fn().mockResolvedValue({ success: true }),
   addFollowUpAction: vi.fn().mockResolvedValue({ success: true }),
   recordFollowUpOutcomeAction: vi.fn().mockResolvedValue({ success: true }),
+  transitionStatusAction: vi.fn().mockResolvedValue({ success: true }),
+  logFollowUpAction: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 const NOW = new Date("2026-05-05T12:00:00Z");
@@ -53,15 +56,44 @@ const snapshot: AdSnapshotDto = {
   capturedAt: "2026-04-12T08:00:00Z",
 };
 
-describe("ApplicationDrawerBody (read-mode §8)", () => {
+describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
   it("renders the status block with STATUS label + value + the describedby id", () => {
     const { container } = render(
       <ApplicationDrawerBody application={makeDetail()} now={NOW} />,
     );
     expect(screen.getByText("Status")).toBeInTheDocument();
-    expect(screen.getByText("Skickad")).toBeInTheDocument();
+    // Scopat: "Skickad" förekommer nu även i stegväljaren (PR 7).
+    expect(container.querySelector(".jp-status-block__value")).toHaveTextContent(
+      "Skickad",
+    );
     // aria-describedby target must exist so the shell's reference never dangles.
     expect(container.querySelector("#jp-modal-desc")).not.toBeNull();
+  });
+
+  // ── §8.3–8.5 statusmaskineriet (PR 7) ──────────────────────────────────
+  it("renders the primary CTA, the 7-step picker and the park buttons in §8 order", () => {
+    const { container } = render(
+      <ApplicationDrawerBody application={makeDetail()} now={NOW} />,
+    );
+    // §8.3: primär-CTA mot nästa steg (Submitted → Bekräftad) + ångra-löftet.
+    expect(
+      screen.getByRole("button", { name: "Flytta till Bekräftad" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Alla byten kan ångras.")).toBeInTheDocument();
+    // §8.4: exakt 7 steg, nuvarande (Skickad) disabled med aria-current.
+    const steps = container.querySelectorAll(".jp-steppicker__step");
+    expect(steps).toHaveLength(7);
+    const current = container.querySelector('[data-state="current"]');
+    expect(current).toHaveTextContent("Skickad");
+    expect(current).toBeDisabled();
+    // §8.5: Nekad (dangertext) / Återtagen / Ghosted ("Inget svar").
+    expect(screen.getByRole("button", { name: "Nekad" })).toHaveClass(
+      "jp-parkbtn--danger",
+    );
+    expect(screen.getByRole("button", { name: "Återtagen" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Inget svar" }),
+    ).toBeInTheDocument();
   });
 
   it("derives 'N dagar i detta steg' from a REAL recorded status change", () => {
@@ -140,13 +172,25 @@ describe("ApplicationDrawerBody (read-mode §8)", () => {
       />,
     );
     expect(screen.getByText("Pingade rekryteraren")).toBeInTheDocument();
-    // Read-mode: no "+ Lägg till uppföljning", and the row is not an expand button.
+    // Raderna är statiska (ingen expand-knapp), och det SCHEMALAGDA formulärets
+    // "+ Lägg till uppföljning" finns inte i drawern (Klas-låst §8.6) — men
+    // "+ Lägg till" (Logga uppföljning-dialogen) finns i sektionsrubriken.
     expect(
       screen.queryByText("+ Lägg till uppföljning"),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { expanded: false }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "+ Lägg till" }),
+    ).toBeInTheDocument();
+  });
+
+  it("uses the §8.6 empty copy in the drawer (button explains the wait reset)", () => {
+    render(<ApplicationDrawerBody application={makeDetail()} now={NOW} />);
+    expect(
+      screen.getByText(/Inga uppföljningar ännu/),
+    ).toBeInTheDocument();
   });
 
   it("keeps notes interactive (add-note affordance present)", () => {

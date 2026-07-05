@@ -102,6 +102,23 @@ export function makeAddNoteSchema(t: ValidationTranslator) {
   });
 }
 
+// "Logga uppföljning" (#630 PR 7, design §9 / ADR 0092 D5): en redan UTFÖRD
+// kontakt loggad med dagens datum (backend stämplar tidpunkten; outcome=Logged).
+// Bara den frivilliga noteringen valideras — max 2000 speglar backend-
+// LogFollowUpCommandValidator (skiljer sig medvetet från schemalagda
+// uppföljningens 1000).
+export function makeLogFollowUpSchema(t: ValidationTranslator) {
+  return z.object({
+    applicationId: z
+      .string()
+      .regex(GUID_REGEX, t("application.applicationIdInvalid")),
+    note: z
+      .string()
+      .max(2000, t("application.noteMax"))
+      .optional(),
+  });
+}
+
 export function makeRecordFollowUpOutcomeSchema(t: ValidationTranslator) {
   return z.object({
     applicationId: z
@@ -126,6 +143,9 @@ export type AddFollowUpInput = z.infer<
   ReturnType<typeof makeAddFollowUpSchema>
 >;
 export type AddNoteInput = z.infer<ReturnType<typeof makeAddNoteSchema>>;
+export type LogFollowUpInput = z.infer<
+  ReturnType<typeof makeLogFollowUpSchema>
+>;
 export type RecordFollowUpOutcomeInput = z.infer<
   ReturnType<typeof makeRecordFollowUpOutcomeSchema>
 >;

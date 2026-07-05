@@ -10,6 +10,7 @@ import {
   makeTransitionStatusSchema,
   makeAddFollowUpSchema,
   makeAddNoteSchema,
+  makeLogFollowUpSchema,
   makeRecordFollowUpOutcomeSchema,
 } from "./application-schemas";
 import { createdResourceSchema } from "@/lib/dto/common";
@@ -149,7 +150,7 @@ export async function transitionStatusAction(
       `/api/v1/applications/${encodeURIComponent(parsed.data.applicationId)}/transition`,
       {
         method: "POST",
-        body: JSON.stringify({ targetStatus }),
+        body: JSON.stringify({ targetStatus: parsed.data.targetStatus }),
       }
     );
 
@@ -206,6 +207,54 @@ export async function addFollowUpAction(
     return { success: false, error: tUi("actions.serverUnreachable") };
   }
 
+  revalidatePath(`/ansokningar/${applicationId}`);
+  return { success: true };
+}
+
+/**
+ * "Logga uppföljning" (#630 PR 7, design §9 / ADR 0092 D5): loggar en redan
+ * utförd kontakt (outcome=Logged, dagens datum server-side) via
+ * `POST /follow-ups/log`. Bumpar `LastFollowUpAt` → nollställer den effektiva
+ * väntetiden; kortet lämnar "Kräver åtgärd"-kön vid nästa läsning (attention
+ * beräknas per read — revalidatePath nedan triggar den). Skild från
+ * `addFollowUpAction` (schemalagd FRAMTIDA uppföljning, kanal + datum).
+ */
+export async function logFollowUpAction(
+  applicationId: string,
+  note: string
+): Promise<ActionResult> {
+  const tUi = await getTranslations("applications.ui");
+  const te = await getTranslations("errors");
+  const sessionId = await getSessionId();
+  if (!sessionId) return { success: false, error: tUi("actions.notLoggedIn") };
+
+  const t = await getTranslations("validation");
+  const parsed = makeLogFollowUpSchema(t).safeParse({
+    applicationId,
+    note: note.trim() === "" ? undefined : note,
+  });
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? tUi("actions.invalidInput") };
+  }
+
+  try {
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/applications/${encodeURIComponent(parsed.data.applicationId)}/follow-ups/log`,
+      {
+        method: "POST",
+        body: JSON.stringify({ note: parsed.data.note ?? null }),
+      }
+    );
+
+    if (!res.ok) {
+      return { success: false, error: mapActionError(res, tUi("actions.logFollowUpFailed"), te) };
+    }
+  } catch {
+    return { success: false, error: tUi("actions.serverUnreachable") };
+  }
+
+  revalidatePath("/ansokningar");
   revalidatePath(`/ansokningar/${applicationId}`);
   return { success: true };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   ATTENTION_SIGNAL_BUCKET,
@@ -14,7 +15,9 @@ import type {
   ApplicationDto,
   PipelineGroupDto,
 } from "@/lib/dto/applications";
-import { ApplicationRow } from "./application-row";
+import { useApplicationActions } from "./application-actions";
+import { ApplicationRow, type RowAction } from "./application-row";
+import { setDrawerAnchor } from "./drawer-anchor";
 
 type FiringSignal = Exclude<ApplicationAttentionSignal, "None">;
 
@@ -46,14 +49,14 @@ interface AttentionQueueProps {
  * signalprioritet (ATTENTION_SIGNAL_ORDER: erbjudande → förfallen uppföljning →
  * utkast-deadline → ghost-förslag → utan-svar → tyst-efter-intervju).
  *
- * PR 5-scope (CTO-bind A1): kortet visar orsaksrad + den återbrukade
- * ApplicationRow (roll/företag/status/relativ tid); hela raden klickar → befintlig
- * detaljmodal (ADR 0053). CTA-knappen ("Följ upp"/"Slutför"/"Läs erbjudandet"
- * osv., design §11) OMITTAD — den leder till PR 6-panelen / PR 7-dialogerna som
- * ännu inte finns; en knapp utan målyta vore en falsk affordans. Även den
- * daterade urgens-taggen ("14 DGR UTAN SVAR") och "N dagar i steget" utelämnas:
- * list-DTO:n bär inget dagar-i-status-fält och determinismen fabricerar aldrig
- * data (CLAUDE.md §5). Kort-CTA + dessa landar i PR 7 med sitt maskineri.
+ * PR 7 (Klas-låst 2026-07-05, PR5-bind A1 infriad): varje kort bär nu sin
+ * §11-CTA — primär + ev. sekundär — som OVERRIDE:ar radens default-primär
+ * (urgens-åtgärden ÄR kortets handling; "Flytta till nästa" vore fel affordans
+ * här, prototyp-facit). Statusmenyn utelämnas på kortet. "Läs erbjudandet"
+ * öppnar detaljpanelen (drawer-ankaret + soft-nav, samma väg som radklicket);
+ * "Följ upp"/"Slutför och skicka" öppnar §9-dialogerna; "Markera …"/"Acceptera"
+ * är direktbyten med ångra-toast (ADR 0092 D3). Raden visar också urgens-tagg +
+ * "N dagar i steget" (list-DTO:ns scalars sedan PR 3 — aldrig fabricerat).
  *
  * 2a-doktrin (ADR 0092 supersederar ADR 0085 §343): kön DUPLICERAR — appen
  * ligger kvar i sin statusgrupp i "Alla ansökningar" (listan är komplett). Ingen
@@ -63,6 +66,69 @@ export function AttentionQueue({ groups, now }: AttentionQueueProps) {
   const tUi = useTranslations("applications.ui");
   const tAttention = useTranslations("applications.ui.attention");
   const [expanded, setExpanded] = useState(false);
+  const router = useRouter();
+  const { transition, openFinishDraft, openLogFollowUp } =
+    useApplicationActions();
+
+  const anchorY = (e: React.MouseEvent<HTMLButtonElement>): number =>
+    e.clientY > 0 ? e.clientY : e.currentTarget.getBoundingClientRect().top;
+
+  // §11-signal → primär/sekundär kort-CTA (prototypens urgency()-karta =
+  // facit). "Förbered intervjun" (interview-near) är deferrad med sin signal
+  // (ADR 0092 D5 — datumfältet finns inte).
+  const cardActions = (
+    card: AttentionCard,
+  ): { primary: RowAction; secondary?: RowAction } => {
+    const app = card.application;
+    const openPanel: RowAction = {
+      label: tUi("queueCta.readOffer"),
+      onClick: (e) => {
+        // Samma väg som radklicket: ankare för nära-klick-position +
+        // fokus-retur, sedan soft-nav → intercept-drawern.
+        setDrawerAnchor(e.clientY, e.currentTarget);
+        router.push(`/ansokningar/${app.id}`);
+      },
+    };
+    const followUp = (label: string): RowAction => ({
+      label,
+      onClick: (e) => openLogFollowUp(app, anchorY(e)),
+    });
+    const markGhosted = (label: string): RowAction => ({
+      label,
+      onClick: () => transition(app, "Ghosted"),
+    });
+    switch (card.signal) {
+      case "OfferAwaitingReply":
+        return {
+          primary: openPanel,
+          secondary: {
+            label: tUi("queueCta.accept"),
+            onClick: () => transition(app, "Accepted"),
+          },
+        };
+      case "OverdueFollowUp":
+        return { primary: followUp(tUi("queueCta.followUp")) };
+      case "DraftDeadlineApproaching":
+        return {
+          primary: {
+            label: tUi("row.finishAndSend"),
+            onClick: (e) => openFinishDraft(app, anchorY(e)),
+          },
+        };
+      case "GhostSuggested":
+        return {
+          primary: markGhosted(tUi("queueCta.markGhosted")),
+          secondary: followUp(tUi("queueCta.followUpAgain")),
+        };
+      case "NoResponseNudge":
+        return {
+          primary: followUp(tUi("queueCta.followUp")),
+          secondary: markGhosted(tUi("queueCta.markGhosted")),
+        };
+      case "SilentAfterInterview":
+        return { primary: followUp(tUi("queueCta.followUp")) };
+    }
+  };
 
   const byStatus = useMemo(
     () => new Map(groups.map((g) => [g.status, g])),
@@ -111,20 +177,29 @@ export function AttentionQueue({ groups, now }: AttentionQueueProps) {
       ) : (
         <>
           <div className="jp-actioncard-grid">
-            {visible.map((card) => (
-              <article key={card.key} className="jp-actioncard">
-                <p
-                  className="jp-actioncard__reason"
-                  data-signal={ATTENTION_SIGNAL_BUCKET[card.signal]}
-                >
-                  <span className="jp-actioncard__dot" aria-hidden="true" />
-                  <span className="jp-actioncard__text">
-                    {tAttention(attentionReasonKey(card.signal))}
-                  </span>
-                </p>
-                <ApplicationRow application={card.application} now={now} />
-              </article>
-            ))}
+            {visible.map((card) => {
+              const actions = cardActions(card);
+              return (
+                <article key={card.key} className="jp-actioncard">
+                  <p
+                    className="jp-actioncard__reason"
+                    data-signal={ATTENTION_SIGNAL_BUCKET[card.signal]}
+                  >
+                    <span className="jp-actioncard__dot" aria-hidden="true" />
+                    <span className="jp-actioncard__text">
+                      {tAttention(attentionReasonKey(card.signal))}
+                    </span>
+                  </p>
+                  <ApplicationRow
+                    application={card.application}
+                    now={now}
+                    primaryAction={actions.primary}
+                    secondaryAction={actions.secondary ?? null}
+                    showStatusMenu={false}
+                  />
+                </article>
+              );
+            })}
           </div>
           {overCap && (
             <button

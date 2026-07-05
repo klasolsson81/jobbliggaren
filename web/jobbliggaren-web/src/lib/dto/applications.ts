@@ -63,6 +63,15 @@ export const applicationDtoSchema = z.object({
   // optional ger deploy-skew-resiliens (cachead/äldre svar utan fältet
   // kraschar ej parse — architect §6 deploy-säkerhets-intent).
   jobAd: jobAdSummaryDtoSchema.nullable().optional(),
+  // #630 PR 7 (design §5/§11): backend-list-DTO:n har burit dessa scalars sedan
+  // PR 3 — FE-schemat släpper nu igenom dem för radens "N dagar i steget" och
+  // den effektiva väntetids-taggen ("N dgr utan svar", ADR 0092 D5-klockan).
+  // Rena RÅVÄRDEN för display-derivering (lib/applications/urgency.ts) — regeln
+  // om NÄR något kräver åtgärd förblir backend-`attentionSignal` (SSOT).
+  // .optional() = deploy-skew-resiliens (samma konvention som ovan); en saknad
+  // scalar ger utelämnad siffra, aldrig ett fabricerat värde (§5).
+  lastStatusChangeAt: z.string().optional(),
+  lastFollowUpAt: z.string().nullable().optional(),
   // #343 (ADR 0085 §3, CTO Option a): the single highest-priority reason this
   // application needs action now, computed ONCE on the backend by
   // ApplicationAttentionEvaluator (the SSOT) and serialized by NAME. The FE only

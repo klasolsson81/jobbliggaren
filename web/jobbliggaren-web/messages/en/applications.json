@@ -69,11 +69,56 @@
     },
     "row": {
       "fallbackTitle": "Application #{shortId}",
-      "ariaLabelWithIdentity": "{title}, {company}, {status}",
-      "ariaLabelFallback": "{title}, {status}",
+      "moveToNext": "Move to {status}",
+      "reactivate": "Reactivate",
+      "finishAndSend": "Finish and send",
+      "daysInStep": "{days, plural, one {# day in this step} other {# days in this step}}"
+    },
+    "statusMenu": {
+      "trigger": "Change status",
+      "groupActive": "Move to · Active path",
+      "groupClosed": "Closed & dormant",
+      "currentSuffix": "current status"
+    },
+    "urgency": {
+      "deadline": "Deadline {date}",
+      "waitDays": "{days} days without reply",
+      "sinceInterview": "{days} days since the interview"
+    },
+    "queueCta": {
+      "readOffer": "Read the offer",
+      "accept": "Accept",
+      "followUp": "Follow up",
+      "followUpAgain": "Follow up again",
+      "markGhosted": "Mark as No reply"
+    },
+    "drawer": {
+      "moveToNext": "Move to {status}",
+      "reactivate": "Reactivate as Submitted",
+      "undoHint": "Every change can be undone.",
+      "flowLabel": "Move in the flow",
+      "flowHint": "Click a step, backwards too",
+      "nowChip": "Now",
+      "parkLabel": "Close or park"
+    },
+    "logFollowUp": {
+      "title": "Log follow-up",
+      "noteLabel": "Note (optional)",
+      "hint": "The follow-up is logged with today's date under Follow-ups and in the timeline. The wait time restarts from today.",
+      "save": "Save follow-up"
+    },
+    "finishDraft": {
+      "title": "Finish and send",
+      "body": "When you send, the application moves to Submitted and the wait time counts from today.",
       "applyBy": "Apply by",
-      "relativeApplied": "Submitted {days, plural, =0 {today} =1 {yesterday} other {# days ago}}",
-      "relativeDraftUpdated": "Updated {days, plural, =0 {today} =1 {yesterday} other {# days ago}}"
+      "send": "Send application"
+    },
+    "toast": {
+      "statusChange": "{company}: {from} → {to}",
+      "followUpLogged": "{company}: follow-up saved under Follow-ups, the wait time restarts",
+      "undo": "Undo",
+      "undoing": "Undoing…",
+      "dismissAriaLabel": "Dismiss the message"
     },
     "pipeline": {
       "statusBarAriaLabel": "Status",
@@ -88,7 +133,7 @@
     "queue": {
       "title": "Needs action",
       "sortHint": "Sorted by how urgent it is",
-      "lede": "The most important first. Click a card for all the details.",
+      "lede": "The most important first. Click the card for all the details, or use the button to go straight to the action.",
       "empty": "Nothing needs action right now.",
       "showMore": "Show {count} more",
       "showFewer": "Show fewer"
@@ -123,7 +168,9 @@
     "followUps": {
       "sectionLabel": "Follow-ups",
       "empty": "No follow-ups recorded.",
+      "emptyDrawer": "No follow-ups yet. The button logs a follow-up here and resets the wait time in the action queue.",
       "add": "+ Add follow-up",
+      "addLog": "+ Add",
       "addHeading": "Add follow-up",
       "outcomeLabel": "Outcome:",
       "noteLabel": "Note:"
@@ -205,6 +252,7 @@
       "createApplicationFailed": "Could not save the application.",
       "transitionFailed": "The status change failed.",
       "addFollowUpFailed": "Could not save the follow-up.",
+      "logFollowUpFailed": "Could not log the follow-up.",
       "addNoteFailed": "Could not save the note.",
       "recordOutcomeFailed": "Could not record the outcome."
     }

@@ -2998,6 +2998,21 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
   margin-bottom: 10px;
 }
+/* #630 PR 7: rubrikrad med höger-yta (drawerns "+ Lägg till" i UPPFÖLJNINGAR,
+   §8.6) resp. inline-hjälptext (stegväljarens "klicka på ett steg, även
+   bakåt", §8.4). Additiv — bas-etiketten orörd. */
+.jp-section-label--row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.jp-section-label__hint {
+  margin-left: 8px;
+  font-weight: var(--jp-fw-regular);
+  letter-spacing: 0.02em;
+  color: var(--jp-ink-3);
+}
 
 /* Status block (.jp-modal__match) — the 4px status edge + the status label
    colour key off data-status-variant, mirroring the .jp-tag[data-tag="status-*"]
@@ -4767,6 +4782,263 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-app__actions { flex-direction: row; flex-wrap: wrap; align-items: center; }
 }
 
+/* ── 2a action-affordanser (#630 PR 7, design §5/§8/§11) ─────────
+   Radens 3-zons-grid, länk-overlay, radknappar, statusmeny, bråttom-taggar
+   och drawerns statusmaskineri. ADDITIVA modifiers/element — det delade
+   bas-chassit .jp-job,.jp-app är orört (PR5-bind E / CTO-bind 6). */
+.jp-app--actions {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  padding: 12px 16px;
+}
+/* Länk-overlay (CTO-bind 6, a11y): titeln är radens ENDA <a>, sträckt över
+   raden via ::after — handlingszonen lyfts ovanpå med z-index så interaktiva
+   element aldrig nästlas i ankaret (ogiltig HTML). */
+.jp-app__rowlink {
+  color: inherit;
+  text-decoration: none;
+}
+.jp-app__rowlink::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--jp-r-md);
+}
+.jp-app__rowlink:focus-visible {
+  outline: none;
+}
+.jp-app__rowlink:focus-visible::after {
+  outline: 2px solid var(--jp-accent-700);
+  outline-offset: -2px;
+}
+.jp-app__signals {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.jp-app__days {
+  font-size: var(--text-micro);
+  color: var(--jp-ink-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.jp-app__actions--row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+/* Avdelaren skiljer info från handling (design §5): allt till höger om
+   linjen är klickbart. */
+.jp-app__divider {
+  width: 1px;
+  height: 22px;
+  background: var(--jp-border);
+  flex-shrink: 0;
+}
+@media (max-width: 720px) {
+  .jp-app--actions .jp-app__divider { display: none; }
+}
+/* Radknappar (design §5): h30, vit, kant --jp-border; primär = accent-text,
+   "Byt status ▾" = ink-text. Hover: accent-kant + accent-50. */
+.jp-rowbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 10px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-sm);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-accent-700);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 80ms, background 80ms;
+}
+.jp-rowbtn:hover:not(:disabled) {
+  border-color: var(--jp-accent-700);
+  background: var(--jp-accent-50);
+}
+.jp-rowbtn:focus-visible {
+  outline: 2px solid var(--jp-accent-700);
+  outline-offset: 1px;
+}
+.jp-rowbtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.jp-rowbtn--ink { color: var(--jp-ink-1); }
+/* Bråttom-taggar (design §11): samma rektangulära .jp-tag-form, omvänd
+   kodning — vit bakgrund + text OCH kant i signalfärgen. Färgen förstärker;
+   texten bär betydelsen (WCAG 1.4.1). */
+.jp-tag[data-urgency] {
+  background: var(--jp-surface);
+  font-weight: var(--jp-fw-bold);
+}
+.jp-tag[data-urgency="warning"] { color: var(--jp-warning); border-color: var(--jp-warning); }
+.jp-tag[data-urgency="info"]    { color: var(--jp-info);    border-color: var(--jp-info); }
+/* Statusmenyn (design §5): 250px, två grupper, färgprick (2px-radie kvadrat i
+   stegets statusfärg — samma tokens som status-taggen) + ✓ på nuvarande. */
+.jp-statusmenu {
+  width: 250px;
+  /* Handoff §5: radie 6 — override:ar primitivens rounded-lg (8px). */
+  border-radius: var(--jp-r-md);
+  box-shadow: var(--jp-shadow-pop);
+}
+.jp-statusmenu__label {
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.jp-statusmenu__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--jp-r-sm);
+  background: var(--jp-ink-2);
+  flex-shrink: 0;
+}
+.jp-statusmenu__dot[data-status-variant="info"]    { background: var(--jp-info); }
+.jp-statusmenu__dot[data-status-variant="brand"]   { background: var(--jp-accent-700); }
+.jp-statusmenu__dot[data-status-variant="success"] { background: var(--jp-success); }
+.jp-statusmenu__dot[data-status-variant="warning"] { background: var(--jp-warning); }
+.jp-statusmenu__dot[data-status-variant="danger"]  { background: var(--jp-danger); }
+/* Drawerns statusmaskineri (design §8.3–8.5). */
+.jp-drawer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.jp-drawer-cta {
+  width: 100%;
+  height: 38px;
+  justify-content: center;
+}
+.jp-drawer-cta__hint {
+  margin: 6px 0 0;
+  font-size: var(--text-micro);
+  color: var(--jp-ink-2);
+  text-align: center;
+}
+/* Stegväljaren (§8.4): 7 steg, cirkel 24px — klar = success-bg + bock,
+   nuvarande = fylld accent-800 + NU-chip + accent-50-rad, framtida = vit med
+   border-strong-ring. Varje steg är en riktig knapp (klick = direkt byte,
+   även bakåt); nuvarande är disabled (self-transition = tyst no-op). */
+.jp-steppicker {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.jp-steppicker__step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--jp-r-sm);
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+  cursor: pointer;
+  text-align: left;
+}
+.jp-steppicker__step:hover:not(:disabled) { background: var(--jp-surface-2); }
+.jp-steppicker__step:focus-visible {
+  outline: 2px solid var(--jp-accent-700);
+  outline-offset: -2px;
+}
+.jp-steppicker__step[data-state="current"] {
+  background: var(--jp-accent-50);
+  cursor: default;
+}
+.jp-steppicker__step:disabled:not([data-state="current"]) {
+  opacity: 0.55;
+  cursor: default;
+}
+.jp-steppicker__circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--jp-surface);
+  box-shadow: inset 0 0 0 1px var(--jp-border-strong);
+  font-size: var(--text-micro);
+  font-weight: var(--jp-fw-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-2);
+}
+.jp-steppicker__step[data-state="done"] .jp-steppicker__circle {
+  background: var(--jp-success-bg);
+  box-shadow: none;
+  color: var(--jp-success);
+}
+.jp-steppicker__step[data-state="current"] .jp-steppicker__circle {
+  background: var(--jp-accent-800);
+  box-shadow: none;
+  color: var(--jp-ink-inverse);
+}
+.jp-steppicker__name {
+  flex: 1;
+  min-width: 0;
+}
+.jp-steppicker__nu {
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jp-accent-700);
+}
+/* AVSLUTA ELLER PARKERA (§8.5): tre likvärdiga knappar; Nekad = dangertext;
+   aktiv markeras (aria-pressed) och är disabled. */
+.jp-parkrow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.jp-parkbtn {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-sm);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-1);
+  cursor: pointer;
+  transition: border-color 80ms, background 80ms;
+}
+.jp-parkbtn:hover:not(:disabled) {
+  border-color: var(--jp-border-strong);
+  background: var(--jp-surface-2);
+}
+.jp-parkbtn:focus-visible {
+  outline: 2px solid var(--jp-accent-700);
+  outline-offset: 1px;
+}
+.jp-parkbtn:disabled { cursor: default; }
+.jp-parkbtn[aria-pressed="true"] {
+  background: var(--jp-surface-2);
+  border-color: var(--jp-border-strong);
+}
+.jp-parkbtn--danger { color: var(--jp-danger); }
+
 /* ── CV cards ────────────────────────────────────── */
 .jp-cvgrid {
   display: grid;
@@ -5039,7 +5311,43 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
   gap: 10px;
   animation: jp-rise 180ms ease;
+  max-width: min(92vw, 560px);
 }
+/* #630 PR 7 (design §10): ångra-toastens delar — Ångra i --jp-gold,
+   understruken; ✕ stänger. Fel-toasten (aria-assertive) är danger-fylld. */
+.jp-toast__msg { min-width: 0; }
+.jp-toast__undo {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--jp-gold);
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-semibold);
+  text-decoration: underline;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.jp-toast__undo:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.jp-toast__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  padding: 2px;
+  color: var(--jp-ink-inverse);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.jp-toast__undo:focus-visible,
+.jp-toast__close:focus-visible {
+  outline: 2px solid var(--jp-gold);
+  outline-offset: 2px;
+}
+.jp-toast--error { background: var(--jp-danger); }
 
 /* Auth screen */
 .jp-auth-wrap {

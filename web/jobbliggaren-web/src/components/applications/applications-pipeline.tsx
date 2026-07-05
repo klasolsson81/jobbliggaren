@@ -12,6 +12,7 @@ import type {
   ApplicationStatus,
   PipelineGroupDto,
 } from "@/lib/dto/applications";
+import { ApplicationActionsProvider } from "./application-actions";
 import { AttentionQueue } from "./attention-queue";
 import { ApplicationsControls } from "./applications-controls";
 import { StepRail } from "./step-rail";
@@ -122,7 +123,11 @@ export function ApplicationsPipeline({
   };
 
   return (
-    <>
+    // #630 PR 7: providern äger mutations-plumbingen (transition + toast +
+    // dialogerna som EN instans vardera) för radknappar, statusmeny och
+    // kökortens CTA (CTO-bind: server-recompute via revalidatePath, ingen
+    // optimistisk grupp-flytt).
+    <ApplicationActionsProvider>
       <AttentionQueue groups={groups} now={now} />
 
       <section className="jp-allapps" aria-labelledby="all-apps-heading">
@@ -169,6 +174,6 @@ export function ApplicationsPipeline({
           ))
         )}
       </section>
-    </>
+    </ApplicationActionsProvider>
   );
 }

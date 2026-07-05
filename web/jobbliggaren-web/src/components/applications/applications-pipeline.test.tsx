@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApplicationsPipeline } from "./applications-pipeline";
@@ -12,6 +12,27 @@ import type {
 } from "@/lib/dto/applications";
 
 // next/link renderas som <a> i jsdom utan extra mock.
+
+// #630 PR 7: ön bär nu ApplicationActionsProvider (mutations-plumbing) och
+// kökorten soft-navigerar — mocka server actions + router-sömmarna så
+// list-/kö-testerna förblir rena presentation-tester.
+vi.mock("@/lib/actions/applications", () => ({
+  transitionStatusAction: vi.fn(async () => ({ success: true as const })),
+  logFollowUpAction: vi.fn(async () => ({ success: true as const })),
+}));
+vi.mock("next/navigation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/navigation")>();
+  return {
+    ...actual,
+    useRouter: () => ({
+      push: vi.fn(),
+      back: vi.fn(),
+      refresh: vi.fn(),
+      replace: vi.fn(),
+      prefetch: vi.fn(),
+    }),
+  };
+});
 
 // Server-beräknad referenstidpunkt passeras som ISO-sträng (ADR 0092 D2 /
 // #336-determinism) — ön rekonstruerar Date en gång.
@@ -148,7 +169,10 @@ describe("ApplicationsPipeline — Lista-sektioner (2a)", () => {
   it("WAI-accordion: rubrik wrappar knappen, ingen aria-label, count i namnet", () => {
     renderPipeline(makePipeline({ Submitted: 3 }));
 
-    const heading = screen.getByRole("heading", { name: /Skickad/ });
+    // Ankrat ^Skickad: radernas h3-rubriker ärver länkens aria-label
+    // ("{titel}, {företag}, Skickad") sedan PR 7:s länk-overlay och skulle
+    // annars också matcha.
+    const heading = screen.getByRole("heading", { name: /^Skickad/ });
     const toggle = within(heading).getByRole("button");
     expect(toggle).not.toHaveAttribute("aria-label");
     expect(toggle.textContent ?? "").toContain("Skickad");

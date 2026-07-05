@@ -17,12 +17,21 @@ interface FollowUpsSectionProps {
   followUps: ReadonlyArray<FollowUpDto>;
   /**
    * Read-mode (#630 PR 6 drawer): render the follow-ups as a static list only —
-   * no expand, no "Lägg till", no record-outcome form. Capability-gating, not a
-   * separate component: the "present follow-ups" responsibility is unchanged;
-   * PR 7 re-enables mutation by simply omitting this flag (OCP). Default false =
-   * the full interactive disclosure (full-page / current behaviour, unchanged).
+   * no expand, no inline "Lägg till", no record-outcome form. Capability-gating,
+   * not a separate component: the "present follow-ups" responsibility is
+   * unchanged. Default false = the full interactive disclosure (full-page /
+   * current behaviour, unchanged).
    */
   readOnly?: boolean;
+  /**
+   * #630 PR 7 (CTO-bind 6b, komposition): valfri header-yta bredvid
+   * sektionsrubriken — drawern monterar sin "+ Lägg till"-knapp (öppnar
+   * "Logga uppföljning"-dialogen, Klas-låst §8.6) HÄR utan att sektionen får
+   * mutationsansvar; den förblir ren presentation.
+   */
+  headerAction?: React.ReactNode;
+  /** Valfri tomläges-text (drawern använder §8.6-copyn); default = befintlig. */
+  emptyLabel?: string;
 }
 
 /**
@@ -47,6 +56,8 @@ export function FollowUpsSection({
   applicationId,
   followUps,
   readOnly = false,
+  headerAction,
+  emptyLabel,
 }: FollowUpsSectionProps) {
   const tUi = useTranslations("applications.ui");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -71,11 +82,14 @@ export function FollowUpsSection({
 
   return (
     <div>
-      <div className="jp-section-label">{tUi("followUps.sectionLabel")}</div>
+      <div className="jp-section-label jp-section-label--row">
+        {tUi("followUps.sectionLabel")}
+        {headerAction}
+      </div>
 
       {sorted.length === 0 ? (
         <p className="text-body-sm text-text-primary">
-          {tUi("followUps.empty")}
+          {emptyLabel ?? tUi("followUps.empty")}
         </p>
       ) : (
         <ul className="flex flex-col gap-2" role="list">

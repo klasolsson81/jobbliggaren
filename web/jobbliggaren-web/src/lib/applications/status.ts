@@ -79,6 +79,64 @@ export function isActivePipelineStatus(status: ApplicationStatus): boolean {
   return ACTIVE_PIPELINE_STATUS_SET.has(status);
 }
 
+// ─── 2a action-affordanser (#630 PR 7, design §5/§8.4–8.5) ─────────────────
+
+/**
+ * Den aktiva vägens 7 steg (design §8.4): de 6 aktiva pipeline-stegen + målet
+ * Accepterad. Detta är drawerns stegväljare — INTE PIPELINE_ORDER (10, railen)
+ * och inte ACTIVE_PIPELINE_STATUSES (6, Lista-partitionen). SSOT för "nästa
+ * steg"-härledningen nedan.
+ */
+export const ACTIVE_PATH_STATUSES: ApplicationStatus[] = [
+  ...ACTIVE_PIPELINE_STATUSES,
+  "Accepted",
+];
+
+/**
+ * Statusmenyns "AVSLUT & VILANDE"-grupp (design §5): Accepterad/Nekad/Återtagen
+ * + Ghosted, i PIPELINE_ORDER-ordning. Menyns övre grupp är
+ * ACTIVE_PIPELINE_STATUSES (6). Alla 10 är alltid valbara — fria byten åt båda
+ * håll (ADR 0092 D3).
+ */
+export const STATUS_MENU_CLOSED_GROUP: ApplicationStatus[] = [
+  "Accepted",
+  "Rejected",
+  "Withdrawn",
+  "Ghosted",
+];
+
+/**
+ * Drawerns "AVSLUTA ELLER PARKERA"-knappar (design §8.5): Nekad (dangertext),
+ * Återtagen, Ghosted. Accepterad nås via stegväljarens steg 7, inte här.
+ */
+export const PARK_STATUSES: ApplicationStatus[] = [
+  "Rejected",
+  "Withdrawn",
+  "Ghosted",
+];
+
+/**
+ * "Flytta till {nästa steg}"-källan (design §5/§8.3, prototypens nextOf —
+ * facit): nästa steg på den aktiva vägen; Ghosted → Skickad (återaktivering).
+ * Terminala (Accepterad/Nekad/Återtagen) har inget nästa steg → ingen primär
+ * CTA. Detta är en REN presentations-mappning (vilken knapp visas) — ALDRIG en
+ * transitions-grind; backend tillåter alla byten (ADR 0092 D3) och statusmenyn
+ * erbjuder alltid alla 10.
+ */
+const NEXT_STEP: Partial<Record<ApplicationStatus, ApplicationStatus>> = {
+  Draft: "Submitted",
+  Submitted: "Acknowledged",
+  Acknowledged: "InterviewScheduled",
+  InterviewScheduled: "Interviewing",
+  Interviewing: "OfferReceived",
+  OfferReceived: "Accepted",
+  Ghosted: "Submitted",
+};
+
+export function nextStepOf(status: ApplicationStatus): ApplicationStatus | null {
+  return NEXT_STEP[status] ?? null;
+}
+
 /**
  * Status → statusvariant-nyckel ("info"/"brand"/"success"/"warning"/"danger"/
  * "neutral") för `data-status-variant`-attributet. Återbrukar

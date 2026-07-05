@@ -131,3 +131,50 @@ describe("applicationSourceLabel", () => {
     expect(applicationSourceLabel(t, "Unknown")).toBe("Unknown");
   });
 });
+
+// ── #630 PR 7: aktiv-vägen + nästa-steg + meny-/park-grupper ────────────────
+describe("2a action-konstanter (#630 PR 7)", () => {
+  it("ACTIVE_PATH_STATUSES är de 7 stegen på aktiva vägen (design §8.4)", async () => {
+    const { ACTIVE_PATH_STATUSES, ACTIVE_PIPELINE_STATUSES } = await import(
+      "./status"
+    );
+    expect(ACTIVE_PATH_STATUSES).toEqual([
+      ...ACTIVE_PIPELINE_STATUSES,
+      "Accepted",
+    ]);
+    expect(ACTIVE_PATH_STATUSES).toHaveLength(7);
+  });
+
+  it("STATUS_MENU_CLOSED_GROUP + ACTIVE_PIPELINE_STATUSES täcker alla 10 statusar exakt en gång", async () => {
+    const { STATUS_MENU_CLOSED_GROUP, ACTIVE_PIPELINE_STATUSES, PIPELINE_ORDER } =
+      await import("./status");
+    const union = [...ACTIVE_PIPELINE_STATUSES, ...STATUS_MENU_CLOSED_GROUP];
+    expect([...union].sort()).toEqual([...PIPELINE_ORDER].sort());
+    expect(new Set(union).size).toBe(10);
+  });
+
+  it("PARK_STATUSES = Nekad/Återtagen/Ghosted (§8.5 — Accepterad nås via stegväljaren)", async () => {
+    const { PARK_STATUSES } = await import("./status");
+    expect(PARK_STATUSES).toEqual(["Rejected", "Withdrawn", "Ghosted"]);
+  });
+});
+
+describe("nextStepOf (prototypens nextOf = facit)", () => {
+  it("följer den aktiva vägen och återaktiverar Ghosted → Submitted", async () => {
+    const { nextStepOf } = await import("./status");
+    expect(nextStepOf("Draft")).toBe("Submitted");
+    expect(nextStepOf("Submitted")).toBe("Acknowledged");
+    expect(nextStepOf("Acknowledged")).toBe("InterviewScheduled");
+    expect(nextStepOf("InterviewScheduled")).toBe("Interviewing");
+    expect(nextStepOf("Interviewing")).toBe("OfferReceived");
+    expect(nextStepOf("OfferReceived")).toBe("Accepted");
+    expect(nextStepOf("Ghosted")).toBe("Submitted");
+  });
+
+  it("terminala statusar har inget nästa steg (ingen primär CTA)", async () => {
+    const { nextStepOf } = await import("./status");
+    expect(nextStepOf("Accepted")).toBeNull();
+    expect(nextStepOf("Rejected")).toBeNull();
+    expect(nextStepOf("Withdrawn")).toBeNull();
+  });
+});

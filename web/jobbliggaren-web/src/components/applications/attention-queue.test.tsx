@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { ApplicationActionsProvider } from "./application-actions";
 import { AttentionQueue } from "./attention-queue";
 import { PIPELINE_ORDER } from "@/lib/applications/status";
 import type {
@@ -12,6 +13,34 @@ import type {
 } from "@/lib/dto/applications";
 
 const FIXED_NOW = new Date("2026-05-20T12:00:00Z");
+
+// #630 PR 7: kortens CTA muterar via providerns server actions och "Läs
+// erbjudandet" soft-navigerar till drawern — mocka båda sömmarna.
+const transitionStatusAction = vi.hoisted(() =>
+  vi.fn(async () => ({ success: true as const })),
+);
+const logFollowUpAction = vi.hoisted(() =>
+  vi.fn(async () => ({ success: true as const })),
+);
+vi.mock("@/lib/actions/applications", () => ({
+  transitionStatusAction,
+  logFollowUpAction,
+}));
+
+const routerPush = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/navigation")>();
+  return {
+    ...actual,
+    useRouter: () => ({
+      push: routerPush,
+      back: vi.fn(),
+      refresh: vi.fn(),
+      replace: vi.fn(),
+      prefetch: vi.fn(),
+    }),
+  };
+});
 
 const jobAd: JobAdSummaryDto = {
   jobAdId: "ad-1",
@@ -31,6 +60,7 @@ function makeApplication(overrides: Partial<ApplicationDto> = {}): ApplicationDt
     status: "Submitted",
     createdAt: "2026-05-01",
     updatedAt: "2026-05-10",
+    lastStatusChangeAt: "2026-05-10",
     jobAd,
     ...overrides,
   };
@@ -59,8 +89,18 @@ function makePipeline(
 }
 
 function renderQueue(groups: PipelineGroupDto[]) {
-  return render(<AttentionQueue groups={groups} now={FIXED_NOW} />);
+  return render(
+    <ApplicationActionsProvider>
+      <AttentionQueue groups={groups} now={FIXED_NOW} />
+    </ApplicationActionsProvider>,
+  );
 }
+
+beforeEach(() => {
+  transitionStatusAction.mockClear();
+  logFollowUpAction.mockClear();
+  routerPush.mockClear();
+});
 
 describe("AttentionQueue", () => {
   it("lyfter ansökningar med fyrande signal som åtgärdskort med orsaksrad", () => {
@@ -152,5 +192,82 @@ describe("AttentionQueue", () => {
     expect(
       screen.getByText("Inget kräver åtgärd just nu."),
     ).toBeInTheDocument();
+  });
+
+  // ── §11 kort-CTA (PR 7, Klas-låst: ingår) ────────────────────────────────
+
+  it("OverdueFollowUp-kortet: primär 'Följ upp' öppnar Logga uppföljning-dialogen; ingen statusmeny", async () => {
+    const user = userEvent.setup();
+    renderQueue(
+      makePipeline({ Submitted: 1 }, { Submitted: ["OverdueFollowUp"] }),
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Byt status" }),
+    ).not.toBeInTheDocument();
+    // Kortets primär är urgens-CTA:n, INTE radens "Flytta till nästa".
+    expect(screen.queryByText(/Flytta till/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Följ upp" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Logga uppföljning" }),
+    ).toBeInTheDocument();
+    expect(logFollowUpAction).not.toHaveBeenCalled();
+  });
+
+  it("GhostSuggested-kortet: 'Markera som Inget svar' är en direkt transition till Ghosted", async () => {
+    const user = userEvent.setup();
+    renderQueue(
+      makePipeline({ Submitted: 1 }, { Submitted: ["GhostSuggested"] }),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Markera som Inget svar" }),
+    );
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(
+        "Submitted-0-0000-0000-000000000000",
+        "Ghosted",
+      ),
+    );
+    // Sekundären finns också (§11).
+    expect(
+      screen.getByRole("button", { name: "Följ upp igen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("OfferAwaitingReply-kortet: 'Läs erbjudandet' öppnar panelen; 'Acceptera' är direkt transition", async () => {
+    const user = userEvent.setup();
+    renderQueue(
+      makePipeline({ OfferReceived: 1 }, { OfferReceived: ["OfferAwaitingReply"] }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Läs erbjudandet" }));
+    expect(routerPush).toHaveBeenCalledWith(
+      "/ansokningar/OfferReceived-0-0000-0000-000000000000",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Acceptera" }));
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(
+        "OfferReceived-0-0000-0000-000000000000",
+        "Accepted",
+      ),
+    );
+  });
+
+  it("DraftDeadlineApproaching-kortet: 'Slutför och skicka' öppnar dialogen (mellansteg, ingen direkt transition)", async () => {
+    const user = userEvent.setup();
+    renderQueue(
+      makePipeline({ Draft: 1 }, { Draft: ["DraftDeadlineApproaching"] }),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Slutför och skicka" }),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Skicka ansökan" }),
+    ).toBeInTheDocument();
+    expect(transitionStatusAction).not.toHaveBeenCalled();
   });
 });

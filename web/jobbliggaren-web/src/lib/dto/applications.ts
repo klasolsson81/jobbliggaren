@@ -27,6 +27,9 @@ export const followUpOutcomeSchema = z.enum([
   "Pending",
   "Responded",
   "NoResponse",
+  // ADR 0092 D4/D5: a completed contact logged today via "Logga uppföljning"
+  // (never Pending, so it does not count as an overdue follow-up).
+  "Logged",
 ]);
 export type FollowUpOutcome = z.infer<typeof followUpOutcomeSchema>;
 

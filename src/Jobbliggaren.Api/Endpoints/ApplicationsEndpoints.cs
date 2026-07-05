@@ -4,6 +4,7 @@ using Jobbliggaren.Application.Applications.Commands.AddNote;
 using Jobbliggaren.Application.Applications.Commands.AttachResumeVersion;
 using Jobbliggaren.Application.Applications.Commands.CreateApplication;
 using Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJobAd;
+using Jobbliggaren.Application.Applications.Commands.LogFollowUp;
 using Jobbliggaren.Application.Applications.Commands.RecordFollowUpOutcome;
 using Jobbliggaren.Application.Applications.Commands.TransitionTo;
 using Jobbliggaren.Application.Applications.Queries.GetActivityReport;
@@ -113,6 +114,20 @@ public static class ApplicationsEndpoints
                 : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
+        // ADR 0092 D4/D5 — "Logga uppföljning": log a completed contact today (note
+        // optional). Distinct from the scheduled follow-up above; the aggregate
+        // defaults channel=Other/scheduled=now/outcome=Logged and bumps LastFollowUpAt
+        // so the effective wait resets. The literal "log" segment never collides with
+        // the {followUpId:guid}-constrained outcome route below.
+        group.MapPost("/{id:guid}/follow-ups/log", async (
+            Guid id, LogFollowUpBody body, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new LogFollowUpCommand(id, body.Note), ct);
+            return result.IsSuccess
+                ? Results.Created($"/api/v1/applications/{id}/follow-ups/{result.Value}", new { id = result.Value })
+                : result.Error.ToProblemResult();
+        }).RequireAuthorization();
+
         group.MapPost("/{id:guid}/follow-ups/{followUpId:guid}/outcome", async (
             Guid id, Guid followUpId, RecordFollowUpOutcomeBody body,
             IMediator mediator, CancellationToken ct) =>
@@ -151,6 +166,7 @@ public static class ApplicationsEndpoints
 
     private sealed record TransitionToBody(string TargetStatus);
     private sealed record AddFollowUpBody(string Channel, DateTimeOffset ScheduledAt, string? Note);
+    private sealed record LogFollowUpBody(string? Note);
     private sealed record AddNoteBody(string? Content);
     private sealed record RecordFollowUpOutcomeBody(string Outcome);
     private sealed record AttachResumeVersionBody(Guid ResumeVersionId);

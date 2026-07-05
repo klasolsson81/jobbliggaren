@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -6,10 +5,8 @@ import { BarChart3, FileText, Plus, Search } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getPipeline } from "@/lib/api/applications";
 import { assertNever } from "@/lib/dto/_helpers";
-import { ApplicationRow } from "@/components/applications/application-row";
 import { ApplicationsPipeline } from "@/components/applications/applications-pipeline";
 import { InfoDialog } from "@/components/common/info-dialog";
-import type { ApplicationStatus } from "@/lib/types/applications";
 
 export default async function AnsokningarPage() {
   const user = await getServerSession();
@@ -56,30 +53,19 @@ export default async function AnsokningarPage() {
   const groups = result.data;
   const total = groups.reduce((sum, g) => sum + g.count, 0);
 
-  // "Nu" beräknas EN gång här och trädas in i varje ApplicationRow (CTO-bind
-  // #336) så den relativa tids-taggen ("Skickad för X dagar sedan") är
-  // deterministisk per request — INTE new Date() per rad. Undviker
-  // date-flake-klassen (reference_oversikt_test_dayofmonth_flake) och håller
-  // alla rader förankrade i samma referenspunkt.
-  const now = new Date();
-
-  // ApplicationRow förblir server-renderbar (CTO punkt 4). Den server-renderas
-  // HÄR i RSC och passas in i client-ön som en serialiserbar ReactNode[]-
-  // slot-map keyad på status. Renderad ReactNode är serialiserbar över
-  // RSC→Client-gränsen — en render-prop-FUNKTION är det INTE (Next.js
-  // use-client.md rad 50-57; render-prop-funktionen orsakade prod-incidenten
-  // i commit eece124, nu reverterad). Client-ön slår upp slots per status och
-  // anropar ingen funktion.
-  const rowSlots = {} as Record<ApplicationStatus, ReactNode[]>;
-  for (const group of groups) {
-    rowSlots[group.status] = group.applications.map((application) => (
-      <ApplicationRow
-        key={application.id}
-        application={application}
-        now={now}
-      />
-    ));
-  }
+  // #630 PR 5 (ADR 0092 D2) — data-till-klient-pivot. Tidigare server-renderade
+  // RSC:n varje ApplicationRow till en ReactNode[]-slot-map (`rowSlots`) och
+  // passade den till ön (eece124-workaround). D2 supersederar det: ön får ren
+  // SERIALISERBAR data (`groups: PipelineGroupDto[]`) och renderar raderna
+  // själv (ApplicationRow är nu en klientkomponent). Enda som korsar
+  // RSC→Client-gränsen är data + en referens-tidsstämpel — aldrig en funktion
+  // eller ett renderat träd.
+  //
+  // "Nu" beräknas EN gång här (server) och passas som ISO-sträng (CTO-bind
+  // #336-determinism bevarad — en referenspunkt per request, INTE new Date()
+  // per rad i klienten → ingen hydrerings-drift, testbar med injicerat datum).
+  // En primitiv sträng är entydigt serialiserbar; ön rekonstruerar Date en gång.
+  const nowIso = new Date().toISOString();
 
   return (
     <>
@@ -146,7 +132,7 @@ export default async function AnsokningarPage() {
             </div>
           </div>
         ) : (
-          <ApplicationsPipeline groups={groups} rowSlots={rowSlots} />
+          <ApplicationsPipeline groups={groups} nowIso={nowIso} />
         )}
       </div>
     </>

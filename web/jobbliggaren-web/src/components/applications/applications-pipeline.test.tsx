@@ -1,9 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import { ApplicationsPipeline } from "./applications-pipeline";
-import { ApplicationRow } from "./application-row";
 import { PIPELINE_ORDER } from "@/lib/applications/status";
 import type {
   ApplicationAttentionSignal,
@@ -14,6 +12,10 @@ import type {
 } from "@/lib/dto/applications";
 
 // next/link renderas som <a> i jsdom utan extra mock.
+
+// Server-beräknad referenstidpunkt passeras som ISO-sträng (ADR 0092 D2 /
+// #336-determinism) — ön rekonstruerar Date en gång.
+const FIXED_NOW_ISO = "2026-05-20T12:00:00Z";
 
 const jobAd: JobAdSummaryDto = {
   jobAdId: "ad-1",
@@ -26,7 +28,7 @@ const jobAd: JobAdSummaryDto = {
 };
 
 function makeApplication(
-  overrides: Partial<ApplicationDto> = {}
+  overrides: Partial<ApplicationDto> = {},
 ): ApplicationDto {
   return {
     id: "11111111-2222-3333-4444-555555555555",
@@ -41,10 +43,10 @@ function makeApplication(
 }
 
 // Bygger pipelinen. `signals` mappar status -> per-rad attention-signaler
-// (positionellt alignat med applications/rowSlots). Saknad post = "None".
+// (positionellt alignat med applications). Saknad post = "None".
 function makePipeline(
   populated: Partial<Record<ApplicationStatus, number>>,
-  signals: Partial<Record<ApplicationStatus, ApplicationAttentionSignal[]>> = {}
+  signals: Partial<Record<ApplicationStatus, ApplicationAttentionSignal[]>> = {},
 ): PipelineGroupDto[] {
   return PIPELINE_ORDER.map((status) => {
     const n = populated[status] ?? 0;
@@ -58,101 +60,110 @@ function makePipeline(
           status,
           jobAd: { ...jobAd, title: `${status}-titel-${i}` },
           attentionSignal: sig[i] ?? "None",
-        })
+        }),
       ),
     };
   });
 }
 
-// Serialiserbart slot-kontrakt (F3-mönster). page.tsx (RSC) server-renderar
-// ApplicationRow-elementen och passar in dem som en ReactNode[]-map keyad på
-// status — renderad ReactNode är serialiserbar över RSC→Client-gränsen, en
-// render-prop-funktion är det INTE. rowSlots[status][i] är positionellt alignat
-// med applications[i] (samma index bär .attentionSignal).
-const FIXED_NOW = new Date("2026-05-20T12:00:00Z");
-
-function makeRowSlots(
-  groups: PipelineGroupDto[]
-): Record<ApplicationStatus, ReactNode[]> {
-  const slots = {} as Record<ApplicationStatus, ReactNode[]>;
-  for (const group of groups) {
-    slots[group.status] = group.applications.map((app) => (
-      <ApplicationRow key={app.id} application={app} now={FIXED_NOW} />
-    ));
-  }
-  return slots;
-}
-
 function renderPipeline(groups: PipelineGroupDto[]) {
   return render(
-    <ApplicationsPipeline groups={groups} rowSlots={makeRowSlots(groups)} />
+    <ApplicationsPipeline groups={groups} nowIso={FIXED_NOW_ISO} />,
   );
 }
 
-describe("ApplicationsPipeline — kollapsbara statussektioner", () => {
+function getQueue() {
+  return screen.getByRole("region", { name: "Kräver åtgärd" });
+}
+function getAllApps() {
+  return screen.getByRole("region", { name: "Alla ansökningar" });
+}
+
+describe("ApplicationsPipeline — Lista-sektioner (2a)", () => {
   it("renderar bara sektioner med count > 0, i pipeline-ordning", () => {
-    const groups = makePipeline({ Accepted: 1, Draft: 2 });
-    renderPipeline(groups);
+    renderPipeline(makePipeline({ Accepted: 1, Draft: 2 }));
 
     expect(document.getElementById("status-Draft")).not.toBeNull();
     expect(document.getElementById("status-Accepted")).not.toBeNull();
-    // Draft (aktiv) före Accepted (terminal) i DOM.
     const draftIdx = document.body.innerHTML.indexOf("status-Draft");
     const acceptedIdx = document.body.innerHTML.indexOf("status-Accepted");
     expect(draftIdx).toBeLessThan(acceptedIdx);
   });
 
-  it("section head är en knapp med aria-expanded + aria-controls", () => {
-    const groups = makePipeline({ Submitted: 1 });
-    renderPipeline(groups);
+  it("gles svarsform: utelämnade statusar (group == null) kraschar inte", () => {
+    // Backend GroupBy(Status) utelämnar tomma statusar HELT — svaret är glest,
+    // inte alla 10 grupper med count:0. Ön måste vara defensiv (byStatus.get()
+    // ?? 0). Bygg bara två grupper; railen ska ändå rendera alla 10 celler med
+    // 0 för de frånvarande.
+    const sparse: PipelineGroupDto[] = [
+      {
+        status: "Submitted",
+        count: 2,
+        applications: [
+          makeApplication({ id: "sp-s0", status: "Submitted" }),
+          makeApplication({ id: "sp-s1", status: "Submitted" }),
+        ],
+      },
+      {
+        status: "OfferReceived",
+        count: 1,
+        applications: [makeApplication({ id: "sp-o0", status: "OfferReceived" })],
+      },
+    ];
+    render(<ApplicationsPipeline groups={sparse} nowIso={FIXED_NOW_ISO} />);
 
-    const section = document.getElementById("status-Submitted")!;
-    const toggle = within(section).getByRole("button", { name: /Skickad/ });
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(toggle).toHaveAttribute("aria-controls", "status-Submitted-list");
-    expect(document.getElementById("status-Submitted-list")).not.toBeNull();
+    expect(document.getElementById("status-Submitted")).not.toBeNull();
+    expect(document.getElementById("status-OfferReceived")).not.toBeNull();
+    expect(document.getElementById("status-Draft")).toBeNull();
+    // Railen renderar alla 10 celler; en frånvarande status visar 0.
+    const rail = screen.getByRole("group", { name: "Filtrera på steg" });
+    expect(within(rail).getAllByRole("button")).toHaveLength(10);
+    const draftCell = within(rail).getByRole("button", { name: /Utkast/ });
+    expect(draftCell.querySelector(".jp-steprail__count")).toHaveTextContent("0");
+    expect(draftCell).toHaveAttribute("data-empty", "true");
   });
 
-  it("WAI accordion: h2 wrappar knappen, ingen aria-label, count i namnet", () => {
-    // Blocker B-regression: (1) en <h2> WRAPPAR knappen (navigerbar rubrik),
-    // (2) ingen aria-label överrider subträdet, så "visar X av Y" hamnar i
-    // knappens accessible name och annonseras.
-    const groups = makePipeline({ Submitted: 3 });
-    renderPipeline(groups);
+  it("default-öppna = Skickad/Intervju bokad/Erbjudande; övriga kollapsade", () => {
+    renderPipeline(
+      makePipeline({
+        Draft: 1,
+        Submitted: 1,
+        InterviewScheduled: 1,
+        OfferReceived: 1,
+        Rejected: 1,
+      }),
+    );
+
+    // Öppna (design §5).
+    expect(document.getElementById("status-Submitted-list")).not.toBeNull();
+    expect(
+      document.getElementById("status-InterviewScheduled-list"),
+    ).not.toBeNull();
+    expect(document.getElementById("status-OfferReceived-list")).not.toBeNull();
+    // Kollapsade (Draft är INTE default-öppen i 2a).
+    expect(document.getElementById("status-Draft-list")).toBeNull();
+    expect(document.getElementById("status-Rejected-list")).toBeNull();
+  });
+
+  it("WAI-accordion: rubrik wrappar knappen, ingen aria-label, count i namnet", () => {
+    renderPipeline(makePipeline({ Submitted: 3 }));
 
     const heading = screen.getByRole("heading", { name: /Skickad/ });
     const toggle = within(heading).getByRole("button");
     expect(toggle).not.toHaveAttribute("aria-label");
-    // Accessible name = synlig text (label + count), inte en aria-label.
-    const name = toggle.getAttribute("aria-label") ?? toggle.textContent ?? "";
-    expect(name).toContain("Skickad");
-    expect(name).toContain("visar 3 av 3");
-  });
-
-  it("aktiva tillstånd är öppna, terminala är kollapsade vid sidladdning", () => {
-    const groups = makePipeline({ Submitted: 1, Rejected: 1 });
-    renderPipeline(groups);
-
-    const submitted = within(
-      document.getElementById("status-Submitted")!
-    ).getByRole("button", { name: /Skickad/ });
-    const rejected = within(
-      document.getElementById("status-Rejected")!
-    ).getByRole("button", { name: /Nekad/ });
-
-    expect(submitted).toHaveAttribute("aria-expanded", "true");
-    expect(rejected).toHaveAttribute("aria-expanded", "false");
-    // Kollapsad sektion: rad-listan är inte i DOM.
-    expect(document.getElementById("status-Submitted-list")).not.toBeNull();
-    expect(document.getElementById("status-Rejected-list")).toBeNull();
+    expect(toggle.textContent ?? "").toContain("Skickad");
+    // Antalet (shown) ligger i det synliga namnet.
+    expect(toggle.querySelector(".jp-section__count")).toHaveTextContent("3");
   });
 
   it("klick på head växlar aria-expanded och visar/döljer raderna", async () => {
     const user = userEvent.setup();
-    const groups = makePipeline({ Submitted: 1 });
-    renderPipeline(groups);
+    renderPipeline(makePipeline({ Submitted: 1 }));
 
-    const toggle = screen.getByRole("button", { name: /Skickad/ });
+    // Scopa till sektionen: railen har också en "Skickad"-knapp.
+    const toggle = within(
+      document.getElementById("status-Submitted")!,
+    ).getByRole("button", { name: /Skickad/ });
     expect(toggle).toHaveAttribute("aria-expanded", "true");
 
     await user.click(toggle);
@@ -164,202 +175,172 @@ describe("ApplicationsPipeline — kollapsbara statussektioner", () => {
     expect(document.getElementById("status-Submitted-list")).not.toBeNull();
   });
 
-  it("head visar 'visar {shown} av {total}' (backend-total)", () => {
-    const groups = makePipeline({ Submitted: 3 });
-    renderPipeline(groups);
+  it("kollapsad sektion visar 'Klicka för att visa'", () => {
+    renderPipeline(makePipeline({ Rejected: 1 }));
 
-    const section = document.getElementById("status-Submitted")!;
-    expect(section.querySelector(".jp-section__count")).toHaveTextContent(
-      "visar 3 av 3"
-    );
+    const section = document.getElementById("status-Rejected")!;
+    expect(section).toHaveTextContent("Klicka för att visa");
+  });
+
+  it("'AVSLUT & VILANDE'-kicker före första terminala gruppen", () => {
+    renderPipeline(makePipeline({ Submitted: 1, Accepted: 1 }));
+
+    const kicker = screen.getByText("Avslut och vilande");
+    const kickerIdx = document.body.innerHTML.indexOf("Avslut och vilande");
+    const acceptedIdx = document.body.innerHTML.indexOf("status-Accepted");
+    const submittedIdx = document.body.innerHTML.indexOf("status-Submitted");
+    expect(kicker).toBeInTheDocument();
+    // Kickern ligger efter Skickad (aktiv) men före Accepterad (terminal).
+    expect(submittedIdx).toBeLessThan(kickerIdx);
+    expect(kickerIdx).toBeLessThan(acceptedIdx);
   });
 });
 
-describe("ApplicationsPipeline — Visa fler (cap 10)", () => {
-  it("visar max 10 rader och en 'Visa fler (N)'-knapp", () => {
-    const groups = makePipeline({ Submitted: 13 });
-    renderPipeline(groups);
+describe("ApplicationsPipeline — 'Visa fler' (cap 10)", () => {
+  it("visar max 10 rader och en 'Visa fler (N)'-knapp; count = shown", () => {
+    renderPipeline(makePipeline({ Submitted: 13 }));
 
     const section = document.getElementById("status-Submitted")!;
     const list = document.getElementById("status-Submitted-list")!;
-    // 10 av 13 synliga.
     expect(within(list).getAllByRole("link")).toHaveLength(10);
-    // Knappen anger antalet dolda.
     expect(
-      within(section).getByRole("button", { name: "Visa fler (3)" })
+      within(section).getByRole("button", { name: "Visa fler (3)" }),
     ).toBeInTheDocument();
-    // Count förblir sanningsenlig backend-total.
-    expect(section.querySelector(".jp-section__count")).toHaveTextContent(
-      "visar 13 av 13"
-    );
+    expect(section.querySelector(".jp-section__count")).toHaveTextContent("13");
   });
 
   it("klick på 'Visa fler' expanderar hela sektionen och tar bort knappen", async () => {
     const user = userEvent.setup();
-    const groups = makePipeline({ Submitted: 13 });
-    renderPipeline(groups);
+    renderPipeline(makePipeline({ Submitted: 13 }));
 
     await user.click(screen.getByRole("button", { name: "Visa fler (3)" }));
 
     const list = document.getElementById("status-Submitted-list")!;
     expect(within(list).getAllByRole("link")).toHaveLength(13);
     expect(
-      screen.queryByRole("button", { name: /Visa fler/ })
-    ).not.toBeInTheDocument();
-  });
-
-  it("ingen 'Visa fler' när raderna ryms under cap", () => {
-    const groups = makePipeline({ Submitted: 10 });
-    renderPipeline(groups);
-
-    expect(
-      screen.queryByRole("button", { name: /Visa fler/ })
+      screen.queryByRole("button", { name: /Visa fler/ }),
     ).not.toBeInTheDocument();
   });
 });
 
-describe("ApplicationsPipeline — Kräver åtgärd-feed (MOVE)", () => {
-  it("lyfter en ansökan med signal till feeden med en orsaksrad", () => {
-    const groups = makePipeline(
-      { Submitted: 1 },
-      { Submitted: ["OverdueFollowUp"] }
+describe("ApplicationsPipeline — 2a DUPLICAT-doktrin (kön ⊄ MOVE)", () => {
+  it("en ansökan med signal ligger i BÅDE kön OCH sin statusgrupp", () => {
+    // Submitted är default-öppen → båda ytorna synliga.
+    renderPipeline(
+      makePipeline({ Submitted: 1 }, { Submitted: ["OverdueFollowUp"] }),
     );
-    renderPipeline(groups);
 
-    const feed = screen.getByRole("region", { name: "Kräver åtgärd" });
-    expect(
-      within(feed).getByRole("heading", { name: "Kräver åtgärd" })
-    ).toHaveAttribute("id", "attention-heading");
-    expect(
-      within(feed).getByText("Uppföljningen har passerat sin tid.")
-    ).toBeInTheDocument();
-    expect(within(feed).getByRole("link")).toBeInTheDocument();
-  });
-
-  it("MOVE: en ansökan med signal renderas EXAKT en gång (feed, ej sektionen)", () => {
-    const groups = makePipeline(
-      { Submitted: 1 },
-      { Submitted: ["OverdueFollowUp"] }
-    );
-    renderPipeline(groups);
-
-    // Endast en rad-länk totalt (feeden), inte två.
-    expect(screen.getAllByRole("link")).toHaveLength(1);
-    // Den enda Submitted-raden är lyft → sektionen dräneras helt → ingen rubrik.
-    expect(document.getElementById("status-Submitted")).toBeNull();
-  });
-
-  it("blandad grupp: lyft rad i feeden, övriga kvar i sektionen", () => {
-    const groups = makePipeline(
-      { Submitted: 2 },
-      { Submitted: ["OverdueFollowUp", "None"] }
-    );
-    renderPipeline(groups);
-
-    const feed = screen.getByRole("region", { name: "Kräver åtgärd" });
+    const queue = getQueue();
     const section = document.getElementById("status-Submitted")!;
 
-    // index 0 (lyft) i feeden, ej i sektionen.
-    expect(within(feed).getByText("Submitted-titel-0")).toBeInTheDocument();
-    expect(
-      within(section).queryByText("Submitted-titel-0")
-    ).not.toBeInTheDocument();
-    // index 1 (None) i sektionen, ej i feeden.
-    expect(within(section).getByText("Submitted-titel-1")).toBeInTheDocument();
-    expect(
-      within(feed).queryByText("Submitted-titel-1")
-    ).not.toBeInTheDocument();
-    // Count = backend-total (2), shown = 1.
-    expect(section.querySelector(".jp-section__count")).toHaveTextContent(
-      "visar 1 av 2"
-    );
+    // Kortet i kön OCH raden i sektionen refererar SAMMA app (två länkar).
+    expect(within(queue).getByText("Submitted-titel-0")).toBeInTheDocument();
+    expect(within(section).getByText("Submitted-titel-0")).toBeInTheDocument();
+    // Listan är komplett: count räknar appen (ej dränerad som gamla MOVE).
+    expect(section.querySelector(".jp-section__count")).toHaveTextContent("1");
   });
+});
 
-  it("deploy-skew: undefined attentionSignal stannar i sektionen (ej feeden)", () => {
-    // Äldre BE-svar utan fältet → application.attentionSignal === undefined.
-    // isFiringSignal(undefined) === false → raden ska INTE lyftas.
-    const application = makeApplication({
-      id: "Submitted-skew-0000-0000-000000000000",
-      status: "Submitted",
-      jobAd: { ...jobAd, title: "Skew-titel" },
-      attentionSignal: undefined,
+describe("ApplicationsPipeline — sök", () => {
+  it("filtrerar Lista-sektionerna på roll/företag och tvingar gruppen öppen", async () => {
+    const user = userEvent.setup();
+    renderPipeline(makePipeline({ Rejected: 2 }));
+
+    // Rejected är default-kollapsad; sök tvingar den öppen (design §5).
+    const search = screen.getByRole("searchbox", {
+      name: "Sök bland ansökningar",
     });
-    const groups: PipelineGroupDto[] = PIPELINE_ORDER.map((status) => ({
-      status,
-      count: status === "Submitted" ? 1 : 0,
-      applications: status === "Submitted" ? [application] : [],
-    }));
-    renderPipeline(groups);
+    await user.type(search, "Rejected-titel-1");
 
-    // Ingen feed (ingen fyrande signal).
+    const section = document.getElementById("status-Rejected")!;
     expect(
-      screen.queryByRole("region", { name: "Kräver åtgärd" })
-    ).not.toBeInTheDocument();
-    // Raden renderas i sin statussektion.
-    const section = document.getElementById("status-Submitted")!;
-    expect(within(section).getByText("Skew-titel")).toBeInTheDocument();
-    expect(section.querySelector(".jp-section__count")).toHaveTextContent(
-      "visar 1 av 1"
-    );
-  });
-
-  it("ordnar feeden på signalprioritet (offer → overdue → nudge)", () => {
-    const groups = makePipeline(
-      { Submitted: 1, OfferReceived: 1, Acknowledged: 1 },
-      {
-        Submitted: ["NoResponseNudge"],
-        OfferReceived: ["OfferAwaitingReply"],
-        Acknowledged: ["OverdueFollowUp"],
-      }
-    );
-    renderPipeline(groups);
-
-    const feed = screen.getByRole("region", { name: "Kräver åtgärd" });
-    const reasons = within(feed)
-      .getAllByRole("link")
-      .map((link) => link.textContent ?? "");
-    // OfferReceived-raden (OfferAwaitingReply) först, Acknowledged (Overdue),
-    // Submitted (nudge) sist.
-    expect(reasons[0]).toContain("OfferReceived-titel-0");
-    expect(reasons[1]).toContain("Acknowledged-titel-0");
-    expect(reasons[2]).toContain("Submitted-titel-0");
-  });
-
-  it("tom feed (inga signaler) → ingen 'Kräver åtgärd'-rubrik", () => {
-    const groups = makePipeline({ Submitted: 2 });
-    renderPipeline(groups);
-
+      within(section).getByRole("button", { name: /Nekad/ }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(within(section).getByText("Rejected-titel-1")).toBeInTheDocument();
     expect(
-      screen.queryByRole("region", { name: "Kräver åtgärd" })
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("Kräver åtgärd")
+      within(section).queryByText("Rejected-titel-0"),
     ).not.toBeInTheDocument();
   });
 
-  it("feeden capas ALDRIG (allt som kräver åtgärd visas, även > 10)", () => {
-    const signals = Array.from(
-      { length: 12 },
-      () => "OverdueFollowUp" as ApplicationAttentionSignal
-    );
-    const groups = makePipeline({ Submitted: 12 }, { Submitted: signals });
-    renderPipeline(groups);
+  it("klick på header under forceOpen läcker inte fram ett dolt kollapsat läge", async () => {
+    const user = userEvent.setup();
+    renderPipeline(makePipeline({ Rejected: 1 }));
 
-    const feed = screen.getByRole("region", { name: "Kräver åtgärd" });
-    expect(within(feed).getAllByRole("link")).toHaveLength(12);
+    // Rejected är default-kollapsad. Sök tvingar den öppen.
+    const search = screen.getByRole("searchbox", {
+      name: "Sök bland ansökningar",
+    });
+    await user.type(search, "Rejected-titel-0");
+    const toggle = within(document.getElementById("status-Rejected")!).getByRole(
+      "button",
+      { name: /Nekad/ },
+    );
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    // Klick under forceOpen är inert (muterar inte openState).
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    // Rensa söket → Rejected återgår till sitt default (kollapsad), inte ett
+    // läckt öppet läge.
+    await user.clear(search);
+    expect(document.getElementById("status-Rejected-list")).toBeNull();
+  });
+
+  it("sök som inte matchar visar tomläge för Alla ansökningar", async () => {
+    const user = userEvent.setup();
+    renderPipeline(makePipeline({ Submitted: 1 }));
+
+    await user.type(
+      screen.getByRole("searchbox", { name: "Sök bland ansökningar" }),
+      "zzz-ingen-traff",
+    );
     expect(
-      within(feed).queryByRole("button", { name: /Visa fler/ })
-    ).not.toBeInTheDocument();
+      within(getAllApps()).getByText(
+        "Inga ansökningar matchar sökningen eller filtret.",
+      ),
+    ).toBeInTheDocument();
   });
 });
 
-describe("ApplicationsPipeline — empty state", () => {
-  it("visar civic empty-state när allt är tomt", () => {
-    const groups = makePipeline({});
-    renderPipeline(groups);
+describe("ApplicationsPipeline — stegfilter", () => {
+  it("klick på en rail-cell filtrerar listan, visar filterchip och kan rensas", async () => {
+    const user = userEvent.setup();
+    renderPipeline(makePipeline({ Submitted: 1, Rejected: 1 }));
 
+    // Klicka på Skickad-cellen i railen.
+    const rail = screen.getByRole("group", { name: "Filtrera på steg" });
+    const submittedCell = within(rail).getByRole("button", {
+      name: /Skickad/,
+    });
+    await user.click(submittedCell);
+
+    // Bara Skickad-sektionen kvar; Nekad borta.
+    expect(submittedCell).toHaveAttribute("aria-pressed", "true");
+    expect(document.getElementById("status-Submitted")).not.toBeNull();
+    expect(document.getElementById("status-Rejected")).toBeNull();
+    // Filterchip synlig.
+    expect(screen.getByText(/Filter:/)).toBeInTheDocument();
+
+    // Klick igen (toggle) rensar filtret.
+    await user.click(submittedCell);
+    expect(submittedCell).toHaveAttribute("aria-pressed", "false");
+    expect(document.getElementById("status-Rejected")).not.toBeNull();
+  });
+});
+
+describe("ApplicationsPipeline — tomt öråt", () => {
+  it("tomma grupper: kön visar tomläge och listan visar tomläge", () => {
+    renderPipeline(makePipeline({}));
+
+    // Kön alltid närvarande (2a) — med streckat tomläge.
     expect(
-      screen.getByText("Inga ansökningar i den här statusen")
+      within(getQueue()).getByText("Inget kräver åtgärd just nu."),
+    ).toBeInTheDocument();
+    expect(
+      within(getAllApps()).getByText(
+        "Inga ansökningar matchar sökningen eller filtret.",
+      ),
     ).toBeInTheDocument();
   });
 });

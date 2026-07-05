@@ -66,8 +66,8 @@
     },
     "row": {
       "fallbackTitle": "Ansökan #{shortId}",
-      "ariaLabelWithIdentity": "{title} – {company} – {status}",
-      "ariaLabelFallback": "{title} – {status}",
+      "ariaLabelWithIdentity": "{title}, {company}, {status}",
+      "ariaLabelFallback": "{title}, {status}",
       "applyBy": "Sök senast",
       "relativeApplied": "Skickad {days, plural, =0 {i dag} =1 {i går} other {för # dagar sedan}}",
       "relativeDraftUpdated": "Uppdaterad {days, plural, =0 {i dag} =1 {i går} other {för # dagar sedan}}"
@@ -79,7 +79,33 @@
       "emptyBody": "Välj en annan flik eller skapa en ny ansökan.",
       "attentionTitle": "Kräver åtgärd",
       "sectionShownOfTotal": "visar {shown} av {total}",
-      "showMore": "Visa fler ({count})"
+      "showMore": "Visa fler ({count})",
+      "clickToShow": "Klicka för att visa"
+    },
+    "queue": {
+      "title": "Kräver åtgärd",
+      "sortHint": "Sorterat på hur bråttom det är",
+      "lede": "Det viktigaste först. Klicka på ett kort för alla detaljer.",
+      "empty": "Inget kräver åtgärd just nu.",
+      "showMore": "Visa {count} till",
+      "showFewer": "Visa färre"
+    },
+    "all": {
+      "title": "Alla ansökningar",
+      "hint": "Klicka på en rad eller ett kort för alla detaljer",
+      "terminalKicker": "Avslut och vilande",
+      "noResults": "Inga ansökningar matchar sökningen eller filtret."
+    },
+    "controls": {
+      "searchAriaLabel": "Sök bland ansökningar",
+      "filterPrefix": "Filter:",
+      "clearFilterAriaLabel": "Ta bort filtret {step}"
+    },
+    "rail": {
+      "kicker": "Alla 10 steg",
+      "hint": "Klicka på ett steg för att filtrera listan, klicka igen för att rensa",
+      "ariaLabel": "Filtrera på steg",
+      "cellAriaLabel": "{step}, {count, plural, =0 {inga ansökningar} =1 {en ansökan} other {# ansökningar}}"
     },
     "attention": {
       "reason": {

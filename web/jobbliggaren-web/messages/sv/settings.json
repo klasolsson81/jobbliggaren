@@ -179,6 +179,24 @@
     "reauth": {
       "passwordLabel": "Lösenord"
     },
+    "changePassword": {
+      "title": "Byt lösenord",
+      "description": "Välj ett nytt lösenord. När du byter loggas du ut från alla andra enheter.",
+      "trigger": "Byt lösenord",
+      "dialogDescription": "Ange ditt nuvarande lösenord och välj ett nytt. Du loggas ut från alla andra enheter men förblir inloggad här.",
+      "currentPasswordLabel": "Nuvarande lösenord",
+      "currentPasswordFieldName": "nuvarande lösenord",
+      "newPasswordLabel": "Nytt lösenord",
+      "newPasswordFieldName": "nytt lösenord",
+      "newPasswordHint": "Minst 12 tecken.",
+      "confirmPasswordLabel": "Bekräfta nytt lösenord",
+      "confirmPasswordFieldName": "bekräfta nytt lösenord",
+      "passwordsDontMatch": "Lösenorden matchar inte.",
+      "submit": "Byt lösenord",
+      "pending": "Byter…",
+      "cancel": "Avbryt",
+      "success": "Lösenordet är ändrat. Du är fortfarande inloggad här men utloggad från alla andra enheter."
+    },
     "errors": {
       "notLoggedIn": "Du är inte inloggad.",
       "invalidInput": "Ogiltiga uppgifter.",
@@ -186,7 +204,8 @@
       "network": "Kunde inte nå servern. Kontrollera din nätverksanslutning.",
       "emailMismatch": "E-postadressen matchar inte ditt konto.",
       "wrongPassword": "Lösenordet är felaktigt.",
-      "deleteFailed": "Kunde inte radera kontot."
+      "deleteFailed": "Kunde inte radera kontot.",
+      "changePasswordFailed": "Kunde inte byta lösenord."
     }
   }
 }

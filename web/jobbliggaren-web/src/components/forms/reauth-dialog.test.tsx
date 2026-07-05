@@ -123,4 +123,65 @@ describe("ReAuthDialog", () => {
     resolveAction({ success: false, error: "klart" });
     await screen.findByRole("alert");
   });
+
+  it("overrides the password label when passwordLabel is given", async () => {
+    const user = userEvent.setup();
+    renderReAuth({ passwordLabel: "Nuvarande lösenord" });
+    await openDialog(user);
+
+    expect(screen.getByLabelText("Nuvarande lösenord")).toBeInTheDocument();
+  });
+
+  it("renders children after the password field when childrenPosition is 'after'", async () => {
+    const user = userEvent.setup();
+    renderReAuth({
+      childrenPosition: "after",
+      passwordLabel: "Nuvarande lösenord",
+      children: <input aria-label="Nytt lösenord" />,
+    });
+    await openDialog(user);
+
+    const current = screen.getByLabelText("Nuvarande lösenord");
+    const next = screen.getByLabelText("Nytt lösenord");
+    // The re-auth (current) field renders BEFORE the injected new-password field.
+    expect(
+      current.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("calls onSuccess and closes the dialog on a successful action (stay-on-page)", async () => {
+    const onSuccess = vi.fn();
+    const action = vi
+      .fn<(password: string) => Promise<ActionResult>>()
+      .mockResolvedValue({ success: true });
+    const user = userEvent.setup();
+    renderReAuth({ action, onSuccess });
+    await openDialog(user);
+
+    await user.type(screen.getByLabelText("Lösenord"), "hemligt123");
+    await user.click(screen.getByRole("button", { name: "Bekräfta" }));
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+    // The dialog closed on success — the password field is gone.
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Lösenord")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("does not call onSuccess and keeps the dialog open on a failed action", async () => {
+    const onSuccess = vi.fn();
+    const action = vi
+      .fn<(password: string) => Promise<ActionResult>>()
+      .mockResolvedValue({ success: false, error: "Fel." });
+    const user = userEvent.setup();
+    renderReAuth({ action, onSuccess });
+    await openDialog(user);
+
+    await user.type(screen.getByLabelText("Lösenord"), "fel");
+    await user.click(screen.getByRole("button", { name: "Bekräfta" }));
+
+    await screen.findByRole("alert");
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Lösenord")).toBeInTheDocument();
+  });
 });

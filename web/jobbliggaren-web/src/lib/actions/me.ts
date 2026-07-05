@@ -3,10 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { deleteSessionCookie, getSessionId } from "@/lib/auth/session";
+import {
+  deleteSessionCookie,
+  getSessionId,
+  setSessionCookie,
+} from "@/lib/auth/session";
 import { authedFetch } from "@/lib/http/authed-fetch";
 import { updateNotificationConsent } from "@/lib/api/me";
 import {
+  makeChangePasswordSchema,
   makeDeleteMyAccountSchema,
   type DeleteMyAccountInput,
   makeUpdateMyProfileSchema,
@@ -191,4 +196,75 @@ export async function deleteAccountAction(
   // `redirect` throws NEXT_REDIRECT, so it must stay outside the try/catch.
   await deleteSessionCookie();
   redirect("/logga-in");
+}
+
+/**
+ * #678 — self-service change-password + C6. The current password travels with the
+ * operation and is re-authenticated server-side (wrong -> 401, empty/weak -> 400).
+ * On success the backend logs the user out on every OTHER device and re-issues THIS
+ * session, returning `{ sessionId, persistent }`; we re-set the `__Host-` cookie to
+ * the new id (ADR 0018 — the backend sets no cookies), preserving persistence, so
+ * the current device stays logged in. STAY-ON-PAGE: returns `{ success: true }`
+ * (no redirect) so the card can show a confirmation. PII (either password) is NEVER
+ * logged on any path.
+ */
+export async function changePasswordAction(
+  currentPassword: string,
+  newPassword: string
+): Promise<ActionResult> {
+  const ts = await getTranslations("settings");
+  const te = await getTranslations("errors");
+  const t = await getTranslations("validation");
+
+  const parsed = makeChangePasswordSchema(t).safeParse({ currentPassword, newPassword });
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? ts("account.errors.invalidInput"),
+    };
+  }
+
+  const sessionId = await getSessionId();
+  if (!sessionId)
+    return { success: false, error: ts("account.errors.notLoggedIn") };
+
+  let reissued: { sessionId?: unknown; persistent?: unknown };
+  try {
+    const res = await authedFetch(sessionId, `/api/v1/auth/change-password`, {
+      method: "POST",
+      body: JSON.stringify({
+        currentPassword: parsed.data.currentPassword,
+        newPassword: parsed.data.newPassword,
+      }),
+    });
+
+    if (res.status === 401) {
+      return { success: false, error: ts("account.errors.wrongPassword") };
+    }
+    if (res.status === 400) {
+      return { success: false, error: ts("account.errors.invalidInput") };
+    }
+    if (!res.ok) {
+      return {
+        success: false,
+        error: mapActionError(res, ts("account.errors.changePasswordFailed"), te),
+      };
+    }
+    // res.json() is `any`; narrow to unknown-typed fields and guard each below (§4).
+    reissued = (await res.json()) as { sessionId?: unknown; persistent?: unknown };
+  } catch {
+    return { success: false, error: ts("account.errors.network") };
+  }
+
+  // C6 re-issue: re-set the cookie to the new session id so this device stays logged
+  // in. Missing/invalid id is a can't-happen on 200; if it ever occurs the stale
+  // cookie fail-safes to a logout on the next request (the password already changed).
+  if (typeof reissued.sessionId === "string" && reissued.sessionId.length > 0) {
+    await setSessionCookie(reissued.sessionId, reissued.persistent === true);
+  }
+
+  // No revalidatePath: a password change alters nothing server-rendered on
+  // /installningar (unlike updateMyProfileAction). Stay-on-page — the card shows its
+  // own confirmation and the cookie is already re-set for the next navigation.
+  return { success: true };
 }

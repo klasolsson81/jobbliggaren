@@ -7,6 +7,7 @@ import {
   type JobAdMatchBatch,
   type JobAdMatchDetail,
 } from "@/lib/dto/job-ad-match";
+import { isValidId } from "@/lib/validation/guid";
 
 const EMPTY_BATCH: JobAdMatchBatch = { entries: {} };
 
@@ -70,11 +71,18 @@ export async function getJobAdMatchDetail(
 ): Promise<JobAdMatchDetail | null> {
   const sessionId = await getSessionId();
   if (!sessionId) return null;
+  // Allowlist-guard: reject a non-GUID before the id reaches the backend URL
+  // (SSRF barrier + path-injection guard, mirroring the siblings in
+  // applications.ts / company-follows.ts). A malformed id can never exist
+  // anyway, so it short-circuits to `null` — the same civil degradation as this
+  // function's other failure paths. encodeURIComponent on the segment is the
+  // complementary second layer (see guid.ts, OWASP ASVS V5).
+  if (!isValidId(jobAdId)) return null;
 
   try {
     const res = await authedFetch(
       sessionId,
-      `/api/v1/me/job-ad-match-tags/${jobAdId}?includeRelated=${includeRelated}`
+      `/api/v1/me/job-ad-match-tags/${encodeURIComponent(jobAdId)}?includeRelated=${includeRelated}`
     );
     if (!res.ok) return null;
     const data: unknown = await res.json();

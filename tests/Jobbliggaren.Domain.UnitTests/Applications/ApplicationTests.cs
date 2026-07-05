@@ -145,53 +145,55 @@ public class ApplicationTests
     }
 
     // ---------------------------------------------------------------
-    // TransitionTo — blockerade övergångar (terminaltillstånd)
+    // TransitionTo — fria övergångar (ADR 0092 D3): terminaltillstånd kan
+    // återöppnas och manuell Ghosted är tillåten. Djupare assertions (timeline,
+    // event-typ, snapshot-minimering) ligger i ApplicationFreeTransitionTests.
     // ---------------------------------------------------------------
 
     [Fact]
-    public void TransitionTo_WhenAccepted_ReturnsFailure()
+    public void TransitionTo_ReopenFromAccepted_ReturnsSuccess()
     {
         var application = CreateApplicationAtStatus(ApplicationStatus.Accepted);
 
-        var result = application.TransitionTo(ApplicationStatus.Rejected, Clock);
+        var result = application.TransitionTo(ApplicationStatus.Submitted, Clock);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Application.InvalidTransition");
+        result.IsSuccess.ShouldBeTrue();
+        application.Status.ShouldBe(ApplicationStatus.Submitted);
     }
 
     [Fact]
-    public void TransitionTo_WhenRejected_ReturnsFailure()
+    public void TransitionTo_ReopenFromRejected_ReturnsSuccess()
     {
         var application = CreateApplicationAtStatus(ApplicationStatus.Rejected);
 
         var result = application.TransitionTo(ApplicationStatus.Submitted, Clock);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Application.InvalidTransition");
+        result.IsSuccess.ShouldBeTrue();
+        application.Status.ShouldBe(ApplicationStatus.Submitted);
     }
 
     [Fact]
-    public void TransitionTo_WhenWithdrawn_ReturnsFailure()
+    public void TransitionTo_ReopenFromWithdrawn_ReturnsSuccess()
     {
         var application = CreateApplicationAtStatus(ApplicationStatus.Withdrawn);
 
         var result = application.TransitionTo(ApplicationStatus.Submitted, Clock);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Application.InvalidTransition");
+        result.IsSuccess.ShouldBeTrue();
+        application.Status.ShouldBe(ApplicationStatus.Submitted);
     }
 
     [Fact]
-    public void TransitionTo_Ghosted_WhenSubmitted_ReturnsFailure()
+    public void TransitionTo_ManualGhosted_WhenSubmitted_ReturnsSuccess()
     {
-        // Ghosted är ett automatiskt tillstånd — inte i AllowedTransitions för manuella transitions
+        // ADR 0092 D3: manuell Ghosted går nu via TransitionTo (inte enbart MarkGhosted).
         var application = CreateValidApplication();
         application.TransitionTo(ApplicationStatus.Submitted, Clock);
 
         var result = application.TransitionTo(ApplicationStatus.Ghosted, Clock);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Application.InvalidTransition");
+        result.IsSuccess.ShouldBeTrue();
+        application.Status.ShouldBe(ApplicationStatus.Ghosted);
     }
 
     // ---------------------------------------------------------------
@@ -540,18 +542,25 @@ public class ApplicationTests
     }
 
     [Fact]
-    public void Application_TransitionTo_FailedTransition_DoesNotUpdateLastStatusChangeAt()
+    public void Application_TransitionTo_OnDeletedApplication_ReturnsFailureAndDoesNotUpdateLastStatusChangeAt()
     {
+        // ADR 0092 D3: fria övergångar tog bort state-machine-guarden. Den enda
+        // kvarvarande Failure-vägen är en soft-deletad ansökan (en self-transition
+        // är i stället en no-op-Success). En avvisad övergång får inte flytta
+        // LastStatusChangeAt.
         var t1 = new DateTimeOffset(2026, 5, 8, 12, 0, 0, TimeSpan.Zero);
         var t2 = t1.AddMinutes(5);
+        var t3 = t2.AddMinutes(5);
         var clockT1 = FakeDateTimeProvider.At(t1);
         var clockT2 = FakeDateTimeProvider.At(t2);
+        var clockT3 = FakeDateTimeProvider.At(t3);
         var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, null, clockT1).Value;
+        application.SoftDelete(clockT2);
 
-        // Draft → Accepted är otillåten övergång
-        var result = application.TransitionTo(ApplicationStatus.Accepted, clockT2);
+        var result = application.TransitionTo(ApplicationStatus.Submitted, clockT3);
 
         result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Application.DeletedCannotTransition");
         application.LastStatusChangeAt.ShouldBe(t1);
     }
 

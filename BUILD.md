@@ -357,14 +357,19 @@ public sealed class Application : AggregateRoot<ApplicationId>
         RaiseDomainEvent(new ApplicationNoteAddedEvent(Id, note.Id, note.CreatedAt));
     }
 
-    public void TransitionTo(ApplicationStatus next, DateTimeOffset occurredAt)
+    // ADR 0092 D3: transitions are FREE — any status is a valid target. The old
+    // CanTransitionTo grind is replaced by an undo-toast + audit + the append-only
+    // StatusChange timeline. Only two hard guards remain (soft-delete, self no-op).
+    public Result TransitionTo(ApplicationStatus next, IDateTimeProvider clock)
     {
-        if (!Status.CanTransitionTo(next))
-            throw new DomainException($"Invalid transition {Status.Name} → {next.Name}.");
+        if (DeletedAt is not null) return Result.Failure(/* borttagen ansökan */);
+        if (next == Status) return Result.Success();                 // self-transition no-op
         var previous = Status;
         Status = next;
-        LastStatusChangeAt = occurredAt;
-        RaiseDomainEvent(new ApplicationStatusChangedEvent(Id, previous, next, occurredAt));
+        LastStatusChangeAt = clock.UtcNow;
+        _statusChanges.Add(StatusChange.Create(previous, next, clock.UtcNow)); // timeline
+        RaiseDomainEvent(new ApplicationStatusTransitionedDomainEvent(Id, JobSeekerId, previous, next, clock.UtcNow));
+        return Result.Success();
     }
 
     public void AttachTailoredResume(ResumeVersionId versionId)
@@ -392,50 +397,32 @@ public sealed class Application : AggregateRoot<ApplicationId>
 }
 ```
 
-### 5.4 ApplicationStatus (state machine)
+### 5.4 ApplicationStatus (statusar + rekommenderade övergångar)
+
+Tio statusar. **ADR 0092 D3: övergångar är fria** — `Application.TransitionTo` tillåter
+vilken status som helst som mål (framåt, bakåt eller Ghosted). Den tidigare
+tillståndsmaskin-grinden (`CanTransitionTo` som kastade) är ersatt av ångra-toast +
+full audit + den append-only `StatusChange`-tidslinjen, så varje byte är spårbart och
+ångringsbart. Grafen nedan är nu **enbart rådgivande** (`RecommendedNextStatuses`) — den
+driver UI-hinten ("Flytta till {nästa steg}" + avsluta/parkera-alternativen), aldrig en
+grind. Detta löser #566 (saknade övergångar + drift blir irrelevant när alla byten tillåts).
 
 ```csharp
 public sealed class ApplicationStatus : SmartEnum<ApplicationStatus>
 {
-    public static readonly ApplicationStatus Draft = new(nameof(Draft), 0);
-    public static readonly ApplicationStatus Submitted = new(nameof(Submitted), 1);
-    public static readonly ApplicationStatus Acknowledged = new(nameof(Acknowledged), 2);
-    public static readonly ApplicationStatus InterviewScheduled = new(nameof(InterviewScheduled), 3);
-    public static readonly ApplicationStatus Interviewing = new(nameof(Interviewing), 4);
-    public static readonly ApplicationStatus OfferReceived = new(nameof(OfferReceived), 5);
-    public static readonly ApplicationStatus Accepted = new(nameof(Accepted), 6);
-    public static readonly ApplicationStatus Rejected = new(nameof(Rejected), 7);
-    public static readonly ApplicationStatus Withdrawn = new(nameof(Withdrawn), 8);
-    public static readonly ApplicationStatus Ghosted = new(nameof(Ghosted), 9);
+    public static readonly ApplicationStatus Draft = new("Draft", 1);
+    public static readonly ApplicationStatus Submitted = new("Submitted", 2);
+    // ... Acknowledged(3), InterviewScheduled(4), Interviewing(5), OfferReceived(6),
+    //     Accepted(7), Rejected(8), Withdrawn(9), Ghosted(10)
 
-    public bool IsTerminal => this == Accepted || this == Rejected || this == Withdrawn;
+    private readonly HashSet<ApplicationStatus> _recommendedNext = [];
 
-    public bool CanTransitionTo(ApplicationStatus next)
-    {
-        if (IsTerminal) return false;
-        if (next == Withdrawn) return true;
+    // ADVISORY ONLY (ADR 0092 D3) — a UI hint, NOT a guard. TransitionTo permits
+    // any target regardless of what is listed here. Do not reintroduce enforcement.
+    public IReadOnlySet<ApplicationStatus> RecommendedNextStatuses => _recommendedNext;
 
-        return (this.Name, next.Name) switch
-        {
-            (nameof(Draft), nameof(Submitted)) => true,
-            (nameof(Submitted), nameof(Acknowledged)) => true,
-            (nameof(Submitted), nameof(Rejected)) => true,
-            (nameof(Submitted), nameof(Ghosted)) => true,
-            (nameof(Acknowledged), nameof(InterviewScheduled)) => true,
-            (nameof(Acknowledged), nameof(Rejected)) => true,
-            (nameof(Acknowledged), nameof(Ghosted)) => true,
-            (nameof(InterviewScheduled), nameof(Interviewing)) => true,
-            (nameof(InterviewScheduled), nameof(Rejected)) => true,
-            (nameof(Interviewing), nameof(OfferReceived)) => true,
-            (nameof(Interviewing), nameof(InterviewScheduled)) => true,
-            (nameof(Interviewing), nameof(Rejected)) => true,
-            (nameof(OfferReceived), nameof(Accepted)) => true,
-            (nameof(OfferReceived), nameof(Rejected)) => true,
-            _ => false,
-        };
-    }
-
-    private ApplicationStatus(string name, int value) : base(name, value) { }
+    // static ctor seeds the conventional forward step + usual closing moves per status
+    // (e.g. Submitted → {Acknowledged, Rejected, Withdrawn}); see ApplicationStatus.cs.
 }
 ```
 
@@ -459,7 +446,8 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 
 ### 5.6 Konsistensregler (invariants)
 
-- Application.Status är alltid giltig enligt state machine
+- Application.Status är en av de tio statusarna; övergångar är fria (ADR 0092 D3 — `RecommendedNextStatuses` är rådgivande, ej en grind). En borttagen ansökan kan inte byta status, och ett självbyte är en no-op.
+- Varje statusbyte registreras append-only på `StatusChange`-tidslinjen, atomiskt med `Status` (samma UnitOfWork)
 - FollowUp kan inte loggas på en Application i terminal state
 - ResumeVersion kan inte raderas om den är refererad av en icke-terminal Application
 - Resume måste ha exakt en `Master`-version

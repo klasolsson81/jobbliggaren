@@ -163,17 +163,21 @@ Sökkriterier är inte lösa strängar utan ett `SearchCriteria`-value-object so
 
 ### SoC / DDD / CQRS — aggregat skyddar invarianter
 
-Affärsregler bor i domänen, inte i handlers. `Application`-aggregatet är en state-maskin: en olaglig statusövergång kan inte ske, eftersom `TransitionTo` avvisar den och raisar inget event:
+Affärsregler bor i domänen, inte i handlers. `Application`-aggregatet äger sina invarianter i `TransitionTo`. Statusövergångar är fria (ADR 0092 D3 — grinden var UX, ersatt av ångra-toast + audit + tidslinje), men de *genuina* invarianterna skyddas fortfarande i metoden: en borttagen ansökan kan inte byta status, apply-datumet stämplas en gång och skrivs aldrig om, och varje byte registreras atomiskt på den append-only tidslinjen i samma UnitOfWork som `Status`:
 
 ```csharp
 // src/Jobbliggaren.Domain/Applications/Application.cs — TransitionTo
-if (!Status.AllowedTransitions.Contains(target))
+if (DeletedAt is not null)                      // invariant: borttagen ansökan är utanför sin livscykel
     return Result.Failure(DomainError.Validation(
-        "Application.InvalidTransition",
-        $"Övergång från {Status.Name} till {target.Name} är inte tillåten."));
+        "Application.DeletedCannotTransition",
+        "Det går inte att ändra status på en borttagen ansökan."));
+if (target == Status) return Result.Success();  // självbyte = no-op
 ...
+if (target == ApplicationStatus.Submitted && AppliedAt is null)
+    AppliedAt = now;                            // invariant: apply-datum write-once (AF-rapport, #316)
+RecordStatusChange(previous, target, now);      // append-only tidslinje, samma UnitOfWork som Status
 RaiseDomainEvent(
-    new ApplicationStatusTransitionedDomainEvent(Id, JobSeekerId, previous, target, clock.UtcNow));
+    new ApplicationStatusTransitionedDomainEvent(Id, JobSeekerId, previous, target, now));
 ```
 
 - **CQRS** — commands returnerar `Result<T>`, queries returnerar DTOs direkt; inga domänobjekt passerar Application-gränsen ([CLAUDE.md §2.3](CLAUDE.md)). Pipeline-ordningen är låst av [ADR 0008](docs/decisions/0008-pipeline-behavior-order.md).

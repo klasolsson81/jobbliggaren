@@ -100,16 +100,32 @@ public class ApplicationAppliedAtTests
     }
 
     // ---------------------------------------------------------------
-    // Misslyckad övergång stämplar inte AppliedAt
+    // Endast Submit stämplar AppliedAt — övriga fria/misslyckade övergångar inte
     // ---------------------------------------------------------------
 
     [Fact]
-    public void TransitionTo_InvalidTransition_DoesNotStampAppliedAt()
+    public void TransitionTo_ToNonSubmittedStatus_DoesNotStampAppliedAt()
     {
-        // Draft → Accepted är otillåten → AppliedAt förblir null.
+        // ADR 0092 D3: Draft → Accepted är nu en tillåten fri övergång (Success),
+        // men AppliedAt stämplas ENDAST på väg in i Submitted → förblir null här.
         var application = CreateValidApplication(FakeDateTimeProvider.At(T1));
 
         var result = application.TransitionTo(ApplicationStatus.Accepted, FakeDateTimeProvider.At(T1));
+
+        result.IsSuccess.ShouldBeTrue();
+        application.Status.ShouldBe(ApplicationStatus.Accepted);
+        application.AppliedAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public void TransitionTo_OnSoftDeletedApplication_DoesNotStampAppliedAt()
+    {
+        // Den enda kvarvarande Failure-vägen (soft-delete-guarden) stämplar inte
+        // heller AppliedAt.
+        var application = CreateValidApplication(FakeDateTimeProvider.At(T1));
+        application.SoftDelete(FakeDateTimeProvider.At(T1));
+
+        var result = application.TransitionTo(ApplicationStatus.Submitted, FakeDateTimeProvider.At(T1));
 
         result.IsFailure.ShouldBeTrue();
         application.AppliedAt.ShouldBeNull();

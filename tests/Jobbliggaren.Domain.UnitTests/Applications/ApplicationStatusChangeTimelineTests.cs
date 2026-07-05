@@ -7,15 +7,17 @@ using Shouldly;
 
 namespace Jobbliggaren.Domain.UnitTests.Applications;
 
-// RÖD svit (TDD). Spec: ADR 0092 D4 — append-only StatusChange-timeline. Varje
-// status transition (TransitionTo + MarkGhosted) registrerar EN StatusChange i
-// SAMMA aggregat-mutation (en UnitOfWork), så timelinen aldrig kan divergera från
-// Status. Ett transition är ETT ögonblick: now fångas EN gång, så
+// Spec: ADR 0092 D4 — append-only StatusChange-timeline. Varje status transition
+// (TransitionTo + MarkGhosted) registrerar EN StatusChange i SAMMA aggregat-mutation
+// (en UnitOfWork), så timelinen aldrig kan divergera från Status. Ett transition är
+// ETT ögonblick: now fångas EN gång, så
 // UpdatedAt == LastStatusChangeAt == StatusChange.ChangedAt == event-timestampen.
-// Ett otillåtet transition (guard avvisar) registrerar INGET. MarkGhosted:s
-// no-op-väg registrerar INGET. SoftDelete kaskaderar till varje StatusChange
-// (paritet med FollowUps/Notes). Speglar ApplicationAppliedAtTests /
-// ApplicationAdSnapshotRetentionTests-mönstret (dedikerad concern-fil).
+// ADR 0092 D3: övergångar är FRIA (ingen state-machine-guard kvar). De två
+// kvarvarande guard-vägarna registrerar INGET: en soft-deletad ansökan (Failure)
+// och en self-transition (no-op-Success). MarkGhosted:s no-op-väg registrerar INGET.
+// SoftDelete kaskaderar till varje StatusChange (paritet med FollowUps/Notes).
+// Speglar ApplicationAppliedAtTests / ApplicationAdSnapshotRetentionTests-mönstret
+// (dedikerad concern-fil).
 public class ApplicationStatusChangeTimelineTests
 {
     private static readonly JobSeekerId ValidJobSeekerId = new(Guid.NewGuid());
@@ -85,19 +87,35 @@ public class ApplicationStatusChangeTimelineTests
     }
 
     // ---------------------------------------------------------------
-    // Otillåten transition registrerar INGET (guard oförändrad i denna PR)
+    // Guard-vägar registrerar INGET (ADR 0092 D3): soft-delete + self-transition
     // ---------------------------------------------------------------
 
     [Fact]
-    public void TransitionTo_InvalidTransition_RecordsNoStatusChange()
+    public void TransitionTo_OnSoftDeletedApplication_ReturnsFailureAndRecordsNoStatusChange()
     {
-        // Draft → Accepted är otillåten → Failure OCH ingen timeline-rad.
+        // En soft-deletad ansökan är utanför sin livscykel → Failure OCH ingen
+        // timeline-rad. Ersätter den gamla InvalidTransition-guarden som fria
+        // övergångar (ADR 0092 D3) tog bort.
         var app = CreateDraft(T0);
+        app.SoftDelete(FakeDateTimeProvider.At(T1));
 
-        var result = app.TransitionTo(ApplicationStatus.Accepted, FakeDateTimeProvider.At(T1));
+        var result = app.TransitionTo(ApplicationStatus.Submitted, FakeDateTimeProvider.At(T2));
 
         result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Application.InvalidTransition");
+        result.Error.Code.ShouldBe("Application.DeletedCannotTransition");
+        app.StatusChanges.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void TransitionTo_SelfTransition_IsNoOpAndRecordsNoStatusChange()
+    {
+        // target == Status → no-op-Success: ingen From==To-rad registreras.
+        var app = CreateDraft(T0);
+
+        var result = app.TransitionTo(ApplicationStatus.Draft, FakeDateTimeProvider.At(T1));
+
+        result.IsSuccess.ShouldBeTrue();
+        app.Status.ShouldBe(ApplicationStatus.Draft);
         app.StatusChanges.ShouldBeEmpty();
     }
 

@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/forms/PasswordInput";
+import { RememberMeCheckbox } from "@/components/forms/RememberMeCheckbox";
 import { loginAction, type AuthActionState } from "@/lib/auth/actions";
 
 export function LoginForm() {
@@ -60,6 +61,11 @@ export function LoginForm() {
           aria-required="true"
         />
       </div>
+
+      <RememberMeCheckbox
+        label={t("auth.login.rememberMeLabel")}
+        hint={t("auth.login.rememberMeHint")}
+      />
 
       {state?.error && (
         <p role="alert" className="text-body-sm leading-5 text-danger-600">

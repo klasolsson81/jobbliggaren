@@ -54,6 +54,44 @@ describe("LoginForm", () => {
     expect(formData.get("next")).toBe("/jobb");
   });
 
+  it("renders the 'Håll mig inloggad' checkbox, unticked by default (valid consent)", () => {
+    render(<LoginForm />);
+    const checkbox = screen.getByRole("checkbox", { name: "Håll mig inloggad" });
+    expect(checkbox).toBeInTheDocument();
+    // A pre-ticked box is invalid consent (GDPR Art. 7) — must start unchecked.
+    expect(checkbox).not.toBeChecked();
+    expect(checkbox).toHaveAttribute("name", "rememberMe");
+  });
+
+  it("does not post rememberMe when the box stays unticked", async () => {
+    const user = userEvent.setup();
+    render(<LoginForm />);
+
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "hemligt1");
+    await user.click(screen.getByRole("button", { name: "Logga in" }));
+
+    const formData = loginActionMock.mock.calls[0]?.[1];
+    if (!formData) throw new Error("loginAction was not invoked");
+    // An unchecked native checkbox posts nothing → the action reads it as false.
+    expect(formData.get("rememberMe")).toBeNull();
+  });
+
+  it("posts rememberMe=on when the box is ticked", async () => {
+    const user = userEvent.setup();
+    render(<LoginForm />);
+
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "hemligt1");
+    await user.click(screen.getByRole("checkbox", { name: "Håll mig inloggad" }));
+    await user.click(screen.getByRole("button", { name: "Logga in" }));
+
+    const formData = loginActionMock.mock.calls[0]?.[1];
+    if (!formData) throw new Error("loginAction was not invoked");
+    // A checked native checkbox posts the literal "on".
+    expect(formData.get("rememberMe")).toBe("on");
+  });
+
   it("shows server error as role=alert when action returns { error }", async () => {
     loginActionMock.mockResolvedValueOnce({
       error: "Inloggningen misslyckades. Kontrollera e-post och lösenord.",

@@ -4,9 +4,15 @@ import { cookies } from "next/headers";
 import { env } from "@/lib/env";
 import { currentUserSchema, type CurrentUserDto } from "@/lib/dto/me";
 import { parseResponse } from "@/lib/dto/_helpers";
+import {
+  PERSISTENT_MAX_AGE_SECONDS,
+  SESSION_COOKIE_NAME,
+} from "@/lib/auth/cookie-names";
 
-export const SESSION_COOKIE_NAME = "__Host-jobbliggaren_session";
-const MAX_AGE = 14 * 24 * 60 * 60; // 14 days in seconds
+// Re-exported so existing importers of `@/lib/auth/session` keep working; the
+// literal now lives once in cookie-names.ts (importable by the non-server-only
+// proxy) to avoid duplicating the security-critical cookie name.
+export { SESSION_COOKIE_NAME };
 
 // Roll-konstanter speglar backend `Roles`-class (Jobbliggaren.Application.Common.Authorization).
 // Magic-string-anti-pattern undvikt på säkerhetskritisk åtkomstkontroll.
@@ -58,14 +64,32 @@ export const getServerSession = cache(
   }
 );
 
-export async function setSessionCookie(sessionId: string): Promise<void> {
+/**
+ * Sets the session cookie for a freshly issued session id.
+ *
+ * `persistent` mirrors the user's "Håll mig inloggad" choice:
+ *  - `true`  → a persistent cookie with a finite Max-Age (the 180d absolute cap,
+ *    PERSISTENT_MAX_AGE_SECONDS) so the login survives a browser restart. The
+ *    backend stays the SSOT for expiry (30d sliding / 180d cap); the Max-Age is
+ *    only the finite ceiling, never an infinite cookie.
+ *  - `false` → Max-Age is omitted → a session cookie the browser drops on close.
+ *    This is the privacy-by-default (Art. 25(2)): an unticked box must not leave
+ *    a durable credential on the device.
+ *
+ * All other attributes are the non-negotiable `__Host-` requirements (HttpOnly,
+ * Secure, SameSite=Strict, Path=/, no Domain) in both branches.
+ */
+export async function setSessionCookie(
+  sessionId: string,
+  persistent: boolean
+): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, sessionId, {
     httpOnly: true,
     secure: true,
     sameSite: "strict",
     path: "/",
-    maxAge: MAX_AGE,
+    ...(persistent ? { maxAge: PERSISTENT_MAX_AGE_SECONDS } : {}),
   });
 }
 

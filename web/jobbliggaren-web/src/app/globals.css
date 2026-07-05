@@ -7276,9 +7276,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-listfilterchip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   height: 32px;
-  padding: 0 4px 0 10px;
+  padding: 0 0 0 10px;
   border: 1px solid var(--jp-accent-700);
   border-radius: var(--jp-r-sm);
   background: var(--jp-accent-50);
@@ -7288,12 +7288,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
   text-transform: uppercase;
   color: var(--jp-accent-900);
 }
+/* Hit-arean fyller chipens 32px-höjd × 32px (a11y-skillens 32×32-golv,
+   design-reviewer Minor 1) — ikonen förblir 14px, centrerad. */
 .jp-listfilterchip__rm {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   border: 0;
   background: transparent;
   color: var(--jp-accent-700);
@@ -7350,8 +7352,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-steprail__cell:first-child {
   border-left: 0;
 }
-.jp-steprail__cell:hover {
+.jp-steprail__cell:not(:disabled):hover {
   background: var(--jp-surface-2);
+}
+/* Tomt steg = disabled (design-reviewer Blocker): 0.55-dimningen är compliant
+   på en disabled-kontroll (kontrast-undantagen, båda teman). Ingen pekare. */
+.jp-steprail__cell:disabled {
+  cursor: default;
 }
 .jp-steprail__cell[data-terminal="true"] {
   background: var(--jp-surface-2);

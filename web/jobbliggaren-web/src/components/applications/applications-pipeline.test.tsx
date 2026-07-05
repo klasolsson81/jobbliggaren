@@ -145,7 +145,7 @@ describe("ApplicationsPipeline — Lista-sektioner (2a)", () => {
     expect(document.getElementById("status-Rejected-list")).toBeNull();
   });
 
-  it("WAI-accordion: h2 wrappar knappen, ingen aria-label, count i namnet", () => {
+  it("WAI-accordion: rubrik wrappar knappen, ingen aria-label, count i namnet", () => {
     renderPipeline(makePipeline({ Submitted: 3 }));
 
     const heading = screen.getByRole("heading", { name: /Skickad/ });

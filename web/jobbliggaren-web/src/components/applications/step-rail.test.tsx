@@ -45,18 +45,23 @@ describe("StepRail", () => {
     );
   });
 
-  it("tomma steg dimmas (data-empty=true)", () => {
+  it("tomma steg dimmas (data-empty=true) OCH är disabled (ingen död-ände)", () => {
+    const onToggle = vi.fn();
     render(
       <StepRail
         groups={makeGroups({ Submitted: 2 })}
         statusFilter={null}
-        onToggle={() => {}}
+        onToggle={onToggle}
       />,
     );
     const draft = within(getRail()).getByRole("button", { name: /Utkast/ });
     const submitted = within(getRail()).getByRole("button", { name: /Skickad/ });
     expect(draft).toHaveAttribute("data-empty", "true");
+    // design-reviewer Blocker: tomt steg = disabled (kontrast-compliant dimning +
+    // ingen filtrering till ett tomt steg). Ligger kvar i a11y-trädet.
+    expect(draft).toBeDisabled();
     expect(submitted).toHaveAttribute("data-empty", "false");
+    expect(submitted).toBeEnabled();
   });
 
   it("aria-pressed speglar aktivt stegfilter", () => {

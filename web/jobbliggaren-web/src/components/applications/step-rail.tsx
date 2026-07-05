@@ -58,15 +58,22 @@ export function StepRail({ groups, statusFilter, onToggle }: StepRailProps) {
           const prev = index > 0 ? PIPELINE_ORDER[index - 1] : undefined;
           const divider = !active && prev != null && isActivePipelineStatus(prev);
           const label = applicationStatusLabel(tEnum, status);
+          // Tomt steg (antal 0) = inget att filtrera till → cellen är `disabled`
+          // (design-reviewer Blocker): det tar bort en död-ände-affordans OCH gör
+          // 0.55-dimningen WCAG-compliant (disabled-kontroller är kontrast-
+          // undantagna, båda teman). Cellen ligger kvar i a11y-trädet så
+          // skärmläsaren ändå läser "Bekräftad, inga ansökningar".
+          const empty = count === 0;
           return (
             <button
               key={status}
               type="button"
               className="jp-steprail__cell"
               data-status-variant={getStatusVariantKey(status)}
-              data-empty={count === 0}
+              data-empty={empty}
               data-terminal={!active}
               data-divider={divider}
+              disabled={empty}
               aria-pressed={selected}
               aria-label={tUi("rail.cellAriaLabel", { count, step: label })}
               onClick={() => onToggle(status)}

@@ -71,7 +71,10 @@ export function StatusSection({
       aria-label={label}
       className="jp-section jp-section--group scroll-mt-6"
     >
-      <h2 className="jp-section__heading">
+      {/* h3: statusgrupperna är subsektioner under "Alla ansökningar" (h2) —
+          korrekt rubrikutline (design-reviewer Minor 3). Class-baserad styling,
+          så nivåbytet är visuellt neutralt. */}
+      <h3 className="jp-section__heading">
         <button
           ref={headRef}
           type="button"
@@ -100,7 +103,7 @@ export function StatusSection({
             </span>
           )}
         </button>
-      </h2>
+      </h3>
 
       {open && (
         <div id={listId}>

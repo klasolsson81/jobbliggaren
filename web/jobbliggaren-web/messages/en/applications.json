@@ -66,8 +66,8 @@
     },
     "row": {
       "fallbackTitle": "Application #{shortId}",
-      "ariaLabelWithIdentity": "{title} – {company} – {status}",
-      "ariaLabelFallback": "{title} – {status}",
+      "ariaLabelWithIdentity": "{title}, {company}, {status}",
+      "ariaLabelFallback": "{title}, {status}",
       "applyBy": "Apply by",
       "relativeApplied": "Submitted {days, plural, =0 {today} =1 {yesterday} other {# days ago}}",
       "relativeDraftUpdated": "Updated {days, plural, =0 {today} =1 {yesterday} other {# days ago}}"

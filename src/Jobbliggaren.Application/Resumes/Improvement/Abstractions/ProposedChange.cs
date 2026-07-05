@@ -182,6 +182,93 @@ public sealed record ProposedChange
     }
 
     /// <summary>
+    /// A deterministic frame rewrite (Fas 4b PR-7, #656; ADR 0093 §D2 third arm — the
+    /// handoff §6.2 sentence/measure mechanics). THE ONLY BUILDER of a frame After: it
+    /// substitutes the user's slot inputs into <paramref name="frame"/>'s versioned template
+    /// itself and uppercases only the first character (a pure mechanical transform) — there
+    /// is no parameter for a pre-built After, so a synthesised frame result is
+    /// unrepresentable by shape (CLAUDE.md §5; stronger than the FromKnowledgeBank /
+    /// FromStructuralOp re-verification parity). THROWS unless the three §D2 invariants
+    /// hold (the shared <see cref="FrameSlotGrounding"/> core — the Result-returning
+    /// handler path runs the SAME rules first, this throw is defense-in-depth): (a) every
+    /// noun-slot word is a word-boundary token of the cited Before line, (b) the resolved
+    /// verb is in <paramref name="strongVerbSet"/> (the strong-verb closure at the
+    /// catalog's pinned verb-mapping version), (c) every number slot is a bounded decimal
+    /// echoed VERBATIM — "aldrig påhittade siffror".
+    /// </summary>
+    public static ProposedChange FromFrame(
+        string targetId,
+        RubricCategory category,
+        string? criterionId,
+        TextSpanEvidence evidence,
+        CvFrame frame,
+        IReadOnlyDictionary<string, string> slotInputs,
+        IReadOnlySet<string> strongVerbSet,
+        string rationale)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
+        ArgumentNullException.ThrowIfNull(evidence);
+        ArgumentNullException.ThrowIfNull(frame);
+        ArgumentNullException.ThrowIfNull(slotInputs);
+        ArgumentNullException.ThrowIfNull(strongVerbSet);
+
+        if (string.IsNullOrWhiteSpace(evidence.Span.Quote))
+        {
+            throw new ArgumentException(
+                "A frame rewrite must cite a non-empty Before line — the noun grounding " +
+                "(ADR 0093 §D2 invariant a) has nothing to hold onto otherwise.",
+                nameof(evidence));
+        }
+
+        var grounding = FrameSlotGrounding.Validate(
+            frame, slotInputs, evidence.Span.Quote, strongVerbSet);
+        if (grounding.IsFailure)
+        {
+            throw new ArgumentException(
+                $"Frame inputs failed the ADR 0093 §D2 invariants ({grounding.Error.Code}): " +
+                $"{grounding.Error.Message}",
+                nameof(slotInputs));
+        }
+
+        var verb = FrameSlotGrounding.ResolveVerb(frame, slotInputs)
+            ?? throw new ArgumentException(
+                "The frame carries neither a fixed verb nor a verb slot — no lead verb to " +
+                "verify against the strong-verb list (ADR 0093 §D2 invariant b).",
+                nameof(frame));
+
+        // Mechanical substitution: each {slotName} -> the user's verbatim input; then a
+        // first-character upcase (a pure transform, parity NormalizeHeadingCase). Any
+        // remaining placeholder means the template/slot contract broke — fail loud.
+        var after = frame.Slots.Aggregate(
+            frame.Template,
+            (text, slot) => text.Replace($"{{{slot.Name}}}", slotInputs[slot.Name], StringComparison.Ordinal));
+        if (after.Contains('{') || after.Contains('}'))
+        {
+            throw new ArgumentException(
+                $"Frame template '{frame.Id}' still carries an unsubstituted placeholder after " +
+                "slot substitution (ADR 0093 §D2 — a partial substitution is not a mechanical rewrite).",
+                nameof(frame));
+        }
+
+        after = string.Create(after.Length, after, (span, source) =>
+        {
+            source.AsSpan().CopyTo(span);
+            span[0] = char.ToUpperInvariant(span[0]);
+        });
+
+        return new ProposedChange(
+            targetId,
+            ProposedChangeKind.FrameRewrite,
+            category,
+            criterionId,
+            evidence,
+            new ProposedReplacement(evidence.Span.Quote, after),
+            operation: null,
+            rationale,
+            new UserParameterizedFrameProvenance(frame.Id, verb, slotInputs));
+    }
+
+    /// <summary>
     /// Builds a transmit-safe COPY of an ALREADY-VALIDATED change with personnummer redacted out of
     /// its cited evidence + replacement strings (Fas 4 STEG B-2 hardening; ADR 0074 Invariant 1;
     /// CLAUDE.md §5 — the personnummer guard is highest-priority). This is the ONLY non-synthesis
@@ -202,10 +289,23 @@ public sealed record ProposedChange
     public static ProposedChange ForRedaction(
         ProposedChange original,
         CitedEvidence redactedEvidence,
-        ProposedReplacement? redactedReplacement)
+        ProposedReplacement? redactedReplacement,
+        ChangeProvenance? redactedProvenance = null)
     {
         ArgumentNullException.ThrowIfNull(original);
         ArgumentNullException.ThrowIfNull(redactedEvidence);
+
+        // Fas 4b PR-7 (#656, CTO D-B iv): the frame arm is the ONLY provenance that carries
+        // user text (the raw slot inputs), so the redactor may swap in a masked COPY — but
+        // never a different arm (that would re-mint provenance, which redaction must not do).
+        if (redactedProvenance is not null
+            && redactedProvenance.GetType() != original.Provenance.GetType())
+        {
+            throw new ArgumentException(
+                "A redacted provenance must be the SAME arm as the original — redaction masks " +
+                "values, it never re-mints provenance (ADR 0074 / CLAUDE.md §5).",
+                nameof(redactedProvenance));
+        }
 
         return new ProposedChange(
             original.TargetId,
@@ -216,6 +316,6 @@ public sealed record ProposedChange
             redactedReplacement,
             original.Operation,
             original.Rationale,
-            original.Provenance);
+            redactedProvenance ?? original.Provenance);
     }
 }

@@ -17,12 +17,13 @@ internal static class TestAppDbContextFactory
 
         if (interceptors.Length > 0)
         {
-            // IMaterializationInterceptor är en SINGLETON-interceptor: EF fångar den
-            // första instansen i den CACHEADE interna service-providern och återanvänder
-            // den för varje senare kontext med ekvivalenta options — en annan testklass'
-            // hydrator "vinner" då tyst över denna (suite-order-kontamination: klassen
-            // grön isolerat, röd i full svit). Cachningen stängs av per-kontext när
-            // instans-interceptorer skickas in, så varje test får SIN interceptor.
+            // IMaterializationInterceptor is a SINGLETON interceptor: EF captures the
+            // first instance in the CACHED internal service provider and reuses it for
+            // every later context with equivalent options — another test class's
+            // hydrator then silently "wins" over this one (suite-order contamination:
+            // class green in isolation, red in the full suite). Caching is disabled
+            // per-context when instance interceptors are supplied, so every test gets
+            // ITS OWN interceptor; the interceptor-free default path keeps the cache.
             builder = builder
                 .AddInterceptors(interceptors)
                 .EnableServiceProviderCaching(false);

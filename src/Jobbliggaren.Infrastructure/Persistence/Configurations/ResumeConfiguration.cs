@@ -144,10 +144,10 @@ public sealed class ResumeConfiguration : IEntityTypeConfiguration<Resume>
             .FindNavigation(nameof(Resume.Versions))!
             .SetPropertyAccessMode(PropertyAccessMode.Field);
 
-        // Fas 4b PR-4 (ADR 0093 §D2(e), lokal ADR 0097): DEK-fri fynd-status-ledger som
-        // barn-collection (ResumeVersion-precedent). FK-cascade = Art. 17-vägen; raderna
-        // skrivs enbart via Resume-rotens metoder och laddas explicit (Include) på
-        // skriv- och review-merge-vägarna — aldrig på list-queries (§3.6).
+        // Fas 4b PR-4 (ADR 0093 §D2(e), local ADR 0097): DEK-free finding-status ledger
+        // as a child collection (ResumeVersion precedent). FK cascade = the Art. 17
+        // path; rows are written only through Resume root methods and loaded explicitly
+        // (Include) on the write and review-merge paths — never on list queries (§3.6).
         builder.HasMany(r => r.FindingStatuses)
             .WithOne()
             .HasForeignKey("ResumeId")

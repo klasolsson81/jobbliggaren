@@ -118,6 +118,64 @@ public class ScbCompanyRegisterClientTests
         outcome.TruncatedOrErrored.ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task StreamLegalEntitiesAsync_DeepSplits_SendsTwoDigitThenNiva3BranschBodies()
+    {
+        // #628 wire contract: when a partition stays over cap the client drills SätesKommun → Juridisk
+        // form → "2-siffrig bransch 1" → "Bransch"/niva 3. Pin the exact live-verified request shapes:
+        // the Bransch code table is requested WITH BranschNiva 3; the 2-digit rung sends
+        // "2-siffrig bransch 1"; the 5-digit leaf sends "Bransch"+BranschNiva 3 and DROPS the 2-digit.
+        var handler = new RecordingDrillHandler();
+        var client = BuildClient(handler);
+        var outcome = new ScbSyncOutcome();
+
+        await foreach (var _ in client.StreamLegalEntitiesAsync(
+            outcome, TestContext.Current.CancellationToken))
+        {
+        }
+
+        // The niva-3 Bransch code table was requested with BranschNiva 3.
+        handler.Requests.ShouldContain(r =>
+            r.Path.EndsWith("kodtabell", StringComparison.Ordinal)
+            && r.Body.Contains("\"Kategori\":\"Bransch\"", StringComparison.Ordinal)
+            && r.Body.Contains("\"BranschNiva\":3", StringComparison.Ordinal));
+
+        // The 2-digit division rung was applied (a filter body carrying "2-siffrig bransch 1").
+        handler.Requests.ShouldContain(r =>
+            IsFilterEndpoint(r.Path) && r.Body.Contains("2-siffrig bransch 1", StringComparison.Ordinal));
+
+        // The 5-digit leaf carries Bransch + BranschNiva 3 and the 2-digit constraint is stripped.
+        handler.Requests.ShouldContain(r =>
+            IsFilterEndpoint(r.Path)
+            && r.Body.Contains("\"Kategori\":\"Bransch\"", StringComparison.Ordinal)
+            && r.Body.Contains("\"BranschNiva\":3", StringComparison.Ordinal)
+            && !r.Body.Contains("2-siffrig bransch 1", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task StreamLegalEntitiesAsync_FallsBackToFormOnlyLadder_WhenSniTableEmpty_NotPreemptivelyTruncated()
+    {
+        // #628 fallback: an empty niva-3 Bransch code table must NOT abort or preemptively truncate the
+        // run — the client falls back to the pre-#628 legal-form-only ladder and still bounds partitions.
+        // Here every partition fits under cap after the seed, so the run completes cleanly (not truncated).
+        var client = BuildClient(new EmptySniTableHandler());
+        var outcome = new ScbSyncOutcome();
+
+        var records = new List<ScbCompanyRecord>();
+        await foreach (var batch in client.StreamLegalEntitiesAsync(
+            outcome, TestContext.Current.CancellationToken))
+        {
+            records.AddRange(batch);
+        }
+
+        records.ShouldNotBeEmpty();                    // form-only ladder still fetches
+        outcome.TruncatedOrErrored.ShouldBeFalse();    // empty SNI table alone must not mark truncated
+    }
+
+    private static bool IsFilterEndpoint(string path) =>
+        path.EndsWith("raknaforetag", StringComparison.Ordinal)
+        || path.EndsWith("hamtaforetag", StringComparison.Ordinal);
+
     private static ScbCompanyRegisterClient BuildClient(HttpMessageHandler handler)
     {
         var httpClient = new HttpClient(handler)
@@ -142,9 +200,12 @@ public class ScbCompanyRegisterClientTests
                 : await request.Content.ReadAsStringAsync(cancellationToken);
 
             // Dispatch by endpoint (path checked before the Juridisk-form body probe, which also
-            // appears in rakna/hamta filter bodies).
+            // appears in rakna/hamta filter bodies). Within kodtabell, distinguish the three code
+            // tables the client requests: Bransch (niva 3, 5-digit), Juridisk form, and SätesKommun.
             if (path.EndsWith("kodtabell", StringComparison.Ordinal))
             {
+                if (body.Contains("\"Bransch\"", StringComparison.Ordinal))
+                    return Json("""{"VardeLista":[{"Varde":"29100"},{"Varde":"70100"},{"Varde":"70200"}]}""");
                 return body.Contains("Juridisk form", StringComparison.Ordinal)
                     ? Json("""{"VardeLista":[{"Varde":"10","Text":"Fysiska personer"},{"Varde":"49","Text":"Övriga aktiebolag"}]}""")
                     : Json("""{"VardeLista":[{"Varde":"0180","Text":"Stockholm"}]}""");
@@ -205,6 +266,65 @@ public class ScbCompanyRegisterClientTests
             }
             // Unrecognized count envelope (no bare number, no Antal/Count).
             return Json("""{"unexpected":true}""");
+        }
+    }
+
+    // Kommun + Juridisk form seed normally, but the Bransch (niva 3) code table comes back empty →
+    // the client must fall back to the form-only ladder. Seed counts are ≤ cap so the run is clean.
+    private sealed class EmptySniTableHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            var body = request.Content is null
+                ? string.Empty
+                : await request.Content.ReadAsStringAsync(cancellationToken);
+            if (path.EndsWith("kodtabell", StringComparison.Ordinal))
+            {
+                if (body.Contains("\"Bransch\"", StringComparison.Ordinal))
+                    return Json("""{"VardeLista":[]}"""); // empty SNI table → fallback
+                return body.Contains("Juridisk form", StringComparison.Ordinal)
+                    ? Json("""{"VardeLista":[{"Varde":"49"}]}""")
+                    : Json("""{"VardeLista":[{"Varde":"0180"}]}""");
+            }
+            if (path.EndsWith("raknaforetag", StringComparison.Ordinal))
+                return Json("2"); // under cap → seed yields directly
+            if (path.EndsWith("hamtaforetag", StringComparison.Ordinal))
+                return Json(HamtaJson);
+            return Json("[]");
+        }
+    }
+
+    // Records every request; forces a full SNI drill by returning over-cap counts for every partition
+    // except the 5-digit Bransch leaf. One kommun (0180) × one legal form (49) keeps the tree small.
+    private sealed class RecordingDrillHandler : HttpMessageHandler
+    {
+        public List<(string Path, string Body)> Requests { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            var body = request.Content is null
+                ? string.Empty
+                : await request.Content.ReadAsStringAsync(cancellationToken);
+            Requests.Add((path, body));
+
+            if (path.EndsWith("kodtabell", StringComparison.Ordinal))
+            {
+                if (body.Contains("\"Bransch\"", StringComparison.Ordinal))
+                    return Json("""{"VardeLista":[{"Varde":"70100"},{"Varde":"70200"}]}"""); // one division (70)
+                return body.Contains("Juridisk form", StringComparison.Ordinal)
+                    ? Json("""{"VardeLista":[{"Varde":"49"}]}""")
+                    : Json("""{"VardeLista":[{"Varde":"0180"}]}""");
+            }
+            if (path.EndsWith("raknaforetag", StringComparison.Ordinal))
+                // 5-digit leaf (Bransch, capital B) ≤ cap; everything above (seed/form/2-digit) over cap.
+                return body.Contains("\"Bransch\"", StringComparison.Ordinal) ? Json("5") : Json("3000");
+            if (path.EndsWith("hamtaforetag", StringComparison.Ordinal))
+                return Json(HamtaJson);
+            return Json("[]");
         }
     }
 }

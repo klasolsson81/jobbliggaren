@@ -20,8 +20,8 @@ internal sealed class ScbCategoryRequest
     [JsonPropertyName("Kod")]
     public required IReadOnlyList<string> Kod { get; init; }
 
-    /// <summary>SNI level for the <c>Bransch</c> category (1 = avdelning/section). Omitted from the
-    /// JSON when null.</summary>
+    /// <summary>SNI level for the <c>Bransch</c> category (3 = the 5-digit detaljgrupp used by the
+    /// deep split; #628 live-verified). Omitted from the JSON when null.</summary>
     [JsonPropertyName("BranschNiva")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? BranschNiva { get; init; }
@@ -37,9 +37,17 @@ internal sealed class ScbFilterRequest
 }
 
 /// <summary>The body for <c>kodtabell</c>: fetch the fixed code table for one category (e.g.
-/// <c>SätesKommun</c> → the 290 municipality codes; <c>Juridisk form</c> → the legal-form codes).</summary>
+/// <c>SätesKommun</c> → the 290 municipality codes; <c>Juridisk form</c> → the legal-form codes).
+/// <c>Bransch</c> requires <see cref="BranschNiva"/> to return the codes at that SNI level (3 = the
+/// ~800 5-digit detaljgrupper the #628 deep split fans by 2-digit prefix).</summary>
 internal sealed class ScbKodtabellRequest
 {
     [JsonPropertyName("Kategori")]
     public required string Kategori { get; init; }
+
+    /// <summary>SNI level for the <c>Bransch</c> category (3 = 5-digit). Omitted from the JSON when
+    /// null (all other categories).</summary>
+    [JsonPropertyName("BranschNiva")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? BranschNiva { get; init; }
 }

@@ -172,11 +172,12 @@
       "description": "Den här åtgärden går inte att ångra. Ditt konto och all kopplad data raderas. Du loggas ut direkt efter att raderingen slutförts.",
       "confirmEmailLabel": "Skriv din e-postadress för att bekräfta",
       "expected": "Förväntad: {email}",
-      "passwordLabel": "Lösenord",
       "cancel": "Avbryt",
       "deleting": "Raderar…",
-      "submit": "Radera mitt konto",
-      "invalidInput": "Ogiltiga uppgifter."
+      "submit": "Radera mitt konto"
+    },
+    "reauth": {
+      "passwordLabel": "Lösenord"
     },
     "errors": {
       "notLoggedIn": "Du är inte inloggad.",
@@ -184,7 +185,6 @@
       "updateFailed": "Kunde inte uppdatera profilen.",
       "network": "Kunde inte nå servern. Kontrollera din nätverksanslutning.",
       "emailMismatch": "E-postadressen matchar inte ditt konto.",
-      "verifyFailed": "Kunde inte verifiera lösenordet.",
       "wrongPassword": "Lösenordet är felaktigt.",
       "deleteFailed": "Kunde inte radera kontot."
     }

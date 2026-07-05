@@ -98,13 +98,20 @@ public static class MeEndpoints
         // index (ADR 0024 D4 + ADR 0017 deferred-not stängd).
         // Hard-delete + Identity-DELETE + audit-anonymisering sker av
         // HardDeleteAccountsJob efter 30-dagars restore-fönster (ADR 0024 D5+D6).
-        group.MapDelete("/", async (
+        //
+        // POST /me/delete (inte DELETE): operationen BÄR en credential (lösenordet) för
+        // server-side re-auth (C5, epik #481) — DELETE-body har odefinierad semantik (RFC 9110
+        // §9.3.5) och kan strippas av proxies. ReauthenticationBehavior verifierar lösenordet
+        // FÖRE handlern körs (en kapad long-lived session kan inte radera utan lösenordet); vid
+        // fel → byte-identisk 401. Lösenordet når aldrig handlern och loggas aldrig.
+        group.MapPost("/delete", async (
+            DeleteAccountRequest body,
             IMediator mediator,
             ISessionStore sessions,
             ICurrentUser currentUser,
             CancellationToken ct) =>
         {
-            var result = await mediator.Send(new DeleteAccountCommand(), ct);
+            var result = await mediator.Send(new DeleteAccountCommand(body.Password), ct);
             if (result.IsFailure)
                 return result.Error.ToProblemResult();
 
@@ -135,4 +142,11 @@ public static class MeEndpoints
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.AccountDeletionPolicy);
     }
+
+    /// <summary>
+    /// POST /me/delete body — the current password for server-side re-authentication (C5, epik
+    /// #481). A pure transport DTO; the re-auth check runs in ReauthenticationBehavior before the
+    /// handler. Validated by DeleteAccountCommandValidator (NotEmpty) so an empty password is 400.
+    /// </summary>
+    public sealed record DeleteAccountRequest(string? Password);
 }

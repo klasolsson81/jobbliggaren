@@ -9,7 +9,7 @@ namespace Jobbliggaren.Application.Common.Auditing.Jobs.AuditLogRetention;
 /// (Art. 5(1)(e) Storage Limitation per BUILD.md §7.1 + ADR 0024 D1).
 ///
 /// Registreras som Hangfire <c>RecurringJob</c> i Worker (cron 03:00 UTC,
-/// före DELETE /me-relaterade jobb i 10b). Idempotent — kan köras flera
+/// före konto-raderings-relaterade jobb (POST /me/delete) i 10b). Idempotent — kan köras flera
 /// gånger samma dag utan biverkningar (CREATE TABLE IF NOT EXISTS +
 /// DROP TABLE IF EXISTS).
 ///

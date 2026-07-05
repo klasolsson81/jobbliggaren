@@ -19,6 +19,7 @@ namespace Jobbliggaren.Application.Common;
 /// <item><see cref="ValidationBehavior{TMessage,TResponse}"/></item>
 /// <item><see cref="AuthorizationBehavior{TMessage,TResponse}"/></item>
 /// <item><see cref="AdminAuthorizationBehavior{TMessage,TResponse}"/> — defense-in-depth för IAdminRequest</item>
+/// <item><see cref="ReauthenticationBehavior{TMessage,TResponse}"/> — server-enforced re-auth för IReauthenticatingRequest (PR2c/C5, epik #481)</item>
 /// <item><see cref="UnitOfWorkBehavior{TMessage,TResponse}"/></item>
 /// <item><see cref="AuditBehavior{TMessage,TResponse}"/> — innerst, atomisk persistens via UoW</item>
 /// </list>
@@ -34,6 +35,11 @@ public static class MediatorPipelineBehaviors
         typeof(ValidationBehavior<,>),
         typeof(AuthorizationBehavior<,>),
         typeof(AdminAuthorizationBehavior<,>),
+        // PR2c (C5, epik #481) — server-enforced re-auth for IReauthenticatingRequest. After
+        // authorization (the actor is known) and before KMS-prefetch/UnitOfWork/Audit so a failed
+        // re-auth prefetches no DEK, commits nothing and writes no audit row. Validation runs
+        // earlier, so an empty password yields 400 before re-auth runs (empty vs wrong = 400 vs 401).
+        typeof(ReauthenticationBehavior<,>),
         // TD-13 (ADR 0049 Mekanik-not 3/4) — efter auth (ingen KMS-op för ej
         // auktoriserad principal, §5.4), före UnitOfWork (DEK-cache varm när
         // handlerns query materialiserar krypterade entiteter).

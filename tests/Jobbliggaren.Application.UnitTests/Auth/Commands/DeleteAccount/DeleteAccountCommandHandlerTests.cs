@@ -20,6 +20,12 @@ namespace Jobbliggaren.Application.UnitTests.Auth.Commands.DeleteAccount;
 /// Den fjärde är den säkerhetskritiska assertionen: inget user-ägt aggregat
 /// (ansökningar + FollowUp/Note-barn, CV + versioner) lämnas oraderat = ingen
 /// kvarvarande PII.
+///
+/// PR2c/C5 (epik #481): DeleteAccountCommand bär nu ett Password (IReauthenticatingRequest).
+/// Dessa handler-unit-tester kör handlern DIREKT och kringgår ReauthenticationBehavior — gaten
+/// verifierar lösenordet FÖRE handlern, och handlern själv ignorerar Password. Därför skickas
+/// null in här; re-auth-vägen täcks av ReauthenticationServiceTests + ReauthenticationBehaviorTests
+/// (unit) och DeleteMeTests (integration).
 /// </summary>
 public class DeleteAccountCommandHandlerTests
 {
@@ -41,7 +47,7 @@ public class DeleteAccountCommandHandlerTests
 
         var handler = new DeleteAccountCommandHandler(db, currentUser, Clock);
 
-        var result = await handler.Handle(new DeleteAccountCommand(), CancellationToken.None);
+        var result = await handler.Handle(new DeleteAccountCommand(null), CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Auth.NotAuthenticated");
@@ -55,7 +61,7 @@ public class DeleteAccountCommandHandlerTests
 
         var handler = new DeleteAccountCommandHandler(db, currentUser, Clock);
 
-        var result = await handler.Handle(new DeleteAccountCommand(), CancellationToken.None);
+        var result = await handler.Handle(new DeleteAccountCommand(null), CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Auth.JobSeekerNotFound");
@@ -80,7 +86,7 @@ public class DeleteAccountCommandHandlerTests
         var laterClock = new FakeDateTimeProvider(Clock.UtcNow.AddDays(1));
         var handler = new DeleteAccountCommandHandler(db, AuthenticatedAs(userId), laterClock);
 
-        var result = await handler.Handle(new DeleteAccountCommand(), CancellationToken.None);
+        var result = await handler.Handle(new DeleteAccountCommand(null), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe(seeker.Id.Value);
@@ -128,7 +134,7 @@ public class DeleteAccountCommandHandlerTests
 
         var handler = new DeleteAccountCommandHandler(db, AuthenticatedAs(userId), Clock);
 
-        var result = await handler.Handle(new DeleteAccountCommand(), CancellationToken.None);
+        var result = await handler.Handle(new DeleteAccountCommand(null), CancellationToken.None);
         await db.SaveChangesAsync(CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();

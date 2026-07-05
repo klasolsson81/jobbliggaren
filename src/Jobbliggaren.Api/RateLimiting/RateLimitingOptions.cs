@@ -13,7 +13,7 @@ public sealed class RateLimitingOptions
     public const string SectionName = "RateLimiting";
 
     /// <summary>
-    /// DELETE /me — partitionerat per UserId (claim "sub"). Skyddar mot
+    /// POST /me/delete — partitionerat per UserId (claim "sub"). Skyddar mot
     /// kompromettera-session-radera-konto-DoS + power-user resource-DoS.
     /// </summary>
     public PolicyOptions AccountDeletion { get; init; } = new()
@@ -220,7 +220,7 @@ public sealed class RateLimitingOptions
     /// login/register-spam; att återanvända den hade läckt IP-axel-semantik in
     /// på en auth-gated användarägd yta och straffat NAT/CGN-delade IP:n
     /// (Saltzer/Schroeder least common mechanism). Konsistent med AccountDeletion
-    /// (DELETE /me) som redan är en UserId-partitionerad skriv-policy. Egen
+    /// (POST /me/delete) som redan är en UserId-partitionerad skriv-policy. Egen
     /// budget (ej fold-in i MeListRead) så en /oversikt-läs-burst inte svälter
     /// en spara/ta-bort-mutation (bulkhead, Nygard). 30/min är gott om utrymme
     /// för bokmärknings-/rensnings-interaktion. dotnet-architect + senior-cto-

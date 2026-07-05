@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Queries.VerifyCredentials;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
@@ -6,109 +7,48 @@ using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Auth;
 
+/// <summary>
+/// After PR2c (C5, epik #481) the credential-check body moved into the shared
+/// <see cref="IReauthenticationService"/> — the SAME check <c>ReauthenticationBehavior</c> runs for
+/// <c>IReauthenticatingRequest</c> commands — so the re-auth policy lives in exactly ONE place
+/// (pinned by <c>ReauthenticationServiceTests</c>). The handler backing <c>POST /auth/verify</c> is
+/// now a thin pass-through, so these tests pin ONLY the delegation contract: the query's password is
+/// forwarded unchanged and the service's <see cref="Result"/> flows straight back (both success and
+/// failure). The re-auth LOGIC (no userId / empty email / wrong password / TOCTOU / soft-delete gate)
+/// is asserted in <c>ReauthenticationServiceTests</c>, not here.
+/// </summary>
 public class VerifyCredentialsQueryHandlerTests
 {
-    private const string TestEmail = "klas@example.com";
-
-    private static (ICurrentUser CurrentUser, IUserAccountService UserAccount) Defaults(
-        Guid? userId = null, string? email = TestEmail)
-    {
-        var currentUser = Substitute.For<ICurrentUser>();
-        currentUser.UserId.Returns(userId ?? Guid.NewGuid());
-        currentUser.IsAuthenticated.Returns(true);
-        var userAccount = Substitute.For<IUserAccountService>();
-        userAccount.GetEmailAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(email);
-        return (currentUser, userAccount);
-    }
+    private readonly IReauthenticationService _reauthentication = Substitute.For<IReauthenticationService>();
 
     [Fact]
-    public async Task Handle_WithValidPassword_ReturnsSuccess()
+    public async Task Handle_ForwardsPasswordToService_AndReturnsSuccess_WhenServiceSucceeds()
     {
-        var userId = Guid.NewGuid();
-        var (currentUser, userAccount) = Defaults(userId);
-        userAccount.ValidateCredentialsAsync(TestEmail, "S3kret!pass", Arg.Any<CancellationToken>())
-            .Returns(Result.Success(new UserCredentials(userId, new List<string>())));
+        var ct = TestContext.Current.CancellationToken;
+        _reauthentication.VerifyCurrentUserPasswordAsync("S3kret!pass", Arg.Any<CancellationToken>())
+            .Returns(Result.Success());
+        var handler = new VerifyCredentialsQueryHandler(_reauthentication);
 
-        var handler = new VerifyCredentialsQueryHandler(currentUser, userAccount);
-
-        var result = await handler.Handle(new VerifyCredentialsQuery("S3kret!pass"), CancellationToken.None);
+        var result = await handler.Handle(new VerifyCredentialsQuery("S3kret!pass"), ct);
 
         result.IsSuccess.ShouldBeTrue();
+        // The exact password from the query is what reaches the shared service (no re-derivation).
+        await _reauthentication.Received(1)
+            .VerifyCurrentUserPasswordAsync("S3kret!pass", Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Handle_WithInvalidPassword_ReturnsInvalidCredentials()
+    public async Task Handle_ReturnsFailure_WhenServiceReturnsFailure()
     {
-        var (currentUser, userAccount) = Defaults();
-        userAccount.ValidateCredentialsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Result.Failure<UserCredentials>(
-                DomainError.Validation("Auth.InvalidCredentials", "E-post eller lösenord är felaktigt.")));
+        var ct = TestContext.Current.CancellationToken;
+        _reauthentication.VerifyCurrentUserPasswordAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure(
+                DomainError.Validation(AuthErrorCodes.InvalidCredentials, "E-post eller lösenord är felaktigt.")));
+        var handler = new VerifyCredentialsQueryHandler(_reauthentication);
 
-        var handler = new VerifyCredentialsQueryHandler(currentUser, userAccount);
-
-        var result = await handler.Handle(new VerifyCredentialsQuery("wrong-password"), CancellationToken.None);
+        var result = await handler.Handle(new VerifyCredentialsQuery("wrong-password"), ct);
 
         result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Auth.InvalidCredentials");
-    }
-
-    [Fact]
-    public async Task Handle_WhenUserIdMismatch_ReturnsInvalidCredentials()
-    {
-        // Defense-in-depth: email-uppslagning resolverar till annan userId än
-        // ICurrentUser.UserId — t.ex. om email bytts efter session-skapande.
-        var sessionUserId = Guid.NewGuid();
-        var resolvedUserId = Guid.NewGuid();
-        var (currentUser, userAccount) = Defaults(sessionUserId);
-        userAccount.ValidateCredentialsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Result.Success(new UserCredentials(resolvedUserId, new List<string>())));
-
-        var handler = new VerifyCredentialsQueryHandler(currentUser, userAccount);
-
-        var result = await handler.Handle(new VerifyCredentialsQuery("S3kret!pass"), CancellationToken.None);
-
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Auth.InvalidCredentials");
-    }
-
-    [Fact]
-    public async Task Handle_WhenNoUserId_ReturnsInvalidCredentials()
-    {
-        // Failsafe — endpoint kräver RequireAuthorization men om
-        // ICurrentUser.UserId saknas (konfig-fel) ska vi inte exponera verify.
-        var currentUser = Substitute.For<ICurrentUser>();
-        currentUser.UserId.Returns((Guid?)null);
-        var userAccount = Substitute.For<IUserAccountService>();
-
-        var handler = new VerifyCredentialsQueryHandler(currentUser, userAccount);
-
-        var result = await handler.Handle(new VerifyCredentialsQuery("pwd"), CancellationToken.None);
-
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Auth.InvalidCredentials");
-        await userAccount.DidNotReceive().GetEmailAsync(
-            Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-        await userAccount.DidNotReceive().ValidateCredentialsAsync(
-            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task Handle_WhenEmailLookupFails_ReturnsInvalidCredentials()
-    {
-        var currentUser = Substitute.For<ICurrentUser>();
-        currentUser.UserId.Returns(Guid.NewGuid());
-        var userAccount = Substitute.For<IUserAccountService>();
-        userAccount.GetEmailAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns((string?)null);
-
-        var handler = new VerifyCredentialsQueryHandler(currentUser, userAccount);
-
-        var result = await handler.Handle(new VerifyCredentialsQuery("pwd"), CancellationToken.None);
-
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Auth.InvalidCredentials");
-        await userAccount.DidNotReceive().ValidateCredentialsAsync(
-            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        result.Error.Code.ShouldBe(AuthErrorCodes.InvalidCredentials);
     }
 }

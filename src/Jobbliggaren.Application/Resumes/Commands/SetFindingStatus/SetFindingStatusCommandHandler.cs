@@ -109,7 +109,7 @@ public sealed class SetFindingStatusCommandHandler(
         {
             return Result.Failure(DomainError.Validation(
                 "Resume.FindingNotIgnorable",
-                "Den här regeln kan inte ignoreras. Bara stilregler kan ignoreras."));
+                "Den här regeln kan inte ignoreras. Endast stilregler går att ignorera."));
         }
 
         var fingerprint = FindingTargetFingerprint.Compute(result.RubricVersion, verdict);

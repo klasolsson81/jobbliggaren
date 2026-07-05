@@ -154,7 +154,10 @@ internal static partial class FramesLoader
         var slots = new List<FrameSlot>(slotFiles.Count);
         foreach (var slot in slotFiles)
         {
-            if (!SlotNameShape().IsMatch(slot.Name))
+            // Null-tolerant: a malformed asset omitting "name" must hit the crafted
+            // fail-loud message below, not an ArgumentNullException from the regex
+            // (code-reviewer Info 1 — fail-loud taxonomy coherence).
+            if (slot.Name is null || !SlotNameShape().IsMatch(slot.Name))
             {
                 throw new InvalidOperationException(
                     $"frame '{id}': slot-namnet '{slot.Name}' är inte en gemen identifierare " +

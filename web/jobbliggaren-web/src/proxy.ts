@@ -8,7 +8,7 @@ import { isProtectedPath } from "@/lib/auth/protected-routes";
 // segment-boundary-aware (#583) so an authed prefix never swallows a public
 // sibling (`/cv` must not gate `/cv-granskning`).
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isProtectedPath(pathname)) {

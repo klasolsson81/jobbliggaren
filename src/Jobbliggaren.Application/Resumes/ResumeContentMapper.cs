@@ -59,6 +59,48 @@ internal static class ResumeContentMapper
             languages, skillGroups, sections);
     }
 
+    /// <summary>
+    /// The inverse projection (Fas 4b PR-7, #656; CTO D-F): maps server-COMPOSED domain
+    /// content back to the transport shape so the ONE personnummer guard surface
+    /// (<c>ResumeContentPersonnummerGuard.Check(ResumeContentDto)</c>) also covers a
+    /// TargetId-based apply — no second guard enumeration to drift (DRY on the
+    /// highest-priority invariant). Losslessness for every free-text field is pinned by
+    /// the ToDto→ToDomain round-trip test; a field added to one side without the other
+    /// fails that pin, not silently.
+    /// </summary>
+    public static ResumeContentDto ToDto(ResumeContent content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+
+        return new ResumeContentDto(
+            new PersonalInfoDto(
+                content.PersonalInfo.FullName,
+                content.PersonalInfo.Email,
+                content.PersonalInfo.Phone,
+                content.PersonalInfo.Location),
+            content.Experiences
+                .Select(e => new ExperienceDto(e.Company, e.Role, e.StartDate, e.EndDate, e.Description))
+                .ToList(),
+            content.Educations
+                .Select(e => new EducationDto(e.Institution, e.Degree, e.StartDate, e.EndDate))
+                .ToList(),
+            content.Skills
+                .Select(s => new SkillDto(s.Name, s.YearsExperience))
+                .ToList(),
+            content.Summary,
+            content.Languages
+                .Select(l => new SpokenLanguageDto(l.Name, l.Proficiency.Name))
+                .ToList(),
+            content.SkillGroups
+                .Select(g => new SkillGroupDto(g.Name, g.Members))
+                .ToList(),
+            content.Sections
+                .Select(s => new ResumeSectionDto(
+                    s.Heading,
+                    s.Entries.Select(e => new SectionEntryDto(e.Title, e.Lines)).ToList()))
+                .ToList());
+    }
+
     private static LanguageProficiency ToProficiency(string? token) =>
         token is not null
         && LanguageProficiency.TryFromName(token, ignoreCase: true, out var proficiency)

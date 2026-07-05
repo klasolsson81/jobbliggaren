@@ -15,10 +15,13 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <c>Jobbliggaren.Infrastructure.Resumes.Improvement</c> (parity CvReviewEngine).
 ///
 /// Load-bearing pins:
-///   - the CLOSED two-arm provenance union (<c>ChangeProvenance</c> abstract, EXACTLY
-///     KnowledgeBankProvenance + StructuralTransformProvenance, both sealed, both in
-///     Application) — the no-free-text-arm guarantee (CLAUDE.md §5: no synthesised prose);
-///   - the locked enum member sets (9 + 7);
+///   - the CLOSED THREE-arm provenance union (<c>ChangeProvenance</c> abstract, EXACTLY
+///     KnowledgeBankProvenance + StructuralTransformProvenance + UserParameterizedFrameProvenance,
+///     all sealed, all in Application) — the no-free-text-arm guarantee (CLAUDE.md §5: no synthesised
+///     prose). The third arm (Fas 4b PR-7, ADR 0093 §D2's deliberate widening) is STILL closed: a
+///     frame After is a mechanical substitution of user-selected, mechanically-verified inputs into a
+///     versioned template, never free prose;
+///   - the locked enum member sets (10 + 7);
 ///   - <c>ProposedChange</c> public-prop allowlist (exactly 9) — no opaque score;
 ///   - <c>CvImprovementResult</c> public-prop allowlist (exactly 5) — no opaque total (Goodhart);
 ///   - Application + Domain MUST NOT leak NLP/Npgsql/EF — NOR QuestPDF — through the new port
@@ -71,6 +74,7 @@ public class CvImprovementEngineLayerTests
             typeof(Jobbliggaren.Application.Resumes.Improvement.Abstractions.ChangeProvenance),
             typeof(Jobbliggaren.Application.Resumes.Improvement.Abstractions.KnowledgeBankProvenance),
             typeof(Jobbliggaren.Application.Resumes.Improvement.Abstractions.StructuralTransformProvenance),
+            typeof(Jobbliggaren.Application.Resumes.Improvement.Abstractions.UserParameterizedFrameProvenance),
         })
         {
             t.Assembly.ShouldBe(ApplicationAsm,
@@ -86,19 +90,22 @@ public class CvImprovementEngineLayerTests
     }
 
     // ===============================================================
-    // 2. Locked enum sets (9 ProposedChangeKind + 7 StructuralTransformKind)
+    // 2. Locked enum sets (10 ProposedChangeKind + 7 StructuralTransformKind)
     // ===============================================================
 
     [Fact]
-    public void ProposedChangeKind_is_the_locked_nine_member_set()
+    public void ProposedChangeKind_is_the_locked_ten_member_set()
     {
+        // Fas 4b PR-7 (#656, ADR 0093 §D2): FrameRewrite is the tenth member — a weak/unmeasured line
+        // rewritten via a deterministic sentence/measure frame from user-selected, mechanically
+        // verified inputs (A1/A2/C3). Still a locked set, one member per deterministic transform.
         Enum.GetNames<Jobbliggaren.Application.Resumes.Improvement.Abstractions.ProposedChangeKind>()
             .ShouldBe(
                 ["ClicheReplacement", "WeakVerbUpgrade", "DateNormalization", "SectionReorder",
                  "HeadingNormalization", "PersonnummerStrip", "PhotoStrip", "GpaStrip",
-                 "AtsSanitization"],
+                 "AtsSanitization", "FrameRewrite"],
                 ignoreOrder: true,
-                "ProposedChangeKind ska vara exakt de nio låsta medlemmarna.");
+                "ProposedChangeKind ska vara exakt de tio låsta medlemmarna.");
     }
 
     [Fact]
@@ -113,7 +120,7 @@ public class CvImprovementEngineLayerTests
     }
 
     // ===============================================================
-    // 3. The CLOSED two-arm provenance union — no free-text arm (§5 no-synthesis pin)
+    // 3. The CLOSED three-arm provenance union — no free-text arm (§5 no-synthesis pin)
     // ===============================================================
 
     [Fact]
@@ -124,11 +131,13 @@ public class CvImprovementEngineLayerTests
     }
 
     [Fact]
-    public void ChangeProvenance_has_exactly_the_two_sealed_subtypes_in_Application()
+    public void ChangeProvenance_has_exactly_the_three_sealed_subtypes_in_Application()
     {
-        // The closed-union no-free-text-arm guarantee: provenance can ONLY be a KB pointer or
-        // a structural-transform pointer — there is no "free text rationale" arm by which the
-        // determinism could smuggle in synthesised prose (CLAUDE.md §5).
+        // The closed-union no-free-text-arm guarantee: provenance can ONLY be a KB pointer, a
+        // structural-transform pointer, or a user-parameterized frame pointer (FrameId + verb +
+        // the user's mechanically-verified slot inputs) — there is no "free text rationale" arm
+        // by which the determinism could smuggle in synthesised prose (CLAUDE.md §5). The third
+        // arm is ADR 0093 §D2's DELIBERATE widening (Fas 4b PR-7), still closed by shape.
         var baseType = typeof(Jobbliggaren.Application.Resumes.Improvement.Abstractions.ChangeProvenance);
 
         var subtypes = ApplicationAsm.GetTypes()
@@ -136,9 +145,10 @@ public class CvImprovementEngineLayerTests
             .ToList();
 
         subtypes.Select(t => t.Name).ShouldBe(
-            ["KnowledgeBankProvenance", "StructuralTransformProvenance"], ignoreOrder: true,
-            "ChangeProvenance ska ha EXAKT de två sealed-armarna (ingen fri-text-arm).");
-        subtypes.ShouldAllBe(t => t.IsSealed, "Båda provenance-armarna ska vara sealed.");
+            ["KnowledgeBankProvenance", "StructuralTransformProvenance", "UserParameterizedFrameProvenance"],
+            ignoreOrder: true,
+            "ChangeProvenance ska ha EXAKT de tre sealed-armarna (ingen fri-text-arm).");
+        subtypes.ShouldAllBe(t => t.IsSealed, "Alla tre provenance-armarna ska vara sealed.");
     }
 
     // ===============================================================

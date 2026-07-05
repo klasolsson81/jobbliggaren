@@ -172,4 +172,60 @@ public class ImprovementEvidenceRedactorTests
 
         redacted.ShouldBeSameAs(change, "a count-only structural observation is returned unchanged.");
     }
+
+    // ===============================================================
+    // Fas 4b PR-7 (#656, ADR 0093 §D2 third arm; CTO D-B iv) — the frame arm widens the redactor
+    // twice: (1) a UserParameterizedFrameProvenance After is user-derived text, so it is masked like
+    // a structural After (KnowledgeBank Afters stay untouched — those are curated KB values); and
+    // (2) the provenance itself carries the user's raw slot inputs, so a personnummer smuggled
+    // through a free-echo Text slot must be masked INSIDE the provenance too (KB/Structural
+    // provenances carry no user text — this masking is unique to the third arm). A 12-digit vector.
+    // ===============================================================
+
+    private const string PnrTwelve = "19811218-9876";
+    private const string MaskTwelve = "********-****";
+
+    private static ProposedChange FrameChangeWithPnrInTextSlot() =>
+        ProposedChange.FromFrame(
+            targetId: "measure:0",
+            category: RubricCategory.Content,
+            criterionId: "A1",
+            evidence: new TextSpanEvidence(
+                new TextSpan(0, FrameFixtures.MeasureLine.Length, FrameFixtures.MeasureLine), Note: null),
+            frame: FrameFixtures.MeasureAntalPerPeriod(),
+            slotInputs: FrameFixtures.MeasureSlots(verb: "skickade", antal: "30", period: PnrTwelve),
+            strongVerbSet: FrameFixtures.StrongVerbs("skickade"),
+            rationale: "Kvantifiera resultatet.");
+
+    [Fact]
+    public void Redact_ShouldMaskAFrameAfter_WhenItCarriesAPersonnummer()
+    {
+        // Anti-stale: the 12-digit form masks to eight-plus-four stars.
+        PersonnummerScanner.Scan(PnrTwelve).ShouldHaveSingleItem().Masked.ShouldBe(MaskTwelve);
+
+        var change = FrameChangeWithPnrInTextSlot();
+
+        var redacted = ImprovementEvidenceRedactor.Redact([change]).ShouldHaveSingleItem();
+
+        redacted.Kind.ShouldBe(ProposedChangeKind.FrameRewrite);
+        redacted.Replacement!.After.ShouldContain(MaskTwelve, Case.Sensitive,
+            "a frame After is user-derived text and must be masked (parity the structural After, CTO D-B iv).");
+        redacted.Replacement.After.ShouldNotContain(PnrTwelve);
+    }
+
+    [Fact]
+    public void Redact_ShouldMaskTheFrameProvenanceUserInputs_WhenAValueCarriesAPersonnummer()
+    {
+        var change = FrameChangeWithPnrInTextSlot();
+
+        var redacted = ImprovementEvidenceRedactor.Redact([change]).ShouldHaveSingleItem();
+
+        var provenance = redacted.Provenance.ShouldBeOfType<UserParameterizedFrameProvenance>();
+        provenance.FrameId.ShouldBe("measure-antal-per-period");
+        provenance.UserInputs["period"].ShouldContain(MaskTwelve, Case.Sensitive,
+            "the raw slot inputs are transmitted in the provenance — a personnummer there must be masked too.");
+        provenance.UserInputs["period"].ShouldNotContain(PnrTwelve);
+        // A pnr-free input value is carried unchanged (redaction touches only what carries a pnr).
+        provenance.UserInputs["vad"].ShouldBe("paket");
+    }
 }

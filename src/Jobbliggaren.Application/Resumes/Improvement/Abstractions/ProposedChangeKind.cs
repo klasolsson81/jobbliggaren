@@ -35,4 +35,8 @@ public enum ProposedChangeKind
 
     /// <summary>Non-standard glyphs an ATS parser mangles stripped (ATS profile only).</summary>
     AtsSanitization,
+
+    /// <summary>A weak/unmeasured line rewritten via a deterministic sentence/measure frame from
+    /// user-selected, mechanically verified inputs (A1/A2/C3 — Fas 4b PR-7, ADR 0093 §D2).</summary>
+    FrameRewrite,
 }

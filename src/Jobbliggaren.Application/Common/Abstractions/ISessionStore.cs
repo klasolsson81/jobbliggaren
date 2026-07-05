@@ -102,4 +102,20 @@ public interface ISessionStore
     /// </summary>
     /// <returns>Antal sessions som invaliderades.</returns>
     Task<int> InvalidateAllForUserAsync(Guid userId, CancellationToken ct);
+
+    /// <summary>
+    /// Plants a per-user "deleted" tombstone so <see cref="GetAsync"/> fail-closed rejects
+    /// EVERY surviving session for the user, closing the read-path erasure gap that the
+    /// best-effort <see cref="InvalidateAllForUserAsync"/> leaves if it partially fails (Redis
+    /// blip, or a session created between the soft-delete commit and the invalidation). Called
+    /// on account deletion alongside <see cref="InvalidateAllForUserAsync"/> — the tombstone is
+    /// the durable backstop, the eager invalidation the fast path (GDPR Art. 17 read-path).
+    ///
+    /// The tombstone lives for the 30-day soft-delete restore window and self-expires, so it
+    /// never blocks a later account (post hard-delete the id is gone anyway). A future in-window
+    /// restore path MUST clear this tombstone before the account is used again — see
+    /// docs/runbooks/account-deletion.md. Layer 2 of the PR2c soft-delete gate; mirrors the
+    /// COND-B revocation tombstone. Idempotent.
+    /// </summary>
+    Task MarkUserDeletedAsync(Guid userId, CancellationToken ct);
 }

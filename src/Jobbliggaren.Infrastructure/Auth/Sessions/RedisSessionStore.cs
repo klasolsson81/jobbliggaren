@@ -44,6 +44,29 @@ public sealed class RedisSessionStore(
         var payload = JsonSerializer.Deserialize<SessionPayload>(json, JsonOptions);
         if (payload is null) return null;
 
+        var db = redis.GetDatabase();
+
+        // PR2c-0 Layer 2 — fail-closed account-deletion gate: a per-user :deleted tombstone
+        // (planted by MarkUserDeletedAsync on account deletion) rejects EVERY surviving session
+        // read, closing the read-path erasure gap the best-effort InvalidateAllForUserAsync leaves
+        // if it partially failed (Redis blip / a session created mid-deletion). Evict + self-heal
+        // so the id can never authenticate again. Checked before the sliding writes (no point
+        // sliding a deleted user's session) AND before the COND-A grace short-circuit (deletion
+        // overrides an in-flight rotation grace). +1 Redis RTT on the auth hot path — the
+        // ADR-0045-sanctioned cost of Layer 2 (vs a forbidden per-request Postgres read).
+        try
+        {
+            if (await db.KeyExistsAsync(UserDeletedKey(payload.UserId)))
+            {
+                await InvalidateAsync(sessionId, ct);
+                return null;
+            }
+        }
+        catch (RedisConnectionException ex)
+        {
+            throw new SessionStoreUnavailableException("Redis-session-store är inte tillgänglig.", ex);
+        }
+
         var now = dateTimeProvider.UtcNow;
 
         // The session keeps the lifetime profile it was created under (persisted in the
@@ -98,7 +121,6 @@ public sealed class RedisSessionStore(
         // same accepted worst-case as CreateAsync (TD-23 — now a third such site).
         try
         {
-            var db = redis.GetDatabase();
             var setKey = UserSessionsKey(payload.UserId);
             await db.SetAddAsync(setKey, sessionKey);
             // The index SET keeps the full sliding window (it must outlive the sessions
@@ -237,6 +259,24 @@ public sealed class RedisSessionStore(
 
             await db.KeyDeleteAsync(setKey);
             return count;
+        }
+        catch (RedisConnectionException ex)
+        {
+            throw new SessionStoreUnavailableException("Redis-session-store är inte tillgänglig.", ex);
+        }
+    }
+
+    public async Task MarkUserDeletedAsync(Guid userId, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        // PR2c-0 Layer 2 — plant the per-user account-deletion tombstone (SET EX), mirroring the
+        // COND-B :revoked tombstone. GetAsync fail-closed rejects (and self-heals) any surviving
+        // session while it lives (the 30-day restore window). Idempotent (SET overwrites/refreshes).
+        try
+        {
+            var db = redis.GetDatabase();
+            await db.StringSetAsync(UserDeletedKey(userId), DeletedValue, _options.DeletionTombstoneTtl);
         }
         catch (RedisConnectionException ex)
         {
@@ -390,6 +430,13 @@ public sealed class RedisSessionStore(
     private const string RevokedValue = "1";
     private static string UserRevokedKey(Guid userId) =>
         string.Create(CultureInfo.InvariantCulture, $"{KeyPrefix}user:{userId}:revoked");
+
+    // PR2c-0 Layer 2 account-deletion tombstone (SET EX). Planted by MarkUserDeletedAsync on
+    // account deletion; GetAsync fails closed while it exists (the 30-day restore window).
+    // Manually prefixed (IConnectionMultiplexer path). The value is an unused sentinel.
+    private const string DeletedValue = "1";
+    private static string UserDeletedKey(Guid userId) =>
+        string.Create(CultureInfo.InvariantCulture, $"{KeyPrefix}user:{userId}:deleted");
 
     // RotatedAt + Lifetime are written from PR2a. Older payloads lack them: Lifetime
     // deserializes to Legacy (ordinal 0) and RotatedAt to default — both handled at the

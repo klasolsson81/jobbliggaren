@@ -232,4 +232,74 @@ public class RedisSessionStoreTests : IAsyncLifetime
         p99.ShouldBeLessThan(50.0,
             "p99 > 50 ms mot lokal Docker Redis är oacceptabelt (budget är 5 ms mot prod Redis)");
     }
+
+    // ── MarkUserDeletedAsync (PR2c-0 Layer 2 soft-delete gate) ─────────────────
+
+    // Core Layer-2 property against real Redis: a tombstoned user's surviving session fails
+    // closed on read — the read-path erasure backstop for a session that outlived the
+    // best-effort InvalidateAllForUserAsync.
+    [Fact]
+    public async Task GetAsync_ShouldReturnNull_WhenUserMarkedDeleted()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+
+        var session = await _store.CreateAsync(userId, SessionLifetime.Legacy, ct);
+        (await _store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+
+        await _store.MarkUserDeletedAsync(userId, ct);
+
+        (await _store.GetAsync(session.Id, ct)).ShouldBeNull();
+    }
+
+    // Per-user: deleting one user must not reject another user's sessions.
+    [Fact]
+    public async Task GetAsync_ShouldNotAffectOtherUsers_WhenUserMarkedDeleted()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var deletedUser = Guid.NewGuid();
+        var otherUser = Guid.NewGuid();
+
+        var deletedSession = await _store.CreateAsync(deletedUser, SessionLifetime.Legacy, ct);
+        var otherSession = await _store.CreateAsync(otherUser, SessionLifetime.Legacy, ct);
+
+        await _store.MarkUserDeletedAsync(deletedUser, ct);
+
+        (await _store.GetAsync(deletedSession.Id, ct)).ShouldBeNull();
+        (await _store.GetAsync(otherSession.Id, ct)).ShouldNotBeNull();
+    }
+
+    // Self-heal proof: the rejected read EVICTS the session key (not merely masks it). After the
+    // tombstone is manually cleared, the session is STILL gone — so a Redis blip that later drops
+    // the tombstone cannot resurrect the session. Mirrors the absolute-cap eviction.
+    [Fact]
+    public async Task GetAsync_ShouldEvictSession_WhenUserMarkedDeleted()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+
+        var session = await _store.CreateAsync(userId, SessionLifetime.Legacy, ct);
+        await _store.MarkUserDeletedAsync(userId, ct);
+        (await _store.GetAsync(session.Id, ct)).ShouldBeNull(); // evicts the session key
+
+        // Drop the tombstone directly; the session must NOT reappear (it was evicted, not masked).
+        await _mux.GetDatabase().KeyDeleteAsync($"jobbliggaren:user:{userId}:deleted");
+        (await _store.GetAsync(session.Id, ct)).ShouldBeNull();
+    }
+
+    // The tombstone carries the 30-day restore-window TTL (DeletionTombstoneTtl), so it
+    // self-expires when hard-delete makes the id moot — it never blocks a later account forever.
+    [Fact]
+    public async Task MarkUserDeletedAsync_ShouldSetTombstoneWithRestoreWindowTtl()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+
+        await _store.MarkUserDeletedAsync(userId, ct);
+
+        var ttl = await _mux.GetDatabase().KeyTimeToLiveAsync($"jobbliggaren:user:{userId}:deleted");
+        ttl.ShouldNotBeNull();
+        ttl!.Value.ShouldBeGreaterThan(TimeSpan.FromDays(29));
+        ttl.Value.ShouldBeLessThanOrEqualTo(TimeSpan.FromDays(30));
+    }
 }

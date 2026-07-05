@@ -113,7 +113,23 @@ public static class MeEndpoints
             // skada vid retry). Vi medvetet INTE swallow:ar Redis-fel — sessionen
             // måste avslutas eller incidenten flaggas.
             if (currentUser.UserId.HasValue)
-                await sessions.InvalidateAllForUserAsync(currentUser.UserId.Value, ct);
+            {
+                // PR2c-0 Layer 2: plant the account-deletion tombstone BEFORE the eager
+                // invalidation, so GetAsync fail-closed rejects (and self-heals) any session
+                // that survives a partial InvalidateAllForUserAsync (Redis blip / race). The
+                // tombstone is the durable read-path backstop (GDPR Art. 17); InvalidateAll is
+                // the fast path that tears the sessions down immediately.
+                //
+                // CancellationToken.None (NOT the request ct): the account is already
+                // soft-deleted (committed above), so this post-commit erasure MUST complete
+                // regardless of a client disconnect. On the request ct, a fire-and-close between
+                // the commit and this block would abort the plant → sessions survive to
+                // sliding-expiry and the read-path stays open, defeating the durable-erasure
+                // guarantee (code-reviewer PR2c-0 Major). Art. 17 teardown is not the caller's
+                // to cancel; the plant leads (fail-closed) so it lands even if InvalidateAll throws.
+                await sessions.MarkUserDeletedAsync(currentUser.UserId.Value, CancellationToken.None);
+                await sessions.InvalidateAllForUserAsync(currentUser.UserId.Value, CancellationToken.None);
+            }
 
             return Results.NoContent();
         }).RequireAuthorization()

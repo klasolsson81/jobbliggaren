@@ -21,6 +21,10 @@ public sealed class InMemorySessionStore(
     // — InvalidateAllForUserAsync plants it, RotateAsync fails closed while it is live.
     private readonly ConcurrentDictionary<Guid, DateTimeOffset> _revoked = new();
 
+    // PR2c-0 Layer 2 account-deletion tombstone: userId -> deleted-until. Mirrors the Redis
+    // SET EX :deleted tombstone — MarkUserDeletedAsync plants it, GetAsync fails closed while live.
+    private readonly ConcurrentDictionary<Guid, DateTimeOffset> _deleted = new();
+
     public Task<Session?> GetAsync(SessionId sessionId, CancellationToken ct)
     {
         var key = sessionId.Reveal();
@@ -29,6 +33,15 @@ public sealed class InMemorySessionStore(
 
         var now = dateTimeProvider.UtcNow;
         if (entry.ExpiresAt < now)
+        {
+            _sessions.TryRemove(key, out _);
+            return Task.FromResult<Session?>(null);
+        }
+
+        // PR2c-0 Layer 2 — fail-closed account-deletion gate (mirrors RedisSessionStore.GetAsync):
+        // a per-user :deleted tombstone rejects + evicts EVERY surviving session for a deleted
+        // user, closing the read-path erasure gap. Before the cap + COND-A grace checks.
+        if (IsDeleted(entry.UserId, now))
         {
             _sessions.TryRemove(key, out _);
             return Task.FromResult<Session?>(null);
@@ -143,6 +156,19 @@ public sealed class InMemorySessionStore(
         return Task.FromResult(toRemove.Count);
     }
 
+    public Task MarkUserDeletedAsync(Guid userId, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested(); // parity with RedisSessionStore (no other I/O to cancel)
+
+        // PR2c-0 Layer 2 — plant the account-deletion tombstone (mirrors the Redis SET EX).
+        // Idempotent; GetAsync fails closed while it is live (the 30-day restore window).
+        _deleted[userId] = dateTimeProvider.UtcNow + _options.DeletionTombstoneTtl;
+        return Task.CompletedTask;
+    }
+
     private bool IsRevoked(Guid userId, DateTimeOffset now) =>
         _revoked.TryGetValue(userId, out var until) && until > now;
+
+    private bool IsDeleted(Guid userId, DateTimeOffset now) =>
+        _deleted.TryGetValue(userId, out var until) && until > now;
 }

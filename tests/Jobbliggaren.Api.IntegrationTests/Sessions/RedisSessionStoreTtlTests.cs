@@ -389,6 +389,32 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
         (await _rotatingStore.GetAsync(session.Id, ct)).ShouldBeNull();
     }
 
+    // PR2c-0 Layer 2 (security-auditor gate): the :deleted tombstone gate runs BEFORE the COND-A
+    // grace short-circuit, so a rotated-away (superseded) key still in its grace window is ALSO
+    // rejected once the user is tombstoned — deletion overrides an in-flight rotation grace (both
+    // ids die). Mirrors the InMemory placement-proof against REAL Redis on the hot auth path.
+    [Fact]
+    public async Task GetAsync_ShouldReturnNull_ForSupersededAndNewKey_WhenUserMarkedDeleted()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var session = await _rotatingStore.CreateAsync(userId, SessionLifetime.Persistent, ct);
+
+        _capClock.UtcNow = _capClock.UtcNow.AddHours(25); // past the 24h rotation interval
+        var rotation = await _rotatingStore.RotateAsync(session.Id, ct);
+        rotation.ShouldNotBeNull();
+
+        // Both valid immediately after rotation (old in COND-A grace, new live)…
+        (await _rotatingStore.GetAsync(session.Id, ct)).ShouldNotBeNull();
+        (await _rotatingStore.GetAsync(rotation!.NewId, ct)).ShouldNotBeNull();
+
+        await _rotatingStore.MarkUserDeletedAsync(userId, ct);
+
+        // …and both die the moment the user is tombstoned (the gate precedes the grace check).
+        (await _rotatingStore.GetAsync(session.Id, ct)).ShouldBeNull();
+        (await _rotatingStore.GetAsync(rotation.NewId, ct)).ShouldBeNull();
+    }
+
     // #2b3 COND-B: a rotation that runs concurrently with an account-wide revoke must fail
     // closed rather than mint a session that outlives the deletion. InvalidateAllForUser plants
     // a per-user tombstone before snapshotting the index; RotateAsync checks it after writing

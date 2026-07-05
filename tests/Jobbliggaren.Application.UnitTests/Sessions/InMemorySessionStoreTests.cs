@@ -513,4 +513,121 @@ public class InMemorySessionStoreTests
 
         result.ShouldBeNull();
     }
+
+    // ── MarkUserDeletedAsync (PR2c-0 Layer 2 soft-delete gate) ─────────────────
+
+    // The core Layer-2 property: once a user is tombstoned, EVERY surviving session for that
+    // user fails closed on read — this is the read-path erasure backstop for a session that
+    // outlived the best-effort InvalidateAllForUserAsync.
+    [Fact]
+    public async Task GetAsync_ShouldReturnNull_WhenUserMarkedDeleted()
+    {
+        var store = CreateStore();
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+
+        var session = await store.CreateAsync(userId, SessionLifetime.Legacy, ct);
+        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+
+        await store.MarkUserDeletedAsync(userId, ct);
+
+        (await store.GetAsync(session.Id, ct)).ShouldBeNull();
+    }
+
+    // The tombstone is per-user: deleting one user must not reject another user's sessions.
+    [Fact]
+    public async Task GetAsync_ShouldNotAffectOtherUsers_WhenUserMarkedDeleted()
+    {
+        var store = CreateStore();
+        var ct = TestContext.Current.CancellationToken;
+        var deletedUser = Guid.NewGuid();
+        var otherUser = Guid.NewGuid();
+
+        var deletedSession = await store.CreateAsync(deletedUser, SessionLifetime.Legacy, ct);
+        var otherSession = await store.CreateAsync(otherUser, SessionLifetime.Legacy, ct);
+
+        await store.MarkUserDeletedAsync(deletedUser, ct);
+
+        (await store.GetAsync(deletedSession.Id, ct)).ShouldBeNull();
+        (await store.GetAsync(otherSession.Id, ct)).ShouldNotBeNull();
+    }
+
+    // Placement proof: the :deleted gate runs BEFORE the COND-A grace short-circuit, so a
+    // rotated-away (superseded) key still in its grace window is ALSO rejected once the user is
+    // deleted — deletion overrides an in-flight rotation grace (both old and new id die).
+    [Fact]
+    public async Task GetAsync_ShouldReturnNull_ForSupersededAndNewKey_WhenUserMarkedDeleted()
+    {
+        var time = new MutableFakeDateTimeProvider();
+        var store = CreateStore(time);
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+
+        var session = await store.CreateAsync(userId, SessionLifetime.Persistent, ct);
+        time.UtcNow = time.UtcNow.AddHours(25);
+        var rotation = await store.RotateAsync(session.Id, ct);
+        rotation.ShouldNotBeNull();
+
+        // Both are valid immediately after rotation (old in grace, new live)…
+        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+        (await store.GetAsync(rotation!.NewId, ct)).ShouldNotBeNull();
+
+        await store.MarkUserDeletedAsync(userId, ct);
+
+        // …and both die the moment the user is tombstoned.
+        (await store.GetAsync(session.Id, ct)).ShouldBeNull();
+        (await store.GetAsync(rotation.NewId, ct)).ShouldBeNull();
+    }
+
+    // The tombstone self-expires at DeletionTombstoneTtl (the 30-day restore window), so it
+    // never blocks a later session forever — a fresh session created after expiry authenticates.
+    [Fact]
+    public async Task GetAsync_ShouldAuthenticateFreshSession_AfterDeletionTombstoneExpires()
+    {
+        var time = new MutableFakeDateTimeProvider();
+        var store = CreateStore(time);
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+
+        await store.MarkUserDeletedAsync(userId, ct);
+
+        time.UtcNow = time.UtcNow.AddDays(31); // past the 30d DeletionTombstoneTtl
+
+        var fresh = await store.CreateAsync(userId, SessionLifetime.Legacy, ct);
+        (await store.GetAsync(fresh.Id, ct)).ShouldNotBeNull();
+    }
+
+    // Idempotent: a repeat MarkUserDeletedAsync is safe (no throw; the gate still holds).
+    [Fact]
+    public async Task MarkUserDeletedAsync_ShouldBeIdempotent()
+    {
+        var store = CreateStore();
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+
+        var session = await store.CreateAsync(userId, SessionLifetime.Legacy, ct);
+        await store.MarkUserDeletedAsync(userId, ct);
+        await store.MarkUserDeletedAsync(userId, ct);
+
+        (await store.GetAsync(session.Id, ct)).ShouldBeNull();
+    }
+
+    // security-auditor + dotnet-architect PR2c-0 Minor: the read-path erasure guarantee is
+    // "no surviving session can outlive its user's :deleted tombstone". The binding invariant is
+    // DeletionTombstoneTtl >= the largest profile SlidingTtl (a never-read survivor's Redis key
+    // TTL = SlidingTtl from creation, so it must expire no later than the tombstone). Today it
+    // holds only because Persistent SlidingTtl (30d) == the tombstone (30d) — zero margin. Pin the
+    // DIRECTION so raising any profile's SlidingTtl above the tombstone TTL fails loudly instead of
+    // silently reopening the GDPR Art. 17 read-path gap.
+    [Fact]
+    public void DeletionTombstoneTtl_ShouldCoverEveryProfileSlidingWindow()
+    {
+        var o = new SessionStoreOptions();
+        var maxSliding = new[] { o.Legacy.SlidingTtl, o.Session.SlidingTtl, o.Persistent.SlidingTtl }.Max();
+
+        o.DeletionTombstoneTtl.ShouldBeGreaterThanOrEqualTo(maxSliding,
+            "DeletionTombstoneTtl måste täcka varje profils SlidingTtl — annars kan en aldrig-läst " +
+            "överlevande session slidas förbi tombstonen och autentiseras i gapet efter tombstone-" +
+            "utgång men före hard-delete (GDPR Art. 17 läs-väg återöppnas).");
+    }
 }

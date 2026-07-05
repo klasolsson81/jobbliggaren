@@ -1,5 +1,6 @@
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.JobSeekers.Commands.SetPrimaryResume;
+using Jobbliggaren.Application.Resumes.Commands.ApplyCvImprovements;
 using Jobbliggaren.Application.Resumes.Commands.CreateResume;
 using Jobbliggaren.Application.Resumes.Commands.DeleteResume;
 using Jobbliggaren.Application.Resumes.Commands.DeleteResumeVersion;
@@ -9,6 +10,7 @@ using Jobbliggaren.Application.Resumes.Commands.RenameResume;
 using Jobbliggaren.Application.Resumes.Commands.SetFindingStatus;
 using Jobbliggaren.Application.Resumes.Commands.SetResumeLanguage;
 using Jobbliggaren.Application.Resumes.Commands.UpdateMasterContent;
+using Jobbliggaren.Application.Resumes.Improvement.Queries.PreviewCvImprovement;
 using Jobbliggaren.Application.Resumes.Improvement.Queries.SuggestCvImprovements;
 using Jobbliggaren.Application.Resumes.Queries;
 using Jobbliggaren.Application.Resumes.Queries.GetLatestPendingParsedResume;
@@ -336,6 +338,37 @@ public static class ResumesEndpoints
                 ? Results.NoContent()
                 : result.Error.ToProblemResult();
         }).RequireAuthorization();
+
+        // EFTER-preview of one frame application (Fas 4b PR-7, #656; handoff §6.2 — the
+        // preview is ALWAYS shown before "Åtgärda direkt" activates). A READ that composes
+        // the real post-apply text server-side (never client text, ADR 0074) and MINTS the
+        // finding fingerprint the apply call echoes back. POST because the slot inputs are
+        // a structured payload — semantically still a query, nothing persists.
+        group.MapPost("/{id:guid}/improvements/preview", async (
+            Guid id, PreviewImprovementBody body, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(
+                new PreviewCvImprovementQuery(id, body.CriterionId, body.FrameId, body.SlotInputs), ct);
+            return result.IsSuccess
+                ? Results.Ok(result.Value)
+                : result.Error.ToProblemResult();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // The apply-half of propose-and-approve (Fas 4b PR-7, #656; ADR 0093 §D2): ids +
+        // frame inputs ONLY — the server recomputes the review, verifies the echoed
+        // fingerprint (mismatch → 409 "CV changed, re-review"), composes via FromFrame,
+        // personnummer-guards the composed content, and writes ONCE through
+        // Resume.UpdateMasterContent. Owner-scoped, audited, write-rate-limited.
+        group.MapPost("/{id:guid}/improvements/apply", async (
+            Guid id, ApplyImprovementsBody body, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new ApplyCvImprovementsCommand(id, body.Changes), ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
     }
 
     private sealed record CreateResumeBody(string Name, string FullName);
@@ -343,4 +376,7 @@ public static class ResumesEndpoints
     private sealed record SetLanguageBody(string Language);
     private sealed record SetFindingStatusBody(string Status);
     private sealed record PromoteParsedResumeBody(string Name, ResumeContentDto Content);
+    private sealed record PreviewImprovementBody(
+        string CriterionId, string FrameId, IReadOnlyDictionary<string, string> SlotInputs);
+    private sealed record ApplyImprovementsBody(IReadOnlyList<FrameApplyInput> Changes);
 }

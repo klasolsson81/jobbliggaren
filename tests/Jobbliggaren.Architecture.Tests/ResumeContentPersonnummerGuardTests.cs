@@ -1,4 +1,5 @@
 using System.Reflection;
+using Jobbliggaren.Application.Resumes.Commands.ApplyCvImprovements;
 using Jobbliggaren.Application.Resumes.Commands.CreateResume;
 using Jobbliggaren.Application.Resumes.Commands.PromoteParsedResume;
 using Jobbliggaren.Application.Resumes.Commands.RenameResume;
@@ -109,9 +110,12 @@ public class ResumeContentPersonnummerGuardTests
                 offenders.Add(handler.FullName!);
         }
 
-        // Anchor: the two known subjects must be discovered, else the probes are stale.
+        // Anchor: the known subjects must be discovered, else the probes are stale. PR-7 (#656)
+        // adds the first TargetId-based apply handler — the sink key's whole purpose — so it must
+        // appear here too (it carries no ResumeContentDto, so probe (b) is what discovers it).
         subjects.ShouldContain(nameof(UpdateMasterContentCommandHandler));
         subjects.ShouldContain(nameof(PromoteParsedResumeCommandHandler));
+        subjects.ShouldContain(nameof(ApplyCvImprovementsCommandHandler));
 
         offenders.ShouldBeEmpty(
             "Every command handler that is a resume-content write surface, keyed on EITHER " +
@@ -223,6 +227,50 @@ public class ResumeContentPersonnummerGuardTests
             .ShouldBeTrue(
                 $"CreateResumeCommandHandler must call {GuardTypeName}.Check(...) on the " +
                 "template fullName (canonical free-text write path, ADR 0074 Invariant 1)");
+    }
+
+    [Fact]
+    public void ApplyCvImprovementsCommandHandler_IsDiscoveredAsSubject_AndCallsTheGuard()
+    {
+        // Fas 4b PR-7 (#656) — the first TargetId-based apply command: ids + frame inputs only, NO
+        // ResumeContentDto on the command, so probe (a) is silent and probe (b) (the sink key) is
+        // what discovers it. The handler composes content server-side and hands it to
+        // resume.UpdateMasterContent (the ResumeContent sink) — the exact escape the #650 sink key
+        // was introduced for — so BOTH the sink probe and the guard-call probe must hit.
+        using var module = ModuleDefinition.ReadModule(typeof(ResumeContentDto).Assembly.Location);
+        var reachable = ReachableMethodsOf(module, typeof(ApplyCvImprovementsCommandHandler));
+
+        AnyResumeContentSinkCall(reachable).ShouldBeTrue(
+            "ApplyCvImprovementsCommandHandler calls resume.UpdateMasterContent(ResumeContent, ...); " +
+            "the sink probe must discover it (it carries no ResumeContentDto — probe (b) is the key)");
+        AnyGuardCall(reachable).ShouldBeTrue(
+            $"ApplyCvImprovementsCommandHandler must call {GuardTypeName}.Check(...) on the composed " +
+            "content before the sink (ADR 0074 Invariant 1) — a personnummer smuggled via a free-echo " +
+            "Text slot is caught here");
+    }
+
+    [Fact]
+    public void Walker_FollowsTheApplyHandlerIntoItsApplicationHelper_FrameApplyComposer()
+    {
+        // The PR-1-doc-requested positive walker anchor (#650 residual 3), pinned against the
+        // delegation depth that ACTUALLY exists in the apply handler: it delegates content
+        // composition to the Application helper FrameApplyComposer (ResolveFinding / ApplyToContent)
+        // and only then calls the Resume sink + the guard DIRECTLY. So there is no helper-delegated
+        // SINK to pin; instead this anchors that the bounded transitive walk DESCENDS into the
+        // delegated Application helper — the same machinery that would catch a delegated sink. If the
+        // apply handler ever inlines the composer (dropping the delegation), this anchor fails loud
+        // and the residual-3 escape analysis must be revisited.
+        using var module = ModuleDefinition.ReadModule(typeof(ResumeContentDto).Assembly.Location);
+        var reachable = ReachableMethodsOf(module, typeof(ApplyCvImprovementsCommandHandler));
+
+        // Materialize the predicate result first — Shouldly's expression-tree overload
+        // cannot host a null-propagating operator (CS8072).
+        var descendsIntoComposer = reachable.Any(m =>
+            m.DeclaringType is { } declaring
+            && string.Equals(declaring.Name, "FrameApplyComposer", StringComparison.Ordinal));
+        descendsIntoComposer.ShouldBeTrue(
+            "the bounded transitive walk must follow the apply handler into FrameApplyComposer " +
+            "(the delegated Application content-composition helper)");
     }
 
     // ===============================================================

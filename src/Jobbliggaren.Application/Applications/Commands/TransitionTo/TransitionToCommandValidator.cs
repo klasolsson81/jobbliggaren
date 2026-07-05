@@ -15,10 +15,10 @@ public sealed class TransitionToCommandValidator : AbstractValidator<TransitionT
         // target, INCLUDING a manual Ghosted (the user marks "Inget svar" from the
         // status menu / kanban). The former "Ghosted sätts automatiskt av systemet"
         // block is gone — manual Ghosted now routes through TransitionTo (raising
-        // the transition event + a StatusChange), while the system/job path stays
-        // on MarkGhosted. The only input rule left is that the name is a known
-        // status; the aggregate enforces the remaining invariants (soft-delete,
-        // self-transition no-op).
+        // the transition event + a StatusChange); #630 PR 4 retired the auto-ghost
+        // job, so there is no longer a separate system path. The only input rule
+        // left is that the name is a known status; the aggregate enforces the
+        // remaining invariants (soft-delete, self-transition no-op).
         RuleFor(c => c.TargetStatus)
             .NotEmpty()
             .WithMessage("TargetStatus är obligatoriskt.")

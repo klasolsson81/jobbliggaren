@@ -901,11 +901,12 @@ public static class DependencyInjection
             Jobbliggaren.Application.JobAds.Abstractions.IOccupationSynonymExpander,
             JobAds.OccupationSynonymExpander>();
 
-        // #342 (ADR 0085 §3) — /ansokningar attention-prioritisation thresholds.
-        // Application owns the contract; bound here (ApplicationAttention section)
-        // with data-annotation + start-time validation (parity with the digest/
-        // backfill options). GhostedThresholdDays is intentionally NOT bound — it
-        // reuses the per-aggregate field projected into the read DTO.
+        // #630 PR 4 (design §11, superseding ADR 0085 §3) — /ansokningar
+        // attention-prioritisation thresholds. Application owns the contract; bound
+        // here (ApplicationAttention section) with data-annotation + start-time
+        // validation (parity with the digest/backfill options). The per-aggregate
+        // Application.GhostedThresholdDays is intentionally NOT bound and no longer
+        // feeds any signal — ghost-suggest keys on the GhostSuggestDays option.
         services.AddOptions<Jobbliggaren.Application.Applications.Attention.ApplicationAttentionOptions>()
             .Bind(configuration.GetSection(
                 Jobbliggaren.Application.Applications.Attention.ApplicationAttentionOptions.SectionName))

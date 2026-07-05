@@ -54,7 +54,7 @@ public class DeleteResumeVersionGuardTranslationTests(ApiFactory factory)
 
     /// <summary>
     /// Bygger en Application som refererar <paramref name="versionId"/> och vars
-    /// Status nått <paramref name="target"/> via transition-/MarkGhosted-vägar,
+    /// Status nått <paramref name="target"/> via TransitionTo-vägar,
     /// och persisterar den. Returnerar inget — testet frågar via predikatet.
     /// </summary>
     private static async Task SeedApplicationReferencingVersionAsync(
@@ -70,7 +70,7 @@ public class DeleteResumeVersionGuardTranslationTests(ApiFactory factory)
 
             if (target == ApplicationStatus.Ghosted)
             {
-                app.MarkGhosted(clock);
+                app.TransitionTo(ApplicationStatus.Ghosted, clock);
             }
             else if (target == ApplicationStatus.Rejected)
             {

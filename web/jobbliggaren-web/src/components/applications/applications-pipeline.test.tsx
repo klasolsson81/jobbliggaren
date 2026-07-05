@@ -307,7 +307,7 @@ describe("ApplicationsPipeline — Kräver åtgärd-feed (MOVE)", () => {
     const groups = makePipeline(
       { Submitted: 1, OfferReceived: 1, Acknowledged: 1 },
       {
-        Submitted: ["ProactiveFollowUpNudge"],
+        Submitted: ["NoResponseNudge"],
         OfferReceived: ["OfferAwaitingReply"],
         Acknowledged: ["OverdueFollowUp"],
       }

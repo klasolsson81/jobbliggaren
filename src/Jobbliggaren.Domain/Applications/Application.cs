@@ -44,6 +44,14 @@ public sealed class Application : AggregateRoot<ApplicationId>
     /// </summary>
     public DateTimeOffset? AppliedAt { get; private set; }
 
+    /// <summary>
+    /// Dormant since #630 PR 4 (ADR 0092 D6). It drove the retired
+    /// <c>DetectGhostedApplicationsJob</c> (auto-ghost at 21 days); that job is
+    /// deleted and nothing reads this field now — the ghost-suggest attention
+    /// SIGNAL keys on the operator option <c>GhostSuggestDays</c> (30), not this
+    /// per-aggregate value. Left mapped (no destructive column drop on a hotspot
+    /// table) — see ADR 0092 Livscykel.
+    /// </summary>
     public int GhostedThresholdDays { get; private set; }
 
     /// <summary>
@@ -75,10 +83,10 @@ public sealed class Application : AggregateRoot<ApplicationId>
 
     /// <summary>
     /// Append-only history of status transitions (ADR 0092 D4), recorded inside
-    /// <see cref="TransitionTo"/> / <see cref="MarkGhosted"/> so it is atomically
-    /// consistent with <see cref="Status"/>. Empty for applications created before
-    /// the timeline shipped — history is never backfilled/fabricated; it starts
-    /// forward from the first post-ship transition. Detail-only projection.
+    /// <see cref="TransitionTo"/> so it is atomically consistent with
+    /// <see cref="Status"/>. Empty for applications created before the timeline
+    /// shipped — history is never backfilled/fabricated; it starts forward from
+    /// the first post-ship transition. Detail-only projection.
     /// </summary>
     public IReadOnlyList<StatusChange> StatusChanges => _statusChanges.AsReadOnly();
 
@@ -249,28 +257,12 @@ public sealed class Application : AggregateRoot<ApplicationId>
         return Result.Success();
     }
 
-    public Result MarkGhosted(IDateTimeProvider clock)
-    {
-        if (Status != ApplicationStatus.Submitted && Status != ApplicationStatus.Acknowledged)
-            return Result.Success(); // idempotent — inget att göra
-
-        var now = clock.UtcNow;
-        var previous = Status;
-        Status = ApplicationStatus.Ghosted;
-        UpdatedAt = now;
-        LastStatusChangeAt = now;
-        // System-detected ghosting is still a status change — record it on the
-        // timeline (ADR 0092 D4) so a ghosted thread shows how it got there.
-        RecordStatusChange(previous, ApplicationStatus.Ghosted, now);
-        RaiseDomainEvent(
-            new ApplicationGhostedDomainEvent(Id, JobSeekerId, previous, now));
-        return Result.Success();
-    }
-
-    // Append a transition to the timeline. Single writer for both TransitionTo
-    // and MarkGhosted so the two status-change paths record identically (ADR
-    // 0092 D4). The caller passes the transition's own timestamp so ChangedAt is
-    // consistent with LastStatusChangeAt.
+    // Append a transition to the timeline. Single writer for TransitionTo (the
+    // only status-change path since #630 PR 4 retired the auto-ghost system
+    // path — Ghosted is now reached like any other status, via a free
+    // transition), recording every transition identically (ADR 0092 D4). The
+    // caller passes the transition's own timestamp so ChangedAt is consistent
+    // with LastStatusChangeAt.
     private void RecordStatusChange(
         ApplicationStatus from, ApplicationStatus to, DateTimeOffset changedAt) =>
         _statusChanges.Add(StatusChange.Create(from, to, changedAt));

@@ -136,7 +136,7 @@ public class ApplicationTests
     {
         var application = CreateValidApplication();
         application.TransitionTo(ApplicationStatus.Submitted, Clock);
-        application.MarkGhosted(Clock);
+        application.TransitionTo(ApplicationStatus.Ghosted, Clock);
 
         var result = application.TransitionTo(ApplicationStatus.Submitted, Clock);
 
@@ -186,7 +186,7 @@ public class ApplicationTests
     [Fact]
     public void TransitionTo_ManualGhosted_WhenSubmitted_ReturnsSuccess()
     {
-        // ADR 0092 D3: manuell Ghosted går nu via TransitionTo (inte enbart MarkGhosted).
+        // ADR 0092 D3: manuell Ghosted är en vanlig fri övergång via TransitionTo.
         var application = CreateValidApplication();
         application.TransitionTo(ApplicationStatus.Submitted, Clock);
 
@@ -224,106 +224,6 @@ public class ApplicationTests
         application.TransitionTo(ApplicationStatus.Submitted, laterClock);
 
         application.UpdatedAt.ShouldBe(laterClock.UtcNow);
-    }
-
-    // ---------------------------------------------------------------
-    // MarkGhosted
-    // ---------------------------------------------------------------
-
-    [Fact]
-    public void MarkGhosted_WhenSubmitted_TransitionsToGhosted()
-    {
-        var application = CreateValidApplication();
-        application.TransitionTo(ApplicationStatus.Submitted, Clock);
-        application.ClearDomainEvents();
-
-        var result = application.MarkGhosted(Clock);
-
-        result.IsSuccess.ShouldBeTrue();
-        application.Status.ShouldBe(ApplicationStatus.Ghosted);
-    }
-
-    [Fact]
-    public void MarkGhosted_WhenAcknowledged_TransitionsToGhosted()
-    {
-        var application = CreateValidApplication();
-        application.TransitionTo(ApplicationStatus.Submitted, Clock);
-        application.TransitionTo(ApplicationStatus.Acknowledged, Clock);
-        application.ClearDomainEvents();
-
-        var result = application.MarkGhosted(Clock);
-
-        result.IsSuccess.ShouldBeTrue();
-        application.Status.ShouldBe(ApplicationStatus.Ghosted);
-    }
-
-    [Fact]
-    public void MarkGhosted_WhenSubmitted_RaisesApplicationGhostedDomainEvent()
-    {
-        var application = CreateValidApplication();
-        application.TransitionTo(ApplicationStatus.Submitted, Clock);
-        application.ClearDomainEvents();
-
-        application.MarkGhosted(Clock);
-
-        var evt = application.DomainEvents.ShouldHaveSingleItem()
-            .ShouldBeOfType<ApplicationGhostedDomainEvent>();
-        evt.Previous.ShouldBe(ApplicationStatus.Submitted);
-        evt.OccurredAt.ShouldBe(Clock.UtcNow);
-    }
-
-    [Fact]
-    public void MarkGhosted_WhenAccepted_IsIdempotentAndDoesNotChangeStatus()
-    {
-        var application = CreateApplicationAtStatus(ApplicationStatus.Accepted);
-        application.ClearDomainEvents();
-
-        var result = application.MarkGhosted(Clock);
-
-        result.IsSuccess.ShouldBeTrue();
-        application.Status.ShouldBe(ApplicationStatus.Accepted);
-        application.DomainEvents.ShouldBeEmpty();
-    }
-
-    [Fact]
-    public void MarkGhosted_WhenRejected_IsIdempotentAndDoesNotChangeStatus()
-    {
-        var application = CreateApplicationAtStatus(ApplicationStatus.Rejected);
-        application.ClearDomainEvents();
-
-        var result = application.MarkGhosted(Clock);
-
-        result.IsSuccess.ShouldBeTrue();
-        application.Status.ShouldBe(ApplicationStatus.Rejected);
-        application.DomainEvents.ShouldBeEmpty();
-    }
-
-    [Fact]
-    public void MarkGhosted_WhenWithdrawn_IsIdempotentAndDoesNotChangeStatus()
-    {
-        var application = CreateApplicationAtStatus(ApplicationStatus.Withdrawn);
-        application.ClearDomainEvents();
-
-        var result = application.MarkGhosted(Clock);
-
-        result.IsSuccess.ShouldBeTrue();
-        application.Status.ShouldBe(ApplicationStatus.Withdrawn);
-        application.DomainEvents.ShouldBeEmpty();
-    }
-
-    [Fact]
-    public void MarkGhosted_WhenAlreadyGhosted_IsIdempotentAndDoesNotChangeStatus()
-    {
-        var application = CreateValidApplication();
-        application.TransitionTo(ApplicationStatus.Submitted, Clock);
-        application.MarkGhosted(Clock);
-        application.ClearDomainEvents();
-
-        var result = application.MarkGhosted(Clock);
-
-        result.IsSuccess.ShouldBeTrue();
-        application.Status.ShouldBe(ApplicationStatus.Ghosted);
-        application.DomainEvents.ShouldBeEmpty();
     }
 
     // ---------------------------------------------------------------
@@ -416,7 +316,7 @@ public class ApplicationTests
     {
         var application = CreateValidApplication();
         application.TransitionTo(ApplicationStatus.Submitted, Clock);
-        application.MarkGhosted(Clock);
+        application.TransitionTo(ApplicationStatus.Ghosted, Clock);
         var scheduledAt = Clock.UtcNow.AddDays(3);
 
         var result = application.AddFollowUp(FollowUpChannel.Email, scheduledAt, null, Clock);
@@ -561,42 +461,6 @@ public class ApplicationTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Application.DeletedCannotTransition");
-        application.LastStatusChangeAt.ShouldBe(t1);
-    }
-
-    [Fact]
-    public void Application_MarkGhosted_UpdatesLastStatusChangeAt()
-    {
-        var t1 = new DateTimeOffset(2026, 5, 8, 12, 0, 0, TimeSpan.Zero);
-        var t2 = t1.AddMinutes(5);
-        var t3 = t2.AddDays(22);
-        var clockT1 = FakeDateTimeProvider.At(t1);
-        var clockT2 = FakeDateTimeProvider.At(t2);
-        var clockT3 = FakeDateTimeProvider.At(t3);
-        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, null, clockT1).Value;
-        application.TransitionTo(ApplicationStatus.Submitted, clockT2);
-
-        var result = application.MarkGhosted(clockT3);
-
-        result.IsSuccess.ShouldBeTrue();
-        application.Status.ShouldBe(ApplicationStatus.Ghosted);
-        application.LastStatusChangeAt.ShouldBe(t3);
-    }
-
-    [Fact]
-    public void Application_MarkGhosted_FromTerminalState_DoesNotUpdateLastStatusChangeAt()
-    {
-        // Status=Draft → MarkGhosted är idempotent success utan flip enligt aggregatets nuvarande logik.
-        var t1 = new DateTimeOffset(2026, 5, 8, 12, 0, 0, TimeSpan.Zero);
-        var t2 = t1.AddMinutes(5);
-        var clockT1 = FakeDateTimeProvider.At(t1);
-        var clockT2 = FakeDateTimeProvider.At(t2);
-        var application = Application.Create(ValidJobSeekerId, ValidJobAdId, null, null, clockT1).Value;
-
-        var result = application.MarkGhosted(clockT2);
-
-        result.IsSuccess.ShouldBeTrue();
-        application.Status.ShouldBe(ApplicationStatus.Draft);
         application.LastStatusChangeAt.ShouldBe(t1);
     }
 

@@ -23,7 +23,7 @@ namespace Jobbliggaren.Application.UnitTests.Matching.Jobs.BackgroundMatching;
 /// are NSubstitute mocks; the IAppDbContext is the established real-AppDbContext-over-EF-InMemory
 /// fake (TestAppDbContextFactory) so the multi-set async query (db.JobSeekers.Where(consent)
 /// .Select(UserId).ToListAsync + the per-user FirstOrDefaultAsync + the watermark read-back) runs
-/// as a genuine IQueryable — parity <c>DetectGhostedApplicationsJobTests</c>.
+/// as a genuine IQueryable — parity <c>HardDeleteAccountsJobTests</c>.
 /// </summary>
 public class BackgroundMatchingJobTests
 {
@@ -172,7 +172,7 @@ public class BackgroundMatchingJobTests
     }
 
     // 2b. A pre-cancelled token aborts the batch at the per-user ThrowIfCancellationRequested
-    // before any profile is built — parity DetectGhostedApplicationsJobTests cancellation cover.
+    // before any profile is built — parity HardDeleteAccountsJobTests cancellation cover.
     [Fact]
     public async Task RunAsync_PreCancelledToken_ThrowsAndBuildsNoProfile()
     {

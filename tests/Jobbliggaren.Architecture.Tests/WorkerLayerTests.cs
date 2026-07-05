@@ -1,4 +1,3 @@
-using Jobbliggaren.Application.Applications.Jobs.GhostedDetection;
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
@@ -34,20 +33,6 @@ public class WorkerLayerTests
         result.IsSuccessful.ShouldBeTrue(
             $"Worker läcker mot ASP.NET Core HTTP/Identity: " +
             $"{string.Join(", ", result.FailingTypeNames ?? [])}");
-    }
-
-    [Fact]
-    public void DetectGhostedApplicationsJob_should_reside_in_Application_layer()
-    {
-        // Job-orchestrators ligger i Application-lagret (testbart utan Hangfire).
-        // Worker är tunn binding-layer som registrerar cron-bindning via Hangfire.
-        var jobType = typeof(DetectGhostedApplicationsJob);
-        jobType.Assembly.ShouldBe(typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
-            "DetectGhostedApplicationsJob ska bo i Jobbliggaren.Application, inte Worker/Infrastructure.");
-        jobType.Namespace.ShouldNotBeNull();
-        jobType.Namespace!.StartsWith("Jobbliggaren.Application.Applications.Jobs",
-            StringComparison.Ordinal).ShouldBeTrue(
-            $"DetectGhostedApplicationsJob.Namespace = {jobType.Namespace}");
     }
 
     [Fact]

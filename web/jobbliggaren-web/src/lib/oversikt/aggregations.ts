@@ -181,8 +181,8 @@ export function formatSwedishLongDate(date: Date): SwedishLongDate {
  * `{days}`-param) läser samma konstant, så tröskeln och det visade talet aldrig
  * kan drifta isär (drift-guard-mönstret från #291). Detta är FE-side view-policy
  * (parallellt med `findRecentInterviews` ≤1d / `filterFutureDeadlines`), MEDVETET
- * SKILT från /ansokningar-attentionens ADR 0085-trösklar (proaktiv nudge 7d,
- * NoResponseLong 21d) — Översikten är en lättare nudge-yta (CTO-dom #384).
+ * SKILT från /ansokningar-attentionens design §11-trösklar (no-response nudge
+ * 14d, ghost-förslag 30d) — Översikten är en lättare nudge-yta (CTO-dom #384).
  */
 export const OVERSIKT_FOLLOW_UP_DAYS = 14;
 

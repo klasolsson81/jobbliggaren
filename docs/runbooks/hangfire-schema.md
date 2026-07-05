@@ -40,7 +40,6 @@ prod-overlay glömt sätta `false`.
 | Schema skapas | Worker uppstart (dev) eller manuell DDL (prod) | Engångs per miljö |
 | Recurring jobs registreras | `RecurringJobRegistrar` (Worker host start) | Vid varje deploy |
 | `audit-log-retention` | 03:00 UTC daily | — |
-| `detect-ghosted` | 03:00 UTC daily | — |
 | `hard-delete-accounts` | 04:00 UTC daily | — |
 
 ---
@@ -306,7 +305,6 @@ ORDER BY key;
 | Jobb | Idempotent? | Restart-väg vid SIGTERM mid-flight |
 |---|---|---|
 | `audit-log-retention` | Ja | Nästa daily run skapar samma partition (CREATE IF NOT EXISTS) + droppar gamla (DROP IF EXISTS) |
-| `detect-ghosted` | Ja | StaleApplicationSpecification re-evaluerar — redan-markerade apps filtreras bort |
 | `hard-delete-accounts` | Ja | Steg 0 orphan-cleanup plockar upp Identity-rader vars JobSeeker redan deletats; Steg 1+2 idempotent via `WHERE deleted_at < ...` filter |
 
 **Fargate task-definition (för IaC vid prod-deploy):**
@@ -366,7 +364,7 @@ SELECT version FROM hangfire.schema ORDER BY version DESC LIMIT 1;
 ### 7.3 Recurring job kör inte — verify registration
 
 ```sql
--- Borde finnas 3 rader: audit-log-retention, detect-ghosted, hard-delete-accounts
+-- Borde finnas 2 rader: audit-log-retention, hard-delete-accounts
 SELECT id, key, value
 FROM hangfire.hash
 WHERE key LIKE 'recurring-job:%';
@@ -384,35 +382,9 @@ att nästa cron-fönster plockar upp via idempotency-vägen.
 
 ---
 
-## 8. Kalibrerings-fas (TD-17 punkt 5)
-
-**Första 21 dagarna efter prod-deploy** är kalibrerings-fas för
-`detect-ghosted`-jobbet:
-
-- Migration `AddApplicationStaleDetectionFields` backfillade
-  `last_status_change_at = NOW()` vid migrations-tid (per ADR 0023 / Klas
-  tillägg #1).
-- Befintliga apps får sitt 21-dagars-fönster räknat från migrations-tid,
-  inte från app-skapande.
-- Konsekvens: 21 dagar efter prod-deploy kan `detect-ghosted` plötsligt
-  flagga onormalt många apps som ghosted samtidigt (alla apps som varit
-  inaktiva sedan migration).
-
-**Övervakning:**
-
-- Klas följer Hangfire-dashboard (eller `hangfire.job`-tabellen) för
-  anomaliska volymer av `MarkGhostedCommand`-dispatch.
-- Om volym > 100/dag under kalibrerings-fönstret: pausa jobbet via
-  `IRecurringJobManager.RemoveIfExists("detect-ghosted")` + manuell triage
-  innan re-aktivering.
-
-**Efter dag 21:** stale-detektion blir steady-state. Volymer borde vara
-< 50/dag i Fas 1-användarbas.
-
----
-
-## 9. Revisionshistorik
+## 8. Revisionshistorik
 
 | Datum | Ändring |
 |-------|---------|
 | 2026-05-09 | Första versionen — TD-17 stängning (STEG 11) |
+| 2026-07-05 | `detect-ghosted`-jobbet borttaget (#630 PR 4 — suggest-only ghosting, ADR 0092 D6). Schemarad (§6), idempotency-rad (§7.3) och den obsoleta kalibrerings-fasen (gamla §8) borttagna. |

@@ -221,8 +221,10 @@ public class ApplicationsTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task POST_transition_with_invalid_target_returns_400()
+    public async Task POST_transition_skip_to_accepted_returns_200()
     {
+        // ADR 0092 D3 (fria övergångar): Draft → Accepted var tidigare 400
+        // (Application.InvalidTransition). Ett fritt hopp lyckas nu → 200.
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
@@ -233,6 +235,46 @@ public class ApplicationsTests(ApiFactory factory)
         var transitionResponse = await _client.PostAsJsonAsync(
             $"/api/v1/applications/{id}/transition",
             new { targetStatus = "Accepted" },
+            ct);
+
+        transitionResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task POST_transition_to_ghosted_returns_200()
+    {
+        // ADR 0092 D3: manuell Ghosted är nu ett giltigt mål (validatorns regel
+        // "Ghosted sätts automatiskt av systemet" är borttagen).
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var postResponse = await _client.PostAsJsonAsync("/api/v1/applications", CreateBody, ct);
+        var postJson = await postResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+        var id = postJson.GetProperty("id").GetString()!;
+
+        var transitionResponse = await _client.PostAsJsonAsync(
+            $"/api/v1/applications/{id}/transition",
+            new { targetStatus = "Ghosted" },
+            ct);
+
+        transitionResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task POST_transition_with_unknown_status_returns_400()
+    {
+        // Validatorn avvisar fortfarande okända statusnamn — den enda kvarvarande
+        // 400-vägen på transition-endpointen efter att övergångarna blev fria.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var postResponse = await _client.PostAsJsonAsync("/api/v1/applications", CreateBody, ct);
+        var postJson = await postResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+        var id = postJson.GetProperty("id").GetString()!;
+
+        var transitionResponse = await _client.PostAsJsonAsync(
+            $"/api/v1/applications/{id}/transition",
+            new { targetStatus = "NotAStatus" },
             ct);
 
         transitionResponse.StatusCode.ShouldBe(HttpStatusCode.BadRequest);

@@ -243,3 +243,38 @@ describe("addNoteSchema", () => {
     expect(result.success).toBe(false);
   });
 });
+
+// ── #630 PR 7: "Logga uppföljning" (POST /follow-ups/log) ───────────────────
+describe("logFollowUpSchema", () => {
+  const VALID_ID = "11111111-2222-3333-4444-555555555555";
+
+  it("accepterar giltigt id + valfri notering", async () => {
+    const { makeLogFollowUpSchema } = await import("./application-schemas");
+    const schema = makeLogFollowUpSchema(t);
+    expect(
+      schema.safeParse({ applicationId: VALID_ID, note: "Ringde dem." }).success
+    ).toBe(true);
+    expect(schema.safeParse({ applicationId: VALID_ID }).success).toBe(true);
+  });
+
+  it("avvisar icke-GUID-id (SSRF-/path-barriär)", async () => {
+    const { makeLogFollowUpSchema } = await import("./application-schemas");
+    const schema = makeLogFollowUpSchema(t);
+    expect(
+      schema.safeParse({ applicationId: "../evil", note: "x" }).success
+    ).toBe(false);
+  });
+
+  it("avvisar notering över 2000 tecken (backend-spegel, EJ schemalagda 1000)", async () => {
+    const { makeLogFollowUpSchema } = await import("./application-schemas");
+    const schema = makeLogFollowUpSchema(t);
+    expect(
+      schema.safeParse({ applicationId: VALID_ID, note: "a".repeat(2000) })
+        .success
+    ).toBe(true);
+    expect(
+      schema.safeParse({ applicationId: VALID_ID, note: "a".repeat(2001) })
+        .success
+    ).toBe(false);
+  });
+});

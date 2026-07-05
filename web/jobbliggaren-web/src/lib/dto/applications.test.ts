@@ -168,3 +168,29 @@ describe("getApplicationsResultSchema", () => {
     expect(getApplicationsResultSchema.safeParse(result).success).toBe(false);
   });
 });
+
+// ── #630 PR 7: list-DTO:ns tids-scalars släpps igenom (design §5/§11) ────────
+describe("applicationDtoSchema — lastStatusChangeAt/lastFollowUpAt (PR 7)", () => {
+  it("parsar scalars som backend burit sedan PR 3 (rådata för display-derivering)", () => {
+    const parsed = applicationDtoSchema.safeParse({
+      ...baseApplication,
+      lastStatusChangeAt: "2026-05-10T08:00:00Z",
+      lastFollowUpAt: "2026-05-12T08:00:00Z",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.lastStatusChangeAt).toBe("2026-05-10T08:00:00Z");
+      expect(parsed.data.lastFollowUpAt).toBe("2026-05-12T08:00:00Z");
+    }
+  });
+
+  it("deploy-skew: saknade/nullade fält kraschar inte parse", () => {
+    expect(applicationDtoSchema.safeParse(baseApplication).success).toBe(true);
+    expect(
+      applicationDtoSchema.safeParse({
+        ...baseApplication,
+        lastFollowUpAt: null,
+      }).success
+    ).toBe(true);
+  });
+});

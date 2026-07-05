@@ -71,9 +71,56 @@
       "fallbackTitle": "Ansökan #{shortId}",
       "ariaLabelWithIdentity": "{title}, {company}, {status}",
       "ariaLabelFallback": "{title}, {status}",
+      "moveToNext": "Flytta till {status}",
+      "reactivate": "Återaktivera",
+      "finishAndSend": "Slutför och skicka",
+      "daysInStep": "{days, plural, one {# dag i steget} other {# dagar i steget}}"
+    },
+    "statusMenu": {
+      "trigger": "Byt status",
+      "groupActive": "Flytta till · Aktiv väg",
+      "groupClosed": "Avslut & vilande",
+      "currentSuffix": "nuvarande status"
+    },
+    "urgency": {
+      "deadline": "Deadline {date}",
+      "waitDays": "{days} dgr utan svar",
+      "sinceInterview": "{days} dgr sedan intervjun"
+    },
+    "queueCta": {
+      "readOffer": "Läs erbjudandet",
+      "accept": "Acceptera",
+      "followUp": "Följ upp",
+      "followUpAgain": "Följ upp igen",
+      "markGhosted": "Markera som Inget svar"
+    },
+    "drawer": {
+      "moveToNext": "Flytta till {status}",
+      "reactivate": "Återaktivera som Skickad",
+      "undoHint": "Alla byten kan ångras.",
+      "flowLabel": "Flytta i flödet",
+      "flowHint": "Klicka på ett steg, även bakåt",
+      "nowChip": "Nu",
+      "parkLabel": "Avsluta eller parkera"
+    },
+    "logFollowUp": {
+      "title": "Logga uppföljning",
+      "noteLabel": "Notering (valfri)",
+      "hint": "Uppföljningen loggas med dagens datum under Uppföljningar och i tidslinjen. Väntetiden räknas om från i dag.",
+      "save": "Spara uppföljning"
+    },
+    "finishDraft": {
+      "title": "Slutför och skicka",
+      "body": "När du skickar flyttas ansökan till Skickad och väntetiden räknas från i dag.",
       "applyBy": "Sök senast",
-      "relativeApplied": "Skickad {days, plural, =0 {i dag} =1 {i går} other {för # dagar sedan}}",
-      "relativeDraftUpdated": "Uppdaterad {days, plural, =0 {i dag} =1 {i går} other {för # dagar sedan}}"
+      "send": "Skicka ansökan"
+    },
+    "toast": {
+      "statusChange": "{company}: {from} → {to}",
+      "followUpLogged": "{company}: uppföljning sparad under Uppföljningar, väntetiden räknas om",
+      "undo": "Ångra",
+      "undoing": "Ångrar…",
+      "dismissAriaLabel": "Stäng meddelandet"
     },
     "pipeline": {
       "statusBarAriaLabel": "Status",
@@ -88,7 +135,7 @@
     "queue": {
       "title": "Kräver åtgärd",
       "sortHint": "Sorterat på hur bråttom det är",
-      "lede": "Det viktigaste först. Klicka på ett kort för alla detaljer.",
+      "lede": "Det viktigaste först. Klicka på kortet för alla detaljer, eller använd knappen för att gå direkt till åtgärden.",
       "empty": "Inget kräver åtgärd just nu.",
       "showMore": "Visa {count} till",
       "showFewer": "Visa färre"
@@ -123,7 +170,9 @@
     "followUps": {
       "sectionLabel": "Uppföljningar",
       "empty": "Inga uppföljningar registrerade.",
+      "emptyDrawer": "Inga uppföljningar ännu. Knappen loggar en uppföljning här och nollställer väntetiden i åtgärdskön.",
       "add": "+ Lägg till uppföljning",
+      "addLog": "+ Lägg till",
       "addHeading": "Lägg till uppföljning",
       "outcomeLabel": "Utfall:",
       "noteLabel": "Anteckning:"
@@ -205,6 +254,7 @@
       "createApplicationFailed": "Kunde inte spara ansökan.",
       "transitionFailed": "Statusbytet misslyckades.",
       "addFollowUpFailed": "Kunde inte spara uppföljningen.",
+      "logFollowUpFailed": "Kunde inte logga uppföljningen.",
       "addNoteFailed": "Kunde inte spara noteringen.",
       "recordOutcomeFailed": "Kunde inte registrera utfallet."
     }

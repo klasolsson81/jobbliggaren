@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession, ROLES } from "@/lib/auth/session";
+import { ApplicationToastHost } from "@/components/applications/application-toast-host";
 import { AppShell } from "@/components/shell/app-shell";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SkipLink } from "@/components/site/skip-link";
@@ -38,6 +39,11 @@ export default async function AppLayout({
       {/* LP-3 (#256): the shared deep-green footer mounts at the shell level.
           Moving footer chrome inside AppShell's flex column is LP-5b/#259. */}
       <SiteFooter />
+      {/* #630 PR 7 (CTO-bind 2): EN toast-host för hela (app)-ytan — både
+          pipeline-ön och den intercept-monterade drawern publicerar till samma
+          modul-store (toast-store.ts). Fixed-positionerad, renderar null utan
+          aktiv toast. */}
+      <ApplicationToastHost />
     </>
   );
 }

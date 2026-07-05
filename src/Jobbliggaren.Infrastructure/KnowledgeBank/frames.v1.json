@@ -1,0 +1,73 @@
+{
+  "framesVersion": "1.0",
+  "verbMappingVersion": "1.1",
+  "frames": [
+    {
+      "id": "sentence-ledde",
+      "kind": "sentence",
+      "criterionIds": ["A2", "C3"],
+      "verb": "ledde",
+      "slots": [
+        { "name": "del1", "kind": "noun" },
+        { "name": "del2", "kind": "noun" },
+        { "name": "kontext", "kind": "noun" },
+        { "name": "del3", "kind": "noun" },
+        { "name": "del4", "kind": "noun" }
+      ],
+      "template": "Ledde {del1} och {del2} i {kontext}, med ansvar för {del3} och {del4}."
+    },
+    {
+      "id": "sentence-ansvarade-for",
+      "kind": "sentence",
+      "criterionIds": ["A2", "C3"],
+      "verb": "ansvarade för",
+      "slots": [
+        { "name": "del1", "kind": "noun" },
+        { "name": "del2", "kind": "noun" },
+        { "name": "del3", "kind": "noun" },
+        { "name": "kontext", "kind": "noun" }
+      ],
+      "template": "Ansvarade för {del1}, {del2} och {del3} i {kontext}."
+    },
+    {
+      "id": "sentence-inforde",
+      "kind": "sentence",
+      "criterionIds": ["A2", "C3"],
+      "verb": "införde",
+      "slots": [
+        { "name": "del1", "kind": "noun" },
+        { "name": "kontext", "kind": "noun" },
+        { "name": "del2", "kind": "noun" },
+        { "name": "del3", "kind": "noun" }
+      ],
+      "template": "Införde {del1} i {kontext}, med ansvar för {del2} och {del3}."
+    },
+    {
+      "id": "sentence-utbildade",
+      "kind": "sentence",
+      "criterionIds": ["A2", "C3"],
+      "verb": "utbildade",
+      "slots": [
+        { "name": "del1", "kind": "noun" },
+        { "name": "kontext", "kind": "noun" },
+        { "name": "del2", "kind": "noun" },
+        { "name": "del3", "kind": "noun" }
+      ],
+      "template": "Utbildade {del1} i {kontext}, parallellt med {del2} och {del3}."
+    },
+    {
+      "id": "measure-antal-per-period",
+      "kind": "measure",
+      "criterionIds": ["A1"],
+      "verb": null,
+      "slots": [
+        { "name": "verb", "kind": "verb" },
+        { "name": "vad", "kind": "noun" },
+        { "name": "antal", "kind": "number" },
+        { "name": "enhet", "kind": "noun" },
+        { "name": "period", "kind": "text" }
+      ],
+      "template": "{verb} {vad} av {antal} {enhet} per {period}."
+    }
+  ]
+}

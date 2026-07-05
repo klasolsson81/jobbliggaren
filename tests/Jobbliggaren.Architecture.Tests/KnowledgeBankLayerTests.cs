@@ -65,6 +65,9 @@ public class KnowledgeBankLayerTests
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.VerbMapping),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.StrongVerbGroup),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.WeakVerbMapping),
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.FrameCatalog),
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.CvFrame),
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.FrameSlot),
         })
         {
             t.Assembly.ShouldBe(ApplicationAsm,
@@ -80,6 +83,7 @@ public class KnowledgeBankLayerTests
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IRubricProvider),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IClicheLexicon),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper),
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IFrameProvider),
         })
         {
             port.Assembly.ShouldBe(ApplicationAsm,
@@ -98,6 +102,7 @@ public class KnowledgeBankLayerTests
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IRubricProvider),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IClicheLexicon),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper),
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IFrameProvider),
         })
         {
             port.Assembly.ShouldNotBe(InfrastructureAsm);
@@ -228,6 +233,24 @@ public class KnowledgeBankLayerTests
                 ignoreOrder: true);
     }
 
+    [Fact]
+    public void FrameKind_is_the_locked_two_member_set()
+    {
+        // Fas 4b PR-5 (ADR 0093 §D2/§D3): sentence + measure are the ONLY frame
+        // mechanics — field/format fixes are algorithm (code), never frame data.
+        Enum.GetNames<Jobbliggaren.Application.KnowledgeBank.Abstractions.FrameKind>()
+            .ShouldBe(["Sentence", "Measure"], ignoreOrder: true);
+    }
+
+    [Fact]
+    public void FrameSlotKind_is_the_locked_four_member_set()
+    {
+        // Each kind maps to one §D2 FromFrame provenance invariant (noun ⊆ Before-span,
+        // verb ∈ list@version, number == user echo, text = user-parameterized token).
+        Enum.GetNames<Jobbliggaren.Application.KnowledgeBank.Abstractions.FrameSlotKind>()
+            .ShouldBe(["Noun", "Verb", "Number", "Text"], ignoreOrder: true);
+    }
+
     // ===============================================================
     // 5. Domain does NOT depend on the KnowledgeBank contract
     // ===============================================================
@@ -268,6 +291,7 @@ public class KnowledgeBankLayerTests
         foreach (var expected in new[]
         {
             "RubricProvider", "ClicheLexicon", "VerbMapper", "RubricLoader",
+            "FrameProvider", "FramesLoader",
         })
         {
             names.ShouldContain(expected,
@@ -295,7 +319,7 @@ public class KnowledgeBankLayerTests
     [Fact]
     public void Provider_impls_are_sealed()
     {
-        foreach (var name in new[] { "RubricProvider", "ClicheLexicon", "VerbMapper" })
+        foreach (var name in new[] { "RubricProvider", "ClicheLexicon", "VerbMapper", "FrameProvider" })
         {
             var impl = InfrastructureAsm.GetTypes()
                 .Single(t => t.Namespace == ProviderNamespace && t.Name == name);
@@ -321,5 +345,8 @@ public class KnowledgeBankLayerTests
         typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper)
             .IsAssignableFrom(infra.Single(t => t.Name == "VerbMapper"))
             .ShouldBeTrue("VerbMapper ska implementera IVerbMapper.");
+        typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IFrameProvider)
+            .IsAssignableFrom(infra.Single(t => t.Name == "FrameProvider"))
+            .ShouldBeTrue("FrameProvider ska implementera IFrameProvider.");
     }
 }

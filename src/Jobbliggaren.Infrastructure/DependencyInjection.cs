@@ -567,6 +567,9 @@ public static class DependencyInjection
             Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper,
             Jobbliggaren.Infrastructure.KnowledgeBank.VerbMapper>();
         services.AddSingleton<
+            Jobbliggaren.Application.KnowledgeBank.Abstractions.IFrameProvider,
+            Jobbliggaren.Infrastructure.KnowledgeBank.FrameProvider>();
+        services.AddSingleton<
             Jobbliggaren.Application.Resumes.Review.Abstractions.ICvReviewEngine,
             Jobbliggaren.Infrastructure.Resumes.Review.CvReviewEngine>();
         return services;

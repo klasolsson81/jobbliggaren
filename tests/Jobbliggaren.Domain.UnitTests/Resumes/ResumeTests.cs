@@ -1262,8 +1262,270 @@ public class ResumeTests
     }
 
     // ---------------------------------------------------------------
+    // UpdateMasterContent — Fas 4b AppCopy superset invariants (ADR 0095 D-E, #651).
+    // ValidateContent is shared with CreateFromParsed/CreateTailored, so pinning the codes
+    // here covers every write surface.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void UpdateMasterContent_WithLanguageNameEmpty_ReturnsLanguageNameRequired()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            languages: new[] { new SpokenLanguage(string.Empty, LanguageProficiency.Native) });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.LanguageNameRequired");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithSkillGroupNameEmpty_ReturnsSkillGroupNameRequired()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            skills: new[] { new Skill("C#", 8) },
+            skillGroups: new[] { new SkillGroup(string.Empty, ["C#"]) });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.SkillGroupNameRequired");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithSkillGroupMemberNotInSkills_ReturnsSkillGroupMemberUnknown()
+    {
+        // A group member absent from the flat Skills list is a dangling reference — a phantom
+        // skill the user did not write (ADR 0095 D-A membership invariant, CLAUDE.md §5).
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            skills: new[] { new Skill("C#", 8) },
+            skillGroups: new[] { new SkillGroup("Backend", ["Rust"]) });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.SkillGroupMemberUnknown");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithSkillGroupMemberCaseMismatch_ReturnsSkillGroupMemberUnknown()
+    {
+        // Membership is ordinal-exact (StringComparer.Ordinal): "c#" is not the skill "C#".
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            skills: new[] { new Skill("C#", 8) },
+            skillGroups: new[] { new SkillGroup("Backend", ["c#"]) });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.SkillGroupMemberUnknown");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithSkillGroupMembersAllKnown_ReturnsSuccess()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            skills: new[] { new Skill("C#", 8), new Skill("PostgreSQL", 5) },
+            skillGroups: new[] { new SkillGroup("Backend", ["C#", "PostgreSQL"]) });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithUngroupedSkills_ReturnsSuccess()
+    {
+        // Not every skill need be grouped (design handoff P4 — "the file wins"): PostgreSQL is
+        // ungrouped while the group references only C#. Legitimate, never an error.
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            skills: new[] { new Skill("C#", 8), new Skill("PostgreSQL", 5) },
+            skillGroups: new[] { new SkillGroup("Backend", ["C#"]) });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithSectionHeadingEmpty_ReturnsSectionHeadingRequired()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            sections: new[]
+            {
+                new ResumeSection(string.Empty, new[] { new SectionEntry("Titel", ["Rad"]) }),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.SectionHeadingRequired");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithSectionEntryTitleEmpty_ReturnsSectionEntryTitleRequired()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            sections: new[]
+            {
+                new ResumeSection("Projekt", new[] { new SectionEntry(string.Empty, ["Rad"]) }),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.SectionEntryTitleRequired");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithSectionEntryLinesOverLimit_ReturnsSectionEntryTooLong()
+    {
+        // Sum of an entry's Lines lengths > 2000 → too long. Two lines summing to 2001.
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            sections: new[]
+            {
+                new ResumeSection("Projekt", new[]
+                {
+                    new SectionEntry("Titel", new[] { new string('A', 1_000), new string('B', 1_001) }),
+                }),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.SectionEntryTooLong");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithSectionEntryLinesExactlyAtLimit_ReturnsSuccess()
+    {
+        // Exactly 2000 chars across the entry's Lines passes — the bound is strictly > 2000.
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            sections: new[]
+            {
+                new ResumeSection("Projekt", new[]
+                {
+                    new SectionEntry("Titel", new[] { new string('A', 1_000), new string('B', 1_000) }),
+                }),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithFullyPopulatedValidSuperset_ReturnsSuccess()
+    {
+        var resume = CreateValidResume();
+
+        var result = resume.UpdateMasterContent(FullSupersetContent(), Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    // ---------------------------------------------------------------
+    // Fas 4b superset — denormalized-projection invariance (MatchProfileBuilder regression
+    // check, #651). MatchProfileBuilder reads only LatestRole + confirmed skills; the superset
+    // fields must NOT leak into the denormalized projection (ComputeDenormalizedProjection
+    // ignores Languages/SkillGroups/Sections).
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void UpdateMasterContent_AddingSupersetFields_DoesNotChangeDenormalizedProjection()
+    {
+        var baseContent = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            experiences: new[]
+            {
+                new Experience("Beta AB", "Backend-utvecklare", new DateOnly(2021, 1, 1), null, "Byggde."),
+            },
+            educations: new[]
+            {
+                new Education("KTH", "Civilingenjör", new DateOnly(2013, 9, 1), new DateOnly(2018, 6, 1)),
+            },
+            skills: new[] { new Skill("C#", 8), new Skill("PostgreSQL", 5) },
+            summary: "Erfaren backend-utvecklare.");
+
+        var supersetContent = baseContent with
+        {
+            Languages = new[] { new SpokenLanguage("Svenska", LanguageProficiency.Native) },
+            SkillGroups = new[] { new SkillGroup("Backend", ["C#"]) },
+            Sections = new[]
+            {
+                new ResumeSection("Projekt", new[] { new SectionEntry("X", ["Rad"]) }),
+            },
+        };
+
+        var withoutSuperset = CreateValidResume();
+        withoutSuperset.UpdateMasterContent(baseContent, Clock).IsSuccess.ShouldBeTrue();
+
+        var withSuperset = CreateValidResume();
+        withSuperset.UpdateMasterContent(supersetContent, Clock).IsSuccess.ShouldBeTrue();
+
+        // Denormalized projection is identical — the superset fields are invisible to it.
+        withSuperset.LatestRole.ShouldBe(withoutSuperset.LatestRole);
+        withSuperset.SectionCount.ShouldBe(withoutSuperset.SectionCount);
+        withSuperset.TopSkills.ShouldBe(withoutSuperset.TopSkills);
+
+        // Anchor the concrete values: summary + experiences + educations + skills = 4 canonical
+        // sections, regardless of the superset fields (SectionCount stays the fixed 0–4 count).
+        withSuperset.LatestRole.ShouldBe("Backend-utvecklare");
+        withSuperset.SectionCount.ShouldBe(4);
+        withSuperset.TopSkills.ShouldBe(["C#", "PostgreSQL"]);
+    }
+
+    // ---------------------------------------------------------------
     // Hjälpmetoder
     // ---------------------------------------------------------------
+
+    // Rich, valid content exercising every Fas 4b superset field (ADR 0095 D-E). The skill-group
+    // members are a subset of the flat Skills list so the membership invariant holds.
+    private static ResumeContent FullSupersetContent() => new(
+        new PersonalInfo("Klas Olsson", "klas@example.com", "0701234567", "Stockholm"),
+        experiences: new[]
+        {
+            new Experience("Beta AB", "Backend-utvecklare", new DateOnly(2021, 1, 1), null, "Byggde betaltjänster."),
+        },
+        educations: new[]
+        {
+            new Education("KTH", "Civilingenjör", new DateOnly(2013, 9, 1), new DateOnly(2018, 6, 1)),
+        },
+        skills: new[] { new Skill("C#", 8), new Skill("PostgreSQL", 5) },
+        summary: "Erfaren backend-utvecklare.",
+        languages: new[]
+        {
+            new SpokenLanguage("Svenska", LanguageProficiency.Native),
+            new SpokenLanguage("Tyska", LanguageProficiency.NotStated),
+        },
+        skillGroups: new[] { new SkillGroup("Backend", ["C#", "PostgreSQL"]) },
+        sections: new[]
+        {
+            new ResumeSection("Projekt och arbetsprov", new[]
+            {
+                new SectionEntry("Betalplattform", ["Ledde ett team om 8."]),
+            }),
+        });
 
     private static Resume CreateValidResume() =>
         Resume.Create(ValidJobSeekerId, ValidName, ValidFullName, Clock).Value;

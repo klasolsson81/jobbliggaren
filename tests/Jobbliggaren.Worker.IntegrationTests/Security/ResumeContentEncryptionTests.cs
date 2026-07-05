@@ -12,6 +12,7 @@ using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Persistence.Migrations;
+using Jobbliggaren.Infrastructure.Security;
 using Jobbliggaren.Worker.Auditing;
 using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.EntityFrameworkCore;
@@ -106,6 +107,10 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = false,
+        // Fas 4b (ADR 0095 D-C): the mirror MUST carry the LanguageProficiency Name-token converter
+        // now that production's ContentJsonOptions does — otherwise the canonical re-serialisation
+        // of a SmartEnum would diverge from the real Form B blob (#651).
+        Converters = { new LanguageProficiencyJsonConverter() },
     };
 
     private sealed class FixedClock(DateTimeOffset utcNow) : IDateTimeProvider
@@ -153,6 +158,31 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
                 new Skill("PostgreSQL", 4),
             ],
             summary: "Erfaren backend-utvecklare med fokus på betaltjänster.");
+
+    // Fas 4b AppCopy superset (#651, ADR 0095 D-A/B/C): RichContent PLUS spoken languages
+    // (one Native, one NotStated — the load-bearing distinct SmartEnum tokens), one skill group
+    // referencing the two existing flat skills (membership invariant holds), and one dynamic
+    // section with an entry. Valid content that passes ValidateContent via UpdateMasterContent.
+    private static ResumeContent RichSupersetContent(string fullNameMarker) =>
+        RichContent(fullNameMarker) with
+        {
+            Languages =
+            [
+                new SpokenLanguage("Svenska", LanguageProficiency.Native),
+                new SpokenLanguage("Tyska", LanguageProficiency.NotStated),
+            ],
+            SkillGroups =
+            [
+                new SkillGroup("Backend", ["C#", "PostgreSQL"]),
+            ],
+            Sections =
+            [
+                new ResumeSection("Projekt och arbetsprov",
+                [
+                    new SectionEntry("Betalplattform", ["Ledde ett team om 8.", "Ökade konvertering."]),
+                ]),
+            ],
+        };
 
     /// <summary>
     /// Seedar JobSeeker + Resume (Master-version) och ersätter Master-innehållet
@@ -244,6 +274,32 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
         for (var i = 0; i < expected.Skills.Count; i++)
             actual.Skills[i].ShouldBe(expected.Skills[i]);
 
+        // Fas 4b AppCopy superset (#651, ADR 0095). SpokenLanguage has no collection member so
+        // record value-equality holds; SkillGroup/ResumeSection carry lists (reference-based
+        // record equality) so they are compared field-by-field like Experiences/Educations.
+        actual.Languages.Count.ShouldBe(expected.Languages.Count);
+        for (var i = 0; i < expected.Languages.Count; i++)
+            actual.Languages[i].ShouldBe(expected.Languages[i]);
+
+        actual.SkillGroups.Count.ShouldBe(expected.SkillGroups.Count);
+        for (var i = 0; i < expected.SkillGroups.Count; i++)
+        {
+            actual.SkillGroups[i].Name.ShouldBe(expected.SkillGroups[i].Name);
+            actual.SkillGroups[i].Members.ShouldBe(expected.SkillGroups[i].Members);
+        }
+
+        actual.Sections.Count.ShouldBe(expected.Sections.Count);
+        for (var i = 0; i < expected.Sections.Count; i++)
+        {
+            actual.Sections[i].Heading.ShouldBe(expected.Sections[i].Heading);
+            actual.Sections[i].Entries.Count.ShouldBe(expected.Sections[i].Entries.Count);
+            for (var j = 0; j < expected.Sections[i].Entries.Count; j++)
+            {
+                actual.Sections[i].Entries[j].Title.ShouldBe(expected.Sections[i].Entries[j].Title);
+                actual.Sections[i].Entries[j].Lines.ShouldBe(expected.Sections[i].Entries[j].Lines);
+            }
+        }
+
         // Kanonisk re-serialisering (samma policy som produktionsmekaniken) —
         // fångar struktur-drift som fält-loopen inte täcker.
         JsonSerializer.Serialize(actual, CanonicalJson)
@@ -276,6 +332,43 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
         loaded.ShouldNotBeNull(
             "Content måste materialiseras via #1c-read-interceptorn (decrypt → FromJson)");
         ShouldDeepEqual(loaded, original);
+    }
+
+    // ── 1b. Round-trip deep equality — Fas 4b AppCopy superset (#651, ADR 0095) ──────────
+    // The superset fields (languages incl. Native + NotStated, a skill group, a dynamic section)
+    // must survive encrypt → content_enc → decrypt with deep value-equality, exercising the
+    // LanguageProficiencyJsonConverter inside the real Form B mechanism against real Postgres.
+    [Fact]
+    public async Task RoundTrip_SupersetResumeContent_DeepEqualsByValue_FreshScope()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var original = RichSupersetContent("Anna Andersson RT-superset");
+
+        var (resumeId, _, owner) = await SeedEncryptedMasterAsync(original, ct);
+
+        using var readScope = _fixture.Services.CreateScope();
+        await PrefetchOwnerDekAsync(readScope, owner, ct);
+        var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var resume = await readDb.Resumes
+            .AsNoTracking()
+            .Include(r => r.Versions)
+            .SingleAsync(r => r.Id == resumeId, ct);
+
+        var loaded = resume.MasterVersion.Content;
+        loaded.ShouldNotBeNull(
+            "superset-Content måste materialiseras via #1c-read-interceptorn (decrypt → FromJson)");
+        ShouldDeepEqual(loaded, original);
+
+        // Explicit superset assertions beyond the deep-equal helper: the LanguageProficiency
+        // SmartEnum survives the Name-token converter round-trip (Native ≠ NotStated preserved).
+        loaded.Languages.Count.ShouldBe(2);
+        loaded.Languages.ShouldContain(l =>
+            l.Name == "Svenska" && l.Proficiency == LanguageProficiency.Native);
+        loaded.Languages.ShouldContain(l =>
+            l.Name == "Tyska" && l.Proficiency == LanguageProficiency.NotStated);
+        loaded.SkillGroups.ShouldHaveSingleItem().Members.ShouldBe(["C#", "PostgreSQL"]);
+        loaded.Sections.ShouldHaveSingleItem().Heading.ShouldBe("Projekt och arbetsprov");
     }
 
     // ── 2. Ciphertext on disk, legacy content NULL ──────────────────────

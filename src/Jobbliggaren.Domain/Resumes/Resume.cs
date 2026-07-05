@@ -86,7 +86,8 @@ public sealed class Resume : AggregateRoot<ResumeId>
         JobSeekerId = jobSeekerId;
         Name = name;
         Origin = origin;
-        TemplateOptions = CvTemplateOptions.Default;
+        // TemplateOptions: the property's field initializer already assigns a fresh
+        // CvTemplateOptions.Default per instance.
         CreatedAt = now;
         UpdatedAt = now;
     }
@@ -304,9 +305,10 @@ public sealed class Resume : AggregateRoot<ResumeId>
         if (TemplateOptions == options)
             return Result.Success();
 
+        var now = clock.UtcNow;
         TemplateOptions = options;
-        UpdatedAt = clock.UtcNow;
-        RaiseDomainEvent(new ResumeTemplateOptionsChangedDomainEvent(Id, clock.UtcNow));
+        UpdatedAt = now;
+        RaiseDomainEvent(new ResumeTemplateOptionsChangedDomainEvent(Id, now));
         return Result.Success();
     }
 

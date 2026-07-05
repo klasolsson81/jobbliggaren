@@ -219,12 +219,23 @@ public class ResumeRootPlainColumnGuardTests
         return false;
     }
 
-    /// <summary>Unwraps Nullable&lt;T&gt; and single-generic collections so the graph walk sees element types.</summary>
+    /// <summary>
+    /// Unwraps Nullable&lt;T&gt;, arrays, and generic collections so the graph walk sees
+    /// element types (the array branch is defense-in-depth — content DTOs use
+    /// IReadOnlyList&lt;T&gt; today, but a future T[] member must not stop the walk;
+    /// flagged independently by security-auditor and code-reviewer, 2026-07-05).
+    /// </summary>
     private static IEnumerable<Type> Unwrap(Type type)
     {
         if (Nullable.GetUnderlyingType(type) is { } underlying)
         {
             yield return underlying;
+            yield break;
+        }
+
+        if (type.IsArray && type.GetElementType() is { } element)
+        {
+            yield return element;
             yield break;
         }
 

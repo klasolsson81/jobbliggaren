@@ -172,14 +172,14 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     expect(screen.getByText("14 dgr utan svar")).toBeInTheDocument();
   });
 
-  it("renderar DEADLINE-taggen för DraftDeadlineApproaching ur annonsens datum", () => {
+  it("renderar DEADLINE-taggen UTAN år (facit §11 — signalen fyrar ≤7 dgr kvar)", () => {
     renderRow(
       makeApplication({
         status: "Draft",
         attentionSignal: "DraftDeadlineApproaching",
       })
     );
-    const tag = screen.getByText("Deadline 1 juni 2026");
+    const tag = screen.getByText("Deadline 1 juni");
     expect(tag).toHaveAttribute("data-urgency", "warning");
   });
 
@@ -299,12 +299,38 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     expect(setDrawerAnchor).toHaveBeenCalledTimes(1);
   });
 
-  it("har en tillgänglig aria-label med titel, företag och status på länken", () => {
+  // Design-reviewer Minor 5: länknamnet = rolltiteln (rubriken förblir ren i
+  // rubrikrotorn); företag + status är BESKRIVNING via aria-describedby.
+  it("länknamnet är rolltiteln; företag + status är beskrivning (aria-describedby)", () => {
     renderRow(makeApplication());
     expect(
       screen.getByRole("link", {
-        name: "Backend-utvecklare, Volvo, Skickad",
+        name: "Backend-utvecklare",
+        description: "Volvo, Skickad",
       })
     ).toBeInTheDocument();
+    // Rubriken förorenas inte av företag/status.
+    expect(
+      screen.getByRole("heading", { name: "Backend-utvecklare" })
+    ).toBeInTheDocument();
+  });
+
+  // Providerns felgren (code-reviewer Minor 4): misslyckad action → fel-toast
+  // (assertiv), ALDRIG en statusChange-toast.
+  it("misslyckad transition publicerar fel-toast, ingen ångra-toast", async () => {
+    transitionStatusAction.mockResolvedValueOnce({
+      success: false as const,
+      error: "Statusbytet misslyckades.",
+    } as never);
+    renderRow(makeApplication());
+    fireEvent.click(
+      screen.getByRole("button", { name: "Flytta till Bekräftad" })
+    );
+    await waitFor(() =>
+      expect(getApplicationToastSnapshot()).toMatchObject({
+        kind: "error",
+        message: "Statusbytet misslyckades.",
+      })
+    );
   });
 });

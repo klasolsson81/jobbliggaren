@@ -69,8 +69,6 @@
     },
     "row": {
       "fallbackTitle": "Application #{shortId}",
-      "ariaLabelWithIdentity": "{title}, {company}, {status}",
-      "ariaLabelFallback": "{title}, {status}",
       "moveToNext": "Move to {status}",
       "reactivate": "Reactivate",
       "finishAndSend": "Finish and send",

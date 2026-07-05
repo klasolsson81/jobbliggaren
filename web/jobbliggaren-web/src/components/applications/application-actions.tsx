@@ -23,6 +23,17 @@ import { LogFollowUpDialog } from "./log-follow-up-dialog";
 const DIALOG_ANCHOR_OFFSET = 170;
 const DIALOG_MIN_VISIBLE = 240;
 
+/** Klick-Y → klampad dialogtopp (ren modul-funktion — stabil över renders). */
+function anchoredTop(anchorY: number | null): number | null {
+  if (anchorY == null || anchorY <= 0 || typeof window === "undefined") {
+    return null;
+  }
+  return clampDrawerTop(anchorY, window.innerHeight, {
+    offset: DIALOG_ANCHOR_OFFSET,
+    minVisible: DIALOG_MIN_VISIBLE,
+  });
+}
+
 interface DialogState {
   kind: "finishDraft" | "logFollowUp";
   application: ApplicationDto;
@@ -30,8 +41,12 @@ interface DialogState {
 }
 
 export interface ApplicationActionsValue {
-  /** Id för ansökan med pågående statusbyte (disable:ar radens knappar). */
-  pendingId: string | null;
+  /**
+   * Id:n med pågående statusbyte (disable:ar radens knappar). Ett SET — två
+   * överlappande byten på olika rader får inte återaktivera varandra i förtid
+   * (code-reviewer Minor 3).
+   */
+  pendingIds: ReadonlySet<string>;
   /**
    * Direkt statusbyte (design §9 "direktbyten utan dialog"): persistas
    * omedelbart via den auditerade servern-actionen; vid framgång publiceras
@@ -80,14 +95,16 @@ export function ApplicationActionsProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [, startTransition] = useTransition();
 
   const transition = useCallback(
     (application: ApplicationDto, target: ApplicationStatus) => {
       if (target === application.status) return;
-      setPendingId(application.id);
+      setPendingIds((prev) => new Set(prev).add(application.id));
       startTransition(async () => {
         const result = await transitionStatusAction(application.id, target);
         if (result.success) {
@@ -101,21 +118,15 @@ export function ApplicationActionsProvider({
         } else {
           showApplicationToast({ kind: "error", message: result.error });
         }
-        setPendingId(null);
+        setPendingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(application.id);
+          return next;
+        });
       });
     },
     [],
   );
-
-  const anchoredTop = (anchorY: number | null): number | null => {
-    if (anchorY == null || anchorY <= 0 || typeof window === "undefined") {
-      return null;
-    }
-    return clampDrawerTop(anchorY, window.innerHeight, {
-      offset: DIALOG_ANCHOR_OFFSET,
-      minVisible: DIALOG_MIN_VISIBLE,
-    });
-  };
 
   const openFinishDraft = useCallback(
     (application: ApplicationDto, anchorY: number | null) => {
@@ -132,8 +143,8 @@ export function ApplicationActionsProvider({
   );
 
   const value = useMemo<ApplicationActionsValue>(
-    () => ({ pendingId, transition, openFinishDraft, openLogFollowUp }),
-    [pendingId, transition, openFinishDraft, openLogFollowUp],
+    () => ({ pendingIds, transition, openFinishDraft, openLogFollowUp }),
+    [pendingIds, transition, openFinishDraft, openLogFollowUp],
   );
 
   const closeDialog = (open: boolean) => {

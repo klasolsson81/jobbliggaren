@@ -150,7 +150,7 @@ export async function transitionStatusAction(
       `/api/v1/applications/${encodeURIComponent(parsed.data.applicationId)}/transition`,
       {
         method: "POST",
-        body: JSON.stringify({ targetStatus }),
+        body: JSON.stringify({ targetStatus: parsed.data.targetStatus }),
       }
     );
 

@@ -35,8 +35,8 @@ import type { ApplicationDto, ApplicationStatus } from "@/lib/dto/applications";
 export function StatusMenu({ application }: { application: ApplicationDto }) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
-  const { pendingId, transition } = useApplicationActions();
-  const pending = pendingId === application.id;
+  const { pendingIds, transition } = useApplicationActions();
+  const pending = pendingIds.has(application.id);
 
   const renderItem = (status: ApplicationStatus) => {
     const current = status === application.status;

@@ -4886,6 +4886,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
    stegets statusfärg — samma tokens som status-taggen) + ✓ på nuvarande. */
 .jp-statusmenu {
   width: 250px;
+  /* Handoff §5: radie 6 — override:ar primitivens rounded-lg (8px). */
+  border-radius: var(--jp-r-md);
   box-shadow: var(--jp-shadow-pop);
 }
 .jp-statusmenu__label {

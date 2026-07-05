@@ -69,8 +69,6 @@
     },
     "row": {
       "fallbackTitle": "Ansökan #{shortId}",
-      "ariaLabelWithIdentity": "{title}, {company}, {status}",
-      "ariaLabelFallback": "{title}, {status}",
       "moveToNext": "Flytta till {status}",
       "reactivate": "Återaktivera",
       "finishAndSend": "Slutför och skicka",

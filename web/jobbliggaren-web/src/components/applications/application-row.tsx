@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import {
@@ -9,7 +10,6 @@ import {
 } from "@/lib/applications/status";
 import { daysInStatus, urgencyTagFor } from "@/lib/applications/urgency";
 import { setDrawerAnchor } from "@/components/applications/drawer-anchor";
-import { formatDate } from "@/lib/i18n/format";
 import { useApplicationActions } from "./application-actions";
 import { StatusMenu } from "./status-menu";
 import type { ApplicationDto } from "@/lib/dto/applications";
@@ -68,9 +68,10 @@ export function ApplicationRow({
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
   const format = useFormatter();
-  const { pendingId, transition, openFinishDraft } = useApplicationActions();
+  const { pendingIds, transition, openFinishDraft } = useApplicationActions();
   const { jobAd, status } = application;
-  const pending = pendingId === application.id;
+  const pending = pendingIds.has(application.id);
+  const contextId = useId();
 
   const hasIdentity = jobAd != null;
   const title = hasIdentity
@@ -83,8 +84,13 @@ export function ApplicationRow({
     if (urgency == null) return null;
     switch (urgency.kind) {
       case "deadline": {
-        const date = formatDate(format, urgency.dateIso);
-        return date != null ? tUi("urgency.deadline", { date }) : null;
+        // Kompakt datum UTAN år i chippen ("DEADLINE 8 JULI", facit §11):
+        // signalen fyrar bara ≤7 dagar kvar, så året är alltid redundant
+        // (design-reviewer Minor 1).
+        const parsed = new Date(urgency.dateIso);
+        if (isNaN(parsed.getTime())) return null;
+        const date = format.dateTime(parsed, { day: "numeric", month: "long" });
+        return tUi("urgency.deadline", { date });
       }
       case "waitDays":
         return tUi("urgency.waitDays", { days: urgency.days });
@@ -138,22 +144,19 @@ export function ApplicationRow({
               if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
               setDrawerAnchor(e.clientY, e.currentTarget);
             }}
-            aria-label={
-              hasIdentity
-                ? tUi("row.ariaLabelWithIdentity", {
-                    title: jobAd.title,
-                    company: jobAd.company,
-                    status: applicationStatusLabel(t, status),
-                  })
-                : tUi("row.ariaLabelFallback", {
-                    title,
-                    status: applicationStatusLabel(t, status),
-                  })
-            }
+            // Länknamnet = rolltiteln (synlig text); företag + status är
+            // BESKRIVNING via aria-describedby — h3-rubriken förblir ren
+            // rolltitel i rubrikrotorn (design-reviewer Minor 5, WCAG 2.4.6).
+            aria-describedby={contextId}
           >
             {title}
           </Link>
         </h3>
+        <span id={contextId} className="sr-only">
+          {hasIdentity
+            ? `${jobAd.company}, ${applicationStatusLabel(t, status)}`
+            : applicationStatusLabel(t, status)}
+        </span>
         {hasIdentity && <div className="jp-app__company">{jobAd.company}</div>}
       </div>
 

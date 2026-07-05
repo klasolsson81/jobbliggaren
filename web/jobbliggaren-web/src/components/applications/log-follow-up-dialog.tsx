@@ -87,7 +87,9 @@ export function LogFollowUpDialog({
       >
         <DialogHeader>
           <DialogTitle>{tUi("logFollowUp.title")}</DialogTitle>
-          <DialogDescription className="jp-mono text-micro text-text-secondary">
+          {/* Sans, ej mono — kontextraden är egennamn (roll · företag), inte
+              id/kod (design-reviewer Minor 2). */}
+          <DialogDescription className="text-body-sm text-text-secondary">
             {context}
           </DialogDescription>
         </DialogHeader>

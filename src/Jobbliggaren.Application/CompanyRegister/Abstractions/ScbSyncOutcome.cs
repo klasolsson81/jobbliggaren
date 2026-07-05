@@ -32,7 +32,14 @@ public sealed class ScbSyncOutcome
     /// <summary>Number of <c>hamtaforetag</c> partitions fetched this run.</summary>
     public int PartitionsFetched => _partitionsFetched;
 
-    /// <summary>Total rows fetched across all partitions — the relative-floor baseline for the sweep.</summary>
+    /// <summary>Total rows fetched across all partitions — the relative-floor baseline for the sweep.
+    /// NB (#628): once partitions are split by SNI code, a company carrying several SNI codes
+    /// (Bransch_1..5) can match several 5-digit <c>Bransch</c> partitions and be fetched more than once,
+    /// so this total is ≥ the number of distinct rows persisted (the store upsert de-duplicates by
+    /// org.nr). This is sound for the floor gate: the baseline compares against the max prior run under
+    /// the SAME deterministic ladder (like-for-like), and any inflation can only make the extract look
+    /// MORE complete — never cause a false deregistration (the truncation latch is the primary
+    /// safeguard).</summary>
     public int TotalRowsFetched => _totalRowsFetched;
 
     /// <summary>

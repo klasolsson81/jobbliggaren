@@ -13,14 +13,17 @@ internal sealed record ScbLeaf(ScbQuery Query, int Count);
 /// #560 (ADR 0091) — the adaptive count-then-slice partition planner. SCB caps <c>hamtaforetag</c>
 /// at 2000 rows per call and has NO pagination, so the register can only be extracted by carving it
 /// into partitions each provably ≤ the cap. This class is the PURE algorithm: given seed queries, a
-/// facet ladder, the cap, and a <c>countAsync</c> delegate, it counts each partition (via
+/// rung ladder, the cap, and a <c>countAsync</c> delegate, it counts each partition (via
 /// <c>raknaforetag</c>) BEFORE deciding to fetch it or split it further down the ladder, and yields
-/// only cap-sized leaves. It performs no HTTP and no I/O itself — the delegate is injected, so the
-/// slicing invariant is unit-testable with a fake count function (no cert, no network).
+/// only cap-sized leaves. It performs no HTTP and no I/O itself — the delegate is injected and each
+/// <see cref="IScbRung"/> already carries its data, so the slicing invariant is unit-testable with a
+/// fake count function (no cert, no network).
 ///
 /// <para>
-/// <b>Ladder:</b> SätesKommun (seed) → Juridisk form → Bransch (SNI avdelning). Each rung only
-/// applies when the partition still exceeds the cap. If the deepest rung is exhausted and a
+/// <b>Ladder (#628):</b> SätesKommun (seed) → Juridisk form → 2-siffrig bransch (2-digit SNI division)
+/// → Bransch niva 3 (5-digit SNI, fanned by the parent's 2-digit prefix — <see cref="ScbPrefixRung"/>).
+/// Each rung only applies when the partition still exceeds the cap. If the deepest rung is exhausted —
+/// or a rung reports it cannot split further (<see cref="IScbRung.Expand"/> returns empty) — and a
 /// partition is STILL over the cap, the planner yields it anyway and latches
 /// <see cref="ScbSyncOutcome.MarkTruncatedOrErrored"/> — the client fetches the first cap rows and
 /// the run is marked incomplete, which (critically) DISABLES the deregister sweep so the missing
@@ -37,7 +40,7 @@ internal static class ScbPartitionPlanner
     /// </summary>
     public static async IAsyncEnumerable<ScbLeaf> PlanAsync(
         IReadOnlyList<ScbQuery> seeds,
-        IReadOnlyList<ScbFacet> ladder,
+        IReadOnlyList<IScbRung> ladder,
         int maxRows,
         Func<ScbQuery, CancellationToken, Task<int>> countAsync,
         ScbSyncOutcome outcome,
@@ -84,11 +87,22 @@ internal static class ScbPartitionPlanner
                 continue;
             }
 
-            var facet = ladder[depth];
-            // Fan out one child per facet value; re-count each before fetching (guarantees the ≤ cap
-            // invariant at the leaf). Push in reverse for a stable, deterministic pop order.
-            for (var i = facet.Values.Count - 1; i >= 0; i--)
-                stack.Push((query.With(facet.Category, [facet.Values[i]], facet.BranschNiva), depth + 1));
+            var children = ladder[depth].Expand(query);
+            if (children.Count == 0)
+            {
+                // The rung cannot split this partition (e.g. a prefix rung with no children for the
+                // parent's 2-digit code — defensive; the derived prefix map should always have one).
+                // Same safe semantics as an exhausted ladder: fetch what we can, latch truncated so the
+                // caller SKIPS the deregister sweep. Never let an over-cap partition vanish silently.
+                outcome.MarkTruncatedOrErrored();
+                yield return new ScbLeaf(query, count);
+                continue;
+            }
+
+            // Fan out one child partition per rung child; re-count each before fetching (guarantees the
+            // ≤ cap invariant at the leaf). Push in reverse for a stable, deterministic pop order.
+            for (var i = children.Count - 1; i >= 0; i--)
+                stack.Push((children[i], depth + 1));
         }
     }
 }

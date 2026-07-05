@@ -96,7 +96,10 @@ public sealed class GetApplicationsQueryHandler(
                 r.a.LastStatusChangeAt,
                 r.a.FollowUps.Any(f =>
                     f.Outcome == FollowUpOutcome.Pending && f.ScheduledAt < now),
-                r.a.GhostedThresholdDays))
+                r.a.GhostedThresholdDays,
+                // ADR 0092 D5: denormalised last-follow-up scalar — drives
+                // effectiveWaitDays in the evaluator (lockstep with GetPipeline).
+                r.a.LastFollowUpAt))
             .ToListAsync(cancellationToken);
 
         // #343 (ADR 0085 §3, CTO Option a): stamp the attention signal in-memory over

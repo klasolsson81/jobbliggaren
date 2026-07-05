@@ -281,6 +281,107 @@ public class ApplicationAttentionEvaluatorTests
         fired.ShouldBe(shouldFire);
     }
 
+    // ---- ADR 0092 D5: effectiveWaitDays (a follow-up resets the wait) ----
+
+    [Fact]
+    public void Evaluate_NoResponseWouldFireButRecentFollowUpResetsWait_ReturnsNone()
+    {
+        // A Submitted app 30 days past its last status change (signal 4 would fire)
+        // AND 30 days past the apply date (signal 3 would fire), but a follow-up 2
+        // days ago pulls BOTH effective waits below their thresholds → None. This is
+        // the whole point of ADR 0092 D5: logging a follow-up lifts the card out of
+        // the "kräver åtgärd" queue.
+        var dto = Dto(ApplicationStatus.Submitted,
+            lastStatusChangeAt: Now.AddDays(-30), appliedAt: Now.AddDays(-30),
+            ghostedThresholdDays: 21, lastFollowUpAt: Now.AddDays(-2));
+
+        ApplicationAttentionEvaluator.Evaluate(dto, Options, Now)
+            .ShouldBe(ApplicationAttentionSignal.None);
+    }
+
+    [Theory]
+    [InlineData(20, false)] // follow-up 20 days ago → effective wait 20 < 21 → signal 4 quiet
+    [InlineData(21, true)]  // 21 days ago → ≥ threshold → fires
+    [InlineData(22, true)]  // above
+    public void Evaluate_NoResponseBoundaryDrivenByFollowUp_FiresAtOrAboveThreshold(
+        int daysSinceFollowUp, bool shouldFire)
+    {
+        // The status change is old (60 days — would fire on its own), but a more
+        // recent follow-up is the effective anchor: signal 4 keys on now − follow-up.
+        // Below the threshold the nudge (signal 3) takes over, so we assert on signal
+        // 4 specifically (mirrors the anchor-driven boundary tests above).
+        var dto = Dto(ApplicationStatus.Submitted,
+            lastStatusChangeAt: Now.AddDays(-60), appliedAt: Now.AddDays(-60),
+            ghostedThresholdDays: 21, lastFollowUpAt: Now.AddDays(-daysSinceFollowUp));
+
+        var fired = ApplicationAttentionEvaluator.Evaluate(dto, Options, Now)
+            == ApplicationAttentionSignal.NoResponseLong;
+
+        fired.ShouldBe(shouldFire);
+    }
+
+    [Theory]
+    [InlineData(6, false)] // follow-up 6 days ago → effective wait 6 < 7 → nudge quiet
+    [InlineData(7, true)]  // 7 days ago → ≥ threshold → fires
+    [InlineData(8, true)]  // above
+    public void Evaluate_ProactiveNudgeBoundaryDrivenByFollowUp_FiresAtOrAboveThreshold(
+        int daysSinceFollowUp, bool shouldFire)
+    {
+        // Applied long ago (60 days — would nudge on its own) but the status change is
+        // recent, so signal 4 stays quiet and signal 3 is in play. The follow-up is
+        // the effective anchor for the nudge: it keys on now − follow-up.
+        var dto = Dto(ApplicationStatus.Submitted,
+            lastStatusChangeAt: Now, appliedAt: Now.AddDays(-60),
+            ghostedThresholdDays: 21, lastFollowUpAt: Now.AddDays(-daysSinceFollowUp));
+
+        var fired = ApplicationAttentionEvaluator.Evaluate(dto, Options, Now)
+            == ApplicationAttentionSignal.ProactiveFollowUpNudge;
+
+        fired.ShouldBe(shouldFire);
+    }
+
+    [Fact]
+    public void Evaluate_FollowUpOlderThanStatusChange_DoesNotResetNoResponse_StillFires()
+    {
+        // A follow-up that PREDATES the status change (older than the anchor): max()
+        // picks the anchor, so the effective wait is unchanged and NoResponseLong
+        // still fires. Guards against a min/max inversion in EffectiveWait.
+        var dto = Dto(ApplicationStatus.Submitted,
+            lastStatusChangeAt: Now.AddDays(-21), appliedAt: Now,
+            ghostedThresholdDays: 21, lastFollowUpAt: Now.AddDays(-40));
+
+        ApplicationAttentionEvaluator.Evaluate(dto, Options, Now)
+            .ShouldBe(ApplicationAttentionSignal.NoResponseLong);
+    }
+
+    [Fact]
+    public void Evaluate_FollowUpOlderThanAppliedAt_DoesNotResetNudge_StillFires()
+    {
+        // Nudge parity for the "older follow-up" case: a follow-up predating the apply
+        // date leaves the nudge anchor (AppliedAt) as the max → the nudge still fires.
+        // Status change recent so signal 4 stays quiet and the nudge is isolated.
+        var dto = Dto(ApplicationStatus.Submitted,
+            lastStatusChangeAt: Now, appliedAt: Now.AddDays(-7),
+            ghostedThresholdDays: 21, lastFollowUpAt: Now.AddDays(-30));
+
+        ApplicationAttentionEvaluator.Evaluate(dto, Options, Now)
+            .ShouldBe(ApplicationAttentionSignal.ProactiveFollowUpNudge);
+    }
+
+    [Fact]
+    public void Evaluate_NullLastFollowUpAt_BehavesAsBeforeD5_NoResponseStillFires()
+    {
+        // Explicit regression pin for the null (no-follow-up) path: with LastFollowUpAt
+        // null the effective wait is exactly now − anchor, so a Submitted app past the
+        // ghosted threshold fires NoResponseLong just as it did pre-ADR-0092-D5.
+        var dto = Dto(ApplicationStatus.Submitted,
+            lastStatusChangeAt: Now.AddDays(-21), appliedAt: Now,
+            ghostedThresholdDays: 21, lastFollowUpAt: null);
+
+        ApplicationAttentionEvaluator.Evaluate(dto, Options, Now)
+            .ShouldBe(ApplicationAttentionSignal.NoResponseLong);
+    }
+
     // ---- Guards ----
 
     [Fact]
@@ -304,7 +405,12 @@ public class ApplicationAttentionEvaluatorTests
         DateTimeOffset? appliedAt = null,
         bool hasOverdueFollowUp = false,
         int ghostedThresholdDays = 21,
-        DateTimeOffset? expiresAt = null)
+        DateTimeOffset? expiresAt = null,
+        // ADR 0092 D5: the denormalised last-follow-up scalar (null = no follow-up
+        // yet). Drives effectiveWaitDays = now − max(anchor, lastFollowUpAt) in
+        // signals 4 (no-response) and 3 (nudge). Defaults to null so every existing
+        // signal test exercises the null (no-follow-up) path unchanged (regression).
+        DateTimeOffset? lastFollowUpAt = null)
     {
         JobAdSummaryDto? jobAd = expiresAt is null
             ? null
@@ -322,6 +428,7 @@ public class ApplicationAttentionEvaluatorTests
             AppliedAt: appliedAt,
             LastStatusChangeAt: lastStatusChangeAt,
             HasOverdueFollowUp: hasOverdueFollowUp,
-            GhostedThresholdDays: ghostedThresholdDays);
+            GhostedThresholdDays: ghostedThresholdDays,
+            LastFollowUpAt: lastFollowUpAt);
     }
 }

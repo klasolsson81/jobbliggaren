@@ -57,22 +57,26 @@ public static class ApplicationAttentionEvaluator
             return ApplicationAttentionSignal.DraftDeadlineApproaching;
         }
 
-        // (4) No response for long — submitted/acknowledged and no status change
-        // for at least the per-aggregate ghosted threshold (reused, not a new
-        // config value — ADR 0085 §3).
+        // (4) No response for long — submitted/acknowledged and the EFFECTIVE wait
+        // (ADR 0092 D5) since the last status change OR the last follow-up, whichever
+        // is more recent, is at least the per-aggregate ghosted threshold (reused,
+        // not a new config value — ADR 0085 §3). Logging a follow-up resets it.
         if (IsAwaitingEmployer(status)
-            && now - application.LastStatusChangeAt >= TimeSpan.FromDays(application.GhostedThresholdDays))
+            && EffectiveWait(application.LastStatusChangeAt, application.LastFollowUpAt, now)
+               >= TimeSpan.FromDays(application.GhostedThresholdDays))
         {
             return ApplicationAttentionSignal.NoResponseLong;
         }
 
         // (3) Proactive follow-up nudge — submitted/acknowledged long enough since
-        // the apply date that a follow-up is due. Proactive by design: it fires
-        // even when the user scheduled no follow-up (Klas: "hamnar bara i en hög").
-        // No AppliedAt (defensive — a submitted application always has one) → no anchor → no nudge.
+        // the apply date (or the last follow-up, whichever is more recent — ADR 0092
+        // D5) that a follow-up is due. Proactive by design: it fires even when the
+        // user scheduled no follow-up (Klas: "hamnar bara i en hög"). No AppliedAt
+        // (defensive — a submitted application always has one) → no anchor → no nudge.
         if (IsAwaitingEmployer(status)
             && application.AppliedAt is { } appliedAt
-            && now - appliedAt >= TimeSpan.FromDays(options.FollowUpNudgeDays))
+            && EffectiveWait(appliedAt, application.LastFollowUpAt, now)
+               >= TimeSpan.FromDays(options.FollowUpNudgeDays))
         {
             return ApplicationAttentionSignal.ProactiveFollowUpNudge;
         }
@@ -82,4 +86,18 @@ public static class ApplicationAttentionEvaluator
 
     private static bool IsAwaitingEmployer(ApplicationStatus status) =>
         status == ApplicationStatus.Submitted || status == ApplicationStatus.Acknowledged;
+
+    /// <summary>
+    /// ADR 0092 D5: the effective wait = min(time since the anchor event, time since
+    /// the last follow-up) = <c>now − max(anchor, lastFollowUpAt)</c>. A follow-up
+    /// more recent than the anchor shrinks the wait, so logging one lifts the card
+    /// out of the queue until the threshold is crossed again. With no follow-up it is
+    /// simply <c>now − anchor</c>.
+    /// </summary>
+    private static TimeSpan EffectiveWait(
+        DateTimeOffset anchor, DateTimeOffset? lastFollowUpAt, DateTimeOffset now)
+    {
+        var reference = lastFollowUpAt is { } f && f > anchor ? f : anchor;
+        return now - reference;
+    }
 }

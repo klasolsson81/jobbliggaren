@@ -1,0 +1,69 @@
+{
+  "rubricVersion": "1.1.0",
+  "effectiveDate": "2026-06-15",
+  "legacyNote": "Synthetic N-1 fixture for the thresholds/styleOnly back-compat test (RubricThresholdsBackcompatTests). NOT a real rubric. Represents a PRE-thresholds-relocation (v1.1.0) asset: it carries assessability + notAssessedReason + bands + criticalFailIds, but DELIBERATELY OMITS every criterion's 'thresholds' and 'styleOnly' fields. The loader must map RubricCriterion.Thresholds == null (N-1 tolerance) and StyleOnly == false (fail-closed) and must NOT throw, mirroring the missing-'assessability' and missing-'notAssessedReason' tolerances. One criterion of each profile (Båda, EndastAts, EndastVisuell) is present.",
+  "weights": { "Kritisk": 3, "Hög": 2, "Medel": 1, "Låg": 0.5 },
+  "categoryWeights": {
+    "ats": { "A": 0.5, "B": 0.2, "C": 0.15, "D": 0.15 },
+    "visual": { "A": 0.5, "B": 0.15, "C": 0.15, "E": 0.2 }
+  },
+  "bands": [
+    { "minInclusive": 0, "label": "EjRedo" },
+    { "minInclusive": 50, "label": "BehöverOmarbetning" },
+    { "minInclusive": 70, "label": "Konkurrenskraftigt" },
+    { "minInclusive": 85, "label": "Toppskikt" }
+  ],
+  "criticalFailIds": ["A1"],
+  "criteria": [
+    {
+      "id": "A1",
+      "category": "Innehåll",
+      "name": "Syntetiskt innehållskriterium",
+      "weight": "Kritisk",
+      "profile": "Båda",
+      "assessability": "deterministic",
+      "atsPassSignal": "syntetisk ats-pass",
+      "atsFailSignal": "syntetisk ats-fail",
+      "visualPassSignal": "syntetisk visual-pass",
+      "visualFailSignal": "syntetisk visual-fail"
+    },
+    {
+      "id": "A5",
+      "category": "Innehåll",
+      "name": "Syntetiskt karriärprogressionskriterium",
+      "weight": "Hög",
+      "profile": "Båda",
+      "assessability": "not_assessed_v1",
+      "atsPassSignal": "syntetisk ats-pass",
+      "atsFailSignal": "syntetisk ats-fail",
+      "visualPassSignal": "syntetisk visual-pass",
+      "visualFailSignal": "syntetisk visual-fail",
+      "notAssessedReason": "Det här bedöms inte i den här syntetiska versionen."
+    },
+    {
+      "id": "D1",
+      "category": "ATS-parsbarhet",
+      "name": "Syntetiskt ATS-kriterium",
+      "weight": "Kritisk",
+      "profile": "EndastAts",
+      "assessability": "deterministic",
+      "atsPassSignal": "syntetisk ats-pass",
+      "atsFailSignal": "syntetisk ats-fail",
+      "visualPassSignal": null,
+      "visualFailSignal": null
+    },
+    {
+      "id": "E1",
+      "category": "Visuell kvalitet",
+      "name": "Syntetiskt visuellt kriterium",
+      "weight": "Kritisk",
+      "profile": "EndastVisuell",
+      "assessability": "deterministic",
+      "atsPassSignal": null,
+      "atsFailSignal": null,
+      "visualPassSignal": "syntetisk visual-pass",
+      "visualFailSignal": "syntetisk visual-fail",
+      "notAssessedReason": "Det här bedöms inte i den här syntetiska versionen."
+    }
+  ]
+}

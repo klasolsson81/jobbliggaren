@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
@@ -176,7 +177,9 @@ internal sealed class B6DateFormatRule : ICriterionRule
                 "B6", category, "Perioderna kunde inte tolkas. Datumformat-konsekvens bedöms ej v1.");
         }
 
-        return formats.Count == 1
+        // The distinct-format ceiling is rubric v1.2 DATA (thresholds.maxDistinctDateFormats),
+        // read fail-loud — never a C# literal.
+        return formats.Count <= context.Criterion.RequiredThreshold(RubricThresholdKeys.MaxDistinctDateFormats)
             ? CvCriterionVerdict.Assessed("B6", category, CriterionVerdict.Pass,
                 ReviewText.Cite(ReviewText.Structural($"Konsekvent datumformat ({formats[0]}) genomgående.")))
             : CvCriterionVerdict.Assessed("B6", category, CriterionVerdict.Warn,

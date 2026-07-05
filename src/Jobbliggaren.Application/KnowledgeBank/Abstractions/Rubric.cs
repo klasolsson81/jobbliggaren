@@ -102,13 +102,14 @@ public sealed record CategoryWeights(
 /// human-readable Swedish copy verbatim from research §2.2–2.6, not a machine token.
 /// </para>
 /// <para>
-/// <b>v1 threshold posture (senior-cto-advisor M1=(a), 2026-06-15).</b> These prose signals
-/// carry the per-criterion thresholds as text (e.g. A2 "≥80 %"). The F4-9 review engine
-/// operationalises them as code (no machine-readable per-criterion threshold FIELD exists by
-/// F4-7 design — DQ8). This is honest because the rubric is versioned (rubric@x.y.z; §2.8
-/// minor = tröskel) and the version rides on every assessment. A structured per-criterion
-/// threshold schema is a future rubric-vN / F4-10 forward-note (ADR 0074 discovery→STEG), NOT
-/// a TD; the cliché/verb LISTS (§5) already ARE data.
+/// <b>Threshold posture (rubric v1.2, Fas 4b PR-5 CTO-bind D1 — retires the v1 M1=(a)
+/// posture of 2026-06-15).</b> Per-criterion numeric thresholds are versioned DATA in
+/// <see cref="Thresholds"/> (named keys, see <see cref="RubricThresholdKeys"/>); the rules
+/// read them via the fail-loud <see cref="RequiredThreshold"/> accessor — never a hardcoded
+/// C# literal, never a silent fallback. The prose signals REMAIN the user-facing civic
+/// explanation (SoC: explanation vs computation); golden drift-guards assert prose↔data
+/// agreement where the prose carries the number. Detection-shape constants (regex bounds,
+/// structural factors) stay code per ADR 0093 §D3 "algorithms are code".
 /// </para>
 /// </summary>
 public sealed record RubricCriterion(
@@ -127,7 +128,68 @@ public sealed record RubricCriterion(
     // literal — the engine reads this instead of hardcoding the copy; CLAUDE.md §10). Null
     // for criteria that are always assessed, and tolerated null on an N-1 asset (the engine
     // falls back to a generic civic default). Carries no dev-jargon (POS/NER, ADR refs, "v1").
-    string? NotAssessedReason = null);
+    string? NotAssessedReason = null,
+    // Per-criterion named numeric thresholds (rubric v1.2, CTO-bind D1 Variant A) — a
+    // keyed dict, NOT a scalar (the Goodhart shape-guard rejects a bare numeric prop; a
+    // named tuning dict is explainable, not a hidden grade). Null on an N-1 asset — the
+    // loader tolerates it; the LIVE engine requires the shipped asset to carry its keys
+    // (RequiredThreshold fails loud; completeness-tested).
+    IReadOnlyDictionary<string, double>? Thresholds = null,
+    // "Ignorera regeln endast för stilfrågor" (handoff §5.3, CTO-bind D2): true marks a
+    // cosmetic style criterion the user may Ignore; default FALSE = fail-closed (a
+    // criterion missing the flag can never be silenced). The loader fails loud if a
+    // styleOnly criterion appears in criticalFailIds.
+    bool StyleOnly = false)
+{
+    /// <summary>
+    /// The named threshold this criterion's rule requires (CTO-bind D1): fail-loud on a
+    /// missing key — an asset↔rule drift must fail the review, never fall back to a
+    /// resurrected C# literal. Keys come from <see cref="RubricThresholdKeys"/> constants,
+    /// never inline strings (CLAUDE.md §5).
+    /// </summary>
+    public double RequiredThreshold(string key) =>
+        Thresholds is not null && Thresholds.TryGetValue(key, out var value)
+            ? value
+            : throw new InvalidOperationException(
+                $"Rubrikkriteriet {Id} saknar den obligatoriska tröskeln '{key}' — " +
+                "rubric-asseten och regelkoden har driftat (fail-loud, ingen literal-fallback).");
+}
+
+/// <summary>
+/// The named per-criterion threshold keys of <see cref="RubricCriterion.Thresholds"/>
+/// (rubric v1.2, CTO-bind D1) — constants so no rule carries an inline magic string
+/// (CLAUDE.md §5). Keys are shared where the semantics coincide (e.g. A2/A6 pass+fail
+/// ratios) and criterion-specific where the honest unit differs (months, words, counts).
+/// </summary>
+public static class RubricThresholdKeys
+{
+    /// <summary>Min share for PASS (A2 strong-opener ratio; A6 concretion ratio).</summary>
+    public const string PassRatio = "passRatio";
+
+    /// <summary>Ratio bound for FAIL (A1 missing-metric &gt;; A2/A6 &lt;; C3 passive &gt;).</summary>
+    public const string FailRatio = "failRatio";
+
+    /// <summary>A4: employment-gap months above which a gap is reported (&gt;).</summary>
+    public const string MaxGapMonths = "maxGapMonths";
+
+    /// <summary>A7: hit count BELOW which the verdict is PASS (&lt;).</summary>
+    public const string PassBelowCount = "passBelowCount";
+
+    /// <summary>A7/A9: hit count FROM which the verdict is FAIL (&gt;=).</summary>
+    public const string FailFromCount = "failFromCount";
+
+    /// <summary>A8: profile word count above which the verdict is FAIL (&gt;).</summary>
+    public const string MaxWords = "maxWords";
+
+    /// <summary>C2: exclamation-mark count FROM which the verdict is WARN (&gt;=).</summary>
+    public const string WarnFromExclamationCount = "warnFromExclamationCount";
+
+    /// <summary>C6: max unexplained acronyms before WARN (&gt;).</summary>
+    public const string MaxUnexplainedAcronyms = "maxUnexplainedAcronyms";
+
+    /// <summary>B6: max distinct date formats before WARN (&gt;).</summary>
+    public const string MaxDistinctDateFormats = "maxDistinctDateFormats";
+}
 
 /// <summary>
 /// The versioned CV-quality rubric (F4-7, BUILD §8.1/§8.6, research §2). The whole

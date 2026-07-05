@@ -6,7 +6,7 @@ using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 namespace Jobbliggaren.Infrastructure.KnowledgeBank;
 
 /// <summary>
-/// Loads the committed, versioned CV-quality rubric (<c>rubric.v1.1.0.json</c>)
+/// Loads the committed, versioned CV-quality rubric (<c>rubric.v1.2.0.json</c>)
 /// embedded in this assembly (F4-7, BUILD §8.1/§8.6, research §2). Deserialises the
 /// Swedish-token <see cref="RubricFile"/> DTO and maps it to the English-enum
 /// <see cref="Rubric"/> contract — no <c>*File</c> type, no Swedish token, no
@@ -23,7 +23,7 @@ internal static class RubricLoader
 {
     // The SAME LogicalName the csproj declares for the embedded resource.
     private const string ResourceName =
-        "Jobbliggaren.Infrastructure.KnowledgeBank.rubric.v1.1.0.json";
+        "Jobbliggaren.Infrastructure.KnowledgeBank.rubric.v1.2.0.json";
 
     /// <summary>Loads the committed v1 rubric from the embedded resource.</summary>
     internal static Rubric Load()
@@ -56,6 +56,7 @@ internal static class RubricLoader
             .ToList();
 
         ValidateCriticalFailIds(file.CriticalFailIds, criteria);
+        ValidateStyleOnlyNeverCritical(file.CriticalFailIds, criteria);
 
         var weights = file.Weights.ToDictionary(
             kvp => KnowledgeBankTokens.Weight(kvp.Key),
@@ -87,6 +88,7 @@ internal static class RubricLoader
         ValidateCategoryMatchesIdPrefix(c.Id, category);
         ValidateProfileSignalNullability(c.Id, profile,
             c.AtsPassSignal, c.AtsFailSignal, c.VisualPassSignal, c.VisualFailSignal);
+        ValidateThresholdValues(c.Id, c.Thresholds);
 
         return new RubricCriterion(
             c.Id,
@@ -99,7 +101,47 @@ internal static class RubricLoader
             c.AtsFailSignal,
             c.VisualPassSignal,
             c.VisualFailSignal,
-            c.NotAssessedReason);
+            c.NotAssessedReason,
+            c.Thresholds,
+            c.StyleOnly);
+    }
+
+    private static void ValidateThresholdValues(
+        string id, IReadOnlyDictionary<string, double>? thresholds)
+    {
+        if (thresholds is null)
+        {
+            return;
+        }
+
+        foreach (var (key, value) in thresholds)
+        {
+            if (string.IsNullOrWhiteSpace(key) || !double.IsFinite(value) || value < 0)
+            {
+                throw new InvalidOperationException(
+                    $"Kriterium '{id}': tröskeln '{key}' = {value} är ogiltig " +
+                    "(kräver namngiven nyckel + ändligt icke-negativt värde, fail-loud).");
+            }
+        }
+    }
+
+    private static void ValidateStyleOnlyNeverCritical(
+        IReadOnlyList<string> criticalFailIds, IReadOnlyList<RubricCriterion> criteria)
+    {
+        // CTO-bind PR-5 D2: a critical-fail criterion must never be style-ignorable —
+        // the flag exists to let the user silence COSMETIC rules only (handoff §5.3).
+        var critical = criticalFailIds.ToHashSet(StringComparer.Ordinal);
+        var offending = criteria
+            .Where(c => c.StyleOnly && critical.Contains(c.Id))
+            .Select(c => c.Id)
+            .ToList();
+
+        if (offending.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "styleOnly-kriterier får inte vara kritiska fail (fail-loud): " +
+                string.Join(", ", offending) + ".");
+        }
     }
 
     private static Dictionary<RubricCategory, double> MapCategoryWeights(
@@ -219,5 +261,11 @@ internal sealed record RubricFile
         [property: JsonPropertyName("visualFailSignal")] string? VisualFailSignal = null,
         // Nullable + defaulted = N-1 tolerance: an older asset without the field maps to a
         // null reason and the engine falls back to a generic civic default (never throws).
-        [property: JsonPropertyName("notAssessedReason")] string? NotAssessedReason = null);
+        [property: JsonPropertyName("notAssessedReason")] string? NotAssessedReason = null,
+        // Rubric v1.2 (PR-5 CTO-bind D1): per-criterion named numeric thresholds. Nullable +
+        // defaulted = N-1 tolerance at LOAD time; the live engine's RequiredThreshold accessor
+        // fails loud if the SHIPPED asset omits a key a rule reads (completeness-tested).
+        [property: JsonPropertyName("thresholds")] Dictionary<string, double>? Thresholds = null,
+        // Rubric v1.2 (PR-5 CTO-bind D2): missing → false = fail-closed (never silenceable).
+        [property: JsonPropertyName("styleOnly")] bool StyleOnly = false);
 }

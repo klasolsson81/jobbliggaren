@@ -6,7 +6,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.KnowledgeBank;
 
 /// <summary>
-/// Fas 4 STEG 7 (F4-7) — the committed CV-rubric (rubric.v1.1.0.json) loads through
+/// Fas 4 STEG 7 (F4-7) — the committed CV-rubric (rubric.v1.2.0.json) loads through
 /// the real <see cref="RubricProvider"/> and satisfies the architect's authoritative
 /// classification (ADR 0071 OQ3 / ADR 0074). The rubric is VERSIONED DATA, not C#
 /// literals — these tests prove the data file (not a hardcoded list) is the source of
@@ -33,11 +33,11 @@ public class RubricProviderTests
 
         rubric.ShouldNotBeNull();
         // The committed rubric is the v1 baseline (ADR 0074). Version is carried as
-        // DATA (RubricVersion), not a C# literal. Bumped 1.0.1 → 1.1.0 (#488): C5
-        // Språkkonsistens reclassified deterministic_plus_nlp → not_assessed_v1, which
-        // removes it from the assessed set and changes the Språk band denominator —
-        // a scoring-behaviour change (§2.8 minor), asset renamed rubric.v1.1.0.json.
-        rubric.Version.ShouldBe(RubricVersion.Parse("1.1.0"));
+        // DATA (RubricVersion), not a C# literal. Bumped 1.1.0 → 1.2.0 (#654, Fas 4b
+        // PR-5 CTO-bind D1/D2): per-criterion thresholds-as-data + styleOnly flag — the
+        // threshold VALUES are relocations of the previous code literals, not changes
+        // (§2.8 minor), asset renamed rubric.v1.2.0.json. Prior: 1.0.1 → 1.1.0 (#488).
+        rubric.Version.ShouldBe(RubricVersion.Parse("1.2.0"));
         rubric.EffectiveDate.ShouldBeGreaterThan(default(DateOnly));
     }
 
@@ -138,7 +138,7 @@ public class RubricProviderTests
     // CvReviewEngine; CLAUDE.md §10/§5: civic Swedish, never dev-jargon).
     //
     // RED until RubricCriterion gains `string? NotAssessedReason` (trailing
-    // optional param) and the asset (rubric.v1.1.0.json) authors the field.
+    // optional param) and the asset (rubric.v1.2.0.json) authors the field.
     // ───────────────────────────────────────────────────────────────────
 
     // Test A — the loader maps the authored notAssessedReason JSON field through to

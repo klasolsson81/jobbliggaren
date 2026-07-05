@@ -11,11 +11,13 @@ namespace Jobbliggaren.Architecture.Tests;
 /// branches cannot creep in (ADR 0071/0074; CLAUDE.md §5).
 ///
 /// Goodhart parity with MatchScorerLayerTests / FullMatchScorerLayerTests:
-///   - RubricCriterion is pinned to exactly its 10 named props and asserted to carry
-///     NO numeric property — a criterion must never become a hidden opaque score.
+///   - RubricCriterion is pinned to exactly its 13 named props and asserted to carry
+///     NO scalar numeric property — a criterion must never become a hidden opaque score.
+///     (Per-criterion thresholds are a NAMED keyed dict — rubric v1.2, PR-5 CTO-bind D1 —
+///     explainable tuning data, not a scalar grade; the shape-pin admits it deliberately.)
 ///   - Rubric is pinned to EXPOSE Weights/CategoryWeights/Bands/CriticalFailIds/
 ///     Criteria, forcing the thresholds into DATA fields (loaded from JSON) rather than
-///     C# literals inside a scorer.
+///     C# literals inside a scorer — realised per-criterion in rubric v1.2.
 ///
 /// HONEST LIMIT (stated for the reviewer): reflection proves the contract SHAPE — that
 /// the thresholds are carried as data fields and the criterion has no numeric score. It
@@ -65,6 +67,9 @@ public class KnowledgeBankLayerTests
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.VerbMapping),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.StrongVerbGroup),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.WeakVerbMapping),
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.FrameCatalog),
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.CvFrame),
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.FrameSlot),
         })
         {
             t.Assembly.ShouldBe(ApplicationAsm,
@@ -80,6 +85,7 @@ public class KnowledgeBankLayerTests
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IRubricProvider),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IClicheLexicon),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper),
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IFrameProvider),
         })
         {
             port.Assembly.ShouldBe(ApplicationAsm,
@@ -98,6 +104,7 @@ public class KnowledgeBankLayerTests
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IRubricProvider),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IClicheLexicon),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper),
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IFrameProvider),
         })
         {
             port.Assembly.ShouldNotBe(InfrastructureAsm);
@@ -109,22 +116,25 @@ public class KnowledgeBankLayerTests
     // ===============================================================
 
     [Fact]
-    public void RubricCriterion_carries_exactly_the_eleven_named_properties()
+    public void RubricCriterion_carries_exactly_the_thirteen_named_properties()
     {
-        // Exactly the 11 architect-bound props — no more (a sneak field), no less.
+        // Exactly the 13 architect-bound props — no more (a sneak field), no less.
         // NotAssessedReason added in rubric 1.0.1 (CV-UX wave STEG 1, CTO Decision D1):
         // the versioned, civic-Swedish user-facing reason a NotAssessed verdict reports
         // (ADR 0071 reasons-as-data) — a string, never a numeric (Goodhart pin below holds).
+        // Thresholds + StyleOnly added in rubric 1.2.0 (Fas 4b PR-5, CTO-bind D1/D2):
+        // per-criterion named numeric thresholds as a keyed DICT (not a scalar — the
+        // Goodhart pin below still holds) + the fail-closed style-ignorable flag.
         var criterion = typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.RubricCriterion);
 
         PublicInstancePropNames(criterion).ShouldBe(
             [
                 "Id", "Category", "Name", "Weight", "Profile", "Assessability",
                 "AtsPassSignal", "AtsFailSignal", "VisualPassSignal", "VisualFailSignal",
-                "NotAssessedReason",
+                "NotAssessedReason", "Thresholds", "StyleOnly",
             ],
             ignoreOrder: true,
-            "RubricCriterion ska bära exakt de 11 namngivna properties — " +
+            "RubricCriterion ska bära exakt de 13 namngivna properties — " +
             $"faktiska: [{string.Join(", ", PublicInstancePropNames(criterion))}].");
     }
 
@@ -228,6 +238,24 @@ public class KnowledgeBankLayerTests
                 ignoreOrder: true);
     }
 
+    [Fact]
+    public void FrameKind_is_the_locked_two_member_set()
+    {
+        // Fas 4b PR-5 (ADR 0093 §D2/§D3): sentence + measure are the ONLY frame
+        // mechanics — field/format fixes are algorithm (code), never frame data.
+        Enum.GetNames<Jobbliggaren.Application.KnowledgeBank.Abstractions.FrameKind>()
+            .ShouldBe(["Sentence", "Measure"], ignoreOrder: true);
+    }
+
+    [Fact]
+    public void FrameSlotKind_is_the_locked_four_member_set()
+    {
+        // Each kind maps to one §D2 FromFrame provenance invariant (noun ⊆ Before-span,
+        // verb ∈ list@version, number == user echo, text = user-parameterized token).
+        Enum.GetNames<Jobbliggaren.Application.KnowledgeBank.Abstractions.FrameSlotKind>()
+            .ShouldBe(["Noun", "Verb", "Number", "Text"], ignoreOrder: true);
+    }
+
     // ===============================================================
     // 5. Domain does NOT depend on the KnowledgeBank contract
     // ===============================================================
@@ -268,6 +296,7 @@ public class KnowledgeBankLayerTests
         foreach (var expected in new[]
         {
             "RubricProvider", "ClicheLexicon", "VerbMapper", "RubricLoader",
+            "FrameProvider", "FramesLoader",
         })
         {
             names.ShouldContain(expected,
@@ -295,7 +324,7 @@ public class KnowledgeBankLayerTests
     [Fact]
     public void Provider_impls_are_sealed()
     {
-        foreach (var name in new[] { "RubricProvider", "ClicheLexicon", "VerbMapper" })
+        foreach (var name in new[] { "RubricProvider", "ClicheLexicon", "VerbMapper", "FrameProvider" })
         {
             var impl = InfrastructureAsm.GetTypes()
                 .Single(t => t.Namespace == ProviderNamespace && t.Name == name);
@@ -321,5 +350,8 @@ public class KnowledgeBankLayerTests
         typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper)
             .IsAssignableFrom(infra.Single(t => t.Name == "VerbMapper"))
             .ShouldBeTrue("VerbMapper ska implementera IVerbMapper.");
+        typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IFrameProvider)
+            .IsAssignableFrom(infra.Single(t => t.Name == "FrameProvider"))
+            .ShouldBeTrue("FrameProvider ska implementera IFrameProvider.");
     }
 }

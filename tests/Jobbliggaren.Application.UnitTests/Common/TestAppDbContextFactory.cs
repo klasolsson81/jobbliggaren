@@ -12,9 +12,23 @@ internal static class TestAppDbContextFactory
 {
     internal static AppDbContext Create(params IInterceptor[] interceptors)
     {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .AddInterceptors(interceptors)
+        var builder = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString());
+
+        if (interceptors.Length > 0)
+        {
+            // IMaterializationInterceptor är en SINGLETON-interceptor: EF fångar den
+            // första instansen i den CACHEADE interna service-providern och återanvänder
+            // den för varje senare kontext med ekvivalenta options — en annan testklass'
+            // hydrator "vinner" då tyst över denna (suite-order-kontamination: klassen
+            // grön isolerat, röd i full svit). Cachningen stängs av per-kontext när
+            // instans-interceptorer skickas in, så varje test får SIN interceptor.
+            builder = builder
+                .AddInterceptors(interceptors)
+                .EnableServiceProviderCaching(false);
+        }
+
+        var options = builder
             // ADR 0062 — JobAdConfiguration mappar shadow-propertyn
             // JobAd.SearchVector (NpgsqlTsVector, STORED tsvector generated
             // column). Den EF Core InMemory-providern saknar stöd för

@@ -44,6 +44,30 @@ public class CreateResumeCommandHandlerTests
         result.Value.ShouldNotBe(Guid.Empty);
     }
 
+    // Fas 4b PR-4 (security-auditor Major): the template path writes FullName into
+    // canonical Master content, so it runs the SAME personnummer guard as promote/master
+    // edits (ADR 0074 Invariant 1) — the canonical B4 verdict's "checked on every save"
+    // claim rests on this. Both the compact and the separator form must be flagged
+    // (guard shares the scanner+normalizer — this pins the wiring, not the scan logic).
+    [Theory]
+    [InlineData("Klas Olsson 19811218-9876")]
+    [InlineData("Klas Olsson 198112189876")]
+    public async Task Handle_WithPersonnummerInFullName_FailsWithGuardErrorAndAddsNothing(
+        string fullName)
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db, _userId);
+
+        var handler = new CreateResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+        var command = new CreateResumeCommand("Mitt CV", fullName);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.PersonnummerMustBeRemoved");
+        (await db.Resumes.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+    }
+
     [Fact]
     public async Task Handle_WithValidCommand_AddsResumeWithMasterVersionToDb()
     {

@@ -229,7 +229,10 @@ public sealed class Resume : AggregateRoot<ResumeId>
         // write, so a resolved badge can never survive a change it has not seen.
         // Only Resolved rows go stale (Ignored is a content-independent rule
         // opt-out; Open has nothing to invalidate). Requires the caller to have
-        // loaded the FindingStatuses collection (write-path Include contract).
+        // loaded the FindingStatuses collection (write-path Include contract —
+        // pinned by the UpdateMasterContent handler staleness test). The parent
+        // UpdatedAt stamp below is what fires the xmin-checked UPDATE that
+        // serializes this against a concurrent SetFindingStatus (CTO-bind Q2).
         foreach (var finding in _findingStatuses)
         {
             finding.MarkStaleIfResolved(now);
@@ -381,6 +384,11 @@ public sealed class Resume : AggregateRoot<ResumeId>
             existing.ChangeStatus(status, targetFingerprint!, now);
         }
 
+        // The parent stamp is LOAD-BEARING for concurrency (CTO-bind Q2): touching the
+        // resumes row is what makes EF issue the xmin-checked UPDATE, serializing a
+        // concurrent SetFindingStatus/UpdateMasterContent pair on the aggregate token.
+        // A child-only INSERT would bypass the token (the unique index is only the
+        // degraded backstop).
         UpdatedAt = now;
         RaiseDomainEvent(new ResumeFindingStatusChangedDomainEvent(
             Id, rubricVersion!, criterionId!, status, now));

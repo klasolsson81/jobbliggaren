@@ -106,7 +106,10 @@ public class CvReviewSourceIndependenceTests
     /// <summary>
     /// Every type reachable from the declared surface of <paramref name="type"/>:
     /// fields (incl. private/backing), properties, constructor/method parameters and
-    /// return types, with Nullable/array/generic-argument unwrapping.
+    /// return types, with Nullable/array/generic-argument unwrapping. Known limit
+    /// (dotnet-architect, 2026-07-05): METHOD BODIES are invisible to reflection — a
+    /// body-only aggregate read (local var/static call/cast) slips past this walk and
+    /// is caught by review, not by this guard.
     /// </summary>
     private static IEnumerable<Type> ReferencedTypes(Type type)
     {

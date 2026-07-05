@@ -40,6 +40,21 @@ approach that ceiling and an unhealthy one fails loud instead of hammering:
   org.nr before it is persisted (defense-in-depth). Verified in §5.
 - **Progress is visible.** The Worker logs a heartbeat (~every 60 s) with
   batches / rows-so-far, so a healthy ~1–3 h run is never silent.
+- **No silent restarts (#688).** The SCB job carries `AutomaticRetry(Attempts
+  = 0)`: a failed run goes straight to the **Failed** state (visible via
+  `GET /api/v1/admin/jobs/failed`) instead of Hangfire's default 10 from-zero
+  retries — a from-zero retry of a ~2 h run re-spends ~8k metered SCB calls
+  per attempt. Recovery is deliberate: the next weekly cron or a manual
+  re-trigger (§4 Path B). The Worker's Hangfire storage runs with **sliding
+  invisibility** (`UseSlidingInvisibilityTimeout = true`), so a healthy long
+  run keeps its fetch lease instead of being re-fetched at the 30-min
+  invisibility ceiling. The population SQL path has explicit command timeouts
+  (120 s batch-upsert / 600 s sweep) instead of the Npgsql 30 s default.
+- **No hidden EF retry.** `EnableRetryOnFailure` is deliberately NOT wired —
+  `AppDbContext` uses no EF transient-retry execution strategy, and the
+  population store issues raw `NpgsqlCommand`s an EF strategy would not wrap
+  anyway. A transient DB blip is NOT auto-retried: resilience is
+  command-timeout headroom + fail-fast-to-Failed + a clean idempotent re-run.
 
 Expected duration at 6/10 s: **~1.5–3 h**. Longer than at 9/10 s by design —
 Klas accepted the extra night-time minutes in exchange for the wider margin.
@@ -63,7 +78,26 @@ Klas accepted the extra night-time minutes in exchange for the wider margin.
 3. **Dev Postgres up** (Docker Compose, port 5435) and reachable — the same
    database backs both `company_register` and the Hangfire storage.
 4. **Time:** budget ~1–3 h uninterrupted; run it at night per the cron
-   default rationale (lowest DB contention).
+   default rationale (lowest DB contention) — but **avoid 02:00–05:00 UTC**
+   (see point 5).
+5. **ISOLATED run (mandatory — #688).** The first live attempt failed on DB
+   contention, not SCB: the full recurring-job fleet ran against the same dev
+   Postgres and starved the population's writes. During the population window:
+   - **Sole stack-owner (CLAUDE.md §6.5):** exactly ONE Worker (the population
+     one) against the dev Postgres (port 5435) — no other CC session's
+     Worker/Api, no parallel stack.
+   - **No manual multi-job triggering** (admin backfills, snapshot re-runs,
+     ad-hoc jobs) while the population runs.
+   - **Avoid the heavy daily-backfill window 02:00–05:00 UTC** (snapshot +
+     `Backfill*` cluster). The light frequent jobs registered in the same
+     Worker (landing stats `*/5`, stream `*/10`) may co-run — the #688 command
+     timeouts absorb their brief contention and sliding invisibility prevents
+     the 30-min re-fetch: the code turns co-running light jobs from *fatal*
+     into *survivable*; the isolation rule lowers the probability. If the
+     procedural rule ever proves insufficient, the documented fallback is to
+     temporarily env-gate the other `AddOrUpdate` calls in
+     `RecurringJobRegistrar` — an operator option, not a shipped toggle
+     (senior-cto-advisor 2026-07-05, #688 Q5).
 
 ---
 
@@ -220,6 +254,26 @@ A single `429` at 6/10 s should not happen. If you see one (Worker WARN
 3. Only after understanding it, consider lowering the margin further (change
    `PermitLimit` to 5 in `DependencyInjection.cs` — a reviewed one-line change,
    not a config knob) and re-run off-peak.
+
+### Known failure signature — DB contention (#688, first live run 2026-07-05)
+The chain, for pattern-matching a future log: `System.TimeoutException: Timeout
+during reading attempt` (Npgsql — the then-default 30 s command timeout under
+fleet contention; the three raw population commands throw this bare and
+unwrapped) → if the timeout instead hits the run-end **EF audit write**, EF
+wraps it in `InvalidOperationException: "…likely due to a transient failure"`
+(that is the NON-retrying strategy's advisory text, not an actual retry —
+`EnableRetryOnFailure` is not wired, see §0) → the job fails
+→ Hangfire's then-default `AutomaticRetry` restarted the ~2 h run from zero
+("Retry attempt N of 10") → attempts also died at ~29.5 min elapsed = the
+30-min non-sliding invisibility ceiling re-fetching a still-running job.
+Result: 8 starts / 0 completions; register safe (truncated → sweep skipped).
+
+Each leg is now closed in code: 120 s / 600 s command timeouts on the
+population path, `AutomaticRetry(Attempts = 0)`, sliding invisibility. **If
+this signature recurs post-#688, something NEW is wrong — capture the log and
+investigate; do not just re-run.** First checks: is the run isolated (§1
+point 5)? Is the dev Postgres healthy (disk, connections)? Did a heavy job
+co-run anyway?
 
 ### Envelope drift
 If `fetched` is implausibly low or `excludedInvalid` is high, SCB may have

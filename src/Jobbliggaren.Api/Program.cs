@@ -103,6 +103,10 @@ builder.Services.AddHangfire(cfg => cfg
             SchemaName = "hangfire",
             // Api ska ALDRIG migrera schemat — Worker äger schema-bootstrap.
             PrepareSchemaIfNecessary = false,
+            // #688 — no-op för en enqueue-only-klient (flaggan är fetch-side och Api kör ingen
+            // HangfireServer), men speglas från Workerns HangfireStorageOptionsFactory så de två
+            // storage-registreringarna inte driftar isär.
+            UseSlidingInvisibilityTimeout = true,
         }));
 
 // #204 / TD-83 PR2 — Api-impl av IBackgroundJobController-porten (admin

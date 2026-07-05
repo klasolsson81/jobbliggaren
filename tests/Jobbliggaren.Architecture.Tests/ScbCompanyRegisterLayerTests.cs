@@ -1,3 +1,5 @@
+using System.Reflection;
+using Hangfire;
 using NetArchTest.Rules;
 using Shouldly;
 
@@ -91,5 +93,42 @@ public class ScbCompanyRegisterLayerTests
 
         result.IsSuccessful.ShouldBeTrue(
             $"Application.CompanyRegister leaks Npgsql/HttpClient: {string.Join(", ", result.FailingTypeNames ?? [])}");
+    }
+
+    // #688 (ADR 0091 amendment 2026-07-05) — attribute-reflection pin on the Worker wrapper's RunAsync.
+    // The wrapper exists ONLY to carry these two Hangfire filter attributes without leaking Hangfire into
+    // Application/Infrastructure (asserted above); their values are the entire resilience posture and are
+    // silently catastrophic if dropped. Reflection-only, no Hangfire boot. SCB-only — the other workers'
+    // retry behavior is a deliberate ADR 0032 decision and is explicitly out of scope here.
+    private static readonly MethodInfo ScbWorkerRunAsync =
+        typeof(Jobbliggaren.Worker.Hosting.ScbCompanyRegisterSyncWorker)
+            .GetMethod(nameof(Jobbliggaren.Worker.Hosting.ScbCompanyRegisterSyncWorker.RunAsync))!;
+
+    [Fact]
+    public void ScbCompanyRegisterSyncWorker_RunAsync_CarriesAutomaticRetryZeroAttemptsFail()
+    {
+        // Attempts = 0 is the first [AutomaticRetry] in the codebase (precedent-setting) and silently
+        // catastrophic if removed: Hangfire's global default (10 attempts, exponential backoff) restarts
+        // the ~2 h metered SCB job FROM ZERO per attempt, reproducing the 8-starts/0-completions storm
+        // (ADR 0032 anti-pattern precedent). OnAttemptsExceeded = Fail keeps the failed run VISIBLE in the
+        // admin failed-jobs list — Delete would silently vanish it and defeat observability.
+        var retry = ScbWorkerRunAsync.GetCustomAttribute<AutomaticRetryAttribute>();
+
+        retry.ShouldNotBeNull("RunAsync must carry [AutomaticRetry(Attempts = 0)] — nothing else guards the no-retry posture.");
+        retry.Attempts.ShouldBe(0);
+        retry.OnAttemptsExceeded.ShouldBe(AttemptsExceededAction.Fail);
+    }
+
+    [Fact]
+    public void ScbCompanyRegisterSyncWorker_RunAsync_CarriesDisableConcurrentExecution4hTimeout()
+    {
+        // The refresh must NEVER overlap itself: two ~2 h extracts against the same SCB throttle budget
+        // would race the deregister sweep's per-run synced_at watermark. 14400 s (4 h) covers the full
+        // population. Hangfire.Core 1.8.23 exposes the timeout via the public TimeoutSec property, so the
+        // value is pinned directly (no private-field reflection needed).
+        var disable = ScbWorkerRunAsync.GetCustomAttribute<DisableConcurrentExecutionAttribute>();
+
+        disable.ShouldNotBeNull("RunAsync must carry [DisableConcurrentExecution] to prevent self-overlap.");
+        disable.TimeoutSec.ShouldBe(14400);
     }
 }

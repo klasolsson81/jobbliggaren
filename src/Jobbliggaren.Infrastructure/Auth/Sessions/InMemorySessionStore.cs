@@ -11,8 +11,15 @@ public sealed class InMemorySessionStore(
 {
     private readonly SessionStoreOptions _options = options.Value;
 
-    private readonly ConcurrentDictionary<string, (Guid UserId, DateTimeOffset CreatedAt, DateTimeOffset RotatedAt, DateTimeOffset ExpiresAt, SessionLifetime Lifetime)>
+    // SupersededAt (2b-3) mirrors RedisSessionStore.SessionPayload: null = live, set = the key
+    // has been rotated away and is living out its fixed grace window (COND-A). ExpiresAt then
+    // holds the grace ceiling (now + RotationGraceWindow) and is never slid.
+    private readonly ConcurrentDictionary<string, (Guid UserId, DateTimeOffset CreatedAt, DateTimeOffset RotatedAt, DateTimeOffset ExpiresAt, SessionLifetime Lifetime, DateTimeOffset? SupersededAt)>
         _sessions = new();
+
+    // COND-B revocation tombstone: userId -> revoked-until. Mirrors the Redis SET EX tombstone
+    // — InvalidateAllForUserAsync plants it, RotateAsync fails closed while it is live.
+    private readonly ConcurrentDictionary<Guid, DateTimeOffset> _revoked = new();
 
     public Task<Session?> GetAsync(SessionId sessionId, CancellationToken ct)
     {
@@ -38,11 +45,18 @@ public sealed class InMemorySessionStore(
             return Task.FromResult<Session?>(null);
         }
 
+        // COND-A grace: a superseded key still authenticates so concurrent in-flight requests
+        // bearing the old id don't 401 — but it is NOT slid (its ExpiresAt is the fixed grace
+        // ceiling set at rotation). Mirrors RedisSessionStore.GetAsync's short-circuit.
+        if (entry.SupersededAt is not null)
+            return Task.FromResult<Session?>(
+                new Session(sessionId, entry.UserId, entry.CreatedAt, entry.ExpiresAt));
+
         // Slide up to SlidingTtl, clamped so it never passes the absolute cap.
         var capRemaining = entry.CreatedAt + profile.AbsoluteTtl - now;
         var slidingTtl = capRemaining < profile.SlidingTtl ? capRemaining : profile.SlidingTtl;
         var newExpiry = now + slidingTtl;
-        _sessions.TryUpdate(key, (entry.UserId, entry.CreatedAt, entry.RotatedAt, newExpiry, entry.Lifetime), entry);
+        _sessions.TryUpdate(key, (entry.UserId, entry.CreatedAt, entry.RotatedAt, newExpiry, entry.Lifetime, entry.SupersededAt), entry);
 
         return Task.FromResult<Session?>(
             new Session(sessionId, entry.UserId, entry.CreatedAt, newExpiry));
@@ -54,8 +68,8 @@ public sealed class InMemorySessionStore(
         var now = dateTimeProvider.UtcNow;
         var expiresAt = now + _options.ProfileFor(lifetime).SlidingTtl;
 
-        // RotatedAt starts at CreatedAt (== now).
-        _sessions[sessionId.Reveal()] = (userId, now, now, expiresAt, lifetime);
+        // RotatedAt starts at CreatedAt (== now); SupersededAt null (live).
+        _sessions[sessionId.Reveal()] = (userId, now, now, expiresAt, lifetime, null);
 
         return Task.FromResult(new Session(sessionId, userId, now, expiresAt));
     }
@@ -64,6 +78,10 @@ public sealed class InMemorySessionStore(
     {
         var key = current.Reveal();
         if (!_sessions.TryGetValue(key, out var entry))
+            return Task.FromResult<SessionRotation?>(null);
+
+        // A superseded key is already rotated away (living out its grace) — never re-rotate.
+        if (entry.SupersededAt is not null)
             return Task.FromResult<SessionRotation?>(null);
 
         var profile = _options.ProfileFor(entry.Lifetime);
@@ -78,21 +96,32 @@ public sealed class InMemorySessionStore(
         if (now - rotatedAt < profile.RotationInterval)
             return Task.FromResult<SessionRotation?>(null);
 
-        // Single-winner: the caller that removes the old key wins (mirrors the Redis
-        // SET NX election). A loser gets null and keeps using `current`. No grace window
-        // — that is a Redis transport detail for the concurrent-render race; the observable
-        // contract (single-winner, CreatedAt preserved, new id valid, old id retired) is
-        // identical.
-        if (!_sessions.TryRemove(key, out var claimed))
+        // Single-winner election (mirrors the Redis SET NX claim): atomically transition the
+        // old entry to superseded — the first caller to CAS wins; a loser gets null and keeps
+        // using `current`. COND-A: the old id stays valid but non-sliding for RotationGraceWindow
+        // (ExpiresAt = grace ceiling) so concurrent in-flight requests don't 401. The superseded
+        // entry stays in the store so InvalidateAllForUserAsync (Art. 17) still reaches it.
+        var graceExpiry = now + _options.RotationGraceWindow;
+        var supersededEntry = (entry.UserId, entry.CreatedAt, now, graceExpiry, entry.Lifetime, (DateTimeOffset?)now);
+        if (!_sessions.TryUpdate(key, supersededEntry, entry))
             return Task.FromResult<SessionRotation?>(null);
 
         var newId = SessionId.Generate();
-        var capRemaining = claimed.CreatedAt + profile.AbsoluteTtl - now;
+        var capRemaining = entry.CreatedAt + profile.AbsoluteTtl - now;
         var slidingTtl = capRemaining < profile.SlidingTtl ? capRemaining : profile.SlidingTtl;
         var expiresAt = now + slidingTtl;
 
         // Preserve CreatedAt + Lifetime verbatim (cap anchor never resets); RotatedAt = now.
-        _sessions[newId.Reveal()] = (claimed.UserId, claimed.CreatedAt, now, expiresAt, claimed.Lifetime);
+        _sessions[newId.Reveal()] = (entry.UserId, entry.CreatedAt, now, expiresAt, entry.Lifetime, (DateTimeOffset?)null);
+
+        // COND-B fail-closed: a concurrent InvalidateAllForUserAsync tombstone means our new key
+        // may outlive the revoke — undo (drop new AND the superseded old) and return null.
+        if (IsRevoked(entry.UserId, now))
+        {
+            _sessions.TryRemove(newId.Reveal(), out _);
+            _sessions.TryRemove(key, out _);
+            return Task.FromResult<SessionRotation?>(null);
+        }
 
         return Task.FromResult<SessionRotation?>(new SessionRotation(newId, expiresAt));
     }
@@ -102,9 +131,18 @@ public sealed class InMemorySessionStore(
 
     public Task<int> InvalidateAllForUserAsync(Guid userId, CancellationToken ct)
     {
+        var now = dateTimeProvider.UtcNow;
+
+        // COND-B: plant the tombstone BEFORE snapshotting so a concurrent RotateAsync whose new
+        // key lands after our snapshot observes it and self-undoes (mirrors RedisSessionStore).
+        _revoked[userId] = now + _options.RevocationTombstoneTtl;
+
         var toRemove = _sessions.Where(kv => kv.Value.UserId == userId).Select(kv => kv.Key).ToList();
         foreach (var key in toRemove)
             _sessions.TryRemove(key, out _);
         return Task.FromResult(toRemove.Count);
     }
+
+    private bool IsRevoked(Guid userId, DateTimeOffset now) =>
+        _revoked.TryGetValue(userId, out var until) && until > now;
 }

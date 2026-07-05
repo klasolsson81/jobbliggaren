@@ -261,7 +261,7 @@ public class InMemorySessionStoreTests
     // ── RotateAsync (#2b1) ─────────────────────────────────────────────────────
 
     [Fact]
-    public async Task RotateAsync_ShouldMintNewIdAndRetireOld_WhenDue()
+    public async Task RotateAsync_ShouldMintNewIdAndRetireOldAfterGrace_WhenDue()
     {
         var time = new MutableFakeDateTimeProvider();
         var store = CreateStore(time);
@@ -275,9 +275,76 @@ public class InMemorySessionStoreTests
 
         rotation.ShouldNotBeNull();
         rotation!.NewId.Reveal().ShouldNotBe(session.Id.Reveal());
-        // Old id retired, new id valid.
+        // COND-A: the old id is retired into a bounded grace window — still valid immediately
+        // after rotation (so concurrent in-flight requests don't 401), then gone once the 60s
+        // grace elapses. The new id is valid throughout.
+        (await store.GetAsync(session.Id, ct)).ShouldNotBeNull();
+        (await store.GetAsync(rotation.NewId, ct)).ShouldNotBeNull();
+
+        time.UtcNow = time.UtcNow.AddSeconds(61); // past the 60s RotationGraceWindow
         (await store.GetAsync(session.Id, ct)).ShouldBeNull();
         (await store.GetAsync(rotation.NewId, ct)).ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task GetAsync_ShouldNotSlideSupersededKey_WithinGraceWindow()
+    {
+        var time = new MutableFakeDateTimeProvider();
+        var store = CreateStore(time);
+        var ct = TestContext.Current.CancellationToken;
+
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Persistent, ct);
+        time.UtcNow = time.UtcNow.AddHours(25);
+        await store.RotateAsync(session.Id, ct);
+
+        // The superseded old id expires at the FIXED grace ceiling; reading it must not slide
+        // that ceiling forward (a naive KeyExpire grace would be defeated by such a slide).
+        var graceExpiry = time.UtcNow.AddSeconds(60);
+        time.UtcNow = time.UtcNow.AddSeconds(30);
+        var fetched = await store.GetAsync(session.Id, ct);
+        fetched.ShouldNotBeNull();
+        fetched!.ExpiresAt.ShouldBe(graceExpiry); // unchanged by the read
+    }
+
+    [Fact]
+    public async Task RotateAsync_ShouldReturnNull_ForSupersededKey()
+    {
+        var time = new MutableFakeDateTimeProvider();
+        var store = CreateStore(time);
+        var ct = TestContext.Current.CancellationToken;
+
+        var session = await store.CreateAsync(Guid.NewGuid(), SessionLifetime.Persistent, ct);
+        time.UtcNow = time.UtcNow.AddHours(25);
+        await store.RotateAsync(session.Id, ct); // session.Id is now superseded
+
+        // A superseded key must never rotate again (its successor is the live id).
+        (await store.RotateAsync(session.Id, ct)).ShouldBeNull();
+    }
+
+    // COND-B: after a rotation followed by an account-wide revoke, no session id — old or new
+    // — survives. InMemorySessionStore is fully synchronous (Task.FromResult), so this proves
+    // the SEQUENTIAL rotate-then-invalidate order: the invalidate snapshot iterates _sessions
+    // live and catches both the new entry and the superseded old entry (both kept in the store).
+    // The genuinely concurrent distributed interleave (a revoke landing mid-rotation) is pinned
+    // against real Redis by RedisSessionStoreTtlTests
+    // .RotateAsync_ShouldLeaveNoSurvivingSession_WhenRacingConcurrentInvalidateAll.
+    [Fact]
+    public async Task RotateAsync_ShouldLeaveNoSurvivingSession_AfterInvalidateAll()
+    {
+        var time = new MutableFakeDateTimeProvider();
+        var store = CreateStore(time);
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+
+        var session = await store.CreateAsync(userId, SessionLifetime.Persistent, ct);
+        time.UtcNow = time.UtcNow.AddHours(25);
+
+        var rotation = await store.RotateAsync(session.Id, ct);
+        await store.InvalidateAllForUserAsync(userId, ct);
+
+        (await store.GetAsync(session.Id, ct)).ShouldBeNull();
+        if (rotation is not null)
+            (await store.GetAsync(rotation.NewId, ct)).ShouldBeNull();
     }
 
     [Fact]

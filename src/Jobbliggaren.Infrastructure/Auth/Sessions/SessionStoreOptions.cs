@@ -49,6 +49,21 @@ public sealed class SessionStoreOptions
     // guards the momentary race, not the steady state.
     public TimeSpan RotationClaimTtl { get; init; } = TimeSpan.FromSeconds(30);
 
+    // COND-A in-flight-render grace: when RotateAsync retires the old id it does NOT hard-
+    // delete it — it keeps it valid, but non-sliding and non-rotatable, for this long, so
+    // concurrent in-flight requests (parallel fetches, other tabs, a rotation-loser render)
+    // that still carry the old id don't 401 into a spurious logout. Bounded and fixed
+    // (AbsoluteExpiration, never slid) so a captured old id's replay is capped at this
+    // window past a rotation that already bounds it to RotationInterval.
+    public TimeSpan RotationGraceWindow { get; init; } = TimeSpan.FromSeconds(60);
+
+    // COND-B revocation tombstone: InvalidateAllForUserAsync sets a short-lived per-user
+    // tombstone BEFORE it snapshots the session index, and RotateAsync fails closed if the
+    // tombstone is present — so a rotation whose new id lands after the snapshot cannot
+    // outlive an account deletion / logout-everywhere (Art. 17). TTL comfortably exceeds
+    // the maximum runtime of a single rotation.
+    public TimeSpan RevocationTombstoneTtl { get; init; } = TimeSpan.FromSeconds(60);
+
     public SessionLifetimeProfile ProfileFor(SessionLifetime lifetime) => lifetime switch
     {
         SessionLifetime.Persistent => Persistent,

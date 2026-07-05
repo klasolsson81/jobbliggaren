@@ -65,6 +65,17 @@ public sealed class RedisSessionStore(
             return null;
         }
 
+        // COND-A grace: a superseded key (rotated away, living out its fixed grace window)
+        // still authenticates so concurrent in-flight requests bearing the old id don't 401
+        // — but it must NOT be slid (SetStringAsync would reset the fixed AbsoluteExpiration
+        // and defeat the bounded window; a "naive KeyExpire grace" fails for exactly this
+        // reason) and must NOT be re-SADDed (its index membership was intentionally dropped
+        // on rotation). Return it as-is; it dies at its AbsoluteExpiration. The absolute-cap
+        // check above stays ahead, so a superseded-but-past-cap key is still evicted.
+        if (payload.SupersededAt is { } supersededAt)
+            return new Session(
+                sessionId, payload.UserId, payload.CreatedAt, supersededAt + _options.RotationGraceWindow);
+
         // Slide up to SlidingTtl, but never past the absolute cap: a key's TTL must
         // not outlive the cap (defense-in-depth beside the check above, and it frees
         // Redis memory promptly at the ceiling).
@@ -208,6 +219,12 @@ public sealed class RedisSessionStore(
             var db = redis.GetDatabase();
             var setKey = UserSessionsKey(userId);
 
+            // COND-B: plant the revocation tombstone BEFORE snapshotting the index, so any
+            // concurrent RotateAsync whose new key lands after our SMEMBERS snapshot observes
+            // it and fails closed (undoes itself). TTL comfortably exceeds a single rotation's
+            // runtime; it self-expires so it never blocks a later legitimate login.
+            await db.StringSetAsync(UserRevokedKey(userId), RevokedValue, _options.RevocationTombstoneTtl);
+
             var members = await db.SetMembersAsync(setKey);
             var count = 0;
             foreach (var member in members)
@@ -243,6 +260,10 @@ public sealed class RedisSessionStore(
 
         var payload = JsonSerializer.Deserialize<SessionPayload>(json, JsonOptions);
         if (payload is null) return null;
+
+        // A superseded key is already rotated away and living out its grace window — never
+        // rotate it again (its successor is the live id; rotating it would fork the chain).
+        if (payload.SupersededAt is not null) return null;
 
         var profile = _options.ProfileFor(payload.Lifetime);
         if (profile.RotationInterval <= TimeSpan.Zero) return null; // profile never rotates
@@ -295,12 +316,44 @@ public sealed class RedisSessionStore(
                 ct);
             await db.KeyExpireAsync(setKey, profile.SlidingTtl);
 
-            // Retire the old id. Hard delete: the in-flight-render grace window (where a
-            // navigation that triggered rotation still carries the old id) lands with the
-            // middleware driver in the activation PR, where that race actually occurs —
-            // rotation is dormant until then.
-            await db.SetRemoveAsync(setKey, Key(current));
-            await cache.RemoveAsync(Key(current), ct);
+            // COND-A grace: retire the old id into a bounded, non-sliding grace window instead
+            // of hard-deleting it, so concurrent in-flight requests still bearing the old id
+            // (parallel fetches, other tabs, a rotation-loser's render) authenticate for up to
+            // RotationGraceWindow rather than 401-ing into a spurious logout. Overwrite the old
+            // key with a superseded marker on a FIXED AbsoluteExpiration (never slid — GetAsync
+            // short-circuits it, so a "naive KeyExpire grace" re-slid by GetAsync is avoided),
+            // and LEAVE it in the user index so InvalidateAllForUserAsync still reaches it
+            // (Art. 17): it either self-expires at the grace ceiling (leaving a benign orphan
+            // member, exactly as GetAsync/CreateAsync already do) or is killed by a revoke.
+            var supersededPayload = payload with { RotatedAt = now, SupersededAt = now };
+            var supersededJson = JsonSerializer.Serialize(supersededPayload, JsonOptions);
+            await cache.SetStringAsync(
+                Key(current),
+                supersededJson,
+                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = _options.RotationGraceWindow },
+                ct);
+
+            // COND-B fail-closed: a concurrent InvalidateAllForUserAsync (account deletion /
+            // logout-everywhere) plants a per-user revocation tombstone BEFORE it snapshots the
+            // index. This check is the LAST operation of the rotation — placed AFTER *both* the
+            // new-key write (SADD+SetString) AND the superseded-old write above — so it gates
+            // every mutation this rotation made. If the tombstone is present, undo the whole
+            // rotation (drop new AND the just-superseded old, index + cache) and return null;
+            // the caller gets rotated:false, keeps `current`, and its next read 401s once the
+            // revoke completes. The happens-before is then symmetric: if this check sees no
+            // tombstone it ran before the revoke's plant, so ALL our writes preceded the revoke's
+            // snapshot and that snapshot sees + removes both keys. No write can survive past the
+            // check, so the superseded old key can never be resurrected outside the index — the
+            // ≤grace Art. 17 resurrection race is closed (mirrors InMemory, whose writes also all
+            // precede its IsRevoked check).
+            if (await db.KeyExistsAsync(UserRevokedKey(payload.UserId)))
+            {
+                await db.SetRemoveAsync(setKey, newKey);
+                await cache.RemoveAsync(newKey, ct);
+                await db.SetRemoveAsync(setKey, Key(current));
+                await cache.RemoveAsync(Key(current), ct);
+                return null;
+            }
 
             return new SessionRotation(newId, now + slidingTtl);
         }
@@ -331,12 +384,22 @@ public sealed class RedisSessionStore(
     private const string RotationClaimValue = "1";
     private static string RotationClaimKey(SessionId sessionId) => $"{KeyPrefix}{Key(sessionId)}:rotating";
 
+    // COND-B revocation tombstone (SET EX). Set by InvalidateAllForUserAsync before it
+    // snapshots the index; RotateAsync fails closed while it exists. Manually prefixed
+    // (IConnectionMultiplexer path). The value is an unused sentinel.
+    private const string RevokedValue = "1";
+    private static string UserRevokedKey(Guid userId) =>
+        string.Create(CultureInfo.InvariantCulture, $"{KeyPrefix}user:{userId}:revoked");
+
     // RotatedAt + Lifetime are written from PR2a. Older payloads lack them: Lifetime
     // deserializes to Legacy (ordinal 0) and RotatedAt to default — both handled at the
-    // read site (profile selection). RotatedAt is unused until the rotation seam (2b).
+    // read site (profile selection). SupersededAt (2b-3) marks a key that has been rotated
+    // away and is living out its fixed grace window (COND-A); a missing JSON property
+    // deserializes to null (no grace in flight), so pre-field payloads stay valid.
     private sealed record SessionPayload(
         Guid UserId,
         DateTimeOffset CreatedAt,
         DateTimeOffset RotatedAt,
-        SessionLifetime Lifetime);
+        SessionLifetime Lifetime,
+        DateTimeOffset? SupersededAt = null);
 }

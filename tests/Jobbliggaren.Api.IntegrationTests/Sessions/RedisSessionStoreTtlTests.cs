@@ -346,11 +346,13 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
         (await _cappedStore.GetAsync(sessionId, ct)).ShouldBeNull();
     }
 
-    // #2b1: rotation mints a new id, hard-deletes the old key, preserves CreatedAt (the
-    // cap anchor), and updates the user index so InvalidateAllForUser still revokes the
-    // rotated session.
+    // #2b3 COND-A: rotation mints a new id, preserves CreatedAt (the cap anchor), and instead
+    // of hard-deleting the old key retires it into a bounded, non-sliding GRACE window — so a
+    // concurrent in-flight request still bearing the old id authenticates briefly rather than
+    // 401-ing. The superseded old key stays in the user index, so InvalidateAllForUser still
+    // revokes it (Art. 17) alongside the new session.
     [Fact]
-    public async Task RotateAsync_ShouldMintNewIdHardDeleteOldAndKeepIndex_WhenDue()
+    public async Task RotateAsync_ShouldSupersedeOldIntoGraceAndKeepIndex_WhenDue()
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
@@ -363,15 +365,109 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
         rotation.ShouldNotBeNull();
         rotation!.NewId.Reveal().ShouldNotBe(session.Id.Reveal());
 
-        // Old key hard-deleted; new session valid with CreatedAt carried verbatim.
-        (await _db.KeyExistsAsync(RedisKey(session.Id))).ShouldBeFalse();
+        // Old key NOT hard-deleted: it survives on a short, fixed grace TTL (~60s), not the
+        // 30d sliding window — proving the grace is bounded and non-sliding.
+        (await _db.KeyExistsAsync(RedisKey(session.Id))).ShouldBeTrue();
+        var oldTtl = await _db.KeyTimeToLiveAsync(RedisKey(session.Id));
+        oldTtl.ShouldNotBeNull();
+        oldTtl!.Value.ShouldBeLessThan(TimeSpan.FromMinutes(5));
+
+        // The old id still authenticates within grace, and a read does NOT slide its TTL.
+        (await _rotatingStore.GetAsync(session.Id, ct)).ShouldNotBeNull();
+        var oldTtlAfterRead = await _db.KeyTimeToLiveAsync(RedisKey(session.Id));
+        oldTtlAfterRead!.Value.ShouldBeLessThan(TimeSpan.FromMinutes(5));
+
+        // New session valid with CreatedAt carried verbatim.
         var rotated = await _rotatingStore.GetAsync(rotation.NewId, ct);
         rotated.ShouldNotBeNull();
         rotated!.CreatedAt.ShouldBe(session.CreatedAt);
 
-        // Index followed the rotation: bulk-invalidate revokes exactly the new session.
-        (await _rotatingStore.InvalidateAllForUserAsync(userId, ct)).ShouldBe(1);
+        // Index tracks BOTH the new session and the superseded old key, so bulk-invalidate
+        // (Art. 17) revokes both — the grace-window old id cannot outlive account deletion.
+        (await _rotatingStore.InvalidateAllForUserAsync(userId, ct)).ShouldBe(2);
         (await _rotatingStore.GetAsync(rotation.NewId, ct)).ShouldBeNull();
+        (await _rotatingStore.GetAsync(session.Id, ct)).ShouldBeNull();
+    }
+
+    // #2b3 COND-B: a rotation that runs concurrently with an account-wide revoke must fail
+    // closed rather than mint a session that outlives the deletion. InvalidateAllForUser plants
+    // a per-user tombstone before snapshotting the index; RotateAsync checks it after writing
+    // the new key. Seeding the tombstone directly proves the fail-closed branch: no new session,
+    // old id gone.
+    [Fact]
+    public async Task RotateAsync_ShouldFailClosed_WhenRevocationTombstonePresent()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var session = await _rotatingStore.CreateAsync(userId, SessionLifetime.Persistent, ct);
+
+        _capClock.UtcNow = _capClock.UtcNow.AddHours(25);
+
+        // Simulate a concurrent InvalidateAllForUserAsync having planted the tombstone.
+        await _db.StringSetAsync($"jobbliggaren:user:{userId}:revoked", "1", TimeSpan.FromSeconds(60));
+
+        var rotation = await _rotatingStore.RotateAsync(session.Id, ct);
+
+        rotation.ShouldBeNull(); // fail closed
+        // Neither the old nor any new session may survive the revoke.
+        (await _rotatingStore.GetAsync(session.Id, ct)).ShouldBeNull();
+        (await _rotatingStore.InvalidateAllForUserAsync(userId, ct)).ShouldBe(0);
+    }
+
+    // #2b3 COND-B regression: the fail-closed guard must hold for the REAL interleave (a revoke
+    // landing DURING a rotation), not only when the tombstone is pre-seeded. Race RotateAsync
+    // against InvalidateAllForUserAsync against real Redis, many times; the invariant is that
+    // once both complete, NO session id — old or new — still authenticates, whichever way Redis
+    // serialized the two command streams. Pre-fix (superseded-old written AFTER the tombstone
+    // check) a sweep could resurrect the old id outside the index; this pins that closed. Post-
+    // fix every rotation write precedes the single tombstone check, so the property is by
+    // construction and this never flakes.
+    [Fact]
+    public async Task RotateAsync_ShouldLeaveNoSurvivingSession_WhenRacingConcurrentInvalidateAll()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        for (var i = 0; i < 30; i++)
+        {
+            var userId = Guid.NewGuid();
+            var session = await _rotatingStore.CreateAsync(userId, SessionLifetime.Persistent, ct);
+            _capClock.UtcNow = _capClock.UtcNow.AddHours(25); // past the 24h rotation interval
+
+            var rotateTask = _rotatingStore.RotateAsync(session.Id, ct);
+            var invalidateTask = _rotatingStore.InvalidateAllForUserAsync(userId, ct);
+            await Task.WhenAll(rotateTask, invalidateTask);
+
+            var rotation = await rotateTask;
+            (await _rotatingStore.GetAsync(session.Id, ct)).ShouldBeNull();
+            if (rotation is not null)
+                (await _rotatingStore.GetAsync(rotation.NewId, ct)).ShouldBeNull();
+        }
+    }
+
+    // #2b3 back-compat: a 2a/2b-1-era payload has Lifetime + RotatedAt but no SupersededAt.
+    // It must deserialize with SupersededAt = null (a live, non-superseded session) so no
+    // session breaks on the deploy that introduces the grace field.
+    [Fact]
+    public async Task GetAsync_ShouldTreatPayloadWithoutSupersededAtAsLive_WhenFieldAbsent()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var sessionId = SessionId.Generate();
+        var member = SessionMember(sessionId);
+
+        var createdAt = _capClock.UtcNow;
+        // Pre-2b3 payload: lifetime + rotatedAt present, supersededAt absent.
+        var json = $"{{\"userId\":\"{userId}\",\"createdAt\":\"{createdAt:O}\",\"rotatedAt\":\"{createdAt:O}\",\"lifetime\":2}}";
+        await _cache.SetStringAsync(
+            member, json, new DistributedCacheEntryOptions { SlidingExpiration = TimeSpan.FromDays(30) }, ct);
+        await _db.SetAddAsync(UserSessionsKey(userId), member);
+
+        // Read as a normal live session (slid), not treated as superseded.
+        var fetched = await _rotatingStore.GetAsync(sessionId, ct);
+        fetched.ShouldNotBeNull();
+        fetched!.UserId.ShouldBe(userId);
+        // A live session slides to a full window; a superseded one would pin to a ~60s ceiling.
+        (fetched.ExpiresAt - _capClock.UtcNow).ShouldBeGreaterThan(TimeSpan.FromDays(1));
     }
 
     [Fact]

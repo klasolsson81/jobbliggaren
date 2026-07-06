@@ -62,6 +62,34 @@ public sealed partial class ResendEmailSender(
             cancellationToken);
     }
 
+    public Task SendEmailChangeConfirmationAsync(
+        string toEmail, EmailChangeConfirmationEmail content,
+        EmailChangeConfirmationIdempotencyKey idempotencyKey, CancellationToken cancellationToken)
+    {
+        // Fail loud on a missing key (default-constructed struct) rather than silently sending
+        // non-idempotently — a transport retry must not double-deliver the confirmation.
+        ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey.Value);
+        return SendAsync(
+            toEmail,
+            EmailTemplates.EmailChangeConfirmation(_options.BaseUrl, content),
+            "email-change-confirmation",
+            idempotencyKey.Value,
+            cancellationToken);
+    }
+
+    public Task SendEmailChangedNotificationAsync(
+        string toEmail, EmailChangedNotificationIdempotencyKey idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey.Value);
+        return SendAsync(
+            toEmail,
+            EmailTemplates.EmailChangedNotification(_options.BaseUrl),
+            "email-changed-notification",
+            idempotencyKey.Value,
+            cancellationToken);
+    }
+
     private async Task SendAsync(
         string toEmail, EmailTemplates.EmailContent body, string emailKind,
         string idempotencyKey, CancellationToken cancellationToken)

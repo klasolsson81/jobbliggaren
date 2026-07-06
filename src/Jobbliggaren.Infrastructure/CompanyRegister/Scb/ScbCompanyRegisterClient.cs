@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -417,6 +418,10 @@ internal sealed partial class ScbCompanyRegisterClient(
     // forms ≈ 200 chars); the reason is SCB's validator message (one sentence). Both capped defensively.
     private const int MaxDescriptorLength = 512;
     private const int MaxReasonLength = 500;
+    // Bounded READ cap (bytes) — the raw error body is never materialized past this during the ~11 h
+    // run (security-auditor #708: no unbounded ReadAsStringAsync on a failure path). Comfortably above
+    // MaxReasonLength even for multi-byte UTF-8.
+    private const int MaxReasonBytes = 2048;
 
     /// <summary>
     /// #708 — serializes the failing query's filters as <c>Kategori(BranschNiva)=[kod,kod,…]</c> pairs
@@ -440,27 +445,52 @@ internal sealed partial class ScbCompanyRegisterClient(
     /// #708 — reads a bounded, single-lined slice of a non-success response body: SCB's validator
     /// normally states WHY a query was rejected (the #628 "Avdelning A–U" 400 was diagnosed from
     /// exactly this text). A rakna/hamta/kodtabell rejection body carries no company rows by
-    /// construction (the query was refused); the cap + control-char strip is belt-and-braces
-    /// (CLAUDE.md §5). Never throws — a reason must never turn a handled failure into a crash.
+    /// construction (the query was refused); the byte-bounded read + control-char/line-separator
+    /// strip is belt-and-braces (CLAUDE.md §5; U+2028/U+2029 included — some log viewers treat them
+    /// as line breaks). Never throws — a reason must never turn a handled failure into a crash.
     /// </summary>
     internal static async Task<string> ReadReasonAsync(
         HttpResponseMessage response, CancellationToken cancellationToken)
     {
         try
         {
-            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(body))
-                return "(tom svarskropp)";
+            // Bounded read: at most MaxReasonBytes + 1 (the extra byte is the truncation probe) —
+            // a runaway error page is never materialized whole (security-auditor #708).
+            await using var stream = await response.Content
+                .ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            var raw = new byte[MaxReasonBytes + 1];
+            var read = 0;
+            int n;
+            while (read < raw.Length
+                && (n = await stream.ReadAsync(raw.AsMemory(read), cancellationToken).ConfigureAwait(false)) > 0)
+            {
+                read += n;
+            }
 
-            var buffer = new System.Text.StringBuilder(Math.Min(body.Length, MaxReasonLength));
+            var clipped = read > MaxReasonBytes;
+            var body = Encoding.UTF8.GetString(raw, 0, Math.Min(read, MaxReasonBytes));
+
+            var buffer = new StringBuilder(Math.Min(body.Length, MaxReasonLength));
             foreach (var ch in body)
             {
                 if (buffer.Length >= MaxReasonLength)
+                {
+                    clipped = true;
                     break;
-                buffer.Append(char.IsControl(ch) ? ' ' : ch);
+                }
+                // Neutralize anything a log viewer could render as a line break: control chars
+                // (CR/LF/TAB/ESC …) AND the Unicode line/paragraph separators, which char.IsControl
+                // misses (code-reviewer + security-auditor #708).
+                var breaksLine = char.IsControl(ch) || ch is '\u2028' or '\u2029';
+                buffer.Append(breaksLine ? ' ' : ch);
             }
+
             var reason = buffer.ToString().Trim();
-            return body.Length > MaxReasonLength ? reason + "…" : reason;
+            if (reason.Length == 0)
+                return "(tom svarskropp)"; // also covers a body of ONLY control chars/whitespace
+            // The ellipsis reflects ACTUAL truncation (byte cap or char cap), not the raw length
+            // (dotnet-architect #708 — a trimmed-but-untruncated reason must not claim it was cut).
+            return clipped ? reason + "…" : reason;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

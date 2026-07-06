@@ -96,6 +96,35 @@ public class ScbCompanyRegisterClientHelperTests
         reason.ShouldBe("(tom svarskropp)");
     }
 
+    [Fact]
+    public async Task ReadReasonAsync_ReturnsEmptyBodyMarker_WhenBodyIsOnlyControlChars()
+    {
+        // A body of ONLY control chars sanitizes+trims to nothing — the stable token must still come
+        // back so the log field is never blank (code-reviewer #708 hardening).
+        using var response = Response(HttpStatusCode.BadRequest, "\0\0\r\n\t");
+
+        var reason = await ScbCompanyRegisterClient.ReadReasonAsync(
+            response, TestContext.Current.CancellationToken);
+
+        reason.ShouldBe("(tom svarskropp)");
+    }
+
+    [Fact]
+    public async Task ReadReasonAsync_StripsUnicodeLineSeparators_WhenBodyHasZlZpChars()
+    {
+        // U+2028/U+2029 (Zl/Zp) are NOT char.IsControl but some log viewers render them as line
+        // breaks — they must neutralize to spaces like the control chars (security-auditor +
+        // code-reviewer #708 hardening).
+        using var response = Response(HttpStatusCode.BadRequest, "rad1\u2028rad2\u2029rad3");
+
+        var reason = await ScbCompanyRegisterClient.ReadReasonAsync(
+            response, TestContext.Current.CancellationToken);
+
+        reason.ShouldBe("rad1 rad2 rad3");
+        reason.ShouldNotContain("\u2028");
+        reason.ShouldNotContain("\u2029");
+    }
+
     private static HttpResponseMessage Response(HttpStatusCode status, string body) =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, "text/plain") };
 }

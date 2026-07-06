@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
 
@@ -146,6 +147,11 @@ internal static class ScbPartitionPlanner
                     case ScbReconciliationMode.Observe:
                         outcome.RecordObservedReconciliationGap();
                         break;
+                    case ScbReconciliationMode.Off:
+                        break;
+                    default:
+                        // Fail fast on a future enum value instead of a silent no-op (dotnet-architect #708).
+                        throw new UnreachableException($"Ohanterat ScbReconciliationMode: {rung.ReconciliationMode}.");
                 }
             }
 

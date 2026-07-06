@@ -149,6 +149,26 @@ public class ChangeEmailTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task POST_change_email_to_own_current_address_returns_409_and_does_not_send()
+    {
+        // Changing to your OWN current address hits the same uniqueness pre-check (the address is
+        // "taken" — by you) → 409, no token minted, no email sent. The frontend guards this earlier
+        // (submit stays disabled until the new address differs), so the 409 is a backstop; the response
+        // is benign (the user already knows their own address, so it is not an enumeration oracle).
+        var ct = TestContext.Current.CancellationToken;
+        var email = $"ce-self-{Guid.NewGuid()}@example.se";
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+
+        var response = await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, email, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await response.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("title").GetString().ShouldBe("Auth.EmailTaken");
+        _factory.Emails.Sent.ShouldNotContain(e =>
+            e.ToEmail == email && e.Kind == RecordedEmailKind.EmailChangeConfirmation);
+    }
+
+    [Fact]
     public async Task POST_change_email_with_valid_input_returns_202_emails_new_address_and_leaves_account_unchanged()
     {
         var ct = TestContext.Current.CancellationToken;

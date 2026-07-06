@@ -49,8 +49,10 @@ public sealed partial class ConfirmEmailChangeCommandHandler(
             }
             catch (Exception ex)
             {
-                // No recipient/PII in the log (§5) — only the opaque userId surrogate.
-                LogOldAddressNotificationFailed(ex, command.UserId);
+                // §5 parity with the sender boundary (ResendEmailSender logs only the type): a
+                // transport exception can carry a host/status, never the recipient/body/token — so log
+                // only the exception TYPE + the opaque userId surrogate, not the exception object.
+                LogOldAddressNotificationFailed(ex.GetType().Name, command.UserId);
             }
         }
 
@@ -59,7 +61,8 @@ public sealed partial class ConfirmEmailChangeCommandHandler(
         return Result.Success(command.UserId);
     }
 
-    [LoggerMessage(Level = LogLevel.Warning,
-        Message = "Change-email confirm: old-address notification failed for user {UserId} (change succeeded)")]
-    private partial void LogOldAddressNotificationFailed(Exception ex, Guid userId);
+    [LoggerMessage(4002, LogLevel.Warning,
+        "Change-email confirm: old-address notification failed for user {UserId} ({ErrorType}) " +
+        "(change succeeded)")]
+    private partial void LogOldAddressNotificationFailed(string errorType, Guid userId);
 }

@@ -232,4 +232,44 @@ public class ConfirmEmailChangeTests(ApiFactory factory)
         userA.ShouldNotBeNull();
         userA.Email.ShouldBe(oldEmail);
     }
+
+    [Fact]
+    public async Task POST_confirm_email_change_rejects_cross_user_and_cross_email_token_replay()
+    {
+        // The token is the whole security boundary on a public endpoint, so pin its cryptographic
+        // binding: a token minted for (userA, intendedNew) via A's SecurityStamp + the
+        // "ChangeEmail:{intendedNew}" purpose must not confirm a change for a DIFFERENT user or a
+        // DIFFERENT address. This is the core of the account-takeover defence.
+        var ct = TestContext.Current.CancellationToken;
+        var emailA = $"cec-xbind-a-{Guid.NewGuid()}@example.se";
+        var emailB = $"cec-xbind-b-{Guid.NewGuid()}@example.se";
+        var intendedNew = $"cec-xbind-new-{Guid.NewGuid()}@example.se";
+        var otherNew = $"cec-xbind-other-{Guid.NewGuid()}@example.se";
+
+        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, emailA, ct: ct);
+        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, emailB, ct: ct);
+        var userIdA = await GetUserIdAsync(emailA, ct);
+        var userIdB = await GetUserIdAsync(emailB, ct);
+
+        var tokenForA = await GenerateUrlSafeTokenAsync(userIdA, intendedNew, ct);
+
+        // Cross-USER replay: A's token presented for user B → uniform 400 (bound to A's stamp).
+        var crossUser = await ConfirmAsync(userIdB, intendedNew, tokenForA, ct);
+        crossUser.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await crossUser.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("title").GetString().ShouldBe("Auth.InvalidEmailChangeToken");
+
+        // Cross-EMAIL replay: A's token presented for a DIFFERENT new address → uniform 400 (the token
+        // seals the intended address in its purpose string).
+        var crossEmail = await ConfirmAsync(userIdA, otherNew, tokenForA, ct);
+        crossEmail.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await crossEmail.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("title").GetString().ShouldBe("Auth.InvalidEmailChangeToken");
+
+        // Neither account's address moved.
+        using var scope = _factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        (await userManager.FindByIdAsync(userIdA.ToString()))!.Email.ShouldBe(emailA);
+        (await userManager.FindByIdAsync(userIdB.ToString()))!.Email.ShouldBe(emailB);
+    }
 }

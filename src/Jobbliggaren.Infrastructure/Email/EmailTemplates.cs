@@ -120,11 +120,11 @@ internal static class EmailTemplates
     }
 
     /// <summary>
-    /// #679 — e-post-bytets ägandebekräftelse, skickad till den NYA adressen. Bygger
-    /// bekräftelselänken ur <paramref name="baseUrl"/> + den URL-säkra token:en; den nya adressen
-    /// procent-kodas (plus-addressing) och token:en är redan Base64Url (ingen escaping behövs).
-    /// Civic-ton (1177/Digg): inga utropstecken, ingen em-dash. Adressen ändras inte förrän länken
-    /// öppnas; länken gäller i 24h (CTO-bind #1 TokenLifespan).
+    /// #679 — change-email ownership confirmation, sent to the NEW address. Builds the confirmation
+    /// link from <paramref name="baseUrl"/> + the URL-safe token; the new address is percent-encoded
+    /// (plus-addressing) and the token is already Base64Url (no escaping needed). Civic tone
+    /// (1177/Digg): no exclamation marks, no em-dash. The address is not changed until the link is
+    /// opened; the link is valid for 24h (CTO-bind #1 TokenLifespan).
     /// </summary>
     public static EmailContent EmailChangeConfirmation(
         string baseUrl, EmailChangeConfirmationEmail content)
@@ -158,10 +158,10 @@ internal static class EmailTemplates
     }
 
     /// <summary>
-    /// #679 (CTO-bind #4) — "din e-postadress har ändrats"-säkerhetsnotis till den GAMLA adressen
-    /// efter en genomförd ändring. Ingen token, ingen länk till den nya adressen, avslöjar inte den
-    /// nya adressen — bara en saklig notis + hjälpcenter-länken byggd ur <paramref name="baseUrl"/>.
-    /// Civic-ton: inga utropstecken, ingen em-dash.
+    /// #679 (CTO-bind #4) — "your email address was changed" security notice to the OLD address after
+    /// a completed change. No token, no link to the new address, does not reveal the new address -
+    /// only a factual notice + the help-centre link built from <paramref name="baseUrl"/>. Civic tone:
+    /// no exclamation marks, no em-dash.
     /// </summary>
     public static EmailContent EmailChangedNotification(string baseUrl)
     {

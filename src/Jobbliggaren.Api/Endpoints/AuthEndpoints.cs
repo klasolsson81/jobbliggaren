@@ -243,8 +243,11 @@ public static partial class AuthEndpoints
     // C6 session-invalidation is best-effort: a completed email change must not be failed by a Redis
     // blip, but live-session residue must be detectable (CTO risk 3). Source-gen per CA1848; no
     // recipient/PII, only the userId surrogate.
-    [LoggerMessage(Level = LogLevel.Error,
-        Message = "Change-email confirm: session invalidation FAILED for user {UserId} — " +
-                  "email changed, sessions may still be live")]
+    // Keeps the full exception (a Redis fault's stack aids ops; it carries no user PII), unlike the
+    // email-send logs which log only the type per §5. Explicit EventId for parity with the sibling
+    // change-email log ids (4001/4002).
+    [LoggerMessage(4003, LogLevel.Error,
+        "Change-email confirm: session invalidation FAILED for user {UserId} — " +
+        "email changed, sessions may still be live")]
     private static partial void LogSessionInvalidationFailed(ILogger logger, Exception ex, Guid userId);
 }

@@ -3,6 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApplicationsPipeline } from "./applications-pipeline";
 import { PIPELINE_ORDER } from "@/lib/applications/status";
+import type { ApplicationsView } from "@/lib/applications/view";
 import type {
   ApplicationAttentionSignal,
   ApplicationDto,
@@ -19,6 +20,12 @@ import type {
 vi.mock("@/lib/actions/applications", () => ({
   transitionStatusAction: vi.fn(async () => ({ success: true as const })),
   logFollowUpAction: vi.fn(async () => ({ success: true as const })),
+}));
+// #630 PR 8: vy-växlingen persistar cookien fire-and-forget via en server
+// action (cookies() från next/headers) — mocka den så växlartesterna förblir
+// rena klient-tester.
+vi.mock("@/lib/actions/set-applications-view-action", () => ({
+  setApplicationsViewAction: vi.fn(async () => undefined),
 }));
 vi.mock("next/navigation", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/navigation")>();
@@ -87,9 +94,16 @@ function makePipeline(
   });
 }
 
-function renderPipeline(groups: PipelineGroupDto[]) {
+function renderPipeline(
+  groups: PipelineGroupDto[],
+  initialView: ApplicationsView = "lista",
+) {
   return render(
-    <ApplicationsPipeline groups={groups} nowIso={FIXED_NOW_ISO} />,
+    <ApplicationsPipeline
+      groups={groups}
+      nowIso={FIXED_NOW_ISO}
+      initialView={initialView}
+    />,
   );
 }
 
@@ -131,7 +145,13 @@ describe("ApplicationsPipeline — Lista-sektioner (2a)", () => {
         applications: [makeApplication({ id: "sp-o0", status: "OfferReceived" })],
       },
     ];
-    render(<ApplicationsPipeline groups={sparse} nowIso={FIXED_NOW_ISO} />);
+    render(
+      <ApplicationsPipeline
+        groups={sparse}
+        nowIso={FIXED_NOW_ISO}
+        initialView="lista"
+      />,
+    );
 
     expect(document.getElementById("status-Submitted")).not.toBeNull();
     expect(document.getElementById("status-OfferReceived")).not.toBeNull();
@@ -366,5 +386,113 @@ describe("ApplicationsPipeline — tomt öråt", () => {
         "Inga ansökningar matchar sökningen eller filtret.",
       ),
     ).toBeInTheDocument();
+  });
+});
+
+describe("ApplicationsPipeline — VY-växlare + Tavla (PR 8)", () => {
+  it("växlaren visar Lista + Tavla (Tabell utelämnad tills PR 10)", () => {
+    renderPipeline(makePipeline({ Submitted: 1 }));
+
+    const group = screen.getByRole("radiogroup", {
+      name: "Visa ansökningar som",
+    });
+    const options = within(group).getAllByRole("radio");
+    expect(options.map((o) => o.textContent)).toEqual(["Lista", "Tavla"]);
+    // Ingen Tabell-affordans (CTO D-D).
+    expect(
+      within(group).queryByRole("radio", { name: "Tabell" }),
+    ).not.toBeInTheDocument();
+    // Default = Lista aktiv, railen synlig.
+    expect(within(group).getByRole("radio", { name: "Lista" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(
+      screen.getByRole("group", { name: "Filtrera på steg" }),
+    ).toBeInTheDocument();
+  });
+
+  it("initialView='tavla' renderar boardet (6 kolumner + 4 zoner), railen dold", () => {
+    renderPipeline(makePipeline({ Submitted: 1, Accepted: 1 }), "tavla");
+
+    // Sex aktiva kolumner + fyra terminal-zoner = tio status-regioner.
+    for (const label of [
+      "Utkast",
+      "Skickad",
+      "Bekräftad",
+      "Intervju bokad",
+      "Pågående intervju",
+      "Erbjudande",
+      "Accepterad",
+      "Nekad",
+      "Återtagen",
+      "Inget svar",
+    ]) {
+      expect(screen.getByRole("group", { name: label })).toBeInTheDocument();
+    }
+    // Railen döljs i Tavla (D1/§6); inget stegfilter-chrome.
+    expect(
+      screen.queryByRole("group", { name: "Filtrera på steg" }),
+    ).not.toBeInTheDocument();
+    // Boardets verktygsrad bär antalet (2 totalt, 1 aktivt — Accepted terminal).
+    expect(screen.getByText("2 ansökningar · 1 aktiv")).toBeInTheDocument();
+  });
+
+  it("växling Lista→Tavla döljer railen, visar boardet och persistar cookien", async () => {
+    const user = userEvent.setup();
+    const { setApplicationsViewAction } = await import(
+      "@/lib/actions/set-applications-view-action"
+    );
+    renderPipeline(makePipeline({ Submitted: 1 }));
+
+    expect(
+      screen.getByRole("group", { name: "Filtrera på steg" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Tavla" }));
+
+    // Railen borta, boardkolumnen framme.
+    expect(
+      screen.queryByRole("group", { name: "Filtrera på steg" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Skickad" })).toBeInTheDocument();
+    // Cookien persistas fire-and-forget.
+    expect(setApplicationsViewAction).toHaveBeenCalledWith("tavla");
+  });
+
+  it("Tavla: kortet bär StatusMenu (tangentbords-/no-drag-vägen)", () => {
+    renderPipeline(makePipeline({ Submitted: 1 }), "tavla");
+
+    const column = screen.getByRole("group", { name: "Skickad" });
+    expect(
+      within(column).getByRole("button", { name: /Byt status/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("Tavla: kolumn kapar vid 4 kort och visar 'Visa N fler'", () => {
+    renderPipeline(makePipeline({ Submitted: 6 }), "tavla");
+
+    const column = screen.getByRole("group", { name: "Skickad" });
+    // Fyra synliga kort (varje kort = en roll-länk).
+    expect(within(column).getAllByRole("link")).toHaveLength(4);
+    expect(
+      within(column).getByRole("button", { name: "Visa 2 fler" }),
+    ).toBeInTheDocument();
+  });
+
+  it("Tavla: sök filtrerar korten", async () => {
+    const user = userEvent.setup();
+    renderPipeline(makePipeline({ Submitted: 2 }), "tavla");
+
+    await user.type(
+      screen.getByRole("searchbox", { name: "Sök bland ansökningar" }),
+      "Submitted-titel-1",
+    );
+
+    const column = screen.getByRole("group", { name: "Skickad" });
+    expect(within(column).getByText("Submitted-titel-1")).toBeInTheDocument();
+    expect(
+      within(column).queryByText("Submitted-titel-0"),
+    ).not.toBeInTheDocument();
   });
 });

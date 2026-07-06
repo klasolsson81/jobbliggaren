@@ -48,6 +48,12 @@ public static class HangfireStorageOptionsFactory
         // +10:00 during the #688 live run. 12 h covers the real ~11 h SCB runtime (a full ~1.17M-row
         // re-fetch at 6/10 s EVERY run, incl. the weekly refresh) so a duplicate can no longer take
         // over mid-run. Global storage-level value — must not float on the package default.
+        // Accepted fleet-wide cost: after a HARD crash (graceful shutdown deletes the lock row via
+        // Dispose) the crashed holder's lock — any of the 16 jobs' — stays un-takeover-able for up to
+        // 12 h instead of 10 min; per-resource, self-healing, and free in the single-Worker deploy
+        // (nothing runs while the Worker is down anyway). Monitored margin (CTO bind, ADR 0091
+        // amendment 2026-07-06): the 665-min baseline was a TRUNCATED run — if a completion run ever
+        // clocks > ~11.5 h wall-clock, raise this to 16 h before trusting an unattended weekly run.
         DistributedLockTimeout = TimeSpan.FromHours(12),
     };
 }

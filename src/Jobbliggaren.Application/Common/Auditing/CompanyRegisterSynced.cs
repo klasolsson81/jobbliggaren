@@ -30,6 +30,12 @@ public sealed record CompanyRegisterSynced(
     // #640 — count of (kommun, SNI) partitions the sweep excluded (partition-scoped sweep); 0 when no
     // dense-metro over-cap tail existed. Aggregate count only, no org.nr (CLAUDE.md §5).
     int ProtectedPartitionCount,
+    // #708 — count of SCB-rejected partition requests (raknaforetag/hamtaforetag non-success, each
+    // latching the run truncated). Makes a truncated run diagnosable from the durable audit row alone:
+    // SweepApplied=false WITH FailedPartitionCount>0 = SCB rejected queries (see the WARN 5702 partition
+    // descriptors in the run log); =0 = the truncation came from another latch. Aggregate count only —
+    // partition identities live in the log, keeping this payload's Art. 30 counts-only shape (D9).
+    int FailedPartitionCount,
     DateTimeOffset StartedAt,
     DateTimeOffset CompletedAt)
     : SystemAuditEvent(

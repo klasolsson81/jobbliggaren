@@ -106,6 +106,12 @@ internal sealed partial class ScbCompanyRegisterRefresher(
         if (outcome.ReconciliationGaps > 0)
             LogReconciliationGap(logger, outcome.ReconciliationGaps);
 
+        // #708 — the 2-digit rung's OBSERVE-ONLY reconciliation: diagnostic evidence for the
+        // observe-to-latch ratchet decision; deliberately does NOT latch truncation (a latching guard
+        // whose live firing behavior is unobserved must not gate a ~11 h run).
+        if (outcome.ObservedReconciliationGaps > 0)
+            LogObservedReconciliationGap(logger, outcome.ObservedReconciliationGaps);
+
         var completedAt = clock.UtcNow;
 
         await using (var auditScope = scopeFactory.CreateAsyncScope())
@@ -122,13 +128,14 @@ internal sealed partial class ScbCompanyRegisterRefresher(
                 SweepApplied: sweepApplied,
                 SweepSkipReason: skipReason,
                 ProtectedPartitionCount: protectedPartitionCount,
+                FailedPartitionCount: outcome.PartitionRequestFailures,
                 StartedAt: startedAt,
                 CompletedAt: completedAt), cancellationToken).ConfigureAwait(false);
         }
 
         LogCompleted(logger, rowsUpserted, rowsDeregistered, excludedPersonnummerShaped,
             excludedInvalid, outcome.TotalRowsFetched, sweepApplied,
-            (completedAt - startedAt).TotalMinutes);
+            outcome.PartitionRequestFailures, (completedAt - startedAt).TotalMinutes);
 
         return new ScbCompanyRegisterRefreshResult(
             RowsUpserted: rowsUpserted,
@@ -190,9 +197,10 @@ internal sealed partial class ScbCompanyRegisterRefresher(
     private static partial void LogDisabled(ILogger logger);
 
     [LoggerMessage(EventId = 5712, Level = LogLevel.Information,
-        Message = "ScbCompanyRegisterRefresher: klart — upserted={Upserted}, deregistered={Deregistered}, excludedPnr={ExcludedPnr}, excludedInvalid={ExcludedInvalid}, fetched={Fetched}, sweepApplied={SweepApplied}, durationMin={DurationMin}.")]
+        Message = "ScbCompanyRegisterRefresher: klart — upserted={Upserted}, deregistered={Deregistered}, excludedPnr={ExcludedPnr}, excludedInvalid={ExcludedInvalid}, fetched={Fetched}, sweepApplied={SweepApplied}, failedPartitions={FailedPartitions}, durationMin={DurationMin}.")]
     private static partial void LogCompleted(ILogger logger, int upserted, int deregistered,
-        int excludedPnr, int excludedInvalid, int fetched, bool sweepApplied, double durationMin);
+        int excludedPnr, int excludedInvalid, int fetched, bool sweepApplied, int failedPartitions,
+        double durationMin);
 
     [LoggerMessage(EventId = 5713, Level = LogLevel.Warning,
         Message = "ScbCompanyRegisterRefresher: deregister-sweep SKIPPAD ({Reason}) — fetched={Fetched}. Ingen falsk avregistrering.")]
@@ -201,4 +209,11 @@ internal sealed partial class ScbCompanyRegisterRefresher(
     [LoggerMessage(EventId = 5714, Level = LogLevel.Warning,
         Message = "ScbCompanyRegisterRefresher: SNI-fullständighetsgap upptäckt ({Gaps} st) — en division saknar 5-siffrig täckning; körningen markeras trunkerad (sweep avstängd). Loggar aldrig org.nr.")]
     private static partial void LogReconciliationGap(ILogger logger, int gaps);
+
+    // #708 — the 2-digit rung's observe-only reconciliation. Diagnostic ONLY: does NOT latch truncation
+    // and does NOT affect the sweep this run — it is the evidence base for promoting the 2-digit guard
+    // from Observe to Latch (an explicit ratchet, ADR 0091 amendment 2026-07-06).
+    [LoggerMessage(EventId = 5716, Level = LogLevel.Warning,
+        Message = "ScbCompanyRegisterRefresher: 2-siffrigt divisions-täckningsgap OBSERVERAT ({Gaps} st, observe-only — latchar EJ trunkering, påverkar EJ sweepen denna körning). Underlag för observe→latch-ratchet. Loggar aldrig org.nr.")]
+    private static partial void LogObservedReconciliationGap(ILogger logger, int gaps);
 }

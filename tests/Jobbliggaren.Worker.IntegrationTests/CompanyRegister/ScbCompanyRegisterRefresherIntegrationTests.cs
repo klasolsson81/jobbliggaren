@@ -110,6 +110,31 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
         logger.Entries.ShouldContain(e => e.EventId.Id == 5714);                             // distinct gap warning fired
     }
 
+    [Fact]
+    public async Task RefreshAsync_ThreadsFailedPartitionCountToAudit_WhenSourceReportsPartitionFailures()
+    {
+        // #708 end-to-end: two SCB-rejected partition requests latch the run truncated (sweep SKIPPED so
+        // nothing is falsely deregistered) AND the count reaches the durable CompanyRegisterSynced audit
+        // payload (FailedPartitionCount=2) — the audit row alone diagnoses a truncated run. The completion
+        // line (EventId 5712) carries the same count so the run log is self-describing.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        // Run 1 (T0): one clean Active row so its own fresh row survives (no prior baseline → sweep applies).
+        await BuildRefresher(new FakeSource([Legal("5560000401")], fetched: 1000), T0).RefreshAsync(ct);
+
+        // Run 2 (T1): reports two partition-request failures → truncated → sweep skipped, count audited.
+        var logger = new CapturingLogger<ScbCompanyRegisterRefresher>();
+        var run2 = await BuildRefresher(
+            new FakeSource([], fetched: 1000, partitionRequestFailures: 2), T1, logger).RefreshAsync(ct);
+
+        run2.SweepApplied.ShouldBeFalse();
+        run2.SweepSkipReason.ShouldBe("truncated-or-errored");
+        (await ReadAllAsync(ct)).ShouldAllBe(e => e.Status == CompanyRegisterStatus.Active); // truncated → no deregistration
+        (await ReadLastFailedPartitionCountFromAuditAsync(ct)).ShouldBe(2);                  // reached the audit row
+        logger.Entries.ShouldContain(e => e.EventId.Id == 5712 && e.Message.Contains("failedPartitions=2")); // completion line
+    }
+
     private ScbCompanyRegisterRefresher BuildRefresher(
         IScbCompanyRegisterSource source, DateTimeOffset now,
         ILogger<ScbCompanyRegisterRefresher>? logger = null) =>
@@ -160,6 +185,24 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
         return counts.Count == 0 ? null : counts[0];
     }
 
+    // #708 — the FailedPartitionCount on the most recent CompanyRegisterSynced audit row: proves the
+    // SCB-rejected-partition tally survived auditor serialization into audit_log (parity the
+    // ProtectedPartitionCount / TotalRowsFetched round-trips above).
+    private async Task<int?> ReadLastFailedPartitionCountFromAuditAsync(CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var counts = await db.Database.SqlQueryRaw<int>(
+            """
+            SELECT (payload->>'FailedPartitionCount')::int AS "Value"
+            FROM audit_log
+            WHERE event_type = 'System.CompanyRegisterSynced'
+            ORDER BY occurred_at DESC
+            LIMIT 1
+            """).ToListAsync(ct);
+        return counts.Count == 0 ? null : counts[0];
+    }
+
     private sealed class FixedClock(DateTimeOffset now) : IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = now;
@@ -183,7 +226,8 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
         IReadOnlyList<ScbCompanyRecord> batch,
         int fetched,
         IReadOnlyList<ScbProtectedPartition>? protectedPartitions = null,
-        int reconciliationGaps = 0) : IScbCompanyRegisterSource
+        int reconciliationGaps = 0,
+        int partitionRequestFailures = 0) : IScbCompanyRegisterSource
     {
         public async IAsyncEnumerable<IReadOnlyList<ScbCompanyRecord>> StreamLegalEntitiesAsync(
             ScbSyncOutcome outcome, [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -194,6 +238,8 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
                 outcome.RecordProtectedPartition(partition.SeatMunicipalityCode, partition.SniCode);
             for (var i = 0; i < reconciliationGaps; i++)
                 outcome.RecordReconciliationGap();
+            for (var i = 0; i < partitionRequestFailures; i++)
+                outcome.RecordPartitionRequestFailed(); // #708 — each latches truncated + tallies the audit count
             await Task.CompletedTask.ConfigureAwait(false);
             yield return batch;
         }

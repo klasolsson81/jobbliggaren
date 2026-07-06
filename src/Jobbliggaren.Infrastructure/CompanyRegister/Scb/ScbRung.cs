@@ -23,14 +23,35 @@ internal interface IScbRung
     IReadOnlyList<ScbQuery> Expand(ScbQuery parent);
 
     /// <summary>
-    /// #640 (Guard 2) — whether the planner must reconcile <c>sum(child counts)</c> against the parent
-    /// count when it splits via this rung. True only where the child value set may not fully cover the
-    /// parent (the 5-digit <c>Bransch</c> split — an entity with the parent's division but no listed
-    /// 5-digit subcode is invisible to every child); a gap latches the run truncated. False for rungs
-    /// whose children exhaust the parent by construction (single-valued Juridisk form), where
-    /// reconciliation could only spuriously latch on mid-run SCB count drift.
+    /// #640 (Guard 2) / #708 — how the planner reconciles <c>sum(child counts)</c> against the parent
+    /// count when it splits via this rung. <see cref="ScbReconciliationMode.Latch"/> where the child
+    /// value set may not fully cover the parent (the 5-digit <c>Bransch</c> split — an entity with the
+    /// parent's division but no listed 5-digit subcode is invisible to every child); a gap latches the
+    /// run truncated. <see cref="ScbReconciliationMode.Observe"/> counts a gap diagnostically WITHOUT
+    /// latching (#708: the 2-digit division rung — observe-only until an explicit ratchet; the
+    /// comparison is free since the eager child counts already happen). <see cref="ScbReconciliationMode.Off"/>
+    /// for rungs whose children exhaust the parent by construction (single-valued Juridisk form), where
+    /// reconciliation could only spuriously fire on mid-run SCB count drift.
     /// </summary>
-    bool ReconcileChildren { get; }
+    ScbReconciliationMode ReconciliationMode { get; }
+}
+
+/// <summary>
+/// #708 — reconciliation posture for a rung's <c>sum(child counts) vs parent count</c> check (#640
+/// Guard 2). Tri-state so a new guard can ship observe-only and be promoted to latching on live
+/// evidence (CLAUDE.md §2.5 observe-then-ratchet; ADR 0091 amendment 2026-07-06): a latching guard
+/// whose firing behavior has never been observed must not gate a costly ~11 h population run.
+/// </summary>
+internal enum ScbReconciliationMode
+{
+    /// <summary>No reconciliation — the rung's children exhaust the parent by construction.</summary>
+    Off,
+
+    /// <summary>Count a gap diagnostically (surfaced in the run log), but never latch truncation.</summary>
+    Observe,
+
+    /// <summary>A gap latches the run truncated — the deregister sweep is disabled (#640 Guard 2).</summary>
+    Latch,
 }
 
 /// <summary>
@@ -42,10 +63,12 @@ internal sealed record ScbStaticRung(
     string Category,
     IReadOnlyList<string> Values,
     int? BranschNiva = null,
-    // #640: reconciliation is OFF by default for static rungs. The extension point exists so the 2-digit
-    // division rung could opt in later (its children exhaust the parent only IF "2-siffrig bransch 1"
-    // maps to a single membership slot — unconfirmed at #640, so left off; see #640 / ADR 0091 amendment).
-    bool ReconcileChildren = false) : IScbRung
+    // #640/#708: Off by default for static rungs (single-valued Juridisk form exhausts the parent by
+    // construction). The 2-digit division rung opts in at Observe (#708): the 2026-07-05 population
+    // proved the derived 2-digit set is live (division "00" cells fetched at baseline in mid-size
+    // municipalities), so its coverage is a real testable property — but the guard ships observe-only
+    // until a completion run shows its firing behavior (promotion to Latch is an explicit ratchet).
+    ScbReconciliationMode ReconciliationMode = ScbReconciliationMode.Off) : IScbRung
 {
     public IReadOnlyList<ScbQuery> Expand(ScbQuery parent) =>
         [.. Values.Select(value => parent.With(Category, [value], BranschNiva))];
@@ -67,8 +90,9 @@ internal sealed record ScbPrefixRung(
     IReadOnlyDictionary<string, IReadOnlyList<string>> PrefixMap) : IScbRung
 {
     // #640 (Guard 2) — the 5-digit split is the one point where children may not cover the parent (an
-    // entity with the division but no listed 5-digit subcode), so the planner reconciles here.
-    public bool ReconcileChildren => true;
+    // entity with the division but no listed 5-digit subcode), so the planner latches here (shipped
+    // latching at #640; unchanged by the #708 tri-state).
+    public ScbReconciliationMode ReconciliationMode => ScbReconciliationMode.Latch;
 
     public IReadOnlyList<ScbQuery> Expand(ScbQuery parent)
     {

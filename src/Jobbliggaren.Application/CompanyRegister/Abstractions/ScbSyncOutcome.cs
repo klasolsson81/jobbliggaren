@@ -28,6 +28,8 @@ public sealed class ScbSyncOutcome
     private int _partitionsFetched;
     private int _totalRowsFetched;
     private int _reconciliationGaps;
+    private int _observedReconciliationGaps;
+    private int _partitionRequestFailures;
     private bool _truncatedOrErrored;
 
     /// <summary>Number of <c>raknaforetag</c> partitions counted this run.</summary>
@@ -72,6 +74,26 @@ public sealed class ScbSyncOutcome
     /// </summary>
     public int ReconciliationGaps => _reconciliationGaps;
 
+    /// <summary>
+    /// #708 — how many times an OBSERVE-mode reconciliation (the client's <c>Observe</c> rung mode,
+    /// today the 2-digit division rung) detected <c>sum(child counts) &lt; parent count</c>. Diagnostic
+    /// ONLY — does NOT latch <see cref="TruncatedOrErrored"/> (observe-only until an explicit ratchet,
+    /// CLAUDE.md §2.5 / ADR 0091 amendment 2026-07-06). Non-zero means a whole 2-digit division's
+    /// companies were invisible to the split — evidence for whether the rung should be promoted to
+    /// latching.
+    /// </summary>
+    public int ObservedReconciliationGaps => _observedReconciliationGaps;
+
+    /// <summary>
+    /// #708 — how many partition requests (<c>raknaforetag</c>/<c>hamtaforetag</c>) SCB rejected with a
+    /// non-success status this run (each also latches <see cref="TruncatedOrErrored"/>). Surfaced in the
+    /// durable audit payload (<c>FailedPartitionCount</c>) so a truncated run is diagnosable from the
+    /// audit row alone — 40 unattributed 400s on the 2026-07-05 population run motivated this counter.
+    /// Kodtabell (dimension-table) failures are NOT counted here — they abort seeding/laddering and are
+    /// logged separately.
+    /// </summary>
+    public int PartitionRequestFailures => _partitionRequestFailures;
+
     /// <summary>Records that one partition was counted (before deciding to fetch or split it).</summary>
     public void RecordCounted() => _partitionsCounted++;
 
@@ -99,6 +121,27 @@ public sealed class ScbSyncOutcome
     public void RecordReconciliationGap()
     {
         _reconciliationGaps++;
+        _truncatedOrErrored = true;
+    }
+
+    /// <summary>
+    /// #708 — records an OBSERVE-mode reconciliation gap (the 2-digit division rung): counted for the
+    /// diagnostic log, but the run is NOT latched truncated. The mode is deliberately observe-only on
+    /// first shipment (a latching guard whose firing behavior has never been observed must not gate a
+    /// costly ~11 h run) — promotion to latching is an explicit follow-up ratchet once a completion run
+    /// has produced the evidence.
+    /// </summary>
+    public void RecordObservedReconciliationGap() => _observedReconciliationGaps++;
+
+    /// <summary>
+    /// #708 — records one SCB-rejected partition request (<c>raknaforetag</c>/<c>hamtaforetag</c>
+    /// non-success) and latches the run truncated: a rejected query's rows are unfetched, so the sweep
+    /// must not treat them as vanished. Kept distinct from <see cref="MarkTruncatedOrErrored"/> so the
+    /// audit row can carry the failure count (parity <see cref="RecordReconciliationGap"/>).
+    /// </summary>
+    public void RecordPartitionRequestFailed()
+    {
+        _partitionRequestFailures++;
         _truncatedOrErrored = true;
     }
 

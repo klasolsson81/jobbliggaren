@@ -205,7 +205,10 @@ run to completion. If anything looks wrong, abort (§6).
 ### On completion
 - **Worker console** — `LogCompleted` (5712): `klart — upserted=…,
   deregistered=…, excludedPnr=…, excludedInvalid=…, fetched=…, sweepApplied=…,
-  durationMin=…`. This is the run summary; capture it.
+  failedPartitions=…, durationMin=…`. This is the run summary; capture it.
+  `failedPartitions` (#708) counts SCB-rejected partition requests
+  (rakna/hamta non-success); each also latched the run truncated — see §6
+  "400-rejected partitions".
 
 ### Verification queries (psql against the dev DB)
 ```sql
@@ -235,6 +238,17 @@ LIMIT 1;
 (false on the very first run if no prior baseline cleared the floor; true on
 steady-state re-runs).
 
+**Reading the audit row's `FailedPartitionCount` (#708):**
+`SweepApplied=false` **with** `FailedPartitionCount > 0` = SCB rejected that many
+partition queries this run — the run is diagnosable from the log's WARN 5702
+lines, which now carry the full partition descriptor (`Kategori=[kod,…]` pairs)
+plus SCB's validator reason. `FailedPartitionCount = 0` with a skipped sweep =
+the truncation came from another latch (over-cap leaf that could not be bounded,
+reconciliation gap, envelope drift) — check `SweepSkipReason` and events
+5701/5703/5713/5714. A WARN **5716** (2-digit division coverage gap, #708) is
+OBSERVE-ONLY this run: diagnostic evidence, latches nothing, never a truncation
+cause by itself.
+
 ### Sweep floors (why the sweep may skip — this is correct)
 The deregister sweep runs only if the run completed cleanly AND fetched at least
 `FloorAbsolute` (500 000) AND at least `FloorRelativeRatio` (0.80) of the max
@@ -263,6 +277,23 @@ A single `429` at 6/10 s should not happen. If you see one (Worker WARN
 3. Only after understanding it, consider lowering the margin further (change
    `PermitLimit` to 5 in `DependencyInjection.cs` — a reviewed one-line change,
    not a config knob) and re-run off-peak.
+
+### Known signature — 400-rejected partitions (#708, first completed run 2026-07-05→06)
+The first completed population latched truncated on **40 SCB HTTP 400s** (20
+`raknaforetag` + 20 `hamtaforetag`) against ~20 deep-split SNI cells, leaving
+~66k rows unfetched and the sweep correctly skipped. Signature: WARN `5702`
+lines mid-run; run ends `sweepApplied=False` with `SweepSkipReason:
+truncated-or-errored` and (post-#708) `failedPartitions > 0` in the 5712
+summary + `FailedPartitionCount > 0` in the audit row. Post-#708 each 5702
+carries the partition descriptor + SCB's validator reason — **capture those
+lines**; they identify the rejected (kommun × SNI) cells and WHY the validator
+refused them. Do not re-run blind: the same cells 400 again and the sweep stays
+disabled. Fix the query shape (or exclude the cell class) first, then re-run —
+the upsert is idempotent. NB: a `rakna`-rejected cell is never fetched (the
+planner skips zero-count partitions), so rakna-400s and hamta-400s are
+*different* cells — an endpoint-validator asymmetry is possible and both WARN
+variants matter. A kodtabell rejection logs as its own event `5704` (dimension
+failure, not a partition).
 
 ### Known failure signature — DB contention (#688, first live run 2026-07-05)
 The chain, for pattern-matching a future log: `System.TimeoutException: Timeout

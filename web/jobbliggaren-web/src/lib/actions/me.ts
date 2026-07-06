@@ -12,6 +12,7 @@ import { authedFetch } from "@/lib/http/authed-fetch";
 import { updateNotificationConsent } from "@/lib/api/me";
 import {
   makeChangePasswordSchema,
+  makeChangeEmailSchema,
   makeDeleteMyAccountSchema,
   type DeleteMyAccountInput,
   makeUpdateMyProfileSchema,
@@ -266,5 +267,76 @@ export async function changePasswordAction(
   // No revalidatePath: a password change alters nothing server-rendered on
   // /installningar (unlike updateMyProfileAction). Stay-on-page — the card shows its
   // own confirmation and the cookie is already re-set for the next navigation.
+  return { success: true };
+}
+
+/**
+ * #679 — self-service change-email (request step). The current password travels
+ * with the operation and is re-authenticated server-side (wrong -> 401, empty
+ * current / malformed email -> 400, address already taken -> 409). On success the
+ * backend returns 202 and emails a confirmation link to the NEW address; the email
+ * is NOT changed at this point and NO session is touched — so, unlike
+ * changePasswordAction, there is no cookie to re-issue and no session-body to read.
+ * STAY-ON-PAGE: returns `{ success: true }` (no redirect) so the card can confirm
+ * that a link was sent. PII (the password, the new email) is NEVER logged on any
+ * path.
+ */
+export async function changeEmailAction(
+  currentPassword: string,
+  newEmail: string
+): Promise<ActionResult> {
+  const ts = await getTranslations("settings");
+  const te = await getTranslations("errors");
+  const t = await getTranslations("validation");
+
+  const parsed = makeChangeEmailSchema(t).safeParse({ currentPassword, newEmail });
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? ts("account.errors.invalidInput"),
+    };
+  }
+
+  const sessionId = await getSessionId();
+  if (!sessionId)
+    return { success: false, error: ts("account.errors.notLoggedIn") };
+
+  try {
+    const res = await authedFetch(sessionId, `/api/v1/auth/change-email`, {
+      method: "POST",
+      body: JSON.stringify({
+        currentPassword: parsed.data.currentPassword,
+        newEmail: parsed.data.newEmail,
+      }),
+    });
+
+    if (res.status === 401) {
+      return { success: false, error: ts("account.errors.wrongPassword") };
+    }
+    if (res.status === 400) {
+      return { success: false, error: ts("account.errors.invalidInput") };
+    }
+    if (res.status === 409) {
+      // Backend `Auth.EmailTaken`. `mapActionError` collapses 409 to the generic
+      // "the resource is in a disallowed state" message (a reload prompt), which is
+      // wrong here — the actionable truth is that the address is taken. Branch
+      // explicitly BEFORE the fallback so the user gets the clear message.
+      return { success: false, error: ts("account.errors.emailTaken") };
+    }
+    if (!res.ok) {
+      return {
+        success: false,
+        error: mapActionError(res, ts("account.errors.changeEmailFailed"), te),
+      };
+    }
+    // 202 (any 2xx): a confirmation link was emailed to the NEW address. The email
+    // is not changed and no session was touched, so there is nothing to read from
+    // the body and no cookie to re-issue. Fall through to the stay-on-page success.
+  } catch {
+    return { success: false, error: ts("account.errors.network") };
+  }
+
+  // No revalidatePath: nothing server-rendered on /installningar changes now — the
+  // address swaps only after the emailed link is confirmed (confirmEmailChangeAction).
   return { success: true };
 }

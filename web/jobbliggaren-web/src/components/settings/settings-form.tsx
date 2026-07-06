@@ -16,6 +16,7 @@ import { PersonalInfoCard } from "./personal-info-card";
 import { DisplayCard } from "./display-card";
 import { BackgroundMatchCard } from "./background-match-card";
 import { MatchPreferencesCard } from "./match-preferences-card";
+import { ChangeEmailCard } from "./change-email-card";
 import { ChangePasswordCard } from "./change-password-card";
 import { PrivacyCard } from "./privacy-card";
 import { LogoutCard } from "./logout-card";
@@ -191,6 +192,11 @@ export function SettingsForm({
             initialProfile.digestCadence === "Daily" ? "Daily" : "Weekly"
           }
         />
+        {/* #679 — self-service change-email (request step). Owns its own
+            action/endpoint (POST /auth/change-email), not the shared
+            applyChange/updateMyProfile flow. Placed before change-password so the
+            two credential cards read identity -> secret. */}
+        <ChangeEmailCard currentEmail={userEmail} />
         {/* #678 — self-service change-password + C6 (logout-everywhere + re-issue
             this device). Owns its own action/endpoint (POST /auth/change-password),
             not the shared applyChange/updateMyProfile flow. */}

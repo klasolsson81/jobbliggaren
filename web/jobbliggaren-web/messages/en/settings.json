@@ -3,7 +3,7 @@
     "title": "Personal details",
     "nameLabel": "Name",
     "emailLabel": "Email address",
-    "emailHint": "The email address is tied to your account and cannot be changed here.",
+    "emailHint": "The email address is tied to your account. You can change it under Change email address.",
     "saving": "Saving…",
     "save": "Save changes",
     "saved": "Saved."
@@ -197,6 +197,20 @@
       "cancel": "Cancel",
       "success": "Your password has been changed. You are still logged in here but logged out on all other devices."
     },
+    "changeEmail": {
+      "title": "Change email address",
+      "description": "Change the email address tied to your account. We send a confirmation link to the new address. The address changes only after you open the link.",
+      "trigger": "Change email address",
+      "dialogDescription": "Enter your current password and your new email address. We send a confirmation link to the new address. The address changes only after you open the link, and you are then logged out on all devices.",
+      "currentPasswordLabel": "Current password",
+      "currentPasswordFieldName": "current password",
+      "newEmailLabel": "New email address",
+      "newEmailHint": "The format is name@domain.com. We send the confirmation link here.",
+      "submit": "Send confirmation link",
+      "pending": "Sending…",
+      "cancel": "Cancel",
+      "success": "We have sent a confirmation link to your new address. Open the link to complete the change."
+    },
     "errors": {
       "notLoggedIn": "You are not logged in.",
       "invalidInput": "Invalid details.",
@@ -205,7 +219,9 @@
       "emailMismatch": "The email address does not match your account.",
       "wrongPassword": "The password is incorrect.",
       "deleteFailed": "Could not delete the account.",
-      "changePasswordFailed": "Could not change the password."
+      "changePasswordFailed": "Could not change the password.",
+      "emailTaken": "The email address is already used by another account.",
+      "changeEmailFailed": "Could not change the email address."
     }
   }
 }

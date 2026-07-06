@@ -3,7 +3,7 @@
     "title": "Personuppgifter",
     "nameLabel": "Namn",
     "emailLabel": "E-postadress",
-    "emailHint": "E-postadressen är knuten till ditt konto och kan inte ändras här.",
+    "emailHint": "E-postadressen är knuten till ditt konto. Du kan byta den under Byt e-postadress.",
     "saving": "Sparar…",
     "save": "Spara ändringar",
     "saved": "Sparat."
@@ -197,6 +197,21 @@
       "cancel": "Avbryt",
       "success": "Lösenordet är ändrat. Du är fortfarande inloggad här men utloggad från alla andra enheter."
     },
+    "changeEmail": {
+      "title": "Byt e-postadress",
+      "description": "Byt e-postadressen som är knuten till ditt konto. Vi skickar en bekräftelselänk till den nya adressen. Adressen byts först när du öppnat länken.",
+      "trigger": "Byt e-postadress",
+      "dialogDescription": "Ange ditt nuvarande lösenord och din nya e-postadress. Vi skickar en bekräftelselänk till den nya adressen. Adressen byts först när du öppnat länken, och då loggas du ut från alla enheter.",
+      "currentPasswordLabel": "Nuvarande lösenord",
+      "currentPasswordFieldName": "nuvarande lösenord",
+      "newEmailLabel": "Ny e-postadress",
+      "newEmailHint": "Formatet är namn@domän.se. Vi skickar bekräftelselänken hit.",
+      "sameEmail": "Den nya adressen måste skilja sig från din nuvarande.",
+      "submit": "Skicka bekräftelselänk",
+      "pending": "Skickar…",
+      "cancel": "Avbryt",
+      "success": "Vi har skickat en bekräftelselänk till din nya adress. Öppna länken för att slutföra bytet."
+    },
     "errors": {
       "notLoggedIn": "Du är inte inloggad.",
       "invalidInput": "Ogiltiga uppgifter.",
@@ -205,7 +220,9 @@
       "emailMismatch": "E-postadressen matchar inte ditt konto.",
       "wrongPassword": "Lösenordet är felaktigt.",
       "deleteFailed": "Kunde inte radera kontot.",
-      "changePasswordFailed": "Kunde inte byta lösenord."
+      "changePasswordFailed": "Kunde inte byta lösenord.",
+      "emailTaken": "E-postadressen används redan av ett annat konto.",
+      "changeEmailFailed": "Kunde inte byta e-postadress."
     }
   }
 }

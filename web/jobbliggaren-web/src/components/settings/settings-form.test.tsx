@@ -68,11 +68,14 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
     // WeeklySummary) togs bort — Matchningsnotiser är nu den enda notis-ytan.
     // #678: the change-password card sits in the second column, before Sekretess
     // och data (privacy/danger zone) and Logga ut.
+    // #679: the change-email card sits directly before change-password (identity
+    // credential before secret credential).
     expect(headings).toEqual([
       "Personuppgifter",
       "Matchning",
       "Visning",
       "Matchningsnotiser",
+      "Byt e-postadress",
       "Byt lösenord",
       "Sekretess och data",
       "Logga ut",

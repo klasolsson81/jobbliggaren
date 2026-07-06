@@ -1,13 +1,17 @@
+using System.Buffers.Text;
+using System.Text;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 
 namespace Jobbliggaren.Infrastructure.Auth;
 
-public sealed class UserAccountService(
-    UserManager<ApplicationUser> userManager)
+public sealed partial class UserAccountService(
+    UserManager<ApplicationUser> userManager,
+    ILogger<UserAccountService> logger)
     : IUserAccountService
 {
     public async Task<Result<Guid>> CreateUserAsync(
@@ -111,4 +115,82 @@ public sealed class UserAccountService(
         var user = await userManager.FindByIdAsync(userId.ToString());
         return user?.Email;
     }
+
+    public async Task<bool> IsEmailTakenAsync(string email, CancellationToken ct)
+    {
+        var user = await userManager.FindByEmailAsync(email);
+        return user is not null;
+    }
+
+    public async Task<Result<string>> GenerateChangeEmailTokenAsync(
+        Guid userId, string newEmail, CancellationToken ct)
+    {
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return Result.Failure<string>(
+                DomainError.NotFound("Auth.UserNotFound", "Användaren hittades inte."));
+
+        // Opaque DataProtector token (CTO-bind #1) bound to (SecurityStamp, "ChangeEmail:{newEmail}").
+        // Nothing is persisted; the pending new email lives inside the token. The email is NOT changed.
+        var token = await userManager.GenerateChangeEmailTokenAsync(user, newEmail);
+
+        // Base64Url so the token (base64 with +,/,=) survives the email link -> query string -> POST
+        // round-trip without a layer turning '+' into a space (CTO-bind #2 mitigation). Decoded 1:1
+        // in ConfirmChangeEmailAsync.
+        var urlSafeToken = Base64Url.EncodeToString(Encoding.UTF8.GetBytes(token));
+        return Result.Success(urlSafeToken);
+    }
+
+    public async Task<Result> ConfirmChangeEmailAsync(
+        Guid userId, string newEmail, string urlSafeToken, CancellationToken ct)
+    {
+        // Uniform failure for EVERY rejection below (user-not-found, malformed/bad/expired token,
+        // address-taken-at-confirm): a PUBLIC confirm endpoint must not distinguish them, or it
+        // becomes an account-existence / email-enumeration oracle (parity AuthProblem's byte-identical
+        // 401). Callers surface DomainError.Validation -> 400.
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return InvalidTokenFailure();
+
+        string token;
+        try
+        {
+            token = Encoding.UTF8.GetString(Base64Url.DecodeFromChars(urlSafeToken));
+        }
+        catch (FormatException)
+        {
+            // A malformed (non-Base64Url) token is just an invalid token — same uniform failure.
+            return InvalidTokenFailure();
+        }
+
+        // ChangeEmailAsync verifies the token against (SecurityStamp, "ChangeEmail:{newEmail}"), sets
+        // Email + NormalizedEmail + EmailConfirmed=true, and rotates the security stamp (single-use:
+        // the token and any sibling pending token die). Re-runs the RequireUniqueEmail validator, so a
+        // taken address fails here — the TOCTOU backstop for the request-time pre-check.
+        var changeResult = await userManager.ChangeEmailAsync(user, newEmail, token);
+        if (!changeResult.Succeeded)
+            return InvalidTokenFailure();
+
+        // Risk 1 (CTO-bind): ChangeEmailAsync updates Email/NormalizedEmail but NOT UserName.
+        // Registration sets UserName == email (CreateUserAsync) and login resolves via
+        // FindByEmailAsync, so keep UserName in lockstep to avoid stale PII (the old address lingering
+        // in UserName / NormalizedUserName) + a latent divergence. Can't-fail in practice (newEmail is
+        // now this user's unique email and every UserName mirrors a unique Email); if it ever lags we
+        // do NOT fail the completed change — the recovery vector already moved — we log and continue.
+        var userNameResult = await userManager.SetUserNameAsync(user, newEmail);
+        if (!userNameResult.Succeeded)
+            LogUserNameSyncLagged(userId);
+
+        return Result.Success();
+    }
+
+    private static Result InvalidTokenFailure() =>
+        Result.Failure(DomainError.Validation(
+            "Auth.InvalidEmailChangeToken",
+            "Bekräftelselänken är ogiltig eller har gått ut. Begär en ny ändring av e-postadressen."));
+
+    [LoggerMessage(4001, LogLevel.Warning,
+        "[UserAccountService] Change-email: UserName sync lagged Email for user {UserId} " +
+        "(username kept stale, email change succeeded)")]
+    private partial void LogUserNameSyncLagged(Guid userId);
 }

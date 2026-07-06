@@ -118,4 +118,70 @@ internal static class EmailTemplates
                 Jobbliggaren
                 """);
     }
+
+    /// <summary>
+    /// #679 — change-email ownership confirmation, sent to the NEW address. Builds the confirmation
+    /// link from <paramref name="baseUrl"/> + the URL-safe token; the new address is percent-encoded
+    /// (plus-addressing) and the token is already Base64Url (no escaping needed). Civic tone
+    /// (1177/Digg): no exclamation marks, no em-dash. The address is not changed until the link is
+    /// opened; the link is valid for 24h (CTO-bind #1 TokenLifespan).
+    /// </summary>
+    public static EmailContent EmailChangeConfirmation(
+        string baseUrl, EmailChangeConfirmationEmail content)
+    {
+        var trimmed = baseUrl.TrimEnd('/');
+
+        // uid: compact 'N' Guid (url-safe). email: percent-encoded (plus-addressing / '@').
+        // token: already Base64Url (only [A-Za-z0-9_-]) so it survives the query round-trip unescaped.
+        var confirmLink =
+            $"{trimmed}/bekrafta-epost" +
+            $"?uid={content.UserId:N}" +
+            $"&email={Uri.EscapeDataString(content.NewEmail)}" +
+            $"&token={content.UrlSafeToken}";
+
+        return new EmailContent(
+            Subject: "Bekräfta din nya e-postadress",
+            PlainTextBody: $"""
+                Någon har begärt att byta e-postadress på ett Jobbliggaren-konto till
+                den här adressen.
+
+                Om det var du, bekräfta att adressen är din genom att öppna länken nedan.
+                Länken gäller i 24 timmar.
+                {confirmLink}
+
+                Adressen ändras inte förrän du har öppnat länken. Om du inte har begärt
+                ändringen kan du bortse från det här meddelandet.
+
+                Vänliga hälsningar,
+                Jobbliggaren
+                """);
+    }
+
+    /// <summary>
+    /// #679 (CTO-bind #4) — "your email address was changed" security notice to the OLD address after
+    /// a completed change. No token, no link to the new address, does not reveal the new address -
+    /// only a factual notice + the help-centre link built from <paramref name="baseUrl"/>. Civic tone:
+    /// no exclamation marks, no em-dash.
+    /// </summary>
+    public static EmailContent EmailChangedNotification(string baseUrl)
+    {
+        var trimmed = baseUrl.TrimEnd('/');
+        var helpLink = $"{trimmed}/hjalpcenter";
+
+        return new EmailContent(
+            Subject: "Din e-postadress har ändrats",
+            PlainTextBody: $"""
+                E-postadressen som är kopplad till ditt konto på Jobbliggaren har ändrats
+                till en annan adress.
+
+                Om det var du som gjorde ändringen behöver du inte göra något.
+
+                Om du inte känner igen ändringen kan någon annan ha fått tillgång till ditt
+                konto. Hör av dig till oss via hjälpcentret så hjälper vi dig:
+                {helpLink}
+
+                Vänliga hälsningar,
+                Jobbliggaren
+                """);
+    }
 }

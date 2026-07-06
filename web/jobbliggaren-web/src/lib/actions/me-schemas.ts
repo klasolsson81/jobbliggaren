@@ -46,6 +46,24 @@ export type ChangePasswordInput = z.infer<
   ReturnType<typeof makeChangePasswordSchema>
 >;
 
+/**
+ * #679 — change-email. Client-side structural check (the backend is the last
+ * barrier). `currentPassword` is the re-auth credential: presence only (a length
+ * rule on a re-auth field could reject/echo a supplied credential). `newEmail`
+ * is a syntactic email check only; the new/different-from-current guard is a
+ * CARD-level `canSubmit` gate (client friction), so it is not part of this schema.
+ */
+export function makeChangeEmailSchema(t: ValidationTranslator) {
+  return z.object({
+    currentPassword: z.string().min(1, t("profile.passwordRequired")),
+    newEmail: z.email(t("profile.confirmEmailInvalid")),
+  });
+}
+
+export type ChangeEmailInput = z.infer<
+  ReturnType<typeof makeChangeEmailSchema>
+>;
+
 export function makeUpdateMyProfileSchema(t: ValidationTranslator) {
   return z.object({
     displayName: z

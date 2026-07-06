@@ -197,6 +197,18 @@
       "unexpectedError": "Ett oväntat fel uppstod. Försök igen.",
       "serverUnreachable": "Kunde inte nå servern. Försök igen.",
       "registrationFailed": "Registreringen misslyckades."
+    },
+    "confirmEmailChange": {
+      "title": "Bekräfta din nya e-postadress",
+      "intro": "Klicka på knappen för att slutföra bytet av e-postadress. När du bekräftar byts adressen och du loggas ut från alla enheter av säkerhetsskäl.",
+      "confirm": "Bekräfta ny e-postadress",
+      "pending": "Bekräftar…",
+      "successTitle": "E-postadressen är bytt",
+      "successBody": "Din inloggning har avslutats på alla enheter av säkerhetsskäl. Logga in igen med din nya e-postadress och ditt vanliga lösenord.",
+      "loginLink": "Logga in",
+      "invalidTitle": "Länken går inte att använda",
+      "invalidBody": "Länken är ogiltig eller har gått ut. Logga in och begär ett nytt adressbyte under Inställningar.",
+      "networkError": "Det gick inte att nå servern. Försök igen om en stund."
     }
   }
 }

@@ -57,10 +57,11 @@ public class CvReviewEngineTests
     {
         var result = await ReviewAsync(Resume(), RenderProfile.Ats);
 
-        // Bumped 1.2.0 → 2.0.0 (#655 PR-6a: C7 spelling criterion ADDED → major bump,
-        // RubricVersion doctrine — a new scored criterion changes the assessment set).
-        // Prior: 1.1.0 → 1.2.0 (#654, thresholds-as-data + styleOnly); #488.
-        result.RubricVersion.ShouldBe(RubricVersion.Parse("2.0.0"));
+        // Bumped 2.0.0 → 2.1.0 (#655 PR-6b: B2/D9/E2 gained geometry thresholds → minor bump,
+        // RubricVersion doctrine — thresholds added, no new scored criterion). Prior: 1.2.0 →
+        // 2.0.0 (#655 PR-6a: C7 spelling criterion ADDED → major bump); 1.1.0 → 1.2.0 (#654,
+        // thresholds-as-data + styleOnly); #488.
+        result.RubricVersion.ShouldBe(RubricVersion.Parse("2.1.0"));
         result.Profile.ShouldBe(RenderProfile.Ats);
     }
 
@@ -1202,16 +1203,20 @@ public class CvReviewEngineTests
     {
         // The pinned/no-input NotAssessed-v1 set per the architect classification. A3 & D8
         // are ad-dependent (no ad in F4-9); A5, C1 & C5 are pinned NotAssessedV1 in the rubric
-        // (C5 sentence-level sv/en mixing joined in #488); B2 & D2/D3/D4/D5/D7/D9/D10 &
-        // E1–E8 are page-count/layout/font signals the deterministic parse cannot see. Every
-        // one MUST report NotAssessed. B5 LEFT this set in Fas 4b PR-6a (#655): it is now
-        // assessable GEOMETRY-FREE (Warn on mixed bullet markers, else NotAssessed) — no
-        // longer an always-NotAssessed criterion, so it is covered by B5ConsistentFormattingRuleTests.
+        // (C5 sentence-level sv/en mixing joined in #488); D2/D3/D4/D5/D7/D10 & E1–E8 are
+        // layout/font signals the deterministic parse cannot see. Every one MUST report
+        // NotAssessed for the DEFAULT (layout-less) test CV. B5 LEFT this set in Fas 4b PR-6a
+        // (#655, geometry-free bullet-marker consistency). B2 & D9 LEFT it in Fas 4b PR-6b
+        // (#655): they are now assessable from ICvLayoutAnalyzer geometry — they verdict
+        // NotAssessed ONLY when the CV lacks layout metrics (which the default Resume() has),
+        // but are no longer ALWAYS-NotAssessed criteria, so they are covered by their own
+        // B2PageCountRuleTests / D9FileSizeRuleTests. (E2 was already excluded here — it is
+        // VisualOnly, absent from an Ats review.)
         var data = new TheoryData<string>();
         foreach (var id in new[]
         {
-            "A3", "A5", "B2", "C1", "C5",
-            "D2", "D3", "D4", "D5", "D7", "D8", "D9", "D10",
+            "A3", "A5", "C1", "C5",
+            "D2", "D3", "D4", "D5", "D7", "D8", "D10",
         })
         {
             data.Add(id);

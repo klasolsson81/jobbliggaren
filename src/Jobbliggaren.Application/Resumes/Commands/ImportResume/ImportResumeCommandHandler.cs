@@ -25,6 +25,7 @@ public sealed class ImportResumeCommandHandler(
     ICurrentUser currentUser,
     IDateTimeProvider clock,
     ICvTextExtractor extractor,
+    ICvLayoutAnalyzer layoutAnalyzer,
     IResumeSegmenter segmenter,
     IOccupationCodeDeriver occupationDeriver,
     IOccupationExperienceDeriver occupationExperienceDeriver,
@@ -57,6 +58,12 @@ public sealed class ImportResumeCommandHandler(
         // 1. Extract raw text (never throws on a degraded file — returns a fallback
         //    status; honours the request ct cooperatively, #272 SEC-2).
         var extraction = extractor.Extract(command.FileBytes, kind, cancellationToken);
+
+        // 1a. Read non-PII PDF page geometry from the SAME bytes (Fas 4b PR-6b) — the only
+        //     place they exist (discarded after this handler). Fail-soft: a DOCX/corrupt/scanned
+        //     file yields NotApplicable/Failed metrics (file size still known) so the geometry
+        //     criteria (B2/D9/E2) verdict honestly. NEVER reads CV text (that is `extraction`).
+        var layoutMetrics = layoutAnalyzer.Analyze(command.FileBytes, kind, cancellationToken);
 
         // 2. Personnummer guard on the RAW text BEFORE persist (Invariant 1). The
         //    normalizer bridges spaced/OCR-gapped forms on a transient scan-copy only;
@@ -167,7 +174,8 @@ public sealed class ImportResumeCommandHandler(
             personnummer,
             proposals,
             clock,
-            skillProposals);
+            skillProposals,
+            layoutMetrics);
 
         if (created.IsFailure)
             return Result.Failure<ImportResumeResponse>(created.Error);

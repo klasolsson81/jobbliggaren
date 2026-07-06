@@ -30,6 +30,10 @@ public class ImportResumeCommandHandlerTests
 {
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
     private readonly ICvTextExtractor _extractor = Substitute.For<ICvTextExtractor>();
+    // Fas 4b PR-6b — the handler gained ICvLayoutAnalyzer (inserted BETWEEN extractor and
+    // segmenter). Default stub returns NotApplicable so the general cases are unaffected; the
+    // dedicated wiring test below re-stubs it to prove the metrics flow into the ParsedResume.
+    private readonly ICvLayoutAnalyzer _layoutAnalyzer = Substitute.For<ICvLayoutAnalyzer>();
     private readonly IResumeSegmenter _segmenter = Substitute.For<IResumeSegmenter>();
     private readonly IOccupationCodeDeriver _deriver = Substitute.For<IOccupationCodeDeriver>();
     private readonly IOccupationExperienceDeriver _experienceDeriver =
@@ -53,11 +57,16 @@ public class ImportResumeCommandHandlerTests
             .DeriveApproximateYearsAsync(Arg.Any<IReadOnlyList<ParsedExperience>>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<IReadOnlyDictionary<string, int>>(
                 new Dictionary<string, int>()));
+        // Default: geometry not analysable (harmless for the general cases — LayoutMetrics is not
+        // inspected there). The wiring test re-stubs this to an Analyzed value (last-wins).
+        _layoutAnalyzer.Analyze(
+                Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CvFileKind>(), Arg.Any<CancellationToken>())
+            .Returns(CvLayoutMetrics.NotApplicable(0));
     }
 
     private ImportResumeCommandHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>
-        new(db, _currentUser, FakeDateTimeProvider.Default, _extractor, _segmenter, _deriver,
-            _experienceDeriver, _skillResolver);
+        new(db, _currentUser, FakeDateTimeProvider.Default, _extractor, _layoutAnalyzer, _segmenter,
+            _deriver, _experienceDeriver, _skillResolver);
 
     private static ImportResumeCommand PdfCommand(string fileName = "cv.pdf") =>
         new(fileName, "application/pdf", PdfBytes);
@@ -133,6 +142,33 @@ public class ImportResumeCommandHandlerTests
         result.Value.Personnummer.Found.ShouldBeFalse();
         result.Value.OccupationProposal.Count.ShouldBe(1);
         result.Value.OccupationProposal[0].OccupationGroupLabel.ShouldBe("Systemutvecklare");
+    }
+
+    [Fact]
+    public async Task Handle_ValidPdf_PassesTheAnalyzersLayoutMetricsIntoTheCreatedParsedResume()
+    {
+        // Fas 4b PR-6b wiring: the handler runs ICvLayoutAnalyzer on the SAME bytes and passes
+        // the resulting metrics into ParsedResume.Create. Stub a distinctive Analyzed value and
+        // assert it is carried verbatim onto the persisted aggregate (CvLayoutMetrics is a record
+        // → value equality). This is the seam that proves the analyzer is wired at all.
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("Anna Andersson\nanna@example.com", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation());
+        StubDeriver();
+
+        var metrics = CvLayoutMetrics.Analyzed(fileSizeBytes: 1234, pageCount: 2, minMarginPoints: 40.0);
+        _layoutAnalyzer.Analyze(
+                Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CvFileKind>(), Arg.Any<CancellationToken>())
+            .Returns(metrics);
+
+        await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
+
+        var added = db.ParsedResumes.Local.ShouldHaveSingleItem();
+        added.LayoutMetrics.ShouldBe(metrics);
+        // And the analyzer was invoked on the imported PDF bytes as the resolved Pdf kind.
+        _layoutAnalyzer.Received(1).Analyze(
+            Arg.Any<ReadOnlyMemory<byte>>(), CvFileKind.Pdf, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -649,8 +685,8 @@ public class ImportResumeCommandHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
         var sut = new ImportResumeCommandHandler(
-            db, currentUser, FakeDateTimeProvider.Default, _extractor, _segmenter, _deriver,
-            _experienceDeriver, _skillResolver);
+            db, currentUser, FakeDateTimeProvider.Default, _extractor, _layoutAnalyzer, _segmenter,
+            _deriver, _experienceDeriver, _skillResolver);
 
         await Should.ThrowAsync<UnauthorizedException>(
             () => sut.Handle(PdfCommand(), CancellationToken.None).AsTask());

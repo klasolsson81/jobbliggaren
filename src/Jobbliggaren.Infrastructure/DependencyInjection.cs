@@ -539,6 +539,11 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.ICvTextExtractor,
             Resumes.Parsing.PdfPigOpenXmlCvTextExtractor>();
+        // Fas 4b PR-6b — PDF page-geometry analyzer (ICvLayoutAnalyzer), PdfPig confined here,
+        // stateless singleton (parity the extractor). Read at import; feeds B2/D9/E2.
+        services.AddSingleton<
+            Jobbliggaren.Application.Resumes.Abstractions.ICvLayoutAnalyzer,
+            Resumes.Parsing.PdfPigCvLayoutAnalyzer>();
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.IResumeSegmenter,
             Resumes.Parsing.HeadingDrivenResumeSegmenter>();

@@ -113,8 +113,8 @@
          from public Swedish sources (research §2/§6, referenced not imported → no
          third-party licence attaches). Embedded so the loaders read them deterministically
          without file-deploy (hermetic build, parity with the taxonomy snapshot). NO AI/LLM. -->
-    <EmbeddedResource Include="KnowledgeBank\rubric.v2.0.0.json">
-      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.rubric.v2.0.0.json</LogicalName>
+    <EmbeddedResource Include="KnowledgeBank\rubric.v2.1.0.json">
+      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.rubric.v2.1.0.json</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="KnowledgeBank\cliche-list.v2.json">
       <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.cliche-list.v2.json</LogicalName>

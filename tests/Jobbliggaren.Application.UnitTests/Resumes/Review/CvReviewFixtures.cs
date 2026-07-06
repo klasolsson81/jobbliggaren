@@ -179,7 +179,11 @@ internal static class CvReviewFixtures
         string sourceContentType = "application/pdf",
         ResumeLanguage? detectedLanguage = null,
         ParseConfidence? confidence = null,
-        PersonnummerScanOutcome? personnummer = null)
+        PersonnummerScanOutcome? personnummer = null,
+        // Fas 4b PR-6b — non-PII layout metrics (page count / file size / tightest margin) the
+        // geometry criteria (B2/D9/E2) read. Null by default (a layout-less parse) so the
+        // existing callers are unchanged and B2/D9/E2 verdict NotAssessed unless a test opts in.
+        CvLayoutMetrics? layoutMetrics = null)
     {
         var content = new ParsedResumeContent(
             contact ?? CompleteContact(),
@@ -199,7 +203,8 @@ internal static class CvReviewFixtures
             confidence ?? ConfidentConfidence(),
             personnummer ?? PersonnummerScanOutcome.None,
             [],
-            FixedClock.Default);
+            FixedClock.Default,
+            layoutMetrics: layoutMetrics);
 
         return created.Value;
     }

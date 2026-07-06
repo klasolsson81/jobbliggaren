@@ -33,11 +33,12 @@ public class RubricProviderTests
 
         rubric.ShouldNotBeNull();
         // The committed rubric is the v1 baseline (ADR 0074). Version is carried as
-        // DATA (RubricVersion), not a C# literal. Bumped 1.2.0 → 2.0.0 (#655 PR-6a: the C7
-        // spelling criterion ADDED → the scored assessment set changed → MAJOR bump per the
-        // RubricVersion doctrine, asset renamed rubric.v2.0.0.json). Prior: 1.1.0 → 1.2.0
+        // DATA (RubricVersion), not a C# literal. Bumped 2.0.0 → 2.1.0 (#655 PR-6b: B2/D9/E2
+        // gained geometry thresholds → MINOR bump per the RubricVersion doctrine — thresholds
+        // added, no new scored criterion, asset renamed rubric.v2.1.0.json). Prior: 1.2.0 →
+        // 2.0.0 (#655 PR-6a: the C7 spelling criterion ADDED → MAJOR bump); 1.1.0 → 1.2.0
         // (#654, thresholds-as-data + styleOnly); 1.0.1 → 1.1.0 (#488).
-        rubric.Version.ShouldBe(RubricVersion.Parse("2.0.0"));
+        rubric.Version.ShouldBe(RubricVersion.Parse("2.1.0"));
         rubric.EffectiveDate.ShouldBeGreaterThan(default(DateOnly));
     }
 

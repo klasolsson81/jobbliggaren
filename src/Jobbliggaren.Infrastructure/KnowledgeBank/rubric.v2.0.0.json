@@ -1,6 +1,6 @@
 {
-  "rubricVersion": "1.2.0",
-  "effectiveDate": "2026-07-05",
+  "rubricVersion": "2.0.0",
+  "effectiveDate": "2026-07-06",
   "weights": {
     "Kritisk": 3,
     "Hög": 2,
@@ -376,6 +376,21 @@
       "visualFailSignal": "Samma",
       "thresholds": {
         "maxUnexplainedAcronyms": 2
+      }
+    },
+    {
+      "id": "C7",
+      "category": "Språk",
+      "name": "Stavning (maskinell kontroll)",
+      "weight": "Medel",
+      "profile": "Båda",
+      "assessability": "deterministic",
+      "atsPassSignal": "Inga misstänkta stavfel mot ordlistan. Egennamn och vedertagna facktermer räknas inte som fel",
+      "atsFailSignal": "Flera ord saknas i ordlistan och är varken egennamn eller facktermer. Kontrollera stavningen",
+      "visualPassSignal": "Samma",
+      "visualFailSignal": "Samma",
+      "thresholds": {
+        "warnFromMisspellingCount": 2
       }
     },
     {

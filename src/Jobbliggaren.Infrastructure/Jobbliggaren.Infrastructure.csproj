@@ -113,11 +113,18 @@
          from public Swedish sources (research §2/§6, referenced not imported → no
          third-party licence attaches). Embedded so the loaders read them deterministically
          without file-deploy (hermetic build, parity with the taxonomy snapshot). NO AI/LLM. -->
-    <EmbeddedResource Include="KnowledgeBank\rubric.v1.2.0.json">
-      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.rubric.v1.2.0.json</LogicalName>
+    <EmbeddedResource Include="KnowledgeBank\rubric.v2.0.0.json">
+      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.rubric.v2.0.0.json</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="KnowledgeBank\cliche-list.v2.json">
       <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.cliche-list.v2.json</LogicalName>
+    </EmbeddedResource>
+    <!-- Fas 4b PR-6 (ADR 0093 §D4) — the versioned spelling allowlist (proper nouns +
+         technical terms the sv_SE DSSO dictionary lacks) the C7 spelling criterion suppresses.
+         Versioned KB DATA, never an inline C# list (CLAUDE.md §5); the dictionary files stay
+         SHA-pinned + unmodified (editing them to suppress a false positive is forbidden). -->
+    <EmbeddedResource Include="KnowledgeBank\spelling-allowlist.v1.json">
+      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.spelling-allowlist.v1.json</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="KnowledgeBank\verb-mapping.v1.json">
       <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.verb-mapping.v1.json</LogicalName>

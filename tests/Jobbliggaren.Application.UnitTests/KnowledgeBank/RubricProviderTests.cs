@@ -33,11 +33,11 @@ public class RubricProviderTests
 
         rubric.ShouldNotBeNull();
         // The committed rubric is the v1 baseline (ADR 0074). Version is carried as
-        // DATA (RubricVersion), not a C# literal. Bumped 1.1.0 → 1.2.0 (#654, Fas 4b
-        // PR-5 CTO-bind D1/D2): per-criterion thresholds-as-data + styleOnly flag — the
-        // threshold VALUES are relocations of the previous code literals, not changes
-        // (§2.8 minor), asset renamed rubric.v1.2.0.json. Prior: 1.0.1 → 1.1.0 (#488).
-        rubric.Version.ShouldBe(RubricVersion.Parse("1.2.0"));
+        // DATA (RubricVersion), not a C# literal. Bumped 1.2.0 → 2.0.0 (#655 PR-6a: the C7
+        // spelling criterion ADDED → the scored assessment set changed → MAJOR bump per the
+        // RubricVersion doctrine, asset renamed rubric.v2.0.0.json). Prior: 1.1.0 → 1.2.0
+        // (#654, thresholds-as-data + styleOnly); 1.0.1 → 1.1.0 (#488).
+        rubric.Version.ShouldBe(RubricVersion.Parse("2.0.0"));
         rubric.EffectiveDate.ShouldBeGreaterThan(default(DateOnly));
     }
 
@@ -223,16 +223,21 @@ public class RubricProviderTests
     {
         var rubric = LoadRubric();
 
-        // The criterion ids the engine has a registered ICriterionRule for (mirrors
-        // CvReviewEngine.BuildRules). Anything NOT in this set, plus the pinned
-        // NotAssessedV1 criteria, resolves to NotAssessed at review time and therefore
-        // needs an authored civic reason in the asset. C5 left this set in #488 (its rule
-        // was removed) → it now needs an authored notAssessedReason, which this test guards.
+        // The criterion ids the engine ALWAYS assesses (produces Pass/Warn/Fail, never
+        // NotAssessed) via a registered ICriterionRule. Anything NOT in this set, plus the
+        // pinned NotAssessedV1 criteria, resolves to NotAssessed at review time and therefore
+        // needs an authored civic reason in the asset. C5 left this set in #488 (its rule was
+        // removed) → it now needs an authored notAssessedReason, which this test guards.
+        // Fas 4b PR-6a (#655): C7 (spelling) gained a rule that NEVER returns NotAssessed
+        // (Pass/Warn only) → added here so it is not required to carry a reason. B5 also gained
+        // a rule (B5ConsistentFormattingRule) but its rule CONDITIONALLY returns NotAssessed
+        // (single/no marker) reading criterion.NotAssessedReason — so B5 is deliberately KEPT
+        // OUT of this set, staying required to carry its authored reason (which it does).
         string[] ruleCriteria =
         [
             "A1", "A2", "A4", "A6", "A7", "A8", "A9", "A10",
             "B1", "B3", "B4", "B6", "B7", "B8",
-            "C2", "C3", "C4", "C6",
+            "C2", "C3", "C4", "C6", "C7",
             "D1", "D6",
         ];
         var ruled = ruleCriteria.ToHashSet(StringComparer.Ordinal);

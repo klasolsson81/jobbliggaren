@@ -1,12 +1,15 @@
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 
 // Fas 4 STEG 9 (F4-9) — Structure-category (B) criterion rules. B2 (length, needs page
-// count) and B5 (formatting, needs fonts) have no rule — they fall through to the engine's
-// honest NotAssessed (layout signal the text parse cannot see).
+// count) has no rule — it falls through to the engine's honest NotAssessed (the page-count
+// signal the text parse cannot see; PR-6b's ICvLayoutAnalyzer feeds it). B5 (formatting) is
+// assessed GEOMETRY-FREE from Fas 4b PR-6 (mixed bullet markers in the linearized text) —
+// Warn or NotAssessed, never Pass (the font/heading half still needs PDF geometry, deferred).
 
 /// <summary>B1 Sektioner och ordning (High) — the core sections are present.</summary>
 internal sealed class B1SectionsRule : ICriterionRule
@@ -154,6 +157,104 @@ internal sealed class B4PersonnummerRule : ICriterionRule
 
         return CvCriterionVerdict.Assessed("B4", category, CriterionVerdict.Pass,
             ReviewText.Cite(ReviewText.Structural("Inget personnummer hittat i CV-texten.")));
+    }
+}
+
+/// <summary>
+/// B5 Konsekvent formatering (High, styleOnly) — GEOMETRY-FREE detection of mixed bullet
+/// markers across the experience descriptions (Fas 4b PR-6, ADR 0093 §D4, CTO-bind D-G).
+/// Warn when 2+ distinct lead markers are used; otherwise NotAssessed — NEVER Pass, since a
+/// clean marker set does not prove the fonts/heading-levels B5 also covers were checked
+/// (that needs PDF geometry the text parse cannot see; the honest ceiling, ADR 0071 OQ3).
+/// The single text-derived signal keeps the verdict ARM-INDEPENDENT: the canonical
+/// <c>SetFindingStatus</c> recompute yields the SAME verdict as the review the user saw, so
+/// the styleOnly "Ignored" decision is genuinely reachable end-to-end — which is what closes
+/// PR-5's intentional fail-closed gap (no styleOnly criterion had an assessable rule before).
+/// </summary>
+internal sealed class B5ConsistentFormattingRule : ICriterionRule
+{
+    public string CriterionId => "B5";
+
+    // The lead glyphs that mark a bullet/list item at the START of a trimmed description
+    // line. A detection-shape set (code, ADR 0093 §D3) — NOT a rubric threshold: two
+    // different bullet glyphs is inconsistency BY DEFINITION, not a tunable policy. Includes
+    // the ASCII hyphen/asterisk bullets and the common typographic bullet glyphs.
+    private static readonly HashSet<char> BulletMarkers =
+    [
+        '•', // • bullet
+        '◦', // ◦ white bullet
+        '‣', // ‣ triangular bullet
+        '·', // · middle dot
+        '●', // ● black circle
+        '○', // ○ white circle
+        '▪', // ▪ black small square
+        '▫', // ▫ white small square
+        '■', // ■ black square
+        '–', // – en dash
+        '—', // — em dash
+        '-',      // hyphen-minus (the common ASCII bullet)
+        '*',      // asterisk
+    ];
+
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
+    {
+        var category = context.Criterion.Category;
+
+        // SortedSet → distinct + deterministic order (the count is what drives the verdict;
+        // the glyphs themselves are never echoed into the user-facing evidence).
+        var markers = new SortedSet<char>();
+        foreach (var experience in context.Content.Experience)
+        {
+            foreach (var line in ReviewText.DescriptionLines(experience))
+            {
+                if (LeadMarker(line) is { } marker)
+                {
+                    markers.Add(marker);
+                }
+            }
+        }
+
+        if (markers.Count >= 2)
+        {
+            // Describe the problem WITHOUT echoing the raw glyphs (an em/en-dash echoed into
+            // user copy would trip the civic no-em-dash rule; the user knows their own bullets).
+            return CvCriterionVerdict.Assessed("B5", category, CriterionVerdict.Warn,
+                ReviewText.Cite(ReviewText.Structural(
+                    "Blandade punktsymboler i beskrivningarna. Välj en enhetlig punktstil.")));
+        }
+
+        // Never Pass: a single/no marker does not prove the full B5 (typsnitt, rubriknivåer)
+        // is consistent — that needs PDF geometry (deferred, honest ceiling). Reason is
+        // versioned rubric DATA (ADR 0071 reasons-as-data); N-1 fallback stays civic.
+        return CvCriterionVerdict.NotAssessed("B5", category,
+            context.Criterion.NotAssessedReason
+            ?? "Formateringens konsekvens bedöms inte i den här versionen.");
+    }
+
+    // The leading bullet glyph of a trimmed line, or null when the line does not start with a
+    // known marker followed by whitespace (so a marker glyph glued to a word — a rare
+    // false-positive like "*viktigt*" markdown emphasis mid-list — is not counted as a bullet;
+    // a real bullet is "marker + space + text").
+    private static char? LeadMarker(string line)
+    {
+        var trimmed = line.TrimStart();
+        if (trimmed.Length < 2 || !BulletMarkers.Contains(trimmed[0]) || !char.IsWhiteSpace(trimmed[1]))
+        {
+            return null;
+        }
+
+        // A marker (esp. the ambiguous "-") leading a BARE date range ("- 2020 – nuvarande") is
+        // a period line, not a bullet STYLE — excluding it avoids a spurious mixed-marker Warn
+        // (architect PR-6a Minor). A date-only line demonstrates no punctuation style, so
+        // dropping it costs nothing. Reuses the SAME parser DescriptionLines filters full
+        // period lines with (#487).
+        var rest = trimmed[1..].TrimStart();
+        if (PeriodParser.TryParse(rest, out _, out _, out _))
+        {
+            return null;
+        }
+
+        return trimmed[0];
     }
 }
 

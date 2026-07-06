@@ -64,6 +64,22 @@ internal static class CvReviewFixtures
 
     internal static ITextAnalyzer Analyzer() => new WhitespaceTextAnalyzer();
 
+    // ── C7 spelling ports (Fas 4b PR-6, ADR 0093 §D4) ────────────────────
+    // The engine now takes an ISpellChecker + ISpellingAllowlist (6-arg ctor). For the
+    // targeted engine/citation/redaction/binding unit tests we feed a STUB checker that
+    // deems EVERY word correct — so C7 is deterministically Pass and no test asserts against
+    // the DSSO/en_US vocabulary (that vocabulary parity is the corpus + C7-rule tests' job).
+    // The allowlist is the REAL committed asset (golden source, parity RealRubricProvider).
+    private sealed class AllCorrectSpellCheckerStub : ISpellChecker
+    {
+        public bool Check(string word, TextLanguage language) => true;
+        public IReadOnlyList<string> Suggest(string word, TextLanguage language) => [];
+    }
+
+    internal static ISpellChecker AllCorrectSpellChecker() => new AllCorrectSpellCheckerStub();
+
+    internal static ISpellingAllowlist RealAllowlist() => new SpellingAllowlistProvider();
+
     // ── ParsedResume builders ────────────────────────────────────────────
 
     internal static ParsedExperience Experience(

@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import Link from "next/link";
-import { useFormatter, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import {
   applicationStatusLabel,
   getStatusTagDataAttr,
@@ -11,6 +11,7 @@ import {
 import { daysInStatus, urgencyTagFor } from "@/lib/applications/urgency";
 import { setDrawerAnchor } from "@/components/applications/drawer-anchor";
 import { useApplicationActions } from "./application-actions";
+import { useUrgencyLabel } from "./use-urgency-label";
 import { StatusMenu } from "./status-menu";
 import type { ApplicationDto } from "@/lib/dto/applications";
 
@@ -67,7 +68,6 @@ export function ApplicationRow({
 }: ApplicationRowProps) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
-  const format = useFormatter();
   const { pendingIds, transition, openFinishDraft } = useApplicationActions();
   const { jobAd, status } = application;
   const pending = pendingIds.has(application.id);
@@ -80,24 +80,8 @@ export function ApplicationRow({
 
   const days = daysInStatus(application.lastStatusChangeAt, now);
   const urgency = urgencyTagFor(application, now);
-  const urgencyLabel = ((): string | null => {
-    if (urgency == null) return null;
-    switch (urgency.kind) {
-      case "deadline": {
-        // Kompakt datum UTAN år i chippen ("DEADLINE 8 JULI", facit §11):
-        // signalen fyrar bara ≤7 dagar kvar, så året är alltid redundant
-        // (design-reviewer Minor 1).
-        const parsed = new Date(urgency.dateIso);
-        if (isNaN(parsed.getTime())) return null;
-        const date = format.dateTime(parsed, { day: "numeric", month: "long" });
-        return tUi("urgency.deadline", { date });
-      }
-      case "waitDays":
-        return tUi("urgency.waitDays", { days: urgency.days });
-      case "sinceInterview":
-        return tUi("urgency.sinceInterview", { days: urgency.days });
-    }
-  })();
+  // Delad SSOT med Tavla-kortet (DRY, PR 8) — tidigare en inline-IIFE här.
+  const urgencyLabel = useUrgencyLabel(urgency);
 
   // Radens default-primär (design §5, prototyp-facit): utkast → "Slutför och
   // skicka"-DIALOGEN (mellansteg, §9); Ghosted → "Återaktivera" (→ Skickad);

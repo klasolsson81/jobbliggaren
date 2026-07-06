@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { BarChart3, FileText, Plus, Search } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getPipeline } from "@/lib/api/applications";
+import { readApplicationsView } from "@/lib/applications/view-preference";
 import { assertNever } from "@/lib/dto/_helpers";
 import { ApplicationsPipeline } from "@/components/applications/applications-pipeline";
 import { InfoDialog } from "@/components/common/info-dialog";
@@ -66,6 +67,12 @@ export default async function AnsokningarPage() {
   // per rad i klienten → ingen hydrerings-drift, testbar med injicerat datum).
   // En primitiv sträng är entydigt serialiserbar; ön rekonstruerar Date en gång.
   const nowIso = new Date().toISOString();
+
+  // #630 PR 8 (ADR 0092 D7) — vy-preferensen (Lista/Tavla) läses SSR ur cookien
+  // så första-paint renderar rätt vy utan flash (ADR 0078-precedent, EJ
+  // localStorage). Sidan är redan dynamisk (getServerSession/authedFetch) → ingen
+  // ny render-kostnad. Ren serialiserbar sträng korsar RSC→Client-gränsen (D2).
+  const initialView = await readApplicationsView();
 
   return (
     <>
@@ -132,7 +139,11 @@ export default async function AnsokningarPage() {
             </div>
           </div>
         ) : (
-          <ApplicationsPipeline groups={groups} nowIso={nowIso} />
+          <ApplicationsPipeline
+            groups={groups}
+            nowIso={nowIso}
+            initialView={initialView}
+          />
         )}
       </div>
     </>

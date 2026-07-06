@@ -7807,3 +7807,268 @@ a.jp-adminnav__link[aria-current="page"]::after {
   line-height: 1.2;
   color: var(--jp-ink-2);
 }
+
+/* ══ #630 PR 8 — VY-vaxlare + Tavla (kanban) ══════════════════════════════
+   Design 2a §4.6/§6, ADR 0092 D1. Alla farger/radier ur befintliga tokens
+   (ingen ny token, ingen radie > 6). Toppbandet keyar off data-status-variant
+   med SAMMA status-tokens som stegrailen (DRY). "Ingen gra text": informativ
+   text pa ink-2, aldrig ink-3. */
+
+/* VY-vaxlaren i kontrollraden — hogerjusterad via margin-left:auto. */
+.jp-appcontrols__vy {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+.jp-vylabel {
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+}
+
+/* Board-container + verktygsrad ovanfor griden. */
+.jp-board {
+  margin: 12px 0 20px;
+}
+.jp-board__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+.jp-board__count {
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-1);
+}
+.jp-board__hint {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+
+/* Grid: sex 1fr-kolumner + 218px terminal-spalt. Kolumnerna klampar vid 140px
+   och griden scrollar horisontellt nar den inte far plats (sidan scrollar aldrig
+   i x-led). */
+.jp-board__grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(140px, 1fr)) 218px;
+  gap: 12px;
+  align-items: stretch;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+/* Terminal-spalten: fyra mini-zoner + ghost-hjalptext, staplade. */
+.jp-board__terminal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.jp-board__ghosthint {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+/* Kolumn/zon-chassi. Toppband = 3px border-top i statusfarg (data-status-
+   variant, samma mekanik som .jp-steprail__cell). */
+.jp-board-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--jp-surface-2);
+  /* border-strong: kolumnavgränsaren är informationsbärande (a11y-skill,
+     WCAG 1.4.11) — inte den svagare --jp-border. Toppkanten overridas till
+     statusfärg nedan. */
+  border: 1.5px solid var(--jp-border-strong);
+  border-top-width: 3px;
+  border-top-color: var(--jp-ink-3);
+  border-radius: var(--jp-r-md);
+  padding: 10px;
+}
+.jp-board-col[data-variant="column"] {
+  min-height: 560px;
+}
+.jp-board-col[data-status-variant="info"]    { border-top-color: var(--jp-info); }
+.jp-board-col[data-status-variant="brand"]   { border-top-color: var(--jp-accent-700); }
+.jp-board-col[data-status-variant="success"] { border-top-color: var(--jp-success); }
+.jp-board-col[data-status-variant="warning"] { border-top-color: var(--jp-warning); }
+.jp-board-col[data-status-variant="danger"]  { border-top-color: var(--jp-danger); }
+.jp-board-col[data-status-variant="neutral"] { border-top-color: var(--jp-border); }
+/* Drop-target under pekaren (design §6): streckad accent-kant + accent-yta.
+   Aterstaller aven toppbandet till 1.5px sa den streckade kanten blir jamn. */
+.jp-board-col[data-over="true"] {
+  border: 1.5px dashed var(--jp-accent-700);
+  background: var(--jp-accent-50);
+}
+.jp-board-col__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.jp-board-col__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jp-ink-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jp-board-col__count {
+  flex: 0 0 auto;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-2);
+  background: var(--jp-surface-3);
+  border-radius: var(--jp-r-sm);
+  padding: 1px 6px;
+}
+.jp-board-col__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jp-board-col[data-variant="zone"] .jp-board-col__list {
+  min-height: 34px;
+}
+.jp-board-col__empty {
+  border: 1.5px dashed var(--jp-border);
+  border-radius: var(--jp-r-md);
+  padding: 14px 10px;
+  text-align: center;
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+.jp-board-col__more {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-accent-700);
+  cursor: pointer;
+}
+.jp-board-col__more:hover {
+  color: var(--jp-accent-900);
+  text-decoration: underline;
+}
+.jp-board-col__more:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: 2px;
+  border-radius: var(--jp-r-sm);
+}
+
+/* Tavla-kort. Relativ container for lank-overlay:en (::after). cursor: grab. */
+.jp-board-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  padding: 10px 11px;
+  box-shadow: var(--jp-shadow-card);
+  cursor: grab;
+}
+.jp-board-card:hover {
+  border-color: var(--jp-border-strong);
+}
+.jp-board-card:active {
+  cursor: grabbing;
+}
+.jp-board-card[data-dragging="true"] {
+  opacity: 0.4;
+}
+.jp-board-card[data-compact="true"] {
+  gap: 4px;
+  padding: 7px 9px;
+}
+.jp-board-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.jp-board-card__role {
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  line-height: 1.3;
+  color: var(--jp-ink-1);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.jp-board-card[data-compact="true"] .jp-board-card__role {
+  -webkit-line-clamp: 1;
+}
+/* Lank-overlay (samma a11y-monster som .jp-app__rowlink): rolltiteln ar kortets
+   enda <a>, strackt over hela kortet med ::after sa klick oppnar detaljpanelen. */
+.jp-board-card__link {
+  color: inherit;
+  text-decoration: none;
+}
+.jp-board-card__link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--jp-r-md);
+}
+.jp-board-card__link:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: 2px;
+  border-radius: var(--jp-r-sm);
+}
+.jp-board-card__company {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jp-board-card__subline {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jp-board-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.jp-board-card__days {
+  font-size: var(--text-micro);
+  font-weight: var(--jp-fw-semibold);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+/* StatusMenu (tangentbords-/no-drag-vagen) z-lyft ovanfor lank-overlay:en sa
+   den inte nastlas i ankaret; kompakt trigger pa det smala kortet. */
+.jp-board-card__menu {
+  position: relative;
+  z-index: 1;
+}
+.jp-board-card__menu .jp-rowbtn--ink {
+  font-size: var(--text-caption);
+  padding: 2px 6px;
+}

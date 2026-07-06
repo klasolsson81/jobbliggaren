@@ -54,7 +54,7 @@ export default async function BekraftaEpostPage({ searchParams }: PageProps) {
         <div>
           <Link
             href="/logga-in"
-            className="text-brand-700 hover:text-[var(--jp-accent-600)] underline underline-offset-2"
+            className="text-brand-700 underline underline-offset-2"
           >
             {t("auth.confirmEmailChange.loginLink")}
           </Link>

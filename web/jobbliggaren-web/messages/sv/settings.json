@@ -206,6 +206,7 @@
       "currentPasswordFieldName": "nuvarande lösenord",
       "newEmailLabel": "Ny e-postadress",
       "newEmailHint": "Formatet är namn@domän.se. Vi skickar bekräftelselänken hit.",
+      "sameEmail": "Den nya adressen måste skilja sig från din nuvarande.",
       "submit": "Skicka bekräftelselänk",
       "pending": "Skickar…",
       "cancel": "Avbryt",

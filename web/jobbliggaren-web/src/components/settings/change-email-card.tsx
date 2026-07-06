@@ -33,12 +33,21 @@ export function ChangeEmailCard({ currentEmail }: ChangeEmailCardProps) {
   const ts = useTranslations("settings");
   const newEmailId = useId();
   const newEmailHintId = useId();
+  const sameEmailFeedbackId = useId();
   const [newEmail, setNewEmail] = useState("");
   const [sent, setSent] = useState(false);
 
   function resetFields() {
     setNewEmail("");
   }
+
+  // Surface WHY submit is gated (a11y): when the entered address matches the current
+  // one it is a valid email but the same account, so the same-different gate below
+  // silently blocks submit. Only complain once the field has content, so we don't nag
+  // mid-typing. Mirrors ChangePasswordCard's confirm-mismatch region.
+  const isSameEmail =
+    newEmail.trim().length > 0 &&
+    newEmail.trim().toLowerCase() === currentEmail.trim().toLowerCase();
 
   // Client friction only (server authoritative): the new address is a valid email
   // AND differs from the current one (case-insensitive, trimmed). The same-address
@@ -101,12 +110,24 @@ export function ChangeEmailCard({ currentEmail }: ChangeEmailCardProps) {
               id={newEmailId}
               type="email"
               autoComplete="email"
-              aria-describedby={newEmailHintId}
+              aria-required="true"
+              aria-invalid={isSameEmail ? true : undefined}
+              aria-describedby={`${newEmailHintId} ${sameEmailFeedbackId}`}
               value={newEmail}
               onChange={(event) => setNewEmail(event.target.value)}
             />
             <p id={newEmailHintId} className="text-body-sm text-text-primary">
               {ts("account.changeEmail.newEmailHint")}
+            </p>
+            {/* Persistent live region: explains the otherwise-silent submit gate when
+                the new address equals the current one. Empty (zero height) otherwise. */}
+            <p
+              id={sameEmailFeedbackId}
+              role="status"
+              aria-live="polite"
+              className="text-body-sm text-danger-600"
+            >
+              {isSameEmail ? ts("account.changeEmail.sameEmail") : ""}
             </p>
           </div>
         </ReAuthDialog>

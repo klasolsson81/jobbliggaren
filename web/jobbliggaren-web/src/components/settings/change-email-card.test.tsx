@@ -73,6 +73,29 @@ describe("ChangeEmailCard", () => {
     ).toBeDisabled();
   });
 
+  it("surfaces the same-email gate reason only while the new address equals the current one", async () => {
+    const user = userEvent.setup();
+    render(<ChangeEmailCard currentEmail={CURRENT_EMAIL} />);
+    const dialog = await openDialog(user);
+    const sameEmailMessage = "Den nya adressen måste skilja sig från din nuvarande.";
+    const field = dialog.getByLabelText("Ny e-postadress");
+
+    // Empty field → the persistent live region is empty (zero height), no reason shown.
+    expect(dialog.queryByText(sameEmailMessage)).not.toBeInTheDocument();
+
+    // Same address (different case + surrounding space) → the reason is surfaced and
+    // the field is marked invalid.
+    await user.type(field, "  GAMMAL@Exempel.SE  ");
+    expect(dialog.getByText(sameEmailMessage)).toBeInTheDocument();
+    expect(field).toHaveAttribute("aria-invalid", "true");
+
+    // A different valid address → the reason disappears and invalid clears.
+    await user.clear(field);
+    await user.type(field, NEW_EMAIL);
+    expect(dialog.queryByText(sameEmailMessage)).not.toBeInTheDocument();
+    expect(field).not.toHaveAttribute("aria-invalid");
+  });
+
   it("calls changeEmailAction with the current password + new email on submit", async () => {
     const user = userEvent.setup();
     render(<ChangeEmailCard currentEmail={CURRENT_EMAIL} />);

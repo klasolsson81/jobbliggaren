@@ -13,9 +13,11 @@ import type { ActionResult } from "./_action-result";
  * and no Authorization header.
  *
  * 204 -> the address is swapped and ALL sessions are logged out server-side ->
- * `{ success: true }`. 400 is uniform for any bad/expired/replayed token; every
- * non-204 maps to the same Swedish "invalid link" message (the backend body is
- * NEVER read — TD-10 / OWASP ASVS V8.2). A transport throw maps to a network message.
+ * `{ success: true }`. Transient server failures (429 / 5xx) and a transport throw
+ * map to the retryable network message; every 4xx token-validity failure (400/409/
+ * 410) maps to the same uniform Swedish "invalid link" message so a bad/expired/
+ * replayed token is indistinguishable (anti-enumeration). The backend body is NEVER
+ * read (TD-10 / OWASP ASVS V8.2).
  *
  * SECURITY (§5): `uid` / `email` / `token` are single-use confirmation material and a
  * leaked token is an account-takeover primitive. They are NEVER logged on any path
@@ -44,8 +46,18 @@ export async function confirmEmailChangeAction(
       return { success: true };
     }
 
-    // 400 uniform for any bad/expired/replayed token; treat every other non-204
-    // status the same way. The backend body is never surfaced.
+    // Transient server-side failures (rate-limit / 5xx) are retryable → the network
+    // message, which invites a retry rather than declaring the link dead.
+    if (res.status === 429 || res.status >= 500) {
+      return {
+        success: false,
+        error: t("auth.confirmEmailChange.networkError"),
+      };
+    }
+
+    // Any other non-204 is a 4xx token-validity failure (400/409/410): a uniform
+    // "invalid link" message so a bad/expired/replayed token is indistinguishable
+    // (anti-enumeration). The backend body is never surfaced.
     return {
       success: false,
       error: t("auth.confirmEmailChange.invalidBody"),

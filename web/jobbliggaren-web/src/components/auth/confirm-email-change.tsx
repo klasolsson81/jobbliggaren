@@ -104,7 +104,7 @@ export function ConfirmEmailChange({ uid, email, token }: ConfirmEmailChangeProp
           <p className="text-body-sm text-text-primary">
             <Link
               href="/logga-in"
-              className="text-brand-700 hover:text-[var(--jp-accent-600)] underline underline-offset-2"
+              className="text-brand-700 underline underline-offset-2"
             >
               {t("auth.confirmEmailChange.loginLink")}
             </Link>

@@ -69,7 +69,7 @@ describe("confirmEmailChangeAction", () => {
     });
   });
 
-  it("maps any other non-204 status to the same invalid-link message", async () => {
+  it("maps a 4xx token-validity failure (410) to the same invalid-link message", async () => {
     fetchMock.mockResolvedValue(fakeResponse(410));
 
     const result = await confirmEmailChangeAction(UID, EMAIL, TOKEN);
@@ -77,6 +77,17 @@ describe("confirmEmailChangeAction", () => {
     expect(result).toEqual({
       success: false,
       error: "auth.confirmEmailChange.invalidBody",
+    });
+  });
+
+  it("maps a transient 5xx (503) to the retryable network message, not invalid-link", async () => {
+    fetchMock.mockResolvedValue(fakeResponse(503));
+
+    const result = await confirmEmailChangeAction(UID, EMAIL, TOKEN);
+
+    expect(result).toEqual({
+      success: false,
+      error: "auth.confirmEmailChange.networkError",
     });
   });
 

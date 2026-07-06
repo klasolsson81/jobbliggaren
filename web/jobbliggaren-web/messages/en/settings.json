@@ -206,6 +206,7 @@
       "currentPasswordFieldName": "current password",
       "newEmailLabel": "New email address",
       "newEmailHint": "The format is name@domain.com. We send the confirmation link here.",
+      "sameEmail": "The new address must differ from your current one.",
       "submit": "Send confirmation link",
       "pending": "Sending…",
       "cancel": "Cancel",

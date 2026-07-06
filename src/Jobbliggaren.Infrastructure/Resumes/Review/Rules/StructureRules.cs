@@ -363,3 +363,38 @@ internal sealed partial class B8FileNameRule : ICriterionRule
             ReviewText.Cite(ReviewText.Structural(note)));
     }
 }
+
+/// <summary>
+/// B2 Längd (High) — the imported PDF's page count (Fas 4b PR-6b, ADR 0093 §D4). NotAssessed
+/// without geometry (the canonical arm, a DOCX/failed parse, or a pre-PR-6b import — the honest
+/// ceiling never fabricates a length it could not read). Warn when the CV runs longer than the
+/// recommended maximum, else Pass. WARN, not Fail, on the over-length case: an academic CV can
+/// legitimately run longer (the rubric's academic exception the page count alone cannot
+/// detect), so the determinism nudges rather than fails.
+/// </summary>
+internal sealed class B2PageCountRule : ICriterionRule
+{
+    public string CriterionId => "B2";
+
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
+    {
+        var category = context.Criterion.Category;
+
+        if (context.Layout?.PageCount is not { } pages)
+        {
+            return CvCriterionVerdict.NotAssessed("B2", category,
+                context.Criterion.NotAssessedReason ?? "CV-längden kunde inte läsas ur källfilen.");
+        }
+
+        // The recommended page ceiling is rubric v2.1 DATA (thresholds.maxPages), read fail-loud.
+        var maxPages = (int)context.Criterion.RequiredThreshold(RubricThresholdKeys.MaxPages);
+
+        return pages > maxPages
+            ? CvCriterionVerdict.Assessed("B2", category, CriterionVerdict.Warn,
+                ReviewText.Cite(ReviewText.Structural(
+                    $"CV:t är {pages} sidor. Sikta på högst {maxPages} sidor om det inte är ett akademiskt CV med bilaga.")))
+            : CvCriterionVerdict.Assessed("B2", category, CriterionVerdict.Pass,
+                ReviewText.Cite(ReviewText.Structural(
+                    $"CV:t är {pages} {(pages == 1 ? "sida" : "sidor")}.")));
+    }
+}

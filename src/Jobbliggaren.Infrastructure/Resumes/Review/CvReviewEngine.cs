@@ -147,6 +147,9 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         // arm-independent — the canonical SetFindingStatus recompute matches the staging
         // review, which is what makes the styleOnly "Ignored" decision reachable e2e.
         new B5ConsistentFormattingRule(),
+        // Fas 4b PR-6b (ADR 0093 §D4): B2 page count from the imported PDF's geometry
+        // (ICvLayoutAnalyzer). NotAssessed without geometry (canonical arm / DOCX / legacy).
+        new B2PageCountRule(),
         new B6DateFormatRule(),
         new B7ChronologyRule(),
         new B8FileNameRule(),
@@ -164,6 +167,10 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         new C7SpellingRule(),
         new D1FileFormatRule(),
         new D6StandardHeadingsRule(),
+        // Fas 4b PR-6b (ADR 0093 §D4): D9 file size + E2 whitespace (tightest margin), both
+        // from the ICvLayoutAnalyzer metrics read at import. NotAssessed without metrics.
+        new D9FileSizeRule(),
+        new E2WhitespaceRule(),
     ];
 
     // Canonical structured dates are month-granular by construction — one shared token,

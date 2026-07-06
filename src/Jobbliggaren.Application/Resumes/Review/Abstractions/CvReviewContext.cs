@@ -41,7 +41,12 @@ public sealed record CvReviewContext(
     PersonnummerScanOutcome Personnummer,
     string? SourceFileName,
     string? SourceContentType,
-    ParseFallbackReason? ParseFallback)
+    ParseFallbackReason? ParseFallback,
+    // Fas 4b PR-6b — non-PII PDF layout metrics for the geometry criteria (B2 page count,
+    // D9 file size, E2 whitespace). Present on the staging arm from an analyzed import; null
+    // on the canonical arm (no source file until PR-9's Form C) → the rules verdict
+    // NotAssessed on absence (honest ceiling, never fabricate geometry).
+    CvLayoutMetrics? Layout)
 {
     /// <summary>
     /// The staging adapter: the parsed CV reviews against its own raw extraction —
@@ -80,7 +85,8 @@ public sealed record CvReviewContext(
             parsed.Personnummer,
             parsed.SourceFileName,
             parsed.SourceContentType,
-            parsed.Confidence.Fallback);
+            parsed.Confidence.Fallback,
+            parsed.LayoutMetrics);
     }
 
     /// <summary>
@@ -123,7 +129,9 @@ public sealed record CvReviewContext(
             PersonnummerScanOutcome.None,
             SourceFileName: null,
             SourceContentType: null,
-            ParseFallback: null);
+            ParseFallback: null,
+            // No source file on the canonical arm until PR-9's Form C → layout NotAssessed (D-F).
+            Layout: null);
     }
 
     // Standard linear sections map onto the parse-section vocabulary D6 verdicts on;

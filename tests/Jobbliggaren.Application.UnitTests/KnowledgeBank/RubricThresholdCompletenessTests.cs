@@ -19,8 +19,10 @@ public class RubricThresholdCompletenessTests
     // Every criterion whose rule reads a threshold → the EXACT set of keys it requires. Keys via
     // RubricThresholdKeys constants, never inline strings (§5). Pinned BOTH ways: a missing key
     // would fail the live engine (fail-loud), an extra/renamed key is a silent data drift — both
-    // fail here. Mirrors the rule reads: ContentRules (A1/A2/A4/A6/A7/A8/A9), StructureRules (B6),
-    // LanguageRules (C2/C3/C6/C7). C7 (Stavning maskinell kontroll) joined in Fas 4b PR-6a (#655).
+    // fail here. Mirrors the rule reads: ContentRules (A1/A2/A4/A6/A7/A8/A9), StructureRules
+    // (B2/B6), LanguageRules (C2/C3/C6/C7), AtsRules (D9), VisualRules (E2). C7 (Stavning
+    // maskinell kontroll) joined in Fas 4b PR-6a (#655); B2 (sidantal) / D9 (filstorlek) /
+    // E2 (whitespace) joined in Fas 4b PR-6b — geometry thresholds from ICvLayoutAnalyzer.
     private static readonly Dictionary<string, string[]> RequiredKeysByCriterion =
         new(StringComparer.Ordinal)
         {
@@ -31,11 +33,14 @@ public class RubricThresholdCompletenessTests
             ["A7"] = [RubricThresholdKeys.PassBelowCount, RubricThresholdKeys.FailFromCount],
             ["A8"] = [RubricThresholdKeys.MaxWords],
             ["A9"] = [RubricThresholdKeys.FailFromCount],
+            ["B2"] = [RubricThresholdKeys.MaxPages],
             ["B6"] = [RubricThresholdKeys.MaxDistinctDateFormats],
             ["C2"] = [RubricThresholdKeys.WarnFromExclamationCount],
             ["C3"] = [RubricThresholdKeys.FailRatio],
             ["C6"] = [RubricThresholdKeys.MaxUnexplainedAcronyms],
             ["C7"] = [RubricThresholdKeys.WarnFromMisspellingCount],
+            ["D9"] = [RubricThresholdKeys.FileSizeWarnBytes, RubricThresholdKeys.FileSizeFailBytes],
+            ["E2"] = [RubricThresholdKeys.MinMarginPointsFloor],
         };
 
     // The Klas-confirm styleOnly proposal (CTO-bind D2c): exactly the cosmetic set. A silent

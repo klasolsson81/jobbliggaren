@@ -1,5 +1,5 @@
 {
-  "rubricVersion": "2.0.0",
+  "rubricVersion": "2.1.0",
   "effectiveDate": "2026-07-06",
   "weights": {
     "Kritisk": 3,
@@ -215,7 +215,10 @@
       "atsFailSignal": "<0,5 sida ELLER ≥3 sidor (icke-akademiskt). ATS: <1 sida tappar keyword-bredd",
       "visualPassSignal": "Samma längd, men whitespace räknas inte som \"tomt\"",
       "visualFailSignal": "Samma men 2,5 sidor accepteras om designen är skanbar",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV."
+      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "thresholds": {
+        "maxPages": 2
+      }
     },
     {
       "id": "B3",
@@ -488,7 +491,11 @@
       "assessability": "deterministic",
       "atsPassSignal": "<2 MB",
       "atsFailSignal": ">5 MB (komprimera bilder)",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV."
+      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "thresholds": {
+        "fileSizeWarnBytes": 2097152,
+        "fileSizeFailBytes": 5242880
+      }
     },
     {
       "id": "D10",
@@ -521,7 +528,10 @@
       "assessability": "deterministic",
       "visualPassSignal": "Marginaler 1,5–2,5 cm; radavstånd 1,15–1,3; ≥8 pt mellan sektioner. F-mönster-skanbar",
       "visualFailSignal": "Marginaler <1 cm; tätpackat; ingen luft",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV."
+      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "thresholds": {
+        "minMarginPointsFloor": 28.35
+      }
     },
     {
       "id": "E3",

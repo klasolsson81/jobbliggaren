@@ -192,6 +192,19 @@ public static class RubricThresholdKeys
 
     /// <summary>C7: suspected-misspelling count FROM which the verdict is WARN (&gt;=).</summary>
     public const string WarnFromMisspellingCount = "warnFromMisspellingCount";
+
+    /// <summary>B2: max PDF page count above which the verdict is WARN (&gt;) — Fas 4b PR-6b.</summary>
+    public const string MaxPages = "maxPages";
+
+    /// <summary>D9: file-size bytes above which the verdict is WARN (&gt;) — Fas 4b PR-6b.</summary>
+    public const string FileSizeWarnBytes = "fileSizeWarnBytes";
+
+    /// <summary>D9: file-size bytes above which the verdict is FAIL (&gt;) — Fas 4b PR-6b.</summary>
+    public const string FileSizeFailBytes = "fileSizeFailBytes";
+
+    /// <summary>E2: tightest page margin (PDF points) BELOW which the layout is cramped → WARN
+    /// (&lt;) — Fas 4b PR-6b (28.35 pt ~= 1 cm).</summary>
+    public const string MinMarginPointsFloor = "minMarginPointsFloor";
 }
 
 /// <summary>

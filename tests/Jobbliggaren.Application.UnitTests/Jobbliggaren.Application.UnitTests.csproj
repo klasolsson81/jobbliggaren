@@ -50,6 +50,12 @@
          (build a real WordprocessingDocument in a MemoryStream rather than ship a binary
          fixture). Centrally pinned in Directory.Packages.props (3.5.1, same as Infrastructure). -->
     <PackageReference Include="DocumentFormat.OpenXml" />
+    <!-- Fas 4b PR-6b — synthesize REAL PDFs with KNOWN page geometry for
+         PdfPigCvLayoutAnalyzerTests (the margin-math is only honestly testable against genuine
+         PDF bytes, never a faked buffer). QuestPDF is already the repo's PDF renderer, centrally
+         pinned in Directory.Packages.props (same version as Infrastructure); License = Community
+         is set once in the test fixture's static constructor. -->
+    <PackageReference Include="QuestPDF" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="xunit.v3.mtp-v2" />
   </ItemGroup>

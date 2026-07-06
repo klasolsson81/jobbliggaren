@@ -36,7 +36,8 @@ public class CvReviewEvidenceRedactionTests
     private const string Mask = "******-****";
 
     private static CvReviewEngine NewEngine() =>
-        new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer());
+        new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
+            AllCorrectSpellChecker(), RealAllowlist());
 
     private static async Task<CvReviewResult> ReviewAsync(ParsedResume resume, RenderProfile profile) =>
         await NewEngine().ReviewAsync(CvReviewContext.FromParsed(resume), profile, TestContext.Current.CancellationToken);

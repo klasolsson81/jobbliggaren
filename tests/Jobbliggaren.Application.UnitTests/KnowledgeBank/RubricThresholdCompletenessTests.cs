@@ -5,9 +5,9 @@ using static Jobbliggaren.Application.UnitTests.Resumes.Review.CvReviewFixtures;
 namespace Jobbliggaren.Application.UnitTests.KnowledgeBank;
 
 /// <summary>
-/// Rubric v1.2 (Fas 4b PR-5, #654, CTO-bind D1 mitigation 3 + D2c) — the SHIPPED v1.2.0 rubric
-/// must carry every named threshold key its rules read (fail-loud only fires on a corrupt/N-1
-/// asset, never in production), and the styleOnly set must match the Klas-confirmed proposal.
+/// Rubric v2.0.0 (Fas 4b PR-6a, #655; thresholds-as-data introduced #654 CTO-bind D1/D2c) — the
+/// SHIPPED rubric must carry every named threshold key its rules read (fail-loud only fires on a
+/// corrupt/N-1 asset, never in production), and the styleOnly set must match the Klas-confirmed proposal.
 /// Both are pinned against the REAL committed asset via the real <see cref="IRubricProvider"/>
 /// (golden source) so a silent data drift fails CI rather than surfacing at review time.
 ///
@@ -19,8 +19,10 @@ public class RubricThresholdCompletenessTests
     // Every criterion whose rule reads a threshold → the EXACT set of keys it requires. Keys via
     // RubricThresholdKeys constants, never inline strings (§5). Pinned BOTH ways: a missing key
     // would fail the live engine (fail-loud), an extra/renamed key is a silent data drift — both
-    // fail here. Mirrors the rule reads: ContentRules (A1/A2/A4/A6/A7/A8/A9), StructureRules (B6),
-    // LanguageRules (C2/C3/C6).
+    // fail here. Mirrors the rule reads: ContentRules (A1/A2/A4/A6/A7/A8/A9), StructureRules
+    // (B2/B6), LanguageRules (C2/C3/C6/C7), AtsRules (D9), VisualRules (E2). C7 (Stavning
+    // maskinell kontroll) joined in Fas 4b PR-6a (#655); B2 (sidantal) / D9 (filstorlek) /
+    // E2 (whitespace) joined in Fas 4b PR-6b — geometry thresholds from ICvLayoutAnalyzer.
     private static readonly Dictionary<string, string[]> RequiredKeysByCriterion =
         new(StringComparer.Ordinal)
         {
@@ -31,10 +33,14 @@ public class RubricThresholdCompletenessTests
             ["A7"] = [RubricThresholdKeys.PassBelowCount, RubricThresholdKeys.FailFromCount],
             ["A8"] = [RubricThresholdKeys.MaxWords],
             ["A9"] = [RubricThresholdKeys.FailFromCount],
+            ["B2"] = [RubricThresholdKeys.MaxPages],
             ["B6"] = [RubricThresholdKeys.MaxDistinctDateFormats],
             ["C2"] = [RubricThresholdKeys.WarnFromExclamationCount],
             ["C3"] = [RubricThresholdKeys.FailRatio],
             ["C6"] = [RubricThresholdKeys.MaxUnexplainedAcronyms],
+            ["C7"] = [RubricThresholdKeys.WarnFromMisspellingCount],
+            ["D9"] = [RubricThresholdKeys.FileSizeWarnBytes, RubricThresholdKeys.FileSizeFailBytes],
+            ["E2"] = [RubricThresholdKeys.MinMarginPointsFloor],
         };
 
     // The Klas-confirm styleOnly proposal (CTO-bind D2c): exactly the cosmetic set. A silent

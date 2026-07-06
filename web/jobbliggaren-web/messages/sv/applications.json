@@ -147,7 +147,24 @@
     "controls": {
       "searchAriaLabel": "Sök bland ansökningar",
       "filterPrefix": "Filter:",
-      "clearFilterAriaLabel": "Ta bort filtret {step}"
+      "clearFilterAriaLabel": "Ta bort filtret {step}",
+      "viewLabel": "Vy",
+      "viewSwitchAriaLabel": "Visa ansökningar som"
+    },
+    "view": {
+      "lista": "Lista",
+      "tavla": "Tavla"
+    },
+    "board": {
+      "toolbarCount": "{count, plural, one {# ansökan} other {# ansökningar}} · {active, plural, one {# aktiv} other {# aktiva}}",
+      "toolbarHint": "Dra ett kort till ett annat steg. Klicka på ett kort för detaljer.",
+      "showMore": "Visa {count} fler",
+      "showFewer": "Visa färre",
+      "emptyColumn": "Inga ansökningar här",
+      "emptyAccepted": "Dra hit när du accepterar",
+      "emptyZone": "Tomt",
+      "ghostHint": "Dra ett kort tillbaka till Skickad för att återaktivera det.",
+      "daysShort": "{days} dgr"
     },
     "rail": {
       "kicker": "Alla 10 steg",

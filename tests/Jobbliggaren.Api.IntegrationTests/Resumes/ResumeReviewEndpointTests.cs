@@ -64,6 +64,29 @@ public class ResumeReviewEndpointTests(ApiFactory factory)
         summary,
     };
 
+    // A canonical content edit whose single experience description MIXES bullet markers
+    // ("•" + "-") so B5 (geometry-free formatting consistency) → Warn on the canonical arm
+    // (Fas 4b PR-6a, #655). The two digit-free bullets also make A1 (Mätbara resultat) Fail —
+    // a SUBSTANTIVE, non-styleOnly finding used for the negative half of the gate.
+    private static object MasterContentBodyWithMixedBullets() => new
+    {
+        personalInfo = new { fullName = "Anna Andersson", email = "anna@example.se", phone = "070-123 45 67", location = "Göteborg" },
+        experiences = new[]
+        {
+            new
+            {
+                company = "Acme AB",
+                role = "Backend-utvecklare",
+                startDate = "2021-01-01",
+                endDate = (string?)null,
+                description = "• Ledde teamet\n- Ansvarade för budget",
+            },
+        },
+        educations = Array.Empty<object>(),
+        skills = Array.Empty<object>(),
+        summary = (string?)null,
+    };
+
     private static async Task<string> ImportAsync(HttpClient client, CancellationToken ct)
     {
         var part = new ByteArrayContent(PdfBytes);
@@ -290,6 +313,63 @@ public class ResumeReviewEndpointTests(ApiFactory factory)
             // Surfaced-because-still-present carries the staleness stamp.
             verdict.GetProperty("userStatusStaleAt").ValueKind.ShouldNotBe(JsonValueKind.Null);
         }
+    }
+
+    // ---- The fail-closed gap closure (Fas 4b PR-6a, #655): B5 is now assessable + Ignorable ----
+
+    [Fact]
+    public async Task PUT_master_mixed_bullets_makes_B5_Warn_and_Ignored_succeeds_and_persists()
+    {
+        // Closes PR-5's intentional fail-closed gap: before B5 (styleOnly) had an assessable rule,
+        // Ignoring it returned FindingNotActionable (no finding to act on). Now a mixed-marker
+        // description makes B5 Warn on the canonical arm, so Ignored is a genuine, reachable decision.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var resumeId = await PromoteAsync(_client, ct);
+
+        var edit = await _client.PutAsJsonAsync(
+            $"/api/v1/resumes/{resumeId}/master", MasterContentBodyWithMixedBullets(), ct);
+        edit.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var review = await GetReviewAsync(_client, resumeId, ct);
+        VerdictById(review, "B5").GetProperty("verdict").GetString().ShouldBe("Warn",
+            "en beskrivning med blandade punktsymboler ska ge B5 = Warn (arm-oberoende).");
+
+        // B5 is styleOnly → Ignored is allowed. This is the path that returned 400 before B5 had a rule.
+        var ignore = await _client.PutAsJsonAsync(
+            $"/api/v1/resumes/{resumeId}/review/findings/B5/status", new { status = "Ignored" }, ct);
+        ignore.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        // The recorded Ignored decision surfaces on the next review (the canonical recompute matches
+        // the review the user saw — B5's arm-independence is what makes the fingerprint stay fresh).
+        var after = await GetReviewAsync(_client, resumeId, ct);
+        VerdictById(after, "B5").GetProperty("userStatus").GetString().ShouldBe("Ignored");
+    }
+
+    [Fact]
+    public async Task PUT_Ignored_on_a_non_styleOnly_finding_still_returns_400_FindingNotIgnorable()
+    {
+        // The gate still holds: a SUBSTANTIVE (non-styleOnly) finding can never be silenced by Ignored.
+        // A1 (Mätbara resultat, critical, NOT styleOnly) fails on the digit-free bullets above.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var resumeId = await PromoteAsync(_client, ct);
+
+        var edit = await _client.PutAsJsonAsync(
+            $"/api/v1/resumes/{resumeId}/master", MasterContentBodyWithMixedBullets(), ct);
+        edit.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var review = await GetReviewAsync(_client, resumeId, ct);
+        VerdictById(review, "A1").GetProperty("verdict").GetString()
+            .ShouldBeOneOf("Fail", "Warn"); // a genuine finding to attempt to ignore
+
+        var ignore = await _client.PutAsJsonAsync(
+            $"/api/v1/resumes/{resumeId}/review/findings/A1/status", new { status = "Ignored" }, ct);
+        ignore.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+
+        var problem = await ignore.Content.ReadFromJsonAsync<JsonElement>(ct);
+        problem.GetProperty("title").GetString().ShouldBe("Resume.FindingNotIgnorable",
+            "endast stilregler (styleOnly) går att ignorera — A1 är en substansregel.");
     }
 
     private async Task<List<AuditLogEntry>> ReadAuditEntriesAsync(Guid aggregateId, CancellationToken ct)

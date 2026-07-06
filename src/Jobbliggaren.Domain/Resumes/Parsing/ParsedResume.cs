@@ -51,6 +51,13 @@ public sealed class ParsedResume : AggregateRoot<ParsedResumeId>
     /// <summary>PII-safe personnummer-scan outcome (Invariant 1). Masked metadata only.</summary>
     public PersonnummerScanOutcome Personnummer { get; private set; } = PersonnummerScanOutcome.None;
 
+    /// <summary>Non-PII structural layout metrics (Fas 4b PR-6b, ADR 0093 §D4) — page count,
+    /// file size and the tightest page margin, read from the source PDF at import (the only
+    /// place the bytes exist; the review pipeline never sees the file). Null for a pre-PR-6b
+    /// import or when the analyzer produced nothing. Parity <see cref="Confidence"/>: a plain
+    /// non-PII column, NEVER the DEK shadow (it carries no CV text).</summary>
+    public CvLayoutMetrics? LayoutMetrics { get; private set; }
+
     private readonly List<ProposedOccupation> _occupationProposals = [];
 
     /// <summary>Unconfirmed SSYK proposals (F4-3 call-site, ADR 0040 Beslut 4 — the
@@ -83,6 +90,7 @@ public sealed class ParsedResume : AggregateRoot<ParsedResumeId>
         string rawText,
         ParseConfidence confidence,
         PersonnummerScanOutcome personnummer,
+        CvLayoutMetrics? layoutMetrics,
         DateTimeOffset now) : base(id)
     {
         JobSeekerId = jobSeekerId;
@@ -94,6 +102,7 @@ public sealed class ParsedResume : AggregateRoot<ParsedResumeId>
         RawText = rawText;
         Confidence = confidence;
         Personnummer = personnummer;
+        LayoutMetrics = layoutMetrics;
         CreatedAt = now;
         UpdatedAt = now;
     }
@@ -121,7 +130,11 @@ public sealed class ParsedResume : AggregateRoot<ParsedResumeId>
         // trailing param (default null → empty) so the ~30 existing Create callers stay
         // unchanged (additive, like the occupation proposals before it); only
         // ImportResumeCommandHandler passes a non-null set.
-        IEnumerable<ProposedSkill>? skillProposals = null)
+        IEnumerable<ProposedSkill>? skillProposals = null,
+        // Fas 4b PR-6b — non-PII layout metrics read from the source PDF at import. Optional
+        // trailing param (default null) so existing Create callers stay unchanged (additive,
+        // parity skillProposals); only ImportResumeCommandHandler passes it (it has the bytes).
+        CvLayoutMetrics? layoutMetrics = null)
     {
         if (jobSeekerId == default)
             return Fail("ParsedResume.JobSeekerIdRequired", "JobSeekerId krävs.");
@@ -174,6 +187,7 @@ public sealed class ParsedResume : AggregateRoot<ParsedResumeId>
             rawText,
             confidence,
             personnummer,
+            layoutMetrics,
             now);
 
         foreach (var proposal in occupationProposals ?? [])

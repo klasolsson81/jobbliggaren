@@ -21,9 +21,11 @@ namespace Jobbliggaren.Infrastructure.TextAnalysis;
 /// permanent fault-cache.
 /// </para>
 ///
-/// <para>F4-9 has no <see cref="ISpellChecker"/> consumer — C1 (Stavning/grammatik)
-/// is pinned NotAssessedV1 (ADR 0071 OQ3), so the English Hunspell asset is wired but
-/// dormant; the first consumer arrives when C1 leaves NotAssessedV1 (a later STEG).</para>
+/// <para>The first <see cref="ISpellChecker"/> consumer is the review engine's C7
+/// machine-spelling criterion (Fas 4b PR-6) — a SEPARATE criterion that lights up BOTH
+/// dictionaries (Swedish CVs still cite English tech terms via C7's allowlist). C1
+/// (Stavning/grammatik) stays NotAssessedV1 (ADR 0071 OQ3) — Hunspell is not a grammar
+/// checker, so C7 never takes the grammar half nor the critical slot.</para>
 /// </summary>
 internal sealed class HunspellSpellChecker : ISpellChecker
 {

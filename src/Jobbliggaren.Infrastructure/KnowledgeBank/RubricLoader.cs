@@ -6,7 +6,7 @@ using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 namespace Jobbliggaren.Infrastructure.KnowledgeBank;
 
 /// <summary>
-/// Loads the committed, versioned CV-quality rubric (<c>rubric.v1.2.0.json</c>)
+/// Loads the committed, versioned CV-quality rubric (<c>rubric.v2.0.0.json</c>)
 /// embedded in this assembly (F4-7, BUILD §8.1/§8.6, research §2). Deserialises the
 /// Swedish-token <see cref="RubricFile"/> DTO and maps it to the English-enum
 /// <see cref="Rubric"/> contract — no <c>*File</c> type, no Swedish token, no
@@ -23,7 +23,7 @@ internal static class RubricLoader
 {
     // The SAME LogicalName the csproj declares for the embedded resource.
     private const string ResourceName =
-        "Jobbliggaren.Infrastructure.KnowledgeBank.rubric.v1.2.0.json";
+        "Jobbliggaren.Infrastructure.KnowledgeBank.rubric.v2.0.0.json";
 
     /// <summary>Loads the committed v1 rubric from the embedded resource.</summary>
     internal static Rubric Load()

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.Common.Abstractions.TextAnalysis;
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
@@ -6,10 +7,13 @@ using Jobbliggaren.Application.Resumes.Review.Abstractions;
 namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 
 // Fas 4 STEG 9 (F4-9) — Language-category (C) criterion rules. C1 (genuine
-// spelling/grammar) is pinned NotAssessedV1 (ADR 0071 OQ3) — no rule here. The pronoun /
-// passive / acronym signals are linguistic function-word patterns (not knowledge-bank
-// data); the overselling-tone signal is purely structural (exclamation/shouting), so §5's
-// "no hardcoded cliché/verb/rubric lists" holds.
+// spelling/grammar, the CRITICAL slot) is pinned NotAssessedV1 (ADR 0071 OQ3) — no rule
+// here; Hunspell is not a grammar checker. C7 (Fas 4b PR-6) is the SEPARATE machine
+// spelling criterion (WARN-posture, ADR 0093 §D4) — its allowlist is versioned KB DATA, its
+// dictionary is the SHA-pinned DSSO asset. The pronoun / passive / acronym signals are
+// linguistic function-word patterns (not knowledge-bank data); the overselling-tone signal
+// is purely structural (exclamation/shouting), so §5's "no hardcoded cliché/verb/rubric
+// lists" holds.
 
 /// <summary>C2 Ton (High) — neutral, non-overselling tone (no shouting/exclamation).</summary>
 internal sealed partial class C2ToneRule : ICriterionRule
@@ -204,4 +208,93 @@ internal sealed partial class C6AbbreviationsRule : ICriterionRule
         return CvCriterionVerdict.Assessed("C6", category, CriterionVerdict.Pass,
             ReviewText.Cite(ReviewText.Structural("Inga ovanliga oförklarade förkortningar.")));
     }
+}
+
+/// <summary>
+/// C7 Stavning (maskinell kontroll) (Medium) — WARN-posture machine spell check via the
+/// Hunspell checker (sv_SE DSSO / en_US) + the versioned proper-noun/tech-term allowlist
+/// (Fas 4b PR-6, ADR 0093 §D4). Only LOWERCASE-initial word tokens are checked: a
+/// capitalised token is a proper noun / place / company name / sentence opener the
+/// determinism cannot verify without a name corpus, and flagging a surname as a
+/// "misspelling" is both wrong and PII-adjacent — so the honest ceiling checks the prose
+/// where typos actually live and leaves names to the allowlist. Acronyms, digit-bearing and
+/// internal-caps tech tokens, and 1-char tokens are structural skips (code, ADR 0093 §D3).
+/// C1 (spelling+grammar, Critical) stays NotAssessedV1 — Hunspell is not a grammar checker,
+/// so C7 never claims the grammar half nor takes the critical slot (misspelling -> Warn,
+/// never Fail; CTO-bind PR-6 D-C).
+/// </summary>
+internal sealed partial class C7SpellingRule : ICriterionRule
+{
+    public string CriterionId => "C7";
+
+    // A word token: a run of Unicode letters, allowing an internal hyphen/apostrophe so
+    // "e-post" / "don't" tokenise as one word (detection SHAPE — code, ADR 0093 §D3).
+    [GeneratedRegex(@"\p{L}+(?:['’-]\p{L}+)*", RegexOptions.CultureInvariant)]
+    private static partial Regex WordRegex();
+
+    // A lowercase-initial token carrying an INTERNAL uppercase letter = a camelCase/tech
+    // token ("iOS", "iPhone"), not a dictionary word — skipped.
+    [GeneratedRegex(@"^\p{Ll}\p{Ll}*\p{Lu}", RegexOptions.CultureInvariant)]
+    private static partial Regex InternalCapsRegex();
+
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
+    {
+        var category = context.Criterion.Category;
+        var prose = ReviewText.AllProse(context);
+
+        var misspelled = FindMisspelled(context, prose);
+
+        // WARN-posture (CTO-bind PR-6 D-C / D4): the suspected-misspelling count FROM which
+        // to warn is rubric v2 DATA (thresholds.warnFromMisspellingCount), read fail-loud;
+        // never a Fail (C7 is a soft "check the spelling" nudge — C1 keeps the critical slot).
+        var warnFrom = context.Criterion.RequiredThreshold(RubricThresholdKeys.WarnFromMisspellingCount);
+        if (misspelled.Count >= warnFrom)
+        {
+            return CvCriterionVerdict.Assessed("C7", category, CriterionVerdict.Warn,
+                ReviewText.Cite(ReviewText.Span(prose, misspelled[0],
+                    $"{misspelled.Count} möjliga stavfel. Kontrollera stavningen mot ordlistan")));
+        }
+
+        return CvCriterionVerdict.Assessed("C7", category, CriterionVerdict.Pass,
+            ReviewText.Cite(ReviewText.Structural("Inga misstänkta stavfel mot ordlistan.")));
+    }
+
+    // The distinct misspelled tokens (verbatim, for a locatable citation), in first-seen
+    // order. A token is NFC-folded before the allowlist + dictionary lookup so a
+    // combining-diacritic drift never mis-classifies it; the RAW form is quoted so the offset
+    // resolves against the un-normalized prose.
+    private static List<string> FindMisspelled(CriterionEvaluationContext context, string prose)
+    {
+        var language = context.Language;
+        var allowlist = context.Allowlist;
+        var checker = context.SpellChecker;
+
+        var misspelled = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (Match match in WordRegex().Matches(prose))
+        {
+            var raw = match.Value;
+            var token = raw.Normalize(NormalizationForm.FormC);
+
+            if (!IsCheckable(token) || allowlist.Contains(token) || !seen.Add(token))
+            {
+                continue;
+            }
+
+            if (!checker.Check(token, language))
+            {
+                misspelled.Add(raw);
+            }
+        }
+
+        return misspelled;
+    }
+
+    private static bool IsCheckable(string token) =>
+        token.Length >= 2
+        // Proper nouns / sentence openers are capitalised — skipped (honest ceiling: never
+        // flag a name as a misspelling; the allowlist covers legitimate lowercase tech terms).
+        && char.IsLower(token[0])
+        && !InternalCapsRegex().IsMatch(token);
 }

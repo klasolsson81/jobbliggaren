@@ -189,6 +189,9 @@ public static class RubricThresholdKeys
 
     /// <summary>B6: max distinct date formats before WARN (&gt;).</summary>
     public const string MaxDistinctDateFormats = "maxDistinctDateFormats";
+
+    /// <summary>C7: suspected-misspelling count FROM which the verdict is WARN (&gt;=).</summary>
+    public const string WarnFromMisspellingCount = "warnFromMisspellingCount";
 }
 
 /// <summary>

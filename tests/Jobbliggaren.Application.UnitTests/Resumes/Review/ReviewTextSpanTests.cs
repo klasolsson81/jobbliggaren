@@ -135,7 +135,8 @@ public class ReviewTextSpanTests
             rawText: "Anna Andersson"); // top-level raw text does NOT contain the experience bullet
 
         var engine = new CvReviewEngine(
-            RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer());
+            RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
+            AllCorrectSpellChecker(), RealAllowlist());
 
         var result = await engine.ReviewAsync(CvReviewContext.FromParsed(resume), RenderProfile.Ats, TestContext.Current.CancellationToken);
 

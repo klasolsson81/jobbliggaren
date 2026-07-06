@@ -19,7 +19,8 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 public class CanonicalReviewCitationLosslessnessTests
 {
     private static CvReviewEngine NewEngine() =>
-        new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer());
+        new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
+            AllCorrectSpellChecker(), RealAllowlist());
 
     // A deliberately WEAK canonical CV so the quote-citing rules fire their Warn/Fail
     // branches (digit-free weak-verb bullets → A1/A2/A6; clichés + soft skills in the

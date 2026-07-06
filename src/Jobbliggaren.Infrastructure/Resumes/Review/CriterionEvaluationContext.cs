@@ -24,6 +24,11 @@ internal sealed record CriterionEvaluationContext(
     ClicheList Cliches,
     VerbMapping Verbs,
     ITextAnalyzer Analyzer,
+    // Fas 4b PR-6 (ADR 0093 §D4): the C7 spelling criterion reads the Hunspell checker +
+    // the versioned proper-noun/tech-term allowlist through the context (rules are new()'d
+    // with no ctor deps — parity with how Analyzer/Cliches/Verbs reach the rules).
+    ISpellChecker SpellChecker,
+    SpellingAllowlist Allowlist,
     IReadOnlyList<DatedExperience> DatedExperiences)
 {
     /// <summary>The source-agnostic structured content view (CV-PII, decrypted upstream).</summary>

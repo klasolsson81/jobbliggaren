@@ -28,7 +28,7 @@ namespace Jobbliggaren.QA.Corpus;
 /// never the value).</item>
 /// </list>
 /// </summary>
-public class CvReviewCorpusStressTests
+public class CvReviewCorpusStressTests(ITestOutputHelper output)
 {
     // The reviewer does not derive SSYK, so CV titles need not be real taxonomy labels — a small
     // synthetic ground-truth keeps this frontend pure in-memory (CTO Fork 1 — reviewer = in-memory).
@@ -43,7 +43,11 @@ public class CvReviewCorpusStressTests
 
     private static CvReviewEngine NewEngine() =>
         new(new RubricProvider(), new ClicheLexicon(), new VerbMapper(),
-            new LocalTextAnalyzer(new SnowballStemmer()));
+            new LocalTextAnalyzer(new SnowballStemmer()),
+            // Fas 4b PR-6a (#655): the REAL Hunspell checker + REAL committed allowlist so C7
+            // is exercised end-to-end against the shipped DSSO/en_US dictionaries (more faithful
+            // than a stub, parity the real knowledge bank + Snowball analyzer above).
+            new HunspellSpellChecker(), new SpellingAllowlistProvider());
 
     private static IReadOnlyList<GeneratedCvCase> Corpus() =>
         new CorpusGenerator().GenerateCvCorpus(SyntheticGroundTruth);
@@ -193,6 +197,55 @@ public class CvReviewCorpusStressTests
         result.AssessedCount.ShouldBeGreaterThan(0, "a clean CV must have assessed criteria.");
         result.Verdicts.ShouldContain(v => v.Verdict == CriterionVerdict.Pass,
             "a strong, clean CV must pass at least one criterion (real rule logic ran).");
+    }
+
+    // ===============================================================
+    // GATE (Fas 4b PR-6a, #655) — C7 + B5 verdict BOUNDS across the whole corpus with the REAL
+    // Hunspell + REAL allowlist. C7 (spelling, WARN-posture) is Pass/Warn and NEVER Fail; B5
+    // (formatting, geometry-free) is Warn/NotAssessed and NEVER Pass. The clean-stratum C7 Warn
+    // RATE is OBSERVED and LOGGED (CTO Fork 6 — observe-only), never hard-capped: a spike would
+    // signal corpus-vocabulary drift (a generator word bank / allowlist gap), not a rule bug.
+    // ===============================================================
+
+    [Fact]
+    public async Task C7AndB5_HonourTheirVerdictBounds_AcrossTheWholeCorpus_BothProfiles()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var engine = NewEngine();
+
+        var cleanC7Total = 0;
+        var cleanC7Warns = 0;
+
+        foreach (var c in Corpus())
+        {
+            foreach (var profile in new[] { RenderProfile.Ats, RenderProfile.Visual })
+            {
+                var result = await engine.ReviewAsync(CvReviewContext.FromParsed(c.Cv), profile, ct);
+
+                var c7 = result.Verdicts.SingleOrDefault(v => v.CriterionId == "C7");
+                if (c7 is not null)
+                {
+                    c7.Verdict.ShouldNotBe(CriterionVerdict.Fail,
+                        $"{c.Label}/{profile}: C7 är WARN-posture (maskinell stavning) — aldrig Fail.");
+
+                    if (profile == RenderProfile.Ats && c.Stratum == CorpusStratum.CleanExactTitle)
+                    {
+                        cleanC7Total++;
+                        if (c7.Verdict == CriterionVerdict.Warn) cleanC7Warns++;
+                    }
+                }
+
+                var b5 = result.Verdicts.SingleOrDefault(v => v.CriterionId == "B5");
+                b5.ShouldNotBeNull($"{c.Label}/{profile}: B5 ska bedömas i profilen (Både).");
+                b5!.Verdict.ShouldNotBe(CriterionVerdict.Pass,
+                    $"{c.Label}/{profile}: B5 rapporterar aldrig Pass geometri-fritt (Warn eller NotAssessed).");
+            }
+        }
+
+        cleanC7Total.ShouldBeGreaterThan(0, "the clean-title stratum must be represented in the corpus.");
+        // Observe-only diagnostic (not an assertion): a high clean-CV C7 Warn rate flags corpus
+        // vocabulary drift (add the offending dictionary-legit tokens to the allowlist or the word bank).
+        output.WriteLine($"C7 clean-CV Warn-rate (real Hunspell): {cleanC7Warns}/{cleanC7Total}.");
     }
 
     private static IEnumerable<string> EvidenceStrings(CvCriterionVerdict v)

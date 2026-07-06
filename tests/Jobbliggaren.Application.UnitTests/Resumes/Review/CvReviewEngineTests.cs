@@ -14,13 +14,14 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// Fas 4 STEG 9 (F4-9, ADR 0071/0074) — the deterministic CV-review engine. NO AI/LLM:
 /// every verdict is a rule over the parsed CV + the versioned knowledge bank, with cited
 /// evidence (CLAUDE.md §5). Golden expectations are derived from the REAL committed assets
-/// (rubric.v1.2.0.json / cliche-list.v2.json / verb-mapping.v1.json) via the real loaders,
+/// (rubric.v2.0.0.json / cliche-list.v2.json / verb-mapping.v1.json) via the real loaders,
 /// so the tests can never drift from the data the engine actually reads.
 ///
 /// The internal sealed <see cref="CvReviewEngine"/> is constructed directly (Infrastructure
 /// exposes internals to this assembly, parity RubricProviderTests). The engine takes
-/// (IRubricProvider, IClicheLexicon, IVerbMapper, ITextAnalyzer) — NO ISpellChecker, NO
-/// AppDbContext, NO ILogger (architect bound surface).
+/// (IRubricProvider, IClicheLexicon, IVerbMapper, ITextAnalyzer, ISpellChecker,
+/// ISpellingAllowlist) as of Fas 4b PR-6a (the C7 spelling criterion — an all-correct stub
+/// checker keeps these tests off DSSO-vocabulary coupling), NO AppDbContext, NO ILogger.
 ///
 /// Coverage map (each success + each failure/edge case per CLAUDE.md §7):
 ///   - assessable criteria driven to Pass / Warn / Fail with the EXPECTED evidence channel
@@ -40,7 +41,8 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 public class CvReviewEngineTests
 {
     private static CvReviewEngine NewEngine() =>
-        new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer());
+        new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
+            AllCorrectSpellChecker(), RealAllowlist());
 
     private static async Task<CvReviewResult> ReviewAsync(
         ParsedResume resume, RenderProfile profile = RenderProfile.Ats) =>
@@ -55,9 +57,10 @@ public class CvReviewEngineTests
     {
         var result = await ReviewAsync(Resume(), RenderProfile.Ats);
 
-        // Bumped 1.1.0 → 1.2.0 by #654 (Fas 4b PR-5: thresholds-as-data + styleOnly;
-        // §2.8 minor — values relocated from code literals, unchanged). Prior: #488.
-        result.RubricVersion.ShouldBe(RubricVersion.Parse("1.2.0"));
+        // Bumped 1.2.0 → 2.0.0 (#655 PR-6a: C7 spelling criterion ADDED → major bump,
+        // RubricVersion doctrine — a new scored criterion changes the assessment set).
+        // Prior: 1.1.0 → 1.2.0 (#654, thresholds-as-data + styleOnly); #488.
+        result.RubricVersion.ShouldBe(RubricVersion.Parse("2.0.0"));
         result.Profile.ShouldBe(RenderProfile.Ats);
     }
 
@@ -1199,13 +1202,15 @@ public class CvReviewEngineTests
     {
         // The pinned/no-input NotAssessed-v1 set per the architect classification. A3 & D8
         // are ad-dependent (no ad in F4-9); A5, C1 & C5 are pinned NotAssessedV1 in the rubric
-        // (C5 sentence-level sv/en mixing joined in #488); B2/B5 & D2/D3/D4/D5/D7/D9/D10 &
+        // (C5 sentence-level sv/en mixing joined in #488); B2 & D2/D3/D4/D5/D7/D9/D10 &
         // E1–E8 are page-count/layout/font signals the deterministic parse cannot see. Every
-        // one MUST report NotAssessed.
+        // one MUST report NotAssessed. B5 LEFT this set in Fas 4b PR-6a (#655): it is now
+        // assessable GEOMETRY-FREE (Warn on mixed bullet markers, else NotAssessed) — no
+        // longer an always-NotAssessed criterion, so it is covered by B5ConsistentFormattingRuleTests.
         var data = new TheoryData<string>();
         foreach (var id in new[]
         {
-            "A3", "A5", "B2", "B5", "C1", "C5",
+            "A3", "A5", "B2", "C1", "C5",
             "D2", "D3", "D4", "D5", "D7", "D8", "D9", "D10",
         })
         {
@@ -1368,7 +1373,7 @@ public class CvReviewEngineTests
     // Test F — code-side civic FALLBACK when the asset omits notAssessedReason (N-1 asset).
     // Driven via a substitute IRubricProvider whose A5 criterion has NotAssessedReason ==
     // null, proving Evaluate resolves `criterion.NotAssessedReason ?? <civic fallback>` and
-    // never throws. The real v1.2.0 asset always authors the field (Test G part 2 guards
+    // never throws. The real v2.0.0 asset always authors the field (Test G part 2 guards
     // that), so this fallback is only reachable through an older (N-1) provider — exactly
     // the seam this test drives.
     [Fact]
@@ -1378,7 +1383,9 @@ public class CvReviewEngineTests
             FakeRubricProviderWithNullReasonOnA5(),
             RealClicheLexicon(),
             RealVerbMapper(),
-            Analyzer());
+            Analyzer(),
+            AllCorrectSpellChecker(),
+            RealAllowlist());
 
         var result = await engine.ReviewAsync(
             CvReviewContext.FromParsed(Resume()), RenderProfile.Ats, TestContext.Current.CancellationToken);

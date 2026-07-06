@@ -18,10 +18,12 @@ namespace Jobbliggaren.Architecture.Tests;
 /// (English support is wired at F4-8/9, TextLanguage contract). The internal-to-
 /// Infrastructure namespace scan below is by NAMESPACE (<c>Jobbliggaren.Infrastructure
 /// .TextAnalysis</c>), not by type name, so the rename keeps it green without edits.
-/// The ISpellChecker consumer-allowlist STAYS EMPTY: the F4-9 review engine does NOT
-/// consume ISpellChecker because C1 (Stavning/grammatik) is pinned NotAssessedV1
-/// (ADR 0071 OQ3) — there is no v1 spell-check call-site. The YAGNI surface remains
-/// observable and guarded, not silent (CTO fråga 3, bindande).</para>
+/// The ISpellChecker consumer-allowlist is now EXACTLY <c>{CvReviewEngine}</c>: Fas 4b PR-6a
+/// (#655) added the SEPARATE C7 spelling criterion (Stavning maskinell kontroll), whose rule
+/// reads the checker through the engine — the first and only legitimate consumer. C1 (genuine
+/// spelling+grammar) STAYS NotAssessedV1 (ADR 0071 OQ3); C7 never claims the grammar half nor
+/// the critical slot. The allowlist stays a closed, observable set (CTO fråga 3, bindande) —
+/// extend ADDITIVELY, never widen to a blanket rule.</para>
 ///
 /// Mirrors TaxonomyAclLayerTests + JobAdSearchLayerTests.
 /// </summary>
@@ -134,23 +136,24 @@ public class TextAnalysisLayerTests
     }
 
     // ===============================================================
-    // 5. ISpellChecker consumer-allowlist — STAYS EMPTY at F4-9 (CTO fråga 3,
-    //    bindande). Mirrors TaxonomyAclLayerTests.Only_*_consume_* but
-    //    asserts ShouldBeEmpty(). The F4-9 review engine does NOT inject
-    //    ISpellChecker: C1 (Stavning/grammatik) is pinned NotAssessedV1
-    //    (ADR 0071 OQ3), so there is no v1 spell-check call-site. The first
-    //    real consumer arrives only when C1 is promoted out of NotAssessedV1
-    //    (a later STEG) — extend this allowlist ADDITIVELY then, not now.
+    // 5. ISpellChecker consumer-allowlist — EXACTLY {CvReviewEngine} at Fas 4b
+    //    PR-6a (CTO fråga 3, bindande — a CLOSED, named set, not a blanket rule).
+    //    Mirrors TaxonomyAclLayerTests.Only_*_consume_*. The C7 spelling criterion
+    //    (#655) is the first legitimate consumer: its rule reads the checker through
+    //    the engine's ctor-injected ISpellChecker. C1 (genuine spelling+grammar)
+    //    STAYS NotAssessedV1 (ADR 0071 OQ3) — C7 is the SEPARATE machine-spelling
+    //    criterion, not C1's promotion. Extend this allowlist ADDITIVELY, never widen.
     // ===============================================================
 
     [Fact]
-    public void No_type_outside_the_impl_and_DI_consumes_ISpellChecker()
+    public void Only_the_review_engine_consumes_ISpellChecker()
     {
         // Build the actual constructor-consumer list across Application AND
         // Infrastructure (the impl HunspellSpellChecker and the
         // AddTextAnalysis DI registration are NOT constructor-consumers of the
-        // PORT — they construct the impl, they don't inject ISpellChecker). So
-        // any constructor that takes ISpellChecker is a premature consumer.
+        // PORT — they construct the impl, they don't inject ISpellChecker). The
+        // ONLY legitimate consumer is CvReviewEngine (the C7 spelling criterion);
+        // any OTHER constructor that takes ISpellChecker is a premature/unexpected consumer.
         var port = typeof(Jobbliggaren.Application.Common.Abstractions.TextAnalysis.ISpellChecker);
 
         var assemblies = new[]
@@ -168,10 +171,18 @@ public class TextAnalysisLayerTests
             .OrderBy(n => n)
             .ToList();
 
-        consumers.ShouldBeEmpty(
-            "ISpellChecker har ingen konsument (CTO fråga 3 — tom allowlist bindande). " +
-            "C1 är NotAssessedV1 i F4-9, så review-motorn injicerar den INTE; första " +
-            "konsument tråds in först när C1 lämnar NotAssessedV1 (senare STEG) — " +
-            $"uppdatera då detta arch-test ADDITIVT. Oväntade konsumenter nu: {string.Join(", ", consumers)}");
+        // EXACTLY the two legitimate C7 consumers (ordered by name):
+        //   - CvReviewEngine: the DI consumer — ctor-injects the ISpellChecker port.
+        //   - CriterionEvaluationContext: the internal per-criterion bundle whose primary ctor
+        //     CARRIES the already-resolved checker to the rules (parity how Analyzer/Cliches/Verbs
+        //     reach the rules — not a DI injection, a data-carrier record the engine builds).
+        // Any OTHER type taking ISpellChecker in a ctor is a premature/unexpected coupling.
+        consumers.ShouldBe(
+            ["CriterionEvaluationContext", "CvReviewEngine"],
+            "ISpellChecker har EXAKT två legitima konsumenter (C7 Stavning, #655): CvReviewEngine " +
+            "(DI) + CriterionEvaluationContext (bär checkern till reglerna). C7 är den SEPARATA " +
+            "maskinella stavningskriterien — C1 stannar NotAssessedV1 (ADR 0071 OQ3). En annan " +
+            "konsument är en oväntad koppling; utöka allowlisten ADDITIVT (namngiven mängd, " +
+            $"aldrig en blankett-regel). Faktiska konsumenter: {string.Join(", ", consumers)}");
     }
 }

@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 
@@ -237,12 +238,23 @@ internal sealed class B5ConsistentFormattingRule : ICriterionRule
     private static char? LeadMarker(string line)
     {
         var trimmed = line.TrimStart();
-        if (trimmed.Length < 2 || !BulletMarkers.Contains(trimmed[0]))
+        if (trimmed.Length < 2 || !BulletMarkers.Contains(trimmed[0]) || !char.IsWhiteSpace(trimmed[1]))
         {
             return null;
         }
 
-        return char.IsWhiteSpace(trimmed[1]) ? trimmed[0] : null;
+        // A marker (esp. the ambiguous "-") leading a BARE date range ("- 2020 – nuvarande") is
+        // a period line, not a bullet STYLE — excluding it avoids a spurious mixed-marker Warn
+        // (architect PR-6a Minor). A date-only line demonstrates no punctuation style, so
+        // dropping it costs nothing. Reuses the SAME parser DescriptionLines filters full
+        // period lines with (#487).
+        var rest = trimmed[1..].TrimStart();
+        if (PeriodParser.TryParse(rest, out _, out _, out _))
+        {
+            return null;
+        }
+
+        return trimmed[0];
     }
 }
 

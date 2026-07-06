@@ -252,7 +252,7 @@ internal sealed partial class C7SpellingRule : ICriterionRule
         {
             return CvCriterionVerdict.Assessed("C7", category, CriterionVerdict.Warn,
                 ReviewText.Cite(ReviewText.Span(prose, misspelled[0],
-                    $"{misspelled.Count} möjliga stavfel. Kontrollera stavningen mot ordlistan")));
+                    $"{misspelled.Count} möjliga stavfel. Kontrollera stavningen mot ordlistan.")));
         }
 
         return CvCriterionVerdict.Assessed("C7", category, CriterionVerdict.Pass,

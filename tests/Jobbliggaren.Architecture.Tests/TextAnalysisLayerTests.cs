@@ -18,9 +18,10 @@ namespace Jobbliggaren.Architecture.Tests;
 /// (English support is wired at F4-8/9, TextLanguage contract). The internal-to-
 /// Infrastructure namespace scan below is by NAMESPACE (<c>Jobbliggaren.Infrastructure
 /// .TextAnalysis</c>), not by type name, so the rename keeps it green without edits.
-/// The ISpellChecker consumer-allowlist is now EXACTLY <c>{CvReviewEngine}</c>: Fas 4b PR-6a
-/// (#655) added the SEPARATE C7 spelling criterion (Stavning maskinell kontroll), whose rule
-/// reads the checker through the engine — the first and only legitimate consumer. C1 (genuine
+/// The ISpellChecker consumer-allowlist is now EXACTLY <c>{CriterionEvaluationContext,
+/// CvReviewEngine}</c>: Fas 4b PR-6a (#655) added the SEPARATE C7 spelling criterion (Stavning
+/// maskinell kontroll), whose rule reads the checker via the engine (DI) + the per-criterion
+/// context record that carries it to the rules — the first legitimate consumers. C1 (genuine
 /// spelling+grammar) STAYS NotAssessedV1 (ADR 0071 OQ3); C7 never claims the grammar half nor
 /// the critical slot. The allowlist stays a closed, observable set (CTO fråga 3, bindande) —
 /// extend ADDITIVELY, never widen to a blanket rule.</para>
@@ -146,14 +147,15 @@ public class TextAnalysisLayerTests
     // ===============================================================
 
     [Fact]
-    public void Only_the_review_engine_consumes_ISpellChecker()
+    public void Only_the_review_engine_and_its_evaluation_context_consume_ISpellChecker()
     {
         // Build the actual constructor-consumer list across Application AND
         // Infrastructure (the impl HunspellSpellChecker and the
         // AddTextAnalysis DI registration are NOT constructor-consumers of the
         // PORT — they construct the impl, they don't inject ISpellChecker). The
-        // ONLY legitimate consumer is CvReviewEngine (the C7 spelling criterion);
-        // any OTHER constructor that takes ISpellChecker is a premature/unexpected consumer.
+        // TWO legitimate consumers are CvReviewEngine (DI) + CriterionEvaluationContext
+        // (the C7 spelling criterion's data-carrier); any OTHER constructor that takes
+        // ISpellChecker is a premature/unexpected consumer.
         var port = typeof(Jobbliggaren.Application.Common.Abstractions.TextAnalysis.ISpellChecker);
 
         var assemblies = new[]

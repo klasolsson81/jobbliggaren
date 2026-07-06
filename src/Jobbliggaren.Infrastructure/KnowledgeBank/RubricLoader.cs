@@ -25,7 +25,8 @@ internal static class RubricLoader
     private const string ResourceName =
         "Jobbliggaren.Infrastructure.KnowledgeBank.rubric.v2.0.0.json";
 
-    /// <summary>Loads the committed v1 rubric from the embedded resource.</summary>
+    /// <summary>Loads the committed rubric asset (currently <c>rubric.v2.0.0.json</c>) from
+    /// the embedded resource.</summary>
     internal static Rubric Load()
     {
         var asm = typeof(RubricLoader).Assembly;

@@ -48,18 +48,24 @@ internal sealed class CvReviewEngine : ICvReviewEngine
     private readonly IClicheLexicon _clicheLexicon;
     private readonly IVerbMapper _verbMapper;
     private readonly ITextAnalyzer _analyzer;
+    private readonly ISpellChecker _spellChecker;
+    private readonly ISpellingAllowlist _spellingAllowlist;
     private readonly FrozenDictionary<string, ICriterionRule> _rules;
 
     public CvReviewEngine(
         IRubricProvider rubricProvider,
         IClicheLexicon clicheLexicon,
         IVerbMapper verbMapper,
-        ITextAnalyzer analyzer)
+        ITextAnalyzer analyzer,
+        ISpellChecker spellChecker,
+        ISpellingAllowlist spellingAllowlist)
     {
         _rubricProvider = rubricProvider ?? throw new ArgumentNullException(nameof(rubricProvider));
         _clicheLexicon = clicheLexicon ?? throw new ArgumentNullException(nameof(clicheLexicon));
         _verbMapper = verbMapper ?? throw new ArgumentNullException(nameof(verbMapper));
         _analyzer = analyzer ?? throw new ArgumentNullException(nameof(analyzer));
+        _spellChecker = spellChecker ?? throw new ArgumentNullException(nameof(spellChecker));
+        _spellingAllowlist = spellingAllowlist ?? throw new ArgumentNullException(nameof(spellingAllowlist));
         _rules = BuildRules().ToFrozenDictionary(rule => rule.CriterionId, StringComparer.Ordinal);
     }
 
@@ -71,6 +77,7 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         var rubric = _rubricProvider.GetRubric();
         var cliches = _clicheLexicon.GetClicheList();
         var verbs = _verbMapper.GetVerbMapping();
+        var allowlist = _spellingAllowlist.GetAllowlist();
         var language = context.Language == ResumeLanguage.En ? TextLanguage.English : TextLanguage.Swedish;
         var datedExperiences = BuildDatedExperiences(context);
 
@@ -80,7 +87,8 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         foreach (var criterion in inProfile)
         {
             var evaluation = new CriterionEvaluationContext(
-                context, criterion, profile, language, cliches, verbs, _analyzer, datedExperiences);
+                context, criterion, profile, language, cliches, verbs, _analyzer,
+                _spellChecker, allowlist, datedExperiences);
             scored.Add(Evaluate(evaluation));
         }
 
@@ -134,6 +142,14 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         new B1SectionsRule(),
         new B3ContactRule(),
         new B4PersonnummerRule(),
+        // Fas 4b PR-6 (ADR 0093 §D4, CTO-bind D-G): B5 formatting consistency, detected
+        // GEOMETRY-FREE from the linearized text (mixed bullet markers) so the verdict is
+        // arm-independent — the canonical SetFindingStatus recompute matches the staging
+        // review, which is what makes the styleOnly "Ignored" decision reachable e2e.
+        new B5ConsistentFormattingRule(),
+        // Fas 4b PR-6b (ADR 0093 §D4): B2 page count from the imported PDF's geometry
+        // (ICvLayoutAnalyzer). NotAssessed without geometry (canonical arm / DOCX / legacy).
+        new B2PageCountRule(),
         new B6DateFormatRule(),
         new B7ChronologyRule(),
         new B8FileNameRule(),
@@ -145,8 +161,16 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         // assess sentence-level sv/en mixing. Evaluate short-circuits to NotAssessed with the
         // asset-authored civic reason (parity A5/C1), never a fabricated Pass (§5 honesty).
         new C6AbbreviationsRule(),
+        // Fas 4b PR-6 (ADR 0093 §D4): C7 machine spelling check via the dormant-until-now
+        // Hunspell checker + the versioned proper-noun/tech-term allowlist. WARN-posture
+        // (misspelling -> Warn, never Fail); C1 (spelling+grammar) stays NotAssessedV1.
+        new C7SpellingRule(),
         new D1FileFormatRule(),
         new D6StandardHeadingsRule(),
+        // Fas 4b PR-6b (ADR 0093 §D4): D9 file size + E2 whitespace (tightest margin), both
+        // from the ICvLayoutAnalyzer metrics read at import. NotAssessed without metrics.
+        new D9FileSizeRule(),
+        new E2WhitespaceRule(),
     ];
 
     // Canonical structured dates are month-granular by construction — one shared token,

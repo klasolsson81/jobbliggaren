@@ -108,6 +108,41 @@ public class ParsedResumeAnalysisEndpointTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Import_then_GET_review_assesses_D9_from_file_size_and_NotAssesses_B2_without_geometry()
+    {
+        // Fas 4b PR-6b end-to-end wiring (with the layout_metrics migration applied): the import
+        // runs ICvLayoutAnalyzer on the fake 8-byte "%PDF" — which is not a real PDF, so the
+        // analyzer returns Failed with FileSizeBytes = 8. The persisted metrics then drive the
+        // review: D9 (file size) assesses the tiny file → Pass, while B2 (page count) has NO
+        // geometry → NotAssessed. This proves the analyzer→persist→review chain over real Postgres.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var id = await ImportAsync(_client, ct);
+
+        var get = await _client.GetAsync($"/api/v1/resumes/parsed/{id}/review?profile=Ats", ct);
+
+        get.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var json = await get.Content.ReadFromJsonAsync<JsonElement>(ct);
+
+        VerdictOf(json, "D9").ShouldBe("Pass",
+            "en 8-byte-fil är långt under storlekstaket → D9 Pass (filstorleken är känd även för en misslyckad geometri-parse).");
+        VerdictOf(json, "B2").ShouldBe("NotAssessed",
+            "en falsk PDF ger ingen sidgeometri → B2 NotAssessed (ärligt tak, aldrig fabricerad Pass/Fail).");
+    }
+
+    // Reads the `verdict` name for a given `criterionId` from the review's verdicts array.
+    private static string VerdictOf(JsonElement review, string criterionId)
+    {
+        foreach (var verdict in review.GetProperty("verdicts").EnumerateArray())
+        {
+            if (verdict.GetProperty("criterionId").GetString() == criterionId)
+                return verdict.GetProperty("verdict").GetString()!;
+        }
+
+        throw new InvalidOperationException($"Kriteriet {criterionId} saknas i granskningens verdicts.");
+    }
+
+    [Fact]
     public async Task Import_then_GET_improvements_returns_200_with_changes_array()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -24,6 +24,11 @@ internal sealed record CriterionEvaluationContext(
     ClicheList Cliches,
     VerbMapping Verbs,
     ITextAnalyzer Analyzer,
+    // Fas 4b PR-6 (ADR 0093 §D4): the C7 spelling criterion reads the Hunspell checker +
+    // the versioned proper-noun/tech-term allowlist through the context (rules are new()'d
+    // with no ctor deps — parity with how Analyzer/Cliches/Verbs reach the rules).
+    ISpellChecker SpellChecker,
+    SpellingAllowlist Allowlist,
     IReadOnlyList<DatedExperience> DatedExperiences)
 {
     /// <summary>The source-agnostic structured content view (CV-PII, decrypted upstream).</summary>
@@ -49,6 +54,11 @@ internal sealed record CriterionEvaluationContext(
 
     /// <summary>Parse-extraction integrity (D1) — null on the canonical arm (nothing was parsed).</summary>
     public ParseFallbackReason? ParseFallback => Review.ParseFallback;
+
+    /// <summary>Non-PII PDF layout metrics (Fas 4b PR-6b) — B2 page count / D9 file size / E2
+    /// whitespace. Null on the canonical arm (no source file until PR-9's Form C) so those
+    /// geometry criteria verdict NotAssessed (honest ceiling).</summary>
+    public CvLayoutMetrics? Layout => Review.Layout;
 
     /// <summary>The detected/known section kinds (D6) — parse-confidence-derived for
     /// staging, known-by-construction from the linearizer for canonical.</summary>

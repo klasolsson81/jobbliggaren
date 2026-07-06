@@ -539,6 +539,11 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.ICvTextExtractor,
             Resumes.Parsing.PdfPigOpenXmlCvTextExtractor>();
+        // Fas 4b PR-6b — PDF page-geometry analyzer (ICvLayoutAnalyzer), PdfPig confined here,
+        // stateless singleton (parity the extractor). Read at import; feeds B2/D9/E2.
+        services.AddSingleton<
+            Jobbliggaren.Application.Resumes.Abstractions.ICvLayoutAnalyzer,
+            Resumes.Parsing.PdfPigCvLayoutAnalyzer>();
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.IResumeSegmenter,
             Resumes.Parsing.HeadingDrivenResumeSegmenter>();
@@ -550,10 +555,10 @@ public static class DependencyInjection
     /// cliché lexicon + weak→strong verb mapping, three ISP ports over embedded VERSIONED
     /// DATA, §5) and the deterministic CV-review engine that scores a ParsedResume against
     /// them. All stateless singletons (bounded immutable data, parity ITaxonomyReadModel).
-    /// The engine consumes the NLP-tier <c>ITextAnalyzer</c>, so the caller must also call
-    /// <see cref="AddTextAnalysis"/>. Standalone module (parity AddTextAnalysis) so every host
-    /// AND the Worker test fixture register it without the job-source HTTP wiring.
-    /// NO ISpellChecker on the engine (C1 is NotAssessedV1, V-F). NO AI/LLM.
+    /// The engine consumes the NLP-tier <c>ITextAnalyzer</c> + <c>ISpellChecker</c> (Fas 4b
+    /// PR-6, C7 spelling), so the caller must also call <see cref="AddTextAnalysis"/>.
+    /// Standalone module (parity AddTextAnalysis) so every host AND the Worker test fixture
+    /// register it without the job-source HTTP wiring. NO AI/LLM.
     /// </summary>
     public static IServiceCollection AddCvReview(this IServiceCollection services)
     {
@@ -569,6 +574,11 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.KnowledgeBank.Abstractions.IFrameProvider,
             Jobbliggaren.Infrastructure.KnowledgeBank.FrameProvider>();
+        // Fas 4b PR-6 (ADR 0093 §D4): the C7 spelling criterion's proper-noun/tech-term
+        // allowlist — versioned KB DATA (§5), loaded + validated once at construction.
+        services.AddSingleton<
+            Jobbliggaren.Application.KnowledgeBank.Abstractions.ISpellingAllowlist,
+            Jobbliggaren.Infrastructure.KnowledgeBank.SpellingAllowlistProvider>();
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Review.Abstractions.ICvReviewEngine,
             Jobbliggaren.Infrastructure.Resumes.Review.CvReviewEngine>();

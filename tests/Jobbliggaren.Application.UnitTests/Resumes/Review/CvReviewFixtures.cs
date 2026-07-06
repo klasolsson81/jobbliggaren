@@ -64,6 +64,22 @@ internal static class CvReviewFixtures
 
     internal static ITextAnalyzer Analyzer() => new WhitespaceTextAnalyzer();
 
+    // ── C7 spelling ports (Fas 4b PR-6, ADR 0093 §D4) ────────────────────
+    // The engine now takes an ISpellChecker + ISpellingAllowlist (6-arg ctor). For the
+    // targeted engine/citation/redaction/binding unit tests we feed a STUB checker that
+    // deems EVERY word correct — so C7 is deterministically Pass and no test asserts against
+    // the DSSO/en_US vocabulary (that vocabulary parity is the corpus + C7-rule tests' job).
+    // The allowlist is the REAL committed asset (golden source, parity RealRubricProvider).
+    private sealed class AllCorrectSpellCheckerStub : ISpellChecker
+    {
+        public bool Check(string word, TextLanguage language) => true;
+        public IReadOnlyList<string> Suggest(string word, TextLanguage language) => [];
+    }
+
+    internal static ISpellChecker AllCorrectSpellChecker() => new AllCorrectSpellCheckerStub();
+
+    internal static ISpellingAllowlist RealAllowlist() => new SpellingAllowlistProvider();
+
     // ── ParsedResume builders ────────────────────────────────────────────
 
     internal static ParsedExperience Experience(
@@ -163,7 +179,11 @@ internal static class CvReviewFixtures
         string sourceContentType = "application/pdf",
         ResumeLanguage? detectedLanguage = null,
         ParseConfidence? confidence = null,
-        PersonnummerScanOutcome? personnummer = null)
+        PersonnummerScanOutcome? personnummer = null,
+        // Fas 4b PR-6b — non-PII layout metrics (page count / file size / tightest margin) the
+        // geometry criteria (B2/D9/E2) read. Null by default (a layout-less parse) so the
+        // existing callers are unchanged and B2/D9/E2 verdict NotAssessed unless a test opts in.
+        CvLayoutMetrics? layoutMetrics = null)
     {
         var content = new ParsedResumeContent(
             contact ?? CompleteContact(),
@@ -183,7 +203,8 @@ internal static class CvReviewFixtures
             confidence ?? ConfidentConfidence(),
             personnummer ?? PersonnummerScanOutcome.None,
             [],
-            FixedClock.Default);
+            FixedClock.Default,
+            layoutMetrics: layoutMetrics);
 
         return created.Value;
     }

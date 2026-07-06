@@ -743,6 +743,10 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("job_seeker_id");
 
+                    b.Property<string>("LayoutMetrics")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("layout_metrics");
+
                     b.Property<string>("ParsedContentEnc")
                         .HasColumnType("text")
                         .HasColumnName("parsed_content_enc");

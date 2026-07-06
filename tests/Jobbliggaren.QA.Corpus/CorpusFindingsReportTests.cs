@@ -103,7 +103,10 @@ public sealed class CorpusFindingsReportTests : IAsyncLifetime
 
         // ── Reviewer pass: verdict distribution + non-B4 pnr-echo finding ───
         var engine = new CvReviewEngine(new RubricProvider(), new ClicheLexicon(), new VerbMapper(),
-            new LocalTextAnalyzer(new SnowballStemmer()));
+            new LocalTextAnalyzer(new SnowballStemmer()),
+            // Fas 4b PR-6a (#655): REAL Hunspell + REAL allowlist so the reported verdict
+            // distribution includes a faithful C7 (spelling) column end-to-end.
+            new HunspellSpellChecker(), new SpellingAllowlistProvider());
         var verdictStats = new Dictionary<string, int[]>(StringComparer.Ordinal); // [pass, warn, fail, notassessed]
         var reviewerCrashes = 0;
         var fakePnrCases = 0;

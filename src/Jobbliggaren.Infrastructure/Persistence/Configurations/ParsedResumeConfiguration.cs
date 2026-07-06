@@ -97,6 +97,20 @@ public sealed class ParsedResumeConfiguration : IEntityTypeConfiguration<ParsedR
             .HasColumnType("jsonb")
             .IsRequired();
 
+        // Fas 4b PR-6b — non-PII layout metrics (page count / file size / tightest margin) read
+        // from the source PDF at import. NULLABLE jsonb: a pre-PR-6b import (or a non-analyzed
+        // one) has none, and the review verdicts NotAssessed on null (the converter runs only on
+        // a non-null value; EF stores NULL otherwise). Parity parse_confidence — plain column,
+        // NOT the DEK shadow (it carries no CV text).
+        // The JsonConverter helper is typed for the non-null T; cast to the non-generic
+        // ValueConverter overload so it binds to the CvLayoutMetrics? property (EF runs the
+        // converter only on a non-null value and stores NULL for null — the nullable column).
+        var (layoutConverter, layoutComparer) = JsonConverter<CvLayoutMetrics>();
+        builder.Property(p => p.LayoutMetrics)
+            .HasConversion((ValueConverter)layoutConverter, layoutComparer)
+            .HasColumnName("layout_metrics")
+            .HasColumnType("jsonb");
+
         var (proposalsConverter, proposalsComparer) = JsonConverter<List<ProposedOccupation>>();
         builder.Property<List<ProposedOccupation>>("_occupationProposals")
             .HasField("_occupationProposals")

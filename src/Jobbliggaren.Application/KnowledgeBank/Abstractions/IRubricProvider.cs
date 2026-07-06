@@ -8,6 +8,6 @@ namespace Jobbliggaren.Application.KnowledgeBank.Abstractions;
 /// </summary>
 public interface IRubricProvider
 {
-    /// <summary>The current committed rubric (<c>rubric.v1.2.0.json</c>).</summary>
+    /// <summary>The current committed rubric (<c>rubric.v2.1.0.json</c>).</summary>
     Rubric GetRubric();
 }

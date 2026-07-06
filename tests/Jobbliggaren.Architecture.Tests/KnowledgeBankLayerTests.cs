@@ -70,6 +70,8 @@ public class KnowledgeBankLayerTests
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.FrameCatalog),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.CvFrame),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.FrameSlot),
+            // Fas 4b PR-6a (#655): the versioned spelling-allowlist value the C7 criterion reads.
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.SpellingAllowlist),
         })
         {
             t.Assembly.ShouldBe(ApplicationAsm,
@@ -86,6 +88,8 @@ public class KnowledgeBankLayerTests
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IClicheLexicon),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IFrameProvider),
+            // Fas 4b PR-6a (#655): the C7 spelling-allowlist port (parity the other KB ISP ports).
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ISpellingAllowlist),
         })
         {
             port.Assembly.ShouldBe(ApplicationAsm,
@@ -105,6 +109,7 @@ public class KnowledgeBankLayerTests
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IClicheLexicon),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IFrameProvider),
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ISpellingAllowlist),
         })
         {
             port.Assembly.ShouldNotBe(InfrastructureAsm);
@@ -297,6 +302,8 @@ public class KnowledgeBankLayerTests
         {
             "RubricProvider", "ClicheLexicon", "VerbMapper", "RubricLoader",
             "FrameProvider", "FramesLoader",
+            // Fas 4b PR-6a (#655): the embedded spelling-allowlist provider for C7.
+            "SpellingAllowlistProvider",
         })
         {
             names.ShouldContain(expected,
@@ -324,7 +331,12 @@ public class KnowledgeBankLayerTests
     [Fact]
     public void Provider_impls_are_sealed()
     {
-        foreach (var name in new[] { "RubricProvider", "ClicheLexicon", "VerbMapper", "FrameProvider" })
+        foreach (var name in new[]
+        {
+            "RubricProvider", "ClicheLexicon", "VerbMapper", "FrameProvider",
+            // Fas 4b PR-6a (#655): the spelling-allowlist provider is internal sealed too.
+            "SpellingAllowlistProvider",
+        })
         {
             var impl = InfrastructureAsm.GetTypes()
                 .Single(t => t.Namespace == ProviderNamespace && t.Name == name);
@@ -353,5 +365,8 @@ public class KnowledgeBankLayerTests
         typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IFrameProvider)
             .IsAssignableFrom(infra.Single(t => t.Name == "FrameProvider"))
             .ShouldBeTrue("FrameProvider ska implementera IFrameProvider.");
+        typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ISpellingAllowlist)
+            .IsAssignableFrom(infra.Single(t => t.Name == "SpellingAllowlistProvider"))
+            .ShouldBeTrue("SpellingAllowlistProvider ska implementera ISpellingAllowlist.");
     }
 }

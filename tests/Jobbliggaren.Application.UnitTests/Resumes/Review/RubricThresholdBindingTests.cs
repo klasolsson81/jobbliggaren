@@ -27,7 +27,8 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 public class RubricThresholdBindingTests
 {
     private static CvReviewEngine EngineWith(IRubricProvider provider) =>
-        new(provider, RealClicheLexicon(), RealVerbMapper(), Analyzer());
+        new(provider, RealClicheLexicon(), RealVerbMapper(), Analyzer(),
+            AllCorrectSpellChecker(), RealAllowlist());
 
     // The REAL rubric with ONE criterion's Thresholds replaced — nothing else changes, so only the
     // mutated key can move a verdict (parity FakeRubricProviderWithNullReasonOnA5, CvReviewEngineTests).
@@ -150,6 +151,79 @@ public class RubricThresholdBindingTests
             new() { [RubricThresholdKeys.MaxDistinctDateFormats] = 2 });
         (await VerdictUnder(raised, resume, "B6"))
             .ShouldBe(CriterionVerdict.Pass, "Samma CV, tröskeln höjd till 2 → 2 ≤ 2 → Pass (regeln läser DATA).");
+    }
+
+    // ===============================================================
+    // B2 Längd — maxPages (Fas 4b PR-6b geometry threshold)
+    // ===============================================================
+
+    [Fact]
+    public async Task B2_ShouldMoveFromWarnToPass_WhenMaxPagesIsRaised()
+    {
+        // A 3-page PDF. Real rubric maxPages = 2 → 3 > 2 → Warn; raise it to 3 in the DATA → 3 ≤ 3
+        // → Pass. The geometry rides on the ParsedResume's layout metrics (the analyzer's output).
+        var resume = Resume(layoutMetrics: CvLayoutMetrics.Analyzed(fileSizeBytes: 300_000, pageCount: 3, minMarginPoints: 40));
+
+        (await VerdictUnder(RealRubricProvider(), resume, "B2"))
+            .ShouldBe(CriterionVerdict.Warn, "3 sidor > 2 (rubrikens värde) → Warn.");
+
+        var raised = ProviderWithThresholds("B2", new() { [RubricThresholdKeys.MaxPages] = 3 });
+        (await VerdictUnder(raised, resume, "B2"))
+            .ShouldBe(CriterionVerdict.Pass, "Samma CV, taket höjt till 3 → 3 ≤ 3 → Pass (regeln läser DATA).");
+    }
+
+    // ===============================================================
+    // D9 Filstorlek — fileSizeWarnBytes (Fas 4b PR-6b geometry threshold)
+    // ===============================================================
+
+    [Fact]
+    public async Task D9_ShouldMoveFromWarnToPass_WhenFileSizeWarnBytesIsRaised()
+    {
+        // A 3 MB file. Real rubric warnBytes = 2 MB → 3 MB > 2 MB → Warn; raise warnBytes to 4 MB
+        // (failBytes unchanged at 5 MB) → 3 MB < 4 MB → Pass. Both keys are supplied because D9
+        // reads BOTH fail-loud (a missing one would throw, not fall back to a literal).
+        const long threeMegabytes = 3L * 1024 * 1024;
+        var resume = Resume(layoutMetrics: CvLayoutMetrics.Analyzed(threeMegabytes, pageCount: 1, minMarginPoints: 40));
+
+        (await VerdictUnder(RealRubricProvider(), resume, "D9"))
+            .ShouldBe(CriterionVerdict.Warn, "3 MB > 2 MB (rubrikens varnings-tak) → Warn.");
+
+        var raised = ProviderWithThresholds("D9", new()
+        {
+            [RubricThresholdKeys.FileSizeWarnBytes] = 4L * 1024 * 1024,
+            [RubricThresholdKeys.FileSizeFailBytes] = 5L * 1024 * 1024,
+        });
+        (await VerdictUnder(raised, resume, "D9"))
+            .ShouldBe(CriterionVerdict.Pass, "Samma CV, varnings-taket höjt till 4 MB → 3 MB < 4 MB → Pass (DATA).");
+    }
+
+    // ===============================================================
+    // E2 Whitespace — minMarginPointsFloor (Fas 4b PR-6b geometry threshold, VisualOnly)
+    // ===============================================================
+
+    [Fact]
+    public async Task E2_ShouldMoveFromWarnToNotAssessed_WhenMinMarginFloorIsLowered()
+    {
+        // A ~20 pt tightest margin. Real rubric minMarginPointsFloor = 28.35 → 20 < 28.35 → Warn
+        // (cramped); lower the floor to 10 in the DATA → 20 ≥ 10 → NotAssessed (never Pass — E2's
+        // honest ceiling). E2 is VisualOnly, so it is reviewed in the Visual profile.
+        var resume = Resume(layoutMetrics: CvLayoutMetrics.Analyzed(fileSizeBytes: 200_000, pageCount: 1, minMarginPoints: 20));
+
+        (await VisualVerdictUnder(RealRubricProvider(), resume, "E2"))
+            .ShouldBe(CriterionVerdict.Warn, "20 pt < 28,35 pt (rubrikens golv) → Warn (knapp marginal).");
+
+        var lowered = ProviderWithThresholds("E2",
+            new() { [RubricThresholdKeys.MinMarginPointsFloor] = 10 });
+        (await VisualVerdictUnder(lowered, resume, "E2"))
+            .ShouldBe(CriterionVerdict.NotAssessed, "Samma CV, golvet sänkt till 10 → 20 ≥ 10 → NotAssessed (DATA).");
+    }
+
+    private static async Task<CriterionVerdict> VisualVerdictUnder(
+        IRubricProvider provider, ParsedResume resume, string criterionId)
+    {
+        var result = await EngineWith(provider).ReviewAsync(
+            CvReviewContext.FromParsed(resume), RenderProfile.Visual, TestContext.Current.CancellationToken);
+        return Verdict(result, criterionId).Verdict;
     }
 
     // ===============================================================

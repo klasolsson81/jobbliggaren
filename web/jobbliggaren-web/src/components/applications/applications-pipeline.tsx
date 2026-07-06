@@ -1,12 +1,15 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import {
   applicationStatusLabel,
   isActivePipelineStatus,
   PIPELINE_ORDER,
 } from "@/lib/applications/status";
+import { applicationMatchesQuery } from "@/lib/applications/search";
+import type { ApplicationsView } from "@/lib/applications/view";
+import { setApplicationsViewAction } from "@/lib/actions/set-applications-view-action";
 import type {
   ApplicationDto,
   ApplicationStatus,
@@ -15,6 +18,7 @@ import type {
 import { ApplicationActionsProvider } from "./application-actions";
 import { AttentionQueue } from "./attention-queue";
 import { ApplicationsControls } from "./applications-controls";
+import { ApplicationsBoard } from "./applications-board";
 import { StepRail } from "./step-rail";
 import { StatusSection } from "./status-section";
 
@@ -37,6 +41,9 @@ interface ApplicationsPipelineProps {
   // referenspunkt per request; rekonstrueras EN gång här och trådas ned till
   // raderna — aldrig new Date() per rad (ingen hydrerings-drift, testbart).
   nowIso: string;
+  // Vy-preferensen läst SSR ur cookien (ADR 0092 D7) → seedar `view` så
+  // första-paint renderar rätt vy utan flash. Ren serialiserbar sträng (D2).
+  initialView: ApplicationsView;
 }
 
 /**
@@ -46,17 +53,22 @@ interface ApplicationsPipelineProps {
  * StatusSection) lever innanför klientgränsen och delar containerns state
  * (`query`, `statusFilter`) — SoC utan en gud-komponent (CTO-bind).
  *
- * Ordning uppifrån (design §3–7): "Kräver åtgärd"-kön → "Alla ansökningar"-rubrik
- * → kontrollrad (sök + filterchip) → stegrail → grupperade Lista-sektioner.
+ * Ordning uppifrån (design §3–7): "Kräver åtgärd"-kön + "Alla ansökningar"-rubrik
+ * + kontrollrad (sök + VY-växlare) är DELAD chrome ovanför vyn (ADR 0092 D1);
+ * under den byter `view` mellan Lista (stegrail + grupperade sektioner) och Tavla
+ * (kanban). Rail + filterchip döljs i Tavla; ett aktivt stegfilter ignoreras där
+ * (kolumnerna ÄR översikten) — bara sök filtrerar korten (D1/§6).
  *
- * PR 5-scope: ren presentation/navigation. Inga action-affordanser (kort-CTA +
- * radknappar → PR 7), ingen detaljpanel (→ PR 6), ingen vy-växlare (→ PR 8).
+ * PR 8-scope: vy-växlaren (Lista/Tavla; Tabell → PR 10) + cookie-persistens (D7)
+ * + Tavla-boardet. Vy-växlingen är en ren klient-beräkning över redan hämtad data
+ * (D2) — cookien skrivs fire-and-forget, ingen router.refresh, ingen flash.
  * 2a-doktrin: kön DUPLICERAR (ADR 0092 supersederar ADR 0085 §343 MOVE) — appar
  * ligger kvar i sina statusgrupper; listan är "Alla".
  */
 export function ApplicationsPipeline({
   groups,
   nowIso,
+  initialView,
 }: ApplicationsPipelineProps) {
   const tEnum = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
@@ -71,22 +83,31 @@ export function ApplicationsPipeline({
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | null>(
     null,
   );
+  // Vy seedas från SSR-propen (D7) → ingen flash. Växlingen är omedelbar ren
+  // klient-state; cookien persistas fire-and-forget i en transition (INTE
+  // await:ad, INGEN router.refresh) — den är bara till för nästa-paint (D2).
+  const [view, setView] = useState<ApplicationsView>(initialView);
+  const [, startViewPersist] = useTransition();
+
+  const onViewChange = (next: ApplicationsView) => {
+    setView(next);
+    startViewPersist(() => {
+      void setApplicationsViewAction(next);
+    });
+  };
 
   const trimmedQuery = query.trim().toLowerCase();
   const hasSearch = trimmedQuery.length > 0;
   // Aktivt filter/sök tvingar matchande grupper öppna (design §5).
   const forceOpen = hasSearch || statusFilter != null;
 
-  // Sök på roll + företag (klient-side v1, ADR 0092 D2 / YAGNI). En ansökan utan
-  // kopplad annons matchar bara tom sökning.
+  // Sök på roll + företag (klient-side v1, ADR 0092 D2 / YAGNI) — delad SSOT med
+  // Tavla-boardet via applicationMatchesQuery (DRY). En ansökan utan kopplad
+  // annons matchar bara tom sökning.
   const matches = useMemo(() => {
-    return (application: ApplicationDto): boolean => {
-      if (!hasSearch) return true;
-      const haystack =
-        `${application.jobAd?.title ?? ""} ${application.jobAd?.company ?? ""}`.toLowerCase();
-      return haystack.includes(trimmedQuery);
-    };
-  }, [hasSearch, trimmedQuery]);
+    return (application: ApplicationDto): boolean =>
+      applicationMatchesQuery(application, trimmedQuery);
+  }, [trimmedQuery]);
 
   // Lista-sektioner (design §5): ALLA icke-tomma statusgrupper i pipelineordning.
   // 2a DUPLICAT-doktrin — kö-appar exkluderas INTE (listan = komplett). Aktivt
@@ -135,43 +156,58 @@ export function ApplicationsPipeline({
           <h2 id="all-apps-heading" className="jp-section__title">
             {tUi("all.title")}
           </h2>
-          <span className="jp-section__count">{shownTotal}</span>
-          <span className="jp-section__hint">{tUi("all.hint")}</span>
+          {/* I Tavla bär boardets egen verktygsrad antalet ("N ansökningar ·
+              N aktiva") — undvik dubbelräkning i rubriken. */}
+          {view === "lista" && (
+            <>
+              <span className="jp-section__count">{shownTotal}</span>
+              <span className="jp-section__hint">{tUi("all.hint")}</span>
+            </>
+          )}
         </div>
 
         <ApplicationsControls
           query={query}
           onQueryChange={setQuery}
-          activeFilterLabel={activeFilterLabel}
+          // Filterchipen döljs i Tavla (stegfiltret ignoreras där, D1/§6).
+          activeFilterLabel={view === "tavla" ? null : activeFilterLabel}
           onClearFilter={() => setStatusFilter(null)}
+          view={view}
+          onViewChange={onViewChange}
         />
 
-        <StepRail
-          groups={groups}
-          statusFilter={statusFilter}
-          onToggle={toggleFilter}
-        />
-
-        {sections.length === 0 ? (
-          <div className="jp-allapps__empty">{tUi("all.noResults")}</div>
+        {view === "tavla" ? (
+          <ApplicationsBoard groups={groups} now={now} query={query} />
         ) : (
-          sections.map((section) => (
-            <Fragment key={section.status}>
-              {section.status === firstTerminalStatus && (
-                <p className="jp-allapps__restkicker jp-mono">
-                  {tUi("all.terminalKicker")}
-                </p>
-              )}
-              <StatusSection
-                status={section.status}
-                label={applicationStatusLabel(tEnum, section.status)}
-                applications={section.applications}
-                now={now}
-                defaultOpen={DEFAULT_OPEN_STATUSES.has(section.status)}
-                forceOpen={forceOpen}
-              />
-            </Fragment>
-          ))
+          <>
+            <StepRail
+              groups={groups}
+              statusFilter={statusFilter}
+              onToggle={toggleFilter}
+            />
+
+            {sections.length === 0 ? (
+              <div className="jp-allapps__empty">{tUi("all.noResults")}</div>
+            ) : (
+              sections.map((section) => (
+                <Fragment key={section.status}>
+                  {section.status === firstTerminalStatus && (
+                    <p className="jp-allapps__restkicker jp-mono">
+                      {tUi("all.terminalKicker")}
+                    </p>
+                  )}
+                  <StatusSection
+                    status={section.status}
+                    label={applicationStatusLabel(tEnum, section.status)}
+                    applications={section.applications}
+                    now={now}
+                    defaultOpen={DEFAULT_OPEN_STATUSES.has(section.status)}
+                    forceOpen={forceOpen}
+                  />
+                </Fragment>
+              ))
+            )}
+          </>
         )}
       </section>
     </ApplicationActionsProvider>

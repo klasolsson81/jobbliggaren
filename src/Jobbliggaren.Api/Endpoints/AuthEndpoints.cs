@@ -1,6 +1,8 @@
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Commands.ChangeEmail;
 using Jobbliggaren.Application.Auth.Commands.ChangePassword;
+using Jobbliggaren.Application.Auth.Commands.ConfirmEmailChange;
 using Jobbliggaren.Application.Auth.Commands.Login;
 using Jobbliggaren.Application.Auth.Commands.Logout;
 using Jobbliggaren.Application.Auth.Commands.RefreshSession;
@@ -9,10 +11,11 @@ using Jobbliggaren.Application.Auth.Queries.VerifyCredentials;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Mediator;
+using Microsoft.Extensions.Logging;
 
 namespace Jobbliggaren.Api.Endpoints;
 
-public static class AuthEndpoints
+public static partial class AuthEndpoints
 {
     public static void MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
@@ -131,6 +134,66 @@ public static class AuthEndpoints
             });
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+
+        // Self-service change-email — REQUEST step (#679, epik #481). Re-auth-gated like
+        // change-password: the CURRENT password is verified server-side by ReauthenticationBehavior
+        // (wrong -> byte-identical 401) BEFORE the handler. A taken address is a 409 (clear "adressen
+        // är upptagen"), a malformed address a 400. On success the handler emails an ownership-
+        // confirmation link to the NEW address and returns 202 Accepted — the email is NOT changed and
+        // NO session is touched until the link is confirmed (see /confirm-email-change). AuthWrite
+        // rate-limit — same credential-risk profile as /login and /change-password.
+        group.MapPost("/change-email", async (
+            ChangeEmailRequest body,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(
+                new ChangeEmailCommand(body.CurrentPassword, body.NewEmail), ct);
+            return result.IsFailure
+                ? ToErrorResult(result.Error)
+                : Results.Accepted();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+
+        // Self-service change-email — CONFIRM step (#679). PUBLIC (no RequireAuthorization): the link
+        // is opened from the NEW inbox, possibly logged-out or on a different device, so the opaque
+        // single-use token IS the authorization. Every rejection is a uniform 400 (no account/enum
+        // oracle). On success the email is swapped and the endpoint enacts C6 — logout-everywhere —
+        // because a recovery-vector change must invalidate all sessions (the Redis store is
+        // independent of Identity's SecurityStamp, so stamp rotation does not touch it). AuthWrite
+        // rate-limit (per-IP) against generic abuse of the public endpoint; the opaque token is not
+        // brute-forceable, so no per-uid limiter is needed (CTO-bind #3).
+        group.MapPost("/confirm-email-change", async (
+            ConfirmEmailChangeRequest body,
+            IMediator mediator,
+            ISessionStore sessions,
+            ILogger<ConfirmEmailChangeCommand> logger,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(
+                new ConfirmEmailChangeCommand(body.Uid, body.Email, body.Token), ct);
+            if (result.IsFailure)
+                return ToErrorResult(result.Error);
+
+            var userId = result.Value;
+
+            // C6 — the email (an account-recovery vector) just changed: log out EVERY session so the
+            // account is re-authenticated with the new address. NO re-issue (the confirming client is
+            // not necessarily the user's session). CancellationToken.None: the change is committed; a
+            // disconnect must not leave sessions alive. Best-effort + logged as a security event — a
+            // Redis blip must not fail a completed change, but live-session residue must be detectable
+            // (CTO risk 3).
+            try
+            {
+                await sessions.InvalidateAllForUserAsync(userId, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                LogSessionInvalidationFailed(logger, ex, userId);
+            }
+
+            return Results.NoContent();
+        }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
     }
 
     /// <summary>
@@ -139,6 +202,21 @@ public static class AuthEndpoints
     /// ChangePasswordCommandValidator). A pure transport DTO; neither value is logged.
     /// </summary>
     public sealed record ChangePasswordRequest(string? CurrentPassword, string? NewPassword);
+
+    /// <summary>
+    /// POST /auth/change-email body — the current password (server-side re-auth via
+    /// ReauthenticationBehavior) and the new email address (uniqueness pre-checked; ownership
+    /// confirmed via an emailed link before the swap). A pure transport DTO; neither value is logged.
+    /// </summary>
+    public sealed record ChangeEmailRequest(string? CurrentPassword, string? NewEmail);
+
+    /// <summary>
+    /// POST /auth/confirm-email-change body — the (uid, new email, URL-safe token) carried by the
+    /// confirmation link and posted from the public landing page. Token-gated (the link is opened from
+    /// the new inbox, possibly logged-out): the token is the authorization. A pure transport DTO; the
+    /// token is never logged.
+    /// </summary>
+    public sealed record ConfirmEmailChangeRequest(Guid Uid, string? Email, string? Token);
 
     // 401 is an authentication-identity status ("who are you"), a different axis from the
     // request/resource-semantics the kind-union models (400/404/409/410) — so it stays an
@@ -161,4 +239,12 @@ public static class AuthEndpoints
         AuthErrorCodes.InvalidCredentials or AuthErrorCodes.AccountLocked => AuthProblem.InvalidCredentials(),
         _ => error.ToProblemResult(),
     };
+
+    // C6 session-invalidation is best-effort: a completed email change must not be failed by a Redis
+    // blip, but live-session residue must be detectable (CTO risk 3). Source-gen per CA1848; no
+    // recipient/PII, only the userId surrogate.
+    [LoggerMessage(Level = LogLevel.Error,
+        Message = "Change-email confirm: session invalidation FAILED for user {UserId} — " +
+                  "email changed, sessions may still be live")]
+    private static partial void LogSessionInvalidationFailed(ILogger logger, Exception ex, Guid userId);
 }

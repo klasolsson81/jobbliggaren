@@ -147,7 +147,24 @@
     "controls": {
       "searchAriaLabel": "Search applications",
       "filterPrefix": "Filter:",
-      "clearFilterAriaLabel": "Remove the {step} filter"
+      "clearFilterAriaLabel": "Remove the {step} filter",
+      "viewLabel": "View",
+      "viewSwitchAriaLabel": "Show applications as"
+    },
+    "view": {
+      "lista": "List",
+      "tavla": "Board"
+    },
+    "board": {
+      "toolbarCount": "{count, plural, one {# application} other {# applications}} · {active, plural, one {# active} other {# active}}",
+      "toolbarHint": "Drag a card to another step. Click a card for details.",
+      "showMore": "Show {count} more",
+      "showFewer": "Show fewer",
+      "emptyColumn": "No applications here",
+      "emptyAccepted": "Drop here when you accept",
+      "emptyZone": "Empty",
+      "ghostHint": "Drag a card back to Submitted to reactivate it.",
+      "daysShort": "{days} d"
     },
     "rail": {
       "kicker": "All 10 steps",

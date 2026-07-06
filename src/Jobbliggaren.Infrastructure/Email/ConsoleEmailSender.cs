@@ -46,6 +46,31 @@ public sealed partial class ConsoleEmailSender(
         return Task.CompletedTask;
     }
 
+    public Task SendEmailChangeConfirmationAsync(
+        string toEmail,
+        EmailChangeConfirmationEmail content,
+        EmailChangeConfirmationIdempotencyKey idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        // idempotencyKey is a Resend-only concern; the dev console sender just renders the template.
+        // The confirmation link (with the plaintext token) is written to the log here — acceptable in
+        // Dev/Test (this sender is Dev/Test-only; NullEmailSender is the non-dev fallback), NEVER in
+        // prod. Read the link out of the console/Seq log to complete the flow locally.
+        var body = EmailTemplates.EmailChangeConfirmation(_options.BaseUrl, content);
+        LogEmail(toEmail, body.Subject, body.PlainTextBody);
+        return Task.CompletedTask;
+    }
+
+    public Task SendEmailChangedNotificationAsync(
+        string toEmail,
+        EmailChangedNotificationIdempotencyKey idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        var body = EmailTemplates.EmailChangedNotification(_options.BaseUrl);
+        LogEmail(toEmail, body.Subject, body.PlainTextBody);
+        return Task.CompletedTask;
+    }
+
     [LoggerMessage(3001, LogLevel.Information,
         "[ConsoleEmailSender] To={To} Subject={Subject}\n---\n{Body}\n---")]
     private partial void LogEmail(string to, string subject, string body);

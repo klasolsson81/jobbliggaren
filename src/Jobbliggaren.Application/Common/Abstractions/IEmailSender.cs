@@ -49,4 +49,35 @@ public interface IEmailSender
         FollowedCompanyNotificationEmail content,
         FollowedCompanyNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Skickar e-post-bytets ÄGANDEBEKRÄFTELSE (#679) till den NYA adressen. <paramref name="content"/>
+    /// bär mottagarens egen nya adress + en opak, engångs-, URL-säker token som mallen bygger
+    /// bekräftelselänken av (<c>{BaseUrl}/bekrafta-epost?uid=&amp;email=&amp;token=</c>). Adressen ändras
+    /// INTE förrän länken öppnas. Detta är kodbasens första token→mejl→confirm-väg (registreringen är
+    /// inte e-post-bekräftad).
+    /// <para>
+    /// <paramref name="idempotencyKey"/> är en deterministisk, PII-fri markör som det transaktionella
+    /// utskicket (Resend) använder för att inte dubbel-leverera vid en transport-retry. Icke-
+    /// transaktionella impls (Console/Null) ignorerar den.
+    /// </para>
+    /// </summary>
+    Task SendEmailChangeConfirmationAsync(
+        string toEmail,
+        EmailChangeConfirmationEmail content,
+        EmailChangeConfirmationIdempotencyKey idempotencyKey,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Skickar säkerhetsnotisen "din e-postadress har ändrats" (#679, CTO-bind #4) till den GAMLA
+    /// adressen efter en genomförd ändring, så den tidigare ägaren kan upptäcka en obehörig ändring
+    /// (OWASP ASVS V2.5 / NIST SP 800-63B). Bär INGEN token, INGEN länk till den nya adressen, och
+    /// avslöjar INTE den nya adressen — bara en saklig notis + en hjälpcenter-länk som byggs
+    /// template-side ur <c>EmailOptions.BaseUrl</c>. <paramref name="idempotencyKey"/> dedupar en
+    /// transport-retry; Console/Null ignorerar den.
+    /// </summary>
+    Task SendEmailChangedNotificationAsync(
+        string toEmail,
+        EmailChangedNotificationIdempotencyKey idempotencyKey,
+        CancellationToken cancellationToken);
 }

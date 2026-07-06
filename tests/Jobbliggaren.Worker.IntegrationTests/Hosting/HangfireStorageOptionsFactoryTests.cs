@@ -44,6 +44,22 @@ public class HangfireStorageOptionsFactoryTests
     }
 
     [Fact]
+    public void Create_PinsDistributedLockTimeout_To12Hours()
+    {
+        // #693 — the DisableConcurrentExecution distributed lock has NO heartbeat renewal (verified
+        // Hangfire.PostgreSql 1.21.1 PostgreSqlDistributedLock); a held lock is stealable at
+        // acquired + DistributedLockTimeout. 12 h covers the real ~11 h SCB runtime so a duplicate
+        // execution cannot take over the lock mid-run (a duplicate took over at exactly +10:00 on the
+        // #688 live run at the 10-min default). Global storage-level value — must not float on the
+        // 10-min Hangfire.PostgreSql package default across upgrades. Holds regardless of
+        // PrepareSchemaIfNecessary (the flag is orthogonal to the lock timeout).
+        HangfireStorageOptionsFactory.Create(prepareSchemaIfNecessary: true)
+            .DistributedLockTimeout.ShouldBe(TimeSpan.FromHours(12));
+        HangfireStorageOptionsFactory.Create(prepareSchemaIfNecessary: false)
+            .DistributedLockTimeout.ShouldBe(TimeSpan.FromHours(12));
+    }
+
+    [Fact]
     public void Create_PassesThroughPrepareSchemaIfNecessary_WhenTrue()
     {
         // The Worker owns schema preparation (true) — the argument is a pass-through, not overridden.

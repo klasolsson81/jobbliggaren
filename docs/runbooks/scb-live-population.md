@@ -39,7 +39,7 @@ approach that ceiling and an unhealthy one fails loud instead of hammering:
   form ≠ 10`); an independent `IsPersonnummerShaped` guard drops any pnr-shaped
   org.nr before it is persisted (defense-in-depth). Verified in §5.
 - **Progress is visible.** The Worker logs a heartbeat (~every 60 s) with
-  batches / rows-so-far, so a healthy ~1–3 h run is never silent.
+  batches / rows-so-far, so a healthy ~11 h run is never silent.
 - **No silent restarts (#688).** The SCB job carries `AutomaticRetry(Attempts
   = 0)`: a failed run goes straight to the **Failed** state (visible via
   `GET /api/v1/admin/jobs/failed`) instead of Hangfire's default 10 from-zero
@@ -56,8 +56,14 @@ approach that ceiling and an unhealthy one fails loud instead of hammering:
   anyway. A transient DB blip is NOT auto-retried: resilience is
   command-timeout headroom + fail-fast-to-Failed + a clean idempotent re-run.
 
-Expected duration at 6/10 s: **~1.5–3 h**. Longer than at 9/10 s by design —
-Klas accepted the extra night-time minutes in exchange for the wider margin.
+Expected duration at 6/10 s: **~11 h** (empirical — the first completed run,
+2026-07-05→06, clocked 665 min for a full ~1.17M-row re-fetch; the earlier
+"~1.5–3 h" estimate was wrong for a from-zero population and holds for no run,
+since every run — including the weekly steady-state refresh — is a full
+re-fetch + upsert, not incremental). Longer than at 9/10 s by design — Klas
+accepted the extra night-time minutes in exchange for the wider margin. This
+~11 h real hold time is why `DistributedLockTimeout` is pinned to 12 h (#693,
+§6 "lock takeover").
 
 ---
 
@@ -77,8 +83,8 @@ Klas accepted the extra night-time minutes in exchange for the wider margin.
    personnummer by design (§0, verified §5). No new PII surface.
 3. **Dev Postgres up** (Docker Compose, port 5435) and reachable — the same
    database backs both `company_register` and the Hangfire storage.
-4. **Time:** budget ~1–3 h uninterrupted; run it at night per the cron
-   default rationale (lowest DB contention) — but **avoid 02:00–05:00 UTC**
+4. **Time:** budget ~11 h uninterrupted (empirical, §0); run it overnight per
+   the cron default rationale (lowest DB contention) — but **avoid 02:00–05:00 UTC**
    (see point 5).
 5. **ISOLATED run (mandatory — #688).** The first live attempt failed on DB
    contention, not SCB: the full recurring-job fleet ran against the same dev
@@ -137,7 +143,10 @@ that executes it) against the dev Postgres, exactly as in `local-dev-setup.md`.
 The Worker console is your primary monitor.
 
 - The recurring job id is **`sync-scb-company-register`**.
-- It is `DisableConcurrentExecution(4h)`-guarded — it can never overlap itself.
+- It is `DisableConcurrentExecution(4h)`-guarded (a 4 h *acquisition* wait). With
+  `DistributedLockTimeout` at 12 h (> the ~11 h runtime, #693) the lock cannot be
+  taken over mid-run, so a duplicate trigger blocks then lands `Failed` rather than
+  co-running — see §6 "lock takeover" for the pre-#693 failure mode.
 - With `Enabled=true` + a valid thumbprint you should see the cert load on start
   and **no** `Enabled=false — no-op` line.
 
@@ -274,6 +283,36 @@ this signature recurs post-#688, something NEW is wrong — capture the log and
 investigate; do not just re-run.** First checks: is the run isolated (§1
 point 5)? Is the dev Postgres healthy (disk, connections)? Did a heavy job
 co-run anyway?
+
+### Known signature — DisableConcurrentExecution lock takeover (#693, first live run 2026-07-05)
+`[DisableConcurrentExecution]` is a distributed lock whose row carries a single `acquired`
+timestamp; Hangfire.PostgreSql has **no heartbeat renewal** for it (verified against pinned
+Hangfire.PostgreSql 1.21.1 `PostgreSqlDistributedLock` — the expiry SQL is `DELETE … WHERE
+acquired < now - DistributedLockTimeout`), so a held lock is stealable once `now > acquired +
+DistributedLockTimeout` regardless of whether the holder is alive. On the 2026-07-05 run the default
+10-min `DistributedLockTimeout` let a SECOND, operator-triggered SCB execution (job 5977, a
+cron-nudge on top of the boot catch-up 5906) acquire the SAME
+`hangfire:ScbCompanyRegisterSyncWorker.RunAsync` lock at exactly +10:00 and co-run with the
+in-flight ~11 h population. Signature:
+- a SECOND `LogStarted` (5710) `startad (population/refresh)` line mid-run while the first run keeps
+  heartbeating — both jobs in `Processing`;
+- `SELECT resource, acquired FROM hangfire.lock WHERE resource =
+  'hangfire:ScbCompanyRegisterSyncWorker.RunAsync';` shows `acquired` jumping forward to
+  ~+`DistributedLockTimeout` after the first acquisition.
+
+The co-run is SAFE (the static process-wide 6/10 s limiter caps outbound regardless of how many
+executions co-run — no ban risk; idempotent upsert; per-run `synced_at` watermark; truncation latch)
+but ~halves effective throughput (both runs walk the same municipalities minutes apart). On
+2026-07-05 the operator deleted the duplicate via Hangfire's own Deleted-state mechanics mid-run and
+the surviving run's rate doubled.
+
+**Post-#693** `DistributedLockTimeout` is raised to 12 h (> the real ~11 h runtime), so a duplicate
+can no longer steal the lock during a run — it blocks on its 4 h acquisition wait and then lands
+`Failed` (`AutomaticRetry(0)`). **If you EVER see two concurrent `Processing` SCB runs after #693,
+something NEW is wrong** — a second HangfireServer against the same storage, or the timeout
+regressed. Capture the `hangfire.lock` row and investigate; do not delete-and-continue. The
+operational rule still stands: NO manual multi-job triggering during the population window (§1
+point 5).
 
 ### Envelope drift
 If `fetched` is implausibly low or `excludedInvalid` is high, SCB may have

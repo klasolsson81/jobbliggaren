@@ -103,10 +103,15 @@ builder.Services.AddHangfire(cfg => cfg
             SchemaName = "hangfire",
             // Api ska ALDRIG migrera schemat — Worker äger schema-bootstrap.
             PrepareSchemaIfNecessary = false,
-            // #688 — no-op för en enqueue-only-klient (flaggan är fetch-side och Api kör ingen
-            // HangfireServer), men speglas från Workerns HangfireStorageOptionsFactory så de två
-            // storage-registreringarna inte driftar isär.
+            // #688 / #693 — no-ops för en enqueue-only-klient (Api kör ingen HangfireServer, hämtar
+            // inga jobb och förvärvar inget DisableConcurrentExecution-lås), men speglas från Workerns
+            // HangfireStorageOptionsFactory så de två storage-registreringarna inte driftar isär. En
+            // delad factory är arkitektoniskt otillgänglig: Api kan inte referera Worker och
+            // Infrastructure är avsiktligt Hangfire-fritt (ADR 0023) → drift-skyddet är denna
+            // spegling + kommentar, inte en enda konstruktionspunkt. #693: 12 h lås-expiry så en
+            // framtida Api-HangfireServer inte tyst regredierar takeover-skyddet.
             UseSlidingInvisibilityTimeout = true,
+            DistributedLockTimeout = TimeSpan.FromHours(12),
         }));
 
 // #204 / TD-83 PR2 — Api-impl av IBackgroundJobController-porten (admin

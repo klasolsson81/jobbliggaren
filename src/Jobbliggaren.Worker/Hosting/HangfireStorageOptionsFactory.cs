@@ -17,6 +17,17 @@ namespace Jobbliggaren.Worker.Hosting;
 /// visible again after 30 min). Verified against pinned Hangfire.PostgreSql 1.21.1 source
 /// (PostgreSqlFetchedJob). Also protects SyncPlatsbankenSnapshotWorker (tens of minutes).
 /// </para>
+/// <para>
+/// #693 — <see cref="PostgreSqlStorageOptions.DistributedLockTimeout"/> raised to 12 h. The
+/// <c>[DisableConcurrentExecution]</c> mutex is a <c>PostgreSqlDistributedLock</c> whose row carries
+/// a single <c>acquired</c> timestamp with NO heartbeat renewal (unlike the fetch lease above), so a
+/// held lock is takeover-able at <c>acquired + DistributedLockTimeout</c>. At the 10-min default the
+/// mutex was SOFT for every job holding its lock longer than 10 min — during the #688 live run a
+/// duplicate SCB job took over the lock at exactly +10:00 and co-ran with the ~11 h population.
+/// Unlike the InvisibilityTimeout case (#688 Q3 rejected a global raise because a scoped heartbeat
+/// existed), the storage exposes NO per-resource timeout and NO scoped renewal — the softness is
+/// fleet-wide, so the global knob sized to the longest real hold time (~11 h) IS the correct fix.
+/// </para>
 /// </summary>
 public static class HangfireStorageOptionsFactory
 {
@@ -29,5 +40,20 @@ public static class HangfireStorageOptionsFactory
         // heartbeat cadence (InvisibilityTimeout / 5 = 6 min) both derive from this value —
         // load-bearing properties that must not float on a package default.
         InvisibilityTimeout = TimeSpan.FromMinutes(30),
+        // #693 — the DisableConcurrentExecution distributed lock has NO heartbeat renewal
+        // (Hangfire.PostgreSql 1.21.1 PostgreSqlDistributedLock: the lock row's `acquired` is
+        // stamped once, expiry SQL is DELETE ... WHERE acquired < now - DistributedLockTimeout).
+        // A held lock is stealable at acquired + this timeout, so at the 10-min default the mutex
+        // was soft for any job holding >10 min — a duplicate SCB job took over the lock at exactly
+        // +10:00 during the #688 live run. 12 h covers the real ~11 h SCB runtime (a full ~1.17M-row
+        // re-fetch at 6/10 s EVERY run, incl. the weekly refresh) so a duplicate can no longer take
+        // over mid-run. Global storage-level value — must not float on the package default.
+        // Accepted fleet-wide cost: after a HARD crash (graceful shutdown deletes the lock row via
+        // Dispose) the crashed holder's lock — any of the 16 jobs' — stays un-takeover-able for up to
+        // 12 h instead of 10 min; per-resource, self-healing, and free in the single-Worker deploy
+        // (nothing runs while the Worker is down anyway). Monitored margin (CTO bind, ADR 0091
+        // amendment 2026-07-06): the 665-min baseline was a TRUNCATED run — if a completion run ever
+        // clocks > ~11.5 h wall-clock, raise this to 16 h before trusting an unattended weekly run.
+        DistributedLockTimeout = TimeSpan.FromHours(12),
     };
 }

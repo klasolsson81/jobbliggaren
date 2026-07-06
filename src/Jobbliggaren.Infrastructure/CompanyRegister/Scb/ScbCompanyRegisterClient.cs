@@ -136,10 +136,15 @@ internal sealed partial class ScbCompanyRegisterClient(
         if (!response.IsSuccessStatusCode)
         {
             // A single partition query error (e.g. an unexpected SCB 400/500) must NOT crash the whole
-            // ~1-3 h run. Log it, mark the run truncated (deregister sweep disabled — never falsely
-            // deregister on incomplete data), and skip this partition.
-            LogPartitionRequestFailed(logger, RaknaEndpoint, (int)response.StatusCode);
-            outcome.MarkTruncatedOrErrored();
+            // ~11 h run. Log it WITH the partition descriptor + SCB's validator reason (#708 — the
+            // 2026-07-05 run's 40 unattributed 400s were undiagnosable without them; taxonomy codes and
+            // the reason text are non-PII, never an org.nr), count it into the audit row, latch the run
+            // truncated (deregister sweep disabled — never falsely deregister on incomplete data), and
+            // skip this partition.
+            LogPartitionRequestFailed(logger, RaknaEndpoint, (int)response.StatusCode,
+                DescribeQuery(query),
+                await ReadReasonAsync(response, cancellationToken).ConfigureAwait(false));
+            outcome.RecordPartitionRequestFailed();
             return 0;
         }
 
@@ -169,9 +174,11 @@ internal sealed partial class ScbCompanyRegisterClient(
             .ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
-            // Non-fatal (as in CountAsync): log, mark truncated, skip this partition — don't crash the run.
-            LogPartitionRequestFailed(logger, HamtaEndpoint, (int)response.StatusCode);
-            outcome.MarkTruncatedOrErrored();
+            // Non-fatal (as in CountAsync): log with descriptor + reason (#708), count, latch, skip.
+            LogPartitionRequestFailed(logger, HamtaEndpoint, (int)response.StatusCode,
+                DescribeQuery(query),
+                await ReadReasonAsync(response, cancellationToken).ConfigureAwait(false));
+            outcome.RecordPartitionRequestFailed();
             return [];
         }
 
@@ -201,7 +208,7 @@ internal sealed partial class ScbCompanyRegisterClient(
     // Builds the partition ladder from the live SNI code table. Rung 1 = single Juridisk form; rung 2 =
     // 2-digit SNI division ("2-siffrig bransch 1"); rung 3 = 5-digit Bransch (niva 3), fanned by the
     // parent's 2-digit prefix. The 2-digit values and the prefix map are both DERIVED from the single
-    // niva-3 code table (SNI 2007 is strictly nested: the first two chars of a 5-digit code ARE its
+    // niva-3 code table (SNI 2025 is strictly nested: the first two chars of a 5-digit code ARE its
     // division), so the map is total over the 2-digit values (every division has ≥1 child). If the
     // niva-3 table is unavailable, fall back to the pre-#628 legal-form-only ladder — the run still
     // bounds partitions by form and per-partition ladder-exhaustion latches truncated where genuinely
@@ -228,7 +235,10 @@ internal sealed partial class ScbCompanyRegisterClient(
         return
         [
             new ScbStaticRung(CatJuridiskForm, legalForms),
-            new ScbStaticRung(CatTwoDigitBransch, twoDigit),
+            // #708 — the 2-digit rung reconciles OBSERVE-ONLY: a division whose companies are invisible
+            // to the derived value set is counted + logged, never latched, until a completion run has
+            // shown the guard's live firing behavior (ADR 0091 amendment 2026-07-06).
+            new ScbStaticRung(CatTwoDigitBransch, twoDigit, ReconciliationMode: ScbReconciliationMode.Observe),
             new ScbPrefixRung(CatTwoDigitBransch, CatBransch, BranschNivaFiveDigit, prefixMap),
         ];
     }
@@ -244,8 +254,11 @@ internal sealed partial class ScbCompanyRegisterClient(
         if (!response.IsSuccessStatusCode)
         {
             // A code-table failure means we cannot bound the extract — return empty; the caller marks
-            // the run truncated and yields nothing (never a crash).
-            LogPartitionRequestFailed(logger, KodtabellEndpoint, (int)response.StatusCode);
+            // the run truncated (or falls back to the form-only ladder) and never crashes. #708: a
+            // DIMENSION-table rejection is a different failure than a partition rejection — its own
+            // event (5704) with the category identity, so it is never misread as a partition 400.
+            LogCodeTableRequestFailed(logger, category, (int)response.StatusCode,
+                await ReadReasonAsync(response, cancellationToken).ConfigureAwait(false));
             return [];
         }
 
@@ -398,13 +411,78 @@ internal sealed partial class ScbCompanyRegisterClient(
         return null;
     }
 
+    // --- #708 failure observability (partition descriptor + validator reason) ---
+
+    // Bounds for the failure-log fields. The descriptor's worst case is a seed (1 kommun + ~40 legal
+    // forms ≈ 200 chars); the reason is SCB's validator message (one sentence). Both capped defensively.
+    private const int MaxDescriptorLength = 512;
+    private const int MaxReasonLength = 500;
+
+    /// <summary>
+    /// #708 — serializes the failing query's filters as <c>Kategori(BranschNiva)=[kod,kod,…]</c> pairs
+    /// so a rejected partition is identifiable from the WARN alone (which rung depth, which shape,
+    /// which codes). Every value is an SCB taxonomy code (kommun/legal-form/SNI) — NEVER an org.nr
+    /// (CLAUDE.md §5); the population channel has no org.nr-valued filter category by construction.
+    /// </summary>
+    internal static string DescribeQuery(ScbQuery query)
+    {
+        var descriptor = string.Join("; ", query.Filters.Select(f =>
+        {
+            var niva = f.BranschNiva is { } n ? $"(niva {n})" : string.Empty;
+            return $"{f.Category}{niva}=[{string.Join(",", f.Codes)}]";
+        }));
+        return descriptor.Length <= MaxDescriptorLength
+            ? descriptor
+            : descriptor[..MaxDescriptorLength] + "…";
+    }
+
+    /// <summary>
+    /// #708 — reads a bounded, single-lined slice of a non-success response body: SCB's validator
+    /// normally states WHY a query was rejected (the #628 "Avdelning A–U" 400 was diagnosed from
+    /// exactly this text). A rakna/hamta/kodtabell rejection body carries no company rows by
+    /// construction (the query was refused); the cap + control-char strip is belt-and-braces
+    /// (CLAUDE.md §5). Never throws — a reason must never turn a handled failure into a crash.
+    /// </summary>
+    internal static async Task<string> ReadReasonAsync(
+        HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(body))
+                return "(tom svarskropp)";
+
+            var buffer = new System.Text.StringBuilder(Math.Min(body.Length, MaxReasonLength));
+            foreach (var ch in body)
+            {
+                if (buffer.Length >= MaxReasonLength)
+                    break;
+                buffer.Append(char.IsControl(ch) ? ' ' : ch);
+            }
+            var reason = buffer.ToString().Trim();
+            return body.Length > MaxReasonLength ? reason + "…" : reason;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return $"(svarskropp oläsbar: {ex.GetType().Name})";
+        }
+    }
+
     [LoggerMessage(EventId = 5701, Level = LogLevel.Error,
         Message = "ScbCompanyRegisterClient: kodtabell tom — kommuner={KommunCount}, legalForms={LegalFormCount}. Avbryter (markerar trunkerad; ingen sweep).")]
     private static partial void LogCodeTablesEmpty(ILogger logger, int kommunCount, int legalFormCount);
 
     [LoggerMessage(EventId = 5702, Level = LogLevel.Warning,
-        Message = "ScbCompanyRegisterClient: SCB {Endpoint} svarade {StatusCode} — partitionen hoppas över, körningen markeras trunkerad (ingen falsk avregistrering). Loggar aldrig org.nr.")]
-    private static partial void LogPartitionRequestFailed(ILogger logger, string endpoint, int statusCode);
+        Message = "ScbCompanyRegisterClient: SCB {Endpoint} svarade {StatusCode} för partition {Partition} — orsak: {Reason}. Partitionen hoppas över, körningen markeras trunkerad (ingen falsk avregistrering). Loggar aldrig org.nr.")]
+    private static partial void LogPartitionRequestFailed(
+        ILogger logger, string endpoint, int statusCode, string partition, string reason);
+
+    // #708 — kodtabell (dimension-table) rejection: its own event so it is never misread as a
+    // partition 400 (different failure class, different identity — a category, not a partition).
+    [LoggerMessage(EventId = 5704, Level = LogLevel.Warning,
+        Message = "ScbCompanyRegisterClient: SCB kodtabell för kategori {Category} svarade {StatusCode} — orsak: {Reason}. Extraktet kan inte avgränsas (trunkerad eller form-only-fallback). Loggar aldrig org.nr.")]
+    private static partial void LogCodeTableRequestFailed(
+        ILogger logger, string category, int statusCode, string reason);
 
     [LoggerMessage(EventId = 5703, Level = LogLevel.Warning,
         Message = "ScbCompanyRegisterClient: SNI-kodtabell (Bransch niva 3) tom ({RowCount} rader) — faller tillbaka till Juridisk form-only-liggaren (djupdelning inaktiverad denna körning).")]

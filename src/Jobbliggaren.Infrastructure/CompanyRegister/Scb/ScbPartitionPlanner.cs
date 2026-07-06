@@ -33,7 +33,8 @@ internal sealed record ScbLeaf(ScbQuery Query, int Count, bool OverCap = false);
 /// client (which owns the SCB category semantics) decides whether the over-cap tail can be bounded to a
 /// protected (kommun, SNI) key (partition-scoped sweep) or the run must latch truncated. The planner
 /// stays purely about slicing; it touches <paramref name="outcome"/> only to count nodes and, at a
-/// reconciling rung, to latch a no-SNI completeness gap (Guard 2).
+/// reconciling rung, to record a completeness gap (Guard 2 — latching or observe-only per the rung's
+/// <see cref="ScbReconciliationMode"/>, #708).
 /// </para>
 /// </summary>
 internal static class ScbPartitionPlanner
@@ -127,14 +128,26 @@ internal static class ScbPartitionPlanner
                     childrenWithCounts.Add((child, childCount));
             }
 
-            // No-SNI completeness reconciliation: at a reconciling rung (the 5-digit Bransch split), a
-            // child sum below the parent means an entity carries the parent's division but no listed
-            // 5-digit subcode — invisible to every child. Latch the run truncated so the sweep is disabled
-            // (a steady-state refresh must never mistake such an entity for a de-registered company). NB:
-            // this UNDER-detects — an entity double-counted across several 5-digit codes inflates the sum
-            // and can mask a real gap; the truncation latch + floors remain the primary safeguards.
-            if (rung.ReconcileChildren && childSum < count)
-                outcome.RecordReconciliationGap();
+            // Completeness reconciliation (#640 Guard 2 / #708 tri-state): a child sum below the parent
+            // means an entity matches the parent but no listed child code — invisible to every child.
+            // Latch mode (the 5-digit Bransch split) latches the run truncated so the sweep is disabled
+            // (a steady-state refresh must never mistake such an entity for a de-registered company).
+            // Observe mode (#708: the 2-digit division rung) only counts the gap for the diagnostic log —
+            // a new guard ships observe-only until a completion run shows its firing behavior. NB: both
+            // UNDER-detect — an entity double-counted across several child codes inflates the sum and can
+            // mask a real gap; the truncation latch + floors remain the primary safeguards.
+            if (childSum < count)
+            {
+                switch (rung.ReconciliationMode)
+                {
+                    case ScbReconciliationMode.Latch:
+                        outcome.RecordReconciliationGap();
+                        break;
+                    case ScbReconciliationMode.Observe:
+                        outcome.RecordObservedReconciliationGap();
+                        break;
+                }
+            }
 
             for (var i = childrenWithCounts.Count - 1; i >= 0; i--)
                 stack.Push((childrenWithCounts[i].Query, depth + 1, childrenWithCounts[i].Count));

@@ -214,18 +214,52 @@ public class ScbPartitionPlannerTests
         leaves.Select(l => l.Count).OrderBy(c => c).ShouldBe([800, 1000]); // children still fetched
         outcome.ReconciliationGaps.ShouldBe(1);
         outcome.TruncatedOrErrored.ShouldBeTrue();                          // gap disables the whole sweep
+        outcome.ObservedReconciliationGaps.ShouldBe(0);                     // #708: a Latch gap never touches the observe tally
+    }
+
+    [Fact]
+    public async Task PlanAsync_RecordsObservedGapWithoutLatching_WhenObserveRungChildrenSumBelowParent()
+    {
+        // #708: the 2-digit division rung reconciles in OBSERVE mode — a child sum below the parent means a
+        // division whose companies are invisible to the derived value set. The planner tallies the gap for
+        // the diagnostic WARN (5716) but must NOT latch the run truncated (observe-then-ratchet): a latching
+        // guard whose live firing behavior is unobserved must never gate the ~11 h population run. Here the
+        // 2-digit children 70+62 sum to 1800 < the seed's 5000, so one observed gap is recorded and the run
+        // stays clean.
+        var seed = new ScbQuery([new ScbCategoryFilter(Kommun, ["0180"])]);
+        var ladder = new IScbRung[]
+        {
+            new ScbStaticRung(TwoDigit, ["70", "62"], ReconciliationMode: ScbReconciliationMode.Observe),
+        };
+        var table = new Dictionary<string, int>
+        {
+            [$"{Kommun}=0180"] = 5000,                    // seed over cap
+            [$"{TwoDigit}=70|{Kommun}=0180"] = 1000,      // Σ children = 1800 < 5000 → observed gap
+            [$"{TwoDigit}=62|{Kommun}=0180"] = 800,
+        };
+        var outcome = new ScbSyncOutcome();
+
+        var leaves = await CollectAsync([seed], ladder, Counts(table), outcome);
+
+        leaves.Select(l => l.Count).OrderBy(c => c).ShouldBe([800, 1000]); // children still fetched
+        outcome.ObservedReconciliationGaps.ShouldBe(1);                    // observe-only gap tallied
+        outcome.ReconciliationGaps.ShouldBe(0);                            // NOT the latching Guard-2 counter
+        outcome.TruncatedOrErrored.ShouldBeFalse();                        // observe-only → sweep may still apply
+        outcome.PartitionsCounted.ShouldBe(3);                            // seed + 2 children (each counted once)
     }
 
     [Fact]
     public async Task PlanAsync_DoesNotReconcile_AtNonReconcilingStaticRung()
     {
-        // Scoping: a static rung (Juridisk form, 2-digit division) does NOT reconcile — its children may
-        // legitimately sum below the parent (an entity with no code on that facet), and reconciling there
-        // would only spuriously latch on mid-run SCB count drift. Only the 5-digit prefix rung reconciles.
+        // Scoping (#708): an OFF-mode static rung (the default — e.g. Juridisk form) does NOT reconcile at
+        // all. Its children may legitimately sum below the parent (an entity with no code on that facet),
+        // and reconciling there would only spuriously fire on mid-run SCB count drift — so neither the
+        // latching (Guard 2) nor the observe counter moves. (The 2-digit division rung opts in at Observe;
+        // the 5-digit prefix rung latches — both covered separately.)
         var seed = new ScbQuery([new ScbCategoryFilter(Kommun, ["0180"])]);
         var ladder = new IScbRung[]
         {
-            new ScbStaticRung(Form, ["49", "51"]),   // static rung, sums below parent, must NOT latch
+            new ScbStaticRung(Form, ["49", "51"]),   // Off-mode static rung, sums below parent, records nothing
         };
         var table = new Dictionary<string, int>
         {
@@ -239,7 +273,8 @@ public class ScbPartitionPlannerTests
 
         leaves.Select(l => l.Count).OrderBy(c => c).ShouldBe([500, 1000]);
         outcome.ReconciliationGaps.ShouldBe(0);
-        outcome.TruncatedOrErrored.ShouldBeFalse();   // static-rung shortfall is not a completeness gap
+        outcome.ObservedReconciliationGaps.ShouldBe(0);   // #708: Off mode records nothing on either counter
+        outcome.TruncatedOrErrored.ShouldBeFalse();       // static-rung shortfall is not a completeness gap
     }
 
     [Fact]

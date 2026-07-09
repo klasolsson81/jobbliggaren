@@ -111,6 +111,16 @@ public sealed class ParsedResumeConfiguration : IEntityTypeConfiguration<ParsedR
             .HasColumnName("layout_metrics")
             .HasColumnType("jsonb");
 
+        // Fas 4b PR-8 — non-PII confirm-task presence flags behind the hub meter
+        // (CTO-bind Q5), denormalized at import (ADR 0059). NULLABLE jsonb, parity
+        // layout_metrics: pre-PR-8 imports have none and the card renders without a
+        // meter on null. Booleans only — never CV text, NOT the DEK shadow.
+        var (gapsConverter, gapsComparer) = JsonConverter<ParsedGapSummary>();
+        builder.Property(p => p.Gaps)
+            .HasConversion((ValueConverter)gapsConverter, gapsComparer)
+            .HasColumnName("gap_summary")
+            .HasColumnType("jsonb");
+
         var (proposalsConverter, proposalsComparer) = JsonConverter<List<ProposedOccupation>>();
         builder.Property<List<ProposedOccupation>>("_occupationProposals")
             .HasField("_occupationProposals")

@@ -13,4 +13,26 @@ namespace Jobbliggaren.Application.Resumes.Queries.GetLatestPendingParsedResume;
 public sealed record PendingParsedResumeSummaryDto(
     Guid Id,
     string SourceFileName,
-    DateTimeOffset UploadedAt);
+    DateTimeOffset UploadedAt,
+    // Fas 4b PR-8 (CTO-bind Q5): the confirm-task presence flags behind the action
+    // card's "X av Y uppgifter klara" meter — denormalized non-PII booleans computed at
+    // import (ADR 0059), projected plainly like the fields above (this query still
+    // never decrypts CV-PII). Null for pre-PR-8 imports: "not computed", the card
+    // renders without a meter rather than guessing.
+    ParsedGapSummaryDto? Gaps);
+
+/// <summary>
+/// Mirror of the Domain <c>ParsedGapSummary</c> presence flags (Fas 4b PR-8, CTO-bind
+/// Q5). The task definition is shared with the Slutför-guide's step gate — the meter
+/// and the guide must never disagree about what counts as a task.
+/// </summary>
+public sealed record ParsedGapSummaryDto(
+    bool HasFullName,
+    bool HasEmail,
+    bool HasPhone,
+    bool HasLocation,
+    bool HasProfile,
+    bool HasExperience,
+    bool HasEducation,
+    bool HasSkills,
+    bool HasLanguages);

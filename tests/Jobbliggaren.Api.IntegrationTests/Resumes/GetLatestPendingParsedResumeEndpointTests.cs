@@ -90,6 +90,14 @@ public class GetLatestPendingParsedResumeEndpointTests(ApiFactory factory)
         json.GetProperty("id").GetString().ShouldBe(id);
         json.GetProperty("sourceFileName").GetString().ShouldBe("cv.pdf");
         json.GetProperty("uploadedAt").ValueKind.ShouldBe(JsonValueKind.String);
+
+        // Fas 4b PR-8.1 (CTO-bind Q5): a fresh import denormalizes the confirm-task
+        // presence flags at import time, so the meter data rides the summary — an object
+        // (all-false for this degraded stub parse), proving the jsonb VO both persisted
+        // and projected against real PG. Pre-PR-8 rows would carry null instead.
+        var gaps = json.GetProperty("gaps");
+        gaps.ValueKind.ShouldBe(JsonValueKind.Object);
+        gaps.GetProperty("hasFullName").ValueKind.ShouldBe(JsonValueKind.False);
     }
 
     [Fact]

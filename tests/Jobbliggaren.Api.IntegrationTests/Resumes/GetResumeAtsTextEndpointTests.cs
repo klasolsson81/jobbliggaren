@@ -89,6 +89,12 @@ public class GetResumeAtsTextEndpointTests(ApiFactory factory)
         await AuthenticateAsync(ct);
         var response = await _client.GetAsync($"/api/v1/resumes/{Guid.NewGuid()}/ats-text", ct);
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        // security-auditor PR-8.2 Minor: the no-store posture is set BEFORE the null
+        // branch, so the 404 carries it too — pinned so a refactor that moves the header
+        // under the null-check fails here rather than silently weakening the posture.
+        response.Headers.CacheControl.ShouldNotBeNull();
+        response.Headers.CacheControl.NoStore.ShouldBeTrue();
     }
 
     [Fact]

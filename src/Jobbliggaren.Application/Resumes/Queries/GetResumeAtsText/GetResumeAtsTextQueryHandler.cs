@@ -10,8 +10,9 @@ namespace Jobbliggaren.Application.Resumes.Queries.GetResumeAtsText;
 /// <summary>
 /// Loads the OWNING job seeker's canonical Resume (master content decrypted inside the
 /// warmed field-encryption pipeline), linearizes it via the shared linearizer (ADR 0093
-/// §D8 SPOT — the exact text the review cites and the ATS-PDF renders) and returns it
-/// with the "Linearized" source claim. Mirrors <c>ReviewResumeQueryHandler</c>:
+/// §D8 SPOT — the exact text the canonical review cites into; the ATS-PDF renders from
+/// the same canonical <c>ResumeContent</c>, structurally) and returns it with the
+/// "Linearized" source claim. Mirrors <c>ReviewResumeQueryHandler</c>:
 /// owner-resolve, FirstOrDefault by Id + JobSeekerId, cross-user attempt logged, null on
 /// not-found. The text passes <c>PersonnummerRedactor</c> before egress — belt-and-braces
 /// (every canonical write path is already pnr-guarded), same defense-in-depth posture as
@@ -23,8 +24,10 @@ public sealed class GetResumeAtsTextQueryHandler(
     IFailedAccessLogger failedAccessLogger)
     : IQueryHandler<GetResumeAtsTextQuery, ResumeAtsTextDto?>
 {
-    /// <summary>The only source claim this endpoint emits (CTO-bind Q3, D5e).</summary>
-    internal const string LinearizedSource = "Linearized";
+    // The only source claim this endpoint emits (CTO-bind Q3, D5e). Private on purpose
+    // (code-reviewer PR-8.2 Minor): the wire contract is pinned by the tests as a bare
+    // literal — sharing the const with tests would let an accidental value change pass.
+    private const string LinearizedSource = "Linearized";
 
     public async ValueTask<ResumeAtsTextDto?> Handle(
         GetResumeAtsTextQuery query, CancellationToken cancellationToken)

@@ -140,6 +140,25 @@ public class BatchTransitionApplicationsCommandValidatorTests
     }
 
     [Fact]
+    public void Validate_NullItemInList_FailsWithoutThrowing()
+    {
+        // The endpoint maps null wire items to (Guid.Empty, "") so a null item
+        // is unreachable via HTTP, but the command is a public Application-layer
+        // surface: FluentValidation's RuleForEach/ChildRules silently SKIPS
+        // null elements, so without the explicit NotNull element rule a null
+        // item would pass validation and NRE in the handler (500 instead of
+        // 400). Review fix (test-writer advisory + architect/code-reviewer
+        // Nit): fail loud as a validation error.
+        var command = new BatchTransitionApplicationsCommand(
+            [null!, new BatchTransitionItem(Guid.NewGuid(), "Submitted")]);
+
+        var result = Should.NotThrow(() => _validator.Validate(command));
+
+        result.IsValid.ShouldBeFalse();
+        result.Errors.ShouldContain(e => e.ErrorMessage == "Ogiltig post i listan.");
+    }
+
+    [Fact]
     public void Validate_ConflictingDuplicates_Fails()
     {
         // CTO bind Q6: the same application with two DIFFERENT targets is a

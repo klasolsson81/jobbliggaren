@@ -272,6 +272,30 @@ public class BatchTransitionApplicationsCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenCallerHasNoJobSeekerProfile_ThrowsNotFoundWithoutMutating()
+    {
+        // The caller has no JobSeeker row at all — the owner lookup returns
+        // default(JobSeekerId) (Guid.Empty). Every id then resolves as missing
+        // and the batch aborts with a uniform NotFound (parity with the single
+        // path), never a 500 off the default id, and never a cross-user log for
+        // an unknown id.
+        var db = TestAppDbContextFactory.Create();
+        // Seed another user's application so the table is non-empty, but never
+        // register _userId as a JobSeeker.
+        await SeedAsync(db, Guid.NewGuid(), 1);
+        var handler = CreateHandler(db);
+
+        var command = new BatchTransitionApplicationsCommand(
+            [new BatchTransitionItem(Guid.NewGuid(), "Submitted")]);
+
+        await Should.ThrowAsync<NotFoundException>(
+            () => handler.Handle(command, CancellationToken.None).AsTask());
+
+        _failedAccessLogger.DidNotReceive().LogCrossUserAttempt(
+            Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>());
+    }
+
+    [Fact]
     public async Task Handle_MixedUnknownAndForeignIds_LogsOnlyForeignIds()
     {
         // Probe discrimination parity with the single path: an unknown id is

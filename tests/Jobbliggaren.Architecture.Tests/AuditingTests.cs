@@ -105,7 +105,7 @@ public class AuditingTests
             .ToList();
 
         nonCommandImplementations.ShouldBeEmpty(
-            $"IBatchAuditableCommand-implementationer utanför Commands-namespaces: " +
+            $"IBatchAuditableCommand implementations outside Commands namespaces: " +
             $"{string.Join(", ", nonCommandImplementations)}");
     }
 

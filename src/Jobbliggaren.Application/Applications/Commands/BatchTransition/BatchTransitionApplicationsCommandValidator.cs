@@ -29,6 +29,16 @@ public sealed class BatchTransitionApplicationsCommandValidator
             .Must(HaveNoConflictingDuplicates)
             .WithMessage("Samma ansökan förekommer med olika målstatus.");
 
+        // Explicit null-element reject (review fix): FluentValidation's
+        // RuleForEach/ChildRules silently SKIPS null elements, so without this
+        // rule a null item would pass validation and NRE in the handler (500
+        // instead of 400). Unreachable via HTTP (the endpoint coerces null wire
+        // items to (Guid.Empty, "")), but the command is a public
+        // Application-layer surface — fail loud as a validation error.
+        RuleForEach(c => c.Items)
+            .NotNull()
+            .WithMessage("Ogiltig post i listan.");
+
         RuleForEach(c => c.Items).ChildRules(item =>
         {
             item.RuleFor(i => i.ApplicationId)

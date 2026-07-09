@@ -11,6 +11,7 @@ namespace Jobbliggaren.Infrastructure.Auth;
 
 public sealed partial class UserAccountService(
     UserManager<ApplicationUser> userManager,
+    ILoginTimingEqualizer loginTimingEqualizer,
     ILogger<UserAccountService> logger)
     : IUserAccountService
 {
@@ -27,6 +28,19 @@ public sealed partial class UserAccountService(
         if (!result.Succeeded)
         {
             var error = result.Errors.First();
+
+            // #481 Low — do not leak account existence on registration. Identity's duplicate errors
+            // carry a raw English message that echoes the submitted address ("Username 'x@y.z' is
+            // already taken"); collapse them to a generic localized message that names neither the
+            // field nor the address. The 200-vs-400 status oracle inherent to instant-login
+            // registration is deferred (closing it needs email-confirmation-first registration).
+            // Other Identity codes stay specific: they are genuinely actionable (e.g. InvalidEmail) and
+            // the register validator already caught password/format, so the duplicate is the only
+            // enumeration-relevant failure. CTO-bind #2.
+            if (IsDuplicateAccountError(error.Code))
+                return Result.Failure<Guid>(
+                    DomainError.Validation(AuthErrorCodes.DuplicateAccount, AuthErrorCodes.DuplicateAccountMessage));
+
             return Result.Failure<Guid>(
                 DomainError.Validation($"Auth.{error.Code}", error.Description));
         }
@@ -69,8 +83,17 @@ public sealed partial class UserAccountService(
     {
         var user = await userManager.FindByEmailAsync(email);
         if (user is null)
+        {
+            // Constant-time defense (#481 Low): an unknown email would otherwise short-circuit here
+            // before any hash comparison, while a known email with a wrong password pays a full PBKDF2
+            // derivation below — the latency delta enumerates registered accounts. Pay the equivalent
+            // cost so response timing reveals nothing. Not-found branch ONLY: the lockout branch stays
+            // cheap by design (#503 anti-DoS, CTO-bind #1) and its residual timing channel does not aid
+            // enumeration (a one-attempt-per-email probe never locks an account).
+            loginTimingEqualizer.Equalize(password);
             return Result.Failure<UserCredentials>(
-                DomainError.Validation(AuthErrorCodes.InvalidCredentials, "E-post eller lösenord är felaktigt."));
+                DomainError.Validation(AuthErrorCodes.InvalidCredentials, AuthErrorCodes.InvalidCredentialsMessage));
+        }
 
         // #503 (OWASP A07, senior-cto-advisor G1): honor Identity's lockout BEFORE the
         // hash check. A locked account is rejected without burning a password comparison
@@ -82,7 +105,7 @@ public sealed partial class UserAccountService(
         // from opts.Lockout.AllowedForNewUsers (DependencyInjection).
         if (await userManager.IsLockedOutAsync(user))
             return Result.Failure<UserCredentials>(
-                DomainError.Validation(AuthErrorCodes.AccountLocked, "E-post eller lösenord är felaktigt."));
+                DomainError.Validation(AuthErrorCodes.AccountLocked, AuthErrorCodes.InvalidCredentialsMessage));
 
         if (!await userManager.CheckPasswordAsync(user, password))
         {
@@ -90,7 +113,7 @@ public sealed partial class UserAccountService(
             // MaxFailedAccessAttempts is reached (opts.Lockout, DependencyInjection).
             await userManager.AccessFailedAsync(user);
             return Result.Failure<UserCredentials>(
-                DomainError.Validation(AuthErrorCodes.InvalidCredentials, "E-post eller lösenord är felaktigt."));
+                DomainError.Validation(AuthErrorCodes.InvalidCredentials, AuthErrorCodes.InvalidCredentialsMessage));
         }
 
         // A successful verify resets the counter (only when >0 to avoid a needless write).
@@ -183,6 +206,14 @@ public sealed partial class UserAccountService(
 
         return Result.Success();
     }
+
+    // Identity IdentityErrorDescriber codes (== the describer method names) for a taken username /
+    // email. With UserName == Email + RequireUniqueEmail, a duplicate register trips both (#481 Low).
+    private const string IdentityDuplicateUserNameCode = "DuplicateUserName";
+    private const string IdentityDuplicateEmailCode = "DuplicateEmail";
+
+    private static bool IsDuplicateAccountError(string code) =>
+        code == IdentityDuplicateUserNameCode || code == IdentityDuplicateEmailCode;
 
     private static Result InvalidTokenFailure() =>
         Result.Failure(DomainError.Validation(

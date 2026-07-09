@@ -1136,6 +1136,11 @@ public static class DependencyInjection
 #pragma warning restore JOBBLIGGAREN0001
 
         services.AddScoped<ISessionStore, RedisSessionStore>();
+
+        // #481 Low — login-timing equalizer (singleton: owns one PasswordHasher + a memoized dummy
+        // hash). Injected into UserAccountService to pay a constant PBKDF2 cost on the unknown-email
+        // login branch so response timing does not enumerate registered accounts.
+        services.AddSingleton<ILoginTimingEqualizer, LoginTimingEqualizer>();
         services.AddScoped<IUserAccountService, UserAccountService>();
 
         // H-3 SoC-split (arch-audit 2026-05-11): role-fetch flyttad från
@@ -1213,6 +1218,9 @@ public static class DependencyInjection
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<AppIdentityDbContext>();
 
+        // #481 Low — required by UserAccountService's constructor (see AddIdentityAndSessions). The
+        // Worker never logs in, but the dependency must resolve wherever UserAccountService is built.
+        services.AddSingleton<ILoginTimingEqualizer, LoginTimingEqualizer>();
         services.AddScoped<IUserAccountService, UserAccountService>();
         services.AddScoped<IAccountHardDeleter, AccountHardDeleter>();
 

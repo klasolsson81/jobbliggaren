@@ -109,7 +109,10 @@ internal sealed partial class ScbCompanyRegisterClient(
             if (leaf.OverCap)
             {
                 if (TryExtractProtectedKey(leaf.Query, out var kommunCode, out var sniCode))
-                    outcome.RecordProtectedPartition(kommunCode, sniCode);
+                    // #717 — carry the over-cap count (leaf.Count, already taken by raknaforetag) so the run
+                    // sizes this tail for free. leaf.Count > cap by construction (over-cap), and the same
+                    // (kommun, SNI) may recur across Juridisk forms — the outcome accumulates per key.
+                    outcome.RecordProtectedPartition(kommunCode, sniCode, leaf.Count);
                 else
                     outcome.MarkTruncatedOrErrored();
             }

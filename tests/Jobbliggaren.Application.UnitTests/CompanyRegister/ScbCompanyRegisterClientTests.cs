@@ -192,6 +192,9 @@ public class ScbCompanyRegisterClientTests
         var protectedPartition = outcome.ProtectedPartitions.ShouldHaveSingleItem();
         protectedPartition.SeatMunicipalityCode.ShouldBe("0180");
         protectedPartition.SniCode.ShouldBe("70100");
+        // #717 — the over-cap raknaforetag count (2809) is carried for free tail sizing (one leaf here).
+        outcome.ProtectedPartitionSizes[protectedPartition]
+            .ShouldBe(new ScbProtectedPartitionSize(OverCapCount: 2809, LeafCount: 1));
     }
 
     [Fact]

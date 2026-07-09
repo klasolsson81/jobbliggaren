@@ -21,9 +21,12 @@ namespace Jobbliggaren.Application.CompanyRegister.Abstractions;
 /// </summary>
 public sealed class ScbSyncOutcome
 {
-    // #640: keys the deregister sweep must SKIP. A HashSet de-duplicates a key the client may record more
-    // than once; the class is sequential by design (see the type doc), so a plain HashSet is safe.
-    private readonly HashSet<ScbProtectedPartition> _protectedPartitions = [];
+    // #640: keys the deregister sweep must SKIP → #717: mapped to their accumulated over-cap size so the
+    // run can size each tail for free. A Dictionary keyed by the identity VO de-duplicates the sweep key
+    // AND accumulates the count/leaf tallies a key may receive more than once (the same (kommun, SNI)
+    // recurs across Juridisk-form branches — see ScbProtectedPartitionSize). The class is sequential by
+    // design (see the type doc), so a plain Dictionary is safe.
+    private readonly Dictionary<ScbProtectedPartition, ScbProtectedPartitionSize> _protectedPartitions = [];
     private int _partitionsCounted;
     private int _partitionsFetched;
     private int _totalRowsFetched;
@@ -62,9 +65,19 @@ public sealed class ScbSyncOutcome
     /// #640 — the (SätesKommun, 5-digit SNI) partitions whose unfetched over-cap tail the deregister sweep
     /// must SKIP (the partition-scoped sweep). Empty on a run with no over-cap 5-digit tail, in which case
     /// the sweep runs unrestricted (#628 behaviour). Deduplicated. Read by the orchestrator after
-    /// streaming and passed to <c>DeregisterMissingAsync</c>.
+    /// streaming and passed to <c>DeregisterMissingAsync</c>. (The key set is unchanged by #717 — the
+    /// over-cap sizes hang off the values, never the sweep key.)
     /// </summary>
-    public IReadOnlyCollection<ScbProtectedPartition> ProtectedPartitions => _protectedPartitions;
+    public IReadOnlyCollection<ScbProtectedPartition> ProtectedPartitions => _protectedPartitions.Keys;
+
+    /// <summary>
+    /// #717 — each protected partition mapped to its accumulated over-cap size
+    /// (<see cref="ScbProtectedPartitionSize"/>), so the orchestrator can size each unfetched tail for
+    /// free (the <c>raknaforetag</c> counts were already taken). Read after streaming to emit the tail
+    /// diagnostic (5717) — pure #641 facet evidence; touches neither the sweep nor the audit payload.
+    /// </summary>
+    public IReadOnlyDictionary<ScbProtectedPartition, ScbProtectedPartitionSize> ProtectedPartitionSizes =>
+        _protectedPartitions;
 
     /// <summary>
     /// #640 — how many times the no-SNI completeness reconciliation (Guard 2) detected
@@ -106,10 +119,20 @@ public sealed class ScbSyncOutcome
 
     /// <summary>
     /// #640 — records that an over-cap 5-digit partition's tail must be excluded from the sweep. The
-    /// sweep keeps running everywhere else (partition-scoped). Idempotent per key (deduplicated).
+    /// sweep keeps running everywhere else (partition-scoped). Deduplicated by (kommun, SNI) key.
+    /// #717 — ACCUMULATES the over-cap facts: the same key can be recorded by several over-cap leaves
+    /// (one per over-cap Juridisk form under this (kommun, SNI) — the ladder splits by form above SNI and
+    /// the key drops it), so sum the counts and tally the leaves rather than overwrite. Each leaf fetched
+    /// its own first cap rows, so the true tail is <c>Σcount − cap × leaves</c>
+    /// (see <see cref="ScbProtectedPartitionSize"/>). Never receives an org.nr (CLAUDE.md §5).
     /// </summary>
-    public void RecordProtectedPartition(string seatMunicipalityCode, string sniCode) =>
-        _protectedPartitions.Add(new ScbProtectedPartition(seatMunicipalityCode, sniCode));
+    public void RecordProtectedPartition(string seatMunicipalityCode, string sniCode, int overCapCount)
+    {
+        var key = new ScbProtectedPartition(seatMunicipalityCode, sniCode);
+        var current = _protectedPartitions.GetValueOrDefault(key);
+        _protectedPartitions[key] = new ScbProtectedPartitionSize(
+            current.OverCapCount + overCapCount, current.LeafCount + 1);
+    }
 
     /// <summary>
     /// #640 (Guard 2) — records a no-SNI completeness gap (a 5-digit split whose child counts sum below

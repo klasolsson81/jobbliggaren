@@ -112,6 +112,17 @@ internal sealed partial class ScbCompanyRegisterRefresher(
         if (outcome.ObservedReconciliationGaps > 0)
             LogObservedReconciliationGap(logger, outcome.ObservedReconciliationGaps);
 
+        // #717 — free tail sizing: the dense-metro over-cap 5-digit SNI cells (Sthlm×AB×00000 etc.) are
+        // what leaves the register short of SCB's ~1.17M. Their raknaforetag counts were already taken, so
+        // surface each unfetched tail (count − cap × leaves) here at ZERO extra SCB calls — #641 facet
+        // evidence. ONE aggregated WARN (parity 5713/5714/5716), guarded on a non-empty protected set so a
+        // clean run stays silent. Counts + taxonomy codes only, never an org.nr.
+        if (protectedPartitionCount > 0)
+        {
+            var tails = ScbProtectedPartitionTails.Summarize(outcome.ProtectedPartitionSizes, opts.BatchSize);
+            LogProtectedPartitionTails(logger, protectedPartitionCount, tails.TotalTailRows, tails.Breakdown);
+        }
+
         var completedAt = clock.UtcNow;
 
         await using (var auditScope = scopeFactory.CreateAsyncScope())
@@ -216,4 +227,13 @@ internal sealed partial class ScbCompanyRegisterRefresher(
     [LoggerMessage(EventId = 5716, Level = LogLevel.Warning,
         Message = "ScbCompanyRegisterRefresher: 2-siffrigt divisions-täckningsgap OBSERVERAT ({Gaps} st, observe-only — latchar EJ trunkering, påverkar EJ sweepen denna körning). Underlag för observe→latch-ratchet. Loggar aldrig org.nr.")]
     private static partial void LogObservedReconciliationGap(ILogger logger, int gaps);
+
+    // #717 — free tail sizing (#641 facet evidence). ONE aggregated WARN per run when the run protected
+    // any over-cap 5-digit tail: the count of protected partitions, the total unfetched tail rows, and a
+    // compact per-partition (kommun×SNI:count/leaves/tail) breakdown. Zero extra SCB calls (the counts
+    // were already taken). Kommun + SNI are public administrative taxonomy codes and the rest are
+    // aggregate counts — never an org.nr (CLAUDE.md §5).
+    [LoggerMessage(EventId = 5717, Level = LogLevel.Warning,
+        Message = "ScbCompanyRegisterRefresher: skyddade partitioner (over-cap 5-siffriga SNI-svansar) — antal={ProtectedCount}, total otäckt svans≈{TailRows} rader (övre gräns — en multi-SNI-entitet kan dubbelräknas över celler, jfr #628; #641-facettunderlag, fri instrumentering utan extra SCB-anrop). Per partition (kommun×SNI, störst först): {Breakdown}. Loggar aldrig org.nr.")]
+    private static partial void LogProtectedPartitionTails(ILogger logger, int protectedCount, int tailRows, string breakdown);
 }

@@ -76,7 +76,8 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
 
         // Run 2 (T1): re-touches neither (both go stale) but reports the (0180, 70100) tail as protected.
         var run2 = await BuildRefresher(
-            new FakeSource([], fetched: 1000, protectedPartitions: [new ScbProtectedPartition("0180", "70100")]), T1)
+            new FakeSource([], fetched: 1000,
+                protectedPartitions: [(new ScbProtectedPartition("0180", "70100"), 2809)]), T1)
             .RefreshAsync(ct);
 
         run2.SweepApplied.ShouldBeTrue();
@@ -108,6 +109,9 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
         run2.SweepSkipReason.ShouldBe("truncated-or-errored");
         (await ReadAllAsync(ct)).ShouldAllBe(e => e.Status == CompanyRegisterStatus.Active); // gap → no deregistration
         logger.Entries.ShouldContain(e => e.EventId.Id == 5714);                             // distinct gap warning fired
+        // #717 — no protected over-cap tail this run → the tail-sizing WARN (5717) stays SILENT
+        // (the LOG-ONLY clean-run guard: emit only when ProtectedPartitions.Count > 0).
+        logger.Entries.ShouldNotContain(e => e.EventId.Id == 5717);
     }
 
     [Fact]
@@ -133,6 +137,36 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
         (await ReadAllAsync(ct)).ShouldAllBe(e => e.Status == CompanyRegisterStatus.Active); // truncated → no deregistration
         (await ReadLastFailedPartitionCountFromAuditAsync(ct)).ShouldBe(2);                  // reached the audit row
         logger.Entries.ShouldContain(e => e.EventId.Id == 5712 && e.Message.Contains("failedPartitions=2")); // completion line
+    }
+
+    [Fact]
+    public async Task RefreshAsync_LogsAggregatedTailSizing_WhenRunProtectsOverCapCells()
+    {
+        // #717 end-to-end: a run that protects over-cap 5-digit tails emits ONE aggregated 5717 WARN with
+        // the total unfetched tail rows (Σ per-key count − cap × leaves) — #641 facet evidence at ZERO
+        // extra SCB calls. Two over-cap Juridisk-form leaves under 0180×00000 (31000 + 5000, cap 2000 →
+        // 36000 − 4000 = 32000) plus 0180×70100 (2809 → 809) ⇒ total 32809 across 2 distinct keys.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        var logger = new CapturingLogger<ScbCompanyRegisterRefresher>();
+        var run = await BuildRefresher(
+            new FakeSource([], fetched: 1000, protectedPartitions:
+            [
+                (new ScbProtectedPartition("0180", "00000"), 31000),
+                (new ScbProtectedPartition("0180", "00000"), 5000),   // second over-cap leaf, SAME key
+                (new ScbProtectedPartition("0180", "70100"), 2809),
+            ]), T0, logger).RefreshAsync(ct);
+
+        run.ProtectedPartitionCount.ShouldBe(2);   // two DISTINCT (kommun, SNI) keys
+
+        var tail = logger.Entries.Single(e => e.EventId.Id == 5717);
+        tail.Level.ShouldBe(LogLevel.Warning);
+        tail.Message.ShouldContain("antal=2");
+        tail.Message.ShouldContain("total otäckt svans≈32809 rader");           // Σ tails (upper bound), multi-leaf
+        tail.Message.ShouldContain("övre gräns");                                // reported as an at-most figure (#628)
+        tail.Message.ShouldContain("0180×00000:count=36000,leaves=2,tail=32000"); // biggest first, accumulated
+        tail.Message.ShouldContain("Loggar aldrig org.nr");                       // §5 discipline on the new line
     }
 
     private ScbCompanyRegisterRefresher BuildRefresher(
@@ -225,7 +259,7 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
     private sealed class FakeSource(
         IReadOnlyList<ScbCompanyRecord> batch,
         int fetched,
-        IReadOnlyList<ScbProtectedPartition>? protectedPartitions = null,
+        IReadOnlyList<(ScbProtectedPartition Partition, int OverCapCount)>? protectedPartitions = null,
         int reconciliationGaps = 0,
         int partitionRequestFailures = 0) : IScbCompanyRegisterSource
     {
@@ -234,8 +268,10 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
         {
             outcome.RecordCounted();
             outcome.RecordFetched(fetched); // drives the floor independently of the batch's row count
-            foreach (var partition in protectedPartitions ?? [])
-                outcome.RecordProtectedPartition(partition.SeatMunicipalityCode, partition.SniCode);
+            // #717 — carry the over-cap count so the outcome accumulates per key (a repeated key mimics the
+            // same (kommun, SNI) recorded by several over-cap Juridisk-form leaves).
+            foreach (var (partition, overCapCount) in protectedPartitions ?? [])
+                outcome.RecordProtectedPartition(partition.SeatMunicipalityCode, partition.SniCode, overCapCount);
             for (var i = 0; i < reconciliationGaps; i++)
                 outcome.RecordReconciliationGap();
             for (var i = 0; i < partitionRequestFailures; i++)

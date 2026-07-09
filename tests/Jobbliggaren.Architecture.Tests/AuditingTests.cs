@@ -61,6 +61,55 @@ public class AuditingTests
     }
 
     [Fact]
+    public void No_command_should_implement_both_single_and_batch_audit_markers()
+    {
+        // AuditBehavior checks IBatchAuditableCommand<T> BEFORE the single
+        // marker and would silently ignore IAuditableCommand<T> on the same
+        // command — implementing both is always a bug (two audit intents, one
+        // execution). See the IBatchAuditableCommand XML doc.
+        var assembly = typeof(Jobbliggaren.Application.AssemblyMarker).Assembly;
+
+        var doubleMarked = assembly.GetTypes()
+            .Where(t => !t.IsInterface && !t.IsAbstract)
+            .Where(t =>
+            {
+                var generics = t.GetInterfaces().Where(i => i.IsGenericType).ToList();
+                return generics.Any(i =>
+                        i.GetGenericTypeDefinition() == typeof(IAuditableCommand<>))
+                    && generics.Any(i =>
+                        i.GetGenericTypeDefinition() == typeof(IBatchAuditableCommand<>));
+            })
+            .Select(t => t.FullName ?? t.Name)
+            .ToList();
+
+        doubleMarked.ShouldBeEmpty(
+            $"Commands implementing BOTH audit markers: {string.Join(", ", doubleMarked)}");
+    }
+
+    [Fact]
+    public void IBatchAuditableCommand_implementations_should_reside_in_Commands_namespaces()
+    {
+        // Parity with the single-marker rule above: the batch marker inherits
+        // the non-generic IAuditableCommand, so the existing scan already
+        // covers it — this test pins the intent explicitly should that
+        // inheritance ever change.
+        var assembly = typeof(Jobbliggaren.Application.AssemblyMarker).Assembly;
+
+        var nonCommandImplementations = assembly.GetTypes()
+            .Where(t => !t.IsInterface
+                        && !t.IsAbstract
+                        && t.GetInterfaces().Any(i => i.IsGenericType
+                            && i.GetGenericTypeDefinition() == typeof(IBatchAuditableCommand<>))
+                        && !(t.Namespace?.Contains(".Commands.", StringComparison.Ordinal) ?? false))
+            .Select(t => t.FullName ?? t.Name)
+            .ToList();
+
+        nonCommandImplementations.ShouldBeEmpty(
+            $"IBatchAuditableCommand implementations outside Commands namespaces: " +
+            $"{string.Join(", ", nonCommandImplementations)}");
+    }
+
+    [Fact]
     public void AuditBehavior_should_reside_in_Application_Common_Auditing()
     {
         // Behavior-placering verifieras genom typ-uppslag (kompilerings-tid:

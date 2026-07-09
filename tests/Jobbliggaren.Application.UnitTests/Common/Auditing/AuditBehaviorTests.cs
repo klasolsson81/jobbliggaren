@@ -199,6 +199,72 @@ public class AuditBehaviorTests
     }
 
     // ---------------------------------------------------------------
+    // Batch marker (#630 PR 9) — one row per aggregate id
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task Handle_WhenCommandIsBatchAuditableAndSuccess_AddsOneEntryPerAggregateId()
+    {
+        var ids = new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
+        var behavior = CreateBehavior<BatchAuditableMutationCommand, Result>();
+        var command = new BatchAuditableMutationCommand(ids);
+        MessageHandlerDelegate<BatchAuditableMutationCommand, Result> next =
+            (_, _) => ValueTask.FromResult(Result.Success());
+
+        await behavior.Handle(command, next, CancellationToken.None);
+
+        var entries = TrackedAuditEntries();
+        entries.Count.ShouldBe(3);
+        entries.Select(e => e.AggregateId).ShouldBe(ids, ignoreOrder: true);
+    }
+
+    [Fact]
+    public async Task Handle_WhenCommandIsBatchAuditable_AllEntriesShareCorrelationIdAndInstant()
+    {
+        // The shared correlation id is what groups the rows as ONE batch, and
+        // one command is one moment — every row carries the same OccurredAt.
+        var behavior = CreateBehavior<BatchAuditableMutationCommand, Result>();
+        var command = new BatchAuditableMutationCommand([Guid.NewGuid(), Guid.NewGuid()]);
+        MessageHandlerDelegate<BatchAuditableMutationCommand, Result> next =
+            (_, _) => ValueTask.FromResult(Result.Success());
+
+        await behavior.Handle(command, next, CancellationToken.None);
+
+        var entries = TrackedAuditEntries();
+        entries.ShouldAllBe(e => e.CorrelationId == CorrelationId);
+        entries.ShouldAllBe(e => e.OccurredAt == Now);
+        entries.ShouldAllBe(e => e.EventType == "Test.BatchMutation");
+        entries.ShouldAllBe(e => e.UserId == UserId);
+    }
+
+    [Fact]
+    public async Task Handle_WhenCommandIsBatchAuditableButResponseIsFailure_DoesNotAddAuditLogEntries()
+    {
+        var behavior = CreateBehavior<BatchAuditableMutationCommand, Result>();
+        var command = new BatchAuditableMutationCommand([Guid.NewGuid()]);
+        var error = new DomainError("Test.Failed", "test-fel");
+        MessageHandlerDelegate<BatchAuditableMutationCommand, Result> next =
+            (_, _) => ValueTask.FromResult(Result.Failure(error));
+
+        await behavior.Handle(command, next, CancellationToken.None);
+
+        TrackedAuditEntries().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_WhenBatchCommandReturnsNoIds_AddsNoEntries()
+    {
+        var behavior = CreateBehavior<BatchAuditableMutationCommand, Result>();
+        var command = new BatchAuditableMutationCommand([]);
+        MessageHandlerDelegate<BatchAuditableMutationCommand, Result> next =
+            (_, _) => ValueTask.FromResult(Result.Success());
+
+        await behavior.Handle(command, next, CancellationToken.None);
+
+        TrackedAuditEntries().ShouldBeEmpty();
+    }
+
+    // ---------------------------------------------------------------
     // System-jobb / Worker-fall (null user, null context)
     // ---------------------------------------------------------------
 
@@ -302,3 +368,11 @@ internal sealed record AuditableMutationCommand(Guid AggregateId)
 }
 
 internal sealed record NonAuditableCommand : ICommand<Result>;
+
+internal sealed record BatchAuditableMutationCommand(IReadOnlyList<Guid> AggregateIds)
+    : ICommand<Result>, IBatchAuditableCommand<Result>
+{
+    public string EventType => "Test.BatchMutation";
+    public string AggregateType => "TestAggregate";
+    public IReadOnlyList<Guid> ExtractAggregateIds(Result response) => AggregateIds;
+}

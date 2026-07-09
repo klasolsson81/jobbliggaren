@@ -57,11 +57,12 @@ approach that ceiling and an unhealthy one fails loud instead of hammering:
   command-timeout headroom + fail-fast-to-Failed + a clean idempotent re-run.
 
 Expected duration at 6/10 s: **~11 h** (empirical — the first completed run,
-2026-07-05→06, clocked 665 min for a full ~1.17M-row re-fetch; the earlier
+2026-07-05→06, clocked 665 min for a full-register re-fetch of 1,107,940 rows;
+the earlier
 "~1.5–3 h" estimate was wrong for a from-zero population and holds for no run,
 since every run — including the weekly steady-state refresh — is a full
 re-fetch + upsert, not incremental). Longer than at 9/10 s by design — Klas
-accepted the extra night-time minutes in exchange for the wider margin. This
+accepted the extra minutes in exchange for the wider margin. This
 ~11 h real hold time is why `DistributedLockTimeout` is pinned to 12 h (#693,
 §6 "lock takeover").
 
@@ -83,9 +84,16 @@ accepted the extra night-time minutes in exchange for the wider margin. This
    personnummer by design (§0, verified §5). No new PII surface.
 3. **Dev Postgres up** (Docker Compose, port 5435) and reachable — the same
    database backs both `company_register` and the Hangfire storage.
-4. **Time:** budget ~11 h uninterrupted (empirical, §0); run it overnight per
-   the cron default rationale (lowest DB contention) — but **avoid 02:00–05:00 UTC**
-   (see point 5).
+4. **Time / slot (#708 PR 2, senior-cto-advisor 2026-07-09):** budget ~11 h
+   uninterrupted (empirical, §0). Prefer a **Saturday run started ≥ ~06:00 UTC**
+   (after SCB's Saturday-morning update), finishing before Sunday 00:00 UTC:
+   SCB updates its API **every night except Saturday→Sunday** (per its
+   onboarding PDF, which documents no status code for rate/maintenance
+   rejections), so a Saturday start between ~06:00 and ~13:00 UTC is the only
+   slot where an ~11 h run fits without crossing a nightly update. The 2026-07-05 run's 40 transient 400s are
+   attributed by elimination to the nightly update its tail crossed — a rate
+   breach is code-excluded and would surface as 429 (§6). Still avoid
+   02:00–05:00 UTC for the DB-contention reason in point 5.
 5. **ISOLATED run (mandatory — #688).** The first live attempt failed on DB
    contention, not SCB: the full recurring-job fleet ran against the same dev
    Postgres and starved the population's writes. During the population window:
@@ -160,6 +168,20 @@ You only need the **Api** running too if you use the admin-endpoint trigger
 Two paths — pick one. For a first controlled run, **Path A** is simplest
 (Worker only, no auth).
 
+**Pre-flight (both paths — #693 lesson):** Hangfire's own catch-up can start
+the job **at Worker boot** if a cron occurrence passed while the Worker was
+down. Before any manual trigger or cron-nudge, check for an already-running
+execution:
+
+```sql
+SELECT id, statename, createdat FROM hangfire.job ORDER BY id DESC LIMIT 5;
+```
+
+If a run is already `Processing`, do **not** nudge — on 2026-07-05 the nudge
+created the duplicate execution (§6 "lock takeover"). Post-#693 a duplicate can
+no longer co-run: it blocks on its 4 h acquisition wait and lands `Failed` —
+harmless, but a wasted slot.
+
 ### Path A — cron-nudge (Worker-only, simplest)
 
 Set `ScbRegister:SyncCadenceCron` in `appsettings.Local.json` to a time **1–2
@@ -212,7 +234,11 @@ run to completion. If anything looks wrong, abort (§6).
 
 ### Verification queries (psql against the dev DB)
 ```sql
--- 1. Total rows — expect ~1,173,778 (±, register drifts week to week).
+-- 1. Total rows — honest post-#708 expectation: ~1.07–1.11M distinct. SCB's own
+--    register size is ~1.17M, but the 34 protected-partition tails (~105k rows,
+--    e.g. Sthlm×AB×00000 alone counts 31,000 at SCB vs the 2000 fetch cap) are
+--    structurally unfetchable until #641's 4th-rung facet — they are #641 scope,
+--    not a run failure (senior-cto-advisor 2026-07-09).
 SELECT count(*) FROM company_register;
 
 -- 2. Lifecycle breakdown — Active dominates; Deregistered only if the sweep ran.
@@ -233,10 +259,11 @@ ORDER BY occurred_at DESC
 LIMIT 1;
 ```
 
-**Pass criteria:** count near ~1.17M, query 3 returns **0**, the audit row shows
-`TotalRowsFetched` ≈ the row count and `SweepApplied` = the expected value
-(false on the very first run if no prior baseline cleared the floor; true on
-steady-state re-runs).
+**Pass criteria:** count in the **~1.07–1.11M distinct** band (the honest
+post-#708 expectation — ~1.17M requires #641; the number is pending Klas's
+re-confirmed acceptance figure), query 3 returns **0**, the audit row shows
+`SweepApplied=true` with `FailedPartitionCount=0` — **those two fields are the
+real #708 completion deliverable**; the row count is a secondary indicator.
 
 **Reading the audit row's `FailedPartitionCount` (#708):**
 `SweepApplied=false` **with** `FailedPartitionCount > 0` = SCB rejected that many
@@ -280,20 +307,44 @@ A single `429` at 6/10 s should not happen. If you see one (Worker WARN
 
 ### Known signature — 400-rejected partitions (#708, first completed run 2026-07-05→06)
 The first completed population latched truncated on **40 SCB HTTP 400s** (20
-`raknaforetag` + 20 `hamtaforetag`) against ~20 deep-split SNI cells, leaving
-~66k rows unfetched and the sweep correctly skipped. Signature: WARN `5702`
-lines mid-run; run ends `sweepApplied=False` with `SweepSkipReason:
+`raknaforetag` + 20 `hamtaforetag`) against ~40 distinct deep-split query
+instances; the sweep was correctly skipped. (The register's row gap is a
+separate matter: ~105k distinct rows short of SCB's ~1.17M, dominated by the
+34 protected-partition TAILS —
+#641 scope — not by the 400'd cells, whose row cost was small.) Signature: WARN
+`5702` lines mid-run; run ends `sweepApplied=False` with `SweepSkipReason:
 truncated-or-errored` and (post-#708) `failedPartitions > 0` in the 5712
 summary + `FailedPartitionCount > 0` in the audit row. Post-#708 each 5702
 carries the partition descriptor + SCB's validator reason — **capture those
-lines**; they identify the rejected (kommun × SNI) cells and WHY the validator
-refused them. Do not re-run blind: the same cells 400 again and the sweep stays
-disabled. Fix the query shape (or exclude the cell class) first, then re-run —
-the upsert is idempotent. NB: a `rakna`-rejected cell is never fetched (the
-planner skips zero-count partitions), so rakna-400s and hamta-400s are
-*different* cells — an endpoint-validator asymmetry is possible and both WARN
-variants matter. A kodtabell rejection logs as its own event `5704` (dimension
-failure, not a partition).
+lines**. NB: a `rakna`-rejected cell is never fetched (the planner skips
+zero-count partitions), so rakna-400s and hamta-400s are *different* cells. A
+kodtabell rejection logs as its own event `5704` (dimension failure, not a
+partition).
+
+**Probe resolution (2026-07-09, #708 PR 2 — senior-cto-advisor bind):** a
+9-call Klas-delegated live probe EXCLUDED every structural cause: the suspected
+shapes (`Bransch` niva 3 `["00000"]` and `"2-siffrig bransch 1"` `["00"]`,
+Sthlm×AB, BOTH endpoints) all return HTTP 200; an over-cap `hamtaforetag`
+cleanly returns the first 2000 rows; the prefix-derived 2-digit set equals
+SCB's own kodtabell (88/88, set-diff 0 both ways); an empty-`Kod` query is
+structurally impossible in the planner. The 40 400s were **transient**,
+attributed **by elimination** to SCB's nightly update window (the run's tail
+crossed 02:00–02:50). A rate breach is ruled out: the process-wide static
+6/10 s limiter caps combined outbound no matter how many executions co-run
+(§0), and a genuine breach would surface as 429 — zero 429s were seen across
+~35k calls. The #693 co-run was therefore a confounder only: it doubled
+metered spend and ~halved throughput, and #693's fix de-risks the rerun on
+those axes (plus lock hygiene) — NOT on rate, which the limiter already
+guaranteed. Honest caveat: the 400 timestamps are lost, so the nightly-window
+attribution is by elimination, not observed timing; if the 400s in fact fell
+in the co-run window (15:55–17:04, outside any nightly window) the cause is an
+unknown transient — still with no structural shape. Both legs are covered
+cause-agnostically by PR-1's per-failure observability and the evidence-gated
+end-of-run retry (**#712**). If 400s recur: read the 5702 descriptors, check
+the run's clock window against §1 point 4, and re-run in the Saturday slot —
+do **NOT** re-open a query-shape hunt without a descriptor showing a genuinely
+rejected shape, and build #712 on completion-run `FailedPartitionCount`
+evidence, not speculation (ADR 0091 amendment #6).
 
 ### Known failure signature — DB contention (#688, first live run 2026-07-05)
 The chain, for pattern-matching a future log: `System.TimeoutException: Timeout
@@ -358,7 +409,12 @@ open an issue before re-running.
 - **One-shot:** set `ScbRegister:Enabled=false` (and/or revert the Path-A cron)
   and restart the Worker so nothing re-fires. The register keeps the populated
   rows.
-- **Ongoing refresh:** leave `Enabled=true` with the default weekly cron
-  (`0 3 * * 1`, Monday 03:00 UTC — matches SCB's own weekly register update).
-  The sweep then keeps the replica in step week to week.
+- **Ongoing refresh:** leave `Enabled=true` with a weekly cron — but note
+  (#708 PR 2): the shipped default `0 3 * * 1` (Monday 03:00 UTC) sits INSIDE
+  the 02:00–05:00 avoid-window AND on a night SCB updates its API (every night
+  except Sat→Sun) — with the ~11 h full re-fetch it is wrong on both counts.
+  Recommendation (senior-cto-advisor 2026-07-09): a Saturday-morning slot
+  consistent with §1 point 4, e.g. `0 6 * * 6`. The cron VALUE is Klas config
+  (carried question from #690/#693). The sweep then keeps the replica in step
+  week to week.
 - Record the `LogCompleted` summary + query results in the session log.

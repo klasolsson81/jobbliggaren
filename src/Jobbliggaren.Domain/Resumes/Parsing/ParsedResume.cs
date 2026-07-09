@@ -58,6 +58,12 @@ public sealed class ParsedResume : AggregateRoot<ParsedResumeId>
     /// non-PII column, NEVER the DEK shadow (it carries no CV text).</summary>
     public CvLayoutMetrics? LayoutMetrics { get; private set; }
 
+    /// <summary>Which confirm-tasks the parse left complete vs missing (Fas 4b PR-8,
+    /// CTO-bind Q5) — presence booleans behind the hub action card's meter, computed at
+    /// import where the plaintext exists. Non-PII by shape (parity
+    /// <see cref="Confidence"/>). Null for pre-PR-8 imports — honest "not computed".</summary>
+    public ParsedGapSummary? Gaps { get; private set; }
+
     private readonly List<ProposedOccupation> _occupationProposals = [];
 
     /// <summary>Unconfirmed SSYK proposals (F4-3 call-site, ADR 0040 Beslut 4 — the
@@ -91,6 +97,7 @@ public sealed class ParsedResume : AggregateRoot<ParsedResumeId>
         ParseConfidence confidence,
         PersonnummerScanOutcome personnummer,
         CvLayoutMetrics? layoutMetrics,
+        ParsedGapSummary? gaps,
         DateTimeOffset now) : base(id)
     {
         JobSeekerId = jobSeekerId;
@@ -103,6 +110,7 @@ public sealed class ParsedResume : AggregateRoot<ParsedResumeId>
         Confidence = confidence;
         Personnummer = personnummer;
         LayoutMetrics = layoutMetrics;
+        Gaps = gaps;
         CreatedAt = now;
         UpdatedAt = now;
     }
@@ -134,7 +142,12 @@ public sealed class ParsedResume : AggregateRoot<ParsedResumeId>
         // Fas 4b PR-6b — non-PII layout metrics read from the source PDF at import. Optional
         // trailing param (default null) so existing Create callers stay unchanged (additive,
         // parity skillProposals); only ImportResumeCommandHandler passes it (it has the bytes).
-        CvLayoutMetrics? layoutMetrics = null)
+        CvLayoutMetrics? layoutMetrics = null,
+        // Fas 4b PR-8 — non-PII confirm-task presence flags behind the hub meter (CTO-bind
+        // Q5). Optional trailing param (default null) so existing Create callers stay
+        // unchanged (additive, parity layoutMetrics); only ImportResumeCommandHandler
+        // passes it (it holds the plaintext content at import).
+        ParsedGapSummary? gaps = null)
     {
         if (jobSeekerId == default)
             return Fail("ParsedResume.JobSeekerIdRequired", "JobSeekerId krävs.");
@@ -188,6 +201,7 @@ public sealed class ParsedResume : AggregateRoot<ParsedResumeId>
             confidence,
             personnummer,
             layoutMetrics,
+            gaps,
             now);
 
         foreach (var proposal in occupationProposals ?? [])

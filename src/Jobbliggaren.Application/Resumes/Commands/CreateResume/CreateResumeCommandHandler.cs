@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Application.Resumes.Queries;
+using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Resumes;
 using Mediator;
@@ -12,7 +13,8 @@ namespace Jobbliggaren.Application.Resumes.Commands.CreateResume;
 public sealed class CreateResumeCommandHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    IResumeReviewReconciler reconciler)
     : ICommandHandler<CreateResumeCommand, Result<Guid>>
 {
     public async ValueTask<Result<Guid>> Handle(
@@ -52,6 +54,13 @@ public sealed class CreateResumeCommandHandler(
             return Result.Failure<Guid>(result.Error);
 
         db.Resumes.Add(result.Value);
+
+        // Fas 4b PR-8 (CTO-bind Q1): every canonical content write reconciles the
+        // DEK-free ledger in-transaction, so a template-created CV's hub badge is live
+        // from creation (never engine-on-list-path, ADR 0045).
+        var reconciled = await reconciler.ReconcileAsync(result.Value, null, cancellationToken);
+        if (reconciled.IsFailure)
+            return Result.Failure<Guid>(reconciled.Error);
 
         return Result.Success(result.Value.Id.Value);
     }

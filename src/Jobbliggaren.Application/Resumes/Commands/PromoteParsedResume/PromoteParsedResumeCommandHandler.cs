@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Resumes.Common;
+using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
@@ -28,7 +29,8 @@ public sealed class PromoteParsedResumeCommandHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
     IDateTimeProvider clock,
-    IFailedAccessLogger failedAccessLogger)
+    IFailedAccessLogger failedAccessLogger,
+    IResumeReviewReconciler reconciler)
     : ICommandHandler<PromoteParsedResumeCommand, Result<Guid>>
 {
     public async ValueTask<Result<Guid>> Handle(
@@ -95,6 +97,14 @@ public sealed class PromoteParsedResumeCommandHandler(
 
         var resume = created.Value;
         db.Resumes.Add(resume);
+
+        // Fas 4b PR-8 (CTO-bind Q1; handoff §3 "efter Spara körs granskningen"): seed the
+        // DEK-free finding-status ledger in the SAME transaction as the promote, so the
+        // hub badge is live from the first save without the engine ever running on the
+        // list path (ADR 0045).
+        var reconciled = await reconciler.ReconcileAsync(resume, null, cancellationToken);
+        if (reconciled.IsFailure)
+            return Result.Failure<Guid>(reconciled.Error);
 
         return Result.Success(resume.Id.Value);
     }

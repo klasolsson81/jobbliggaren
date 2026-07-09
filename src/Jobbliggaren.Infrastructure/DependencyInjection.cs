@@ -582,6 +582,12 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Review.Abstractions.ICvReviewEngine,
             Jobbliggaren.Infrastructure.Resumes.Review.CvReviewEngine>();
+        // Fas 4b PR-8 (ADR 0093 §D5(b), CTO-bind PR-8 Q1): the one engine-driven ledger
+        // write path — an Application-layer composition over the engine (MatchProfileBuilder
+        // registration precedent). Stateless → singleton, parity with the engine it wraps.
+        services.AddSingleton<
+            Jobbliggaren.Application.Resumes.Review.Abstractions.IResumeReviewReconciler,
+            Jobbliggaren.Application.Resumes.Review.ResumeReviewReconciler>();
         return services;
     }
 

@@ -69,6 +69,11 @@ public class ResumeRootPlainColumnGuardTests
             "child collection (DEK-free status ledger: closed enum + bounded tokens + " +
             "fingerprint + timestamps; content lives nowhere — shape pinned fail-closed " +
             "by ResumeFindingStatusColumnGuardTests)",
+        // Fas 4b PR-8 (ADR 0093 §D5(b), ADR 0097 amendment 2026-07-09)
+        [nameof(Resume.ReviewedRubricVersion)] =
+            "bounded 'major.minor.patch' machine token (nullable, max 14 chars, shape-" +
+            "validated in ReconcileFindingStatuses) — the rubric version the ledger was " +
+            "last reconciled against; never free text (AdoptedAt idiom)",
     };
 
     [Fact]

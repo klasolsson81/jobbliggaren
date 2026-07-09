@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Resumes.Common;
+using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Resumes;
 using Mediator;
@@ -13,7 +14,8 @@ public sealed class UpdateMasterContentCommandHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
     IDateTimeProvider clock,
-    IFailedAccessLogger failedAccessLogger)
+    IFailedAccessLogger failedAccessLogger,
+    IResumeReviewReconciler reconciler)
     : ICommandHandler<UpdateMasterContentCommand, Result>
 {
     public async ValueTask<Result> Handle(
@@ -62,6 +64,14 @@ public sealed class UpdateMasterContentCommandHandler(
             return guard;
 
         var content = ResumeContentMapper.ToDomain(command.Content);
-        return resume.UpdateMasterContent(content, clock);
+        var updated = resume.UpdateMasterContent(content, clock);
+        if (updated.IsFailure)
+            return updated;
+
+        // Fas 4b PR-8 (CTO-bind Q1): reconcile the DEK-free ledger against the NEW
+        // content in the same transaction — a manual edit that fixes a finding prunes
+        // its Open row (badge decrements); StaleAt stamping on Resolved rows already
+        // happened inside UpdateMasterContent.
+        return await reconciler.ReconcileAsync(resume, null, cancellationToken);
     }
 }

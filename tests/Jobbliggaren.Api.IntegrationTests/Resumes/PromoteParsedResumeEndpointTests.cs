@@ -98,10 +98,71 @@ public class PromoteParsedResumeEndpointTests(ApiFactory factory)
         // The new canonical Resume is listed; the staging artifact is now gone (promoted).
         var list = await _client.GetAsync("/api/v1/resumes", ct);
         var items = (await list.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("items");
-        items.EnumerateArray().Any(r => r.GetProperty("id").GetString() == newResumeId).ShouldBeTrue();
+        var listed = items.EnumerateArray().Single(r => r.GetProperty("id").GetString() == newResumeId);
+
+        // Fas 4b PR-8.1 (CTO-bind Q1): the promote reconciled the DEK-free ledger in the
+        // same transaction, so the hub badge data is live from the first save — the list
+        // item carries a NON-null openFindingCount (reviewed at the current rubric
+        // version; the exact count is the engine's business) plus the ADR 0096 metadata.
+        listed.GetProperty("openFindingCount").ValueKind.ShouldNotBe(JsonValueKind.Null);
+        listed.GetProperty("origin").GetString().ShouldBe("Import");
+        listed.GetProperty("template").GetString().ShouldBe("Klar");
+
+        // Regression net for the translated correlated counts against REAL Postgres
+        // (dotnet-architect PR-8.1 Major): a freshly promoted CV has exactly its Master
+        // version — an in-memory count over the unloaded navigation would read 0 here.
+        listed.GetProperty("versionCount").GetInt32().ShouldBe(1);
 
         var getParsed = await _client.GetAsync($"/api/v1/resumes/parsed/{parsedId}", ct);
         getParsed.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Promote_seeds_badge_count_and_a_resolved_decision_decrements_it()
+    {
+        // Fas 4b PR-8.1 (code-reviewer Minor 2): pin the badge VALUE end-to-end against
+        // real Postgres — promote seeds N Open rows (the minimal body guarantees at
+        // least one actionable finding), a user Resolved decision decrements the
+        // translated count by exactly one.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var parsedId = await ImportAsync(_client, ct);
+
+        var promote = await _client.PostAsJsonAsync(
+            $"/api/v1/resumes/parsed/{parsedId}/promote", PromoteBody("Badge-CV"), ct);
+        promote.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var resumeId = (await promote.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("id").GetString()!;
+
+        var openBefore = await OpenFindingCountAsync(_client, resumeId, ct);
+        openBefore.ShouldBeGreaterThan(0);
+
+        // Pick any actionable finding from the canonical review and resolve it.
+        var review = await _client.GetAsync($"/api/v1/resumes/{resumeId}/review?profile=Ats", ct);
+        review.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var criterionId = (await review.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("verdicts").EnumerateArray()
+            .First(v => v.GetProperty("verdict").GetString() is "Fail" or "Warn")
+            .GetProperty("criterionId").GetString()!;
+
+        var put = await _client.PutAsJsonAsync(
+            $"/api/v1/resumes/{resumeId}/review/findings/{criterionId}/status",
+            new { status = "Resolved" }, ct);
+        put.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        (await OpenFindingCountAsync(_client, resumeId, ct)).ShouldBe(openBefore - 1);
+    }
+
+    private static async Task<int> OpenFindingCountAsync(
+        HttpClient client, string resumeId, CancellationToken ct)
+    {
+        var list = await client.GetAsync("/api/v1/resumes", ct);
+        list.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var item = (await list.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("items").EnumerateArray()
+            .Single(r => r.GetProperty("id").GetString() == resumeId);
+        var count = item.GetProperty("openFindingCount");
+        count.ValueKind.ShouldNotBe(JsonValueKind.Null);
+        return count.GetInt32();
     }
 
     [Fact]

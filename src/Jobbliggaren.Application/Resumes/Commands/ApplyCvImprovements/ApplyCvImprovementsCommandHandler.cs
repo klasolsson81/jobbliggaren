@@ -25,9 +25,11 @@ namespace Jobbliggaren.Application.Resumes.Commands.ApplyCvImprovements;
 /// the #650 arch tripwire discovers this handler through the <c>UpdateMasterContent</c>
 /// sink and fails the build if the guard call disappears) → write ONCE through
 /// <c>Resume.UpdateMasterContent</c> (ADR 0021; StaleAt stamping on other resolved
-/// findings rides along) → recompute the review on the NEW content and auto-resolve ONLY
-/// the applied criteria whose verdict genuinely cleared (CTO D-D — a partial fix stays
-/// Open; the engine, not the click, decides).
+/// findings rides along) → reconcile the ledger via the shared
+/// <c>IResumeReviewReconciler</c> with the applied criterion ids (Fas 4b PR-8, CTO-bind
+/// Q1 — the PR-7 auto-resolve loop folded in: only an applied criterion whose verdict
+/// genuinely cleared flips to Resolved, CTO D-D — a partial fix stays Open; the engine,
+/// not the click, decides).
 /// <para>The review runs at the fixed <see cref="RenderProfile.Ats"/>: every frame
 /// criterion (A1/A2/C3) is a Both-profile prose criterion, and the
 /// <c>FrameCriterionMismatch</c> gate keeps non-frame criteria out of this path — a
@@ -40,7 +42,8 @@ public sealed class ApplyCvImprovementsCommandHandler(
     IFrameProvider frameProvider,
     IVerbMapper verbMapper,
     IDateTimeProvider clock,
-    IFailedAccessLogger failedAccessLogger)
+    IFailedAccessLogger failedAccessLogger,
+    IResumeReviewReconciler reconciler)
     : ICommandHandler<ApplyCvImprovementsCommand, Result>
 {
     public async ValueTask<Result> Handle(
@@ -157,47 +160,12 @@ public sealed class ApplyCvImprovementsCommandHandler(
         if (updated.IsFailure)
             return updated;
 
-        // Verdict-verified auto-resolve (CTO D-D): recompute on the NEW content; only a
-        // criterion whose verdict genuinely cleared flips to Resolved (with a FRESH
-        // server-derived fingerprint — ChangeStatus clears the just-stamped StaleAt).
-        var postReview = await reviewEngine.ReviewAsync(
-            CvReviewContext.FromCanonical(
-                patched, ResumeContentLinearizer.Linearize(patched), resume.Language),
-            RenderProfile.Ats,
-            cancellationToken);
-
-        foreach (var criterionId in appliedCriteria.Distinct(StringComparer.Ordinal))
-        {
-            var verdict = postReview.Verdicts.FirstOrDefault(v =>
-                string.Equals(v.CriterionId, criterionId, StringComparison.Ordinal));
-
-            // "Genuinely cleared" (CTO D-D) means an ASSESSED Pass — a still-flagged
-            // Fail/Warn is a partial fix (stays Open, honestly), and a NotAssessed post
-            // verdict is "could not assess", never evidence the finding is gone (unreachable
-            // in the frame flow — a rewrite replaces a line, never removes one — but the
-            // narrow condition keeps the honesty doctrine literal; code review Minor 3).
-            if (verdict is null || verdict.Verdict != CriterionVerdict.Pass)
-            {
-                continue;
-            }
-
-            var fingerprint = FindingTargetFingerprint.Compute(postReview.RubricVersion, verdict);
-            var set = resume.SetFindingStatus(
-                postReview.RubricVersion.ToString(), criterionId,
-                ReviewFindingStatus.Resolved, fingerprint, clock);
-            if (set.IsFailure)
-            {
-                // Post-write failure path (code review Minor 1): the content write above
-                // WILL be persisted by the unconditional UnitOfWork SaveChanges, so a
-                // Result failure here would return an error for a mutation that persists.
-                // These inputs are server-derived (version/criterion/fingerprint shapes by
-                // construction), so a failure is a server bug — fail loud, not half-true.
-                throw new InvalidOperationException(
-                    $"Auto-resolve failed for server-derived finding-status inputs " +
-                    $"({set.Error.Code}) — inconsistent post-apply state.");
-            }
-        }
-
-        return Result.Success();
+        // Post-write reconcile (Fas 4b PR-8, CTO-bind Q1 — the PR-7 verdict-verified
+        // auto-resolve loop folded into the shared reconciler, DRY): recompute on the NEW
+        // content; only an applied criterion whose verdict genuinely cleared to an
+        // ASSESSED Pass flips to Resolved (CTO D-D — the engine, not the click, decides;
+        // a partial fix stays Open), and the ledger is seeded/pruned for the hub badge.
+        return await reconciler.ReconcileAsync(
+            resume, appliedCriteria.Distinct(StringComparer.Ordinal).ToList(), cancellationToken);
     }
 }

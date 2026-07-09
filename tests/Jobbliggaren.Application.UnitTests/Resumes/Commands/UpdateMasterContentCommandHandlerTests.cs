@@ -3,7 +3,9 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Resumes.Commands.UpdateMasterContent;
 using Jobbliggaren.Application.Resumes.Queries;
+using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
 using NSubstitute;
@@ -11,14 +13,22 @@ using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Resumes.Commands;
 
+// Fas 4b CV-motor v2 PR-8.1 (#657, CTO-bind Q1): UpdateMasterContent is the canonical content write
+// path, so on success it must run a review reconcile over the new content. The IResumeReviewReconciler
+// is threaded as a trailing ctor dependency (added in PR-8.1's skeleton). CA2012: stubbing the
+// ValueTask-returning ReconcileAsync is the known NSubstitute analyzer false positive.
+#pragma warning disable CA2012
 public class UpdateMasterContentCommandHandlerTests
 {
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
+    private readonly IResumeReviewReconciler _reconciler = Substitute.For<IResumeReviewReconciler>();
     private readonly Guid _userId = Guid.NewGuid();
 
     public UpdateMasterContentCommandHandlerTests()
     {
         _currentUser.UserId.Returns(_userId);
+        _reconciler.ReconcileAsync(Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Result>(Result.Success()));
     }
 
     private static async Task<Resume> SeedResumeAsync(
@@ -48,7 +58,7 @@ public class UpdateMasterContentCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var resume = await SeedResumeAsync(db, _userId);
 
-        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
+        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>(), _reconciler);
         var command = new UpdateMasterContentCommand(
             resume.Id.Value,
             BuildContent(summary: "En kort sammanfattning."));
@@ -66,7 +76,7 @@ public class UpdateMasterContentCommandHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns((Guid?)null);
 
-        var handler = new UpdateMasterContentCommandHandler(db, currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
+        var handler = new UpdateMasterContentCommandHandler(db, currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>(), _reconciler);
         var command = new UpdateMasterContentCommand(Guid.NewGuid(), BuildContent());
 
         await Should.ThrowAsync<UnauthorizedException>(
@@ -81,7 +91,7 @@ public class UpdateMasterContentCommandHandlerTests
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
+        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>(), _reconciler);
         var command = new UpdateMasterContentCommand(Guid.NewGuid(), BuildContent());
 
         await Should.ThrowAsync<NotFoundException>(
@@ -99,7 +109,7 @@ public class UpdateMasterContentCommandHandlerTests
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
+        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>(), _reconciler);
         var command = new UpdateMasterContentCommand(resume.Id.Value, BuildContent());
 
         await Should.ThrowAsync<NotFoundException>(
@@ -112,7 +122,7 @@ public class UpdateMasterContentCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var resume = await SeedResumeAsync(db, _userId);
 
-        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
+        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>(), _reconciler);
         // Domain ValidateContent kontrollerar PersonalInfo.FullName.
         var command = new UpdateMasterContentCommand(resume.Id.Value, BuildContent(fullName: "   "));
 
@@ -148,7 +158,7 @@ public class UpdateMasterContentCommandHandlerTests
         await db.SaveChangesAsync(CancellationToken.None);
 
         var handler = new UpdateMasterContentCommandHandler(
-            db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
+            db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>(), _reconciler);
         var command = new UpdateMasterContentCommand(
             resume.Id.Value, BuildContent(summary: "Uppdaterad sammanfattning."));
 
@@ -181,7 +191,7 @@ public class UpdateMasterContentCommandHandlerTests
         var resume = await SeedResumeAsync(db, _userId);
         var before = resume.MasterVersion.Content.Summary;
 
-        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
+        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>(), _reconciler);
         var command = new UpdateMasterContentCommand(
             resume.Id.Value, BuildContent(summary: $"Erfaren utvecklare. Pnr {ValidPersonnummer}."));
 
@@ -198,7 +208,7 @@ public class UpdateMasterContentCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var resume = await SeedResumeAsync(db, _userId);
 
-        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
+        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>(), _reconciler);
         // EN DASH (U+2013) separator: the merged #497 widening (PR #520) must reach this surface.
         var command = new UpdateMasterContentCommand(
             resume.Id.Value, BuildContent(summary: "Pnr 811218\u20139876."));
@@ -226,12 +236,34 @@ public class UpdateMasterContentCommandHandlerTests
             Skills: [],
             Summary: null);
 
-        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>());
+        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>(), _reconciler);
         var command = new UpdateMasterContentCommand(resume.Id.Value, content);
 
         var result = await handler.Handle(command, CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Resume.PersonnummerMustBeRemoved");
+    }
+
+    // Fas 4b PR-8.1 call-site pin (#657): on a successful content write the handler runs exactly one
+    // review reconcile for the mutated resume, with NO auto-resolve set (a plain master edit re-reviews;
+    // only "Åtgärda direkt" passes applied criteria). RED until the handler calls the reconciler.
+    [Fact]
+    public async Task Handle_OnSuccess_RunsReviewReconcileForTheResume_WithNoAutoResolve()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var resume = await SeedResumeAsync(db, _userId);
+
+        var handler = new UpdateMasterContentCommandHandler(
+            db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>(), _reconciler);
+        var command = new UpdateMasterContentCommand(resume.Id.Value, BuildContent(summary: "Uppdaterad."));
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        await _reconciler.Received(1).ReconcileAsync(
+            Arg.Is<Resume>(r => r.Id == resume.Id),
+            Arg.Is<IReadOnlyCollection<string>>(x => x == null),
+            Arg.Any<CancellationToken>());
     }
 }

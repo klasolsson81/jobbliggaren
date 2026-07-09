@@ -18,6 +18,7 @@ using Jobbliggaren.Application.Resumes.Queries.GetLatestPendingParsedResume;
 using Jobbliggaren.Application.Resumes.Queries.GetParsedResume;
 using Jobbliggaren.Application.Resumes.Queries.GetParsedResumeOccupations;
 using Jobbliggaren.Application.Resumes.Queries.GetParsedResumeSkills;
+using Jobbliggaren.Application.Resumes.Queries.GetResumeAtsText;
 using Jobbliggaren.Application.Resumes.Queries.GetResumeById;
 using Jobbliggaren.Application.Resumes.Queries.GetResumes;
 using Jobbliggaren.Application.Resumes.Rendering.Queries.RenderCv;
@@ -243,6 +244,20 @@ public static class ResumesEndpoints
             Guid id, string? profile, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new ReviewResumeQuery(id, profile ?? string.Empty), ct);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // ATS text view of a canonical Resume (Fas 4b PR-8.2, ADR 0093 §D5(e); CTO-bind
+        // Q3): the shared-linearizer text — the "what we generate from your app copy"
+        // claim, source-discriminated so it can never be conflated with a parsed
+        // "what a parser reads from YOUR file" view (deferred per D8). Owner-scoped,
+        // pnr-redacted belt-and-braces, never cached (personal content).
+        group.MapGet("/{id:guid}/ats-text", async (
+            Guid id, HttpContext http, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new GetResumeAtsTextQuery(id), ct);
+            http.Response.Headers.CacheControl = "private, no-store";
             return result is null ? Results.NotFound() : Results.Ok(result);
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);

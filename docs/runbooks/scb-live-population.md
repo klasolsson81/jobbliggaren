@@ -231,6 +231,18 @@ run to completion. If anything looks wrong, abort (§6).
   `failedPartitions` (#708) counts SCB-rejected partition requests
   (rakna/hamta non-success); each also latched the run truncated — see §6
   "400-rejected partitions".
+- **Worker console** — `LogProtectedPartitionTails` (**5717**, #717): one WARN,
+  emitted only when the run protected an over-cap 5-digit tail —
+  `skyddade partitioner … antal=…, total otäckt svans≈… rader … Per partition
+  (kommun×SNI): …:count=…,leaves=…,tail=…`. This is the **#641 facet-sizing
+  evidence** the completion run now yields **for free** (zero extra SCB calls —
+  the over-cap `raknaforetag` counts were already taken): the per-partition
+  breakdown sizes each dense-metro tail (e.g. Sthlm×AB×`00000`), biggest first,
+  and supersedes a metered round-3 tail probe. The total is an **upper bound**
+  ("övre gräns" — a multi-SNI entity can be double-counted across cells, the #628
+  caveat), so read it as "at most N rows short". **Capture this line into the
+  session log.** It carries kommun + SNI + counts only, never an org.nr. A clean
+  run with no over-cap tail is silent (guarded on a non-empty protected set).
 
 ### Verification queries (psql against the dev DB)
 ```sql

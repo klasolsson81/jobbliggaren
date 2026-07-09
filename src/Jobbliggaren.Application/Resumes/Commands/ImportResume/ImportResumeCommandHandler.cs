@@ -160,6 +160,11 @@ public sealed class ImportResumeCommandHandler(
             .Select(s => new ProposedSkill(s.ConceptId, s.Label))
             .ToList();
 
+        // 4c. Confirm-task presence flags (Fas 4b PR-8, CTO-bind Q5): denormalized HERE,
+        //     the one place the plaintext parse exists (ADR 0059) — the hub meter and
+        //     pending-summary projection stay decrypt-free. Booleans only, never text.
+        var gaps = ParsedGapSummary.FromContent(content);
+
         // 5. Construct the aggregate (accepts a degraded parse) and persist. The
         //    SaveChanges interceptor encrypts Content (Form B) + RawText (Form A) using
         //    the warmed owner DEK (IRequiresFieldEncryptionKey).
@@ -175,7 +180,8 @@ public sealed class ImportResumeCommandHandler(
             proposals,
             clock,
             skillProposals,
-            layoutMetrics);
+            layoutMetrics,
+            gaps);
 
         if (created.IsFailure)
             return Result.Failure<ImportResumeResponse>(created.Error);

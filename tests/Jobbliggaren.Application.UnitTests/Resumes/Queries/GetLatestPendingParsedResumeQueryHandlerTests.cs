@@ -228,4 +228,59 @@ public class GetLatestPendingParsedResumeQueryHandlerTests
 
         result.ShouldBeNull();
     }
+
+    // ===============================================================
+    // Fas 4b CV-motor v2 PR-8.1 (#657, CTO-bind Q5): the pending-card gap summary. The DTO gains a
+    // trailing ParsedGapSummaryDto? Gaps mirroring ParsedResume.Gaps' nine non-PII booleans — the FE
+    // uses it to show "which sections are still missing" without decrypting CV-PII. RED until the DTO
+    // field + ParsedGapSummaryDto + the handler projection ship.
+    // ===============================================================
+
+    [Fact]
+    public async Task Handle_ShouldProjectGapSummary_WhenParsedArtifactHasGaps()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db, _userId);
+        var gaps = new ParsedGapSummary(
+            HasFullName: true, HasEmail: false, HasPhone: true, HasLocation: false,
+            HasProfile: true, HasExperience: false, HasEducation: true, HasSkills: false,
+            HasLanguages: true);
+        var parsed = ParsedResume.Create(
+            seeker.Id, "CV_Anna.pdf", "application/pdf", ResumeLanguage.Sv,
+            ParsedResumeContent.Empty, "raw", ParseConfidence.Failed(ParseFallbackReason.ExtractionFailed),
+            PersonnummerScanOutcome.None, [], FakeDateTimeProvider.Default, gaps: gaps).Value;
+        db.ParsedResumes.Add(parsed);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await CreateSut(db).Handle(
+            new GetLatestPendingParsedResumeQuery(), TestContext.Current.CancellationToken);
+
+        result.ShouldNotBeNull();
+        result.Gaps.ShouldNotBeNull();
+        result.Gaps.HasFullName.ShouldBeTrue();
+        result.Gaps.HasEmail.ShouldBeFalse();
+        result.Gaps.HasPhone.ShouldBeTrue();
+        result.Gaps.HasLocation.ShouldBeFalse();
+        result.Gaps.HasProfile.ShouldBeTrue();
+        result.Gaps.HasExperience.ShouldBeFalse();
+        result.Gaps.HasEducation.ShouldBeTrue();
+        result.Gaps.HasSkills.ShouldBeFalse();
+        result.Gaps.HasLanguages.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_ShouldProjectNullGaps_WhenParsedArtifactHasNoGapSummary()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db, _userId);
+        // BuildParsedResume creates the artifact WITHOUT a gap summary (gaps param omitted → null).
+        db.ParsedResumes.Add(BuildParsedResume(seeker.Id, "CV_Anna.pdf", FakeDateTimeProvider.Default));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await CreateSut(db).Handle(
+            new GetLatestPendingParsedResumeQuery(), TestContext.Current.CancellationToken);
+
+        result.ShouldNotBeNull();
+        result.Gaps.ShouldBeNull();
+    }
 }

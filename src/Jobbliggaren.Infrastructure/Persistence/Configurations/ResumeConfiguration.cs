@@ -76,6 +76,15 @@ public sealed class ResumeConfiguration : IEntityTypeConfiguration<Resume>
 
         builder.Ignore(r => r.IsAdopted);
 
+        // Fas 4b PR-8 (ADR 0093 §D5(b), CTO-bind PR-8 Q1): the rubric version the ledger
+        // was last reconciled against — a bounded "major.minor.patch" machine token
+        // (nullable; pre-PR-8 rows honestly "never reviewed"). Non-PII by shape, parity
+        // adopted_at; the hub badge renders a count only when this equals the current
+        // rubric version.
+        builder.Property(r => r.ReviewedRubricVersion)
+            .HasColumnName("reviewed_rubric_version")
+            .HasMaxLength(14);
+
         // Owned VO → separate columns with explicit template_* prefix (ManualPosting/
         // AdSnapshot precedent; global UseSnakeCaseNamingConvention would otherwise
         // prefix the navigation name). Required navigation — unlike ManualPosting,

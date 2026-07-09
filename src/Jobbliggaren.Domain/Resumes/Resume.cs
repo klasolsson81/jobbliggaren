@@ -51,10 +51,20 @@ public sealed class Resume : AggregateRoot<ResumeId>
     // ledger — a child collection INSIDE the aggregate so a decision and the content
     // change that invalidates it serialize on the same xmin token (never eventual
     // consistency inside one aggregate). Bounded: ≤ criteria-count per rubric version
-    // the user has acted on. Loaded explicitly (Include) on the write path and the
-    // review-merge read path only — never on list queries (§3.6).
+    // (user decisions + PR-8 engine-seeded Open rows, ADR 0097 amendment 2026-07-09).
+    // Loaded explicitly (Include) on the write path and the review-merge read path
+    // only — never materialized on list queries (§3.6; the hub badge is a translated
+    // COUNT projection, not a load).
     private readonly List<ResumeFindingStatus> _findingStatuses = [];
     public IReadOnlyList<ResumeFindingStatus> FindingStatuses => _findingStatuses.AsReadOnly();
+
+    // Fas 4b PR-8 (ADR 0093 §D5(b), CTO-bind PR-8 Q1): the rubric version the ledger was
+    // last reconciled against (AdoptedAt idiom — a nullable machine token, no free text).
+    // Null (pre-PR-8 rows / never-reconciled) is an honest "not reviewed": the hub badge
+    // may render a count ONLY when this stamp equals the current rubric version, because
+    // "0 Open rows" alone cannot distinguish reviewed-and-clean from never-reviewed
+    // (§5 never mis-report). Stamped exclusively by ReconcileFindingStatuses.
+    public string? ReviewedRubricVersion { get; private set; }
 
     /// <summary>
     /// Returnerar Master-versionen. Kastar <see cref="DomainException"/> om invarianten
@@ -341,11 +351,14 @@ public sealed class Resume : AggregateRoot<ResumeId>
     /// <summary>
     /// Records the user's decision on one review finding (Fas 4b PR-4, ADR 0093 §D2(e);
     /// handoff §5.3 "markera som klar" / "ignorera regeln"). Upserts the ledger row keyed
-    /// (<paramref name="rubricVersion"/>, <paramref name="criterionId"/>) — the SINGLE
-    /// mutation path for the finding-status child collection (CTO-bind PR-4 Q1/Q2). A
-    /// fresh decision clears any staleness stamp. The fingerprint is server-derived by
-    /// the command handler from the engine's current finding (never client-submitted,
-    /// ADR 0074 Invariant 2); this method validates shape, not provenance.
+    /// (<paramref name="rubricVersion"/>, <paramref name="criterionId"/>) — the
+    /// USER-DECISION mutation path for the finding-status child collection (CTO-bind
+    /// PR-4 Q1/Q2; since PR-8 the engine-driven counterpart is
+    /// <see cref="ReconcileFindingStatuses"/>, ADR 0097 amendment 2026-07-09 — exactly
+    /// these two paths mutate the collection). A fresh decision clears any staleness
+    /// stamp. The fingerprint is server-derived by the command handler from the engine's
+    /// current finding (never client-submitted, ADR 0074 Invariant 2); this method
+    /// validates shape, not provenance.
     /// </summary>
     public Result SetFindingStatus(
         string? rubricVersion,
@@ -392,6 +405,99 @@ public sealed class Resume : AggregateRoot<ResumeId>
         UpdatedAt = now;
         RaiseDomainEvent(new ResumeFindingStatusChangedDomainEvent(
             Id, rubricVersion!, criterionId!, status, now));
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Reconciles the finding-status ledger with the engine's current review after a
+    /// content write (Fas 4b PR-8, ADR 0093 §D5(b); ADR 0097 amendment 2026-07-09). The
+    /// engine-driven counterpart to the user-driven <see cref="SetFindingStatus"/>:
+    /// seeds an Open row per actionable finding that has no row yet, refreshes the
+    /// fingerprint on an Open row whose finding moved, drops Open rows whose finding is
+    /// gone, and NEVER touches a user decision (Resolved/Ignored rows keep their
+    /// lifecycle: <see cref="SetFindingStatus"/> + <c>MarkStaleIfResolved</c>). Scoped
+    /// strictly to <paramref name="rubricVersion"/> — rows of other versions are never
+    /// read or written (ADR 0097 §5 version-non-carry). Stamps
+    /// <see cref="ReviewedRubricVersion"/> even when the actionable set is empty:
+    /// reviewed-and-clean is a real, badge-visible state. Duplicate criterion ids in the
+    /// input dedupe first-wins. All inputs are server-derived by the reconciler service
+    /// (never client-submitted, ADR 0074 Invariant 2); this method validates shape, not
+    /// provenance.
+    /// </summary>
+    public Result ReconcileFindingStatuses(
+        string? rubricVersion,
+        IReadOnlyList<ReviewFindingSnapshot>? actionableFindings,
+        IDateTimeProvider clock)
+    {
+        if (!IsValidRubricVersion(rubricVersion))
+            return Result.Failure(DomainError.Validation(
+                "Resume.RubricVersionInvalid", "Rubrikversion måste ha formen major.minor.patch."));
+
+        if (actionableFindings is null)
+            return Result.Failure(DomainError.Validation(
+                "Resume.ActionableFindingsRequired", "Fyndlistan krävs (tom lista är giltig)."));
+
+        // Validate every snapshot BEFORE mutating anything (all-or-nothing).
+        foreach (var snapshot in actionableFindings)
+        {
+            if (!IsValidCriterionId(snapshot.CriterionId))
+                return Result.Failure(DomainError.Validation(
+                    "Resume.CriterionIdInvalid", "Kriterie-id måste vara en bokstav följd av 1–2 siffror."));
+
+            if (!IsValidFingerprint(snapshot.TargetFingerprint))
+                return Result.Failure(DomainError.Validation(
+                    "Resume.FingerprintInvalid", "Fingeravtrycket måste vara 64 hexadecimala tecken."));
+        }
+
+        // Dedupe first-wins: the reconciler unions verdicts per criterion, so a
+        // duplicate is a caller artifact, never two distinct findings.
+        var byCriterion = new Dictionary<string, ReviewFindingSnapshot>(StringComparer.Ordinal);
+        foreach (var snapshot in actionableFindings)
+            byCriterion.TryAdd(snapshot.CriterionId, snapshot);
+
+        var now = clock.UtcNow;
+
+        foreach (var snapshot in byCriterion.Values)
+        {
+            var existing = _findingStatuses.FirstOrDefault(f =>
+                f.RubricVersion == rubricVersion && f.CriterionId == snapshot.CriterionId);
+
+            if (existing is null)
+            {
+                _findingStatuses.Add(ResumeFindingStatus.Create(
+                    rubricVersion!, snapshot.CriterionId, ReviewFindingStatus.Open,
+                    snapshot.TargetFingerprint, now));
+            }
+            else if (existing.Status == ReviewFindingStatus.Open
+                && existing.TargetFingerprint != snapshot.TargetFingerprint)
+            {
+                // The finding moved (same criterion, new evidence) — refresh the
+                // identity, keep it Open. Resolved/Ignored rows are user decisions and
+                // are NEVER touched here (their lifecycle is SetFindingStatus +
+                // MarkStaleIfResolved).
+                existing.ChangeStatus(ReviewFindingStatus.Open, snapshot.TargetFingerprint, now);
+            }
+        }
+
+        // Drop Open rows whose finding is gone at THIS version (fixed by an edit or no
+        // longer assessable). User decisions survive; other versions' rows are never
+        // touched (ADR 0097 §5 version-non-carry).
+        _findingStatuses.RemoveAll(f =>
+            f.RubricVersion == rubricVersion
+            && f.Status == ReviewFindingStatus.Open
+            && !byCriterion.ContainsKey(f.CriterionId));
+
+        // Reviewed-and-clean is a real state: the stamp is what lets the hub badge
+        // honestly distinguish "0 att åtgärda" from "aldrig granskad" (§5).
+        ReviewedRubricVersion = rubricVersion;
+
+        // Parent stamp is LOAD-BEARING for concurrency (PR-4 CTO-bind Q2 parity): the
+        // xmin-checked UPDATE serializes this against a concurrent SetFindingStatus.
+        UpdatedAt = now;
+
+        var openCount = _findingStatuses.Count(f =>
+            f.RubricVersion == rubricVersion && f.Status == ReviewFindingStatus.Open);
+        RaiseDomainEvent(new ResumeReviewReconciledDomainEvent(Id, rubricVersion!, openCount, now));
         return Result.Success();
     }
 

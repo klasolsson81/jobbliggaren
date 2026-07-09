@@ -4,6 +4,7 @@ using Jobbliggaren.Application.Resumes.Commands.ApplyCvImprovements;
 using Jobbliggaren.Application.Resumes.Commands.CreateResume;
 using Jobbliggaren.Application.Resumes.Commands.DeleteResume;
 using Jobbliggaren.Application.Resumes.Commands.DeleteResumeVersion;
+using Jobbliggaren.Application.Resumes.Commands.DiscardParsedResume;
 using Jobbliggaren.Application.Resumes.Commands.ImportResume;
 using Jobbliggaren.Application.Resumes.Commands.PromoteParsedResume;
 using Jobbliggaren.Application.Resumes.Commands.RenameResume;
@@ -272,6 +273,20 @@ public static class ResumesEndpoints
             var result = await mediator.Send(new PromoteParsedResumeCommand(id, body.Name, body.Content), ct);
             return result.IsSuccess
                 ? Results.Created($"/api/v1/resumes/{result.Value}", new { id = result.Value })
+                : result.Error.ToProblemResult();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        // Discard a PendingReview parsed CV (Fas 4b PR-8, CTO-bind Q6 — the action card's
+        // "Ta bort utkastet"). POST, not DELETE: a soft-delete state transition (the
+        // artifact is retained for audit until the retention sweep), parity /promote.
+        // Owner-scoped, IDOR fail-closed (unknown/cross-user → 404). Audited.
+        group.MapPost("/parsed/{id:guid}/discard", async (
+            Guid id, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new DiscardParsedResumeCommand(id), ct);
+            return result.IsSuccess
+                ? Results.NoContent()
                 : result.Error.ToProblemResult();
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);

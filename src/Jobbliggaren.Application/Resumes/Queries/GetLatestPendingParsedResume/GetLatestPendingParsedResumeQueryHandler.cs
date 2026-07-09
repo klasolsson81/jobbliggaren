@@ -38,14 +38,36 @@ public sealed class GetLatestPendingParsedResumeQueryHandler(
         if (jobSeekerId == default)
             return null;
 
-        return await db.ParsedResumes
+        // Gaps is a value-converted jsonb VO: PROJECT IT WHOLE and map in memory — member
+        // access into a converted property does not translate on Npgsql (it only appears
+        // to work on the InMemory provider). Still a pure metadata projection, no
+        // aggregate materialisation, no CV-PII columns touched.
+        var pending = await db.ParsedResumes
             .AsNoTracking()
             .Where(r => r.JobSeekerId == jobSeekerId && r.Status == ParsedResumeStatus.PendingReview)
             .OrderByDescending(r => r.CreatedAt)
-            .Select(r => new PendingParsedResumeSummaryDto(
-                r.Id.Value,
-                r.SourceFileName,
-                r.CreatedAt))
+            .Select(r => new { Id = r.Id.Value, r.SourceFileName, r.CreatedAt, r.Gaps })
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (pending is null)
+            return null;
+
+        // Denormalized non-PII presence flags (Fas 4b PR-8, CTO-bind Q5); null for a
+        // pre-PR-8 import — the card renders without a meter rather than guessing.
+        var gaps = pending.Gaps is null
+            ? null
+            : new ParsedGapSummaryDto(
+                pending.Gaps.HasFullName,
+                pending.Gaps.HasEmail,
+                pending.Gaps.HasPhone,
+                pending.Gaps.HasLocation,
+                pending.Gaps.HasProfile,
+                pending.Gaps.HasExperience,
+                pending.Gaps.HasEducation,
+                pending.Gaps.HasSkills,
+                pending.Gaps.HasLanguages);
+
+        return new PendingParsedResumeSummaryDto(
+            pending.Id, pending.SourceFileName, pending.CreatedAt, gaps);
     }
 }

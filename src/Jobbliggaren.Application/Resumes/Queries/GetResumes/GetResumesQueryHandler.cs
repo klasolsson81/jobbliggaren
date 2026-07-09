@@ -56,6 +56,11 @@ public sealed class GetResumesQueryHandler(
             .Select(r => new
             {
                 Resume = r,
+                // Translated correlated COUNT (dotnet-architect PR-8.1 Major): the
+                // Versions navigation is never loaded here, so an in-memory
+                // x.Resume.Versions.Count would read an EMPTY collection against real
+                // Npgsql (the InMemory provider's live object graph masked that).
+                VersionCount = r.Versions.Count(v => v.DeletedAt == null),
                 OpenFindingCount = r.FindingStatuses.Count(f =>
                     f.RubricVersion == currentRubricVersion
                     && f.Status == ReviewFindingStatus.Open),
@@ -65,7 +70,7 @@ public sealed class GetResumesQueryHandler(
         var resumes = page.Select(x => new ResumeListItemDto(
             x.Resume.Id.Value,
             x.Resume.Name,
-            x.Resume.Versions.Count(v => v.DeletedAt == null),
+            x.VersionCount,
             x.Resume.CreatedAt,
             x.Resume.UpdatedAt,
             primaryResumeId is not null && x.Resume.Id == primaryResumeId,

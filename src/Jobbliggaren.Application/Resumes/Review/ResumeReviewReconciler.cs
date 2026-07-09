@@ -82,7 +82,19 @@ public sealed class ResumeReviewReconciler(
                 v.CriterionId, FindingTargetFingerprint.Compute(rubricVersion, v)))
             .ToList();
 
-        return resumeAggregate.ReconcileFindingStatuses(
+        var reconciled = resumeAggregate.ReconcileFindingStatuses(
             rubricVersion.ToString(), actionable, clock);
+        if (reconciled.IsFailure)
+        {
+            // Same posture as the auto-resolve branch above (dotnet-architect PR-8.1
+            // Minor; §3 two-idiom rule): every input is server-derived, so a failure is
+            // a server bug — surfacing it as a Result would render a 4xx "client error"
+            // for a broken invariant (§5 never mis-report).
+            throw new InvalidOperationException(
+                $"Ledger reconcile failed for server-derived inputs " +
+                $"({reconciled.Error.Code}) — inconsistent review state.");
+        }
+
+        return Result.Success();
     }
 }

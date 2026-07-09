@@ -3,19 +3,23 @@ using Jobbliggaren.Domain.Common;
 namespace Jobbliggaren.Domain.Resumes;
 
 /// <summary>
-/// One row of the DEK-free finding-status ledger (Fas 4b PR-4, ADR 0093 §D2(e)) — the
-/// user's decision on one rubric criterion's finding for one CV, keyed
+/// One row of the DEK-free finding-status ledger (Fas 4b PR-4, ADR 0093 §D2(e)) — a
+/// user decision OR an engine-seeded Open marker (PR-8, ADR 0097 amendment 2026-07-09)
+/// on one rubric criterion's finding for one CV, keyed
 /// (<c>ResumeId</c>, <see cref="RubricVersion"/>, <see cref="CriterionId"/>). A child
 /// entity INSIDE the <see cref="Resume"/> aggregate (ResumeVersion precedent, CTO-bind
 /// PR-4 Q1): it has no lifecycle of its own, is written only through Resume root methods
-/// (<see cref="Resume.SetFindingStatus"/>), and is deleted by the parent's DB-FK cascade
-/// (GDPR Art. 17 — out of the CascadeMap by the fitness test's own design).
+/// (<see cref="Resume.SetFindingStatus"/> for user decisions,
+/// <see cref="Resume.ReconcileFindingStatuses"/> for the engine-driven reconcile), and
+/// is deleted by the parent's DB-FK cascade (GDPR Art. 17 — out of the CascadeMap by
+/// the fitness test's own design).
 /// </summary>
 /// <remarks>
 /// <b>DEK-free by shape (the D2(e) at-rest guarantee):</b> every member is a closed
 /// SmartEnum, a bounded machine token (rubric version, criterion id), a fixed-length hex
-/// digest, or a timestamp — NO CV text at rest. Review RESULTS stay compute-on-demand
-/// (ADR 0074); this ledger stores only the user's decision about them.
+/// digest, or a timestamp — NO CV text at rest. Full review RESULTS stay
+/// compute-on-demand (ADR 0074); this ledger stores the user's decisions plus the Open
+/// rows the reconcile seeds for the hub badge (never verdict text or evidence).
 /// <c>ResumeFindingStatusColumnGuardTests</c> pins the shape fail-closed.
 /// </remarks>
 public sealed class ResumeFindingStatus : Entity<ResumeFindingStatusId>
@@ -68,7 +72,9 @@ public sealed class ResumeFindingStatus : Entity<ResumeFindingStatusId>
         UpdatedAt = now;
     }
 
-    /// <summary>Inputs are validated by the single mutation path, <see cref="Resume.SetFindingStatus"/>.</summary>
+    /// <summary>Inputs are validated by the two sanctioned mutation paths,
+    /// <see cref="Resume.SetFindingStatus"/> and
+    /// <see cref="Resume.ReconcileFindingStatuses"/> (ADR 0097 amendment 2026-07-09).</summary>
     internal static ResumeFindingStatus Create(
         string rubricVersion,
         string criterionId,

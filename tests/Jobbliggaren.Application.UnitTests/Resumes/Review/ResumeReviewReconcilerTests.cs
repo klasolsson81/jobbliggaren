@@ -191,4 +191,29 @@ public class ResumeReviewReconcilerTests
 
         resume.FindingStatuses.ShouldNotContain(f => f.Status == ReviewFindingStatus.Resolved);
     }
+
+    // ===============================================================
+    // Guard + fail-loud posture (code-reviewer PR-8.1 Minor 3)
+    // ===============================================================
+
+    [Fact]
+    public async Task ReconcileAsync_WithNullResume_ThrowsArgumentNullException()
+    {
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await CreateSut().ReconcileAsync(null!, autoResolveCriteria: null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_WhenEngineYieldsMalformedCriterionId_ThrowsInsteadOfClientError()
+    {
+        // Fail-loud pin (§3 two-idiom rule; dotnet-architect PR-8.1 Minor): every reconcile input is
+        // server-derived, so an aggregate-level Result failure (here: a criterion id the engine could
+        // never legitimately produce) is a SERVER bug and must surface as an exception (500), never
+        // as a Result that would render a 4xx "client error" for a broken invariant.
+        var resume = CreateResume();
+        StubProfiles(ResultFor(RenderProfile.Ats, Fail("NOT-A-CRITERION")), ResultFor(RenderProfile.Visual));
+
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await CreateSut().ReconcileAsync(resume, autoResolveCriteria: null, CancellationToken.None));
+    }
 }

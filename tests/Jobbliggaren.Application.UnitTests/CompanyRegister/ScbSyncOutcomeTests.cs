@@ -14,17 +14,28 @@ namespace Jobbliggaren.Application.UnitTests.CompanyRegister;
 public class ScbSyncOutcomeTests
 {
     [Fact]
-    public void RecordProtectedPartition_Deduplicates_SameKommunSniPair()
+    public void RecordProtectedPartition_DeduplicatesKey_AndAccumulatesOverCapSize()
     {
         var outcome = new ScbSyncOutcome();
 
-        outcome.RecordProtectedPartition("0180", "70100");
-        outcome.RecordProtectedPartition("0180", "70100"); // same key from a re-counted partition
-        outcome.RecordProtectedPartition("0180", "70200"); // same kommun, different SNI → distinct
+        // The SAME (kommun, SNI) is recorded by TWO over-cap leaves — e.g. two Juridisk forms under
+        // 0180×70100: the ladder splits by form ABOVE the 5-digit SNI and the protected key drops the
+        // form, so both over-cap leaves collapse to one key. A distinct SNI stays separate.
+        outcome.RecordProtectedPartition("0180", "70100", 2809);
+        outcome.RecordProtectedPartition("0180", "70100", 3100); // second over-cap leaf, same key
+        outcome.RecordProtectedPartition("0180", "70200", 2400); // same kommun, different SNI → distinct
 
+        // The sweep contract (the key set) still de-duplicates to the distinct (kommun, SNI) pairs.
         outcome.ProtectedPartitions.Count.ShouldBe(2);
         outcome.ProtectedPartitions.ShouldContain(new ScbProtectedPartition("0180", "70100"));
         outcome.ProtectedPartitions.ShouldContain(new ScbProtectedPartition("0180", "70200"));
+
+        // #717 — the over-cap facts ACCUMULATE per key (counts summed, leaves tallied — never overwritten),
+        // so the refresher can size the true tail Σcount − cap×leaves. Last-count-wins would under-count.
+        outcome.ProtectedPartitionSizes[new ScbProtectedPartition("0180", "70100")]
+            .ShouldBe(new ScbProtectedPartitionSize(OverCapCount: 5909, LeafCount: 2));
+        outcome.ProtectedPartitionSizes[new ScbProtectedPartition("0180", "70200")]
+            .ShouldBe(new ScbProtectedPartitionSize(OverCapCount: 2400, LeafCount: 1));
     }
 
     [Fact]
@@ -33,7 +44,7 @@ public class ScbSyncOutcomeTests
         // Guard 1's whole point: a protected partition keeps the sweep ALIVE (scoped), it must not disable it.
         var outcome = new ScbSyncOutcome();
 
-        outcome.RecordProtectedPartition("0180", "70100");
+        outcome.RecordProtectedPartition("0180", "70100", 2809);
 
         outcome.TruncatedOrErrored.ShouldBeFalse();
         outcome.ReconciliationGaps.ShouldBe(0);

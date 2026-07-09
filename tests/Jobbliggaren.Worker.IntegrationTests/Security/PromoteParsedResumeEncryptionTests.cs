@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.Resumes.Commands.PromoteParsedResume;
 using Jobbliggaren.Application.Resumes.Queries;
+using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Privacy;
@@ -139,7 +140,12 @@ public class PromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
             scope.ServiceProvider.GetRequiredService<AppDbContext>(),
             currentUser,
             scope.ServiceProvider.GetRequiredService<IDateTimeProvider>(),
-            scope.ServiceProvider.GetRequiredService<IFailedAccessLogger>());
+            scope.ServiceProvider.GetRequiredService<IFailedAccessLogger>(),
+            // Fas 4b PR-8.1 (#657): the handler gained a trailing IResumeReviewReconciler. This suite
+            // proves ENCRYPTION-on-disk, not reconcile behavior, so a no-op substitute keeps it focused
+            // (the promote path's review reconcile is unit-covered in the handler tests).
+            scope.ServiceProvider.GetService<IResumeReviewReconciler>()
+                ?? Substitute.For<IResumeReviewReconciler>());
     }
 
     // Raw column read past EF (bypasses the decrypt interceptor) — proves on-disk state.

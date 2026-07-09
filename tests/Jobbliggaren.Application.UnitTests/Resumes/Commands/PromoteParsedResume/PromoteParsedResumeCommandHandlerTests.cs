@@ -3,7 +3,9 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Resumes.Commands.PromoteParsedResume;
 using Jobbliggaren.Application.Resumes.Queries;
+using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
@@ -29,9 +31,14 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Commands.PromoteParsedResum
 //
 // SPEC-DRIVEN. RED until the command + handler + Resume.CreateFromParsed + ParsedResume.Promote
 // + ResumeContentMapper ship.
+// Fas 4b PR-8.1 (#657): on a successful promote the handler runs a review reconcile over the new
+// canonical Resume. IResumeReviewReconciler is threaded as a trailing ctor dependency.
+// CA2012: stubbing the ValueTask-returning ReconcileAsync is the known NSubstitute analyzer false positive.
+#pragma warning disable CA2012
 public class PromoteParsedResumeCommandHandlerTests
 {
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
+    private readonly IResumeReviewReconciler _reconciler = Substitute.For<IResumeReviewReconciler>();
     private readonly IFailedAccessLogger _failedAccess = Substitute.For<IFailedAccessLogger>();
     private readonly Guid _userId = Guid.NewGuid();
 
@@ -42,10 +49,12 @@ public class PromoteParsedResumeCommandHandlerTests
     public PromoteParsedResumeCommandHandlerTests()
     {
         _currentUser.UserId.Returns(_userId);
+        _reconciler.ReconcileAsync(Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Result>(Result.Success()));
     }
 
     private PromoteParsedResumeCommandHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>
-        new(db, _currentUser, FakeDateTimeProvider.Default, _failedAccess);
+        new(db, _currentUser, FakeDateTimeProvider.Default, _failedAccess, _reconciler);
 
     // ── Fixtures ─────────────────────────────────────────────────────────
 
@@ -174,7 +183,7 @@ public class PromoteParsedResumeCommandHandlerTests
         var anon = Substitute.For<ICurrentUser>();
         anon.UserId.Returns((Guid?)null);
         var sut = new PromoteParsedResumeCommandHandler(
-            db, anon, FakeDateTimeProvider.Default, _failedAccess);
+            db, anon, FakeDateTimeProvider.Default, _failedAccess, _reconciler);
 
         await Should.ThrowAsync<UnauthorizedException>(
             () => sut.Handle(Command(Guid.NewGuid()), TestContext.Current.CancellationToken).AsTask());
@@ -348,5 +357,41 @@ public class PromoteParsedResumeCommandHandlerTests
         parsed.Status.ShouldBe(ParsedResumeStatus.PendingReview);
         parsed.DeletedAt.ShouldBeNull();
         db.Resumes.Local.ShouldBeEmpty();
+    }
+
+    // ===============================================================
+    // Fas 4b PR-8.1 call-site pins (#657) — the review reconcile runs on success only
+    // ===============================================================
+
+    [Fact]
+    public async Task Handle_OnSuccess_RunsReviewReconcileForTheNewResume_WithNoAutoResolve()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var (parsed, _) = await SeedOwnedAsync(db, _userId);
+
+        var result = await CreateSut(db).Handle(
+            Command(parsed.Id.Value), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        await _reconciler.Received(1).ReconcileAsync(
+            Arg.Is<Resume>(r => r.Id.Value == result.Value),
+            Arg.Is<IReadOnlyCollection<string>>(x => x == null),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WhenParsedResumeNotFound_DoesNotRunReviewReconcile()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await CreateSut(db).Handle(
+            Command(Guid.NewGuid()), TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        await _reconciler.DidNotReceive().ReconcileAsync(
+            Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>());
     }
 }

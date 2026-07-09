@@ -21,10 +21,13 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Commands.ApplyCvImprovement
 /// handler recomputes the review (compute-on-demand, D8), resolves each finding by SERVER fingerprint
 /// (never client-trusted — ADR 0074 Inv. 2), composes the After via <c>FromFrame</c>, runs the shared
 /// personnummer guard on the composed content BEFORE it becomes canonical (ADR 0074 Inv. 1), writes
-/// once via <c>Resume.UpdateMasterContent</c>, then verdict-verifies each applied criterion to
-/// auto-resolve only genuine fixes (CTO D-D). The <see cref="ICvReviewEngine"/> is NSubstitute-mocked
-/// (first call = pre-apply review, second = post-apply verify); the seeded Resume is loaded TRACKED so
-/// its EF-Ignore'd Master content survives (same CLR instance, parity SetFindingStatusCommandHandlerTests).
+/// once via <c>Resume.UpdateMasterContent</c>, then reconciles the ledger via
+/// <c>IResumeReviewReconciler</c> (Fas 4b PR-8.1 fold, CTO-bind Q1) which verdict-verifies each
+/// applied criterion to auto-resolve only genuine fixes (CTO D-D). The <see cref="ICvReviewEngine"/>
+/// is NSubstitute-mocked (first call = pre-apply review, later calls = the reconciler's post-apply
+/// runs); ledger-behavior tests use the REAL reconciler, the rest substitute it. The seeded Resume is
+/// loaded TRACKED so its EF-Ignore'd Master content survives (same CLR instance, parity
+/// SetFindingStatusCommandHandlerTests).
 ///
 /// CA2012: stubbing the ValueTask-returning ICvReviewEngine.ReviewAsync is the known NSubstitute
 /// analyzer false positive. SPEC-DRIVEN — RED until the command + handler ship.
@@ -37,6 +40,7 @@ public class ApplyCvImprovementsCommandHandlerTests
     private readonly IFrameProvider _frameProvider = Substitute.For<IFrameProvider>();
     private readonly IVerbMapper _verbMapper = Substitute.For<IVerbMapper>();
     private readonly IFailedAccessLogger _failedAccess = Substitute.For<IFailedAccessLogger>();
+    private readonly IResumeReviewReconciler _reconciler = Substitute.For<IResumeReviewReconciler>();
     private readonly Guid _userId = Guid.NewGuid();
 
     private static readonly RubricVersion Version = RubricVersion.Parse("1.2.0");
@@ -48,10 +52,21 @@ public class ApplyCvImprovementsCommandHandlerTests
             FrameFixtures.SentenceLedde(), FrameFixtures.MeasureAntalPerPeriod()));
         _verbMapper.GetVerbMapping().Returns(
             FrameFixtures.VerbMappingWith("ledde", "skickade", "levererade"));
+        _reconciler.ReconcileAsync(Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Result>(Result.Success()));
     }
 
     private ApplyCvImprovementsCommandHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>
-        new(db, _currentUser, _engine, _frameProvider, _verbMapper, FakeDateTimeProvider.Default, _failedAccess);
+        new(db, _currentUser, _engine, _frameProvider, _verbMapper, FakeDateTimeProvider.Default, _failedAccess, _reconciler);
+
+    // Fas 4b PR-8.1: the auto-resolve loop folded into the shared reconciler (CTO-bind
+    // Q1) — the ledger-behavior tests run the REAL reconciler over the SAME stubbed
+    // engine (post-apply stub feeds both profile runs), so PR-7's verdict-verified
+    // semantics stay pinned end-to-end through the fold.
+    private ApplyCvImprovementsCommandHandler CreateSutWithRealReconciler(
+        Infrastructure.Persistence.AppDbContext db) =>
+        new(db, _currentUser, _engine, _frameProvider, _verbMapper, FakeDateTimeProvider.Default,
+            _failedAccess, new ResumeReviewReconciler(_engine, FakeDateTimeProvider.Default));
 
     // Pre-apply review, then post-apply verify review (two distinct ReviewAsync calls).
     private void StubReviews(CvReviewResult preApply, CvReviewResult postApply) =>
@@ -118,7 +133,7 @@ public class ApplyCvImprovementsCommandHandlerTests
         var preA2 = Fail("A2", FrameFixtures.WeakLine);
         StubReviews(ResultWith(preA2), ResultWith(Pass("A2")));
 
-        var result = await CreateSut(db).Handle(
+        var result = await CreateSutWithRealReconciler(db).Handle(
             new ApplyCvImprovementsCommand(resume.Id.Value, [LeddeChange(Fp(preA2))]),
             CancellationToken.None);
 
@@ -131,22 +146,26 @@ public class ApplyCvImprovementsCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ShouldApplyButNotWriteStatus_WhenPostApplyVerdictStillFails()
+    public async Task Handle_ShouldApplyButNotAutoResolve_WhenPostApplyVerdictStillFails()
     {
-        // A partial fix that leaves the criterion Fail/Warn stays Open — the engine, not the
-        // command, decides whether the finding is gone (no optimistic auto-resolve).
+        // A partial fix that leaves the criterion Fail/Warn is never auto-resolved — the
+        // engine, not the command, decides whether the finding is gone (CTO D-D). Since
+        // PR-8.1 the reconcile SEEDS the still-actionable finding as an Open ledger row
+        // (the hub badge's "1 att åtgärda"), so "stays Open" is now a literal row.
         var db = TestAppDbContextFactory.Create();
         var resume = await SeedResumeAsync(db, _userId, WeakContent());
         var preA2 = Fail("A2", FrameFixtures.WeakLine);
         StubReviews(ResultWith(preA2), ResultWith(Fail("A2", FrameFixtures.LeddeAfter)));
 
-        var result = await CreateSut(db).Handle(
+        var result = await CreateSutWithRealReconciler(db).Handle(
             new ApplyCvImprovementsCommand(resume.Id.Value, [LeddeChange(Fp(preA2))]),
             CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
         resume.MasterVersion.Content.Summary.ShouldBe(FrameFixtures.LeddeAfter);
-        resume.FindingStatuses.ShouldBeEmpty("still Fail/Warn → no status write, the finding stays Open.");
+        var row = resume.FindingStatuses.ShouldHaveSingleItem();
+        row.CriterionId.ShouldBe("A2");
+        row.Status.ShouldBe(ReviewFindingStatus.Open);
     }
 
     [Fact]
@@ -162,7 +181,7 @@ public class ApplyCvImprovementsCommandHandlerTests
         var preA2 = Fail("A2", FrameFixtures.WeakLine);
         StubReviews(ResultWith(preA2), ResultWith(Pass("A2")));
 
-        var result = await CreateSut(db).Handle(
+        var result = await CreateSutWithRealReconciler(db).Handle(
             new ApplyCvImprovementsCommand(resume.Id.Value, [LeddeChange(Fp(preA2))]),
             CancellationToken.None);
 
@@ -311,7 +330,7 @@ public class ApplyCvImprovementsCommandHandlerTests
         var anon = Substitute.For<ICurrentUser>();
         anon.UserId.Returns((Guid?)null);
         var sut = new ApplyCvImprovementsCommandHandler(
-            db, anon, _engine, _frameProvider, _verbMapper, FakeDateTimeProvider.Default, _failedAccess);
+            db, anon, _engine, _frameProvider, _verbMapper, FakeDateTimeProvider.Default, _failedAccess, _reconciler);
 
         await Should.ThrowAsync<UnauthorizedException>(
             () => sut.Handle(
@@ -352,5 +371,32 @@ public class ApplyCvImprovementsCommandHandlerTests
 
         _failedAccess.Received(1).LogCrossUserAttempt(
             "Resume", otherResume.Id.Value, _userId, "ApplyCvImprovements");
+    }
+
+    // ===============================================================
+    // Fas 4b PR-8.1 call-site pin (#657): the frame-apply write path delegates review reconciliation to
+    // the reconciler, passing the DISTINCT applied criterion ids as the auto-resolve set (the reconciler
+    // re-scores and resolves only what the engine now Passes — CTO D-D). This handler's existing in-line
+    // auto-resolve loop + its tests are left intact for now; the implementer folds the loop into the
+    // reconciler and rebalances those assertions in the GREEN phase. RED until the handler calls the reconciler.
+    // ===============================================================
+
+    [Fact]
+    public async Task Handle_OnSuccess_RunsReviewReconcile_WithTheDistinctAppliedCriterionIds()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var resume = await SeedResumeAsync(db, _userId, WeakContent());
+        var preA2 = Fail("A2", FrameFixtures.WeakLine);
+        StubReviews(ResultWith(preA2), ResultWith(Pass("A2")));
+
+        var result = await CreateSut(db).Handle(
+            new ApplyCvImprovementsCommand(resume.Id.Value, [LeddeChange(Fp(preA2))]),
+            CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        await _reconciler.Received(1).ReconcileAsync(
+            Arg.Is<Resume>(r => r.Id == resume.Id),
+            Arg.Is<IReadOnlyCollection<string>>(c => c != null && c.Count == 1 && c.Contains("A2")),
+            Arg.Any<CancellationToken>());
     }
 }

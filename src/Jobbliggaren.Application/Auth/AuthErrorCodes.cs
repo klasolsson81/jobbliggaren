@@ -32,4 +32,20 @@ public static class AuthErrorCodes
     /// account-enumeration or DoS-target oracle. This code must NEVER reach the client.
     /// </summary>
     public const string AccountLocked = "Auth.AccountLocked";
+
+    /// <summary>
+    /// Generic, non-enumerating registration failure (#481 Low): a duplicate email/username is
+    /// collapsed to this so the 400 response reveals neither which field failed nor the submitted
+    /// address (vs Identity's raw English "Username 'x' is already taken"). The residual 200-vs-400
+    /// status oracle inherent to instant-login registration is tracked separately — closing it needs
+    /// email-confirmation-first registration. Rendered as 400 via the central kind-mapper.
+    /// </summary>
+    public const string DuplicateAccount = "Auth.DuplicateAccount";
+
+    /// <summary>
+    /// The single user-facing detail for <see cref="DuplicateAccount"/>. No address echo, no field
+    /// name; hints the recovery path (log in) without confirming more than the 400 status already does.
+    /// </summary>
+    public const string DuplicateAccountMessage =
+        "Det gick inte att skapa kontot. Om du redan har ett konto kan du logga in i stället.";
 }

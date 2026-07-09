@@ -1,0 +1,95 @@
+using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
+using Shouldly;
+
+namespace Jobbliggaren.Application.UnitTests.Auth;
+
+/// <summary>
+/// #481 Low — the STRUCTURAL regression guard for the login-timing equalizer. The fix changes
+/// TIMING, not the observable response: both the unknown-email and the known-email-wrong-password
+/// branches already return a byte-identical <c>Auth.InvalidCredentials</c> 401 (pinned by LoginTests /
+/// LockoutTests). So the only test that catches someone deleting the <c>Equalize</c> call is this
+/// one — it asserts the branch WIRING directly:
+/// <list type="bullet">
+/// <item><b>Unknown email</b> (<c>FindByEmailAsync</c> -> null): the equalizer IS invoked, paying the
+/// PBKDF2 cost before the failure so response latency does not reveal that the account is absent.</item>
+/// <item><b>Known email, wrong password</b> (<c>CheckPasswordAsync</c> -> false): the equalizer is NOT
+/// invoked — the REAL hash comparison already paid the cost; a second dummy derivation would be
+/// double work and is deliberately skipped.</item>
+/// </list>
+/// <see cref="UserManager{TUser}"/> is mocked via the canonical 9-argument NSubstitute constructor:
+/// a real <c>UserManager</c> needs an <see cref="IUserStore{TUser}"/> plus eight collaborators, but
+/// only the store must be non-null and every method exercised here is <c>virtual</c> (so the stubs
+/// intercept before any real store / hasher work runs).
+/// </summary>
+public class UserAccountServiceTests
+{
+    private readonly UserManager<ApplicationUser> _userManager =
+        Substitute.For<UserManager<ApplicationUser>>(
+            Substitute.For<IUserStore<ApplicationUser>>(),
+            null, null, null, null, null, null, null, null);
+    private readonly ILoginTimingEqualizer _equalizer = Substitute.For<ILoginTimingEqualizer>();
+    private readonly UserAccountService _sut;
+
+    public UserAccountServiceTests() =>
+        _sut = new UserAccountService(
+            _userManager, _equalizer, Substitute.For<ILogger<UserAccountService>>());
+
+    [Fact]
+    public async Task ValidateCredentialsAsync_ShouldPayEqualizerCostAndReturnInvalidCredentials_WhenEmailIsUnknown()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _userManager.FindByEmailAsync(Arg.Any<string>()).Returns((ApplicationUser?)null);
+
+        var result = await _sut.ValidateCredentialsAsync("nobody@example.com", "whatever", ct);
+
+        // The regression guard: the equalizer pays the PBKDF2 cost the absent real hash-check skips.
+        _equalizer.Received(1).Equalize(Arg.Any<string>());
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(AuthErrorCodes.InvalidCredentials);
+    }
+
+    [Fact]
+    public async Task ValidateCredentialsAsync_ShouldSkipEqualizerAndReturnInvalidCredentials_WhenPasswordIsWrong()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        const string password = "WrongPwd!";
+        var user = new ApplicationUser { Email = "known@example.com", UserName = "known@example.com" };
+        _userManager.FindByEmailAsync(Arg.Any<string>()).Returns(user);
+        _userManager.IsLockedOutAsync(user).Returns(false);
+        _userManager.CheckPasswordAsync(user, password).Returns(false);
+        _userManager.AccessFailedAsync(user).Returns(IdentityResult.Success);
+
+        var result = await _sut.ValidateCredentialsAsync("known@example.com", password, ct);
+
+        // The REAL hash comparison ran and paid the cost, so the dummy equalizer must NOT also run.
+        _equalizer.DidNotReceive().Equalize(Arg.Any<string>());
+        await _userManager.Received(1).CheckPasswordAsync(user, password);
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(AuthErrorCodes.InvalidCredentials);
+    }
+
+    [Fact]
+    public async Task ValidateCredentialsAsync_ShouldSkipEqualizerAndHashCheck_WhenAccountLocked()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = new ApplicationUser { Email = "locked@example.com", UserName = "locked@example.com" };
+        _userManager.FindByEmailAsync(Arg.Any<string>()).Returns(user);
+        _userManager.IsLockedOutAsync(user).Returns(true);
+
+        var result = await _sut.ValidateCredentialsAsync("locked@example.com", "whatever", ct);
+
+        // #503 anti-DoS regression guard (CTO-bind #1, Verdict A): the locked branch stays cheap — it
+        // pays NEITHER a real hash comparison NOR the dummy equalizer, so a hammered locked account can
+        // never be forced into PBKDF2 per hit. The residual locked-state timing channel is accepted (it
+        // does not aid enumeration — a one-attempt-per-email probe never locks an account).
+        _equalizer.DidNotReceive().Equalize(Arg.Any<string>());
+        await _userManager.DidNotReceive().CheckPasswordAsync(user, Arg.Any<string>());
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(AuthErrorCodes.AccountLocked);
+    }
+}

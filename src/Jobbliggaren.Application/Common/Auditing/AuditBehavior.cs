@@ -29,7 +29,7 @@ public sealed class AuditBehavior<TMessage, TResponse>(
         var response = await next(message, cancellationToken);
 
         // Bara markerade commands triggar audit (opt-in via marker-interface).
-        if (message is not IAuditableCommand<TResponse> auditable)
+        if (message is not (IAuditableCommand<TResponse> or IBatchAuditableCommand<TResponse>))
             return response;
 
         // Skip audit på Result.Failure — Fas 1 auditerar bara success per ADR 0022.
@@ -37,12 +37,34 @@ public sealed class AuditBehavior<TMessage, TResponse>(
         if (response is Result result && result.IsFailure)
             return response;
 
-        var aggregateId = auditable.ExtractAggregateId(response);
+        // Batch marker (#630 PR 9): one row per mutated aggregate, sharing one
+        // OccurredAt instant (one command is one moment) and the request's
+        // correlation id, which is what groups the rows as a batch. Checked
+        // BEFORE the single marker — a command implements exactly one of the
+        // two (architecture-test-guarded).
+        if (message is IBatchAuditableCommand<TResponse> batchAuditable)
+        {
+            var batchOccurredAt = clock.UtcNow;
+            foreach (var id in batchAuditable.ExtractAggregateIds(response))
+                db.AuditLogEntries.Add(CreateEntry(batchAuditable, id, batchOccurredAt));
+            return response;
+        }
 
-        // TODO(Fas 6): impersonatedBy fylls när admin-impersonation införs.
-        // Kräver ICurrentImpersonationContext-port. Tills dess: alltid null.
-        var entry = AuditLogEntry.Create(
-            occurredAt: clock.UtcNow,
+        var auditable = (IAuditableCommand<TResponse>)message;
+        var aggregateId = auditable.ExtractAggregateId(response);
+        db.AuditLogEntries.Add(CreateEntry(auditable, aggregateId, clock.UtcNow));
+
+        // SaveChanges sker i UnitOfWorkBehavior:s post-action — audit-raden och
+        // handler-mutationen persisteras atomiskt i samma transaction.
+        return response;
+    }
+
+    // TODO(Fas 6): impersonatedBy fylls när admin-impersonation införs.
+    // Kräver ICurrentImpersonationContext-port. Tills dess: alltid null.
+    private AuditLogEntry CreateEntry(
+        IAuditableCommand auditable, Guid aggregateId, DateTimeOffset occurredAt) =>
+        AuditLogEntry.Create(
+            occurredAt: occurredAt,
             correlationId: correlationIdProvider.Current,
             userId: currentUser.UserId,
             eventType: auditable.EventType,
@@ -50,11 +72,4 @@ public sealed class AuditBehavior<TMessage, TResponse>(
             aggregateId: aggregateId,
             ipAddress: requestContextProvider.IpAddress,
             userAgent: requestContextProvider.UserAgent);
-
-        db.AuditLogEntries.Add(entry);
-
-        // SaveChanges sker i UnitOfWorkBehavior:s post-action — audit-raden och
-        // handler-mutationen persisteras atomiskt i samma transaction.
-        return response;
-    }
 }

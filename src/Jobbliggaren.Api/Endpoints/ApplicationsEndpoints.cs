@@ -2,6 +2,7 @@ using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Applications.Commands.AddFollowUp;
 using Jobbliggaren.Application.Applications.Commands.AddNote;
 using Jobbliggaren.Application.Applications.Commands.AttachResumeVersion;
+using Jobbliggaren.Application.Applications.Commands.BatchTransition;
 using Jobbliggaren.Application.Applications.Commands.CreateApplication;
 using Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJobAd;
 using Jobbliggaren.Application.Applications.Commands.LogFollowUp;
@@ -102,7 +103,29 @@ public static class ApplicationsEndpoints
             return result.IsSuccess
                 ? Results.Ok()
                 : result.Error.ToProblemResult();
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        // #630 PR 9 — bulk status change for the Tabell view's bulk actions +
+        // group-undo (PR 10). CTO-bound (2026-07-09): all-or-nothing two-phase
+        // (any missing/foreign id -> uniform 404 BEFORE any mutation), per-item
+        // (id, target) pairs so a group-undo — each application back to its OWN
+        // previous status — is one atomic call, empty 200 on success (parity
+        // with the single /transition wire contract). The literal segment never
+        // collides with the {id:guid}-constrained routes.
+        group.MapPost("/batch-transition", async (
+            BatchTransitionBody body, IMediator mediator, CancellationToken ct) =>
+        {
+            var items = (body.Items ?? [])
+                .Select(i => new BatchTransitionItem(
+                    i?.ApplicationId ?? Guid.Empty, i?.TargetStatus ?? string.Empty))
+                .ToList();
+            var result = await mediator.Send(new BatchTransitionApplicationsCommand(items), ct);
+            return result.IsSuccess
+                ? Results.Ok()
+                : result.Error.ToProblemResult();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
 
         group.MapPost("/{id:guid}/follow-ups", async (
             Guid id, AddFollowUpBody body, IMediator mediator, CancellationToken ct) =>
@@ -165,6 +188,8 @@ public static class ApplicationsEndpoints
     }
 
     private sealed record TransitionToBody(string TargetStatus);
+    private sealed record BatchTransitionItemBody(Guid ApplicationId, string TargetStatus);
+    private sealed record BatchTransitionBody(IReadOnlyList<BatchTransitionItemBody?>? Items);
     private sealed record AddFollowUpBody(string Channel, DateTimeOffset ScheduledAt, string? Note);
     private sealed record LogFollowUpBody(string? Note);
     private sealed record AddNoteBody(string? Content);

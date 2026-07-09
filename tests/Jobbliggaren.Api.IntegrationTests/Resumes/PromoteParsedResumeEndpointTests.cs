@@ -98,7 +98,15 @@ public class PromoteParsedResumeEndpointTests(ApiFactory factory)
         // The new canonical Resume is listed; the staging artifact is now gone (promoted).
         var list = await _client.GetAsync("/api/v1/resumes", ct);
         var items = (await list.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("items");
-        items.EnumerateArray().Any(r => r.GetProperty("id").GetString() == newResumeId).ShouldBeTrue();
+        var listed = items.EnumerateArray().Single(r => r.GetProperty("id").GetString() == newResumeId);
+
+        // Fas 4b PR-8.1 (CTO-bind Q1): the promote reconciled the DEK-free ledger in the
+        // same transaction, so the hub badge data is live from the first save — the list
+        // item carries a NON-null openFindingCount (reviewed at the current rubric
+        // version; the exact count is the engine's business) plus the ADR 0096 metadata.
+        listed.GetProperty("openFindingCount").ValueKind.ShouldNotBe(JsonValueKind.Null);
+        listed.GetProperty("origin").GetString().ShouldBe("Import");
+        listed.GetProperty("template").GetString().ShouldBe("Klar");
 
         var getParsed = await _client.GetAsync($"/api/v1/resumes/parsed/{parsedId}", ct);
         getParsed.StatusCode.ShouldBe(HttpStatusCode.NotFound);

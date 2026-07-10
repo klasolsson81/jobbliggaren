@@ -93,7 +93,7 @@ describe("markJobsSeen (#293/#306)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("204 → ok (watermarken framflyttad)", async () => {
+  it("204 utan seenThrough → ok, POST utan body (tom lista / deploy-skew)", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(new Response(null, { status: 204 }));
@@ -105,6 +105,28 @@ describe("markJobsSeen (#293/#306)", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "http://test-backend/api/v1/me/jobs/seen",
       expect.objectContaining({ method: "POST" })
+    );
+    // No seenThrough → no body sent (backend falls back to clock-now).
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+    expect(init?.body).toBeUndefined();
+  });
+
+  it("204 med seenThrough → ok, POST bär { seenThrough } (#759 fönster-max)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    global.fetch = fetchMock;
+
+    const seenThrough = "2026-06-28T08:30:00Z";
+    const result = await markJobsSeen(seenThrough);
+
+    expect(result).toEqual({ kind: "ok", data: undefined });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://test-backend/api/v1/me/jobs/seen",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ seenThrough }),
+      })
     );
   });
 

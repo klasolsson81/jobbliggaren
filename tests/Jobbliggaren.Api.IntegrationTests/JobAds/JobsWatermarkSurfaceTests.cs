@@ -107,6 +107,32 @@ public sealed class JobsWatermarkSurfaceTests(ApiFactory factory)
             "after MarkJobsSeen the persisted watermark is a concrete timestamp");
     }
 
+    // #759 (sibling of #477 Low 4) — POST /me/jobs/seen with a body { seenThrough } sets the
+    // watermark to THAT window (the max CreatedAt the FE rendered), NOT wall-clock-now. Proven at
+    // the HTTP layer: a seenThrough in the past round-trips verbatim (it is older than now, so the
+    // aggregate does not clamp it), so an ad ingested after it stays flagged "Ny".
+    [Fact]
+    public async Task POST_jobs_seen_withSeenThroughBody_setsWatermarkToThatWindow_notClockNow()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = await AuthedClientAsync(ct);
+
+        // A deterministic instant clearly in the past (older than the wall-clock the handler reads
+        // as "now"), so it is neither clamped to now nor swallowed — it must persist verbatim.
+        var seenThrough = new DateTimeOffset(2026, 2, 3, 10, 15, 0, TimeSpan.Zero);
+
+        var seen = await client.PostAsJsonAsync(
+            "/api/v1/me/jobs/seen", new { seenThrough }, ct);
+        seen.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var watermark = await client.GetAsync("/api/v1/me/jobs/watermark", ct);
+        watermark.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var json = await watermark.Content.ReadFromJsonAsync<JsonElement>(ct);
+        var persisted = json.GetProperty("lastSeenJobsAt").GetDateTimeOffset();
+        persisted.ShouldBe(seenThrough,
+            "the watermark is the seen window the FE sent, not wall-clock-now (#759)");
+    }
+
     [Fact]
     public async Task POST_jobs_seen_anonymous_returns_401()
     {
@@ -155,7 +181,7 @@ public sealed class JobsWatermarkSurfaceTests(ApiFactory factory)
         using (scope1)
         {
             var mark = new MarkJobsSeenCommandHandler(db1, UserWith(userId), ClockAt(T0.AddDays(5)));
-            (await mark.Handle(new MarkJobsSeenCommand(), ct)).IsSuccess.ShouldBeTrue();
+            (await mark.Handle(new MarkJobsSeenCommand(null), ct)).IsSuccess.ShouldBeTrue();
             await db1.SaveChangesAsync(ct);
         }
 
@@ -173,7 +199,7 @@ public sealed class JobsWatermarkSurfaceTests(ApiFactory factory)
         using (scope2)
         {
             var mark = new MarkJobsSeenCommandHandler(db2, UserWith(userId), ClockAt(T0.AddDays(9)));
-            (await mark.Handle(new MarkJobsSeenCommand(), ct)).IsSuccess.ShouldBeTrue();
+            (await mark.Handle(new MarkJobsSeenCommand(null), ct)).IsSuccess.ShouldBeTrue();
             await db2.SaveChangesAsync(ct);
         }
 
@@ -202,7 +228,7 @@ public sealed class JobsWatermarkSurfaceTests(ApiFactory factory)
         using (scope1)
         {
             var mark = new MarkJobsSeenCommandHandler(db1, UserWith(userId), ClockAt(T0.AddDays(9)));
-            (await mark.Handle(new MarkJobsSeenCommand(), ct)).IsSuccess.ShouldBeTrue();
+            (await mark.Handle(new MarkJobsSeenCommand(null), ct)).IsSuccess.ShouldBeTrue();
             await db1.SaveChangesAsync(ct);
         }
 
@@ -212,7 +238,7 @@ public sealed class JobsWatermarkSurfaceTests(ApiFactory factory)
         using (scope2)
         {
             var mark = new MarkJobsSeenCommandHandler(db2, UserWith(userId), ClockAt(T0.AddDays(5)));
-            (await mark.Handle(new MarkJobsSeenCommand(), ct)).IsSuccess.ShouldBeTrue(
+            (await mark.Handle(new MarkJobsSeenCommand(null), ct)).IsSuccess.ShouldBeTrue(
                 "a stale call is idempotent — still Success, never an error");
             await db2.SaveChangesAsync(ct);
         }

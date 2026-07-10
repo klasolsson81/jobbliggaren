@@ -175,6 +175,36 @@ describe("markMatchesSeen (ADR 0080 Vag 4 PR-5)", () => {
     );
   });
 
+  it("skickar { seenThrough } i body när det anges (#477 Low)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    global.fetch = fetchMock;
+
+    const seenThrough = "2026-06-24T09:00:00Z";
+    await markMatchesSeen(seenThrough);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://test-backend/api/v1/me/matches/seen",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ seenThrough }),
+      })
+    );
+  });
+
+  it("utan seenThrough skickas ingen body (tom lista → backend faller tillbaka på nu)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    global.fetch = fetchMock;
+
+    await markMatchesSeen();
+
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+    expect(init?.body).toBeUndefined();
+  });
+
   it("401 → unauthorized", async () => {
     global.fetch = vi.fn().mockResolvedValue(new Response("", { status: 401 }));
     const result = await markMatchesSeen();

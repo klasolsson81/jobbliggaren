@@ -9,7 +9,8 @@ import MatchningarPage from "./page";
 const redirect = vi.fn();
 const getServerSession = vi.fn();
 const getMyMatches = vi.fn<() => Promise<ApiResult<MatchListData>>>();
-const markMatchesSeen = vi.fn<() => Promise<ApiResult<void>>>();
+const markMatchesSeen =
+  vi.fn<(seenThrough?: string) => Promise<ApiResult<void>>>();
 
 // The async server page resolves copy via `getTranslations("pages")`. next-intl's
 // server entry is unavailable in jsdom → mock to a real translator over the
@@ -29,7 +30,7 @@ vi.mock("@/lib/auth/session", () => ({
 
 vi.mock("@/lib/api/me-matches", () => ({
   getMyMatches: () => getMyMatches(),
-  markMatchesSeen: () => markMatchesSeen(),
+  markMatchesSeen: (seenThrough?: string) => markMatchesSeen(seenThrough),
 }));
 
 // Real `redirect()` throws NEXT_REDIRECT to halt the render — mirror that so the
@@ -86,6 +87,9 @@ describe("/matchningar page (ADR 0080 Vag 4 PR-5)", () => {
 
     // KÄRN-INVARIANT (Klas-val): mark-seen körs när vyn öppnas, EFTER hämtningen.
     expect(markMatchesSeen).toHaveBeenCalledTimes(1);
+    // #477 Low: sidan skickar seen-through-fönstret (nyaste visade matchningens createdAt),
+    // inte klock-nu — pinnar FE-kopplingen mot en regress tillbaka till markMatchesSeen().
+    expect(markMatchesSeen).toHaveBeenCalledWith(item.createdAt);
   });
 
   it("tom lista → nollstate-copy OCH mark-seen körs ändå (vyn öppnades)", async () => {
@@ -94,6 +98,8 @@ describe("/matchningar page (ADR 0080 Vag 4 PR-5)", () => {
 
     expect(screen.getByText("Du har inga matchningar än")).toBeInTheDocument();
     expect(markMatchesSeen).toHaveBeenCalledTimes(1);
+    // Tom lista → inget fönster → undefined (backend faller tillbaka på nu).
+    expect(markMatchesSeen).toHaveBeenCalledWith(undefined);
   });
 
   it("fel-hämtning → fel-copy OCH mark-seen körs INTE (ohederligt att 'se' ovisat)", async () => {

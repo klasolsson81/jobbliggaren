@@ -6,17 +6,27 @@ import type {
 
 export type BadgeVariant = "Info" | "Brand" | "Success" | "Warning" | "Danger" | "Neutral";
 
+// Aligned with the Mina ansökningar 2a handoff §11 status-tag mapping (#683). Four
+// corrections from the earlier drift:
+//  - Submitted: Brand → Info  (SKICKAD in interaction-green collided with "green = interaction
+//    only", DESIGN principles §5; two green tags blurred the signal).
+//  - Ghosted:   Danger → Neutral (red over-signalled as a rejection, same red as Nekad).
+//  - Acknowledged: Success → Brand.
+//  - Draft:     Info → Neutral.
+// The .jp-tag chassis renders these tags as visual siblings of /jobb's job-ad tags (which use a
+// separate map, JOB_AD_STATUS_BADGE_VARIANT); this map + its data-status-variant attribute are
+// applications-internal. Every status keeps colour + a text label (WCAG 1.4.1 — never colour alone).
 export const STATUS_BADGE_VARIANT: Record<ApplicationStatus, BadgeVariant> = {
-  Draft: "Info",
-  Submitted: "Brand",
-  Acknowledged: "Success",
+  Draft: "Neutral",
+  Submitted: "Info",
+  Acknowledged: "Brand",
   InterviewScheduled: "Warning",
   Interviewing: "Warning",
   OfferReceived: "Success",
   Accepted: "Success",
   Rejected: "Danger",
   Withdrawn: "Neutral",
-  Ghosted: "Danger",
+  Ghosted: "Neutral",
 };
 
 export const ALLOWED_TRANSITIONS: Record<ApplicationStatus, ApplicationStatus[]> = {

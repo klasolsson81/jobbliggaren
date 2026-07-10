@@ -10,6 +10,7 @@ import {
   isWaitingSignal,
   ALLOWED_TRANSITIONS,
   CHANNEL_KEYS,
+  STATUS_BADGE_VARIANT,
 } from "./status";
 import { followUpOutcomeSchema } from "@/lib/dto/applications";
 import svApplications from "../../../messages/sv/applications.json";
@@ -41,6 +42,26 @@ describe("applicationStatusLabel", () => {
 
   it("covers all 10 statuses in the catalog", () => {
     expect(Object.keys(svApplications.enums.status)).toHaveLength(10);
+  });
+});
+
+describe("STATUS_BADGE_VARIANT (#683, design §11)", () => {
+  // #683 was caused by this shared map drifting silently from the design §11 handoff (it
+  // feeds seven surfaces via the derived helpers). Pin the whole map so any future drift on
+  // any status fails here at the unit level, not in a rendered review.
+  it("maps every status to its design §11 variant", () => {
+    expect(STATUS_BADGE_VARIANT).toStrictEqual({
+      Draft: "Neutral",
+      Submitted: "Info",
+      Acknowledged: "Brand",
+      InterviewScheduled: "Warning",
+      Interviewing: "Warning",
+      OfferReceived: "Success",
+      Accepted: "Success",
+      Rejected: "Danger",
+      Withdrawn: "Neutral",
+      Ghosted: "Neutral",
+    });
   });
 });
 

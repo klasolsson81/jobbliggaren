@@ -131,15 +131,15 @@ describe("ApplicationsBoard — layout", () => {
 
   it("toppband keyar off getStatusVariantKey (SAMMA SSOT som rail/tagg)", () => {
     renderBoard(makeGroups({ Submitted: 1 }));
-    // Submitted → STATUS_BADGE_VARIANT Brand → "brand".
+    // Submitted → STATUS_BADGE_VARIANT Info → "info" (#683, design §11).
     expect(screen.getByRole("group", { name: "Skickad" })).toHaveAttribute(
       "data-status-variant",
-      "brand",
+      "info",
     );
-    // Ghosted → Danger → "danger".
+    // Ghosted → Neutral → "neutral" (#683, design §11).
     expect(screen.getByRole("group", { name: "Inget svar" })).toHaveAttribute(
       "data-status-variant",
-      "danger",
+      "neutral",
     );
   });
 

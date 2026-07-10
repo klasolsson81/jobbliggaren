@@ -132,7 +132,8 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     const { container } = renderRow(makeApplication());
     const statusTag = screen.getByText("Skickad");
     expect(statusTag).toHaveClass("jp-tag");
-    expect(statusTag).toHaveAttribute("data-tag", "status-brand");
+    // Submitted → STATUS_BADGE_VARIANT Info → "status-info" (#683, design §11).
+    expect(statusTag).toHaveAttribute("data-tag", "status-info");
     expect(container.querySelector(".jp-app__signals")).toContainElement(
       statusTag
     );

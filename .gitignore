@@ -98,6 +98,8 @@ infra/terraform/**/*.out
 docs/sessions/
 docs/research/
 docs/design/
+# Opublicerade legal-utkast (Klas-sign-off krävs före publicering; wiring sker via i18n, inte MD-filerna)
+docs/legal/
 docs/handoff-banner/
 docs/handoff-oversikt/
 docs/jobbpilot-v3-bundle/

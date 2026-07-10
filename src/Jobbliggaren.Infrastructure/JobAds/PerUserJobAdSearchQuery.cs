@@ -106,6 +106,10 @@ internal sealed class PerUserJobAdSearchQuery(
         var relatedSsyk = fast.RelatedSsykGroupConceptIds;
         var regions = fast.PreferredRegionConceptIds;
         var municipalities = fast.PreferredMunicipalityConceptIds;
+        // #477 Low 1 — föräldra-länen för de föredragna kommunerna (kommun→län-containment).
+        // Fylls ovillkorligt av MatchProfileBuilder; tom när ingen kommun vald → containment-
+        // disjunkten i GradeRankExpression blir konstant false → pre-#477 byte-for-byte.
+        var containmentRegions = fast.ContainmentRegionConceptIds;
         var employment = fast.PreferredEmploymentTypeConceptIds;
         // The ort dimension folds region ∪ municipality into ONE secondary (parity
         // RegionFit / ScoreOrtUnion): "stated" iff EITHER preference list is non-empty.
@@ -135,7 +139,7 @@ internal sealed class PerUserJobAdSearchQuery(
         // Konsumeras av grad-WHERE, count OCH match-rank-ORDER BY så filter och sort aldrig
         // divergerar (CTO-re-bind 2026-06-23). Oracle-pinnad.
         var rankExpr = GradeRankExpression(
-            ssyk, relatedSsyk, regions, municipalities, employment, ortStated, employmentStated);
+            ssyk, relatedSsyk, regions, municipalities, containmentRegions, employment, ortStated, employmentStated);
 
         // ADR 0079 STEG 5 — grad-WHERE: den PER-ANVÄNDAR-predikaten. Lever ENBART här,
         // aldrig i den delade anonymt cachebara ApplyFilter (anon-cache + SavedSearch +
@@ -219,6 +223,10 @@ internal sealed class PerUserJobAdSearchQuery(
         var relatedSsyk = fast.RelatedSsykGroupConceptIds;
         var regions = fast.PreferredRegionConceptIds;
         var municipalities = fast.PreferredMunicipalityConceptIds;
+        // #477 Low 1 — föräldra-länen för de föredragna kommunerna (kommun→län-containment).
+        // Fylls ovillkorligt av MatchProfileBuilder; tom när ingen kommun vald → containment-
+        // disjunkten i GradeRankExpression blir konstant false → pre-#477 byte-for-byte.
+        var containmentRegions = fast.ContainmentRegionConceptIds;
         var employment = fast.PreferredEmploymentTypeConceptIds;
         var ortStated = regions.Count > 0 || municipalities.Count > 0;
         var employmentStated = employment.Count > 0;
@@ -240,7 +248,7 @@ internal sealed class PerUserJobAdSearchQuery(
             return await baseQuery.CountAsync(cancellationToken);
 
         var rankExpr = GradeRankExpression(
-            ssyk, relatedSsyk, regions, municipalities, employment, ortStated, employmentStated);
+            ssyk, relatedSsyk, regions, municipalities, containmentRegions, employment, ortStated, employmentStated);
         var selectedRanks = grades.Select(GradeToRank).Distinct().ToArray();
         return await baseQuery
             .Where(RankInSet(rankExpr, selectedRanks))
@@ -268,6 +276,10 @@ internal sealed class PerUserJobAdSearchQuery(
         var relatedSsyk = fast.RelatedSsykGroupConceptIds;
         var regions = fast.PreferredRegionConceptIds;
         var municipalities = fast.PreferredMunicipalityConceptIds;
+        // #477 Low 1 — föräldra-länen för de föredragna kommunerna (kommun→län-containment).
+        // Fylls ovillkorligt av MatchProfileBuilder; tom när ingen kommun vald → containment-
+        // disjunkten i GradeRankExpression blir konstant false → pre-#477 byte-for-byte.
+        var containmentRegions = fast.ContainmentRegionConceptIds;
         var employment = fast.PreferredEmploymentTypeConceptIds;
         var ortStated = regions.Count > 0 || municipalities.Count > 0;
         var employmentStated = employment.Count > 0;
@@ -281,7 +293,7 @@ internal sealed class PerUserJobAdSearchQuery(
         // count can never diverge from /jobb's grade for the same ad (ADR 0079). Grade-WHERE via the
         // same RankInSet helper (positive-only: rank 0 excluded once a grade is selected).
         var rankExpr = GradeRankExpression(
-            ssyk, relatedSsyk, regions, municipalities, employment, ortStated, employmentStated);
+            ssyk, relatedSsyk, regions, municipalities, containmentRegions, employment, ortStated, employmentStated);
         var selectedRanks = grades.Select(GradeToRank).Distinct().ToArray();
 
         // Bounded per-employer GROUP BY over PUBLIC Active job_ads (parity #447 ActiveAdCount +
@@ -424,6 +436,7 @@ internal sealed class PerUserJobAdSearchQuery(
         IReadOnlyList<string> relatedSsyk,
         IReadOnlyList<string> regions,
         IReadOnlyList<string> municipalities,
+        IReadOnlyList<string> containmentRegions,
         IReadOnlyList<string> employment,
         bool ortStated,
         bool employmentStated) =>
@@ -442,7 +455,14 @@ internal sealed class PerUserJobAdSearchQuery(
                             && (EF.Property<string?>(j, RegionColumn) != null
                                 || EF.Property<string?>(j, MunicipalityColumn) != null)
                             && !(regions.Contains(EF.Property<string?>(j, RegionColumn))
-                                || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))))
+                                || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))
+                                // #477 Low 1 — en LÄN-ONLY-annons (municipality NULL) vars län
+                                // INNEHÅLLER en föredragen kommun är INGEN ort-motsägelse (speglar
+                                // ScoreOrtUnions containment-gren → NotAssessed, ej NoMatch). Muni
+                                // NULL-grinden håller grenen till län-only: en kommun-specifik annons
+                                // i en icke-föredragen kommun i samma län golvas fortsatt (RB1).
+                                || (EF.Property<string?>(j, MunicipalityColumn) == null
+                                    && containmentRegions.Contains(EF.Property<string?>(j, RegionColumn)))))
                         || (employmentStated
                             && EF.Property<string?>(j, EmploymentTypeColumn) != null
                             && !employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))))

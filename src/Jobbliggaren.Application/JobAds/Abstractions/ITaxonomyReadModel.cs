@@ -72,4 +72,30 @@ public interface ITaxonomyReadModel
     /// </summary>
     ValueTask<IReadOnlyList<string>> GetRelatedOccupationGroupsAsync(
         IReadOnlyList<string> ssyk4ConceptIds, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// #477 Low 1 — kommun→län-containment för ort-matchningen. Givet en användares
+    /// EXAKT angivna kommun-concept-ids, returnera de LÄN (region-concept-ids) som
+    /// INNEHÅLLER dem, via <c>TaxonomyConcept.ParentConceptId</c> (kommun är barn under
+    /// län, 1:1 — samma <c>municipalitiesByRegion</c>-relation som redan cachas, läst
+    /// baklänges). Låter <c>MatchProfileBuilder</c> härleda den härledda mängden
+    /// <c>CandidateMatchProfile.ContainmentRegionConceptIds</c> så en kommun-only-
+    /// preferens inte längre RB1-golvar en län-only-annons i användarens EGEN kommuns
+    /// län till Basic som en plats-"motsägelse" (scorern läser då den annonsen som
+    /// <c>NotAssessed</c>, aldrig <c>NoMatch</c>).
+    /// <para>
+    /// Ren in-memory-uppslagning mot den redan cachade snapshoten (ingen ny
+    /// per-request-DB-träff — ADR 0043 §1.4; datan seedas redan av
+    /// <c>TaxonomySnapshotSeeder</c>, ingen migration). Resultatet är dedupliserat
+    /// (flera kommuner i samma län → ETT län) och EXKLUDERAR inget — en kommun vars län
+    /// användaren redan valt som region-preferens dyker upp i båda mängderna, vilket är
+    /// harmlöst (scorern unionsar dem). Okänd kommun (taxonomi-drift, saknad förälder)
+    /// bidrar inget — aldrig null/throw (graceful degradation, paritet
+    /// <see cref="ResolveLabelsAsync"/>/<see cref="GetRelatedOccupationGroupsAsync"/>).
+    /// Deterministisk ordning (Ordinal) → stabila tester. Ligger UTANFÖR
+    /// <c>JobAdSearch.ApplyCriteria</c>-shadow-prop-vägen (ADR 0043 Beslut E).
+    /// </para>
+    /// </summary>
+    ValueTask<IReadOnlyList<string>> GetContainingRegionsAsync(
+        IReadOnlyList<string> municipalityConceptIds, CancellationToken cancellationToken);
 }

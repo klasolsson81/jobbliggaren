@@ -64,6 +64,12 @@ public class GetActivityReportQueryHandlerTests
         public ValueTask<IReadOnlyList<string>> GetRelatedOccupationGroupsAsync(
             IReadOnlyList<string> ssyk4ConceptIds, CancellationToken cancellationToken)
             => ValueTask.FromResult<IReadOnlyList<string>>([]);
+
+        // #477 Low 1 — the activity-report handler never builds a match profile, so the
+        // containment lookup is an inert no-op here (empty result, never throws).
+        public ValueTask<IReadOnlyList<string>> GetContainingRegionsAsync(
+            IReadOnlyList<string> municipalityConceptIds, CancellationToken cancellationToken)
+            => ValueTask.FromResult<IReadOnlyList<string>>([]);
     }
 
     private GetActivityReportQueryHandler CreateHandler(

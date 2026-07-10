@@ -68,7 +68,19 @@ export function ApplicationsTableRow({
       ? tUi("table.lastEventFollowUp")
       : tUi(`table.reached${event.toStatus}`);
 
+  // "Nästa steg"-kolumnen (design §7): moveToNext renderas som kompakt
+  // "→ {nästa}" (170px-kolumnen); Draft/Ghosted-specialen behåller sina
+  // etiketter ("Slutför och skicka" / "Återaktivera"). SAMMA action-källa som
+  // Lista-raden (useRowActions, Fork 4) — bara labeln är tabell-kontextad.
   const nextStep = defaultPrimaryFor(application);
+  const nextStepLabel =
+    nextStep == null
+      ? null
+      : nextStep.kind === "moveToNext" && nextStep.nextStatus != null
+        ? tUi("table.nextStepArrow", {
+            status: applicationStatusLabel(t, nextStep.nextStatus),
+          })
+        : nextStep.label;
 
   return (
     <tr className="jp-apptable__row" data-selected={selected || undefined}>
@@ -117,7 +129,9 @@ export function ApplicationsTableRow({
           <span className="jp-tag" data-tag={getStatusTagDataAttr(status)}>
             {applicationStatusLabel(t, status)}
           </span>
-          <StatusMenu application={application} />
+          {/* Kompakt ▾-trigger (22×22, design §7) — fulltext-triggern svämmar
+              över 200px-kolumnen på den bredaste taggen. */}
+          <StatusMenu application={application} compact />
         </div>
       </td>
 
@@ -147,7 +161,7 @@ export function ApplicationsTableRow({
       </td>
 
       <td className="jp-apptable__cell jp-apptable__cell--next">
-        {nextStep != null && (
+        {nextStep != null && nextStepLabel != null && (
           <span className="jp-apptable__nextzone">
             <button
               type="button"
@@ -155,7 +169,7 @@ export function ApplicationsTableRow({
               disabled={pending}
               onClick={nextStep.onClick}
             >
-              {nextStep.label}
+              {nextStepLabel}
             </button>
           </span>
         )}

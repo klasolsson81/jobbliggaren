@@ -191,6 +191,50 @@ describe("ApplicationsTable — urval (efemärt, sidbundet)", () => {
       screen.getByRole("checkbox", { name: "Markera Alfa" }),
     ).not.toBeChecked();
   });
+
+  it("(c2) NYTT rows-set (sök/filter/revalidate) nollställer urvalet + döljer bulkraden (render-tids-reset)", async () => {
+    // Pinnar prevRowsKey-mönstret (code-reviewer Minor 2): en rerender med en
+    // ANNAN radmängd — t.ex. föräldern filtrerar om efter revalidatePath —
+    // måste synkront tömma urvalet så bulk aldrig kan verka på dolda rader.
+    const user = userEvent.setup();
+    const { rerender } = renderTable(fiveRows());
+
+    await user.click(screen.getByRole("checkbox", { name: "Markera Alfa" }));
+    await user.click(screen.getByRole("checkbox", { name: "Markera Beta" }));
+    expect(screen.getByText("2 valda")).toBeInTheDocument();
+
+    // Nytt rows-innehåll (Beta borttagen) → reset; Alfa ska vara avmarkerad.
+    rerender(
+      <ApplicationActionsProvider>
+        <ApplicationsTable
+          rows={fiveRows().filter((r) => r.id !== "id-b")}
+          now={NOW}
+        />
+      </ApplicationActionsProvider>,
+    );
+    expect(screen.queryByText("2 valda")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Rensa urval" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Markera Alfa" }),
+    ).not.toBeChecked();
+
+    // Samma INNEHÅLL men ny array-identitet → urvalet ÖVERLEVER (rowsKey
+    // jämför innehåll, inte referens).
+    await user.click(screen.getByRole("checkbox", { name: "Markera Alfa" }));
+    rerender(
+      <ApplicationActionsProvider>
+        <ApplicationsTable
+          rows={fiveRows().filter((r) => r.id !== "id-b")}
+          now={NOW}
+        />
+      </ApplicationActionsProvider>,
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "Markera Alfa" }),
+    ).toBeChecked();
+  });
 });
 
 describe("ApplicationsTable — bulkåtgärder (#630 PR 10)", () => {

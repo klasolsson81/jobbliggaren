@@ -160,7 +160,7 @@
     "table": {
       "caption": "Ansökningar i tabellform, sorterbar",
       "ariaLabel": "Ansökningar",
-      "empty": "Inga ansökningar matchar sökningen eller filtret.",
+      "empty": "Inga ansökningar matchar sökningen eller filtret. Rensa sökningen eller ändra filtret för att se alla.",
       "colRole": "Roll & företag",
       "colStatus": "Status",
       "colStep": "I steget",
@@ -172,6 +172,7 @@
       "selectAllAriaLabel": "Markera alla på sidan",
       "selectRowAriaLabel": "Markera {role}",
       "sinceStep": "{days, plural, =0 {i dag} one {1 dag} other {# dgr}}",
+      "nextStepArrow": "→ {status}",
       "footerSummary": "Visar {shown} av {total} ansökningar",
       "lastEventFollowUp": "Uppföljning loggad",
       "reachedDraft": "Utkast skapat",

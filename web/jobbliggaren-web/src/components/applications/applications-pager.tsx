@@ -51,7 +51,8 @@ export function ApplicationsPager({
           ) : item === page ? (
             <li key={item}>
               <span aria-current="page" className="jp-apppager__btn jp-apppager__btn--current">
-                <span className="sr-only">{t("pagination.pagePrefix")}</span>
+                {/* Mellanslaget ger accname "Sida 2", inte "Sida2" (a11y §6). */}
+                <span className="sr-only">{t("pagination.pagePrefix")} </span>
                 {item}
               </span>
             </li>
@@ -62,7 +63,7 @@ export function ApplicationsPager({
                 className="jp-apppager__btn"
                 onClick={() => onPageChange(item)}
               >
-                <span className="sr-only">{t("pagination.pagePrefix")}</span>
+                <span className="sr-only">{t("pagination.pagePrefix")} </span>
                 {item}
               </button>
             </li>

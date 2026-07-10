@@ -5,7 +5,10 @@ import { useTranslations } from "next-intl";
 import { applicationStatusLabel, nextStepOf } from "@/lib/applications/status";
 import { useApplicationActions } from "./application-actions";
 import type { RowAction } from "./application-row";
-import type { ApplicationDto } from "@/lib/dto/applications";
+import type {
+  ApplicationDto,
+  ApplicationStatus,
+} from "@/lib/dto/applications";
 
 // clientY-fallback för dialog-/panel-ankaret: ett programmatiskt klick (utan
 // verklig pekare) faller tillbaka på knappens position, aldrig 0 (design §9
@@ -15,6 +18,18 @@ function anchorY(event: MouseEvent<HTMLButtonElement>): number {
     ? event.clientY
     : event.currentTarget.getBoundingClientRect().top;
 }
+
+/**
+ * Radens default-primär-CTA, berikad med sin SORT så konsumenter kan välja
+ * kontext-label: Lista-raden visar `label` rakt av ("Flytta till {nästa}"),
+ * Tabell-vyns "Nästa steg"-kolumn renderar moveToNext-fallet som kompakt
+ * "→ {nästa}" (design §7) men ärver Draft/Ghosted-specialen som de är.
+ */
+export type DefaultRowAction = RowAction & {
+  kind: "finishDraft" | "reactivate" | "moveToNext";
+  /** Satt för kind="moveToNext" — målsteget (för pil-labeln "→ {status}"). */
+  nextStatus?: ApplicationStatus;
+};
 
 /**
  * Delad SSOT för radens DEFAULT-primär-CTA (design §5, prototyp-facit): utkast →
@@ -34,24 +49,30 @@ export function useRowActions() {
   const tUi = useTranslations("applications.ui");
   const { transition, openFinishDraft } = useApplicationActions();
 
-  const defaultPrimaryFor = (application: ApplicationDto): RowAction | null => {
+  const defaultPrimaryFor = (
+    application: ApplicationDto,
+  ): DefaultRowAction | null => {
     const { status } = application;
     const next = nextStepOf(status);
 
     if (status === "Draft") {
       return {
+        kind: "finishDraft",
         label: tUi("row.finishAndSend"),
         onClick: (event) => openFinishDraft(application, anchorY(event)),
       };
     }
     if (status === "Ghosted") {
       return {
+        kind: "reactivate",
         label: tUi("row.reactivate"),
         onClick: () => transition(application, "Submitted"),
       };
     }
     if (next != null) {
       return {
+        kind: "moveToNext",
+        nextStatus: next,
         label: tUi("row.moveToNext", {
           status: applicationStatusLabel(t, next),
         }),

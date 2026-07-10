@@ -262,8 +262,11 @@ export function ApplicationsTable({ rows, now }: ApplicationsTableProps) {
         </>
       )}
 
+      {/* Guarden `selectedRows.length > 0`: en bakgrunds-revalidate som tömmer
+          urvalet medan dialogen är öppen får aldrig lämna en "0 ansökningar"-
+          dialog kvar (code-reviewer Minor 1). */}
       <Dialog
-        open={confirmOpen}
+        open={confirmOpen && selectedRows.length > 0}
         onOpenChange={(open) => {
           if (!open) setConfirmOpen(false);
         }}

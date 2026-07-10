@@ -8234,7 +8234,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-apptable__nextlink {
   background: transparent;
   border: 0;
-  padding: 0;
+  /* Hit-yta >=32px (a11y-golvet) utan att aendra radhoejd: padding balanseras
+     av negativ margin (design-reviewer Minor 2). */
+  padding: 8px 0;
+  margin: -8px 0;
   cursor: pointer;
   font-size: var(--text-body-sm);
   font-weight: var(--jp-fw-semibold);
@@ -8299,7 +8302,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-bulkbar__btn {
   display: inline-flex;
   align-items: center;
-  height: 30px;
+  height: 32px;
   padding: 0 12px;
   background: transparent;
   border: 1px solid var(--jp-ink-inverse);
@@ -8311,7 +8314,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-bulkbar__btn:hover { background: var(--jp-ink-2); }
 .jp-bulkbar__btn:focus-visible {
-  outline: 2px solid var(--jp-gold);
+  /* ink-inverse flippar MED ytan: vit ring pa navy i light, navy ring pa ljus
+     i dark (design-reviewer Minor 3 - gold ar tema-stabil och faller i dark). */
+  outline: 2px solid var(--jp-ink-inverse);
   outline-offset: 2px;
 }
 .jp-bulkbar__btn:disabled { opacity: 0.55; cursor: default; }
@@ -8359,3 +8364,33 @@ a.jp-adminnav__link[aria-current="page"]::after {
   padding: 0 4px;
   color: var(--jp-ink-2);
 }
+
+/* Kompakt statusmeny-trigger (Tabell, design §7): 22x22 chevron-only med synlig kant.
+   Etiketten "Byt status" bars av aria-label; samma meny och a11y-kontrakt. */
+.jp-statusmenu__minitrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-sm);
+  color: var(--jp-ink-2);
+  cursor: pointer;
+  padding: 0;
+}
+.jp-statusmenu__minitrigger:hover {
+  border-color: var(--jp-accent-700);
+  background: var(--jp-accent-50);
+  color: var(--jp-accent-700);
+}
+.jp-statusmenu__minitrigger:focus-visible {
+  outline: 2px solid var(--jp-accent-700);
+  outline-offset: 1px;
+}
+.jp-statusmenu__minitrigger:disabled { opacity: 0.55; cursor: default; }
+/* Sakerhetsventil: skulle tagg+trigger anda inte fa plats bryts triggern ned
+   pa egen rad i cellen i stallet for att svamma over grannkolumnen. */
+.jp-apptable__statuszone { flex-wrap: wrap; }

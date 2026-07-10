@@ -160,7 +160,7 @@
     "table": {
       "caption": "Applications in table form, sortable",
       "ariaLabel": "Applications",
-      "empty": "No applications match the search or filter.",
+      "empty": "No applications match the search or filter. Clear the search or change the filter to see all.",
       "colRole": "Role & company",
       "colStatus": "Status",
       "colStep": "In step",
@@ -172,6 +172,7 @@
       "selectAllAriaLabel": "Select all on this page",
       "selectRowAriaLabel": "Select {role}",
       "sinceStep": "{days, plural, =0 {today} one {1 day} other {# days}}",
+      "nextStepArrow": "→ {status}",
       "footerSummary": "Showing {shown} of {total} applications",
       "lastEventFollowUp": "Follow-up logged",
       "reachedDraft": "Draft created",

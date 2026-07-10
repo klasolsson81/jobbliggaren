@@ -84,10 +84,32 @@ export default async function AnsokningarPage() {
             <p className="jp-pagehero__lede">{t("ansokningar.lede")}</p>
           </div>
           <div className="jp-pagehero__aside">
-            {/* G3 (Klas-fynd 2026-06-10): vit knapp i plattan, konsekvent
-                med /jobb-bannerns vita kontroller (.jp-pagehero .jp-btn--
-                primary = vit; ghost-på-gradient läste som grön). En-primary
-                bibehållen: vit knapp i plattan vs grön i empty-kortet. */}
+            {/* Sidåtgärderna ligger i plattan (Klas-beslut 2026-07-10): vita
+                kontroller på gradienten — Ny ansökan = primär (vit-fylld),
+                Statistik + Aktivitetsrapport = sekundära (vit kant, hero-ink
+                via `.jp-pagehero .jp-btn--secondary`, samma vit-på-gradient-
+                behandling som /cv-heron; löser G3-avläsningen "grön-
+                genomskinlig" som en gång flyttade dem till den vita ytan).
+                En-primary bibehållen. Hjälpen sitter som inline "?" (#408)
+                tätt bunden till Aktivitetsrapport-knappen den förklarar (egen
+                smal-gap-grupp så "?" inte läses som hjälp för primär-CTA:n,
+                design-reviewer Minor 2026-07-10), med hero-ink-trigger så
+                glyfen syns mot gradienten. */}
+            <Link href="/statistik" className="jp-btn jp-btn--secondary">
+              <BarChart3 size={16} aria-hidden="true" /> {t("ansokningar.statistics")}
+            </Link>
+            <span className="jp-pagehero__helpedctl">
+              <Link href="/aktivitetsrapport" className="jp-btn jp-btn--secondary">
+                <FileText size={16} aria-hidden="true" />{" "}
+                {t("ansokningar.activityReport")}
+              </Link>
+              <InfoDialog
+                title={ta("info.title")}
+                paragraphs={[ta("info.p1"), ta("info.p2"), ta("info.p3")]}
+                ariaLabel={ta("info.whatIsThisAria")}
+                triggerClassName="jp-pagehero__help"
+              />
+            </span>
             <Link href="/ny-ansokan" className="jp-btn jp-btn--primary">
               <Plus size={16} aria-hidden="true" /> {t("ansokningar.newApplication")}
             </Link>
@@ -96,32 +118,6 @@ export default async function AnsokningarPage() {
       </section>
 
       <div className="jp-container jp-page">
-        {/* #316 — entry till AF-aktivitetsrapport-hjälpen. Sekundär knapp på
-            den vita sid-ytan (jp-btn--secondary = solid yt-bakgrund, mörk ink,
-            kant) i stället för ghost-på-gradient, som läste som
-            grön-genomskinlig (Klas-fynd 2026-06-28; G3-precedens — sekundära
-            knappar avgränsas inte rent mot hero-gradienten).
-            Hjälpen sitter som inline "?" (InfoDialog) direkt efter knappen den
-            förklarar — #408-konventionen (Klas 2026-07-01: inline "?" vid
-            icke-uppenbara kontroller), samma idiom som grade-filtret. Den
-            äldre #337-text-only-placeringen är pensionerad (2026-07-10). */}
-        <div className="mb-6 flex flex-wrap items-center justify-end gap-3">
-          <Link href="/statistik" className="jp-btn jp-btn--secondary">
-            <BarChart3 size={16} aria-hidden="true" /> {t("ansokningar.statistics")}
-          </Link>
-          <Link
-            href="/aktivitetsrapport"
-            className="jp-btn jp-btn--secondary"
-          >
-            <FileText size={16} aria-hidden="true" />{" "}
-            {t("ansokningar.activityReport")}
-          </Link>
-          <InfoDialog
-            title={ta("info.title")}
-            paragraphs={[ta("info.p1"), ta("info.p2"), ta("info.p3")]}
-            ariaLabel={ta("info.whatIsThisAria")}
-          />
-        </div>
         {total === 0 ? (
           <div className="jp-empty">
             <div className="jp-empty__kicker">{t("ansokningar.emptyKicker")}</div>

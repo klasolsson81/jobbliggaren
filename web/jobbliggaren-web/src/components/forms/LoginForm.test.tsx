@@ -10,7 +10,10 @@ vi.mock("next/navigation", () => ({
 
 // loginAction is wired via useActionState. We mock the module so the form's
 // formAction invokes our spy instead of calling fetch().
-type AuthActionState = { error?: string } | null;
+type AuthActionState = {
+  error?: string;
+  emailNotConfirmed?: boolean;
+} | null;
 const loginActionMock =
   vi.fn<
     (prevState: AuthActionState, formData: FormData) => Promise<AuthActionState>
@@ -19,6 +22,12 @@ const loginActionMock =
 vi.mock("@/lib/auth/actions", () => ({
   loginAction: (prevState: AuthActionState, formData: FormData) =>
     loginActionMock(prevState, formData),
+}));
+
+// The ResendConfirmationButton (rendered on the emailNotConfirmed state) imports the resend server
+// action; mock it so importing LoginForm does not pull in the real fetch/env module.
+vi.mock("@/lib/actions/resend-confirmation", () => ({
+  resendConfirmationAction: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 describe("LoginForm", () => {
@@ -108,6 +117,43 @@ describe("LoginForm", () => {
     expect(alert).toHaveTextContent(
       "Inloggningen misslyckades. Kontrollera e-post och lösenord."
     );
+  });
+
+  it("#733 — shows the resend-confirmation button when the action returns emailNotConfirmed", async () => {
+    loginActionMock.mockResolvedValueOnce({
+      error:
+        "Bekräfta din e-postadress för att logga in. Vi har skickat en länk till din inkorg.",
+      emailNotConfirmed: true,
+    });
+
+    const user = userEvent.setup();
+    render(<LoginForm />);
+
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "hemligt1");
+    await user.click(screen.getByRole("button", { name: "Logga in" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Skicka en ny bekräftelselänk" })
+    ).toBeInTheDocument();
+  });
+
+  it("does not show the resend-confirmation button on an ordinary login error", async () => {
+    loginActionMock.mockResolvedValueOnce({
+      error: "Inloggningen misslyckades. Kontrollera e-post och lösenord.",
+    });
+
+    const user = userEvent.setup();
+    render(<LoginForm />);
+
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "fel");
+    await user.click(screen.getByRole("button", { name: "Logga in" }));
+
+    await screen.findByRole("alert");
+    expect(
+      screen.queryByRole("button", { name: "Skicka en ny bekräftelselänk" })
+    ).not.toBeInTheDocument();
   });
 
   it("marks email and password as required (HTML attribute + aria-required)", () => {

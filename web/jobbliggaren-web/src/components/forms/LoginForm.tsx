@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/forms/PasswordInput";
 import { RememberMeCheckbox } from "@/components/forms/RememberMeCheckbox";
+import { ResendConfirmationButton } from "@/components/auth/ResendConfirmationButton";
 import { loginAction, type AuthActionState } from "@/lib/auth/actions";
 
 export function LoginForm() {
@@ -71,6 +72,13 @@ export function LoginForm() {
         <p role="alert" className="text-body-sm leading-5 text-danger-600">
           {state.error}
         </p>
+      )}
+
+      {/* #733: the email input stays mounted here, so read it live at click time. */}
+      {state?.emailNotConfirmed && (
+        <ResendConfirmationButton
+          getEmail={() => emailInputRef.current?.value ?? ""}
+        />
       )}
 
       <Button type="submit" disabled={isPending} className="w-full">

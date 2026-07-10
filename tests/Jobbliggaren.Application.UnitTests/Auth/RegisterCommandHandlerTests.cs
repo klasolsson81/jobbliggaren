@@ -265,4 +265,51 @@ public class RegisterCommandHandlerTests
             Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(),
             Arg.Any<EmailConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>());
     }
+
+    // ---------- Send-failure symmetry (CTO-bind Risk 1) ----------
+    // Both the fresh branch (SendEmailConfirmationAsync) and the duplicate-swallow branch
+    // (SendAccountExistsNoticeAsync) send as their FINAL action and propagate the exception uncaught, so
+    // a transport fault surfaces identically (an unhandled exception → the same 500 at the endpoint).
+    // Pinned here (unit) rather than via an extra WebApplicationFactory host (which would trip EF's
+    // process-wide ManyServiceProvidersCreatedWarning across the shared integration [Collection]).
+
+    [Fact]
+    public async Task Handle_FlagOn_WhenConfirmationSendThrows_PropagatesUncaught()
+    {
+        var userId = Guid.NewGuid();
+        var userAccountService = UserAccountServiceCreating(userId);
+        userAccountService.GenerateEmailConfirmationTokenAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(Result.Success("tok"));
+        var emailSender = Substitute.For<IEmailSender>();
+        emailSender.SendEmailConfirmationAsync(
+                Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(),
+                Arg.Any<EmailConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new InvalidOperationException("send failed")));
+
+        var handler = CreateHandler(
+            userAccountService: userAccountService, emailSender: emailSender, requireEmailConfirmation: true);
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => handler.Handle(ValidCommand(), CancellationToken.None).AsTask());
+    }
+
+    [Fact]
+    public async Task Handle_FlagOn_WhenNoticeSendThrows_PropagatesUncaught()
+    {
+        // Duplicate-swallow branch: the same fault class must propagate the same way (symmetry).
+        var userAccountService = Substitute.For<IUserAccountService>();
+        userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<Guid>(
+                DomainError.Validation(AuthErrorCodes.DuplicateAccount, AuthErrorCodes.DuplicateAccountMessage)));
+        var emailSender = Substitute.For<IEmailSender>();
+        emailSender.SendAccountExistsNoticeAsync(
+                Arg.Any<string>(), Arg.Any<AccountExistsNoticeIdempotencyKey>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new InvalidOperationException("send failed")));
+
+        var handler = CreateHandler(
+            userAccountService: userAccountService, emailSender: emailSender, requireEmailConfirmation: true);
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => handler.Handle(ValidCommand(), CancellationToken.None).AsTask());
+    }
 }

@@ -1,12 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
-using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Common.Abstractions;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.Auth;
@@ -130,42 +125,10 @@ public class RegisterConfirmationTests(ApiFactory factory)
         freshTitle.ShouldBe(takenTitle, "a breached password is identical for a taken and a fresh address");
     }
 
-    [Fact]
-    public async Task POST_register_send_failure_is_symmetric_for_fresh_and_taken()
-    {
-        // CTO-bind Risk 1 (symmetry guard): a transport failure on the email send must yield the SAME
-        // response for a fresh address (confirmation send) and a taken address (account-exists-notice
-        // send), or the failure MODE itself becomes an enumeration distinguisher. Both branches send as
-        // their final action and let the exception propagate, so both are the identical server error.
-        var ct = TestContext.Current.CancellationToken;
-        var takenEmail = $"regconf-sendfail-taken-{Guid.NewGuid()}@example.com";
-
-        // Create the taken address first via the normal (working-sender) flag-ON client.
-        (await RegisterAsync(takenEmail, StrongPassword, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
-
-        using var throwingClient = CreateThrowingSenderClient();
-        var freshEmail = $"regconf-sendfail-fresh-{Guid.NewGuid()}@example.com";
-
-        var takenResult = await throwingClient.PostAsJsonAsync(
-            "/api/v1/auth/register",
-            new { email = takenEmail, password = StrongPassword, displayName = "Test User" }, ct);
-        var freshResult = await throwingClient.PostAsJsonAsync(
-            "/api/v1/auth/register",
-            new { email = freshEmail, password = StrongPassword, displayName = "Test User" }, ct);
-
-        // Both branches fail identically (the account-exists-notice send and the confirmation send both
-        // throw). Assert a server error AND symmetry, without hard-coding the exact 5xx status.
-        ((int)takenResult.StatusCode).ShouldBeGreaterThanOrEqualTo(500);
-        takenResult.StatusCode.ShouldBe(
-            freshResult.StatusCode, "a send failure must be symmetric across the fresh and taken branches");
-    }
-
-    // Flag-ON host whose IEmailSender throws on the two registration sends — for the symmetry guard.
-    private HttpClient CreateThrowingSenderClient() =>
-        _factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-        {
-            services.PostConfigure<AuthOptions>(o => o.RequireEmailConfirmation = true);
-            services.RemoveAll<IEmailSender>();
-            services.AddSingleton<IEmailSender>(new ThrowingEmailSender());
-        })).CreateClient();
+    // NOTE: send-failure symmetry (CTO-bind Risk 1 — a transport fault must yield the same response for
+    // the fresh and taken branches) is pinned at the UNIT level in
+    // RegisterCommandHandlerTests.Handle_FlagOn_SendFailure_*: both branches send as their final action
+    // and propagate the exception uncaught, so both surface as an identical 500. That is asserted
+    // without an extra WebApplicationFactory host (which would spin another EF service provider and trip
+    // the process-wide ManyServiceProvidersCreatedWarning across the shared [Collection("Api")]).
 }

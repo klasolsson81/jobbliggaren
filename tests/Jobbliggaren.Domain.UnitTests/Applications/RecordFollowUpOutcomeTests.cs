@@ -172,4 +172,76 @@ public class RecordFollowUpOutcomeTests
 
         application.DomainEvents.ShouldBeEmpty();
     }
+
+    // ---------------------------------------------------------------
+    // #644 — the recorded outcome must be a resolution (Responded/NoResponse);
+    // Pending (initial) and Logged (creation-only) are rejected targets.
+    // ---------------------------------------------------------------
+
+    [Theory]
+    [InlineData(nameof(FollowUpOutcome.Pending))]
+    [InlineData(nameof(FollowUpOutcome.Logged))]
+    public void RecordFollowUpOutcome_WithNonResolutionTarget_ReturnsValidationFailure(string outcomeName)
+    {
+        var application = CreateActiveApplication();
+        var followUpId = AddPendingFollowUp(application);
+        var outcome = FollowUpOutcome.FromName(outcomeName);
+
+        var result = application.RecordFollowUpOutcome(followUpId, outcome, LaterClock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("FollowUp.InvalidOutcome");
+    }
+
+    [Fact]
+    public void RecordFollowUpOutcome_WithNonResolutionTarget_LeavesFollowUpPending()
+    {
+        var application = CreateActiveApplication();
+        var followUpId = AddPendingFollowUp(application);
+
+        application.RecordFollowUpOutcome(followUpId, FollowUpOutcome.Logged, LaterClock);
+
+        var followUp = application.FollowUps.Single(f => f.Id == followUpId);
+        followUp.Outcome.ShouldBe(FollowUpOutcome.Pending);
+        followUp.OutcomeAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public void RecordFollowUpOutcome_WithNonResolutionTarget_DoesNotRaiseEvent()
+    {
+        var application = CreateActiveApplication();
+        var followUpId = AddPendingFollowUp(application);
+        application.ClearDomainEvents();
+
+        application.RecordFollowUpOutcome(followUpId, FollowUpOutcome.Pending, LaterClock);
+
+        application.DomainEvents.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void RecordFollowUpOutcome_WithNoResponse_ReturnsSuccess()
+    {
+        var application = CreateActiveApplication();
+        var followUpId = AddPendingFollowUp(application);
+
+        var result = application.RecordFollowUpOutcome(followUpId, FollowUpOutcome.NoResponse, LaterClock);
+
+        result.IsSuccess.ShouldBeTrue();
+        application.FollowUps.Single(f => f.Id == followUpId).Outcome.ShouldBe(FollowUpOutcome.NoResponse);
+    }
+
+    [Fact]
+    public void RecordFollowUpOutcome_WhenAlreadyRecordedAndTargetDisallowed_ConflictWinsOverInvalidOutcome()
+    {
+        // Pins the guard ORDER (#644): an already-resolved follow-up given a disallowed target hits
+        // the Conflict check first — a reorder would silently flip 409→400 (test-writer PR B).
+        var application = CreateActiveApplication();
+        var followUpId = AddPendingFollowUp(application);
+        application.RecordFollowUpOutcome(followUpId, FollowUpOutcome.Responded, LaterClock);
+
+        var result = application.RecordFollowUpOutcome(followUpId, FollowUpOutcome.Pending, LaterClock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("FollowUp.OutcomeAlreadyRecorded");
+    }
 }

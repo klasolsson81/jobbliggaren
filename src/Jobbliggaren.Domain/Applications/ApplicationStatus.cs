@@ -15,6 +15,21 @@ public sealed class ApplicationStatus : SmartEnum<ApplicationStatus>
     public static readonly ApplicationStatus Withdrawn = new("Withdrawn", 9);
     public static readonly ApplicationStatus Ghosted = new("Ghosted", 10);
 
+    // #648: closed for follow-up activity — the three terminal kanban statuses
+    // (Accepted/Rejected/Withdrawn) PLUS Ghosted. Ghosted is deliberately included (no activity on
+    // a ghosted thread) even though it is NOT terminal (it is reactivatable) — this set spans wider
+    // than the aggregate's three-terminal check on purpose.
+    private static readonly HashSet<ApplicationStatus> ClosedForActivityStatuses =
+        [Accepted, Rejected, Withdrawn, Ghosted];
+
+    /// <summary>
+    /// True for a status closed to follow-up activity: the three terminals plus Ghosted. The single
+    /// source for the Application aggregate's AddFollowUp/LogFollowUp guards and the OverdueFollowUp
+    /// attention signal (#648) — so a closed thread neither accepts a new follow-up nor keeps
+    /// nudging about a lingering one.
+    /// </summary>
+    public bool IsClosedForActivity => ClosedForActivityStatuses.Contains(this);
+
     private readonly HashSet<ApplicationStatus> _recommendedNext = [];
 
     /// <summary>

@@ -16,9 +16,9 @@ import { RouteModalShell } from "@/components/modals/route-modal-shell";
  * Samma `CvUploadForm` i båda (ADR 0053, DRY).
  *
  * RSC: auth-grind på servern; endast modal-chromet (RouteModalShell) och
- * CvUploadForm är "use client". Upload-flödet är oförändrat: vid 201 gör
- * formuläret router.push('/cv/granska/[parsedId]') — en full navigation som
- * ersätter modalen med granska-vyn. Stäng (ESC/scrim/X) → router.back() → /cv.
+ * CvUploadForm är "use client". Upload-flödet: vid 201 gör formuläret
+ * router.push('/cv/slutfor/[parsedId]') (Fas 4b PR-8.3) — en full navigation som
+ * ersätter modalen med Slutför-guiden. Stäng (ESC/scrim/X) → router.back() → /cv.
  */
 export default async function InterceptedCvImportModal() {
   const user = await getServerSession();

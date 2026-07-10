@@ -60,9 +60,23 @@
     "emptyCreateFirst": "Skapa första CV",
     "backLink": "Tillbaka till CV",
     "pending": {
-      "heading": "CV att slutföra",
-      "body": "Ditt CV är inläst men inte sparat ännu. Slutför det för att spara och kunna använda det fullt ut.",
-      "cta": "Slutför CV"
+      "kicker": "Kräver åtgärd",
+      "imported": "Importerad {when}",
+      "heading": "Ditt CV är inläst",
+      "body": "Filen är inläst men inte sparad ännu. Gå igenom uppgifterna och spara, så blir CV:t ett av dina och kan granskas.",
+      "meter": "{done} av {total} uppgifter klara",
+      "cta": "Slutför CV",
+      "timeEstimate": "ca 1 min",
+      "discard": "Ta bort utkastet",
+      "discardTitle": "Ta bort utkastet?",
+      "discardBody": "Utkastet tas bort. Du kan importera ditt CV på nytt när du vill.",
+      "discardConfirm": "Ta bort utkastet",
+      "discardCancel": "Avbryt",
+      "relativeTime": {
+        "today": "i dag",
+        "yesterday": "i går",
+        "daysAgo": "{count, plural, one {# dag sedan} other {# dagar sedan}}"
+      }
     },
     "import": {
       "title": "Importera CV",
@@ -101,6 +115,14 @@
       "loadErrorTitle": "Kunde inte ladda CV:t",
       "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till granskningen.",
       "backLink": "Tillbaka till granskningen"
+    },
+    "slutfor": {
+      "title": "Slutför CV",
+      "lede": "Gå igenom uppgifterna vi läste ur din fil, komplettera det som saknas och spara. Källfilen sparas orörd.",
+      "loadErrorTitle": "Kunde inte ladda CV:t",
+      "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till CV-sidan.",
+      "backLink": "Tillbaka till CV",
+      "loading": "CV:t läses in…"
     },
     "importApi": {
       "notMultipart": "Ladda upp filen som multipart/form-data.",

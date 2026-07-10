@@ -108,7 +108,7 @@ describe("CvUploadForm — onUploaded-callback (ADR 0077 STEG 5)", () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
-  it("utan onUploaded navigerar till granska-vyn vid 201 (default oförändrat)", async () => {
+  it("utan onUploaded navigerar till Slutför-guiden vid 201 (default)", async () => {
     const user = userEvent.setup();
     global.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ parsedResumeId: PARSED_ID }), {
@@ -127,7 +127,7 @@ describe("CvUploadForm — onUploaded-callback (ADR 0077 STEG 5)", () => {
     );
 
     await waitFor(() =>
-      expect(pushMock).toHaveBeenCalledWith(`/cv/granska/${PARSED_ID}`)
+      expect(pushMock).toHaveBeenCalledWith(`/cv/slutfor/${PARSED_ID}`)
     );
   });
 });

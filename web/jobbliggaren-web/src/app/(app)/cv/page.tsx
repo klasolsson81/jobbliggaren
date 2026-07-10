@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { FileText, Plus, Upload } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getLatestPendingParsedResume, getResumes } from "@/lib/api/resumes";
@@ -8,11 +8,21 @@ import { getMyProfile } from "@/lib/api/me";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { resolveSkillLabels } from "@/lib/api/skills";
 import { assertNever } from "@/lib/dto/_helpers";
+import { formatDaysAgo } from "@/lib/i18n/relative-time";
+import { formatTime } from "@/lib/i18n/format";
 import { ResumeCard } from "@/components/resumes/resume-card";
 import { CvMatchSetup } from "@/components/resumes/cv-match-setup";
+import { DiscardDraftButton } from "@/components/resumes/discard-draft-button";
+import { StatusPill } from "@/components/ui/status-pill";
+import { countCompletedTasks, TOTAL_GAP_TASKS } from "@/lib/resumes/gap-tasks";
 
 /** Route till CV-importflödet (verifierad on-disk: app/(app)/cv/importera). */
 const IMPORT_CV_HREF = "/cv/importera";
+
+/** Stabil id för åtgärdskortets mätar-etikett → progressbarens tillgängliga namn
+ * (aria-labelledby). Endast ett åtgärdskort renderas per sida (senaste pending),
+ * så en konstant id är säker (ingen dubblett). */
+const PENDING_METER_LABEL_ID = "cv-pending-meter-label";
 
 /**
  * /cv-listvyn (F6 P3a, HANDOVER §7.4 + målbild 09-cv-light.png).
@@ -35,6 +45,11 @@ export default async function CvListPage({
   if (!user) redirect("/logga-in");
 
   const t = await getTranslations("pages");
+  // Åtgärdskortets tids-/relativtids-formatering (Fas 4b PR-8.3). Formatteraren
+  // och den relativtids-scopade translatorn måste skaffas på async-toppnivå
+  // (inga hooks i en RSC); härledda värden beräknas nedan när pendingCv finns.
+  const fmt = await getFormatter();
+  const tPendingRel = await getTranslations("pages.cv.pending.relativeTime");
 
   // Post-promote-prompten (design C.3) visas när /cv öppnas med ?matchning=1
   // — sätts av promote-/upload-flödet vid redirect hit. Annars dold.
@@ -59,6 +74,30 @@ export default async function CvListPage({
   const taxonomy = taxonomyResult.kind === "ok" ? taxonomyResult.data : null;
   const profile = profileResult.kind === "ok" ? profileResult.data : null;
   const pendingCv = pendingResult.kind === "ok" ? pendingResult.data : null;
+
+  // Åtgärdskortets härledda värden (Fas 4b PR-8.3). Källrad: filnamn + "Importerad
+  // {relativ dag} {tid}". Mätaren "X av Y uppgifter klara" renderas ENDAST när
+  // gaps finns (icke-null) — ett ärligt "inte beräknat" (§5), aldrig en gissning.
+  const pendingImportedWhen = pendingCv
+    ? `${formatDaysAgo(tPendingRel, pendingCv.uploadedAt)} ${formatTime(
+        fmt,
+        new Date(pendingCv.uploadedAt),
+      )}`
+    : null;
+  // Mätaren delar uppgiftsdefinitionen med Slutför-guiden (CTO-bind Q5) via
+  // `gap-tasks.ts` — de får aldrig vara oense om vad en uppgift är. Räkningen
+  // hämtas därför ur `countCompletedTasks`/`TOTAL_GAP_TASKS`, inte inline.
+  const pendingGaps = pendingCv?.gaps ?? null;
+  const pendingMeter = pendingGaps
+    ? (() => {
+        const done = countCompletedTasks(pendingGaps);
+        return {
+          done,
+          total: TOTAL_GAP_TASKS,
+          pct: Math.round((done / TOTAL_GAP_TASKS) * 100),
+        };
+      })()
+    : null;
 
   // #422 (#253/#277 group-resolution): reverse-resolve the saved skill concept-
   // ids to GROUPS server-side, mirroring installningar/page.tsx:47-52. Without
@@ -134,24 +173,64 @@ export default async function CvListPage({
       </section>
 
       <div className="jp-container jp-page">
-        {/* Onboarding-frikoppling (DEL 1, CTO-bind pending-card): "slutför ditt
-            CV"-kort när användaren har ett inläst men ICKE-sparat (PendingReview)
-            CV. Informationellt, inte ett fel (neutral yta + 1px-kant, ingen röd
-            ton). Copyn påstår ALDRIG att CV:t är sparat — bara inläst. Ren
-            Server Component (display + en Next Link), ingen klient-ö. */}
+        {/* Åtgärdskort (design handoff §5.1): hubbens hero när användaren har ett
+            inläst men ICKE-sparat (PendingReview) CV. Warning-tonad vänster-accent
+            + StatusPill-kicker signalerar "kräver åtgärd" utan att vara ett fel —
+            informationen bärs av text + struktur + pill, aldrig av färg allena
+            (WCAG 1.4.1). Copyn påstår ALDRIG att CV:t är sparat — bara inläst.
+            Discard-kontrollen är en klient-ö (bekräfta-dialog); resten är RSC. */}
         {pendingCv !== null && (
-          <div className="jp-cvmatch-bar">
-            <div className="jp-cvmatch-bar__lead">
-              <p className="jp-cvmatch-bar__title">{t("cv.pending.heading")}</p>
-              <p className="jp-cvmatch-bar__text">{t("cv.pending.body")}</p>
+          <div className="jp-cvaction">
+            <StatusPill tone="warning">{t("cv.pending.kicker")}</StatusPill>
+            <p className="jp-cvaction__source">
+              {pendingCv.sourceFileName}
+              {pendingImportedWhen !== null && (
+                <> · {t("cv.pending.imported", { when: pendingImportedWhen })}</>
+              )}
+            </p>
+            <div className="jp-cvaction__lead">
+              <p className="jp-cvaction__heading">{t("cv.pending.heading")}</p>
+              <p className="jp-cvaction__body">{t("cv.pending.body")}</p>
             </div>
-            <Link
-              href={`/cv/granska/${pendingCv.id}/komplettera`}
-              className="jp-btn jp-btn--primary"
-            >
-              <FileText size={16} aria-hidden="true" />
-              <span>{t("cv.pending.cta")}</span>
-            </Link>
+            {pendingMeter !== null && (
+              <div className="jp-cvaction__meter">
+                <span
+                  id={PENDING_METER_LABEL_ID}
+                  className="jp-cvaction__meter-label"
+                >
+                  {t("cv.pending.meter", {
+                    done: pendingMeter.done,
+                    total: pendingMeter.total,
+                  })}
+                </span>
+                <div
+                  className="jp-cvaction__meter-track"
+                  role="progressbar"
+                  aria-valuenow={pendingMeter.done}
+                  aria-valuemin={0}
+                  aria-valuemax={pendingMeter.total}
+                  aria-labelledby={PENDING_METER_LABEL_ID}
+                >
+                  <div
+                    className="jp-cvaction__meter-fill"
+                    style={{ width: `${pendingMeter.pct}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            <div className="jp-cvaction__actions">
+              <Link
+                href={`/cv/slutfor/${pendingCv.id}`}
+                className="jp-btn jp-btn--primary"
+              >
+                <FileText size={16} aria-hidden="true" />
+                <span>{t("cv.pending.cta")}</span>
+              </Link>
+              <span className="jp-cvaction__estimate">
+                {t("cv.pending.timeEstimate")}
+              </span>
+              <DiscardDraftButton parsedId={pendingCv.id} />
+            </div>
           </div>
         )}
 

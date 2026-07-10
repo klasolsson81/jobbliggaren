@@ -58,17 +58,25 @@ export async function getMyMatches(): Promise<ApiResult<MatchList>> {
  * sedda). Anropas när den dedikerade vyn ÖPPNAS (Klas-val: mark-seen on opening
  * the view). `POST /api/v1/me/matches/seen` → 204 (auth-gated, MeWritePolicy).
  *
+ * `seenThrough` = `createdAt` för den nyaste matchningen vi FAKTISKT visade (listan
+ * är nyast-först). Vattenmärket sätts dit, inte till klock-nu (#477 Low) — så en
+ * matchning som skapas mellan hämtningen och detta anrop (`CreatedAt > seenThrough`)
+ * förblir korrekt flaggad "nya". Utelämnad (tom lista) → backend faller tillbaka på nu.
+ *
  * Idempotent och icke-kritisk: ett fel får ALDRIG blockera vy-renderingen
  * (counten nollställs då bara inte denna gång) — degraderar civilt likt
  * `saveJobAd`/`unsaveJobAd`-mönstret. 204 → ok; allt annat → fel-kind.
  */
-export async function markMatchesSeen(): Promise<ApiResult<void>> {
+export async function markMatchesSeen(
+  seenThrough?: string,
+): Promise<ApiResult<void>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
     const res = await authedFetch(sessionId, "/api/v1/me/matches/seen", {
       method: "POST",
+      ...(seenThrough ? { body: JSON.stringify({ seenThrough }) } : {}),
     });
     if (res.status === 204) return { kind: "ok", data: undefined };
     if (res.status === 401) return { kind: "unauthorized" };

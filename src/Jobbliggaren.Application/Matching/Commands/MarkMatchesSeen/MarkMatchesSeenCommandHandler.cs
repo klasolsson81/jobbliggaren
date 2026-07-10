@@ -32,7 +32,12 @@ public sealed class MarkMatchesSeenCommandHandler(
             return Result.Failure(
                 DomainError.NotFound("JobSeeker", currentUser.UserId.Value));
 
-        jobSeeker.SetLastSeenMatches(clock);
+        // #477 Low: advance the watermark to the window the user actually saw (the max CreatedAt
+        // the FE sends), NOT clock-now — a match created between the user's GET and this POST has
+        // CreatedAt > seenThrough and stays flagged "nya". Null (empty list / deploy-skew) falls
+        // back to clock-now (the old behaviour); the aggregate clamps a future value to now.
+        var seenThrough = command.SeenThrough ?? clock.UtcNow;
+        jobSeeker.SetLastSeenMatches(seenThrough, clock);
         return Result.Success();
     }
 }

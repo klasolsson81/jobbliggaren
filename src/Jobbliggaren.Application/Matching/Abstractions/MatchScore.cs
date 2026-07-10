@@ -20,11 +20,13 @@ namespace Jobbliggaren.Application.Matching.Abstractions;
 /// this kind (e.g. an ad with no <c>must_have</c> requirements at all). Distinct from
 /// <see cref="NotAssessed"/> (which is "we could not assess") — Vacuous is "there was
 /// nothing to require". This distinction is load-bearing for the requirement-aware
-/// grade (ADR 0076 amendment 2026-06-20, Klas Reading 1): a no-must-have ad is
-/// gate-OPEN (a qualified candidate CAN reach Stark/Topp), whereas a no-CV user
-/// (<see cref="NotAssessed"/> must-have) is gate-CLOSED (caps at the preference rung).
-/// Only the set-membership concept-coverage dimensions (skill / must-have /
-/// nice-to-have) can be Vacuous; the binary Fast dimensions never are.</item>
+/// grade (ADR 0076 amendment 2026-06-20; F1(b) amendment 2026-06-27): a Vacuous
+/// must-have is gate-open only WHEN a positive CV skill/nice-to-have signal also backs
+/// it — a Vacuous must-have <b>alone</b> caps at Bra/Good, whereas a Vacuous-plus-skill-
+/// signal candidate CAN reach Stark/Topp. A no-CV user (<see cref="NotAssessed"/>
+/// must-have) is gate-CLOSED (caps at the preference rung). Only the set-membership
+/// concept-coverage dimensions (skill / must-have / nice-to-have) can be Vacuous; the
+/// binary Fast dimensions never are.</item>
 /// </list>
 /// <para>
 /// Serialized by NAME, not ordinal (<c>[JsonStringEnumConverter]</c>) — F4-13's match
@@ -43,8 +45,9 @@ public enum MatchDimensionVerdict
     /// <summary>
     /// The ad side of a concept-coverage dimension is empty while the CV side is
     /// non-empty ("nothing required, and we looked") — see the type summary. Added
-    /// 2026-06-20 (ADR 0076 amendment) for the requirement-aware grade's vacuous-ad
-    /// gate-open case; never produced by the binary Fast membership dimensions.
+    /// 2026-06-20 (ADR 0076 amendment) for the requirement-aware grade; under the F1(b)
+    /// amendment (2026-06-27) a Vacuous must-have opens Stark/Topp only alongside a skill/
+    /// nice-to-have signal (else caps at Bra). Never produced by the binary Fast dimensions.
     /// </summary>
     Vacuous,
 }

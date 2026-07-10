@@ -1044,6 +1044,10 @@ public static class DependencyInjection
             Security.BinaryFieldEncryptor>();
         services.AddScoped<Jobbliggaren.Application.Common.Security.IBinaryFieldSealer,
             Security.BinaryFieldSealer>();
+        // Fas 4b PR-9b (ADR 0100 §D3 read-path) — the read-side opener, Scoped for the same reason
+        // as the sealer (peeks the scope's ScopedUserDataKeyCache via ICurrentDataOwner).
+        services.AddScoped<Jobbliggaren.Application.Common.Security.IBinaryFieldOpener,
+            Security.BinaryFieldOpener>();
 
         return services;
     }

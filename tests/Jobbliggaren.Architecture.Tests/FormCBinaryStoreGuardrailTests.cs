@@ -12,10 +12,12 @@ namespace Jobbliggaren.Architecture.Tests;
 /// EXPLICITLY in the write-path — so the compiler cannot enforce the DEK-warm contract or
 /// the no-plaintext model. These pins do:
 /// <list type="number">
-/// <item><b>Marker-pin:</b> every handler that injects <see cref="IBinaryFieldSealer"/> must
-/// handle a message carrying <see cref="IRequiresFieldEncryptionKey"/> — otherwise the
-/// prefetch behavior never warms the owner DEK and the sealer's fail-closed throw fires at
-/// runtime instead of the DEK being warm by construction.</item>
+/// <item><b>Marker-pin:</b> every handler that injects <see cref="IBinaryFieldSealer"/> (write
+/// path) or <see cref="IBinaryFieldOpener"/> (PR-9b read path) must handle a message carrying
+/// <see cref="IRequiresFieldEncryptionKey"/> — otherwise the prefetch behavior never warms the
+/// owner DEK and the port's fail-closed throw fires at runtime instead of the DEK being warm by
+/// construction. One parametrised body, one <see cref="System.Reflection"/> sweep per port, each
+/// with its own vacuity guard.</item>
 /// <item><b>Aggregate-honesty pin:</b> <see cref="ResumeFile"/> never grows a plaintext-bytes
 /// surface — the ONLY byte-carrying member is the opaque <c>SealedContent</c> (+ the factory's
 /// <c>sealedContent</c> parameter). Multi-MB CV plaintext must never be change-tracked or
@@ -29,6 +31,19 @@ public class FormCBinaryStoreGuardrailTests
 {
     [Fact]
     public void HandlersInjectingBinaryFieldSealer_MustHandleMessagesCarryingTheDekMarker()
+        => AssertHandlersInjectingBinaryPort_HandleTheDekMarker(typeof(IBinaryFieldSealer));
+
+    [Fact]
+    public void HandlersInjectingBinaryFieldOpener_MustHandleMessagesCarryingTheDekMarker()
+        => AssertHandlersInjectingBinaryPort_HandleTheDekMarker(typeof(IBinaryFieldOpener));
+
+    // Fas 4b PR-9b (security-auditor Major 2): the read-path opener needs the SAME structural
+    // guarantee as the write-path sealer — a handler injecting either Form C port whose message
+    // lacks IRequiresFieldEncryptionKey would fail closed at runtime because the prefetch behavior
+    // never warms the owner DEK. Parametrised over the port so both pins share one body; each [Fact]
+    // runs the sweep independently, so each carries its OWN vacuity guard (sealer: the import
+    // handler; opener: the download handler).
+    private static void AssertHandlersInjectingBinaryPort_HandleTheDekMarker(Type binaryPortType)
     {
         var applicationAssembly = typeof(Jobbliggaren.Application.AssemblyMarker).Assembly;
 
@@ -40,11 +55,11 @@ public class FormCBinaryStoreGuardrailTests
             if (type.IsAbstract || type.IsInterface)
                 continue;
 
-            var injectsSealer = type.GetConstructors()
+            var injectsPort = type.GetConstructors()
                 .Any(c => c.GetParameters()
-                    .Any(p => p.ParameterType == typeof(IBinaryFieldSealer)));
+                    .Any(p => p.ParameterType == binaryPortType));
 
-            if (!injectsSealer)
+            if (!injectsPort)
                 continue;
 
             // Every Mediator handler interface on the type: the MESSAGE (first generic
@@ -68,21 +83,22 @@ public class FormCBinaryStoreGuardrailTests
                     offenders.Add($"{type.Name} → {message.Name}");
             }
 
-            // A sealer-injecting type that is not a Mediator handler at all (e.g. a job)
-            // has no prefetch pipeline — flag it too: the sealer would ALWAYS fail closed.
+            // A port-injecting type that is not a Mediator handler at all (e.g. a job) has no
+            // prefetch pipeline — flag it too: the port would ALWAYS fail closed.
             if (handlerInterfaces.Count == 0)
-                offenders.Add($"{type.Name} (injects IBinaryFieldSealer outside the Mediator pipeline)");
+                offenders.Add($"{type.Name} (injects {binaryPortType.Name} outside the Mediator pipeline)");
         }
 
         offenders.ShouldBeEmpty(
-            "IBinaryFieldSealer peeks the DEK FieldEncryptionKeyPrefetchBehavior warmed — a "
-            + "handler whose message lacks IRequiresFieldEncryptionKey seals fail-closed at "
+            $"{binaryPortType.Name} peeks the DEK FieldEncryptionKeyPrefetchBehavior warmed — a "
+            + "handler whose message lacks IRequiresFieldEncryptionKey fails closed at "
             + "runtime. Offenders: " + string.Join(", ", offenders));
 
-        // Vacuity guard: the import handler is pinned today; if this ever reads 0 the pin
-        // stopped seeing the handlers (reflection drift), which must fail loud, not pass.
+        // Vacuity guard: at least one handler is pinned today (sealer → import; opener → download);
+        // if this ever reads 0 the pin stopped seeing the handlers (reflection drift), which must
+        // fail loud, not pass.
         pinnedHandlers.ShouldBeGreaterThan(0,
-            "the marker-pin found no sealer-injecting handlers — reflection drift?");
+            $"the marker-pin found no {binaryPortType.Name}-injecting handlers — reflection drift?");
     }
 
     [Fact]

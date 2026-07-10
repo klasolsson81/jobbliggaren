@@ -209,7 +209,7 @@
       "daysShort": "{days} dgr"
     },
     "rail": {
-      "kicker": "Alla 10 steg",
+      "kicker": "Alla steg",
       "hint": "Klicka på ett steg för att filtrera listan, klicka igen för att rensa",
       "ariaLabel": "Filtrera på steg",
       "cellAriaLabel": "{step}, {count, plural, =0 {inga ansökningar} =1 {en ansökan} other {# ansökningar}}"

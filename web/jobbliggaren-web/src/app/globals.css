@@ -8034,7 +8034,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin: 10px 0 14px;
   max-width: 68ch;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  /* Instruktions-/scanning-copy = informationsbärande → ink-1 (#549 WS1,
+     no-gray-doktrinen). Storleken 14px hålls medvetet: syskon-ledena
+     (.jp-parse-summary__lede/.jp-occupations__lede) är redan 14px ink-1;
+     defekten var färgen, inte storleken (CTO-bind 2026-07-10). */
+  color: var(--jp-ink-1);
 }
 .jp-actioncard-grid {
   display: grid;
@@ -8104,12 +8108,22 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
 }
 .jp-allapps__restkicker {
-  margin: 28px 0 4px;
+  /* Superordinat grupp-eyebrow (delar Lista i aktiva vs avslut/vilande). Läses
+     som överordnad via REGISTER (mono-caps + tracking + hairline), inte via
+     storlek — en sans-rubrik här skulle inverterat hierarkin mot de 20px/700
+     StatusSection-titlarna den grupperar (design-reviewer MAJOR → CTO-bind
+     2026-07-10). ink-1 (strukturell grupp-band-eyebrow, ej metadata → #549 WS1).
+     Behåller medvetet 13px-caption på legibility-grenen. DESIGN.md §4 rad 90/91
+     beskriver mono-caps-eyebrows som 11px/text-secondary — den strukturella
+     grupp-band-varianten (13px/ink-1) reconcilias in i §4 via #768 (WS2). */
+  margin: 24px 0 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--jp-border-soft);
   font-size: var(--text-caption);
   font-weight: var(--jp-fw-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 
 /* ── Kontrollrad (sök + filterchip) ── */
@@ -8192,11 +8206,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin-bottom: 8px;
 }
 .jp-steprail__kicker {
-  font-size: var(--text-caption);
+  /* Legend för den interaktiva 10-stegs-filterrailen = rubrik-roll, inte
+     opak label → h4-rungen: sans (mono aldrig i rubriker), ink-1, ingen caps/
+     tracking (aldrig all-caps i sans). --text-h4 (inte --text-body) eftersom
+     #549 WS1 skalade rubrik-tokens oberoende av body — en framtida h4-ratchet
+     ska följa med (CTO-bind 2026-07-10). Skild register från restkickern
+     (knapp-legend vs sektions-eyebrow — olika roller, medvetet ej harmoniserade). */
+  font-size: var(--text-h4);
   font-weight: var(--jp-fw-bold);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-steprail__hint {
   font-size: var(--text-caption);

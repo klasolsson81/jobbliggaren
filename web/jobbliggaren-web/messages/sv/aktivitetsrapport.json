@@ -6,7 +6,8 @@
     "title": "Om aktivitetsrapport-hjälpen",
     "p1": "Varje månad ska du redovisa för Arbetsförmedlingen vad du gjort för att söka jobb. Rapporten för en månad lämnar du in mellan den 1:a och den 14:e i månaden efter. Aktiviteter i maj rapporterar du alltså den 1–14 juni.",
     "p2": "Lämnar du inte rapporten i tid kan det påverka din ersättning, så se till att den kommer in senast den 14:e. Hjälpen samlar dina ansökningar för den månad du väljer, så att du enkelt kan föra över dem till rapporten.",
-    "p3": "Arbetsförmedlingens formulär fylls i fält för fält. Kopiera ett fält i taget med kopiera-knapparna i stället för att klistra in en hel text, så att uppgifterna hamnar rätt och rapporten kan behandlas automatiskt."
+    "p3": "Arbetsförmedlingens formulär fylls i fält för fält. Kopiera ett fält i taget med kopiera-knapparna i stället för att klistra in en hel text, så att uppgifterna hamnar rätt och rapporten kan behandlas automatiskt.",
+    "whatIsThisAria": "Vad är detta? Aktivitetsrapport-hjälpen"
   },
   "month": {
     "label": "Månad"

@@ -32,7 +32,7 @@ import { InfoDialog } from "@/components/common/info-dialog";
  * switch-raden överst, sedan (när PÅ) "Visa relaterade yrken"-raden, "Visa bara
  * matchade" och grad-kryssrutorna staplade i panel-rytm. #419 pt7 (Klas) — varje
  * icke-självklar kontroll-rad (Matchning, Visa relaterade yrken, Visa bara matchade)
- * bär en kontextuell `InfoDialog iconOnly`-"?" (högerjusterad); den tidigare EXTERNA
+ * bär en kontextuell `InfoDialog`-"?" (högerjusterad); den tidigare EXTERNA
  * "?" bredvid Matchning-pillen är borttagen (hjälpen är nu per kontroll INNE i popovern,
  * verbatim `gradeFilter.help`/`relatedToggleHelp`/`onlyMatchedHelp`). "?"-triggern är en
  * Radix-modal-Dialog öppnad inifrån popovern — `useDismissable` ignorerar dialog-ytan
@@ -237,7 +237,6 @@ export function JobbMatchGradeFilter({
             per kontroll INNE i popovern). */}
         <span className="ml-auto flex items-center">
           <InfoDialog
-            iconOnly
             title={t("helpTitle")}
             paragraphs={[t("help")]}
             ariaLabel={t("matchningHelpAria")}
@@ -274,7 +273,6 @@ export function JobbMatchGradeFilter({
                 var tvetydig, nu namnger den yrken + en "?" bredvid). */}
             <span className="ml-auto flex items-center">
               <InfoDialog
-                iconOnly
                 title={t("helpTitle")}
                 paragraphs={[t("relatedToggleHelp")]}
                 ariaLabel={t("relatedToggleHelpAria")}
@@ -313,7 +311,6 @@ export function JobbMatchGradeFilter({
               {t("onlyMatchedLabel")}
             </div>
             <InfoDialog
-              iconOnly
               title={t("helpTitle")}
               paragraphs={[t("onlyMatchedHelp")]}
               ariaLabel={t("onlyMatchedHelpAria")}

@@ -41,7 +41,7 @@ export function StepRail({ groups, statusFilter, onToggle }: StepRailProps) {
   return (
     <div className="jp-steprail">
       <div className="jp-steprail__labelrow">
-        <span className="jp-steprail__kicker jp-mono">{tUi("rail.kicker")}</span>
+        <span className="jp-steprail__kicker">{tUi("rail.kicker")}</span>
         <span className="jp-steprail__hint">{tUi("rail.hint")}</span>
       </div>
       <div

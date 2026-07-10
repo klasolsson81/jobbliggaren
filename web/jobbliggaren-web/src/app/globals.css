@@ -3704,9 +3704,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 /* ── Match-setup delade wizard-klasser (ADR 0077 STEG 5, amendad 2026-07-03) ──
    Den gamla 5-stegs-wizarden är ERSATT av rail-modalen (.jp-wizard--rail, epik
-   #526); dess unika klasser (__head/__counter/__progress*/__title/__step/
+   #526); dess unika klasser (__head/__counter/__progress* /__title/__step/
    __substeps) städades i cutover-then-sweep-PR:en efter rendered-verify. Kvar
-   här: de klasser rail-modalen fortsatt konsumerar (__intro/__skip/__foot*/
+   här: de klasser rail-modalen fortsatt konsumerar (__intro/__skip/__foot* /
    __error/__note*). */
 /* DialogDescription-intro under stegrubriken (fokus till H2 vid stegbyte,
    tabIndex=-1, WCAG 2.4.3; den globala fokus-ringen gäller, ingen outline:none). */

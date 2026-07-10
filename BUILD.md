@@ -978,14 +978,15 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
 - iCal-export via egen endpoint som genererar `.ics`-fil (inget OAuth krävs)
 
 > **Gmail-sync (§9.2) + Google Calendar (§9.3) skjuts upp — utgår ur MVP (#321,
-> Klas-beslut 2026-07-10).** The GDPR/ops cost is high against the single-box
-> (~$16 CAX31, ADR 0050) / free constraints — sensitive `gmail.readonly` OAuth
-> app-verification, per-user refresh-token envelope encryption, and a per-user
-> 15-minute sync load — and nothing else is blocked by deferring it. The
-> user-facing need (never miss an interview/deadline) is met instead by in-app
-> reminder notices on the översikt (e.g. "Du har en intervju bokad om 3 dagar"),
-> tracked as **#726**. The §9.2/§9.3 specs above are retained as future-reference
-> should an external-integration phase be revisited post-beta.
+> Klas-beslut 2026-07-10).** GDPR-/drift-kostnaden är hög mot single-box- (~$16
+> CAX31, ADR 0050) och gratis-constraintsen — känslig `gmail.readonly`-OAuth-
+> appverifiering, per-användare-envelopekryptering av refresh-token och en
+> synk-last var 15:e minut per användare — och inget annat blockeras av att
+> skjuta upp den. Det användarnära behovet (aldrig missa en intervju/deadline)
+> täcks i stället av påminnelse-notiser i appen på översikten (t.ex. "Du har en
+> intervju bokad om 3 dagar"), spårat som **#726**. §9.2/§9.3-specarna ovan
+> bevaras som framtida referens om en extern-integrations-fas återupptas efter
+> beta.
 
 ### 9.4 SCB (Statistiska centralbyrån)
 

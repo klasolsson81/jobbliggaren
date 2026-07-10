@@ -31,9 +31,9 @@ public sealed partial class SessionStoreUnavailableLog(ILogger<SessionStoreUnava
     private long _lastEmitTimestamp;
 
     /// <summary>
-    /// Logs the outage once per throttle window. <paramref name="inner"/> is the original
-    /// Redis exception (connection / timeout / server) — its type and message are the operator
-    /// signal.
+    /// Logs the outage once per throttle window. <paramref name="inner"/> is the original Redis
+    /// exception (connection / timeout / server); only its TYPE is logged — the message is dropped
+    /// for data-minimisation (see <see cref="LogUnavailable"/>).
     /// </summary>
     public void Emit(Exception inner)
     {
@@ -45,16 +45,20 @@ public sealed partial class SessionStoreUnavailableLog(ILogger<SessionStoreUnava
         // Race-tolerant coarse valve: if two threads pass the gate at once, both may log once —
         // acceptable, because the only outcome we must never allow is MISSING the first log.
         Interlocked.Exchange(ref _lastEmitTimestamp, now);
-        LogUnavailable(inner.GetType().Name, inner.Message);
+        LogUnavailable(inner.GetType().Name);
     }
 
-    // §5 guard: log ONLY the dedicated event-id + the inner exception's type/message (Redis
-    // connectivity text — carries no user data). NEVER the session-id, bearer token or user-id.
-    // event_name= convention feeds the alarm metric filter (ADR 0031/0036).
+    // §5 / GDPR Art. 5(1)(c) data-minimisation: log ONLY the dedicated event-id + the inner Redis
+    // exception's TYPE (connection vs timeout vs server — the degradation class the TD-77 alarm
+    // keys on). The exception MESSAGE is deliberately NOT logged: StackExchange.Redis embeds the
+    // operated key in the message (IncludeDetailInExceptions defaults true), and a user-keyed op's
+    // key carries the raw userId Guid (a pseudonymous identifier). The raw session token can never
+    // appear anyway (its Redis key is a SHA-256 hash), but dropping the message removes the userId
+    // path too. event_name= convention feeds the alarm metric filter (ADR 0031/0036).
     [LoggerMessage(
         EventId = 2050,
         Level = LogLevel.Error,
-        Message = "event_name=session_store_unavailable inner_type={InnerType} inner_message={InnerMessage} " +
+        Message = "event_name=session_store_unavailable inner_type={InnerType} " +
                   "— session-store (Redis) otillgänglig, svarar 503. Throttlad; TD-77 5xx-alarmsignal.")]
-    private partial void LogUnavailable(string innerType, string innerMessage);
+    private partial void LogUnavailable(string innerType);
 }

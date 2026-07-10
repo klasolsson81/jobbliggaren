@@ -95,8 +95,11 @@ public class SessionStoreUnavailableTests(ApiFactory factory)
         var record = unavailableLogs[0];
         record.Level.ShouldBe(LogLevel.Error);
         record.Message.ShouldContain("event_name=session_store_unavailable");
-        // §5: the log must not leak the bearer token / session-id.
+        // §5/data-minimisation: the log must not leak the bearer token / session-id, nor the inner
+        // Redis exception message (it can embed the operated key). The broken inner threw
+        // "Timeout performing GET (5000ms)" — its text must not appear in the log.
         record.Message.ShouldNotContain(sessionId);
+        record.Message.ShouldNotContain("Timeout performing GET");
     }
 
     private sealed class BrokenSessionStoreFactory : WebApplicationFactory<Program>

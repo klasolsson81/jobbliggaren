@@ -8,23 +8,27 @@ namespace Jobbliggaren.Api.IntegrationTests.Observability;
 
 /// <summary>
 /// Unit tests for <see cref="SessionStoreUnavailableLog"/> (#512, epic #484): it must emit exactly
-/// one dedicated-event-id Error record per outage window (throttled), carry only the inner Redis
-/// exception's type/message (§5 — no session-id/token/PII, which it structurally cannot see), and
-/// use the <c>session_store_unavailable</c> event_name the TD-77 alarm keys on.
+/// one dedicated-event-id Error record per outage window (throttled), carry ONLY the inner Redis
+/// exception's TYPE — never its message, which can embed the operated key and with it a raw userId
+/// (§5 / GDPR Art. 5(1)(c) data-minimisation) — and use the <c>session_store_unavailable</c>
+/// event_name the TD-77 alarm keys on.
 /// </summary>
 public class SessionStoreUnavailableLogTests
 {
-    private static (SessionStoreUnavailableLog Log, CapturingLoggerProvider Provider) Build()
+    private static (SessionStoreUnavailableLog Log, CapturingLoggerProvider Provider, ILoggerFactory Factory) Build()
     {
         var provider = new CapturingLoggerProvider();
-        using var factory = LoggerFactory.Create(b => b.AddProvider(provider));
-        return (new SessionStoreUnavailableLog(factory.CreateLogger<SessionStoreUnavailableLog>()), provider);
+        var factory = LoggerFactory.Create(b => b.AddProvider(provider));
+        // The caller disposes the factory (via `using var _ = factory`) so it stays alive across
+        // the Emit + assertions — disposing it here would log against a disposed factory.
+        return (new SessionStoreUnavailableLog(factory.CreateLogger<SessionStoreUnavailableLog>()), provider, factory);
     }
 
     [Fact]
-    public void Emit_LogsErrorWithDedicatedEventIdAndInnerException()
+    public void Emit_LogsErrorWithDedicatedEventIdAndInnerType()
     {
-        var (log, provider) = Build();
+        var (log, provider, factory) = Build();
+        using var _ = factory;
 
         log.Emit(new RedisTimeoutException("Timeout performing GET (5000ms)", CommandStatus.Sent));
 
@@ -32,13 +36,14 @@ public class SessionStoreUnavailableLogTests
         record.Level.ShouldBe(LogLevel.Error);
         record.EventId.Id.ShouldBe(2050);
         record.Message.ShouldContain("event_name=session_store_unavailable");
-        record.Message.ShouldContain("RedisTimeoutException");
+        record.Message.ShouldContain("inner_type=RedisTimeoutException");
     }
 
     [Fact]
     public void Emit_TwiceWithinWindow_LogsOnlyOnce()
     {
-        var (log, provider) = Build();
+        var (log, provider, factory) = Build();
+        using var _ = factory;
 
         // A Redis outage fans out to every authenticated request; the coarse throttle must
         // collapse a burst to a single entry so the sink is not flooded.
@@ -49,16 +54,22 @@ public class SessionStoreUnavailableLogTests
     }
 
     [Fact]
-    public void Emit_LogsOnlyInnerTypeAndMessage_NoSessionData()
+    public void Emit_LogsInnerTypeOnly_NeverTheExceptionMessageOrItsEmbeddedUserId()
     {
-        var (log, provider) = Build();
+        var (log, provider, factory) = Build();
+        using var _ = factory;
 
-        // The method takes ONLY an Exception, so it cannot leak a session-id/token by
-        // construction; assert the rendered message is exactly the two inner fields (§5).
-        log.Emit(new RedisConnectionException(ConnectionFailureType.UnableToConnect, "It was not possible to connect"));
+        // StackExchange.Redis embeds the operated key in the exception message
+        // (IncludeDetailInExceptions defaults true). A user-keyed op's key carries the raw userId
+        // Guid — the log must carry the TYPE only, so neither the message nor the userId appears.
+        var userId = Guid.NewGuid();
+        log.Emit(new RedisConnectionException(
+            ConnectionFailureType.UnableToConnect,
+            $"It was not possible to connect; command=GET, key=jobbliggaren:user:{userId}:deleted"));
 
         var record = provider.Logs.ShouldHaveSingleItem();
         record.Message.ShouldContain("inner_type=RedisConnectionException");
-        record.Message.ShouldContain("inner_message=It was not possible to connect");
+        record.Message.ShouldNotContain(userId.ToString());
+        record.Message.ShouldNotContain("user:");
     }
 }

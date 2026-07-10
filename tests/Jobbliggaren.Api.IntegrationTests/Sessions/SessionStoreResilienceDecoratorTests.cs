@@ -86,6 +86,23 @@ public class SessionStoreResilienceDecoratorTests
     }
 
     [Fact]
+    public async Task GetAsync_WhenInnerThrowsPlainTimeoutException_DoesNotTranslate()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // A plain System.TimeoutException (NOT RedisTimeoutException) is not a Redis outage — it
+        // must stay a 500. Pins the filter against a future refactor to catch(TimeoutException),
+        // which would over-catch genuine timeouts (RedisTimeoutException derives from TimeoutException).
+        var plain = new TimeoutException("some unrelated timeout");
+        _inner.GetAsync(Arg.Any<SessionId>(), Arg.Any<CancellationToken>()).Throws(plain);
+
+        var ex = await Should.ThrowAsync<TimeoutException>(
+            () => _sut.GetAsync(SessionId.FromRaw("x"), ct));
+
+        ex.ShouldBeSameAs(plain);
+        ex.ShouldNotBeOfType<RedisTimeoutException>();
+    }
+
+    [Fact]
     public async Task GetAsync_HappyPath_ReturnsInnerResultUntouched()
     {
         var ct = TestContext.Current.CancellationToken;

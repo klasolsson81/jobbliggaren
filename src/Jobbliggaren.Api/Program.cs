@@ -222,8 +222,9 @@ app.Use(async (ctx, next) =>
         // #512: log the outage BEFORE writing 503. Auth runs outside the Mediator pipeline, so
         // LoggingBehavior never sees this — without this line a Redis outage produces zero log
         // signal (the one deliberately-handled infra path was the least observable). Throttled,
-        // dedicated event-id; the inner exception (Redis connection/timeout/server) is the
-        // operator signal. §5: no session-id/token/PII is logged.
+        // dedicated event-id. §5/data-minimisation: only the inner exception TYPE is logged, never
+        // its message (which can embed the operated Redis key → a userId) — see
+        // SessionStoreUnavailableLog.
         ctx.RequestServices.GetRequiredService<SessionStoreUnavailableLog>().Emit(ex.InnerException ?? ex);
         ctx.Response.StatusCode = 503;
         await ctx.Response.WriteAsJsonAsync(new { error = ex.Message });

@@ -32,7 +32,13 @@ public sealed class MarkJobsSeenCommandHandler(
             return Result.Failure(
                 DomainError.NotFound("JobSeeker", currentUser.UserId.Value));
 
-        jobSeeker.SetLastSeenJobs(clock);
+        // #759 (sibling of #477 Low 4): advance the watermark to the window the user actually saw
+        // (the max CreatedAt the FE sends), NOT clock-now — an ad ingested between the user's GET
+        // and this POST has CreatedAt > seenThrough and stays flagged "Ny". Null (empty list /
+        // deploy-skew) falls back to clock-now (the old behaviour); the aggregate clamps a future
+        // value to now. Mirrors MarkMatchesSeenCommandHandler.
+        var seenThrough = command.SeenThrough ?? clock.UtcNow;
+        jobSeeker.SetLastSeenJobs(seenThrough, clock);
         return Result.Success();
     }
 }

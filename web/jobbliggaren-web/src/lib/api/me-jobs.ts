@@ -35,21 +35,33 @@ export async function getJobsWatermark(): Promise<ApiResult<JobsWatermark>> {
  * #293 / #306 — avancera /jobb:s oläst-watermark (markera listan sedd).
  * Anropas vid /jobb-laddning EFTER att listan + watermarken hämtats (fetch-
  * then-mark, spegling av `markMatchesSeen` på /matchningar): NY renderas mot
- * den HÄMTADE (gamla) watermarken, sedan flyttas den fram till nu så nästa
- * besök bara visar nytt-sedan-detta-besök. `POST /api/v1/me/jobs/seen` → 204
- * (auth-gated; monoton — flyttar aldrig watermarken bakåt).
+ * den HÄMTADE (gamla) watermarken, sedan flyttas den fram till det HÄMTADE
+ * fönstret så nästa besök bara visar nytt-sedan-detta-besök. `POST
+ * /api/v1/me/jobs/seen` → 204 (auth-gated; monoton — flyttar aldrig
+ * watermarken bakåt).
+ *
+ * `seenThrough` = `max(createdAt)` över annonserna vi FAKTISKT renderade på den
+ * laddade sidan (#759, syskon till #477 Low 4). Till skillnad från den nyast-
+ * först-sorterade matchningslistan kan /jobb vara relevans-/matchrank-sorterad,
+ * så vi tar MAX över sidan, inte `list[0]`. Vattenmärket sätts dit, inte till
+ * klock-nu — en annons som skapas mellan hämtningen och detta anrop
+ * (`createdAt > seenThrough`) förblir korrekt flaggad "Ny". Utelämnad (tom
+ * lista / deploy-skew) → backend faller tillbaka på nu.
  *
  * Idempotent och icke-kritisk: ett fel får ALDRIG blockera sid-renderingen
  * (watermarken flyttas då bara inte fram denna gång) — degraderar civilt likt
  * `markMatchesSeen`/`saveJobAd`. 204 → ok; allt annat → fel-kind.
  */
-export async function markJobsSeen(): Promise<ApiResult<void>> {
+export async function markJobsSeen(
+  seenThrough?: string,
+): Promise<ApiResult<void>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
     const res = await authedFetch(sessionId, "/api/v1/me/jobs/seen", {
       method: "POST",
+      ...(seenThrough ? { body: JSON.stringify({ seenThrough }) } : {}),
     });
     if (res.status === 204) return { kind: "ok", data: undefined };
     if (res.status === 401) return { kind: "unauthorized" };

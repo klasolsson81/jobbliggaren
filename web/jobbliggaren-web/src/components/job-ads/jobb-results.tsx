@@ -11,6 +11,7 @@ import type { JobAdSortBy } from "@/lib/dto/job-ads";
 import type { MatchGrade, JobAdMatchBatch } from "@/lib/dto/job-ad-match";
 import { assertNever } from "@/lib/dto/_helpers";
 import { buildJobbHref, parseEmployerParam } from "@/lib/job-ads/search-params";
+import { maxCreatedAt } from "@/lib/job-ads/seen-window";
 import { JobAdList } from "@/components/job-ads/job-ad-list";
 import { JobbResultsToolbar } from "@/components/job-ads/jobb-results-toolbar";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
@@ -363,15 +364,21 @@ export async function JobbResults({
         )
       );
 
-      // fetch-then-mark: flytta fram watermarken till nu EFTER att NY beräknats
-      // mot den gamla (newIdSet ovan) — nästa besök visar då bara annonser som
-      // kommit in sedan detta besök. Icke-blockerande: markJobsSeen degraderar
-      // civilt (kastar aldrig), ett fel lämnar bara watermarken orörd denna
-      // gång. Gatas på en lyckad watermark-LÄSNING: utan en koherent baseline
-      // avancerar vi inte (annars kan en transient läs-miss tyst nolla NY).
-      // Speglar /matchningar (mark-seen on open).
+      // fetch-then-mark: flytta fram watermarken EFTER att NY beräknats mot den
+      // gamla (newIdSet ovan) — nästa besök visar då bara annonser som kommit in
+      // sedan detta besök. #759 (syskon #477 Low 4): flytta fram till det HÄMTADE
+      // fönstrets max `createdAt`, INTE klock-nu — en annons som ingestas mellan
+      // hämtningen och detta anrop (`createdAt > seenThrough`) förblir korrekt
+      // flaggad NY. Till skillnad från /matchningars nyast-först-lista kan /jobb
+      // vara relevans-/matchrank-sorterad, så vi tar MAX över sidan (inte
+      // items[0]) och bär den ORIGINALA ISO-strängen (full precision, paritet
+      // markMatchesSeen). Tom sida → undefined ⇒ backend faller tillbaka på nu.
+      // Icke-blockerande: markJobsSeen degraderar civilt (kastar aldrig), ett fel
+      // lämnar bara watermarken orörd denna gång. Gatas på en lyckad watermark-
+      // LÄSNING: utan en koherent baseline avancerar vi inte (annars kan en
+      // transient läs-miss tyst nolla NY). Speglar /matchningar (mark-seen on open).
       if (watermarkResult.kind === "ok") {
-        await markJobsSeen();
+        await markJobsSeen(maxCreatedAt(result.data.items));
       }
 
       return (

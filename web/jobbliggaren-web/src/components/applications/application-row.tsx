@@ -6,11 +6,11 @@ import { useTranslations } from "next-intl";
 import {
   applicationStatusLabel,
   getStatusTagDataAttr,
-  nextStepOf,
 } from "@/lib/applications/status";
 import { daysInStatus, urgencyTagFor } from "@/lib/applications/urgency";
 import { setDrawerAnchor } from "@/components/applications/drawer-anchor";
 import { useApplicationActions } from "./application-actions";
+import { useRowActions } from "./use-row-actions";
 import { useUrgencyLabel } from "./use-urgency-label";
 import { StatusMenu } from "./status-menu";
 import type { ApplicationDto } from "@/lib/dto/applications";
@@ -68,7 +68,8 @@ export function ApplicationRow({
 }: ApplicationRowProps) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
-  const { pendingIds, transition, openFinishDraft } = useApplicationActions();
+  const { pendingIds } = useApplicationActions();
+  const { defaultPrimaryFor } = useRowActions();
   const { jobAd, status } = application;
   const pending = pendingIds.has(application.id);
   const contextId = useId();
@@ -83,32 +84,11 @@ export function ApplicationRow({
   // Delad SSOT med Tavla-kortet (DRY, PR 8) — tidigare en inline-IIFE här.
   const urgencyLabel = useUrgencyLabel(urgency);
 
-  // Radens default-primär (design §5, prototyp-facit): utkast → "Slutför och
-  // skicka"-DIALOGEN (mellansteg, §9); Ghosted → "Återaktivera" (→ Skickad);
-  // annars direkt "Flytta till {nästa}"; terminala → ingen.
-  const next = nextStepOf(status);
-  const anchorY = (e: React.MouseEvent<HTMLButtonElement>): number =>
-    e.clientY > 0 ? e.clientY : e.currentTarget.getBoundingClientRect().top;
-  const defaultPrimary: RowAction | null =
-    status === "Draft"
-      ? {
-          label: tUi("row.finishAndSend"),
-          onClick: (e) => openFinishDraft(application, anchorY(e)),
-        }
-      : status === "Ghosted"
-        ? {
-            label: tUi("row.reactivate"),
-            onClick: () => transition(application, "Submitted"),
-          }
-        : next != null
-          ? {
-              label: tUi("row.moveToNext", {
-                status: applicationStatusLabel(t, next),
-              }),
-              onClick: () => transition(application, next),
-            }
-          : null;
-  const primary = primaryAction === undefined ? defaultPrimary : primaryAction;
+  // Radens default-primär härleds nu i den delade `useRowActions`-hooken (DRY,
+  // #630 PR 10 / senior-cto-advisor Fork 4) så Tabell-vyns "Nästa steg" delar
+  // exakt samma mappning. Kökortet override:ar via `primaryAction` (§11-urgens).
+  const primary =
+    primaryAction === undefined ? defaultPrimaryFor(application) : primaryAction;
 
   return (
     <article className="jp-app jp-app--actions">

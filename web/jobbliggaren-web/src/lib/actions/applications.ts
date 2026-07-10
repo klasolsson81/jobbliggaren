@@ -8,6 +8,7 @@ import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   makeCreateApplicationSchema,
   makeTransitionStatusSchema,
+  makeBatchTransitionSchema,
   makeAddFollowUpSchema,
   makeAddNoteSchema,
   makeLogFollowUpSchema,
@@ -163,6 +164,45 @@ export async function transitionStatusAction(
 
   revalidatePath("/ansokningar");
   revalidatePath(`/ansokningar/${applicationId}`);
+  return { success: true };
+}
+
+/**
+ * Bulk-statusbyte (#630 PR 10, Tabell-vyns bulkrad + grupp-ångra). Speglar
+ * `transitionStatusAction` men mot batch-endpointen (PR 9): per-item-par
+ * `{ applicationId, targetStatus }` så EN atomär all-or-nothing-transaktion
+ * täcker både "Markera N som X" och grupp-ångran (varje app → sin egen previous).
+ * `mapActionError` är statuskod-only: batch-400 (tom/>100/konflikt/okänd status)
+ * → fallback-strängen, 404 (okänd/främmande id, uniformt) → notFound.
+ */
+export async function batchTransitionAction(
+  items: { applicationId: string; targetStatus: string }[]
+): Promise<ActionResult> {
+  const tUi = await getTranslations("applications.ui");
+  const te = await getTranslations("errors");
+  const sessionId = await getSessionId();
+  if (!sessionId) return { success: false, error: tUi("actions.notLoggedIn") };
+
+  const t = await getTranslations("validation");
+  const parsed = makeBatchTransitionSchema(t).safeParse({ items });
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? tUi("actions.invalidInput") };
+  }
+
+  try {
+    const res = await authedFetch(sessionId, `/api/v1/applications/batch-transition`, {
+      method: "POST",
+      body: JSON.stringify({ items: parsed.data.items }),
+    });
+
+    if (!res.ok) {
+      return { success: false, error: mapActionError(res, tUi("actions.transitionFailed"), te) };
+    }
+  } catch {
+    return { success: false, error: tUi("actions.serverUnreachable") };
+  }
+
+  revalidatePath("/ansokningar");
   return { success: true };
 }
 

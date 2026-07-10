@@ -115,6 +115,7 @@
     },
     "toast": {
       "statusChange": "{company}: {from} → {to}",
+      "statusChangeBatch": "{count, plural, one {# application marked} other {# applications marked}} as {to}",
       "followUpLogged": "{company}: follow-up saved under Follow-ups, the wait time restarts",
       "undo": "Undo",
       "undoing": "Undoing…",
@@ -153,7 +154,48 @@
     },
     "view": {
       "lista": "List",
-      "tavla": "Board"
+      "tavla": "Board",
+      "tabell": "Table"
+    },
+    "table": {
+      "caption": "Applications in table form, sortable",
+      "ariaLabel": "Applications",
+      "empty": "No applications match the search or filter. Clear the search or change the filter to see all.",
+      "colRole": "Role & company",
+      "colStatus": "Status",
+      "colStep": "In step",
+      "colLastEvent": "Latest event",
+      "colNextStep": "Next step",
+      "sortAriaLabel": "Sort by {column}",
+      "sortedAscending": "ascending",
+      "sortedDescending": "descending",
+      "selectAllAriaLabel": "Select all on this page",
+      "selectRowAriaLabel": "Select {role}",
+      "sinceStep": "{days, plural, =0 {today} one {1 day} other {# days}}",
+      "nextStepArrow": "→ {status}",
+      "footerSummary": "Showing {shown} of {total} applications",
+      "lastEventFollowUp": "Follow-up logged",
+      "reachedDraft": "Draft created",
+      "reachedSubmitted": "Application sent",
+      "reachedAcknowledged": "Acknowledgement received",
+      "reachedInterviewScheduled": "Interview booked",
+      "reachedInterviewing": "Interview held",
+      "reachedOfferReceived": "Offer received",
+      "reachedAccepted": "Offer accepted",
+      "reachedRejected": "Rejected",
+      "reachedWithdrawn": "Application withdrawn",
+      "reachedGhosted": "Marked as no reply"
+    },
+    "bulk": {
+      "selectedCount": "{count, plural, one {# selected} other {# selected}}",
+      "markGhosted": "Mark no reply",
+      "markRejected": "Mark rejected",
+      "clear": "Clear selection",
+      "barAriaLabel": "Bulk actions for selected applications",
+      "confirmTitle": "Mark {count, plural, one {# application} other {# applications}} as {status}?",
+      "confirmBody": "{count, plural, one {One application will be closed} other {# applications will be closed}}. You can undo immediately afterwards, but not later without manual action.",
+      "confirmCta": "Mark {status}",
+      "confirming": "Marking…"
     },
     "board": {
       "toolbarCount": "{count, plural, one {# application} other {# applications}} · {active, plural, one {# active} other {# active}}",

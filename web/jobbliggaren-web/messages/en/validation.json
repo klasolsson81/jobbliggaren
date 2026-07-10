@@ -16,7 +16,10 @@
     "noteContentRequired": "The note cannot be empty.",
     "noteContentMax": "The note may be at most 5,000 characters.",
     "followUpIdInvalid": "Invalid follow-up ID.",
-    "outcomeInvalid": "Invalid outcome."
+    "outcomeInvalid": "Invalid outcome.",
+    "batchEmpty": "Select at least one application.",
+    "batchTooMany": "At most 100 applications per bulk action.",
+    "batchConflict": "The same application appears with different target statuses."
   },
   "profile": {
     "confirmEmailInvalid": "Enter a valid email address.",

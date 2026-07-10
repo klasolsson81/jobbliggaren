@@ -16,7 +16,10 @@
     "noteContentRequired": "Notering får inte vara tom.",
     "noteContentMax": "Notering får vara max 5 000 tecken.",
     "followUpIdInvalid": "Ogiltigt uppföljnings-ID.",
-    "outcomeInvalid": "Ogiltigt utfall."
+    "outcomeInvalid": "Ogiltigt utfall.",
+    "batchEmpty": "Minst en ansökan måste anges.",
+    "batchTooMany": "Max 100 ansökningar per bulkåtgärd.",
+    "batchConflict": "Samma ansökan förekommer med olika målstatus."
   },
   "profile": {
     "confirmEmailInvalid": "Ange en giltig e-postadress.",

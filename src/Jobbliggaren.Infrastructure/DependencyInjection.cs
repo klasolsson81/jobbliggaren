@@ -1149,7 +1149,16 @@ public static class DependencyInjection
         services.AddScoped<IAccessTokenRevocationStore, RedisAccessTokenRevocationStore>();
 #pragma warning restore JOBBLIGGAREN0001
 
-        services.AddScoped<ISessionStore, RedisSessionStore>();
+        // #511 (senior-cto-advisor Variant C, 2026-07-10): the concrete store is wrapped in a
+        // resilience decorator that translates the degraded-Redis exceptions RedisSessionStore
+        // does not itself wrap (RedisTimeoutException/RedisServerException) into
+        // SessionStoreUnavailableException, so the Api middleware renders a 503 rather than an
+        // unhandled 500. RedisSessionStore.cs (auth-lane hotspot, §6.5) stays untouched, and the
+        // Redis exception knowledge stays inside Infrastructure (§2.1 — the Api pipeline never
+        // sees a StackExchange.Redis type).
+        services.AddScoped<RedisSessionStore>();
+        services.AddScoped<ISessionStore>(sp =>
+            new SessionStoreResilienceDecorator(sp.GetRequiredService<RedisSessionStore>()));
 
         // #481 Low — login-timing equalizer (singleton: owns one PasswordHasher + a memoized dummy
         // hash). Injected into UserAccountService to pay a constant PBKDF2 cost on the unknown-email

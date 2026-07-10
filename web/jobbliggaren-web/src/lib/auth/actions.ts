@@ -36,6 +36,10 @@ function safeRedirectPath(raw: string | null): string {
 
 export type AuthActionState = {
   error?: string;
+  // #714: set by registerAction on the email-confirmation-first path (HTTP 202). The form then shows
+  // a "check your inbox" panel instead of an error. Identical for a fresh or a taken address — the
+  // out-of-band email is the only differentiator, so the FE never distinguishes them.
+  pendingConfirmation?: boolean;
 } | null;
 
 export async function loginAction(
@@ -66,6 +70,12 @@ export async function loginAction(
 
     if (res.status === 401) {
       return { error: t("auth.actions.loginFailed") };
+    }
+    // #714: an unconfirmed account whose password is correct is gated with a distinct 403
+    // (Auth.EmailNotConfirmed) — actionable copy tells the user to confirm their email. Only reachable
+    // with a valid password, so it is not an enumeration oracle (a wrong password stays a 401 above).
+    if (res.status === 403) {
+      return { error: t("auth.actions.emailNotConfirmed") };
     }
     if (!res.ok) {
       return { error: t("auth.actions.unexpectedError") };
@@ -132,6 +142,15 @@ export async function registerAction(
       } catch {
         return { error: t("auth.actions.registrationFailed") };
       }
+    }
+    // #714: email-confirmation-first — a 202 means "we sent a confirmation link" and NO session was
+    // issued, byte-identical for a fresh and a taken address (the account-enumeration status oracle is
+    // closed; the only signal is the out-of-band email). Show the pending-confirmation panel instead of
+    // logging in. Intercepted BEFORE the sessionResponseSchema parse (a 202 has no sessionId, which
+    // would otherwise throw and surface a misleading "server unreachable"). On the legacy instant-login
+    // path (flag OFF) the backend returns 200 + sessionId and the flow below runs unchanged.
+    if (res.status === 202) {
+      return { pendingConfirmation: true };
     }
     if (!res.ok) {
       return { error: t("auth.actions.unexpectedError") };

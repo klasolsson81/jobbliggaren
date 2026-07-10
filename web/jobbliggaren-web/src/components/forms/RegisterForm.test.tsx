@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RegisterForm } from "./RegisterForm";
 
@@ -10,7 +10,7 @@ vi.mock("next/navigation", () => ({
 
 // registerAction is wired via useActionState. We mock the module so the form's
 // formAction invokes our spy instead of calling fetch().
-type AuthActionState = { error?: string } | null;
+type AuthActionState = { error?: string; pendingConfirmation?: boolean } | null;
 const registerActionMock =
   vi.fn<
     (prevState: AuthActionState, formData: FormData) => Promise<AuthActionState>
@@ -71,5 +71,22 @@ describe("RegisterForm", () => {
       expect(field).toBeRequired();
       expect(field).toHaveAttribute("aria-required", "true");
     }
+  });
+
+  it("#714 — shows the check-inbox panel (not the form) when the action returns pendingConfirmation", async () => {
+    registerActionMock.mockResolvedValue({ pendingConfirmation: true });
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    // The status panel replaces the form; the submit button is gone.
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("Kontrollera din inkorg"),
+    );
+    expect(screen.queryByRole("button", { name: "Skapa konto" })).not.toBeInTheDocument();
   });
 });

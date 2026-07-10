@@ -218,7 +218,9 @@
       "submit": "Create account",
       "submitting": "Creating account…",
       "haveAccount": "Already have an account?",
-      "logIn": "Log in"
+      "logIn": "Log in",
+      "pendingTitle": "Check your inbox",
+      "pendingBody": "We have sent an email to the address you entered. Follow the instructions in the email to continue. Check your spam folder if you do not see it within a few minutes."
     },
     "actions": {
       "credentialsRequired": "Email and password are required.",
@@ -227,7 +229,8 @@
       "unexpectedError": "An unexpected error occurred. Try again.",
       "serverUnreachable": "Could not reach the server. Try again.",
       "registrationFailed": "Registration failed.",
-      "passwordBreached": "This password has appeared in known data breaches. Choose a different password."
+      "passwordBreached": "This password has appeared in known data breaches. Choose a different password.",
+      "emailNotConfirmed": "Confirm your email address to log in. We have sent a link to your inbox."
     },
     "confirmEmailChange": {
       "title": "Confirm your new email address",
@@ -239,6 +242,18 @@
       "loginLink": "Log in",
       "invalidTitle": "The link cannot be used",
       "invalidBody": "The link is invalid or has expired. Log in and request a new email change under Settings.",
+      "networkError": "Could not reach the server. Try again in a moment."
+    },
+    "confirmAccount": {
+      "title": "Activate your account",
+      "intro": "Click the button to confirm your email address and activate your account. Then you can log in.",
+      "confirm": "Activate account",
+      "pending": "Activating…",
+      "successTitle": "Your account is activated",
+      "successBody": "Your email address is confirmed. Log in to get started.",
+      "loginLink": "Log in",
+      "invalidTitle": "The link cannot be used",
+      "invalidBody": "The link is invalid or has expired. Register again to get a new link.",
       "networkError": "Could not reach the server. Try again in a moment."
     }
   }

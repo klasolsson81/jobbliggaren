@@ -10,8 +10,8 @@ import {
 // (`setApplicationsViewAction`) no-op:ar vid !guard. Pinnar branch-logiken utan
 // next/headers-mock (de två wrappers är tunna cookies()-anrop).
 describe("applications view SSOT + guard", () => {
-  it("valid-set = lista, tavla (Tabell införs i PR 10)", () => {
-    expect([...APPLICATIONS_VIEWS]).toEqual(["lista", "tavla"]);
+  it("valid-set = lista, tavla, tabell (ADR 0092 D1; Tabell tillkom PR 10)", () => {
+    expect([...APPLICATIONS_VIEWS]).toEqual(["lista", "tavla", "tabell"]);
   });
 
   it("default = lista (ADR 0092 D1)", () => {
@@ -21,13 +21,14 @@ describe("applications view SSOT + guard", () => {
   it("isApplicationsView accepterar de giltiga vyerna", () => {
     expect(isApplicationsView("lista")).toBe(true);
     expect(isApplicationsView("tavla")).toBe(true);
+    expect(isApplicationsView("tabell")).toBe(true);
   });
 
   it("isApplicationsView avvisar okänt/frånvarande värde (fallback → DEFAULT)", () => {
-    // "tabell" är ännu inte giltig (PR 10), "board" är prototypens localStorage-
-    // värde, och undefined/null/"" = aldrig-satt cookie.
-    expect(isApplicationsView("tabell")).toBe(false);
+    // "board"/"table" är prototypens localStorage-värden (aldrig giltiga
+    // cookie-värden), och undefined/null/"" = aldrig-satt cookie.
     expect(isApplicationsView("board")).toBe(false);
+    expect(isApplicationsView("table")).toBe(false);
     expect(isApplicationsView(undefined)).toBe(false);
     expect(isApplicationsView(null)).toBe(false);
     expect(isApplicationsView("")).toBe(false);

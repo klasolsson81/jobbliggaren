@@ -390,18 +390,18 @@ describe("ApplicationsPipeline — tomt öråt", () => {
 });
 
 describe("ApplicationsPipeline — VY-växlare + Tavla (PR 8)", () => {
-  it("växlaren visar Lista + Tavla (Tabell utelämnad tills PR 10)", () => {
+  it("växlaren visar Lista + Tavla + Tabell (ADR 0092 D1)", () => {
     renderPipeline(makePipeline({ Submitted: 1 }));
 
     const group = screen.getByRole("radiogroup", {
       name: "Visa ansökningar som",
     });
     const options = within(group).getAllByRole("radio");
-    expect(options.map((o) => o.textContent)).toEqual(["Lista", "Tavla"]);
-    // Ingen Tabell-affordans (CTO D-D).
-    expect(
-      within(group).queryByRole("radio", { name: "Tabell" }),
-    ).not.toBeInTheDocument();
+    expect(options.map((o) => o.textContent)).toEqual([
+      "Lista",
+      "Tavla",
+      "Tabell",
+    ]);
     // Default = Lista aktiv, railen synlig.
     expect(within(group).getByRole("radio", { name: "Lista" })).toHaveAttribute(
       "aria-checked",

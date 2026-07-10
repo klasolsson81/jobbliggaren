@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
+import { pickClientMessages } from "@/i18n/client-messages";
 import { getServerSession, ROLES } from "@/lib/auth/session";
 import { logoutAction } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
@@ -24,8 +26,18 @@ export default async function AdminLayout({
   // civic-utility-värde — en uppriktig redirect är rakare).
   if (!user.roles.includes(ROLES.Admin)) redirect("/");
 
+  // #740 — the root provider strips `admin` from the global client payload;
+  // re-provide it here (the ONLY group whose client components use it:
+  // AdminNav + the admin tables/filters). React context replaces rather than
+  // merges, so this provider carries the full client set + admin. timeZone is
+  // inherited from the server request config, same as the root provider.
+  const locale = await getLocale();
+  const messages = pickClientMessages(await getMessages(), {
+    includeAdmin: true,
+  });
+
   return (
-    <>
+    <NextIntlClientProvider locale={locale} messages={messages}>
       <SkipLink label={t("layout.skipToContent")} />
       <div className="min-h-full flex flex-col bg-background">
         {/* LP-5b (#259): admin adopts the shared `.jp-header` strip via
@@ -56,6 +68,6 @@ export default async function AdminLayout({
             flex column. */}
         <SiteFooter />
       </div>
-    </>
+    </NextIntlClientProvider>
   );
 }

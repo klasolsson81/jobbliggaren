@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Source_Sans_3, JetBrains_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
+import { pickClientMessages } from "@/i18n/client-messages";
 import { ThemeProvider, ThemeScript } from "@/components/theme-provider";
 import "./globals.css";
 
@@ -62,7 +63,10 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const locale = await getLocale();
-  const messages = await getMessages();
+  // #740 — the client provider only needs the namespaces client components use;
+  // the full catalog stays available server-side via getTranslations. Strips
+  // content-*/metadata/errors/admin from every document's Flight payload.
+  const messages = pickClientMessages(await getMessages());
 
   return (
     <html

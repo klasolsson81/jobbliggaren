@@ -10,8 +10,8 @@ import type { TimelineEvent } from "@/lib/applications/timeline";
 /**
  * Renders composed timeline events as `.jp-timeline__list` (datum mono + text),
  * resolving each event's Swedish label via next-intl. Pure presentational Server
- * Component. Shared by the read-mode drawer body (always-open) and the full-page
- * ApplicationDetail (collapsed inside a native <details>) so the event→label
+ * Component. Shared by the read-mode detail-modal body (always-open) and the
+ * full-page ApplicationDetail (collapsed inside a native <details>) so the event→label
  * knowledge lives in ONE place (DRY). The caller owns the disclosure wrapper and
  * the section heading; this renders only the list.
  */

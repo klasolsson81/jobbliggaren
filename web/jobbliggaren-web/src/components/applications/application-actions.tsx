@@ -10,15 +10,14 @@ import {
 } from "react";
 import { transitionStatusAction } from "@/lib/actions/applications";
 import { showApplicationToast } from "@/lib/applications/toast-store";
-import { clampDrawerTop } from "@/lib/applications/drawer-position";
+import { clampAnchoredTop } from "@/lib/applications/anchored-top";
 import type { ApplicationDto, ApplicationStatus } from "@/lib/dto/applications";
 import { FinishDraftDialog } from "./finish-draft-dialog";
 import { LogFollowUpDialog } from "./log-follow-up-dialog";
 
 /**
  * Dialogens topp ankras ~170px ovanför klickpunkten (design §9 — "aldrig fast
- * topposition"; drawerns motsvarande offset är 240). Klampad mot viewporten via
- * samma clampDrawerTop (CTO-bind 5, DRY).
+ * topposition"). Klampad mot viewporten via clampAnchoredTop (CTO-bind 5, DRY).
  */
 const DIALOG_ANCHOR_OFFSET = 170;
 const DIALOG_MIN_VISIBLE = 240;
@@ -28,7 +27,7 @@ function anchoredTop(anchorY: number | null): number | null {
   if (anchorY == null || anchorY <= 0 || typeof window === "undefined") {
     return null;
   }
-  return clampDrawerTop(anchorY, window.innerHeight, {
+  return clampAnchoredTop(anchorY, window.innerHeight, {
     offset: DIALOG_ANCHOR_OFFSET,
     minVisible: DIALOG_MIN_VISIBLE,
   });
@@ -86,9 +85,9 @@ export function applicationDisplayName(application: ApplicationDto): string {
  *
  * Mutations-UX per CTO-bind 1: await server action → revalidatePath-driven
  * server-recompute (attention/grupper är BE-SSOT — ingen optimistisk
- * grupp-flytt), pending-state per rad under tiden. Drawern har sina egna öar
- * (drawer-status-actions) — samma actions, samma toast-store, ingen delad
- * React-state behövs över träden.
+ * grupp-flytt), pending-state per rad under tiden. Detaljmodalen har sina egna
+ * öar (DrawerStatusActions — PR 6-arvsnamn) — samma actions, samma toast-store,
+ * ingen delad React-state behövs över träden.
  */
 export function ApplicationActionsProvider({
   children,

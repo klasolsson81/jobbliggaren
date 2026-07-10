@@ -99,7 +99,7 @@ export function ApplicationDetail({
   // (createdAt + notes + followUps + statusChanges), nyast först. Den tidigare
   // updatedAt-SYNTESEN av ett status-event är pensionerad: ett status-event
   // härleds ENBART ur en inspelad StatusChange (CLAUDE.md §5, aldrig fabricera
-  // en övergång som inte loggats). Delad med drawer-bodyn (SPOT).
+  // en övergång som inte loggats). Delad med detaljmodalens body (SPOT).
   const timeline = composeTimeline(application);
 
   return (
@@ -243,7 +243,7 @@ export function ApplicationDetail({
         {/* Om annonsen (sparad kopia) — #315 (ADR 0086). Renderas ENDAST som
             fallback när live-annonsen är arkiverad (jobAd == null) men en kopia
             fångades vid ansökningstillfället. Delad PreservedAdPanel (samma
-            komponent som drawer-bodyn — SPOT). */}
+            komponent som detaljmodalens body — SPOT). */}
         {showPreservedAd && <PreservedAdPanel preservedAd={preservedAd} />}
 
         {/* Personligt brev — endast om coverLetter finns. Sist + 68ch

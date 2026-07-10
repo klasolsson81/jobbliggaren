@@ -15,7 +15,7 @@ import type {
 const FIXED_NOW = new Date("2026-05-20T12:00:00Z");
 
 // #630 PR 7: kortens CTA muterar via providerns server actions och "Läs
-// erbjudandet" soft-navigerar till drawern — mocka båda sömmarna.
+// erbjudandet" soft-navigerar till detaljmodalen — mocka båda sömmarna.
 const transitionStatusAction = vi.hoisted(() =>
   vi.fn(async () => ({ success: true as const })),
 );

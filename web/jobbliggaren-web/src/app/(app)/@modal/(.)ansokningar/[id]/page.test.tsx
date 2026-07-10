@@ -24,7 +24,7 @@ const getApplicationById =
 // (the <h2>) is asserted against the real copy.
 vi.mock("next-intl/server", () => ({
   // The page only calls getTranslations("pages"); the client islands
-  // (ApplicationDrawerShell, NotesSection) resolve their own copy via the test
+  // (ApplicationModalShell, NotesSection) resolve their own copy via the test
   // render's NextIntlClientProvider (full sv catalog), not this server entry.
   getTranslations: async (namespace?: "pages") =>
     createTranslator({
@@ -45,7 +45,7 @@ vi.mock("@/lib/api/applications", () => ({
 }));
 
 // Partial mock: keep the real module but override the server-control-flow
-// helpers the page calls AND useRouter (the client ApplicationDrawerShell calls
+// helpers the page calls AND useRouter (the client ApplicationModalShell calls
 // it; the real hook needs an AppRouterContext provider absent in jsdom — stub
 // router.back() since closing is not exercised here).
 vi.mock("next/navigation", async (importOriginal) => {

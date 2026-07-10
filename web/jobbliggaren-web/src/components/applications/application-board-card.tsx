@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { applicationStatusLabel } from "@/lib/applications/status";
 import { daysInStatus, urgencyTagFor } from "@/lib/applications/urgency";
-import { setDrawerAnchor } from "./drawer-anchor";
 import { useUrgencyLabel } from "./use-urgency-label";
 import { StatusMenu } from "./status-menu";
 import type { ApplicationDto } from "@/lib/dto/applications";
@@ -98,20 +97,11 @@ export function ApplicationBoardCard({
             className="jp-board-card__link"
             draggable={false}
             onClick={(event) => {
+              // Ett avslutat drag får inte tolkas som klick — soft-nav
+              // (route-modalen) ska bara öppnas av ett äkta klick.
               if (justDraggedRef.current) {
                 event.preventDefault();
-                return;
               }
-              // Modifierat klick (ny flik) → fullsidan (hoppa drawer-ankaret).
-              if (
-                event.metaKey ||
-                event.ctrlKey ||
-                event.shiftKey ||
-                event.altKey
-              ) {
-                return;
-              }
-              setDrawerAnchor(event.clientY, event.currentTarget);
             }}
             aria-describedby={contextId}
           >

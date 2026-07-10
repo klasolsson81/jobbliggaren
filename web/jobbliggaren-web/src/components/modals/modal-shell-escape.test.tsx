@@ -3,7 +3,6 @@ import { render } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 import { ApplicationModalShell } from "@/components/applications/application-modal-shell";
-import { ApplicationDrawerShell } from "@/components/applications/application-drawer-shell";
 import { JobAdModalShell } from "@/components/job-ads/job-ad-modal-shell";
 import { RouteModalShell } from "@/components/modals/route-modal-shell";
 
@@ -55,16 +54,6 @@ const shells: ShellCase[] = [
         <ApplicationModalShell title="Titel" subtitle="Undertitel">
           {body}
         </ApplicationModalShell>,
-      ),
-  },
-  {
-    // #630 PR 6 drawer inherits the same #565 Escape contract.
-    name: "ApplicationDrawerShell",
-    render: (body) =>
-      void render(
-        <ApplicationDrawerShell title="Titel" subtitle="Undertitel">
-          {body}
-        </ApplicationDrawerShell>,
       ),
   },
   {

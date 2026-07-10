@@ -23,9 +23,11 @@ interface ApplicationDrawerBodyProps {
 
 /**
  * ApplicationDrawerBody — detail panel content (#630 PR 6 läs-läge; PR 7 gör
- * den interaktiv per design §8). Server Component rendered as children of the
- * client ApplicationDrawerShell (the shell owns the head: role + company +
- * close); mutationsmaskineriet är KLIENT-öar som får serialiserbara props
+ * den interaktiv per design §8; "Drawer"-namnet är ett PR 6-arv — sedan
+ * 2026-07-10 renderas kroppen i den centrerade ApplicationModalShell, ADR 0092
+ * Livscykel-amendment). Server Component rendered as children of the client
+ * ApplicationModalShell (the shell owns the head: role + company + close);
+ * mutationsmaskineriet är KLIENT-öar som får serialiserbara props
  * (DrawerStatusActions, DrawerLogFollowUpButton, NotesSection).
  *
  * §8 order: status block → primär-CTA + stegväljare + AVSLUTA ELLER PARKERA

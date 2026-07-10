@@ -8,7 +8,6 @@ import {
   getStatusTagDataAttr,
 } from "@/lib/applications/status";
 import { daysInStatus, urgencyTagFor } from "@/lib/applications/urgency";
-import { setDrawerAnchor } from "@/components/applications/drawer-anchor";
 import { useApplicationActions } from "./application-actions";
 import { useRowActions } from "./use-row-actions";
 import { useUrgencyLabel } from "./use-urgency-label";
@@ -53,11 +52,11 @@ interface ApplicationRowProps {
  *   3. Handlingszon: avdelare + primär rad-knapp + "Byt status ▾"-meny.
  *      Allt till höger om avdelaren är klickbart (design §5).
  *
- * Rad-klick → detaljpanelen via LÄNK-OVERLAY (CTO-bind 6, a11y): titeln är
+ * Rad-klick → detaljmodalen via LÄNK-OVERLAY (CTO-bind 6, a11y): titeln är
  * radens enda <a>, sträckt över hela raden med ::after — knappzonerna ligger
  * ovanpå (z-index) så interaktiva element aldrig nästlas i ankaret (ogiltig
- * HTML). Modifierat klick (ny flik) hoppar över drawer-ankaret → fullsidan
- * (#630 PR 6-mönstret oförändrat).
+ * HTML). Soft-nav öppnar den centrerade route-modalen (ADR 0053); ett
+ * modifierat klick (ny flik) når fullsidan via href.
  */
 export function ApplicationRow({
   application,
@@ -99,15 +98,8 @@ export function ApplicationRow({
           <Link
             href={`/ansokningar/${application.id}`}
             className="jp-app__rowlink"
-            // #630 PR 6 (ADR 0092 D7): record the click's viewport Y + this
-            // link (the trigger) so the intercepting-route drawer opens near
-            // the click (handoff §9) and returns focus here on close. href is
-            // kept — a modified click (new tab/window) navigates to the full
-            // page instead, so we skip the anchor for those.
-            onClick={(e) => {
-              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-              setDrawerAnchor(e.clientY, e.currentTarget);
-            }}
+            // Soft-nav öppnar den centrerade route-modalen (ADR 0053);
+            // modifierat klick (ny flik/fönster) når fullsidan via href.
             // Länknamnet = rolltiteln (synlig text); företag + status är
             // BESKRIVNING via aria-describedby — h3-rubriken förblir ren
             // rolltitel i rubrikrotorn (design-reviewer Minor 5, WCAG 2.4.6).

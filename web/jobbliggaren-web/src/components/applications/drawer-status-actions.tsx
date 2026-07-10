@@ -21,8 +21,10 @@ interface DrawerStatusActionsProps {
 }
 
 /**
- * Drawerns statusmaskineri (#630 PR 7, design §8.3–8.5) — klient-ö renderad av
- * den RSC-ägda ApplicationDrawerBody (serialiserbara props över gränsen):
+ * Detaljpanelens statusmaskineri (#630 PR 7, design §8.3–8.5; "Drawer"-namnet
+ * är ett PR 6-arv — panelen är sedan 2026-07-10 den centrerade route-modalen,
+ * ADR 0092 Livscykel-amendment). Klient-ö renderad av den RSC-ägda
+ * ApplicationDrawerBody (serialiserbara props över gränsen):
  *
  *  - §8.3 Primär-CTA "Flytta till {nästa}" (fylld accent-800, h38) + "Alla
  *    byten kan ångras." — Ghosted: "Återaktivera som Skickad" (prototyp-facit);
@@ -33,7 +35,7 @@ interface DrawerStatusActionsProps {
  *  - §8.5 AVSLUTA ELLER PARKERA: Nekad (dangertext) / Återtagen / Ghosted.
  *
  * Alla byten: persist-immediately via den auditerade servern-actionen →
- * revalidatePath server-recompute (CTO-bind 1; drawern re-renderas i sin
+ * revalidatePath server-recompute (CTO-bind 1; detaljmodalen re-renderas i sin
  * route) → ångra-toast (kompenserande invers, CTO-bind 3). Fel visas inline i
  * panelen (role="alert").
  */

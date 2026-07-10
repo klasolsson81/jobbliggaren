@@ -2,11 +2,11 @@ import type { ApplicationStatus } from "@/lib/dto/applications";
 
 /**
  * Ephemeral module-store for the /ansokningar action toast (#630 PR 7, design
- * handoff §10; CTO-bind 2). Same idiom as `drawer-anchor.ts`: client-only
- * module state that crosses React trees WITHOUT living in any component —
- * here it must cross the pipeline island AND the intercepting-route drawer
- * (two sibling trees under the (app) layout), so a single ToastHost mounted in
- * the layout renders whatever either tree publishes.
+ * handoff §10; CTO-bind 2). Client-only module-store idiom: module state that
+ * crosses React trees WITHOUT living in any component — here it must cross the
+ * pipeline island AND the intercepting-route modal (two sibling trees under
+ * the (app) layout), so a single ToastHost mounted in the layout renders
+ * whatever either tree publishes.
  *
  * Single-toast model (prototype-exact): publishing replaces the current toast.
  * `token` disambiguates timers/dismissal — a stale auto-close for a replaced

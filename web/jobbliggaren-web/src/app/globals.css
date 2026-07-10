@@ -1161,85 +1161,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-weight: var(--jp-fw-semibold);
 }
 
-/* ── Detail drawer (#630 PR 6, ADR 0092 D7) ────────────────────────────────
-   Höger detaljpanel för /ansokningar — ersätter intercepting-route-MODALEN på
-   just denna route (ADR 0053 amenderad). 464px, radie-8 (modal-klass-yta, ADR
-   0052 Beslut 4), positionerad vertikalt nära klicket (`top` + viewport-kapad
-   `max-height` sätts inline från klick-ankaret, clampDrawerTop; handoff §9).
-   Återanvänder modal-scrim + skugg-token; delar 99/100-z-index-bandet med
-   mobil-nav-.jp-drawer (aldrig öppna samtidigt) — ingen ny token, ingen
-   z-index-token. */
-.jp-appdrawer-scrim {
-  position: fixed;
-  inset: 0;
-  background: var(--jp-scrim);
-  z-index: 99;
-  animation: jp-fade 140ms ease;
-}
-.jp-appdrawer {
-  position: fixed;
-  right: 16px;
-  width: min(464px, calc(100vw - 32px));
-  background: var(--jp-surface);
-  border-radius: var(--jp-r-lg);
-  z-index: 100;
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--jp-shadow-modal);
-  animation: jp-slide-r 200ms ease;
-  /* `top` + `max-height` sätts inline från klick-ankaret (clampDrawerTop). */
-}
-.jp-appdrawer__head {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-  padding: 20px 22px 14px;
-  border-bottom: 1px solid var(--jp-border-soft);
-  flex-shrink: 0;
-}
-.jp-appdrawer__heading {
-  flex: 1;
-  min-width: 0;
-}
-.jp-appdrawer__title {
-  /* §8.1: roll 18/700. */
-  margin: 0;
-  font-size: var(--text-h3);
-  font-weight: var(--jp-fw-bold);
-  letter-spacing: -0.01em;
-  color: var(--jp-heading-2);
-}
-.jp-appdrawer__subtitle {
-  margin: 4px 0 0;
-  font-size: var(--text-ui);
-  color: var(--jp-ink-1);
-}
-.jp-appdrawer__body {
-  padding: 18px 22px 22px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-/* Loading-fallback (DrawerLoadingShell): default top (klient-shellen om-
-   positionerar vid mount) + stabil höjd så swappen till innehåll inte hoppar. */
-.jp-appdrawer--loading {
-  top: 16px;
-  min-height: 220px;
-}
-/* Mobil (D7 separat spår): full-höjds-ark. Inline top/max-height överrids med
-   !important; a11y (focus-trap/ESC/aria) är oförändrat obligatorisk. */
-@media (max-width: 640px) {
-  .jp-appdrawer {
-    top: 0 !important;
-    right: 0;
-    bottom: 0;
-    width: 100vw;
-    max-height: 100dvh !important;
-    border-radius: 0;
-  }
-}
-
 /* ── Hero (F4 Hybrid — G1, ADR 0068) ─────────────────────────────────
    Inramad platta (inte full-bleed): canvas-wrapper med inset, mörkgrön
    diagonal gradient på plattan, 6px radie. Asymmetrisk komposition:
@@ -5621,7 +5542,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .jp-modal-scrim, .jp-modal, .jp-drawer, .jp-drawer-scrim, .jp-appdrawer, .jp-appdrawer-scrim, .jp-toast {
+  .jp-modal-scrim, .jp-modal, .jp-drawer, .jp-drawer-scrim, .jp-toast {
     animation-duration: 0.01ms !important;
   }
 }

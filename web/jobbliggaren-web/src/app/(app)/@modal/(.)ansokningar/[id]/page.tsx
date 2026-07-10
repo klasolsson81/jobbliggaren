@@ -3,7 +3,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getApplicationById } from "@/lib/api/applications";
 import { ApplicationDrawerBody } from "@/components/applications/application-drawer-body";
-import { ApplicationDrawerShell } from "@/components/applications/application-drawer-shell";
+import { ApplicationModalShell } from "@/components/applications/application-modal-shell";
 import { formatDate } from "@/lib/i18n/format";
 
 interface PageProps {
@@ -20,17 +20,20 @@ interface PageProps {
  * consider `@slot` folders"). Identiskt mönster med F3
  * `@modal/(.)jobb/[id]` (ADR 0053).
  *
- * #630 PR 6 (ADR 0092 D7, amends ADR 0053 for /ansokningar only): soft-nav
- * (radklick → Link /ansokningar/[id]) fångas här → höger-DRAWER (ej modal).
+ * Klas-beslut 2026-07-10 (ansokningar-audit, reverterar ADR 0092 D7:s
+ * drawer-halva — se ADR 0092 Livscykel-amendment): soft-nav (radklick →
+ * Link /ansokningar/[id]) fångas här → CENTRERAD MODAL (ApplicationModalShell,
+ * samma paradigm som `/jobb` och gäst-flödet — ADR 0053 gäller åter oinskränkt).
  * Hard-nav / refresh / delad länk träffar `/ansokningar/[id]/page.tsx`
- * (fullsidan, oförändrad — behåller ApplicationDetail + Withdraw). `/jobb`-
- * modalen är också oförändrad. Server-fetchen + titel-precedensen + feltaxonomin
- * återanvänds oförändrade (DRY); endast presentationen byts modal→drawer.
+ * (fullsidan, oförändrad — behåller ApplicationDetail + Withdraw). Server-
+ * fetchen + titel-precedensen + feltaxonomin är oförändrade (DRY); endast
+ * presentationen byts drawer→modal.
  *
- * RSC: server-fetch här; endast drawer-chromet (ApplicationDrawerShell) +
+ * RSC: server-fetch här; endast modal-chromet (ApplicationModalShell) +
  * mutationsöarna (NotesSection) är "use client". ApplicationDrawerBody-trädet
- * förblir Server Component (passeras som children — serialiserbart RSC-träd,
- * ingen funktion över gränsen). Strikt läs-läge: ingen Withdraw/status-mutation.
+ * (namnet är ett PR 6-arv; kroppen är presentationsagnostisk) förblir Server
+ * Component (passeras som children — serialiserbart RSC-träd, ingen funktion
+ * över gränsen). Strikt läs-läge: ingen Withdraw/status-mutation.
  */
 export default async function InterceptedAnsokanModal({ params }: PageProps) {
   const user = await getServerSession();
@@ -79,12 +82,12 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
           : t("ansokningar.detail.createdSubtitle", {
               date: formatDate(format, application.createdAt) ?? "",
             }).trim();
-      // #630 PR 6 (ADR 0092 D7): strict read-mode drawer. NO Withdraw footer /
-      // status mutation here — all status changes move to PR 7. `now` is the
-      // per-request reference time for the "N dagar i detta steg" derivation
-      // (server-computed; the read is fetched fresh on each open).
+      // Strict read-mode surface (#630 PR 6 lineage): NO Withdraw footer /
+      // status mutation here — status changes live on the rows (PR 7). `now`
+      // is the per-request reference time for the "N dagar i detta steg"
+      // derivation (server-computed; the read is fetched fresh on each open).
       return (
-        <ApplicationDrawerShell
+        <ApplicationModalShell
           title={title}
           subtitle={subtitle}
           // mono only for the truly-no-identity case (no live ad AND no
@@ -92,8 +95,13 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
           // non-mono — matching the component header (#315).
           mono={!hasIdentity && !showPreservedAd}
         >
-          <ApplicationDrawerBody application={application} now={new Date()} />
-        </ApplicationDrawerShell>
+          {/* jp-modal__body äger padding + intern scroll i .jp-modal-flexkolumnen
+              (samma anropar-wrapp som @modal/(.)jobb) — utan den svämmar kroppen
+              över panelens max-height. */}
+          <div className="jp-modal__body">
+            <ApplicationDrawerBody application={application} now={new Date()} />
+          </div>
+        </ApplicationModalShell>
       );
     }
     case "unauthorized":
@@ -102,30 +110,34 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
       notFound();
     case "rateLimited":
       return (
-        <ApplicationDrawerShell
+        <ApplicationModalShell
           title={t("common.rateLimitedTitle")}
           subtitle=""
         >
-          {/* id="jp-modal-desc" så drawer-shellens aria-describedby aldrig dinglar
+          {/* id="jp-modal-desc" så modal-skalets aria-describedby aldrig dinglar
               även i fel-grenarna (bodyn bär det i ok-fallet). */}
-          <p id="jp-modal-desc" className="text-body-sm text-text-primary">
-            {t("common.rateLimitedBody", {
-              seconds: result.retryAfterSeconds,
-            })}
-          </p>
-        </ApplicationDrawerShell>
+          <div className="jp-modal__body">
+            <p id="jp-modal-desc" className="text-body-sm text-text-primary">
+              {t("common.rateLimitedBody", {
+                seconds: result.retryAfterSeconds,
+              })}
+            </p>
+          </div>
+        </ApplicationModalShell>
       );
     case "forbidden":
     case "error":
       return (
-        <ApplicationDrawerShell
+        <ApplicationModalShell
           title={t("ansokningar.detail.loadErrorTitle")}
           subtitle=""
         >
-          <p id="jp-modal-desc" className="text-body-sm text-text-primary">
-            {t("common.errorBodyRetry")}
-          </p>
-        </ApplicationDrawerShell>
+          <div className="jp-modal__body">
+            <p id="jp-modal-desc" className="text-body-sm text-text-primary">
+              {t("common.errorBodyRetry")}
+            </p>
+          </div>
+        </ApplicationModalShell>
       );
   }
 }

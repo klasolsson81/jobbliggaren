@@ -28,7 +28,6 @@
   },
   "funnel": {
     "heading": "From sent to accepted",
-    "intro": "How many of your sent applications reached each stage.",
     "stage": "Stage",
     "count": "Count",
     "share": "Share of sent",

@@ -302,6 +302,52 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         score.SkillOverlap.Missing.ShouldBe([DockerDisplay]);
     }
 
+    // #477 Low 2 — the CARRIER surfaces the covered-skill CONCEPT-IDS (the persisted explainability
+    // evidence), distinct from the SkillOverlap dimension's Display labels. Only the Skill partition,
+    // only ids the CV covers.
+    [Fact]
+    public async Task ScoreFull_MatchedSkillConceptIds_AreCoveredSkillIds_NotDisplay_NotRequirements()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var terms = ExtractedTerms.From(
+        [
+            SkillTerm(CSharpConceptId, CSharpDisplay),   // a Skill the CV covers
+            SkillTerm(DockerConceptId, DockerDisplay),   // a Skill the CV does NOT cover
+            // A Requirement term the CV "covers" — but it is NOT a Skill, so it must NOT appear
+            // in the skill evidence (the evidence is the SkillOverlap partition only).
+            RequirementTerm(KubernetesConceptId, "Kubernetes", ExtractedTermSource.MustHave),
+        ]);
+        var jobAdId = await SeedJobAdAsync("Titel", null, null, null, terms, ct);
+        var profile = FullProfile(CSharpConceptId, KubernetesConceptId);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var scored = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        // Evidence = the covered SKILL concept-ids only: C#. Docker is not covered; Kubernetes is a
+        // Requirement term (not a Skill) so it is not skill evidence.
+        scored.MatchedSkillConceptIds.ShouldBe([CSharpConceptId]);
+        // IDS, not Display labels (the DE-display-1 dimension carries labels; the evidence carries ids).
+        scored.MatchedSkillConceptIds.ShouldNotContain(CSharpDisplay);
+        scored.MatchedSkillConceptIds.ShouldNotContain(DockerConceptId);
+        scored.MatchedSkillConceptIds.ShouldNotContain(KubernetesConceptId);
+    }
+
+    [Fact]
+    public async Task ScoreFull_MatchedSkillConceptIds_EmptyWhenCvHasNoConfirmedSkills()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var terms = ExtractedTerms.From([SkillTerm(CSharpConceptId, CSharpDisplay)]);
+        var jobAdId = await SeedJobAdAsync("Titel", null, null, null, terms, ct);
+        var profile = FullProfile(); // no confirmed skills → nothing to cite
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var scored = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        scored.MatchedSkillConceptIds.ShouldBeEmpty();
+    }
+
     [Fact]
     public async Task ScoreFull_SkillOverlap_NoAdSkillsCovered_IsNoMatch()
     {
@@ -781,6 +827,81 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         // ONE entry per concept-id (not two); Title-source Display wins deterministically.
         score.SkillOverlap.Matched.ShouldBe([titleDisplay]);
         score.SkillOverlap.Missing.ShouldBeEmpty();
+    }
+
+    // =================================================================
+    // #477 Low 2 — MatchedSkillConceptIds evidence determinism
+    // =================================================================
+
+    // The evidence is Ordinal-ORDERED — pins CoveredSkillConceptIds' `.OrderBy(Ordinal)`. The
+    // single-id / ignoreOrder assertions elsewhere cannot catch a removed OrderBy; this seeds the
+    // Skill terms in NON-Ordinal order and asserts order-SENSITIVELY.
+    [Fact]
+    public async Task ScoreFull_MatchedSkillConceptIds_AreOrdinalOrdered()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Term/seed order (K8s, C#, Docker) differs from the Ordinal order of the concept-ids.
+        var terms = ExtractedTerms.From(
+        [
+            SkillTerm(KubernetesConceptId, KubernetesDisplay),
+            SkillTerm(CSharpConceptId, CSharpDisplay),
+            SkillTerm(DockerConceptId, DockerDisplay),
+        ]);
+        var jobAdId = await SeedJobAdAsync("Titel", null, null, null, terms, ct);
+        var profile = FullProfile(CSharpConceptId, DockerConceptId, KubernetesConceptId);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var scored = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        // Ordinal: skill-csharp-0001 < skill-docker-0002 < skill-k8s-0003. ORDER-SENSITIVE (no ignoreOrder).
+        scored.MatchedSkillConceptIds.ShouldBe(
+            [CSharpConceptId, DockerConceptId, KubernetesConceptId]);
+    }
+
+    // The evidence is DEDUPED — pins CoveredSkillConceptIds' `.Distinct`. The same concept-id
+    // borne as BOTH a Title- and Description-source Skill term survives the VO's (Lexeme,Kind,Source)
+    // dedup (two terms), but appears ONCE in the evidence.
+    [Fact]
+    public async Task ScoreFull_MatchedSkillConceptIds_DedupesSameConceptIdAcrossSources()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var terms = ExtractedTerms.From(
+        [
+            new ExtractedTerm(
+                Lexeme: CSharpConceptId, Display: "C# (beskrivning)",
+                Kind: ExtractedTermKind.Skill, Source: ExtractedTermSource.Description,
+                MatchedOn: "C# (beskrivning)", ConceptId: CSharpConceptId, Weight: 1),
+            new ExtractedTerm(
+                Lexeme: CSharpConceptId, Display: "C# (titel)",
+                Kind: ExtractedTermKind.Skill, Source: ExtractedTermSource.Title,
+                MatchedOn: "C# (titel)", ConceptId: CSharpConceptId, Weight: 1),
+        ]);
+        var jobAdId = await SeedJobAdAsync("Titel", null, null, null, terms, ct);
+        var profile = FullProfile(CSharpConceptId);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var scored = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        scored.MatchedSkillConceptIds.ShouldBe([CSharpConceptId]); // one entry, not two
+    }
+
+    // Empty evidence via the intersection FILTER (CV present but covers none of the ad's Skill
+    // terms) — distinct from the empty-CV early return already covered above.
+    [Fact]
+    public async Task ScoreFull_MatchedSkillConceptIds_EmptyWhenCvCoversNoAdSkill()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var terms = ExtractedTerms.From([SkillTerm(CSharpConceptId, CSharpDisplay)]);
+        var jobAdId = await SeedJobAdAsync("Titel", null, null, null, terms, ct);
+        var profile = FullProfile(DockerConceptId); // covers Docker, not the ad's C#
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var scored = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        scored.MatchedSkillConceptIds.ShouldBeEmpty();
     }
 
     // =================================================================

@@ -101,7 +101,7 @@ public class GetJobAdMatchBatchQueryHandlerTests
             FullBatchCallCount++;
             LastBatchIds = jobAdIds;
             IReadOnlyDictionary<JobAdId, FullScoredMatch> carriers = scores.ToDictionary(
-                kvp => kvp.Key, kvp => new FullScoredMatch(kvp.Value, SsykIsRelated: false));
+                kvp => kvp.Key, kvp => new FullScoredMatch(kvp.Value, SsykIsRelated: false, []));
             return new ValueTask<IReadOnlyDictionary<JobAdId, FullScoredMatch>>(carriers);
         }
 

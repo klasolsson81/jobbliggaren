@@ -43,4 +43,19 @@ namespace Jobbliggaren.Application.Matching.Abstractions;
 /// <see cref="Grading.MatchGrade.Related"/> flat cap. <c>false</c> unless the live
 /// <c>?includeRelated</c> / <c>?relaterade=on</c> toggle (off by default, #300) populated the
 /// profile's related set; with the toggle off that set is empty, so this stays <c>false</c>.</param>
-public sealed record FullScoredMatch(FullMatchScore Score, bool SsykIsRelated);
+/// <param name="MatchedSkillConceptIds">
+/// #477 Low 2 — the concept-ids of the ad's <b>Skill</b> extracted-terms the profile's confirmed
+/// skills COVER (the SkillOverlap intersection surfaced as ids, not just Display labels).
+/// Deduped + Ordinal-ordered for determinism. This is the persisted explainability EVIDENCE
+/// (ADR 0080 / ADR 0071 "explainable by design"): the background scan carries it into
+/// <see cref="Domain.Matching.UserJobAdMatch.MatchedSkillConceptIds"/> (before #477 Low 2 the
+/// scan wrote an empty list, so the persisted evidence never existed). Carried BESIDE the score
+/// (never inside the Goodhart-frozen <see cref="FullMatchScore"/>) exactly like
+/// <paramref name="SsykIsRelated"/>: it is a string-list EVIDENCE payload, NOT a magnitude — it
+/// cannot be summed into an opaque total (parity the <c>UserJobAdMatchGoodhartTests</c> which
+/// bless "the evidence is a string list"). Empty when the profile has no confirmed skills or the
+/// ad has no covered Skill terms (honest "nothing to cite").</param>
+public sealed record FullScoredMatch(
+    FullMatchScore Score,
+    bool SsykIsRelated,
+    IReadOnlyList<string> MatchedSkillConceptIds);

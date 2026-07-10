@@ -299,6 +299,17 @@ describe("pendingParsedResumeSummarySchema", () => {
     ).toBe(true);
   });
 
+  it("accepterar helt UTELÄMNAD gaps-nyckel → success + gaps normaliseras till null (.nullish() deploy-skew-pin)", () => {
+    // En äldre backend (deploy-skew) serialiserar inte gaps-nyckeln alls. `.nullish()`
+    // + transform ska normalisera det utelämnade fältet till `null` — samma ärliga
+    // "inte beräknat" som ett explicit null, aldrig ett hårt parse-fel som fäller kortet.
+    const result = pendingParsedResumeSummarySchema.safeParse({ ...base });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.gaps).toBeNull();
+    }
+  });
+
   it("accepterar gaps med alla nio boolarna", () => {
     expect(
       pendingParsedResumeSummarySchema.safeParse({ ...base, gaps: ALL_NINE_GAPS })

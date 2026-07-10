@@ -60,9 +60,10 @@ export const GUIDE_STEP_SAVE = 3;
  * med gap-fill-formen men har egna element-id (`guide-*`-prefix) OCH ett stegat
  * flöde. En Zod-path mappas därför till BÅDE steget den bor på (så vi kan hoppa
  * dit) och element-id:t att flytta fokus till. `null` = okänd path (ingen
- * fokus-flytt). `elementId` kan vara `null` även när `step` är känt (t.ex. en
- * kompetens-post — chip-listan har ingen per-post-input; vi landar på steget och
- * add-fältet).
+ * fokus-flytt). En kompetens-/språk-post har ingen per-post-input (chip-lista)
+ * — de mappas till stegets add-fält (`guide-skills-add`/`guide-languages-add`),
+ * så `elementId` är i praktiken aldrig `null` när `step` är känt (typen tillåter
+ * det för framtida grenar utan naturligt fokusmål). Kontraktet är test-pinnat.
  */
 export function guidePathToStepAndElementId(
   path: string,

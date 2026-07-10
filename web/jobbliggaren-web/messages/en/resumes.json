@@ -262,7 +262,6 @@
       "emailLabel": "Email",
       "phoneLabel": "Phone",
       "locationLabel": "Location",
-      "profileHeading": "Summary",
       "profileLabel": "Summary",
       "profileHint": "A short summary of your profile."
     },
@@ -302,7 +301,6 @@
       "removeSection": "Remove section {index}",
       "addEntry": "Add entry",
       "noEntries": "No entries added.",
-      "entryLegend": "Entry {index}",
       "entryTitleLabel": "Title",
       "entryBodyLabel": "Text (optional)",
       "entryBodyHint": "Write one line per paragraph.",
@@ -322,7 +320,6 @@
     },
     "save": {
       "intro": "Review and save. The source file is kept untouched.",
-      "summaryHeading": "Overview",
       "summaryDone": "Done",
       "summaryRemaining": "{count, plural, one {# task left} other {# tasks left}}",
       "summaryJump": "Go to {step}",

@@ -54,6 +54,16 @@ export interface GapTaskFormValues {
  * text counts as missing (`!string.IsNullOrWhiteSpace`), and an empty collection
  * counts as a missing section (`Count > 0`). This drives the wizard's per-step
  * task indicators so they track what the user has filled in, live.
+ *
+ * DELIBERATELY presence-only (code-review Minor PR-8.3, accepted-as-documented):
+ * an appended-but-empty experience/education entry flips its step indicator to
+ * done even though required fields are blank — exactly like the backend counts
+ * `Experience.Count > 0`. Tightening the FE derivation (e.g. requiring the
+ * mandatory fields) would desync it from the backend SSOT the hub meter reads
+ * (CTO-bind Q5: ONE shared task definition). The submit-time validation +
+ * `routeToError` focus-recovery close the gap honestly; revisiting the semantics
+ * is a BE+FE change together (flagged to Klas alongside the "Valfritt Ort in the
+ * denominator" question).
  */
 export function deriveGapSummaryFromForm(
   values: GapTaskFormValues,

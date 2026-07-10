@@ -262,7 +262,6 @@
       "emailLabel": "E-post",
       "phoneLabel": "Telefon",
       "locationLabel": "Ort",
-      "profileHeading": "Sammanfattning",
       "profileLabel": "Sammanfattning",
       "profileHint": "En kort sammanfattning av din profil."
     },
@@ -302,7 +301,6 @@
       "removeSection": "Ta bort sektion {index}",
       "addEntry": "Lägg till post",
       "noEntries": "Inga poster tillagda.",
-      "entryLegend": "Post {index}",
       "entryTitleLabel": "Titel",
       "entryBodyLabel": "Text (valfritt)",
       "entryBodyHint": "Skriv en rad per stycke.",
@@ -322,7 +320,6 @@
     },
     "save": {
       "intro": "Se över och spara. Källfilen sparas orörd.",
-      "summaryHeading": "Sammanställning",
       "summaryDone": "Klart",
       "summaryRemaining": "{count, plural, one {# uppgift kvar} other {# uppgifter kvar}}",
       "summaryJump": "Gå till {step}",

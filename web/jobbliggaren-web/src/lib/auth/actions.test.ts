@@ -27,7 +27,7 @@ vi.mock("@/lib/auth/session", () => ({
 vi.mock("@/lib/env", () => ({ env: { BACKEND_URL: "http://backend.test" } }));
 vi.mock("@/lib/dto/_helpers", () => ({ parseResponse: parseResponseMock }));
 
-import { registerAction } from "./actions";
+import { loginAction, registerAction } from "./actions";
 
 function formOf(entries: Record<string, string>): FormData {
   const f = new FormData();
@@ -141,5 +141,61 @@ describe("registerAction 400 handling (#616 — breached password reaches the us
     const result = await registerAction(null, form());
 
     expect(result).toEqual({ error: "auth.actions.registrationFailed" });
+  });
+});
+
+describe("registerAction 202 handling (#714 — email-confirmation-first)", () => {
+  const form = () =>
+    formOf({ displayName: "Anna Andersson", email: "anna@example.se", password: "password1" });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns pendingConfirmation on 202 WITHOUT setting a cookie or redirecting", async () => {
+    // 202 = no session was issued (identical for a fresh or a taken address). The action must NOT
+    // parse a sessionId, set the cookie, or redirect — it shows the check-inbox state.
+    vi.stubGlobal("fetch", vi.fn(async () => ({ status: 202, ok: true }) as Response));
+
+    const result = await registerAction(null, form());
+
+    expect(result).toEqual({ pendingConfirmation: true });
+    expect(setSessionCookieMock).not.toHaveBeenCalled();
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("still logs in on the legacy 200 path (flag OFF) — cookie + redirect", async () => {
+    // The FE is flag-agnostic: a 200 with a sessionId still instant-logs-in.
+    parseResponseMock.mockResolvedValue({ sessionId: "sess-1" });
+    vi.stubGlobal("fetch", vi.fn(async () => ({ status: 200, ok: true }) as Response));
+
+    await expect(registerAction(null, form())).rejects.toThrow(/REDIRECT/);
+    expect(setSessionCookieMock).toHaveBeenCalledWith("sess-1", false);
+  });
+});
+
+describe("loginAction 403 handling (#714 — email-not-confirmed gate)", () => {
+  const form = () => formOf({ email: "anna@example.se", password: "password1" });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("maps a 403 to the actionable email-not-confirmed copy, no cookie or redirect", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ status: 403, ok: false }) as Response));
+
+    const result = await loginAction(null, form());
+
+    expect(result).toEqual({ error: "auth.actions.emailNotConfirmed" });
+    expect(setSessionCookieMock).not.toHaveBeenCalled();
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps mapping a 401 to the generic login-failed copy (not the 403 copy)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ status: 401, ok: false }) as Response));
+
+    const result = await loginAction(null, form());
+
+    expect(result).toEqual({ error: "auth.actions.loginFailed" });
   });
 });

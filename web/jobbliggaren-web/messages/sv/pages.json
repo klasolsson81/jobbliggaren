@@ -218,7 +218,9 @@
       "submit": "Skapa konto",
       "submitting": "Skapar konto…",
       "haveAccount": "Har du redan ett konto?",
-      "logIn": "Logga in"
+      "logIn": "Logga in",
+      "pendingTitle": "Kontrollera din inkorg",
+      "pendingBody": "Vi har skickat ett mejl till adressen du angav. Följ instruktionerna i mejlet för att fortsätta. Kontrollera skräpposten om du inte ser det inom några minuter."
     },
     "actions": {
       "credentialsRequired": "E-post och lösenord krävs.",
@@ -227,7 +229,8 @@
       "unexpectedError": "Ett oväntat fel uppstod. Försök igen.",
       "serverUnreachable": "Kunde inte nå servern. Försök igen.",
       "registrationFailed": "Registreringen misslyckades.",
-      "passwordBreached": "Lösenordet har förekommit i kända dataläckor. Välj ett annat lösenord."
+      "passwordBreached": "Lösenordet har förekommit i kända dataläckor. Välj ett annat lösenord.",
+      "emailNotConfirmed": "Bekräfta din e-postadress för att logga in. Vi har skickat en länk till din inkorg."
     },
     "confirmEmailChange": {
       "title": "Bekräfta din nya e-postadress",
@@ -239,6 +242,18 @@
       "loginLink": "Logga in",
       "invalidTitle": "Länken går inte att använda",
       "invalidBody": "Länken är ogiltig eller har gått ut. Logga in och begär ett nytt adressbyte under Inställningar.",
+      "networkError": "Det gick inte att nå servern. Försök igen om en stund."
+    },
+    "confirmAccount": {
+      "title": "Aktivera ditt konto",
+      "intro": "Klicka på knappen för att bekräfta din e-postadress och aktivera kontot. Sedan kan du logga in.",
+      "confirm": "Aktivera kontot",
+      "pending": "Aktiverar…",
+      "successTitle": "Kontot är aktiverat",
+      "successBody": "Din e-postadress är bekräftad. Logga in för att komma igång.",
+      "loginLink": "Logga in",
+      "invalidTitle": "Länken går inte att använda",
+      "invalidBody": "Länken är ogiltig eller har gått ut. Registrera dig igen för att få en ny länk.",
       "networkError": "Det gick inte att nå servern. Försök igen om en stund."
     }
   }

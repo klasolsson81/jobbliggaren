@@ -149,4 +149,32 @@ public class ApplicationStatusTests
         // LEGAL free transition (this set no longer guards it).
         ApplicationStatus.Ghosted.RecommendedNextStatuses.ShouldNotContain(ApplicationStatus.Accepted);
     }
+
+    // ---------------------------------------------------------------
+    // IsClosedForActivity (#648) — the SSOT for "closed to follow-up activity":
+    // the three terminals PLUS Ghosted. The six active statuses are open. Reused by
+    // the aggregate's AddFollowUp/LogFollowUp guards and the OverdueFollowUp signal.
+    // ---------------------------------------------------------------
+
+    [Theory]
+    [InlineData("Accepted")]
+    [InlineData("Rejected")]
+    [InlineData("Withdrawn")]
+    [InlineData("Ghosted")]
+    public void IsClosedForActivity_TerminalsAndGhosted_IsTrue(string statusName)
+    {
+        ApplicationStatus.FromName(statusName).IsClosedForActivity.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("Draft")]
+    [InlineData("Submitted")]
+    [InlineData("Acknowledged")]
+    [InlineData("InterviewScheduled")]
+    [InlineData("Interviewing")]
+    [InlineData("OfferReceived")]
+    public void IsClosedForActivity_ActiveStatuses_IsFalse(string statusName)
+    {
+        ApplicationStatus.FromName(statusName).IsClosedForActivity.ShouldBeFalse();
+    }
 }

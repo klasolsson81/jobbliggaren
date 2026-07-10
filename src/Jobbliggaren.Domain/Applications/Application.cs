@@ -226,7 +226,7 @@ public sealed class Application : AggregateRoot<ApplicationId>
         LastStatusChangeAt = now;
 
         // Stamp the apply date on the FIRST submit only (idempotent). A
-        // Ghosted→Submitted reactivation (ApplicationStatus.cs:47) finds
+        // Ghosted→Submitted reactivation (ApplicationStatus's recommended-next graph) finds
         // AppliedAt already set and does not re-stamp — AF reporting wants the
         // month you originally applied, not the month you re-opened a ghosted
         // thread (issue #316; senior-cto-advisor 2026-06-28 D3 amendment).
@@ -405,10 +405,9 @@ public sealed class Application : AggregateRoot<ApplicationId>
         RaiseDomainEvent(new ApplicationDeletedDomainEvent(Id, JobSeekerId, clock.UtcNow));
     }
 
-    // Closed for follow-up activity: the three terminals PLUS Ghosted. Ghosted
-    // is deliberately included here (no activity on a ghosted thread) but is NOT
-    // terminal (it is reactivatable) — see IsTerminal (architect M3: do not let
-    // IsTerminal swallow this intentionally wider scope).
-    private bool IsClosedForActivity() =>
-        IsTerminal(Status) || Status == ApplicationStatus.Ghosted;
+    // Closed for follow-up activity — delegates to the single source on ApplicationStatus (the
+    // three terminals PLUS Ghosted). The set intentionally spans wider than IsTerminal: Ghosted is
+    // closed to activity but reactivatable, so it is NOT terminal. See
+    // ApplicationStatus.IsClosedForActivity (architect M3: do not let IsTerminal swallow it).
+    private bool IsClosedForActivity() => Status.IsClosedForActivity;
 }

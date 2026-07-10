@@ -41,10 +41,13 @@ public static class ApplicationAttentionEvaluator
         if (status == ApplicationStatus.OfferReceived)
             return ApplicationAttentionSignal.OfferAwaitingReply;
 
-        // (2) Overdue scheduled follow-up — projected once at the read boundary
-        // as a correlated EXISTS (a Pending follow-up whose ScheduledAt has passed).
-        // An explicit scheduled follow-up outranks the derived silence heuristics.
-        if (application.HasOverdueFollowUp)
+        // (2) Overdue scheduled follow-up — projected once at the read boundary as a correlated
+        // EXISTS (a Pending follow-up whose ScheduledAt has passed). Gated on a status still open
+        // for activity (#648): TransitionTo does not cancel Pending follow-ups on a terminal move,
+        // so a closed thread (a terminal status or Ghosted) could otherwise keep nudging about a
+        // lingering follow-up — symmetric with the domain's AddFollowUp/LogFollowUp guard. An
+        // explicit scheduled follow-up outranks the derived silence heuristics.
+        if (application.HasOverdueFollowUp && !status.IsClosedForActivity)
             return ApplicationAttentionSignal.OverdueFollowUp;
 
         // (3) Draft with approaching deadline — DRAFT-ONLY by design (design §11,

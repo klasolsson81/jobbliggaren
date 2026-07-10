@@ -90,6 +90,25 @@ public class ApplicationAttentionEvaluatorTests
             .ShouldBe(ApplicationAttentionSignal.OverdueFollowUp);
     }
 
+    [Theory]
+    [InlineData("Rejected")]
+    [InlineData("Withdrawn")]
+    [InlineData("Accepted")]
+    [InlineData("Ghosted")]
+    public void Evaluate_ClosedStatusWithLingeringOverdueFollowUp_DoesNotSurfaceOverdueFollowUp(string statusName)
+    {
+        // #648: TransitionTo does not cancel a Pending follow-up on a terminal/Ghosted move, so a
+        // closed application can still carry an overdue follow-up. Signal 2 is gated on a status
+        // still open for activity, so a closed thread must NOT nudge — with a recent status change
+        // keeping the silence signals quiet, the result is None. (The mutation this kills: dropping
+        // the `&& !status.IsClosedForActivity` gate.)
+        var status = ApplicationStatus.FromName(statusName);
+        var dto = Dto(status, lastStatusChangeAt: Now, hasOverdueFollowUp: true);
+
+        ApplicationAttentionEvaluator.Evaluate(dto, Options, Now)
+            .ShouldBe(ApplicationAttentionSignal.None);
+    }
+
     // ---- Signal 3: Draft with approaching deadline (+ the draft-only invariant) ----
 
     [Fact]

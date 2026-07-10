@@ -68,6 +68,15 @@ public sealed class FollowUp : Entity<FollowUpId>
             return Result.Failure(
                 DomainError.Conflict("FollowUp.OutcomeAlreadyRecorded", "Utfall har redan registrerats."));
 
+        // #644: the recorded outcome must be a genuine resolution — Responded or NoResponse only.
+        // Pending is the initial state (not a target), and Logged is set solely at creation via
+        // CreateLogged; without this guard a hand-crafted API call could move a Pending follow-up
+        // to Logged or back to Pending. Defense-in-depth beside the command validator (the FE
+        // dropdown only ever offers the two).
+        if (outcome != FollowUpOutcome.Responded && outcome != FollowUpOutcome.NoResponse)
+            return Result.Failure(
+                DomainError.Validation("FollowUp.InvalidOutcome", "Utfall måste vara Svar eller Inget svar."));
+
         Outcome = outcome;
         OutcomeAt = clock.UtcNow;
         return Result.Success();

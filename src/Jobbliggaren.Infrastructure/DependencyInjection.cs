@@ -18,6 +18,7 @@ using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.JobSources;
 using Jobbliggaren.Infrastructure.JobSources.Platsbanken;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.Infrastructure.Security.BreachCheck;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -1067,9 +1068,9 @@ public static class DependencyInjection
             .AddIdentity<ApplicationUser, IdentityRole<Guid>>(opts =>
             {
                 // NIST SP 800-63B: length is the primary defense, complexity secondary.
-                // PwnedPasswords integration (breach-corpus check on registration/change)
-                // deferred to #616 (sibling to epic #481) — an external k-anonymity
-                // integration with its own GDPR-egress + security gate (senior-cto-advisor #503 G4/SoC).
+                // The §5.1.1.2 blocklist requirement (breach-corpus check on registration/
+                // change) is enforced by PwnedPasswordValidator (#616), chained below —
+                // HIBP k-anonymity, fail-open per CTO-bind (see AddBreachedPasswordCheck).
                 opts.Password.RequiredLength = 12;
                 opts.Password.RequireNonAlphanumeric = false;
                 opts.Password.RequireDigit = false;
@@ -1097,7 +1098,14 @@ public static class DependencyInjection
                 opts.Lockout.AllowedForNewUsers = true;
             })
             .AddEntityFrameworkStores<AppIdentityDbContext>()
-            .AddDefaultTokenProviders();
+            .AddDefaultTokenProviders()
+            // #616 (CTO-bind Variant B): breached-password rejection at the UserManager
+            // chokepoint — CreateAsync + ChangePasswordAsync (and any future reset flow)
+            // are covered by this ONE registration. Api-EXCLUSIVE: AddCoreIdentityForWorker
+            // never chains this, so the Worker stays HTTP-free (ADR 0023).
+            .AddPasswordValidator<PwnedPasswordValidator>();
+
+        services.AddBreachedPasswordCheck(configuration);
 
         services.AddStackExchangeRedisCache(opts =>
         {
@@ -1165,6 +1173,85 @@ public static class DependencyInjection
         // ReauthenticationBehavior injects IEnumerable<IReauthenticationService> so it still
         // constructs in the Worker (empty sequence → the re-auth guard never fires there).
         services.AddScoped<IReauthenticationService, Jobbliggaren.Application.Auth.ReauthenticationService>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// #616 (ADR: HIBP breach check) — typed HttpClient for the Pwned Passwords k-anonymity
+    /// range API behind <see cref="IBreachedPasswordChecker"/>. Api-ONLY: called from
+    /// <see cref="AddIdentityAndSessions"/>; the Worker composition (<see cref="AddCoreIdentityForWorker"/>)
+    /// stays HTTP-free (ADR 0023) and gets no extra password validators.
+    ///
+    /// <para>
+    /// Resilience is CTO-bound for an INTERACTIVE hot path, deliberately NOT the batch-ingest
+    /// profile of AddStandardResilienceHandler (ADR 0032 / BUILD.md §9.1): total attempt budget
+    /// ~2 s, ZERO retries (fail-open makes a retry pure added latency for a waiting user), and a
+    /// circuit breaker so a sustained HIBP outage fails open INSTANTLY instead of costing every
+    /// registration the full timeout.
+    /// </para>
+    /// </summary>
+    public static IServiceCollection AddBreachedPasswordCheck(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddOptions<BreachCheckOptions>()
+            .Bind(configuration.GetSection(BreachCheckOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // Opt-OUT kill switch: a missing section/key means ENABLED (defaultValue: true).
+        // Do not copy the ScbRegister opt-in idiom here — a silently-disabled breach check
+        // would be an invisible security regression.
+        var enabled = configuration.GetValue(
+            $"{BreachCheckOptions.SectionName}:{nameof(BreachCheckOptions.Enabled)}", defaultValue: true);
+        if (!enabled)
+        {
+            services.AddSingleton<IBreachedPasswordChecker, DisabledBreachedPasswordChecker>();
+            return services;
+        }
+
+        services.AddHttpClient<IBreachedPasswordChecker, HibpPasswordBreachClient>((sp, client) =>
+            {
+                var opts = sp.GetRequiredService<IOptions<BreachCheckOptions>>().Value;
+                client.BaseAddress = new Uri(opts.BaseUrl);
+                // Response-size side-channel defense: pads every range response to 800–1000
+                // lines (padding lines carry count 0 — the client discards them).
+                client.DefaultRequestHeaders.Add("Add-Padding", "true");
+                // HIBP rejects UA-less requests. First outgoing client in the codebase to need
+                // a User-Agent — deliberate new pattern, set here in parity with ApplyApiKey.
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Jobbliggaren/1.0 (+https://jobbliggaren.se)");
+                // Backstop only — the Polly attempt timeout below is the real ~2 s budget.
+                client.Timeout = TimeSpan.FromSeconds(10);
+                // Padded responses are ~40 kB; cap the buffer as DoS hygiene.
+                client.MaxResponseContentBufferSize = 1_000_000;
+            })
+            // CRITICAL (CTO-bind fail-open observability condition): the default HttpClientFactory
+            // LogicalHandler/ClientHandler loggers write the full request URI — which contains the
+            // 5-char SHA-1 prefix — at Information. Nothing credential-derived may reach the logs,
+            // so ALL default client logging is removed; EventId 5001 in HibpPasswordBreachClient is
+            // the only telemetry this client emits.
+            .RemoveAllLoggers()
+            .AddResilienceHandler("hibp-breach-check", (builder, context) =>
+            {
+                var opts = context.ServiceProvider
+                    .GetRequiredService<IOptions<BreachCheckOptions>>().Value;
+
+                // Circuit breaker FIRST (= outermost) so the inner attempt-timeout's
+                // TimeoutRejectedException is counted by the breaker's default ShouldHandle —
+                // reversed order would mean timeouts never open the circuit (CTO-bind FORK 3).
+                builder.AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
+                {
+                    MinimumThroughput = opts.CircuitBreakerMinimumThroughput,
+                    FailureRatio = opts.CircuitBreakerFailureRatio,
+                    SamplingDuration = TimeSpan.FromSeconds(opts.CircuitBreakerSamplingSeconds),
+                    BreakDuration = TimeSpan.FromSeconds(opts.CircuitBreakerBreakSeconds),
+                });
+
+                // Total budget for the single attempt. NO AddRetry — retry 0 is the CTO-bound
+                // interactive profile (a failed attempt goes straight to fail-open).
+                builder.AddTimeout(TimeSpan.FromSeconds(opts.TimeoutSeconds));
+            });
 
         return services;
     }

@@ -219,6 +219,7 @@
       "network": "Could not reach the server. Check your network connection.",
       "emailMismatch": "The email address does not match your account.",
       "wrongPassword": "The password is incorrect.",
+      "passwordBreached": "This password has appeared in known data breaches. Choose a different password.",
       "deleteFailed": "Could not delete the account.",
       "changePasswordFailed": "Could not change the password.",
       "emailTaken": "The email address is already used by another account.",

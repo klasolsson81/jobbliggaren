@@ -48,6 +48,18 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// </summary>
     internal RecordingBackgroundJobController Jobs => _backgroundJobs;
 
+    // #616 — last-wins IBreachedPasswordChecker override so the host never composes the real HIBP
+    // client (no network egress from tests). Held as a field so tests can steer verdicts per
+    // password via BreachChecks.
+    private readonly StubBreachedPasswordChecker _breachChecker = new();
+
+    /// <summary>
+    /// #616 — the stub <see cref="Jobbliggaren.Application.Common.Abstractions.IBreachedPasswordChecker"/>
+    /// the host resolves. Defaults every password to NotBreached; a test opts a password into
+    /// Breached/Unavailable via <c>SetVerdict</c> to exercise the rejection and fail-open paths.
+    /// </summary>
+    internal StubBreachedPasswordChecker BreachChecks => _breachChecker;
+
     // Set in InitializeAsync before Services is accessed (triggers host creation)
     private string _postgresCs = string.Empty;
     private string _redisCs = string.Empty;
@@ -142,6 +154,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // RemoveAll first so nothing resolves the real adapter via GetServices<IBackgroundJobController>().
             services.RemoveAll<IBackgroundJobController>();
             services.AddSingleton<IBackgroundJobController>(_backgroundJobs);
+
+            // #616 — replace the real HIBP typed client (AddBreachedPasswordCheck) with the stub.
+            // Every register/change-password test funnels through PwnedPasswordValidator inside
+            // UserManager, so without this override each of those tests would make a live call to
+            // api.pwnedpasswords.com. RemoveAll first so nothing resolves the real client even via
+            // GetServices<IBreachedPasswordChecker>().
+            services.RemoveAll<IBreachedPasswordChecker>();
+            services.AddSingleton<IBreachedPasswordChecker>(_breachChecker);
         });
     }
 

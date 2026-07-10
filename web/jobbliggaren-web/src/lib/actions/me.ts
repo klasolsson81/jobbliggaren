@@ -9,6 +9,7 @@ import {
   setSessionCookie,
 } from "@/lib/auth/session";
 import { authedFetch } from "@/lib/http/authed-fetch";
+import { readProblemTitle } from "@/lib/http/problem";
 import { updateNotificationConsent } from "@/lib/api/me";
 import {
   makeChangePasswordSchema,
@@ -243,7 +244,18 @@ export async function changePasswordAction(
       return { success: false, error: ts("account.errors.wrongPassword") };
     }
     if (res.status === 400) {
-      return { success: false, error: ts("account.errors.invalidInput") };
+      // #616 — a breached new password is the one 400 the client-side Zod schema can never
+      // catch (it only knows length), so NIST SP 800-63B "provide the reason" requires
+      // recognizing the machine code and rendering its localized copy. Only the whitelisted
+      // code changes the message; backend text is never rendered.
+      const title = await readProblemTitle(res);
+      return {
+        success: false,
+        error:
+          title === "Auth.PwnedPassword"
+            ? ts("account.errors.passwordBreached")
+            : ts("account.errors.invalidInput"),
+      };
     }
     if (!res.ok) {
       return {

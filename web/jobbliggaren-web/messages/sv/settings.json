@@ -219,6 +219,7 @@
       "network": "Kunde inte nå servern. Kontrollera din nätverksanslutning.",
       "emailMismatch": "E-postadressen matchar inte ditt konto.",
       "wrongPassword": "Lösenordet är felaktigt.",
+      "passwordBreached": "Lösenordet har förekommit i kända dataläckor. Välj ett annat lösenord.",
       "deleteFailed": "Kunde inte radera kontot.",
       "changePasswordFailed": "Kunde inte byta lösenord.",
       "emailTaken": "E-postadressen används redan av ett annat konto.",

@@ -218,7 +218,8 @@
       "loginFailed": "Inloggningen misslyckades. Kontrollera e-post och lösenord.",
       "unexpectedError": "Ett oväntat fel uppstod. Försök igen.",
       "serverUnreachable": "Kunde inte nå servern. Försök igen.",
-      "registrationFailed": "Registreringen misslyckades."
+      "registrationFailed": "Registreringen misslyckades.",
+      "passwordBreached": "Lösenordet har förekommit i kända dataläckor. Välj ett annat lösenord."
     },
     "confirmEmailChange": {
       "title": "Bekräfta din nya e-postadress",

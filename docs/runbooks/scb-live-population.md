@@ -272,8 +272,8 @@ LIMIT 1;
 ```
 
 **Pass criteria:** count in the **~1.07–1.11M distinct** band (the honest
-post-#708 expectation — ~1.17M requires #641; the number is pending Klas's
-re-confirmed acceptance figure), query 3 returns **0**, the audit row shows
+post-#708 expectation, **Klas-confirmed 2026-07-09** — ~1.17M requires #641),
+query 3 returns **0**, the audit row shows
 `SweepApplied=true` with `FailedPartitionCount=0` — **those two fields are the
 real #708 completion deliverable**; the row count is a secondary indicator.
 
@@ -421,12 +421,11 @@ open an issue before re-running.
 - **One-shot:** set `ScbRegister:Enabled=false` (and/or revert the Path-A cron)
   and restart the Worker so nothing re-fires. The register keeps the populated
   rows.
-- **Ongoing refresh:** leave `Enabled=true` with a weekly cron — but note
-  (#708 PR 2): the shipped default `0 3 * * 1` (Monday 03:00 UTC) sits INSIDE
-  the 02:00–05:00 avoid-window AND on a night SCB updates its API (every night
-  except Sat→Sun) — with the ~11 h full re-fetch it is wrong on both counts.
-  Recommendation (senior-cto-advisor 2026-07-09): a Saturday-morning slot
-  consistent with §1 point 4, e.g. `0 6 * * 6`. The cron VALUE is Klas config
-  (carried question from #690/#693). The sweep then keeps the replica in step
-  week to week.
+- **Ongoing refresh:** leave `Enabled=true` with the weekly cron. The shipped
+  default is now **`0 6 * * 6`** (Saturday 06:00 UTC — **Klas-confirmed
+  2026-07-09**, #708 PR 2): the only ~11 h slot consistent with §1 point 4 that
+  crosses no nightly SCB update (every night except Sat→Sun) and clears the
+  02:00–05:00 avoid-window. It supersedes the earlier `0 3 * * 1` (Monday 03:00),
+  which was wrong on both counts — the carried #690/#693 cron question is now
+  closed. The sweep then keeps the replica in step week to week.
 - Record the `LogCompleted` summary + query results in the session log.

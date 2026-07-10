@@ -7,6 +7,7 @@ import {
   applicationSourceLabel,
   getAllowedTransitions,
   isDestructiveTransition,
+  isWaitingSignal,
   ALLOWED_TRANSITIONS,
   CHANNEL_KEYS,
 } from "./status";
@@ -156,6 +157,28 @@ describe("2a action-konstanter (#630 PR 7)", () => {
   it("PARK_STATUSES = Nekad/Återtagen/Ghosted (§8.5 — Accepterad nås via stegväljaren)", async () => {
     const { PARK_STATUSES } = await import("./status");
     expect(PARK_STATUSES).toEqual(["Rejected", "Withdrawn", "Ghosted"]);
+  });
+});
+
+// ── #630 PR 10: Tabell-vyns "I steget"-varningsfärgning ─────────────────────
+describe("isWaitingSignal (#630 PR 10, CTO-bind 2026-07-10)", () => {
+  it("saknad/None/OfferAwaitingReply är INTE en väntesignal (ingen rödmarkering)", () => {
+    expect(isWaitingSignal(undefined)).toBe(false);
+    expect(isWaitingSignal("None")).toBe(false);
+    // Erbjudande-väntan är positiv (success-axeln), aldrig en väntan att röda.
+    expect(isWaitingSignal("OfferAwaitingReply")).toBe(false);
+  });
+
+  it("övriga firande signaler ÄR väntesignaler (steget har stått still för länge)", () => {
+    for (const signal of [
+      "NoResponseNudge",
+      "GhostSuggested",
+      "OverdueFollowUp",
+      "DraftDeadlineApproaching",
+      "SilentAfterInterview",
+    ] as const) {
+      expect(isWaitingSignal(signal)).toBe(true);
+    }
   });
 });
 

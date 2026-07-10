@@ -145,9 +145,10 @@ public sealed class RecurringJobRegistrar(
             "*/5 * * * *");
 
         // #560 (ADR 0091) — full SCB company-register population/refresh. Config-driven cron
-        // (ScbRegister:SyncCadenceCron; default weekly Mon 03:00 UTC per senior-cto-advisor Fork 3 —
-        // matches SCB's own weekly register update). Long-running (~1–3 h under the 10-calls/10-s
-        // throttle) → DisableConcurrentExecution(4h)-guarded. When ScbRegister:Enabled=false the job is
+        // (ScbRegister:SyncCadenceCron; default weekly Sat 06:00 UTC — the only ~11 h slot clear of a
+        // nightly SCB update AND the 02–05 UTC contention window, #708 PR 2 / Klas-confirmed 2026-07-09).
+        // Long-running (~11 h under the 6-calls/10-s throttle) → DisableConcurrentExecution(4h)-guarded.
+        // When ScbRegister:Enabled=false the job is
         // still registered but the orchestrator no-ops (no SCB call, no cert) so the schedule stays
         // drift-free with the RecurringJobIds allowlist.
         manager.AddOrUpdate<ScbCompanyRegisterSyncWorker>(

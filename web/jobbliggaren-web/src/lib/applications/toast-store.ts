@@ -25,11 +25,24 @@ export type ApplicationToast =
       from: ApplicationStatus;
       to: ApplicationStatus;
     }
+  | {
+      // Bulk-statusbyte (#630 PR 10, Tabell-vyns bulkrad). EN toast för hela
+      // gruppen; grupp-ångran skickar ETT batch-anrop där varje app återförs
+      // till SIN egen `from` (per-item previous — därav `items`, inte ett delat
+      // `from`). ADR 0092 D3: kompenserande invers, aldrig tidslinjeradering.
+      kind: "statusChangeBatch";
+      token: number;
+      /** Antal ansökningar (visas som "{count} ansökningar markerade som {to}"). */
+      count: number;
+      to: ApplicationStatus;
+      items: { applicationId: string; from: ApplicationStatus }[];
+    }
   | { kind: "followUpLogged"; token: number; company: string }
   | { kind: "error"; token: number; message: string };
 
 export type ApplicationToastInput =
   | Omit<Extract<ApplicationToast, { kind: "statusChange" }>, "token">
+  | Omit<Extract<ApplicationToast, { kind: "statusChangeBatch" }>, "token">
   | Omit<Extract<ApplicationToast, { kind: "followUpLogged" }>, "token">
   | Omit<Extract<ApplicationToast, { kind: "error" }>, "token">;
 

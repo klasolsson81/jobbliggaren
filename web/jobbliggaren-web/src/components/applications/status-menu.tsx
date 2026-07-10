@@ -31,8 +31,18 @@ import type { ApplicationDto, ApplicationStatus } from "@/lib/dto/applications";
  *
  * Byggd på ui/dropdown-menu (Radix, CTO-bind 5) — APG-menyknapp-kontraktet
  * (roving focus, typeahead, Escape i capture-fas som #565-skalen yield:ar till).
+ *
+ * `compact` (#630 PR 10, design §7): Tabell-vyns status-cell använder den lilla
+ * ▾-only-triggern (22×22, synlig kant) i stället för fulltext-"Byt status" —
+ * etiketten bärs av aria-label. Samma meny, samma a11y-kontrakt.
  */
-export function StatusMenu({ application }: { application: ApplicationDto }) {
+export function StatusMenu({
+  application,
+  compact = false,
+}: {
+  application: ApplicationDto;
+  compact?: boolean;
+}) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
   const { pendingIds, transition } = useApplicationActions();
@@ -68,14 +78,25 @@ export function StatusMenu({ application }: { application: ApplicationDto }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="jp-rowbtn jp-rowbtn--ink"
-          disabled={pending}
-        >
-          {tUi("statusMenu.trigger")}
-          <ChevronDown size={14} aria-hidden="true" />
-        </button>
+        {compact ? (
+          <button
+            type="button"
+            className="jp-statusmenu__minitrigger"
+            disabled={pending}
+            aria-label={tUi("statusMenu.trigger")}
+          >
+            <ChevronDown size={14} aria-hidden="true" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="jp-rowbtn jp-rowbtn--ink"
+            disabled={pending}
+          >
+            {tUi("statusMenu.trigger")}
+            <ChevronDown size={14} aria-hidden="true" />
+          </button>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="jp-statusmenu">
         <DropdownMenuGroup>

@@ -71,6 +71,43 @@ export function makeTransitionStatusSchema(t: ValidationTranslator) {
   });
 }
 
+// Bulk-statusbyte (#630 PR 10, Tabell-vyn): 1..100 per-item-par
+// {applicationId, targetStatus}. Speglar backend-BatchTransitionApplications-
+// CommandValidator (MaxItemsPerCall=100, HaveNoConflictingDuplicates). Grupp-
+// ångra skickar per-item previous status → varje id förekommer en gång (ur ett
+// Set) så konflikt-refine slår aldrig till i praktiken, men guarden är
+// försvar-på-djupet + speglar kontraktet.
+export function makeBatchTransitionSchema(t: ValidationTranslator) {
+  return z.object({
+    items: z
+      .array(
+        z.object({
+          applicationId: z
+            .string()
+            .regex(GUID_REGEX, t("application.applicationIdInvalid")),
+          targetStatus: z.enum(APPLICATION_STATUSES, {
+            error: t("application.statusInvalid"),
+          }),
+        }),
+      )
+      .min(1, t("application.batchEmpty"))
+      .max(100, t("application.batchTooMany"))
+      .refine(
+        (items) => {
+          // Ingen konflikterande dubblett: samma id med olika målstatus.
+          const byId = new Map<string, string>();
+          for (const item of items) {
+            const existing = byId.get(item.applicationId);
+            if (existing != null && existing !== item.targetStatus) return false;
+            byId.set(item.applicationId, item.targetStatus);
+          }
+          return true;
+        },
+        { message: t("application.batchConflict") },
+      ),
+  });
+}
+
 export function makeAddFollowUpSchema(t: ValidationTranslator) {
   return z.object({
     applicationId: z
@@ -138,6 +175,9 @@ export type CreateApplicationInput = z.infer<
 >;
 export type TransitionStatusInput = z.infer<
   ReturnType<typeof makeTransitionStatusSchema>
+>;
+export type BatchTransitionInput = z.infer<
+  ReturnType<typeof makeBatchTransitionSchema>
 >;
 export type AddFollowUpInput = z.infer<
   ReturnType<typeof makeAddFollowUpSchema>

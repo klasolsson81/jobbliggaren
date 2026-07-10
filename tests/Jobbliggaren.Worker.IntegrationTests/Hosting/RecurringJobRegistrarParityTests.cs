@@ -40,7 +40,7 @@ public class RecurringJobRegistrarParityTests
         // exact cron is irrelevant to the id-parity assertion (any non-empty value works).
         var registrar = new RecurringJobRegistrar(
             manager,
-            Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 3 * * 1" }));
+            Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }));
 
         await registrar.StartAsync(CancellationToken.None);
 

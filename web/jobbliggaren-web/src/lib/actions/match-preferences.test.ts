@@ -56,6 +56,9 @@ function resume(over: Partial<ResumeListItemDto>): ResumeListItemDto {
     latestRole: null,
     sectionCount: 1,
     topSkills: [],
+    openFindingCount: null,
+    origin: "Import",
+    template: "Klar",
     ...over,
   };
 }

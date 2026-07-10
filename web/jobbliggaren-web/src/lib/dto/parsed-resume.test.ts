@@ -4,6 +4,9 @@ import {
   proposedChangeKindSchema,
   structuralTransformKindSchema,
   changeProvenanceDtoSchema,
+  parsedGapSummarySchema,
+  pendingParsedResumeSummarySchema,
+  type ParsedGapSummary,
   type ProposedChangeDto,
 } from "./parsed-resume";
 
@@ -246,6 +249,70 @@ describe("structuralTransformKindSchema (LÅST mängd, paritet StructuralTransfo
     expect(structuralTransformKindSchema.safeParse("RemoveEverything").success).toBe(
       false,
     );
+  });
+});
+
+// Fas 4b PR-8 (CTO-bind Q5): de nio icke-PII närvaro-boolarna + hubb-kortets
+// summering. `gaps: null` = ärligt "inte beräknat" (pre-PR-8-import) → kortet
+// renderar utan mätare i stället för att gissa (§5).
+const ALL_NINE_GAPS: ParsedGapSummary = {
+  hasFullName: true,
+  hasEmail: false,
+  hasPhone: true,
+  hasLocation: false,
+  hasProfile: true,
+  hasExperience: true,
+  hasEducation: false,
+  hasSkills: true,
+  hasLanguages: false,
+};
+
+describe("parsedGapSummarySchema (nio närvaro-boolar)", () => {
+  it("accepterar exakt de nio boolarna", () => {
+    expect(parsedGapSummarySchema.safeParse(ALL_NINE_GAPS).success).toBe(true);
+  });
+
+  it("avvisar när en av de nio boolarna saknas", () => {
+    const { hasLanguages: _omit, ...missingOne } = ALL_NINE_GAPS;
+    void _omit;
+    expect(parsedGapSummarySchema.safeParse(missingOne).success).toBe(false);
+  });
+
+  it("avvisar en icke-boolean-flagga", () => {
+    expect(
+      parsedGapSummarySchema.safeParse({ ...ALL_NINE_GAPS, hasSkills: "ja" })
+        .success,
+    ).toBe(false);
+  });
+});
+
+describe("pendingParsedResumeSummarySchema", () => {
+  const base = {
+    id: "11111111-1111-1111-1111-111111111111",
+    sourceFileName: "cv.pdf",
+    uploadedAt: "2026-07-10T08:00:00Z",
+  };
+
+  it("accepterar gaps: null (pre-PR-8-import, ärligt 'inte beräknat')", () => {
+    expect(
+      pendingParsedResumeSummarySchema.safeParse({ ...base, gaps: null }).success,
+    ).toBe(true);
+  });
+
+  it("accepterar gaps med alla nio boolarna", () => {
+    expect(
+      pendingParsedResumeSummarySchema.safeParse({ ...base, gaps: ALL_NINE_GAPS })
+        .success,
+    ).toBe(true);
+  });
+
+  it("avvisar gaps som saknar en boolean", () => {
+    const { hasEducation: _omit, ...missingOne } = ALL_NINE_GAPS;
+    void _omit;
+    expect(
+      pendingParsedResumeSummarySchema.safeParse({ ...base, gaps: missingOne })
+        .success,
+    ).toBe(false);
   });
 });
 

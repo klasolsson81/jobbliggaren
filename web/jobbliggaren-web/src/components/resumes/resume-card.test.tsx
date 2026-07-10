@@ -14,6 +14,9 @@ const baseResume: ResumeListItemDto = {
   latestRole: "Backend-utvecklare",
   sectionCount: 4,
   topSkills: ["C#", ".NET", "Azure", "EF Core", "DDD"],
+  openFindingCount: null,
+  origin: "Import",
+  template: "Klar",
 };
 
 describe("ResumeCard (F6 P3a v3)", () => {
@@ -89,5 +92,71 @@ describe("ResumeCard (F6 P3a v3)", () => {
     expect(
       screen.getByRole("link", { name: /Redigera/ }),
     ).toBeInTheDocument();
+  });
+});
+
+// Fas 4b PR-8 (CTO-bind Q1) — granskningsstatus-badge ur den DEK-fria finding-
+// ledgern. §5-ärlighet: "0" får ALDRIG betyda "inte granskad".
+describe("ResumeCard — granskningsstatus-badge (§5-ärlighet)", () => {
+  it("openFindingCount null → 'Granska', och VARKEN 'Inga åtgärder' ELLER '0 att åtgärda' (honesty pin)", () => {
+    render(<ResumeCard resume={{ ...baseResume, openFindingCount: null }} />);
+    expect(screen.getByText("Granska")).toBeInTheDocument();
+    // Det centrala §5-pinnet: en icke-granskad status renderar aldrig en noll-signal.
+    expect(screen.queryByText("Inga åtgärder")).not.toBeInTheDocument();
+    expect(screen.queryByText("0 att åtgärda")).not.toBeInTheDocument();
+    expect(screen.queryByText(/att åtgärda/)).not.toBeInTheDocument();
+  });
+
+  it("openFindingCount 0 → 'Inga åtgärder' (granskad-och-ren), inte 'Granska'", () => {
+    render(<ResumeCard resume={{ ...baseResume, openFindingCount: 0 }} />);
+    expect(screen.getByText("Inga åtgärder")).toBeInTheDocument();
+    expect(screen.queryByText("Granska")).not.toBeInTheDocument();
+    expect(screen.queryByText(/att åtgärda/)).not.toBeInTheDocument();
+  });
+
+  it("openFindingCount 3 → '3 att åtgärda', inte 'Granska'/'Inga åtgärder'", () => {
+    render(<ResumeCard resume={{ ...baseResume, openFindingCount: 3 }} />);
+    expect(screen.getByText("3 att åtgärda")).toBeInTheDocument();
+    expect(screen.queryByText("Granska")).not.toBeInTheDocument();
+    expect(screen.queryByText("Inga åtgärder")).not.toBeInTheDocument();
+  });
+});
+
+// Ursprungs-badge (ADR 0096): Import → "Importerad", Template → "Skapad" + mallnamn,
+// Legacy → ingen badge.
+describe("ResumeCard — ursprungs-badge", () => {
+  it("origin Import → 'Importerad'-badge, ingen 'Skapad'", () => {
+    render(<ResumeCard resume={{ ...baseResume, origin: "Import" }} />);
+    expect(screen.getByText("Importerad")).toBeInTheDocument();
+    expect(screen.queryByText("Skapad")).not.toBeInTheDocument();
+    // Mall-metaraden visas bara för Template-ursprung.
+    expect(screen.queryByText(/^Mall:/)).not.toBeInTheDocument();
+  });
+
+  it("origin Template → 'Skapad'-badge + 'Mall: Klar' (templateName-map)", () => {
+    render(
+      <ResumeCard
+        resume={{ ...baseResume, origin: "Template", template: "Klar" }}
+      />,
+    );
+    expect(screen.getByText("Skapad")).toBeInTheDocument();
+    expect(screen.getByText("Mall: Klar")).toBeInTheDocument();
+    expect(screen.queryByText("Importerad")).not.toBeInTheDocument();
+  });
+
+  it("origin Template med MorkPanel → 'Mall: Mörk panel' (templateName-map)", () => {
+    render(
+      <ResumeCard
+        resume={{ ...baseResume, origin: "Template", template: "MorkPanel" }}
+      />,
+    );
+    expect(screen.getByText("Mall: Mörk panel")).toBeInTheDocument();
+  });
+
+  it("origin Legacy → ingen ursprungs-badge (varken 'Importerad' eller 'Skapad')", () => {
+    render(<ResumeCard resume={{ ...baseResume, origin: "Legacy" }} />);
+    expect(screen.queryByText("Importerad")).not.toBeInTheDocument();
+    expect(screen.queryByText("Skapad")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Mall:/)).not.toBeInTheDocument();
   });
 });

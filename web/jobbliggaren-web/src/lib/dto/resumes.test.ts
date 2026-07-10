@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  atsTextResponseSchema,
   getResumesResultSchema,
   resumeContentDtoSchema,
   resumeDetailDtoSchema,
@@ -40,6 +41,9 @@ const validListItem = {
   latestRole: "Backend-utvecklare",
   sectionCount: 3,
   topSkills: ["C#", "TypeScript", "PostgreSQL"],
+  openFindingCount: null,
+  origin: "Import",
+  template: "Klar",
 };
 
 describe("resumeVersionKindSchema", () => {
@@ -74,6 +78,55 @@ describe("resumeContentDtoSchema", () => {
       ],
     };
     expect(resumeContentDtoSchema.safeParse(broken).success).toBe(false);
+  });
+
+  // Fas 4b AppCopy superset (ADR 0095): languages/sections är optional-med-default.
+  it("parsar rent när languages OCH sections utelämnas (pre-superset back-compat)", () => {
+    // validContent saknar redan båda fälten — pinnar att en pre-superset payload
+    // (komplettera-föregångaren) fortfarande validerar.
+    expect("languages" in validContent).toBe(false);
+    expect("sections" in validContent).toBe(false);
+    expect(resumeContentDtoSchema.safeParse(validContent).success).toBe(true);
+  });
+
+  it("accepterar en superset-payload med languages (NotStated) och sections", () => {
+    const superset = {
+      ...validContent,
+      languages: [{ name: "Svenska", proficiency: "NotStated" }],
+      sections: [
+        { heading: "Projekt", entries: [{ title: "Jobbpilot", lines: ["Rad"] }] },
+      ],
+    };
+    expect(resumeContentDtoSchema.safeParse(superset).success).toBe(true);
+  });
+
+  it("avvisar ett språk med ogiltig proficiency-token (LÅST z.enum)", () => {
+    const broken = {
+      ...validContent,
+      languages: [{ name: "Svenska", proficiency: "Flytande" }],
+    };
+    expect(resumeContentDtoSchema.safeParse(broken).success).toBe(false);
+  });
+});
+
+describe("atsTextResponseSchema (Fas 4b PR-8.2 — kanonisk ATS-textvy)", () => {
+  it("accepterar { source, text }", () => {
+    expect(
+      atsTextResponseSchema.safeParse({
+        source: "Linearized",
+        text: "Anna Andersson\nUtvecklare",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("avvisar när text saknas", () => {
+    expect(
+      atsTextResponseSchema.safeParse({ source: "Linearized" }).success,
+    ).toBe(false);
+  });
+
+  it("avvisar när source saknas", () => {
+    expect(atsTextResponseSchema.safeParse({ text: "Anna" }).success).toBe(false);
   });
 });
 
@@ -145,6 +198,56 @@ describe("resumeListItemDtoSchema", () => {
     const { isPrimary, ...rest } = validListItem;
     void isPrimary;
     expect(resumeListItemDtoSchema.safeParse(rest).success).toBe(false);
+  });
+
+  // Fas 4b PR-8 (CTO-bind Q1): de tre nya fälten är obligatoriska på wire.
+  it("rejects when openFindingCount missing", () => {
+    const { openFindingCount, ...rest } = validListItem;
+    void openFindingCount;
+    expect(resumeListItemDtoSchema.safeParse(rest).success).toBe(false);
+  });
+
+  it("rejects when origin missing", () => {
+    const { origin, ...rest } = validListItem;
+    void origin;
+    expect(resumeListItemDtoSchema.safeParse(rest).success).toBe(false);
+  });
+
+  it("rejects when template missing", () => {
+    const { template, ...rest } = validListItem;
+    void template;
+    expect(resumeListItemDtoSchema.safeParse(rest).success).toBe(false);
+  });
+
+  it("rejects unknown origin value (LÅST z.enum)", () => {
+    expect(
+      resumeListItemDtoSchema.safeParse({
+        ...validListItem,
+        origin: "Nonsense",
+      }).success,
+    ).toBe(false);
+  });
+
+  // §5-ärlighet: null = inte granskad ("Granska"), 0 = granskad-och-ren, N = N kvar.
+  it.each([null, 0, 3])(
+    "accepts openFindingCount %s (null/0/N alla giltiga)",
+    (openFindingCount) => {
+      expect(
+        resumeListItemDtoSchema.safeParse({
+          ...validListItem,
+          openFindingCount,
+        }).success,
+      ).toBe(true);
+    },
+  );
+
+  it("rejects negative openFindingCount", () => {
+    expect(
+      resumeListItemDtoSchema.safeParse({
+        ...validListItem,
+        openFindingCount: -1,
+      }).success,
+    ).toBe(false);
   });
 });
 

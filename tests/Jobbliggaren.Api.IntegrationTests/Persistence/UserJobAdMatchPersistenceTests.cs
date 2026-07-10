@@ -288,7 +288,7 @@ public sealed class UserJobAdMatchPersistenceTests(ApiFactory factory)
             // so the round-trip uses a realistic past timestamp.
             scannedThrough = clock.UtcNow.AddMinutes(-15);
             seeker.AdvanceMatchScan(scannedThrough, clock);
-            seeker.SetLastSeenMatches(clock);
+            seeker.SetLastSeenMatches(clock.UtcNow, clock);
             seenAt = seeker.LastSeenMatchesAt!.Value;
 
             db.JobSeekers.Add(seeker);

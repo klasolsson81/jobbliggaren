@@ -63,10 +63,10 @@ public class GetMyNewMatchCountQueryHandlerTests
         var seeker = JobSeeker.Register(userId, "Test User", _clock).Value;
         if (lastSeen is { } seen)
         {
-            // SetLastSeenMatches advances to clock.UtcNow (monotonic) — stamp the watermark by
-            // pointing the clock at the desired instant for the single call.
+            // Stamp the watermark directly at the desired instant (clock pointed at `seen` so
+            // the aggregate's future-clamp does not bind).
             _clock.UtcNow.Returns(seen);
-            seeker.SetLastSeenMatches(_clock);
+            seeker.SetLastSeenMatches(seen, _clock);
             _clock.UtcNow.Returns(T0);
             seeker.LastSeenMatchesAt!.Value.ShouldBe(seen);
         }

@@ -76,10 +76,12 @@ public enum MatchGrade
     Good,
 
     /// <summary>
-    /// A <i>requirement-backed</i> grade: the ad's must-have requirements are met (or the ad
-    /// states none — Vacuous) AND at least one stated region/employment preference is
-    /// confirmed (none contradicted). "Stark match". On the Fast overload (no must-have
-    /// input) this is the top rung — "both secondaries confirmed".
+    /// A <i>requirement-backed</i> grade: the ad's must-have requirements are met — or the ad
+    /// states none (Vacuous) AND a positive CV skill/nice-to-have signal backs it (F1(b)
+    /// amendment 2026-06-27: a Vacuous must-have <b>alone</b> no longer opens Strong; without a
+    /// skill signal it caps at <see cref="Good"/>) — AND at least one stated region/employment
+    /// preference is confirmed (none contradicted). "Stark match". On the Fast overload (no
+    /// must-have input) this is the top rung — "both secondaries confirmed".
     /// </summary>
     Strong,
 

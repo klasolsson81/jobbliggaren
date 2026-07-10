@@ -37,7 +37,10 @@ export default async function MatchningarPage() {
   // korrigerar). Körs först när list-hämtningen lyckats (annars vore det
   // ohederligt att "se" matchningar vi inte kunde visa).
   if (result.kind === "ok") {
-    await markMatchesSeen();
+    // #477 Low: mark seen only THROUGH the newest match we actually rendered (the list is
+    // newest-first), so a match created between this fetch and the mark-seen POST stays flagged
+    // "nya". Empty list → undefined → backend falls back to now (nothing newer to preserve).
+    await markMatchesSeen(result.data[0]?.createdAt);
   }
 
   return (

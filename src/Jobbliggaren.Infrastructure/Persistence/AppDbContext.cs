@@ -7,6 +7,7 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
 using Jobbliggaren.Domain.RecentJobSearches;
 using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Files;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Domain.SavedJobAds;
 using Jobbliggaren.Domain.SavedSearches;
@@ -22,6 +23,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DomainApplication> Applications => Set<DomainApplication>();
     public DbSet<Resume> Resumes => Set<Resume>();
     public DbSet<ParsedResume> ParsedResumes => Set<ParsedResume>();
+    // Fas 4b PR-9a (ADR 0093 §D5) — original-file binary store (Form C).
+    public DbSet<ResumeFile> ResumeFiles => Set<ResumeFile>();
     public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
     public DbSet<SavedSearch> SavedSearches => Set<SavedSearch>();
     public DbSet<RecentJobSearch> RecentJobSearches => Set<RecentJobSearch>();

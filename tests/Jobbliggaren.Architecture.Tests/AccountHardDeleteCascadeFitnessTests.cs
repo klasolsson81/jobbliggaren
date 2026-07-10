@@ -8,6 +8,7 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
 using Jobbliggaren.Domain.RecentJobSearches;
 using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Files;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Domain.SavedJobAds;
 using Jobbliggaren.Domain.SavedSearches;
@@ -99,6 +100,7 @@ public class AccountHardDeleteCascadeFitnessTests
         [typeof(DomainApplication)] = "Applications",
         [typeof(Resume)] = "Resumes",
         [typeof(ParsedResume)] = "ParsedResumes",
+        [typeof(ResumeFile)] = "ResumeFiles",
         [typeof(SavedSearch)] = "SavedSearches",
         [typeof(RecentJobSearch)] = "RecentJobSearches",
         [typeof(SavedJobAd)] = "SavedJobAds",
@@ -207,6 +209,7 @@ public class AccountHardDeleteCascadeFitnessTests
                 db.FollowedCompanyAdHits.RemoveRange(followedCompanyAdHits);
                 var queued = await db.UserJobAdMatches.Where(m => m.UserId == userId).CountAsync(ct);
                 await db.ParsedResumes.Where(p => p.JobSeekerId == jsId).ExecuteDeleteAsync(ct);
+                await db.ResumeFiles.Where(f => f.JobSeekerId == jsId).ExecuteDeleteAsync(ct);
             }
             """;
 

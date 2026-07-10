@@ -246,6 +246,18 @@ public sealed partial class AccountHardDeleter(
                 .Where(p => p.JobSeekerId == jsId)
                 .ExecuteDeleteAsync(cancellationToken);
 
+            // GDPR Art. 17 (Fas 4b PR-9a, ADR 0093 §D5, DPIA M-F1) — ResumeFile is an FK-less
+            // by-JobSeekerId aggregate (the original-file binary store). Its content column is the
+            // Form C ciphertext (crypto-erased below), BUT its plaintext metadata (file_name —
+            // redacted yet still metadata, byte_size, content_type) survives crypto-erasure, so the
+            // ROWS must be deleted (exact ParsedResume precedent above). ExecuteDeleteAsync = a SQL
+            // DELETE with NO bytea/DEK materialization, in the ambient transaction. Owner-scoped so
+            // ALL of the user's originals go (even any whose parsed sibling was already swept).
+            // Idempotent (0 rows = no-op).
+            await db.ResumeFiles
+                .Where(f => f.JobSeekerId == jsId)
+                .ExecuteDeleteAsync(cancellationToken);
+
             // Steg 2 e2 — Crypto-erasure (TD-13 ADR 0049 Beslut 2 + C6,
             // GDPR Art. 17). Kastar användarens per-användare-DEK INOM samma
             // transaktion → backup-resident ciphertext (cover_letter/

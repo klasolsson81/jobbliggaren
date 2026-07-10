@@ -113,11 +113,18 @@ export async function registerAction(
 
     if (res.status === 400) {
       try {
+        // ONE body read covers both 400 shapes (see registrationValidationErrorSchema).
         const errorBody = await parseResponse(
           res,
           registrationValidationErrorSchema,
           "POST /api/v1/auth/register (400)"
         );
+        // #616 — a breached password can never be caught client-side, so the machine code
+        // must map to localized copy here (NIST "provide the reason"). Exact-whitelist
+        // comparison only; ProblemDetails text is never rendered.
+        if (errorBody.title === "Auth.PwnedPassword") {
+          return { error: t("auth.actions.passwordBreached") };
+        }
         const firstError = errorBody.errors
           ? Object.values(errorBody.errors).flat()[0]
           : null;

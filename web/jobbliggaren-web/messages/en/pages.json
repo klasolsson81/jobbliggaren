@@ -196,7 +196,8 @@
       "loginFailed": "Login failed. Check your email and password.",
       "unexpectedError": "An unexpected error occurred. Try again.",
       "serverUnreachable": "Could not reach the server. Try again.",
-      "registrationFailed": "Registration failed."
+      "registrationFailed": "Registration failed.",
+      "passwordBreached": "This password has appeared in known data breaches. Choose a different password."
     },
     "confirmEmailChange": {
       "title": "Confirm your new email address",

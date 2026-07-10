@@ -91,6 +91,35 @@ describe("changePasswordAction", () => {
     expect(setSessionCookieMock).not.toHaveBeenCalled();
   });
 
+  it("maps a 400 with the Auth.PwnedPassword title to the breach copy (#616)", async () => {
+    // The one 400 the client-side schema can never catch — the machine code must map to
+    // its own localized reason (NIST SP 800-63B "provide the reason").
+    authedFetchMock.mockResolvedValue(
+      fakeResponse(400, { title: "Auth.PwnedPassword", detail: "ignoreras" }),
+    );
+
+    const result = await changePasswordAction(CURRENT, NEW);
+
+    expect(result).toEqual({
+      success: false,
+      error: "account.errors.passwordBreached",
+    });
+    expect(setSessionCookieMock).not.toHaveBeenCalled();
+  });
+
+  it("does not map an unknown 400 title to the breach copy — exact whitelist only", async () => {
+    authedFetchMock.mockResolvedValue(
+      fakeResponse(400, { title: "Auth.SomethingElse" }),
+    );
+
+    const result = await changePasswordAction(CURRENT, NEW);
+
+    expect(result).toEqual({
+      success: false,
+      error: "account.errors.invalidInput",
+    });
+  });
+
   it("maps an unexpected non-ok status to a generic failure and sets no cookie", async () => {
     authedFetchMock.mockResolvedValue(fakeResponse(500));
 

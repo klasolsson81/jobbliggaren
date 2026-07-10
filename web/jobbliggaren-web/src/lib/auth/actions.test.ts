@@ -10,7 +10,9 @@ const { redirectMock, setSessionCookieMock, parseResponseMock } = vi.hoisted(() 
     throw new Error(`REDIRECT:${path}`);
   }),
   setSessionCookieMock: vi.fn(),
-  parseResponseMock: vi.fn(async () => ({ sessionId: "sess-1" })),
+  // Promise<unknown>: the mock stands in for BOTH parseResponse call sites — the 400 error
+  // body ({ title } / { errors }) and the success body ({ sessionId }).
+  parseResponseMock: vi.fn(async (): Promise<unknown> => ({ sessionId: "sess-1" })),
 }));
 
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
@@ -100,5 +102,44 @@ describe("registerAction (#541 — DisplayName must reach the backend)", () => {
 
     expect(result).toEqual({ error: "auth.actions.registrationFieldsRequired" });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("registerAction 400 handling (#616 — breached password reaches the user)", () => {
+  const form = () =>
+    formOf({ displayName: "Anna Andersson", email: "anna@example.se", password: "password1" });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ status: 400, ok: false }) as Response),
+    );
+  });
+
+  it("maps the Auth.PwnedPassword ProblemDetails title to the localized breach copy", async () => {
+    parseResponseMock.mockResolvedValue({ title: "Auth.PwnedPassword" });
+
+    const result = await registerAction(null, form());
+
+    expect(result).toEqual({ error: "auth.actions.passwordBreached" });
+  });
+
+  it("still surfaces the first field error from the errors-dictionary shape", async () => {
+    parseResponseMock.mockResolvedValue({
+      errors: { Password: ["Fältfel från validatorn."] },
+    });
+
+    const result = await registerAction(null, form());
+
+    expect(result).toEqual({ error: "Fältfel från validatorn." });
+  });
+
+  it("does not render an unknown ProblemDetails title — falls back to generic copy", async () => {
+    parseResponseMock.mockResolvedValue({ title: "Auth.SomethingElse" });
+
+    const result = await registerAction(null, form());
+
+    expect(result).toEqual({ error: "auth.actions.registrationFailed" });
   });
 });

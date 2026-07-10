@@ -3,6 +3,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { Edit } from "lucide-react";
 import { formatDate } from "@/lib/i18n/format";
 import { CvPreview } from "@/components/resumes/cv-preview";
+import { StatusPill } from "@/components/ui/status-pill";
 import type { ResumeListItemDto } from "@/lib/types/resumes";
 
 interface ResumeCardProps {
@@ -10,6 +11,14 @@ interface ResumeCardProps {
 }
 
 const MAX_VISIBLE_SKILLS = 5;
+
+/** Kända mallnycklar (paritet backend-enum, ADR 0096). Ett okänt värde faller
+ * tillbaka till råsträngen — nya mallar får aldrig krascha listvyn. */
+const KNOWN_TEMPLATES = ["Klar", "Accentlinje", "MorkPanel"] as const;
+type KnownTemplate = (typeof KNOWN_TEMPLATES)[number];
+function isKnownTemplate(value: string): value is KnownTemplate {
+  return (KNOWN_TEMPLATES as readonly string[]).includes(value);
+}
 
 /**
  * Resume/CV-kort i v3-listvy (`.jp-cv`-mönstret per HANDOVER-v3 §7.4 + målbild
@@ -41,6 +50,11 @@ export function ResumeCard({ resume }: ResumeCardProps) {
   const updatedAt = formatDate(format, resume.updatedAt) ?? "";
   const languageLabel = resume.language === "En" ? "EN" : "SV";
 
+  // Mallnamn visas bara för Skapad-CV (origin Template); okänd mall → råvärdet.
+  const templateLabel = isKnownTemplate(resume.template)
+    ? t(`card.templateName.${resume.template}`)
+    : resume.template;
+
   return (
     <article className="jp-cv">
       <div className="jp-cv__head">
@@ -50,12 +64,34 @@ export function ResumeCard({ resume }: ResumeCardProps) {
             <p className="jp-cv__role">{resume.latestRole}</p>
           )}
         </div>
-        {resume.isPrimary && (
-          <span className="jp-pill jp-pill--brand">
-            <span className="jp-pill__dot" aria-hidden="true" />
-            {t("card.primary")}
-          </span>
-        )}
+        <div className="jp-cv__badges">
+          {resume.isPrimary && (
+            <span className="jp-pill jp-pill--brand">
+              <span className="jp-pill__dot" aria-hidden="true" />
+              {t("card.primary")}
+            </span>
+          )}
+          {/* Ursprungs-badge: Import → "Importerad", Template → "Skapad",
+              Legacy (pre-origin-CV) → ingen badge. */}
+          {resume.origin === "Import" && (
+            <StatusPill tone="info">{t("card.originImport")}</StatusPill>
+          )}
+          {resume.origin === "Template" && (
+            <StatusPill tone="neutral">{t("card.originTemplate")}</StatusPill>
+          )}
+          {/* Granskningsstatus ur den DEK-fria finding-ledgern (§5-ärlighet):
+              null → "Granska" (aldrig "0"/"Inga åtgärder"), 0 → "Inga åtgärder",
+              N → "N att åtgärda". Icke-länk tills PR-8.4 wirear granska-vyn. */}
+          {resume.openFindingCount === null ? (
+            <StatusPill tone="neutral">{t("card.findingsReview")}</StatusPill>
+          ) : resume.openFindingCount === 0 ? (
+            <StatusPill tone="success">{t("card.findingsNone")}</StatusPill>
+          ) : (
+            <StatusPill tone="warning">
+              {t("card.findingsCount", { count: resume.openFindingCount })}
+            </StatusPill>
+          )}
+        </div>
       </div>
 
       {resume.topSkills.length > 0 && (
@@ -74,11 +110,15 @@ export function ResumeCard({ resume }: ResumeCardProps) {
         </span>
         <span>{languageLabel}</span>
         <span>{t("card.updated", { date: updatedAt })}</span>
+        {resume.origin === "Template" && (
+          <span>{t("card.template", { name: templateLabel })}</span>
+        )}
       </div>
 
       <div className="jp-cv__actions">
         <CvPreview
           previewUrl={`/api/cv/${resume.id}/preview`}
+          atsTextUrl={`/api/cv/${resume.id}/ats-text`}
           initialProfile="Ats"
           triggerClassName="jp-btn jp-btn--secondary jp-btn--sm"
           triggerIconSize={14}

@@ -2,6 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   pathToElementId,
   gapFillPathToElementId,
+  guidePathToStepAndElementId,
+  GUIDE_STEP_DETAILS,
+  GUIDE_STEP_EXPERIENCE,
+  GUIDE_STEP_SKILLS,
+  GUIDE_STEP_SAVE,
 } from "./resume-path-routing";
 
 describe("resume-path-routing > pathToElementId", () => {
@@ -100,6 +105,114 @@ describe("resume-path-routing > gapFillPathToElementId (F2)", () => {
       ["Name"], // case-sensitive
     ])("returnerar null för %s", (path) => {
       expect(gapFillPathToElementId(path)).toBeNull();
+    });
+  });
+});
+
+describe("resume-path-routing > guidePathToStepAndElementId (Slutför-guiden, PR-8.3)", () => {
+  it("mappar CV-variantnamnet name → spara-steget + guide-cv-name", () => {
+    expect(guidePathToStepAndElementId("name")).toEqual({
+      step: GUIDE_STEP_SAVE,
+      elementId: "guide-cv-name",
+    });
+  });
+
+  describe("content.personalInfo.<field> → uppgifts-steget + guide-pi-<field>", () => {
+    it.each([
+      ["content.personalInfo.fullName", "guide-pi-fullName"],
+      ["content.personalInfo.email", "guide-pi-email"],
+      ["content.personalInfo.phone", "guide-pi-phone"],
+      ["content.personalInfo.location", "guide-pi-location"],
+    ])("mappar %s → uppgifts-steget + %s", (path, elementId) => {
+      expect(guidePathToStepAndElementId(path)).toEqual({
+        step: GUIDE_STEP_DETAILS,
+        elementId,
+      });
+    });
+  });
+
+  it("mappar content.summary → uppgifts-steget + guide-summary", () => {
+    expect(guidePathToStepAndElementId("content.summary")).toEqual({
+      step: GUIDE_STEP_DETAILS,
+      elementId: "guide-summary",
+    });
+  });
+
+  describe("content.experiences.N.<field> → erfarenhets-steget + guide-exp-N-<field>", () => {
+    it.each([
+      ["content.experiences.0.role", "guide-exp-0-role"],
+      ["content.experiences.0.company", "guide-exp-0-company"],
+      ["content.experiences.1.startDate", "guide-exp-1-startDate"],
+      ["content.experiences.42.description", "guide-exp-42-description"],
+    ])("mappar %s → erfarenhets-steget + %s", (path, elementId) => {
+      expect(guidePathToStepAndElementId(path)).toEqual({
+        step: GUIDE_STEP_EXPERIENCE,
+        elementId,
+      });
+    });
+  });
+
+  describe("content.educations.N.<field> → erfarenhets-steget + guide-edu-N-<field>", () => {
+    it.each([
+      ["content.educations.0.institution", "guide-edu-0-institution"],
+      ["content.educations.1.degree", "guide-edu-1-degree"],
+      ["content.educations.2.endDate", "guide-edu-2-endDate"],
+    ])("mappar %s → erfarenhets-steget + %s", (path, elementId) => {
+      expect(guidePathToStepAndElementId(path)).toEqual({
+        step: GUIDE_STEP_EXPERIENCE,
+        elementId,
+      });
+    });
+  });
+
+  describe("dynamiska sektioner → erfarenhets-steget (inkl. lines → body-remap)", () => {
+    it.each([
+      // Sektions-post: `lines` remappas till `body` (den enda avvikande fält-nyckeln).
+      ["content.sections.0.entries.1.lines", "guide-section-0-entry-1-body"],
+      // Sektions-post, icke-lines-fält passeras verbatim.
+      ["content.sections.2.entries.0.title", "guide-section-2-entry-0-title"],
+      // Sektions-rubrik (ej entries).
+      ["content.sections.0.heading", "guide-section-0-heading"],
+    ])("mappar %s → erfarenhets-steget + %s", (path, elementId) => {
+      expect(guidePathToStepAndElementId(path)).toEqual({
+        step: GUIDE_STEP_EXPERIENCE,
+        elementId,
+      });
+    });
+  });
+
+  describe("chip-listor (skills/languages) → kompetens-steget + add-fältet", () => {
+    // Chip-listor har ingen per-post-input → landar på steget och dess add-fält
+    // (guide-*-add), aldrig en gissad post-input (resume-path-routing.ts:110-117).
+    it.each([
+      ["content.skills.0.name", "guide-skills-add"],
+      ["content.skills.3.yearsExperience", "guide-skills-add"],
+      ["content.skills.0", "guide-skills-add"],
+      ["content.languages.0.name", "guide-languages-add"],
+      ["content.languages.2.proficiency", "guide-languages-add"],
+    ])("mappar %s → kompetens-steget + %s", (path, elementId) => {
+      expect(guidePathToStepAndElementId(path)).toEqual({
+        step: GUIDE_STEP_SKILLS,
+        elementId,
+      });
+    });
+  });
+
+  describe("okända/ohanterade paths → null (ingen hopp/fokus-flytt)", () => {
+    it.each([
+      [""],
+      ["garbage"],
+      ["Name"], // case-sensitive mot literal "name"
+      ["parsedResumeId"], // schema-fält utan guide-kontroll
+      ["personalInfo.fullName"], // saknar content.-prefix
+      ["content"], // saknar suffix (inner === "")
+      ["content."], // tom inner efter prefix
+      ["content.unknownField"],
+      ["content.experiences.foo.role"], // index ej siffra → matchar ej \d+
+      ["content.experiences.-1.role"], // negativ index matchar ej \d+
+      ["content.educations.x.degree"], // index ej siffra
+    ])("returnerar null för %s", (path) => {
+      expect(guidePathToStepAndElementId(path)).toBeNull();
     });
   });
 });

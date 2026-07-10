@@ -148,10 +148,42 @@ export type ParsedResumeDetailDto = z.infer<typeof parsedResumeDetailDtoSchema>;
  * att yta ett "slutför ditt CV"-kort. `uploadedAt` valideras som `z.string()` på
  * wire-nivå (datum-formatering är UI-ansvar, ADR 0020).
  */
+/**
+ * Icke-PII närvaro-flaggor för de nio bekräfta-uppgifterna (Fas 4b PR-8,
+ * CTO-bind Q5, paritet Domain `ParsedGapSummary`). Denormaliserade vid import
+ * (ADR 0059) — hubb-listvyn dekrypterar aldrig CV-PII. Detta är den DELADE
+ * uppgiftsdefinitionen bakom BÅDE åtgärdskortets "X av Y uppgifter klara"-mätare
+ * OCH Slutför-guidens steg-gate; de får aldrig vara oense om vad en uppgift är.
+ * `null` på pre-PR-8-import (se `pendingParsedResumeSummarySchema.gaps`).
+ */
+export const parsedGapSummarySchema = z.object({
+  hasFullName: z.boolean(),
+  hasEmail: z.boolean(),
+  hasPhone: z.boolean(),
+  hasLocation: z.boolean(),
+  hasProfile: z.boolean(),
+  hasExperience: z.boolean(),
+  hasEducation: z.boolean(),
+  hasSkills: z.boolean(),
+  hasLanguages: z.boolean(),
+});
+export type ParsedGapSummary = z.infer<typeof parsedGapSummarySchema>;
+
 export const pendingParsedResumeSummarySchema = z.object({
   id: z.string(),
   sourceFileName: z.string(),
   uploadedAt: z.string(),
+  /** De nio bekräfta-uppgifternas närvaro (Fas 4b PR-8, CTO-bind Q5). `null` för
+   * en pre-PR-8-import: ett ärligt "inte beräknat" — kortet renderar UTAN mätare
+   * i stället för att gissa (§5). Icke-PII (rena närvaro-boolar). `nullish`, inte
+   * bara `nullable`: en äldre backend (deploy-skew) UTELÄMNAR nyckeln helt, och
+   * ett hårt parse-fel skulle fälla HELA åtgärdskortet — saknad nyckel är samma
+   * ärliga "inte beräknat" som null (öppet additivt fält; de nio boolarna förblir
+   * strikta när nyckeln finns). Transformen normaliserar till `null` så
+   * konsumenterna slipper `undefined`-grenen. */
+  gaps: parsedGapSummarySchema
+    .nullish()
+    .transform((v) => v ?? null),
 });
 export type PendingParsedResumeSummary = z.infer<
   typeof pendingParsedResumeSummarySchema

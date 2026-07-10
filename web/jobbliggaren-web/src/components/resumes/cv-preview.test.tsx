@@ -1,10 +1,34 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CvPreview } from "./cv-preview";
 
 const PARSED_ID = "11111111-1111-4111-8111-111111111111";
 const PREVIEW_URL = `/api/cv/parsed/${PARSED_ID}/preview`;
+// Den kanoniska ATS-textvyn ges bara för befordrade Resume (Fas 4b PR-8.3).
+const RESUME_ID = "22222222-2222-4222-8222-222222222222";
+const RESUME_PREVIEW_URL = `/api/cv/${RESUME_ID}/preview`;
+const ATS_TEXT_URL = `/api/cv/${RESUME_ID}/ats-text`;
+const ATS_TEXT = "Anna Andersson\nBackend-utvecklare\nGöteborg";
+
+/** JSON-svar för ATS-textvyn ({ source, text }). En riktig Response duger här —
+ *  komponenten läser bara `res.json()` (inte `.blob()`), så body-stream-quirken
+ *  som gäller PDF-blobben (se pdfResponse) rör inte den här vägen. */
+function atsTextResponse(): Response {
+  return new Response(JSON.stringify({ source: "Linearized", text: ATS_TEXT }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/** Fetch-router: ATS-text-URL:en ger JSON, allt annat (preview) ger en PDF-blob.
+ * `Mock<typeof fetch>` är både anropbar med fetch-signaturen (tilldelningen till
+ * `global.fetch` typar rent) och bär `.mock.calls` typade som fetch-parametrar. */
+function routedFetch(): Mock<typeof fetch> {
+  return vi.fn().mockImplementation((url: string) =>
+    url.includes("/ats-text") ? atsTextResponse() : pdfResponse(),
+  ) as unknown as Mock<typeof fetch>;
+}
 
 /**
  * jsdom implementerar varken URL.createObjectURL / revokeObjectURL eller en
@@ -233,5 +257,138 @@ describe("<CvPreview /> (Fas 4 STEG B-2 — Förhandsgranska CV)", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     );
+  });
+
+  // Textversion för ATS (Fas 4b PR-8.3): tredje fliken visas bara när atsTextUrl ges.
+  describe("ATS-textflik", () => {
+    it("visar INTE fliken 'Textversion för ATS' när atsTextUrl saknas (parsat CV)", async () => {
+      const user = userEvent.setup();
+      global.fetch = vi.fn().mockResolvedValue(pdfResponse());
+
+      render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
+      await user.click(
+        screen.getByRole("button", { name: "Förhandsgranska" })
+      );
+
+      expect(
+        screen.queryByRole("button", { name: "Textversion för ATS" })
+      ).not.toBeInTheDocument();
+    });
+
+    it("visar fliken 'Textversion för ATS' när atsTextUrl ges (befordrat CV)", async () => {
+      const user = userEvent.setup();
+      global.fetch = routedFetch();
+
+      render(
+        <CvPreview
+          previewUrl={RESUME_PREVIEW_URL}
+          atsTextUrl={ATS_TEXT_URL}
+          initialProfile="Ats"
+        />
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Förhandsgranska" })
+      );
+
+      expect(
+        screen.getByRole("button", { name: "Textversion för ATS" })
+      ).toBeInTheDocument();
+    });
+
+    it("aktivering hämtar atsTextUrl och renderar texten + banner-copyn", async () => {
+      const user = userEvent.setup();
+      const fetchMock = routedFetch();
+      global.fetch = fetchMock;
+
+      render(
+        <CvPreview
+          previewUrl={RESUME_PREVIEW_URL}
+          atsTextUrl={ATS_TEXT_URL}
+          initialProfile="Ats"
+        />
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Förhandsgranska" })
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Textversion för ATS" })
+      );
+
+      // Banner-copyn (ATS läser en spalt, ren text) + den linjäriserade texten.
+      expect(
+        await screen.findByText(/Så här läser en ATS-parser ditt CV/)
+      ).toBeInTheDocument();
+      expect(screen.getByText(/Backend-utvecklare/)).toBeInTheDocument();
+
+      // ATS-textfliken körde en GET mot ats-text-URL:en.
+      const atsCall = fetchMock.mock.calls.find(([url]) =>
+        String(url).includes("/ats-text")
+      );
+      expect(atsCall?.[0]).toBe(ATS_TEXT_URL);
+      // Iframe:n (PDF) är borta när textfliken är aktiv.
+      expect(
+        screen.queryByTitle("Förhandsgranskning av CV (ATS-profil)")
+      ).not.toBeInTheDocument();
+    });
+
+    it("404 på ats-text → civic copy 'Textversionen är inte tillgänglig ännu.'", async () => {
+      const user = userEvent.setup();
+      global.fetch = vi.fn().mockImplementation((url: string) =>
+        url.includes("/ats-text")
+          ? new Response(null, { status: 404 })
+          : pdfResponse()
+      );
+
+      render(
+        <CvPreview
+          previewUrl={RESUME_PREVIEW_URL}
+          atsTextUrl={ATS_TEXT_URL}
+          initialProfile="Ats"
+        />
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Förhandsgranska" })
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Textversion för ATS" })
+      );
+
+      expect(
+        await screen.findByText("Textversionen är inte tillgänglig ännu.")
+      ).toBeInTheDocument();
+    });
+
+    it("byte tillbaka till en PDF-profil återställer iframe:n", async () => {
+      const user = userEvent.setup();
+      global.fetch = routedFetch();
+
+      render(
+        <CvPreview
+          previewUrl={RESUME_PREVIEW_URL}
+          atsTextUrl={ATS_TEXT_URL}
+          initialProfile="Ats"
+        />
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Förhandsgranska" })
+      );
+      // PDF-iframe initialt (Ats).
+      await screen.findByTitle("Förhandsgranskning av CV (ATS-profil)");
+
+      // Till textfliken → iframe borta.
+      await user.click(
+        screen.getByRole("button", { name: "Textversion för ATS" })
+      );
+      await screen.findByText(/Så här läser en ATS-parser ditt CV/);
+      expect(
+        screen.queryByTitle("Förhandsgranskning av CV (ATS-profil)")
+      ).not.toBeInTheDocument();
+
+      // Tillbaka till ATS-profil → PDF-iframe återställd.
+      await user.click(screen.getByRole("button", { name: "ATS-profil" }));
+      expect(
+        await screen.findByTitle("Förhandsgranskning av CV (ATS-profil)")
+      ).toBeInTheDocument();
+    });
   });
 });

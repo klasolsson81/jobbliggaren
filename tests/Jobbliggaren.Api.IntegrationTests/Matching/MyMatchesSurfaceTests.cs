@@ -110,7 +110,7 @@ public sealed class MyMatchesSurfaceTests(ApiFactory factory)
     {
         var seeker = JobSeeker.Register(userId, "Surface User", ClockAt(T0)).Value;
         if (lastSeen is { } seen)
-            seeker.SetLastSeenMatches(ClockAt(seen));
+            seeker.SetLastSeenMatches(seen, ClockAt(seen));
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
     }

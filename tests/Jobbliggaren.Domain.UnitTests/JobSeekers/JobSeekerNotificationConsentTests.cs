@@ -184,42 +184,88 @@ public class JobSeekerNotificationConsentTests
     // ---------------------------------------------------------------
 
     [Fact]
-    public void SetLastSeenMatches_FromNull_SetsToNow()
+    public void SetLastSeenMatches_FromNull_SetsToSeenThrough()
     {
         var seeker = NewSeeker();
         seeker.LastSeenMatchesAt.ShouldBeNull();
-        var seenClock = Later(1);
+        var clock = Later(1);
 
-        seeker.SetLastSeenMatches(seenClock);
+        seeker.SetLastSeenMatches(clock.UtcNow, clock);
 
-        seeker.LastSeenMatchesAt.ShouldBe(seenClock.UtcNow);
+        seeker.LastSeenMatchesAt.ShouldBe(clock.UtcNow);
     }
 
     [Fact]
-    public void SetLastSeenMatches_WithLaterClock_Advances()
+    public void SetLastSeenMatches_WithLaterSeenThrough_Advances()
     {
         var seeker = NewSeeker();
-        seeker.SetLastSeenMatches(Later(1));
+        var firstClock = Later(1);
+        seeker.SetLastSeenMatches(firstClock.UtcNow, firstClock);
 
         var laterClock = Later(5);
-        seeker.SetLastSeenMatches(laterClock);
+        seeker.SetLastSeenMatches(laterClock.UtcNow, laterClock);
 
         seeker.LastSeenMatchesAt.ShouldBe(laterClock.UtcNow);
     }
 
     [Fact]
-    public void SetLastSeenMatches_WithEarlierOrEqualClock_IsIgnored()
+    public void SetLastSeenMatches_WithEarlierOrEqualSeenThrough_IsIgnored()
     {
-        // Monotonic: a stale clock (e.g. a queued read processed out of order) must not
+        // Monotonic: a stale seen-through (e.g. a queued read processed out of order) must not
         // move the user-read watermark backwards (else the unread count would inflate).
         var seeker = NewSeeker();
         var current = Later(5);
-        seeker.SetLastSeenMatches(current);
+        seeker.SetLastSeenMatches(current.UtcNow, current);
 
-        seeker.SetLastSeenMatches(Later(1)); // earlier
+        var earlier = Later(1);
+        seeker.SetLastSeenMatches(earlier.UtcNow, earlier); // earlier
         seeker.LastSeenMatchesAt.ShouldBe(current.UtcNow);
 
-        seeker.SetLastSeenMatches(Later(5)); // equal
+        var equal = Later(5);
+        seeker.SetLastSeenMatches(equal.UtcNow, equal); // equal
         seeker.LastSeenMatchesAt.ShouldBe(current.UtcNow);
+    }
+
+    // #477 Low — the two-arg overload advances to the SEEN-THROUGH window (max CreatedAt the user
+    // saw), NOT clock-now, so a match created between fetch and mark-seen stays flagged "nya".
+    [Fact]
+    public void SetLastSeenMatches_WithSeenThroughBeforeNow_AdvancesToSeenThroughNotNow()
+    {
+        var seeker = NewSeeker();
+        var clock = Later(5);
+        var seenThrough = clock.UtcNow.AddMinutes(-3); // newest match rendered, older than now
+
+        seeker.SetLastSeenMatches(seenThrough, clock);
+
+        seeker.LastSeenMatchesAt.ShouldBe(seenThrough);
+        seeker.LastSeenMatchesAt.ShouldNotBe(clock.UtcNow, "the watermark is the seen window, not clock-now");
+    }
+
+    // A future-dated seenThrough (bad client clock) is clamped to now (mirrors AdvanceMatchScan).
+    [Fact]
+    public void SetLastSeenMatches_WithFutureSeenThrough_ClampsToNow()
+    {
+        var seeker = NewSeeker();
+        var clock = Later(5);
+
+        seeker.SetLastSeenMatches(clock.UtcNow.AddHours(1), clock);
+
+        seeker.LastSeenMatchesAt.ShouldBe(clock.UtcNow);
+    }
+
+    // An equal seenThrough is a strict no-op — the <= guard must NOT bump UpdatedAt (kills the
+    // <=→< boundary mutant: a duplicate mark-seen at the same watermark).
+    [Fact]
+    public void SetLastSeenMatches_AtEqualSeenThrough_IsNoOp_AndDoesNotBumpUpdatedAt()
+    {
+        var seeker = NewSeeker();
+        var at = Later(5);
+        seeker.SetLastSeenMatches(at.UtcNow, at);
+        var updatedAfterFirst = seeker.UpdatedAt;
+
+        seeker.SetLastSeenMatches(at.UtcNow, Later(9)); // same watermark value, later clock
+
+        seeker.LastSeenMatchesAt.ShouldBe(at.UtcNow);
+        seeker.UpdatedAt.ShouldBe(updatedAfterFirst, "equal watermark is a no-op — no spurious UpdatedAt churn");
     }
 }

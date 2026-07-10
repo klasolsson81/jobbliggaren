@@ -262,15 +262,6 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     }
 
     /// <summary>
-    /// Convenience overload — advances the watermark to <b>now</b>. Use only when there is no
-    /// specific seen-window (e.g. an empty match list, or test setup); the production mark-seen
-    /// path passes an explicit <paramref name="clock"/>-independent <c>seenThrough</c> (#477 Low —
-    /// see the overload above) so a match created between the user's fetch and mark-seen is not
-    /// silently swallowed.
-    /// </summary>
-    public void SetLastSeenMatches(IDateTimeProvider clock) => SetLastSeenMatches(clock.UtcNow, clock);
-
-    /// <summary>
     /// #293 (ADR 0042 Beslut E amendment) — marks the /jobb job list as seen up to now
     /// (advances the user-read watermark). The next visit's "Ny" tag then flags only ads
     /// ingested after this moment. Called on each /jobb page load (the sibling of

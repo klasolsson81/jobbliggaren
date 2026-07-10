@@ -66,6 +66,25 @@ internal sealed class RecordingEmailSender : IEmailSender
         _sent.Enqueue(new RecordedEmail(RecordedEmailKind.EmailChangedNotification, toEmail));
         return Task.CompletedTask;
     }
+
+    public Task SendEmailConfirmationAsync(
+        string toEmail,
+        EmailConfirmationEmail content,
+        EmailConfirmationIdempotencyKey idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        _sent.Enqueue(new RecordedEmail(RecordedEmailKind.EmailConfirmation, toEmail));
+        return Task.CompletedTask;
+    }
+
+    public Task SendAccountExistsNoticeAsync(
+        string toEmail,
+        AccountExistsNoticeIdempotencyKey idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        _sent.Enqueue(new RecordedEmail(RecordedEmailKind.AccountExistsNotice, toEmail));
+        return Task.CompletedTask;
+    }
 }
 
 /// <summary>Which <see cref="IEmailSender"/> method recorded the send.</summary>
@@ -75,6 +94,8 @@ internal enum RecordedEmailKind
     FollowedCompanyNotification,
     EmailChangeConfirmation,
     EmailChangedNotification,
+    EmailConfirmation,
+    AccountExistsNotice,
 }
 
 /// <summary>A single email queued through <see cref="RecordingEmailSender"/> (kind + recipient only).</summary>

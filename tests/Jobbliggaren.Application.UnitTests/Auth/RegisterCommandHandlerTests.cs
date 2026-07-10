@@ -1,9 +1,11 @@
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.Register;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
 
@@ -20,7 +22,9 @@ public class RegisterCommandHandlerTests
         IAppDbContext? db = null,
         IUserAccountService? userAccountService = null,
         ISessionStore? sessionStore = null,
-        IAuthAuditLogger? auditLogger = null)
+        IAuthAuditLogger? auditLogger = null,
+        IEmailSender? emailSender = null,
+        bool requireEmailConfirmation = false)
     {
         if (db is null)
         {
@@ -31,8 +35,19 @@ public class RegisterCommandHandlerTests
         userAccountService ??= Substitute.For<IUserAccountService>();
         sessionStore ??= Substitute.For<ISessionStore>();
         auditLogger ??= Substitute.For<IAuthAuditLogger>();
+        emailSender ??= Substitute.For<IEmailSender>();
+        var options = Options.Create(new AuthOptions { RequireEmailConfirmation = requireEmailConfirmation });
 
-        return new RegisterCommandHandler(db, userAccountService, sessionStore, auditLogger, FakeDateTimeProvider.Default);
+        return new RegisterCommandHandler(
+            db, userAccountService, sessionStore, auditLogger, emailSender, options, FakeDateTimeProvider.Default);
+    }
+
+    private static IUserAccountService UserAccountServiceCreating(Guid userId)
+    {
+        var svc = Substitute.For<IUserAccountService>();
+        svc.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(userId));
+        return svc;
     }
 
     private static ISessionStore DefaultSessionStore(Guid userId)
@@ -43,13 +58,13 @@ public class RegisterCommandHandlerTests
         return store;
     }
 
+    // ---------- Legacy instant-login path (flag OFF) ----------
+
     [Fact]
-    public async Task Handle_WithValidCommand_ReturnsSessionId()
+    public async Task Handle_FlagOff_WithValidCommand_ReturnsSessionId()
     {
         var userId = Guid.NewGuid();
-        var userAccountService = Substitute.For<IUserAccountService>();
-        userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Result.Success(userId));
+        var userAccountService = UserAccountServiceCreating(userId);
 
         var sessionId = SessionId.Generate();
         var sessionStore = Substitute.For<ISessionStore>();
@@ -61,18 +76,17 @@ public class RegisterCommandHandlerTests
         var result = await handler.Handle(ValidCommand(), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.SessionId.ShouldBe(sessionId.Reveal());
+        result.Value.Session.ShouldNotBeNull();
+        result.Value.Session!.SessionId.ShouldBe(sessionId.Reveal());
     }
 
     // #2b2 / #2b3b activation: rememberMe at registration mirrors login — checked →
     // Persistent, unchecked/absent → the short session-scoped Session (not Legacy).
     [Fact]
-    public async Task Handle_WithRememberMe_CreatesPersistentSession()
+    public async Task Handle_FlagOff_WithRememberMe_CreatesPersistentSession()
     {
         var userId = Guid.NewGuid();
-        var userAccountService = Substitute.For<IUserAccountService>();
-        userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Result.Success(userId));
+        var userAccountService = UserAccountServiceCreating(userId);
         var sessionStore = DefaultSessionStore(userId);
         var handler = CreateHandler(userAccountService: userAccountService, sessionStore: sessionStore);
 
@@ -82,12 +96,10 @@ public class RegisterCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WithoutRememberMe_CreatesSessionScopedSession()
+    public async Task Handle_FlagOff_WithoutRememberMe_CreatesSessionScopedSession()
     {
         var userId = Guid.NewGuid();
-        var userAccountService = Substitute.For<IUserAccountService>();
-        userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Result.Success(userId));
+        var userAccountService = UserAccountServiceCreating(userId);
         var sessionStore = DefaultSessionStore(userId);
         var handler = CreateHandler(userAccountService: userAccountService, sessionStore: sessionStore);
 
@@ -98,33 +110,70 @@ public class RegisterCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenCreateUserFails_ReturnsFailure()
+    public async Task Handle_FlagOff_WhenDuplicate_ReturnsFailure_NoNotice()
     {
+        // Legacy path keeps the distinct 400 duplicate (the status oracle is acknowledged-deferred and
+        // the confirmation-first feature is not enabled). The swallow-to-202 only happens flag ON.
         var userAccountService = Substitute.For<IUserAccountService>();
         userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Result.Failure<Guid>(DomainError.Validation("Auth.DuplicateEmail", "E-postadressen används redan.")));
+            .Returns(Result.Failure<Guid>(
+                DomainError.Validation(AuthErrorCodes.DuplicateAccount, AuthErrorCodes.DuplicateAccountMessage)));
+        var emailSender = Substitute.For<IEmailSender>();
 
-        var handler = CreateHandler(userAccountService: userAccountService);
+        var handler = CreateHandler(userAccountService: userAccountService, emailSender: emailSender);
 
         var result = await handler.Handle(ValidCommand(), CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Auth.DuplicateEmail");
+        result.Error.Code.ShouldBe(AuthErrorCodes.DuplicateAccount);
+        await emailSender.DidNotReceive().SendAccountExistsNoticeAsync(
+            Arg.Any<string>(), Arg.Any<AccountExistsNoticeIdempotencyKey>(), Arg.Any<CancellationToken>());
+    }
+
+    // ---------- Email-confirmation-first path (flag ON) ----------
+
+    [Fact]
+    public async Task Handle_FlagOn_WithValidCommand_SendsConfirmationAndMintsNoSession()
+    {
+        var userId = Guid.NewGuid();
+        var userAccountService = UserAccountServiceCreating(userId);
+        userAccountService.GenerateEmailConfirmationTokenAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(Result.Success("url-safe-token"));
+        var sessionStore = Substitute.For<ISessionStore>();
+        var auditLogger = Substitute.For<IAuthAuditLogger>();
+        var emailSender = Substitute.For<IEmailSender>();
+
+        var handler = CreateHandler(
+            userAccountService: userAccountService, sessionStore: sessionStore,
+            auditLogger: auditLogger, emailSender: emailSender, requireEmailConfirmation: true);
+
+        var result = await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Session.ShouldBeNull("no session is minted on the confirmation-first path");
+
+        await emailSender.Received(1).SendEmailConfirmationAsync(
+            "klas@example.com",
+            Arg.Is<EmailConfirmationEmail>(c => c.UserId == userId && c.UrlSafeToken == "url-safe-token"),
+            Arg.Any<EmailConfirmationIdempotencyKey>(),
+            Arg.Any<CancellationToken>());
+        await sessionStore.DidNotReceive().CreateAsync(
+            Arg.Any<Guid>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>());
+        auditLogger.DidNotReceive().LoginSucceeded(Arg.Any<Guid>(), Arg.Any<string>());
     }
 
     [Fact]
-    public async Task Handle_WithValidCommand_AddsJobSeekerToDb()
+    public async Task Handle_FlagOn_StillAddsJobSeekerToDb()
     {
         var userId = Guid.NewGuid();
         var db = Substitute.For<IAppDbContext>();
         var seekerSet = Substitute.For<DbSet<JobSeeker>>();
         db.JobSeekers.Returns(seekerSet);
+        var userAccountService = UserAccountServiceCreating(userId);
+        userAccountService.GenerateEmailConfirmationTokenAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(Result.Success("tok"));
 
-        var userAccountService = Substitute.For<IUserAccountService>();
-        userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Result.Success(userId));
-
-        var handler = CreateHandler(db: db, userAccountService: userAccountService, sessionStore: DefaultSessionStore(userId));
+        var handler = CreateHandler(db: db, userAccountService: userAccountService, requireEmailConfirmation: true);
 
         await handler.Handle(ValidCommand(), CancellationToken.None);
 
@@ -132,22 +181,88 @@ public class RegisterCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenJobSeekerCreationFails_DeletesUserAndReturnsFailure()
+    public async Task Handle_FlagOn_WhenDuplicate_SwallowsToNoSessionAndSendsNotice()
     {
-        var userId = Guid.NewGuid();
+        // The anti-enumeration core: a taken address must NOT 400 — it returns the SAME 202 outcome as a
+        // fresh signup (Session = null) and emails an out-of-band account-exists notice. No JobSeeker is
+        // added, no session minted, no confirmation link sent.
+        var db = Substitute.For<IAppDbContext>();
+        var seekerSet = Substitute.For<DbSet<JobSeeker>>();
+        db.JobSeekers.Returns(seekerSet);
         var userAccountService = Substitute.For<IUserAccountService>();
         userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Result.Success(userId));
+            .Returns(Result.Failure<Guid>(
+                DomainError.Validation(AuthErrorCodes.DuplicateAccount, AuthErrorCodes.DuplicateAccountMessage)));
+        var sessionStore = Substitute.For<ISessionStore>();
+        var emailSender = Substitute.For<IEmailSender>();
 
-        var result = await new RegisterCommandHandler(
-            Substitute.For<IAppDbContext>(),
-            userAccountService,
-            Substitute.For<ISessionStore>(),
-            Substitute.For<IAuthAuditLogger>(),
-            FakeDateTimeProvider.Default)
-            .Handle(new RegisterCommand("klas@example.com", "S3kret!pass", "   "), CancellationToken.None);
+        var handler = CreateHandler(
+            db: db, userAccountService: userAccountService, sessionStore: sessionStore,
+            emailSender: emailSender, requireEmailConfirmation: true);
+
+        var result = await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue("a duplicate is swallowed to the same 202 outcome as a fresh signup");
+        result.Value.Session.ShouldBeNull();
+
+        await emailSender.Received(1).SendAccountExistsNoticeAsync(
+            "klas@example.com", Arg.Any<AccountExistsNoticeIdempotencyKey>(), Arg.Any<CancellationToken>());
+        await emailSender.DidNotReceive().SendEmailConfirmationAsync(
+            Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(),
+            Arg.Any<EmailConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>());
+        seekerSet.DidNotReceive().Add(Arg.Any<JobSeeker>());
+        await sessionStore.DidNotReceive().CreateAsync(
+            Arg.Any<Guid>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_FlagOn_WhenBreachedPassword_StaysFailure_NotSwallowed()
+    {
+        // A non-duplicate CreateUserAsync failure (breached password #616) is credential-dependent, not
+        // existence-dependent, so it must NOT be swallowed to a 202 — it stays a genuine failure and no
+        // email is sent. This preserves the anti-enumeration invariant: for a FIXED password, a taken
+        // and a fresh address are identical (both 202 for a strong password, both this failure for a
+        // breached one — Identity validates the password before uniqueness).
+        var userAccountService = Substitute.For<IUserAccountService>();
+        userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<Guid>(
+                DomainError.Validation("Auth.PwnedPassword", "Lösenordet har förekommit i kända dataläckor.")));
+        var emailSender = Substitute.For<IEmailSender>();
+
+        var handler = CreateHandler(
+            userAccountService: userAccountService, emailSender: emailSender, requireEmailConfirmation: true);
+
+        var result = await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Auth.PwnedPassword");
+        await emailSender.DidNotReceive().SendAccountExistsNoticeAsync(
+            Arg.Any<string>(), Arg.Any<AccountExistsNoticeIdempotencyKey>(), Arg.Any<CancellationToken>());
+        await emailSender.DidNotReceive().SendEmailConfirmationAsync(
+            Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(),
+            Arg.Any<EmailConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>());
+    }
+
+    // ---------- Shared: JobSeeker creation failure (both paths) ----------
+
+    [Fact]
+    public async Task Handle_FlagOn_WhenJobSeekerCreationFails_DeletesUserAndSendsNoEmail()
+    {
+        var userId = Guid.NewGuid();
+        var userAccountService = UserAccountServiceCreating(userId);
+        var emailSender = Substitute.For<IEmailSender>();
+
+        var handler = CreateHandler(
+            userAccountService: userAccountService, emailSender: emailSender, requireEmailConfirmation: true);
+
+        // Blank display name → JobSeeker.Register fails AFTER the user is created but BEFORE any email.
+        var result = await handler.Handle(
+            new RegisterCommand("klas@example.com", "S3kret!pass", "   "), CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();
         await userAccountService.Received(1).DeleteUserAsync(userId, Arg.Any<CancellationToken>());
+        await emailSender.DidNotReceive().SendEmailConfirmationAsync(
+            Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(),
+            Arg.Any<EmailConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>());
     }
 }

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Jobbliggaren.Application.Admin.BackgroundJobs;
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -162,6 +163,15 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // GetServices<IBreachedPasswordChecker>().
             services.RemoveAll<IBreachedPasswordChecker>();
             services.AddSingleton<IBreachedPasswordChecker>(_breachChecker);
+
+            // #714 — pin email-confirmation-first OFF for the base host. The factory forces
+            // Development env (above), which loads appsettings.Development.json where the flag is ON
+            // (dev runs the confirmation-first flow). Without this override every [Collection("Api")]
+            // test would inherit the flag → RegisterAndGetSessionIdAsync (142 sites) would get a 202
+            // with no sessionId and break. PostConfigure runs after config binding and wins; the
+            // flag-ON test classes re-flip it ON per class via WithWebHostBuilder + PostConfigure(true),
+            // which registers AFTER this and therefore takes precedence (CTO-bind Risk 3).
+            services.PostConfigure<AuthOptions>(o => o.RequireEmailConfirmation = false);
         });
     }
 

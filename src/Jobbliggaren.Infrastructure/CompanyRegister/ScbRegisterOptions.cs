@@ -35,11 +35,13 @@ public sealed class ScbRegisterOptions
     [Required]
     public string BaseUrl { get; set; } = "https://privateapi.scb.se/nv0101/v1/sokpavar/";
 
-    /// <summary>Cron for the recurring refresh job (UTC). Default weekly Monday 03:00 — matches SCB's
-    /// own weekly register update cadence (senior-cto-advisor 2026-07-04, Fork 3; Klas may override
-    /// toward monthly <c>"0 3 1 * *"</c> — it is one config value).</summary>
+    /// <summary>Cron for the recurring refresh job (UTC). Default weekly Saturday 06:00 — the only slot
+    /// an ~11 h full re-fetch fits without crossing a nightly SCB update (SCB updates every night EXCEPT
+    /// Sat→Sun) and clear of the 02:00–05:00 UTC DB-contention window (#708 PR 2, senior-cto-advisor
+    /// 2026-07-09; Klas-confirmed 2026-07-09 — supersedes the earlier Mon 03:00 / Fork 3, which sat
+    /// inside BOTH the avoid-window and an update night). One config value.</summary>
     [Required]
-    public string SyncCadenceCron { get; set; } = "0 3 * * 1";
+    public string SyncCadenceCron { get; set; } = "0 6 * * 6";
 
     /// <summary>Max rows per <c>hamtaforetag</c> fetch — the hard SCB cap (2000). Also the planner's
     /// slice target. (The 10-calls/10-s upstream budget is NOT config — it is a hard SCB invariant

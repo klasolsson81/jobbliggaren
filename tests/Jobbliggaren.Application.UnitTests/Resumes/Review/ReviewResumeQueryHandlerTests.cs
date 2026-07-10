@@ -65,6 +65,12 @@ public class ReviewResumeQueryHandlerTests
         CvCriterionVerdict.Assessed("B3", RubricCategory.Structure, CriterionVerdict.Pass,
             [new StructuralEvidence("kontaktsektion komplett")]);
 
+    // E3 "Typografisk konsekvens" is one of the versioned rubric's StyleOnly criteria
+    // (Fas 4b PR-8.4, CTO-bind Q1) — a Warn drives the Ignorera-gate assertion below.
+    private static CvCriterionVerdict E3StyleWarn() =>
+        CvCriterionVerdict.Assessed("E3", RubricCategory.VisualQuality, CriterionVerdict.Warn,
+            [new StructuralEvidence("ojämn typografi")]);
+
     // Rubric version 1.0.0 — the finding-status rows are keyed to this string so the overlay picks
     // them up (a row keyed to another version never carries over: D2(e) key boundary).
     private static readonly RubricVersion StubVersion = RubricVersion.Parse("1.0.0");
@@ -109,6 +115,28 @@ public class ReviewResumeQueryHandlerTests
 
         await _engine.Received(1).ReviewAsync(
             Arg.Any<CvReviewContext>(), RenderProfile.Ats, Arg.Any<CancellationToken>());
+    }
+
+    // ===============================================================
+    // Ignorable (StyleOnly) projection (Fas 4b PR-8.4, CTO-bind Q1)
+    // ===============================================================
+
+    [Fact]
+    public async Task Handle_ShouldMarkStyleOnlyCriterionIgnorable_AndContentCriterionNot()
+    {
+        var db = CreateDb();
+        var resume = await SeedOwnedResumeAsync(db, _userId);
+        // The canonical handler derives the ignorable set from the REAL rubric's StyleOnly ids
+        // (E3/E4/E7/E8/B5/B8 in the committed rubric) — E3 is style-only, A7 (Anti-klyschor) is not.
+        StubEngine(ResultWith(E3StyleWarn(), A7Fail()));
+
+        var result = await CreateSut(db).Handle(
+            new ReviewResumeQuery(resume.Id.Value, "Ats"), TestContext.Current.CancellationToken);
+
+        result.ShouldNotBeNull();
+        // §5-honesty gate: only style-only criteria may be ignored — mirrored 1:1 from the rubric data.
+        result.Verdicts.Single(v => v.CriterionId == "E3").IsIgnorable.ShouldBeTrue();
+        result.Verdicts.Single(v => v.CriterionId == "A7").IsIgnorable.ShouldBeFalse();
     }
 
     [Fact]

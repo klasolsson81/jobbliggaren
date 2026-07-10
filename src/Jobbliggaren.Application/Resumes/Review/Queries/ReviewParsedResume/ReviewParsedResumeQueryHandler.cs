@@ -68,8 +68,15 @@ public sealed class ReviewParsedResumeQueryHandler(
 
         // Supply the criterionId→Name lookup from the rubric (the single source of truth for
         // the human heading) so the DTO leads with a readable title, not the cryptic id.
-        var nameByCriterionId = rubricProvider.GetRubric().Criteria
-            .ToDictionary(c => c.Id, c => c.Name, StringComparer.Ordinal);
-        return result.ToDto(nameByCriterionId);
+        // IsIgnorable (Fas 4b PR-8.4, CTO-bind Q1) is a static criterion property, so the
+        // staging review carries it identically to the canonical one — the field's meaning
+        // must not vary by path even though the staging panel renders no status controls.
+        var criteria = rubricProvider.GetRubric().Criteria;
+        var nameByCriterionId = criteria.ToDictionary(c => c.Id, c => c.Name, StringComparer.Ordinal);
+        var ignorableCriterionIds = criteria
+            .Where(c => c.StyleOnly)
+            .Select(c => c.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        return result.ToDto(nameByCriterionId, ignorableCriterionIds: ignorableCriterionIds);
     }
 }

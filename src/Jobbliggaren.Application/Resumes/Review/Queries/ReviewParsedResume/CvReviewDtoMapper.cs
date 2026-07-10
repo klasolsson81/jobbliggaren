@@ -15,16 +15,23 @@ internal static class CvReviewDtoMapper
     // of truth — never a duplicated FE-side code→title map (CTO Decision, CLAUDE.md §10/§5).
     // statusOverlay (Fas 4b PR-4, D2(e)): criterionId → the surviving user decision, supplied
     // only by the canonical review handler (staging has no ledger — passes nothing).
+    // ignorableCriterionIds (Fas 4b PR-8.4, CTO-bind Q1 = Variant A): the versioned rubric's
+    // StyleOnly criterion ids — a parallel per-verdict projection alongside nameByCriterionId,
+    // derived from the SAME GetRubric() call in both handlers. Empty set (default) → every
+    // verdict is non-ignorable, keeping existing positional callers/tests valid.
     public static CvReviewDto ToDto(
         this CvReviewResult result,
         IReadOnlyDictionary<string, string> nameByCriterionId,
-        IReadOnlyDictionary<string, (string Status, DateTimeOffset? StaleAt)>? statusOverlay = null) =>
+        IReadOnlyDictionary<string, (string Status, DateTimeOffset? StaleAt)>? statusOverlay = null,
+        IReadOnlySet<string>? ignorableCriterionIds = null) =>
         new(
             RubricVersion: result.RubricVersion.ToString(),
             Profile: result.Profile.ToString(),
             Categories: result.Categories.Select(ToDto).ToList(),
-            Verdicts: result.Verdicts.Select(v => ToDto(v, nameByCriterionId, statusOverlay)).ToList(),
-            CriticalFails: result.CriticalFails.Select(v => ToDto(v, nameByCriterionId, statusOverlay)).ToList(),
+            Verdicts: result.Verdicts
+                .Select(v => ToDto(v, nameByCriterionId, statusOverlay, ignorableCriterionIds)).ToList(),
+            CriticalFails: result.CriticalFails
+                .Select(v => ToDto(v, nameByCriterionId, statusOverlay, ignorableCriterionIds)).ToList(),
             AssessedCount: result.AssessedCount,
             TotalCount: result.TotalCount);
 
@@ -40,7 +47,8 @@ internal static class CvReviewDtoMapper
     private static CvCriterionVerdictDto ToDto(
         CvCriterionVerdict verdict,
         IReadOnlyDictionary<string, string> nameByCriterionId,
-        IReadOnlyDictionary<string, (string Status, DateTimeOffset? StaleAt)>? statusOverlay)
+        IReadOnlyDictionary<string, (string Status, DateTimeOffset? StaleAt)>? statusOverlay,
+        IReadOnlySet<string>? ignorableCriterionIds)
     {
         var status = statusOverlay is not null
             && statusOverlay.TryGetValue(verdict.CriterionId, out var s)
@@ -57,7 +65,8 @@ internal static class CvReviewDtoMapper
             Evidence: verdict.Evidence.Select(ToDto).ToList(),
             NotAssessedReason: verdict.NotAssessedReason,
             UserStatus: status?.Status,
-            UserStatusStaleAt: status?.StaleAt);
+            UserStatusStaleAt: status?.StaleAt,
+            IsIgnorable: ignorableCriterionIds?.Contains(verdict.CriterionId) ?? false);
     }
 
     private static CitedEvidenceDto ToDto(CitedEvidence evidence) => evidence switch

@@ -42,6 +42,16 @@ public sealed record CvReviewCategoryDto(
 /// when the CV changed under a Resolved decision that is still present. Null on the
 /// staging review and when no (surviving) decision exists.
 /// </para>
+/// <para>
+/// <see cref="IsIgnorable"/> (Fas 4b PR-8.4, CTO-bind Q1 = Variant A) mirrors the
+/// criterion's versioned <c>StyleOnly</c> rubric flag so the review UI can honestly gate
+/// the "Ignorera regeln (stilfråga)" control to style criteria only — the same set the
+/// <c>SetFindingStatus</c> handler enforces server-side (400 <c>FindingNotIgnorable</c>
+/// otherwise). Sourced from the rubric DATA, never a hardcoded FE list (CLAUDE.md §5);
+/// a static property of the criterion, so it is populated identically on BOTH the
+/// canonical and the staging review (the staging panel renders no controls, but the
+/// field's meaning must not vary by path). Defaults false (fail-closed).
+/// </para>
 /// </summary>
 public sealed record CvCriterionVerdictDto(
     string CriterionId,
@@ -51,7 +61,8 @@ public sealed record CvCriterionVerdictDto(
     IReadOnlyList<CitedEvidenceDto> Evidence,
     string? NotAssessedReason,
     string? UserStatus = null,
-    DateTimeOffset? UserStatusStaleAt = null);
+    DateTimeOffset? UserStatusStaleAt = null,
+    bool IsIgnorable = false);
 
 /// <summary>
 /// Tagged transport form of <see cref="CitedEvidence"/>: <c>Kind</c> is "TextSpan" or

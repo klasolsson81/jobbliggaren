@@ -11,11 +11,15 @@ namespace Jobbliggaren.Infrastructure.Security;
 /// <see cref="Dispose"/> (C1-gate security Minor 2). Anroparen får alltid en
 /// oberoende kopia — caller-bufferten påverkas inte av scope-dispose.
 ///
-/// Test-observerbarhets-ytan (<see cref="UnwrapCountFor"/>,
-/// <see cref="TryPeekCachedDek"/>, <see cref="LastDisposedBuffersAllZeroed"/>)
-/// är <c>internal</c> (Seam 3 — ej på prod-porten; §5.4: plaintext-DEK-peek
-/// får aldrig finnas på publik yta). Synlig för Worker-integ via
-/// <c>[InternalsVisibleTo]</c>.
+/// Den interna ytan (<see cref="UnwrapCountFor"/>, <see cref="TryPeekCachedDek"/>,
+/// <see cref="LastDisposedBuffersAllZeroed"/>) är <c>internal</c> (Seam 3 — ej
+/// på prod-porten; §5.4: plaintext-DEK-peek får aldrig finnas på publik yta).
+/// <see cref="TryPeekCachedDek"/> är även den synkrona in-assembly-läsvägen för
+/// prod-konsumenterna <c>FieldDecryptionMaterializationInterceptor</c> (read,
+/// EF:s InitializedInstance är synkron) och <c>BinaryFieldSealer</c> (Form C
+/// write-seal, Fas 4b PR-9a) — §3.5 förbjuder sync-over-async, så båda peekar
+/// den DEK prefetch-behaviorn redan värmt i stället för att gå async-porten.
+/// Synlig för Worker-integ via <c>[InternalsVisibleTo]</c>.
 /// </summary>
 public sealed class ScopedUserDataKeyCache : IUserDataKeyCache
 {

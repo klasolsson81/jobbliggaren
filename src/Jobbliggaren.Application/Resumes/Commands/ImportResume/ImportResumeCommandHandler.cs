@@ -1,11 +1,13 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
+using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Resumes.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Files;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -17,8 +19,10 @@ namespace Jobbliggaren.Application.Resumes.Commands.ImportResume;
 /// heavy lifting). Flow (ADR 0074): resolve file kind (MIME + magic bytes) → extract →
 /// normalize a transient scan-copy → run the personnummer guard on the RAW text BEFORE
 /// persist (Invariant 1) → segment → derive an SSYK proposal (F4-3, user confirms
-/// later) → construct the aggregate → persist (the SaveChanges interceptor encrypts the
-/// CV-PII shadows, Invariant 3). CV text is never logged.
+/// later) → construct the aggregate → capture the original file as a Form C-sealed
+/// <see cref="ResumeFile"/> when the body scan is clean (Fas 4b PR-9a, ADR 0100) →
+/// persist (the SaveChanges interceptor encrypts the CV-PII shadows, Invariant 3).
+/// CV text is never logged.
 /// </summary>
 public sealed class ImportResumeCommandHandler(
     IAppDbContext db,
@@ -29,7 +33,8 @@ public sealed class ImportResumeCommandHandler(
     IResumeSegmenter segmenter,
     IOccupationCodeDeriver occupationDeriver,
     IOccupationExperienceDeriver occupationExperienceDeriver,
-    ISkillResolver skillResolver)
+    ISkillResolver skillResolver,
+    IBinaryFieldSealer sealer)
     : ICommandHandler<ImportResumeCommand, Result<ImportResumeResponse>>
 {
     public async ValueTask<Result<ImportResumeResponse>> Handle(
@@ -188,6 +193,41 @@ public sealed class ImportResumeCommandHandler(
 
         var parsed = created.Value;
         db.ParsedResumes.Add(parsed);
+
+        // 6. Original-file capture (Fas 4b PR-9a, ADR 0093 §D5/ADR 0100 — P1 "filen är helig",
+        //    DPIA M-F1/M-F5). ONLY a body-scan-clean upload is captured: a personnummer-flagged
+        //    original is NOT stored in PR-9a (fail-closed M-F5; §7 Beslut 2 acknowledge-store =
+        //    deferred follow-up paired with the 9b download UX). A filename-only hit does NOT
+        //    block capture — the file BYTES are clean and CaptureOriginal masks the filename at
+        //    rest with the same redactor. The bytes are sealed EXPLICITLY (Form C, CTO Q2) under
+        //    the owner DEK the prefetch behavior warmed (this command carries
+        //    IRequiresFieldEncryptionKey; the sealer throws fail-closed if the DEK is not warm),
+        //    so the aggregate only ever sees opaque ciphertext. Canonical MIME comes from the
+        //    magic-byte-resolved kind — never the client-declared content-type (M-F2 groundwork).
+        //    A capture failure fails the WHOLE import (shared UoW): importing without durably
+        //    keeping the original would silently betray P1.
+        if (!personnummer.Found)
+        {
+            var sealedContent = sealer.Seal(command.FileBytes);
+            var canonicalContentType = kind == CvFileKind.Pdf
+                ? CvFileSignature.PdfContentType
+                : CvFileSignature.DocxContentType;
+
+            var captured = ResumeFile.CaptureOriginal(
+                jobSeekerId,
+                parsed.Id,
+                sealedContent,
+                canonicalContentType,
+                command.FileName,
+                command.FileBytes.Length,
+                pnrFlagged: false,
+                clock);
+
+            if (captured.IsFailure)
+                return Result.Failure<ImportResumeResponse>(captured.Error);
+
+            db.ResumeFiles.Add(captured.Value);
+        }
 
         return Result.Success(MapResponse(parsed, candidates));
     }

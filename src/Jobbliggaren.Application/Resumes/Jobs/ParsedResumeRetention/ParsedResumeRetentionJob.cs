@@ -33,6 +33,13 @@ namespace Jobbliggaren.Application.Resumes.Jobs.ParsedResumeRetention;
 /// Discarded/Promoted rows (the default <c>DeletedAt == null</c> filter hides them).
 /// </para>
 /// <para>
+/// <b>Original-file coupling (Fas 4b PR-9a, ADR 0100 / DPIA M-F3):</b> the Discarded and
+/// abandoned-PendingReview arms first sweep the <c>resume_files</c> originals whose
+/// <c>parsed_resume_id</c> anchors to a matured row (same DEK-free set-delete; files before
+/// parsed so the anchor survives a partial failure). The Promoted arm never sweeps files —
+/// a promoted original graduates to the canonical Resume's lifetime.
+/// </para>
+/// <para>
 /// <b>Idempotency is the concurrency-safety contract</b> (no xmin guard — a delete-by-predicate has
 /// no read-modify-write window; a row missed on a failed run is re-swept next run). <b>No per-user
 /// audit row</b> — a system retention job has no actor (mirrors <c>AccountHardDeleter</c>, which
@@ -67,16 +74,50 @@ public sealed partial class ParsedResumeRetentionJob(
         var promotedCutoff = now.AddDays(-PromotedRetentionDays);
         var pendingCutoff = now.AddDays(-AbandonedPendingReviewRetentionDays);
 
+        // Fas 4b PR-9a (ADR 0100, DPIA M-F3) — the original-file rows (resume_files) follow the
+        // STAGING-DEATH arms of the parsed lifecycle: an original never outlives its Discarded/
+        // abandoned parsed sibling. The file delete runs FIRST in each coupled arm (the parsed row
+        // is the predicate anchor — after the parsed delete the sibling would be unfindable and the
+        // original would orphan) with the SAME DEK-free set-based mechanism (a pure DELETE never
+        // materialises the multi-MB Form C bytea). The OUTER IgnoreQueryFilters disables the
+        // ParsedResume soft-delete filter inside the correlated subquery too (EF query-wide
+        // semantics) — required to see the soft-deleted Discarded rows. Crash-ordering is safe:
+        // files-then-parsed means a failure between the two leaves the parsed anchor in place and
+        // the next run re-sweeps (idempotent); the invariant "original never outlives parsed"
+        // cannot be violated by partial failure.
+        //
+        // The PROMOTED arm is deliberately NOT coupled: a promoted original graduates to the
+        // canonical Resume's lifetime (DPIA M-F3 "promoted originals live with the Resume" —
+        // P1 "filen är helig"); only the redundant parsed STAGING row is swept below. A promoted
+        // original's erasure paths are the Art. 17 cascade (AccountHardDeleter, owner-scoped) and
+        // the coming resume-lifecycle coupling (PR-9b-era follow-up, ADR 0100).
+        var discardedFiles = await db.ResumeFiles
+            .IgnoreQueryFilters()
+            .Where(f => db.ParsedResumes.Any(p => p.Id == f.ParsedResumeId
+                && p.Status == ParsedResumeStatus.Discarded
+                && p.DeletedAt < discardedCutoff))
+            .ExecuteDeleteAsync(cancellationToken);
+
         // Discarded — soft-deleted (DeletedAt set) → IgnoreQueryFilters; aged by DeletedAt.
         var discarded = await db.ParsedResumes
             .IgnoreQueryFilters()
             .Where(p => p.Status == ParsedResumeStatus.Discarded && p.DeletedAt < discardedCutoff)
             .ExecuteDeleteAsync(cancellationToken);
 
-        // Promoted — soft-deleted at promotion; the canonical Resume holds the data, staging is redundant.
+        // Promoted — soft-deleted at promotion; the canonical Resume holds the data, staging is
+        // redundant. The original file is NOT swept here (graduation — see the M-F3 note above).
         var promotedExpired = await db.ParsedResumes
             .IgnoreQueryFilters()
             .Where(p => p.Status == ParsedResumeStatus.Promoted && p.DeletedAt < promotedCutoff)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        // Abandoned-arm file coupling (M-F3): the 90d-abandoned upload's original goes with it.
+        var abandonedFiles = await db.ResumeFiles
+            .IgnoreQueryFilters()
+            .Where(f => db.ParsedResumes.Any(p => p.Id == f.ParsedResumeId
+                && p.Status == ParsedResumeStatus.PendingReview
+                && p.DeletedAt == null
+                && p.CreatedAt < pendingCutoff))
             .ExecuteDeleteAsync(cancellationToken);
 
         // Abandoned PendingReview — never soft-deleted (DeletedAt null); aged by CreatedAt.
@@ -88,13 +129,15 @@ public sealed partial class ParsedResumeRetentionJob(
             .ExecuteDeleteAsync(cancellationToken);
 
         // discardedCutoff == promotedCutoff today (both 30d) → one "DeletedAt <" cutoff in the log.
-        LogComplete(logger, discarded, promotedExpired, pendingReviewExpired, discardedCutoff, pendingCutoff);
+        LogComplete(
+            logger, discarded, promotedExpired, pendingReviewExpired,
+            discardedFiles + abandonedFiles, discardedCutoff, pendingCutoff);
     }
 
     // PII-free: integer counts + cutoffs only — never an id / job-seeker-id / file name (§5).
     [LoggerMessage(Level = LogLevel.Information,
-        Message = "ParsedResumeRetentionJob: prunade {Discarded} Discarded + {PromotedExpired} Promoted (DeletedAt < {DeletedCutoff:yyyy-MM-dd}) + {PendingReviewExpired} övergivna PendingReview (CreatedAt < {PendingCutoff:yyyy-MM-dd})")]
+        Message = "ParsedResumeRetentionJob: prunade {Discarded} Discarded + {PromotedExpired} Promoted (DeletedAt < {DeletedCutoff:yyyy-MM-dd}) + {PendingReviewExpired} övergivna PendingReview (CreatedAt < {PendingCutoff:yyyy-MM-dd}) + {CoupledOriginalFiles} kopplade originalfiler (M-F3; Promoted-original sveps aldrig här)")]
     private static partial void LogComplete(
         ILogger logger, int discarded, int promotedExpired, int pendingReviewExpired,
-        DateTimeOffset deletedCutoff, DateTimeOffset pendingCutoff);
+        int coupledOriginalFiles, DateTimeOffset deletedCutoff, DateTimeOffset pendingCutoff);
 }

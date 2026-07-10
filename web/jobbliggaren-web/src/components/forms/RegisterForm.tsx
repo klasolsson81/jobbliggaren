@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,38 @@ export function RegisterForm() {
     registerAction,
     null
   );
+  const pendingRef = useRef<HTMLDivElement>(null);
+
+  // Focus management (not data fetching): when registration flips to the pending-confirmation state,
+  // move focus to the status panel so keyboard users land on it and screen readers announce it.
+  useEffect(() => {
+    if (state?.pendingConfirmation) pendingRef.current?.focus();
+  }, [state?.pendingConfirmation]);
+
+  // #714: email-confirmation-first — the backend returned 202. Show a "check your inbox" panel in
+  // place of the form. Byte-identical for a fresh or a taken address (the account-enumeration status
+  // oracle is closed; the only differentiator is the out-of-band email), so the FE never distinguishes
+  // them. role="status" + aria-live announces the state change without a second page-level h1.
+  if (state?.pendingConfirmation) {
+    return (
+      <div
+        ref={pendingRef}
+        tabIndex={-1}
+        role="status"
+        aria-live="polite"
+        className="flex flex-col gap-1 focus:outline-none"
+      >
+        {/* h2 (not a second h1 — the page already owns the h1): keeps the panel in the heading
+            outline / reachable via heading navigation, while role=status + aria-live announce it. */}
+        <h2 className="text-body font-bold text-heading-1">
+          {t("auth.register.pendingTitle")}
+        </h2>
+        <p className="text-body text-text-primary">
+          {t("auth.register.pendingBody")}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <form action={formAction} className="flex flex-col gap-5">

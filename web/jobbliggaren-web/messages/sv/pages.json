@@ -9,6 +9,12 @@
   "layout": {
     "skipToContent": "Hoppa till huvudinnehåll"
   },
+  "navLoading": {
+    "generic": "Sidan läses in…",
+    "oversikt": "Översikten läses in…",
+    "ansokningar": "Ansökningarna läses in…",
+    "cv": "Dina CV läses in…"
+  },
   "ansokningar": {
     "title": "Mina ansökningar",
     "lede": "Pipeline över alla ansökningar. Klicka på en rad för detaljer.",

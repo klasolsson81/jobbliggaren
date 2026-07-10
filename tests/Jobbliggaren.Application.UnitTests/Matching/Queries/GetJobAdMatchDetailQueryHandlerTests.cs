@@ -123,7 +123,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
             LastScoredId = jobAdId;
             if (_throwOnScoreFull is not null)
                 throw _throwOnScoreFull; // NotFoundException for a missing ad → propagate
-            return new ValueTask<FullScoredMatch>(new FullScoredMatch(_score!, _isRelated));
+            return new ValueTask<FullScoredMatch>(new FullScoredMatch(_score!, _isRelated, []));
         }
 
         // The modal handler must NOT touch any of the batch / Fast methods.

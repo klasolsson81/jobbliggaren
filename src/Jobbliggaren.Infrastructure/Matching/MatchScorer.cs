@@ -242,7 +242,10 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         return new FullScoredMatch(
             fullScore,
             SsykIsRelated: IsSsykRelated(
-                fast.SsykGroupConceptIds, fast.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId));
+                fast.SsykGroupConceptIds, fast.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId),
+            // #477 Low 2 — the covered-skill concept-ids (evidence), same terms/cvSkills the
+            // SkillOverlap dimension consumed above.
+            CoveredSkillConceptIds(terms, cvSkills));
     }
 
     // Fas 4 STEG 15 (F4-15, ADR 0076 Decision 6) — the zero-N+1 batch form of
@@ -318,7 +321,10 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             result[ad.Id] = new FullScoredMatch(
                 fullScore,
                 SsykIsRelated: IsSsykRelated(
-                    fast.SsykGroupConceptIds, fast.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId));
+                    fast.SsykGroupConceptIds, fast.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId),
+                // #477 Low 2 — the covered-skill concept-ids (evidence), same terms/cvSkills the
+                // SkillOverlap dimension consumed above (parity ScoreFullAsync).
+                CoveredSkillConceptIds(terms, cvSkills));
         }
 
         return result;
@@ -379,6 +385,33 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 : MatchDimensionVerdict.Partial;
 
         return new MatchDimension(verdict, matched, missing);
+    }
+
+    // #477 Low 2 — the concept-ids of the ad's SKILL extracted-terms the CV's confirmed skills
+    // COVER (the SkillOverlap intersection surfaced as IDS, for the persisted explainability
+    // evidence — ScoreConceptCoverage surfaces Display LABELS, DE-display-1). Deduped +
+    // Ordinal-ordered (deterministic). Skill partition ONLY — must_have / nice_to_have are
+    // separate coverage dimensions; UserJobAdMatch.MatchedSkillConceptIds is specifically the
+    // skill evidence. Empty when the CV has no confirmed skills (parity ScoreConceptCoverage's
+    // NotAssessed) or the ad has no covered Skill term. Uncapped + persistence-unaware — the
+    // background scan (the only persister) truncates to UserJobAdMatch.MaxMatchedSkills; the
+    // display consumers (page tag / modal) read the full set. Never logs (CLAUDE §5).
+    private static List<string> CoveredSkillConceptIds(
+        IEnumerable<ExtractedTerm> adTerms, HashSet<string> cvSkillConceptIds)
+    {
+        if (cvSkillConceptIds.Count == 0)
+        {
+            return [];
+        }
+
+        return adTerms
+            .Where(t => t.Kind == ExtractedTermKind.Skill)
+            .Select(t => t.ConceptId)
+            .OfType<string>() // drops a null ConceptId + narrows to string (no naked `!`, §3 NRT)
+            .Where(cvSkillConceptIds.Contains)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .ToList();
     }
 
     // SSYK / region / employment: the CV holds a list, the ad holds a single value.

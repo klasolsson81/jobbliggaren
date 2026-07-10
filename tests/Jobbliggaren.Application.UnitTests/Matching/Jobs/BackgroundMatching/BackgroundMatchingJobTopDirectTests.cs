@@ -129,14 +129,15 @@ public class BackgroundMatchingJobTopDirectTests
     // unwraps .Score to grade and maps Good/Strong/Top → notifiable (Related → null, not
     // persisted). These Top-direct tests are behaviour-inert on the related bit (SsykIsRelated:
     // false), so the dispatch routing is unchanged — only the carrier wrapping is new.
-    private void StubScorer(JobAdId jobAdId, FullMatchScore score) =>
+    private void StubScorer(
+        JobAdId jobAdId, FullMatchScore score, IReadOnlyList<string>? matchedSkills = null) =>
         _scorer.ScoreFullBatchAsync(
                 Arg.Any<IReadOnlyList<JobAdId>>(),
                 Arg.Any<FullCandidateMatchProfile>(),
                 Arg.Any<CancellationToken>())
             .Returns(new Dictionary<JobAdId, FullScoredMatch>
             {
-                [jobAdId] = new FullScoredMatch(score, SsykIsRelated: false),
+                [jobAdId] = new FullScoredMatch(score, SsykIsRelated: false, matchedSkills ?? []),
             });
 
     // PR-4 (#300): stub the carrier with SsykIsRelated:true → the Worker grades Related (flat cap)
@@ -148,7 +149,7 @@ public class BackgroundMatchingJobTopDirectTests
                 Arg.Any<CancellationToken>())
             .Returns(new Dictionary<JobAdId, FullScoredMatch>
             {
-                [jobAdId] = new FullScoredMatch(score, SsykIsRelated: true),
+                [jobAdId] = new FullScoredMatch(score, SsykIsRelated: true, []),
             });
 
     private static async Task<UserJobAdMatch?> ReloadMatchAsync(
@@ -228,6 +229,82 @@ public class BackgroundMatchingJobTopDirectTests
         match.Grade.ShouldBe(NotifiableMatchGrade.Strong);
         match.NotificationStatus.ShouldBe(NotificationStatus.Pending,
             "Strong ska ligga kvar Pending för digesten — aldrig direkt-mejlad");
+    }
+
+    // ───────────────────────────── 2a. #477 Low 2 — SkillOverlap evidence is PERSISTED
+
+    // Before #477 Low 2 the scan wrote UserJobAdMatch.Create(..., [], ...) — the persisted
+    // explainability evidence never existed. Now it persists the covered-skill concept-ids the
+    // scorer surfaces on the carrier. The LastMatchScanAt + UNIQUE(UserId,JobAdId) spine prevent
+    // re-derivation, so this is the ONLY place the evidence can be captured.
+    [Fact]
+    public async Task RunAsync_PersistsMatchedSkillConceptIds_FromTheScorerCarrier()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedConsentingSeekerAsync(db, ct);
+        var jobAdId = await SeedActiveAdAsync(db, "Backend-utvecklare", "Acme AB", ct);
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(ProfileWithOccupation());
+        var covered = new[] { "skill-csharp", "skill-sql" };
+        StubScorer(jobAdId, StrongScore(), covered);
+
+        await CreateJob(db).RunAsync(ct);
+
+        var match = await ReloadMatchAsync(db, userId, jobAdId, ct);
+        match.ShouldNotBeNull();
+        match.MatchedSkillConceptIds.ShouldBe(covered, ignoreOrder: true,
+            "the scan persists the scorer's covered-skill evidence, not an empty list (#477 Low 2)");
+    }
+
+    // A pathological >Max intersection must NOT fail Create (which would silently drop the match) —
+    // the scan truncates to UserJobAdMatch.MaxMatchedSkills. Regression guard: before the truncate,
+    // Create's >Max validation would have made this notifiable match vanish.
+    [Fact]
+    public async Task RunAsync_TruncatesMatchedSkillEvidence_ToTheAggregateCap_MatchStillPersists()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedConsentingSeekerAsync(db, ct);
+        var jobAdId = await SeedActiveAdAsync(db, "Backend-utvecklare", "Acme AB", ct);
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(ProfileWithOccupation());
+        var many = Enumerable.Range(0, UserJobAdMatch.MaxMatchedSkills + 10)
+            .Select(i => $"skill-{i:D3}").ToArray();
+        StubScorer(jobAdId, StrongScore(), many);
+
+        await CreateJob(db).RunAsync(ct);
+
+        var match = await ReloadMatchAsync(db, userId, jobAdId, ct);
+        match.ShouldNotBeNull(
+            "the match must still persist despite >Max evidence — never silently dropped");
+        // Pins the count AND which ids: the deterministic first-Max prefix (Take over the scorer's
+        // already-Ordinal-ordered set), not an arbitrary Max subset.
+        match.MatchedSkillConceptIds.ShouldBe(many.Take(UserJobAdMatch.MaxMatchedSkills));
+    }
+
+    // The common real case: a notifiable match (SSYK/region/employment-driven) whose SkillOverlap
+    // is empty (Vacuous/NotAssessed → empty carrier) persists with EMPTY evidence and is NOT
+    // dropped — Create tolerates an empty list.
+    [Fact]
+    public async Task RunAsync_PersistsEmptyEvidence_WhenNoSkillsCovered_MatchNotDropped()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedConsentingSeekerAsync(db, ct);
+        var jobAdId = await SeedActiveAdAsync(db, "Backend-utvecklare", "Acme AB", ct);
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(ProfileWithOccupation());
+        StubScorer(jobAdId, StrongScore()); // default covered = [] (no skill overlap)
+
+        await CreateJob(db).RunAsync(ct);
+
+        var match = await ReloadMatchAsync(db, userId, jobAdId, ct);
+        match.ShouldNotBeNull("a notifiable match with no covered skills must still persist");
+        match.MatchedSkillConceptIds.ShouldBeEmpty();
     }
 
     // ───────────────────────────── 2b. Related → scored but NOT persisted (list-only, no notis)
@@ -344,8 +421,8 @@ public class BackgroundMatchingJobTopDirectTests
                 Arg.Any<CancellationToken>())
             .Returns(new Dictionary<JobAdId, FullScoredMatch>
             {
-                [adA] = new FullScoredMatch(TopScore(), SsykIsRelated: false),
-                [adB] = new FullScoredMatch(TopScore(), SsykIsRelated: false),
+                [adA] = new FullScoredMatch(TopScore(), SsykIsRelated: false, []),
+                [adB] = new FullScoredMatch(TopScore(), SsykIsRelated: false, []),
             });
 
         await CreateJob(db).RunAsync(ct);
@@ -384,8 +461,8 @@ public class BackgroundMatchingJobTopDirectTests
                 Arg.Any<CancellationToken>())
             .Returns(new Dictionary<JobAdId, FullScoredMatch>
             {
-                [adA] = new FullScoredMatch(TopScore(), SsykIsRelated: false),
-                [adB] = new FullScoredMatch(TopScore(), SsykIsRelated: false),
+                [adA] = new FullScoredMatch(TopScore(), SsykIsRelated: false, []),
+                [adB] = new FullScoredMatch(TopScore(), SsykIsRelated: false, []),
             });
 
         // First send throws, the second succeeds (dispatch order over the score dict is not

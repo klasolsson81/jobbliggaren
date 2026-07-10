@@ -237,14 +237,22 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
         foreach (var id in new[] { ad1, ad2, ad3 })
         {
             batch.ShouldContainKey(id);
-            var single = (await scorer.ScoreFullAsync(id, profile, ct)).Score;
-            AssertSameFull(single, batch[id].Score);
+            var single = await scorer.ScoreFullAsync(id, profile, ct);
+            AssertSameFull(single.Score, batch[id].Score);
+            // #477 Low 2 — the carrier's covered-skill evidence is identical batch-vs-single (same
+            // CoveredSkillConceptIds helper on both paths).
+            batch[id].MatchedSkillConceptIds.ShouldBe(single.MatchedSkillConceptIds,
+                "MatchedSkillConceptIds batch==single (per-key regression contract)");
         }
 
         // Sanity that the seed genuinely exercised the new dims on ad1.
         batch[ad1].Score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match,
             "CV täcker båda ad-skills → SkillOverlap Match.");
         batch[ad1].Score.SkillOverlap.Matched.ShouldBe([CSharpDisplay, DockerDisplay], ignoreOrder: true);
+        // #477 Low 2 — ad1's covered-skill EVIDENCE = the ids the CV covers among ad1's Skill terms
+        // (C# + Docker), as concept-ids (not Display labels).
+        batch[ad1].MatchedSkillConceptIds.ShouldBe(
+            [CSharpConceptId, DockerConceptId], ignoreOrder: true);
         batch[ad1].Score.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         batch[ad1].Score.NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
             "Enda nice_to_have (Kubernetes) saknas i CV-skill-setet → NoMatch.");

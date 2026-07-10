@@ -89,15 +89,18 @@ public class FullMatchScorerLayerTests
     }
 
     [Fact]
-    public void FullScoredMatch_carries_exactly_Score_and_SsykIsRelated()
+    public void FullScoredMatch_carries_exactly_Score_SsykIsRelated_and_MatchedSkillEvidence()
     {
-        // PR-4 (#300, ADR 0084 — PR-2 bind): the FULL-scorer carrier is exactly
-        // { Score (the frozen FullMatchScore), SsykIsRelated }. SsykIsRelated is a CATEGORICAL
-        // bool — a ladder BRANCH (the MatchGrade.Related flat cap), NOT a Goodhart magnitude:
-        // it does not blend into a number, it picks which Grade overload-flag fires. Pinned BY
-        // SHAPE so neither a sneak-total nor an extra dimension can creep onto the carrier (the
-        // score types stay arch-pinned; the exact-vs-related distinction rides this carrier, not
-        // a new field on the Goodhart-frozen FullMatchScore).
+        // PR-4 (#300, ADR 0084 — PR-2 bind) + #477 Low 2: the FULL-scorer carrier is exactly
+        // { Score (the frozen FullMatchScore), SsykIsRelated, MatchedSkillConceptIds }. Both
+        // extra members ride BESIDE the Goodhart-frozen FullMatchScore, never inside it:
+        // SsykIsRelated is a CATEGORICAL bool (a ladder BRANCH — the MatchGrade.Related flat cap),
+        // and MatchedSkillConceptIds is a string-list EVIDENCE payload (the covered-skill
+        // concept-ids the background scan persists into UserJobAdMatch, #477 Low 2). NEITHER is a
+        // magnitude — neither blends into a number. Pinned BY SHAPE so a sneak-total or an extra
+        // scoring dimension still cannot creep onto the carrier; a string-list of matched ids is
+        // explicitly the ALLOWED explainability shape (parity UserJobAdMatchGoodhartTests, which
+        // bless "the evidence is a string list").
         var carrier = typeof(Jobbliggaren.Application.Matching.Abstractions.FullScoredMatch);
 
         var propNames = carrier
@@ -109,20 +112,23 @@ public class FullMatchScorerLayerTests
             .ToList();
 
         propNames.ShouldBe(
-            ["Score", "SsykIsRelated"],
+            ["Score", "SsykIsRelated", "MatchedSkillConceptIds"],
             ignoreOrder: true,
-            "FullScoredMatch ska bära EXAKT { Score (frusen FullMatchScore), SsykIsRelated } — " +
-            "ingen extra dimension och ingen opak total. SsykIsRelated är en KATEGORISK ladder-" +
-            "gren (MatchGrade.Related-cap), inte en magnitud. " +
-            $"Faktiska: [{string.Join(", ", propNames)}].");
+            "FullScoredMatch ska bära EXAKT { Score (frusen FullMatchScore), SsykIsRelated, " +
+            "MatchedSkillConceptIds } — ingen extra scoring-dimension och ingen opak total. " +
+            "SsykIsRelated är en KATEGORISK ladder-gren (MatchGrade.Related-cap); " +
+            "MatchedSkillConceptIds är string-list-EVIDENS (matchade skill-concept-ids), ingen " +
+            $"magnitud. Faktiska: [{string.Join(", ", propNames)}].");
     }
 
     [Fact]
-    public void FullScoredMatch_Score_is_the_frozen_FullMatchScore_and_SsykIsRelated_is_a_bool()
+    public void FullScoredMatch_Score_is_frozen_SsykIsRelated_is_bool_MatchedSkills_is_string_list()
     {
-        // Composition + categorical-branch shape: Score IS the frozen FullMatchScore type (DRY at
-        // the knowledge level — not a flat re-declaration), and SsykIsRelated is a plain bool (a
-        // ladder branch, never a numeric magnitude the Goodhart guard forbids).
+        // Composition + categorical-branch + evidence shape: Score IS the frozen FullMatchScore
+        // type (DRY at the knowledge level — not a flat re-declaration), SsykIsRelated is a plain
+        // bool (a ladder branch, never a numeric magnitude the Goodhart guard forbids), and
+        // MatchedSkillConceptIds is IReadOnlyList<string> — an EVIDENCE payload (matched skill
+        // concept-ids), NOT a numeric type a magnitude could hide behind (#477 Low 2).
         var carrier = typeof(Jobbliggaren.Application.Matching.Abstractions.FullScoredMatch);
 
         var score = carrier.GetProperty("Score",
@@ -137,6 +143,13 @@ public class FullMatchScorerLayerTests
         isRelated.ShouldNotBeNull();
         isRelated!.PropertyType.ShouldBe(typeof(bool),
             "SsykIsRelated ska vara en bool (kategorisk ladder-gren, ingen magnitud).");
+
+        var matchedSkills = carrier.GetProperty("MatchedSkillConceptIds",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        matchedSkills.ShouldNotBeNull("FullScoredMatch ska ha en MatchedSkillConceptIds-property.");
+        matchedSkills!.PropertyType.ShouldBe(typeof(IReadOnlyList<string>),
+            "MatchedSkillConceptIds ska vara IReadOnlyList<string> — string-list-evidens " +
+            "(matchade skill-concept-ids), aldrig en numerisk typ en magnitud kan gömma sig bakom.");
     }
 
     [Fact]

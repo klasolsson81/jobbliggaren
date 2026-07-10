@@ -182,10 +182,19 @@ public sealed partial class BackgroundMatchingJob(
                 if (grade is null || ToNotifiable(grade.Value) is not { } notifiable)
                     continue;
 
-                // MatchedSkillConceptIds is left empty in the MVP scan — the SkillOverlap
-                // dimension surfaces Display labels, not concept-ids; the in-app surface (PR-5)
-                // shows the count + grade, and the evidence enrichment is a follow-up.
-                var created = UserJobAdMatch.Create(userId, jobAdId, notifiable, [], clock);
+                // #477 Low 2 — persist the SkillOverlap evidence (the covered-skill concept-ids the
+                // scorer now surfaces on the carrier), NOT an empty list. ADR 0080's "explainable by
+                // design" persisted evidence: before this the scan wrote [] so the evidence never
+                // existed, and the LastMatchScanAt + UNIQUE(UserId,JobAdId) spine prevent
+                // re-derivation (a re-run never re-scores an existing pair), so the evidence was
+                // unrecoverably lost per match. Truncate to the aggregate's cap so a pathological
+                // >Max intersection never fails Create (which would silently drop the match); the
+                // scorer already deduped + Ordinal-ordered, so Take is deterministic. Create dedups
+                // again defensively.
+                var evidence = scored.MatchedSkillConceptIds.Count > UserJobAdMatch.MaxMatchedSkills
+                    ? scored.MatchedSkillConceptIds.Take(UserJobAdMatch.MaxMatchedSkills).ToList()
+                    : scored.MatchedSkillConceptIds;
+                var created = UserJobAdMatch.Create(userId, jobAdId, notifiable, evidence, clock);
                 if (created.IsSuccess)
                 {
                     db.UserJobAdMatches.Add(created.Value);

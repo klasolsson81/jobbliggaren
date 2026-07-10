@@ -5124,6 +5124,21 @@ a.jp-adminnav__link[aria-current="page"]::after {
   justify-content: flex-end;
   gap: 6px;
 }
+/* Länkad granskningsstatus-pill (Fas 4b PR-8.4): behåller pillens utseende men
+   signalerar interaktion — underline på pill-texten vid hover (currentColor,
+   inga nya färger) + fokusring som hugger pill-radien. */
+.jp-cv__badge-link {
+  display: inline-flex;
+  text-decoration: none;
+  border-radius: var(--jp-r-pill);
+}
+.jp-cv__badge-link:hover .jp-pill {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.jp-cv__badge-link:focus-visible {
+  border-radius: var(--jp-r-pill);
+}
 
 /* ── CV-hubb åtgärdskort (Fas 4b PR-8.3, design handoff §5.1) ──────
    Hubbens hero när ett inläst men osparat utkast finns. Warning-tonad
@@ -7710,6 +7725,45 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin: 0;
   font-size: var(--text-caption);
   color: var(--jp-ink-1);
+  line-height: 1.5;
+  max-width: 68ch;
+}
+
+/* ── Per-anmärkning statuskontroll (Fas 4b PR-8.4) ─────────────────
+   Understated inline-kontroll i den KANONISKA granskningens "Att åtgärda"-lager
+   (renderas via .jp-criterion footer-slot). Vertikal stack: status-indikator
+   (pill + hint) → knapp-rad → fel. En hairline skiljer den från evidensen ovan.
+   Tokens only; prosa på ink-2 (informationsbärande, aldrig ink-3). */
+.jp-cvreview__status {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-cvreview__status-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.jp-cvreview__status-hint {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+  line-height: 1.5;
+  max-width: 68ch;
+}
+.jp-cvreview__status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.jp-cvreview__status-error {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-danger);
   line-height: 1.5;
   max-width: 68ch;
 }

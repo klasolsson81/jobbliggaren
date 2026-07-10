@@ -10,6 +10,8 @@ import type { RenderProfile } from "@/lib/dto/parsed-resume";
  *
  * `basePath` styr vilken route växeln länkar inom (default granska-vyn). Förbättra-
  * vyn (F4-10) återanvänder samma växel med sin egen basePath — inte en fork.
+ * Den kanoniska granska-vyn (Fas 4b PR-8.4) passerar bara `basePath` (ingen
+ * parsedId finns), därför är `parsedId` valfri: när `basePath` ges är den oanvänd.
  */
 
 const OPTIONS: ReadonlyArray<{
@@ -25,7 +27,9 @@ export function CvProfileToggle({
   profile,
   basePath,
 }: {
-  parsedId: string;
+  /** Parse-artefaktens id. Valfri: bara den för default-basen. Utelämnas när
+   * `basePath` ges (den kanoniska vyn har ingen parsedId). */
+  parsedId?: string;
   profile: RenderProfile;
   /** Route-bas växeln länkar inom. Default: granska-vyn (`/cv/granska/{id}`). */
   basePath?: string;

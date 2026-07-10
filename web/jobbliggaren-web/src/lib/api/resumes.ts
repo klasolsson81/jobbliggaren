@@ -236,6 +236,42 @@ export async function getCvReview(
 }
 
 /**
+ * Hämtar den deterministiska CV-granskningen för en BEFORDRAD, kanonisk Resume
+ * (Fas 4b PR-4/PR-8.4) — samma rubrikmotor som `getCvReview` men mot den
+ * kanoniska endpointen `GET /api/v1/resumes/{id}/review` (Resume-id, inte
+ * parsedId). Svaret bär `userStatus`/`userStatusStaleAt`-overlayen (den bevarade
+ * finding-statusledgern, D2(e)) + `isIgnorable` per kriterium (styleOnly-gaten)
+ * som den parsade granskningen inte behöver. Evidensen är REDAN personnummer-
+ * redigerad vid motorns choke point — server-only, ingen ofiltrerad fritext når
+ * klienten. `profile` är `Ats`|`Visual` (case-sensitive backend-validator).
+ */
+export async function getResumeReview(
+  id: string,
+  profile: RenderProfile
+): Promise<ApiResult<CvReviewDto>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+  if (!isValidId(id)) return { kind: "notFound" };
+
+  const params = new URLSearchParams({ profile });
+
+  try {
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/resumes/${encodeURIComponent(id)}/review?${params}`
+    );
+    return await responseToResult(
+      res,
+      cvReviewDtoSchema,
+      `GET /api/v1/resumes/${id}/review`,
+      { includeNotFound: true }
+    );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
  * Hämtar de deterministiska CV-förbättringsförslagen (F4-10, propose-and-approve):
  * före→efter-diffar + strukturella operationer med citerad evidens + proveniens,
  * ägar-scopat. Display-only i v1 — det finns inget apply-endpoint; en regelmotor

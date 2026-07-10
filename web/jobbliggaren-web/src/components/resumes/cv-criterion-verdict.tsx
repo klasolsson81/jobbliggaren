@@ -49,11 +49,16 @@ function EvidenceItem({ evidence }: { evidence: CitedEvidenceDto }) {
 export function CvCriterionVerdict({
   verdict,
   categoryLabel,
+  footer,
 }: {
   verdict: CvCriterionVerdictDto;
   /** Kategori-etikett som rad-kontext (visas när verdiktet är utlyft ur sitt
    * kategori-kort, t.ex. i "Att åtgärda"). Utelämnas inne i kategori-korten. */
   categoryLabel?: string;
+  /** Valfritt slot renderat sist i raden (efter evidensen). Den kanoniska
+   * granska-vyn (Fas 4b PR-8.4) placerar per-anmärkning statuskontrollen här;
+   * den parsade vyn utelämnar den (ingen statusledger). */
+  footer?: React.ReactNode;
 }) {
   const tEnum = useTranslations("resumes.enums");
   const { label, tone } = verdictLabel(tEnum, verdict.verdict);
@@ -81,6 +86,8 @@ export function CvCriterionVerdict({
           ))}
         </ul>
       )}
+
+      {footer}
     </div>
   );
 }

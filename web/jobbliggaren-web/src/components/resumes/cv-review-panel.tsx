@@ -8,6 +8,7 @@ import {
 import { StatusPill, type PillTone } from "@/components/ui/status-pill";
 import { CvProfileToggle } from "@/components/resumes/cv-profile-toggle";
 import { CvCriterionVerdict } from "@/components/resumes/cv-criterion-verdict";
+import { CvFindingStatusControl } from "@/components/resumes/cv-finding-status-control";
 import { bandLabel, categoryLabel } from "@/lib/resumes/review-labels";
 import type {
   CvReviewDto,
@@ -29,6 +30,23 @@ import type {
  * kunde inte laddas) degraderas vyn civilt — parse-vyn står kvar, granskningen
  * ersätts av en notis (sidan 404:ar aldrig på detta).
  */
+
+/**
+ * Vilken CV-granskningen visas för (Q7(e) "canonical variant"). `parsed` =
+ * import-stagingen (`/cv/granska/{parsedId}`, ingen statusledger). `canonical` =
+ * en befordrad Resume (`/cv/{resumeId}/granska`) som bär finding-statusledgern
+ * och därför får per-anmärkning statuskontroller.
+ */
+export type CvReviewTarget =
+  | { kind: "parsed"; parsedId: string }
+  | { kind: "canonical"; resumeId: string };
+
+/** Route-basen profil-växeln länkar inom, härledd ur target:en. */
+function toggleBasePath(target: CvReviewTarget): string {
+  return target.kind === "canonical"
+    ? `/cv/${target.resumeId}/granska`
+    : `/cv/granska/${target.parsedId}`;
+}
 
 /** Severitets-rang för "Att åtgärda"-sorteringen: Underkänt (Fail) före Delvis
  * (Warn). Endast åtgärdbara verdikt sorteras här. */
@@ -71,15 +89,16 @@ function CategoryCounts({
 
 export function CvReviewPanel({
   review,
-  parsedId,
+  target,
   profile,
 }: {
   review: CvReviewDto | null;
-  parsedId: string;
+  target: CvReviewTarget;
   profile: RenderProfile;
 }) {
   const t = useTranslations("resumes");
   const tEnum = useTranslations("resumes.enums");
+  const basePath = toggleBasePath(target);
 
   if (review === null) {
     return (
@@ -88,7 +107,7 @@ export function CvReviewPanel({
           {t("review.title")}
         </h2>
         <div className="jp-cvreview__profile">
-          <CvProfileToggle parsedId={parsedId} profile={profile} />
+          <CvProfileToggle basePath={basePath} profile={profile} />
         </div>
         <p className="jp-cvreview__unavailable" role="status">
           {t("review.unavailable")}
@@ -128,7 +147,7 @@ export function CvReviewPanel({
       </h2>
 
       <div className="jp-cvreview__profile">
-        <CvProfileToggle parsedId={parsedId} profile={profile} />
+        <CvProfileToggle basePath={basePath} profile={profile} />
       </div>
 
       <p className="jp-cvreview__summary">
@@ -159,6 +178,19 @@ export function CvReviewPanel({
                 key={verdict.criterionId}
                 verdict={verdict}
                 categoryLabel={categoryLabel(tEnum, verdict.category)}
+                // Statuskontroll ENBART på den kanoniska granskningen (befordrad
+                // Resume) — den parsade stagingen har ingen statusledger.
+                footer={
+                  target.kind === "canonical" ? (
+                    <CvFindingStatusControl
+                      resumeId={target.resumeId}
+                      criterionId={verdict.criterionId}
+                      userStatus={verdict.userStatus}
+                      userStatusStaleAt={verdict.userStatusStaleAt}
+                      isIgnorable={verdict.isIgnorable}
+                    />
+                  ) : undefined
+                }
               />
             ))}
           </div>

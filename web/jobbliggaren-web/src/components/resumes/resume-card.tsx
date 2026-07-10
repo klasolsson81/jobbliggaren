@@ -3,7 +3,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { Edit } from "lucide-react";
 import { formatDate } from "@/lib/i18n/format";
 import { CvPreview } from "@/components/resumes/cv-preview";
-import { StatusPill } from "@/components/ui/status-pill";
+import { StatusPill, type PillTone } from "@/components/ui/status-pill";
 import type { ResumeListItemDto } from "@/lib/types/resumes";
 
 interface ResumeCardProps {
@@ -55,6 +55,20 @@ export function ResumeCard({ resume }: ResumeCardProps) {
     ? t(`card.templateName.${resume.template}`)
     : resume.template;
 
+  // Granskningsstatus-badge ur den DEK-fria finding-ledgern (§5-ärlighet):
+  // null → "Granska" (aldrig "0"/"Inga åtgärder"), 0 → "Inga åtgärder", N → "N
+  // att åtgärda". Länkar till den kanoniska granska-vyn i alla tre lägen (PR-8.4);
+  // pill-texten är länkens tillgängliga namn.
+  const findingBadge: { tone: PillTone; label: string } =
+    resume.openFindingCount === null
+      ? { tone: "neutral", label: t("card.findingsReview") }
+      : resume.openFindingCount === 0
+        ? { tone: "success", label: t("card.findingsNone") }
+        : {
+            tone: "warning",
+            label: t("card.findingsCount", { count: resume.openFindingCount }),
+          };
+
   return (
     <article className="jp-cv">
       <div className="jp-cv__head">
@@ -79,18 +93,14 @@ export function ResumeCard({ resume }: ResumeCardProps) {
           {resume.origin === "Template" && (
             <StatusPill tone="neutral">{t("card.originTemplate")}</StatusPill>
           )}
-          {/* Granskningsstatus ur den DEK-fria finding-ledgern (§5-ärlighet):
-              null → "Granska" (aldrig "0"/"Inga åtgärder"), 0 → "Inga åtgärder",
-              N → "N att åtgärda". Icke-länk tills PR-8.4 wirear granska-vyn. */}
-          {resume.openFindingCount === null ? (
-            <StatusPill tone="neutral">{t("card.findingsReview")}</StatusPill>
-          ) : resume.openFindingCount === 0 ? (
-            <StatusPill tone="success">{t("card.findingsNone")}</StatusPill>
-          ) : (
-            <StatusPill tone="warning">
-              {t("card.findingsCount", { count: resume.openFindingCount })}
-            </StatusPill>
-          )}
+          {/* Länkad granskningsstatus (PR-8.4): pillen behåller sitt utseende,
+              länken bär fokusring + hover-affordans. */}
+          <Link
+            href={`/cv/${resume.id}/granska`}
+            className="jp-cv__badge-link"
+          >
+            <StatusPill tone={findingBadge.tone}>{findingBadge.label}</StatusPill>
+          </Link>
         </div>
       </div>
 

@@ -90,6 +90,36 @@ public sealed partial class ResendEmailSender(
             cancellationToken);
     }
 
+    public Task SendEmailConfirmationAsync(
+        string toEmail, EmailConfirmationEmail content,
+        EmailConfirmationIdempotencyKey idempotencyKey, CancellationToken cancellationToken)
+    {
+        // Fail loud on a missing key (default-constructed struct) rather than silently sending
+        // non-idempotently — a transport retry must not double-deliver the confirmation link.
+        ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey.Value);
+        return SendAsync(
+            toEmail,
+            EmailTemplates.EmailConfirmation(_options.BaseUrl, content),
+            "email-confirmation",
+            idempotencyKey.Value,
+            cancellationToken);
+    }
+
+    public Task SendAccountExistsNoticeAsync(
+        string toEmail, AccountExistsNoticeIdempotencyKey idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        // Fail loud on a missing key; the notice key also dedupes repeated attempts on the same taken
+        // address within Resend's window (anti-email-bomb, CTO-bind Risk 6).
+        ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey.Value);
+        return SendAsync(
+            toEmail,
+            EmailTemplates.AccountExistsNotice(_options.BaseUrl),
+            "account-exists-notice",
+            idempotencyKey.Value,
+            cancellationToken);
+    }
+
     private async Task SendAsync(
         string toEmail, EmailTemplates.EmailContent body, string emailKind,
         string idempotencyKey, CancellationToken cancellationToken)

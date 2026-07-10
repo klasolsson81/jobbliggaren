@@ -26,9 +26,13 @@ public sealed class LoginCommandHandler(
             // telemetry (account_locked_out is a targeted-brute-force signal). The wire
             // response is identical for both (AuthEndpoints normalizes) — only the audit
             // event differs.
+            // #714: EmailNotConfirmed is NOT a failed login attempt — the credentials were valid, the
+            // account just is not confirmed yet — so it emits NO LoginFailed audit (that would pollute
+            // the brute-force signal). Its wire response is a distinct 403 (AuthEndpoints). The re-auth
+            // path never reaches this code (it normalizes EmailNotConfirmed to InvalidCredentials).
             if (credentialsResult.Error.Code == AuthErrorCodes.AccountLocked)
                 auditLogger.AccountLockedOut(HashEmail(command.Email!));
-            else
+            else if (credentialsResult.Error.Code != AuthErrorCodes.EmailNotConfirmed)
                 auditLogger.LoginFailed(HashEmail(command.Email!));
             return Result.Failure<SessionDto>(credentialsResult.Error);
         }

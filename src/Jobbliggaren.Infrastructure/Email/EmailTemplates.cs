@@ -184,4 +184,74 @@ internal static class EmailTemplates
                 Jobbliggaren
                 """);
     }
+
+    /// <summary>
+    /// #714 — registration email-confirmation, sent to the account's OWN address after signup. Builds
+    /// the activation link from <paramref name="baseUrl"/> + the URL-safe token; the token is already
+    /// Base64Url (only [A-Za-z0-9_-]) so it survives the query round-trip unescaped, and the compact
+    /// 'N' Guid uid is url-safe. No email in the link (the address is unchanged). Civic tone (1177/
+    /// Digg): no exclamation marks, no em-dash. The account cannot log in until the link is opened; the
+    /// link is valid for 24h (EmailConfirmationTokenProvider TokenLifespan).
+    /// </summary>
+    public static EmailContent EmailConfirmation(
+        string baseUrl, EmailConfirmationEmail content)
+    {
+        var trimmed = baseUrl.TrimEnd('/');
+
+        // uid: compact 'N' Guid (url-safe). token: already Base64Url (only [A-Za-z0-9_-]) so it
+        // survives the query round-trip unescaped. No email param (the address is not changing).
+        var confirmLink =
+            $"{trimmed}/bekrafta-konto" +
+            $"?uid={content.UserId:N}" +
+            $"&token={content.UrlSafeToken}";
+
+        return new EmailContent(
+            Subject: "Bekräfta din e-postadress",
+            PlainTextBody: $"""
+                Tack för att du har skapat ett konto på Jobbliggaren.
+
+                Bekräfta att adressen är din genom att öppna länken nedan. Du kan
+                logga in när adressen är bekräftad. Länken gäller i 24 timmar.
+                {confirmLink}
+
+                Om du inte har skapat något konto kan du bortse från det här
+                meddelandet.
+
+                Vänliga hälsningar,
+                Jobbliggaren
+                """);
+    }
+
+    /// <summary>
+    /// #714 — registration account-exists notice, sent out-of-band to a TAKEN address when someone
+    /// attempts to register it (login-nudge, Klas decision). No token, no link that grants access -
+    /// only a factual notice + a login link built from <paramref name="baseUrl"/>. Because the HTTP
+    /// response is an identical 202 for a taken or a fresh address, this mail is the ONLY differentiator
+    /// and it reaches only the real owner's inbox, so it leaks no account existence to a requester who
+    /// does not own the address. Civic tone: no exclamation marks, no em-dash. No password-reset link -
+    /// that flow does not exist yet (#714 follow-up).
+    /// </summary>
+    public static EmailContent AccountExistsNotice(string baseUrl)
+    {
+        var trimmed = baseUrl.TrimEnd('/');
+        var loginLink = $"{trimmed}/logga-in";
+        var helpLink = $"{trimmed}/hjalpcenter";
+
+        return new EmailContent(
+            Subject: "Du har redan ett konto hos Jobbliggaren",
+            PlainTextBody: $"""
+                Någon har försökt skapa ett konto med den här e-postadressen, men
+                du har redan ett konto hos Jobbliggaren.
+
+                Om det var du kan du logga in i stället:
+                {loginLink}
+
+                Om det inte var du behöver du inte göra något. Ditt konto är
+                oförändrat. Har du frågor når du oss via hjälpcentret:
+                {helpLink}
+
+                Vänliga hälsningar,
+                Jobbliggaren
+                """);
+    }
 }

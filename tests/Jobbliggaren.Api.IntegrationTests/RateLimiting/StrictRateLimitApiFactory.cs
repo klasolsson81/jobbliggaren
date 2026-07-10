@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -72,6 +73,11 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
                 opts.Configuration = _redisCs;
                 opts.InstanceName = "jobbliggaren:";
             });
+
+            // #714 — force email-confirmation-first OFF (parity with ApiFactory). Development env loads
+            // appsettings.Development.json where the flag is ON; without this override the AuthWrite
+            // rate-limit test's RegisterAndGetSessionIdAsync gets a 202 (empty body) instead of a session.
+            services.PostConfigure<AuthOptions>(o => o.RequireEmailConfirmation = false);
         });
     }
 

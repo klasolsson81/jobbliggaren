@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Threading.RateLimiting;
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
@@ -1088,6 +1089,15 @@ public static class DependencyInjection
                 // and honours the 24h TokenLifespan. Password-reset/email-confirm already default here.
                 opts.Tokens.ChangeEmailTokenProvider = TokenOptions.DefaultProvider;
 
+                // #714 (defense-in-depth): pin the email-confirmation token to the same opaque
+                // DataProtector provider. Unlike ChangeEmail above, EmailConfirmationTokenProvider
+                // ALREADY defaults to TokenOptions.DefaultProvider (it is PasswordReset/email-confirm
+                // that default here, not the "Email" TOTP provider), so this is not a fix but an
+                // explicit, self-documenting guard against a future Identity default drift — the
+                // registration confirm endpoint is PUBLIC, so a short brute-forceable TOTP would be an
+                // account-activation-takeover path (parity with the #679 rationale).
+                opts.Tokens.EmailConfirmationTokenProvider = TokenOptions.DefaultProvider;
+
                 // #503 (OWASP A07 / NIST SP 800-63B §5.2.2): per-account anti-automation on
                 // login. ValidateCredentialsAsync (UserAccountService) counts failed attempts
                 // via AccessFailedAsync and short-circuits locked accounts via IsLockedOutAsync.
@@ -1137,6 +1147,10 @@ public static class DependencyInjection
 #pragma warning restore JOBBLIGGAREN0001
 
         services.Configure<SessionStoreOptions>(configuration.GetSection(SessionStoreOptions.SectionName));
+
+        // #714 — email-confirmation-first registration toggle (Application-owned contract, bound
+        // here). Read by RegisterCommandHandler + UserAccountService.ValidateCredentialsAsync.
+        services.Configure<AuthOptions>(configuration.GetSection(AuthOptions.SectionName));
 
         // Admin-bootstrap: idempotent seeder kör vid app-startup. Skapar Admin-rollen
         // om saknas och tilldelar till user med email AdminBootstrap__InitialAdminEmail.
@@ -1323,6 +1337,12 @@ public static class DependencyInjection
         // #481 Low — required by UserAccountService's constructor (see AddIdentityAndSessions). The
         // Worker never logs in, but the dependency must resolve wherever UserAccountService is built.
         services.AddSingleton<ILoginTimingEqualizer, LoginTimingEqualizer>();
+
+        // #714 — DI-parity: UserAccountService (built here too) now injects IOptions<AuthOptions> for
+        // the EmailConfirmed login gate. Bind it in the Worker composition as well or the container
+        // cannot construct UserAccountService (same discipline as ILoginTimingEqualizer above). The
+        // Worker never logs in, so the gate is inert here, but the option must resolve.
+        services.Configure<AuthOptions>(configuration.GetSection(AuthOptions.SectionName));
         services.AddScoped<IUserAccountService, UserAccountService>();
         services.AddScoped<IAccountHardDeleter, AccountHardDeleter>();
 

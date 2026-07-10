@@ -46,4 +46,23 @@ public interface IUserAccountService
     /// address-taken) so the PUBLIC confirm endpoint reveals no account-existence or enumeration oracle.
     /// </summary>
     Task<Result> ConfirmChangeEmailAsync(Guid userId, string newEmail, string urlSafeToken, CancellationToken ct);
+
+    /// <summary>
+    /// Generates a URL-safe email-confirmation token for the user's CURRENT address (#714, registration
+    /// confirmation). Uses the opaque DataProtector provider (<c>EmailConfirmationTokenProvider</c>,
+    /// pinned in DI); the token is bound to the security stamp, time-limited (24h default) and
+    /// Base64Url-encoded so it survives a URL/query round-trip. Unlike the change-email token there is
+    /// no pending new address. Returns NotFound if the user is gone.
+    /// </summary>
+    Task<Result<string>> GenerateEmailConfirmationTokenAsync(Guid userId, CancellationToken ct);
+
+    /// <summary>
+    /// Confirms a registration email address (#714): verifies the URL-safe token and sets
+    /// <c>EmailConfirmed=true</c>. Returns ONE uniform failure for every rejection (user-not-found,
+    /// bad/expired/malformed token) so the PUBLIC confirm endpoint reveals no account-existence or
+    /// enumeration oracle. Idempotent within the token lifespan: a double-click both succeed (unlike
+    /// <see cref="ConfirmChangeEmailAsync"/>, the security stamp is NOT rotated — an activation link
+    /// need not be single-use, and idempotency is the safer click-through UX).
+    /// </summary>
+    Task<Result> ConfirmEmailAsync(Guid userId, string urlSafeToken, CancellationToken ct);
 }

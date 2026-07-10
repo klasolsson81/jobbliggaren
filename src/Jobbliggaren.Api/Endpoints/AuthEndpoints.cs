@@ -7,6 +7,7 @@ using Jobbliggaren.Application.Auth.Commands.Login;
 using Jobbliggaren.Application.Auth.Commands.Logout;
 using Jobbliggaren.Application.Auth.Commands.RefreshSession;
 using Jobbliggaren.Application.Auth.Commands.Register;
+using Jobbliggaren.Application.Auth.Commands.VerifyEmail;
 using Jobbliggaren.Application.Auth.Queries.VerifyCredentials;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
@@ -28,8 +29,15 @@ public static partial class AuthEndpoints
             if (result.IsFailure)
                 return ToErrorResult(result.Error);
 
-            // Session-id returneras i response body — Next.js-proxyn sätter HTTPOnly-cookie (ADR 0018).
-            return Results.Ok(new { sessionId = result.Value.SessionId });
+            // #714: email-confirmation-first (flag ON) mints NO session, so the response is an identical
+            // 202 Accepted (empty body) for BOTH a fresh and a taken address — closing the 200-vs-400
+            // account-enumeration status oracle. The only differentiator (a confirmation link vs an
+            // account-exists notice) is delivered out-of-band to the submitted inbox. On the legacy
+            // instant-login path (flag OFF) a session was minted → 200 + sessionId in the body, and the
+            // Next.js proxy sets the HTTPOnly cookie (ADR 0018).
+            return result.Value.Session is { } session
+                ? Results.Ok(new { sessionId = session.SessionId })
+                : Results.Accepted();
         }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
         group.MapPost("/login", async (
@@ -194,6 +202,25 @@ public static partial class AuthEndpoints
 
             return Results.NoContent();
         }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+
+        // Registration email-confirmation — CONFIRM step (#714). PUBLIC (no RequireAuthorization): the
+        // activation link is opened from the account's own inbox, possibly logged-out or on a different
+        // device, so the opaque token IS the authorization. Every rejection is a uniform 400 (no
+        // account/enumeration oracle — parity with /confirm-email-change). On success EmailConfirmed is
+        // set and the user can log in; NO session is issued (the confirming client is not necessarily
+        // the user's) and NO logout-everywhere (this is not a recovery-vector change — the address was
+        // always the account's). AuthWrite rate-limit (per-IP) against generic abuse; the opaque token
+        // is not brute-forceable, so no per-uid limiter is needed.
+        group.MapPost("/verify-email", async (
+            VerifyEmailRequest body,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new VerifyEmailCommand(body.Uid, body.Token), ct);
+            return result.IsFailure
+                ? ToErrorResult(result.Error)
+                : Results.NoContent();
+        }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
     }
 
     /// <summary>
@@ -218,6 +245,14 @@ public static partial class AuthEndpoints
     /// </summary>
     public sealed record ConfirmEmailChangeRequest(Guid Uid, string? Email, string? Token);
 
+    /// <summary>
+    /// POST /auth/verify-email body — the (uid, URL-safe token) carried by the registration activation
+    /// link and posted from the public landing page. Token-gated (the link is opened from the account's
+    /// inbox, possibly logged-out): the token is the authorization. No email is needed (the address is
+    /// not changing, unlike /confirm-email-change). A pure transport DTO; the token is never logged.
+    /// </summary>
+    public sealed record VerifyEmailRequest(Guid Uid, string? Token);
+
     // 401 is an authentication-identity status ("who are you"), a different axis from the
     // request/resource-semantics the kind-union models (400/404/409/410) — so it stays an
     // endpoint-local concern rather than a new ErrorKind (senior-cto-advisor 2026-06-26, #239
@@ -237,6 +272,20 @@ public static partial class AuthEndpoints
         // Byte-identical 401 shared with the central ReauthenticationFailedException arm
         // (Program.cs) via AuthProblem — see AuthProblem for the oracle rationale.
         AuthErrorCodes.InvalidCredentials or AuthErrorCodes.AccountLocked => AuthProblem.InvalidCredentials(),
+
+        // #714 — email-confirmation-first login gate. A distinct, actionable 403 ("confirm your email
+        // first"): reachable ONLY after a correct password (UserAccountService.ValidateCredentialsAsync),
+        // so it is not an enumeration oracle — a wrong password / unknown account still funnels to the
+        // byte-identical 401 above. 403 ("we know who you are, but you can't proceed") is an
+        // endpoint-local status like the 401 arm — no new ErrorKind (the kind-union models
+        // 400/404/409/410; #239 Variant B, RFC 9110 §15.5.4). Same ProblemDetails shape as the central
+        // mapper (title=code, detail=message). The re-auth path normalizes EmailNotConfirmed back to
+        // InvalidCredentials, so this arm is reachable only via /login.
+        AuthErrorCodes.EmailNotConfirmed => Results.Problem(
+            detail: AuthErrorCodes.EmailNotConfirmedMessage,
+            title: AuthErrorCodes.EmailNotConfirmed,
+            statusCode: StatusCodes.Status403Forbidden),
+
         _ => error.ToProblemResult(),
     };
 

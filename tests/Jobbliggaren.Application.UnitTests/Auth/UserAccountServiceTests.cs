@@ -3,6 +3,7 @@ using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
 
@@ -35,9 +36,13 @@ public class UserAccountServiceTests
     private readonly ILoginTimingEqualizer _equalizer = Substitute.For<ILoginTimingEqualizer>();
     private readonly UserAccountService _sut;
 
-    public UserAccountServiceTests() =>
-        _sut = new UserAccountService(
-            _userManager, _equalizer, Substitute.For<ILogger<UserAccountService>>());
+    // Flag OFF by default (legacy instant-login). Flag-ON gate tests build their own SUT.
+    private UserAccountService CreateSut(bool requireEmailConfirmation = false) =>
+        new(_userManager, _equalizer,
+            Options.Create(new AuthOptions { RequireEmailConfirmation = requireEmailConfirmation }),
+            Substitute.For<ILogger<UserAccountService>>());
+
+    public UserAccountServiceTests() => _sut = CreateSut();
 
     [Fact]
     public async Task ValidateCredentialsAsync_ShouldPayEqualizerCostAndReturnInvalidCredentials_WhenEmailIsUnknown()
@@ -91,5 +96,61 @@ public class UserAccountServiceTests
         await _userManager.DidNotReceive().CheckPasswordAsync(user, Arg.Any<string>());
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe(AuthErrorCodes.AccountLocked);
+    }
+
+    // #714 — the email-confirmation-first login gate. Placed AFTER a successful password check, so it is
+    // reachable ONLY with valid credentials (not an enumeration oracle).
+    [Fact]
+    public async Task ValidateCredentialsAsync_ShouldReturnEmailNotConfirmed_WhenFlagOnAndUnconfirmedAndPasswordCorrect()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        const string password = "Correct-pass-123456"; // gitleaks:allow — test-only password literal, not a secret
+        var user = new ApplicationUser { Email = "u@example.com", UserName = "u@example.com", EmailConfirmed = false };
+        _userManager.FindByEmailAsync(Arg.Any<string>()).Returns(user);
+        _userManager.IsLockedOutAsync(user).Returns(false);
+        _userManager.CheckPasswordAsync(user, password).Returns(true);
+        _userManager.GetRolesAsync(user).Returns(new List<string>());
+
+        var result = await CreateSut(requireEmailConfirmation: true)
+            .ValidateCredentialsAsync("u@example.com", password, ct);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(AuthErrorCodes.EmailNotConfirmed);
+        // NOT a failed login attempt — the credentials were valid, so no lockout counter increment.
+        await _userManager.DidNotReceive().AccessFailedAsync(Arg.Any<ApplicationUser>());
+    }
+
+    [Fact]
+    public async Task ValidateCredentialsAsync_ShouldSucceed_WhenFlagOnAndEmailConfirmed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        const string password = "Correct-pass-123456"; // gitleaks:allow — test-only password literal, not a secret
+        var user = new ApplicationUser { Email = "c@example.com", UserName = "c@example.com", EmailConfirmed = true };
+        _userManager.FindByEmailAsync(Arg.Any<string>()).Returns(user);
+        _userManager.IsLockedOutAsync(user).Returns(false);
+        _userManager.CheckPasswordAsync(user, password).Returns(true);
+        _userManager.GetRolesAsync(user).Returns(new List<string>());
+
+        var result = await CreateSut(requireEmailConfirmation: true)
+            .ValidateCredentialsAsync("c@example.com", password, ct);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task ValidateCredentialsAsync_ShouldSucceed_WhenFlagOffAndUnconfirmed()
+    {
+        // Legacy behavior: with the flag OFF the gate is inert, so an unconfirmed account logs in.
+        var ct = TestContext.Current.CancellationToken;
+        const string password = "Correct-pass-123456"; // gitleaks:allow — test-only password literal, not a secret
+        var user = new ApplicationUser { Email = "o@example.com", UserName = "o@example.com", EmailConfirmed = false };
+        _userManager.FindByEmailAsync(Arg.Any<string>()).Returns(user);
+        _userManager.IsLockedOutAsync(user).Returns(false);
+        _userManager.CheckPasswordAsync(user, password).Returns(true);
+        _userManager.GetRolesAsync(user).Returns(new List<string>());
+
+        var result = await _sut.ValidateCredentialsAsync("o@example.com", password, ct);
+
+        result.IsSuccess.ShouldBeTrue();
     }
 }

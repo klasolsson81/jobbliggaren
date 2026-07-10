@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -73,6 +74,13 @@ public sealed class MeRateLimitApiFactory : WebApplicationFactory<Program>, IAsy
                 opts.Configuration = _redisCs;
                 opts.InstanceName = "jobbliggaren:";
             });
+
+            // #714 — force email-confirmation-first OFF (parity with ApiFactory). This factory forces
+            // Development env, which loads appsettings.Development.json where the flag is ON; without
+            // this override the rate-limit tests' RegisterAndGetSessionIdAsync gets a 202 (empty body)
+            // instead of 200 + sessionId. PostConfigure runs after config binding (and beats a dev's
+            // gitignored appsettings.Local.json, which an env var would not).
+            services.PostConfigure<AuthOptions>(o => o.RequireEmailConfirmation = false);
         });
     }
 

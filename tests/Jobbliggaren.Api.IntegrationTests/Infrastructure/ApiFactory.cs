@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Jobbliggaren.Application.Admin.BackgroundJobs;
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -7,6 +8,7 @@ using Jobbliggaren.Infrastructure.Taxonomy;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -105,6 +107,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                     .UseNpgsql(_postgresCs,
                         npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
                     .UseSnakeCaseNamingConvention()
+                    // #714 — a flag-ON test class builds an extra host via WithWebHostBuilder
+                    // (CreateEmailConfirmationClient). Each derived host that re-AddDbContext's spins a
+                    // fresh EF internal service provider; across the shared [Collection("Api")] that
+                    // trips EF's process-wide ManyServiceProvidersCreatedWarning (>20 providers), which
+                    // is thrown-by-default and cascades to unrelated tests. Ignoring it is the
+                    // EF-team-sanctioned accommodation for WebApplicationFactory suites (test-only; prod
+                    // DbContext config is separate and unaffected).
+                    .ConfigureWarnings(w => w.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning))
                     .AddInterceptors(
                         sp.GetRequiredService<Jobbliggaren.Infrastructure.Security.FieldEncryptionSaveChangesInterceptor>(),
                         sp.GetRequiredService<Jobbliggaren.Infrastructure.Security.FieldDecryptionMaterializationInterceptor>()));
@@ -114,10 +124,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.RemoveAll<AppIdentityDbContext>();
             services.AddDbContext<AppIdentityDbContext>(options =>
                 options.UseNpgsql(_postgresCs, npgsql =>
-                {
-                    npgsql.MigrationsAssembly(typeof(AppIdentityDbContext).Assembly.FullName);
-                    npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
-                }));
+                    {
+                        npgsql.MigrationsAssembly(typeof(AppIdentityDbContext).Assembly.FullName);
+                        npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
+                    })
+                    // #714 — same rationale as AppDbContext above.
+                    .ConfigureWarnings(w => w.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning)));
 
             // Replace Redis cache
             services.RemoveAll<IDistributedCache>();
@@ -162,7 +174,40 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // GetServices<IBreachedPasswordChecker>().
             services.RemoveAll<IBreachedPasswordChecker>();
             services.AddSingleton<IBreachedPasswordChecker>(_breachChecker);
+
+            // #714 — pin email-confirmation-first OFF for the base host. The factory forces
+            // Development env (above), which loads appsettings.Development.json where the flag is ON
+            // (dev runs the confirmation-first flow). Without this override every [Collection("Api")]
+            // test would inherit the flag → RegisterAndGetSessionIdAsync (142 sites) would get a 202
+            // with no sessionId and break. PostConfigure runs after config binding and wins; the
+            // flag-ON test classes re-flip it ON per class via WithWebHostBuilder + PostConfigure(true),
+            // which registers AFTER this and therefore takes precedence (CTO-bind Risk 3).
+            services.PostConfigure<AuthOptions>(o => o.RequireEmailConfirmation = false);
         });
+    }
+
+    private WebApplicationFactory<Program>? _emailConfirmationHost;
+    private readonly object _emailConfirmationLock = new();
+
+    /// <summary>
+    /// #714 — an <see cref="HttpClient"/> against a host with email-confirmation-first registration
+    /// forced ON (<c>Auth:RequireEmailConfirmation</c>). The derived host is built ONCE and cached, so
+    /// all flag-ON test classes SHARE it: building one per class would each spin a fresh EF internal
+    /// service provider and, across the shared <c>[Collection("Api")]</c>, trip EF's process-wide
+    /// <c>ManyServiceProvidersCreatedWarning</c> (&gt;20 providers) → cascade failures. It reuses this
+    /// factory's Testcontainers + the shared <c>RecordingEmailSender</c> (so <c>factory.Emails</c> still
+    /// captures its sends). The base host pins the flag OFF (PostConfigure above); this
+    /// PostConfigure(true) is registered after it and therefore wins.
+    /// </summary>
+    internal HttpClient CreateEmailConfirmationClient()
+    {
+        lock (_emailConfirmationLock)
+        {
+            _emailConfirmationHost ??= WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+                services.PostConfigure<AuthOptions>(o => o.RequireEmailConfirmation = true)));
+        }
+
+        return _emailConfirmationHost.CreateClient();
     }
 
     public async ValueTask InitializeAsync()

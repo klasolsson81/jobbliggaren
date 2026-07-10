@@ -3,7 +3,10 @@
 import { useEffect, useRef, useSyncExternalStore, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
-import { transitionStatusAction } from "@/lib/actions/applications";
+import {
+  batchTransitionAction,
+  transitionStatusAction,
+} from "@/lib/actions/applications";
 import { applicationStatusLabel } from "@/lib/applications/status";
 import {
   dismissApplicationToast,
@@ -92,12 +95,22 @@ function ToastCard({ toast }: { toast: ApplicationToast }) {
     );
   };
 
+  // Ångra visas för både enkel- och bulk-statusbyte (båda är ångringsbara
+  // transitioner, ADR 0092 D3). Följ-upp/error har ingen Ångra.
+  const isUndoable =
+    toast.kind === "statusChange" || toast.kind === "statusChangeBatch";
+
   const message = ((): string => {
     switch (toast.kind) {
       case "statusChange":
         return tUi("toast.statusChange", {
           company: toast.company,
           from: applicationStatusLabel(t, toast.from),
+          to: applicationStatusLabel(t, toast.to),
+        });
+      case "statusChangeBatch":
+        return tUi("toast.statusChangeBatch", {
+          count: toast.count,
           to: applicationStatusLabel(t, toast.to),
         });
       case "followUpLogged":
@@ -108,19 +121,30 @@ function ToastCard({ toast }: { toast: ApplicationToast }) {
   })();
 
   const undo = () => {
-    if (toast.kind !== "statusChange") return;
     startUndo(async () => {
       // Kompenserande invers transition (ADR 0092 D3) — samma auditerade
-      // action; revalidatePath uppdaterar lista + drawer server-side.
-      const result = await transitionStatusAction(
-        toast.applicationId,
-        toast.from,
-      );
-      if (result.success) {
-        // Ingen kedjad ångra-toast (CTO-bind 3, prototyp-exakt).
-        dismissApplicationToast(token);
-      } else {
-        showApplicationToast({ kind: "error", message: result.error });
+      // action(er); revalidatePath uppdaterar lista + drawer server-side. Ingen
+      // kedjad ångra-toast (CTO-bind 3, prototyp-exakt).
+      if (toast.kind === "statusChange") {
+        const result = await transitionStatusAction(
+          toast.applicationId,
+          toast.from,
+        );
+        if (result.success) dismissApplicationToast(token);
+        else showApplicationToast({ kind: "error", message: result.error });
+        return;
+      }
+      if (toast.kind === "statusChangeBatch") {
+        // ETT batch-anrop: varje app återförs till SIN egen previous status
+        // (per-item previous — batch-endpointens per-item-par-kontrakt, PR 9).
+        const result = await batchTransitionAction(
+          toast.items.map((item) => ({
+            applicationId: item.applicationId,
+            targetStatus: item.from,
+          })),
+        );
+        if (result.success) dismissApplicationToast(token);
+        else showApplicationToast({ kind: "error", message: result.error });
       }
     });
   };
@@ -136,7 +160,7 @@ function ToastCard({ toast }: { toast: ApplicationToast }) {
       onBlur={resume}
     >
       <span className="jp-toast__msg">{message}</span>
-      {toast.kind === "statusChange" && (
+      {isUndoable && (
         <button
           type="button"
           className="jp-toast__undo"

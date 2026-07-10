@@ -19,6 +19,7 @@ import { ApplicationActionsProvider } from "./application-actions";
 import { AttentionQueue } from "./attention-queue";
 import { ApplicationsControls } from "./applications-controls";
 import { ApplicationsBoard } from "./applications-board";
+import { ApplicationsTable } from "./applications-table";
 import { StepRail } from "./step-rail";
 import { StatusSection } from "./status-section";
 
@@ -55,13 +56,16 @@ interface ApplicationsPipelineProps {
  *
  * Ordning uppifrån (design §3–7): "Kräver åtgärd"-kön + "Alla ansökningar"-rubrik
  * + kontrollrad (sök + VY-växlare) är DELAD chrome ovanför vyn (ADR 0092 D1);
- * under den byter `view` mellan Lista (stegrail + grupperade sektioner) och Tavla
- * (kanban). Rail + filterchip döljs i Tavla; ett aktivt stegfilter ignoreras där
- * (kolumnerna ÄR översikten) — bara sök filtrerar korten (D1/§6).
+ * under den byter `view` mellan Lista (stegrail + grupperade sektioner), Tavla
+ * (kanban) och Tabell (volymvy: sortering + bulk + 50/sida, PR 10). Rail +
+ * filterchip döljs i Tavla; ett aktivt stegfilter ignoreras där (kolumnerna ÄR
+ * översikten) — bara sök filtrerar korten (D1/§6). Tabell behåller rail + filter
+ * som Lista.
  *
- * PR 8-scope: vy-växlaren (Lista/Tavla; Tabell → PR 10) + cookie-persistens (D7)
- * + Tavla-boardet. Vy-växlingen är en ren klient-beräkning över redan hämtad data
- * (D2) — cookien skrivs fire-and-forget, ingen router.refresh, ingen flash.
+ * Vy-växlaren (PR 8; Tabell tillkom PR 10) + cookie-persistens (D7). Vy-växlingen
+ * är en ren klient-beräkning över redan hämtad data (D2 — även Tabellens
+ * sortering/paginering/urval, Option B CTO-bind 2026-07-10) — cookien skrivs
+ * fire-and-forget, ingen router.refresh, ingen flash.
  * 2a-doktrin: kön DUPLICERAR (ADR 0092 supersederar ADR 0085 §343 MOVE) — appar
  * ligger kvar i sina statusgrupper; listan är "Alla".
  */
@@ -178,6 +182,22 @@ export function ApplicationsPipeline({
 
         {view === "tavla" ? (
           <ApplicationsBoard groups={groups} now={now} query={query} />
+        ) : view === "tabell" ? (
+          <>
+            {/* Tabell (#630 PR 10, ADR 0092 D1): behåller railen + stegfiltret
+                som Lista (railen döljs bara i Tavla, design §4). Raderna är
+                sections-memons redan sök- och filter-tillämpade utfall,
+                plattade — Option B, ingen ny data-hämtning (CTO-bind). */}
+            <StepRail
+              groups={groups}
+              statusFilter={statusFilter}
+              onToggle={toggleFilter}
+            />
+            <ApplicationsTable
+              rows={sections.flatMap((section) => section.applications)}
+              now={now}
+            />
+          </>
         ) : (
           <>
             <StepRail

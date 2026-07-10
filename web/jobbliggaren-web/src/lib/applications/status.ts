@@ -310,3 +310,18 @@ export function isFiringSignal(
 ): signal is Exclude<ApplicationAttentionSignal, "None"> {
   return signal != null && signal !== "None";
 }
+
+/**
+ * Tabell-vyns "I steget"-varningsfärgning (#630 PR 10, CTO-bind 2026-07-10): en
+ * FIRANDE VÄNTE-signal, aldrig en dag-tröskel. `OfferAwaitingReply` exkluderas —
+ * det är en positiv (success-axeln) signal, inte en väntan som ska rödmarkeras.
+ * Alla övriga firande signaler (overdue/draft-deadline/ghost/no-response/silent)
+ * betyder att steget stått still för länge → "I steget"-värdet får --jp-warning.
+ * Ren display-härledning över den redan-beslutade `attentionSignal` (backend-SSOT,
+ * ADR 0071) — den avgör aldrig OM en signal firar.
+ */
+export function isWaitingSignal(
+  signal: ApplicationAttentionSignal | undefined,
+): boolean {
+  return isFiringSignal(signal) && signal !== "OfferAwaitingReply";
+}

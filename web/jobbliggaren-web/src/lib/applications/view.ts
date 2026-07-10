@@ -16,9 +16,9 @@
  */
 export const APPLICATIONS_VIEW_COOKIE = "__Host-jobbliggaren_apps_view";
 
-// Tabell införs i PR 10 (ADR 0092 D1) — då vidgas denna tuple till
-// ["lista", "tavla", "tabell"] och växlaren + cookie-valid-set följer med.
-export const APPLICATIONS_VIEWS = ["lista", "tavla"] as const;
+// Lista / Tavla / Tabell (ADR 0092 D1). Tabell tillkom i PR 10 (2026-07-10) —
+// växlaren, cookie-valid-set:en och serverläsningen följer denna tuple.
+export const APPLICATIONS_VIEWS = ["lista", "tavla", "tabell"] as const;
 
 export type ApplicationsView = (typeof APPLICATIONS_VIEWS)[number];
 

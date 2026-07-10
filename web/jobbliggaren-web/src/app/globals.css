@@ -8072,3 +8072,290 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-caption);
   padding: 2px 6px;
 }
+
+/* ── Tabell-vyn (#630 PR 10, design §7): volymvyn — sorterbar, bulk, 50/sida ──
+   Egen .jp-apptable-familj — admin-ledgerns .jp-table (granskning) ateranvands
+   INTE (annan scope, annan densitet). Vit container radie 6, rubrikrad h42
+   mono versaler, radhover surface-2, vald rad accent-50. Tokens flippar sjalva
+   i dark (accent-50/warning/ink-1/ink-inverse) — inga dark-overrides behovs. */
+.jp-apptable-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.jp-apptable__scroll {
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  box-shadow: var(--jp-shadow-card);
+  overflow-x: auto;
+}
+.jp-apptable {
+  width: 100%;
+  min-width: 940px;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: var(--text-body-sm);
+}
+.jp-apptable__col--check  { width: 44px; }
+.jp-apptable__col--status { width: 200px; }
+.jp-apptable__col--step   { width: 110px; }
+.jp-apptable__col--event  { width: 26%; }
+.jp-apptable__col--next   { width: 170px; }
+.jp-apptable__th {
+  height: 42px;
+  padding: 0 14px;
+  text-align: left;
+  vertical-align: middle;
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+  border-bottom: 2px solid var(--jp-border-strong);
+  white-space: nowrap;
+}
+.jp-apptable__th--check { padding: 0 0 0 14px; }
+/* Sorterbart huvud: knappen ARVER mono-stilen och fyller cellen — hela ytan
+   klickbar (Fitts), aria-sort pa th bar semantiken. */
+.jp-apptable__th--sortable { padding: 0; }
+.jp-apptable__sortbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: 42px;
+  padding: 0 14px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  text-align: left;
+}
+.jp-apptable__sortbtn:hover { color: var(--jp-ink-1); }
+.jp-apptable__sortbtn:focus-visible {
+  outline: 2px solid var(--jp-accent-700);
+  outline-offset: -2px;
+}
+.jp-apptable__sortbtn[data-active] { color: var(--jp-ink-1); }
+.jp-apptable__sortarrow { font-size: var(--text-overline); }
+.jp-apptable__row { position: relative; }
+.jp-apptable__cell {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--jp-border-soft);
+  vertical-align: middle;
+}
+.jp-apptable__row:last-child .jp-apptable__cell { border-bottom: 0; }
+.jp-apptable__row:hover .jp-apptable__cell { background: var(--jp-surface-2); }
+.jp-apptable__row[data-selected] .jp-apptable__cell { background: var(--jp-accent-50); }
+.jp-apptable__cell--check { padding-right: 0; }
+/* Interaktiva zoner lyfts ovanfor rad-overlayn (samma a11y-monster som
+   .jp-app__rowlink) sa checkbox/statusmeny/nasta steg-lanken aldrig
+   nastlas i ankaret. */
+.jp-apptable__cell--check,
+.jp-apptable__statuszone,
+.jp-apptable__nextzone {
+  position: relative;
+  z-index: 1;
+}
+.jp-apptable__check {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--jp-accent-800);
+  cursor: pointer;
+  display: block;
+}
+.jp-apptable__check:focus-visible {
+  outline: 2px solid var(--jp-accent-700);
+  outline-offset: 2px;
+}
+/* Lank-overlay: rolltiteln ar radens ENDA <a>, strackt over hela <tr>
+   (position:relative pa raden = containing block). Modifierat klick = fullsida. */
+.jp-apptable__rowlink {
+  color: var(--jp-ink-1);
+  font-weight: var(--jp-fw-semibold);
+  text-decoration: none;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jp-apptable__rowlink::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.jp-apptable__rowlink:focus-visible { outline: none; }
+.jp-apptable__rowlink:focus-visible::after {
+  outline: 2px solid var(--jp-accent-700);
+  outline-offset: -2px;
+}
+.jp-apptable__company {
+  display: block;
+  font-size: var(--text-micro);
+  color: var(--jp-ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jp-apptable__statuszone {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.jp-apptable__statuszone .jp-rowbtn--ink {
+  font-size: var(--text-caption);
+  padding: 2px 6px;
+}
+.jp-apptable__step {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.jp-apptable__step[data-waiting] {
+  color: var(--jp-warning);
+  font-weight: var(--jp-fw-bold);
+}
+.jp-apptable__muted { color: var(--jp-ink-3); }
+.jp-apptable__event {
+  display: block;
+  color: var(--jp-ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jp-apptable__eventdate {
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+.jp-apptable__nextlink {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-accent-700);
+  white-space: nowrap;
+}
+.jp-apptable__nextlink:hover { color: var(--jp-accent-600); text-decoration: underline; }
+.jp-apptable__nextlink:focus-visible {
+  outline: 2px solid var(--jp-accent-700);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.jp-apptable__nextlink:disabled { opacity: 0.55; cursor: default; }
+.jp-apptable__empty {
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--jp-ink-2);
+}
+.jp-apptable__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.jp-apptable__summary {
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+/* ── Bulkraden (design §7): mork rad ovanfor tabellen nar minst en rad ar vald.
+   Samma ink-1/ink-inverse-par som angra-toasten — flippar koherent i dark.
+   Hog kontrast (Klas-mandat): solida inverse-kanter, ingen alpha. */
+.jp-bulkbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: var(--jp-ink-1);
+  color: var(--jp-ink-inverse);
+  border-radius: var(--jp-r-md);
+  padding: 10px 16px;
+  animation: jp-rise 180ms ease;
+}
+.jp-bulkbar__count {
+  font-weight: var(--jp-fw-bold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.jp-bulkbar__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.jp-bulkbar__btn {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  background: transparent;
+  border: 1px solid var(--jp-ink-inverse);
+  border-radius: var(--jp-r-sm);
+  color: var(--jp-ink-inverse);
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  cursor: pointer;
+}
+.jp-bulkbar__btn:hover { background: var(--jp-ink-2); }
+.jp-bulkbar__btn:focus-visible {
+  outline: 2px solid var(--jp-gold);
+  outline-offset: 2px;
+}
+.jp-bulkbar__btn:disabled { opacity: 0.55; cursor: default; }
+.jp-bulkbar__btn--ghost { border-color: transparent; text-decoration: underline; }
+
+/* ── Klient-pager (Tabell, 50/sida): GOV.UK-siffror som <button> (klient-state,
+   ingen URL-navigering — Option B). Aktiv sida = accent-50-fyll + accent-kant. */
+.jp-apppager__list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.jp-apppager__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 32px;
+  padding: 0 10px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-sm);
+  color: var(--jp-ink-1);
+  font-size: var(--text-body-sm);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.jp-apppager__btn:hover { background: var(--jp-surface-2); }
+.jp-apppager__btn:focus-visible {
+  outline: 2px solid var(--jp-accent-700);
+  outline-offset: 2px;
+}
+.jp-apppager__btn--current {
+  background: var(--jp-accent-50);
+  border-color: var(--jp-accent-700);
+  color: var(--jp-accent-700);
+  font-weight: var(--jp-fw-semibold);
+  cursor: default;
+}
+.jp-apppager__gap {
+  padding: 0 4px;
+  color: var(--jp-ink-2);
+}

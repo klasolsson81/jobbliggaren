@@ -12,16 +12,15 @@ interface ApplicationsControlsProps {
   // aktivt filter → ingen chip (även Tavla skickar null — stegfiltret gäller ej där).
   activeFilterLabel: string | null;
   onClearFilter: () => void;
-  // Aktiv vy + växlingscallback (#630 PR 8). Tabell utelämnas tills PR 10 (CTO
-  // D-D: en disabled/platshållar-vy vore en falsk affordans) — växlaren visar
-  // Lista/Tavla och växer honestly till tre när Tabell faktiskt levereras.
+  // Aktiv vy + växlingscallback (#630 PR 8; Tabell tillkom i PR 10) — växlaren
+  // visar alla tre vyerna (Lista/Tavla/Tabell, ADR 0092 D1).
   view: ApplicationsView;
   onViewChange: (view: ApplicationsView) => void;
 }
 
 /**
  * Kontrollrad (design 2a §6, ADR 0092 D1) — sökfält + ev. aktiv stegfilter-chip
- * + VY-växlaren (Lista/Tavla) till höger. Delad chrome ovanför båda vyerna.
+ * + VY-växlaren (Lista/Tavla/Tabell) till höger. Delad chrome ovanför alla vyer.
  *
  * Växlaren återbrukar `Segment` (role=radiogroup, piltangent-nav, aktiv =
  * accent-800-fyll) — samma primitiv som Inställningarnas tema/språk-växlar (DRY,
@@ -88,6 +87,7 @@ export function ApplicationsControls({
           options={[
             { value: "lista", label: tUi("view.lista") },
             { value: "tavla", label: tUi("view.tavla") },
+            { value: "tabell", label: tUi("view.tabell") },
           ]}
         />
       </div>

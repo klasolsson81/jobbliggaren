@@ -115,6 +115,7 @@
     },
     "toast": {
       "statusChange": "{company}: {from} → {to}",
+      "statusChangeBatch": "{count, plural, one {# ansökan markerad} other {# ansökningar markerade}} som {to}",
       "followUpLogged": "{company}: uppföljning sparad under Uppföljningar, väntetiden räknas om",
       "undo": "Ångra",
       "undoing": "Ångrar…",
@@ -153,7 +154,47 @@
     },
     "view": {
       "lista": "Lista",
-      "tavla": "Tavla"
+      "tavla": "Tavla",
+      "tabell": "Tabell"
+    },
+    "table": {
+      "caption": "Ansökningar i tabellform, sorterbar",
+      "ariaLabel": "Ansökningar",
+      "empty": "Inga ansökningar matchar sökningen eller filtret.",
+      "colRole": "Roll & företag",
+      "colStatus": "Status",
+      "colStep": "I steget",
+      "colLastEvent": "Senaste händelse",
+      "colNextStep": "Nästa steg",
+      "sortAriaLabel": "Sortera på {column}",
+      "sortedAscending": "stigande",
+      "sortedDescending": "fallande",
+      "selectAllAriaLabel": "Markera alla på sidan",
+      "selectRowAriaLabel": "Markera {role}",
+      "sinceStep": "{days, plural, =0 {i dag} one {1 dag} other {# dgr}}",
+      "footerSummary": "Visar {shown} av {total} ansökningar",
+      "lastEventFollowUp": "Uppföljning loggad",
+      "reachedDraft": "Utkast skapat",
+      "reachedSubmitted": "Ansökan skickad",
+      "reachedAcknowledged": "Bekräftelse mottagen",
+      "reachedInterviewScheduled": "Intervju bokad",
+      "reachedInterviewing": "Intervju genomförd",
+      "reachedOfferReceived": "Erbjudande mottaget",
+      "reachedAccepted": "Erbjudande accepterat",
+      "reachedRejected": "Avslag",
+      "reachedWithdrawn": "Ansökan återtagen",
+      "reachedGhosted": "Markerad som Inget svar"
+    },
+    "bulk": {
+      "selectedCount": "{count, plural, one {# vald} other {# valda}}",
+      "markGhosted": "Markera Inget svar",
+      "markRejected": "Markera Nekad",
+      "clear": "Rensa urval",
+      "barAriaLabel": "Massåtgärder för markerade ansökningar",
+      "confirmTitle": "{count, plural, one {Markera # ansökan} other {Markera # ansökningar}} som {status}?",
+      "confirmBody": "{count, plural, one {En ansökan avslutas} other {# ansökningar avslutas}}. Du kan ångra direkt efteråt, men inte senare utan manuell åtgärd.",
+      "confirmCta": "Markera {status}",
+      "confirming": "Markerar…"
     },
     "board": {
       "toolbarCount": "{count, plural, one {# ansökan} other {# ansökningar}} · {active, plural, one {# aktiv} other {# aktiva}}",

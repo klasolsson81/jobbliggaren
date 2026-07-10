@@ -92,7 +92,7 @@ public class GetJobsWatermarkQueryHandlerTests
         var userId = Guid.NewGuid();
         using var db = TestAppDbContextFactory.Create();
         var seeker = SeedSeeker(db, userId);
-        seeker.SetLastSeenJobs(_clock);
+        seeker.SetLastSeenJobs(Now, _clock);
         db.SaveChanges();
 
         var sut = new GetJobsWatermarkQueryHandler(db, UserWith(userId));

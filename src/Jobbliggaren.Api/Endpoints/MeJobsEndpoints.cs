@@ -34,12 +34,15 @@ public static class MeJobsEndpoints
             .RequireAuthorization()
             .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 
-        // Advance the watermark (mark the /jobb list seen up to now). Owner-scoped mutation,
-        // MeWrite (parity POST /me/matches/seen). Monotonic in the aggregate. 204 / 400.
+        // Advance the watermark (mark the /jobb list seen through the viewed window). Owner-scoped
+        // mutation, MeWrite (parity POST /me/matches/seen). Body { seenThrough } = max CreatedAt of
+        // the ads the FE actually rendered (#759, sibling of #477 Low 4 — the watermark is set to
+        // this, not clock-now). Nullable/empty body (empty list / deploy-skew from an older FE) →
+        // handler falls back to clock-now. Monotonic in the aggregate. 204 / 400.
         app.MapPost("/api/v1/me/jobs/seen", async (
-                IMediator mediator, CancellationToken ct) =>
+                MarkJobsSeenRequest? body, IMediator mediator, CancellationToken ct) =>
             {
-                var result = await mediator.Send(new MarkJobsSeenCommand(), ct);
+                var result = await mediator.Send(new MarkJobsSeenCommand(body?.SeenThrough), ct);
                 return result.IsSuccess
                     ? Results.NoContent()
                     : result.Error.ToProblemResult();
@@ -49,3 +52,10 @@ public static class MeJobsEndpoints
             .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
     }
 }
+
+/// <summary>
+/// Body for <c>POST /api/v1/me/jobs/seen</c> (#759, sibling of #477 Low 4). <c>SeenThrough</c> =
+/// the max <c>CreatedAt</c> of the ads the FE actually rendered on the loaded page; nullable so an
+/// empty body (empty list / deploy-skew) is allowed and falls back to clock-now in the handler.
+/// </summary>
+internal sealed record MarkJobsSeenRequest(DateTimeOffset? SeenThrough);

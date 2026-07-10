@@ -262,19 +262,28 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     }
 
     /// <summary>
-    /// #293 (ADR 0042 Beslut E amendment) — marks the /jobb job list as seen up to now
-    /// (advances the user-read watermark). The next visit's "Ny" tag then flags only ads
-    /// ingested after this moment. Called on each /jobb page load (the sibling of
-    /// <see cref="SetLastSeenMatches"/>). Monotonic — a stale/duplicate call never rewinds
-    /// the watermark.
+    /// #293 (ADR 0042 Beslut E amendment) — advances the /jobb user-read watermark to
+    /// <paramref name="seenThrough"/>: the max <c>CreatedAt</c> of the ads the user actually
+    /// viewed on the loaded page. #759 (sibling of #477 Low 4 / PR #758) — NOT clock-now: an ad
+    /// ingested between the user's fetch and this call has <c>CreatedAt &gt; seenThrough</c>, so
+    /// it stays ABOVE the watermark and is correctly still flagged "Ny" on the next visit
+    /// (clock-now would swallow it silently). The next visit's "Ny" tag then flags only ads
+    /// ingested after the viewed window. Called on /jobb page load (the sibling of
+    /// <see cref="SetLastSeenMatches"/>). Monotonic; clamped to now so a future-dated
+    /// <paramref name="seenThrough"/> can never run the watermark ahead of reality (the aggregate
+    /// guards its own invariant, CLAUDE §2.2).
     /// </summary>
-    public void SetLastSeenJobs(IDateTimeProvider clock)
+    public void SetLastSeenJobs(DateTimeOffset seenThrough, IDateTimeProvider clock)
     {
         var now = clock.UtcNow;
-        if (LastSeenJobsAt is { } current && now <= current)
+
+        if (seenThrough > now)
+            seenThrough = now;
+
+        if (LastSeenJobsAt is { } current && seenThrough <= current)
             return;
 
-        LastSeenJobsAt = now;
+        LastSeenJobsAt = seenThrough;
         UpdatedAt = now;
     }
 

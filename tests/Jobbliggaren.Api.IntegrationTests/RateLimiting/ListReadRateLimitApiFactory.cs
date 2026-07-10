@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -71,6 +72,11 @@ public sealed class ListReadRateLimitApiFactory : WebApplicationFactory<Program>
                 opts.Configuration = _redisCs;
                 opts.InstanceName = "jobbliggaren:";
             });
+
+            // #714 — force email-confirmation-first OFF (parity with ApiFactory). Development env loads
+            // appsettings.Development.json where the flag is ON; without this override the rate-limit
+            // tests' RegisterAndGetSessionIdAsync gets a 202 (empty body) instead of 200 + sessionId.
+            services.PostConfigure<AuthOptions>(o => o.RequireEmailConfirmation = false);
         });
     }
 

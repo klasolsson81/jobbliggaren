@@ -124,6 +124,55 @@ public class ReauthenticationServiceTests
     }
 
     [Fact]
+    public async Task VerifyCurrentUserPassword_WhenValidateCredentialsReturnsEmailNotConfirmed_NormalizesToInvalidCredentials()
+    {
+        // #714 CTO-bind Risk 2 (defense-in-depth): the shared ValidateCredentialsAsync can now emit
+        // EmailNotConfirmed (the login gate). On the re-auth surface that MUST be normalized back to the
+        // uniform InvalidCredentials 401 — the distinct 403 arm is reachable ONLY via LoginCommandHandler.
+        // Unreachable in practice (only confirmed users hold sessions), but this pins the branch so a
+        // future refactor can never leak the confirmation-gate 403 onto /auth/verify.
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        _currentUser.UserId.Returns(userId);
+        _userAccount.GetEmailAsync(userId, Arg.Any<CancellationToken>()).Returns(TestEmail);
+        _userAccount.ValidateCredentialsAsync(TestEmail, TestPassword, Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<UserCredentials>(DomainError.Validation(
+                AuthErrorCodes.EmailNotConfirmed, AuthErrorCodes.EmailNotConfirmedMessage)));
+
+        var result = await CreateSut().VerifyCurrentUserPasswordAsync(TestPassword, ct);
+
+        result.IsFailure.ShouldBeTrue();
+        // Normalized: the caller sees InvalidCredentials, never EmailNotConfirmed.
+        result.Error.Code.ShouldBe(AuthErrorCodes.InvalidCredentials);
+        result.Error.Code.ShouldNotBe(AuthErrorCodes.EmailNotConfirmed);
+        // Failed credential check → never reaches the soft-delete gate.
+        await _sessionStore.DidNotReceive().InvalidateAllForUserAsync(
+            Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task VerifyCurrentUserPassword_WhenValidateCredentialsReturnsOtherError_PassesItThrough()
+    {
+        // The normalization is SPECIFIC to EmailNotConfirmed — any OTHER credential error (here
+        // AccountLocked) flows through unchanged (the wire mapper normalizes AccountLocked→401 centrally).
+        // This guards against a regression that blanket-normalizes every failure to InvalidCredentials.
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        _currentUser.UserId.Returns(userId);
+        _userAccount.GetEmailAsync(userId, Arg.Any<CancellationToken>()).Returns(TestEmail);
+        _userAccount.ValidateCredentialsAsync(TestEmail, TestPassword, Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<UserCredentials>(DomainError.Validation(
+                AuthErrorCodes.AccountLocked, "Kontot är låst.")));
+
+        var result = await CreateSut().VerifyCurrentUserPasswordAsync(TestPassword, ct);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(AuthErrorCodes.AccountLocked);
+        await _sessionStore.DidNotReceive().InvalidateAllForUserAsync(
+            Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task VerifyCurrentUserPassword_WhenResolvedUserIdMismatchesSession_ReturnsInvalidCredentials()
     {
         var ct = TestContext.Current.CancellationToken;

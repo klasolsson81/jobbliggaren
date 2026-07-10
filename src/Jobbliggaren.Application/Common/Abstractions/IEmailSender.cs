@@ -80,4 +80,40 @@ public interface IEmailSender
         string toEmail,
         EmailChangedNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Sends the registration EMAIL-CONFIRMATION link (#714) to the account's own address after signup.
+    /// <paramref name="content"/> carries the recipient's userId + an opaque, Base64Url token the
+    /// template builds the activation link from (<c>{BaseUrl}/bekrafta-konto?uid=&amp;token=</c>). Until
+    /// the link is opened the account cannot log in (the <c>EmailConfirmed</c> gate). This closes the
+    /// registration status-oracle: the response is an identical 202 for a fresh or a taken address, and
+    /// the confirmation link is the only out-of-band signal (delivered only to an inbox the requester
+    /// controls, i.e. a fresh address).
+    /// <para>
+    /// <paramref name="idempotencyKey"/> is a deterministic, PII-free marker the transactional sender
+    /// (Resend) uses to avoid double-delivery on a transport retry. Non-transactional impls
+    /// (Console/Null) ignore it.
+    /// </para>
+    /// </summary>
+    Task SendEmailConfirmationAsync(
+        string toEmail,
+        EmailConfirmationEmail content,
+        EmailConfirmationIdempotencyKey idempotencyKey,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Sends the registration ACCOUNT-EXISTS notice (#714) out-of-band to a TAKEN address when someone
+    /// attempts to register it. Carries NO token, NO link that grants access - only a factual notice +
+    /// a login link built template-side from <c>EmailOptions.BaseUrl</c>, so a real account owner is
+    /// told someone tried to register their address (login-nudge, Klas decision) while the HTTP response
+    /// stays an identical 202 (no enumeration signal). Mirrors the change-email old-address notice.
+    /// <para>
+    /// <paramref name="idempotencyKey"/> dedupes a transport retry AND repeated attempts on the same
+    /// address (anti-email-bomb); Console/Null ignore it.
+    /// </para>
+    /// </summary>
+    Task SendAccountExistsNoticeAsync(
+        string toEmail,
+        AccountExistsNoticeIdempotencyKey idempotencyKey,
+        CancellationToken cancellationToken);
 }

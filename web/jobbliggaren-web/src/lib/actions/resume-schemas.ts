@@ -110,6 +110,63 @@ const makeSkillSchema = (t: ValidationTranslator) =>
       .transform((v) => (v === undefined ? null : v)),
   });
 
+// Fas 4b AppCopy superset (ADR 0095). The backend `LanguageProficiency` SmartEnum
+// tokens (English code identifiers). An unknown token maps tolerantly to
+// NotStated backend-side, but the guide sends exact tokens.
+const LANGUAGE_PROFICIENCY_TOKENS = [
+  "NotStated",
+  "Basic",
+  "Good",
+  "Fluent",
+  "Native",
+] as const;
+
+// Mirrors the domain `Resume.ValidateContent` (ADR 0095 D-E): the language name
+// is required-only in the domain (no max, like Company/Role/Skill.Name). We keep
+// a generous UI-affordance max (100, matching Skill.Name) so an absurd paste is
+// caught client-side; the server (which has no max here) stays authoritative.
+const makeSpokenLanguageSchema = (t: ValidationTranslator) =>
+  z.object({
+    name: z
+      .string()
+      .trim()
+      .min(1, t("resume.languageNameRequired"))
+      .max(100, t("resume.languageNameMax")),
+    proficiency: z.enum(LANGUAGE_PROFICIENCY_TOKENS),
+  });
+
+// Mirrors the domain `Resume.ValidateContent` (ADR 0095 D-E): the entry title is
+// required-only in the domain; the entry's lines are capped by their SUMMED length
+// (max 2 000 across all lines, NOT per line — the domain sums `l?.Length`). We add
+// a UI-affordance max (200) to the required-only title, matching the label-field
+// convention (Company/Role = 200).
+const makeSectionEntrySchema = (t: ValidationTranslator) =>
+  z.object({
+    title: z
+      .string()
+      .trim()
+      .min(1, t("resume.sectionEntryTitleRequired"))
+      .max(200, t("resume.sectionEntryTitleMax")),
+    lines: z
+      .array(z.string())
+      .optional()
+      .refine(
+        (lines) =>
+          !lines || lines.reduce((sum, line) => sum + line.length, 0) <= 2_000,
+        { message: t("resume.sectionEntryTooLong") },
+      ),
+  });
+
+const makeResumeSectionSchema = (t: ValidationTranslator) =>
+  z.object({
+    heading: z
+      .string()
+      .trim()
+      .min(1, t("resume.sectionHeadingRequired"))
+      .max(200, t("resume.sectionHeadingMax")),
+    entries: z.array(makeSectionEntrySchema(t)).optional(),
+  });
+
 export function makeCreateResumeSchema(t: ValidationTranslator) {
   return z.object({
     name: z
@@ -147,6 +204,12 @@ export function makeResumeContentSchema(t: ValidationTranslator) {
       .max(2000, t("resume.summaryMax"))
       .nullish()
       .transform((v) => (v && v.length > 0 ? v : null)),
+    // Fas 4b AppCopy superset (ADR 0095). Optional + undefined-friendly so the
+    // komplettera predecessor and other pre-superset callers (which omit them)
+    // stay valid; the Slutför-guide is the first sender. `skillGroups` is out of
+    // scope (CTO Q7(b)) and deliberately not modelled here.
+    languages: z.array(makeSpokenLanguageSchema(t)).optional(),
+    sections: z.array(makeResumeSectionSchema(t)).optional(),
   });
 }
 

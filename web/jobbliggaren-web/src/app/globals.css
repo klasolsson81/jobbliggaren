@@ -5115,6 +5115,482 @@ a.jp-adminnav__link[aria-current="page"]::after {
   white-space: nowrap;
 }
 
+/* Badge-kluster i CV-kortets head (Fas 4b PR-8.3): Standard-pill + ursprungs-
+   badge + granskningsstatus. Höger-justerat, radbryter på smal bredd. */
+.jp-cv__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* ── CV-hubb åtgärdskort (Fas 4b PR-8.3, design handoff §5.1) ──────
+   Hubbens hero när ett inläst men osparat utkast finns. Warning-tonad
+   vänster-accent — informationen bärs av StatusPill-kickern + text + struktur,
+   aldrig enbart av färg (WCAG 1.4.1). Komponerar befintliga tokens; inga nya. */
+.jp-cvaction {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 20px 22px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-left: 3px solid var(--jp-warning);
+  border-radius: var(--jp-r-md);
+}
+.jp-cvaction__source {
+  margin: 0;
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-caption);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+}
+.jp-cvaction__lead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.jp-cvaction__heading {
+  margin: 0;
+  font-size: var(--text-h4);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-ink-1);
+}
+.jp-cvaction__body {
+  margin: 0;
+  max-width: 68ch;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-cvaction__meter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 360px;
+}
+.jp-cvaction__meter-label {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+.jp-cvaction__meter-track {
+  height: 6px;
+  background: var(--jp-surface-3);
+  border-radius: var(--jp-r-pill);
+  overflow: hidden;
+}
+.jp-cvaction__meter-fill {
+  height: 100%;
+  background: var(--jp-brand-600);
+  border-radius: var(--jp-r-pill);
+}
+.jp-cvaction__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.jp-cvaction__estimate {
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+
+/* ── Slutför-guiden (Fas 4b PR-8.3) — fullskärms-route-wizard ──
+   Komponerar ENBART befintliga --jp-*-tokens (inga nya tokens). Civic:
+   1px-ramar, ingen skugga/gradient, radie ≤ 8px. Båda teman token-drivna. */
+.jp-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.jp-guide__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--jp-border);
+}
+.jp-guide__source {
+  margin: 0;
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-caption);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+  overflow-wrap: anywhere;
+}
+.jp-guide__rail {
+  margin: 0;
+}
+.jp-guide__raillist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.jp-guide__railitem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  color: var(--jp-ink-1);
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-medium);
+  cursor: pointer;
+  transition:
+    background 80ms linear,
+    border-color 80ms linear;
+}
+.jp-guide__railitem:hover {
+  background: var(--jp-surface-3);
+}
+.jp-guide__railitem:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.jp-guide__railitem[data-state="active"] {
+  border-color: var(--jp-accent-700);
+  background: var(--jp-accent-50);
+  color: var(--jp-accent-700);
+}
+.jp-guide__railind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--jp-r-pill);
+  border: 1px solid var(--jp-border-strong);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-bold);
+  flex-shrink: 0;
+}
+.jp-guide__railind[data-state="active"] {
+  border-color: var(--jp-accent-700);
+  color: var(--jp-accent-700);
+}
+.jp-guide__railind[data-state="done"] {
+  background: var(--jp-accent-800);
+  border-color: var(--jp-accent-800);
+  color: var(--jp-on-fill);
+}
+.jp-guide__position {
+  margin: 0;
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-caption);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+}
+.jp-guide__body {
+  display: flex;
+  flex-direction: column;
+}
+.jp-guide__steptitle {
+  margin: 0 0 4px;
+  font-size: var(--text-h2);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-heading-2);
+}
+.jp-guide__intro {
+  margin: 0 0 20px;
+  max-width: 68ch;
+  font-size: var(--text-body);
+  color: var(--jp-ink-1);
+}
+.jp-guide__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.jp-guide__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.jp-guide__field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.jp-guide__tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.jp-guide__hint {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+.jp-guide__wordcount {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+.jp-guide__degraded {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-warning);
+}
+.jp-guide__found {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-success);
+}
+.jp-guide__confirm {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-guide__confirm-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-success-bg);
+  color: var(--jp-success);
+  flex-shrink: 0;
+}
+.jp-guide__confirm-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.jp-guide__confirm-label {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+.jp-guide__confirm-value {
+  font-size: var(--text-body);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-ink-1);
+  overflow-wrap: anywhere;
+}
+.jp-guide__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 0;
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-guide__section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.jp-guide__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.jp-guide__section-title {
+  margin: 0;
+  font-size: var(--text-h3);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-ink-1);
+}
+.jp-guide__section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.jp-guide__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.jp-guide__empty {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+.jp-guide__parallel {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 720px) {
+  .jp-guide__parallel {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.jp-guide__card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-guide__entry {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 16px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-guide__subentry {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-sm);
+}
+.jp-guide__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 640px) {
+  .jp-guide__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.jp-guide__collapsed {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-guide__collapsed-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.jp-guide__collapsed-title {
+  font-size: var(--text-body);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-ink-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jp-guide__collapsed-meta {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+.jp-guide__chipeditor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.jp-guide__chipadd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.jp-guide__chipadd [data-slot="input"] {
+  flex: 1;
+  min-width: 0;
+}
+.jp-guide__summary {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-guide__summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+}
+.jp-guide__summary-row + .jp-guide__summary-row {
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-guide__summary-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-ink-1);
+}
+.jp-guide__summary-ind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--jp-r-pill);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-bold);
+  background: var(--jp-surface-3);
+  color: var(--jp-ink-2);
+  flex-shrink: 0;
+}
+.jp-guide__summary-ind[data-done="true"] {
+  background: var(--jp-accent-800);
+  color: var(--jp-on-fill);
+}
+.jp-guide__summary-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+.jp-guide__note {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+.jp-guide__foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--jp-border);
+}
+.jp-guide__foot-spacer {
+  flex: 1 1 auto;
+}
+.jp-guide__error {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-danger);
+}
+
 /* ── Animations ──────────────────────────────────── */
 @keyframes jp-fade {
   from { opacity: 0; }
@@ -7256,6 +7732,37 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-pdf-frame__fallback {
   margin: 0;
   font-size: var(--text-body-sm);
+}
+
+/* ── ATS-textflik i CvPreview-modalen (Fas 4b PR-8.3) ──────────────
+   Ren, linjäriserad CV-text som en ATS-parser läser den. Mono för att
+   understryka "plain text", pre-wrap bevarar radbrytningar och wrappar långa
+   rader (ingen horisontell scroll), scrollar vertikalt inom modal-kroppen. */
+.jp-atstext {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.jp-atstext__banner {
+  margin: 0;
+  max-width: 68ch;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+.jp-atstext__body {
+  margin: 0;
+  max-height: min(60vh, 640px);
+  overflow: auto;
+  padding: 16px;
+  background: var(--jp-surface-2);
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-sm);
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-body-sm);
+  line-height: 1.55;
+  color: var(--jp-ink-1);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
 
 .jp-cv-cta {

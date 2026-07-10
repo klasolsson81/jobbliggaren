@@ -47,3 +47,74 @@ export function gapFillPathToElementId(path: string): string | null {
   }
   return null;
 }
+
+/** Wizard-stegen (`CvCompleteGuide`, PR-8.3), 0-indexerade. Exporterade så både
+ * routningen och komponenten läser samma index (ingen magisk siffra). */
+export const GUIDE_STEP_DETAILS = 0;
+export const GUIDE_STEP_EXPERIENCE = 1;
+export const GUIDE_STEP_SKILLS = 2;
+export const GUIDE_STEP_SAVE = 3;
+
+/**
+ * Slutför-guiden (`CvCompleteGuide`, PR-8.3) delar `makePromoteParsedResumeSchema`
+ * med gap-fill-formen men har egna element-id (`guide-*`-prefix) OCH ett stegat
+ * flöde. En Zod-path mappas därför till BÅDE steget den bor på (så vi kan hoppa
+ * dit) och element-id:t att flytta fokus till. `null` = okänd path (ingen
+ * fokus-flytt). `elementId` kan vara `null` även när `step` är känt (t.ex. en
+ * kompetens-post — chip-listan har ingen per-post-input; vi landar på steget och
+ * add-fältet).
+ */
+export function guidePathToStepAndElementId(
+  path: string,
+): { step: number; elementId: string | null } | null {
+  if (path === "name") {
+    return { step: GUIDE_STEP_SAVE, elementId: "guide-cv-name" };
+  }
+  if (!path.startsWith("content.")) return null;
+  const inner = path.slice("content.".length);
+
+  if (inner.startsWith("personalInfo.")) {
+    const field = inner.slice("personalInfo.".length);
+    return { step: GUIDE_STEP_DETAILS, elementId: `guide-pi-${field}` };
+  }
+  if (inner === "summary") {
+    return { step: GUIDE_STEP_DETAILS, elementId: "guide-summary" };
+  }
+
+  const exp = inner.match(/^experiences\.(\d+)\.(.+)$/);
+  if (exp) {
+    return { step: GUIDE_STEP_EXPERIENCE, elementId: `guide-exp-${exp[1]}-${exp[2]}` };
+  }
+  const edu = inner.match(/^educations\.(\d+)\.(.+)$/);
+  if (edu) {
+    return { step: GUIDE_STEP_EXPERIENCE, elementId: `guide-edu-${edu[1]}-${edu[2]}` };
+  }
+
+  const sectionEntry = inner.match(/^sections\.(\d+)\.entries\.(\d+)\.(.+)$/);
+  if (sectionEntry) {
+    const field = sectionEntry[3] === "lines" ? "body" : sectionEntry[3];
+    return {
+      step: GUIDE_STEP_EXPERIENCE,
+      elementId: `guide-section-${sectionEntry[1]}-entry-${sectionEntry[2]}-${field}`,
+    };
+  }
+  const section = inner.match(/^sections\.(\d+)\.(.+)$/);
+  if (section) {
+    const field = section[2] === "heading" ? "heading" : section[2];
+    return {
+      step: GUIDE_STEP_EXPERIENCE,
+      elementId: `guide-section-${section[1]}-${field}`,
+    };
+  }
+
+  // Kompetenser + språk är chip-listor utan per-post-input → landa på steget
+  // och dess add-fält (ärlig fokus-destination i stället för en gissad post).
+  if (inner.startsWith("skills.")) {
+    return { step: GUIDE_STEP_SKILLS, elementId: "guide-skills-add" };
+  }
+  if (inner.startsWith("languages.")) {
+    return { step: GUIDE_STEP_SKILLS, elementId: "guide-languages-add" };
+  }
+
+  return null;
+}

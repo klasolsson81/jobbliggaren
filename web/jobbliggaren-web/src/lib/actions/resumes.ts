@@ -265,3 +265,63 @@ export async function promoteParsedResumeAction(
   revalidatePath("/cv");
   redirect(`/cv/${result.resumeId}`);
 }
+
+/**
+ * Guide-ingången (`/cv/slutfor/[parsedId]`, Fas 4b PR-8.3): samma one-shot
+ * promote som sid-ingången (delar `promoteParsedResumeCore`, DRY) men landar på
+ * hubben `/cv`. Post-promote-redirecten till den kanoniska granska-vyn
+ * (`/cv/[id]/granska`) byggs i PR-8.4 (CTO-bind Q4) — tills dess är hubben rätt
+ * destination (utkastet är befordrat och syns som ett CV-kort). NEXT_REDIRECT är
+ * en framgångssignal som får propagera.
+ */
+export async function promoteParsedResumeFromGuideAction(
+  parsedResumeId: string,
+  name: string,
+  content: ResumeContentDto
+): Promise<ActionResult> {
+  const result = await promoteParsedResumeCore(parsedResumeId, name, content);
+  if (!result.ok) return { success: false, error: result.error };
+  revalidatePath("/cv");
+  redirect("/cv");
+}
+
+/**
+ * Kasta en tolkad CV-stagingartefakt (Fas 4b PR-8, CTO-bind Q6) — hubbens
+ * åtgärdskorts "Ta bort utkastet". POST, inte DELETE: en soft-delete
+ * state-transition (artefakten behålls för audit tills retention-sveparen),
+ * paritet med `/promote`. Ägar-scopad + IDOR-404 fail-closed + auditerad på
+ * backend-sidan. Ingen redirect: knappen sitter på hubben, `revalidatePath`
+ * tar bort åtgärdskortet. `isValidId` speglar `deleteResumeAction`.
+ */
+export async function discardParsedResumeAction(
+  parsedResumeId: string
+): Promise<ActionResult> {
+  const tr = await getTranslations("resumes.actions");
+  const te = await getTranslations("errors");
+  const sessionId = await getSessionId();
+  if (!sessionId) return { success: false, error: tr("notLoggedIn") };
+
+  if (!isValidId(parsedResumeId)) {
+    return { success: false, error: tr("invalidResumeId") };
+  }
+
+  try {
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/resumes/parsed/${encodeURIComponent(parsedResumeId)}/discard`,
+      { method: "POST" }
+    );
+
+    if (!res.ok) {
+      return {
+        success: false,
+        error: mapActionError(res, tr("discardFailed"), te),
+      };
+    }
+  } catch {
+    return { success: false, error: tr("serverUnreachable") };
+  }
+
+  revalidatePath("/cv");
+  return { success: true };
+}

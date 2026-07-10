@@ -10,6 +10,7 @@ import { useTranslations } from "next-intl";
 import { Eye, X } from "lucide-react";
 import { BrandSpinner } from "@/components/brand/brand-spinner";
 import type { RenderProfile } from "@/lib/dto/parsed-resume";
+import { atsTextResponseSchema, type AtsTextResponse } from "@/lib/dto/resumes";
 
 /**
  * CvPreview — trigger-knapp + klient-state-modal med en PDF-iframe (deterministisk
@@ -20,17 +21,26 @@ import type { RenderProfile } from "@/lib/dto/parsed-resume";
  * `/api/cv/{id}/preview` (befordrad, kanonisk Resume — TD-112 / #202). Komponenten
  * äger ingen id-form; den lägger bara på `?profile=` på den givna routen.
  *
+ * Textversion för ATS (Fas 4b PR-8.3): när `atsTextUrl` ges läggs en tredje flik
+ * till som hämtar den linjäriserade, redan pnr-redigerade CV-texten (JSON) och
+ * visar den i en `<pre>`. Den aktiva fliken modelleras som `RenderProfile |
+ * "atsText"` — vi vidgar ALDRIG `RenderProfile` (backend-validatorn känner bara
+ * `Ats`/`Visual`). ATS-textfliken kör inte PDF-blob-hämtningen; ett byte tillbaka
+ * till en PDF-profil återställer iframe-beteendet. `atsTextUrl` utelämnas för
+ * parsade CV (ingen kanonisk id / ingen ats-text-endpoint) → fliken visas ej där.
+ *
  * Modal-mekaniken (scrim / role=dialog / aria-modal / focus-trap / focus-return /
  * body-scroll-lock / Esc) speglar `JobAdModalShell`. Skillnad: detta är en
  * KLIENT-STATE-modal (ingen route/searchParam-navigering), så fokus-retur till
  * trigger-knappen görs explicit i `close()` (JobAdModalShell förlitar sig på
  * `router.back()`). Profil-växeln speglar `.jp-segment`-utseendet men använder
- * `<button>` som byter `profile`-state utan att navigera.
+ * `<button>` som byter vy-state utan att navigera.
  *
  * Spinner-doktrin: PDF-renderingen är en känd-långsam, formlös väntan → öppna
  * modalen direkt + BrandSpinner + "läses in"-text (samma mönster som
- * ModalLoadingShell). Object-URL:er revokeras vid stängning, unmount och
- * profil-byte (ingen blob-läcka).
+ * ModalLoadingShell). ATS-textens JSON-hämtning är snabb → en enkel status-rad
+ * (role=status), ingen spinner. Object-URL:er revokeras vid stängning, unmount
+ * och profil-byte (ingen blob-läcka).
  */
 
 interface CvPreviewProps {
@@ -39,6 +49,12 @@ interface CvPreviewProps {
    * eller `/api/cv/{id}/preview`. `?profile=` läggs på av komponenten.
    */
   previewUrl: string;
+  /**
+   * Same-origin BFF-route för den kanoniska ATS-textvyn (`/api/cv/{id}/ats-text`),
+   * som returnerar `{ source, text }` JSON. Ges bara för befordrade Resume (den
+   * har en kanonisk id); utelämnas för parsade CV → ingen ATS-textflik.
+   */
+  atsTextUrl?: string;
   /** Initial profil (sidans `?profile=`-default — "Ats"). */
   initialProfile: RenderProfile;
   /**
@@ -53,12 +69,20 @@ interface CvPreviewProps {
   triggerIconSize?: number;
 }
 
+/** Den aktiva fliken: en PDF-profil eller ATS-textvyn. `RenderProfile` vidgas
+ * ALDRIG (backend känner bara `Ats`/`Visual`) — `"atsText"` är ren klient-vy-state. */
+type ViewTab = RenderProfile | "atsText";
+
 type PreviewStatus =
   | "loading"
   | "ready"
   | "error"
   | "rateLimited"
   | "notFound";
+
+/** ATS-textflikens hämtnings-tillstånd. 429 viks in i `error` (civil "försök
+ * igen om en stund") — fliken har ingen egen rate-limit-copy. */
+type AtsTextStatus = "loading" | "ready" | "notFound" | "error";
 
 const PROFILE_OPTIONS: ReadonlyArray<{
   value: RenderProfile;
@@ -84,18 +108,23 @@ function iframeTitle(
 
 export function CvPreview({
   previewUrl,
+  atsTextUrl,
   initialProfile,
   triggerClassName = "jp-btn jp-btn--secondary",
   triggerIconSize = 16,
 }: CvPreviewProps) {
   const t = useTranslations("resumes.preview");
   const [open, setOpen] = useState(false);
-  const [profile, setProfile] = useState<RenderProfile>(initialProfile);
+  const [view, setView] = useState<ViewTab>(initialProfile);
   const [status, setStatus] = useState<PreviewStatus>("loading");
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(
     DEFAULT_RETRY_AFTER_SECONDS
   );
+  const [atsStatus, setAtsStatus] = useState<AtsTextStatus>("loading");
+  const [atsText, setAtsText] = useState<AtsTextResponse | null>(null);
+
+  const isAtsText = view === "atsText";
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -117,11 +146,14 @@ export function CvPreview({
     triggerRef.current?.focus();
   };
 
-  // Hämta PDF:en vid öppning och vid profil-byte. AbortController städar
-  // in-flight-fetchen vid stängning/unmount/profil-byte. Object-URL:er
-  // revokeras när de ersätts eller vid avmontering (ingen blob-läcka).
+  // Hämta PDF:en vid öppning och vid profil-byte. ATS-textfliken kör INTE denna
+  // hämtning (den har sin egen effekt nedan). AbortController städar in-flight-
+  // fetchen vid stängning/unmount/vy-byte. Object-URL:er revokeras när de ersätts
+  // eller vid avmontering (ingen blob-läcka).
   useEffect(() => {
     if (!open) return;
+    if (view === "atsText") return;
+    const activeProfile = view;
 
     const controller = new AbortController();
     let createdUrl: string | null = null;
@@ -137,7 +169,7 @@ export function CvPreview({
       });
       try {
         const res = await fetch(
-          `${previewUrl}?profile=${profile}`,
+          `${previewUrl}?profile=${activeProfile}`,
           { signal: controller.signal, cache: "no-store" }
         );
 
@@ -175,7 +207,56 @@ export function CvPreview({
       controller.abort();
       if (createdUrl) URL.revokeObjectURL(createdUrl);
     };
-  }, [open, profile, previewUrl]);
+  }, [open, view, previewUrl]);
+
+  // Hämta ATS-textvyn (JSON) vid aktivering av textfliken. Egen effekt så PDF-
+  // och text-hämtningarna aldrig korsar tillstånd. AbortController städar in-
+  // flight-fetchen vid stängning/unmount/vy-byte. Backend-endpointen kan saknas
+  // lokalt (PR-8.2-syskon) → 404 mappas civilt till notFound.
+  useEffect(() => {
+    if (!open) return;
+    if (view !== "atsText") return;
+    if (!atsTextUrl) return;
+
+    const controller = new AbortController();
+
+    const run = async () => {
+      setAtsStatus("loading");
+      setAtsText(null);
+      try {
+        const res = await fetch(atsTextUrl, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+
+        if (res.ok) {
+          const json: unknown = await res.json();
+          const parsed = atsTextResponseSchema.safeParse(json);
+          if (parsed.success) {
+            setAtsText(parsed.data);
+            setAtsStatus("ready");
+          } else {
+            setAtsStatus("error");
+          }
+          return;
+        }
+
+        if (res.status === 404) {
+          setAtsStatus("notFound");
+          return;
+        }
+
+        setAtsStatus("error");
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setAtsStatus("error");
+      }
+    };
+
+    void run();
+
+    return () => controller.abort();
+  }, [open, view, atsTextUrl]);
 
   // Fokus in i modalen vid öppning (close-knappen, som JobAdModalShell) +
   // body-scroll-lock under modalens livstid.
@@ -266,7 +347,7 @@ export function CvPreview({
                 className="jp-segment"
               >
                 {PROFILE_OPTIONS.map((option) => {
-                  const isActive = option.value === profile;
+                  const isActive = option.value === view;
                   return (
                     <button
                       key={option.value}
@@ -274,54 +355,97 @@ export function CvPreview({
                       className="jp-segment__opt"
                       data-active={isActive}
                       aria-current={isActive ? "true" : undefined}
-                      onClick={() => setProfile(option.value)}
+                      onClick={() => setView(option.value)}
                     >
                       <span>{t(option.labelKey)}</span>
                     </button>
                   );
                 })}
+                {atsTextUrl && (
+                  <button
+                    type="button"
+                    className="jp-segment__opt"
+                    data-active={isAtsText}
+                    aria-current={isAtsText ? "true" : undefined}
+                    onClick={() => setView("atsText")}
+                  >
+                    <span>{t("atsText")}</span>
+                  </button>
+                )}
               </div>
 
-              {status === "loading" && (
-                <div className="jp-modal-loading">
-                  <BrandSpinner size={48} label={t("loadingLabel")} />
-                  <p className="jp-modal-loading__text" aria-hidden="true">
-                    {t("loadingText")}
-                  </p>
-                </div>
-              )}
-
-              {status === "ready" && blobUrl && (
+              {!isAtsText && (
                 <>
-                  <iframe
-                    src={blobUrl}
-                    title={iframeTitle(t, profile)}
-                    className="jp-pdf-frame"
-                  />
-                  <p className="jp-pdf-frame__fallback">
-                    <a
-                      href={`${previewUrl}?profile=${profile}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {t("openInNewTab")}
-                    </a>
-                  </p>
+                  {status === "loading" && (
+                    <div className="jp-modal-loading">
+                      <BrandSpinner size={48} label={t("loadingLabel")} />
+                      <p className="jp-modal-loading__text" aria-hidden="true">
+                        {t("loadingText")}
+                      </p>
+                    </div>
+                  )}
+
+                  {status === "ready" && blobUrl && (
+                    <>
+                      <iframe
+                        src={blobUrl}
+                        title={iframeTitle(t, view)}
+                        className="jp-pdf-frame"
+                      />
+                      <p className="jp-pdf-frame__fallback">
+                        <a
+                          href={`${previewUrl}?profile=${view}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {t("openInNewTab")}
+                        </a>
+                      </p>
+                    </>
+                  )}
+
+                  {status === "rateLimited" && (
+                    <p className="jp-lede">
+                      {t("rateLimited", { seconds: retryAfterSeconds })}
+                    </p>
+                  )}
+
+                  {status === "notFound" && (
+                    <p className="jp-lede">{t("notFound")}</p>
+                  )}
+
+                  {status === "error" && (
+                    <p className="jp-lede">{t("error")}</p>
+                  )}
                 </>
               )}
 
-              {status === "rateLimited" && (
-                <p className="jp-lede">
-                  {t("rateLimited", { seconds: retryAfterSeconds })}
-                </p>
-              )}
+              {isAtsText && (
+                <>
+                  {atsStatus === "loading" && (
+                    <p className="jp-lede" role="status">
+                      {t("atsTextLoading")}
+                    </p>
+                  )}
 
-              {status === "notFound" && (
-                <p className="jp-lede">{t("notFound")}</p>
-              )}
+                  {atsStatus === "ready" && atsText && (
+                    <section
+                      aria-label={t("atsTextRegionLabel")}
+                      className="jp-atstext"
+                    >
+                      <p className="jp-atstext__banner">{t("atsTextBanner")}</p>
+                      <pre className="jp-atstext__body">{atsText.text}</pre>
+                    </section>
+                  )}
 
-              {status === "error" && (
-                <p className="jp-lede">{t("error")}</p>
+                  {atsStatus === "notFound" && (
+                    <p className="jp-lede">{t("atsTextNotFound")}</p>
+                  )}
+
+                  {atsStatus === "error" && (
+                    <p className="jp-lede">{t("atsTextError")}</p>
+                  )}
+                </>
               )}
             </div>
           </div>

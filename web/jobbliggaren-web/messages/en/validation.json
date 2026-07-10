@@ -52,6 +52,13 @@
     "cvNameRequired": "A name for the CV is required.",
     "phoneMax": "Phone may be at most 50 characters.",
     "locationMax": "Location may be at most 200 characters.",
-    "descriptionMax": "Description may be at most 2,000 characters."
+    "descriptionMax": "Description may be at most 2,000 characters.",
+    "languageNameRequired": "A language name is required.",
+    "languageNameMax": "The language name may be at most 100 characters.",
+    "sectionHeadingRequired": "A section heading is required.",
+    "sectionHeadingMax": "The heading may be at most 200 characters.",
+    "sectionEntryTitleRequired": "A title is required for the section entry.",
+    "sectionEntryTitleMax": "The title may be at most 200 characters.",
+    "sectionEntryTooLong": "A section entry may contain at most 2,000 characters."
   }
 }

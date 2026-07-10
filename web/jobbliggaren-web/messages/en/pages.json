@@ -60,9 +60,23 @@
     "emptyCreateFirst": "Create first CV",
     "backLink": "Back to CV",
     "pending": {
-      "heading": "CV to complete",
-      "body": "Your CV has been read but not saved yet. Complete it to save it and use it fully.",
-      "cta": "Complete CV"
+      "kicker": "Needs action",
+      "imported": "Imported {when}",
+      "heading": "Your CV has been read",
+      "body": "The file has been read but not saved yet. Go through the details and save, and your CV becomes one of yours and can be reviewed.",
+      "meter": "{done} of {total} details complete",
+      "cta": "Complete CV",
+      "timeEstimate": "about 1 min",
+      "discard": "Remove draft",
+      "discardTitle": "Remove draft?",
+      "discardBody": "The draft is removed. You can import your CV again whenever you want.",
+      "discardConfirm": "Remove draft",
+      "discardCancel": "Cancel",
+      "relativeTime": {
+        "today": "today",
+        "yesterday": "yesterday",
+        "daysAgo": "{count, plural, one {# day ago} other {# days ago}}"
+      }
     },
     "import": {
       "title": "Import CV",
@@ -101,6 +115,14 @@
       "loadErrorTitle": "Could not load the CV",
       "errorBody": "A technical error occurred. Try reloading the page or go back to the review.",
       "backLink": "Back to the review"
+    },
+    "slutfor": {
+      "title": "Finish your CV",
+      "lede": "Review the details we read from your file, fill in what is missing, and save. The source file is kept untouched.",
+      "loadErrorTitle": "Could not load the CV",
+      "errorBody": "A technical error occurred. Try reloading the page or go back to the CV page.",
+      "backLink": "Back to CV",
+      "loading": "Loading the CV…"
     },
     "importApi": {
       "notMultipart": "Upload the file as multipart/form-data.",

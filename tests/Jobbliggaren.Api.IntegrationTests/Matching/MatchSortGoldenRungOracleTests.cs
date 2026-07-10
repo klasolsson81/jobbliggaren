@@ -142,6 +142,25 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
             },
             cvSkillConceptIds);
 
+    // #477 Low 1 — a profile that states a region + MUNICIPALITY ort preference PLUS the derived
+    // CONTAINMENT län set (the parent län of the preferred kommun). A LÄN-ONLY ad in the containment
+    // län reads RegionFit NotAssessed (neither floors nor lifts) → it can NEVER be Fast-Strong and
+    // NEVER earns the golden top-skill lift (which is Strong-band gated). Set DIRECTLY (the taxonomy
+    // derivation is tested in the profile-builder unit tests).
+    private static FullCandidateMatchProfile ProfileWithContainment(
+        string preferredMunicipality, string containmentRegion, params string[] cvSkillConceptIds) =>
+        new(
+            new CandidateMatchProfile(
+                Title: string.Empty,
+                SsykGroupConceptIds: [PrefGroup],
+                PreferredRegionConceptIds: [PrefRegion],
+                PreferredEmploymentTypeConceptIds: [PrefEmployment],
+                PreferredMunicipalityConceptIds: [preferredMunicipality])
+            {
+                ContainmentRegionConceptIds = [containmentRegion],
+            },
+            cvSkillConceptIds);
+
     // Filter on the unique test-run worktime-extent only (Spår 3 PR-C: moved off municipality —
     // the grade now reads municipality as an ort signal, so the run-isolation key rides the
     // grade-neutral worktime-extent instead; mirrors MatchSortOracleTests.FilterFor).
@@ -579,6 +598,73 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
                 "(golden-lyften läser det EXAKTA ssyk-setet; ett substituerbart yrke cap:as platt " +
                 "till Related oavsett skill-överlapp). Den nyare related-annonsen får alltså INTE " +
                 "ligga först.");
+    }
+
+    // =================================================================
+    // 17. #477 Low 1 — a CONTAINMENT län-only ad does NOT perturb the golden rung. Such an ad
+    //     reads RegionFit NotAssessed (via the containment branch), so it can never be Fast-Strong
+    //     and never earns the golden top-skill lift — even when it carries the shared CV skill. It
+    //     sorts at its REAL Good rank (rank 3): BELOW the two golden/plain Strong ads and ABOVE a
+    //     plain Basic ad. The golden rung is UNTOUCHED by #477; this pins that invariant.
+    //
+    //     Revert-detection: the containment ad is published OLDER than the plain Basic ad, so if the
+    //     containment branch were reverted (RegionFit → NoMatch → RB1 floor → Basic), the ad would
+    //     TIE the plain Basic at rank 1 and — broken by publishedAt desc — sink BELOW the newer plain
+    //     Basic, breaking the asserted order. So this test genuinely fails if containment is reverted.
+    // =================================================================
+
+    [Fact]
+    public async Task SearchByMatch_ContainmentLanOnlyAd_SortsAtGoodRankBelowGolden_NeverGoldenNorBasic()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // The preferred kommun and its parent län (containment). containmentLan ≠ PrefRegion so the
+        // containment ad is NOT a direct region hit — only the containment branch can neutralise it.
+        const string prefMunicipality = "kn-golden-containment-pref";
+        const string containmentLan = "reg-golden-containment-lan";
+
+        var goldenTerms = ExtractedTerms.From([SkillTerm(CvSkillConceptId, CvSkillDisplay)]);
+
+        // goldenStrong: Strong (region hit) + shared skill → golden top lift.
+        var goldenStrong = await SeedJobAdAsync(
+            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(10), goldenTerms, ct);
+        // plainStrong: Strong (region hit), no skill → plain Strong (below golden).
+        var plainStrong = await SeedJobAdAsync(
+            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(9), terms: null, ct);
+        // containmentGood: LÄN-ONLY ad in the containment län (region = containmentLan, municipality
+        // NULL) + employment Match → RegionFit NotAssessed (containment) → Good (rank 3). It ALSO
+        // carries the shared CV skill — but it is NOT Strong-band, so it earns NO golden lift (the
+        // golden precondition requires an ort hit, which a containment NotAssessed is not). Published
+        // OLDER than plainBasic so a reverted containment (→ Basic floor) would sink it below the
+        // newer plainBasic — making this assertion fail loud on revert.
+        var containmentGood = await SeedJobAdAsync(
+            run, PrefGroup, containmentLan, PrefEmployment, t.AddDays(3), goldenTerms, ct);
+        // plainBasic: SSYK Match only, both secondaries NotAssessed (region + employment NULL) →
+        // Basic (rank 1). Published NEWER than containmentGood — the contrast that makes Good-vs-Basic
+        // observable in the sort order (revert-detection).
+        var plainBasic = await SeedJobAdAsync(
+            run, PrefGroup, null, null, t.AddDays(8), terms: null, ct);
+
+        var (scope, matchSort) = NewMatchSort();
+        using var _ = scope;
+        var page = await matchSort.SearchPerUserAsync(
+            FilterFor(run),
+            ProfileWithContainment(prefMunicipality, containmentLan, CvSkillConceptId),
+            grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true,
+            status: JobAdStatusFilter.None, seekerId: default, page: 1, pageSize: 100, ct);
+
+        var orderedIds = page.Items.Select(i => i.Id).ToList();
+        orderedIds.Count.ShouldBe(4, "Hela den filtrerade mängden ska returneras.");
+
+        orderedIds.ShouldBe(
+            [goldenStrong.Value, plainStrong.Value, containmentGood.Value, plainBasic.Value],
+            "Den gyllene rungen är ORÖRD av #477: golden-Strong > plain-Strong (golden-lyft), sedan " +
+            "containment-annonsen på sin RIKTIGA Good-rank (under båda Strong-annonserna — INGEN " +
+            "golden-lyft trots delad CV-skill, den är inte Strong-band), sedan Basic sist. Vore " +
+            "containment reverterad skulle annonsen golvas till Basic och sjunka UNDER den nyare " +
+            "plain-Basic (denna assertion failar då).");
     }
 
     private async Task<List<JobAdId>> CanonicalIdOrderAsync(

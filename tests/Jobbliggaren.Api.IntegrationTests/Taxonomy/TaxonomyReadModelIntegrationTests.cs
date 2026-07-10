@@ -637,4 +637,89 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
             "Övriga kontorsassistenter och sekreterare (eQ4M_CNm_ozj) tillhör yrkesområdet " +
             "Administration/ekonomi/juridik och är ALDRIG related till en Data/IT-profil (#359).");
     }
+
+    // ───────────────────────────────────────────────────────────────────
+    // #477 Low 1 — kommun→län-containment. GetContainingRegionsAsync maps a user's EXACT
+    // kommun-concept-ids to their parent-län (region) concept-ids via
+    // TaxonomyConcept.ParentConceptId (kommun is a child under län, 1:1 — the SAME
+    // municipalitiesByRegion relation read BACKWARDS; no migration, the data is already
+    // seeded). Against the REAL seeded snapshot (NEVER InMemory — the reverse
+    // regionByMunicipality dictionary is built off the seeded ParentConceptId rows). Dedups
+    // (several kommuner in one län → ONE län), empty→empty, unknown→nothing, never null/throw
+    // (parity ResolveLabelsAsync / GetRelatedOccupationGroupsAsync). The real kommun/län pairs
+    // are DERIVED from the seeded tree (never hardcoded) so the test never goes stale against
+    // a snapshot bump.
+    // ───────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetContainingRegionsAsync_ShouldReturnParentRegion_WhenMunicipalitySeeded()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+        var tree = await sut.GetTreeAsync(ct);
+
+        // A real län with ≥1 seeded kommun; its nested kommun's parent IS that län (1:1). The
+        // tree nests kommuner under a län by ParentConceptId, so this kommun's containing län is
+        // exactly the län it hangs under.
+        var lan = tree.Regions.First(r => r.Municipalities.Count > 0);
+        var kommun = lan.Municipalities[0];
+
+        var containing = await sut.GetContainingRegionsAsync([kommun.ConceptId], ct);
+
+        containing.ShouldHaveSingleItem().ShouldBe(lan.ConceptId);
+    }
+
+    [Fact]
+    public async Task GetContainingRegionsAsync_ShouldDedupToSingleRegion_WhenTwoMunicipalitiesShareLan()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+        var tree = await sut.GetTreeAsync(ct);
+
+        // A real län with ≥2 seeded kommuner (pick the one with the MOST kommuner, robust against
+        // a single-kommun län like Gotland). Two kommuner in the SAME län dedup to ONE län.
+        var lan = tree.Regions
+            .Where(r => r.Municipalities.Count >= 2)
+            .OrderByDescending(r => r.Municipalities.Count)
+            .First();
+        var kommunA = lan.Municipalities[0];
+        var kommunB = lan.Municipalities[1];
+
+        var containing = await sut.GetContainingRegionsAsync(
+            [kommunA.ConceptId, kommunB.ConceptId], ct);
+
+        containing.ShouldHaveSingleItem().ShouldBe(
+            lan.ConceptId,
+            "Två kommuner i samma län ska dedupliseras till ETT län (kommun→förälder-län, #477).");
+    }
+
+    [Fact]
+    public async Task GetContainingRegionsAsync_ShouldReturnEmpty_WhenInputEmpty()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+
+        var containing = await sut.GetContainingRegionsAsync([], ct);
+
+        containing.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task GetContainingRegionsAsync_ShouldReturnEmptyNotThrow_WhenMunicipalityUnknown()
+    {
+        // Graceful degradation (parity ResolveLabelsAsync / GetRelatedOccupationGroupsAsync): an
+        // unknown / parent-less kommun contributes nothing — empty list, never null/throw. A stale
+        // snapshot never crashes the containment derivation.
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+
+        var containing = await sut.GetContainingRegionsAsync(
+            ["definitivt-okand-kommun-99"], ct);
+
+        containing.ShouldBeEmpty();
+    }
 }

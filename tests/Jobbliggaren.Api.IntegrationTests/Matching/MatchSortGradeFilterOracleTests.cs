@@ -69,6 +69,14 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
     // The ort-union (region ∪ municipality) constants.
     private const string PrefMunicipality = "mun-gradefilter-pref";
 
+    // #477 Low 1 — the parent län of PrefMunicipality (kommun→län containment). DISTINCT from
+    // PrefRegion AND OtherRegion so a län-only ad carrying it is neither a direct region hit nor an
+    // arbitrary contradiction: the profile's ContainmentRegionConceptIds = [PrefMunicipalityRegion]
+    // makes ScoreOrtUnion read such a län-only ad as NotAssessed (neutral), and the SQL grade-WHERE
+    // mirrors it. Because no OTHER seeded ad uses this as its region, adding it to the profile leaves
+    // every existing seed's grade byte-for-byte unchanged.
+    private const string PrefMunicipalityRegion = "reg-gradefilter-containment-lan";
+
     // PR-4 (#300, ADR 0084) — a ssyk-4 in the RELATED (substitutable) set, NOT the exact set. The
     // profile states RelatedSsykGroupConceptIds = [RelatedGroup] so the grade-WHERE can select the
     // Related rung. Hoisted to a static readonly array (CA1861) for the profile builder + the
@@ -115,6 +123,12 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
             // rung from. Empty in the pre-PR-4 era → behaviour-inert; non-empty here so the {Related}
             // band is reachable. Exact-precedence: a group in BOTH would tag exact, not Related.
             RelatedSsykGroupConceptIds = RelatedGroups,
+            // #477 Low 1 — the containment län set (parent län of PrefMunicipality). Set DIRECTLY
+            // here (the oracle constructs the profile — the taxonomy-derivation is tested in
+            // MatchProfileBuilderTests, NOT relied on here). Drives BOTH the scorer's containment
+            // NotAssessed branch AND the SQL grade-WHERE's containment disjunct, so the per-subset
+            // set-equality below proves scorer ≡ SQL for a containment ad.
+            ContainmentRegionConceptIds = [PrefMunicipalityRegion],
         },
         CvSkillConceptIds: []);
 
@@ -251,6 +265,15 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         SeedJobAdAsync(run, PrefGroup, OtherRegion, PrefEmployment, publishedAt, ct,
             municipalityConceptId: PrefMunicipality);
 
+    // Good (rank 3) via #477 CONTAINMENT — a LÄN-ONLY ad (region = PrefMunicipalityRegion, the
+    // parent län of the preferred kommun; municipality NULL) + employment Match. RegionFit reads
+    // NotAssessed (containment: neither floors nor lifts), so the single confirmed secondary
+    // (employment) grades Good. Before #477 this RB1-floored to Basic; the SQL grade-WHERE now
+    // mirrors the scorer's NotAssessed via the containment disjunct. This is the tuple the
+    // scorer≡SQL parity oracle proves for the containment case.
+    private Task<JobAdId> SeedContainmentGoodAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
+        SeedJobAdAsync(run, PrefGroup, PrefMunicipalityRegion, PrefEmployment, publishedAt, ct);
+
     // Related (rank 2, PR-4 #300): occupation group ∈ the RELATED set only (∉ exact). The flat cap
     // makes it Related regardless of secondaries — region + employment are stated Match here, but an
     // exact hit's Strong is capped to Related (the load-bearing flat-cap proof).
@@ -299,8 +322,10 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
         // Seed ≥2 ads per Fast band (Basic, Good, Strong) + untagged + a contradiction-
-        // floored Basic + an ort-union Strong. publishedAt is monotonically decreasing so
-        // recency does not accidentally coincide with grade order.
+        // floored Basic + an ort-union Strong + a #477 containment Good. publishedAt is
+        // monotonically decreasing so recency does not accidentally coincide with grade order.
+        // The containment Good ad is captured so its SSOT grade can be sanity-checked below.
+        var containmentGood = await SeedContainmentGoodAsync(run, t.AddDays(13), ct);
         var seeded = new List<JobAdId>
         {
             // --- Strong (≥2)
@@ -312,6 +337,10 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
             // --- Good (≥2)
             await SeedGoodAsync(run, t.AddDays(15), ct),
             await SeedGoodAsync(run, t.AddDays(14), ct),
+            // --- Good via #477 containment (län-only ad in the preferred kommun's parent län) →
+            //     RegionFit NotAssessed + employment Match → Good. The per-subset set-equality then
+            //     AUTOMATICALLY proves scorer ≡ SQL for the containment neutralisation.
+            containmentGood,
 
             // --- Related (≥2, PR-4 #300): occupation ∈ related-only → flat cap Related, even with
             //     both secondaries Match (a would-be Strong capped to Related).
@@ -354,6 +383,16 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         distinctGrades.ShouldContain((MatchGrade?)null,
             "Seeden ska innehålla minst en otaggad annons (rank 0) så positiv-only-" +
             "exkluderingen testas på riktigt.");
+
+        // #477 Low 1 — the containment län-only ad genuinely grades Good via the SCORER (RegionFit
+        // NotAssessed via containment + employment Match). The per-subset set-equality below then
+        // AUTOMATICALLY proves scorer ≡ SQL for it: it must appear in EXACTLY the subsets containing
+        // Good (with the recomputed count matching) and NONE other. Had the SQL grade-WHERE and the
+        // scorer diverged on containment (one flooring to Basic, the other NotAssessed→Good), that
+        // set-equality would fail loud — the whole point of the oracle.
+        gradeById[containmentGood.Value].ShouldBe(MatchGrade.Good,
+            "Containment-läns-only-annonsen ska grada Good via scorern (RegionFit NotAssessed + " +
+            "anställning Match) — annars är seeden inte den #477-fixen påstår.");
 
         var (queryScope, query) = NewPerUserQuery();
         using var queryDispose = queryScope;

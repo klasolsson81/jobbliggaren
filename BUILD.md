@@ -977,6 +977,17 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
 - När användaren sätter status till `InterviewScheduled`, skapar appen ett calendar event
 - iCal-export via egen endpoint som genererar `.ics`-fil (inget OAuth krävs)
 
+> **Gmail-sync (§9.2) + Google Calendar (§9.3) skjuts upp — utgår ur MVP (#321,
+> Klas-beslut 2026-07-10).** GDPR-/drift-kostnaden är hög mot single-box- (~$16
+> CAX31, ADR 0050) och gratis-constraintsen — känslig `gmail.readonly`-OAuth-
+> appverifiering, per-användare-envelopekryptering av refresh-token och en
+> synk-last var 15:e minut per användare — och inget annat blockeras av att
+> skjuta upp den. Det användarnära behovet (aldrig missa en intervju/deadline)
+> täcks i stället av påminnelse-notiser i appen på översikten (t.ex. "Du har en
+> intervju bokad om 3 dagar"), spårat som **#726**. §9.2/§9.3-specarna ovan
+> bevaras som framtida referens om en extern-integrations-fas återupptas efter
+> beta.
+
 ### 9.4 SCB (Statistiska centralbyrån)
 
 - Användar Pxweb-API för lönestatistik: https://api.scb.se/OV0104/v1/doris/sv/ssd

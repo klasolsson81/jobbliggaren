@@ -13,8 +13,9 @@ export type BadgeVariant = "Info" | "Brand" | "Success" | "Warning" | "Danger" |
 //  - Ghosted:   Danger → Neutral (red over-signalled as a rejection, same red as Nekad).
 //  - Acknowledged: Success → Brand.
 //  - Draft:     Info → Neutral.
-// Shared with /jobb and other surfaces via the .jp-tag / data-status-variant system (#336),
-// so all keep colour + a text label (WCAG 1.4.1 — never colour alone).
+// The .jp-tag chassis renders these tags as visual siblings of /jobb's job-ad tags (which use a
+// separate map, JOB_AD_STATUS_BADGE_VARIANT); this map + its data-status-variant attribute are
+// applications-internal. Every status keeps colour + a text label (WCAG 1.4.1 — never colour alone).
 export const STATUS_BADGE_VARIANT: Record<ApplicationStatus, BadgeVariant> = {
   Draft: "Neutral",
   Submitted: "Info",

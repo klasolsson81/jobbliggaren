@@ -69,6 +69,12 @@ public class MatchProfileBuilderFullTests
     private static readonly string[] ExactGroups = ["grp_12345"];
     private static readonly string[] RelatedGroups = ["grp_R1", "grp_R2"];
 
+    // #477 Low 1 — kommun→län-containment. PrefMunicipalities is the stated kommun set (single
+    // element → normalization leaves it untouched); ContainmentRegions is the derived parent-län
+    // set the taxonomy ACL returns for it.
+    private static readonly string[] PrefMunicipalities = ["kommun_x"];
+    private static readonly string[] ContainmentRegions = ["lan_x"];
+
     public MatchProfileBuilderFullTests()
     {
         _currentUser.UserId.Returns(_userId);
@@ -89,6 +95,12 @@ public class MatchProfileBuilderFullTests
         var taxonomy = Substitute.For<ITaxonomyReadModel>();
         taxonomy
             .GetRelatedOccupationGroupsAsync(
+                Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<IReadOnlyList<string>>((IReadOnlyList<string>)[]));
+        // #477 Low 1 — default the containment ACL to [] (parity the related stub). Cases that
+        // DERIVE containment override the return for a specific municipality set.
+        taxonomy
+            .GetContainingRegionsAsync(
                 Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns(_ => new ValueTask<IReadOnlyList<string>>((IReadOnlyList<string>)[]));
         return taxonomy;
@@ -160,6 +172,16 @@ public class MatchProfileBuilderFullTests
             preferredSkills: skills).Value;
 
     private static MatchPreferences Prefs() => PrefsWithSkills(ConfirmedSkills);
+
+    // #477 Low 1 — prefs that additionally STATE a kommun preference, so the builder derives a
+    // non-empty ContainmentRegionConceptIds from the taxonomy ACL.
+    private static MatchPreferences PrefsWithMunicipality() =>
+        MatchPreferences.Create(
+            preferredOccupationGroups: ["grp_12345"],
+            preferredRegions: ["stockholm_AB"],
+            preferredEmploymentTypes: ["et_fast"],
+            preferredMunicipalities: PrefMunicipalities,
+            preferredSkills: ConfirmedSkills).Value;
 
     private static void AssertFastFromPrefs(CandidateMatchProfile fast)
     {
@@ -686,6 +708,91 @@ public class MatchProfileBuilderFullTests
         // ... but Related is EMPTY: the background path structurally cannot broaden.
         profile.Fast.RelatedSsykGroupConceptIds.ShouldBeEmpty(
             "Bakgrundsvägen breddar ALDRIG (svar D: relaterade är list-only, driver inga notiser).");
+        await taxonomy.DidNotReceive().GetRelatedOccupationGroupsAsync(
+            Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
+    }
+
+    // =================================================================
+    // #477 Low 1 — kommun→län-containment on the Full path. The Full profile has NO own
+    // containment field — it mirrors RelatedSsykGroupConceptIds AND ContainmentRegionConceptIds
+    // via its embedded Fast profile. The builder derives containment from the taxonomy ACL
+    // (kommun→parent-län) UNCONDITIONALLY (a correctness fix), so it flows through Fast on every
+    // Full path — including the BACKGROUND by-id path, which STRUCTURALLY never broadens related
+    // occupations. The sharp contrast (containment ON, related OFF on the same path) is the
+    // load-bearing "unconditional, unlike broadening" proof.
+    // =================================================================
+
+    [Fact]
+    public async Task BuildFullForSort_CarriesContainmentThroughFast_FromACL_EvenWithBreddningOff()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db, _userId, PrefsWithMunicipality());
+        var resume = await SeedResumeWithLatestRoleAsync(db, seeker.Id, "Backend-utvecklare");
+        seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var taxonomy = NewTaxonomy();
+        taxonomy
+            .GetContainingRegionsAsync(
+                Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(PrefMunicipalities)),
+                Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<IReadOnlyList<string>>(ContainmentRegions));
+        var builder = NewBuilder(db, taxonomy);
+
+        // Default — includeRelated OFF. Containment must still flow through the embedded Fast.
+        var profile = await builder.BuildFullForSortAsync(CancellationToken.None);
+
+        profile.Fast.ContainmentRegionConceptIds.ShouldBe(
+            ContainmentRegions,
+            "Full-vägen bär containment via Fast.ContainmentRegionConceptIds (Full speglar Fast, " +
+            "inget eget fält) — även med breddning AV (korrekthetsfix, ovillkorlig).");
+        await taxonomy.Received(1).GetContainingRegionsAsync(
+            Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(PrefMunicipalities)),
+            Arg.Any<CancellationToken>());
+        // The rest of the Full profile is untouched by containment derivation.
+        profile.CvSkillConceptIds.ShouldBe(ConfirmedSkills);
+        profile.Fast.Title.ShouldBe("Backend-utvecklare");
+        profile.Fast.RelatedSsykGroupConceptIds.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task BuildFullForUserId_PopulatesContainment_EvenThoughItStructurallyNeverBroadens()
+    {
+        // The background/system by-id path shares BuildFullCoreAsync → FastFromPreferencesAsync,
+        // which populates containment UNCONDITIONALLY. So the Worker scan DOES get the #477
+        // containment correctness fix, even though it STRUCTURALLY never broadens related
+        // occupations (question D). Contrast: containment ON, related OFF, on the very same path.
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db, _userId, PrefsWithMunicipality());
+        var resume = await SeedResumeWithLatestRoleAsync(db, seeker.Id, "Backend-utvecklare");
+        seeker.SetPrimaryResume(resume.Id, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        // Prime BOTH ACL ops to return non-empty. Containment must be carried; related must NOT.
+        var taxonomy = NewTaxonomy();
+        taxonomy
+            .GetContainingRegionsAsync(
+                Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(PrefMunicipalities)),
+                Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<IReadOnlyList<string>>(ContainmentRegions));
+        taxonomy
+            .GetRelatedOccupationGroupsAsync(
+                Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<IReadOnlyList<string>>(RelatedGroups));
+        var builder = NewBuilder(db, taxonomy);
+
+        var profile = await builder.BuildFullForUserIdAsync(seeker.UserId, CancellationToken.None);
+
+        // Containment IS populated on the background path (correctness fix — applies everywhere).
+        profile.Fast.ContainmentRegionConceptIds.ShouldBe(
+            ContainmentRegions,
+            "Bakgrundsvägen får #477-containment (korrekthetsfix, ovillkorlig — även i Worker-scannen).");
+        await taxonomy.Received(1).GetContainingRegionsAsync(
+            Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(PrefMunicipalities)),
+            Arg.Any<CancellationToken>());
+        // ... but related stays EMPTY and the related ACL is never consulted (structural, question D).
+        profile.Fast.RelatedSsykGroupConceptIds.ShouldBeEmpty(
+            "Bakgrundsvägen breddar ALDRIG (svar D) — men containment är ändå PÅ (korrekthetsfix).");
         await taxonomy.DidNotReceive().GetRelatedOccupationGroupsAsync(
             Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
     }

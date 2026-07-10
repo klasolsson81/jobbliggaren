@@ -24,7 +24,10 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
         TaxonomyTreeDto Tree,
         IReadOnlyDictionary<string, string> LabelByConceptId,
         IReadOnlyList<TaxonomySuggestionDto> Suggestable,
-        IReadOnlyDictionary<string, IReadOnlyList<string>> RelatedBySource);
+        IReadOnlyDictionary<string, IReadOnlyList<string>> RelatedBySource,
+        // #477 Low 1 — kommun→län-containment: kommun-concept-id → förälder-län-concept-id
+        // (1:1 via ParentConceptId). municipalitiesByRegion läst baklänges; cachas en gång.
+        IReadOnlyDictionary<string, string> RegionByMunicipality);
 
     // Cachen fylls en gång och delas av alla läsare. Medvetet INTE
     // Lazy<Task> (security-auditor 2026-05-17 Minor): en faulted Lazy<Task>
@@ -103,6 +106,32 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
             .ToList();
     }
 
+    // #477 Low 1 — kommun→län-containment: kommun-mängd → förälder-län-mängd. Ren
+    // dictionary-lookup mot den cachade RegionByMunicipality (kommun→förälder-län via
+    // ParentConceptId; ingen per-request-DB-träff, ADR 0043 §1.4). Dedupliserar (flera
+    // kommuner i samma län → ETT län) och exkluderar inget. Graceful: okänd/föräldralös
+    // kommun bidrar inget, tom input → tom output, aldrig null/throw (paritet
+    // GetRelatedOccupationGroupsAsync). Deterministisk Ordinal-ordning.
+    public async ValueTask<IReadOnlyList<string>> GetContainingRegionsAsync(
+        IReadOnlyList<string> municipalityConceptIds, CancellationToken cancellationToken)
+    {
+        if (municipalityConceptIds.Count == 0)
+            return [];
+
+        var state = await GetStateAsync(cancellationToken);
+        var regions = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var municipality in municipalityConceptIds)
+        {
+            if (state.RegionByMunicipality.TryGetValue(municipality, out var region))
+                regions.Add(region);   // okänd/föräldralös kommun → bidrar inget
+        }
+
+        return regions
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .ToList();
+    }
+
     private async ValueTask<CacheState> GetStateAsync(CancellationToken ct)
     {
         var cached = Volatile.Read(ref _cached);
@@ -142,6 +171,15 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
                 g => g.OrderBy(c => c.Label, StringComparer.Ordinal)
                       .Select(c => new TaxonomyMunicipalityDto(c.ConceptId, c.Label))
                       .ToList());
+
+        // #477 Low 1 — samma kommun-barn-under-län-relation läst BAKLÄNGES: kommun-
+        // concept-id → förälder-län-concept-id (1:1). Driver GetContainingRegionsAsync
+        // (kommun→län-containment) utan ny DB-träff. ConceptId är PK på taxonomy_concepts
+        // → varje kommun är unik → ingen tie-break behövs (paritet municipalitiesByRegion).
+        var regionByMunicipality = concepts
+            .Where(c => c.Kind == TaxonomyConceptKind.Municipality
+                        && c.ParentConceptId is not null)
+            .ToDictionary(c => c.ConceptId, c => c.ParentConceptId!, StringComparer.Ordinal);
 
         var regions = concepts
             .Where(c => c.Kind == TaxonomyConceptKind.Region)
@@ -245,7 +283,8 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
             new TaxonomyTreeDto(regions, occupationFields, employmentTypes, worktimeExtents),
             labelByConceptId,
             suggestable,
-            relatedBySource);
+            relatedBySource,
+            regionByMunicipality);
     }
 
     // #268 audit / #471 (parity with OccupationCodeDeriver's no-silent-First tie-break):

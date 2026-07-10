@@ -819,6 +819,192 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
     }
 
     // =================================================================
+    // dim 3 (ort-union) — #477 Low 1: kommun→län-containment. ScoreOrtUnion gains a new
+    // param (containmentRegions = the län that CONTAIN the user's preferred kommuner, derived by
+    // the profile builder from ParentConceptId) and ONE new branch, ONE direction: an ad that is
+    // LÄN-ONLY (region shadow present, municipality shadow NULL) whose region is in
+    // containmentRegions reads NotAssessed (empty Matched/Missing), NOT NoMatch — a län-only ad in
+    // the user's OWN kommun's län is not a location contradiction, so a kommun-only preference must
+    // not RB1-floor it to Basic. Evaluated AFTER the direct region/municipality hit and ONLY for
+    // län-only ads: a kommun-SPECIFIC ad in a non-preferred kommun of the same län stays NoMatch.
+    // NotAssessed (not Match) is the honest verdict — it neither floors nor lifts. Every case pairs
+    // a WITH-containment assertion against a WITHOUT-containment contrast, so a reverted containment
+    // branch fails loud.
+    // =================================================================
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_Containment_LanOnlyAdInContainmentLan_IsNotAssessed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var containmentLan = NewConceptId("reg");
+        var prefMunicipality = NewConceptId("mun");
+        // Län-only ad: region = the containment län, municipality NULL. The profile states a kommun
+        // preference (ort stated) whose parent län IS the ad's region (ContainmentRegionConceptIds =
+        // [containmentLan]) and NO region preference. #477: NotAssessed, not NoMatch.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, containmentLan, null, ct, municipalityConceptId: null);
+
+        var withContainment = new CandidateMatchProfile(
+            "Titel", [], [], [], [prefMunicipality])
+        {
+            ContainmentRegionConceptIds = [containmentLan],
+        };
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, withContainment, ct);
+
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed,
+            "En län-only-annons (kommun NULL) vars län INNEHÅLLER en föredragen kommun läses som " +
+            "NotAssessed via containment, aldrig NoMatch — den golvar inte graden (#477 Low 1).");
+        score.RegionFit.Matched.ShouldBeEmpty();
+        score.RegionFit.Missing.ShouldBeEmpty();
+
+        // CONTRAST — identical seed + preference, but WITHOUT the containment set: the SAME ad reads
+        // NoMatch (Missing = the ad's län). This proves the containment branch is exactly what flips
+        // the verdict — a reverted branch would make the WITH-containment assertion above fail.
+        var withoutContainment = new CandidateMatchProfile(
+            "Titel", [], [], [], [prefMunicipality]); // ContainmentRegionConceptIds defaults to []
+
+        var contrast = await scorer.ScoreAsync(jobAdId, withoutContainment, ct);
+        contrast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
+            "Utan containment-mängden golvas SAMMA annons till NoMatch (kontrasten som bevisar att " +
+            "det är containment-grenen som vänder verdiktet).");
+        contrast.RegionFit.Missing.ShouldBe([containmentLan]);
+    }
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_Containment_LanOnlyAdInNonContainmentLan_IsNoMatch()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adRegion = NewConceptId("reg");        // the ad's län
+        var containmentLan = NewConceptId("reg");  // a DIFFERENT län that IS in the containment set
+        var prefMunicipality = NewConceptId("mun");
+        // A län-only ad in län L, but the containment set contains a DIFFERENT län → containment does
+        // NOT rescue an arbitrary län → NoMatch (Missing = the ad's län). Pins that the branch is
+        // membership-gated on the ad's own region, not a blanket "any län-only ad is NotAssessed".
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, adRegion, null, ct, municipalityConceptId: null);
+        var profile = new CandidateMatchProfile("Titel", [], [], [], [prefMunicipality])
+        {
+            ContainmentRegionConceptIds = [containmentLan],
+        };
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
+            "Containment-mängden räddar bara en län-only-annons vars EGEN region ligger i mängden — " +
+            "en annons i ett annat län golvas fortsatt (#477).");
+        score.RegionFit.Matched.ShouldBeEmpty();
+        score.RegionFit.Missing.ShouldBe([adRegion]);
+    }
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_Containment_KommunSpecificAdInContainmentLan_StillNoMatch()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var containmentLan = NewConceptId("reg");
+        var adMunicipality = NewConceptId("mun");   // the ad's SPECIFIC (non-preferred) kommun
+        var prefMunicipality = NewConceptId("mun"); // the user's preferred kommun (different)
+        // Kommun-SPECIFIC ad (municipality present, non-preferred) in a containment län. Containment
+        // rescues ONLY län-only ads (municipality NULL) — the !hasAdMunicipality guard — so a
+        // kommun-specific ad in a DIFFERENT kommun of the same län stays NoMatch (the user narrowed
+        // to their own kommun; mirrors search).
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, containmentLan, null, ct, municipalityConceptId: adMunicipality);
+        var profile = new CandidateMatchProfile("Titel", [], [], [], [prefMunicipality])
+        {
+            ContainmentRegionConceptIds = [containmentLan],
+        };
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
+            "Containment räddar ENDAST län-only-annonser (kommun NULL). En kommun-specifik annons i " +
+            "en icke-föredragen kommun i samma län golvas fortsatt (kommun-NULL-grinden, #477).");
+        score.RegionFit.Matched.ShouldBeEmpty();
+        // Missing = the ad's present ort values (län + kommun), Ordinal-sorted.
+        var expectedMissing = new[] { containmentLan, adMunicipality }
+            .OrderBy(v => v, StringComparer.Ordinal).ToList();
+        score.RegionFit.Missing.ShouldBe(expectedMissing);
+    }
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_Containment_LanOnlyAd_WithSsykAndEmploymentMatch_YieldsGood()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adGroup = NewConceptId("grp");
+        var containmentLan = NewConceptId("reg");
+        var adEmployment = NewConceptId("emp");
+        var prefMunicipality = NewConceptId("mun");
+        // SSYK Match + employment Match + a containment län-only ad → RegionFit NotAssessed (neither
+        // floors nor lifts) → grades on its merits: one confirmed secondary (employment) → Good.
+        // Before #477 the same ad RB1-floored to Basic; the fix's payoff is Good. End-to-end: real
+        // scorer → real grade.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", adGroup, containmentLan, adEmployment, ct, municipalityConceptId: null);
+        var profile = new CandidateMatchProfile(
+            "Titel", [adGroup], [], [adEmployment], [prefMunicipality])
+        {
+            ContainmentRegionConceptIds = [containmentLan],
+        };
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        score.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Good,
+            "Containment-läns-only-annons + yrke Match + anställning Match → RegionFit NotAssessed " +
+            "(neutral) → en bekräftad sekundär → Good (INTE Basic — #477-fixens payoff).");
+
+        // CONTRAST — without the containment set the SAME ad RB1-floors to Basic (RegionFit NoMatch).
+        var withoutContainment = new CandidateMatchProfile(
+            "Titel", [adGroup], [], [adEmployment], [prefMunicipality]);
+        var contrast = await scorer.ScoreAsync(jobAdId, withoutContainment, ct);
+        contrast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
+        MatchGradeCalculator.Grade(contrast).ShouldBe(MatchGrade.Basic,
+            "Utan containment golvas SAMMA annons till Basic (RB1) — kontrasten som bevisar fixens " +
+            "värde (NoMatch → floor).");
+    }
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_Containment_LanOnlyAd_NoOtherSecondary_YieldsBasic()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adGroup = NewConceptId("grp");
+        var containmentLan = NewConceptId("reg");
+        var prefMunicipality = NewConceptId("mun");
+        // Containment län-only ad + SSYK Match, but NO other confirmed secondary (employment NULL →
+        // NotAssessed) → RegionFit NotAssessed + no secondary → Basic. Containment neither floors NOR
+        // lifts: it does not, on its own, invent a Good — the honest floor when nothing else confirms.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", adGroup, containmentLan, null, ct, municipalityConceptId: null);
+        var profile = new CandidateMatchProfile(
+            "Titel", [adGroup], [], [], [prefMunicipality])
+        {
+            ContainmentRegionConceptIds = [containmentLan],
+        };
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        score.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic,
+            "Containment-läns-only-annons + yrke Match, inga andra bekräftade sekundärer → RegionFit " +
+            "NotAssessed (neutral) → Basic (containment lyfter inte på egen hand, #477).");
+    }
+
+    // =================================================================
     // dim 3b — Employment fit (Match / NoMatch / NotAssessed)
     // =================================================================
 

@@ -37,6 +37,12 @@ public class MatchProfileBuilderTests
     private static readonly string[] ExactGroups = ["grp_A", "grp_B"];
     private static readonly string[] RelatedGroups = ["grp_R1", "grp_R2"];
 
+    // #477 Low 1 — kommun→län-containment. PrefMunicipalities is the user's stated kommun set
+    // (single element → normalization leaves it untouched, so the SequenceEqual matcher is
+    // stable); ContainmentRegions is the derived parent-län set the taxonomy ACL returns for it.
+    private static readonly string[] PrefMunicipalities = ["kommun_x"];
+    private static readonly string[] ContainmentRegions = ["lan_x"];
+
     public MatchProfileBuilderTests()
     {
         _currentUser.UserId.Returns(_userId);
@@ -66,6 +72,16 @@ public class MatchProfileBuilderTests
         var taxonomy = Substitute.For<ITaxonomyReadModel>();
         taxonomy
             .GetRelatedOccupationGroupsAsync(
+                Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<IReadOnlyList<string>>((IReadOnlyList<string>)[]));
+        // #477 Low 1 — default the containment ACL to [] by default (parity the related stub
+        // above), so a builder constructed with it behaves EXACTLY as pre-#477 for any caller that
+        // does not preferer a kommun. Cases that DERIVE containment override the return for a
+        // specific municipality set. (NSubstitute 5.x already auto-returns an empty list for this
+        // ValueTask<IReadOnlyList<string>> member, so this is an EXPLICIT restatement of that
+        // default, not a behaviour change — the existing cases stay green either way.)
+        taxonomy
+            .GetContainingRegionsAsync(
                 Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns(_ => new ValueTask<IReadOnlyList<string>>((IReadOnlyList<string>)[]));
         return taxonomy;
@@ -341,6 +357,84 @@ public class MatchProfileBuilderTests
         profile.RelatedSsykGroupConceptIds.ShouldBeEmpty();
         await taxonomy.DidNotReceive().GetRelatedOccupationGroupsAsync(
             Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
+    }
+
+    // =================================================================
+    // #477 Low 1 — kommun→län-containment. The builder derives
+    // ContainmentRegionConceptIds from the taxonomy ACL (kommun→parent-län) and populates it
+    // UNCONDITIONALLY — it is a CORRECTNESS fix, NOT the ?includeRelated-gated broadening. So it
+    // fires even on the non-related default path (unlike RelatedSsykGroupConceptIds). An empty
+    // municipality preference → the ACL returns [] → containment stays empty (pre-#477 byte-for-byte).
+    // =================================================================
+
+    [Fact]
+    public async Task BuildFromPreferences_PopulatesContainmentRegions_FromTaxonomyACL_EvenWithBreddningOff()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var prefs = MatchPreferences.Create(
+            preferredOccupationGroups: ExactGroups,
+            preferredRegions: null,
+            preferredEmploymentTypes: null,
+            preferredMunicipalities: PrefMunicipalities).Value;
+        await SeedSeekerWithPrefsAsync(db, _userId, prefs);
+
+        // The containment ACL returns the parent-län set for the user's stated kommun set.
+        var taxonomy = NewTaxonomy();
+        taxonomy
+            .GetContainingRegionsAsync(
+                Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(PrefMunicipalities)),
+                Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<IReadOnlyList<string>>(ContainmentRegions));
+        var builder = NewBuilder(db, taxonomy: taxonomy);
+
+        // Default call — includeRelated is OFF. Containment must STILL be populated.
+        var profile = await builder.BuildFromPreferencesAsync(CancellationToken.None);
+
+        profile.ShouldNotBeNull();
+        profile.ContainmentRegionConceptIds.ShouldBe(
+            ContainmentRegions,
+            "ContainmentRegionConceptIds fylls från taxonomi-ACL:n även med breddning AV — det är " +
+            "en korrekthetsfix, ovillkorlig (till skillnad från ?includeRelated-grindade RelatedSsyk).");
+        // The containment ACL fired exactly once, on the NON-related default path, with the stated
+        // kommun set — the load-bearing "unconditional" proof.
+        await taxonomy.Received(1).GetContainingRegionsAsync(
+            Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(PrefMunicipalities)),
+            Arg.Any<CancellationToken>());
+        // ... while the RELATED ACL did NOT fire (includeRelated:false) — the asymmetry that proves
+        // containment is unconditional but broadening is gated.
+        profile.RelatedSsykGroupConceptIds.ShouldBeEmpty();
+        await taxonomy.DidNotReceive().GetRelatedOccupationGroupsAsync(
+            Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
+        // Containment is a DISTINCT derived set — the municipality dimension itself is unchanged
+        // (deliberately NOT unioned into the region/municipality preference lists).
+        profile.PreferredMunicipalityConceptIds.ShouldBe(PrefMunicipalities);
+        profile.PreferredRegionConceptIds.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task BuildFromPreferences_WhenNoMunicipalities_LeavesContainmentEmpty()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var prefs = MatchPreferences.Create(
+            preferredOccupationGroups: ExactGroups,
+            preferredRegions: ["stockholm_AB"],
+            preferredEmploymentTypes: null,
+            preferredMunicipalities: null).Value;
+        await SeedSeekerWithPrefsAsync(db, _userId, prefs);
+
+        var taxonomy = NewTaxonomy(); // containment ACL returns [] for any input, incl. []
+        var builder = NewBuilder(db, taxonomy: taxonomy);
+
+        var profile = await builder.BuildFromPreferencesAsync(CancellationToken.None);
+
+        profile.ShouldNotBeNull();
+        profile.ContainmentRegionConceptIds.ShouldBeEmpty(
+            "Ingen kommun-preferens → tom containment-mängd (pre-#477-beteende bit-för-bit).");
+        // The ACL is STILL consulted unconditionally (with the empty municipality set) — a single
+        // unconditional seam, never short-circuited on an empty preference.
+        await taxonomy.Received(1).GetContainingRegionsAsync(
+            Arg.Is<IReadOnlyList<string>>(s => s.Count == 0),
+            Arg.Any<CancellationToken>());
     }
 }
 #pragma warning restore CA2012

@@ -187,6 +187,12 @@ public class GetJobAdMatchDetailQueryHandlerTests
         public ValueTask<IReadOnlyList<string>> GetRelatedOccupationGroupsAsync(
             IReadOnlyList<string> ssyk4ConceptIds, CancellationToken cancellationToken)
             => throw new NotSupportedException("GetRelatedOccupationGroupsAsync ska inte anropas av modal-handlern.");
+
+        // #477 Low 1 — the modal handler resolves labels only, never builds a match profile,
+        // so the containment lookup must not be reached.
+        public ValueTask<IReadOnlyList<string>> GetContainingRegionsAsync(
+            IReadOnlyList<string> municipalityConceptIds, CancellationToken cancellationToken)
+            => throw new NotSupportedException("GetContainingRegionsAsync ska inte anropas av modal-handlern.");
     }
 
     private GetJobAdMatchDetailQueryHandler CreateHandler(

@@ -58,4 +58,29 @@ public sealed record CandidateMatchProfile(
     /// </para>
     /// </summary>
     public IReadOnlyList<string> RelatedSsykGroupConceptIds { get; init; } = [];
+
+    /// <summary>
+    /// <b><see cref="ContainmentRegionConceptIds"/> (#477 Low 1 — kommun→län-containment):</b>
+    /// the län (region concept-ids) that CONTAIN the user's preferred municipalities, derived
+    /// from <see cref="PreferredMunicipalityConceptIds"/> via <c>ITaxonomyReadModel.
+    /// GetContainingRegionsAsync</c> (kommun→parent-län, the seeded <c>ParentConceptId</c>
+    /// relation — no migration). This is a DISTINCT derived set, deliberately NOT unioned into
+    /// <see cref="PreferredRegionConceptIds"/>: <c>ScoreOrtUnion</c> consults it ONLY to read a
+    /// LÄN-ONLY ad whose region contains a preferred kommun as <c>NotAssessed</c> instead of a
+    /// location <c>NoMatch</c> (which RB1-floored it to Basic). Unioning it into the region set
+    /// would instead wrongly RESCUE kommun-specific ads in <i>other</i> kommuns of the same län
+    /// (over-broadening the user's deliberate narrowing) and could lift unconfirmed-location ads
+    /// toward Strong — hence a separate field + a <c>NotAssessed</c> verdict, not a Match.
+    /// <para>
+    /// <b>Additive init-property with an empty default (NOT a positional parameter):</b> an
+    /// empty list = "no municipality preference / no containment" = pre-#477 behaviour, so every
+    /// existing 5-argument construction is unchanged. UNLIKE
+    /// <see cref="RelatedSsykGroupConceptIds"/>, the profile builder populates this
+    /// UNCONDITIONALLY (it is a correctness fix, not the <c>?includeRelated</c>-gated broadening).
+    /// <see cref="FullCandidateMatchProfile"/> reads it via its embedded
+    /// <see cref="FullCandidateMatchProfile.Fast"/> profile (mirrored, no own field — the Full
+    /// profile is arch-pinned to exactly { Fast, CvSkillConceptIds }).
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<string> ContainmentRegionConceptIds { get; init; } = [];
 }

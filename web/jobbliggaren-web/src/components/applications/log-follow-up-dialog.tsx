@@ -27,7 +27,7 @@ export interface LogFollowUpDialogProps {
   toastCompany: string;
   /** Ankrad topp-position (nära klicket, §9); null → Radix-centrerad default. */
   top?: number | null;
-  /** Callas efter lyckad spar (utöver stängning) — drawern m.fl. kan haka på. */
+  /** Callas efter lyckad spar (utöver stängning) — detaljmodalen m.fl. kan haka på. */
   onSuccess?: () => void;
 }
 

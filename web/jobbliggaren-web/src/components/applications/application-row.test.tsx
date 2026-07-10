@@ -13,14 +13,6 @@ import type {
 
 // next/link renderas som <a> i jsdom utan extra mock (Next client Link).
 
-// #630 PR 6: radklick sätter drawer-ankaret (klick-Y + trigger-element) för
-// höger-drawern (Approach A). Mocka storen så vi kan verifiera anropen.
-const setDrawerAnchor = vi.fn();
-vi.mock("@/components/applications/drawer-anchor", () => ({
-  setDrawerAnchor: (clientY: number, trigger: HTMLElement | null) =>
-    setDrawerAnchor(clientY, trigger),
-}));
-
 // #630 PR 7: raden muterar via providerns server actions — mocka modulen
 // (samma idiom som status-edit-card.test) så klick kan verifieras utan nät.
 const transitionStatusAction = vi.hoisted(() =>
@@ -81,7 +73,6 @@ function renderRow(
 beforeEach(() => {
   transitionStatusAction.mockClear();
   logFollowUpAction.mockClear();
-  setDrawerAnchor.mockClear();
   dismissApplicationToast();
 });
 
@@ -283,21 +274,15 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     expect(secondary).toHaveBeenCalledTimes(1);
   });
 
-  // #630 PR 6 (Approach A): vanligt klick sätter drawer-ankaret (klick-Y +
-  // trigger); modifierat klick (ny flik/fönster) navigerar till fullsidan och
-  // sätter EJ ankaret (drawern öppnas inte där).
-  it("sätter drawer-ankaret vid vanligt klick men inte vid modifierat klick", () => {
+  // Radlänken är en ren soft-nav-länk (route-modalen, ADR 0053) — inget
+  // klick-ankare (drawer-ankaret pensionerades med drawern, 2026-07-10).
+  it("radlänken pekar på detaljroutens href utan klick-sidoeffekter", () => {
     renderRow(makeApplication());
     const link = screen.getByRole("link");
-
-    fireEvent.click(link, { clientY: 420 });
-    expect(setDrawerAnchor).toHaveBeenCalledTimes(1);
-    expect(setDrawerAnchor).toHaveBeenCalledWith(420, link);
-
-    fireEvent.click(link, { clientY: 420, metaKey: true });
-    fireEvent.click(link, { clientY: 420, ctrlKey: true });
-    fireEvent.click(link, { clientY: 420, shiftKey: true });
-    expect(setDrawerAnchor).toHaveBeenCalledTimes(1);
+    expect(link).toHaveAttribute(
+      "href",
+      "/ansokningar/11111111-2222-3333-4444-555555555555",
+    );
   });
 
   // Design-reviewer Minor 5: länknamnet = rolltiteln (rubriken förblir ren i

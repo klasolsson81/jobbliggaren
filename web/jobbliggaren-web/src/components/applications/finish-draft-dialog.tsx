@@ -26,8 +26,8 @@ export interface FinishDraftDialogProps {
 
 /**
  * "Slutför och skicka"-dialogen (#630 PR 7, design §9): mellansteget när ett
- * UTKAST skickas från listytorna (rad-CTA, kökort — prototyp-facit; drawerns
- * stegväljare/CTA byter direkt). Bekräftelsen = transition till Skickad —
+ * UTKAST skickas från listytorna (rad-CTA, kökort — prototyp-facit;
+ * detaljmodalens stegväljare/CTA byter direkt). Bekräftelsen = transition till Skickad —
  * `AppliedAt` stämplas write-once server-side och väntetiden räknas från i dag.
  * Den riktiga utkastredigeraren är ett senare spår (handoff §17); dialogens
  * copy lovar därför bara det som faktiskt händer (§5 — fabricera aldrig).

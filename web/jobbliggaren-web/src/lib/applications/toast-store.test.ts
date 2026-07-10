@@ -8,7 +8,7 @@ import {
 } from "./toast-store";
 
 beforeEach(() => {
-  // Modul-store: nollställ mellan tester (samma idiom som drawer-anchor).
+  // Modul-store: nollställ mellan tester (modul-store-idiomet).
   dismissApplicationToast();
 });
 

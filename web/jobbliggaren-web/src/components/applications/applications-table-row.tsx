@@ -11,7 +11,6 @@ import {
 import { daysInStatus } from "@/lib/applications/urgency";
 import { latestEventOf } from "@/lib/applications/latest-event";
 import { formatDate } from "@/lib/i18n/format";
-import { setDrawerAnchor } from "@/components/applications/drawer-anchor";
 import { useApplicationActions } from "./application-actions";
 import { useRowActions } from "./use-row-actions";
 import { StatusMenu } from "./status-menu";
@@ -29,12 +28,12 @@ interface ApplicationsTableRowProps {
  * En rad i Tabell-vyn (#630 PR 10, design §7) — volymvyn: en tät `<tr>` som
  * skannas kolumnvis, inte handlingszons-raden (Lista) eller kanban-kortet (Tavla).
  *
- * Rad-klick → detaljpanelen via LÄNK-OVERLAY (samma mönster som `application-row`,
+ * Rad-klick → detaljmodalen via LÄNK-OVERLAY (samma mönster som `application-row`,
  * CTO-bind 6 / a11y): rolltiteln är radens ENDA <a>, sträckt över hela raden via
  * `::after` (offset-parent = den position:relative-satta `<tr>`). Checkbox,
  * StatusMenu och "Nästa steg"-länken lyfts ovanpå med `z-index` så inget
- * interaktivt element nästlas i ankaret (ogiltig HTML). Ett modifierat klick
- * (ny flik) hoppar över drawer-ankaret → fullsidan (#630 PR 6-mönstret).
+ * interaktivt element nästlas i ankaret (ogiltig HTML). Soft-nav öppnar den
+ * centrerade route-modalen (ADR 0053); modifierat klick (ny flik) når fullsidan.
  */
 export function ApplicationsTableRow({
   application,
@@ -98,14 +97,8 @@ export function ApplicationsTableRow({
         <Link
           href={`/ansokningar/${application.id}`}
           className="jp-apptable__rowlink"
-          // #630 PR 6 (ADR 0092 D7): spara klickets viewport-Y + länken (triggern)
-          // så drawern öppnas nära klicket och återlämnar fokus hit vid stängning.
-          // href behålls — ett modifierat klick (ny flik) navigerar till fullsidan,
-          // så vi hoppar över ankaret då.
-          onClick={(e) => {
-            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-            setDrawerAnchor(e.clientY, e.currentTarget);
-          }}
+          // Soft-nav öppnar den centrerade route-modalen (ADR 0053);
+          // modifierat klick (ny flik) når fullsidan via href.
           // Länknamnet = rolltiteln; företaget bärs som beskrivning via
           // aria-describedby (WCAG 2.4.6 — ren rolltitel i rubrikrotorn).
           aria-describedby={hasIdentity ? contextId : undefined}

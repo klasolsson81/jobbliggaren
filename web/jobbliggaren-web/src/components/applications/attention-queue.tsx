@@ -17,7 +17,6 @@ import type {
 } from "@/lib/dto/applications";
 import { useApplicationActions } from "./application-actions";
 import { ApplicationRow, type RowAction } from "./application-row";
-import { setDrawerAnchor } from "./drawer-anchor";
 
 type FiringSignal = Exclude<ApplicationAttentionSignal, "None">;
 
@@ -53,7 +52,7 @@ interface AttentionQueueProps {
  * §11-CTA — primär + ev. sekundär — som OVERRIDE:ar radens default-primär
  * (urgens-åtgärden ÄR kortets handling; "Flytta till nästa" vore fel affordans
  * här, prototyp-facit). Statusmenyn utelämnas på kortet. "Läs erbjudandet"
- * öppnar detaljpanelen (drawer-ankaret + soft-nav, samma väg som radklicket);
+ * öppnar detaljmodalen (soft-nav → intercepting route, samma väg som radklicket);
  * "Följ upp"/"Slutför och skicka" öppnar §9-dialogerna; "Markera …"/"Acceptera"
  * är direktbyten med ångra-toast (ADR 0092 D3). Raden visar också urgens-tagg +
  * "N dagar i steget" (list-DTO:ns scalars sedan PR 3 — aldrig fabricerat).
@@ -82,10 +81,8 @@ export function AttentionQueue({ groups, now }: AttentionQueueProps) {
     const app = card.application;
     const openPanel: RowAction = {
       label: tUi("queueCta.readOffer"),
-      onClick: (e) => {
-        // Samma väg som radklicket: ankare för nära-klick-position +
-        // fokus-retur, sedan soft-nav → intercept-drawern.
-        setDrawerAnchor(e.clientY, e.currentTarget);
+      onClick: () => {
+        // Samma väg som radklicket: soft-nav → den centrerade route-modalen.
         router.push(`/ansokningar/${app.id}`);
       },
     };

@@ -34,12 +34,13 @@ function DialogClose({
 // z-110 (not the shadcn default z-50): a Dialog can open from inside an
 // intercepting-route surface with an OPAQUE panel — the z-80 `.jp-modal-scrim`
 // modal (#565: destructive-status confirm + "Återta ansökan" were dead from the
-// row-click modal) and, since #630 PR 7, the /ansokningar detail DRAWER
-// (`.jp-appdrawer`, z-100 band). Below the host surface the portalled overlay +
-// content paint BEHIND it -> invisible and unclickable (the #565 bug class).
-// z-110 clears BOTH bands and matches SelectContent/DropdownMenuContent, while
-// staying below the toast (200). Both overlay and content carry it
-// (dialog.zindex.test.tsx pins the contract).
+// row-click modal). Below the host surface the portalled overlay + content
+// paint BEHIND it -> invisible and unclickable (the #565 bug class). z-110
+// clears every host band with headroom (the retired #630 PR 6 detail drawer
+// occupied z-100; the floor is deliberately kept above that historical maximum
+// — dialog.zindex.test.tsx pins the contract) and matches SelectContent/
+// DropdownMenuContent, while staying below the toast (200). Both overlay and
+// content carry it.
 function DialogOverlay({
   className,
   ...props

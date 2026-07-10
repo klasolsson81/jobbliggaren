@@ -22,7 +22,7 @@ vi.mock("@/lib/actions/applications", () => ({
   logFollowUpAction: vi.fn(async () => ({ success: true as const })),
 }));
 // Boardet publicerar ångra-/error-toasten via toast-store (samma modul-global
-// som providern/drawern) — spionera på den för att pinna drop-vägens toasts.
+// som providern/detaljmodalen) — spionera på den för att pinna drop-vägens toasts.
 vi.mock("@/lib/applications/toast-store", () => ({
   showApplicationToast: vi.fn(),
   dismissApplicationToast: vi.fn(),

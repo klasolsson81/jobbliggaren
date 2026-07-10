@@ -229,4 +229,19 @@ public class RecordFollowUpOutcomeTests
         result.IsSuccess.ShouldBeTrue();
         application.FollowUps.Single(f => f.Id == followUpId).Outcome.ShouldBe(FollowUpOutcome.NoResponse);
     }
+
+    [Fact]
+    public void RecordFollowUpOutcome_WhenAlreadyRecordedAndTargetDisallowed_ConflictWinsOverInvalidOutcome()
+    {
+        // Pins the guard ORDER (#644): an already-resolved follow-up given a disallowed target hits
+        // the Conflict check first — a reorder would silently flip 409→400 (test-writer PR B).
+        var application = CreateActiveApplication();
+        var followUpId = AddPendingFollowUp(application);
+        application.RecordFollowUpOutcome(followUpId, FollowUpOutcome.Responded, LaterClock);
+
+        var result = application.RecordFollowUpOutcome(followUpId, FollowUpOutcome.Pending, LaterClock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("FollowUp.OutcomeAlreadyRecorded");
+    }
 }

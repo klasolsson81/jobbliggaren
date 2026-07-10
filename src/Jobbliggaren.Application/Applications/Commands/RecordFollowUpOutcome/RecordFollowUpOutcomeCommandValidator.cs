@@ -21,6 +21,9 @@ public sealed class RecordFollowUpOutcomeCommandValidator
         RuleFor(c => c.Outcome)
             .NotEmpty()
             .Must(o => AllowedOutcomes.Contains(o))
-            .WithMessage($"Utfall måste vara ett av: {string.Join(", ", AllowedOutcomes)}.");
+            // Swedish user-facing copy (§10) — mirrors FollowUp.RecordOutcome's message. The
+            // allowed set is fixed ({Responded, NoResponse}), so a literal (no English enum
+            // identifiers) is correct and keeps both layers' copy aligned.
+            .WithMessage("Utfall måste vara Svar eller Inget svar.");
     }
 }

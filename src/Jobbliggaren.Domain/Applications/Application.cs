@@ -226,7 +226,7 @@ public sealed class Application : AggregateRoot<ApplicationId>
         LastStatusChangeAt = now;
 
         // Stamp the apply date on the FIRST submit only (idempotent). A
-        // Ghosted→Submitted reactivation (ApplicationStatus.cs:47) finds
+        // Ghosted→Submitted reactivation (ApplicationStatus's recommended-next graph) finds
         // AppliedAt already set and does not re-stamp — AF reporting wants the
         // month you originally applied, not the month you re-opened a ghosted
         // thread (issue #316; senior-cto-advisor 2026-06-28 D3 amendment).

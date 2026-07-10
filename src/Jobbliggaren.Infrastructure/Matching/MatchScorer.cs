@@ -96,6 +96,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             TitleSimilarity: ScoreTitle(profile.Title, ad.Title),
             RegionFit: ScoreOrtUnion(
                 profile.PreferredRegionConceptIds, profile.PreferredMunicipalityConceptIds,
+                profile.ContainmentRegionConceptIds,
                 ad.RegionConceptId, ad.MunicipalityConceptId),
             EmploymentFit: ScoreMembership(profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
     }
@@ -157,6 +158,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 TitleSimilarity: ScoreTitle(cvTitleLexemes, ad.Title),
                 RegionFit: ScoreOrtUnion(
                     profile.PreferredRegionConceptIds, profile.PreferredMunicipalityConceptIds,
+                    profile.ContainmentRegionConceptIds,
                     ad.RegionConceptId, ad.MunicipalityConceptId),
                 EmploymentFit: ScoreMembership(profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
         }
@@ -222,6 +224,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             TitleSimilarity: ScoreTitle(fast.Title, ad.Title),
             RegionFit: ScoreOrtUnion(
                 fast.PreferredRegionConceptIds, fast.PreferredMunicipalityConceptIds,
+                fast.ContainmentRegionConceptIds,
                 ad.RegionConceptId, ad.MunicipalityConceptId),
             EmploymentFit: ScoreMembership(fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
 
@@ -303,6 +306,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 TitleSimilarity: ScoreTitle(cvTitleLexemes, ad.Title),
                 RegionFit: ScoreOrtUnion(
                     fast.PreferredRegionConceptIds, fast.PreferredMunicipalityConceptIds,
+                    fast.ContainmentRegionConceptIds,
                     ad.RegionConceptId, ad.MunicipalityConceptId),
                 EmploymentFit: ScoreMembership(fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
 
@@ -484,8 +488,10 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // shadows NULL) — the honest "can't assess" state, parity ScoreMembership rule 1.
     // NoMatch (which floors the grade to Basic via the UNCHANGED MatchGradeCalculator RB1
     // rule) ONLY when an ort preference IS stated AND the ad HAS at least one ort value AND
-    // there is no union hit (e.g. an ad in the same län but a non-preferred kommun — mirrors
-    // search). Matched/Missing carry the cited ort concept-ids (Ordinal-sorted); the modal
+    // there is no union hit AND the containment carve-out below does not apply (e.g. a
+    // kommun-SPECIFIC ad in the same län but a non-preferred kommun — mirrors search; a
+    // LÄN-ONLY ad in a containment län reads NotAssessed instead, see #477 Low 1 below).
+    // Matched/Missing carry the cited ort concept-ids (Ordinal-sorted); the modal
     // (PR-D) resolves their granularity (kommun-träff vs län-träff) for the evidence copy.
     //
     // CRITICAL (CTO impl-trap): the NoMatch test is the COMBINED predicate
@@ -493,9 +499,21 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // `!preferredMunicipalities.Contains(adMunicipality)`. A NULL municipality shadow on an
     // ad that has a region must NOT read as a municipality-NoMatch, and must NOT appear in
     // Missing (a municipality hit/miss is only ever considered when the ad HAS a municipality).
+    //
+    // #477 Low 1 — kommun→län-containment (containmentRegions = the län that contain the user's
+    // preferred kommuner, derived by the profile builder from ParentConceptId). ONE new branch,
+    // ONE direction: an ad that is LÄN-ONLY (has a region shadow, municipality shadow NULL) whose
+    // region is in containmentRegions reads NotAssessed (empty Matched/Missing), NOT NoMatch — a
+    // län-only ad in the user's OWN kommun's län is not a location contradiction, so a kommun-only
+    // preference must not RB1-floor it to Basic. Evaluated AFTER the direct region/municipality hit
+    // (a direct hit is still Match) and ONLY for län-only ads: a kommun-SPECIFIC ad in a different
+    // kommun of the same län stays NoMatch (the user deliberately narrowed — mirrors search).
+    // NotAssessed (not Match) is the honest verdict: a län-only ad does not confirm the user's
+    // specific kommun, so it neither floors nor lifts the grade (MatchGradeCalculator RB1 unchanged).
     private static MatchDimension ScoreOrtUnion(
         IReadOnlyList<string> preferredRegions,
         IReadOnlyList<string> preferredMunicipalities,
+        IReadOnlyList<string> containmentRegions,
         string? adRegion,
         string? adMunicipality)
     {
@@ -530,6 +548,17 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
 
             matched.Sort(StringComparer.Ordinal);
             return new MatchDimension(MatchDimensionVerdict.Match, matched, []);
+        }
+
+        // #477 Low 1 — containment: a LÄN-ONLY ad (region present, municipality NULL) whose region
+        // contains a preferred kommun is NOT a location contradiction → NotAssessed (neither floors
+        // nor lifts). ONE direction (kommun-pref → län-only-ad); a kommun-specific ad (municipality
+        // present) in a non-preferred kommun of the same län is deliberately excluded here and falls
+        // through to NoMatch below (the user narrowed to their kommun — mirrors search).
+        if (hasAdRegion && !hasAdMunicipality
+            && containmentRegions.Contains(adRegion!, StringComparer.Ordinal))
+        {
+            return NotAssessed();
         }
 
         // Stated AND the ad has at least one ort value AND no union hit → NoMatch. Missing =

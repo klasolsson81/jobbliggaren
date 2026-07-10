@@ -192,12 +192,27 @@ public sealed class MatchProfileBuilder(
         JobSeeker jobSeeker, bool includeRelated, CancellationToken cancellationToken)
     {
         var preferences = jobSeeker.MatchPreferences;
+
+        // #477 Low 1 — kommun→län-containment. Populated UNCONDITIONALLY (a CORRECTNESS fix,
+        // NOT the ?includeRelated-gated broadening below): a kommun-only preference must never
+        // RB1-floor a län-only ad in the user's own kommun's län to Basic as a location
+        // "contradiction". In-memory ACL lookup (no per-request DB hit, ADR 0043 §1.4); an empty
+        // municipality preference → GetContainingRegionsAsync returns [] → the derived set stays
+        // empty → pre-#477 behaviour bit-for-bit. The scorer/SQL read it as NotAssessed (neutral),
+        // never a Match, so it neither floors nor lifts (honest — a län-only ad does not confirm
+        // the user's specific kommun).
+        var containmentRegions = await taxonomy.GetContainingRegionsAsync(
+            preferences.PreferredMunicipalities, cancellationToken);
+
         var fast = new CandidateMatchProfile(
             Title: string.Empty,
             SsykGroupConceptIds: preferences.PreferredOccupationGroups,
             PreferredRegionConceptIds: preferences.PreferredRegions,
             PreferredEmploymentTypeConceptIds: preferences.PreferredEmploymentTypes,
-            PreferredMunicipalityConceptIds: preferences.PreferredMunicipalities);
+            PreferredMunicipalityConceptIds: preferences.PreferredMunicipalities)
+        {
+            ContainmentRegionConceptIds = containmentRegions,
+        };
 
         if (!includeRelated)
             return fast;

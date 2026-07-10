@@ -273,6 +273,33 @@ public sealed partial class UserAccountService(
         return Result.Success();
     }
 
+    public async Task<EmailConfirmationResend?> TryPrepareEmailConfirmationResendAsync(
+        string email, CancellationToken ct)
+    {
+        // #733 — flag-gate FIRST (symmetric with the login gate above): flag-OFF (the prod-safe default)
+        // => uniform no-op. Constant-time, target-independent, before any DB lookup — never an existence
+        // signal. Preserves #714's prod-safe default OFF: instant-login accounts are all
+        // EmailConfirmed=false, so without this gate an OFF endpoint would mail every registered user.
+        if (!authOptions.Value.RequireEmailConfirmation)
+            return null;
+
+        // An account exists at this address AND is still unconfirmed. A confirmed OR non-existent address
+        // both yield null (indistinguishable). Accounts are hard-deleted (no soft-delete row lingers —
+        // DeleteUserAsync), so no deleted-state gate is needed. Mirrors FindByEmailAsync in
+        // ValidateCredentialsAsync.
+        var user = await userManager.FindByEmailAsync(email);
+        if (user is not { EmailConfirmed: false, Email: { } accountEmail })
+            return null;
+
+        // Same opaque DataProtector token + Base64Url encode as GenerateEmailConfirmationTokenAsync (the
+        // register-path token) so the emailed link is byte-shaped identically and ConfirmEmailAsync decodes
+        // it 1:1. Minted here, Api-side, in the same Data-Protection keyring that validates it at
+        // /verify-email (CTO 2026-07-10 / ADR 0102 — no cross-process token).
+        var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
+        var urlSafeToken = Base64Url.EncodeToString(Encoding.UTF8.GetBytes(token));
+        return new EmailConfirmationResend(user.Id, accountEmail, urlSafeToken);
+    }
+
     // Identity IdentityErrorDescriber codes (== the describer method names) for a taken username /
     // email. With UserName == Email + RequireUniqueEmail, a duplicate register trips both (#481 Low).
     private const string IdentityDuplicateUserNameCode = "DuplicateUserName";

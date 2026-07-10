@@ -14,4 +14,12 @@ public interface IAuthAuditLogger
     void AccountLockedOut(string emailHash);
 
     void LogoutSucceeded(Guid userId, string sessionIdPrefix);
+
+    /// <summary>
+    /// A registration email-confirmation link was RE-SENT for an unconfirmed account (#733). Emitted ONLY
+    /// on the applicable branch (a resend actually happened) — an unknown/confirmed address is a non-event
+    /// and writes no audit-log line, so the audit trail carries no account-existence signal. Aids
+    /// email-bomb incident response (a burst for one userId is a targeted-abuse signal).
+    /// </summary>
+    void EmailConfirmationResent(Guid userId);
 }

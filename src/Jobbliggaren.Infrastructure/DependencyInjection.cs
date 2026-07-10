@@ -1160,6 +1160,16 @@ public static class DependencyInjection
         // here). Read by RegisterCommandHandler + UserAccountService.ValidateCredentialsAsync.
         services.Configure<AuthOptions>(configuration.GetSection(AuthOptions.SectionName));
 
+        // #733 — per-target confirmation-link resend cooldown (Application-owned contract, bound here;
+        // Api-only — the cooldown runs in the request path). Redis-backed anti-email-bomb throttle read by
+        // ResendEmailConfirmationCommandHandler; window from ResendCooldownOptions (60s default).
+        // ValidateOnStart + [Range] so a misconfigured window fails the host loud (parity DigestDispatchOptions).
+        services.AddOptions<ResendCooldownOptions>()
+            .Bind(configuration.GetSection(ResendCooldownOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<IResendCooldown, RedisResendCooldown>();
+
         // Admin-bootstrap: idempotent seeder kör vid app-startup. Skapar Admin-rollen
         // om saknas och tilldelar till user med email AdminBootstrap__InitialAdminEmail.
         // Senior-cto-advisor-beslut 2026-05-11 (B1 — IaC over manual psql-script).

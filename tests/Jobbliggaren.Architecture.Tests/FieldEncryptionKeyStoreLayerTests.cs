@@ -101,13 +101,17 @@ public class FieldEncryptionKeyStoreLayerTests
         // Infrastructure-bekymmer. Domain ska varken känna till
         // IFieldEncryptor/IDataKeyProvider (Application-portar) eller
         // UserDataKey (Infrastructure-entitet) — persistensartefakt läcker
-        // aldrig in i aggregatet (Evans 2003).
+        // aldrig in i aggregatet (Evans 2003). Fas 4b PR-9a (ADR 0100)
+        // utökar spärren med Form C-portarna: ResumeFile tar emot FÄRDIG-
+        // förseglade bytes och får aldrig själv känna till cipher/sealer.
         var result = Types.InAssembly(typeof(Jobbliggaren.Domain.Common.Entity<>).Assembly)
             .ShouldNot()
             .HaveDependencyOnAny(
                 "Jobbliggaren.Application.Common.Security.IFieldEncryptor",
                 "Jobbliggaren.Application.Common.Security.IDataKeyProvider",
                 "Jobbliggaren.Application.Common.Security.GeneratedDataKey",
+                "Jobbliggaren.Application.Common.Security.IBinaryFieldEncryptor",
+                "Jobbliggaren.Application.Common.Security.IBinaryFieldSealer",
                 UserDataKeyFqn,
                 "Jobbliggaren.Infrastructure")
             .GetResult();

@@ -114,6 +114,21 @@ public class FieldEncryptorTests
     }
 
     [Fact]
+    public void Decrypt_FrozenPreRefactorCiphertext_StillRoundTrips()
+    {
+        // Fas 4b PR-9a — wire-format back-compat pin for the AesGcmEnvelope refactor
+        // (ADR 0100): this literal was produced by the PRE-refactor KmsEnvelopeEncryptor
+        // (2026-07-10) under Dek(). All Form A/B ciphertext at rest has this exact layout —
+        // if this test ever fails, the wire format drifted and existing at-rest data bricks.
+        const string frozen =
+            "v1:SwWuHhLFqM+kt25NiVOjwpq3RfhWsxcVskEYxZtOtJ8fpE8BozefPadktoA6mrlkSGZgrNuXY45y"
+            + "C9ADS5oonY/H6a5lPFgKx00iSfiS18M2pbsJss7n6yunBf2FBHxCNbIpZR1yTO+kmKiKuQWA";
+
+        _sut.Decrypt(frozen, Dek()).ShouldBe(
+            "Fryst pre-refaktor-pin: Åsa Öberg söker tjänsten som utvecklare på Ängsö AB.");
+    }
+
+    [Fact]
     public void Encrypt_SameInputTwice_ProducesDifferentCiphertext()
     {
         const string plaintext = "identisk indata";

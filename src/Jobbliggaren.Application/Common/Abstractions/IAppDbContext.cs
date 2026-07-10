@@ -5,6 +5,7 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
 using Jobbliggaren.Domain.RecentJobSearches;
 using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Files;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Domain.SavedJobAds;
 using Jobbliggaren.Domain.SavedSearches;
@@ -24,6 +25,8 @@ public interface IAppDbContext
     DbSet<DomainApplication> Applications { get; }
     DbSet<Resume> Resumes { get; }
     DbSet<ParsedResume> ParsedResumes { get; }
+    // Fas 4b PR-9a (ADR 0093 §D5) — original-file binary store (Form C). Art. 17 cascade-owned.
+    DbSet<ResumeFile> ResumeFiles { get; }
     DbSet<AuditLogEntry> AuditLogEntries { get; }
     DbSet<SavedSearch> SavedSearches { get; }
     DbSet<RecentJobSearch> RecentJobSearches { get; }

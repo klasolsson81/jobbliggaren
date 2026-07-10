@@ -12,42 +12,29 @@ namespace Jobbliggaren.Infrastructure.Security;
 /// KMS-envelope). Ingen AWS-bagage → enhetstestbar utan KMS.
 ///
 /// Wire-format: <c>"v1:" + base64(nonce(12) || ciphertext || tag(16))</c>.
-/// Slumpmässig nonce per <see cref="Encrypt"/> → ciphertext är aldrig
-/// deterministisk (likhet mellan PII-fält läcker inte). Fail-closed:
-/// auth-tag-fel/manipulering/fel DEK → <see cref="CryptographicException"/>,
-/// aldrig (partiell) klartext, ingen PII i exception-message (CLAUDE.md §5.4,
-/// CTO-domen 2026-05-18). Stateless → singleton-säker.
+/// AES-GCM-kärnan (nonce/seal/open/fail-closed) delas med Form C via
+/// <see cref="AesGcmEnvelope"/> (Fas 4b PR-9a / ADR 0100 — EN audit-yta, ingen
+/// divergent kopia); den här klassen äger bara STRÄNG-skalet: UTF-8,
+/// sentinel-prefix, base64 och klartextbuffert-nollning. Slumpmässig nonce per
+/// <see cref="Encrypt"/> → ciphertext är aldrig deterministisk (likhet mellan
+/// PII-fält läcker inte). Fail-closed: auth-tag-fel/manipulering/fel DEK →
+/// <see cref="CryptographicException"/>, aldrig (partiell) klartext, ingen PII
+/// i exception-message (CLAUDE.md §5.4, CTO-domen 2026-05-18). Wire-formatet är
+/// pinnat av ett fryst pre-refaktor-ciphertext-test (back-compat: befintlig
+/// at-rest-data måste alltid förbli dekrypterbar). Stateless → singleton-säker.
 /// </summary>
 public sealed partial class KmsEnvelopeEncryptor : IFieldEncryptor
 {
-    private const int NonceSize = 12;  // AES-GCM standard-nonce
-    private const int TagSize = 16;    // AES-GCM auth-tag (128-bit)
-    private const int Aes256KeySize = 32;  // DEK = AES-256 (ADR 0049 Beslut 1)
-
     [GeneratedRegex(@"^v\d+:", RegexOptions.CultureInvariant)]
     private static partial Regex SentinelPattern();
 
     public string Encrypt(string plaintext, ReadOnlySpan<byte> dek)
     {
         ArgumentNullException.ThrowIfNull(plaintext);
-        EnsureAes256Dek(dek);
+        AesGcmEnvelope.EnsureAes256Dek(dek);
 
         var plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
-        var nonce = RandomNumberGenerator.GetBytes(NonceSize);
-        var ciphertext = new byte[plaintextBytes.Length];
-        var tag = new byte[TagSize];
-
-        using (var aes = new AesGcm(dek, TagSize))
-        {
-            aes.Encrypt(nonce, plaintextBytes, ciphertext, tag);
-        }
-
-        // nonce || ciphertext || tag
-        var payload = new byte[NonceSize + ciphertext.Length + TagSize];
-        nonce.CopyTo(payload.AsSpan(0));
-        ciphertext.CopyTo(payload.AsSpan(NonceSize));
-        tag.CopyTo(payload.AsSpan(NonceSize + ciphertext.Length));
-
+        var payload = AesGcmEnvelope.Seal(plaintextBytes, dek);
         CryptographicOperations.ZeroMemory(plaintextBytes);
 
         // Emitterar alltid v1-sentinel (single-version-invariant, #501). Prefixet
@@ -60,7 +47,7 @@ public sealed partial class KmsEnvelopeEncryptor : IFieldEncryptor
     public string Decrypt(string sentinelCiphertext, ReadOnlySpan<byte> dek)
     {
         ArgumentNullException.ThrowIfNull(sentinelCiphertext);
-        EnsureAes256Dek(dek);
+        AesGcmEnvelope.EnsureAes256Dek(dek);
 
         var colon = sentinelCiphertext.IndexOf(':', StringComparison.Ordinal);
         if (colon < 0 || !IsEncrypted(sentinelCiphertext))
@@ -90,31 +77,17 @@ public sealed partial class KmsEnvelopeEncryptor : IFieldEncryptor
             throw new CryptographicException("Sentinel-payload är inte giltig base64.");
         }
 
-        if (payload.Length < NonceSize + TagSize)
+        // Sträng-lagrets egen längd-guard FÖRE kärnan så det etablerade
+        // "Sentinel-payload är för kort."-meddelandet bevaras (refaktorn är
+        // beteende-bevarande; kärnans generiska envelope-meddelande nås aldrig).
+        if (payload.Length < AesGcmEnvelope.NonceSize + AesGcmEnvelope.TagSize)
         {
             throw new CryptographicException("Sentinel-payload är för kort.");
         }
 
-        var nonce = payload.AsSpan(0, NonceSize);
-        var cipherLength = payload.Length - NonceSize - TagSize;
-        var ciphertext = payload.AsSpan(NonceSize, cipherLength);
-        var tag = payload.AsSpan(NonceSize + cipherLength, TagSize);
-        var plaintextBytes = new byte[cipherLength];
-
-        try
-        {
-            using var aes = new AesGcm(dek, TagSize);
-            // Kastar AuthenticationTagMismatchException (CryptographicException)
-            // vid fel DEK / manipulering — bubblar, ingen klartext returneras.
-            aes.Decrypt(nonce, ciphertext, tag, plaintextBytes);
-        }
-        catch (CryptographicException)
-        {
-            // Rensa ev. partiell buffert; kasta utan PII i message.
-            CryptographicOperations.ZeroMemory(plaintextBytes);
-            throw new CryptographicException(
-                "Dekryptering misslyckades (auth-tag-fel eller fel nyckel).");
-        }
+        // Kärnan är fail-closed: auth-tag-fel/manipulering/fel DEK kastar
+        // CryptographicException utan (partiell) klartext och nollar sin buffert.
+        var plaintextBytes = AesGcmEnvelope.Open(payload, dek);
 
         var result = Encoding.UTF8.GetString(plaintextBytes);
         CryptographicOperations.ZeroMemory(plaintextBytes);
@@ -123,17 +96,4 @@ public sealed partial class KmsEnvelopeEncryptor : IFieldEncryptor
 
     public bool IsEncrypted(string value) =>
         !string.IsNullOrEmpty(value) && SentinelPattern().IsMatch(value);
-
-    // Major 1 (security-auditor 2026-05-18): enforca AES-256 vid gränsen.
-    // AesGcm accepterar även 16/24-byte-nycklar — en trunkerad/fel-spec:ad
-    // DEK skulle annars tyst kryptera svagare än kontraktet (ADR 0049
-    // Beslut 1). Ingen DEK-byte i exception-message (§5.4).
-    private static void EnsureAes256Dek(ReadOnlySpan<byte> dek)
-    {
-        if (dek.Length != Aes256KeySize)
-        {
-            throw new CryptographicException(
-                $"DEK måste vara {Aes256KeySize} byte (AES-256).");
-        }
-    }
 }

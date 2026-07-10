@@ -1037,6 +1037,14 @@ public static class DependencyInjection
         services.AddScoped<Jobbliggaren.Application.Common.Security.ICurrentDataOwner,
             Security.CurrentDataOwner>();
 
+        // Fas 4b PR-9a (ADR 0093 §D5 / ADR 0100) — Form C: binärcipher stateless →
+        // singleton (paritet IFieldEncryptor); write-path-sealern Scoped (peekar
+        // scopets ScopedUserDataKeyCache via ICurrentDataOwner, CTO Q2 explicit seal).
+        services.AddSingleton<Jobbliggaren.Application.Common.Security.IBinaryFieldEncryptor,
+            Security.BinaryFieldEncryptor>();
+        services.AddScoped<Jobbliggaren.Application.Common.Security.IBinaryFieldSealer,
+            Security.BinaryFieldSealer>();
+
         return services;
     }
 

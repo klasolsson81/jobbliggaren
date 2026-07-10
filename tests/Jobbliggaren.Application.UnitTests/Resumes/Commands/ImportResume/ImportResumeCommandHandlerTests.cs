@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
+using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Resumes.Abstractions;
@@ -39,10 +40,18 @@ public class ImportResumeCommandHandlerTests
     private readonly IOccupationExperienceDeriver _experienceDeriver =
         Substitute.For<IOccupationExperienceDeriver>();
     private readonly ISkillResolver _skillResolver = Substitute.For<ISkillResolver>();
+    // Fas 4b PR-9a — the handler gained IBinaryFieldSealer (explicit Form C seal of the
+    // original bytes, CTO Q2). Faked: the real sealer needs a warmed scoped DEK cache
+    // (Infrastructure); the handler contract under test is the capture GATE + wiring.
+    private readonly IBinaryFieldSealer _sealer = Substitute.For<IBinaryFieldSealer>();
     private readonly Guid _userId = Guid.NewGuid();
 
     // "%PDF-1.7" — a real PDF magic prefix so CvFileSignature resolves Pdf.
     private static readonly byte[] PdfBytes = [0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x37];
+
+    // The fake sealer's opaque "ciphertext" — distinct from PdfBytes so the tests can
+    // assert the aggregate stored the SEALED content, never the plaintext upload.
+    private static readonly byte[] SealedBytes = [0x01, 0xAA, 0xBB, 0xCC, 0xDD];
 
     public ImportResumeCommandHandlerTests()
     {
@@ -62,11 +71,14 @@ public class ImportResumeCommandHandlerTests
         _layoutAnalyzer.Analyze(
                 Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CvFileKind>(), Arg.Any<CancellationToken>())
             .Returns(CvLayoutMetrics.NotApplicable(0));
+        // Default: the sealer returns a fixed opaque envelope (the capture tests assert the
+        // aggregate stores exactly this, never the plaintext bytes).
+        _sealer.Seal(Arg.Any<ReadOnlyMemory<byte>>()).Returns(SealedBytes);
     }
 
     private ImportResumeCommandHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>
         new(db, _currentUser, FakeDateTimeProvider.Default, _extractor, _layoutAnalyzer, _segmenter,
-            _deriver, _experienceDeriver, _skillResolver);
+            _deriver, _experienceDeriver, _skillResolver, _sealer);
 
     private static ImportResumeCommand PdfCommand(string fileName = "cv.pdf") =>
         new(fileName, "application/pdf", PdfBytes);
@@ -213,6 +225,100 @@ public class ImportResumeCommandHandlerTests
 
         var added = db.ParsedResumes.Local.ShouldHaveSingleItem();
         added.Personnummer.Found.ShouldBeTrue();
+    }
+
+    // ===============================================================
+    // Original-file capture (Fas 4b PR-9a, ADR 0100 — DPIA M-F1/M-F5). The handler
+    // captures the SEALED original as a ResumeFile ONLY when the body scan is clean;
+    // a body-flagged upload is never stored and the sealer is never even invoked
+    // (fail-closed M-F5 — no plaintext leaves the request path).
+    // ===============================================================
+
+    [Fact]
+    public async Task Handle_CleanBody_CapturesSealedOriginal_WithCanonicalMimeAndParsedCoupling()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedJobSeekerAsync(db);
+        StubExtractor("Anna Andersson\nanna@example.com", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation(experienceTitle: null)); // no SSYK derivation in play
+
+        var result = await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var parsed = db.ParsedResumes.Local.ShouldHaveSingleItem();
+        var file = db.ResumeFiles.Local.ShouldHaveSingleItem();
+
+        // The aggregate stores the SEALER's opaque output — never the plaintext upload.
+        file.SealedContent.ShouldBe(SealedBytes);
+        file.SealedContent.ShouldNotBe(PdfBytes);
+        _sealer.Received(1).Seal(Arg.Is<ReadOnlyMemory<byte>>(m => m.ToArray().SequenceEqual(PdfBytes)));
+
+        // Canonical MIME from the magic-byte-resolved kind — not the client-declared string.
+        file.ContentType.ShouldBe(CvFileSignature.PdfContentType);
+        file.FileName.ShouldBe("cv.pdf");
+        file.ByteSize.ShouldBe(PdfBytes.Length);
+        file.PnrFlagged.ShouldBeFalse(); // PR-9a never stores flagged originals (Q4/M-F5)
+        file.ParsedResumeId.ShouldBe(parsed.Id); // retention-coupling key (M-F3)
+        file.JobSeekerId.ShouldBe(seeker.Id);
+    }
+
+    [Fact]
+    public async Task Handle_PersonnummerInBody_DoesNotCaptureOriginal_AndNeverCallsSealer()
+    {
+        // Fail-closed M-F5 (§7 Beslut 2 / CTO Q4): a body-flagged original is NOT stored in
+        // PR-9a (acknowledge-store is a deferred follow-up). The sealer must not even run.
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("Anna Andersson\nPnr 811218 9876", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation(experienceTitle: null));
+
+        var result = await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue(); // the parse artifact itself still persists (flagged)
+        db.ParsedResumes.Local.ShouldHaveSingleItem();
+        db.ResumeFiles.Local.ShouldBeEmpty();
+        _sealer.DidNotReceive().Seal(Arg.Any<ReadOnlyMemory<byte>>());
+    }
+
+    [Fact]
+    public async Task Handle_PersonnummerInFileNameOnly_StillCaptures_WithRedactedFileName()
+    {
+        // A filename-only hit does not block capture (the BYTES are clean; parity with the
+        // promote gate) — but the stored file_name column must carry the MASKED form, never
+        // a plaintext personnummer (M-F1, aggregate-owned redaction).
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("Anna Andersson", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation(experienceTitle: null));
+
+        var result = await CreateSut(db)
+            .Handle(PdfCommand("CV_811218-9876.pdf"), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var file = db.ResumeFiles.Local.ShouldHaveSingleItem();
+        file.FileName.ShouldNotContain("811218");
+        file.FileName.ShouldBe("CV_******-****.pdf"); // digit-masked, separators kept
+    }
+
+    [Fact]
+    public async Task Handle_ValidDocx_CapturesWithCanonicalDocxMime()
+    {
+        // The canonical MIME follows the RESOLVED kind. A DOCX upload (zip magic) with the
+        // proper declared type must store the canonical OPC content-type.
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("Anna Andersson", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation(experienceTitle: null));
+
+        byte[] docxBytes = [0x50, 0x4B, 0x03, 0x04, 0x14, 0x00, 0x06, 0x00];
+        var command = new ImportResumeCommand(
+            "cv.docx", CvFileSignature.DocxContentType, docxBytes);
+
+        var result = await CreateSut(db).Handle(command, CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        db.ResumeFiles.Local.ShouldHaveSingleItem()
+            .ContentType.ShouldBe(CvFileSignature.DocxContentType);
     }
 
     // ===============================================================
@@ -686,7 +792,7 @@ public class ImportResumeCommandHandlerTests
         currentUser.UserId.Returns((Guid?)null);
         var sut = new ImportResumeCommandHandler(
             db, currentUser, FakeDateTimeProvider.Default, _extractor, _layoutAnalyzer, _segmenter,
-            _deriver, _experienceDeriver, _skillResolver);
+            _deriver, _experienceDeriver, _skillResolver, _sealer);
 
         await Should.ThrowAsync<UnauthorizedException>(
             () => sut.Handle(PdfCommand(), CancellationToken.None).AsTask());

@@ -148,6 +148,57 @@ public class ParsedResumeRetentionJobIntegrationTests(WorkerTestFixture fixture)
         }
     }
 
+    [Fact]
+    public async Task RunAsync_CouplesOriginalFiles_SweepsDiscardedAndAbandoned_PromotedGraduates()
+    {
+        // Fas 4b PR-9a (ADR 0100, DPIA M-F3): resume_files originals follow the STAGING-DEATH
+        // arms — a matured Discarded/abandoned parsed row takes its original with it (file
+        // deleted FIRST, then the parsed anchor), while a matured PROMOTED row sweeps ONLY the
+        // redundant staging copy: its original GRADUATES to the canonical Resume's lifetime
+        // (P1 "filen är helig") and must survive this job unconditionally. Also proves the
+        // outer IgnoreQueryFilters reaches the soft-deleted parsed rows inside the correlated
+        // subquery, and that the whole coupled delete is DEK-free against real Postgres.
+        var ct = TestContext.Current.CancellationToken;
+        var jobSeekerId = Guid.NewGuid();
+        Guid discardedOldFile, abandonedFile, promotedOldFile, discardedFreshFile;
+
+        using (var seedScope = _fixture.Services.CreateScope())
+        {
+            var now = seedScope.ServiceProvider.GetRequiredService<IDateTimeProvider>().UtcNow;
+            var db = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var discardedOld = await SeedRawAsync(db, jobSeekerId, ParsedResumeStatus.Discarded, now.AddDays(-100), now.AddDays(-40), ct);
+            var promotedOld = await SeedRawAsync(db, jobSeekerId, ParsedResumeStatus.Promoted, now.AddDays(-100), now.AddDays(-40), ct);
+            var pendingAbandoned = await SeedRawAsync(db, jobSeekerId, ParsedResumeStatus.PendingReview, now.AddDays(-100), null, ct);
+            var discardedFresh = await SeedRawAsync(db, jobSeekerId, ParsedResumeStatus.Discarded, now.AddDays(-20), now.AddDays(-10), ct);
+
+            discardedOldFile = await SeedFileRawAsync(db, jobSeekerId, discardedOld, ct);
+            promotedOldFile = await SeedFileRawAsync(db, jobSeekerId, promotedOld, ct);
+            abandonedFile = await SeedFileRawAsync(db, jobSeekerId, pendingAbandoned, ct);
+            discardedFreshFile = await SeedFileRawAsync(db, jobSeekerId, discardedFresh, ct);
+        }
+
+        using (var runScope = _fixture.Services.CreateScope())
+        {
+            var worker = runScope.ServiceProvider.GetRequiredService<ParsedResumeRetentionWorker>();
+            await worker.RunAsync(ct);
+        }
+
+        using (var assertScope = _fixture.Services.CreateScope())
+        {
+            var db = assertScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var survivingFiles = await db.ResumeFiles
+                .Where(f => f.JobSeekerId == new Jobbliggaren.Domain.JobSeekers.JobSeekerId(jobSeekerId))
+                .Select(f => f.Id.Value)
+                .ToListAsync(ct);
+
+            survivingFiles.ShouldNotContain(discardedOldFile, "matured Discarded original follows its parsed sibling");
+            survivingFiles.ShouldNotContain(abandonedFile, "abandoned upload's original follows its parsed sibling");
+            survivingFiles.ShouldContain(promotedOldFile, "a PROMOTED original graduates — never swept by the staging retention");
+            survivingFiles.ShouldContain(discardedFreshFile, "a fresh Discarded original stays until its sibling matures");
+        }
+    }
+
     private sealed class FixedClock(DateTimeOffset utcNow) : IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = utcNow;
@@ -167,6 +218,24 @@ public class ParsedResumeRetentionJobIntegrationTests(WorkerTestFixture fixture)
             VALUES
                 ({id}, {jobSeekerId}, 'cv.pdf', 'application/pdf', 1, {status.Name},
                  'ciphertext', '{{}}'::jsonb, '{{}}'::jsonb, '[]'::jsonb, {createdAt}, {createdAt}, {deletedAt})", ct);
+        return id;
+    }
+
+    private static async Task<Guid> SeedFileRawAsync(
+        AppDbContext db, Guid jobSeekerId, Guid parsedResumeId, CancellationToken ct)
+    {
+        var id = Guid.NewGuid();
+        // Raw INSERT (parity SeedRawAsync): dummy Form C bytes — the coupled delete is DEK-free
+        // and never materialises the bytea, so any non-empty payload suffices. created_at is
+        // fixed: the coupled sweep is anchored on the PARSED sibling's dates, never the file's.
+        var createdAt = new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero);
+        await db.Database.ExecuteSqlInterpolatedAsync($@"
+            INSERT INTO resume_files
+                (id, job_seeker_id, parsed_resume_id, content, content_type, file_name, byte_size,
+                 pnr_flagged, created_at)
+            VALUES
+                ({id}, {jobSeekerId}, {parsedResumeId}, {new byte[] { 0x01, 0xAA, 0xBB }},
+                 'application/pdf', 'cv.pdf', 3, false, {createdAt})", ct);
         return id;
     }
 }

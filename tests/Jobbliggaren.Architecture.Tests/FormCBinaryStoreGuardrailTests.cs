@@ -95,9 +95,12 @@ public class FormCBinaryStoreGuardrailTests
         var aggregate = typeof(ResumeFile);
 
         var byteCarriers = new List<string>();
+        // NonPublic included: a future PRIVATE byte[] plaintext field would still be EF-
+        // mappable/change-trackable — the honesty pin must see it (dotnet-architect NTH,
+        // PR-9a gate). Compiler-generated backing fields for allowed properties are excused.
         foreach (var member in aggregate.GetMembers(
-            BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static
-            | BindingFlags.DeclaredOnly))
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
+            | BindingFlags.Static | BindingFlags.DeclaredOnly))
         {
             switch (member)
             {
@@ -107,10 +110,15 @@ public class FormCBinaryStoreGuardrailTests
                     break;
 
                 case FieldInfo field when IsByteCarrier(field.FieldType):
-                    byteCarriers.Add($"field {field.Name}");
+                    if (field.Name != $"<{nameof(ResumeFile.SealedContent)}>k__BackingField")
+                        byteCarriers.Add($"field {field.Name}");
                     break;
 
-                case MethodInfo method when !method.IsSpecialName:
+                case MethodInfo method when !method.IsSpecialName && !method.IsPrivate:
+                    // Private methods are excluded from the parameter sweep (compiler-
+                    // generated plumbing), but private RETURN carriers still surface via
+                    // the field/property arms above — the persistable surface is what the
+                    // pin guards.
                     if (IsByteCarrier(method.ReturnType))
                         byteCarriers.Add($"method {method.Name} (return)");
                     foreach (var parameter in method.GetParameters())

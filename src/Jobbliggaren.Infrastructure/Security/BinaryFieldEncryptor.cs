@@ -23,10 +23,10 @@ public sealed class BinaryFieldEncryptor : IBinaryFieldEncryptor
         AesGcmEnvelope.EnsureAes256Dek(dek);
 
         var core = AesGcmEnvelope.Seal(plaintext, dek); // nonce || ct || tag
-        var sealed_ = new byte[1 + core.Length];
-        sealed_[0] = FormCVersion;
-        core.CopyTo(sealed_.AsSpan(1));
-        return sealed_;
+        var envelope = new byte[1 + core.Length];
+        envelope[0] = FormCVersion;
+        core.CopyTo(envelope.AsSpan(1));
+        return envelope;
     }
 
     public byte[] Decrypt(ReadOnlySpan<byte> sealedContent, ReadOnlySpan<byte> dek)

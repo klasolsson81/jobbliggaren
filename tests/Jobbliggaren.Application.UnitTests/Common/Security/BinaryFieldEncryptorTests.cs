@@ -176,9 +176,9 @@ public class BinaryFieldEncryptorTests
     [Fact]
     public void Encrypt_EmptyPlaintext_RoundTripsToEmpty()
     {
-        // AES-GCM handles empty plaintext (envelope = version + nonce + tag only). The
-        // AGGREGATE rejects empty sealed-content ≤ 29 bytes never happens through capture
-        // (CaptureOriginal requires byteSize > 0), but the cipher itself must be total.
+        // AES-GCM handles empty plaintext (envelope = version + nonce + tag only). An empty
+        // original never reaches capture (CaptureOriginal requires byteSize > 0), but the
+        // cipher primitive itself must be total over its input domain.
         var dek = Dek();
 
         var sealedContent = _sut.Encrypt(ReadOnlySpan<byte>.Empty, dek);

@@ -192,7 +192,6 @@ public sealed class ImportResumeCommandHandler(
             return Result.Failure<ImportResumeResponse>(created.Error);
 
         var parsed = created.Value;
-        db.ParsedResumes.Add(parsed);
 
         // 6. Original-file capture (Fas 4b PR-9a, ADR 0093 §D5/ADR 0100 — P1 "filen är helig",
         //    DPIA M-F1/M-F5). ONLY a body-scan-clean upload is captured: a personnummer-flagged
@@ -204,14 +203,23 @@ public sealed class ImportResumeCommandHandler(
         //    IRequiresFieldEncryptionKey; the sealer throws fail-closed if the DEK is not warm),
         //    so the aggregate only ever sees opaque ciphertext. Canonical MIME comes from the
         //    magic-byte-resolved kind — never the client-declared content-type (M-F2 groundwork).
-        //    A capture failure fails the WHOLE import (shared UoW): importing without durably
-        //    keeping the original would silently betray P1.
+        //    ATOMICITY IS STRUCTURAL: UnitOfWorkBehavior saves unconditionally (no IsSuccess
+        //    guard), so NOTHING is added to the change tracker until BOTH results are validated
+        //    — a failure return (or a sealer/seal exception, which precedes everything) can
+        //    never leave a parsed row persisted without its captured original.
+        ResumeFile? capturedFile = null;
         if (!personnummer.Found)
         {
             var sealedContent = sealer.Seal(command.FileBytes);
-            var canonicalContentType = kind == CvFileKind.Pdf
-                ? CvFileSignature.PdfContentType
-                : CvFileSignature.DocxContentType;
+            var canonicalContentType = kind switch
+            {
+                CvFileKind.Pdf => CvFileSignature.PdfContentType,
+                CvFileKind.Docx => CvFileSignature.DocxContentType,
+                // Exhaustive today; a future CvFileKind member must decide its canonical
+                // MIME here explicitly, never silently inherit one.
+                _ => throw new InvalidOperationException(
+                    $"Ohanterad CvFileKind '{kind}' saknar kanonisk MIME-mappning."),
+            };
 
             var captured = ResumeFile.CaptureOriginal(
                 jobSeekerId,
@@ -226,8 +234,12 @@ public sealed class ImportResumeCommandHandler(
             if (captured.IsFailure)
                 return Result.Failure<ImportResumeResponse>(captured.Error);
 
-            db.ResumeFiles.Add(captured.Value);
+            capturedFile = captured.Value;
         }
+
+        db.ParsedResumes.Add(parsed);
+        if (capturedFile is not null)
+            db.ResumeFiles.Add(capturedFile);
 
         return Result.Success(MapResponse(parsed, candidates));
     }

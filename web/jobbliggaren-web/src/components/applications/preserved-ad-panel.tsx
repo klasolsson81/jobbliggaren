@@ -12,8 +12,8 @@ interface PreservedAdPanelProps {
  * "Om annonsen (sparad kopia)" — #315 (ADR 0086). The frozen ad-text snapshot,
  * shown as the FALLBACK when the live JobAd is archived (jobAd == null) but a copy
  * was captured at apply-time. Extracted verbatim from ApplicationDetail so the
- * full-page detail and the read-mode drawer body render ONE identical panel
- * (DRY / SPOT). Pure presentational Server Component — no client state.
+ * full-page detail and the read-mode detail-modal body render ONE identical
+ * panel (DRY / SPOT). Pure presentational Server Component — no client state.
  *
  * Rows are omitted when the source field is null (same omission pattern as the
  * rest of the detail — no placeholder dashes). Calm, informative tone (a saved

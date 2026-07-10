@@ -121,8 +121,8 @@ export type NoteDto = z.infer<typeof noteDtoSchema>;
 // an ISO datetime (z.string(), same convention as the other date fields). The
 // backend returns these chronological (oldest-first); the FE reverses for a
 // newest-first timeline. Detail-only — NOT on the list ApplicationDto (CQRS
-// list != detail). This is the real source of the drawer's TIDSLINJE and the
-// "N dagar i detta steg" derivation — the previous `updatedAt`-synthesised status
+// list != detail). This is the real source of the detail modal's TIDSLINJE and
+// the "N dagar i detta steg" derivation — the previous `updatedAt`-synthesised status
 // event is retired (never fabricate a transition that was not recorded, §5).
 export const statusChangeDtoSchema = z.object({
   from: applicationStatusSchema,

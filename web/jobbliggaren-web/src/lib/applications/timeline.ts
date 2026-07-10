@@ -45,8 +45,8 @@ interface TimelineSource {
  * actually logged), never inferred from `updatedAt`. Sorted by the raw ISO
  * timestamp (stable), not by a formatted date string.
  *
- * Shared by the read-mode drawer body and the full-page ApplicationDetail so the
- * timeline is one knowledge piece in one place (DRY / SPOT).
+ * Shared by the read-mode detail-modal body and the full-page ApplicationDetail
+ * so the timeline is one knowledge piece in one place (DRY / SPOT).
  */
 export function composeTimeline(source: TimelineSource): TimelineEvent[] {
   const events: TimelineEvent[] = [{ at: source.createdAt, kind: "created" }];

@@ -20,21 +20,24 @@ import {
  * a z-index strictly above every opaque host surface a dialog can open from.
  * If dialog.tsx regresses to the shadcn default (z-50) this fails.
  *
- * #630 PR 7 extends the ladder: dialogs (Logga uppföljning / Slutför och
- * skicka) now also open from INSIDE the /ansokningar detail drawer
- * (`.jp-appdrawer`, z-100 band) — the same #565 bug class, inverted host. The
- * contract is therefore pinned against the HIGHEST host band (100), not just
- * the modal scrim (80).
+ * #630 PR 7 extended the ladder: dialogs (Logga uppföljning / Slutför och
+ * skicka) could open from INSIDE the /ansokningar detail drawer (z-100 band)
+ * — the same #565 bug class, inverted host. The drawer was retired 2026-07-10
+ * (ADR 0092 Livscykel-amendment), but the contract stays pinned against that
+ * HISTORICAL maximum host band (100), not just the modal scrim (80) — the
+ * mobile-nav `.jp-drawer` still occupies the 99/100 band and lowering the
+ * floor would only invite regressions.
  *
  * The user-visible occlusion assertion (real browser hit-test) lives in the
  * Playwright spec — tests/e2e/applications.spec.ts. That spec is not wired into
  * CI yet (see the #565 CI-gap note); this in-CI vitest test is the actual gate.
  */
 
-// `.jp-appdrawer { z-index: 100 }` (src/app/globals.css) — the highest opaque
-// surface that can host a dialog (the z-80 `.jp-modal-scrim` modal is the
-// other). Anything the dialog needs to sit above; the toast (200) stays above.
-const APPDRAWER_Z_INDEX = 100;
+// The historical maximum opaque host band (the retired detail drawer's
+// z-100; the mobile-nav `.jp-drawer` still sits at 99/100). Today's dialog
+// host is the z-80 `.jp-modal-scrim` modal — the floor deliberately stays at
+// the historical maximum; the toast (200) stays above.
+const MAX_HOST_Z_INDEX = 100;
 
 /** Numeric value of a Tailwind z-index utility (`z-90` or `z-[90]`), else NaN. */
 function zIndexUtility(el: Element | null): number {
@@ -45,7 +48,7 @@ function zIndexUtility(el: Element | null): number {
 }
 
 describe("Dialog z-index contract (#565 / #630 PR 7)", () => {
-  it("renders the overlay and content above the detail drawer band (z-index > 100)", () => {
+  it("renders the overlay and content above the historical max host band (z-index > 100)", () => {
     render(
       <Dialog open>
         <DialogContent>
@@ -63,7 +66,7 @@ describe("Dialog z-index contract (#565 / #630 PR 7)", () => {
     expect(overlay).not.toBeNull();
     expect(content).not.toBeNull();
 
-    expect(zIndexUtility(overlay)).toBeGreaterThan(APPDRAWER_Z_INDEX);
-    expect(zIndexUtility(content)).toBeGreaterThan(APPDRAWER_Z_INDEX);
+    expect(zIndexUtility(overlay)).toBeGreaterThan(MAX_HOST_Z_INDEX);
+    expect(zIndexUtility(content)).toBeGreaterThan(MAX_HOST_Z_INDEX);
   });
 });

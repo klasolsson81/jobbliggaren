@@ -40,9 +40,9 @@ export default async function AppLayout({
           Moving footer chrome inside AppShell's flex column is LP-5b/#259. */}
       <SiteFooter />
       {/* #630 PR 7 (CTO-bind 2): EN toast-host för hela (app)-ytan — både
-          pipeline-ön och den intercept-monterade drawern publicerar till samma
-          modul-store (toast-store.ts). Fixed-positionerad, renderar null utan
-          aktiv toast. */}
+          pipeline-ön och den intercept-monterade detaljmodalen publicerar till
+          samma modul-store (toast-store.ts). Fixed-positionerad, renderar null
+          utan aktiv toast. */}
       <ApplicationToastHost />
     </>
   );

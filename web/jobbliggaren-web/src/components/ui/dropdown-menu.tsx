@@ -13,9 +13,10 @@ import { cn } from "@/lib/utils"
  * supplies the APG menu-button keyboard contract (roving focus, typeahead,
  * Escape-in-capture-phase that the #565 shells yield to).
  *
- * z-110: menus can open from surfaces up to the .jp-appdrawer band (z-100), so
- * the portalled content must clear it while staying below the toast (z-200) —
- * the same ladder dialog.tsx/select.tsx sit on (dialog.zindex.test.tsx pins it).
+ * z-110: menus must clear every opaque host band (historical maximum: the
+ * retired #630 PR 6 detail drawer at z-100 — the floor is kept above it) while
+ * staying below the toast (z-200) — the same ladder dialog.tsx/select.tsx sit
+ * on (dialog.zindex.test.tsx pins it).
  */
 function DropdownMenu({
   ...props

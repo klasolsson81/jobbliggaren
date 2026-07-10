@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { clampDrawerTop } from "@/lib/applications/drawer-position";
+import { clampAnchoredTop } from "@/lib/applications/anchored-top";
 import { LogFollowUpDialog } from "./log-follow-up-dialog";
 
 interface DrawerLogFollowUpButtonProps {
@@ -13,11 +13,13 @@ interface DrawerLogFollowUpButtonProps {
 }
 
 /**
- * Drawerns "+ Lägg till" under UPPFÖLJNINGAR (#630 PR 7, design §8.6 —
- * Klas-låst 2026-07-05: prototyp-trogen). Öppnar "Logga uppföljning"-dialogen
- * (§9) ankrad nära klicket; det schemalagda uppföljningsformuläret stannar på
- * fullsidan. Egen dialog-instans (drawern är ett eget React-träd, CTO-bind 6b:
- * komposition — sektionen förblir presentation).
+ * Detaljpanelens "+ Lägg till" under UPPFÖLJNINGAR (#630 PR 7, design §8.6 —
+ * Klas-låst 2026-07-05: prototyp-trogen; "Drawer"-namnet är ett PR 6-arv,
+ * panelen är sedan 2026-07-10 den centrerade route-modalen). Öppnar "Logga
+ * uppföljning"-dialogen (§9) ankrad nära klicket; det schemalagda
+ * uppföljningsformuläret stannar på fullsidan. Egen dialog-instans (panelen
+ * är ett eget React-träd, CTO-bind 6b: komposition — sektionen förblir
+ * presentation).
  */
 export function DrawerLogFollowUpButton({
   applicationId,
@@ -46,7 +48,7 @@ export function DrawerLogFollowUpButton({
             top:
               typeof window === "undefined"
                 ? null
-                : clampDrawerTop(anchorY, window.innerHeight, {
+                : clampAnchoredTop(anchorY, window.innerHeight, {
                     offset: 170,
                     minVisible: 240,
                   }),

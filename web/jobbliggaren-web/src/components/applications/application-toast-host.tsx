@@ -23,8 +23,8 @@ const AUTO_CLOSE_MS = 8_000;
 /**
  * ApplicationToastHost — the single renderer of the /ansokningar action toast
  * (#630 PR 7, design §10; CTO-bind 2: ONE host, mounted in the (app) layout so
- * both the pipeline island and the intercepting-route drawer publish to the
- * same surface; reused by PR 8 drag + PR 10 bulk).
+ * both the pipeline island and the intercepting-route detail modal publish to
+ * the same surface; reused by PR 8 drag + PR 10 bulk).
  *
  * - Status toast: "{company}: {from} → {to}" + Ångra (--jp-gold, underlined) + ✕.
  *   Undo = a compensating inverse TransitionTo(previous) via the SAME audited
@@ -123,8 +123,8 @@ function ToastCard({ toast }: { toast: ApplicationToast }) {
   const undo = () => {
     startUndo(async () => {
       // Kompenserande invers transition (ADR 0092 D3) — samma auditerade
-      // action(er); revalidatePath uppdaterar lista + drawer server-side. Ingen
-      // kedjad ångra-toast (CTO-bind 3, prototyp-exakt).
+      // action(er); revalidatePath uppdaterar lista + detaljmodal server-side.
+      // Ingen kedjad ångra-toast (CTO-bind 3, prototyp-exakt).
       if (toast.kind === "statusChange") {
         const result = await transitionStatusAction(
           toast.applicationId,

@@ -148,11 +148,13 @@ public static class MeJobAdMatchEndpoints
 
         // ADR 0080 Vag 4 PR-5 — markera matchningarna sedda (avancera last_seen_matches_at).
         // Anropas av FE när den dedikerade vyn ÖPPNAS (Klas-val: "views the matches surface").
-        // Auth-gated, MeWrite (user-ägd mutation, paritet match-preferences). 204 / 400.
+        // Body { seenThrough } = max CreatedAt av matchningarna FE faktiskt visade (#477 Low —
+        // vattenmärket sätts dit, inte klock-nu). Nullbar/tom body (tom lista / deploy-skew från
+        // äldre FE) → handlern faller tillbaka på klock-nu. Auth-gated, MeWrite. 204 / 400.
         app.MapPost("/api/v1/me/matches/seen", async (
-                IMediator mediator, CancellationToken ct) =>
+                MarkMatchesSeenRequest? body, IMediator mediator, CancellationToken ct) =>
             {
-                var result = await mediator.Send(new MarkMatchesSeenCommand(), ct);
+                var result = await mediator.Send(new MarkMatchesSeenCommand(body?.SeenThrough), ct);
                 return result.IsSuccess
                     ? Results.NoContent()
                     : result.Error.ToProblemResult();
@@ -162,3 +164,10 @@ public static class MeJobAdMatchEndpoints
             .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
     }
 }
+
+/// <summary>
+/// Body for <c>POST /api/v1/me/matches/seen</c> (#477 Low). <c>SeenThrough</c> = the max
+/// <c>CreatedAt</c> of the matches the FE actually rendered; nullable so an empty body (empty
+/// match list / deploy-skew) is allowed and falls back to clock-now in the handler.
+/// </summary>
+internal sealed record MarkMatchesSeenRequest(DateTimeOffset? SeenThrough);

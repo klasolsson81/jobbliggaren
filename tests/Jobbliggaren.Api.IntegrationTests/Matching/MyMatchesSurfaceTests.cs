@@ -295,9 +295,11 @@ public sealed class MyMatchesSurfaceTests(ApiFactory factory)
 
             // Advance the watermark to NOW (a future instant past every match) via the real
             // command handler; persist (UnitOfWorkBehavior is bypassed when calling directly).
+            // null SeenThrough → the handler falls back to clock-now (here day-20), the same
+            // "advance past everything" intent this test relies on.
             var markHandler = new MarkMatchesSeenCommandHandler(
                 db, UserWith(userId), ClockAt(T0.AddDays(20)));
-            var markResult = await markHandler.Handle(new MarkMatchesSeenCommand(), ct);
+            var markResult = await markHandler.Handle(new MarkMatchesSeenCommand(null), ct);
             markResult.IsSuccess.ShouldBeTrue();
             await db.SaveChangesAsync(ct);
 

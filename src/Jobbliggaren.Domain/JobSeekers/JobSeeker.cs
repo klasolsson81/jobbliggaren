@@ -237,19 +237,38 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     }
 
     /// <summary>
-    /// ADR 0080 Vag 4 (Beslut 6) — marks the user's matches as seen up to now (advances the
-    /// user-read watermark). Drives the "nya sedan senaste besök" count. Called when the user
-    /// views the matches surface, NOT on every page load. Monotonic.
+    /// ADR 0080 Vag 4 (Beslut 6) — advances the user-read watermark to
+    /// <paramref name="seenThrough"/>: the max <c>CreatedAt</c> of the matches the user actually
+    /// viewed. #477 Low — NOT clock-now: a match inserted between the user's fetch and this call
+    /// has <c>CreatedAt &gt; seenThrough</c>, so it stays ABOVE the watermark and is correctly
+    /// still flagged "nya" (clock-now would swallow it silently). Drives the "nya sedan senaste
+    /// besök" count. Monotonic; clamped to now so a future-dated <paramref name="seenThrough"/>
+    /// can never run the watermark ahead of reality (mirrors <see cref="AdvanceMatchScan"/>;
+    /// CLAUDE §2.2 — the aggregate guards its own invariant). Called when the user views the
+    /// matches surface, NOT on every page load.
     /// </summary>
-    public void SetLastSeenMatches(IDateTimeProvider clock)
+    public void SetLastSeenMatches(DateTimeOffset seenThrough, IDateTimeProvider clock)
     {
         var now = clock.UtcNow;
-        if (LastSeenMatchesAt is { } current && now <= current)
+
+        if (seenThrough > now)
+            seenThrough = now;
+
+        if (LastSeenMatchesAt is { } current && seenThrough <= current)
             return;
 
-        LastSeenMatchesAt = now;
+        LastSeenMatchesAt = seenThrough;
         UpdatedAt = now;
     }
+
+    /// <summary>
+    /// Convenience overload — advances the watermark to <b>now</b>. Use only when there is no
+    /// specific seen-window (e.g. an empty match list, or test setup); the production mark-seen
+    /// path passes an explicit <paramref name="clock"/>-independent <c>seenThrough</c> (#477 Low —
+    /// see the overload above) so a match created between the user's fetch and mark-seen is not
+    /// silently swallowed.
+    /// </summary>
+    public void SetLastSeenMatches(IDateTimeProvider clock) => SetLastSeenMatches(clock.UtcNow, clock);
 
     /// <summary>
     /// #293 (ADR 0042 Beslut E amendment) — marks the /jobb job list as seen up to now

@@ -405,10 +405,9 @@ public sealed class Application : AggregateRoot<ApplicationId>
         RaiseDomainEvent(new ApplicationDeletedDomainEvent(Id, JobSeekerId, clock.UtcNow));
     }
 
-    // Closed for follow-up activity: the three terminals PLUS Ghosted. Ghosted
-    // is deliberately included here (no activity on a ghosted thread) but is NOT
-    // terminal (it is reactivatable) — see IsTerminal (architect M3: do not let
-    // IsTerminal swallow this intentionally wider scope).
-    private bool IsClosedForActivity() =>
-        IsTerminal(Status) || Status == ApplicationStatus.Ghosted;
+    // Closed for follow-up activity — delegates to the single source on ApplicationStatus (the
+    // three terminals PLUS Ghosted). The set intentionally spans wider than IsTerminal: Ghosted is
+    // closed to activity but reactivatable, so it is NOT terminal. See
+    // ApplicationStatus.IsClosedForActivity (architect M3: do not let IsTerminal swallow it).
+    private bool IsClosedForActivity() => Status.IsClosedForActivity;
 }

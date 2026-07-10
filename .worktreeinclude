@@ -16,11 +16,13 @@ docs/tech-debt.md
 docs/tech-debt-archive.md
 
 # Per-session logs + local agent reviews + local ADRs for context.
-# (Glob matches ADR 0070–0099; already-tracked 0070–0073 are already present in
-# the worktree, so re-copying them is redundant but harmless.)
+# (Globs match ADR 0070–0199; already-tracked 0070–0073 are already present in
+# the worktree, so re-copying them is redundant but harmless. The 01-glob was
+# added 2026-07-10 with ADR 0100, parity with .gitignore.)
 docs/sessions/
 docs/reviews/
 docs/decisions/00[789][0-9]-*.md
+docs/decisions/01[0-9][0-9]-*.md
 
 # GDPR Art. 30 processing-register (ROPA) — local-only (ADR 0072 / #183), internal
 # accountability record. Worktrees need it for GDPR context; never a secret.

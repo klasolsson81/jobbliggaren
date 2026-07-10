@@ -579,7 +579,6 @@ function OccupationChipsWithYears({
       </p>
       <div className="mt-1">
         <InfoDialog
-          iconOnly
           ariaLabel={t("matchPrefs.occupation.yearsWhatIsThis")}
           title={t("matchPrefs.occupation.yearsLabel")}
           paragraphs={[t("matchPrefs.occupation.yearsHint")]}

@@ -3,11 +3,15 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { InfoDialog } from "./info-dialog";
 
 describe("InfoDialog", () => {
-  it("shows the shared trigger and opens with the given title and paragraphs", async () => {
+  it("renders the glyph-only trigger and opens with the given title and paragraphs", async () => {
     render(<InfoDialog title="Om hjälpen" paragraphs={["Första", "Andra"]} />);
 
+    // Accessible name from the shared common.dialog string via aria-label;
+    // no visible text — the decorative HelpCircle glyph is the whole trigger.
     const trigger = screen.getByRole("button", { name: "Vad är detta?" });
     expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveTextContent("");
+    expect(trigger.querySelector("svg")).not.toBeNull();
 
     fireEvent.click(trigger);
 
@@ -19,47 +23,23 @@ describe("InfoDialog", () => {
     expect(screen.getByText("Andra")).toBeInTheDocument();
   });
 
-  it("renders the icon by default and omits it when showIcon is false", () => {
-    const { rerender } = render(
-      <InfoDialog title="Titel" paragraphs={["Text"]} />,
-    );
-    // Default: decorative HelpCircle icon present inside the trigger button.
-    expect(
-      screen.getByRole("button", { name: "Vad är detta?" }).querySelector("svg"),
-    ).not.toBeNull();
-
-    // #337 text-only placement convention: no icon, button still accessible.
-    rerender(
-      <InfoDialog title="Titel" paragraphs={["Text"]} showIcon={false} />,
-    );
-    const trigger = screen.getByRole("button", { name: "Vad är detta?" });
-    expect(trigger).toBeInTheDocument();
-    expect(trigger.querySelector("svg")).toBeNull();
-  });
-
-  it("icon-only mode: renders just the glyph, accessible name from aria-label, opens both paragraphs (#408)", async () => {
+  it("ariaLabel overrides the accessible name for context-bearing per-control help (#419 pt7)", () => {
     render(
       <InfoDialog
-        iconOnly
-        title="Om matchningsfiltret"
-        paragraphs={["Första stycket", "Andra stycket"]}
+        title="Antal år"
+        paragraphs={["Förklaring"]}
+        ariaLabel="Vad är detta? Antal år"
       />,
     );
-    // Accessible name still "Vad är detta?" (shared common.dialog string) via
-    // aria-label; no visible text on the dense control row.
-    const trigger = screen.getByRole("button", { name: "Vad är detta?" });
-    expect(trigger).toBeInTheDocument();
-    expect(trigger).toHaveTextContent("");
-    // The decorative HelpCircle glyph is present.
-    expect(trigger.querySelector("svg")).not.toBeNull();
 
-    fireEvent.click(trigger);
-    await waitFor(() =>
-      expect(screen.getByRole("dialog")).toBeInTheDocument(),
-    );
-    // Both verbatim paragraphs render (criterion 9: help + relatedToggleHelp).
-    expect(screen.getByText("Första stycket")).toBeInTheDocument();
-    expect(screen.getByText("Andra stycket")).toBeInTheDocument();
+    // WCAG 2.4.4/2.5.3 — unique, context-bearing name replaces the generic
+    // fallback so co-existing "?" triggers don't collapse to the same string.
+    expect(
+      screen.getByRole("button", { name: "Vad är detta? Antal år" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Vad är detta?" }),
+    ).not.toBeInTheDocument();
   });
 
   it("closes via the shared close button", async () => {

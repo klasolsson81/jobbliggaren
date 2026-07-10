@@ -3,6 +3,7 @@ using Hangfire.PostgreSql;
 using Jobbliggaren.Api.Configuration;
 using Jobbliggaren.Api.Endpoints;
 using Jobbliggaren.Api.HealthChecks;
+using Jobbliggaren.Api.Observability;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -166,6 +167,11 @@ builder.Services.AddHsts(o =>
     o.Preload = hstsConfig.Preload;
 });
 
+// #512: throttled Error log for the session-store-unavailable 503 path (below). Singleton so
+// the throttle window is shared across all requests of the host — a Redis outage fans out to
+// every authenticated request, so one log per window is enough for the TD-77 alarm.
+builder.Services.AddSingleton<SessionStoreUnavailableLog>();
+
 var app = builder.Build();
 
 app.Use(async (ctx, next) =>
@@ -213,6 +219,12 @@ app.Use(async (ctx, next) =>
     }
     catch (SessionStoreUnavailableException ex)
     {
+        // #512: log the outage BEFORE writing 503. Auth runs outside the Mediator pipeline, so
+        // LoggingBehavior never sees this — without this line a Redis outage produces zero log
+        // signal (the one deliberately-handled infra path was the least observable). Throttled,
+        // dedicated event-id; the inner exception (Redis connection/timeout/server) is the
+        // operator signal. §5: no session-id/token/PII is logged.
+        ctx.RequestServices.GetRequiredService<SessionStoreUnavailableLog>().Emit(ex.InnerException ?? ex);
         ctx.Response.StatusCode = 503;
         await ctx.Response.WriteAsJsonAsync(new { error = ex.Message });
     }

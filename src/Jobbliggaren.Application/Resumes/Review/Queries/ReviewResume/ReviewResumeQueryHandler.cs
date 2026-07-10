@@ -72,9 +72,16 @@ public sealed class ReviewResumeQueryHandler(
 
         var overlay = BuildStatusOverlay(resume.FindingStatuses, result);
 
-        var nameByCriterionId = rubricProvider.GetRubric().Criteria
-            .ToDictionary(c => c.Id, c => c.Name, StringComparer.Ordinal);
-        return result.ToDto(nameByCriterionId, overlay);
+        // One GetRubric() materialization feeds both per-verdict projections: the human
+        // heading lookup AND the StyleOnly ignorable set (Fas 4b PR-8.4, CTO-bind Q1). The
+        // canonical review is the one the status UI acts on, so it drives the Ignorera gate.
+        var criteria = rubricProvider.GetRubric().Criteria;
+        var nameByCriterionId = criteria.ToDictionary(c => c.Id, c => c.Name, StringComparer.Ordinal);
+        var ignorableCriterionIds = criteria
+            .Where(c => c.StyleOnly)
+            .Select(c => c.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        return result.ToDto(nameByCriterionId, overlay, ignorableCriterionIds);
     }
 
     /// <summary>

@@ -121,7 +121,11 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
 
       <OccupationProposals proposals={parsed.occupationProposals} />
 
-      <CvReviewPanel review={review} parsedId={parsedId} profile={profile} />
+      <CvReviewPanel
+        review={review}
+        target={{ kind: "parsed", parsedId }}
+        profile={profile}
+      />
 
       {/* CTA-söm mot F2: spara-flödet (komplettera + promote). Förbättra-CTA:n
           (F4-10) ligger som sekundär knapp FÖRE den primära spara-knappen —

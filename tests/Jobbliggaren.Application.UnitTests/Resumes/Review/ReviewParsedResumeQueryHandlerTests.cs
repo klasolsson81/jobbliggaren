@@ -164,6 +164,36 @@ public class ReviewParsedResumeQueryHandlerTests
     }
 
     // ===============================================================
+    // Ignorable (StyleOnly) projection parity (Fas 4b PR-8.4, CTO-bind Q1)
+    // ===============================================================
+
+    [Fact]
+    public async Task Handle_ShouldPopulateIsIgnorableFromRubric_EvenThoughStagingRendersNoControls()
+    {
+        // IsIgnorable is a STATIC criterion property, so the staging review must carry it
+        // identically to the canonical one (the field's meaning must not vary by path, even
+        // though the staging panel renders no status controls). E3 "Typografisk konsekvens"
+        // is a StyleOnly criterion in the committed rubric; A1 "Mätbara resultat" is not.
+        var db = CreateDb();
+        var (parsed, _) = await SeedOwnedAsync(db, _userId);
+        var e3 = CvCriterionVerdict.Assessed(
+            "E3", RubricCategory.VisualQuality, CriterionVerdict.Warn,
+            [new StructuralEvidence("ojämn typografi")]);
+        var a1 = CvCriterionVerdict.Assessed(
+            "A1", RubricCategory.Content, CriterionVerdict.Fail,
+            [new TextSpanEvidence(new TextSpan(0, 5, "Ledde"), "starkt verb")]);
+        StubEngine(new CvReviewResult(
+            RubricVersion.Parse("1.0.0"), RenderProfile.Ats, [], [e3, a1], [], AssessedCount: 2, TotalCount: 2));
+
+        var result = await CreateSut(db).Handle(
+            new ReviewParsedResumeQuery(parsed.Id.Value, "Ats"), TestContext.Current.CancellationToken);
+
+        result.ShouldNotBeNull();
+        result.Verdicts.Single(v => v.CriterionId == "E3").IsIgnorable.ShouldBeTrue();
+        result.Verdicts.Single(v => v.CriterionId == "A1").IsIgnorable.ShouldBeFalse();
+    }
+
+    // ===============================================================
     // Auth / not-found / cross-user — null returns
     // ===============================================================
 

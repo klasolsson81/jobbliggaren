@@ -124,6 +124,14 @@
       "backLink": "Tillbaka till CV",
       "loading": "CV:t läses in…"
     },
+    "granska": {
+      "title": "Granskning av ditt CV",
+      "lede": "Det här är en deterministisk granskning av ditt sparade CV, med citerad evidens ur din egen text. Markera det du har åtgärdat själv, eller ignorera rena stilregler. Inget ändras i ditt CV automatiskt.",
+      "loadErrorTitle": "Kunde inte ladda granskningen",
+      "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till CV-sidan.",
+      "backLink": "Tillbaka till CV",
+      "loading": "Läser in granskningen…"
+    },
     "importApi": {
       "notMultipart": "Ladda upp filen som multipart/form-data.",
       "tooLarge": "Filen är för stor. Maxstorlek är 10 MB.",

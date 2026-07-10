@@ -3,6 +3,7 @@ import { createTranslator } from "next-intl";
 import type { ResumeContentDto } from "@/lib/types/resumes";
 import svValidation from "../../../messages/sv/validation.json";
 import svResumes from "../../../messages/sv/resumes.json";
+import svErrors from "../../../messages/sv/errors.json";
 
 vi.mock("@/lib/env", () => ({
   env: { BACKEND_URL: "http://test-backend" },
@@ -14,10 +15,12 @@ vi.mock("@/lib/env", () => ({
 // namespace-aware translator over the Swedish catalogs (source of truth) —
 // verbatim messages keep flowing, identical to production.
 vi.mock("next-intl/server", () => ({
-  getTranslations: async (namespace?: "validation" | "resumes.actions") =>
+  getTranslations: async (
+    namespace?: "validation" | "resumes.actions" | "errors",
+  ) =>
     createTranslator({
       locale: "sv",
-      messages: { validation: svValidation, resumes: svResumes },
+      messages: { validation: svValidation, resumes: svResumes, errors: svErrors },
       namespace,
     }),
 }));
@@ -44,6 +47,8 @@ import {
   promoteParsedResumeAction,
   promoteParsedResumeFromGuideAction,
   discardParsedResumeAction,
+  setFindingStatusAction,
+  type FindingStatusValue,
 } from "./resumes";
 
 const VALID_ID = "11111111-1111-4111-8111-111111111111";
@@ -172,8 +177,9 @@ describe("promoteParsedResumeAction", () => {
   });
 });
 
-// Guide-ingången (Fas 4b PR-8.3): samma one-shot promote som sid-ingången men
-// landar på hubben `/cv` i stället för det nya CV:t. Delar `promoteParsedResumeCore`.
+// Guide-ingången (Fas 4b PR-8.3 → PR-8.4): samma one-shot promote som sid-ingången men
+// landar på den kanoniska granska-vyn `/cv/{id}/granska` (CTO-bind Q4: guiden slutar i
+// granskningen där användaren ser vad som kan åtgärdas). Delar `promoteParsedResumeCore`.
 describe("promoteParsedResumeFromGuideAction", () => {
   const originalFetch = global.fetch;
 
@@ -188,7 +194,7 @@ describe("promoteParsedResumeFromGuideAction", () => {
     redirectMock.mockClear();
   });
 
-  it("201 → redirectar till hubben /cv (INTE till det nya CV:t)", async () => {
+  it("201 → redirectar till den kanoniska granska-vyn /cv/{id}/granska (INTE hubben eller /cv/{id})", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ id: NEW_ID }), {
         status: 201,
@@ -201,10 +207,12 @@ describe("promoteParsedResumeFromGuideAction", () => {
       promoteParsedResumeFromGuideAction(VALID_ID, "Mitt CV", validContent),
     ).rejects.toBeInstanceOf(RedirectError);
 
+    // /cv revalideras (nya kortet med granska-badge), men landningen är granska-vyn.
     expect(revalidatePathMock).toHaveBeenCalledWith("/cv");
-    expect(redirectMock).toHaveBeenCalledWith("/cv");
-    // Landar på hubben, aldrig på /cv/{nyaId} (skiljer den från sid-ingången).
+    expect(redirectMock).toHaveBeenCalledWith(`/cv/${NEW_ID}/granska`);
+    // Skiljer den från sid-ingången (som landar på /cv/{id}) och hubben (/cv).
     expect(redirectMock).not.toHaveBeenCalledWith(`/cv/${NEW_ID}`);
+    expect(redirectMock).not.toHaveBeenCalledWith("/cv");
   });
 
   it("backend-fel (400) → success:false utan redirect", async () => {
@@ -304,6 +312,136 @@ describe("discardParsedResumeAction", () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("network"));
 
     const result = await discardParsedResumeAction(VALID_ID);
+
+    expect(result).toEqual({
+      success: false,
+      error: "Kunde inte nå servern. Försök igen.",
+    });
+  });
+});
+
+// Per-anmärkning statusskrivning (Fas 4b PR-8.4, CTO-bind Q4) — den FÖRSTA FE-konsumenten av
+// PR-4:s PUT /api/v1/resumes/{id}/review/findings/{criterionId}/status. Klient-validerar
+// resumeId (GUID) + status (låst mängd) + criterionId (kort alfanumerisk token) FÖRE fetch;
+// vid lyckad skrivning revalideras BÅDE granska-vyn OCH /cv (ingen klient-optimism, ingen
+// redirect). 400/500 mappas via `mapActionError` (ekar aldrig ProblemDetails-body:n, TD-10).
+describe("setFindingStatusAction", () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    getSessionIdMock.mockResolvedValue("sess-1");
+  });
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+    getSessionIdMock.mockReset();
+    revalidatePathMock.mockReset();
+    redirectMock.mockClear();
+  });
+
+  it("avvisar utan session (notLoggedIn) — backend nås aldrig", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    const result = await setFindingStatusAction(VALID_ID, "A7", "Resolved");
+
+    expect(result).toEqual({ success: false, error: "Du är inte inloggad." });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("avvisar ogiltigt resumeId (icke-GUID) med invalidResumeId — backend nås aldrig", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    const result = await setFindingStatusAction("inte-en-guid", "A7", "Resolved");
+
+    expect(result).toEqual({ success: false, error: "Ogiltigt CV-ID." });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("avvisar en status utanför den låsta mängden med invalidData — backend nås aldrig", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    const result = await setFindingStatusAction(
+      VALID_ID,
+      "A7",
+      "Bogus" as unknown as FindingStatusValue,
+    );
+
+    expect(result).toEqual({ success: false, error: "Ogiltiga uppgifter." });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("avvisar ett malformat criterionId (path-injektion-barriär) med invalidData — backend nås aldrig", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    const result = await setFindingStatusAction(VALID_ID, "A7/../x", "Resolved");
+
+    expect(result).toEqual({ success: false, error: "Ogiltiga uppgifter." });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("200 → PUT:ar {status} mot rätt URL, success:true och revaliderar BÅDE granska-vyn och /cv", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 }));
+    global.fetch = fetchMock;
+
+    const result = await setFindingStatusAction(VALID_ID, "A7", "Resolved");
+
+    expect(result).toEqual({ success: true });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      `http://test-backend/api/v1/resumes/${VALID_ID}/review/findings/A7/status`,
+    );
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toEqual({ status: "Resolved" });
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/cv/${VALID_ID}/granska`);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/cv");
+    // Ingen redirect — kontrollen sitter på granska-vyn, revalidering räcker.
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("backend-fel (500) → success:false med mappat statusUpdateFailed (ekar ej body), ingen revalidering", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: "boom" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const result = await setFindingStatusAction(VALID_ID, "A7", "Ignored");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBe(
+        "Det gick inte att uppdatera åtgärdsstatusen. Ladda om granskningen och försök igen.",
+      );
+      expect(result.error).not.toContain("boom");
+    }
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("backend-konflikt (409) → success:false via mapActionError (stateConflict)", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 409 }));
+
+    const result = await setFindingStatusAction(VALID_ID, "A7", "Resolved");
+
+    expect(result).toEqual({
+      success: false,
+      error: "Resursen är i ett otillåtet tillstånd. Ladda om sidan och försök igen.",
+    });
+  });
+
+  it("nätverksfel → success:false med serverUnreachable", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("network"));
+
+    const result = await setFindingStatusAction(VALID_ID, "A7", "Open");
 
     expect(result).toEqual({
       success: false,

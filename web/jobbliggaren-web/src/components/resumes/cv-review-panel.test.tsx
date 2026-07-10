@@ -49,6 +49,9 @@ function verdict(
           ],
     notAssessedReason:
       v === "NotAssessed" ? `Bedöms inte: ${name}.` : null,
+    userStatus: null,
+    userStatusStaleAt: null,
+    isIgnorable: false,
     ...overrides,
   };
 }
@@ -113,7 +116,7 @@ function makeReview(overrides: Partial<CvReviewDto> = {}): CvReviewDto {
 describe("CvReviewPanel — Att åtgärda (aggregering + sortering)", () => {
   it("aggregerar ALLA Underkänt/Delvis över alla kategorier och utelämnar Godkänt/Ej bedömt", () => {
     render(
-      <CvReviewPanel review={makeReview()} parsedId={PARSED_ID} profile="Ats" />,
+      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
     );
 
     const todo = screen
@@ -133,7 +136,7 @@ describe("CvReviewPanel — Att åtgärda (aggregering + sortering)", () => {
 
   it("räknar antalet åtgärdbara i rubriken", () => {
     render(
-      <CvReviewPanel review={makeReview()} parsedId={PARSED_ID} profile="Ats" />,
+      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
     );
     // 2 Fail + 2 Warn = 4.
     expect(
@@ -143,7 +146,7 @@ describe("CvReviewPanel — Att åtgärda (aggregering + sortering)", () => {
 
   it("sorterar Underkänt före Delvis, och kritiska först inom severiteten", () => {
     render(
-      <CvReviewPanel review={makeReview()} parsedId={PARSED_ID} profile="Ats" />,
+      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
     );
 
     const todo = screen
@@ -180,7 +183,7 @@ describe("CvReviewPanel — Att åtgärda (aggregering + sortering)", () => {
       ],
     });
     render(
-      <CvReviewPanel review={allPass} parsedId={PARSED_ID} profile="Ats" />,
+      <CvReviewPanel review={allPass} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
     );
     expect(
       screen.getByRole("heading", { name: "Att åtgärda (0)" }),
@@ -192,7 +195,7 @@ describe("CvReviewPanel — Att åtgärda (aggregering + sortering)", () => {
 describe("CvReviewPanel — kategori-kort visar enbart Godkänt", () => {
   it("renderar bara Pass-verdikten inne i kategori-korten (åtgärdbara är utlyfta)", () => {
     render(
-      <CvReviewPanel review={makeReview()} parsedId={PARSED_ID} profile="Ats" />,
+      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
     );
 
     const contentCard = screen
@@ -209,7 +212,7 @@ describe("CvReviewPanel — kategori-kort visar enbart Godkänt", () => {
 
   it("behåller alla fyra räknarna i kategori-kortet (information är design)", () => {
     render(
-      <CvReviewPanel review={makeReview()} parsedId={PARSED_ID} profile="Ats" />,
+      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
     );
     const contentCard = screen
       .getByRole("heading", { name: "Innehåll", level: 3 })
@@ -226,7 +229,7 @@ describe("CvReviewPanel — kategori-kort visar enbart Godkänt", () => {
 describe("CvReviewPanel — Ej bedömt (kollapsad, men aldrig dold)", () => {
   it("renderar Ej bedömt som en disclosure stängd som default", () => {
     const { container } = render(
-      <CvReviewPanel review={makeReview()} parsedId={PARSED_ID} profile="Ats" />,
+      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
     );
     const details = container.querySelector("details.jp-cvreview__unassessed");
     expect(details).not.toBeNull();
@@ -236,7 +239,7 @@ describe("CvReviewPanel — Ej bedömt (kollapsad, men aldrig dold)", () => {
 
   it("summary räknar de ej bedömda och bär den ärliga orsaken inuti", () => {
     render(
-      <CvReviewPanel review={makeReview()} parsedId={PARSED_ID} profile="Ats" />,
+      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
     );
     // En NotAssessed i fixturen (A3).
     expect(screen.getByText("Ej bedömt (1)")).toBeInTheDocument();
@@ -261,16 +264,68 @@ describe("CvReviewPanel — Ej bedömt (kollapsad, men aldrig dold)", () => {
       ],
     });
     const { container } = render(
-      <CvReviewPanel review={noUnassessed} parsedId={PARSED_ID} profile="Ats" />,
+      <CvReviewPanel review={noUnassessed} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
     );
     expect(container.querySelector("details.jp-cvreview__unassessed")).toBeNull();
+  });
+});
+
+// Fas 4b PR-8.4 (CTO-bind Q3/Q4): den kanoniska granskningen (befordrad Resume) bär
+// statusledgern och renderar därför en per-anmärkning statuskontroll i FOTEN på varje
+// ÅTGÄRDBART verdikt. Den parsade stagingen har ingen ledger → inga kontroller. Kontrollens
+// grupp-aria-label ("Vad vill du göra med den här anmärkningen") är den stabila markören.
+const CANONICAL_ID = "22222222-2222-4222-8222-222222222222";
+const STATUS_GROUP = "Vad vill du göra med den här anmärkningen";
+
+describe("CvReviewPanel — statuskontroller (kanonisk vs parsad target)", () => {
+  it("kanonisk target renderar en statuskontroll per åtgärdbart verdikt (Fail/Warn)", () => {
+    render(
+      <CvReviewPanel
+        review={makeReview()}
+        target={{ kind: "canonical", resumeId: CANONICAL_ID }}
+        profile="Ats"
+      />,
+    );
+    // 2 Fail + 2 Warn = 4 åtgärdbara → 4 kontroller. Godkänt/Ej bedömt får ingen.
+    expect(
+      screen.getAllByRole("group", { name: STATUS_GROUP }),
+    ).toHaveLength(4);
+  });
+
+  it("kanonisk target: Markera-som-åtgärdad-knappen finns på åtgärdbara anmärkningar", () => {
+    render(
+      <CvReviewPanel
+        review={makeReview()}
+        target={{ kind: "canonical", resumeId: CANONICAL_ID }}
+        profile="Ats"
+      />,
+    );
+    expect(
+      screen.getAllByRole("button", { name: /Markera som åtgärdad/ }),
+    ).toHaveLength(4);
+  });
+
+  it("parsad target renderar INGA statuskontroller (ingen statusledger)", () => {
+    render(
+      <CvReviewPanel
+        review={makeReview()}
+        target={{ kind: "parsed", parsedId: PARSED_ID }}
+        profile="Ats"
+      />,
+    );
+    expect(
+      screen.queryAllByRole("group", { name: STATUS_GROUP }),
+    ).toHaveLength(0);
+    expect(
+      screen.queryByRole("button", { name: /Markera som åtgärdad/ }),
+    ).not.toBeInTheDocument();
   });
 });
 
 describe("CvReviewPanel — copy + invarianter", () => {
   it("summary säger 'bedöms.' utan versions-token 'v1' (C)", () => {
     render(
-      <CvReviewPanel review={makeReview()} parsedId={PARSED_ID} profile="Ats" />,
+      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
     );
     expect(
       screen.getByText(/6 av 42 kriterier bedöms\./),
@@ -281,14 +336,14 @@ describe("CvReviewPanel — copy + invarianter", () => {
 
   it("renderar ALDRIG en opak 0–100-poäng eller totalsumma (Goodhart, §5)", () => {
     const { container } = render(
-      <CvReviewPanel review={makeReview()} parsedId={PARSED_ID} profile="Ats" />,
+      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
     );
     const text = container.textContent ?? "";
     expect(text).not.toMatch(/poäng|betyg|score|\/\s*100|av\s*100/i);
   });
 
   it("degraderar civilt när review är null (role=status, sid-skalet kvar)", () => {
-    render(<CvReviewPanel review={null} parsedId={PARSED_ID} profile="Ats" />);
+    render(<CvReviewPanel review={null} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />);
     expect(
       screen.getByRole("heading", { name: "Granskning" }),
     ).toBeInTheDocument();

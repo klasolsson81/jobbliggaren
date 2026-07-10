@@ -252,6 +252,32 @@ export const cvCriterionVerdictDtoSchema = z.object({
   verdict: criterionVerdictSchema,
   evidence: z.array(citedEvidenceDtoSchema),
   notAssessedReason: z.string().nullable(),
+  /** Den bevarade användarbeslut-overlayen på den KANONISKA granskningen (Fas 4b
+   * PR-4, D2(e)): status-namnet ("Open"/"Resolved"/"Ignored") som användaren
+   * registrerade, plus stale-stämpeln (ISO) när CV:t ändrats under ett Resolved-
+   * beslut vars anmärkning fortfarande finns kvar ("markerad åtgärdad, finns kvar").
+   * `null` på staging-granskningen och när inget (kvarvarande) beslut finns. Öppen
+   * sträng (status-mängden speglas inte som en låst `z.enum` här — okänt värde
+   * renderas neutralt i stället för att fälla hela granskningen). `nullish` +
+   * transform: en äldre/staging-backend utelämnar nyckeln → normaliseras till null. */
+  userStatus: z
+    .string()
+    .nullish()
+    .transform((v) => v ?? null),
+  userStatusStaleAt: z
+    .string()
+    .nullish()
+    .transform((v) => v ?? null),
+  /** Speglar kriteriets versionerade StyleOnly-rubrikflagga (Fas 4b PR-8.4, CTO-bind
+   * Q1) så att granska-UI:t ärligt kan gate:a "Ignorera regeln (stilfråga)"-kontrollen
+   * till enbart stilkriterier — samma mängd som backend upprätthåller (400
+   * `FindingNotIgnorable` på övriga). `false` som default (fail-closed) när nyckeln
+   * saknas: en äldre backend (deploy-skew) döljer hellre Ignorera-knappen än visar
+   * den optimistiskt (§5 — aldrig ett erbjudande servern nekar). */
+  isIgnorable: z
+    .boolean()
+    .nullish()
+    .transform((v) => v ?? false),
 });
 export type CvCriterionVerdictDto = z.infer<typeof cvCriterionVerdictDtoSchema>;
 

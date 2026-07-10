@@ -124,6 +124,14 @@
       "backLink": "Back to CV",
       "loading": "Loading the CV…"
     },
+    "granska": {
+      "title": "Review of your CV",
+      "lede": "This is a deterministic review of your saved CV, with cited evidence from your own text. Mark what you have fixed yourself, or ignore pure style rules. Nothing changes in your CV automatically.",
+      "loadErrorTitle": "Could not load the review",
+      "errorBody": "A technical error occurred. Try reloading the page or go back to the CV page.",
+      "backLink": "Back to CV",
+      "loading": "Loading the review…"
+    },
     "importApi": {
       "notMultipart": "Upload the file as multipart/form-data.",
       "tooLarge": "The file is too large. The maximum size is 10 MB.",

@@ -269,10 +269,11 @@ export async function promoteParsedResumeAction(
 /**
  * Guide-ingången (`/cv/slutfor/[parsedId]`, Fas 4b PR-8.3): samma one-shot
  * promote som sid-ingången (delar `promoteParsedResumeCore`, DRY) men landar på
- * hubben `/cv`. Post-promote-redirecten till den kanoniska granska-vyn
- * (`/cv/[id]/granska`) byggs i PR-8.4 (CTO-bind Q4) — tills dess är hubben rätt
- * destination (utkastet är befordrat och syns som ett CV-kort). NEXT_REDIRECT är
- * en framgångssignal som får propagera.
+ * den kanoniska granska-vyn `/cv/[id]/granska` (Fas 4b PR-8.4, CTO-bind Q4 +
+ * handoff §3 "granskning körs efter Spara") — guiden slutar i granskningen där
+ * användaren ser vad som kan åtgärdas, i stället för på hubben. `revalidatePath`
+ * på `/cv` ser till att det nya CV-kortet (med granska-badge) syns när användaren
+ * går tillbaka. NEXT_REDIRECT är en framgångssignal som får propagera.
  */
 export async function promoteParsedResumeFromGuideAction(
   parsedResumeId: string,
@@ -282,7 +283,7 @@ export async function promoteParsedResumeFromGuideAction(
   const result = await promoteParsedResumeCore(parsedResumeId, name, content);
   if (!result.ok) return { success: false, error: result.error };
   revalidatePath("/cv");
-  redirect("/cv");
+  redirect(`/cv/${result.resumeId}/granska`);
 }
 
 /**
@@ -322,6 +323,74 @@ export async function discardParsedResumeAction(
     return { success: false, error: tr("serverUnreachable") };
   }
 
+  revalidatePath("/cv");
+  return { success: true };
+}
+
+/** Den låsta mängden finding-statusar (paritet backend `ReviewFindingStatus`).
+ * "Resolved" = "jag fixar det själv", "Ignored" = "ignorera regeln" (endast
+ * stilkriterier), "Open" = återställ. */
+const FINDING_STATUS_VALUES = ["Open", "Resolved", "Ignored"] as const;
+export type FindingStatusValue = (typeof FINDING_STATUS_VALUES)[number];
+
+/**
+ * Registrerar användarens beslut om EN granskningsanmärkning (Fas 4b PR-8.4,
+ * CTO-bind Q4/Q3) — den FÖRSTA FE-konsumenten av PR-4:s
+ * `PUT /api/v1/resumes/{id}/review/findings/{criterionId}/status`. Server-till-
+ * server via `authedFetch` (httpOnly `__Host-`-sessionscookien bär auth; endpointen
+ * exponeras aldrig klient-sidan). Vid lyckad skrivning revalideras BÅDE granska-
+ * vyn (statusen/stale-hinten re-beräknas server-side, ingen klient-optimism) OCH
+ * `/cv` (badge-dekrementet på kortet). 400-fel (`FindingNotIgnorable` om ett
+ * icke-stilkriterium ändå når hit, `FindingNotActionable` om anmärkningen försvann
+ * i en race) ytas som en civil åtgärds-specifik fallback — `mapActionError` läser
+ * ALDRIG ProblemDetails-body:n (säkerhetsinvariant, TD-10) men sväljer aldrig felet
+ * (returnerar `{success:false}`, aldrig tyst lyckat). Ignorera-knappen är dessutom
+ * ärligt gate:ad på `isIgnorable` i UI:t, så 400:orna ska normalt aldrig inträffa.
+ */
+export async function setFindingStatusAction(
+  resumeId: string,
+  criterionId: string,
+  status: FindingStatusValue
+): Promise<ActionResult> {
+  const tr = await getTranslations("resumes.actions");
+  const te = await getTranslations("errors");
+  const sessionId = await getSessionId();
+  if (!sessionId) return { success: false, error: tr("notLoggedIn") };
+
+  if (!isValidId(resumeId)) {
+    return { success: false, error: tr("invalidResumeId") };
+  }
+  if (!FINDING_STATUS_VALUES.includes(status)) {
+    return { success: false, error: tr("invalidData") };
+  }
+  // criterionId är ett rubrik-id ("A1"/"E3") — allowlist:a till en kort alfanumerisk
+  // token så ett malformat värde aldrig når backend-URL:ens path (path-injektion-
+  // barrier, paritet `isValidId`); ett okänt id kan ändå inte matcha ett kriterium.
+  if (!/^[A-Za-z0-9]{1,8}$/.test(criterionId)) {
+    return { success: false, error: tr("invalidData") };
+  }
+
+  try {
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/resumes/${encodeURIComponent(resumeId)}/review/findings/${encodeURIComponent(criterionId)}/status`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ status }),
+      }
+    );
+
+    if (!res.ok) {
+      return {
+        success: false,
+        error: mapActionError(res, tr("statusUpdateFailed"), te),
+      };
+    }
+  } catch {
+    return { success: false, error: tr("serverUnreachable") };
+  }
+
+  revalidatePath(`/cv/${resumeId}/granska`);
   revalidatePath("/cv");
   return { success: true };
 }

@@ -29,6 +29,9 @@ function makeVerdict(
       },
     ],
     notAssessedReason: null,
+    userStatus: null,
+    userStatusStaleAt: null,
+    isIgnorable: false,
     ...overrides,
   };
 }

@@ -74,6 +74,18 @@
       "warn": "Delvis",
       "fail": "Underkänt",
       "notAssessed": "Ej bedömt"
+    },
+    "status": {
+      "groupLabel": "Vad vill du göra med den här anmärkningen",
+      "markResolved": "Markera som åtgärdad",
+      "ignoreRule": "Ignorera regeln (stilfråga)",
+      "revert": "Återställ",
+      "updating": "Uppdaterar…",
+      "resolvedLabel": "Åtgärdad",
+      "ignoredLabel": "Ignorerad",
+      "resolvedHint": "Du har markerat den här som åtgärdad. Den ligger kvar i granskningen tills anmärkningen är borta ur ditt CV.",
+      "ignoredHint": "Du har valt att ignorera den här stilregeln. Den räknas inte längre som en åtgärd.",
+      "staleHint": "Du markerade den här som åtgärdad, men anmärkningen finns fortfarande kvar i ditt CV. Återställ om du vill åtgärda den på nytt."
     }
   },
   "improve": {
@@ -344,7 +356,8 @@
     "saveFailed": "Kunde inte spara CV:t.",
     "deleteFailed": "Kunde inte radera CV:t.",
     "deleteVersionFailed": "Kunde inte radera versionen.",
-    "discardFailed": "Kunde inte ta bort utkastet."
+    "discardFailed": "Kunde inte ta bort utkastet.",
+    "statusUpdateFailed": "Det gick inte att uppdatera åtgärdsstatusen. Ladda om granskningen och försök igen."
   },
   "enums": {
     "verdict": {

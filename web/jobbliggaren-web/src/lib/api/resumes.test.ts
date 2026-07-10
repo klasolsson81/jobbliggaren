@@ -15,6 +15,7 @@ import {
   getParsedResume,
   getParsedResumeOccupations,
   getCvReview,
+  getResumeReview,
   getCvImprovements,
 } from "./resumes";
 
@@ -376,6 +377,53 @@ describe("getCvReview", () => {
   it("mappar 404 → notFound (degraderar civilt på granska-sidan)", async () => {
     global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
     expect(await getCvReview(VALID_ID, "Ats")).toEqual({ kind: "notFound" });
+  });
+});
+
+// Den KANONISKA granskningen (Fas 4b PR-4/PR-8.4) — samma DTO/rubrikmotor som getCvReview men
+// mot Resume-id-endpointen /api/v1/resumes/{id}/review (INTE /parsed/). Speglar getCvReview.
+describe("getResumeReview", () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    getSessionIdMock.mockResolvedValue("sess-1");
+  });
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+    getSessionIdMock.mockReset();
+  });
+
+  it("returnerar ok och träffar den kanoniska URL:en (utan /parsed/) med exakt profil-case", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(reviewFixture));
+    global.fetch = fetchMock;
+
+    const result = await getResumeReview(VALID_ID, "Visual");
+
+    expect(result.kind).toBe("ok");
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toBe(
+      `http://test-backend/api/v1/resumes/${VALID_ID}/review?profile=Visual`,
+    );
+    // Skiljer den från staging-läsningen (getCvReview), som går via /parsed/.
+    expect(url).not.toContain("/parsed/");
+  });
+
+  it("returnerar unauthorized utan session", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    expect(await getResumeReview(VALID_ID, "Ats")).toEqual({ kind: "unauthorized" });
+  });
+
+  it("returnerar notFound för ogiltigt id (backend nås aldrig)", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    expect(await getResumeReview("xxx", "Ats")).toEqual({ kind: "notFound" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("mappar 404 → notFound (degraderar civilt på granska-sidan)", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
+    expect(await getResumeReview(VALID_ID, "Ats")).toEqual({ kind: "notFound" });
   });
 });
 

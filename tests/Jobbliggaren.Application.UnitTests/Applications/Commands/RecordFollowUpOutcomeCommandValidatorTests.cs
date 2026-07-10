@@ -23,15 +23,25 @@ public class RecordFollowUpOutcomeCommandValidatorTests
     }
 
     [Theory]
-    [InlineData("Pending")]
     [InlineData("Responded")]
     [InlineData("NoResponse")]
-    public void Validate_WithKnownOutcomeName_IsValid(string outcome)
+    public void Validate_WithAllowedResolutionOutcome_IsValid(string outcome)
     {
         var result = _validator.Validate(
             new RecordFollowUpOutcomeCommand(Guid.NewGuid(), Guid.NewGuid(), outcome));
 
         result.IsValid.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("Pending")]  // the initial state, never a valid target (#644)
+    [InlineData("Logged")]   // set only at creation via LogFollowUp (#644)
+    public void Validate_WithKnownButDisallowedOutcome_IsInvalid(string outcome)
+    {
+        var result = _validator.Validate(
+            new RecordFollowUpOutcomeCommand(Guid.NewGuid(), Guid.NewGuid(), outcome));
+
+        result.IsValid.ShouldBeFalse();
     }
 
     [Fact]

@@ -21,13 +21,23 @@ import type { ReactNode } from "react";
  *
  * `aside` overrides the right-hand block for pages whose header aside is not two
  * buttons (e.g. Översikt renders a card there); default mirrors the common
- * two-action pagehero (Ansökningar/CV).
+ * two-action pagehero (Ansökningar/CV). `kicker` adds the mono overline row that
+ * Översikt renders above its title (`.jp-pagehero__kicker`), so the band height
+ * matches on those pages (the plate is `align-items: flex-start`, so a missing
+ * row would let the band grow on swap).
  */
-export function PageHeroSkeleton({ aside }: { aside?: ReactNode }) {
+export function PageHeroSkeleton({
+  aside,
+  kicker = false,
+}: {
+  aside?: ReactNode;
+  kicker?: boolean;
+}) {
   return (
     <section className="jp-pagehero" aria-hidden="true">
       <div className="jp-pagehero__inner">
         <div className="jp-pagehero__main">
+          {kicker && <span className="jp-skeleton mb-2 block h-3 w-24" />}
           <span className="jp-skeleton block h-11 w-64 max-w-full" />
           <span className="jp-skeleton mt-2 block h-4 w-96 max-w-full" />
         </div>

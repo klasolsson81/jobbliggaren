@@ -23,7 +23,7 @@ export default function Loading() {
       <PageHeroSkeleton aside={<span className="jp-skeleton block h-10 w-36" />} />
 
       <div className="jp-container jp-page" aria-hidden="true">
-        {/* Sekundära actions (Statistik / Aktivitetsrapport), högerställda */}
+        {/* Secondary actions (Statistik / Aktivitetsrapport), right-aligned */}
         <div className="mb-6 flex flex-wrap justify-end gap-3">
           <span className="jp-skeleton block h-9 w-28" />
           <span className="jp-skeleton block h-9 w-40" />

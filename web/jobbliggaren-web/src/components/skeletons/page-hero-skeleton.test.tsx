@@ -32,6 +32,18 @@ describe("PageHeroSkeleton", () => {
     expect(aside?.querySelectorAll(".jp-skeleton")).toHaveLength(2);
   });
 
+  it("renders title + lede only by default (2 bars in __main)", () => {
+    const { container } = render(<PageHeroSkeleton />);
+    const main = container.querySelector(".jp-pagehero__main");
+    expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(2);
+  });
+
+  it("adds a kicker overline bar above title + lede when kicker is set", () => {
+    const { container } = render(<PageHeroSkeleton kicker />);
+    const main = container.querySelector(".jp-pagehero__main");
+    expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(3);
+  });
+
   it("renders a custom aside when provided (e.g. Översikt's card block)", () => {
     const { container } = render(
       <PageHeroSkeleton aside={<span data-testid="today-card" />} />

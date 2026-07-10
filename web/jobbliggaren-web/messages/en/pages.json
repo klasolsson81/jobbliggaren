@@ -13,7 +13,12 @@
     "generic": "The page is loading…",
     "oversikt": "The overview is loading…",
     "ansokningar": "The applications are loading…",
-    "cv": "Your CVs are loading…"
+    "cv": "Your CVs are loading…",
+    "matchningar": "Your matches are loading…",
+    "sparade": "Saved jobs are loading…",
+    "sokningar": "Your searches are loading…",
+    "installningar": "Settings are loading…",
+    "nyAnsokan": "New application is loading…"
   },
   "ansokningar": {
     "title": "My applications",

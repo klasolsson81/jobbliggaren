@@ -13,7 +13,12 @@
     "generic": "Sidan läses in…",
     "oversikt": "Översikten läses in…",
     "ansokningar": "Ansökningarna läses in…",
-    "cv": "Dina CV läses in…"
+    "cv": "Dina CV läses in…",
+    "matchningar": "Matchningarna läses in…",
+    "sparade": "Sparade jobb läses in…",
+    "sokningar": "Sökningarna läses in…",
+    "installningar": "Inställningarna läses in…",
+    "nyAnsokan": "Ny ansökan läses in…"
   },
   "ansokningar": {
     "title": "Mina ansökningar",

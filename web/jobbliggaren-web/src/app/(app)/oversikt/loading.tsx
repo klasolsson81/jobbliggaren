@@ -21,12 +21,16 @@ export default function Loading() {
         {t("navLoading.oversikt")}
       </span>
 
+      {/* kicker = the greeting overline; aside mirrors the TodayCard
+          (.jp-oversikt__today is 320px wide, ~146px tall) so the band height
+          matches on swap. Exact aside height is rendered-verify-gated (#739). */}
       <PageHeroSkeleton
-        aside={<span className="jp-skeleton block h-24 w-60 max-w-full" />}
+        kicker
+        aside={<span className="jp-skeleton block h-36 w-80 max-w-full" />}
       />
 
       <div className="jp-container jp-page" aria-hidden="true">
-        {/* Notiser-feed */}
+        {/* Notices feed */}
         <section className="jp-section">
           <div className="jp-section__head">
             <span className="jp-skeleton block h-5 w-40" />
@@ -39,7 +43,7 @@ export default function Loading() {
           </div>
         </section>
 
-        {/* Sammanfattning-ledger: 3 grupper (Ansökningar / Bevakning / Material) */}
+        {/* Summary ledger: 3 groups (Ansökningar / Bevakning / Material) */}
         <section className="jp-section">
           <div className="jp-section__head">
             <span className="jp-skeleton block h-5 w-48" />

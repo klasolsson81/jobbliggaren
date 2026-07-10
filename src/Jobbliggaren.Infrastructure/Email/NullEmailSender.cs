@@ -57,6 +57,25 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         return Task.CompletedTask;
     }
 
+    public Task SendEmailConfirmationAsync(
+        string toEmail,
+        EmailConfirmationEmail content,
+        EmailConfirmationIdempotencyKey idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        LogSuppressed("email-confirmation");
+        return Task.CompletedTask;
+    }
+
+    public Task SendAccountExistsNoticeAsync(
+        string toEmail,
+        AccountExistsNoticeIdempotencyKey idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        LogSuppressed("account-exists-notice");
+        return Task.CompletedTask;
+    }
+
     [LoggerMessage(3002, LogLevel.Debug,
         "[NullEmailSender] {EmailKind} email suppressed — no transactional provider configured (TD-101)")]
     private partial void LogSuppressed(string emailKind);

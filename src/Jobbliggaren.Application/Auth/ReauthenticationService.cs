@@ -45,7 +45,15 @@ public sealed class ReauthenticationService(
         // status (M8 discipline).
         var credentialsResult = await userAccountService.ValidateCredentialsAsync(email, password, ct);
         if (credentialsResult.IsFailure)
-            return Result.Failure(credentialsResult.Error);
+            // #714 (CTO-bind Risk 2): the shared ValidateCredentialsAsync may now emit
+            // EmailNotConfirmed (the email-confirmation-first login gate). On the re-auth surface that
+            // must stay a uniform 401 — normalize it back to InvalidCredentials so the distinct 403 arm
+            // is reachable ONLY via LoginCommandHandler. Unreachable in practice (only confirmed users
+            // hold sessions, and re-auth requires a session), but defense-in-depth keeps /auth/verify
+            // and ReauthenticationBehavior byte-identical for every failure.
+            return credentialsResult.Error.Code == AuthErrorCodes.EmailNotConfirmed
+                ? InvalidCredentials()
+                : Result.Failure(credentialsResult.Error);
 
         // TOCTOU defense: the email must resolve back to the same userId as the session.
         if (credentialsResult.Value.UserId != userId)

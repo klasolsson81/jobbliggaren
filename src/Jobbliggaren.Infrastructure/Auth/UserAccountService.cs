@@ -6,12 +6,14 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Jobbliggaren.Infrastructure.Auth;
 
 public sealed partial class UserAccountService(
     UserManager<ApplicationUser> userManager,
     ILoginTimingEqualizer loginTimingEqualizer,
+    IOptions<AuthOptions> authOptions,
     ILogger<UserAccountService> logger)
     : IUserAccountService
 {
@@ -120,6 +122,17 @@ public sealed partial class UserAccountService(
         if (user.AccessFailedCount > 0)
             await userManager.ResetAccessFailedCountAsync(user);
 
+        // #714 — email-confirmation-first login gate. Placed AFTER the successful password check, so
+        // it is reachable ONLY with a correct password and is therefore NOT an account-enumeration
+        // oracle: an unknown email / wrong password still returns the byte-identical InvalidCredentials
+        // 401 above. A distinct code lets the Api render an actionable 403 ("confirm your email");
+        // ReauthenticationService normalizes it back to InvalidCredentials so the re-auth surface stays
+        // a uniform 401. Inert when the flag is OFF (legacy instant-login). No AccessFailed increment:
+        // the credentials were valid, so this is not a failed login attempt.
+        if (authOptions.Value.RequireEmailConfirmation && !user.EmailConfirmed)
+            return Result.Failure<UserCredentials>(
+                DomainError.Validation(AuthErrorCodes.EmailNotConfirmed, AuthErrorCodes.EmailNotConfirmedMessage));
+
         var roles = await userManager.GetRolesAsync(user);
         return Result.Success(new UserCredentials(user.Id, roles.ToList()));
     }
@@ -207,6 +220,59 @@ public sealed partial class UserAccountService(
         return Result.Success();
     }
 
+    public async Task<Result<string>> GenerateEmailConfirmationTokenAsync(
+        Guid userId, CancellationToken ct)
+    {
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return Result.Failure<string>(
+                DomainError.NotFound("Auth.UserNotFound", "Användaren hittades inte."));
+
+        // #714 — opaque DataProtector token (EmailConfirmationTokenProvider, pinned in DI) bound to the
+        // security stamp + the "EmailConfirmation" purpose. Nothing is persisted; the token IS the
+        // pending activation state. No pending new address (contrast the change-email token).
+        var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
+
+        // Base64Url so the token survives the email link -> query string -> POST round-trip (parity
+        // with the change-email token, #679). Decoded 1:1 in ConfirmEmailAsync.
+        var urlSafeToken = Base64Url.EncodeToString(Encoding.UTF8.GetBytes(token));
+        return Result.Success(urlSafeToken);
+    }
+
+    public async Task<Result> ConfirmEmailAsync(
+        Guid userId, string urlSafeToken, CancellationToken ct)
+    {
+        // Uniform failure for EVERY rejection below (user-not-found, malformed/bad/expired token): a
+        // PUBLIC confirm endpoint must not distinguish them, or it becomes an account-existence /
+        // enumeration oracle (parity with ConfirmChangeEmailAsync + AuthProblem's byte-identical 401).
+        // Callers surface DomainError.Validation -> 400.
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return InvalidConfirmationTokenFailure();
+
+        string token;
+        try
+        {
+            token = Encoding.UTF8.GetString(Base64Url.DecodeFromChars(urlSafeToken));
+        }
+        catch (FormatException)
+        {
+            // A malformed (non-Base64Url) token is just an invalid token — same uniform failure.
+            return InvalidConfirmationTokenFailure();
+        }
+
+        // ConfirmEmailAsync verifies the token against (SecurityStamp, "EmailConfirmation") and sets
+        // EmailConfirmed=true. It does NOT rotate the security stamp, so a double-click within the 24h
+        // lifespan is idempotent (both succeed) — the safer click-through UX for an activation link
+        // (contrast ChangeEmailAsync, which rotates the stamp because a recovery-vector change must be
+        // single-use). No UserName lockstep: the address is unchanged.
+        var confirmResult = await userManager.ConfirmEmailAsync(user, token);
+        if (!confirmResult.Succeeded)
+            return InvalidConfirmationTokenFailure();
+
+        return Result.Success();
+    }
+
     // Identity IdentityErrorDescriber codes (== the describer method names) for a taken username /
     // email. With UserName == Email + RequireUniqueEmail, a duplicate register trips both (#481 Low).
     private const string IdentityDuplicateUserNameCode = "DuplicateUserName";
@@ -219,6 +285,11 @@ public sealed partial class UserAccountService(
         Result.Failure(DomainError.Validation(
             "Auth.InvalidEmailChangeToken",
             "Bekräftelselänken är ogiltig eller har gått ut. Begär en ny ändring av e-postadressen."));
+
+    private static Result InvalidConfirmationTokenFailure() =>
+        Result.Failure(DomainError.Validation(
+            AuthErrorCodes.InvalidEmailConfirmationToken,
+            AuthErrorCodes.InvalidEmailConfirmationTokenMessage));
 
     [LoggerMessage(4001, LogLevel.Warning,
         "[UserAccountService] Change-email: UserName sync lagged Email for user {UserId} " +

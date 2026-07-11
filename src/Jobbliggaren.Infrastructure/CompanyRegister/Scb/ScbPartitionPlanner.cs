@@ -11,8 +11,23 @@ namespace Jobbliggaren.Infrastructure.CompanyRegister.Scb;
 /// (its <paramref name="Count"/> exceeds the cap). The client fetches only the first cap rows and
 /// decides whether the tail can be bounded to a protected (kommun, SNI) key (partition-scoped sweep) or
 /// the run must latch truncated — the planner is category-agnostic and never makes that call.
+/// #712: <paramref name="Depth"/> is how many ladder rungs were already applied to reach this leaf, so a
+/// fetch-failed leaf can re-enter the planner as a retry seed through its REMAINING ladder
+/// (<c>ladder[Depth..]</c>) — re-splitting correctly if its count has drifted over the cap.
 /// </summary>
-internal sealed record ScbLeaf(ScbQuery Query, int Count, bool OverCap = false);
+internal sealed record ScbLeaf(ScbQuery Query, int Count, bool OverCap = false, int Depth = 0);
+
+/// <summary>
+/// #712 — the result of a partition count (<c>raknaforetag</c>): either a successful count or a failure
+/// (SCB rejected the request). Replaces the bare <c>int</c> so a count-failed partition is distinguishable
+/// from a legitimate zero — the planner skips a zero (nothing to fetch) but must re-queue a failure for
+/// the end-of-run retry wave instead of silently dropping it (and its ladder children).
+/// </summary>
+internal readonly record struct ScbCountResult(bool Succeeded, int Count)
+{
+    public static ScbCountResult Ok(int count) => new(true, count);
+    public static ScbCountResult Failure { get; } = new(false, 0);
+}
 
 /// <summary>
 /// #560 (ADR 0091) — the adaptive count-then-slice partition planner. SCB caps <c>hamtaforetag</c>
@@ -51,14 +66,16 @@ internal static class ScbPartitionPlanner
         IReadOnlyList<ScbQuery> seeds,
         IReadOnlyList<IScbRung> ladder,
         int maxRows,
-        Func<ScbQuery, CancellationToken, Task<int>> countAsync,
+        Func<ScbQuery, CancellationToken, Task<ScbCountResult>> countAsync,
         ScbSyncOutcome outcome,
+        Action<ScbQuery, int> onCountFailed,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(seeds);
         ArgumentNullException.ThrowIfNull(ladder);
         ArgumentNullException.ThrowIfNull(countAsync);
         ArgumentNullException.ThrowIfNull(outcome);
+        ArgumentNullException.ThrowIfNull(onCountFailed);
         if (maxRows < 1)
             throw new ArgumentOutOfRangeException(nameof(maxRows), maxRows, "maxRows måste vara >= 1.");
 
@@ -83,8 +100,18 @@ internal static class ScbPartitionPlanner
             }
             else
             {
-                count = await countAsync(query, cancellationToken).ConfigureAwait(false);
+                // A top-level count is only ever taken for a seed (children are pushed WITH their known
+                // count). #712: a count failure here re-queues the seed for the end-of-run retry wave (via
+                // onCountFailed) instead of dropping it as a phantom zero — depth is where its remaining
+                // ladder resumes.
+                var result = await countAsync(query, cancellationToken).ConfigureAwait(false);
                 outcome.RecordCounted();
+                if (!result.Succeeded)
+                {
+                    onCountFailed(query, depth);
+                    continue;
+                }
+                count = result.Count;
             }
 
             if (count == 0)
@@ -92,7 +119,7 @@ internal static class ScbPartitionPlanner
 
             if (count <= maxRows)
             {
-                yield return new ScbLeaf(query, count);
+                yield return new ScbLeaf(query, count, Depth: depth);
                 continue;
             }
 
@@ -101,7 +128,7 @@ internal static class ScbPartitionPlanner
             // is category-agnostic and never bounds a (kommun, SNI) key itself.
             if (depth >= ladder.Count)
             {
-                yield return new ScbLeaf(query, count, OverCap: true);
+                yield return new ScbLeaf(query, count, OverCap: true, Depth: depth);
                 continue;
             }
 
@@ -109,7 +136,7 @@ internal static class ScbPartitionPlanner
             var children = rung.Expand(query);
             if (children.Count == 0)
             {
-                yield return new ScbLeaf(query, count, OverCap: true);
+                yield return new ScbLeaf(query, count, OverCap: true, Depth: depth);
                 continue;
             }
 
@@ -119,14 +146,51 @@ internal static class ScbPartitionPlanner
             // (RecordCounted stays exactly once per node). Zero-count children are counted into the sum but
             // never pushed (nothing to fetch).
             var childrenWithCounts = new List<(ScbQuery Query, int Count)>(children.Count);
+            var failedChildren = new List<ScbQuery>();
             var childSum = 0;
             foreach (var child in children)
             {
-                var childCount = await countAsync(child, cancellationToken).ConfigureAwait(false);
+                var childResult = await countAsync(child, cancellationToken).ConfigureAwait(false);
                 outcome.RecordCounted();
-                childSum += childCount;
-                if (childCount > 0)
-                    childrenWithCounts.Add((child, childCount));
+                if (!childResult.Succeeded)
+                {
+                    // #712: a count-failed child is captured for the retry wave — how depends on the
+                    // rung's reconciliation posture (below), because a failed child makes childSum
+                    // incomplete and the completeness check must never fire on partial data.
+                    failedChildren.Add(child);
+                    continue;
+                }
+                childSum += childResult.Count;
+                if (childResult.Count > 0)
+                    childrenWithCounts.Add((child, childResult.Count));
+            }
+
+            // #712: a failed child count leaves childSum incomplete, so the completeness reconciliation
+            // (below) cannot run on this parent this pass. How the failure is captured for the retry wave
+            // depends on the rung's reconciliation posture:
+            if (failedChildren.Count > 0)
+            {
+                if (rung.ReconciliationMode == ScbReconciliationMode.Latch)
+                {
+                    // SAFETY (the load-bearing case): the 5-digit Bransch split HARD-LATCHES a no-subcode
+                    // completeness gap (Guard 2 — an entity carrying the division but no listed 5-digit
+                    // subcode is invisible to every child and must never be mistaken for a de-registered
+                    // company). Re-queue the WHOLE PARENT (its own query + depth), NOT the individual failed
+                    // child, so the wave re-counts EVERY child and re-runs this reconciliation — otherwise a
+                    // genuine gap here would be permanently masked by a transient sibling failure that later
+                    // recovers (residual → 0 → non-truncated → the sweep falsely deregisters the no-subcode
+                    // entities). The surviving children are not pushed; the parent re-drive covers them
+                    // (idempotent upsert, so a delay, not a correctness issue).
+                    onCountFailed(query, depth);
+                    continue;
+                }
+
+                // Observe / Off: masking a gap here has NO safety consequence (Observe is diagnostic-only —
+                // it never latches truncation; Off never reconciles), so re-queue the failed children
+                // individually (through their own remaining ladder at depth+1 — cheaper, tiny blast radius)
+                // and push the survivors normally. Reconciliation is skipped below (childSum incomplete).
+                foreach (var failedChild in failedChildren)
+                    onCountFailed(failedChild, depth + 1);
             }
 
             // Completeness reconciliation (#640 Guard 2 / #708 tri-state): a child sum below the parent
@@ -137,7 +201,10 @@ internal static class ScbPartitionPlanner
             // a new guard ships observe-only until a completion run shows its firing behavior. NB: both
             // UNDER-detect — an entity double-counted across several child codes inflates the sum and can
             // mask a real gap; the truncation latch + floors remain the primary safeguards.
-            if (childSum < count)
+            // #712: gated on a COMPLETE childSum (no failed child) — a Latch parent with a failed child
+            // took the parent-requeue path above (reconciliation deferred to the wave); an Observe/Off
+            // parent with a failed child must not reconcile on a partial sum (a false observed gap / no-op).
+            if (failedChildren.Count == 0 && childSum < count)
             {
                 switch (rung.ReconciliationMode)
                 {

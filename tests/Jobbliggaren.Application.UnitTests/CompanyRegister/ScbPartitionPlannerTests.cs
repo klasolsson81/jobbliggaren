@@ -24,16 +24,26 @@ public class ScbPartitionPlannerTests
         q.Filters.OrderBy(f => f.Category, StringComparer.Ordinal)
             .Select(f => $"{f.Category}={string.Join(",", f.Codes)}"));
 
-    private static Func<ScbQuery, CancellationToken, Task<int>> Counts(Dictionary<string, int> table) =>
-        (q, _) => Task.FromResult(table.GetValueOrDefault(Sig(q), 0));
+    private static Func<ScbQuery, CancellationToken, Task<ScbCountResult>> Counts(Dictionary<string, int> table) =>
+        (q, _) => Task.FromResult(ScbCountResult.Ok(table.GetValueOrDefault(Sig(q), 0)));
+
+    // #712: a count function that returns Failure for queries whose signature is in failSignatures,
+    // Ok(count) otherwise — models an SCB-rejected raknaforetag on specific partitions.
+    private static Func<ScbQuery, CancellationToken, Task<ScbCountResult>> CountsWithFailures(
+        Dictionary<string, int> table, HashSet<string> failSignatures) =>
+        (q, _) => Task.FromResult(failSignatures.Contains(Sig(q))
+            ? ScbCountResult.Failure
+            : ScbCountResult.Ok(table.GetValueOrDefault(Sig(q), 0)));
 
     private static async Task<List<ScbLeaf>> CollectAsync(
         IReadOnlyList<ScbQuery> seeds, IReadOnlyList<IScbRung> ladder,
-        Func<ScbQuery, CancellationToken, Task<int>> countAsync, ScbSyncOutcome outcome)
+        Func<ScbQuery, CancellationToken, Task<ScbCountResult>> countAsync, ScbSyncOutcome outcome,
+        Action<ScbQuery, int>? onCountFailed = null)
     {
         var leaves = new List<ScbLeaf>();
         await foreach (var leaf in ScbPartitionPlanner.PlanAsync(
-            seeds, ladder, Cap, countAsync, outcome, TestContext.Current.CancellationToken))
+            seeds, ladder, Cap, countAsync, outcome, onCountFailed ?? ((_, _) => { }),
+            TestContext.Current.CancellationToken))
         {
             leaves.Add(leaf);
         }
@@ -275,6 +285,134 @@ public class ScbPartitionPlannerTests
         outcome.ReconciliationGaps.ShouldBe(0);
         outcome.ObservedReconciliationGaps.ShouldBe(0);   // #708: Off mode records nothing on either counter
         outcome.TruncatedOrErrored.ShouldBeFalse();       // static-rung shortfall is not a completeness gap
+    }
+
+    [Fact]
+    public async Task PlanAsync_ReportsCountFailure_WithDepth_AndDoesNotYieldOrLatch_WhenSeedCountFails()
+    {
+        // #712: a count-failed seed is re-queued for the end-of-run retry wave (onCountFailed with its
+        // depth 0) rather than dropped as a phantom zero. It must NOT hard-latch the run (the wave may
+        // recover it) and must NOT yield a leaf.
+        var seed = new ScbQuery([new ScbCategoryFilter(Kommun, ["0180"])]);
+        var outcome = new ScbSyncOutcome();
+        var failed = new List<(ScbQuery Query, int Depth)>();
+
+        var leaves = await CollectAsync(
+            [seed], [], CountsWithFailures([], [Sig(seed)]), outcome,
+            (q, d) => failed.Add((q, d)));
+
+        leaves.ShouldBeEmpty();
+        var reported = failed.ShouldHaveSingleItem();
+        reported.Depth.ShouldBe(0);
+        Sig(reported.Query).ShouldBe(Sig(seed));
+        outcome.TruncatedOrErrored.ShouldBeFalse(); // planner does not latch a retryable count failure
+        outcome.PartitionsCounted.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task PlanAsync_ReQueuesFailedChildIndividually_AtObserveRung_SuppressesReconciliation()
+    {
+        // #712: a child whose count FAILS at an OBSERVE-mode rung (the 2-digit division rung) is re-queued
+        // at its OWN depth (depth+1) — masking an observe-only gap has no safety consequence, so the cheap
+        // per-child re-queue is used. The parent's reconciliation is suppressed (childSum incomplete) so no
+        // FALSE observed gap fires, and the surviving child is still fetched.
+        var seed = new ScbQuery([new ScbCategoryFilter(Kommun, ["0180"])]);
+        var ladder = new IScbRung[]
+        {
+            new ScbStaticRung(TwoDigit, ["70", "62"], ReconciliationMode: ScbReconciliationMode.Observe),
+        };
+        var child62 = new ScbQuery([
+            new ScbCategoryFilter(Kommun, ["0180"]),
+            new ScbCategoryFilter(TwoDigit, ["62"]),
+        ]);
+        var table = new Dictionary<string, int>
+        {
+            [$"{Kommun}=0180"] = 5000,               // seed → over cap
+            [$"{TwoDigit}=70|{Kommun}=0180"] = 1500, // 70 → leaf
+            // 62 count fails → childSum incomplete
+        };
+        var outcome = new ScbSyncOutcome();
+        var failed = new List<(ScbQuery Query, int Depth)>();
+
+        var leaves = await CollectAsync(
+            [seed], ladder, CountsWithFailures(table, [Sig(child62)]), outcome,
+            (q, d) => failed.Add((q, d)));
+
+        leaves.Select(l => l.Count).ShouldBe([1500]); // 70 still fetched (survivor pushed)
+        var reported = failed.ShouldHaveSingleItem();
+        Sig(reported.Query).ShouldBe(Sig(child62));    // the CHILD is re-queued (observe → cheap per-child)
+        reported.Depth.ShouldBe(1);                    // 2-digit(1) → remaining ladder [1..]
+        outcome.ObservedReconciliationGaps.ShouldBe(0); // suppressed — no false observed gap on partial sum
+        outcome.TruncatedOrErrored.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task PlanAsync_ReQueuesParent_WhenChildCountFailsAtLatchRung_SuppressesReconciliation()
+    {
+        // #712 (the Major-1 safety fix): a child whose count FAILS at a LATCH-mode rung (the 5-digit
+        // Bransch split, the hard-latching Guard 2) re-queues the WHOLE PARENT — not the individual child —
+        // so the retry wave re-counts every child AND re-runs the completeness reconciliation. Otherwise a
+        // genuine no-subcode gap at this parent would be permanently masked by the transient sibling
+        // failure. This pass fires NO reconciliation gap (deferred to the wave) and does NOT push the
+        // survivors (the parent re-drive covers them).
+        var seedKommun = "0180";
+        var parent = new ScbQuery([
+            new ScbCategoryFilter(Kommun, [seedKommun]),
+            new ScbCategoryFilter(TwoDigit, ["70"]),
+        ]);
+        var ladder = new IScbRung[]
+        {
+            new ScbPrefixRung(TwoDigit, Bransch, ChildBranschNiva: 3,
+                new Dictionary<string, IReadOnlyList<string>> { ["70"] = ["70100", "70200"] }),
+        };
+        var child70100 = parent.Without(TwoDigit).With(Bransch, ["70100"], 3);
+        var table = new Dictionary<string, int>
+        {
+            [$"{TwoDigit}=70|{Kommun}=0180"] = 2214,          // parent over cap
+            [$"{Bransch}=70200|{Kommun}=0180"] = 800,          // survivor
+            // 70100 count fails
+        };
+        var outcome = new ScbSyncOutcome();
+        var failed = new List<(ScbQuery Query, int Depth)>();
+
+        var leaves = await CollectAsync(
+            [parent], ladder, CountsWithFailures(table, [Sig(child70100)]), outcome,
+            (q, d) => failed.Add((q, d)));
+
+        leaves.ShouldBeEmpty();                        // survivor NOT pushed — parent re-drive covers it
+        var reported = failed.ShouldHaveSingleItem();
+        Sig(reported.Query).ShouldBe(Sig(parent));     // the PARENT is re-queued (safety)
+        reported.Depth.ShouldBe(0);                    // parent's own depth → remaining ladder = full ladder
+        outcome.ReconciliationGaps.ShouldBe(0);        // deferred to the wave — no gap fired this pass
+        outcome.TruncatedOrErrored.ShouldBeFalse();    // no premature hard latch
+    }
+
+    [Fact]
+    public async Task PlanAsync_TagsLeafDepth_SoAFetchFailedLeafCanResumeItsRemainingLadder()
+    {
+        // #712: every yielded leaf carries the depth at which it was sliced, so the client can build a
+        // retry seed (leaf.Query, ladder[leaf.Depth..]) for a fetch-failed leaf.
+        var seed = new ScbQuery([
+            new ScbCategoryFilter(Kommun, ["0180"]),
+            new ScbCategoryFilter(Form, ["49"]),
+        ]);
+        var ladder = new IScbRung[]
+        {
+            new ScbStaticRung(Form, ["49"]),
+            new ScbStaticRung(TwoDigit, ["70"]),
+        };
+        var table = new Dictionary<string, int>
+        {
+            [$"{Form}=49|{Kommun}=0180"] = 5000,                  // seed over cap
+            [$"{TwoDigit}=70|{Form}=49|{Kommun}=0180"] = 1500,    // 2-digit 70 → leaf at depth 2
+        };
+        var outcome = new ScbSyncOutcome();
+
+        var leaves = await CollectAsync([seed], ladder, Counts(table), outcome);
+
+        var leaf = leaves.ShouldHaveSingleItem();
+        leaf.Count.ShouldBe(1500);
+        leaf.Depth.ShouldBe(2); // form(1) + 2-digit(2) applied
     }
 
     [Fact]

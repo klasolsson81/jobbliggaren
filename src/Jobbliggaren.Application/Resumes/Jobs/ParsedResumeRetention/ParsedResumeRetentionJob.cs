@@ -90,7 +90,9 @@ public sealed partial class ParsedResumeRetentionJob(
         // canonical Resume's lifetime (DPIA M-F3 "promoted originals live with the Resume" —
         // P1 "filen är helig"); only the redundant parsed STAGING row is swept below. A promoted
         // original's erasure paths are the Art. 17 cascade (AccountHardDeleter, owner-scoped) and
-        // the coming resume-lifecycle coupling (PR-9b-era follow-up, ADR 0100).
+        // — since PR-9c (ADR 0100 §D5 / ADR 0103) — the per-CV delete cascade in
+        // DeleteResumeCommandHandler (via Resume.SourceParsedResumeId → parsed_resume_id). This
+        // arm still never sweeps a promoted original: its lifetime is the Resume's, not staging's.
         var discardedFiles = await db.ResumeFiles
             .IgnoreQueryFilters()
             .Where(f => db.ParsedResumes.Any(p => p.Id == f.ParsedResumeId

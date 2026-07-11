@@ -3,6 +3,7 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Files;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -55,6 +56,28 @@ public sealed class DeleteResumeCommandHandler(
         if (jobSeeker is not null && jobSeeker.PrimaryResumeId == resumeId)
         {
             jobSeeker.UnsetPrimaryResume(clock);
+        }
+
+        // Fas 4b PR-9c (ADR 0100 §D5 / ADR 0103; CTO-bind F1=L-B, F3=F3-ii, erasure=immediate
+        // hard-delete): cascade the promoted original-file erasure. The link is
+        // Resume.SourceParsedResumeId → the file's ParsedResumeId (already indexed). Null for
+        // Template/Legacy CVs and for un-backfillable pre-PR-9c rows → cascade skipped (F2
+        // residual: those originals stay erasable via account-hard-delete only). Content-free +
+        // DEK-free: project ONLY the id, never the multi-MB sealed bytea (§5 minimisation).
+        // Remove a key-only stub so the DELETE rides THIS handler's UnitOfWork SaveChanges — one
+        // implicit EF transaction, atomic with the soft-delete above (an xmin conflict rolls
+        // back BOTH; never a state where the original is gone but the CV survives, or the
+        // reverse). Owner-scoped on JobSeekerId as defence-in-depth parity with the IDOR-hardened
+        // load above.
+        if (resume.SourceParsedResumeId is { } sourceParsedId)
+        {
+            var fileIds = await db.ResumeFiles
+                .Where(f => f.ParsedResumeId == sourceParsedId && f.JobSeekerId == jobSeekerId)
+                .Select(f => f.Id)
+                .ToListAsync(cancellationToken);
+
+            foreach (var fileId in fileIds)
+                db.ResumeFiles.Remove(ResumeFile.DeleteHandle(fileId));
         }
 
         return Result.Success();

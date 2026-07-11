@@ -92,6 +92,39 @@ public class ResumeSourceMetadataTests
     }
 
     // ---------------------------------------------------------------
+    // Fas 4b PR-9c (ADR 0100 §D5 / ADR 0103, CTO-bind F1=L-B) — the persisted parsed→resume
+    // provenance link, the cascade key for per-CV original-file erasure.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void CreateFromParsed_StampsSourceParsedResumeId()
+    {
+        // The parsed→resume provenance the DQ5b design carried only transiently on
+        // ResumeCreatedFromParsedResumeDomainEvent is now PERSISTED on the root — set BY
+        // CONSTRUCTION (Origin/AdoptedAt idiom), because a consumer finally exists: it couples a
+        // promoted original file to this Resume for per-CV erasure.
+        var sourceParsedId = new ParsedResumeId(Guid.NewGuid());
+
+        var result = Resume.CreateFromParsed(
+            ValidJobSeekerId, ValidName, GapFilledContent(), sourceParsedId, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.SourceParsedResumeId.ShouldBe(sourceParsedId);
+    }
+
+    [Fact]
+    public void Create_LeavesSourceParsedResumeIdNull()
+    {
+        // F2 back-compat: a Template-origin CV was never promoted from a parsed artifact, so it
+        // has no source link — SourceParsedResumeId stays null and the delete-time cascade is
+        // skipped for it (nothing coupled to erase).
+        var result = Resume.Create(ValidJobSeekerId, ValidName, ValidFullName, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.SourceParsedResumeId.ShouldBeNull();
+    }
+
+    // ---------------------------------------------------------------
     // Adopt — one-way adoption stamp (CTO-bind D9)
     // ---------------------------------------------------------------
 

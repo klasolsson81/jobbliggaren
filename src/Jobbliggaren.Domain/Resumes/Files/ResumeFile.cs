@@ -62,6 +62,10 @@ public sealed class ResumeFile : AggregateRoot<ResumeFileId>
     // EF Core constructor
     private ResumeFile() { }
 
+    // Key-only deletion-intent stub ctor — NOT a general constructor. Reached only via
+    // DeleteHandle; carries no sealed content and is only ever Removed, never Added.
+    private ResumeFile(ResumeFileId id) : base(id) { }
+
     private ResumeFile(
         ResumeFileId id,
         JobSeekerId jobSeekerId,
@@ -144,4 +148,17 @@ public sealed class ResumeFile : AggregateRoot<ResumeFileId>
 
     private static Result<ResumeFile> Fail(string code, string message) =>
         Result.Failure<ResumeFile>(DomainError.Validation(code, message));
+
+    /// <summary>
+    /// A key-only <see cref="ResumeFile"/> stub for a set-based, content-free DELETE by primary
+    /// key — its sole purpose is the PR-9c resume-lifecycle cascade (ADR 0100 §D5 / ADR 0103,
+    /// CTO-bind F3-ii). When a user deletes a CV, its coupled original is erased via
+    /// <c>db.ResumeFiles.Remove(DeleteHandle(id))</c> so the DELETE rides the SAME UnitOfWork
+    /// <c>SaveChanges</c> as the resume soft-delete — one implicit EF transaction, atomic in
+    /// both directions (import capture-symmetry, ADR 0100 D4). The stub never materialises
+    /// <see cref="SealedContent"/> (never decrypted, never change-tracked as plaintext — §5
+    /// minimisation, DEK-free). Only ever passed to <c>Remove</c>; never <c>Add</c>ed, never a
+    /// general constructor.
+    /// </summary>
+    public static ResumeFile DeleteHandle(ResumeFileId id) => new(id);
 }

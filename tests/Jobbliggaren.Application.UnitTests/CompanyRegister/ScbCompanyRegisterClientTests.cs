@@ -216,18 +216,164 @@ public class ScbCompanyRegisterClientTests
         outcome.ProtectedPartitions.ShouldBeEmpty();
     }
 
+    // ---- #712: end-of-run retry wave ----
+
+    [Fact]
+    public async Task StreamLegalEntitiesAsync_RecoversFetchFailure_OnRetryWave_NotTruncated()
+    {
+        // #712: the seed's fetch (hamtaforetag) fails on the main stream (transient SCB 400) but succeeds
+        // on the end-of-run retry wave → its rows flow, the run ends NON-truncated (residual 0), so the
+        // deregister sweep may run (the #708 pass criteria).
+        var client = BuildClient(new HamtaRecoversOnSecondCallHandler(), FastRetry());
+        var outcome = new ScbSyncOutcome();
+
+        var records = new List<ScbCompanyRecord>();
+        await foreach (var batch in client.StreamLegalEntitiesAsync(outcome, TestContext.Current.CancellationToken))
+            records.AddRange(batch);
+
+        records.ShouldNotBeEmpty();                         // recovered rows flowed
+        outcome.PartitionRequestFailures.ShouldBe(0);       // residual reset to 0 after full recovery
+        outcome.TruncatedOrErrored.ShouldBeFalse();         // sweep may run
+    }
+
+    [Fact]
+    public async Task StreamLegalEntitiesAsync_RecoversCountFailure_OnRetryWave_NotTruncated()
+    {
+        // #712: the seed's count (raknaforetag) fails on the main stream → captured (not dropped as a
+        // phantom zero) → re-counts and fetches on the retry wave → non-truncated.
+        var client = BuildClient(new RaknaRecoversOnSecondCallHandler(), FastRetry());
+        var outcome = new ScbSyncOutcome();
+
+        var records = new List<ScbCompanyRecord>();
+        await foreach (var batch in client.StreamLegalEntitiesAsync(outcome, TestContext.Current.CancellationToken))
+            records.AddRange(batch);
+
+        records.ShouldNotBeEmpty();
+        outcome.PartitionRequestFailures.ShouldBe(0);
+        outcome.TruncatedOrErrored.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task StreamLegalEntitiesAsync_PersistentFailure_StaysTruncated_WithResidual_AndEscalates()
+    {
+        // #712: a partition SCB rejects on every pass stays failed → residual reflects it, the run stays
+        // truncated (sweep skipped — never falsely deregister), and the escalation WARN (5705) fires so
+        // the residual is never a silent permanent gap.
+        var logger = new CapturingLogger<ScbCompanyRegisterClient>();
+        var client = BuildClient(new RaknaAlwaysFailsHandler(), FastRetry(), logger);
+        var outcome = new ScbSyncOutcome();
+
+        await foreach (var _ in client.StreamLegalEntitiesAsync(outcome, TestContext.Current.CancellationToken))
+        {
+        }
+
+        outcome.PartitionRequestFailures.ShouldBe(1);       // residual = the one unrecovered partition
+        outcome.TruncatedOrErrored.ShouldBeTrue();          // sweep skipped
+        logger.Entries.ShouldContain(e => e.EventId == 5705); // escalation WARN — never a silent gap
+    }
+
+    [Fact]
+    public async Task StreamLegalEntitiesAsync_CountFailedOverCapPartition_ReSplitsToNiva3_OnRetryWave()
+    {
+        // #712 (the 2026-07-11 probe's 2214 case): a 2-digit partition whose count FAILED mid-run returns
+        // an OVER-CAP count on retry — a naive re-fetch would lose its tail. Because it re-enters the
+        // planner through its remaining ladder, it re-splits to its niva-3 children (each ≤ cap) which are
+        // fetched. The run recovers non-truncated.
+        var client = BuildClient(new OverCapReSplitsOnRetryHandler(), FastRetry());
+        var outcome = new ScbSyncOutcome();
+
+        var records = new List<ScbCompanyRecord>();
+        await foreach (var batch in client.StreamLegalEntitiesAsync(outcome, TestContext.Current.CancellationToken))
+            records.AddRange(batch);
+
+        records.Count.ShouldBe(2);                          // both niva-3 children fetched (one row each)
+        outcome.PartitionRequestFailures.ShouldBe(0);
+        outcome.ReconciliationGaps.ShouldBe(0);             // children sum to the parent → no false SNI gap
+        outcome.TruncatedOrErrored.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task StreamLegalEntitiesAsync_GenuineSniGapMaskedByTransientChildFailure_StaysTruncated()
+    {
+        // #712 (Major-1 regression, the load-bearing safety invariant): a niva-3 (Latch-rung) child count
+        // fails transiently mid-run while a GENUINE no-subcode gap exists at its 2-digit parent (the
+        // surviving children sum below the parent). The failed child re-queues the PARENT, so the retry
+        // wave re-counts every child and RE-RUNS the completeness reconciliation → the genuine gap fires a
+        // hard latch → the run STAYS truncated → the deregister sweep is skipped → NO false deregistration.
+        // Without the fix, the recovered child would clear the residual and the masked gap would let the
+        // sweep run.
+        var client = BuildClient(new GenuineGapMaskedByTransientFailureHandler(), FastRetry());
+        var outcome = new ScbSyncOutcome();
+
+        await foreach (var _ in client.StreamLegalEntitiesAsync(outcome, TestContext.Current.CancellationToken))
+        {
+        }
+
+        outcome.ReconciliationGaps.ShouldBe(1);             // the genuine gap fired in the wave
+        outcome.PartitionRequestFailures.ShouldBe(0);       // the partition itself recovered...
+        outcome.TruncatedOrErrored.ShouldBeTrue();          // ...but the hard-latched gap keeps it truncated
+    }
+
+    [Fact]
+    public async Task StreamLegalEntitiesAsync_EscalationWarn5705_CarriesTaxonomyCodes_NeverAnOrgNr()
+    {
+        // #712 (CLAUDE.md §5): the escalation WARN must surface the residual partition descriptors as
+        // taxonomy codes (kommun/form/SNI) only — never an org.nr. Pin that the 5705 message contains a
+        // kommun code and no 10-digit personnummer/org.nr-shaped run.
+        var logger = new CapturingLogger<ScbCompanyRegisterClient>();
+        var client = BuildClient(new RaknaAlwaysFailsHandler(), FastRetry(), logger);
+        var outcome = new ScbSyncOutcome();
+
+        await foreach (var _ in client.StreamLegalEntitiesAsync(outcome, TestContext.Current.CancellationToken))
+        {
+        }
+
+        logger.Entries.ShouldContain(e => e.EventId == 5705);
+        var escalation = logger.Entries.First(e => e.EventId == 5705);
+        escalation.Message.ShouldContain("SätesKommun");                          // taxonomy descriptor present
+        System.Text.RegularExpressions.Regex.IsMatch(escalation.Message, @"\b\d{10}\b")
+            .ShouldBeFalse();                                                     // never a 10-digit org.nr/pnr
+    }
+
+    [Fact]
+    public async Task StreamLegalEntitiesAsync_RetryKillSwitchOff_PreservesPreRetryTruncation()
+    {
+        // #712 kill-switch: with RetryFailedPartitions=false the wave never runs, so a mid-run partition
+        // failure latches truncation exactly as before #712 (the residual is never reset).
+        var options = Options.Create(new ScbRegisterOptions { BatchSize = 2000, RetryFailedPartitions = false });
+        var client = BuildClient(new RaknaAlwaysFailsHandler(), options);
+        var outcome = new ScbSyncOutcome();
+
+        await foreach (var _ in client.StreamLegalEntitiesAsync(outcome, TestContext.Current.CancellationToken))
+        {
+        }
+
+        outcome.PartitionRequestFailures.ShouldBe(1);       // main-stream tally, never reset by a wave
+        outcome.TruncatedOrErrored.ShouldBeTrue();
+    }
+
     private static bool IsFilterEndpoint(string path) =>
         path.EndsWith("raknaforetag", StringComparison.Ordinal)
         || path.EndsWith("hamtaforetag", StringComparison.Ordinal);
 
-    private static ScbCompanyRegisterClient BuildClient(HttpMessageHandler handler)
+    // #712 — 1 s is the minimum valid backoff (Range(1, 600)); recovery tests recover on pass 1, so the
+    // wall-clock cost is ~1 s (persistent tests run both passes, ~3 s), and the suite runs collections in
+    // parallel.
+    private static IOptions<ScbRegisterOptions> FastRetry() =>
+        Options.Create(new ScbRegisterOptions { BatchSize = 2000, RetryInitialBackoffSeconds = 1, RetryMaxAttempts = 2 });
+
+    private static ScbCompanyRegisterClient BuildClient(
+        HttpMessageHandler handler, IOptions<ScbRegisterOptions>? options = null,
+        Microsoft.Extensions.Logging.ILogger<ScbCompanyRegisterClient>? logger = null)
     {
         var httpClient = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://fake.scb.local/nv0101/v1/sokpavar/"),
         };
-        var options = Options.Create(new ScbRegisterOptions { BatchSize = 2000 });
-        return new ScbCompanyRegisterClient(httpClient, options, NullLogger<ScbCompanyRegisterClient>.Instance);
+        return new ScbCompanyRegisterClient(
+            httpClient,
+            options ?? Options.Create(new ScbRegisterOptions { BatchSize = 2000 }),
+            logger ?? NullLogger<ScbCompanyRegisterClient>.Instance);
     }
 
     private static HttpResponseMessage Json(string json) =>
@@ -433,5 +579,152 @@ public class ScbCompanyRegisterClientTests
                 return Json(HamtaJson);
             return Json("[]");
         }
+    }
+
+    // ---- #712 helpers ----
+
+    private static HttpResponseMessage BadRequest() =>
+        new(HttpStatusCode.BadRequest)
+        {
+            // The generic SCB "try again" body the 2026-07-11 failures all carried.
+            Content = new StringContent(
+                """{"Message":"Ett oväntat fel har uppstått. Försök igen eller kontakta SCB om felet kvarstår."}""",
+                Encoding.UTF8, "application/json"),
+        };
+
+    // Standard single-kommun single-form seeding shared by the #712 handlers.
+    private static HttpResponseMessage? SeedCodeTable(string path, string body)
+    {
+        if (!path.EndsWith("kodtabell", StringComparison.Ordinal))
+            return null;
+        if (body.Contains("\"Bransch\"", StringComparison.Ordinal))
+            return Json("""{"VardeLista":[{"Varde":"70100"},{"Varde":"70200"}]}""");
+        return body.Contains("Juridisk form", StringComparison.Ordinal)
+            ? Json("""{"VardeLista":[{"Varde":"49"}]}""")
+            : Json("""{"VardeLista":[{"Varde":"0180"}]}""");
+    }
+
+    // #712: seed count ≤ cap, but the FIRST hamtaforetag (main stream) fails; the retry-wave fetch succeeds.
+    private sealed class HamtaRecoversOnSecondCallHandler : HttpMessageHandler
+    {
+        private int _hamtaCalls;
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            var body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
+            if (SeedCodeTable(path, body) is { } seed) return seed;
+            if (path.EndsWith("raknaforetag", StringComparison.Ordinal))
+                return Json("2"); // seed under cap
+            if (path.EndsWith("hamtaforetag", StringComparison.Ordinal))
+                return ++_hamtaCalls == 1 ? BadRequest() : Json(HamtaJson);
+            return Json("[]");
+        }
+    }
+
+    // #712: the FIRST raknaforetag (main-stream seed count) fails; the retry-wave re-count succeeds.
+    private sealed class RaknaRecoversOnSecondCallHandler : HttpMessageHandler
+    {
+        private int _raknaCalls;
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            var body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
+            if (SeedCodeTable(path, body) is { } seed) return seed;
+            if (path.EndsWith("raknaforetag", StringComparison.Ordinal))
+                return ++_raknaCalls == 1 ? BadRequest() : Json("2");
+            if (path.EndsWith("hamtaforetag", StringComparison.Ordinal))
+                return Json(HamtaJson);
+            return Json("[]");
+        }
+    }
+
+    // #712: raknaforetag always fails (persistent) → residual > 0, run stays truncated, 5705 escalates.
+    private sealed class RaknaAlwaysFailsHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            var body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
+            if (SeedCodeTable(path, body) is { } seed) return seed;
+            if (path.EndsWith("raknaforetag", StringComparison.Ordinal))
+                return BadRequest();
+            if (path.EndsWith("hamtaforetag", StringComparison.Ordinal))
+                return Json(HamtaJson);
+            return Json("[]");
+        }
+    }
+
+    // #712 (the 2214 case): the 2-digit partition's count FAILS mid-run; on retry it returns an over-cap
+    // count (2214) and re-splits to its niva-3 children (1500 + 714 = 2214, both ≤ cap), which are fetched.
+    private sealed class OverCapReSplitsOnRetryHandler : HttpMessageHandler
+    {
+        private int _twoDigitRaknaCalls;
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            var body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
+            if (SeedCodeTable(path, body) is { } seed) return seed;
+            if (path.EndsWith("raknaforetag", StringComparison.Ordinal))
+            {
+                if (body.Contains("70100", StringComparison.Ordinal)) return Json("1500"); // niva-3 leaf ≤ cap
+                if (body.Contains("70200", StringComparison.Ordinal)) return Json("714");  // niva-3 leaf ≤ cap
+                if (body.Contains("2-siffrig bransch 1", StringComparison.Ordinal))
+                    return ++_twoDigitRaknaCalls == 1 ? BadRequest() : Json("2214"); // main fails, retry over-cap
+                return Json("3000"); // seed / form → over cap
+            }
+            if (path.EndsWith("hamtaforetag", StringComparison.Ordinal))
+                return Json(HamtaJson);
+            return Json("[]");
+        }
+    }
+
+    // #712 (Major-1): a niva-3 (Latch-rung) child count fails on the main stream while a GENUINE no-subcode
+    // gap exists (survivors 70200=800 sum below the 2-digit parent 2214). On retry 70100 recovers to 1000
+    // (1000+800=1800 < 2214), so the wave's re-run of the reconciliation fires a hard-latching SNI gap.
+    private sealed class GenuineGapMaskedByTransientFailureHandler : HttpMessageHandler
+    {
+        private int _niva70100RaknaCalls;
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            var body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
+            if (SeedCodeTable(path, body) is { } seed) return seed;
+            if (path.EndsWith("raknaforetag", StringComparison.Ordinal))
+            {
+                // niva-3 leaf 70100: fails on the main stream, recovers to 1000 on the wave.
+                if (body.Contains("70100", StringComparison.Ordinal))
+                    return ++_niva70100RaknaCalls == 1 ? BadRequest() : Json("1000");
+                if (body.Contains("70200", StringComparison.Ordinal))
+                    return Json("800"); // survivor niva-3 leaf (1000 + 800 = 1800 < 2214 → genuine gap)
+                return Json("2214");    // seed / form / 2-digit division — all over cap, equal (no observe gap)
+            }
+            if (path.EndsWith("hamtaforetag", StringComparison.Ordinal))
+                return Json(HamtaJson);
+            return Json("[]");
+        }
+    }
+
+    // Minimal ILogger spy capturing EventId per log call — for asserting the 5705 escalation fired.
+    private sealed class CapturingLogger<T> : Microsoft.Extensions.Logging.ILogger<T>
+    {
+        public List<(int EventId, string Message)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
+            TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entries.Add((eventId.Id, formatter(state, exception)));
     }
 }

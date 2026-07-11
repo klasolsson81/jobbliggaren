@@ -33,7 +33,7 @@ public sealed class ScbSyncOutcome
     private int _reconciliationGaps;
     private int _observedReconciliationGaps;
     private int _partitionRequestFailures;
-    private bool _truncatedOrErrored;
+    private bool _hardLatched;
 
     /// <summary>Number of <c>raknaforetag</c> partitions counted this run.</summary>
     public int PartitionsCounted => _partitionsCounted;
@@ -52,14 +52,17 @@ public sealed class ScbSyncOutcome
     public int TotalRowsFetched => _totalRowsFetched;
 
     /// <summary>
-    /// True when the extract did not complete cleanly for a reason that is NOT itself an exception: a
-    /// partition still exceeded the row cap after the facet ladder was exhausted, an empty code table,
-    /// or an unrecognized SCB response envelope (fail-safe in the client). The orchestrator skips the
-    /// deregister sweep when this is set. (A hard SCB HTTP error is handled differently — it throws out
-    /// of <c>RefreshAsync</c> before the sweep is ever reached, so the same net invariant — never
+    /// True when the extract did not complete cleanly. DERIVED (#712) from two orthogonal causes:
+    /// a monotonic HARD latch (an unbounded over-cap leaf, an empty code table, an unrecognized SCB
+    /// response envelope, or a no-SNI reconciliation gap — none retryable) OR a non-zero
+    /// <see cref="PartitionRequestFailures"/> tally (SCB-rejected partition requests — RETRYABLE by the
+    /// #712 end-of-run wave). A run with a fully-recovered retry wave sets the residual tally to 0, which
+    /// clears the partition-failure cause; any hard latch still forces truncation. The orchestrator skips
+    /// the deregister sweep whenever this is set. (A hard SCB HTTP error is handled differently — it throws
+    /// out of <c>RefreshAsync</c> before the sweep is ever reached, so the same net invariant — never
     /// deregister on incomplete data — holds via both paths.)
     /// </summary>
-    public bool TruncatedOrErrored => _truncatedOrErrored;
+    public bool TruncatedOrErrored => _hardLatched || _partitionRequestFailures > 0;
 
     /// <summary>
     /// #640 — the (SätesKommun, 5-digit SNI) partitions whose unfetched over-cap tail the deregister sweep
@@ -98,12 +101,15 @@ public sealed class ScbSyncOutcome
     public int ObservedReconciliationGaps => _observedReconciliationGaps;
 
     /// <summary>
-    /// #708 — how many partition requests (<c>raknaforetag</c>/<c>hamtaforetag</c>) SCB rejected with a
-    /// non-success status this run (each also latches <see cref="TruncatedOrErrored"/>). Surfaced in the
-    /// durable audit payload (<c>FailedPartitionCount</c>) so a truncated run is diagnosable from the
-    /// audit row alone — 40 unattributed 400s on the 2026-07-05 population run motivated this counter.
-    /// Kodtabell (dimension-table) failures are NOT counted here — they abort seeding/laddering and are
-    /// logged separately.
+    /// #708/#712 — the count of SCB-rejected partition requests (<c>raknaforetag</c>/<c>hamtaforetag</c>
+    /// non-success). During the main stream each rejection increments this tally (which alone latches
+    /// <see cref="TruncatedOrErrored"/> — a run with no retry wave behaves exactly as before #712). After
+    /// the #712 end-of-run retry wave, <see cref="SetResidualPartitionFailures"/> RESETS it to the residual
+    /// — the number of originally-failed partitions still unrecovered (0 if all recovered). Surfaced in the
+    /// durable audit payload (<c>FailedPartitionCount</c>) so a truncated run is diagnosable from the audit
+    /// row alone — 40 unattributed 400s on the 2026-07-05 population run motivated this counter. Kodtabell
+    /// (dimension-table) failures are NOT counted here — they abort seeding/laddering and are logged
+    /// separately.
     /// </summary>
     public int PartitionRequestFailures => _partitionRequestFailures;
 
@@ -144,7 +150,7 @@ public sealed class ScbSyncOutcome
     public void RecordReconciliationGap()
     {
         _reconciliationGaps++;
-        _truncatedOrErrored = true;
+        _hardLatched = true;
     }
 
     /// <summary>
@@ -157,17 +163,34 @@ public sealed class ScbSyncOutcome
     public void RecordObservedReconciliationGap() => _observedReconciliationGaps++;
 
     /// <summary>
-    /// #708 — records one SCB-rejected partition request (<c>raknaforetag</c>/<c>hamtaforetag</c>
-    /// non-success) and latches the run truncated: a rejected query's rows are unfetched, so the sweep
-    /// must not treat them as vanished. Kept distinct from <see cref="MarkTruncatedOrErrored"/> so the
-    /// audit row can carry the failure count (parity <see cref="RecordReconciliationGap"/>).
+    /// #708/#712 — records one SCB-rejected partition request (<c>raknaforetag</c>/<c>hamtaforetag</c>
+    /// non-success) by incrementing the failure tally. A non-zero tally alone latches
+    /// <see cref="TruncatedOrErrored"/> (a rejected query's rows are unfetched, so the sweep must not treat
+    /// them as vanished), so a run WITHOUT a #712 retry wave behaves exactly as before. It does NOT set the
+    /// monotonic hard latch — the #712 end-of-run wave may recover the partition, and
+    /// <see cref="SetResidualPartitionFailures"/> then resets this tally to the unrecovered residual. Kept
+    /// distinct from <see cref="MarkTruncatedOrErrored"/> so the audit row can carry the failure count
+    /// (parity <see cref="RecordReconciliationGap"/>).
     /// </summary>
-    public void RecordPartitionRequestFailed()
+    public void RecordPartitionRequestFailed() => _partitionRequestFailures++;
+
+    /// <summary>
+    /// #712 — after the end-of-run retry wave, RESETS the partition-failure tally to the residual: the
+    /// number of originally-failed partitions still unrecovered. A residual of 0 clears the
+    /// partition-failure cause of <see cref="TruncatedOrErrored"/> so a fully-recovered run runs the sweep
+    /// (any hard latch from another cause still forces truncation). Idempotent per call — the wave calls it
+    /// exactly once after draining. Never negative.
+    /// </summary>
+    public void SetResidualPartitionFailures(int residual)
     {
-        _partitionRequestFailures++;
-        _truncatedOrErrored = true;
+        ArgumentOutOfRangeException.ThrowIfNegative(residual);
+        _partitionRequestFailures = residual;
     }
 
-    /// <summary>Latches the truncated/errored verdict (idempotent — once set, stays set).</summary>
-    public void MarkTruncatedOrErrored() => _truncatedOrErrored = true;
+    /// <summary>
+    /// #712 — latches the monotonic HARD truncation verdict (idempotent — once set, stays set). Used for
+    /// the non-retryable causes: an unbounded over-cap leaf, an empty code table, or an unrecognized SCB
+    /// response envelope. A hard latch is never cleared by the retry wave.
+    /// </summary>
+    public void MarkTruncatedOrErrored() => _hardLatched = true;
 }

@@ -7143,6 +7143,36 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: rgba(255, 255, 255, 0.08); /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
   color: #fff; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 }
+/* InfoDialog "?"-trigger i hero-plattan (#408 inline-hjälp, Klas 2026-07-10):
+   hero-ink-glyf så den syns mot gradienten (den vita-yte-defaulten
+   text-text-secondary vore osynlig här); samma ≥36px in-app / ≥44px touch
+   hit-area som default-triggern (a11y-skill §5). */
+/* Aktivitetsrapport-knappen + dess "?" binds i en smal-gap-grupp (4px) så
+   glyfen läses som hjälp för DEN knappen, inte för primär-CTA:n bredvid
+   (design-reviewer Minor 2026-07-10); asidens 12px-gap separerar gruppen. */
+.jp-pagehero__helpedctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.jp-pagehero__help {
+  display: inline-flex;
+  min-height: 36px;
+  min-width: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--jp-r-sm);
+  color: var(--jp-hero-ink-soft);
+}
+.jp-pagehero__help:hover {
+  color: var(--jp-hero-ink);
+}
+@media (pointer: coarse) {
+  .jp-pagehero__help {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
 
 /* ── Upload-form ─────────────────────────────────── */
 .jp-cvupload {

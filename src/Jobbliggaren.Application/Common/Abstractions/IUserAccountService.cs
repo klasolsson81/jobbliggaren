@@ -4,6 +4,16 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 
 public sealed record UserCredentials(Guid UserId, IReadOnlyList<string> Roles);
 
+/// <summary>
+/// The material a confirmation-link RESEND needs (#733): the account's userId + address plus a freshly
+/// minted opaque Base64Url confirmation token. Produced by
+/// <see cref="IUserAccountService.TryPrepareEmailConfirmationResendAsync"/> ONLY when
+/// email-confirmation-first is enabled AND a still-unconfirmed account exists at the address; the token is
+/// minted and validated in the SAME Api process (one Data-Protection keyring) so the emailed link resolves
+/// at /verify-email.
+/// </summary>
+public sealed record EmailConfirmationResend(Guid UserId, string Email, string UrlSafeToken);
+
 public interface IUserAccountService
 {
     Task<Result<Guid>> CreateUserAsync(string email, string password, CancellationToken ct);
@@ -65,4 +75,19 @@ public interface IUserAccountService
     /// need not be single-use, and idempotency is the safer click-through UX).
     /// </summary>
     Task<Result> ConfirmEmailAsync(Guid userId, string urlSafeToken, CancellationToken ct);
+
+    /// <summary>
+    /// #733 — eligibility + token mint for a confirmation-link RESEND, sealed in Infrastructure. Returns
+    /// the delivery material (userId + address + a freshly minted opaque Base64Url token) ONLY when
+    /// email-confirmation-first is ENABLED (<see cref="Auth.AuthOptions.RequireEmailConfirmation"/>) AND an
+    /// account exists at <paramref name="email"/> that is still unconfirmed; <c>null</c> otherwise
+    /// (flag-OFF / non-existent / already-confirmed — all indistinguishable to the caller). The flag-gate
+    /// is FIRST (constant-time, before any DB lookup) so flag-OFF is a uniform no-op that never mails a
+    /// user whose instant-login works — symmetric with the login gate, preserving #714's prod-safe default
+    /// OFF. Sealing the "does an unconfirmed account exist here" knowledge here keeps the uniform
+    /// anti-enumeration response in the handler and prevents a future handler turning a bare existence
+    /// primitive into an oracle. The token is minted Api-side, in the same Data-Protection keyring that
+    /// validates it at /verify-email (CTO 2026-07-10 / ADR 0102 — no cross-process token).
+    /// </summary>
+    Task<EmailConfirmationResend?> TryPrepareEmailConfirmationResendAsync(string email, CancellationToken ct);
 }

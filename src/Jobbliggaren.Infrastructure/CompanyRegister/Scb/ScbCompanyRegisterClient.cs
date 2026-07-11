@@ -9,6 +9,28 @@ using Microsoft.Extensions.Options;
 namespace Jobbliggaren.Infrastructure.CompanyRegister.Scb;
 
 /// <summary>
+/// #712 — the result of a partition fetch (<c>hamtaforetag</c>): the mapped rows plus whether SCB
+/// rejected the request. Distinguishes a genuine SCB-rejected fetch (RETRYABLE — the caller re-queues it
+/// for the end-of-run wave) from a successfully-fetched but empty/parse-degraded partition. Envelope
+/// drift (a non-array body) is NOT a fetch failure — it hard-latches truncation inside FetchAsync and
+/// returns an empty, non-failed result (never retryable, since the shape, not transient load, is wrong).
+/// </summary>
+internal readonly record struct ScbFetchResult(IReadOnlyList<ScbCompanyRecord> Records, bool Failed)
+{
+    public static ScbFetchResult Ok(IReadOnlyList<ScbCompanyRecord> records) => new(records, false);
+    public static ScbFetchResult Failure { get; } = new([], true);
+}
+
+/// <summary>
+/// #712 — a partition captured for the end-of-run retry wave: the failed <see cref="ScbQuery"/> plus the
+/// REMAINING ladder (<c>ladder[depth..]</c>) it must resume from. Re-driving the planner with only the
+/// remaining ladder is what lets a count-failed 2-digit partition re-split into its 5-digit children on
+/// retry (rather than over-cap-fetching and silently losing the tail) — while never re-widening back over
+/// the already-applied rungs.
+/// </summary>
+internal sealed record ScbRetrySeed(ScbQuery Query, IReadOnlyList<IScbRung> RemainingLadder);
+
+/// <summary>
 /// #560 (ADR 0091) — the real SCB population client: implements <see cref="IScbCompanyRegisterSource"/>
 /// over SCB's certificate-authenticated <c>sokpavar</c> API (JE / legal-entity endpoints). Drives the
 /// adaptive count-then-slice partitioning (<see cref="ScbPartitionPlanner"/>) so every fetch stays
@@ -94,9 +116,22 @@ internal sealed partial class ScbCompanyRegisterClient(
 
         var ladder = await BuildLadderAsync(legalForms, cancellationToken).ConfigureAwait(false);
 
+        // #712 — partitions SCB rejects mid-run are captured here (query + remaining ladder) and retried
+        // end-of-run, instead of latching the whole run truncated on the spot. The queue is filled ONLY
+        // during the main stream (the retry wave never re-queues), so the wave terminates.
+        var retryQueue = new List<ScbRetrySeed>();
+
         await foreach (var leaf in ScbPartitionPlanner.PlanAsync(
             seeds, ladder, options.Value.BatchSize,
-            (query, ct) => CountAsync(query, outcome, ct), outcome, cancellationToken)
+            (query, ct) => CountAsync(query, outcome, ct), outcome,
+            onCountFailed: (query, depth) =>
+            {
+                // A count-failed partition: tally it (latches truncation until a full retry recovery) and
+                // capture it for the end-of-run wave with the ladder it must resume from.
+                outcome.RecordPartitionRequestFailed();
+                retryQueue.Add(new ScbRetrySeed(query, RemainingLadder(ladder, depth)));
+            },
+            cancellationToken)
             .ConfigureAwait(false))
         {
             // #640 (Guard 1): the planner bounded this partition as far as the ladder allows but it is
@@ -117,22 +152,122 @@ internal sealed partial class ScbCompanyRegisterClient(
                     outcome.MarkTruncatedOrErrored();
             }
 
-            var records = await FetchAsync(leaf.Query, outcome, cancellationToken).ConfigureAwait(false);
+            var fetch = await FetchAsync(leaf.Query, outcome, cancellationToken).ConfigureAwait(false);
+            if (fetch.Failed)
+            {
+                // #712: an SCB-rejected fetch is captured for the retry wave (the count already succeeded ≤
+                // cap, so resume from leaf.Depth). Tally latches truncation until a full retry recovery.
+                outcome.RecordPartitionRequestFailed();
+                retryQueue.Add(new ScbRetrySeed(leaf.Query, RemainingLadder(ladder, leaf.Depth)));
+                continue;
+            }
 
-            // Fail-safe against envelope drift: a partition the planner counted as non-empty that
-            // fetches/maps to zero rows is a parse problem, NOT a legitimately empty slice — treat the
-            // run as truncated so the deregister sweep is disabled (a silent under-count must never let
-            // the sweep flag those companies Deregistered). Belt-and-braces with the per-response
-            // fail-safes in CountAsync/FetchAsync.
-            if (records.Count == 0 && leaf.Count > 0)
+            // Fail-safe against envelope drift: a partition the planner counted as non-empty that fetched
+            // successfully but mapped to zero rows is a parse problem, NOT a legitimately empty slice —
+            // treat the run as truncated so the deregister sweep is disabled. Guard on !Failed so a genuine
+            // SCB rejection (handled above, retryable) is never conflated with envelope drift (hard latch).
+            if (fetch.Records.Count == 0 && leaf.Count > 0)
                 outcome.MarkTruncatedOrErrored();
 
-            outcome.RecordFetched(records.Count);
-            yield return records;
+            outcome.RecordFetched(fetch.Records.Count);
+            yield return fetch.Records;
+        }
+
+        // #712 — end-of-run retry wave: re-drive the planner over the captured failed partitions, yielding
+        // recovered batches into the SAME stream (same pnr-filter + batch-upsert path in the orchestrator).
+        await foreach (var batch in DrainRetryQueueAsync(retryQueue, outcome, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            yield return batch;
         }
     }
 
-    private async Task<int> CountAsync(ScbQuery query, ScbSyncOutcome outcome, CancellationToken cancellationToken)
+    /// <summary>
+    /// #712 — the end-of-run retry wave. Re-drives the planner over each captured failed partition through
+    /// its remaining ladder, fetching recovered leaves; a partition still failing after
+    /// <see cref="ScbRegisterOptions.RetryMaxAttempts"/> passes stays failed. Sets the POST-retry residual
+    /// on the outcome (0 = all recovered → the run's partition-failure truncation clears and the sweep may
+    /// run — the #708 pass criteria) and escalates any residual in an aggregated WARN. The wave itself
+    /// never re-queues (a failure inside it only flags the seed to retry NEXT pass or land residual), so it
+    /// is bounded and terminates. No-op when the kill-switch is off or nothing failed.
+    /// </summary>
+    private async IAsyncEnumerable<IReadOnlyList<ScbCompanyRecord>> DrainRetryQueueAsync(
+        List<ScbRetrySeed> retryQueue, ScbSyncOutcome outcome,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var opts = options.Value;
+        if (!opts.RetryFailedPartitions || retryQueue.Count == 0)
+            yield break;
+
+        var originalCount = retryQueue.Count;
+        var pending = retryQueue;
+
+        for (var attempt = 1; attempt <= opts.RetryMaxAttempts && pending.Count > 0; attempt++)
+        {
+            // End-of-run backoff, exponential per pass — the wave runs after the heaviest write load, so it
+            // can afford to wait out a transient SCB blip (attempt 1 → 30 s, 2 → 60 s, …).
+            var backoff = TimeSpan.FromSeconds(
+                opts.RetryInitialBackoffSeconds * Math.Pow(2, attempt - 1));
+            await Task.Delay(backoff, cancellationToken).ConfigureAwait(false);
+
+            var stillFailing = new List<ScbRetrySeed>(pending.Count);
+            foreach (var seed in pending)
+            {
+                var seedFailed = false;
+                await foreach (var leaf in ScbPartitionPlanner.PlanAsync(
+                    [seed.Query], seed.RemainingLadder, opts.BatchSize,
+                    (query, ct) => CountAsync(query, outcome, ct), outcome,
+                    // Retry pass: a count failure only FLAGS the seed to try again next pass — it never
+                    // re-queues, so the wave cannot grow unbounded.
+                    onCountFailed: (_, _) => seedFailed = true,
+                    cancellationToken)
+                    .ConfigureAwait(false))
+                {
+                    if (leaf.OverCap)
+                    {
+                        if (TryExtractProtectedKey(leaf.Query, out var kommunCode, out var sniCode))
+                            outcome.RecordProtectedPartition(kommunCode, sniCode, leaf.Count);
+                        else
+                            outcome.MarkTruncatedOrErrored();
+                    }
+
+                    var fetch = await FetchAsync(leaf.Query, outcome, cancellationToken).ConfigureAwait(false);
+                    if (fetch.Failed)
+                    {
+                        seedFailed = true;
+                        continue;
+                    }
+
+                    if (fetch.Records.Count == 0 && leaf.Count > 0)
+                        outcome.MarkTruncatedOrErrored();
+
+                    outcome.RecordFetched(fetch.Records.Count);
+                    yield return fetch.Records;
+                }
+
+                if (seedFailed)
+                    stillFailing.Add(seed);
+            }
+
+            pending = stillFailing;
+        }
+
+        // The audit row's FailedPartitionCount now reflects the POST-retry residual (0 if all recovered),
+        // not the pre-retry count. A residual of 0 clears the partition-failure cause of truncation so the
+        // sweep runs; any hard latch (reconciliation gap, envelope drift) still forces truncation.
+        outcome.SetResidualPartitionFailures(pending.Count);
+        LogPartitionRetrySummary(logger, originalCount, originalCount - pending.Count, pending.Count, opts.RetryMaxAttempts);
+        if (pending.Count > 0)
+            LogPartitionRetryExhausted(logger, pending.Count, opts.RetryMaxAttempts, DescribeSeeds(pending));
+    }
+
+    /// <summary>#712 — the ladder a captured partition must resume from: <c>ladder[depth..]</c>. Empty when
+    /// the partition failed at or past the deepest rung (a retry then re-counts it and, if still over cap,
+    /// yields an over-cap leaf → protect-or-latch, exactly as the main stream would).</summary>
+    private static IReadOnlyList<IScbRung> RemainingLadder(IReadOnlyList<IScbRung> ladder, int depth) =>
+        depth >= ladder.Count ? [] : [.. ladder.Skip(depth)];
+
+    private async Task<ScbCountResult> CountAsync(ScbQuery query, ScbSyncOutcome outcome, CancellationToken cancellationToken)
     {
         using var response = await httpClient
             .PostAsJsonAsync(RaknaEndpoint, ToFilterRequest(query), JsonOptions, cancellationToken)
@@ -142,14 +277,13 @@ internal sealed partial class ScbCompanyRegisterClient(
             // A single partition query error (e.g. an unexpected SCB 400/500) must NOT crash the whole
             // ~11 h run. Log it WITH the partition descriptor + SCB's validator reason (#708 — the
             // 2026-07-05 run's 40 unattributed 400s were undiagnosable without them; taxonomy codes and
-            // the reason text are non-PII, never an org.nr), count it into the audit row, latch the run
-            // truncated (deregister sweep disabled — never falsely deregister on incomplete data), and
-            // skip this partition.
+            // the reason text are non-PII, never an org.nr). #712: this method is side-effect-free wrt the
+            // failure tally/queue — it returns Failure and the CALLER (onCountFailed) decides whether to
+            // tally+queue (main stream) or just flag the seed (retry wave).
             LogPartitionRequestFailed(logger, RaknaEndpoint, (int)response.StatusCode,
                 DescribeQuery(query),
                 await ReadReasonAsync(response, cancellationToken).ConfigureAwait(false));
-            outcome.RecordPartitionRequestFailed();
-            return 0;
+            return ScbCountResult.Failure;
         }
 
         // raknaforetag returns the count as the JSON body — accept a bare number or a small object
@@ -163,14 +297,15 @@ internal sealed partial class ScbCompanyRegisterClient(
         if (count is null)
         {
             // A count we cannot parse (envelope drift) must NOT look like a legitimate 0 — that would
-            // silently skip the partition and let the sweep deregister its companies. Fail safe.
+            // silently skip the partition and let the sweep deregister its companies. Fail safe: hard-latch
+            // (NOT a retryable failure — the shape is wrong, not the load) and report as a zero count.
             outcome.MarkTruncatedOrErrored();
-            return 0;
+            return ScbCountResult.Ok(0);
         }
-        return count.Value;
+        return ScbCountResult.Ok(count.Value);
     }
 
-    private async Task<IReadOnlyList<ScbCompanyRecord>> FetchAsync(
+    private async Task<ScbFetchResult> FetchAsync(
         ScbQuery query, ScbSyncOutcome outcome, CancellationToken cancellationToken)
     {
         using var response = await httpClient
@@ -178,12 +313,12 @@ internal sealed partial class ScbCompanyRegisterClient(
             .ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
-            // Non-fatal (as in CountAsync): log with descriptor + reason (#708), count, latch, skip.
+            // Non-fatal (as in CountAsync): log with descriptor + reason (#708). #712: side-effect-free —
+            // return Failure and let the caller tally+queue (main) or flag the seed (retry wave).
             LogPartitionRequestFailed(logger, HamtaEndpoint, (int)response.StatusCode,
                 DescribeQuery(query),
                 await ReadReasonAsync(response, cancellationToken).ConfigureAwait(false));
-            outcome.RecordPartitionRequestFailed();
-            return [];
+            return ScbFetchResult.Failure;
         }
 
         using var doc = await JsonDocument
@@ -194,9 +329,10 @@ internal sealed partial class ScbCompanyRegisterClient(
         if (doc.RootElement.ValueKind != JsonValueKind.Array)
         {
             // Expected an array of companies — an unrecognized shape is envelope drift, not an empty
-            // partition. Fail safe (disables the sweep).
+            // partition and not a retryable rejection. Hard-latch (disables the sweep) and return a
+            // non-failed empty result so it is never re-queued for retry.
             outcome.MarkTruncatedOrErrored();
-            return [];
+            return ScbFetchResult.Ok([]);
         }
 
         var records = new List<ScbCompanyRecord>(doc.RootElement.GetArrayLength());
@@ -206,7 +342,7 @@ internal sealed partial class ScbCompanyRegisterClient(
             if (record is not null)
                 records.Add(record);
         }
-        return records;
+        return ScbFetchResult.Ok(records);
     }
 
     // Builds the partition ladder from the live SNI code table. Rung 1 = single Juridisk form; rung 2 =
@@ -445,6 +581,17 @@ internal sealed partial class ScbCompanyRegisterClient(
     }
 
     /// <summary>
+    /// #712 — joins the residual retry seeds' descriptors into one bounded, single-line string for the
+    /// escalation WARN (5705). Same discipline as <see cref="DescribeQuery"/>/5702: taxonomy codes only
+    /// (kommun/form/SNI), never an org.nr, and capped so a large residual can never emit an unbounded line.
+    /// </summary>
+    internal static string DescribeSeeds(IReadOnlyList<ScbRetrySeed> seeds)
+    {
+        var joined = string.Join(" | ", seeds.Select(seed => DescribeQuery(seed.Query)));
+        return joined.Length <= MaxDescriptorLength ? joined : joined[..MaxDescriptorLength] + "…";
+    }
+
+    /// <summary>
     /// #708 — reads a bounded, single-lined slice of a non-success response body: SCB's validator
     /// normally states WHY a query was rejected (the #628 "Avdelning A–U" 400 was diagnosed from
     /// exactly this text). A rakna/hamta/kodtabell rejection body carries no company rows by
@@ -520,4 +667,19 @@ internal sealed partial class ScbCompanyRegisterClient(
     [LoggerMessage(EventId = 5703, Level = LogLevel.Warning,
         Message = "ScbCompanyRegisterClient: SNI-kodtabell (Bransch niva 3) tom ({RowCount} rader) — faller tillbaka till Juridisk form-only-liggaren (djupdelning inaktiverad denna körning).")]
     private static partial void LogSniTableEmpty(ILogger logger, int rowCount);
+
+    // #712 — end-of-run retry wave summary (INFO): how many captured partitions were retried, how many
+    // recovered, and the residual. Counts only — the per-failure descriptors are on 5702 (mid-run) and, if
+    // any residual remains, 5705 below. Never an org.nr (CLAUDE.md §5).
+    [LoggerMessage(EventId = 5706, Level = LogLevel.Information,
+        Message = "ScbCompanyRegisterClient: end-of-run retry-våg klar — försökte {Attempted}, återhämtade {Recovered}, residual {Residual} (max {MaxAttempts} pass). Loggar aldrig org.nr.")]
+    private static partial void LogPartitionRetrySummary(ILogger logger, int attempted, int recovered, int residual, int maxAttempts);
+
+    // #712 — the "never a silent permanent gap" escalation (WARN): partitions that stayed SCB-rejected
+    // after the whole retry wave. The run REMAINS truncated (sweep disabled) and the residual descriptors
+    // (kommun/form/SNI codes, bounded, never an org.nr) are surfaced so the residual is diagnosable and can
+    // seed a #641/deep-cell follow-up. Fires only when residual > 0 (a fully-recovered wave is silent here).
+    [LoggerMessage(EventId = 5705, Level = LogLevel.Warning,
+        Message = "ScbCompanyRegisterClient: end-of-run retry-våg uttömd — {StillFailing} partitioner kvarstår SCB-avvisade efter {MaxAttempts} pass. Körningen förblir trunkerad (sweep avstängd, ingen falsk avregistrering). Kvarvarande deskriptorer (kommun/form/SNI): {Descriptors}. Loggar aldrig org.nr.")]
+    private static partial void LogPartitionRetryExhausted(ILogger logger, int stillFailing, int maxAttempts, string descriptors);
 }

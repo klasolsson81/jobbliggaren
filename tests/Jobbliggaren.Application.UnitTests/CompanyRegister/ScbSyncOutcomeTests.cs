@@ -113,4 +113,60 @@ public class ScbSyncOutcomeTests
         outcome.PartitionRequestFailures.ShouldBe(0);
         outcome.ObservedReconciliationGaps.ShouldBe(0);
     }
+
+    [Fact]
+    public void SetResidualPartitionFailures_Zero_ClearsPartitionFailureTruncation()
+    {
+        // #712: the end-of-run retry wave recovered every failed partition → residual 0 → the
+        // partition-failure cause of truncation is cleared, so the sweep may run (the #708 pass criteria).
+        var outcome = new ScbSyncOutcome();
+        outcome.RecordPartitionRequestFailed();
+        outcome.RecordPartitionRequestFailed();
+        outcome.TruncatedOrErrored.ShouldBeTrue(); // latched by the tally during the main stream
+
+        outcome.SetResidualPartitionFailures(0);
+
+        outcome.PartitionRequestFailures.ShouldBe(0);
+        outcome.TruncatedOrErrored.ShouldBeFalse(); // fully recovered → sweep runs
+    }
+
+    [Fact]
+    public void SetResidualPartitionFailures_NonZero_KeepsTruncated_AndReportsResidual()
+    {
+        // #712: some partitions stayed failed after the wave → residual reflects the unrecovered count and
+        // the run remains truncated (sweep skipped — never falsely deregister).
+        var outcome = new ScbSyncOutcome();
+        outcome.RecordPartitionRequestFailed();
+        outcome.RecordPartitionRequestFailed();
+        outcome.RecordPartitionRequestFailed();
+
+        outcome.SetResidualPartitionFailures(1);
+
+        outcome.PartitionRequestFailures.ShouldBe(1); // audit row carries the POST-retry residual, not 3
+        outcome.TruncatedOrErrored.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void SetResidualPartitionFailures_Zero_DoesNotClearAHardLatchFromAnotherCause()
+    {
+        // #712 orthogonality: a fully-recovered partition-retry wave must NOT resurrect the sweep when a
+        // non-retryable hard latch (a no-SNI reconciliation gap, envelope drift) also fired this run.
+        var outcome = new ScbSyncOutcome();
+        outcome.RecordPartitionRequestFailed();
+        outcome.RecordReconciliationGap(); // a hard, non-retryable latch
+
+        outcome.SetResidualPartitionFailures(0);
+
+        outcome.PartitionRequestFailures.ShouldBe(0);
+        outcome.ReconciliationGaps.ShouldBe(1);
+        outcome.TruncatedOrErrored.ShouldBeTrue(); // the hard latch still forces truncation
+    }
+
+    [Fact]
+    public void SetResidualPartitionFailures_Negative_Throws()
+    {
+        var outcome = new ScbSyncOutcome();
+
+        Should.Throw<ArgumentOutOfRangeException>(() => outcome.SetResidualPartitionFailures(-1));
+    }
 }

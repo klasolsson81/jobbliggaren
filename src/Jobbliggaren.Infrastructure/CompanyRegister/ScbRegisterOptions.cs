@@ -65,4 +65,24 @@ public sealed class ScbRegisterOptions
     /// <summary>Per-call HTTP timeout in minutes.</summary>
     [Range(1, 30)]
     public int HttpTimeoutMinutes { get; set; } = 5;
+
+    /// <summary>
+    /// #712 — end-of-run retry wave for transiently-failed partition queries. After the main stream, the
+    /// client re-drives the planner over the partitions SCB rejected mid-run (all 177 such failures on the
+    /// 2026-07-11 completion run recovered on immediate retry — generic "try again" errors, not structural
+    /// rejections). Kill-switch (parity the observe-then-ratchet discipline): a new bounded path ships with
+    /// a toggle. Default true.
+    /// </summary>
+    public bool RetryFailedPartitions { get; set; } = true;
+
+    /// <summary>#712 — number of end-of-run retry passes (a SECOND resilience layer ON TOP of the
+    /// transport's 3-attempt Polly retry, which runs per-call during the main stream). Default 2.</summary>
+    [Range(1, 5)]
+    public int RetryMaxAttempts { get; set; } = 2;
+
+    /// <summary>#712 — base backoff (seconds) before each retry pass; grows exponentially per pass
+    /// (30 s, 60 s, …). The wave runs end-of-run, after the heaviest write load, so it can afford to
+    /// wait out a transient SCB blip.</summary>
+    [Range(1, 600)]
+    public int RetryInitialBackoffSeconds { get; set; } = 30;
 }

@@ -31,6 +31,7 @@
           "Email address, password (stored as a cryptographic hash, never in plaintext), display name and account identifier, as well as an identifier from an external login service if you log in via one. Used to create and secure your account and to identify you in the service.",
           "Display name, language preference and your matching preferences, for example occupation, region, type of employment and skills you want to match against. Used to show relevant jobs and to tailor the service to your choices.",
           "Your CV and content parsed from it. Used to store, display and work with your CV in the service.",
+          "Your uploaded original CV file (planned). When you import a CV, we store the file you uploaded in its original form and encrypted, so you can download it again and later continue working from it. The file is stored only when it does not contain a personal identity number in its text. This is planned and not yet in operation.",
           "Your applications, cover letters, personal notes and follow-ups linked to jobs. Used to help you keep track of your applications and to remind you about follow-ups.",
           "Application history and company overview (planned). We compile your own application history per employer so you can see how many times you have applied to a company, when you last applied and at which stage an application ended. The compilation is shown only to you. This is planned and not yet in operation."
         ]
@@ -80,6 +81,7 @@
         ],
         "list": [
           "Your account and content (CV, applications, letters, notes, follow-ups) are kept for as long as your account is active, so that you can use the service. You can delete individual content or your entire account at any time.",
+          "Your uploaded original CV file (planned). The original file belongs to the CV you imported it into. If you delete the CV, the original file is deleted too, and if you delete your entire account it is removed together with your other data. This is planned and not yet in operation.",
           "When you delete your account, the data is removed and the encrypted data is made permanently unreadable, see the section on security. After you have requested deletion, there is a 30-day period during which an account can be restored, before it is deleted permanently.",
           "The security and event log is kept for 90 days and is then cleared automatically. When your account is deleted permanently, the data in the log that can be linked to you is de-identified.",
           "Job ads from JobTech are cleared within 30 days.",

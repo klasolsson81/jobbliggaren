@@ -31,6 +31,7 @@
           "E-postadress, lösenord (lagrat som kryptografisk hash, aldrig i klartext), visningsnamn och kontoidentifierare, samt identifierare från en extern inloggningstjänst om du loggar in via en sådan. Används för att skapa och säkra ditt konto och identifiera dig i tjänsten.",
           "Visningsnamn, språkval och dina matchningsönskemål, till exempel yrke, region, anställningsform och kompetenser du vill matcha mot. Används för att visa relevanta jobb och anpassa tjänsten efter dina val.",
           "Ditt cv och tolkat innehåll från det. Används för att spara, visa och arbeta med ditt cv i tjänsten.",
+          "Din uppladdade originalfil av cv:t (planerat). När du importerar ett cv sparar vi filen du laddade upp i original och krypterad, så att du kan ladda ner den igen och senare arbeta vidare från den. Filen sparas bara när den inte innehåller ett personnummer i själva texten. Detta är planerat och ännu inte i drift.",
           "Dina ansökningar, personliga brev, egna anteckningar och uppföljningar kopplade till jobb. Används för att hjälpa dig att hålla ordning på dina ansökningar och påminna dig om uppföljning.",
           "Ansökningshistorik och företagsöversikt (planerat). Vi sammanställer din egen ansökningshistorik per arbetsgivare så att du kan se hur många gånger du sökt hos ett företag, när du senast sökte och i vilket steg en ansökan avslutades. Sammanställningen visas bara för dig. Detta är planerat och ännu inte i drift."
         ]
@@ -80,6 +81,7 @@
         ],
         "list": [
           "Ditt konto och innehåll (cv, ansökningar, brev, anteckningar, uppföljningar) sparas så länge ditt konto är aktivt, så att du kan använda tjänsten. Du kan när som helst radera enskilt innehåll eller hela ditt konto.",
+          "Din uppladdade originalfil av cv:t (planerat). Originalfilen hör ihop med det cv du importerade den till. Raderar du cv:t raderas även originalfilen, och raderar du hela ditt konto tas den bort tillsammans med dina övriga uppgifter. Detta är planerat och ännu inte i drift.",
           "När du raderar ditt konto tas uppgifterna bort och de krypterade uppgifterna görs permanent oläsbara, se avsnittet om säkerhet. Efter att du begärt radering finns en period på 30 dagar då ett konto kan återställas, innan det raderas slutgiltigt.",
           "Säkerhets- och händelseloggen sparas i 90 dagar och rensas därefter automatiskt. När ditt konto raderas slutgiltigt avidentifieras de uppgifter i loggen som kan kopplas till dig.",
           "Jobbannonser från JobTech rensas inom 30 dagar.",

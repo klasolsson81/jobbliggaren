@@ -7,6 +7,7 @@ using Jobbliggaren.Application.Auth.Commands.Login;
 using Jobbliggaren.Application.Auth.Commands.Logout;
 using Jobbliggaren.Application.Auth.Commands.RefreshSession;
 using Jobbliggaren.Application.Auth.Commands.Register;
+using Jobbliggaren.Application.Auth.Commands.ResendEmailConfirmation;
 using Jobbliggaren.Application.Auth.Commands.VerifyEmail;
 using Jobbliggaren.Application.Auth.Queries.VerifyCredentials;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -221,6 +222,26 @@ public static partial class AuthEndpoints
                 ? ToErrorResult(result.Error)
                 : Results.NoContent();
         }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+
+        // Registration email-confirmation — RESEND step (#733). PUBLIC (no RequireAuthorization): the
+        // stuck user is unauthenticated (login-403) or just-registered with no session, so the uniform
+        // response is the authorization-free contract (parity /verify-email). ALWAYS 202 Accepted — a
+        // malformed email is the only 400 (existence-INDEPENDENT, not an oracle): a fresh-unconfirmed, a
+        // taken-confirmed and a non-existent address are indistinguishable on status AND body. The send is
+        // INLINE Api-side (mint+send in one process / one Data-Protection keyring so the link resolves at
+        // /verify-email; ADR 0102) — the residual response-timing channel is rate-capped by the per-target
+        // 60s cooldown and inert while the flag is OFF (non-exploitable, security-auditor). AuthWrite
+        // (per-IP) + that per-target Redis cooldown (handler) throttle email-bombing.
+        group.MapPost("/resend-confirmation", async (
+            ResendConfirmationRequest body,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new ResendEmailConfirmationCommand(body.Email), ct);
+            return result.IsFailure
+                ? ToErrorResult(result.Error)
+                : Results.Accepted();
+        }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
     }
 
     /// <summary>
@@ -252,6 +273,13 @@ public static partial class AuthEndpoints
     /// not changing, unlike /confirm-email-change). A pure transport DTO; the token is never logged.
     /// </summary>
     public sealed record VerifyEmailRequest(Guid Uid, string? Token);
+
+    /// <summary>
+    /// POST /auth/resend-confirmation body — the email address to re-send a registration confirmation
+    /// link to (#733). A pure transport DTO; the address is never logged. The response is a uniform 202
+    /// regardless of whether the address has an unconfirmed account (anti-enumeration).
+    /// </summary>
+    public sealed record ResendConfirmationRequest(string? Email);
 
     // 401 is an authentication-identity status ("who are you"), a different axis from the
     // request/resource-semantics the kind-union models (400/404/409/410) — so it stays an

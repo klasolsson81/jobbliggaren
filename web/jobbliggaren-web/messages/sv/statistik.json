@@ -28,7 +28,6 @@
   },
   "funnel": {
     "heading": "Från skickad till accepterad",
-    "intro": "Hur många av dina skickade ansökningar som nått varje steg.",
     "stage": "Steg",
     "count": "Antal",
     "share": "Andel av skickade",

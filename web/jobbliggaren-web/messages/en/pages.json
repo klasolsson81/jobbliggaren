@@ -1,7 +1,7 @@
 {
   "common": {
     "rateLimitedTitle": "Too many requests",
-    "rateLimitedBody": "You have made too many requests in a short time. Try again in {seconds} seconds.",
+    "rateLimitedBody": "You have made too many requests in a short time. Try again in {seconds, plural, one {# second} other {# seconds}}.",
     "errorBodyReload": "A technical error occurred. Try reloading the page in a moment.",
     "errorBodyRetry": "A technical error occurred. Try again in a moment.",
     "back": "Back"
@@ -194,7 +194,7 @@
     "title": "Settings",
     "lede": "Manage your account details and settings.",
     "profileNotCreated": "Your profile has not been created yet. Fill in the details below to get started.",
-    "rateLimited": "Too many requests. Try again in {seconds} seconds.",
+    "rateLimited": "Too many requests. Try again in {seconds, plural, one {# second} other {# seconds}}.",
     "profileLoadError": "The profile could not be loaded right now. Try reloading the page in a moment."
   },
   "auth": {
@@ -266,6 +266,13 @@
       "invalidTitle": "The link cannot be used",
       "invalidBody": "The link is invalid or has expired. Register again to get a new link.",
       "networkError": "Could not reach the server. Try again in a moment."
+    },
+    "resendConfirmation": {
+      "button": "Send a new confirmation link",
+      "sending": "Sending…",
+      "sent": "If the address needs confirming, we have sent a new link. Check your inbox and your spam folder.",
+      "error": "Could not send right now. Try again in a moment.",
+      "cooldownHint": "You can request a new link in {seconds, plural, one {# second} other {# seconds}}."
     }
   }
 }

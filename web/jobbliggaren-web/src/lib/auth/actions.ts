@@ -40,6 +40,12 @@ export type AuthActionState = {
   // a "check your inbox" panel instead of an error. Identical for a fresh or a taken address — the
   // out-of-band email is the only differentiator, so the FE never distinguishes them.
   pendingConfirmation?: boolean;
+  // #733: set alongside the login 403 gate (Auth.EmailNotConfirmed) so LoginForm can offer a
+  // "resend confirmation link" action. Only reachable with a correct password, so not an oracle.
+  emailNotConfirmed?: boolean;
+  // #733: the submitted email echoed back so the register check-inbox panel (which unmounts the form)
+  // can hand it to the resend action. Lives only in the returned action state; never logged.
+  email?: string;
 } | null;
 
 export async function loginAction(
@@ -74,8 +80,12 @@ export async function loginAction(
     // #714: an unconfirmed account whose password is correct is gated with a distinct 403
     // (Auth.EmailNotConfirmed) — actionable copy tells the user to confirm their email. Only reachable
     // with a valid password, so it is not an enumeration oracle (a wrong password stays a 401 above).
+    // #733: flag the state so LoginForm can render the resend-confirmation-link action.
     if (res.status === 403) {
-      return { error: t("auth.actions.emailNotConfirmed") };
+      return {
+        error: t("auth.actions.emailNotConfirmed"),
+        emailNotConfirmed: true,
+      };
     }
     if (!res.ok) {
       return { error: t("auth.actions.unexpectedError") };
@@ -150,7 +160,9 @@ export async function registerAction(
     // would otherwise throw and surface a misleading "server unreachable"). On the legacy instant-login
     // path (flag OFF) the backend returns 200 + sessionId and the flow below runs unchanged.
     if (res.status === 202) {
-      return { pendingConfirmation: true };
+      // #733: echo the submitted email so the check-inbox panel can resend the link (the form, and
+      // thus its email input, unmounts on 202). Uniform across fresh/taken addresses — no oracle.
+      return { pendingConfirmation: true, email };
     }
     if (!res.ok) {
       return { error: t("auth.actions.unexpectedError") };

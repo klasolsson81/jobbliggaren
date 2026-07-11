@@ -159,7 +159,11 @@ describe("registerAction 202 handling (#714 — email-confirmation-first)", () =
 
     const result = await registerAction(null, form());
 
-    expect(result).toEqual({ pendingConfirmation: true });
+    // #733: the submitted email is echoed back so the check-inbox panel can resend the link.
+    expect(result).toEqual({
+      pendingConfirmation: true,
+      email: "anna@example.se",
+    });
     expect(setSessionCookieMock).not.toHaveBeenCalled();
     expect(redirectMock).not.toHaveBeenCalled();
   });
@@ -186,7 +190,11 @@ describe("loginAction 403 handling (#714 — email-not-confirmed gate)", () => {
 
     const result = await loginAction(null, form());
 
-    expect(result).toEqual({ error: "auth.actions.emailNotConfirmed" });
+    // #733: the state also carries emailNotConfirmed so LoginForm can offer the resend action.
+    expect(result).toEqual({
+      error: "auth.actions.emailNotConfirmed",
+      emailNotConfirmed: true,
+    });
     expect(setSessionCookieMock).not.toHaveBeenCalled();
     expect(redirectMock).not.toHaveBeenCalled();
   });

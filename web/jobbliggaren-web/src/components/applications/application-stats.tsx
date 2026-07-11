@@ -106,7 +106,12 @@ export function ApplicationStats({ data }: { data: ApplicationStatsDto }) {
           <h2 id="stats-funnel-heading" className="jp-card__title">
             {t("funnel.heading")}
           </h2>
-          <p className="mb-4 text-body">{t("funnel.intro")}</p>
+          {/* Ingen intro-paragraf här: rubriken "Från skickad till accepterad"
+              + kolumnen "Andel av skickade" beskriver redan tratten, och
+              limitation-noten nedan bär den ärliga undermätnings-caveaten.
+              (Klas-steer 2026-07-10: minska beskrivande brödtext där den bara
+              upprepar rubriken; de andra kortens intros bär distinkt metodik
+              och behålls.) */}
           <table className="jp-table">
             <thead>
               <tr>

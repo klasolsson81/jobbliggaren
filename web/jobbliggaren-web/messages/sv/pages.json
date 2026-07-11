@@ -1,7 +1,7 @@
 {
   "common": {
     "rateLimitedTitle": "För många förfrågningar",
-    "rateLimitedBody": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds} sekunder.",
+    "rateLimitedBody": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
     "errorBodyReload": "Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.",
     "errorBodyRetry": "Ett tekniskt fel uppstod. Försök igen om en stund.",
     "back": "Tillbaka"
@@ -194,7 +194,7 @@
     "title": "Inställningar",
     "lede": "Hantera dina kontouppgifter och inställningar.",
     "profileNotCreated": "Din profil är inte skapad ännu. Fyll i uppgifterna nedan för att komma igång.",
-    "rateLimited": "För många förfrågningar. Försök igen om {seconds} sekunder.",
+    "rateLimited": "För många förfrågningar. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
     "profileLoadError": "Profilen kunde inte hämtas just nu. Försök ladda om sidan om en stund."
   },
   "auth": {
@@ -266,6 +266,13 @@
       "invalidTitle": "Länken går inte att använda",
       "invalidBody": "Länken är ogiltig eller har gått ut. Registrera dig igen för att få en ny länk.",
       "networkError": "Det gick inte att nå servern. Försök igen om en stund."
+    },
+    "resendConfirmation": {
+      "button": "Skicka en ny bekräftelselänk",
+      "sending": "Skickar…",
+      "sent": "Om adressen behöver bekräftas har vi skickat en ny länk. Kontrollera inkorgen och skräpposten.",
+      "error": "Det gick inte att skicka just nu. Försök igen om en stund.",
+      "cooldownHint": "Du kan begära en ny länk om {seconds, plural, one {# sekund} other {# sekunder}}."
     }
   }
 }

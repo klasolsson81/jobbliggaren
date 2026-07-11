@@ -35,6 +35,12 @@ public sealed partial class AuthAuditLogger(
         LogLogoutSucceeded(logger, "logout_succeeded", userId, sessionIdPrefix, resolvedIp);
     }
 
+    public void EmailConfirmationResent(Guid userId)
+    {
+        var (resolvedIp, resolvedAgent) = ExtractRequestContext();
+        LogEmailConfirmationResent(logger, "email_confirmation_resent", userId, resolvedIp, resolvedAgent);
+    }
+
     // App-loggens IP/UA går genom samma anonymiserings-port som audit-tabellen
     // (ADR 0024 D7). Defense-in-depth: även om CloudWatch-retention (30d) failar
     // ska app-loggen inte bära unika IP-fingerprints.
@@ -71,4 +77,9 @@ public sealed partial class AuthAuditLogger(
         "AuditEvent={AuditEvent} UserId={UserId} SessionIdPrefix={SessionIdPrefix} Ip={Ip}")]
     private static partial void LogLogoutSucceeded(
         ILogger logger, string auditEvent, Guid userId, string sessionIdPrefix, string ip);
+
+    [LoggerMessage(1005, LogLevel.Information,
+        "AuditEvent={AuditEvent} UserId={UserId} Ip={Ip} UserAgent={UserAgent}")]
+    private static partial void LogEmailConfirmationResent(
+        ILogger logger, string auditEvent, Guid userId, string ip, string userAgent);
 }

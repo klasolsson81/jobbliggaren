@@ -4700,6 +4700,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 @media (max-width: 720px) {
   .jp-app { grid-template-columns: 1fr; }
+  /* .jp-app--actions ensam = EN klass (0,1,0) = samma specificitet som bas-
+     grid-regeln nedan, som ligger senare i källan och därför vinner. Kvalificera
+     med .jp-app (0,2,0) så mobil-stacken (body över actions, CTA full bredd)
+     faktiskt vinner oavsett källordning (#780, code-reviewer Major). */
+  .jp-app.jp-app--actions { grid-template-columns: 1fr; }
   .jp-app__actions { flex-direction: row; flex-wrap: wrap; align-items: center; }
 }
 
@@ -4709,8 +4714,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
    bas-chassit .jp-job,.jp-app är orört (PR5-bind E / CTO-bind 6). */
 .jp-app--actions {
   position: relative;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
+  /* Kort-native 2-kol (#780 PR-4, Klas live-pick Variant C): body-kolumnen bär
+     roll/företag + meta-rad (taggar/dagar) + senaste-händelse-rad; actions-
+     kolumnen bär primär-CTA + fulltext-meny. start-align → CTA vid titelraden. */
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   padding: 12px 16px;
 }
 /* Länk-overlay (CTO-bind 6, a11y): titeln är radens ENDA <a>, sträckt över
@@ -4733,11 +4741,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
   outline: 2px solid var(--jp-accent-700);
   outline-offset: -2px;
 }
-.jp-app__signals {
+/* Meta-raden (#780 PR-4): bråttom-tagg + statustagg + dagar-i-steget, staplad
+   under roll/företag i body-kolumnen. */
+.jp-app__metaline {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
+  margin-top: 8px;
 }
 .jp-app__days {
   font-size: var(--text-micro);
@@ -4745,23 +4757,25 @@ a.jp-adminnav__link[aria-current="page"]::after {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+/* Väntesignal (Tabell-facit, isWaitingSignal): dagarna varnar när
+   attention-signalen firar — ALDRIG en klient-dagströskel. */
+.jp-app__days[data-waiting] {
+  color: var(--jp-warning);
+  font-weight: var(--jp-fw-bold);
+}
+/* Senaste-händelse-raden ("{händelse} den {datum}"): sans — datum är
+   informationsbärande (§4), inte mono. */
+.jp-app__eventline {
+  margin-top: 4px;
+  font-size: var(--text-micro);
+  color: var(--jp-ink-2);
+}
 .jp-app__actions--row {
   flex-direction: row;
   align-items: center;
   gap: 8px;
   position: relative;
   z-index: 1;
-}
-/* Avdelaren skiljer info från handling (design §5): allt till höger om
-   linjen är klickbart. */
-.jp-app__divider {
-  width: 1px;
-  height: 22px;
-  background: var(--jp-border);
-  flex-shrink: 0;
-}
-@media (max-width: 720px) {
-  .jp-app--actions .jp-app__divider { display: none; }
 }
 /* Radknappar (design §5): h30, vit, kant --jp-border; primär = accent-text,
    "Byt status ▾" = ink-text. Hover: accent-kant + accent-50. */

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/forms/PasswordInput";
 import { RememberMeCheckbox } from "@/components/forms/RememberMeCheckbox";
+import { ResendConfirmationButton } from "@/components/auth/ResendConfirmationButton";
 import { registerAction, type AuthActionState } from "@/lib/auth/actions";
 
 export function RegisterForm() {
@@ -30,21 +31,27 @@ export function RegisterForm() {
   // them. role="status" + aria-live announces the state change without a second page-level h1.
   if (state?.pendingConfirmation) {
     return (
-      <div
-        ref={pendingRef}
-        tabIndex={-1}
-        role="status"
-        aria-live="polite"
-        className="flex flex-col gap-1 focus:outline-none"
-      >
-        {/* h2 (not a second h1 — the page already owns the h1): keeps the panel in the heading
-            outline / reachable via heading navigation, while role=status + aria-live announce it. */}
-        <h2 className="text-body font-bold text-heading-1">
-          {t("auth.register.pendingTitle")}
-        </h2>
-        <p className="text-body text-text-primary">
-          {t("auth.register.pendingBody")}
-        </p>
+      <div className="flex flex-col gap-4">
+        <div
+          ref={pendingRef}
+          tabIndex={-1}
+          role="status"
+          aria-live="polite"
+          className="flex flex-col gap-1 focus:outline-none"
+        >
+          {/* h2 (not a second h1 — the page already owns the h1): keeps the panel in the heading
+              outline / reachable via heading navigation, while role=status + aria-live announce it. */}
+          <h2 className="text-body font-bold text-heading-1">
+            {t("auth.register.pendingTitle")}
+          </h2>
+          <p className="text-body text-text-primary">
+            {t("auth.register.pendingBody")}
+          </p>
+        </div>
+        {/* #733: sibling of the panel (not nested) so the resend button's own role=status live
+            region is not wrapped inside this one — nested live regions double-announce. Email is
+            echoed from the action state because the form (and its input) is unmounted here. */}
+        <ResendConfirmationButton getEmail={() => state.email ?? ""} />
       </div>
     );
   }

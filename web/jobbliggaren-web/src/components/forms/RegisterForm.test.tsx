@@ -10,7 +10,11 @@ vi.mock("next/navigation", () => ({
 
 // registerAction is wired via useActionState. We mock the module so the form's
 // formAction invokes our spy instead of calling fetch().
-type AuthActionState = { error?: string; pendingConfirmation?: boolean } | null;
+type AuthActionState = {
+  error?: string;
+  pendingConfirmation?: boolean;
+  email?: string;
+} | null;
 const registerActionMock =
   vi.fn<
     (prevState: AuthActionState, formData: FormData) => Promise<AuthActionState>
@@ -19,6 +23,12 @@ const registerActionMock =
 vi.mock("@/lib/auth/actions", () => ({
   registerAction: (prevState: AuthActionState, formData: FormData) =>
     registerActionMock(prevState, formData),
+}));
+
+// The check-inbox panel renders ResendConfirmationButton, which imports the resend server action;
+// mock it so importing RegisterForm does not pull in the real fetch/env module.
+vi.mock("@/lib/actions/resend-confirmation", () => ({
+  resendConfirmationAction: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 describe("RegisterForm", () => {
@@ -83,10 +93,32 @@ describe("RegisterForm", () => {
     await user.type(screen.getByLabelText("Lösenord"), "password1");
     await user.click(screen.getByRole("button", { name: "Skapa konto" }));
 
-    // The status panel replaces the form; the submit button is gone.
+    // The status panel replaces the form; the submit button is gone. Query the panel heading rather
+    // than role=status — #733 adds ResendConfirmationButton, whose own persistent aria-live region
+    // makes role=status ambiguous inside the panel.
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent("Kontrollera din inkorg"),
+      expect(
+        screen.getByRole("heading", { name: "Kontrollera din inkorg" }),
+      ).toBeInTheDocument(),
     );
     expect(screen.queryByRole("button", { name: "Skapa konto" })).not.toBeInTheDocument();
+  });
+
+  it("#733 — offers the resend-confirmation button inside the check-inbox panel", async () => {
+    registerActionMock.mockResolvedValue({
+      pendingConfirmation: true,
+      email: "anna@example.se",
+    });
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Skicka en ny bekräftelselänk" })
+    ).toBeInTheDocument();
   });
 });

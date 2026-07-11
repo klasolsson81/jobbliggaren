@@ -13,7 +13,9 @@ public sealed class RegisterCommandHandler(
     ISessionStore sessionStore,
     IAuthAuditLogger auditLogger,
     IEmailSender emailSender,
+    ICooldownGate cooldown,
     IOptions<AuthOptions> authOptions,
+    IOptions<AuthEmailCooldownOptions> cooldownOptions,
     IDateTimeProvider clock)
     : ICommandHandler<RegisterCommand, Result<RegisterOutcome>>
 {
@@ -40,10 +42,25 @@ public sealed class RegisterCommandHandler(
             // acknowledged-deferred there and the feature is not enabled).
             if (requireConfirmation && createResult.Error.Code == AuthErrorCodes.DuplicateAccount)
             {
-                await emailSender.SendAccountExistsNoticeAsync(
-                    command.Email!,
-                    AccountExistsNoticeIdempotencyKey.For(command.Email!),
-                    cancellationToken);
+                // #703: per-target anti-email-bomb cooldown on the account-exists notice. A cooled address
+                // silently SKIPS the send but returns the SAME uniform 202 — a visible throttle here would
+                // itself be an enumeration channel (this is the UNAUTHENTICATED register surface), and the
+                // notice is informational so suppression strands no one. Keyed per-target only (no
+                // authenticated actor on this path). The Resend idempotency-key already dedupes per-address
+                // within Resend's own window, but that is provider-specific; this is the provider-independent
+                // throttle the #679 gate requires before Resend activation.
+                if (await cooldown.TryBeginAsync(
+                        CooldownScopes.AccountExists,
+                        command.Email!,
+                        TimeSpan.FromSeconds(cooldownOptions.Value.AccountExistsNoticeWindowSeconds),
+                        cancellationToken))
+                {
+                    await emailSender.SendAccountExistsNoticeAsync(
+                        command.Email!,
+                        AccountExistsNoticeIdempotencyKey.For(command.Email!),
+                        cancellationToken);
+                }
+
                 return Result.Success(new RegisterOutcome(Session: null));
             }
 

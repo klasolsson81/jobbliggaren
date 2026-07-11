@@ -1164,15 +1164,23 @@ public static class DependencyInjection
         // here). Read by RegisterCommandHandler + UserAccountService.ValidateCredentialsAsync.
         services.Configure<AuthOptions>(configuration.GetSection(AuthOptions.SectionName));
 
-        // #733 — per-target confirmation-link resend cooldown (Application-owned contract, bound here;
-        // Api-only — the cooldown runs in the request path). Redis-backed anti-email-bomb throttle read by
-        // ResendEmailConfirmationCommandHandler; window from ResendCooldownOptions (60s default).
-        // ValidateOnStart + [Range] so a misconfigured window fails the host loud (parity DigestDispatchOptions).
+        // #733/#703 — Redis-backed anti-email-bomb cooldown gate (ICooldownGate) + its window options. The
+        // gate is the #733 primitive generalised (a policy-free check-and-set on a (scope, subject) pair)
+        // and now throttles three requester-chosen-address outbound surfaces: confirmation-link resend
+        // (#733, window from ResendCooldownOptions), the register account-exists notice, and the
+        // change-email request (#703, windows from AuthEmailCooldownOptions). Api-only — the cooldown runs
+        // in the request path. ValidateOnStart + [Range] so a misconfigured window fails the host loud (a
+        // security invariant), parity DigestDispatchOptions. The two option sections stay independent so the
+        // already-shipped Auth:ResendCooldown key is not broken.
         services.AddOptions<ResendCooldownOptions>()
             .Bind(configuration.GetSection(ResendCooldownOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
-        services.AddScoped<IResendCooldown, RedisResendCooldown>();
+        services.AddOptions<AuthEmailCooldownOptions>()
+            .Bind(configuration.GetSection(AuthEmailCooldownOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<ICooldownGate, RedisCooldownGate>();
 
         // Admin-bootstrap: idempotent seeder kör vid app-startup. Skapar Admin-rollen
         // om saknas och tilldelar till user med email AdminBootstrap__InitialAdminEmail.

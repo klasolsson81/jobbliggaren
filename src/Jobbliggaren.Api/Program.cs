@@ -217,6 +217,21 @@ app.Use(async (ctx, next) =>
         ctx.Response.StatusCode = 400;
         await ctx.Response.WriteAsJsonAsync(new { code = ex.Code, error = ex.Message });
     }
+    catch (System.Security.Cryptography.CryptographicException ex)
+    {
+        // Fas 4b PR-9b (DPIA #659 R-F6, security-auditor Major 1): the Form C read-path opener
+        // (BinaryFieldOpener) fails closed on a cold/missing owner DEK or a tampered/wrong-key
+        // ciphertext. Map to a BARE 500 with ZERO exception detail — the message can name the DEK
+        // context (never plaintext or DEK bytes, but internal) and must never reach the client body.
+        // Log the exception TYPE ONLY (never the message, never `ex` itself, never to the response)
+        // so a ciphertext-tampering / crypto anomaly keeps an integrity signal even for a failure
+        // that never entered the Mediator pipeline — LoggingBehavior already logs the ones that did,
+        // but this arm wraps the whole pipeline (security-auditor PR-9b Minor 1).
+        Jobbliggaren.Api.Common.CryptographicFailureLog.CryptographicFailure(
+            ctx.RequestServices.GetRequiredService<ILogger<Program>>(), ex.GetType().Name);
+        ctx.Response.StatusCode = 500;
+        await ctx.Response.WriteAsJsonAsync(new { error = "Ett internt fel uppstod." });
+    }
     catch (SessionStoreUnavailableException ex)
     {
         // #512: log the outage BEFORE writing 503. Auth runs outside the Mediator pipeline, so
@@ -286,6 +301,28 @@ if (builder.Environment.IsDevelopment() || albOptions.HttpsEnabled)
 {
     app.UseHttpsRedirection();
 }
+
+// Fas 4b PR-9b (DPIA #659 M-F2, security-auditor Minor 4): the original-file download path
+// (/api/v1/resumes/files/...) must carry `Cache-Control: no-store` + `X-Content-Type-Options:
+// nosniff` on EVERY response — the 200, the 404, the 401 auth challenge, and a 405 — not only the
+// happy path the endpoint delegate sees. Registered BEFORE UseAuthentication and using OnStarting
+// so the headers are stamped even on framework-generated responses (the auth challenge
+// short-circuits before the delegate). Path-scoped so no other endpoint is affected.
+app.Use(async (ctx, next) =>
+{
+    if (ctx.Request.Path.StartsWithSegments("/api/v1/resumes/files"))
+    {
+        ctx.Response.OnStarting(static state =>
+        {
+            var http = (HttpContext)state;
+            http.Response.Headers.CacheControl = "private, no-store";
+            http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            return Task.CompletedTask;
+        }, ctx);
+    }
+
+    await next(ctx);
+});
 
 app.UseAuthentication();
 app.UseAuthorization();

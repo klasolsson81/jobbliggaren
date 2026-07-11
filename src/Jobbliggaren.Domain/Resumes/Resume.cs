@@ -34,6 +34,18 @@ public sealed class Resume : AggregateRoot<ResumeId>
     /// <summary>True once the CV's design has been adopted (one-way, <see cref="Adopt"/>).</summary>
     public bool IsAdopted => AdoptedAt is not null;
 
+    // Fas 4b PR-9c (ADR 0100 §D5 / ADR 0103, CTO-bind F1=L-B): the parsed-artifact this
+    // canonical CV was promoted from — the provenance the DQ5b design carried transiently on
+    // ResumeCreatedFromParsedResumeDomainEvent is now PERSISTED, because a consumer finally
+    // exists: it is the cascade key that couples a promoted original file
+    // (resume_files.parsed_resume_id, already indexed) to this Resume, so deleting the CV erases
+    // its stored original (the resume-lifecycle link ADR 0100 §D5 named open). Set by
+    // construction in CreateFromParsed (Origin/AdoptedAt idiom); null for Template/Legacy CVs
+    // never promoted, AND for pre-PR-9c rows whose provenance was never persisted
+    // (un-backfillable — those originals stay erasable via account-hard-delete only, ADR 0103
+    // F2). Non-PII strongly-typed machine id — pinned by ResumeRootPlainColumnGuardTests.
+    public ParsedResumeId? SourceParsedResumeId { get; private set; }
+
     public CvTemplateOptions TemplateOptions { get; private set; } = CvTemplateOptions.Default;
 
     // Denormaliserade projektion-fält per ADR 0059 — drivs av ADR 0049
@@ -162,8 +174,10 @@ public sealed class Resume : AggregateRoot<ResumeId>
     /// användar-godkända, gap-ifyllda <paramref name="content"/> i ETT validerat steg.
     /// Innehållet valideras mot samma strikta <see cref="ValidateContent"/> som
     /// Master-uppdateringar. Höjer ett provenance-event som länkar
-    /// <paramref name="sourceParsedResumeId"/> till det nya CV:t (DQ5b — enbart event,
-    /// ingen kolumn). Aggregatet konstrueras giltigt i ett steg (DDD §2.2).
+    /// <paramref name="sourceParsedResumeId"/> till det nya CV:t OCH persisterar länken på
+    /// <see cref="SourceParsedResumeId"/> (PR-9c, ADR 0100 §D5 — DQ5b:s "enbart event, ingen
+    /// kolumn" vänd nu när en konsument finns: cascade-nyckeln för per-CV original-radering).
+    /// Aggregatet konstrueras giltigt i ett steg (DDD §2.2).
     /// </summary>
     public static Result<Resume> CreateFromParsed(
         JobSeekerId jobSeekerId,
@@ -193,6 +207,10 @@ public sealed class Resume : AggregateRoot<ResumeId>
         // Origin by construction (ADR 0096): promoting a parsed import IS the import
         // path — "promote sets källa=import" is satisfied here, not by a setter.
         var resume = new Resume(id, jobSeekerId, name.Trim(), ResumeSourceOrigin.Import, now);
+        // PR-9c (ADR 0100 §D5): persist the parsed→resume provenance the event carries
+        // transiently — it is the cascade key for per-CV original-file erasure. Set by
+        // construction (before events), mirroring Origin.
+        resume.SourceParsedResumeId = sourceParsedResumeId;
 
         var master = ResumeVersion.CreateMaster(content, clock);
         resume._versions.Add(master);

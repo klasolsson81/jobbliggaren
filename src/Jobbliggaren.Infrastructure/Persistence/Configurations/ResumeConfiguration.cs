@@ -1,5 +1,6 @@
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Parsing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -75,6 +76,18 @@ public sealed class ResumeConfiguration : IEntityTypeConfiguration<Resume>
             .HasColumnName("adopted_at");
 
         builder.Ignore(r => r.IsAdopted);
+
+        // Fas 4b PR-9c (ADR 0100 §D5 / ADR 0103, CTO-bind F1=L-B): the parsed-artifact this CV
+        // was promoted from — a nullable strongly-typed provenance soft-reference (the
+        // PrimaryResumeId nullable-VO-converter precedent, JobSeekerConfiguration). It is the
+        // cascade key for per-CV original-file erasure (joins resume_files.parsed_resume_id,
+        // which is already indexed). Non-PII machine id. NO index here: resumes is never queried
+        // BY this column — the cascade filters the file side, not the resume side.
+        builder.Property(r => r.SourceParsedResumeId)
+            .HasConversion(
+                id => id.HasValue ? id.Value.Value : (Guid?)null,
+                value => value.HasValue ? new ParsedResumeId(value.Value) : null)
+            .HasColumnName("source_parsed_resume_id");
 
         // Fas 4b PR-8 (ADR 0093 §D5(b), CTO-bind PR-8 Q1): the rubric version the ledger
         // was last reconciled against — a bounded "major.minor.patch" machine token

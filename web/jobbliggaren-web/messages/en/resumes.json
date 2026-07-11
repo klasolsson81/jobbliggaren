@@ -19,7 +19,7 @@
   "delete": {
     "trigger": "Delete CV",
     "title": "Delete CV?",
-    "description": "You are about to permanently delete <name>{name}</name>. This cannot be undone.",
+    "description": "You are about to permanently delete <name>{name}</name>, including any saved original file. This cannot be undone.",
     "cancel": "Cancel",
     "confirm": "Confirm deletion"
   },

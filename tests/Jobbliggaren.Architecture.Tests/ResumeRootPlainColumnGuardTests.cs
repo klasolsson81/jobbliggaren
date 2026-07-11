@@ -74,6 +74,12 @@ public class ResumeRootPlainColumnGuardTests
             "bounded 'major.minor.patch' machine token (nullable, max 14 chars, shape-" +
             "validated in ReconcileFindingStatuses) — the rubric version the ledger was " +
             "last reconciled against; never free text (AdoptedAt idiom)",
+        // Fas 4b PR-9c (ADR 0100 §D5, ADR 0103 — the resume-lifecycle cascade key)
+        [nameof(Resume.SourceParsedResumeId)] =
+            "strongly-typed provenance soft-reference (ParsedResumeId?, nullable, non-PII " +
+            "machine id, set by construction in CreateFromParsed) — the cascade key coupling a " +
+            "promoted original file (resume_files.parsed_resume_id) to this Resume so a per-CV " +
+            "delete erases the stored original; never free text",
     };
 
     [Fact]

@@ -2,25 +2,30 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Mediator;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Jobbliggaren.Application.Auth.Commands.ResendEmailConfirmation;
 
 public sealed partial class ResendEmailConfirmationCommandHandler(
-    IResendCooldown cooldown,
+    ICooldownGate cooldown,
+    IOptions<ResendCooldownOptions> cooldownOptions,
     IUserAccountService userAccountService,
     IEmailSender emailSender,
     IAuthAuditLogger auditLogger,
     ILogger<ResendEmailConfirmationCommandHandler> logger)
     : ICommandHandler<ResendEmailConfirmationCommand, Result>
 {
+    private readonly TimeSpan _window = TimeSpan.FromSeconds(cooldownOptions.Value.WindowSeconds);
+
     public async ValueTask<Result> Handle(
         ResendEmailConfirmationCommand command, CancellationToken cancellationToken)
     {
         // Cooldown is check-and-set UNIFORMLY for every non-cooled request, existence-independently
         // (CTO-bind FORK 1): a within-window repeat is the SAME uniform success (silent no-op), never a
         // 429 — mirroring the register swallow so a resend reveals nothing about the target. Runs BEFORE
-        // any eligibility work so cooldown state never correlates with account existence.
-        if (!await cooldown.TryBeginAsync(command.Email!, cancellationToken))
+        // any eligibility work so cooldown state never correlates with account existence. Generalised gate
+        // (#703): per-target scope, window from the #733-owned ResendCooldownOptions (unchanged behaviour).
+        if (!await cooldown.TryBeginAsync(CooldownScopes.ResendConfirm, command.Email!, _window, cancellationToken))
             return Result.Success();
 
         try

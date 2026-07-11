@@ -24,6 +24,8 @@ public class RegisterCommandHandlerTests
         ISessionStore? sessionStore = null,
         IAuthAuditLogger? auditLogger = null,
         IEmailSender? emailSender = null,
+        ICooldownGate? cooldown = null,
+        AuthEmailCooldownOptions? emailCooldownOptions = null,
         bool requireEmailConfirmation = false)
     {
         if (db is null)
@@ -36,10 +38,21 @@ public class RegisterCommandHandlerTests
         sessionStore ??= Substitute.For<ISessionStore>();
         auditLogger ??= Substitute.For<IAuthAuditLogger>();
         emailSender ??= Substitute.For<IEmailSender>();
+        if (cooldown is null)
+        {
+            // Default: NOT cooling — the account-exists notice behavioural tests assert the send, so the
+            // #703 cooldown must pass unless a test explicitly injects a cooling gate.
+            cooldown = Substitute.For<ICooldownGate>();
+            cooldown.TryBeginAsync(
+                    Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+                .Returns(true);
+        }
         var options = Options.Create(new AuthOptions { RequireEmailConfirmation = requireEmailConfirmation });
+        var cooldownOptions = Options.Create(emailCooldownOptions ?? new AuthEmailCooldownOptions());
 
         return new RegisterCommandHandler(
-            db, userAccountService, sessionStore, auditLogger, emailSender, options, FakeDateTimeProvider.Default);
+            db, userAccountService, sessionStore, auditLogger, emailSender, cooldown, options, cooldownOptions,
+            FakeDateTimeProvider.Default);
     }
 
     private static IUserAccountService UserAccountServiceCreating(Guid userId)
@@ -213,6 +226,91 @@ public class RegisterCommandHandlerTests
         seekerSet.DidNotReceive().Add(Arg.Any<JobSeeker>());
         await sessionStore.DidNotReceive().CreateAsync(
             Arg.Any<Guid>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_FlagOn_WhenDuplicateAndCooling_SwallowsButSendsNoNotice()
+    {
+        // #703: a within-cooldown duplicate on the SAME address must still swallow to the SAME uniform 202
+        // (Session = null) — but the per-target throttle suppresses a second account-exists notice, so a
+        // taken address cannot be email-bombed by repeated registration. Silent (no 429): a visible throttle
+        // on this UNAUTHENTICATED surface would itself be an enumeration channel.
+        var db = Substitute.For<IAppDbContext>();
+        db.JobSeekers.Returns(Substitute.For<DbSet<JobSeeker>>());
+        var userAccountService = Substitute.For<IUserAccountService>();
+        userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<Guid>(
+                DomainError.Validation(AuthErrorCodes.DuplicateAccount, AuthErrorCodes.DuplicateAccountMessage)));
+        var emailSender = Substitute.For<IEmailSender>();
+        // A fresh (unconfigured) gate returns false for every scope → the account-exists window is active.
+        var cooling = Substitute.For<ICooldownGate>();
+
+        var handler = CreateHandler(
+            db: db, userAccountService: userAccountService, emailSender: emailSender,
+            cooldown: cooling, requireEmailConfirmation: true);
+
+        var result = await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue("a cooled duplicate is still swallowed to the same 202 outcome");
+        result.Value.Session.ShouldBeNull();
+        await emailSender.DidNotReceive().SendAccountExistsNoticeAsync(
+            Arg.Any<string>(), Arg.Any<AccountExistsNoticeIdempotencyKey>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_FlagOn_FreshSignup_DoesNotBeginCooldown()
+    {
+        // #703: the cooldown lives ONLY in the duplicate-swallow branch (under
+        // `requireConfirmation && DuplicateAccount`). A FRESH signup must never begin a window — the address
+        // is the registrant's own, and starting an account-exists window on it would silently suppress a
+        // legitimate notice on a later re-register. (The legacy flag-OFF paths cannot reach the branch at all.)
+        var userId = Guid.NewGuid();
+        var userAccountService = UserAccountServiceCreating(userId);
+        userAccountService.GenerateEmailConfirmationTokenAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(Result.Success("tok"));
+        var cooldown = Substitute.For<ICooldownGate>();
+        cooldown.TryBeginAsync(
+                Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        var handler = CreateHandler(
+            userAccountService: userAccountService, cooldown: cooldown, requireEmailConfirmation: true);
+
+        (await handler.Handle(ValidCommand(), CancellationToken.None)).IsSuccess.ShouldBeTrue();
+
+        await cooldown.DidNotReceive().TryBeginAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_FlagOn_WhenDuplicate_BeginsAccountExistsCooldownWithConfiguredWindow()
+    {
+        // Pins SCOPE + SUBJECT + WINDOW-source: the duplicate branch begins the AccountExists scope keyed on
+        // the recipient address, using AccountExistsNoticeWindowSeconds. A cross-wire to the ResendConfirm
+        // scope (which CooldownScopes forbids) or to ChangeEmailWindowSeconds would be invisible otherwise —
+        // a fresh gate answers uniformly and both windows default to 60.
+        var userAccountService = Substitute.For<IUserAccountService>();
+        userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<Guid>(
+                DomainError.Validation(AuthErrorCodes.DuplicateAccount, AuthErrorCodes.DuplicateAccountMessage)));
+        var emailSender = Substitute.For<IEmailSender>();
+        var cooldown = Substitute.For<ICooldownGate>();
+        cooldown.TryBeginAsync(
+                Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        var handler = CreateHandler(
+            userAccountService: userAccountService, emailSender: emailSender, cooldown: cooldown,
+            emailCooldownOptions: new AuthEmailCooldownOptions { AccountExistsNoticeWindowSeconds = 77 },
+            requireEmailConfirmation: true);
+
+        (await handler.Handle(ValidCommand(), CancellationToken.None)).IsSuccess.ShouldBeTrue();
+
+        await cooldown.Received(1).TryBeginAsync(
+            CooldownScopes.AccountExists, "klas@example.com",
+            TimeSpan.FromSeconds(77), Arg.Any<CancellationToken>());
+        await emailSender.Received(1).SendAccountExistsNoticeAsync(
+            "klas@example.com", Arg.Any<AccountExistsNoticeIdempotencyKey>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

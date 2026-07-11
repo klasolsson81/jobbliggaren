@@ -1,13 +1,16 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Mediator;
+using Microsoft.Extensions.Options;
 
 namespace Jobbliggaren.Application.Auth.Commands.ChangeEmail;
 
 public sealed class ChangeEmailCommandHandler(
     ICurrentUser currentUser,
     IUserAccountService userAccountService,
-    IEmailSender emailSender)
+    IEmailSender emailSender,
+    ICooldownGate cooldown,
+    IOptions<AuthEmailCooldownOptions> cooldownOptions)
     : ICommandHandler<ChangeEmailCommand, Result<Guid>>
 {
     public async ValueTask<Result<Guid>> Handle(ChangeEmailCommand command, CancellationToken cancellationToken)
@@ -25,6 +28,22 @@ public sealed class ChangeEmailCommandHandler(
 
         var userId = currentUser.UserId.Value;
         var newEmail = command.NewEmail;
+
+        // #703: per-user AND per-target anti-email-bomb cooldown. Each request mints a fresh token and mails
+        // an attacker-chosen NewEmail; the per-IP AuthWrite limit protects the attacker's bucket, not the
+        // victim inbox. Check per-USER first (the actor throttle is primary — short-circuit so a throttled
+        // actor cannot also extend a victim's window), then per-TARGET. A cooled request is a VISIBLE 409
+        // (unlike the unauthenticated resend / account-exists silent no-op): this path is authenticated and
+        // already leaks existence via the EmailTaken 409, so anti-enum silence buys nothing and a "wait a
+        // moment" beats a false "link sent". A rejected request consumes the actor's window — the correct
+        // anti-retry behaviour for a rare 60s action.
+        var window = TimeSpan.FromSeconds(cooldownOptions.Value.ChangeEmailWindowSeconds);
+        if (!await cooldown.TryBeginAsync(CooldownScopes.ChangeEmailUser, userId.ToString(), window, cancellationToken)
+            || !await cooldown.TryBeginAsync(CooldownScopes.ChangeEmailTarget, newEmail, window, cancellationToken))
+        {
+            return Result.Failure<Guid>(
+                DomainError.Conflict(AuthErrorCodes.ChangeEmailCooldown, AuthErrorCodes.ChangeEmailCooldownMessage));
+        }
 
         // Request-time uniqueness pre-check (Klas: a clear 409 "adressen är upptagen"). Only an
         // authenticated + re-authenticated user reaches here (ReauthenticationBehavior ran first), so

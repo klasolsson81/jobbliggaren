@@ -1,7 +1,9 @@
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.ResendEmailConfirmation;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
@@ -9,34 +11,41 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Auth;
 
 /// <summary>
-/// #733 — UNIT cover for the resend-confirmation handler (inline Api-side mint+send; CTO 2026-07-10 /
+/// #733/#703 — UNIT cover for the resend-confirmation handler (inline Api-side mint+send; CTO 2026-07-10 /
 /// ADR 0102). Pins the anti-enumeration invariants: uniform Result.Success (202) across cooled /
 /// not-eligible / eligible AND across a send FAILURE (a transport fault must not surface as a differential
 /// 500 that a non-existent address never sees); the cooldown is attempted for EVERY request before
 /// eligibility; a send + audit happen ONLY for an eligible account; the audit is written ONLY after a link
-/// was actually sent; and a cancellation propagates (never swallowed).
+/// was actually sent; and a cancellation propagates (never swallowed). The cooldown now runs through the
+/// generalised <c>ICooldownGate</c> under the <c>ResendConfirm</c> scope with the #733-owned window.
 /// </summary>
 public class ResendEmailConfirmationCommandHandlerTests
 {
     private const string Email = "klas@example.com";
 
-    private readonly IResendCooldown _cooldown = Substitute.For<IResendCooldown>();
+    private readonly ICooldownGate _cooldown = Substitute.For<ICooldownGate>();
+    private readonly IOptions<ResendCooldownOptions> _cooldownOptions =
+        Options.Create(new ResendCooldownOptions());
     private readonly IUserAccountService _userAccountService = Substitute.For<IUserAccountService>();
     private readonly IEmailSender _emailSender = Substitute.For<IEmailSender>();
     private readonly IAuthAuditLogger _auditLogger = Substitute.For<IAuthAuditLogger>();
 
     private ResendEmailConfirmationCommandHandler CreateHandler() =>
-        new(_cooldown, _userAccountService, _emailSender, _auditLogger,
+        new(_cooldown, _cooldownOptions, _userAccountService, _emailSender, _auditLogger,
             NullLogger<ResendEmailConfirmationCommandHandler>.Instance);
 
     private ValueTask<Result> Handle() =>
         CreateHandler().Handle(new ResendEmailConfirmationCommand(Email), CancellationToken.None);
 
     private void NotCooled() =>
-        _cooldown.TryBeginAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
+        _cooldown.TryBeginAsync(
+                Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(true);
 
     private void Cooled() =>
-        _cooldown.TryBeginAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
+        _cooldown.TryBeginAsync(
+                Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(false);
 
     private void Eligible(Guid userId, string token = "url-safe-token") =>
         _userAccountService
@@ -105,16 +114,19 @@ public class ResendEmailConfirmationCommandHandlerTests
     public async Task Handle_AlwaysBeginsCooldownOnce_ForEligibleAndNonEligibleAlike()
     {
         // The cooldown runs before the existence check for both an eligible and a non-eligible address, so
-        // cooldown state never correlates with account existence (CTO-bind FORK 1).
+        // cooldown state never correlates with account existence (CTO-bind FORK 1). Scoped ResendConfirm,
+        // keyed on the target address.
         NotCooled();
         Eligible(Guid.NewGuid());
         await Handle();
-        await _cooldown.Received(1).TryBeginAsync(Email, Arg.Any<CancellationToken>());
+        await _cooldown.Received(1).TryBeginAsync(
+            CooldownScopes.ResendConfirm, Email, Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
 
         _cooldown.ClearReceivedCalls();
         NotEligible();
         await Handle();
-        await _cooldown.Received(1).TryBeginAsync(Email, Arg.Any<CancellationToken>());
+        await _cooldown.Received(1).TryBeginAsync(
+            CooldownScopes.ResendConfirm, Email, Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

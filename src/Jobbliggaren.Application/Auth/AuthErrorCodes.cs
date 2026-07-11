@@ -90,4 +90,21 @@ public static class AuthErrorCodes
     /// </summary>
     public const string InvalidEmailConfirmationTokenMessage =
         "Bekräftelselänken är ogiltig eller har gått ut. Registrera dig igen för att få en ny länk.";
+
+    /// <summary>
+    /// #703 — the authenticated change-email request is inside its per-user or per-target anti-email-bomb
+    /// cooldown window. Rendered as a VISIBLE 409 via the central kind-mapper (unlike the unauthenticated
+    /// resend / account-exists silent no-op): the change-email surface already leaks existence via the
+    /// <c>Auth.EmailTaken</c> 409, so the anti-enum silence buys nothing here and a "wait a moment" is
+    /// better UX than a false "link sent". The per-user throttle is checked first (short-circuit) so a
+    /// blocked actor cannot also extend a victim's window.
+    /// </summary>
+    public const string ChangeEmailCooldown = "Auth.ChangeEmailCooldown";
+
+    /// <summary>
+    /// The single user-facing detail for <see cref="ChangeEmailCooldown"/> (§10, civic tone; no address
+    /// echo, actionable — tells the user to wait).
+    /// </summary>
+    public const string ChangeEmailCooldownMessage =
+        "Du begärde nyligen ett adressbyte. Vänta en liten stund innan du försöker igen.";
 }

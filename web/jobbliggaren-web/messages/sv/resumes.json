@@ -19,7 +19,7 @@
   "delete": {
     "trigger": "Radera CV",
     "title": "Radera CV?",
-    "description": "Du är på väg att radera <name>{name}</name> permanent. Det går inte att ångra.",
+    "description": "Du är på väg att radera <name>{name}</name> permanent, inklusive en eventuell sparad originalfil. Det går inte att ångra.",
     "cancel": "Avbryt",
     "confirm": "Bekräfta radering"
   },

@@ -108,4 +108,23 @@ public class RedisCooldownGateTests
         keys.Count.ShouldBe(2);
         keys[0].ShouldNotBe(keys[1], "distinct scopes must never collide on one subject");
     }
+
+    [Fact]
+    public async Task TryBeginAsync_KeyIsStable_GoldenMasterForKnownScopeAndSubject()
+    {
+        // The key format "MUST NOT change once shipped" (RedisCooldownGate XML doc) — in-flight windows
+        // would reset on deploy. Golden-master the EXACT key for a known (scope, subject): a hash-algorithm
+        // swap, a dropped normalization, or a format change breaks THIS even though the prefix / scope /
+        // normalization tests all still pass.
+        var ct = TestContext.Current.CancellationToken;
+        string? capturedKey = null;
+        _cache.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(ci => { capturedKey = ci.Arg<string>(); return (byte[]?)null; });
+
+        await Sut().TryBeginAsync(CooldownScopes.ResendConfirm, Subject, TimeSpan.FromSeconds(60), ct);
+
+        // sha256("klas@example.com") lower-hex, scope "resend-confirm", version v1.
+        capturedKey.ShouldBe(
+            "cd/resend-confirm/v1/6e85b9891be626310e414a86b4bd050f51e6f7d0fb4fd3426695aeaa20e74e4f");
+    }
 }

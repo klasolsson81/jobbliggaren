@@ -32,8 +32,12 @@ public class ChangeEmailCommandHandlerTests
     private readonly IUserAccountService _service = Substitute.For<IUserAccountService>();
     private readonly IEmailSender _emailSender = Substitute.For<IEmailSender>();
     private readonly ICooldownGate _cooldown = Substitute.For<ICooldownGate>();
+    // A distinct (non-default) window so the tests can pin that the handler reads
+    // ChangeEmailWindowSeconds specifically (a copy-paste swap with AccountExistsNoticeWindowSeconds would
+    // be invisible if both were the 60s default).
+    private const int ChangeEmailWindowSeconds = 137;
     private readonly IOptions<AuthEmailCooldownOptions> _cooldownOptions =
-        Options.Create(new AuthEmailCooldownOptions());
+        Options.Create(new AuthEmailCooldownOptions { ChangeEmailWindowSeconds = ChangeEmailWindowSeconds });
 
     public ChangeEmailCommandHandlerTests()
     {
@@ -133,6 +137,10 @@ public class ChangeEmailCommandHandlerTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Auth.NotAuthenticated");
+        // The auth guard runs BEFORE the cooldown: an unauthenticated request must never begin a window
+        // (it has no userId, and it must not burn a victim's per-target window).
+        await _cooldown.DidNotReceive().TryBeginAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
         await _service.DidNotReceive().IsEmailTakenAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _service.DidNotReceive().GenerateChangeEmailTokenAsync(
             Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -154,6 +162,10 @@ public class ChangeEmailCommandHandlerTests
         var result = await handler.Handle(new ChangeEmailCommand(current, newEmail), CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();
+        // The input guard runs BEFORE the cooldown, so a null/empty new email never reaches the gate — this
+        // also guarantees no NRE on subject.Trim() for a null NewEmail, and no window is burned on bad input.
+        await _cooldown.DidNotReceive().TryBeginAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
         await _service.DidNotReceive().GenerateChangeEmailTokenAsync(
             Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
@@ -217,10 +229,14 @@ public class ChangeEmailCommandHandlerTests
         (await handler.Handle(new ChangeEmailCommand(CurrentPassword, NewEmail), CancellationToken.None))
             .IsSuccess.ShouldBeTrue();
 
+        // Both scopes are begun with the ChangeEmailWindowSeconds window (pins the options-property source —
+        // a swap with AccountExistsNoticeWindowSeconds would be caught here).
         await _cooldown.Received(1).TryBeginAsync(
-            CooldownScopes.ChangeEmailUser, userId.ToString(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+            CooldownScopes.ChangeEmailUser, userId.ToString(),
+            TimeSpan.FromSeconds(ChangeEmailWindowSeconds), Arg.Any<CancellationToken>());
         await _cooldown.Received(1).TryBeginAsync(
-            CooldownScopes.ChangeEmailTarget, NewEmail, Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+            CooldownScopes.ChangeEmailTarget, NewEmail,
+            TimeSpan.FromSeconds(ChangeEmailWindowSeconds), Arg.Any<CancellationToken>());
     }
 
     [Fact]

@@ -266,7 +266,7 @@ WHERE length(organization_number) <> 10 OR substring(organization_number, 3, 1) 
 --    excludedPnr/sweepApplied). audit_log is day-partitioned (ADR 0024).
 SELECT occurred_at, event_type, payload
 FROM audit_log
-WHERE event_type = 'CompanyRegisterSynced'
+WHERE event_type = 'System.CompanyRegisterSynced'
 ORDER BY occurred_at DESC
 LIMIT 1;
 ```
@@ -357,6 +357,31 @@ the run's clock window against §1 point 4, and re-run in the Saturday slot —
 do **NOT** re-open a query-shape hunt without a descriptor showing a genuinely
 rejected shape, and build #712 on completion-run `FailedPartitionCount`
 evidence, not speculation (ADR 0091 amendment #6).
+
+**Second data point (2026-07-11 completion run) — new evidence, theory not yet
+reconciled.** The isolated Saturday run (06:30→16:53 UTC, entirely inside
+daytime, crossing neither a nightly-update window nor 02:00–05:00) landed
+**177** failed partitions (vs 40 on 2026-07-05) — `sweepApplied=False`, audit
+row `FailedPartitionCount: 177, ProtectedPartitionCount: 35`. All 177 `5702`
+descriptors carry the **identical** SCB reason `{"Message":"Ett oväntat fel
+har uppstått. Försök igen eller kontakta SCB om felet kvarstår."}` (a generic
+server-side error, not a validation-specific rejection). **82% (146/177) fall
+in Stockholms län** (kommun-prefix `01`; kommun `0180` alone = 29) — exactly
+the kommuner requiring the deepest #628 split (most simultaneous filter
+dimensions, since Stockholm has the most companies). ~94% of the failures are
+clustered in the first ~40% of the run's elapsed time. Since a run avoiding
+the nightly window entirely still saw *more* failures than the first run,
+this **weakens** (does not yet refute) the nightly-window attribution above —
+kommun-order plausibly equals both iteration order and elapsed-time order
+here, so "time-of-day" and "Stockholm's deep-split cells are
+disproportionately fragile" are confounded in a single run, not
+disentangled. Evidence only — posted to `#708` (`issuecomment-4948287799`),
+no query-shape hunt opened, no code changed; the choice between building
+#712 now (the uniform "try again" message is suggestive a retry would
+recover most), probing the Stockholm/deep-split-complexity angle, or
+re-running to see if the clustering repeats is Klas/senior-cto-advisor's to
+make, not resolved here. Full descriptor breakdown in
+`docs/sessions/2026-07-11-708-completion-run-dirty.md` (local).
 
 ### Known failure signature — DB contention (#688, first live run 2026-07-05)
 The chain, for pattern-matching a future log: `System.TimeoutException: Timeout

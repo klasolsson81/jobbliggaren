@@ -8620,7 +8620,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* ── Tabell-vyn (#630 PR 10, design §7): volymvyn — sorterbar, bulk, 50/sida ──
    Egen .jp-apptable-familj — admin-ledgerns .jp-table (granskning) ateranvands
    INTE (annan scope, annan densitet). Vit container radie 6, rubrikrad h42
-   mono versaler, radhover surface-2, vald rad accent-50. Tokens flippar sjalva
+   sans kontrolltext (sentence-case, sorterbar thead → kontroll, #779),
+   radhover surface-2, vald rad accent-50. Tokens flippar sjalva
    i dark (accent-50/warning/ink-1/ink-inverse) — inga dark-overrides behovs. */
 .jp-apptable-wrap {
   display: flex;
@@ -8646,23 +8647,29 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-apptable__col--step   { width: 110px; }
 .jp-apptable__col--event  { width: 26%; }
 .jp-apptable__col--next   { width: 170px; }
+/* Interaktiva/sorterbara kolumnhuvuden AR kontroller, inte kvitto-etiketter ->
+   kontrolltext (sans --text-body-sm 14px / --jp-fw-semibold / ink-1 /
+   sentence-case), inte mono-caps. DESIGN.md 4-diskriminator (interaktiv/sorterbar
+   -> kontrolltext; statisk/kvitto -> mono-caps), CTO-bind 2026-07-10 / #779.
+   Alla 6 huvuden delar basen: event/next ar icke-sorterbara men bor i samma
+   interaktiva thead -> samma register (en blandad sans/mono-rad laser trasig). */
 .jp-apptable__th {
   height: 42px;
   padding: 0 14px;
   text-align: left;
   vertical-align: middle;
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-overline);
-  font-weight: var(--jp-fw-bold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--jp-ink-2);
+  font-family: var(--jp-font-sans);
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--jp-ink-1);
   border-bottom: 2px solid var(--jp-border-strong);
   white-space: nowrap;
 }
 .jp-apptable__th--check { padding: 0 0 0 14px; }
-/* Sorterbart huvud: knappen ARVER mono-stilen och fyller cellen — hela ytan
-   klickbar (Fitts), aria-sort pa th bar semantiken. */
+/* Sorterbart huvud: knappen ARVER kontrolltext-stilen och fyller cellen — hela
+   ytan klickbar (Fitts), aria-sort pa th bar semantiken. */
 .jp-apptable__th--sortable { padding: 0; }
 .jp-apptable__sortbtn {
   display: inline-flex;
@@ -8680,13 +8687,24 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: inherit;
   text-align: left;
 }
-.jp-apptable__sortbtn:hover { color: var(--jp-ink-1); }
+/* Sortbtn-tillstandsmatris (CTO-bind 2026-07-10 / #779): nar th-basen ar ink-1
+   flyttas affordansen fran ljushet till accent-farg (interaktion) + pil-glyf
+   (sorterad-kvitto) — aven WCAG 1.4.1 (pilen ar icke-farg-diskriminator).
+   Rest = ink-1 (arvt), hover = accent-700, sorterad = ink-1 + accent-tintad pil,
+   sorterad+hover = accent-700 (0,3,0 vinner over [data-active]). accent-700 ar
+   text-interaktions-token (dark-skiftas till #6EE7A8); accent-800 anvands ALDRIG
+   som textfarg (FILL-token, dark-osaker). */
+.jp-apptable__sortbtn:hover { color: var(--jp-accent-700); }
 .jp-apptable__sortbtn:focus-visible {
   outline: 2px solid var(--jp-accent-700);
   outline-offset: -2px;
 }
 .jp-apptable__sortbtn[data-active] { color: var(--jp-ink-1); }
-.jp-apptable__sortarrow { font-size: var(--text-overline); }
+.jp-apptable__sortbtn[data-active]:hover { color: var(--jp-accent-700); }
+/* Pilen halls pa overline-token (11px, ~0.8x huvudets 14px) — dekorativ
+   aria-hidden-glyf, accent-tintad (gront = interaktion; huvudtexten stannar
+   ink-1). Token, ej font-size-litteral (guard-css). */
+.jp-apptable__sortarrow { font-size: var(--text-overline); color: var(--jp-accent-700); }
 .jp-apptable__row { position: relative; }
 .jp-apptable__cell {
   padding: 9px 14px;

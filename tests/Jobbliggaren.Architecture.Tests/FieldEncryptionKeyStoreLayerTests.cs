@@ -112,6 +112,7 @@ public class FieldEncryptionKeyStoreLayerTests
                 "Jobbliggaren.Application.Common.Security.GeneratedDataKey",
                 "Jobbliggaren.Application.Common.Security.IBinaryFieldEncryptor",
                 "Jobbliggaren.Application.Common.Security.IBinaryFieldSealer",
+                "Jobbliggaren.Application.Common.Security.IBinaryFieldOpener",
                 UserDataKeyFqn,
                 "Jobbliggaren.Infrastructure")
             .GetResult();

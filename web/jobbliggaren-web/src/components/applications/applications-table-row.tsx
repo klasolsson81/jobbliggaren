@@ -9,7 +9,7 @@ import {
   isWaitingSignal,
 } from "@/lib/applications/status";
 import { daysInStatus } from "@/lib/applications/urgency";
-import { latestEventOf } from "@/lib/applications/latest-event";
+import { latestEventLabelKey, latestEventOf } from "@/lib/applications/latest-event";
 import { formatDate } from "@/lib/i18n/format";
 import { useApplicationActions } from "./application-actions";
 import { useRowActions } from "./use-row-actions";
@@ -62,10 +62,7 @@ export function ApplicationsTableRow({
 
   const event = latestEventOf(application);
   const eventDate = formatDate(format, event.at) ?? "";
-  const eventLabel =
-    event.kind === "FollowUpLogged"
-      ? tUi("table.lastEventFollowUp")
-      : tUi(`table.reached${event.toStatus}`);
+  const eventLabel = tUi(latestEventLabelKey(event));
 
   // "Nästa steg"-kolumnen (design §7): moveToNext renderas som kompakt
   // "→ {nästa}" (170px-kolumnen); Draft/Ghosted-specialen behåller sina

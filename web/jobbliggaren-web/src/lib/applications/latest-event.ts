@@ -41,3 +41,18 @@ export function latestEventOf(
   }
   return { kind: "StatusReached", at: statusAt, toStatus: application.status };
 }
+
+/**
+ * i18n-nyckeln för en `LatestEvent`-etikett (`applications.ui`-namespace). Ägs
+ * av unionens modul så mappningen är exhaustiv på ETT ställe — Lista-kortet och
+ * Tabell-raden delar den (DRY, dotnet-architect PR-4). Nyckeln resolvas per
+ * konsument via deras `useTranslations("applications.ui")` så next-intl
+ * fortfarande validerar mallen i respektive kontext.
+ */
+export function latestEventLabelKey(
+  event: LatestEvent,
+): `table.lastEventFollowUp` | `table.reached${ApplicationStatus}` {
+  return event.kind === "FollowUpLogged"
+    ? "table.lastEventFollowUp"
+    : `table.reached${event.toStatus}`;
+}

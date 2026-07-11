@@ -2,12 +2,15 @@
 
 import { useId } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import {
   applicationStatusLabel,
   getStatusTagDataAttr,
+  isWaitingSignal,
 } from "@/lib/applications/status";
 import { daysInStatus, urgencyTagFor } from "@/lib/applications/urgency";
+import { latestEventLabelKey, latestEventOf } from "@/lib/applications/latest-event";
+import { formatDate } from "@/lib/i18n/format";
 import { useApplicationActions } from "./application-actions";
 import { useRowActions } from "./use-row-actions";
 import { useUrgencyLabel } from "./use-urgency-label";
@@ -42,21 +45,25 @@ interface ApplicationRowProps {
 }
 
 /**
- * 2a-ansökningsraden (#630 PR 7, design §5) — 3-zons-grid
- * `minmax(0,1fr) auto auto` via den ADDITIVA `.jp-app--actions`-modifiern
- * (bas-chassit `.jp-job,.jp-app` orört — PR5-bind E / CTO-bind 6):
+ * 2a-ansökningsraden (#630 PR 7, #780 PR-4 "kort-native", design §5) — kortet
+ * adopterar Tabell-vyns fältordning så Lista och Tabell läser konsistent
+ * (Stage-M-audit 2026-07-10, Klas live-pick Variant C 2026-07-11).
  *
- *   1. Vänster: roll + företag (en rad, ellipsis).
- *   2. Info-zon: ev. bråttom-tagg (§11, data-grundad — aldrig fabricerad) +
- *      statustagg + "N dagar i steget" (list-DTO:ns `lastStatusChangeAt`).
- *   3. Handlingszon: avdelare + primär rad-knapp + "Byt status ▾"-meny.
- *      Allt till höger om avdelaren är klickbart (design §5).
+ * 2-zons-grid `minmax(0,1fr) auto` via den ADDITIVA `.jp-app--actions`-modifiern
+ * (bas-chassit `.jp-job,.jp-app` orört — gäst delar; PR5-bind E / CTO-bind 6):
+ *
+ *   1. Vänster (body): roll + företag, sedan meta-raden [ev. §11-bråttom-tagg +
+ *      statustagg + "N dagar i steget" med `data-waiting`-varning] och en
+ *      senaste-händelse-rad ("{händelse} den {datum}", FE-härledd, notistext
+ *      GDPR-blockad — `latestEventOf`, delad med Tabellen).
+ *   2. Höger (actions): primär rad-knapp + fulltext "Byt status ▾"-meny.
  *
  * Rad-klick → detaljmodalen via LÄNK-OVERLAY (CTO-bind 6, a11y): titeln är
- * radens enda <a>, sträckt över hela raden med ::after — knappzonerna ligger
+ * radens enda <a>, sträckt över hela raden med ::after — handlingszonen ligger
  * ovanpå (z-index) så interaktiva element aldrig nästlas i ankaret (ogiltig
- * HTML). Soft-nav öppnar den centrerade route-modalen (ADR 0053); ett
- * modifierat klick (ny flik) når fullsidan via href.
+ * HTML). Meta-radens taggar/dagar är icke-interaktiva → får ligga under
+ * overlayn (klick = öppna raden). Soft-nav öppnar den centrerade route-modalen
+ * (ADR 0053); ett modifierat klick (ny flik) når fullsidan via href.
  */
 export function ApplicationRow({
   application,
@@ -67,6 +74,7 @@ export function ApplicationRow({
 }: ApplicationRowProps) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
+  const format = useFormatter();
   const { pendingIds } = useApplicationActions();
   const { defaultPrimaryFor } = useRowActions();
   const { jobAd, status } = application;
@@ -79,11 +87,25 @@ export function ApplicationRow({
     : tUi("row.fallbackTitle", { shortId: application.id.slice(0, 8) });
 
   const days = daysInStatus(application.lastStatusChangeAt, now);
+  // "I steget"-varningen keyar på attention-signalen (firande väntesignal ≠
+  // OfferAwaitingReply), ALDRIG en klient-dagströskel — samma facit som Tabellen.
+  const waiting = isWaitingSignal(application.attentionSignal);
   const urgency = urgencyTagFor(application, now);
   // Delad SSOT med Tavla-kortet (DRY, PR 8) — tidigare en inline-IIFE här.
   const urgencyLabel = useUrgencyLabel(urgency);
 
-  // Radens default-primär härleds nu i den delade `useRowActions`-hooken (DRY,
+  // Senaste händelse (Tabell-facit, #630 PR 10): FE-skalär ur list-DTO:n, ingen
+  // BE-projektion. Uppföljningens fritext är PII (DEK-gräns) och surfas ALDRIG —
+  // en uppföljning bär bara den generiska "Uppföljning loggad"-etiketten.
+  const event = latestEventOf(application);
+  const eventDate = formatDate(format, event.at);
+  const eventLabel = tUi(latestEventLabelKey(event));
+  const eventLine =
+    eventDate != null
+      ? tUi("row.latestEvent", { event: eventLabel, date: eventDate })
+      : eventLabel;
+
+  // Radens default-primär härleds i den delade `useRowActions`-hooken (DRY,
   // #630 PR 10 / senior-cto-advisor Fork 4) så Tabell-vyns "Nästa steg" delar
   // exakt samma mappning. Kökortet override:ar via `primaryAction` (§11-urgens).
   const primary =
@@ -114,26 +136,26 @@ export function ApplicationRow({
             : applicationStatusLabel(t, status)}
         </span>
         {hasIdentity && <div className="jp-app__company">{jobAd.company}</div>}
-      </div>
 
-      <div className="jp-app__signals">
-        {urgencyLabel != null && urgency != null && (
-          <span className="jp-tag" data-urgency={urgency.variant}>
-            {urgencyLabel}
+        <div className="jp-app__metaline">
+          {urgencyLabel != null && urgency != null && (
+            <span className="jp-tag" data-urgency={urgency.variant}>
+              {urgencyLabel}
+            </span>
+          )}
+          <span className="jp-tag" data-tag={getStatusTagDataAttr(status)}>
+            {applicationStatusLabel(t, status)}
           </span>
-        )}
-        <span className="jp-tag" data-tag={getStatusTagDataAttr(status)}>
-          {applicationStatusLabel(t, status)}
-        </span>
-        {days != null && (
-          <span className="jp-app__days">
-            {tUi("row.daysInStep", { days })}
-          </span>
-        )}
+          {days != null && (
+            <span className="jp-app__days" data-waiting={waiting || undefined}>
+              {tUi("row.daysInStep", { days })}
+            </span>
+          )}
+        </div>
+        <div className="jp-app__eventline">{eventLine}</div>
       </div>
 
       <div className="jp-app__actions jp-app__actions--row">
-        <span className="jp-app__divider" aria-hidden="true" />
         {primary != null && (
           <button
             type="button"

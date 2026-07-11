@@ -84,13 +84,15 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     expect(row).toHaveClass("jp-app--actions");
   });
 
-  it("renderar EXAKT 3 grid-zoner (body + signals + actions)", () => {
+  it("renderar 2 grid-zoner (body + actions) i kort-native-layouten (#780 PR-4)", () => {
     const { container } = renderRow(makeApplication());
     const row = container.querySelector("article")!;
-    expect(row.children).toHaveLength(3);
+    // Kort-native (Variant C): status/dagar/senaste-händelse flyttar in i body-
+    // kolumnen; actions-kolumnen bär primär-CTA + fulltext-meny.
+    expect(row.children).toHaveLength(2);
     expect(row.children[0]).toHaveClass("jp-job__body");
-    expect(row.children[1]).toHaveClass("jp-app__signals");
-    expect(row.children[2]).toHaveClass("jp-app__actions");
+    expect(row.children[1]).toHaveClass("jp-app__actions");
+    expect(row.children[1]).toHaveClass("jp-app__actions--row");
   });
 
   it("titeln är radens ENDA länk (länk-overlay, ingen nästlad interaktivitet i ankaret)", () => {
@@ -119,13 +121,13 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     expect(fallback.closest("h3")).toHaveClass("jp-mono");
   });
 
-  it("renderar status som kvadratisk färgkodad .jp-tag i signal-zonen", () => {
+  it("renderar status som kvadratisk färgkodad .jp-tag i meta-raden (#780)", () => {
     const { container } = renderRow(makeApplication());
     const statusTag = screen.getByText("Skickad");
     expect(statusTag).toHaveClass("jp-tag");
     // Submitted → STATUS_BADGE_VARIANT Info → "status-info" (#683, design §11).
     expect(statusTag).toHaveAttribute("data-tag", "status-info");
-    expect(container.querySelector(".jp-app__signals")).toContainElement(
+    expect(container.querySelector(".jp-app__metaline")).toContainElement(
       statusTag
     );
   });
@@ -138,6 +140,56 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
   it("utelämnar dagar-i-steget när lastStatusChangeAt saknas (deploy-skew)", () => {
     renderRow(makeApplication({ lastStatusChangeAt: undefined }));
     expect(screen.queryByText(/i steget/)).not.toBeInTheDocument();
+  });
+
+  it("markerar dagarna med data-waiting när attention-signalen firar (#780, Tabell-facit)", () => {
+    // isWaitingSignal(NoResponseNudge) = true → warning-färgad dagar-text.
+    const { container } = renderRow(
+      makeApplication({ attentionSignal: "NoResponseNudge" })
+    );
+    expect(container.querySelector(".jp-app__days")).toHaveAttribute(
+      "data-waiting"
+    );
+  });
+
+  it("saknar data-waiting på dagarna utan väntesignal", () => {
+    const { container } = renderRow(makeApplication());
+    expect(container.querySelector(".jp-app__days")).not.toHaveAttribute(
+      "data-waiting"
+    );
+  });
+
+  it("renderar senaste-händelse-raden ur latestEventOf ('{händelse} den {datum}', #780)", () => {
+    const { container } = renderRow(makeApplication());
+    // Submitted + lastStatusChangeAt 2026-05-10 → StatusReached → "Ansökan
+    // skickad"; formatDate(sv) → "10 maj 2026". Uppföljningens fritext (PII/DEK)
+    // surfas ALDRIG — endast den generiska etiketten.
+    expect(container.querySelector(".jp-app__eventline")).toHaveTextContent(
+      "Ansökan skickad den 10 maj 2026"
+    );
+  });
+
+  it("renderar 'Uppföljning loggad den {datum}' när uppföljningen är senaste händelsen (#780, PII/DEK-grenen)", () => {
+    // followUpAt (2026-05-14) > lastStatusChangeAt (2026-05-10) → FollowUpLogged.
+    // Uppföljningens fritext (PII/DEK-gräns) surfas ALDRIG — endast den generiska
+    // etiketten "Uppföljning loggad".
+    const { container } = renderRow(
+      makeApplication({ lastFollowUpAt: "2026-05-14" })
+    );
+    expect(container.querySelector(".jp-app__eventline")).toHaveTextContent(
+      "Uppföljning loggad den 14 maj 2026"
+    );
+  });
+
+  it("placerar §11-bråttom-taggen i meta-raden (#780, code-reviewer Minor)", () => {
+    const { container } = renderRow(
+      makeApplication({ attentionSignal: "NoResponseNudge" })
+    );
+    const urgencyTag = container.querySelector<HTMLElement>("[data-urgency]");
+    expect(urgencyTag).not.toBeNull();
+    expect(container.querySelector(".jp-app__metaline")).toContainElement(
+      urgencyTag
+    );
   });
 
   // §11 bråttom-taggar — data-grundade, keyade på backend-signalen (SSOT).

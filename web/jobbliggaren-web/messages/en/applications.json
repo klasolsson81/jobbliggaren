@@ -72,7 +72,8 @@
       "moveToNext": "Move to {status}",
       "reactivate": "Reactivate",
       "finishAndSend": "Finish and send",
-      "daysInStep": "{days, plural, one {# day in this step} other {# days in this step}}"
+      "daysInStep": "{days, plural, one {# day in this step} other {# days in this step}}",
+      "latestEvent": "{event} on {date}"
     },
     "statusMenu": {
       "trigger": "Change status",

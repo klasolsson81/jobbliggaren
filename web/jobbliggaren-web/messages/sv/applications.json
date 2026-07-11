@@ -72,7 +72,8 @@
       "moveToNext": "Flytta till {status}",
       "reactivate": "Återaktivera",
       "finishAndSend": "Slutför och skicka",
-      "daysInStep": "{days, plural, one {# dag i steget} other {# dagar i steget}}"
+      "daysInStep": "{days, plural, one {# dag i steget} other {# dagar i steget}}",
+      "latestEvent": "{event} den {date}"
     },
     "statusMenu": {
       "trigger": "Byt status",

@@ -10,7 +10,9 @@ import { buildPageHref } from "./jobb-results";
  * paginering alls, så raden hade kunnat tas bort utan att något blev rött.
  */
 describe("buildPageHref — q-klampen (#823)", () => {
-  const params = { page: "1" } as Parameters<typeof buildPageHref>[0];
+  // Annotering, inte `as`: en assertion hade stängt av kontrollen permanent — läggs ett
+  // required-fält till fortsätter filen kompilera medan buildern tar en annan gren.
+  const params: Parameters<typeof buildPageHref>[0] = {};
 
   it("droppar ett q under backendens minimum ur sidlänken", () => {
     const href = buildPageHref({ ...params, q: "a" }, 2, 20);

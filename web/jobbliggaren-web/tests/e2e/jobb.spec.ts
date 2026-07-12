@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, errors } from "@playwright/test";
 import { loginAs, ensureConfirmedTestUser } from "./helpers/auth";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
@@ -147,7 +147,13 @@ test.describe("/jobb — auth-gated rendering", () => {
     const poisoned = await page
       .waitForURL(/[?&]q=/, { timeout: 5_000 })
       .then(() => true)
-      .catch(() => false);
+      // ENBART timeout betyder "ingen regression". En ovillkorlig catch hade svalt
+      // page-closed, frame-detached och krascher och gjort dem till PASS (§5: ingen
+      // catch-all utan åtgärd) — den sista otestade grenen i konstruktionen.
+      .catch((e: unknown) => {
+        if (e instanceof errors.TimeoutError) return false;
+        throw e;
+      });
     expect(poisoned, `q committades: ${page.url()}`).toBe(false);
 
     // Sekundära, medvetet svagare: "Inga jobb hittades" är redan synligt före klicket (tom

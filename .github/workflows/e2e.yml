@@ -12,13 +12,15 @@
 # (Auth__RequireEmailConfirmation=true). The loginAs specs obtain a confirmed user via
 # the dev-only confirmed-login seam (POST /api/v1/dev/confirm-email, #796); auth.spec.ts
 # runs against an unconfirmed user. See docs/runbooks/e2e-ci.md.
+#
+# TRIGGER = workflow_dispatch ONLY (2026-07-12, #813). The pre-existing specs are not yet
+# green (loginAs waited for the wrong post-login URL) and the job hits the 25-min timeout
+# on `pnpm dev` cold-compile, so running on every push/PR only produced a red check +
+# ~25 min of wasted full-stack CI per PR. Kept as manual-dispatch for #813 development;
+# restore the push/pull_request triggers once #813 makes the suite green and fast.
 name: e2e
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

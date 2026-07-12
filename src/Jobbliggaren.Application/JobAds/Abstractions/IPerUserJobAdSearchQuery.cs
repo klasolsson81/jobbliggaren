@@ -168,4 +168,30 @@ public interface IPerUserJobAdSearchQuery
         FullCandidateMatchProfile profile,
         IReadOnlyList<MatchGrade> grades,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Bevaknings-reconcile PR-F1 (RF-3=3D / RF-5=5A, 2026-07-12) — of
+    /// <paramref name="jobAdIds"/>, returns those whose Fast grade for this user's
+    /// <paramref name="profile"/> is ≥Good (the FIXED "matchande"-floor — no grade parameter,
+    /// no numeric threshold). Reuses the SAME shared <c>GradeRankExpression</c> SSOT as
+    /// <see cref="SearchPerUserAsync"/>/<see cref="CountPerUserAsync"/>/
+    /// <see cref="CountPerUserByEmployerAsync"/> (ADR 0079) — the follow-rail's in-app surface
+    /// (Api, PR-F2) and the follow digest (Worker, PR-F3) read ONE grade authority, evaluated
+    /// read-time (the grade is never persisted — Goodhart). ≥Good is EXACT in Fast (Fast ≡ Full
+    /// at ≥Good; Top's SQL-incomputability is irrelevant to a ≥Good membership). Soft-deleted
+    /// and non-Active ads are excluded (an expired ad is not "matchande").
+    /// <para>
+    /// <b>Precondition (fail-fast):</b> called ONLY with an ASSESSABLE profile
+    /// (<c>Fast.SsykGroupConceptIds</c> non-empty). An empty-SSYK profile grades every ad 0, so
+    /// the result would be an empty set that MEANS "not assessable", NOT "zero matches" — the
+    /// dishonest-0 trap. The caller MUST branch on assessability first: a profile-less user's
+    /// "endast matchade" filter is INERT (deliver unfiltered + nudge, RF-5 under-fork (i)), and
+    /// this method is never called for one. The method throws on an empty-SSYK profile so the
+    /// distinction is forced to the call boundary.
+    /// </para>
+    /// </summary>
+    ValueTask<IReadOnlySet<JobAdId>> FilterToMatchingAsync(
+        FullCandidateMatchProfile profile,
+        IReadOnlyCollection<JobAdId> jobAdIds,
+        CancellationToken cancellationToken);
 }

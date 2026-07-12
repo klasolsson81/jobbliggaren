@@ -44,6 +44,8 @@ const CONFIDENCE: ParseConfidenceDto = {
 
 function makeContent(overrides: Partial<ParsedContentDto> = {}): ParsedContentDto {
   return {
+    // #815: fria sektioner ("Projekt", "Referenser") — tomma om inget test säger annat.
+    sections: [],
     contact: { fullName: "Anna Andersson", email: null, phone: null, location: null },
     profile: null,
     experiences: [],
@@ -261,5 +263,30 @@ describe("CvCompleteGuide — Spara (befordran)", () => {
     expect(content.sections).toEqual([
       { heading: "Projekt", entries: [{ title: "Jobbpilot", lines: [] }] },
     ]);
+  });
+});
+
+describe("CvCompleteGuide — fria sektioner prefylls (#815)", () => {
+  it("PROJEKT från CV:t hamnar i sektionsfältet, med rubriken ordagrant", async () => {
+    const user = userEvent.setup();
+    renderGuide(
+      makeContent({
+        sections: [
+          {
+            heading: "PROJEKT",
+            entries: [
+              { title: "Betalplattform", lines: ["Byggde en betaltjänst i .NET."] },
+            ],
+          },
+        ],
+      })
+    );
+
+    // Navigera till sista steget (sektioner).
+    await user.click(screen.getByRole("button", { name: /erfarenhet/i }));
+
+    // Rubriken är användarens egen — "PROJEKT", inte "projekt".
+    expect(await screen.findByDisplayValue("PROJEKT")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Betalplattform")).toBeInTheDocument();
   });
 });

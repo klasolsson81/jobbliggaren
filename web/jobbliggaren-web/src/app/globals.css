@@ -4856,8 +4856,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
    skarm" halls.
    #805 punkt 1 (Klas Beslut A): emfasen VASSAS med en ljus accent-50-tint i vila
    (den sanktionerade "emphasis/selekterad"-tinten, INTE en solid accent-800-fyllning
-   — #788:s karnregel "ingen solid fyllning" intakt). Hover fordjupar till accent-100
-   (bas-.jp-rowbtn-hovern ar accent-50, sa emfasen behover ett eget djupare steg). */
+   — #788:s karnregel "ingen solid fyllning" intakt). I LIGHT fordjupar hover till
+   accent-100 (bas-.jp-rowbtn-hovern ar accent-50, sa emfasen behover ett eget
+   djupare steg); i DARK ar accent-50 och accent-100 samma varde (#0E2A1E) sa
+   hover-deltat gäller light — i dark bar accent-700-kanten + fet vikt + den
+   globala fokusringen emfasen (design-reviewer Minor). */
 .jp-rowbtn--emphasis {
   border-color: var(--jp-accent-700);
   font-weight: var(--jp-fw-bold);
@@ -7261,8 +7264,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-radius: var(--jp-r-md);
   padding-right: 4px;
   /* Ljus pill på mörk gradient → återställ fokusringen från plattans VITA
-     (osynlig mot ljust) till accent-700, precis som .jp-popover gör. */
-  --jp-focus: var(--jp-accent-700);
+     (osynlig mot ljust). MÅSTE vara accent-800 (#15603F, dark-skiftas ALDRIG),
+     INTE accent-700 (skiftar till ljus mint #6EE7A8 i dark → ~1.35:1 mot den
+     tema-pinnade accent-50-pillen = WCAG 2.4.7-fail; design-reviewer Blocker).
+     accent-800 ger ~6.6:1 i BÅDA teman. */
+  --jp-focus: var(--jp-accent-800);
 }
 .jp-pagehero__aside--stacked
   .jp-pagehero__helpedctl
@@ -7270,12 +7276,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: transparent;
   border-color: transparent;
 }
-/* Fokusring för pillens barn: accent-700 INSET (-2px) så den ritas på den ljusa
+/* Fokusring för pillens barn: accent-800 INSET (-2px) så den ritas på den ljusa
    accent-50-ytan i stället för att delvis hamna på den mörka gradienten runt
-   pillen (WCAG 2.4.7 — synlig kontrast i BÅDA riktningar). */
+   pillen (WCAG 2.4.7 — synlig ~6.6:1 i BÅDA teman; accent-800 är tema-stabil). */
 .jp-pagehero__helpedctl a:focus-visible,
 .jp-pagehero__helpedctl button:focus-visible {
-  outline: 2px solid var(--jp-accent-700);
+  outline: 2px solid var(--jp-accent-800);
   outline-offset: -2px;
 }
 .jp-pagehero__help {

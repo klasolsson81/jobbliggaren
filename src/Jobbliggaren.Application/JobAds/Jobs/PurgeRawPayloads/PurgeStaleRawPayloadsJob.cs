@@ -23,6 +23,33 @@ namespace Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 /// </para>
 ///
 /// <para>
+/// <b>⚠ BLAST RADIUS — nulling raw_payload destroys SEVEN columns, not one (#824 / #841).</b>
+/// <c>job_ads</c> carries seven STORED generated columns derived from <c>raw_payload</c>
+/// (<c>organization_number</c>, <c>municipality_concept_id</c>, <c>ssyk_concept_id</c>,
+/// <c>region_concept_id</c>, <c>occupation_group_concept_id</c>, <c>employment_type_concept_id</c>,
+/// <c>worktime_extent_concept_id</c> — see <c>JobAdConfiguration</c>). Postgres RECOMPUTES a stored
+/// generated column on every UPDATE of its base, so this job silently nulls all seven. Consequences,
+/// all proven against real Postgres: facet-filtered search and per-user background matching lose the
+/// ad (they filter on those columns), the company-watch scan's location filter misses it, and the
+/// employer application-history projection can no longer attribute the application. This job's own
+/// stated purpose says nothing about any of that — which is exactly why the defect survived two
+/// releases. Root cause fixed in #841 (materialise the seven as ordinary, C#-written ingest columns);
+/// do NOT "fix" it by exempting ads from the purge (that subordinates a GDPR minimisation control to
+/// a search-correctness need — senior-cto-advisor, 2026-07-12).
+/// </para>
+///
+/// <para>
+/// <b>⚠ The retention rule this job implements is NOT the documented one (#845).</b> The daily
+/// full-backfill sync (<c>SyncPlatsbankenSnapshotJob</c>, cron <c>0 2 * * *</c>) rewrites
+/// <c>raw_payload</c> unconditionally for every ad still in the feed, so for a still-listed ad this
+/// purge is undone ~21.5h later, every day. The de-facto rule is "30 days after the ad LEAVES the
+/// feed", not "30 days after publication". <b>And the mitigation is largely illusory (#842):</b> the
+/// recruiter free-text this job exists to scrub also lives in the ordinary <c>job_ads.description</c>
+/// column, which is never purged — so the identical text survives, and remains FTS-searchable via
+/// <c>search_vector</c>.
+/// </para>
+///
+/// <para>
 /// Audit-wire av <c>RawPayloadPurgedDomainEvent</c> defereras till TD-73
 /// right-to-erasure-batch (gemensam audit-wire via <c>ISystemEventAuditor</c>
 /// per senior-cto-advisor 2026-05-13 punkt 5). Interim: count + cutoff

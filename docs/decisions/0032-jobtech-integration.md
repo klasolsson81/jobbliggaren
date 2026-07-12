@@ -997,3 +997,84 @@ Räkne-exempel: korpus 56k aktiva, förväntad första-körning ~10k archive ≈
 - ADR 0049 (TD-13 C2 `IUserDataKeyStore`-port-paritet)
 - ADR 0062 (FTS-hybrid + `IJobAdSearchQuery`-port — ApplyCriteria-filter dokumenteras i ADR 0062-amendment 2026-05-23)
 - TD-86 not 2026-05-23 — korpus-storlek-delen (recall-gap punkt 1 m.fl.) löses indirekt av denna amendment via retention; TD-86 förblir öppen för övriga sök/filter-fynd
+
+---
+
+## Amendment 2026-07-12 — §8's retention model is not what the code implements (#824)
+
+**Status:** Accepted. **Trigger:** #824 (DPIA truth-sync) surfaced three defects in §8's own account of
+itself, all verified empirically against real Postgres (Testcontainers). This amendment records the
+truth; the code conformance work is tracked in #841/#842/#845 and is **not** done here.
+
+### A1 — "indefinitively för sanitized fields" is false. Seven of them self-destruct after 30 days.
+
+§8 states the retention model as *"30 dagar för `raw_payload`, **indefinitively för sanitized fields**"*
+and reasons that total null-out is safe because only *debug value* is at stake (CTO-rond 2026-05-13,
+punkt 8).
+
+**That reasoning was correct when written and was invalidated the same day.** Migration
+`20260513111555_F2P9JobAdSearchColumns` made seven of those "sanitized fields" **STORED generated
+columns derived from `raw_payload`** (`organization_number`, `municipality_concept_id`,
+`ssyk_concept_id`, `region_concept_id`, `occupation_group_concept_id`, `employment_type_concept_id`,
+`worktime_extent_concept_id`). Postgres **recomputes** a stored generated column on every UPDATE of its
+base, so `PurgeStaleRawPayloadsJob` nulls all seven. They do not survive indefinitely; they survive
+30 days. Two decisions, one day, never reconciled — the purge's blast radius was assessed against a
+schema that was changing underneath it.
+
+**Consequences (all proven, not inferred):** an ad that is **still Active** but published >30 days ago
+disappears from facet-filtered search and from per-user background matching (both filter on those
+columns), is missed by the company-watch location filter (#834), and can no longer be attributed to an
+employer in the application-history projection (#824). Root cause + fix: **#841** — materialise the
+seven as ordinary, C#-written ingest columns, exactly as `extracted_terms` already is (twelve lines
+below them in `JobAdConfiguration`, and it survives the purge).
+
+**Rejected remedy, recorded so it is not re-proposed:** exempting Active/still-listed ads from the
+purge. That subordinates a GDPR minimisation control to a search-correctness need, and ADR 0049
+Beslut 3 leans on this purge to justify excluding `raw_payload` from the DEK envelope. *You do not
+weaken a data-protection control to paper over a schema mistake* (senior-cto-advisor, 2026-07-12).
+
+### A2 — the retention rule is "30 days after the ad leaves the feed", not "30 days after publication".
+
+`SyncPlatsbankenSnapshotJob` (cron `0 2 * * *`) is a **daily full backfill** and
+`UpsertExternalJobAdCommandHandler` has **no unchanged/hash short-circuit** — it always calls
+`UpdateFromSource`, which rewrites `RawPayload`. So for any ad still present in the Platsbanken feed the
+02:00 sync **restores** the payload that the 04:30 purge nulled, indefinitely.
+
+Retaining the sanitized payload of a currently-live, publicly-listed ad has a live purpose, so the
+**behaviour is substantively defensible** under Art. 5(1)(e). What is not defensible is that §8 documents
+a rule the code does not implement (Art. 5(2)/24 accountability). Tracked: **#845**.
+
+*Note:* this daily rewrite is also why the A1 defect presents as a ~21.5h/day outage rather than a
+permanent one — the sync accidentally heals the seven columns for ~2.5h each night. **Do not "fix" that
+by suppressing the rewrite:** it would make the columns NULL *permanently* after the first purge,
+converting an intermittent defect into a permanent one.
+
+### A3 — both PII mitigations §8 relies on are largely ineffective against the PII they target.
+
+§8's risk register presents two controls against recruiter PII: the ingest **allowlist sanitizer** and
+this **30-day purge**. Neither works against the form the PII actually takes.
+
+- The sanitizer strips the **structured key** (`employer.contact_email`) but the allowlist
+  **deliberately retains every free-text surface** (`description`, `description_text`, `text`,
+  `company_information`, `needs`, `requirements`, `salary_description`). A recruiter's address written
+  into the ad body ("Skicka CV till anna@acme.se" — the exact case `PlatsbankenJobSource`'s own
+  SECURITY-NOTE describes) survives sanitisation. **It strips the field, not the address.**
+- The purge nulls `raw_payload` — but the identical free text also lives in the **ordinary column
+  `job_ads.description`**, which nothing purges, and remains FTS-searchable via `search_vector`
+  (generated from `title || description`, not from `raw_payload`). The purge deletes a **duplicate** and
+  leaves the original.
+
+**Consequence:** `RecruiterPiiPurger.RedactByEmailAsync` — the *only* Art. 17 erasure path for recruiter
+PII — probes `raw_payload @> {"employer":{"contact_email": …}}`, a key ingest **guarantees is absent**.
+It returns `rowsAffected = 0` structurally, always. Tracked: **#842** (P1, **launch-gate** — no `v*` prod
+tag until fixed; the real fix is at **ingest**, Art. 25, not at the erasure path).
+
+**Knock-on:** ADR 0087 D8(a) justifies plaintext org.nr partly on *"raw_payload är redan plaintext,
+ADR 0032 §8 — PII stripped at ingest"*. **That supporting pillar is false.** D8(a)'s accept-risk survives
+on its own merits (org.nr is genuinely public employer data), but the false pillar is withdrawn from the
+reasoning rather than silently retained.
+
+### Referenser
+- Reviews: `docs/reviews/2026-07-12-824-dpia-archived-ad-security.md` · `-cto.md`
+- Issues: #824 (DPIA truth) · #841 (root cause) · #842 (Art. 17 erasure) · #845 (retention rule) · #843 (test-fiction pattern)
+- DPIA #456 §8 (amended 2026-07-12) · ADR 0087 D1/D8(a) · ADR 0049 Beslut 3 · ADR 0090 D1

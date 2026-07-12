@@ -1,7 +1,9 @@
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationCountBatch;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
@@ -9,6 +11,8 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
 
@@ -19,7 +23,7 @@ using DomainApplication = Jobbliggaren.Domain.Applications.Application;
 namespace Jobbliggaren.Api.IntegrationTests.Applications;
 
 /// <summary>
-/// #446 (#311; ADR 0087 D2 read-model; DPIA #456 / ADR 0090 D1) — the /jobb card "tidigare ansökningar
+/// #446 (#311; ADR 0087 D2 read-model; DPIA #456) — the /jobb card "tidigare ansökningar
 /// till detta företag" overlay. The handler resolves the page ads' org.nr via the real
 /// <see cref="IJobAdEmployerReader"/> (<c>= ANY</c> raw SQL) and GroupJoins the caller's applications to
 /// the STORED org.nr shadow column — neither of which EF InMemory can translate, so this is by
@@ -43,11 +47,13 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
     }
 
     private static async Task<JobAd> SeedJobAdAsync(
-        AppDbContext db, IDateTimeProvider clock, string? orgNr, string companyName, CancellationToken ct)
+        AppDbContext db, IDateTimeProvider clock, string? orgNr, string companyName, CancellationToken ct,
+        int publishedDaysAgo = 2)
     {
         var externalId = $"eacb-{Guid.NewGuid():N}";
         // org.nr is a STORED generated column from raw_payload->'employer'->>'organization_number'
-        // (ADR 0087 D1). A null orgNr seeds an ad whose employer carries no organization_number.
+        // (ADR 0087 D1). A null orgNr seeds an ad whose employer carries no organization_number. It is
+        // also why the value dies with the payload — see the purge tests below (#824).
         var employerJson = orgNr is null
             ? $"{{\"name\":\"{companyName}\"}}"
             : $"{{\"name\":\"{companyName}\",\"organization_number\":\"{orgNr}\"}}";
@@ -60,13 +66,32 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
-            publishedAt: clock.UtcNow.AddDays(-2),
+            publishedAt: clock.UtcNow.AddDays(-publishedDaysAgo),
             expiresAt: clock.UtcNow.AddDays(30),
             clock: clock).Value;
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
         return jobAd;
+    }
+
+    /// <summary>
+    /// Runs the REAL <see cref="PurgeStaleRawPayloadsJob"/> — the production write path — rather than a
+    /// hand-rolled UPDATE. Deliberate (#843): the defect these tests now pin survived precisely because
+    /// the old test hand-seeded a state the production path never produces.
+    /// </summary>
+    private static async Task RunRealPurgeJobAsync(
+        IServiceProvider sp, AppDbContext db, IDateTimeProvider clock, CancellationToken ct)
+    {
+        var job = new PurgeStaleRawPayloadsJob(
+            db,
+            clock,
+            Options.Create(new JobSourceRetentionOptions()), // default RawPayloadRetentionDays = 30
+            sp.GetRequiredService<ISystemEventAuditor>(),
+            NullLogger<PurgeStaleRawPayloadsJob>.Instance);
+
+        await job.RunAsync(ct);
+        await db.SaveChangesAsync(ct);
     }
 
     /// <summary>Seeds one application. finalStatus null → left as Draft (never applied, AppliedAt null).</summary>
@@ -345,8 +370,15 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
         result.CountsByJobAdId.ShouldBeEmpty();
     }
 
+    // --- what actually governs the count: the prior ad's AGE, not its status (#824) --------------
+    //
+    // These two replace `Handle_ExcludesApplicationsToRetractedAds`, which soft-deleted the prior ad
+    // with raw SQL and asserted it was not counted. JobAd.DeletedAt has NO writer in src/ (#821), so
+    // that test pinned an unreachable state, stayed green forever, and its false model was then written
+    // into the handler docs and DPIA #456 as fact. See #843. Both tests below drive the PRODUCTION path.
+
     [Fact]
-    public async Task Handle_ExcludesApplicationsToRetractedAds()
+    public async Task Handle_CountsPriorApplication_WhenItsAdWasArchivedButIsRecent()
     {
         var ct = TestContext.Current.CancellationToken;
         using var scope = factory.Services.CreateScope();
@@ -358,13 +390,12 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
         var seeker = await SeedSeekerAsync(db, clock, userId, ct);
 
         var orgX = "5560360793";
-        // A prior application whose ad is later retracted (soft-deleted): its org.nr becomes unresolvable
-        // (global soft-delete filter) so it is NOT counted — the honestly-documented archived-ad gap
-        // (#444 / #445), not a silent miscount.
-        var priorRetracted = await SeedJobAdAsync(db, clock, orgX, "Acme AB", ct);
-        await SeedApplicationAsync(db, clock, seeker.Id, priorRetracted.Id, ApplicationStatus.Submitted, ct);
-        await db.Database.ExecuteSqlRawAsync(
-            "UPDATE job_ads SET deleted_at = {0} WHERE id = {1}", [clock.UtcNow, priorRetracted.Id.Value], ct);
+        var priorArchived = await SeedJobAdAsync(db, clock, orgX, "Acme AB", ct);
+        await SeedApplicationAsync(db, clock, seeker.Id, priorArchived.Id, ApplicationStatus.Submitted, ct);
+
+        // Archive via the REAL domain method (what RetainPlatsbankenJobAdsJob / ExpireJobAdsJob call).
+        priorArchived.Archive(clock).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
 
         var pageAd = await SeedJobAdAsync(db, clock, orgX, "Acme AB", ct);
@@ -372,6 +403,52 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
         var result = await CreateHandler(db, reader, userId)
             .Handle(new GetEmployerApplicationCountBatchQuery([pageAd.Id.Value]), ct);
 
+        // Archival hides nothing — the prior ad still joins, its org.nr still resolves, so it IS
+        // counted. The opposite of what the docs used to claim.
+        result.CountsByJobAdId[pageAd.Id.Value].ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Handle_DoesNotCountPriorApplication_WhenItsAdWasPurged_EvenThoughStillActive()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var reader = scope.ServiceProvider.GetRequiredService<IJobAdEmployerReader>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var userId = Guid.NewGuid();
+        var seeker = await SeedSeekerAsync(db, clock, userId, ct);
+
+        var orgX = "5560360795";
+        // The prior ad is published PAST the 30-day retention horizon but is still ACTIVE (deadline 30
+        // days out). Nothing archives it; nothing deletes it.
+        var priorStale = await SeedJobAdAsync(db, clock, orgX, "Stale AB", ct, publishedDaysAgo: 40);
+        await SeedApplicationAsync(db, clock, seeker.Id, priorStale.Id, ApplicationStatus.Submitted, ct);
+        var pageAd = await SeedJobAdAsync(db, clock, orgX, "Stale AB", ct);
+
+        var query = new GetEmployerApplicationCountBatchQuery([pageAd.Id.Value]);
+        (await CreateHandler(db, reader, userId).Handle(query, ct))
+            .CountsByJobAdId[pageAd.Id.Value]
+            .ShouldBe(1, "precondition: before the purge the prior application IS counted");
+
+        // Run the REAL PurgeStaleRawPayloadsJob. Safe against the shared [Collection("Api")] Postgres:
+        // no other Api test seeds an ad older than 5 days, so the 30-day cutoff selects only this one.
+        await RunRealPurgeJobAsync(scope.ServiceProvider, db, clock, ct);
+        db.ChangeTracker.Clear();
+
+        // The prior ad is still Active and still present — only its org.nr was recomputed to NULL.
+        var (status, orgNr) = await db.JobAds.AsNoTracking()
+            .Where(j => j.Id == priorStale.Id)
+            .Select(j => ValueTuple.Create(j.Status.Value, EF.Property<string?>(j, "OrganizationNumber")))
+            .SingleAsync(ct);
+        status.ShouldBe("Active");
+        orgNr.ShouldBeNull();
+
+        // So the badge silently undercounts: the user HAS applied to this employer, and is told nothing.
+        // Pinned as the CURRENT behaviour; the copy is hedged in #824 PR 4 and the root cause removed in
+        // #841 — when #841 lands this SHOULD start counting again, and this assertion should fail.
+        var result = await CreateHandler(db, reader, userId).Handle(query, ct);
         result.CountsByJobAdId.ShouldBeEmpty();
     }
 

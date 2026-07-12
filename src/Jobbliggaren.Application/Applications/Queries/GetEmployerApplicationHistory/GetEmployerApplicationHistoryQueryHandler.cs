@@ -6,30 +6,41 @@ using Microsoft.EntityFrameworkCore;
 namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationHistory;
 
 /// <summary>
-/// #444 (ADR 0087 D2 read-model; DPIA #456 / ADR 0090 D1) — projects the signed-in user's OWN
-/// application history grouped by employer org.nr. Owner-scoped on <c>JobSeekerId</c> (resolved from
-/// <c>ICurrentUser</c>, never the wire — M2 / IDOR). JOINs applications to public <c>job_ads</c> to
-/// read the employer org.nr (STORED shadow column <c>"OrganizationNumber"</c>, ADR 0087 D1) and the
-/// company name at READ (ADR 0087 D2 — never a denormalised snapshot). Only submitted applications
+/// #444 (ADR 0087 D2 read-model; DPIA #456) — projects the signed-in user's OWN application history
+/// grouped by employer org.nr. Owner-scoped on <c>JobSeekerId</c> (resolved from <c>ICurrentUser</c>,
+/// never the wire — M2 / IDOR). JOINs applications to public <c>job_ads</c> to read the employer
+/// org.nr (STORED shadow column <c>"OrganizationNumber"</c>, ADR 0087 D1) and the company name at
+/// READ (ADR 0087 D2 — never a denormalised snapshot). Only submitted applications
 /// (<c>AppliedAt != null</c>) are history; drafts are intent (Art. 6(1)(b) purpose, ADR 0090 D1).
 ///
 /// <para>
-/// <b>⚠ DISPUTED — see #824 (raised by #805-3). The claim below is believed FALSE and is
-/// preserved verbatim only so the disputed text is traceable; do NOT rely on it.</b>
-/// It assumes a retracted ad is soft-deleted and therefore filtered out. But <c>JobAd.DeletedAt</c>
-/// has no writer anywhere in <c>src/</c>, so the global filter is vacuous (#821): a retracted ad is
-/// ARCHIVED (<c>Status = "Archived"</c>) and <b>still joins</b> — its org.nr resolves and the
-/// application IS attributed. The behaviour is probably the desired one, but it is the opposite of
-/// what DPIA #456 records, which is an accountability problem in its own right. #824 decides the
-/// intended behaviour, updates the DPIA, and pins it with a test. Original claim:
+/// <b>Attribution is governed by the ad's AGE — not by archival, and not by soft delete (#824).</b>
+/// The org.nr shadow column is a STORED generated column derived from <c>raw_payload</c>
+/// (<c>HasComputedColumnSql("raw_payload->'employer'->>'organization_number'")</c>, ADR 0087 D1), and
+/// <c>PurgeStaleRawPayloadsJob</c> nulls <c>raw_payload</c> once an ad is older than
+/// <c>RawPayloadRetentionDays</c> (30) from <c>PublishedAt</c> — at which point Postgres RECOMPUTES
+/// the generated column to NULL. So:
+/// <list type="bullet">
+/// <item>an ARCHIVED but recent ad still joins and IS attributed (archival does not hide a row —
+/// <c>JobAd.DeletedAt</c> has no writer anywhere in <c>src/</c> and its query filter is vacuous, #821);</item>
+/// <item>an ACTIVE but old ad has a NULL org.nr and is NOT attributed.</item>
+/// </list>
+/// Pinned by <c>GetEmployerApplicationHistoryQueryHandlerIntegrationTests</c> (both directions). The
+/// value additionally <b>thrashes daily</b> until #841 lands: the 02:00 full-backfill sync rewrites
+/// <c>raw_payload</c> and the 04:30 purge nulls it again, so an old-but-still-listed ad resolves its
+/// org.nr for ~2.5h/day and not for the other ~21.5h.
+/// </para>
+///
 /// <para>
-/// <b>Archived-ad honesty (DPIA #456 finding).</b> The JOIN inherits <c>job_ads</c>' global
-/// soft-delete query-filter (ADR 0048): an application whose ad has since been retracted resolves to
-/// no live ad, so its org.nr is unresolvable and it is NOT attributed to an employer here.
-/// <c>AdSnapshot</c> (#315 / ADR 0086) captures the company NAME at apply-time but NOT the org.nr, so
-/// archived applications cannot be grouped by employer in v1 — a known, honestly-recorded limitation,
-/// not a silent drop. Manual postings (no <c>JobAdId</c>) likewise carry no employer org.nr and are
-/// excluded.
+/// <b>The residue is DROPPED here, and that is a known open defect (#824).</b> The
+/// <c>.Where(r =&gt; r.OrgNr != null)</c> below silently omits every application whose ad has aged out.
+/// DPIA #456 §8 <b>mandated</b> the opposite — <i>"the projection must degrade honestly ('företag
+/// okänt' or fall back to the snapshot company name), never fabricate"</i> — and that mitigation was
+/// never built. Honest degradation lands in #824 PR 3 (a separate, explicitly-marked bucket keyed on
+/// the APPLICATION; the company name may be used as a LABEL, never as a grouping KEY — name-keying
+/// would trade an undercount for a fabrication, which ADR 0087 D1 made org.nr canonical to prevent).
+/// The root cause — durable projections derived from a purgeable base column — is #841. Manual
+/// postings (no <c>JobAdId</c>) carry no employer org.nr and are excluded by design.
 /// </para>
 ///
 /// <para>
@@ -62,10 +73,12 @@ public sealed class GetEmployerApplicationHistoryQueryHandler(
 
         // Owner-scoped submitted applications joined to their employer identity on public job_ads.
         // GroupJoin + SelectMany(DefaultIfEmpty) mirrors GetApplicationsQueryHandler's proven-
-        // translatable LEFT JOIN over the nullable-struct FK (ADR 0048): a retracted ad inherits the
-        // global soft-delete filter -> j == null -> OrgNr null -> filtered out below (the archived-ad
-        // gap, documented above). OrgNr is the STORED "OrganizationNumber" shadow column read
-        // SERVER-SIDE to group on; Status is a value-converted SmartEnum projected WHOLE (its .Name is
+        // translatable LEFT JOIN over the nullable-struct FK (ADR 0048). NOTE: the ad row is NOT what
+        // goes missing -- an archived (or even soft-deleted-in-name-only) ad still joins. What goes
+        // missing is the org.nr VALUE, once the purge nulls raw_payload and Postgres recomputes the
+        // generated column to NULL (see the type remarks + #824). j is therefore almost never null;
+        // OrgNr is. OrgNr is the STORED "OrganizationNumber" shadow column read SERVER-SIDE to group
+        // on; Status is a value-converted SmartEnum projected WHOLE (its .Name is
         // read in memory, never in the expression tree). Bounded to one user's own submitted
         // applications (no pagination v1, parity ListCompanyWatches). Unlike a curated company-watch
         // set this history grows monotonically; if the hub ever becomes a hot path the preselected
@@ -82,6 +95,10 @@ public sealed class GetEmployerApplicationHistoryQueryHandler(
                 x.a.AppliedAt,
                 x.a.Status,
             })
+            // #824: this is the silent drop DPIA #456 §8 forbade. It stays until #824 PR 3 replaces it
+            // with an honest, separately-labelled bucket -- changing it here would be a behaviour change
+            // in a truth-only PR. Do not "fix" it by grouping the residue on CompanyName: that fabricates
+            // a legal-entity identity we do not have (ADR 0087 D1).
             .Where(r => r.OrgNr != null)
             .ToListAsync(cancellationToken);
 

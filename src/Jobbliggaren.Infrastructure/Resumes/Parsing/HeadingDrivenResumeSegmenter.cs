@@ -260,7 +260,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         if (trimmed.Length is 0 or > 60)
             return false;
 
-        if (EmailRegex().IsMatch(trimmed) || LooksLikePhone(trimmed))
+        if (EmailRegex().IsMatch(trimmed) || LooksLikePhone(trimmed) || LooksLikeDatePeriod(trimmed))
             return false;
 
         // Must contain at least one letter (avoid pure dates/separators).
@@ -279,11 +279,25 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         return match.Success ? match.Value : null;
     }
 
+    /// <summary>
+    /// The shortest and longest digit count a phone number may carry. The floor rejects short
+    /// digit runs; the ceiling is E.164's maximum, and it matters: without it a long numeric run
+    /// (an ID, a reference number) starting with 0 would be accepted as a phone.
+    /// </summary>
+    private const int MinPhoneDigits = 7;
+    private const int MaxPhoneDigits = 15;
+
+    private static bool IsPhoneShaped(string candidate)
+    {
+        var digits = CountDigits(candidate);
+        return digits is >= MinPhoneDigits and <= MaxPhoneDigits;
+    }
+
     private static string? FirstPhone(string text)
     {
         foreach (Match candidate in PhoneRegex().Matches(text))
         {
-            if (CountDigits(candidate.Value) >= 7)
+            if (IsPhoneShaped(candidate.Value))
                 return candidate.Value.Trim();
         }
 
@@ -293,8 +307,18 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     private static bool LooksLikePhone(string line)
     {
         var match = PhoneRegex().Match(line);
-        return match.Success && CountDigits(match.Value) >= 7;
+        return match.Success && IsPhoneShaped(match.Value);
     }
+
+    /// <summary>
+    /// A line carrying a date RANGE ("2021 - 2024", "2005 - nu") is a CV period, never a person's
+    /// name. Before #815 this was enforced by ACCIDENT: the old phone pattern matched any digit
+    /// run, so date lines were rejected as "phone-like". Tightening the phone pattern removed that
+    /// side effect, which would have let a line like "2021 - 2024 Volvo AB" — it has letters, so it
+    /// clears the letter check — become a name candidate. The rejection now rests on the date shape
+    /// it was always really about, and DatePatterns is the single owner of that shape (no drift).
+    /// </summary>
+    private static bool LooksLikeDatePeriod(string line) => DateRangeRegex().IsMatch(line);
 
     private static List<ParsedExperience> ParseExperiences(
         Dictionary<ParsedSectionKind, string> blocks)
@@ -634,7 +658,21 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     [GeneratedRegex(@"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", RegexOptions.CultureInvariant)]
     private static partial Regex EmailRegex();
 
-    [GeneratedRegex(@"\+?\d[\d\s()\-]{5,}\d", RegexOptions.CultureInvariant)]
+    // #815: the previous pattern was @"\+?\d[\d\s()\-]{5,}\d" — "any digit run with separators",
+    // not a phone shape. "2021 - 2024" satisfied it (eight digits), and since FirstPhone takes the
+    // FIRST match in document order, a sidebar CV (whose contact block linearizes AFTER the body)
+    // handed the user an experience DATE RANGE where their mobile number should be. It also only
+    // knew the ASCII hyphen, so "070–123 45 67" (en-dash, what Word and Canva autocorrect produce)
+    // matched from the second group onward and silently dropped the 070 prefix.
+    //
+    // A phone number is anchored: it starts with "+" (international) or a "0" trunk prefix. A year
+    // never does. That single anchor is what separates a phone from a date, a postal code
+    // ("412 58"), and an org number ("556677-8899"). Separators accept the en-dash and the
+    // non-breaking hyphen alongside the ASCII one. The digit COUNT is validated in code (7..15,
+    // E.164's ceiling) rather than in the pattern, so the rule stays readable.
+    // The dash class covers the Unicode dash family (hyphen through horizontal bar),
+    // written as escapes so no literal glyph ever enters the source.
+    [GeneratedRegex(@"(?:\+|\b0)[\d\s()\-\u2010-\u2015]{5,}\d", RegexOptions.CultureInvariant)]
     private static partial Regex PhoneRegex();
 
     // #487: the date-range / bare-year patterns moved to the shared DatePatterns helper

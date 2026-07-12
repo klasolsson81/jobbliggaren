@@ -16,6 +16,112 @@ public class HeadingDrivenResumeSegmenterTests
 {
     private readonly HeadingDrivenResumeSegmenter _sut = new();
 
+    // ── #815 (Klas live-review) — contact extraction ────────────────────────────────
+    //
+    // A sidebar/two-column CV linearizes with the contact block AFTER the body: the text
+    // extractor emits raw content-stream order, so a left rail drawn late in the PDF lands
+    // last. Every fixture above happens to put the phone on line 3, ahead of any date — which
+    // is exactly why this class was green while the parser was wrong. This fixture reproduces
+    // the real reading order.
+    private const string SidebarOrderCv =
+        """
+        Arbetslivserfarenhet
+        Operatör — Verkstaden AB, Göteborg
+        2005 - nu
+        Skötte produktionslinan.
+
+        Utbildning
+        Gymnasieingenjör — Lindholmen
+        2001 - 2004
+
+        Kontakt
+        Anna Andersson
+        anna.andersson@example.com
+        070-123 45 67
+        Göteborg
+        """;
+
+    [Fact]
+    public void Segment_ContactAfterBody_ExtractsThePhoneNotTheFirstDateRange()
+    {
+        var result = _sut.Segment(SidebarOrderCv);
+
+        // Today PhoneRegex is @"\+?\d[\d\s()\-]{5,}\d" — "any digit run with separators" — and
+        // FirstPhone takes the FIRST match in document order. "2005 - nu" has too few digits,
+        // but "2001 - 2004" is eight digits and wins over the actual phone number. The user then
+        // sees a date range where their mobile should be, which reads as "phone not found".
+        result.Content.Contact.Phone.ShouldBe("070-123 45 67");
+    }
+
+    [Theory]
+    [InlineData("2021 - 2024")]
+    [InlineData("2019-2023")]
+    [InlineData("2016 – 2021")] // en-dash, what Word/Canva autocorrect produce
+    public void Segment_DateRangeIsNeverExtractedAsAPhoneNumber(string period)
+    {
+        var cv =
+            $"""
+            Arbetslivserfarenhet
+            Backend-utvecklare — Acme AB
+            {period}
+
+            Kontakt
+            Anna Andersson
+            anna.andersson@example.com
+            """;
+
+        var result = _sut.Segment(cv);
+
+        // A period is not a phone number. Honest-absent beats a confidently wrong value.
+        result.Content.Contact.Phone.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("070-123 45 67", "070-123 45 67")]
+    [InlineData("070–123 45 67", "070–123 45 67")] // en-dash: today the leading 070 is silently dropped
+    [InlineData("+46 70 123 45 67", "+46 70 123 45 67")]
+    [InlineData("0701234567", "0701234567")]
+    public void Segment_SwedishMobileFormats_AreExtractedInFull(string written, string expected)
+    {
+        var cv =
+            $"""
+            Anna Andersson
+            anna.andersson@example.com
+            {written}
+
+            Profil
+            Erfaren utvecklare.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Contact.Phone.ShouldBe(expected);
+    }
+
+    [Fact]
+    public void Segment_DateRangeFollowedByEmployerText_IsNotMistakenForTheName()
+    {
+        // REGRESSION PIN — read before touching PhoneRegex.
+        // IsNameLike rejects a line if LooksLikePhone(line) is true. That is an ACCIDENT: the
+        // sloppy phone regex happens to match date ranges, so date lines get filtered out of name
+        // detection as a side effect. Tighten the phone regex and this line stops looking like a
+        // phone — and, because it contains letters, it becomes a name candidate. The name must be
+        // rejected on its DATE shape, not on a phone coincidence.
+        var cv =
+            """
+            2021 - 2024 Volvo AB
+            Anna Andersson
+            anna.andersson@example.com
+
+            Profil
+            Erfaren utvecklare.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Contact.FullName.ShouldBe("Anna Andersson");
+    }
+
     private const string SwedishCv =
         """
         Anna Andersson

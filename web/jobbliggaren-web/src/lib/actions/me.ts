@@ -329,11 +329,19 @@ export async function changeEmailAction(
       return { success: false, error: ts("account.errors.invalidInput") };
     }
     if (res.status === 409) {
-      // Backend `Auth.EmailTaken`. `mapActionError` collapses 409 to the generic
-      // "the resource is in a disallowed state" message (a reload prompt), which is
-      // wrong here — the actionable truth is that the address is taken. Branch
-      // explicitly BEFORE the fallback so the user gets the clear message.
-      return { success: false, error: ts("account.errors.emailTaken") };
+      // Two distinct 409 codes share this endpoint: `Auth.ChangeEmailCooldown` (the per-user
+      // rate-limit, #703) and `Auth.EmailTaken`. Read the ProblemDetails title to pick the right
+      // localized copy (exact-whitelist only; the backend `detail` is never rendered). A 409 with
+      // no recognized title falls back to the taken-address message (the deliberate #679 choice),
+      // not the generic `stateConflict` message `mapActionError` returns for a 409.
+      const title = await readProblemTitle(res);
+      return {
+        success: false,
+        error:
+          title === "Auth.ChangeEmailCooldown"
+            ? ts("account.errors.changeEmailCooldown")
+            : ts("account.errors.emailTaken"),
+      };
     }
     if (!res.ok) {
       return {

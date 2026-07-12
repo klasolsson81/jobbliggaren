@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { ApplicationDrawerBody } from "./application-drawer-body";
 import type {
   AdSnapshotDto,
@@ -178,8 +178,16 @@ describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
     expect(
       screen.queryByText("+ Lägg till uppföljning"),
     ).not.toBeInTheDocument();
+    // #805 punkt 5: sektionsetiketten bär nu en InfoDialog-"?" (aria-expanded)
+    // utanför listan, och drawern har flera role="list". Hitta uppföljningslistan
+    // via dess innehåll och verifiera att RADERNA i den är statiska (inga
+    // expand-knappar) i read-only-läget — "?" ligger i etiketten, utanför listan.
+    const followUpList = screen
+      .getAllByRole("list")
+      .find((list) => within(list).queryByText("Pingade rekryteraren") != null);
+    expect(followUpList).toBeDefined();
     expect(
-      screen.queryByRole("button", { expanded: false }),
+      within(followUpList!).queryByRole("button", { expanded: false }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "+ Lägg till" }),

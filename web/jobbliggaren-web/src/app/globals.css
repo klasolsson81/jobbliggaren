@@ -1481,6 +1481,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-pagehero { padding: 16px 20px 0; }
   .jp-pagehero__inner { padding: 28px 24px; }
   .jp-pagehero__title { font-size: var(--jp-fs-hero-title-sm); }
+  /* #805 punkt 7: den stackade asiden (ansökningar) går full bredd och
+     vänsterjusteras på smala skärmar i stället för att hänga i högerkanten. */
+  .jp-pagehero__aside--stacked { align-items: stretch; width: 100%; }
+  .jp-pagehero__aside--stacked .jp-pagehero__btnrow { justify-content: flex-start; }
 }
 .jp-pagehero__main { flex: 1 1 320px; min-width: 0; }
 .jp-pagehero__kicker {
@@ -2933,6 +2937,35 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-weight: var(--jp-fw-regular);
   letter-spacing: 0.02em;
   color: var(--jp-ink-3);
+}
+/* #805 punkt 5: inline "?"-hjälp tätt bunden till en sektionsetikett
+   (uppföljning-vs-anteckning). Etiketttext + trigger i en smal-gap-grupp så
+   glyfen läses som hjälp för DEN etiketten, inte för sektionens högeryta.
+   Triggern behåller a11y-golvet (≥36px in-app / ≥44px touch, a11y-skill §5,
+   samma som InfoDialog-defaulten) men glyfen är liten så den inte konkurrerar
+   med caps-etiketten. */
+.jp-labelhelp {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.jp-labelhelp__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  min-width: 36px;
+  border-radius: var(--jp-r-sm);
+  color: var(--jp-ink-2);
+}
+.jp-labelhelp__trigger:hover {
+  color: var(--jp-ink-1);
+}
+@media (pointer: coarse) {
+  .jp-labelhelp__trigger {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
 
 /* Status block (.jp-modal__match) — the 4px status edge + the status label
@@ -4643,7 +4676,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-heading-2);
 }
 .jp-section__toggle .jp-section__count {
-  margin-left: auto;
+  /* #805 punkt 2: antalet sitter nu inline "Skickad (1)" intill etiketten (var
+     margin-left:auto = långt till höger). Liten negativ marginal drar bort en
+     del av head-gapet (10px) så "(1)" binder tätt till statusnamnet. */
+  margin-left: -4px;
 }
 .jp-section__chevron {
   flex-shrink: 0;
@@ -4776,6 +4812,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   gap: 8px;
   position: relative;
   z-index: 1;
+  /* #805 punkt 1 (Klas Beslut A): handlingszonen ankras i kortets NEDRE-högra
+     hörn (grid-cellen bottnas via align-self:end mot kortets align-items:start)
+     i stället för att sitta vid titelraden — CTA:n får en tydligare, mer
+     avsiktlig placering. Ingen effekt i mobil-stacken (1-kolumns-grid). */
+  align-self: end;
 }
 /* Radknappar (design §5): h30, vit, kant --jp-border; primär = accent-text,
    "Byt status ▾" = ink-text. Hover: accent-kant + accent-50. */
@@ -4809,13 +4850,21 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-rowbtn--ink { color: var(--jp-ink-1); }
 /* Rad-CTA-betoning (#788, CTO-bind 2026-07-12): den foreslagna radhandlingen
-   lyfts via accent-700-kant + fet vikt over bas-.jp-rowbtn (vit bg, accent-700 text).
+   lyfts via accent-700-kant + fet vikt over bas-.jp-rowbtn.
    UNDERORDNAD den solida en-per-skarm-primaren (.jp-btn--primary, accent-800-fyllning)
    — ALDRIG solid fyllning har (N rader = N knappar), sa ADR 0038 "max EN primar per
-   skarm" halls. Arver bas-hover (accent-50); ingen egen :hover behovs. */
+   skarm" halls.
+   #805 punkt 1 (Klas Beslut A): emfasen VASSAS med en ljus accent-50-tint i vila
+   (den sanktionerade "emphasis/selekterad"-tinten, INTE en solid accent-800-fyllning
+   — #788:s karnregel "ingen solid fyllning" intakt). Hover fordjupar till accent-100
+   (bas-.jp-rowbtn-hovern ar accent-50, sa emfasen behover ett eget djupare steg). */
 .jp-rowbtn--emphasis {
   border-color: var(--jp-accent-700);
   font-weight: var(--jp-fw-bold);
+  background: var(--jp-accent-50);
+}
+.jp-rowbtn--emphasis:hover:not(:disabled) {
+  background: var(--jp-accent-100);
 }
 /* Bråttom-taggar (design §11): samma rektangulära .jp-tag-form, omvänd
    kodning — vit bakgrund + text OCH kant i signalfärgen. Färgen förstärker;
@@ -7166,17 +7215,68 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: rgba(255, 255, 255, 0.08); /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
   color: #fff; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 }
-/* InfoDialog "?"-trigger i hero-plattan (#408 inline-hjälp, Klas 2026-07-10):
-   hero-ink-glyf så den syns mot gradienten (den vita-yte-defaulten
-   text-text-secondary vore osynlig här); samma ≥36px in-app / ≥44px touch
-   hit-area som default-triggern (a11y-skill §5). */
-/* Aktivitetsrapport-knappen + dess "?" binds i en smal-gap-grupp (4px) så
-   glyfen läses som hjälp för DEN knappen, inte för primär-CTA:n bredvid
-   (design-reviewer Minor 2026-07-10); asidens 12px-gap separerar gruppen. */
+/* ── #805 punkt 7 (Klas live-review 2026-07-12): ansökningar-scopead 2-rads-
+   aside + VIT-fyllda sekundärer + "?" inne i Aktivitetsrapport-kontrollen ──
+   Bas-`.jp-pagehero__aside` (row/center/wrap) + `.jp-pagehero .jp-btn--secondary`
+   (outline) ovan är DELADE av 7 pageheroes och lämnas ORÖRDA; allt nedan är
+   scopat till `--stacked` (endast ansökningar-heron). Klas läste den
+   genomskinliga vit-kant-sekundären som "grön-genomskinlig" (svårläst) → byt
+   till vit-fyllda läsbara kontroller. ADR 0038 en-primär bevaras: ren vit
+   `.jp-btn--primary` = enda solida primär; sekundärerna accent-50 off-white
+   (tema-pinnad i .jp-pagehero__inner) = subtilt underordnade + på egen rad. */
+.jp-pagehero__aside--stacked {
+  flex-direction: column;
+  align-items: flex-end;
+}
+.jp-pagehero__btnrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+/* Vit-fylld sekundär i den stackade asiden (scopad — övriga pageheroes behåller
+   outline-behandlingen ovan). Källordning efter `.jp-pagehero .jp-btn--secondary`
+   (lika specificitet 0,2,0) → vinner för `--stacked`. */
+.jp-pagehero__aside--stacked .jp-btn--secondary {
+  background: var(--jp-accent-50);
+  color: var(--jp-hero-bg);
+  border-color: var(--jp-accent-50);
+}
+.jp-pagehero__aside--stacked .jp-btn--secondary:hover {
+  background: var(--jp-accent-100);
+  color: var(--jp-accent-900);
+  border-color: var(--jp-accent-100);
+}
+/* #805 punkt 7b: "?" INNE i Aktivitetsrapport-kontrollen. helpedctl blir en enad
+   vit-fylld pill som omsluter aktivitet-länken + "?"; länken blir transparent
+   (pillen bär ytan) så paret läses som EN kontroll med hjälpen inuti. Giltig
+   HTML — länk + knapp som syskon i en stylad span, ingen nästling (interaktiv-i-
+   interaktiv undviks). */
 .jp-pagehero__helpedctl {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 0;
+  background: var(--jp-accent-50);
+  border-radius: var(--jp-r-md);
+  padding-right: 4px;
+  /* Ljus pill på mörk gradient → återställ fokusringen från plattans VITA
+     (osynlig mot ljust) till accent-700, precis som .jp-popover gör. */
+  --jp-focus: var(--jp-accent-700);
+}
+.jp-pagehero__aside--stacked
+  .jp-pagehero__helpedctl
+  .jp-btn--secondary.jp-pagehero__helpedbtn {
+  background: transparent;
+  border-color: transparent;
+}
+/* Fokusring för pillens barn: accent-700 INSET (-2px) så den ritas på den ljusa
+   accent-50-ytan i stället för att delvis hamna på den mörka gradienten runt
+   pillen (WCAG 2.4.7 — synlig kontrast i BÅDA riktningar). */
+.jp-pagehero__helpedctl a:focus-visible,
+.jp-pagehero__helpedctl button:focus-visible {
+  outline: 2px solid var(--jp-accent-700);
+  outline-offset: -2px;
 }
 .jp-pagehero__help {
   display: inline-flex;
@@ -7185,10 +7285,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
   justify-content: center;
   border-radius: var(--jp-r-sm);
-  color: var(--jp-hero-ink-soft);
+  /* Glyfen sitter nu på den ljusa accent-50-pillen (inte gradienten) → mörk
+     hero-bg-ink så den syns (vit vore osynlig mot ljust). */
+  color: var(--jp-hero-bg);
 }
 .jp-pagehero__help:hover {
-  color: var(--jp-hero-ink);
+  color: var(--jp-accent-900);
 }
 @media (pointer: coarse) {
   .jp-pagehero__help {
@@ -8074,7 +8176,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
 }
 .jp-section__closedhint {
-  margin-left: 12px;
+  /* #805 punkt 2: antalet flyttades inline intill etiketten, så "klicka för att
+     visa"-hinten bär nu högerjusteringen (var margin-left:12px efter det
+     tidigare höger-pushade antalet). */
+  margin-left: auto;
   font-size: var(--text-caption);
   color: var(--jp-ink-2);
 }
@@ -8469,7 +8574,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin-bottom: 8px;
 }
 .jp-board-col__name {
-  flex: 1 1 auto;
+  /* #805 punkt 2: krymper men växer inte (0 1 auto) så antalet "(N)" sitter
+     adjacent intill namnet i stället för att pushas till kolumnens högerkant. */
+  flex: 0 1 auto;
   min-width: 0;
   font-size: var(--text-overline);
   font-weight: var(--jp-fw-bold);
@@ -8481,14 +8588,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
   white-space: nowrap;
 }
 .jp-board-col__count {
+  /* #805 punkt 2: inline "(N)"-text intill kolumnnamnet (var en surface-3-chip;
+     ett värde inramat i en låda bryter mot "information är design", regel 2).
+     Samma tabular-(N)-form som Lista/Alla-räknarna → 3-vy-konsekvens. */
   flex: 0 0 auto;
   font-size: var(--text-caption);
-  font-weight: var(--jp-fw-bold);
+  font-weight: var(--jp-fw-semibold);
   font-variant-numeric: tabular-nums;
   color: var(--jp-ink-2);
-  background: var(--jp-surface-3);
-  border-radius: var(--jp-r-sm);
-  padding: 1px 6px;
 }
 .jp-board-col__list {
   display: flex;

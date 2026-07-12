@@ -234,7 +234,13 @@
       "addLog": "+ Add",
       "addHeading": "Add follow-up",
       "outcomeLabel": "Outcome:",
-      "noteLabel": "Note:"
+      "noteLabel": "Note:",
+      "help": {
+        "title": "Follow-up or note?",
+        "p1": "A follow-up means you acted, for example called or emailed the employer. It recalculates the wait time so the application can leave the action queue.",
+        "p2": "If you only want to save a private reminder that does not affect the wait time, use Notes instead.",
+        "aria": "What is this? The difference between a follow-up and a note"
+      }
     },
     "harAnsokt": {
       "applied": "Applied",
@@ -272,7 +278,13 @@
       "sectionLabel": "Notes",
       "empty": "No notes yet.",
       "add": "+ Add note",
-      "addHeading": "Add note"
+      "addHeading": "Add note",
+      "help": {
+        "title": "Note or follow-up?",
+        "p1": "A note is a private reminder for yourself. It does not affect the wait time or the action queue.",
+        "p2": "If you have contacted the employer, log a follow-up instead, which recalculates the wait time.",
+        "aria": "What is this? The difference between a note and a follow-up"
+      }
     },
     "recordOutcome": {
       "notice": "The outcome cannot be changed once it has been saved. Check that it is correct before you save.",

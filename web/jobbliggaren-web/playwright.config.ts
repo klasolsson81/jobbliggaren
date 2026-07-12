@@ -9,12 +9,15 @@ export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // #813: CI runs a PRODUCTION build (routes precompiled), so cold-compile flake is
+  // gone and a single retry is enough to absorb genuine infrastructure jitter. The
+  // old `retries: 2` tripled the cost of every real failure and was a main driver of
+  // the 25-min timeout.
+  retries: process.env.CI ? 1 : 0,
   workers: 1,
-  // In CI the FE runs `pnpm dev`, which compiles each route on-demand on first hit —
-  // a cold-compile navigation can exceed the 30s default. Give tests more headroom in
-  // CI (subsequent hits are cached and fast); keep the snappy default locally.
-  timeout: process.env.CI ? 60_000 : 30_000,
+  // Prod build serves precompiled routes, so the default per-test timeout holds even
+  // on a loaded runner. Keep a little CI headroom for runner jitter.
+  timeout: process.env.CI ? 45_000 : 30_000,
   // "list" for readable logs; add the HTML report in CI so the workflow can upload it
   // as a failure artifact (open: never — non-interactive on the runner).
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
@@ -29,10 +32,17 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm dev",
+    // #813: CI serves a PRODUCTION build (`pnpm build` runs as its own workflow step,
+    // so the compile cost is visible and cached rather than hidden inside the first
+    // navigation). `next dev` compiled each route on first hit, which — with
+    // workers:1 and retries:2 — could not finish inside the job timeout.
+    // security-headers.spec.ts asserts only branch-invariant CSP directives plus the
+    // dev/prod consistency invariant, so it passes in BOTH modes.
+    // Locally `pnpm dev` stays the default (fast edit loop); an already-running server
+    // is reused.
+    command: process.env.CI ? "pnpm start" : "pnpm dev",
     url: baseURL,
     reuseExistingServer: !process.env.CI,
-    // Next dev first-compile under CI load is slower than a warm local server.
-    timeout: process.env.CI ? 180_000 : 120_000,
+    timeout: 120_000,
   },
 });

@@ -66,11 +66,18 @@ test.describe("Pipeline-vy (/ansokningar)", () => {
   test("skapad ansökan dyker upp som rad i listan", async ({ page }) => {
     await createApplication(page);
     await page.goto("/ansokningar");
-    // Rad-identitet = "titel — företag" (ApplicationRow). Manuell ansökan
-    // projicerar en jobAd-summary, så identiteten finns.
+    // Statusgrupperna är hopfällda som default ("Utkast (1) — Klicka för att visa").
+    // Disclosure-knappen är den enda med aria-expanded; steg-chippen i pipelinen
+    // ("1 UTKAST") matchar också namnet men är ingen disclosure.
+    await page
+      .getByRole("button", { name: /Utkast/, expanded: false })
+      .click();
+    // Rad-identitet är titeln (länken); företaget står som eget fält i kortet
+    // efter att Lista antog Tabellens fältordning (#780/#787).
     await expect(
-      page.getByText(`${NEW_TITLE} — ${NEW_COMPANY}`)
+      page.getByRole("link", { name: new RegExp(NEW_TITLE) })
     ).toBeVisible();
+    await expect(page.getByText(NEW_COMPANY).first()).toBeVisible();
   });
 });
 
@@ -151,13 +158,18 @@ test.describe("Detaljvy (/ansokningar/[id])", () => {
     ).toHaveCount(0);
   });
 
+  // Noteringsfältet ligger bakom "+ Lägg till anteckning"-disclosuren i
+  // Anteckningar-sektionen (#805/#818) — det är inte längre ett alltid-synligt
+  // formulär. Scenariointentionen (skriv notering → spara → syns) är oförändrad.
   test("visar formulär för att lägga till notering", async ({ page }) => {
+    await page.getByRole("button", { name: "Lägg till anteckning" }).click();
     await expect(
       page.getByRole("textbox", { name: "Notering" })
     ).toBeVisible();
   });
 
   test("kan lägga till en notering", async ({ page }) => {
+    await page.getByRole("button", { name: "Lägg till anteckning" }).click();
     await page
       .getByRole("textbox", { name: "Notering" })
       .fill("Intressant tjänst, bra matchning.");
@@ -209,54 +221,13 @@ test.describe("Statusövergång", () => {
     await expect(statusRegion).toContainText("Nekad");
   });
 
-  // #565 — samma destruktiva bekräftelse men via RADKLICK-MODALEN (soft-nav
-  // intercepting-route), inte helsidan. Detta är vägen där buggen levde: den
-  // opaka scrim-panelen (`.jp-modal-scrim`, z-80) målade över z-50-dialogen →
-  // osynlig + oklickbar. Helsidan (testet ovan) har ingen scrim → maskerar
-  // buggen. OBS: detta spec körs INTE i CI ännu (0 Playwright-workflows) — den
-  // in-CI-grindande guarden är dialog.zindex.test.tsx; detta är den exekverbara
-  // browser-reproduktionen (hit-test), fröet till en framtida CI-harness.
-  test("radklick-modal: destruktiv bekräftelse-dialog syns ovanpå modalen och är klickbar (#565)", async ({
-    page,
-  }) => {
-    // Egen unik titel → entydig rad (undviker strict-mode-krock med andra
-    // testers "Backend-utvecklare — Volvo"-rader i samma körnings-användare).
-    const probeTitle = "Ocklusionsprov 565";
-    await page.goto("/ny-ansokan");
-    await page.getByLabel(/Jobbtitel/).fill(probeTitle);
-    await page.getByLabel(/Företag/).fill(NEW_COMPANY);
-    await page.getByRole("button", { name: "Skapa ansökan" }).click();
-    await page.waitForURL(/\/ansokningar\/[0-9a-f-]{36}/);
-
-    // Utkast → Skickad (så Nekad blir en tillåten övergång i radiogruppen).
-    await page.getByRole("button", { name: "Markera som Skickad" }).click();
-    await expect(
-      page.getByRole("region", { name: "Status" })
-    ).toContainText("Skickad");
-
-    // Öppna detaljen via SOFT-NAV radklick → intercepting-route-modal (scrim).
-    await page.goto("/ansokningar");
-    await page.getByRole("link", { name: new RegExp(probeTitle) }).click();
-
-    // Statusregionen ligger nu inuti modalen (bakom scrimen).
-    const statusRegion = page.getByRole("region", { name: "Status" });
-    await expect(statusRegion).toBeVisible();
-    await statusRegion.getByRole("radio", { name: "Nekad" }).click();
-    await statusRegion.getByRole("button", { name: "Spara" }).click();
-
-    // Bekräftelse-dialogen portaleras till <body> — SYSKON till modalpanelen,
-    // inte barn. Shellen har också role="dialog"; disambiguera via titeln.
-    const confirmDialog = page
-      .getByRole("dialog")
-      .filter({ hasText: "Markera som Nekad?" });
-    await expect(confirmDialog).toBeVisible();
-
-    // Det avgörande: ett ÄKTA klick är ett hit-test. Om dialogen ockluderas av
-    // den opaka panelen (#565) fångar panelen klicket och Playwright kastar
-    // ("intercepts pointer events"). toBeVisible() ensamt hade INTE fångat det.
-    await confirmDialog
-      .getByRole("button", { name: "Markera som Nekad" })
-      .click();
-    await expect(statusRegion).toContainText("Nekad");
-  });
+  // #565-specen (radklick-modalens ocklusions-repro) ÄR BORTTAGEN. Den ockluderande
+  // ytan finns inte längre i produkten: /ansokningar har ingen intercepting-route kvar
+  // (modalen är reverterad), och invarianten den vaktade — "bekräftelse-dialogen ligger
+  // ovanpå modal-scrimen" — kräver TVÅ överlägg för att ens existera. Det finns nu ett.
+  // Att peka om specen mot helsides-flödet hade behållit namnet och #565-referensen medan
+  // den asserterade något annat än sin egen rubrik; en test som rapporterar grönt för en
+  // egenskap ingen kontrollerar är sämre än ingen test alls. Täckningen består: z-index-
+  // relationen pinnas av dialog.zindex.test.tsx, och den destruktiva bekräftelsen körs
+  // fortfarande end-to-end av testet ovan. (senior-cto-advisor-bind, #813.)
 });

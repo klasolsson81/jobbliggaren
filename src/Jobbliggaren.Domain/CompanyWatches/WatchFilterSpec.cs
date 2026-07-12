@@ -63,6 +63,27 @@ public sealed record WatchFilterSpec
     // EF + record copy-semantics
     private WatchFilterSpec() { }
 
+    /// <summary>
+    /// True when a selection carries no filter at all — i.e. what "the user cleared the filter" means.
+    ///
+    /// <para>
+    /// <b>This is the SSOT for emptiness, and callers MUST use it rather than counting the raw lists.</b>
+    /// Emptiness is decided on the NORMALIZED lists, because <c>[""]</c> and <c>["  "]</c> are empty
+    /// selections that a raw <c>Count &gt; 0</c> would call non-empty. A caller that counted raw items
+    /// would send such a payload to <see cref="Create"/>, get the empty-spec failure back, and report
+    /// "at least one filter is required" to a user who was trying to REMOVE the filter — leaving the
+    /// old filter active and the user with no way to clear it. One authority, so the transport boundary
+    /// and the invariant can never disagree.
+    /// </para>
+    /// </summary>
+    public static bool IsEmptySelection(
+        IEnumerable<string>? municipalities,
+        IEnumerable<string>? regions,
+        bool onlyMatched)
+        => NormalizeList(municipalities).Length == 0
+            && NormalizeList(regions).Length == 0
+            && !onlyMatched;
+
     public static Result<WatchFilterSpec> Create(
         IEnumerable<string>? municipalities,
         IEnumerable<string>? regions,

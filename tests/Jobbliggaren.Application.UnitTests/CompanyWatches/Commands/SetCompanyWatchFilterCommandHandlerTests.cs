@@ -124,6 +124,29 @@ public class SetCompanyWatchFilterCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WithWhitespaceOnlySelection_ClearsFilter()
+    {
+        // code-reviewer Major (F4a): the handler used to count the RAW lists, so a payload whose only
+        // entries are blank ([""] — what a form emits when the user removes the last chip) looked
+        // NON-empty, went to WatchFilterSpec.Create, was normalized to nothing, failed the empty-spec
+        // invariant, and came back as "Minst ett filter krävs" — a validation error thrown at a user who
+        // was trying to REMOVE the filter, leaving the old one active with no way to clear it. Emptiness
+        // is now asked of the Domain SSOT (IsEmptySelection), which decides on the NORMALIZED lists.
+        // This test fails against the pre-fix handler.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var existing = WatchFilterSpec.Create(["kommun_a"], ["lan_skane"], onlyMatched: true).Value;
+        var watch = await SeedWatchAsync(db, _userId, ct, filter: existing);
+
+        var result = await Handler(db).Handle(
+            Command(watch.Id.Value, municipalities: [""], regions: ["  "], onlyMatched: false), ct);
+
+        result.IsSuccess.ShouldBeTrue(
+            "ett blank-only-val ÄR ett tomt val — det ska rensa filtret, aldrig returnera valideringsfel");
+        (await ReadBackAsync(db, watch.Id, ct)).Filter.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task Handle_WithEmptySelection_OnWatchWithoutFilter_IsIdempotentSuccess()
     {
         var ct = TestContext.Current.CancellationToken;

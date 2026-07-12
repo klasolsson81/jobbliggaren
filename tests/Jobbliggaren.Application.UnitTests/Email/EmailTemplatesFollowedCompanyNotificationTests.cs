@@ -46,6 +46,12 @@ public class EmailTemplatesFollowedCompanyNotificationTests
         params FollowedCompanyAdItem[] items) =>
         new(DigestCadence.Weekly, Items: items, TotalCount: items.Length, FilterSummary: summary);
 
+    // A CAPPED digest (TotalCount > Items.Count → the template renders "och N till.") carrying a
+    // disclosure — the only combination in which andMore and the disclosure are adjacent.
+    private static FollowedCompanyNotificationEmail CappedContentWithSummary(
+        int totalCount, FollowedCompanyFilterSummary? summary, params FollowedCompanyAdItem[] items) =>
+        new(DigestCadence.Weekly, Items: items, TotalCount: totalCount, FilterSummary: summary);
+
     // ── Pre-F4a invariants (unchanged) ───────────────────────────────────────────────────────────
 
     [Fact]
@@ -231,6 +237,39 @@ public class EmailTemplatesFollowedCompanyNotificationTests
         disclosureIndex.ShouldBeGreaterThan(lastItemIndex, "disclosuren ligger EFTER annonslistan");
         locationIndex.ShouldBeGreaterThan(disclosureIndex, "en rad per axel, i ordning");
         ctaIndex.ShouldBeGreaterThan(locationIndex, "disclosuren ligger FÖRE Öppna annonserna-CTA:n");
+    }
+
+    [Fact]
+    public void FollowedCompanyNotification_CappedDigestWithDisclosure_KeepsParagraphsSeparated()
+    {
+        // The one combination no other test renders: a CAPPED digest (which emits "och N till.") TOGETHER
+        // with a disclosure. The two are adjacent in the template, and the blank line between them comes
+        // from a single leading AppendLine() in BuildFilterDisclosure — delete it and the disclosure glues
+        // itself onto "och 3 till.", while every other test in this file still passes. This pins both the
+        // separation (no run-on paragraph) and that nothing double-spaces into a gap (no "\n\n\n").
+        var email = EmailTemplates.FollowedCompanyNotification(
+            BaseUrl,
+            CappedContentWithSummary(
+                totalCount: 5,
+                new FollowedCompanyFilterSummary(OnlyMatchedActive: true, LocationFilterActive: true),
+                Item("Frontend", "Beta AB"),
+                Item("DevOps", "Gamma AB")));
+
+        var body = email.PlainTextBody.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        body.ShouldNotContain("\n\n\n"); // aldrig en dubbel tom rad (slarvig styckesättning)
+
+        var lastItem = body.IndexOf("DevOps, Gamma AB", StringComparison.Ordinal);
+        var andMore = body.IndexOf("och 3 till", StringComparison.Ordinal);
+        var disclosure = body.IndexOf(OnlyMatchedDisclosure, StringComparison.Ordinal);
+        var cta = body.IndexOf(OpenAdsCta, StringComparison.Ordinal);
+
+        andMore.ShouldBeGreaterThan(lastItem, "\"och N till\" hör till listan");
+        disclosure.ShouldBeGreaterThan(andMore, "disclosuren kommer EFTER hela listan, inklusive andMore");
+        cta.ShouldBeGreaterThan(disclosure, "disclosuren ligger FÖRE CTA:n");
+
+        // The disclosure must start on its own paragraph, not be glued to the andMore line.
+        body.ShouldContain("\n\n" + OnlyMatchedDisclosure);
     }
 
     [Fact]

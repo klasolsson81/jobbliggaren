@@ -35,6 +35,10 @@ public class SetCompanyWatchFilterEndpointTests(ApiFactory factory)
     private static readonly string[] MalformedLan = ["inte giltig"];
     private static readonly string[] NoIds = [];
 
+    // What a form emits when the user removes the last chip — a list whose only entry is blank. It is an
+    // EMPTY selection (the Domain normalizes it away), and the wire must treat it as one.
+    private static readonly string[] BlankIds = [""];
+
     private readonly ApiFactory _factory = factory;
 
     private async Task<HttpClient> AuthenticatedClientAsync(CancellationToken ct)
@@ -224,6 +228,34 @@ public class SetCompanyWatchFilterEndpointTests(ApiFactory factory)
         (await ReadFilterAsync(watchId, ct)).ShouldBeNull();
     }
 
+    [Fact]
+    public async Task PUT_filter_with_whitespace_only_selection_clears_column_to_sql_null()
+    {
+        // code-reviewer Major, over the wire: `[""]` is what a form emits when the user removes the last
+        // chip. The handler used to count RAW list items, so this looked like a NON-empty selection, went
+        // to WatchFilterSpec.Create, normalized to nothing, and came back as 400 "Minst ett filter krävs"
+        // — a validation error at the user who was trying to CLEAR the filter, with the old filter left
+        // active and no way to remove it. Emptiness is now the Domain's call (IsEmptySelection), on the
+        // NORMALIZED lists. This test fails against the pre-fix handler (400, and a non-null column).
+        var ct = TestContext.Current.CancellationToken;
+        var client = await AuthenticatedClientAsync(ct);
+        var watchId = await FollowAsync(client, ct);
+        (await PutFilterAsync(
+            client, watchId,
+            new { municipalities = Kommun, regions = Lan, onlyMatched = true },
+            ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await ReadRawFilterAsync(watchId, ct)).ShouldNotBeNull("förutsättning: filtret är satt");
+
+        var response = await PutFilterAsync(
+            client, watchId,
+            new { municipalities = BlankIds, regions = BlankIds, onlyMatched = false },
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await ReadRawFilterAsync(watchId, ct)).ShouldBeNull(
+            "ett blank-only-val ÄR ett tomt val — kolumnen ska rensas till SQL NULL, inte 400:a");
+    }
+
     // ── Audit (Art. 5(2)/30) ─────────────────────────────────────────────────────────────────────
 
     [Fact]
@@ -280,7 +312,6 @@ public class SetCompanyWatchFilterEndpointTests(ApiFactory factory)
             attacker, watchId, new { municipalities = OtherKommun, onlyMatched = true }, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
-        response.StatusCode.ShouldNotBe(HttpStatusCode.Forbidden);
         (await ReadFilterAsync(watchId, ct)).ShouldBeNull(
             "ägarens bevakning ska vara orörd efter angriparens försök");
         (await CountFilterChangedAuditRowsAsync(watchId, ct)).ShouldBe(0,

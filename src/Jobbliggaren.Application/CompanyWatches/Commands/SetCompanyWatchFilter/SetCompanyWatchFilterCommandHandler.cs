@@ -65,12 +65,14 @@ public sealed class SetCompanyWatchFilterCommandHandler(
 
         // Empty selection = "no filter" = the canonical NULL column. ClearFilter is idempotent and
         // deliberately allowed in any soft-delete state (it only ever removes processing scope).
-        var wantsFilter =
-            command.Municipalities.Count > 0
-            || command.Regions.Count > 0
-            || command.OnlyMatched;
-
-        if (!wantsFilter)
+        //
+        // Emptiness is asked of the VO, never counted here: it is decided on the NORMALIZED lists, so a
+        // payload like {"municipalities": [""]} is an empty selection. Counting raw items instead would
+        // route that payload into Create, which normalizes it to nothing, fails the empty-spec invariant
+        // and returns "at least one filter is required" — to a user who was trying to REMOVE the filter,
+        // leaving the old one active with no way to clear it.
+        if (WatchFilterSpec.IsEmptySelection(
+                command.Municipalities, command.Regions, command.OnlyMatched))
         {
             watch.ClearFilter();
             return Result.Success();

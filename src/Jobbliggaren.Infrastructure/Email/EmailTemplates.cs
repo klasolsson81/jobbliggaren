@@ -85,10 +85,11 @@ internal static class EmailTemplates
     ///
     /// <para>
     /// <b>Copy:n är NAMN-FRI, och det är ett krav — inte en förenkling.</b> Summaryn har
-    /// ANY-semantik ("minst en bidragande bevakning är filtrerad", se
-    /// <c>DigestDispatchJob.BuildFilterSummary</c>), så varje namnbärande påstående vore FALSKT så
-    /// snart en andra bevakning filtrerar på en annan ort: "detta mejl visar bara annonser i
-    /// Göteborg" ljuger för den som också följer ett bolag filtrerat på Malmö. Att bära ortsnamn
+    /// ANY-semantik över ANVÄNDARENS ALLA AKTIVA bevakningsfilter ("minst en aktiv bevakning är
+    /// filtrerad", CTO sub-bind A′ — se <c>DigestDispatchJob.BuildFilterSummary</c>), så varje
+    /// namnbärande påstående vore FALSKT så snart en andra bevakning filtrerar på en annan ort:
+    /// "detta mejl visar bara annonser i Göteborg" ljuger för den som också följer ett bolag
+    /// filtrerat på Malmö. Att bära ortsnamn
     /// skulle dessutom skicka preferens-PII till en tredjepartsavsändare (Resend) utan nytta för
     /// användaren, för en detalj som ligger ett klick bort i appen (Art. 5(1)(c)). Utöka därför
     /// INTE kontraktet med ortsnamn.

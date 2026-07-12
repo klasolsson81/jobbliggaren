@@ -23,13 +23,18 @@ public sealed class SetCompanyWatchFilterCommandValidator
             .NotEmpty()
             .WithMessage("Bevakningen måste anges.");
 
+        // Cascade.Stop is load-bearing, not decoration: FluentValidation's default rule-level cascade is
+        // Continue, so a null list would run .Must anyway and throw an NRE (500) instead of returning
+        // the 400 that .NotNull() promises. House idiom (GetCompanyWatchStatusBatchQueryValidator).
         RuleFor(c => c.Municipalities)
+            .Cascade(CascadeMode.Stop)
             .NotNull()
             .WithMessage("Orter måste anges som en lista.")
             .Must(m => m.Count <= SearchCriteria.MaxConceptIds)
             .WithMessage($"Max {SearchCriteria.MaxConceptIds} kommuner per bevakningsfilter.");
 
         RuleFor(c => c.Regions)
+            .Cascade(CascadeMode.Stop)
             .NotNull()
             .WithMessage("Län måste anges som en lista.")
             .Must(r => r.Count <= SearchCriteria.MaxConceptIds)

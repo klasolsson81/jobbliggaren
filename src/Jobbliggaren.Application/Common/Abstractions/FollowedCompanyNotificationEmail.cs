@@ -49,15 +49,32 @@ public sealed record FollowedCompanyNotificationEmail(
     FollowedCompanyFilterSummary? FilterSummary = null);
 
 /// <summary>
-/// Bevakning-reconcile RF-13=13B (2026-07-12) — a per-EMAIL disclosure of the per-watch filters that
-/// shaped this follow digest, so the copy can honestly say the email is narrowed (§5 transparency)
-/// WITHOUT breaking the D1 seal (per-item stays grade-free — this is email-level, not per-item).
-/// Booleans only, aggregated across the watches that CONTRIBUTED a hit to this email:
-/// <see cref="OnlyMatchedActive"/> = at least one contributing watch filters to "endast matchade
-/// annonser" (read-time ≥Good, applied at dispatch); <see cref="LocationFilterActive"/> = at least
-/// one contributing watch filters by municipality (applied SCAN-time, 8A). Carries NO ort NAMES and
-/// NO grade value (data-minimizing; Goodhart-safe). The Swedish disclosure copy is rendered by
-/// PR-F4 (RF-12/RF-13 route the copy + filter-set UI there); F3 only populates this field.
+/// Bevakning-reconcile RF-13=13B (2026-07-12) — a disclosure that the follow digest may be narrowed,
+/// so the copy can say so honestly (§5 transparency) WITHOUT breaking the D1 seal (per-item stays
+/// grade-free — this is email-level, not per-item).
+///
+/// <para>
+/// <b>Booleans only, aggregated across ALL of the user's ACTIVE watch filters</b> (CTO sub-bind A′,
+/// 2026-07-12 — NOT just the watches that contributed a hit to this email).
+/// <see cref="OnlyMatchedActive"/> = at least one active watch filters to "endast matchade annonser"
+/// (read-time ≥Good, applied at dispatch, and only when the user is assessable — a profile-less filter
+/// is INERT); <see cref="LocationFilterActive"/> = at least one active watch filters by municipality or
+/// län (applied SCAN-time, 8A).
+/// </para>
+///
+/// <para>
+/// The quantifier's domain is the user's SETTINGS, not this email's hit set, and that is load-bearing:
+/// a watch whose filter suppressed 100% of that company's new ads contributes ZERO hits, so a
+/// contributing-watches-only summary would stay silent about a real narrowing — the silent narrowing
+/// RF-13 rejected, reached by another route. It also matches what the rendered sentence actually says
+/// ("ett eller flera av företagen du följer"). Consequently the summary being null is itself a TRUE
+/// claim: none of the companies you follow is filtered.
+/// </para>
+///
+/// <para>
+/// Carries NO ort NAMES and NO grade value (data-minimizing; Goodhart-safe). The Swedish disclosure
+/// copy is rendered by <c>EmailTemplates.FollowedCompanyNotification</c> (F4a).
+/// </para>
 /// </summary>
 public sealed record FollowedCompanyFilterSummary(
     bool OnlyMatchedActive,

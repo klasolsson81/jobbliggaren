@@ -51,6 +51,31 @@ public class SetCompanyWatchFilterCommandValidatorTests
     }
 
     [Fact]
+    public void Validate_WithNullMunicipalities_FailsWithoutThrowing()
+    {
+        // The .NotNull() branch (code-reviewer Minor). The command's list is non-nullable in C#, but the
+        // wire is not the type system: a hand-rolled client can send `"municipalities": null` and the
+        // endpoint's `?? []` is the only thing between it and here — so the guard must hold on its own.
+        // .Cascade(Stop) is what makes it a 400 rather than a 500: without it FluentValidation would run
+        // the .Must(m => m.Count <= …) predicate on the null anyway and throw an NRE.
+        var command = new SetCompanyWatchFilterCommand(Guid.NewGuid(), null!, [], OnlyMatched: false);
+
+        var result = Should.NotThrow(() => _validator.Validate(command));
+
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Validate_WithNullRegions_FailsWithoutThrowing()
+    {
+        var command = new SetCompanyWatchFilterCommand(Guid.NewGuid(), [], null!, OnlyMatched: false);
+
+        var result = Should.NotThrow(() => _validator.Validate(command));
+
+        result.IsValid.ShouldBeFalse();
+    }
+
+    [Fact]
     public void Validate_WithMoreThanMaxConceptIdsMunicipalities_Fails()
     {
         var tooMany = Enumerable.Range(0, SearchCriteria.MaxConceptIds + 1)

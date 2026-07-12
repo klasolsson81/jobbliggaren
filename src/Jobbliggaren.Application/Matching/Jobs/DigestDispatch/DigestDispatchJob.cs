@@ -302,23 +302,39 @@ public sealed partial class DigestDispatchJob(
             .Distinct()
             .ToList();
 
+        // Assessability is a property of the USER, not of this email's hit set (CTO sub-bind A′,
+        // 2026-07-12). The 13B disclosure must fire for an OnlyMatched watch even when that watch
+        // contributed NO pending hits this window — so we cannot infer assessability from
+        // `idsToGrade` being non-empty. Gate the profile build on whether the user has ANY active
+        // OnlyMatched watch: an in-memory Any() over data already loaded, so the common path (no
+        // such watch) still costs nothing and the fail-fast port is never called on an empty-SSYK
+        // profile. The profile is built AT MOST ONCE and reused for the grade filter below.
+        var hasOnlyMatchedWatch = filterByWatchId.Values.Any(f => f is { OnlyMatched: true });
+        var gradeAssessable = false;
+        FullCandidateMatchProfile? profile = null;
+        if (hasOnlyMatchedWatch)
+        {
+            profile = await profileBuilder.BuildFullForUserIdAsync(userId, ct);
+            // A profile-less user (no stated occupation) makes the filter INERT (RF-5 under-fork i):
+            // deliver unfiltered rather than a dishonest empty set, and disclose nothing (claiming an
+            // inert filter narrowed something is a §5 accuracy miss).
+            gradeAssessable = profile.Fast.SsykGroupConceptIds.Count > 0;
+        }
+
         // The notifiable subset after the read-time grade filter. A hit FILTERED OUT (below ≥Good under
         // an OnlyMatched watch) is LEFT PENDING — never claimed, never drained — so a later profile
         // change re-surfaces it retroactively (8C); the deferred retention sweep (DPIA R-E2/M-E2) bounds
-        // the accumulation. `gradeAssessable` gates the 13B OnlyMatched disclosure: a profile-less
-        // user's filter is INERT, so disclosing it as active would be a §5 accuracy miss.
+        // the accumulation.
         List<FollowedCompanyAdHit> effective;
-        var gradeAssessable = false;
-        if (idsToGrade.Count == 0)
+        if (idsToGrade.Count == 0 || !gradeAssessable)
         {
-            // No OnlyMatched filter on any contributing watch → the whole pending set is notifiable
-            // (also the ONLY path until PR-F4 ships the filter-set UI — the grade path stays dormant).
+            // Nothing to grade (no OnlyMatched hit pending), or the filter is inert → the whole pending
+            // set is notifiable.
             effective = pending;
         }
         else
         {
-            var (matching, assessable) = await MatchingAdIdsAsync(userId, idsToGrade, ct);
-            gradeAssessable = assessable;
+            var matching = await perUserSearch.FilterToMatchingAsync(profile!, idsToGrade, ct);
             effective = pending
                 .Where(h => !NeedsGradeCheck(h) || matching.Contains(h.JobAdId))
                 .ToList();
@@ -328,9 +344,14 @@ public sealed partial class DigestDispatchJob(
                 return false;
         }
 
-        // 13B filter-summary — disclose the filters that shaped THIS email (contributing watches only).
-        // Email-level, grade-free (D1 seal); F4 renders the Swedish copy.
-        var filterSummary = BuildFilterSummary(effective, filterByWatchId, gradeAssessable);
+        // 13B filter-summary (CTO sub-bind A′) — a standing caveat about the user's SETTINGS, not a
+        // report of what this particular email dropped. It therefore quantifies over ALL the user's
+        // active watch filters, exactly as the rendered Swedish sentence does ("ett eller flera av
+        // företagen du följer"). Quantifying over the CONTRIBUTING watches instead would make the
+        // disclosure's ABSENCE a false claim: a watch whose filter suppressed 100% of that company's
+        // new ads contributes zero hits, so the email would stay silent about a real narrowing —
+        // the very failure RF-13 rejected, reached by another route. Email-level, grade-free (D1 seal).
+        var filterSummary = BuildFilterSummary(filterByWatchId, gradeAssessable);
 
         // Display items — the PUBLIC title/company per ad (never the org.nr — ADR 0087 D8), AsNoTracking,
         // same ordering. Read BEFORE the claim (the join predicate needs the rows still Pending). The
@@ -349,7 +370,7 @@ public sealed partial class DigestDispatchJob(
         List<FollowedCompanyAdItem> items;
         if (effective.Count == pending.Count)
         {
-            // Unfiltered (the common path; the ONLY path until F4) — keep the server-side cap so the
+            // Unfiltered (the common path) — keep the server-side cap so the
             // fetch stays bounded (no unpaginated read).
             items = (await itemsQuery.Take(_options.MaxItemsPerDigest).ToListAsync(ct))
                 .Select(r => new FollowedCompanyAdItem(r.Title, r.Company))
@@ -422,37 +443,27 @@ public sealed partial class DigestDispatchJob(
 
     // Read-time ≥Good membership for the OnlyMatched filter (RF-5=5A fixed floor). Builds the user's
     // DEK-free Fast profile (the Worker has no ICurrentUser → BuildFullForUserIdAsync) and delegates to
-    // the shared GradeRankExpression SSOT via FilterToMatchingAsync (ADR 0079 — the grade authority read
-    // at read-time, never persisted). A PROFILE-LESS user (no stated occupation) makes the "endast
-    // matchade" filter INERT (RF-5 under-fork i: deliver unfiltered rather than a dishonest empty set),
-    // so branch on assessability BEFORE the call — FilterToMatchingAsync fail-fasts on an empty-SSYK
-    // profile. Returns (matching-set, assessable) so the caller keeps filtered-out hits Pending and the
-    // 13B summary discloses OnlyMatched only when it actually narrowed.
-    private async ValueTask<(IReadOnlySet<JobAdId> Matching, bool Assessable)> MatchingAdIdsAsync(
-        Guid userId, IReadOnlyList<JobAdId> jobAdIds, CancellationToken ct)
-    {
-        var profile = await profileBuilder.BuildFullForUserIdAsync(userId, ct);
-        if (profile.Fast.SsykGroupConceptIds.Count == 0)
-            return (jobAdIds.ToHashSet(), false); // INERT: everything passes; never call the fail-fast port
-
-        return (await perUserSearch.FilterToMatchingAsync(profile, jobAdIds, ct), true);
-    }
-
-    // 13B (RF-13) — aggregate the per-watch filters of the watches that CONTRIBUTED a hit to this email
-    // into a per-email disclosure (booleans only; no ort names, no grade — D1/Goodhart safe). The ort
-    // filter always narrows (scan-time, 8A) so it discloses unconditionally; OnlyMatched only narrows
-    // when the user is assessable (a profile-less filter is INERT), so it discloses only then. Null when
-    // no contributing watch has an active, effective filter.
+    // 13B (RF-13) + CTO sub-bind A′ — aggregate ALL the user's ACTIVE watch filters into a standing
+    // disclosure (booleans only; no ort names, no grade — D1/Goodhart safe). The domain of the
+    // quantifier is deliberately every active watch, matching the rendered sentence ("ett eller flera
+    // av företagen du följer"): the disclosure is a caveat about the user's SETTINGS ("you have filters
+    // active, so ads may be missing"), not a report of what this particular email dropped. The
+    // event-scoped alternative is not merely narrower, it is unknowable for the ort axis — 8A never
+    // creates the hit row, so nothing records what was suppressed.
+    //
+    // The ort filter always narrows (scan-time, 8A) so it discloses unconditionally. OnlyMatched
+    // narrows only when the user is assessable (a profile-less filter is INERT), so it discloses only
+    // then. Null when the user has no active, effective filter — and under A′ that null is now a TRUE
+    // claim ("none of the companies you follow is filtered"), which it was not before.
     private static FollowedCompanyFilterSummary? BuildFilterSummary(
-        IReadOnlyList<FollowedCompanyAdHit> effective,
         Dictionary<CompanyWatchId, WatchFilterSpec?> filterByWatchId,
         bool onlyMatchedAssessable)
     {
         var onlyMatched = false;
         var location = false;
-        foreach (var watchId in effective.Select(h => h.CompanyWatchId).Distinct())
+        foreach (var filter in filterByWatchId.Values)
         {
-            if (!filterByWatchId.TryGetValue(watchId, out var filter) || filter is null)
+            if (filter is null)
                 continue;
             if (filter.OnlyMatched && onlyMatchedAssessable)
                 onlyMatched = true;

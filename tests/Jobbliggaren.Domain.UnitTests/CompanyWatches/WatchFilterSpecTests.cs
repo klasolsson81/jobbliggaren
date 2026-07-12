@@ -83,6 +83,94 @@ public class WatchFilterSpecTests
     }
 
     // ---------------------------------------------------------------
+    // IsEmptySelection — the SSOT for "the user cleared the filter" (code-reviewer Major, F4a)
+    //
+    // The bug this exists to prevent: the handler used to decide emptiness by counting the RAW lists
+    // while Create decides it on the NORMALIZED ones. A payload like {"municipalities": [""]} — what a
+    // form emits when the user empties the last chip — then counted as NON-empty, went to Create, was
+    // normalized to nothing, failed the empty-spec invariant, and came back as 400 "Minst ett filter
+    // krävs" to a user who was trying to REMOVE the filter. The old filter stayed active with no way to
+    // clear it. Two authorities on one question is the bug; these tests pin the ONE authority.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void IsEmptySelection_NullLists_IsTrue()
+    {
+        WatchFilterSpec.IsEmptySelection(null, null, onlyMatched: false).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void IsEmptySelection_EmptyLists_IsTrue()
+    {
+        WatchFilterSpec.IsEmptySelection([], [], onlyMatched: false).ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("\t")]
+    public void IsEmptySelection_WhitespaceOnlyEntries_IsTrue(string blank)
+    {
+        // The regression payload. Emptiness is decided AFTER normalization on BOTH axes — a list whose
+        // only entry is blank carries no selection at all.
+        WatchFilterSpec.IsEmptySelection([blank], [blank], onlyMatched: false).ShouldBeTrue();
+        WatchFilterSpec.IsEmptySelection([blank], null, onlyMatched: false).ShouldBeTrue();
+        WatchFilterSpec.IsEmptySelection(null, [blank], onlyMatched: false).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void IsEmptySelection_RealMunicipality_IsFalse()
+    {
+        WatchFilterSpec.IsEmptySelection(["kommun_a"], null, onlyMatched: false).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsEmptySelection_RealRegion_IsFalse()
+    {
+        // The län axis counts as a selection on its own (a whole-län pick is a complete filter).
+        WatchFilterSpec.IsEmptySelection(null, ["lan_skane"], onlyMatched: false).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsEmptySelection_OnlyMatchedAlone_IsFalse()
+    {
+        WatchFilterSpec.IsEmptySelection(null, null, onlyMatched: true).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsEmptySelection_BlankEntriesMixedWithARealId_IsFalse()
+    {
+        WatchFilterSpec.IsEmptySelection(["", "kommun_a", "  "], null, onlyMatched: false).ShouldBeFalse();
+    }
+
+    [Theory]
+    // Every shape the transport can send: blank-only, empty, null, real ids, OnlyMatched.
+    [InlineData(new string[0], new string[0], false)]
+    [InlineData(new[] { "" }, new string[0], false)]
+    [InlineData(new[] { "  " }, new[] { "" }, false)]
+    [InlineData(new string[0], new[] { "\t" }, false)]
+    [InlineData(new[] { "kommun_a" }, new string[0], false)]
+    [InlineData(new string[0], new[] { "lan_skane" }, false)]
+    [InlineData(new[] { "" }, new string[0], true)]
+    [InlineData(new[] { "kommun_a" }, new[] { "lan_skane" }, true)]
+    public void IsEmptySelection_AgreesWithCreateEmptySpecInvariant(
+        string[] municipalities, string[] regions, bool onlyMatched)
+    {
+        // THE pin: the two authorities must never disagree. IsEmptySelection true ⟺ Create rejects the
+        // selection as an empty spec. A divergence here IS the bug (the handler clears when Create would
+        // have said "empty", or the handler calls Create with something Create then refuses).
+        var isEmpty = WatchFilterSpec.IsEmptySelection(municipalities, regions, onlyMatched);
+        var create = WatchFilterSpec.Create(municipalities, regions, onlyMatched);
+
+        var createRejectedAsEmpty =
+            create.IsFailure && create.Error.Code == "WatchFilterSpec.Empty";
+
+        createRejectedAsEmpty.ShouldBe(isEmpty,
+            "IsEmptySelection och Create måste vara ENIGA om vad ett tomt val är — " +
+            "två auktoriteter på samma fråga var precis buggen");
+    }
+
+    // ---------------------------------------------------------------
     // Normalization — identical on both axes (trim, drop blank, distinct + sort ordinal)
     // ---------------------------------------------------------------
 

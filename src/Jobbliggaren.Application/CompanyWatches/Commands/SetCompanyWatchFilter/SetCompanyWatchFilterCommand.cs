@@ -26,8 +26,11 @@ namespace Jobbliggaren.Application.CompanyWatches.Commands.SetCompanyWatchFilter
 /// scope of downstream personal-data processing — exactly what an Art. 5(2)/30 accountability trail
 /// exists for, consent or not. (Part E C-E6 settles the LEGAL BASIS — the filter is a setting under
 /// 6(1)(b), not a new consent — which is a different question from auditability.) ONE event type for
-/// both directions: the direction is recoverable from the stored filter, and <c>audit_log</c> has no
-/// payload column, so encoding values into event NAMES is a trap we do not walk into.
+/// both directions: the direction is recoverable from the stored filter, so encoding values into event
+/// NAMES is a trap we do not walk into. (The filter VALUES cannot reach <c>audit_log</c> at all: the
+/// table HAS a payload column — ADR 0035 uses it for system events — but <c>AuditLogEntry.Create</c>,
+/// the command-audit factory, exposes no payload parameter and hardcodes it to null. The guard is the
+/// factory, not the absence of a column; do not restate it as the latter.)
 /// </para>
 ///
 /// <para>

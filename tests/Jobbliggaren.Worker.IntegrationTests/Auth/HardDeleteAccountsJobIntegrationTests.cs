@@ -78,6 +78,51 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
     }
 
     [Fact]
+    public async Task RunAsync_CascadesHardDelete_ToFollowedAdsWatermark()
+    {
+        // Bevakning F2 (#801) — DPIA Part E C-E1: LastSeenFollowedAdsAt is a column on job_seekers, so
+        // it MUST be erased with the account on Art. 17 hard-delete. Stamping the mark in the seed gives
+        // the test teeth: a future refactor moving the watermark to a non-cascaded table would leave
+        // orphaned behavioural PII and fail here (the erasability leg the §E8 verdict point 5 rests on).
+        var ct = TestContext.Current.CancellationToken;
+        var now = DateTimeOffset.UtcNow;
+        var oldDeletedAt = now.AddDays(-(RestoreWindowDays + 1));
+
+        var (_, jobSeekerId) = await SeedSoftDeletedAccountAsync(oldDeletedAt, ct);
+
+        // Stamp the watermark on the (soft-deleted) seeker — the precondition the test proves is erased.
+        var stampAt = oldDeletedAt.AddDays(-2);
+        using (var seedScope = _fixture.Services.CreateScope())
+        {
+            var db = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var seeker = await db.JobSeekers.IgnoreQueryFilters().SingleAsync(js => js.Id == jobSeekerId, ct);
+            seeker.SetLastSeenFollowedAds(stampAt, new FixedClock(stampAt));
+            await db.SaveChangesAsync(ct);
+        }
+
+        // Precondition: the watermark IS set (else the erasure assertion would pass vacuously).
+        using (var preScope = _fixture.Services.CreateScope())
+        {
+            var db = preScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var seeker = await db.JobSeekers.IgnoreQueryFilters().AsNoTracking()
+                .SingleAsync(js => js.Id == jobSeekerId, ct);
+            seeker.LastSeenFollowedAdsAt.ShouldNotBeNull(
+                "precondition: the watermark is stamped before hard-delete");
+        }
+
+        await RunJobAsync(now, ct);
+
+        using (var verifyScope = _fixture.Services.CreateScope())
+        {
+            var db = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var seeker = await db.JobSeekers.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(js => js.Id == jobSeekerId, ct);
+            seeker.ShouldBeNull(
+                "the job_seekers row — and the LastSeenFollowedAdsAt watermark on it — is hard-deleted (Art. 17, C-E1)");
+        }
+    }
+
+    [Fact]
     public async Task RunAsync_DoesNotHardDeleteAccountsWithin30Days()
     {
         var ct = TestContext.Current.CancellationToken;

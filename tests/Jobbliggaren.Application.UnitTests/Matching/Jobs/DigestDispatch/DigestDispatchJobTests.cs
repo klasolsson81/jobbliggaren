@@ -541,7 +541,7 @@ public class DigestDispatchJobTests
             "D8", System.Globalization.CultureInfo.InvariantCulture);
         var watch = CompanyWatch.Follow(userId, OrganizationNumber.Create(orgNr).Value, NowClock).Value;
         if (onlyMatched)
-            watch.SetFilter(WatchFilterSpec.Create([], onlyMatched: true).Value).IsSuccess
+            watch.SetFilter(WatchFilterSpec.Create([], [], onlyMatched: true).Value).IsSuccess
                 .ShouldBeTrue("SetFilter ska lyckas på en aktiv watch");
         db.CompanyWatches.Add(watch);
         await db.SaveChangesAsync(ct);
@@ -667,14 +667,168 @@ public class DigestDispatchJobTests
         (await ReloadHitAsync(db, userId, ad2, ct))!.NotificationStatus
             .ShouldBe(FollowedCompanyAdHitStatus.Sent);
 
-        // Pre-F4 universal path: no contributing watch has OnlyMatched → the grade path is DORMANT.
+        // The common path: the user has NO OnlyMatched watch → the grade path is dormant AND no profile
+        // is built at all (the gate is an in-memory Any() over already-loaded data, never a per-digest
+        // profile build).
         await _perUserSearch.DidNotReceive().FilterToMatchingAsync(
             Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
             Arg.Any<CancellationToken>());
         await _profileBuilder.DidNotReceive().BuildFullForUserIdAsync(
             Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+
         captured.ShouldNotBeNull();
-        captured.FilterSummary.ShouldBeNull("inget aktivt filter formade mejlet → ingen disclosure");
+        // REWRITTEN under CTO sub-bind A′ (2026-07-12): the old assertion message ("inget aktivt filter
+        // FORMADE MEJLET") encoded the contributing-watch quantifier that A′ removed. The claim is now a
+        // statement about the user's SETTINGS — this user has no active watch filter at all — and that is
+        // what makes the null summary a TRUE claim rather than merely an absent one.
+        captured.FilterSummary.ShouldBeNull(
+            "användaren har inga aktiva bevakningsfilter → ingen disclosure (och null är här ett SANT " +
+            "påstående: inget av företagen du följer är filtrerat)");
+    }
+
+    // ═══════════════════════ CTO sub-bind A′ (2026-07-12) — the quantifier is the user's SETTINGS
+    //
+    // BuildFilterSummary used to quantify over the watches that CONTRIBUTED a hit to this email. A watch
+    // whose filter suppressed 100% of that company's new ads contributes ZERO hits, so it was invisible
+    // to the summary: the email disclosed NOTHING while ads were really being suppressed — the silent
+    // narrowing RF-13 rejected, reached by a second route (security-auditor; CTO ruled it blocking).
+    // Worse, the rendered sentence already says "ett eller flera av FÖRETAGEN DU FÖLJER" (all of them),
+    // so the code was narrower than the sentence it printed, and the disclosure's ABSENCE was a claim
+    // that could be false.
+    //
+    // Every test below FAILS against the pre-A′ code. They share one shape: a filtered watch that
+    // contributes NOTHING to this email, plus a second UNFILTERED watch that supplies the hits (the
+    // digest needs at least one pending hit to exist at all).
+
+    [Fact]
+    public async Task RunAsync_OrtFilteredWatchContributingZeroHits_StillDisclosesLocationFilter()
+    {
+        // The ort axis is the sharp case: 8A never creates the hit row, so a 100%-suppressed watch leaves
+        // NO trace in this email's hit set. An event-scoped summary cannot even in principle see it —
+        // which is why the quantifier has to be the settings, not the event.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        await SeedGeoFilteredWatchAsync(db, userId, ["kommun_a"], [], ct); // suppressed 100% at scan → 0 hits
+        var openWatchId = await SeedWatchAsync(db, userId, onlyMatched: false, ct); // supplies the hits
+        var ad = await SeedActiveAdAsync(db, "Roll", "Bolag", ct);
+        await SeedFollowHitAsync(db, userId, ad, openWatchId, ct);
+
+        var captured = await RunAndCaptureAsync(db, ct);
+
+        captured.ShouldNotBeNull();
+        var summary = captured.FilterSummary.ShouldNotBeNull(
+            "en ort-filtrerad bevakning som tystade ALLA sina annonser bidrar noll hits — och måste " +
+            "ändå redovisas, annars är mejlets tystnad ett falskt påstående (sub-bind A′)");
+        summary.LocationFilterActive.ShouldBeTrue();
+        summary.OnlyMatchedActive.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task RunAsync_OnlyMatchedWatchWithAllHitsGradedOut_StillDisclosesOnlyMatched()
+    {
+        // The OnlyMatched watch's hits are ALL graded out → it contributes nothing to `effective`, so the
+        // pre-A′ summary (built from `effective`) never saw it. The unfiltered watch keeps the email
+        // alive. The filtered-out hit stays Pending (8C) — that part is unchanged.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var gradedWatchId = await SeedWatchAsync(db, userId, onlyMatched: true, ct);
+        var openWatchId = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+
+        var gradedOutAd = await SeedActiveAdAsync(db, "Bortgraderad", "Bolag 1", ct);
+        var openAd = await SeedActiveAdAsync(db, "Ofiltrerad", "Bolag 2", ct);
+        await SeedFollowHitAsync(db, userId, gradedOutAd, gradedWatchId, ct, createdAt: NowClock.UtcNow);
+        await SeedFollowHitAsync(db, userId, openAd, openWatchId, ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+        _perUserSearch.FilterToMatchingAsync(
+                Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new HashSet<JobAdId>()); // inget graderar ≥Good → hela den watchens bidrag faller
+
+        var captured = await RunAndCaptureAsync(db, ct);
+
+        captured.ShouldNotBeNull();
+        var summary = captured.FilterSummary.ShouldNotBeNull();
+        summary.OnlyMatchedActive.ShouldBeTrue(
+            "filtret tystade sina annonser fullständigt — det är MER anledning att redovisa det, inte mindre");
+        (await ReloadHitAsync(db, userId, gradedOutAd, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Pending, "8C: en bortfiltrerad hit lämnas Pending");
+    }
+
+    [Fact]
+    public async Task RunAsync_AssessableUser_OnlyMatchedWatchWithNoPendingHits_StillDisclosesOnlyMatched()
+    {
+        // The case a naive fix gets wrong, and the reason assessability had to become a USER-level
+        // property. The OnlyMatched watch has NO pending hits at all → `idsToGrade` is empty → the
+        // pre-A′ code never built a profile, so `gradeAssessable` stayed false and the disclosure stayed
+        // silent even though the user IS assessable and the filter IS live. Assessability is a property
+        // of the user, not of this email's hit set.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        await SeedWatchAsync(db, userId, onlyMatched: true, ct); // no hits this window
+        var openWatchId = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+        var ad = await SeedActiveAdAsync(db, "Roll", "Bolag", ct);
+        await SeedFollowHitAsync(db, userId, ad, openWatchId, ct);
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+
+        var captured = await RunAndCaptureAsync(db, ct);
+
+        captured.ShouldNotBeNull();
+        captured.FilterSummary.ShouldNotBeNull().OnlyMatchedActive.ShouldBeTrue(
+            "ett aktivt OnlyMatched-filter redovisas även när den bevakningen inte hade några hits alls");
+
+        // The profile is built AT MOST ONCE, and the fail-fast ≥Good port is not called when there is
+        // nothing to grade (assessability alone must not drag the SQL port into the common flow).
+        await _profileBuilder.Received(1).BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>());
+        await _perUserSearch.DidNotReceive().FilterToMatchingAsync(
+            Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunAsync_ProfilelessUser_OnlyMatchedWatchWithNoPendingHits_DisclosesNothing()
+    {
+        // The mirror of the test above: A′ widened WHO is asked, not WHAT counts as narrowing. A
+        // profile-less user's OnlyMatched filter is INERT (it suppresses nothing), so disclosing it as
+        // active would be a §5 accuracy miss in the other direction — claiming ads are missing when none
+        // are. The profile is still built exactly once (that is how inertness is discovered).
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        await SeedWatchAsync(db, userId, onlyMatched: true, ct); // no hits, and inert anyway
+        var openWatchId = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+        var ad = await SeedActiveAdAsync(db, "Roll", "Bolag", ct);
+        await SeedFollowHitAsync(db, userId, ad, openWatchId, ct);
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(ProfilelessProfile());
+
+        var captured = await RunAndCaptureAsync(db, ct);
+
+        captured.ShouldNotBeNull();
+        captured.FilterSummary.ShouldBeNull(
+            "ett inert OnlyMatched-filter redovisas aldrig som aktivt — det narrowar ingenting");
+        await _profileBuilder.Received(1).BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>());
+    }
+
+    // Runs the weekly digest and returns the follow-email contract the sender was handed (null when no
+    // follow email was sent).
+    private async Task<FollowedCompanyNotificationEmail?> RunAndCaptureAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, CancellationToken ct)
+    {
+        FollowedCompanyNotificationEmail? captured = null;
+        await _emailSender.SendFollowedCompanyNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Do<FollowedCompanyNotificationEmail>(c => captured = c),
+            Arg.Any<FollowedCompanyNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+
+        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+        return captured;
     }
 
     // ── 13B: an assessable OnlyMatched watch that contributed a hit discloses OnlyMatchedActive=true.
@@ -707,6 +861,83 @@ public class DigestDispatchJobTests
             "en assessable OnlyMatched-watch som bidrog en hit ska redovisa filtret (13B)");
         summary.OnlyMatchedActive.ShouldBeTrue();
         summary.LocationFilterActive.ShouldBeFalse("ingen ort-dimension på denna watch");
+    }
+
+    // ── 13B geo-disclosure: an ACTIVE geo filter ALWAYS narrows (scan-time, 8A), so it always discloses.
+    //
+    // Both axes must disclose. The email is demonstrably shorter than it would have been — hits were
+    // never created for the filtered-out ads — and silent narrowing was rejected on §5-grounds (RF-13).
+    // The disclosure is driven by the per-watch WatchFilterSpec, so a spec axis the summary does not
+    // know about produces a filtered email with NO disclosure at all: the exact failure RF-13 exists to
+    // prevent, and invisible in every log.
+
+    // An ACTIVE watch narrowed on the GEO dimension (kommun and/or län; OnlyMatched stays false, so the
+    // grade path is dormant and the geo axis is isolated).
+    private static async Task<CompanyWatchId> SeedGeoFilteredWatchAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId,
+        IReadOnlyList<string> municipalities, IReadOnlyList<string> regions, CancellationToken ct)
+    {
+        var orgNr = "55" + (Math.Abs(Guid.NewGuid().GetHashCode()) % 100000000).ToString(
+            "D8", System.Globalization.CultureInfo.InvariantCulture);
+        var watch = CompanyWatch.Follow(userId, OrganizationNumber.Create(orgNr).Value, NowClock).Value;
+        watch.SetFilter(WatchFilterSpec.Create(municipalities, regions, onlyMatched: false).Value)
+            .IsSuccess.ShouldBeTrue("SetFilter ska lyckas på en aktiv watch");
+        db.CompanyWatches.Add(watch);
+        await db.SaveChangesAsync(ct);
+        return watch.Id;
+    }
+
+    // Seeds one ad + one pending hit on `watchId`, then runs the weekly digest and returns the captured
+    // follow-email contract.
+    private async Task<FollowedCompanyNotificationEmail?> RunAndCaptureFollowEmailAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId, CompanyWatchId watchId,
+        CancellationToken ct)
+    {
+        var ad = await SeedActiveAdAsync(db, "Roll", "Bolag", ct);
+        await SeedFollowHitAsync(db, userId, ad, watchId, ct);
+        return await RunAndCaptureAsync(db, ct);
+    }
+
+    [Fact]
+    public async Task RunAsync_MunicipalityFilteredWatch_PopulatesFilterSummary_LocationFilterActive()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var watchId = await SeedGeoFilteredWatchAsync(db, userId, ["kommun_a"], [], ct);
+
+        var captured = await RunAndCaptureFollowEmailAsync(db, userId, watchId, ct);
+
+        captured.ShouldNotBeNull();
+        var summary = captured.FilterSummary.ShouldNotBeNull(
+            "en kommun-filtrerad watch som bidrog en hit ska redovisa ortsfiltret (13B)");
+        summary.LocationFilterActive.ShouldBeTrue();
+        summary.OnlyMatchedActive.ShouldBeFalse("ingen grade-dimension på denna watch");
+    }
+
+    [Fact]
+    public async Task RunAsync_RegionOnlyFilteredWatch_PopulatesFilterSummary_LocationFilterActive()
+    {
+        // F4a REGRESSION PIN. A whole-län watch carries its selection on the REGION axis (a län pick is
+        // never expanded into kommun-ids — that expansion is the silent-miss bug F4a removes). Its
+        // Municipalities list is therefore EMPTY, and a disclosure rule that only looks at
+        // Municipalities.Count reports "no location filter" for a mail that WAS narrowed by location:
+        // the user is silently told nothing about the ads the scan suppressed. Location is disclosed
+        // when EITHER geo axis is active.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var watchId = await SeedGeoFilteredWatchAsync(db, userId, [], ["lan_skane"], ct);
+
+        var captured = await RunAndCaptureFollowEmailAsync(db, userId, watchId, ct);
+
+        captured.ShouldNotBeNull();
+        var summary = captured.FilterSummary.ShouldNotBeNull(
+            "en län-filtrerad watch narrowar mejlet lika hårt som en kommun-filtrerad — tyst " +
+            "smalning är exakt det RF-13=13B avvisade");
+        summary.LocationFilterActive.ShouldBeTrue(
+            "län-axeln är en ORT-dimension: LocationFilterActive måste vara sann när NÅGON geo-axel " +
+            "är aktiv, annars saknar ett filtrerat mejl sin disclosure");
     }
 
     // A one-off clock for stamping a match's CreatedAt at a chosen instant.

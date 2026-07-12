@@ -19,10 +19,21 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 /// </para>
 ///
 /// <para>
-/// <b><see cref="Municipalities"/> are JobTech municipality concept-ids (RF-4=4A)</b> — the
-/// namespace job ads carry (<c>municipality_concept_id</c> STORED column) and the match-setup
-/// picker already uses. Deliberately NOT the SCB 4-digit seat-kommun codes of the criteria
-/// rail ("annonsens ort" vs "säteskommun" — two different concepts, kept apart in copy).
+/// <b><see cref="Municipalities"/> and <see cref="Regions"/> are JobTech concept-ids in two
+/// DISJOINT namespaces (RF-4=4A)</b> — the ones job ads carry (<c>municipality_concept_id</c>
+/// and <c>region_concept_id</c> STORED columns) and the match-setup picker already emits.
+/// Deliberately NOT the SCB 4-digit seat-kommun codes of the criteria rail ("annonsens ort"
+/// vs "säteskommun" — two different concepts, kept apart in copy).
+/// </para>
+///
+/// <para>
+/// <b>The two geo axes are a UNION, not a hierarchy (F4a, CTO 2026-07-12 Q3=B).</b> A whole-län
+/// selection is stored as the LÄN concept-id, never expanded into its municipalities — because
+/// an ad may be tagged at län granularity with NO municipality at all. Materialising "Hela Skåne"
+/// into 33 kommun-ids would silently drop every län-only Skåne ad from the user's notifications:
+/// a silent miss in a never-miss product. <see cref="AdmitsLocation"/> therefore mirrors the
+/// house-canonical predicate (<c>JobAdSearchComposition</c>): municipality-hit OR region-hit.
+/// One geo semantics across /jobb, match-setup and the watch filter.
 /// </para>
 ///
 /// <para>
@@ -46,31 +57,63 @@ public sealed record WatchFilterSpec
         new(@"^[A-Za-z0-9_-]{1,32}\z", RegexOptions.Compiled);
 
     public IReadOnlyList<string> Municipalities { get; private init; } = [];
+    public IReadOnlyList<string> Regions { get; private init; } = [];
     public bool OnlyMatched { get; private init; }
 
     // EF + record copy-semantics
     private WatchFilterSpec() { }
 
+    /// <summary>
+    /// True when a selection carries no filter at all — i.e. what "the user cleared the filter" means.
+    ///
+    /// <para>
+    /// <b>This is the SSOT for emptiness, and callers MUST use it rather than counting the raw lists.</b>
+    /// Emptiness is decided on the NORMALIZED lists, because <c>[""]</c> and <c>["  "]</c> are empty
+    /// selections that a raw <c>Count &gt; 0</c> would call non-empty. A caller that counted raw items
+    /// would send such a payload to <see cref="Create"/>, get the empty-spec failure back, and report
+    /// "at least one filter is required" to a user who was trying to REMOVE the filter — leaving the
+    /// old filter active and the user with no way to clear it. One authority, so the transport boundary
+    /// and the invariant can never disagree.
+    /// </para>
+    /// </summary>
+    public static bool IsEmptySelection(
+        IEnumerable<string>? municipalities,
+        IEnumerable<string>? regions,
+        bool onlyMatched)
+        => NormalizeList(municipalities).Length == 0
+            && NormalizeList(regions).Length == 0
+            && !onlyMatched;
+
     public static Result<WatchFilterSpec> Create(
         IEnumerable<string>? municipalities,
+        IEnumerable<string>? regions,
         bool onlyMatched)
     {
         var normMunicipalities = NormalizeList(municipalities);
+        var normRegions = NormalizeList(regions);
 
-        if (normMunicipalities.Length == 0 && !onlyMatched)
+        if (normMunicipalities.Length == 0 && normRegions.Length == 0 && !onlyMatched)
         {
             return Result.Failure<WatchFilterSpec>(DomainError.Validation(
                 "WatchFilterSpec.Empty",
                 "Minst ett filter (ort eller endast matchade annonser) krävs."));
         }
 
-        // Cap reuses SearchCriteria's SSOT constant (400 > ~290 kommuner — the cap
-        // never bites a legitimate selection; "all municipalities" = no ort filter).
+        // Cap reuses SearchCriteria's SSOT constant, applied PER AXIS (400 > ~290 kommuner
+        // and > 21 län — the cap never bites a legitimate selection; "all municipalities"
+        // = no ort filter).
         if (normMunicipalities.Length > SearchCriteria.MaxConceptIds)
         {
             return Result.Failure<WatchFilterSpec>(DomainError.Validation(
                 "WatchFilterSpec.TooManyMunicipalities",
                 $"Max {SearchCriteria.MaxConceptIds} kommuner per bevakningsfilter."));
+        }
+
+        if (normRegions.Length > SearchCriteria.MaxConceptIds)
+        {
+            return Result.Failure<WatchFilterSpec>(DomainError.Validation(
+                "WatchFilterSpec.TooManyRegions",
+                $"Max {SearchCriteria.MaxConceptIds} län per bevakningsfilter."));
         }
 
         foreach (var m in normMunicipalities)
@@ -83,26 +126,56 @@ public sealed record WatchFilterSpec
             }
         }
 
+        foreach (var r in normRegions)
+        {
+            if (!ConceptIdPattern.IsMatch(r))
+            {
+                return Result.Failure<WatchFilterSpec>(DomainError.Validation(
+                    "WatchFilterSpec.InvalidRegion",
+                    "Län måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-)."));
+            }
+        }
+
         return Result.Success(new WatchFilterSpec
         {
             Municipalities = normMunicipalities,
+            Regions = normRegions,
             OnlyMatched = onlyMatched,
         });
     }
 
     /// <summary>
-    /// True when <paramref name="municipalityConceptId"/> passes this spec's ort dimension:
-    /// no ort filter → everything passes; an active ort filter admits ONLY ads whose
-    /// municipality is in the list — an ad WITHOUT a municipality (län-only) never matches
-    /// an active ort filter (8A data-minimizing stance, architect design 2026-07-12).
+    /// True when an ad at (<paramref name="municipalityConceptId"/>,
+    /// <paramref name="regionConceptId"/>) passes this spec's ort dimension.
+    ///
+    /// <para>
+    /// <b>UNION semantics, mirroring the house-canonical geo predicate</b>
+    /// (<c>JobAdSearchComposition</c>: <c>municipalities.Contains(m) || regions.Contains(r)</c>):
+    /// no geo axis set → everything passes; otherwise the ad passes iff its municipality is in
+    /// the municipality list OR its region is in the region list. A whole-län selection therefore
+    /// admits BOTH the län-only ads (municipality NULL) and every ad in that län's kommuner —
+    /// which is exactly what the user picking "Hela Skåne" means, and what the same picker means
+    /// everywhere else in the app.
+    /// </para>
+    ///
+    /// <para>
+    /// The 8A data-minimizing stance is unchanged in kind: an ad tagged with NEITHER axis never
+    /// matches an active geo filter (the hit is never created).
+    /// </para>
     /// </summary>
-    public bool AdmitsMunicipality(string? municipalityConceptId)
+    public bool AdmitsLocation(string? municipalityConceptId, string? regionConceptId)
     {
-        if (Municipalities.Count == 0)
+        if (Municipalities.Count == 0 && Regions.Count == 0)
             return true;
 
-        return municipalityConceptId is not null
-            && Municipalities.Contains(municipalityConceptId, StringComparer.Ordinal);
+        if (municipalityConceptId is not null
+            && Municipalities.Contains(municipalityConceptId, StringComparer.Ordinal))
+        {
+            return true;
+        }
+
+        return regionConceptId is not null
+            && Regions.Contains(regionConceptId, StringComparer.Ordinal);
     }
 
     private static string[] NormalizeList(IEnumerable<string>? values)
@@ -128,7 +201,8 @@ public sealed record WatchFilterSpec
             return true;
 
         return OnlyMatched == other.OnlyMatched
-            && Municipalities.SequenceEqual(other.Municipalities, StringComparer.Ordinal);
+            && Municipalities.SequenceEqual(other.Municipalities, StringComparer.Ordinal)
+            && Regions.SequenceEqual(other.Regions, StringComparer.Ordinal);
     }
 
     public override int GetHashCode()
@@ -137,6 +211,8 @@ public sealed record WatchFilterSpec
         hash.Add(OnlyMatched);
         foreach (var m in Municipalities)
             hash.Add(m, StringComparer.Ordinal);
+        foreach (var r in Regions)
+            hash.Add(r, StringComparer.Ordinal);
         return hash.ToHashCode();
     }
 }

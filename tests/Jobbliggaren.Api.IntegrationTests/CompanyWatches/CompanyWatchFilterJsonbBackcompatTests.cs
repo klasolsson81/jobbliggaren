@@ -25,6 +25,11 @@ namespace Jobbliggaren.Api.IntegrationTests.CompanyWatches;
 //   4. Unfollow persistence (RF-2 sub-bind): a watch with a filter → SoftDelete → SaveChanges → a raw
 //      SQL read shows filter IS NULL on-disk (the in-app clear REACHES the column — no latent
 //      profiling-adjacent data on the soft-deleted row, Art. 5(1)(c)/(e)).
+//   5. F4a BACK-COMPAT (binding, BC-4): a row written BEFORE the Regions axis existed has NO "Regions"
+//      key in its jsonb. It must read back as Regions == [] (a kommun-only filter, which is exactly
+//      what it meant) with Municipalities/OnlyMatched intact — never a crash, never a lost axis. The
+//      forward direction is pinned too: the writer ALWAYS emits an explicit Regions array (canonical
+//      form), so a spec with no regions stores "Regions": [] rather than omitting the key.
 //
 // Test-isolation (#352): this fixture seeds raw/aggregate rows into the VO-bearing company_watches
 // table shared by [Collection("Api")]. Deriving from MalformedJsonbSeedTestBase clears company_watches
@@ -42,7 +47,7 @@ public sealed class CompanyWatchFilterJsonbBackcompatTests(ApiFactory factory)
     public async Task WatchWithFilter_RoundTripsThroughEf_StructurallyEqual()
     {
         var ct = TestContext.Current.CancellationToken;
-        var filter = WatchFilterSpec.Create(["gbg_kn", "sthlm_kn"], onlyMatched: true).Value;
+        var filter = WatchFilterSpec.Create(["gbg_kn", "sthlm_kn"], [], onlyMatched: true).Value;
         var watchId = await SeedWatchAsync(filter, ct);
 
         // Reload in a FRESH scope/context — proves the value came off disk, not the change tracker.
@@ -52,6 +57,46 @@ public sealed class CompanyWatchFilterJsonbBackcompatTests(ApiFactory factory)
         reloaded.Filter!.Municipalities.ShouldBe(["gbg_kn", "sthlm_kn"]); // normaliserad ordinal
         reloaded.Filter.OnlyMatched.ShouldBeTrue();
         reloaded.Filter.ShouldBe(filter); // strukturell equality (Equals) bevarad över jsonb-round-trip
+    }
+
+    // ── (1b) F4a — BOTH geo axes round-trip; the writer always emits an explicit Regions array ───
+
+    [Fact]
+    public async Task WatchWithRegions_RoundTripsThroughEf_StructurallyEqual()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var filter = WatchFilterSpec.Create(["gbg_kn"], ["skane_lan", "vgot_lan"], onlyMatched: false).Value;
+        var watchId = await SeedWatchAsync(filter, ct);
+
+        var reloaded = await ReloadWatchAsync(watchId, ct);
+
+        reloaded.Filter.ShouldNotBeNull();
+        reloaded.Filter!.Regions.ShouldBe(["skane_lan", "vgot_lan"],
+            "län-axeln måste överleva jsonb-round-trippen — annars tappas hela län-valet tyst vid omläsning");
+        reloaded.Filter.Municipalities.ShouldBe(["gbg_kn"]);
+        reloaded.Filter.ShouldBe(filter);
+
+        // jsonb-nyckelkontraktet är PascalCase = VO:ns propertynamn.
+        var raw = await ReadRawFilterAsync(watchId, ct);
+        raw.ShouldNotBeNull();
+        raw!.ShouldContain("\"Regions\"");
+    }
+
+    [Fact]
+    public async Task WatchWithoutRegions_WritesExplicitEmptyRegionsArray_CanonicalForm()
+    {
+        // The writer emits BOTH axes unconditionally, so the on-disk form is deterministic (a key that
+        // is sometimes absent and sometimes empty makes jsonb equality/diffing a coin-flip).
+        var ct = TestContext.Current.CancellationToken;
+        var filter = WatchFilterSpec.Create(["gbg_kn"], [], onlyMatched: false).Value;
+        var watchId = await SeedWatchAsync(filter, ct);
+
+        var raw = await ReadRawFilterAsync(watchId, ct);
+
+        // En kommun-only-spec ska lagra en EXPLICIT tom Regions-array, inte utelämna nyckeln.
+        raw.ShouldNotBeNull();
+        raw!.Replace(" ", string.Empty, StringComparison.Ordinal)
+            .ShouldContain("\"Regions\":[]");
     }
 
     // ── (2) No filter → SQL NULL → CLR null ──────────────────────────────────────────────────────
@@ -86,6 +131,48 @@ public sealed class CompanyWatchFilterJsonbBackcompatTests(ApiFactory factory)
             "en pre-migration-rad (filter-kolumnen NULL) måste läsas som Filter == null, aldrig krascha");
     }
 
+    // ── (5) F4a BACK-COMPAT (binding, BC-4) — a pre-Regions jsonb row reads as an empty region axis ─
+
+    [Fact]
+    public async Task LegacyRow_WithoutRegionsKey_ReadsAsEmptyRegions()
+    {
+        // A row written BEFORE F4a has NO "Regions" key at all. It must deserialize into a kommun-only
+        // spec (Regions == []), which is precisely what it meant — the converter re-validates through
+        // WatchFilterSpec.Create, so a mishandled missing key would surface either as a crash
+        // ("Lagrad WatchFilterSpec-jsonb bröt domän-invariant") or, worse, as a silently dropped
+        // municipality axis. Raw SQL bypasses the converter, so this row is genuinely legacy-shaped.
+        var ct = TestContext.Current.CancellationToken;
+        var watchId = await InsertRawWatchWithLegacyFilterAsync(
+            """{"Municipalities": ["gbg_kn", "sthlm_kn"], "OnlyMatched": true}""", ct);
+
+        var reloaded = await ReloadWatchAsync(watchId, ct);
+
+        reloaded.Filter.ShouldNotBeNull(
+            "en pre-F4a-rad måste kunna läsas — aldrig krascha på den saknade Regions-nyckeln");
+        reloaded.Filter!.Regions.ShouldBeEmpty(
+            "en rad utan Regions-nyckel betyder tom län-axel (kommun-only-filter)");
+        reloaded.Filter.Municipalities.ShouldBe(["gbg_kn", "sthlm_kn"],
+            "kommun-axeln och OnlyMatched måste överleva orörda");
+        reloaded.Filter.OnlyMatched.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task LegacyRow_OnlyMatchedWithoutGeoKeys_ReadsAsEmptyBothAxes()
+    {
+        // The other pre-F4a shape: an "endast matchade"-only filter. Both geo axes read as empty — and
+        // the empty-spec invariant must NOT fire (OnlyMatched alone is a legal spec).
+        var ct = TestContext.Current.CancellationToken;
+        var watchId = await InsertRawWatchWithLegacyFilterAsync(
+            """{"Municipalities": [], "OnlyMatched": true}""", ct);
+
+        var reloaded = await ReloadWatchAsync(watchId, ct);
+
+        reloaded.Filter.ShouldNotBeNull();
+        reloaded.Filter!.Municipalities.ShouldBeEmpty();
+        reloaded.Filter.Regions.ShouldBeEmpty();
+        reloaded.Filter.OnlyMatched.ShouldBeTrue();
+    }
+
     // ── (4) Unfollow persistence (RF-2 sub-bind) — SoftDelete clears the column ON DISK ──────────
 
     [Fact]
@@ -95,7 +182,7 @@ public sealed class CompanyWatchFilterJsonbBackcompatTests(ApiFactory factory)
         // IS NULL on-disk), inte bara CLR-objektet. Raw-läsningen kringgår både konvertern och soft-
         // delete-query-filtren, så den läser den soft-deletade radens faktiska kolumnvärde.
         var ct = TestContext.Current.CancellationToken;
-        var filter = WatchFilterSpec.Create(["sthlm_kn"], onlyMatched: true).Value;
+        var filter = WatchFilterSpec.Create(["sthlm_kn"], [], onlyMatched: true).Value;
         var watchId = await SeedWatchAsync(filter, ct);
 
         await UnfollowAsync(watchId, ct);
@@ -164,6 +251,35 @@ public sealed class CompanyWatchFilterJsonbBackcompatTests(ApiFactory factory)
         cmd.Parameters.AddWithValue("uid", Guid.NewGuid());
         cmd.Parameters.AddWithValue("orgnr", NewOrgNr());
         cmd.Parameters.AddWithValue("now", DateTimeOffset.UtcNow);
+        await cmd.ExecuteNonQueryAsync(ct);
+        await conn.CloseAsync();
+        return new CompanyWatchId(id);
+    }
+
+    // Inserts a company_watches row via RAW SQL with a hand-written `filter` jsonb — the ONLY way to
+    // produce a LEGACY-shaped payload (the EF writer always emits the current canonical form, so it
+    // cannot express "a row written before the Regions key existed"). Bypasses the converter on write;
+    // the read path under test is the converter.
+    private async Task<CompanyWatchId> InsertRawWatchWithLegacyFilterAsync(
+        string filterJson, CancellationToken ct)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var conn = (NpgsqlConnection)db.Database.GetDbConnection();
+        await conn.OpenAsync(ct);
+        var id = Guid.NewGuid();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO company_watches
+              (id, user_id, organization_number, target_type, created_at, filter)
+            VALUES
+              (@id, @uid, @orgnr, 'Employer', @now, @filter::jsonb)
+            """;
+        cmd.Parameters.AddWithValue("id", id);
+        cmd.Parameters.AddWithValue("uid", Guid.NewGuid());
+        cmd.Parameters.AddWithValue("orgnr", NewOrgNr());
+        cmd.Parameters.AddWithValue("now", DateTimeOffset.UtcNow);
+        cmd.Parameters.AddWithValue("filter", filterJson);
         await cmd.ExecuteNonQueryAsync(ct);
         await conn.CloseAsync();
         return new CompanyWatchId(id);

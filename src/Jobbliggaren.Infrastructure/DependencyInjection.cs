@@ -82,6 +82,14 @@ public static class DependencyInjection
         this IServiceCollection services,
         IHostEnvironment environment)
     {
+        // NOTE on fail-closed: Mediator registers ConfirmEmailDevCommandHandler
+        // unconditionally, but its IDevEmailConfirmer dependency is registered ONLY here
+        // (Development). Outside Development the handler is dead — it can only throw at
+        // Send-time (an unreachable path, since the endpoint is also unmapped), NOT at
+        // container-build time, because the Api host leaves ValidateOnBuild off outside
+        // Development. If the Api is ever hardened to force ValidateOnBuild=true in all
+        // environments, this dead handler would turn a deployed boot into a startup crash
+        // — remove the whole dev-seam before then (REMOVE BEFORE LAUNCH).
         if (environment.IsDevelopment())
             services.AddScoped<
                 Jobbliggaren.Application.Dev.Abstractions.IDevEmailConfirmer,

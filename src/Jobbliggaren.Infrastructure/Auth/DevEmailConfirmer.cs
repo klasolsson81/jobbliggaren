@@ -29,7 +29,13 @@ public sealed class DevEmailConfirmer(UserManager<ApplicationUser> userManager) 
         if (!user.EmailConfirmed)
         {
             user.EmailConfirmed = true;
-            await userManager.UpdateAsync(user);
+            var result = await userManager.UpdateAsync(user);
+            // Fail loud on a failed persist rather than reporting a false Confirmed — a
+            // silent failure would make the E2E login mysteriously time out downstream.
+            // No email in the message (avoid PII in logs, even synthetic .test addresses).
+            if (!result.Succeeded)
+                throw new InvalidOperationException(
+                    $"Dev force-confirm failed to persist: {string.Join("; ", result.Errors.Select(e => e.Description))}");
         }
 
         return DevEmailConfirmOutcome.Confirmed;

@@ -37,6 +37,29 @@ public class MeTests(ApiFactory factory)
         json.GetProperty("userId").GetString().ShouldNotBeNullOrEmpty();
     }
 
+    /// <summary>
+    /// #822 — regressionsvakt. Endpointen användes tidigare bara som auth-prob (statuskod +
+    /// userId), aldrig mot BODYN. Under den luckan slutade <c>email</c> tyst att fyllas i:
+    /// den lästes ur en claim som bara den avvecklade JWT-vägen emit:ade, så varje inloggad
+    /// användare fick <c>""</c> — vilket i sin tur dödade den typade bekräftelsen i
+    /// radera-konto-dialogen (GDPR Art. 17-vägen i UI:t). Adressen som registrerades MÅSTE
+    /// komma tillbaka.
+    /// </summary>
+    [Fact]
+    public async Task GET_me_returns_the_authenticated_users_actual_email()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var email = $"me-email-{Guid.NewGuid()}@example.se";
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email: email, ct: ct);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
+
+        var response = await _client.GetAsync("/api/v1/me", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+        json.GetProperty("email").GetString().ShouldBe(email);
+    }
+
     [Fact]
     public async Task GET_me_profile_with_valid_session_returns_profile()
     {

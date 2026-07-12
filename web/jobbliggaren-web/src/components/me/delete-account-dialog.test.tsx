@@ -136,6 +136,29 @@ describe("DeleteAccountDialog", () => {
     ).toBeDisabled();
   });
 
+  // #822 — the typed-confirmation gate must FAIL CLOSED when the expected address is
+  // absent. While GET /api/v1/me returned an empty email, the match degenerated to
+  // "" === "" and the gate INVERTED: an empty field armed the delete, while a user who
+  // typed their address correctly was blocked. The backend now supplies the address;
+  // this pins the safeguard so the inversion cannot return through any future
+  // regression that empties it. An irreversible action never loses its confirmation
+  // (ASVS V6.2.5).
+  it("keeps submit disabled when the expected email is empty, even with an empty field", async () => {
+    const user = userEvent.setup();
+    render(<DeleteAccountDialog currentEmail="" />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Radera konto permanent" })
+    );
+
+    await user.type(screen.getByLabelText("Lösenord"), "S3kret!pass");
+
+    // Confirm-email field left empty — the pre-#822 gate would have armed here.
+    expect(
+      screen.getByRole("button", { name: "Radera mitt konto" })
+    ).toBeDisabled();
+  });
+
   it("matches email case-insensitively (uppercase input)", async () => {
     const user = userEvent.setup();
     render(<DeleteAccountDialog currentEmail="anna@example.se" />);

@@ -3,13 +3,21 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// <summary>
 /// Authorization behavior använder denna för att avgöra access.
 /// SessionId sätts av SessionAuthenticationHandler vid lyckad session-validering.
+///
+/// <para>
+/// Exponerar ENDAST det den körande auth-scheman faktiskt kan leverera. Ett
+/// <c>Email</c>-medlem fanns här fram till #822: det lästes ur en e-post-claim som
+/// bara den avvecklade JWT-vägen (ADR 0017) emit:ade, så under opaka sessioner
+/// returnerade det alltid null — en trasig kontrakt-lögn snarare än en nullable
+/// bekvämlighet (ISP). E-postadressen ägs av identity-storen; hämta den via
+/// <see cref="IUserAccountService.GetEmailAsync"/> per userId.
+/// </para>
 /// </summary>
 public interface ICurrentUser
 {
     Guid? UserId { get; }
     bool IsAuthenticated { get; }
     string? Jti { get; }
-    string? Email { get; }
     SessionId? SessionId { get; }
 
     /// <summary>

@@ -56,9 +56,20 @@ for (const path of ["/", "/logga-in"]) {
 
     // Mode consistency (#813): the two CSP branches are mutually exclusive. Whichever
     // build served this response, its relaxations and its hardening must belong to the
-    // SAME branch — a dev-relaxed policy shipped from a production build (or the
-    // reverse) fails here.
+    // SAME branch — directive leakage across the branches (say `'unsafe-eval'`
+    // unconditionally, or `ws:` without the isDev gate) fails here.
     const isDevPolicy = csp!.includes("'unsafe-eval'");
+
+    // Anchor the mode where it is actually KNOWN. The consistency check above is
+    // self-referential — it validates whatever policy was served against itself, so a
+    // production build that accidentally shipped the whole dev CSP would still be
+    // internally consistent and pass. CI serves `pnpm start` (a production build), so
+    // there the expected branch is not a guess: assert it. That is what turns this from
+    // "the policy is coherent" into "the policy is the RIGHT one for this build".
+    if (process.env.CI) {
+      expect(isDevPolicy, "CI serves a production build — the CSP must be the prod branch")
+        .toBe(false);
+    }
     if (isDevPolicy) {
       expect(csp, "dev CSP appends the HMR websocket").toContain("connect-src 'self' ws:");
       expect(csp, "dev CSP must NOT carry upgrade-insecure-requests").not.toContain(

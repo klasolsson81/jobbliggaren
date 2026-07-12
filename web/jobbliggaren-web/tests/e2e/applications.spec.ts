@@ -64,7 +64,15 @@ test.describe("Pipeline-vy (/ansokningar)", () => {
   });
 
   test("skapad ansökan dyker upp som rad i listan", async ({ page }) => {
-    await createApplication(page);
+    // Egen unik titel: NEW_TITLE återanvänds av flera tester mot SAMMA användare, så ett
+    // filter på den hade blivit en strict-mode-violation så fort ett test ovanför skapade
+    // en till. Att scopa till kortet räcker inte — identiteten måste vara unik.
+    const listTitle = "Listrad-prov 813";
+    await page.goto("/ny-ansokan");
+    await page.getByLabel(/Jobbtitel/).fill(listTitle);
+    await page.getByLabel(/Företag/).fill(NEW_COMPANY);
+    await page.getByRole("button", { name: "Skapa ansökan" }).click();
+    await page.waitForURL(/\/ansokningar\/[0-9a-f-]{36}/);
     await page.goto("/ansokningar");
     // Statusgrupperna är hopfällda som default ("Utkast (1) — Klicka för att visa").
     // Disclosure-knappen är den enda med aria-expanded; steg-chippen i pipelinen
@@ -72,12 +80,15 @@ test.describe("Pipeline-vy (/ansokningar)", () => {
     await page
       .getByRole("button", { name: /Utkast/, expanded: false })
       .click();
-    // Rad-identitet är titeln (länken); företaget står som eget fält i kortet
-    // efter att Lista antog Tabellens fältordning (#780/#787).
-    await expect(
-      page.getByRole("link", { name: new RegExp(NEW_TITLE) })
-    ).toBeVisible();
-    await expect(page.getByText(NEW_COMPANY).first()).toBeVisible();
+    // Rad-identitet är titeln (länken); företaget är ett EGET fält i kortet sedan Lista
+    // antog Tabellens fältordning (#780/#787) — det ligger alltså utanför länken. Scopa
+    // till KORTET (<article>) som bär båda: ett globalt getByText(företag).first() hade
+    // kunnat matcha en annan testers rad och gjort testet ordningsberoende.
+    const card = page
+      .getByRole("article")
+      .filter({ has: page.getByRole("link", { name: new RegExp(listTitle) }) });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText(NEW_COMPANY);
   });
 });
 
@@ -221,13 +232,117 @@ test.describe("Statusövergång", () => {
     await expect(statusRegion).toContainText("Nekad");
   });
 
-  // #565-specen (radklick-modalens ocklusions-repro) ÄR BORTTAGEN. Den ockluderande
-  // ytan finns inte längre i produkten: /ansokningar har ingen intercepting-route kvar
-  // (modalen är reverterad), och invarianten den vaktade — "bekräftelse-dialogen ligger
-  // ovanpå modal-scrimen" — kräver TVÅ överlägg för att ens existera. Det finns nu ett.
-  // Att peka om specen mot helsides-flödet hade behållit namnet och #565-referensen medan
-  // den asserterade något annat än sin egen rubrik; en test som rapporterar grönt för en
-  // egenskap ingen kontrollerar är sämre än ingen test alls. Täckningen består: z-index-
-  // relationen pinnas av dialog.zindex.test.tsx, och den destruktiva bekräftelsen körs
-  // fortfarande end-to-end av testet ovan. (senior-cto-advisor-bind, #813.)
+  // #565 — OCKLUSIONS-REPRON, OMPEKAD (#813). Invarianten är oförändrad: en dialog som
+  // öppnas INIFRÅN radklicks-modalen måste ligga ovanpå scrimen och vara KLICKBAR.
+  //
+  // Den gamla klickvägen finns inte kvar (statusbytet i modalen är numera direktbyte med
+  // ångra-toast, ingen bekräftelsedialog), men den ockluderande ytan gör det: den
+  // intercepting-routen lever (`app/(app)/@modal/(.)ansokningar/[id]`), `.jp-modal-scrim`
+  // ligger på z-80, och dialoger öppnas fortfarande inifrån modalkroppen — bl.a. den här
+  // (Logga uppföljning) och anteckningarnas hjälpdialog. Alltså två överlägg, alltså
+  // exakt #565:s buggklass, alltså regressionsskydd som måste finnas kvar. (Ett tidigare
+  // utkast av #813 raderade specen på premissen att routen var borta — den premissen var
+  // fel: sökningen tittade under `ansokningar/` och kunde per konstruktion aldrig hitta
+  // `@modal`, som är en parallell syskon-route. code-reviewer fångade det.)
+  //
+  // jsdom-guarden (dialog.zindex.test.tsx) räcker INTE som ersättning och säger det
+  // själv: den saknar paint-/stacking-modell, "which is exactly why the bug shipped
+  // green". Bara ett äkta hit-test i en riktig webbläsare fångar ocklusionen.
+  test("radklick-modal: dialog öppnad inifrån modalen syns ovanpå scrimen och är klickbar (#565)", async ({
+    page,
+  }) => {
+    // Egen unik titel → entydig rad (undviker strict-mode-krock med andra testers rader).
+    const probeTitle = "Ocklusionsprov 565";
+    await page.goto("/ny-ansokan");
+    await page.getByLabel(/Jobbtitel/).fill(probeTitle);
+    await page.getByLabel(/Företag/).fill(NEW_COMPANY);
+    await page.getByRole("button", { name: "Skapa ansökan" }).click();
+    await page.waitForURL(/\/ansokningar\/[0-9a-f-]{36}/);
+
+    // Öppna detaljen via SOFT-NAV radklick → intercepting-route-modal (scrim).
+    // Modalen är en intercepting route: den triggas BARA på klient-navigering. Klickar vi
+    // raden innan sidan hydrerat beter sig <Link> som en vanlig <a> → hård navigering →
+    // helsidan, ingen scrim, och hela ocklusions-testet blir vakuöst. Vänta ut hydreringen.
+    await page.goto("/ansokningar");
+    await page.waitForLoadState("networkidle");
+    await page
+      .getByRole("button", { name: /Utkast/, expanded: false })
+      .click();
+    await page.getByRole("link", { name: new RegExp(probeTitle) }).click();
+
+    // Bekräfta att vi faktiskt står i modalen — annars vore hit-testet nedan vakuöst
+    // (helsidan har ingen scrim och kan därför inte ockludera någonting).
+    await expect(page.locator(".jp-modal-scrim")).toBeVisible();
+
+    // Öppna uppföljnings-dialogen INIFRÅN modalen. Den portaleras till <body> — SYSKON
+    // till modalpanelen, inte barn. Shellen har också role="dialog"; disambiguera på titeln.
+    // exact: "+ Lägg till" är prefix till "+ Lägg till anteckning" (strict-mode-krock).
+    await page
+      .getByRole("button", { name: "+ Lägg till", exact: true })
+      .click();
+    const followUpDialog = page
+      .getByRole("dialog")
+      .filter({ hasText: "Logga uppföljning" });
+    await expect(followUpDialog).toBeVisible();
+
+    // OCKLUSIONS-GUARDEN — mät ocklusion, inte tal.
+    //
+    // Den gamla specen påstod att ett äkta klick ÄR hit-testet ("ockluderas dialogen fångar
+    // panelen klicket och Playwright kastar"). Det är FALSKT här, och specen hade aldrig
+    // körts så ingen upptäckte det: Radix DismissableLayer sätter `pointer-events: none` på
+    // <body> för en MODAL dialog (`modal` default true), och `.jp-modal-scrim` deklarerar
+    // ingen egen pointer-events → den ÄRVER `none`. Scrimen kan alltså inte fånga klicket
+    // oavsett vad den målar över. Bevisat med mutation: regressera dialogen till shadcn-
+    // defaulten z-50, så den målas UNDER scrimens z-80, och klick-testet går ändå grönt.
+    // (Villkorat: med `modal={false}`, eller om scrimen får egen `pointer-events: auto`,
+    // återvänder interceptionen. Proben nedan är oberoende av allt detta.)
+    //
+    // Så vi frågar webbläsaren vad som FAKTISKT ligger överst i dialogens mittpunkt.
+    // elementFromPoint respekterar verklig paint order tvärs stacking contexts OCH portaler
+    // — men hoppar över pointer-events:none. Vi återställer därför scrimens hit-testbarhet
+    // för just proben. Det gör guarden robust mot de tysta haverierna en ren z-jämförelse
+    // missar: byter någon DialogPortal-container till modalpanelen hamnar dialogen INUTI
+    // scrimens z-80-context och målas under panelen — medan computed z-index fortfarande
+    // läser 110 mot 80 och en taljämförelse hade sagt "grönt".
+    const probe = await page.evaluate(() => {
+      const scrim = document.querySelector<HTMLElement>(".jp-modal-scrim");
+      const dialog = document.querySelector<HTMLElement>(
+        "[data-slot='dialog-content']"
+      );
+      if (!scrim || !dialog) return { ok: false, occluder: "SAKNAS", z: "" };
+      const prev = scrim.style.pointerEvents;
+      scrim.style.pointerEvents = "auto";
+      const r = dialog.getBoundingClientRect();
+      const top = document.elementFromPoint(
+        r.left + r.width / 2,
+        r.top + r.height / 2
+      );
+      scrim.style.pointerEvents = prev;
+      return {
+        ok: dialog.contains(top),
+        occluder: (top as HTMLElement | null)?.className ?? "null",
+        z: `dialog=${getComputedStyle(dialog).zIndex} scrim=${getComputedStyle(scrim).zIndex}`,
+      };
+    });
+    expect(
+      probe.ok,
+      `dialogen ockluderas av: ${probe.occluder} (${probe.z})`
+    ).toBe(true);
+
+    // Dialogen är också FUNKTIONELL inifrån modalen. Assertera preconditionen först —
+    // annars är "tomlägestexten är borta" vakuöst sant. Modalen renderar `emptyDrawer`,
+    // INTE `empty` (den senare finns aldrig i modalens DOM — en tidigare version av det här
+    // testet asserterade just den och kunde därför inte falla).
+    const emptyDrawer = page.getByText("Inga uppföljningar ännu.");
+    await expect(emptyDrawer).toBeVisible();
+
+    await followUpDialog
+      .getByRole("button", { name: "Spara uppföljning" })
+      .click();
+
+    // Positiv assertion: uppföljningen sparades faktiskt (misslyckas server-actionen
+    // stannar dialogen kvar med en role="alert" och tomläget står still).
+    await expect(page.getByText(/uppföljning sparad/i)).toBeVisible();
+    await expect(emptyDrawer).toHaveCount(0);
+  });
 });

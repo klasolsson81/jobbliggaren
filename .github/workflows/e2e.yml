@@ -7,7 +7,7 @@
 # a silent default.
 #
 # It stands up the real stack — ephemeral Postgres + Redis service containers, the
-# .NET Api (migrated out-of-band via `dotnet ef`), and the Next.js dev server — and
+# .NET Api (migrated out-of-band via `dotnet ef`), and a Next.js PRODUCTION build — and
 # runs every e2e spec in ONE pass with the launch-representative flag ON
 # (Auth__RequireEmailConfirmation=true). The loginAs specs obtain a confirmed user via
 # the dev-only confirmed-login seam (POST /api/v1/dev/confirm-email, #796); auth.spec.ts
@@ -175,9 +175,11 @@ jobs:
 
       # Build the frontend for PRODUCTION as its own step (#813). `next dev` compiled each
       # route on first hit, which — with workers:1 and retries:2 — could not finish inside
-      # the job timeout. As an explicit step the compile cost is visible and cached rather
-      # than hidden inside the first navigation; playwright.config's webServer then runs
-      # `pnpm start` against the precompiled build.
+      # the job timeout. As an explicit step the compile cost is VISIBLE (it shows up as
+      # its own timing rather than hiding inside the first navigation) and every route is
+      # precompiled before a single spec runs; playwright.config's webServer then serves
+      # it with `pnpm start`. NB: this is a cold build each run — there is no .next/cache
+      # restore wired up. Adding one is a possible later speed-up, not a claim made here.
       - name: Build web (production)
         working-directory: web/jobbliggaren-web
         run: pnpm build

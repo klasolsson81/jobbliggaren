@@ -541,7 +541,7 @@ public class DigestDispatchJobTests
             "D8", System.Globalization.CultureInfo.InvariantCulture);
         var watch = CompanyWatch.Follow(userId, OrganizationNumber.Create(orgNr).Value, NowClock).Value;
         if (onlyMatched)
-            watch.SetFilter(WatchFilterSpec.Create([], onlyMatched: true).Value).IsSuccess
+            watch.SetFilter(WatchFilterSpec.Create([], [], onlyMatched: true).Value).IsSuccess
                 .ShouldBeTrue("SetFilter ska lyckas på en aktiv watch");
         db.CompanyWatches.Add(watch);
         await db.SaveChangesAsync(ct);
@@ -707,6 +707,88 @@ public class DigestDispatchJobTests
             "en assessable OnlyMatched-watch som bidrog en hit ska redovisa filtret (13B)");
         summary.OnlyMatchedActive.ShouldBeTrue();
         summary.LocationFilterActive.ShouldBeFalse("ingen ort-dimension på denna watch");
+    }
+
+    // ── 13B geo-disclosure: an ACTIVE geo filter ALWAYS narrows (scan-time, 8A), so it always discloses.
+    //
+    // Both axes must disclose. The email is demonstrably shorter than it would have been — hits were
+    // never created for the filtered-out ads — and silent narrowing was rejected on §5-grounds (RF-13).
+    // The disclosure is driven by the per-watch WatchFilterSpec, so a spec axis the summary does not
+    // know about produces a filtered email with NO disclosure at all: the exact failure RF-13 exists to
+    // prevent, and invisible in every log.
+
+    // An ACTIVE watch narrowed on the GEO dimension (kommun and/or län; OnlyMatched stays false, so the
+    // grade path is dormant and the geo axis is isolated).
+    private static async Task<CompanyWatchId> SeedGeoFilteredWatchAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId,
+        IReadOnlyList<string> municipalities, IReadOnlyList<string> regions, CancellationToken ct)
+    {
+        var orgNr = "55" + (Math.Abs(Guid.NewGuid().GetHashCode()) % 100000000).ToString(
+            "D8", System.Globalization.CultureInfo.InvariantCulture);
+        var watch = CompanyWatch.Follow(userId, OrganizationNumber.Create(orgNr).Value, NowClock).Value;
+        watch.SetFilter(WatchFilterSpec.Create(municipalities, regions, onlyMatched: false).Value)
+            .IsSuccess.ShouldBeTrue("SetFilter ska lyckas på en aktiv watch");
+        db.CompanyWatches.Add(watch);
+        await db.SaveChangesAsync(ct);
+        return watch.Id;
+    }
+
+    private async Task<FollowedCompanyNotificationEmail?> RunAndCaptureFollowEmailAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId, CompanyWatchId watchId,
+        CancellationToken ct)
+    {
+        var ad = await SeedActiveAdAsync(db, "Roll", "Bolag", ct);
+        await SeedFollowHitAsync(db, userId, ad, watchId, ct);
+
+        FollowedCompanyNotificationEmail? captured = null;
+        await _emailSender.SendFollowedCompanyNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Do<FollowedCompanyNotificationEmail>(c => captured = c),
+            Arg.Any<FollowedCompanyNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+
+        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+        return captured;
+    }
+
+    [Fact]
+    public async Task RunAsync_MunicipalityFilteredWatch_PopulatesFilterSummary_LocationFilterActive()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var watchId = await SeedGeoFilteredWatchAsync(db, userId, ["kommun_a"], [], ct);
+
+        var captured = await RunAndCaptureFollowEmailAsync(db, userId, watchId, ct);
+
+        captured.ShouldNotBeNull();
+        var summary = captured.FilterSummary.ShouldNotBeNull(
+            "en kommun-filtrerad watch som bidrog en hit ska redovisa ortsfiltret (13B)");
+        summary.LocationFilterActive.ShouldBeTrue();
+        summary.OnlyMatchedActive.ShouldBeFalse("ingen grade-dimension på denna watch");
+    }
+
+    [Fact]
+    public async Task RunAsync_RegionOnlyFilteredWatch_PopulatesFilterSummary_LocationFilterActive()
+    {
+        // F4a REGRESSION PIN. A whole-län watch carries its selection on the REGION axis (a län pick is
+        // never expanded into kommun-ids — that expansion is the silent-miss bug F4a removes). Its
+        // Municipalities list is therefore EMPTY, and a disclosure rule that only looks at
+        // Municipalities.Count reports "no location filter" for a mail that WAS narrowed by location:
+        // the user is silently told nothing about the ads the scan suppressed. Location is disclosed
+        // when EITHER geo axis is active.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var watchId = await SeedGeoFilteredWatchAsync(db, userId, [], ["lan_skane"], ct);
+
+        var captured = await RunAndCaptureFollowEmailAsync(db, userId, watchId, ct);
+
+        captured.ShouldNotBeNull();
+        var summary = captured.FilterSummary.ShouldNotBeNull(
+            "en län-filtrerad watch narrowar mejlet lika hårt som en kommun-filtrerad — tyst " +
+            "smalning är exakt det RF-13=13B avvisade");
+        summary.LocationFilterActive.ShouldBeTrue(
+            "län-axeln är en ORT-dimension: LocationFilterActive måste vara sann när NÅGON geo-axel " +
+            "är aktiv, annars saknar ett filtrerat mejl sin disclosure");
     }
 
     // A one-off clock for stamping a match's CreatedAt at a chosen instant.

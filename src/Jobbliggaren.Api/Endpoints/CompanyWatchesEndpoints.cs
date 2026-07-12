@@ -2,6 +2,7 @@ using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.CompanyWatches.Commands.FollowCompany;
 using Jobbliggaren.Application.CompanyWatches.Commands.FollowCompanyFromJobAd;
 using Jobbliggaren.Application.CompanyWatches.Commands.MarkFollowedCompanyAdSeen;
+using Jobbliggaren.Application.CompanyWatches.Commands.SetCompanyWatchFilter;
 using Jobbliggaren.Application.CompanyWatches.Commands.UnfollowCompany;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCompanyWatchStatusBatch;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatches;
@@ -26,6 +27,18 @@ public static class CompanyWatchesEndpoints
 {
     /// <summary>#455 follow-state batch request. <c>JobAdIds</c> is a page of ids (validator caps at 100).</summary>
     public sealed record CompanyWatchStatusBatchRequest(IReadOnlyList<Guid> JobAdIds);
+
+    /// <summary>
+    /// Bevakning F4a (#803) — the watch's full filter selection. The two geo lists are DISJOINT
+    /// JobTech namespaces (municipality vs län concept-ids) and are unioned, never merged: a
+    /// whole-län pick travels as a län id so län-only ads still notify. Nullable lists are tolerated
+    /// on the wire and normalised to empty (a client that omits an axis means "nothing selected"),
+    /// but a null list is never handed to the domain. All three empty = clear the filter.
+    /// </summary>
+    public sealed record SetWatchFilterRequest(
+        IReadOnlyList<string>? Municipalities,
+        IReadOnlyList<string>? Regions,
+        bool OnlyMatched);
 
     public static void MapCompanyWatchesEndpoints(this IEndpointRouteBuilder app)
     {
@@ -74,6 +87,28 @@ public static class CompanyWatchesEndpoints
             Guid id, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new UnfollowCompanyCommand(id), ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        }).RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        // Bevakning F4a (#803, CTO Q1=A) — replace this watch's notification filter. ONE route, not a
+        // PUT/DELETE pair: the write is a full-replace of the user's selection, and an empty selection
+        // is a VALUE of that ("no filter"), which the handler maps to ClearFilter. A separate DELETE
+        // would push transport logic into the FE ("which route does an empty form call?") and create an
+        // ordering hazard on a rapid clear->set. The watch is addressed by its opaque CompanyWatchId —
+        // no org.nr in the path, ever (D8). MeWrite: a deliberate, low-frequency user write.
+        group.MapPut("/{id:guid}/filter", async (
+            Guid id, SetWatchFilterRequest request, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(
+                new SetCompanyWatchFilterCommand(
+                    id,
+                    request.Municipalities ?? [],
+                    request.Regions ?? [],
+                    request.OnlyMatched),
+                ct);
+
             return result.IsSuccess
                 ? Results.NoContent()
                 : result.Error.ToProblemResult();

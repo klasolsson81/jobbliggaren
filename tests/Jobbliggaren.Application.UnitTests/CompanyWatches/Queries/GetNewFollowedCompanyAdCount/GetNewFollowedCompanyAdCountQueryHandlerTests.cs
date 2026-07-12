@@ -71,7 +71,7 @@ public class GetNewFollowedCompanyAdCountQueryHandlerTests
             .ToString("D8", CultureInfo.InvariantCulture);
         var watch = CompanyWatch.Follow(userId, OrganizationNumber.Create(orgNr).Value, _clock).Value;
         if (onlyMatched)
-            watch.SetFilter(WatchFilterSpec.Create([], onlyMatched: true).Value).IsSuccess.ShouldBeTrue();
+            watch.SetFilter(WatchFilterSpec.Create([], [], onlyMatched: true).Value).IsSuccess.ShouldBeTrue();
         if (!active)
             watch.SoftDelete(_clock);
         db.CompanyWatches.Add(watch);

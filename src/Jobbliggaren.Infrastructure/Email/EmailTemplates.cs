@@ -74,6 +74,25 @@ internal static class EmailTemplates
     /// företagsnamn, INGEN grad-label/siffra och ALDRIG org.nr — ADR 0087 D8). En OBLIGATORISK
     /// inställnings-/avregistreringslänk (GDPR Art. 7(3)) byggs ur <paramref name="baseUrl"/>. Ingen
     /// mottagar-adress, inget CV-innehåll. Civic-ton (1177/Digg): inga utropstecken, ingen em-dash.
+    ///
+    /// <para>
+    /// <b>Filter-disclosure (bevakning F4a, RF-13=13B).</b> Är någon bevakning filtrerad saknas
+    /// annonser i mejlet, och det MÅSTE sägas — tyst smalning avvisades på §5-grund. Disclosuren
+    /// renderas ur <see cref="FollowedCompanyFilterSummary"/>:s två booleans, en rad per aktiv axel,
+    /// efter listan och före CTA:n (den besvarar "varför kan något saknas", medan stycket längre ned
+    /// besvarar "varför får jag detta alls" — två frågor, två platser, aldrig sammanslagna).
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Copy:n är NAMN-FRI, och det är ett krav — inte en förenkling.</b> Summaryn har
+    /// ANY-semantik ("minst en bidragande bevakning är filtrerad", se
+    /// <c>DigestDispatchJob.BuildFilterSummary</c>), så varje namnbärande påstående vore FALSKT så
+    /// snart en andra bevakning filtrerar på en annan ort: "detta mejl visar bara annonser i
+    /// Göteborg" ljuger för den som också följer ett bolag filtrerat på Malmö. Att bära ortsnamn
+    /// skulle dessutom skicka preferens-PII till en tredjepartsavsändare (Resend) utan nytta för
+    /// användaren, för en detalj som ligger ett klick bort i appen (Art. 5(1)(c)). Utöka därför
+    /// INTE kontraktet med ortsnamn.
+    /// </para>
     /// </summary>
     public static EmailContent FollowedCompanyNotification(
         string baseUrl, FollowedCompanyNotificationEmail content)
@@ -81,6 +100,7 @@ internal static class EmailTemplates
         var trimmed = baseUrl.TrimEnd('/');
         var jobsLink = $"{trimmed}/jobb";
         var settingsLink = $"{trimmed}/installningar";
+        var companiesLink = $"{trimmed}/foretag";
 
         var items = new StringBuilder();
         foreach (var item in content.Items)
@@ -99,13 +119,15 @@ internal static class EmailTemplates
             ? "en ny annons"
             : $"{content.TotalCount} nya annonser";
 
+        var filterDisclosure = BuildFilterDisclosure(content.FilterSummary, companiesLink);
+
         return new EmailContent(
             Subject: "Nya annonser från företag du följer",
             PlainTextBody: $"""
                 Företag du följer har publicerat {countPhrase} sedan sist:
 
                 {items.ToString().TrimEnd()}
-                {andMore}
+                {andMore}{filterDisclosure}
                 Öppna annonserna:
                 {jobsLink}
 
@@ -117,6 +139,42 @@ internal static class EmailTemplates
                 Vänliga hälsningar,
                 Jobbliggaren
                 """);
+    }
+
+    /// <summary>
+    /// RF-13=13B — en rad per aktiv filter-axel, eller ingenting alls när inget filter bidrog.
+    /// Formuleringen "ett eller flera av företagen du följer" är den enda som är sann under
+    /// summaryns ANY-semantik; den avslutas med var filtren ändras, så disclosuren blir handlingsbar
+    /// (raden på /foretag visar VILKA bevakningar som är filtrerade).
+    /// </summary>
+    private static string BuildFilterDisclosure(
+        FollowedCompanyFilterSummary? summary, string companiesLink)
+    {
+        if (summary is null || (!summary.OnlyMatchedActive && !summary.LocationFilterActive))
+            return string.Empty;
+
+        var lines = new StringBuilder();
+        lines.AppendLine();
+
+        if (summary.OnlyMatchedActive)
+        {
+            lines.AppendLine(
+                "Du får bara matchande annonser för ett eller flera av företagen du följer, "
+                + "så annonser du inte matchar visas inte här.");
+        }
+
+        if (summary.LocationFilterActive)
+        {
+            lines.AppendLine(
+                "Du har ortsfilter på ett eller flera av företagen du följer, "
+                + "så annonser i andra orter visas inte här.");
+        }
+
+        lines.AppendLine();
+        lines.AppendLine("Du ser och ändrar filtren under Företag:");
+        lines.AppendLine(companiesLink);
+
+        return lines.ToString();
     }
 
     /// <summary>

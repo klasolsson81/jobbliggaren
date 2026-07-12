@@ -46,6 +46,11 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
     private const string KommunA = "kommun-a-cwscan";
     private const string KommunB = "kommun-b-cwscan";
 
+    // F4a (#803) — LÄN concept-ids. A DISJOINT namespace from the kommun ids above: the two geo axes
+    // are unioned, never merged, and an ad may carry a län with NO kommun. KommunA lies in LanA.
+    private const string LanA = "lan-a-cwscan";
+    private const string LanB = "lan-b-cwscan";
+
     // Per-test-unique org.nrs (the [Collection] shares one Postgres; the scan has no filter knob and
     // matches EVERY active ad whose org.nr is watched, so tests must not cross-contaminate).
     private static string UniqueLegalOrgNr() =>
@@ -225,20 +230,21 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
     // ─────────────────────────── RF-3 per-watch ort filter (bevaknings-reconcile PR-F1)
 
     [Fact]
-    public async Task RunAsync_OrtFilter_AdmitsOnlyAdsInFilteredMunicipality()
+    public async Task RunAsync_MunicipalityFilter_AdmitsOnlyAdsInFilteredMunicipality()
     {
-        // RF-3=3D (scan-time) / RF-8=8A (never-created): a watch narrowed to [KommunA] produces a hit
-        // ONLY for an ad in KommunA. An ad in KommunB is filtered out; an ad WITHOUT a municipality
-        // (län-only, NULL) also fails the active ort filter (AdmitsMunicipality: a NULL municipality
-        // never matches an active list — 8A data-minimizing stance). A filtered-out ad produces NO hit
-        // row (the ort check is enforced scan-side, per (ad, watch) pair — the D5 seal extended).
+        // RF-3=3D (scan-time) / RF-8=8A (never-created): a watch narrowed to the KOMMUN axis alone
+        // produces a hit ONLY for an ad in KommunA. The KommunB ad is rejected even though it carries a
+        // län (LanB) — the union widens across AXES, never across VALUES, so an unpicked län is no
+        // backdoor. The län-only ad (municipality NULL, region LanA) is likewise rejected: the user
+        // picked kommuner, and there is no region axis on this spec to admit it (8A). A filtered-out ad
+        // produces NO hit row (the geo check is enforced scan-side, per (ad, watch) pair).
         var ct = TestContext.Current.CancellationToken;
         var orgNr = UniqueLegalOrgNr();
         var (userId, _) = await SeedConsentingUserAsync(ct);
-        await SeedWatchWithOrtFilterAsync(userId, orgNr, [KommunA], ct);
-        var adInA = await SeedAdWithOrgNrAndMunicipalityAsync(orgNr, "A Bygg AB", KommunA, ct);
-        await SeedAdWithOrgNrAndMunicipalityAsync(orgNr, "B Bygg AB", KommunB, ct);
-        await SeedAdWithOrgNrAndMunicipalityAsync(orgNr, "Län Bygg AB", municipalityConceptId: null, ct);
+        await SeedWatchWithGeoFilterAsync(userId, orgNr, [KommunA], [], ct);
+        var adInA = await SeedAdWithOrgNrAndLocationAsync(orgNr, "A Bygg AB", KommunA, LanA, ct);
+        await SeedAdWithOrgNrAndLocationAsync(orgNr, "B Bygg AB", KommunB, LanB, ct);
+        await SeedAdWithOrgNrAndLocationAsync(orgNr, "Län Bygg AB", null, LanA, ct);
 
         await RunJobAsync(ct);
 
@@ -246,7 +252,91 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
         hits.Select(h => h.JobAdId).ShouldBe(
             [adInA],
             "endast annonsen i den filtrerade kommunen (KommunA) ska ge en hit — KommunB och den " +
-            "län-only-annonsen (NULL municipality) avvisas av det aktiva ort-filtret, ingen hit-rad skapas");
+            "län-only-annonsen avvisas av det aktiva kommun-filtret, ingen hit-rad skapas");
+    }
+
+    // ─────────────────────────── F4a (#803) — the geo UNION at scan time
+
+    [Fact]
+    public async Task RunAsync_RegionFilter_CreatesHitForLanOnlyAd_WithNullMunicipality()
+    {
+        // THE REGRESSION THAT MOTIVATES F4a. An ad tagged at LÄN granularity carries NO municipality
+        // concept-id. Before the union, a whole-län pick had to be expanded into its kommun-ids — and
+        // this ad, genuinely inside the picked län, matched none of them and NEVER notified the user: a
+        // silent miss in a never-miss product, invisible in every log. With the union the region axis
+        // admits it. If this test goes red, whole-län watchers have silently stopped hearing about
+        // län-only ads.
+        var ct = TestContext.Current.CancellationToken;
+        var orgNr = UniqueLegalOrgNr();
+        var (userId, _) = await SeedConsentingUserAsync(ct);
+        await SeedWatchWithGeoFilterAsync(userId, orgNr, [], [LanA], ct);
+        var lanOnlyAd = await SeedAdWithOrgNrAndLocationAsync(
+            orgNr, "Län Bygg AB", municipalityConceptId: null, regionConceptId: LanA, ct);
+
+        await RunJobAsync(ct);
+
+        var hits = await GetHitsAsync(userId, ct);
+        hits.Select(h => h.JobAdId).ShouldBe(
+            [lanOnlyAd],
+            "en län-only-annons (municipality NULL) inne i det valda länet MÅSTE ge en hit — " +
+            "annars tystnar hela-länet-bevakningen för exakt de annonser den finns till för");
+    }
+
+    [Fact]
+    public async Task RunAsync_RegionFilter_AdmitsAdInMunicipalityWithinThatRegion()
+    {
+        // "Hela LanA" must also admit the kommun-tagged ads inside LanA — their municipality is in no
+        // (empty) municipality list, so ONLY the region axis can admit them.
+        var ct = TestContext.Current.CancellationToken;
+        var orgNr = UniqueLegalOrgNr();
+        var (userId, _) = await SeedConsentingUserAsync(ct);
+        await SeedWatchWithGeoFilterAsync(userId, orgNr, [], [LanA], ct);
+        var adInKommunA = await SeedAdWithOrgNrAndLocationAsync(orgNr, "A Bygg AB", KommunA, LanA, ct);
+
+        await RunJobAsync(ct);
+
+        (await GetHitsAsync(userId, ct)).Select(h => h.JobAdId).ShouldBe([adInKommunA]);
+    }
+
+    [Fact]
+    public async Task RunAsync_RegionFilter_ExcludesOtherRegion_AndAdWithNoGeoAtAll()
+    {
+        // The two rejections a region filter must still make: an ad in ANOTHER län, and an ad tagged
+        // with NEITHER axis (8A — an ad that cannot be shown to be inside the selection never produces
+        // a hit row; the union widened the admit rule, not the data-minimizing stance).
+        var ct = TestContext.Current.CancellationToken;
+        var orgNr = UniqueLegalOrgNr();
+        var (userId, _) = await SeedConsentingUserAsync(ct);
+        await SeedWatchWithGeoFilterAsync(userId, orgNr, [], [LanA], ct);
+        await SeedAdWithOrgNrAndLocationAsync(orgNr, "B Bygg AB", KommunB, LanB, ct);
+        await SeedAdWithOrgNrAndLocationAsync(orgNr, "Ingen Ort AB", null, null, ct);
+
+        await RunJobAsync(ct);
+
+        (await GetHitsAsync(userId, ct)).ShouldBeEmpty(
+            "annonsen i ett annat län och annonsen helt utan geo-taggning avvisas båda av det " +
+            "aktiva län-filtret — ingen hit-rad skapas (8A)");
+    }
+
+    [Fact]
+    public async Task RunAsync_BothGeoAxes_EitherHitCreatesAHit()
+    {
+        // Union, not intersection: a hit on EITHER axis is enough. An intersection would reject both of
+        // these ads (each satisfies exactly one axis) and starve the digest of ads the user asked for.
+        var ct = TestContext.Current.CancellationToken;
+        var orgNr = UniqueLegalOrgNr();
+        var (userId, _) = await SeedConsentingUserAsync(ct);
+        await SeedWatchWithGeoFilterAsync(userId, orgNr, [KommunA], [LanB], ct);
+        var kommunHit = await SeedAdWithOrgNrAndLocationAsync(orgNr, "A Bygg AB", KommunA, LanA, ct);
+        var lanHit = await SeedAdWithOrgNrAndLocationAsync(orgNr, "B Län AB", null, LanB, ct);
+        await SeedAdWithOrgNrAndLocationAsync(orgNr, "Utanför AB", KommunB, null, ct);
+
+        await RunJobAsync(ct);
+
+        var hits = (await GetHitsAsync(userId, ct)).Select(h => h.JobAdId).ToList();
+        hits.Count.ShouldBe(2);
+        hits.ShouldContain(kommunHit, "kommun-träff räcker även när annonsens län inte är valt");
+        hits.ShouldContain(lanHit, "län-träff räcker även när annonsen saknar kommun");
     }
 
     [Fact]
@@ -271,7 +361,7 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
     }
 
     [Fact]
-    public async Task RunAsync_OrtFilter_AdvancesWatermark_EvenWhenEveryCandidateFilteredOut()
+    public async Task RunAsync_GeoFilter_AdvancesWatermark_EvenWhenEveryCandidateFilteredOut()
     {
         // The atomicity/idempotens invariant holds when the ort filter rejects EVERY candidate: the
         // watermark still advances to the scan instant (a later in-filter ad only catches FUTURE ads,
@@ -281,7 +371,7 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         var orgNr = UniqueLegalOrgNr();
         var (userId, _) = await SeedConsentingUserAsync(ct);
-        await SeedWatchWithOrtFilterAsync(userId, orgNr, [KommunA], ct);
+        await SeedWatchWithGeoFilterAsync(userId, orgNr, [KommunA], [], ct);
         await SeedAdWithOrgNrAndMunicipalityAsync(orgNr, "B Bygg AB", KommunB, ct);
 
         await RunJobAsync(ct);
@@ -339,36 +429,59 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
         return watch.Id;
     }
 
-    // Seeds an ACTIVE watch narrowed by a per-watch ORT filter (RF-2): only ads in `municipalities`
-    // (JobTech concept-ids) notify. onlyMatched stays false — this suite has no profile/scorer, so the
-    // ort dimension is isolated here (RF-5 "endast matchade" is proven separately by FilterToMatchingTests).
-    private async Task<CompanyWatchId> SeedWatchWithOrtFilterAsync(
-        Guid userId, string orgNr, IEnumerable<string> municipalities, CancellationToken ct)
+    // Seeds an ACTIVE watch narrowed by a per-watch GEO filter (RF-2 + F4a): the two axes are UNIONED
+    // (an ad passes on a kommun hit OR a län hit). onlyMatched stays false — this suite has no
+    // profile/scorer, so the geo dimension is isolated here (RF-5 "endast matchade" is proven
+    // separately by FilterToMatchingTests).
+    private async Task<CompanyWatchId> SeedWatchWithGeoFilterAsync(
+        Guid userId,
+        string orgNr,
+        IEnumerable<string> municipalities,
+        IEnumerable<string> regions,
+        CancellationToken ct)
     {
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock(Now);
 
         var watch = CompanyWatch.Follow(userId, OrganizationNumber.Create(orgNr).Value, clock).Value;
-        var filter = WatchFilterSpec.Create(municipalities, onlyMatched: false).Value;
+        var filter = WatchFilterSpec.Create(municipalities, regions, onlyMatched: false).Value;
         watch.SetFilter(filter).IsSuccess.ShouldBeTrue("SetFilter ska lyckas på en aktiv watch");
         db.CompanyWatches.Add(watch);
         await db.SaveChangesAsync(ct);
         return watch.Id;
     }
 
-    // As SeedAdWithOrgNrAsync, but the ad ALSO carries workplace_address.municipality_concept_id, so the
-    // STORED generated `municipality_concept_id` column auto-populates (the RF-3 ort filter reads it). A
-    // NULL municipalityConceptId omits workplace_address entirely → the column is NULL (a län-only ad).
-    private async Task<JobAdId> SeedAdWithOrgNrAndMunicipalityAsync(
+    // Kommun-only ad (no län) — the pre-F4a shape, kept so the existing kommun assertions read cleanly.
+    private Task<JobAdId> SeedAdWithOrgNrAndMunicipalityAsync(
         string orgNr, string companyName, string? municipalityConceptId, CancellationToken ct)
+        => SeedAdWithOrgNrAndLocationAsync(orgNr, companyName, municipalityConceptId, null, ct);
+
+    // As SeedAdWithOrgNrAsync, but the ad ALSO carries workplace_address.municipality_concept_id and/or
+    // .region_concept_id, so the STORED generated `municipality_concept_id` / `region_concept_id`
+    // columns auto-populate (the geo filter reads BOTH). Passing null for an axis omits that key; both
+    // null omits workplace_address entirely → both columns NULL (an ad with no geo at all). A län-only
+    // ad (municipality null, region set) is the shape the F4a union exists for.
+    private async Task<JobAdId> SeedAdWithOrgNrAndLocationAsync(
+        string orgNr,
+        string companyName,
+        string? municipalityConceptId,
+        string? regionConceptId,
+        CancellationToken ct)
     {
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var externalId = $"cw-scan-{Guid.NewGuid():N}";
-        var addressJson = municipalityConceptId is null
+
+        var addressFields = new List<string>();
+        if (municipalityConceptId is not null)
+            addressFields.Add($"\"municipality_concept_id\":\"{municipalityConceptId}\"");
+        if (regionConceptId is not null)
+            addressFields.Add($"\"region_concept_id\":\"{regionConceptId}\"");
+        var addressJson = addressFields.Count == 0
             ? string.Empty
-            : $",\"workplace_address\":{{\"municipality_concept_id\":\"{municipalityConceptId}\"}}";
+            : $",\"workplace_address\":{{{string.Join(",", addressFields)}}}";
+
         var rawPayload =
             $"{{\"id\":\"{externalId}\"," +
             $"\"employer\":{{\"name\":\"{companyName}\",\"organization_number\":\"{orgNr}\"}}{addressJson}}}";

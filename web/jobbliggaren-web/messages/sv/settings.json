@@ -44,6 +44,7 @@
     "toggleDescription": "Avstängt som standard. Slår du på det samtycker du till att vi mejlar dig nya annonser från företagen du följer. Du kan dra tillbaka samtycket när som helst genom att stänga av det här.",
     "cadenceNote": "Utskicket följer samma takt som matchningsnotiserna: {cadence}. Du ändrar takten i kortet Matchningsnotiser.",
     "cadenceNoteDisabled": "Utskicket följer samma takt som matchningsnotiserna. Du ändrar takten i kortet Matchningsnotiser.",
+    "filterNote": "Har du satt ett filter på ett företag gäller det även för mejlen. Du ändrar filtren under Företag.",
     "savedAt": "Sparat {time}",
     "errors": {
       "notLoggedIn": "Du är inte inloggad.",

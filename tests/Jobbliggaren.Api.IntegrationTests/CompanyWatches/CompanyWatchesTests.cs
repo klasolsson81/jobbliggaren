@@ -183,6 +183,103 @@ public class CompanyWatchesTests(ApiFactory factory)
         item.GetProperty("organizationNumber").GetString().ShouldBe(LegalOrgNr);
     }
 
+    // ---- F4b (#803) — the per-watch filter on the LIST read (the row's pre-fill + BC-9′ disclosure) ----
+
+    // Hoisted (CA1861): request-body arrays reused across the filter round-trip calls. The two geo
+    // lists are DISJOINT JobTech namespaces — a kommun id is never a län id.
+    private static readonly string[] FilterKommun = ["gbg_kn"];
+    private static readonly string[] FilterLan = ["skane_lan"];
+    private static readonly string[] NoFilterIds = [];
+
+    [Fact]
+    public async Task GET_list_round_trips_a_set_filter_with_both_geo_axes_intact()
+    {
+        // The write path (PUT /{id}/filter) is proven in SetCompanyWatchFilterEndpointTests; what THIS
+        // pins is the other half of the loop — that the list READ hands the filter back through the
+        // jsonb converter with both DISJOINT axes still in their own namespaces. A län concept-id that
+        // came back in `municipalities` (or an expanded län) would be re-sent by the editor on the next
+        // save and quietly become a filter that matches nothing.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var id = await FollowAsync(LegalOrgNr, ct);
+
+        var put = await _client.PutAsJsonAsync(
+            $"{Endpoint}/{id}/filter",
+            new
+            {
+                municipalities = FilterKommun,
+                regions = FilterLan,
+                onlyMatched = true,
+            },
+            ct);
+        put.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var list = await ListAsync(ct);
+
+        var item = list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == id);
+        var filter = item.GetProperty("filter");
+        filter.ValueKind.ShouldNotBe(JsonValueKind.Null);
+        filter.GetProperty("municipalities").EnumerateArray()
+            .Select(m => m.GetString()).ShouldBe(["gbg_kn"]);
+        filter.GetProperty("regions").EnumerateArray()
+            .Select(r => r.GetString()).ShouldBe(["skane_lan"],
+                "läns-axeln måste överleva hela vägen jsonb → DTO → wire, oexpanderad");
+        filter.GetProperty("onlyMatched").GetBoolean().ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GET_list_reports_null_filter_for_an_unfiltered_watch()
+    {
+        // Absence is the FE's ONLY "no filter" signal (it renders no disclosure). The member must be
+        // PRESENT and null — never omitted (the FE schema requires the key, so an omission is contract
+        // drift that would render every watch as unfiltered) and never an empty object (a second,
+        // non-canonical representation of "no filter").
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var id = await FollowAsync(LegalOrgNr, ct);
+
+        var list = await ListAsync(ct);
+
+        var item = list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == id);
+        item.TryGetProperty("filter", out var filter).ShouldBeTrue(
+            "filter-nyckeln måste finnas på varje rad — FE:ns schema kräver den, och ett utelämnat " +
+            "värde skulle rendera en FILTRERAD bevakning som ofiltrerad");
+        filter.ValueKind.ShouldBe(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task GET_list_reports_null_filter_after_the_user_clears_it()
+    {
+        // The clear path, end to end: an all-empty selection clears the column to SQL NULL, and the
+        // list must then report the watch as unfiltered again — otherwise the row would keep disclosing
+        // a filter the user has removed.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var id = await FollowAsync(LegalOrgNr, ct);
+        (await _client.PutAsJsonAsync(
+            $"{Endpoint}/{id}/filter",
+            new { municipalities = FilterKommun, regions = NoFilterIds, onlyMatched = true },
+            ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await ListAsync(ct)).EnumerateArray()
+            .Single(w => w.GetProperty("id").GetString() == id)
+            .GetProperty("filter").ValueKind.ShouldNotBe(JsonValueKind.Null, "förutsättning: filtret är satt");
+
+        (await _client.PutAsJsonAsync(
+            $"{Endpoint}/{id}/filter",
+            new
+            {
+                municipalities = NoFilterIds,
+                regions = NoFilterIds,
+                onlyMatched = false,
+            },
+            ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var list = await ListAsync(ct);
+
+        var item = list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == id);
+        item.GetProperty("filter").ValueKind.ShouldBe(JsonValueKind.Null);
+    }
+
     // ---- #455 — follow from a job ad + follow-state batch (Approach A: org.nr resolved server-side) ----
 
     private static string ByJobAd(Guid jobAdId) => $"{Endpoint}/by-job-ad/{jobAdId}";

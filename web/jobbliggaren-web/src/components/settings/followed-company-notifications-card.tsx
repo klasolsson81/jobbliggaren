@@ -104,9 +104,9 @@ export function FollowedCompanyNotificationsCard({
           matchnings-kortet. Namnger kortet, aldrig riktningen ("ovan") — ett
           riktningsord blir falskt om kolumnordningen ändras.
 
-          Filter-noten ("per-företags-filtret gäller även mejlen") bor i F4b,
-          tillsammans med filter-affordansen den hänvisar till. Att skeppa den
-          här vore ett löfte om en kontroll som inte finns. */}
+          Filter-noten skeppas i SAMMA våg som filter-affordansen den hänvisar
+          till (F4b) — copy som pekar på en kontroll vi inte byggt är ett löfte
+          vi bryter i samma andetag. */}
       <div className="jp-settings-field mt-4">
         <p className="jp-settings-field__hint">
           {enabled
@@ -114,6 +114,9 @@ export function FollowedCompanyNotificationsCard({
                 cadence: cadenceLabel,
               })
             : t("followedCompanyNotifications.cadenceNoteDisabled")}
+        </p>
+        <p className="jp-settings-field__hint">
+          {t("followedCompanyNotifications.filterNote")}
         </p>
       </div>
 

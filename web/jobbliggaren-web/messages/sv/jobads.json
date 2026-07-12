@@ -47,6 +47,33 @@
       "groupLabel": "Visa antal annonser",
       "matching": "Matchande",
       "all": "Alla annonser"
+    },
+    "filter": {
+      "open": "Filtrera",
+      "openAria": "Filtrera annonser från {company}",
+      "dialogTitle": "Filtrera annonser från {company}",
+      "dialogIntro": "Välj vilka nya annonser från det här företaget du vill få notiser om. Filtret gäller notiserna, i appen och via e-post. Det ändrar inte antalen i listan.",
+      "onlyMatchedLabel": "Endast annonser som matchar min profil",
+      "onlyMatchedHelp": "Du får notiser bara om annonser som matchar de yrken, orter och kompetenser du angett under Matchning.",
+      "onlyMatchedHelpAria": "Vad räknas som en matchande annons",
+      "onlyMatchedHelpTitle": "Vad räknas som en matchande annons",
+      "onlyMatchedHelpBody1": "En annons räknas som matchande när den når nivån Bra eller högre mot din profil. Det är samma nivå som används under Jobb och i antalet matchande annonser här.",
+      "onlyMatchedHelpBody2": "Nivån går inte att ställa in. Du påverkar den genom att ändra dina val under Matchning.",
+      "onlyMatchedInert": "Du har inte angett vilka yrken du söker inom, så vi kan inte avgöra vilka annonser som matchar dig. Filtret sparas och börjar gälla när du ställt in matchningen.",
+      "onlyMatchedInertCta": "Ställ in matchning",
+      "ortHeading": "Orter i annonsen",
+      "ortHelp": "Filtret gäller orten i annonsen, inte företagets säteskommun. Väljer du orter får du inga notiser om annonser som saknar ort.",
+      "clearAll": "Ta bort filtret",
+      "save": "Spara filter",
+      "saving": "Sparar…",
+      "cancel": "Avbryt",
+      "activeOnlyMatched": "Filtrerat: endast matchande annonser",
+      "activeOrter": "Filtrerat: {count, plural, one {# ort} other {# orter}}",
+      "activeBoth": "Filtrerat: endast matchande annonser, {count, plural, one {# ort} other {# orter}}",
+      "scopeHelpAria": "Vad filtret för {company} påverkar",
+      "scopeHelpTitle": "Vad filtret påverkar",
+      "scopeHelpBody1": "Filtret styr vilka nya annonser du får notiser om, i appen och via e-post.",
+      "scopeHelpBody2": "Antalen i listan (aktiva annonser och matchande annonser) visar alltid företagets alla annonser, oavsett filter."
     }
   },
   "applicationHistory": {
@@ -107,7 +134,8 @@
     "savedJobAdRemoveFailed": "Kunde inte ta bort bokmärket. Försök igen.",
     "followCompanyNotFound": "Annonsen kunde inte hittas. Den kan ha tagits bort.",
     "followCompanyFailed": "Kunde inte bevaka företaget. Försök igen.",
-    "unfollowCompanyFailed": "Kunde inte sluta bevaka företaget. Försök igen."
+    "unfollowCompanyFailed": "Kunde inte sluta bevaka företaget. Försök igen.",
+    "setWatchFilterFailed": "Filtret kunde inte sparas. Försök igen."
   },
   "enums": {
     "status": {

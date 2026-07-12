@@ -9,10 +9,13 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Segment } from "@/components/ui/segment";
 import type { CompanyWatch } from "@/lib/dto/company-follows";
+import type { TaxonomyRegion } from "@/lib/dto/taxonomy";
 import { CompanyWatchRow, type CompanyWatchViewMode } from "./company-watch-row";
 
 interface CompanyWatchListViewProps {
   items: ReadonlyArray<CompanyWatch>;
+  /** F4b: taxonomins län (med kommuner) för per-bevaknings-filtrets ort-picker. */
+  regions: ReadonlyArray<TaxonomyRegion>;
 }
 
 /**
@@ -26,7 +29,10 @@ interface CompanyWatchListViewProps {
  * is the matching view because that is the valuable signal (which followed companies are hiring roles
  * that fit you), matching the /jobb default of leading with match.
  */
-export function CompanyWatchListView({ items }: CompanyWatchListViewProps) {
+export function CompanyWatchListView({
+  items,
+  regions,
+}: CompanyWatchListViewProps) {
   const t = useTranslations("jobads.companyWatches");
   const [mode, setMode] = useState<CompanyWatchViewMode>("matching");
 
@@ -45,7 +51,12 @@ export function CompanyWatchListView({ items }: CompanyWatchListViewProps) {
       </div>
       <ul className="jp-jobs" aria-label={t("listLabel")}>
         {items.map((item) => (
-          <CompanyWatchRow key={item.id} item={item} mode={mode} />
+          <CompanyWatchRow
+            key={item.id}
+            item={item}
+            mode={mode}
+            regions={regions}
+          />
         ))}
       </ul>
     </div>

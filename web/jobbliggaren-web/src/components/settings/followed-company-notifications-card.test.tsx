@@ -99,11 +99,28 @@ describe("FollowedCompanyNotificationsCard — den delade takten som text", () =
     expect(note).not.toHaveTextContent(/Dagligen/);
   });
 
-  it("lovar INGEN filter-affordans (den finns inte förrän F4b)", () => {
-    // Copy som pekar på en kontroll som inte finns är ett löfte vi bryter i
-    // samma andetag. Filter-noten skeppas med filter-UI:t, inte före det.
+  it("filter-noten säger att per-företags-filtret gäller mejlen OCH var man ändrar det (F4b #803)", () => {
+    // Inverterar den tidigare "lovar INGEN filter-affordans"-pinnen: copy som pekar på en kontroll
+    // som inte finns är ett löfte vi bryter i samma andetag, så noten hölls tillbaka tills filter-
+    // UI:t fanns. Med F4b FINNS kontrollen (/foretag → "Filtrera"), och då blir tystnaden i stället
+    // vilseledande: en användare som satt ett filter måste få veta att det tystar mejlen också.
+    // Noten måste därför bära BÅDA fakta — att filtret gäller utskicket, och var det ändras.
     renderCard({ initialEnabled: true });
-    expect(screen.queryByText(/filter/i)).not.toBeInTheDocument();
+
+    const note = screen.getByText(/Har du satt ett filter på ett företag/);
+    expect(note).toHaveTextContent(/gäller det även för mejlen/);
+    expect(note).toHaveTextContent(/under Företag/);
+  });
+
+  it("filter-noten visas oavsett om utskicket är på eller av", () => {
+    // Filtret överlever att mejlen stängs av (det styr även app-notiserna), så noten är sann i båda
+    // lägena. Att dölja den vid avslaget läge skulle göra att en användare som slår PÅ utskicket
+    // aldrig får veta att ett gammalt filter redan begränsar det.
+    renderCard({ initialEnabled: false });
+
+    expect(
+      screen.getByText(/Har du satt ett filter på ett företag/)
+    ).toBeInTheDocument();
   });
 });
 

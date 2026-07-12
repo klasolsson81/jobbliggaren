@@ -8082,6 +8082,30 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 
+/* Bevakning F4b — den vilande filter-disclosuren på en bevakningsrad (BC-9′). Ren LAYOUT: färg, storlek
+   och vikt ärvs från samma ink-ramp som .jp-matchline (aldrig grå text; båda teman följer via --jp-*).
+   Ikonen ärver currentColor. Inga nya tokens, ingen ny radie, ingen ny textstorlek. */
+.jp-watchfilterline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-ink-1);
+}
+
+/* Bevakning F4b — rad-chassit .jp-job/.jp-app delas med /jobb, där HELA kortet är klickbart. På /foretag
+   (och i ansökningshistoriken) är bara knapparna klickbara, så pekaren + hover-accentkanten lovar en
+   interaktion som inte finns. Med en andra knapp i raden blir den falska affordansen aktivt vilseledande.
+   Modifiern tar bort löftet utan att röra /jobb. */
+.jp-job--static {
+  cursor: default;
+}
+.jp-job--static:hover {
+  border-color: var(--jp-border);
+}
+
 /* Popover-empty — var 4 inline-kopior (hero-chip, jobb-filter-popover x2,
    jobb-klass2-panel). Padding skiljer per plats — bärs på call-siten. */
 .jp-popover__empty {

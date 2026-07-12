@@ -45,6 +45,22 @@ export interface CompanyFollowState {
  * `null` when the user has stated no occupation (empty SSYK profile). The FE renders a nudge for
  * `null`, never "0" (parity /jobb + `GetMyMatchCount`); a non-null value (incl. `0`) means assessed.
  */
+/**
+ * Bevakning F4b — the per-watch notification filter (mirrors backend `WatchFilterDto`).
+ *
+ * The two geo axes are DISJOINT JobTech namespaces and are stored as picked: a whole-län selection
+ * lives in `regions` and is never expanded into its municipalities, because an ad may be tagged at län
+ * granularity with no municipality at all (see `WatchFilterSpec` — expanding would silently drop those
+ * ads from the user's notifications). Labels are resolved from the taxonomy tree the ort picker already
+ * holds; the wire carries only concept-ids. No org.nr, no grade value.
+ */
+export const watchFilterSchema = z.object({
+  municipalities: z.array(z.string()).readonly(),
+  regions: z.array(z.string()).readonly(),
+  onlyMatched: z.boolean(),
+});
+export type WatchFilter = z.infer<typeof watchFilterSchema>;
+
 export const companyWatchSchema = z.object({
   id: z.string(),
   organizationNumber: z.string().nullable(),
@@ -53,6 +69,11 @@ export const companyWatchSchema = z.object({
   followedAt: z.string(),
   activeAdCount: z.number().int().nonnegative(),
   matchingAdCount: z.number().int().nullable(),
+  // null = no filter (the domain's canonical representation — there is no separate hasFilter bool to
+  // disagree with it). Required key: backend always projects it, and `undefined` would mask contract
+  // drift by silently rendering every watch as unfiltered — which is exactly the silent-narrowing
+  // failure the resting-state disclosure exists to prevent.
+  filter: watchFilterSchema.nullable(),
 });
 export type CompanyWatch = z.infer<typeof companyWatchSchema>;
 

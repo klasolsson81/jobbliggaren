@@ -1,9 +1,15 @@
 import { useTranslations } from "next-intl";
 import type { CompanyWatch } from "@/lib/dto/company-follows";
+import type { TaxonomyRegion } from "@/lib/dto/taxonomy";
 import { CompanyWatchListView } from "./company-watch-list-view";
 
 interface CompanyWatchListProps {
   items: ReadonlyArray<CompanyWatch>;
+  /**
+   * F4b: taxonomins län (med kommuner) för filter-dialogens ort-picker. Tom lista när taxonomin inte
+   * kunde läsas in — pickern degraderar då civilt (samma hållning som matchnings-kortet).
+   */
+  regions: ReadonlyArray<TaxonomyRegion>;
 }
 
 /**
@@ -16,7 +22,7 @@ interface CompanyWatchListProps {
  * <para>Empty state names where a follow is created (civic-utility, honest no-data copy — the follow
  * affordance lives on the job-ad detail, not here; consistent with `/sparade`).</para>
  */
-export function CompanyWatchList({ items }: CompanyWatchListProps) {
+export function CompanyWatchList({ items, regions }: CompanyWatchListProps) {
   const t = useTranslations("jobads.companyWatches");
 
   if (items.length === 0) {
@@ -28,5 +34,5 @@ export function CompanyWatchList({ items }: CompanyWatchListProps) {
     );
   }
 
-  return <CompanyWatchListView items={items} />;
+  return <CompanyWatchListView items={items} regions={regions} />;
 }

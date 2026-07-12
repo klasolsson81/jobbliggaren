@@ -46,14 +46,22 @@ internal static class CvPalette
     private static (byte R, byte G, byte B) WineRed { get; } = (0x7A, 0x2E, 0x35);
     private static (byte R, byte G, byte B) Graphite { get; } = (0x3A, 0x44, 0x51);
 
-    /// <summary>Resolves a curated accent choice to its hex colour (closed set — never a free string).</summary>
+    /// <summary>
+    /// Resolves a curated accent choice to its hex colour (closed set — never a free string). Fail-loud
+    /// on an unmapped accent: a new <see cref="CvAccentColor"/> member added without a hex here throws
+    /// rather than silently backfilling one accent's colour (which would also escape the WCAG guard on
+    /// <see cref="Pairs"/>). The <c>CvPalette_EveryAccentResolvesAndIsGuarded</c> test drives
+    /// <c>CvAccentColor.List</c> so the drift is caught at test time, before production.
+    /// </summary>
     public static (byte R, byte G, byte B) Accent(CvAccentColor accent) => accent.Name switch
     {
         nameof(CvAccentColor.NavyBlue) => NavyBlue,
         nameof(CvAccentColor.ForestGreen) => ForestGreen,
         nameof(CvAccentColor.WineRed) => WineRed,
         nameof(CvAccentColor.Graphite) => Graphite,
-        _ => NavyBlue, // unreachable — CvAccentColor is a closed SmartEnum; the default backfills honestly.
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(accent), accent.Name,
+            "Ny CvAccentColor saknar hex i CvPalette.Accent + ett par i CvPalette.Pairs (WCAG-gardat)."),
     };
 
     /// <summary>"#RRGGBB" for a colour (QuestPDF accepts a hex string for FontColor/Background).</summary>

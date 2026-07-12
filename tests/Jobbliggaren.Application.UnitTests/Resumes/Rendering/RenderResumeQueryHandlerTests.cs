@@ -102,6 +102,30 @@ public class RenderResumeQueryHandlerTests
             RenderProfile.Visual, Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Handle_ShouldPassTheResumesOwnTemplateOptionsToTheRenderer_NotADefault()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var resume = await SeedOwnedResumeAsync(db, _userId);
+
+        // Choose NON-default options so "the resume's own options are threaded" is proven — a bug that
+        // passed CvTemplateOptions.Default (or ignored the choice) would not match this value.
+        var chosen = new CvTemplateOptions(
+            CvTemplate.MorkPanel, CvAccentColor.WineRed, CvFontPair.Classic,
+            CvDensity.Airy, PhotoEnabled: false, CvPhotoShape.Rounded);
+        resume.ChangeTemplateOptions(chosen, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        StubRenderer();
+
+        await CreateSut(db).Handle(
+            new RenderResumeQuery(resume.Id.Value, "Visual"), TestContext.Current.CancellationToken);
+
+        // Record value-equality: the renderer received exactly the resume's persisted options.
+        await _renderer.Received(1).RenderAsync(
+            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), chosen,
+            RenderProfile.Visual, Arg.Any<CancellationToken>());
+    }
+
     // ===============================================================
     // Auth / not-found / cross-user — null returns
     // ===============================================================

@@ -22,9 +22,9 @@ public class CvTemplateRenderingTests
 {
     private static readonly string[] TemplateNames = ["Klar", "Accentlinje", "MorkPanel"];
 
-    private static CvTemplateOptions Opt(string templateName, CvAccentColor? accent = null) =>
+    private static CvTemplateOptions Opt(string templateName, CvAccentColor? accent = null, CvDensity? density = null) =>
         new(CvTemplate.FromName(templateName), accent ?? CvAccentColor.NavyBlue,
-            CvFontPair.Modern, CvDensity.Normal, PhotoEnabled: false, CvPhotoShape.Circle);
+            CvFontPair.Modern, density ?? CvDensity.Normal, PhotoEnabled: false, CvPhotoShape.Circle);
 
     private static async Task<RenderedCv> RenderAsync(ResumeContent content, CvTemplateOptions options, RenderProfile profile) =>
         await new CvRenderer().RenderAsync(
@@ -155,5 +155,84 @@ public class CvTemplateRenderingTests
         // Content determinism (byte-identity is impossible — QuestPDF /ID + font-subset packing vary).
         Extract(second.PdfBytes).ShouldBe(Extract(first.PdfBytes),
             $"Mallen {templateName} ska rendera samma innehåll deterministiskt.");
+    }
+
+    [Fact]
+    public async Task MorkPanel_LongUnbreakableTokensInThePanel_WrapAndAreNeverThrownOrClipped()
+    {
+        // The narrow (188pt) MorkPanel side panel carries the email + skill names — a long UNBREAKABLE
+        // token (a realistic email, a long single-word skill) has no whitespace break. QuestPDF's layout
+        // engine must wrap it character-level, never throw DocumentLayoutException, never clip PII (P2/P5).
+        const string longEmail = "anna.andersson.karriar@exempelforetaget.example.com";
+        const string longSkill = "Ansvarsfullhetsdokumentationsspecialistkompetens";
+        var content = new ResumeContent(
+            new PersonalInfo("Anna Andersson", longEmail, "070-1234567", "Göteborg"),
+            skills: [new Skill(longSkill, null), new Skill("C#", null)],
+            summary: "Kort sammanfattning.");
+
+        // Must not throw.
+        var text = await RenderTextAsync(content, Opt("MorkPanel"), RenderProfile.Visual);
+
+        // No clip: character-wrapping may insert line breaks inside the token, so strip whitespace and
+        // assert the whole token survives (every character reached the PDF).
+        var dense = new string(text.Where(c => !char.IsWhiteSpace(c)).ToArray());
+        dense.ShouldContain(longEmail, Case.Insensitive, "E-posten klipptes i den smala panelen.");
+        dense.ShouldContain(longSkill, Case.Insensitive, "Den långa kompetensen klipptes i panelen.");
+    }
+
+    [Theory]
+    [InlineData("Airy")]
+    [InlineData("Normal")]
+    [InlineData("Compact")]
+    public async Task EveryDensity_RendersAllContent_WithoutThrowing(string densityName)
+    {
+        var density = CvDensity.FromName(densityName);
+        var text = await RenderTextAsync(Rich(), Opt("Klar", density: density), RenderProfile.Visual);
+
+        foreach (var token in RichTokens)
+        {
+            text.ShouldContain(token, Case.Insensitive, $"'{token}' saknas vid täthet {densityName}.");
+        }
+    }
+
+    [Fact]
+    public async Task Density_ReachesTheRender_ProducingDifferentSpacing()
+    {
+        var airy = await RenderAsync(Rich(), Opt("Klar", density: CvDensity.Airy), RenderProfile.Visual);
+        var compact = await RenderAsync(Rich(), Opt("Klar", density: CvDensity.Compact), RenderProfile.Visual);
+
+        // Same content + template, different density → the spacing scale reaches the PDF, so bytes differ.
+        airy.PdfBytes.ShouldNotBe(compact.PdfBytes);
+    }
+
+    [Theory]
+    [InlineData("NavyBlue")]
+    [InlineData("ForestGreen")]
+    [InlineData("WineRed")]
+    [InlineData("Graphite")]
+    public async Task EveryCuratedAccent_Resolves_AndRendersAllContent(string accentName)
+    {
+        // Exercises CvPalette.Accent for every accent (all three templates, incl. MorkPanel where the
+        // accent is the whole panel background) — a missing hex would throw (fail-loud resolver).
+        var accent = CvAccentColor.FromName(accentName);
+        foreach (var template in TemplateNames)
+        {
+            var text = await RenderTextAsync(Rich(), Opt(template, accent), RenderProfile.Visual);
+            text.ShouldContain("Karin Nyström", Case.Insensitive,
+                $"Accent {accentName} + mall {template} tappade innehåll.");
+        }
+    }
+
+    [Fact]
+    public async Task AtsProfile_IsAccentIndependent_ConfirmingItIsThePlainParallel()
+    {
+        var content = Rich();
+
+        // The plain ATS parallel carries no accent, so the accent choice cannot change its output — this
+        // pins that the Ats profile is genuinely the plain version (not merely equal across templates).
+        var navy = await RenderTextAsync(content, Opt("Klar", CvAccentColor.NavyBlue), RenderProfile.Ats);
+        var wine = await RenderTextAsync(content, Opt("MorkPanel", CvAccentColor.WineRed), RenderProfile.Ats);
+
+        wine.ShouldBe(navy);
     }
 }

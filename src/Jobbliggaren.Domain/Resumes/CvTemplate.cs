@@ -40,5 +40,11 @@ public sealed class CvTemplate : SmartEnum<CvTemplate>
     /// downgrades ATS-safety, so the full verdict is <c>AtsSafe &amp;&amp; !effectivePhoto</c>, composed by
     /// the consumer (DTO in 8b.2, per-render label in 8b.3) — this property is the template half.
     /// </summary>
-    public bool AtsSafe => this != MorkPanel;
+    /// <remarks>
+    /// A POSITIVE whitelist, deliberately not <c>this != MorkPanel</c>: a new template must actively
+    /// classify itself as single-column-parseable to earn the green "Klarar ATS" claim. The honest,
+    /// fail-safe default for an unclassified template is <c>false</c> ("För människor") — a trust-bearing
+    /// label must never over-promise by accident (P5).
+    /// </remarks>
+    public bool AtsSafe => this == Klar || this == Accentlinje;
 }

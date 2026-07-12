@@ -1,4 +1,3 @@
-import { ExternalLink } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { applicationSourceLabel } from "@/lib/applications/status";
 import { formatDate } from "@/lib/i18n/format";
@@ -10,15 +9,24 @@ interface PreservedAdPanelProps {
 
 /**
  * "Om annonsen (sparad kopia)" — #315 (ADR 0086). The frozen ad-text snapshot,
- * shown as the FALLBACK when the live JobAd is archived (jobAd == null) but a copy
- * was captured at apply-time. Extracted verbatim from ApplicationDetail so the
- * full-page detail and the read-mode detail-modal body render ONE identical
- * panel (DRY / SPOT). Pure presentational Server Component — no client state.
+ * captured at apply-time. Pure presentational Server Component — no client state.
+ *
+ * #805-3: rendered ONLY by {@link SourceAdSection}, and only when the source ad
+ * is no longer active (`JobAdSummaryDto.Status !== "Active"`). The caller owns
+ * that decision (SPOT) — this component renders, it does not decide.
+ *
+ * The previous guard keyed on `jobAd == null`, which is unreachable: `JobAd`
+ * never resolves to null for a JobAd-linked application because the soft-delete
+ * axis it relied on (`JobAd.DeletedAt`) has no writer (#821). This panel — and
+ * with it the product's only "Visa annonsen" link, which used to live inside it —
+ * therefore never rendered in production. #805-3 fixes the guard and moves the
+ * out-link to where it is truthful: SourceAdSection, while the ad IS active.
  *
  * Rows are omitted when the source field is null (same omission pattern as the
  * rest of the detail — no placeholder dashes). Calm, informative tone (a saved
  * copy notice, not a warning). description == null (terminal-status retention
- * minimisation) → a short neutral note instead of an empty body.
+ * minimisation, ADR 0092 D3 — unchanged by #805-3) → a short neutral note
+ * instead of an empty body.
  */
 export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
   const t = useTranslations("applications.enums");
@@ -103,26 +111,13 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
         </div>
       </dl>
 
-      {/* Säker länk (befintlig F3-behandling, speglar JobAdDetail):
-          jp-btn--secondary + ExternalLink-ikon, ny flik, noopener/
-          noreferrer. aria-label bär källa + "öppnas i ny flik" så
-          den utgående länken annonseras tydligt. */}
-      {preservedAd.url && (
-        <p style={{ marginTop: "12px" }}>
-          <a
-            href={preservedAd.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={tUi("preservedAd.viewAdAriaLabel", {
-              source: preservedSourceLabel,
-            })}
-            className="jp-btn jp-btn--secondary"
-          >
-            <ExternalLink size={14} aria-hidden="true" />{" "}
-            {tUi("preservedAd.viewAd")}
-          </a>
-        </p>
-      )}
+      {/* #805-3 (Beslut B): utlänken som stod här är BORTTAGEN. Panelen renderas
+          numera ENBART när källannonsen inte längre är aktiv (SourceAdSection,
+          Status != "Active") — och då kan vi inte hävda att snapshot-URL:en
+          fortfarande svarar. Det var exakt den döda länk Beslut B förbjuder
+          ("ingen död länk"). Utlänken lever vidare i SourceAdSection, där den
+          visas medan annonsen ÄR aktiv. Den bevarade kopian nedan är vad vi kan
+          stå för (ADR 0086) och är strikt bättre än en slantsingling. */}
 
       {/* Annonstexten. Vid description == null (terminal status →
           retention-minimering) visas EJ en tom kropp: en kort, neutral

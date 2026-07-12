@@ -16,9 +16,15 @@ interface SavedJobAdRowProps {
 
 /**
  * F6 P5 Punkt 2 Del A — rad i `/sparade`-listan. Visar JobAd-metadata
- * från ADR 0048 in-handler-join (`item.jobAd`). När annonsen soft-deletats
- * eller borttagits från Platsbanken (ADR 0032 snapshot-retention) →
- * `item.jobAd === null` → fallback-rendering med "Annonsen är borttagen".
+ * från ADR 0048 in-handler-join (`item.jobAd`). `item.jobAd === null` betyder att
+ * annonsRADEN saknas (föräldralöst `JobAdId`) → fallback "Annonsen är borttagen".
+ *
+ * #805-3 sanningssynk: den tidigare utsagan ("när annonsen soft-deletats eller
+ * borttagits från Platsbanken") var falsk. `JobAd.DeletedAt` saknar writer (#821),
+ * och en annons som försvinner ur Platsbankens flöde ARKIVERAS
+ * (`Status = "Archived"`) — den joinar fortfarande och renderas som en vanlig rad.
+ * Den sanningsenliga signalen är `item.jobAd.status`, som DTO:n numera bär. Att
+ * surfa "aktiv/inte längre aktiv" på den här raden är **#817**.
  *
  * Borttag = `unsaveJobAdAction(item.jobAdId)` (ej SavedJobAdId — backend
  * matchar på composite-key per ADR 0011 strongly-typed soft-ref).

@@ -9118,14 +9118,20 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 /* --- MALL: valbara kort med mini-schematik --- */
-/* Tracken har ett TAK: utan det svaller korten i enspalts-laget (640-1099px) till
-   ~300x420px och laser da som renderingar i stallet for strukturdiagram — vilket
-   motsager bade copyn ("miniatyrerna visar mallens struktur") och den riktiga
-   forhandsvisningen de star bredvid. auto-fit tal fortfarande en 4:e mall. */
+/* Korten far INTE svalla: utan tak stracker de sig over hela innehallsbredden i
+   enspalts-laget (640-1099px) och laser da som renderingar i stallet for struktur-
+   diagram — vilket motsager bade copyn ("miniatyrerna visar mallens struktur") och den
+   riktiga forhandsvisningen de star bredvid.
+   Taket sitter pa GRIDDEN, inte pa tracken: auto-fit raknar antalet spar pa track-
+   funktionens MAX nar den ar definit (CSS Grid §7.2.3.2), sa `minmax(118px, 172px)`
+   skulle styra aven hur manga kort som ryms — 440px-spalten tog da bara 2 kort och
+   lade Mork panel ensam pa rad 2, vilket bryter hela "valj en av tre"-jamforelsen.
+   Med 1fr som max raknas sparen pa MIN (118px) och max-width haller kortbredden.
+   540px = 3 x 172 + 2 x 12. */
 .jp-mallgrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(118px, 172px));
-  justify-content: start;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  max-width: 540px;
   gap: 12px;
 }
 .jp-mallcard {
@@ -9296,6 +9302,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-success);
 }
 .jp-mallsave__err { margin: 0; font-size: var(--text-body-sm); color: var(--jp-danger); }
+
+/* De permanent monterade live-regionerna ar flex-items aven nar de ar tomma och ater
+   da ett gap (8px spokluft under Spara, ~6px ur centrum i platshallaren). Ta dem ur
+   FLODET nar de ar tomma — men ALDRIG med display:none: det plockar bort regionen ur
+   a11y-tradet och aterinfor exakt den insert-with-content-bugg som forhandsmonteringen
+   finns for att forhindra. */
+.jp-mallsave > [role="status"]:empty,
+.jp-mallpreview__placeholder > [role="status"]:empty {
+  position: absolute;
+}
 
 /* --- Forhandsvisning: inramat kort (huvud / stale-remsa / kropp / fot) --- */
 .jp-mallpreview {

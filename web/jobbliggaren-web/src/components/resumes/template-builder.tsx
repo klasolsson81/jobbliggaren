@@ -240,18 +240,23 @@ export function TemplateBuilder({
         density,
       });
 
-      // useTransition blockerar INTE inmatning: användaren kan hinna byta mall medan
-      // skrivningen är i luften. Valbytet nollställer kvittot (resetSaveFeedback), men
-      // utan den här grinden skulle transitionens sena setSaved(true) skriva tillbaka
-      // det — och "Mallen sparad." skulle stå bredvid ett val som aldrig sparades. Ett
-      // kvitto som ljuger är värre än inget kvitto. selectionRef läses (inte `currentKey`)
-      // eftersom closuren bär värdet från klickögonblicket.
-      if (selectionRef.current !== savedKey) return;
-
+      // Ett FEL är ett påstående om SKRIVNINGEN ("kunde inte spara") och är sant oavsett
+      // vad som råkar vara valt när svaret landar — det ytas alltid. Frånvaro av fel
+      // läses som framgång, så en tystad skrivfel-signal vore värre än en sen sådan.
       if (!result.success) {
         setSaveError(result.error);
         return;
       }
+
+      // Ett KVITTO är däremot ett påstående om VALET. useTransition blockerar inte
+      // inmatning, så användaren kan hinna byta mall medan skrivningen är i luften:
+      // valbytet nollställer kvittot (resetSaveFeedback), men utan den här grinden
+      // skulle transitionens sena setSaved(true) skriva tillbaka det — och "Mallen
+      // sparad." skulle stå bredvid ett val som aldrig sparades. Ett kvitto som ljuger
+      // är värre än inget kvitto. selectionRef läses (inte `currentKey`) eftersom
+      // closuren bär värdet från klickögonblicket.
+      if (selectionRef.current !== savedKey) return;
+
       setSaved(true);
     });
   }

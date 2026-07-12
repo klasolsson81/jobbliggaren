@@ -512,13 +512,18 @@ describe("<TemplateBuilder /> (Fas 4b PR-8b 8b.3 — mallbyggare)", () => {
     expect(revoke).toHaveBeenCalled();
   });
 
-  it("snabb mount→unmount hinner inte spendera en render (första paint är macrotask-schemalagd)", () => {
+  it("snabb mount→unmount hinner inte spendera en render (första paint är macrotask-schemalagd)", async () => {
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
     const { unmount } = renderBuilder();
 
     // Effekten schemalägger hämtningen på setTimeout(0) och rensar den i sin cleanup.
     // Lämnar användaren sidan direkt kostar besöket NOLL renders.
     unmount();
+
+    // Assertionen MÅSTE ligga efter macrotasken. Görs den synkront är den vakuös: fetch
+    // kan omöjligt ha hunnit anropas ändå, och testet blir grönt även om clearTimeout
+    // raderas ur cleanupen — dvs det skyddar då ingenting.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(fetchMock.mock.calls).toHaveLength(0);
   });
 
@@ -546,10 +551,10 @@ describe("<TemplateBuilder /> (Fas 4b PR-8b 8b.3 — mallbyggare)", () => {
     const user = userEvent.setup();
 
     // Håll Server Action:en i luften tills vi bestämmer oss.
-    let resolveSave: (value: { success: true }) => void = () => {};
+    let resolveSave: (value: ActionResult) => void = () => {};
     updateTemplateOptionsMock.mockImplementation(
       () =>
-        new Promise((resolve) => {
+        new Promise<ActionResult>((resolve) => {
           resolveSave = resolve;
         })
     );
@@ -557,16 +562,55 @@ describe("<TemplateBuilder /> (Fas 4b PR-8b 8b.3 — mallbyggare)", () => {
     renderBuilder();
     await screen.findByTitle("Förhandsvisning av CV");
 
-    await user.click(screen.getByRole("button", { name: "Spara mall" }));
+    const saveButton = screen.getByRole("button", { name: "Spara mall" });
+    await user.click(saveButton);
+    // Knappen är disabled så länge transitionen pågår — vår hållpunkt.
+    await waitFor(() => expect(saveButton).toBeDisabled());
+
     // Användaren hinner byta mall medan skrivningen är i luften.
     await user.click(screen.getByRole("radio", { name: "Mörk panel" }));
 
     resolveSave({ success: true });
 
+    // POSITIV KONTROLL: vänta tills transitionen FAKTISKT landat (knappen återaktiveras
+    // först då). Utan den vore den negativa assertionen nedan vakuös — den skulle
+    // utvärderas innan transitionens fortsättning kört, och därmed vara grön även om
+    // grinden i handleSave togs bort.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Spara mall" })).toBeEnabled()
+    );
+
     // Kvittot gällde det GAMLA valet. Skulle det dyka upp nu stod "Mallen sparad."
     // bredvid en mall som aldrig sparades.
-    await waitFor(() =>
-      expect(screen.queryByText("Mallen sparad.")).not.toBeInTheDocument()
+    expect(screen.queryByText("Mallen sparad.")).not.toBeInTheDocument();
+  });
+
+  it("ett sparFEL ytas även om användaren hunnit byta val — frånvaro av fel läses som framgång", async () => {
+    const user = userEvent.setup();
+
+    let resolveSave: (value: ActionResult) => void = () => {};
+    updateTemplateOptionsMock.mockImplementation(
+      () =>
+        new Promise<ActionResult>((resolve) => {
+          resolveSave = resolve;
+        })
+    );
+
+    renderBuilder();
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    const saveButton = screen.getByRole("button", { name: "Spara mall" });
+    await user.click(saveButton);
+    await waitFor(() => expect(saveButton).toBeDisabled());
+
+    await user.click(screen.getByRole("radio", { name: "Mörk panel" }));
+
+    // Skrivningen avvisas. Ett fel är ett påstående om SKRIVNINGEN, inte om valet — det
+    // ska ytas oavsett vad som råkar vara valt när svaret landar (fail-loud).
+    resolveSave({ success: false, error: "Kunde inte spara mallen." });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Kunde inte spara mallen."
     );
   });
 

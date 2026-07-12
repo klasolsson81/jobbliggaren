@@ -223,7 +223,8 @@
       "deleteFailed": "Kunde inte radera kontot.",
       "changePasswordFailed": "Kunde inte byta lösenord.",
       "emailTaken": "E-postadressen används redan av ett annat konto.",
-      "changeEmailFailed": "Kunde inte byta e-postadress."
+      "changeEmailFailed": "Kunde inte byta e-postadress.",
+      "changeEmailCooldown": "Du begärde nyligen ett adressbyte. Vänta en liten stund innan du försöker igen."
     }
   }
 }

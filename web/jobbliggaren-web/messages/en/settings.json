@@ -223,7 +223,8 @@
       "deleteFailed": "Could not delete the account.",
       "changePasswordFailed": "Could not change the password.",
       "emailTaken": "The email address is already used by another account.",
-      "changeEmailFailed": "Could not change the email address."
+      "changeEmailFailed": "Could not change the email address.",
+      "changeEmailCooldown": "You recently requested an email change. Wait a moment before trying again."
     }
   }
 }

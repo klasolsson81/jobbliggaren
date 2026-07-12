@@ -33,11 +33,11 @@ import { changeEmailAction } from "./me";
 const CURRENT = "Current123456";
 const NEW_EMAIL = "ny.adress@exempel.se";
 
-function fakeResponse(status: number): Response {
+function fakeResponse(status: number, body: unknown = {}): Response {
   return {
     status,
     ok: status >= 200 && status < 300,
-    json: async () => ({}),
+    json: async () => body,
   } as unknown as Response;
 }
 
@@ -94,7 +94,7 @@ describe("changeEmailAction", () => {
     });
   });
 
-  it("maps 409 to the email-taken error (not the generic mapActionError conflict text)", async () => {
+  it("maps a 409 without a recognized title to the email-taken error (the fallback)", async () => {
     authedFetchMock.mockResolvedValue(fakeResponse(409));
 
     const result = await changeEmailAction(CURRENT, NEW_EMAIL);
@@ -102,6 +102,21 @@ describe("changeEmailAction", () => {
     expect(result).toEqual({
       success: false,
       error: "account.errors.emailTaken",
+    });
+  });
+
+  it("maps a 409 with the ChangeEmailCooldown title to the cooldown copy (not email-taken)", async () => {
+    // #703/#792: the change-email endpoint returns two distinct 409 codes. A cooldown must render the
+    // wait-a-moment message, not the (wrong) "address already taken" copy.
+    authedFetchMock.mockResolvedValue(
+      fakeResponse(409, { title: "Auth.ChangeEmailCooldown" })
+    );
+
+    const result = await changeEmailAction(CURRENT, NEW_EMAIL);
+
+    expect(result).toEqual({
+      success: false,
+      error: "account.errors.changeEmailCooldown",
     });
   });
 

@@ -102,7 +102,8 @@
     "detail": {
       "loadErrorTitle": "Kunde inte ladda CV",
       "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till CV-listan.",
-      "updatedAt": "Senast uppdaterad"
+      "updatedAt": "Senast uppdaterad",
+      "customizeTemplate": "Anpassa mall"
     },
     "review": {
       "title": "Granska importerat CV",
@@ -142,6 +143,49 @@
       "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till CV-sidan.",
       "backLink": "Tillbaka till CV",
       "loading": "Läser in granskningen…"
+    },
+    "mall": {
+      "title": "Anpassa mall",
+      "lede": "Välj mall, accentfärg och täthet för ditt CV. Dina val visas i förhandsvisningen och sparas först när du väljer Spara mall.",
+      "backLink": "Tillbaka till CV",
+      "loadErrorTitle": "Kunde inte ladda mallbyggaren",
+      "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till CV-sidan.",
+      "templateGroupLabel": "Mall",
+      "accentGroupLabel": "Accentfärg",
+      "densityGroupLabel": "Täthet",
+      "templates": {
+        "Klar": "Klar",
+        "Accentlinje": "Accentlinje",
+        "MorkPanel": "Mörk panel"
+      },
+      "accents": {
+        "NavyBlue": "Marinblå",
+        "ForestGreen": "Skogsgrön",
+        "WineRed": "Vinröd",
+        "Graphite": "Grafit"
+      },
+      "densities": {
+        "Airy": "Luftig",
+        "Normal": "Normal",
+        "Compact": "Kompakt"
+      },
+      "atsSafeLabel": "Klarar ATS-granskning",
+      "atsSafeHint": "Den här mallen läses rent av ansökningssystem (ATS): en spalt, ren text.",
+      "atsUnsafeLabel": "Utformad för läsning",
+      "atsUnsafeHint": "Den här mallen har en layout för mänskliga läsare. Ansökningssystem (ATS) kan läsa den sämre.",
+      "previewHeading": "Förhandsvisning",
+      "previewStale": "Förhandsvisningen visar inte dina senaste val ännu. Välj Uppdatera förhandsvisning.",
+      "updatePreview": "Uppdatera förhandsvisning",
+      "previewLoading": "Förhandsvisningen renderas…",
+      "previewLoadingLabel": "Förhandsvisningen renderas",
+      "previewError": "Förhandsvisningen kunde inte laddas. Försök igen om en stund.",
+      "previewRateLimited": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
+      "previewNotFound": "Förhandsvisningen kunde inte hittas. Gå tillbaka till CV-sidan och försök igen.",
+      "iframeTitle": "Förhandsvisning av CV",
+      "openInNewTab": "Öppna i ny flik",
+      "save": "Spara mall",
+      "savePending": "Sparar…",
+      "saved": "Mallen sparad."
     },
     "importApi": {
       "notMultipart": "Ladda upp filen som multipart/form-data.",

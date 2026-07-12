@@ -58,6 +58,43 @@ public static class DependencyInjection
         services.AddLandingStats();
         services.AddTextAnalysis();
         services.AddCvParsing();
+        services.AddDevOnlyTestingSupport(environment);
+        return services;
+    }
+
+    /// <summary>
+    /// DEV-ONLY testing support (#796) — REMOVE BEFORE LAUNCH (Klas). Registers the
+    /// token-free confirmed-login seam (<see cref="Jobbliggaren.Application.Dev.Abstractions.IDevEmailConfirmer"/>,
+    /// implemented by <see cref="Auth.DevEmailConfirmer"/> over <c>UserManager</c>) used
+    /// by the Playwright E2E suite to obtain a confirmed, login-capable user against a
+    /// flag-ON backend without a real email round-trip.
+    ///
+    /// <para>
+    /// Registered ONLY in Development — the FIRST of two independent structural gates
+    /// (the SECOND is the <c>Program.cs</c> <c>IsDevelopment()</c> gate on the
+    /// <c>/api/v1/dev/*</c> endpoint map). The predicate is <c>IsDevelopment()</c>
+    /// exactly (not <c>|| IsEnvironment("Test")</c>) so it mirrors the endpoint map-gate
+    /// one-for-one: in any deployed environment the port is absent from the container
+    /// and <c>ConfirmEmailDevCommandHandler</c> cannot resolve (fail-closed).
+    /// </para>
+    /// </summary>
+    public static IServiceCollection AddDevOnlyTestingSupport(
+        this IServiceCollection services,
+        IHostEnvironment environment)
+    {
+        // NOTE on fail-closed: Mediator registers ConfirmEmailDevCommandHandler
+        // unconditionally, but its IDevEmailConfirmer dependency is registered ONLY here
+        // (Development). Outside Development the handler is dead — it can only throw at
+        // Send-time (an unreachable path, since the endpoint is also unmapped), NOT at
+        // container-build time, because the Api host leaves ValidateOnBuild off outside
+        // Development. If the Api is ever hardened to force ValidateOnBuild=true in all
+        // environments, this dead handler would turn a deployed boot into a startup crash
+        // — remove the whole dev-seam before then (REMOVE BEFORE LAUNCH).
+        if (environment.IsDevelopment())
+            services.AddScoped<
+                Jobbliggaren.Application.Dev.Abstractions.IDevEmailConfirmer,
+                Auth.DevEmailConfirmer>();
+
         return services;
     }
 

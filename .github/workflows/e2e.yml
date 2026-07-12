@@ -1,0 +1,182 @@
+# Playwright full-stack E2E (#796).
+#
+# OBSERVE-ONLY (Fas 1, ADR 0045 Beslut 6): this workflow is SEPARATE from build.yml
+# and is NOT referenced by build.yml's required `ci` aggregate — it can NEVER block a
+# merge. `continue-on-error: true` keeps a red E2E run from failing the check suite.
+# Ratcheting it to a blocking/required check is a later, EXPLICIT Klas decision — never
+# a silent default.
+#
+# It stands up the real stack — ephemeral Postgres + Redis service containers, the
+# .NET Api (migrated out-of-band via `dotnet ef`), and the Next.js dev server — and
+# runs every e2e spec in ONE pass with the launch-representative flag ON
+# (Auth__RequireEmailConfirmation=true). The loginAs specs obtain a confirmed user via
+# the dev-only confirmed-login seam (POST /api/v1/dev/confirm-email, #796); auth.spec.ts
+# runs against an unconfirmed user. See docs/runbooks/e2e-ci.md.
+name: e2e
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: playwright e2e (observe-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    continue-on-error: true # observe-only Fas 1 (ADR 0045) — never blocks merge
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: jobbliggaren
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d jobbliggaren"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+      redis:
+        image: redis:8-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+
+    env:
+      ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=jobbliggaren;Username=postgres;Password=postgres"
+      ConnectionStrings__Redis: "localhost:6379"
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: "http://localhost:5049"
+      Auth__RequireEmailConfirmation: "true" # launch-representative (confirmed-login seam covers loginAs)
+      Email__Provider: "Console" # no outbound mail in CI
+      FieldEncryption__Provider: "Local"
+      Seq__ServerUrl: "" # no Seq sink in CI
+      BACKEND_URL: "http://localhost:5049" # frontend (env.ts) + ensureTestUser/confirmTestUser
+      PLAYWRIGHT_BASE_URL: "http://localhost:3000"
+      TEST_USER_PASSWORD: "E2eTestPass123!Dev"
+      # Relax rate limits for the suite — every spec registers/logs in from the same
+      # localhost IP in a burst, which trips the default AuthWrite limiter (429). Mirrors
+      # ApiFactory's integration-test overrides (10000 / 60s). These are the only limiters
+      # the e2e flows touch (register/login = AuthWrite/AuthLoose; list/me reads + writes).
+      RateLimiting__AuthWrite__PermitLimit: "10000"
+      RateLimiting__AuthWrite__WindowSeconds: "60"
+      RateLimiting__AuthLoose__PermitLimit: "10000"
+      RateLimiting__AuthLoose__WindowSeconds: "60"
+      RateLimiting__ListRead__PermitLimit: "10000"
+      RateLimiting__ListRead__WindowSeconds: "60"
+      RateLimiting__MeListRead__PermitLimit: "10000"
+      RateLimiting__MeListRead__WindowSeconds: "60"
+      RateLimiting__MeWrite__PermitLimit: "10000"
+      RateLimiting__MeWrite__WindowSeconds: "60"
+      RateLimiting__JobAdStatusBatch__PermitLimit: "10000"
+      RateLimiting__JobAdStatusBatch__WindowSeconds: "60"
+      RateLimiting__JobAdMatchBatch__PermitLimit: "10000"
+      RateLimiting__JobAdMatchBatch__WindowSeconds: "60"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: web/jobbliggaren-web/pnpm-lock.yaml
+
+      - name: Generate field-encryption master key (Local DEK provider)
+        run: echo "FieldEncryption__LocalMasterKeyBase64=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
+      - name: Generate throwaway JWT keys
+        run: |
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/jwt-private.pem
+          openssl rsa -in /tmp/jwt-private.pem -pubout -out /tmp/jwt-public.pem
+          echo "Jwt__PrivateKeyPath=/tmp/jwt-private.pem" >> "$GITHUB_ENV"
+          echo "Jwt__PublicKeyPath=/tmp/jwt-public.pem" >> "$GITHUB_ENV"
+
+      - name: Restore + build backend (Api)
+        run: |
+          dotnet restore Jobbliggaren.sln
+          dotnet build src/Jobbliggaren.Api/Jobbliggaren.Api.csproj --no-restore -c Release
+
+      - name: Create pg_trgm extension
+        run: PGPASSWORD=postgres psql -h localhost -U postgres -d jobbliggaren -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+
+      - name: Apply migrations (design-time factories — no host build)
+        run: |
+          dotnet tool install --global dotnet-ef --version 10.0.9
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          # NB: in `dotnet ef`, -c is the short alias for --context (NOT --configuration).
+          # Use the long --configuration so --no-build resolves the Release build output.
+          dotnet ef database update --no-build --configuration Release \
+            --project src/Jobbliggaren.Infrastructure \
+            --startup-project src/Jobbliggaren.Api --context AppDbContext
+          dotnet ef database update --no-build --configuration Release \
+            --project src/Jobbliggaren.Infrastructure \
+            --startup-project src/Jobbliggaren.Api --context AppIdentityDbContext
+
+      - name: Start Api (background) + wait for /api/ready
+        run: |
+          nohup dotnet run --no-build -c Release \
+            --project src/Jobbliggaren.Api --no-launch-profile > /tmp/api.log 2>&1 &
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5049/api/ready || true)
+            if [ "$code" = "200" ]; then echo "Api ready after ${i} tries"; exit 0; fi
+            sleep 2
+          done
+          echo "Api did not become ready in time"; cat /tmp/api.log; exit 1
+
+      - name: Install web deps
+        working-directory: web/jobbliggaren-web
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright chromium
+        working-directory: web/jobbliggaren-web
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run E2E (Playwright starts the Next dev server)
+        working-directory: web/jobbliggaren-web
+        run: pnpm test:e2e
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            web/jobbliggaren-web/playwright-report/
+            web/jobbliggaren-web/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Dump Api log on failure
+        if: failure()
+        run: cat /tmp/api.log || true

@@ -1,11 +1,11 @@
 import { test, expect } from "@playwright/test";
-import { loginAs, ensureTestUser } from "./helpers/auth";
+import { loginAs, ensureConfirmedTestUser } from "./helpers/auth";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 const RUN_ID = Date.now();
 
 test.beforeAll(async () => {
-  await ensureTestUser(BACKEND_URL, RUN_ID);
+  await ensureConfirmedTestUser(BACKEND_URL, RUN_ID);
 });
 
 test.describe("/jobb — auth-gating", () => {

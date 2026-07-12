@@ -1,5 +1,7 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
+using Jobbliggaren.Application.Dev.Abstractions;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -147,6 +149,7 @@ public sealed class ProductionStartupFixtureGroup : ICollectionFixture<Productio
 [Collection("ProductionStartup")]
 public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
 {
+    private readonly ProductionStartupFactory _factory = factory;
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
@@ -157,5 +160,47 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
         var response = await _client.GetAsync("/api/ready", ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    // #796 map-gate guardrail (HARD merge gate, CLAUDE.md §12): the whole /api/v1/dev/*
+    // group — including the token-free confirmed-login seam — MUST be unmapped outside
+    // Development. A 404 (not 401/405) proves the route does not exist in Production; if
+    // the Program.cs IsDevelopment() gate ever regressed, these turn red before deploy.
+
+    [Fact]
+    public async Task POST_dev_confirm_email_is_unmapped_in_Production_env()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/dev/confirm-email",
+            new { email = "x@e2e.jobbliggaren.test" },
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task POST_dev_reset_my_data_is_unmapped_in_Production_env()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var response = await _client.PostAsync("/api/v1/dev/reset-my-data", content: null, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    // The map-gate 404 above is necessary but not sufficient on its own: the endpoint's
+    // own "account not found" branch also returns 404, so if BOTH structural gates ever
+    // regressed together the route could answer 404 spuriously (green while the primitive
+    // is live). This asserts the SECOND, independent gate directly — the dev-only
+    // IDevEmailConfirmer must be ABSENT from the container outside Development
+    // (AddDevOnlyTestingSupport). Together the two tests prove both gates fail-closed.
+    [Fact]
+    public void IDevEmailConfirmer_is_not_registered_in_Production_env()
+    {
+        using var scope = _factory.Services.CreateScope();
+
+        scope.ServiceProvider.GetService<IDevEmailConfirmer>().ShouldBeNull();
     }
 }

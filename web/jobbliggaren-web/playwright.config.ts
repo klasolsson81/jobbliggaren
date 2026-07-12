@@ -11,7 +11,13 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
-  reporter: "list",
+  // In CI the FE runs `pnpm dev`, which compiles each route on-demand on first hit —
+  // a cold-compile navigation can exceed the 30s default. Give tests more headroom in
+  // CI (subsequent hits are cached and fast); keep the snappy default locally.
+  timeout: process.env.CI ? 60_000 : 30_000,
+  // "list" for readable logs; add the HTML report in CI so the workflow can upload it
+  // as a failure artifact (open: never — non-interactive on the runner).
+  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL,
     trace: "on-first-retry",
@@ -26,6 +32,7 @@ export default defineConfig({
     command: "pnpm dev",
     url: baseURL,
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    // Next dev first-compile under CI load is slower than a warm local server.
+    timeout: process.env.CI ? 180_000 : 120_000,
   },
 });

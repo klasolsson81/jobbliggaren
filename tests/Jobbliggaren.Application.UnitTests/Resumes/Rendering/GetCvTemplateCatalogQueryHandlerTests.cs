@@ -86,4 +86,34 @@ public class GetCvTemplateCatalogQueryHandlerTests
         dto.FontPairs.Count.ShouldBe(CvFontPair.List.Count);
         dto.Densities.Count.ShouldBe(CvDensity.List.Count);
     }
+
+    [Fact]
+    public async Task Catalog_OrdersEveryGroupByTheDomainsDeclaredValue_NotByName()
+    {
+        var dto = await LoadAsync();
+
+        // SmartEnum.List yields the members ordered by NAME. The catalog is the option VOCABULARY a
+        // picker renders in order, so it must carry the DOMAIN's declared order (the Value) instead.
+        dto.Templates.Select(t => t.Name)
+            .ShouldBe(CvTemplate.List.OrderBy(t => t.Value).Select(t => t.Name));
+        dto.Accents.Select(a => a.Name)
+            .ShouldBe(CvAccentColor.List.OrderBy(a => a.Value).Select(a => a.Name));
+        dto.FontPairs.Select(f => f.Name)
+            .ShouldBe(CvFontPair.List.OrderBy(f => f.Value).Select(f => f.Name));
+        dto.Densities.Select(d => d.Name)
+            .ShouldBe(CvDensity.List.OrderBy(d => d.Value).Select(d => d.Name));
+    }
+
+    [Fact]
+    public async Task Catalog_DensityIsTheMonotoneScale_AiryThenNormalThenCompact()
+    {
+        var dto = await LoadAsync();
+
+        // Density is the one group whose members form a SCALE (spacing 0.85 / 1.0 / 1.2), and the
+        // mallbyggare renders it as a segmented control — so the order IS part of the meaning. Sorted
+        // by name it reads "Luftig | Kompakt | Normal", which presents the scale out of order. This
+        // is deliberately spelled out rather than derived, so a future reordering of the Values has
+        // to confront the question of what the user reads left-to-right.
+        dto.Densities.Select(d => d.Name).ShouldBe(["Airy", "Normal", "Compact"]);
+    }
 }

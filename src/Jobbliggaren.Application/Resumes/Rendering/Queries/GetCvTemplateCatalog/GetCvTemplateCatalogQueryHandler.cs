@@ -22,11 +22,18 @@ public sealed class GetCvTemplateCatalogQueryHandler(ICvAccentSwatchProvider swa
     {
         var hexByName = swatches.GetSwatches().ToDictionary(s => s.Name, s => s.Hex);
 
+        // Ordered by the SmartEnum Value, which is the DOMAIN's declared order — not by Name,
+        // which is what SmartEnum.List yields (alphabetical). The distinction is load-bearing for
+        // CvDensity: its values encode a monotone scale (Airy=1 → Normal=2 → Compact=3), and a UI
+        // that renders the options as a scale (a segmented control) presents "Airy | Compact |
+        // Normal" as a nonsensical ordering when sorted by name. The other three carry an intended
+        // order too (Klar is the default template; NavyBlue the default accent), so all four are
+        // ordered the same way rather than special-casing density.
         var dto = new CvTemplateCatalogDto(
-            [.. CvTemplate.List.Select(t => new TemplateOptionDto(t.Name, t.AtsSafe))],
-            [.. CvAccentColor.List.Select(a => new AccentOptionDto(a.Name, hexByName[a.Name]))],
-            [.. CvFontPair.List.Select(f => new FontPairOptionDto(f.Name))],
-            [.. CvDensity.List.Select(d => new DensityOptionDto(d.Name))]);
+            [.. CvTemplate.List.OrderBy(t => t.Value).Select(t => new TemplateOptionDto(t.Name, t.AtsSafe))],
+            [.. CvAccentColor.List.OrderBy(a => a.Value).Select(a => new AccentOptionDto(a.Name, hexByName[a.Name]))],
+            [.. CvFontPair.List.OrderBy(f => f.Value).Select(f => new FontPairOptionDto(f.Name))],
+            [.. CvDensity.List.OrderBy(d => d.Value).Select(d => new DensityOptionDto(d.Name))]);
 
         return ValueTask.FromResult(dto);
     }

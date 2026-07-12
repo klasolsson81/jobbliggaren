@@ -120,6 +120,31 @@ describe("FollowedCompanyNotificationsCard — save", () => {
     expect(followConsentMock).toHaveBeenCalledWith({ enabled: true });
   });
 
+  it("toggeln flippar OPTIMISTISKT innan servern svarat (annars är den död)", async () => {
+    // Utan det optimistiska steget skulle switchen bara röra sig vid revert:
+    // en död samtyckes-toggle som ändå passerar varje annat test i filen (de
+    // asserterar mocken eller status-raden, inte switchens läge under sparet).
+    // Därför hålls actionen svävande här tills läget är avläst.
+    const user = userEvent.setup();
+    let settle: (value: { success: true }) => void = () => {};
+    followConsentMock.mockReturnValue(
+      new Promise<{ success: true }>((resolve) => {
+        settle = resolve;
+      })
+    );
+    renderCard(); // OFF
+
+    await user.click(screen.getByRole("switch", { name: TOGGLE }));
+
+    expect(screen.getByRole("switch", { name: TOGGLE })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+
+    settle({ success: true });
+    expect(await screen.findByText(/^Sparat \d{2}:\d{2}$/)).toBeInTheDocument();
+  });
+
   it("opt-out (Art. 7(3)-withdrawal) skickar {enabled:false}", async () => {
     const user = userEvent.setup();
     renderCard({ initialEnabled: true });

@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -11,9 +12,14 @@ namespace Jobbliggaren.Worker.IntegrationTests.CompanyRegister;
 /// <summary>
 /// #560 (ADR 0091) — Testcontainers integration tests for <see cref="ScbCompanyRegisterStore"/> against
 /// REAL Postgres (the bulk <c>jsonb_to_recordset ON CONFLICT</c> upsert, the <c>text[]</c> SNI column,
-/// and the deregister sweep are Postgres-specific — never EF-InMemory). Each test TRUNCATEs
-/// <c>company_register</c> first: the deregister sweep is a whole-table operation, so tests must own the
-/// table (the "Worker" collection runs serially and no other test touches this table).
+/// and the deregister sweep are Postgres-specific — never EF-InMemory). Each test resets BOTH tables the
+/// store reads/writes (<c>company_register</c> AND the <c>System.CompanyRegisterSynced</c> audit rows the
+/// floor-baseline read scans): the sweep is a whole-table operation and the baseline read is a
+/// day-windowed <c>audit_log</c> scan, so a test must own both to be order-independent. The "Worker"
+/// collection runs serially over ONE shared Testcontainers Postgres, so any sibling that writes a
+/// <c>CompanyRegisterSynced</c> audit row (e.g. <c>ScbCompanyRegisterRefresherIntegrationTests</c>, which
+/// records <c>TotalRowsFetched=1000</c>) would otherwise leak into the "no prior run" baseline assertion
+/// (#685 — deterministically depending on suite order + the 90-day real-clock window).
 /// </summary>
 [Collection("Worker")]
 [Trait("Category", "SmokeTest")]
@@ -170,11 +176,53 @@ public class ScbCompanyRegisterStoreTests(WorkerTestFixture fixture)
         (await store.GetMaxObservedTotalRowsFetchedAsync(days: 90, ct)).ShouldBeNull();
     }
 
+    [Fact]
+    public async Task GetMaxObservedTotalRowsFetched_IsNull_AfterFreshContext_EvenWhenAPriorSyncAuditRowExists()
+    {
+        // #685 (order-independent regression pin): a sibling in the shared "Worker" collection can leave a
+        // recent System.CompanyRegisterSynced audit row (TotalRowsFetched=1000). FreshContextAsync must
+        // clear those rows too, not just company_register, so "no prior run" holds regardless of order.
+        // Seed the contaminating row via the REAL write path, then take a fresh context and assert null —
+        // this FAILS without the FreshContextAsync audit-clear (returns 1000) and PASSES with it.
+        var ct = TestContext.Current.CancellationToken;
+        await using (var seed = await FreshContextAsync(ct))
+        {
+            var auditor = seed.Scope.ServiceProvider.GetRequiredService<ISystemEventAuditor>();
+            await auditor.RecordAsync(
+                new CompanyRegisterSynced(
+                    AggregateId: Guid.NewGuid(),
+                    OccurredAt: T1,                 // inside the 90-day window relative to the real clock
+                    RowsUpserted: 1000,
+                    RowsDeregistered: 0,
+                    RowsExcludedPersonnummerShaped: 0,
+                    RowsExcludedInvalid: 0,
+                    TotalRowsFetched: 1000,
+                    SweepApplied: true,
+                    SweepSkipReason: null,
+                    ProtectedPartitionCount: 0,
+                    FailedPartitionCount: 0,
+                    StartedAt: T0,
+                    CompletedAt: T1),
+                ct);
+        }
+
+        await using var ctx = await FreshContextAsync(ct);
+        var store = new ScbCompanyRegisterStore(ctx.Db);
+
+        (await store.GetMaxObservedTotalRowsFetchedAsync(days: 90, ct)).ShouldBeNull();
+    }
+
     private async Task<ScopedContext> FreshContextAsync(CancellationToken ct)
     {
         var scope = _fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.ExecuteSqlRawAsync("TRUNCATE company_register;", ct);
+        // #685 — also clear the CompanyRegisterSynced run-watermark audit rows the floor-baseline read
+        // scans (GetMaxObservedTotalRowsFetchedAsync). Without this the test only owns company_register,
+        // so a sibling's audit row (TotalRowsFetched=1000) leaks into the "no prior run" assertion under
+        // certain suite orders (audit_log is day-partitioned; a scoped DELETE routes across partitions).
+        await db.Database.ExecuteSqlRawAsync(
+            "DELETE FROM audit_log WHERE event_type = 'System.CompanyRegisterSynced';", ct);
         return new ScopedContext(scope, db);
     }
 
@@ -185,7 +233,8 @@ public class ScbCompanyRegisterStoreTests(WorkerTestFixture fixture)
     private sealed class ScopedContext(AsyncServiceScope scope, AppDbContext db) : IAsyncDisposable
     {
         public AppDbContext Db { get; } = db;
-        public ValueTask DisposeAsync() => scope.DisposeAsync();
+        public AsyncServiceScope Scope { get; } = scope;
+        public ValueTask DisposeAsync() => Scope.DisposeAsync();
     }
 }
 

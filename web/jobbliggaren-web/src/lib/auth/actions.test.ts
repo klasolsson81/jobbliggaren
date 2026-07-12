@@ -191,9 +191,12 @@ describe("loginAction 403 handling (#714 — email-not-confirmed gate)", () => {
     const result = await loginAction(null, form());
 
     // #733: the state also carries emailNotConfirmed so LoginForm can offer the resend action.
+    // #791: and the submitted email, so the resend reads it from the action state (the live form
+    // input is reset by React 19 after the action, so it would be empty at click time).
     expect(result).toEqual({
       error: "auth.actions.emailNotConfirmed",
       emailNotConfirmed: true,
+      email: "anna@example.se",
     });
     expect(setSessionCookieMock).not.toHaveBeenCalled();
     expect(redirectMock).not.toHaveBeenCalled();

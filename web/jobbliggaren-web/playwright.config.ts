@@ -1,5 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Overridable so the suite can run against a non-default FE port — parallel dev sessions routinely
+// take :3000 (memory: parallel-stack port ownership), and the future Playwright-in-CI wiring needs
+// to point at whatever port it spins up. Defaults to :3000 so existing local/CI behavior is unchanged.
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
@@ -8,7 +13,7 @@ export default defineConfig({
   workers: 1,
   reporter: "list",
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL,
     trace: "on-first-retry",
   },
   projects: [
@@ -19,7 +24,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "pnpm dev",
-    url: "http://localhost:3000",
+    url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LoginForm } from "./LoginForm";
+import { resendConfirmationAction } from "@/lib/actions/resend-confirmation";
 
 // next/navigation: useSearchParams must be mocked in jsdom (no Next router context).
 vi.mock("next/navigation", () => ({
@@ -13,6 +14,7 @@ vi.mock("next/navigation", () => ({
 type AuthActionState = {
   error?: string;
   emailNotConfirmed?: boolean;
+  email?: string;
 } | null;
 const loginActionMock =
   vi.fn<
@@ -136,6 +138,34 @@ describe("LoginForm", () => {
     expect(
       await screen.findByRole("button", { name: "Skicka en ny bekräftelselänk" })
     ).toBeInTheDocument();
+  });
+
+  it("#791 — resend uses the email echoed in the action state, not the (React-reset) input", async () => {
+    vi.mocked(resendConfirmationAction).mockClear();
+    loginActionMock.mockResolvedValueOnce({
+      error:
+        "Bekräfta din e-postadress för att logga in. Vi har skickat en länk till din inkorg.",
+      emailNotConfirmed: true,
+      email: "submitted@example.se",
+    });
+
+    const user = userEvent.setup();
+    render(<LoginForm />);
+
+    // Type a DIFFERENT address than the one the action echoes back: this pins that the resend reads
+    // state.email (the submitted address), not the live input. In production the two are equal, but
+    // React 19 resets the uncontrolled input after the action — so sourcing from it would send "".
+    await user.type(screen.getByLabelText("E-postadress"), "typed@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "hemligt1");
+    await user.click(screen.getByRole("button", { name: "Logga in" }));
+
+    await user.click(
+      await screen.findByRole("button", { name: "Skicka en ny bekräftelselänk" })
+    );
+
+    expect(vi.mocked(resendConfirmationAction)).toHaveBeenCalledWith(
+      "submitted@example.se"
+    );
   });
 
   it("does not show the resend-confirmation button on an ordinary login error", async () => {

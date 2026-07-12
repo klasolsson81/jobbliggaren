@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using Jobbliggaren.Application.Dev.Abstractions;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -148,6 +149,7 @@ public sealed class ProductionStartupFixtureGroup : ICollectionFixture<Productio
 [Collection("ProductionStartup")]
 public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
 {
+    private readonly ProductionStartupFactory _factory = factory;
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
@@ -186,5 +188,19 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
         var response = await _client.PostAsync("/api/v1/dev/reset-my-data", content: null, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    // The map-gate 404 above is necessary but not sufficient on its own: the endpoint's
+    // own "account not found" branch also returns 404, so if BOTH structural gates ever
+    // regressed together the route could answer 404 spuriously (green while the primitive
+    // is live). This asserts the SECOND, independent gate directly — the dev-only
+    // IDevEmailConfirmer must be ABSENT from the container outside Development
+    // (AddDevOnlyTestingSupport). Together the two tests prove both gates fail-closed.
+    [Fact]
+    public void IDevEmailConfirmer_is_not_registered_in_Production_env()
+    {
+        using var scope = _factory.Services.CreateScope();
+
+        scope.ServiceProvider.GetService<IDevEmailConfirmer>().ShouldBeNull();
     }
 }

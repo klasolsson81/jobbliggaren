@@ -6,6 +6,7 @@ import {
   COMMIT_PARAM,
   COMMIT_VALUE,
   type JobbUrlState,
+  clampSubMinimumQ,
 } from "./search-params";
 
 const empty: JobbUrlState = {
@@ -261,5 +262,26 @@ describe("buildJobbHref #383 → förenklat (Dölj ansökta)", () => {
         hideApplied: true,
       }),
     ).toBe("/jobb?relaterade=on&doljAnsokta=on&q=volvo");
+  });
+});
+
+describe("clampSubMinimumQ (#823)", () => {
+  // SPOT-klampen som BÅDA URL-vägarna på /jobb måste dela: page.tsx vid entry och
+  // buildPageHref när den bygger pagineringslänkar. Divergerade de re-emitterade
+  // sidlänkarna ett q som sidan självt ignorerar — en URL som påstår ett sök som inte körs.
+  it("droppar en söktext under backendens minimum", () => {
+    expect(clampSubMinimumQ("a")).toBeUndefined();
+    expect(clampSubMinimumQ(" a ")).toBeUndefined();
+  });
+
+  it("behåller allt som backend faktiskt accepterar", () => {
+    expect(clampSubMinimumQ("ab")).toBe("ab");
+    // Regeln gäller HELA strängen, aldrig per ord — "a bc" är 4 tecken och giltigt.
+    expect(clampSubMinimumQ("a bc")).toBe("a bc");
+    expect(clampSubMinimumQ("backend")).toBe("backend");
+  });
+
+  it("lämnar frånvaro av söktext orörd", () => {
+    expect(clampSubMinimumQ(undefined)).toBeUndefined();
   });
 });

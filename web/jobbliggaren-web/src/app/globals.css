@@ -1286,6 +1286,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-caption);
   color: var(--jp-hero-ink-soft);
 }
+
+/* #823 — notisraden (för kort sökord / söktexten full). Ligger UNDER hjälptexten, inte i
+   stället för den, så sökmodellens instruktion aldrig försvinner. Egen ink-ton så utfallet
+   av ett CTA-tryck inte signaleras i sidans svagaste texttier — befintlig token, ingen ny
+   färg. Hero-plattan är tema-invariant (ADR 0068), så raden är identisk i light och dark. */
+.jp-hero__searchhelp--notice {
+  color: var(--jp-hero-ink);
+}
 /* #419 pt6 — "Spara sökningen"-länk (knapp stylad som text-länk) + spar-bekräftelse.
    Delar hjälptextens soft-ink-ton (befintliga hero-tokens, inga nya); understruken så
    den läses som en handling. Ingen radie/skugga/gradient. */

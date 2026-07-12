@@ -10,7 +10,11 @@ import { resolveTaxonomyLabels } from "@/lib/api/taxonomy";
 import type { JobAdSortBy } from "@/lib/dto/job-ads";
 import type { MatchGrade, JobAdMatchBatch } from "@/lib/dto/job-ad-match";
 import { assertNever } from "@/lib/dto/_helpers";
-import { buildJobbHref, parseEmployerParam } from "@/lib/job-ads/search-params";
+import {
+  buildJobbHref,
+  clampSubMinimumQ,
+  parseEmployerParam,
+} from "@/lib/job-ads/search-params";
 import { maxCreatedAt } from "@/lib/job-ads/seen-window";
 import { JobAdList } from "@/components/job-ads/job-ad-list";
 import { JobbResultsToolbar } from "@/components/job-ads/jobb-results-toolbar";
@@ -520,7 +524,11 @@ function buildPageHref(
   // av buildJobbHref). SPOT-gaten (parseEmployerParam) delas med page-parsern.
   const employerParam = parseEmployerParam(params.employer);
   if (employerParam) url.set("employer", employerParam);
-  if (params.q) url.set("q", params.q);
+  // #823 — KLAMPA. Utan detta re-emitterar sidlänkarna det råa under-minimum-q:t
+  // (/jobb?q=a → "Nästa sida" = /jobb?page=2&q=a): en URL vi själva genererar som påstår
+  // ett sök sidan inte kör, medan sökfältet står tomt. Samma SPOT-klamp som page.tsx.
+  const clampedQ = clampSubMinimumQ(params.q);
+  if (clampedQ) url.set("q", clampedQ);
   const qs = url.toString();
   return qs.length > 0 ? `/jobb?${qs}` : "/jobb";
 }

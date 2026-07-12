@@ -6,13 +6,10 @@ import { getMyProfile } from "@/lib/api/me";
 import { getRecentSearches } from "@/lib/api/recent-searches";
 import { getSavedJobAds } from "@/lib/api/saved-job-ads";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
-import {
-  jobAdSortBySchema,
-  Q_MIN_LENGTH,
-  type JobAdSortBy,
-} from "@/lib/dto/job-ads";
+import { jobAdSortBySchema, type JobAdSortBy } from "@/lib/dto/job-ads";
 import { isListMatchGrade } from "@/lib/dto/job-ad-match";
 import {
+  clampSubMinimumQ,
   MATCHNING_OFF_VALUE,
   RELATERADE_ON_VALUE,
   STATUS_ON_VALUE,
@@ -355,15 +352,7 @@ function emptyToUndefined(s: string | undefined): string | undefined {
   return s && s.trim().length > 0 ? s.trim() : undefined;
 }
 
-/**
- * #823 — en söktext kortare än backendens minimum behandlas som ingen söktext.
- * Speglar `SearchQueryParser`, som nollar en residual under `SearchCriteria.QMinLength`
- * och kör vidare på dimensionerna i stället för att vägra frågan. Backend förblir SSOT;
- * detta är gränssnittets klamp, så en direktlänk aldrig kan trigga 400-vägen.
- */
-function clampSubMinimumQ(s: string | undefined): string | undefined {
-  return s !== undefined && s.length < Q_MIN_LENGTH ? undefined : s;
-}
+
 
 // Normaliserar string | string[] | undefined → string[] (tomma värden bort).
 function toStringList(raw: string | string[] | undefined): string[] {

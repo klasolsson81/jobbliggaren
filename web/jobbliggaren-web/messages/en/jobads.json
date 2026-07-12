@@ -286,7 +286,7 @@
       "clearField": "Clear the search field",
       "submit": "Search",
       "limitNotice": "The search text is full (max {max} characters). Remove a tag to add more words.",
-      "minNotice": "Search words shorter than {min} characters are not used in the search.",
+      "minNotice": "The search word “{word}” is shorter than {min} characters and is not used in the search.",
       "help": "Words become tags in the filter row at the results when you type a space or comma. Choose suggestions with the arrow keys and Tab.",
       "announceAdded": "Added {label}",
       "announceRemoved": "Removed {label}",

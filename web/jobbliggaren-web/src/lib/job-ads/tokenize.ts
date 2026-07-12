@@ -297,15 +297,28 @@ export function applyClaimsDelta(
   // klienten hade uppfunnit en strängare regel än den som faktiskt gäller. (En sammansatt
   // q under 2 tecken kan bara vara ETT enteckensord: två ord med mellanslag är redan ≥ 3.)
   //
-  // Ordningen är bärande: droppen måste ske FÖRE enforceClaims, annars läggs ordet
-  // tillbaka av I1-enforcementen. `appliedQ` nollas med — prevClaims får aldrig göra
-  // anspråk på något staten saknar (annars kan en borttagning aldrig härledas igen).
+  // `appliedQ` nollas MED droppen: prevClaims får aldrig göra anspråk på något staten
+  // saknar. Annars ser nästa delta ordet i prevQKeys, tar add-loopens "finns redan"-genväg,
+  // och ordet återförs ALDRIG till q — tyst förlorat även när texten blivit lång nog
+  // ("i" → "i java" hade gett q="java"). Vaktat av tokenize.test.ts.
+  //
+  // Droppen ligger före enforceClaims. (Den ordningen är korrekt men inte bärande:
+  // enforceClaims itererar bara `claims.matches` och rör aldrig q-ord. En tidigare
+  // kommentar påstod att ordningen var nödvändig för att ordet annars skulle läggas
+  // tillbaka — det var fiktion. code-reviewer fångade det.)
   const tooShortQ: string[] = [];
   const assembledQ = state.q.trim();
   if (assembledQ.length > 0 && assembledQ.length < Q_MIN_LENGTH) {
     tooShortQ.push(...splitQWords(state.q));
     state = { ...state, q: "" };
     appliedQ.length = 0;
+    // Ordet APPLICERADES aldrig — då får det inte heller annonseras som tillagt. Utan
+    // detta hörde skärmläsaren "Lade till i. Sökordet ”i” är kortare än 2 tecken och
+    // används inte i sökningen." — första halvan osann (CLAUDE.md §10).
+    for (const w of tooShortQ) {
+      const at = addedLabels.indexOf(w);
+      if (at >= 0) addedLabels.splice(at, 1);
+    }
   }
 
   // I1-enforcement (CTO-addendum 2026-06-12 BESLUT 2): texten är användarens

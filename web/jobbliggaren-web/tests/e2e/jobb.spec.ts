@@ -112,14 +112,23 @@ test.describe("/jobb — auth-gated rendering", () => {
 
     // Vägledningen står i hjälpraden. (Notistexten finns även i komponentens aria-live-
     // region — scopa till den SYNLIGA raden, annars strict-mode.)
-    await expect(page.locator("p.jp-hero__searchhelp")).toContainText(
-      /Sökord kortare än 2 tecken används inte/
-    );
+    await expect(
+      page.locator("p.jp-hero__searchhelp--notice")
+    ).toContainText(/”a” är kortare än 2 tecken och används inte/);
+    // Hjälptexten står kvar — notisen läggs TILL, den ersätter inte instruktionen.
+    await expect(
+      page.locator("p.jp-hero__searchhelp:not(.jp-hero__searchhelp--notice)")
+    ).toContainText(/Ord blir taggar i filterraden/);
+    // SETTLA navigeringen först. Klicket triggar router.replace (klient-side RSC-fetch);
+    // utvärderas de negativa assertions dessförinnan passerar de trivialt på första pollen,
+    // medan URL:en fortfarande är /jobb och gamla resultat står kvar — dvs. de hade inte
+    // kunnat falla. (code-reviewer fångade det; samma defektklass som resten av sessionen.)
+    await page.waitForURL((u) => !new URL(u).searchParams.has("q"));
+
     // Det avgörande: backendens 400-väg nås aldrig, så teknisk-fel-kortet syns inte.
     await expect(
       page.getByText("Kunde inte ladda jobbannonser")
     ).toHaveCount(0);
-    await expect(page).not.toHaveURL(/[?&]q=a(&|$)/);
   });
 
   // #823 — direktlänken. Klienten kan inte grinda en bokmärkt/handredigerad URL; page.tsx

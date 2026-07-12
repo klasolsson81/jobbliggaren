@@ -67,12 +67,15 @@ function stubSuggest(
 }
 
 
-// #823 — notis-texten finns med FLIT på två ställen: den synliga hjälpraden och den enda
-// aria-live-regionen (hjälpraden är inte längre en egen role="status", annars lästes hela
-// default-hjälptexten upp på nytt varje gång en notis släcktes). Testerna läser därför den
-// SYNLIGA raden explicit i stället för att matcha texten globalt.
+// #823 — notisen är en EGEN rad UNDER hjälptexten (den ersätter den inte), och texten finns
+// med flit också i komponentens enda aria-live-region. Testerna läser därför den synliga
+// notisraden explicit i stället för att matcha texten globalt (som blir strict-mode).
+const noticeLine = () =>
+  document.querySelector("p.jp-hero__searchhelp--notice")?.textContent ?? "";
 const helpLine = () =>
-  document.querySelector("p.jp-hero__searchhelp")?.textContent ?? "";
+  document.querySelector(
+    "p.jp-hero__searchhelp:not(.jp-hero__searchhelp--notice)"
+  )?.textContent ?? "";
 
 beforeEach(() => {
   replaceMock.mockClear();
@@ -166,7 +169,9 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
       const [href] = replaceMock.mock.calls[0] ?? [];
       // Ingen q-param → backendens 400-väg nås aldrig.
       expect(String(href)).not.toContain("q=");
-      expect(helpLine()).toMatch(/Sökord kortare än 2 tecken används inte/);
+      expect(noticeLine()).toMatch(/”a” är kortare än 2 tecken och används inte/);
+      // Hjälptexten (sökmodellens instruktion) får INTE försvinna när notisen visas.
+      expect(helpLine()).toMatch(/Ord blir taggar i filterraden/);
     });
 
     it("'i göteborg': ortfiltret körs ändå — residualen 'i' stryks, ingen återvändsgränd", async () => {
@@ -179,7 +184,9 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
       const [href] = replaceMock.mock.calls.at(-1) ?? [];
       expect(String(href)).toContain("municipality=PVZL_BQT_XtL");
       expect(String(href)).not.toContain("q=");
-      expect(helpLine()).toMatch(/Sökord kortare än 2 tecken används inte/);
+      expect(noticeLine()).toMatch(/”i” är kortare än 2 tecken och används inte/);
+      // Hjälptexten (sökmodellens instruktion) får INTE försvinna när notisen visas.
+      expect(helpLine()).toMatch(/Ord blir taggar i filterraden/);
     });
 
     it("'a bc' släpps igenom oförändrat — regeln gäller hela q, inte varje ord", async () => {
@@ -191,7 +198,7 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
 
       const [href] = replaceMock.mock.calls.at(-1) ?? [];
       expect(String(href)).toContain("q=a+bc");
-      expect(helpLine()).not.toMatch(/Sökord kortare än 2 tecken/);
+      expect(noticeLine()).toBe("");
     });
 
     it("notisen försvinner vid nästa redigering — utan att man behöver söka igen", async () => {
@@ -202,11 +209,13 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
 
       await user.type(screen.getByRole("combobox"), "a");
       await user.click(screen.getByRole("button", { name: /^Sök/ }));
-      expect(helpLine()).toMatch(/Sökord kortare än 2 tecken används inte/);
+      expect(noticeLine()).toMatch(/”a” är kortare än 2 tecken och används inte/);
+      // Hjälptexten (sökmodellens instruktion) får INTE försvinna när notisen visas.
+      expect(helpLine()).toMatch(/Ord blir taggar i filterraden/);
 
       await user.type(screen.getByRole("combobox"), "b");
 
-      expect(helpLine()).not.toMatch(/Sökord kortare än 2 tecken/);
+      expect(noticeLine()).toBe("");
     });
   });
 
@@ -278,7 +287,7 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
     const user = userEvent.setup();
     setup({ q: "a".repeat(95) });
     await user.type(screen.getByRole("combobox"), " jättelångt ");
-    expect(helpLine()).toMatch(/Söktexten är full \(max 100 tecken\)/);
+    expect(noticeLine()).toMatch(/Söktexten är full \(max 100 tecken\)/);
   });
 });
 

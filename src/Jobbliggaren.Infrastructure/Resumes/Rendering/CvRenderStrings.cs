@@ -37,6 +37,29 @@ internal static class CvRenderStrings
     public static Labels For(ResumeLanguage language) =>
         language == ResumeLanguage.En ? English : Swedish;
 
+    /// <summary>
+    /// The localised display label for a self-declared language proficiency, or <c>null</c> when the
+    /// level is <see cref="LanguageProficiency.NotStated"/> — an unknown level renders as a bare
+    /// language name, never a fabricated "basic" (ADR 0074 OQ3 / §5). The SmartEnum <c>Name</c> tokens
+    /// are English code identifiers; the user-facing words resolve here (Swedish per the enum's
+    /// documented UI vocabulary: Grundläggande/God/Flytande/Modersmål). English keeps the plain terms.
+    /// </summary>
+    public static string? ProficiencyLabel(LanguageProficiency proficiency, ResumeLanguage language)
+    {
+        if (proficiency == LanguageProficiency.NotStated)
+            return null;
+
+        var swedish = language != ResumeLanguage.En;
+        return proficiency.Name switch
+        {
+            nameof(LanguageProficiency.Basic) => swedish ? "Grundläggande" : "Basic",
+            nameof(LanguageProficiency.Good) => swedish ? "God" : "Good",
+            nameof(LanguageProficiency.Fluent) => swedish ? "Flytande" : "Fluent",
+            nameof(LanguageProficiency.Native) => swedish ? "Modersmål" : "Native",
+            _ => null,
+        };
+    }
+
     /// <summary>The canonical section headings for a language — the membership set the
     /// heading-normalisation transform recognises as "a standard heading".</summary>
     public static IReadOnlyList<string> SectionHeadings(ResumeLanguage language)

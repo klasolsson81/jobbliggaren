@@ -1,7 +1,9 @@
+using Jobbliggaren.Application.Resumes.Abstractions;
 using Jobbliggaren.Application.Resumes.Rendering.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Rendering;
 using Shouldly;
 using static Jobbliggaren.Application.UnitTests.Resumes.Improvement.CvImprovementFixtures;
@@ -30,6 +32,14 @@ public class CvRendererTests
 
     private static bool IsPdf(byte[] bytes) =>
         bytes.Length >= 4 && bytes.Take(4).SequenceEqual(PdfMagic);
+
+    // The rendered CONTENT (extracted PDF text) is the honest determinism signal: it is robust to
+    // QuestPDF's benign byte variations (the PDF /ID and process-global font-subset packing) and to
+    // parallel test execution, where exact-byte or byte-length assertions flake. Reuses the repo's
+    // own deterministic extractor (no SDK type crosses the port).
+    private static string ExtractText(byte[] pdf) =>
+        new PdfPigOpenXmlCvTextExtractor()
+            .Extract(pdf, CvFileKind.Pdf, TestContext.Current.CancellationToken).RawText;
 
     [Theory]
     [InlineData(RenderProfile.Ats)]
@@ -94,10 +104,12 @@ public class CvRendererTests
         var first = await RenderAsync(resume, profile);
         var second = await RenderAsync(resume, profile);
 
-        // Pinned metadata ⇒ stable output. Assert stable size (a robust determinism signal that
-        // does not flake on the PDF /ID) plus both being valid PDFs.
-        second.PdfBytes.Length.ShouldBe(first.PdfBytes.Length,
-            "Samma CV ska rendera till samma storlek (deterministisk renderare).");
+        // Byte-identity is impossible (QuestPDF varies the PDF /ID + its process-global font-subset
+        // packing); the determinism that matters — no wall-clock/random reaches the rendered CONTENT
+        // (§5, FixedTimestamp) — is asserted at the extracted text, robust to those benign byte
+        // variations and to parallel test execution.
+        ExtractText(second.PdfBytes).ShouldBe(ExtractText(first.PdfBytes),
+            "Samma CV ska rendera till samma innehåll (deterministisk renderare).");
         IsPdf(first.PdfBytes).ShouldBeTrue();
         IsPdf(second.PdfBytes).ShouldBeTrue();
     }
@@ -169,8 +181,9 @@ public class CvRendererTests
         var first = await RenderAsync(content, ResumeLanguage.Sv, RenderProfile.Ats);
         var second = await RenderAsync(content, ResumeLanguage.Sv, RenderProfile.Ats);
 
-        second.PdfBytes.Length.ShouldBe(first.PdfBytes.Length,
-            "Samma innehåll ska rendera till samma storlek (deterministisk renderare).");
+        // Content determinism (see the parsed determinism test) — robust to QuestPDF's byte drift.
+        ExtractText(second.PdfBytes).ShouldBe(ExtractText(first.PdfBytes),
+            "Samma innehåll ska rendera till samma innehåll (deterministisk renderare).");
     }
 
     // ----- FormatPeriod (CTO D1 / Variant A — year-span, en-dash, localised ongoing) -----
@@ -223,12 +236,16 @@ public class CvRendererTests
     }
 
     // ----- CvDocumentModel.From(ResumeContent) — Fas 4b superset language projection (#651) -----
-    // Since the AppCopy superset (ADR 0095 D-C) the promoted content carries spoken languages, so
-    // their NAMES feed the existing languages slot (proficiency + the other superset fields are not
-    // rendered yet). This is a pure BCL projection (Phase A) — no PDF render, no I/O.
+    // Since the AppCopy superset (ADR 0095 D-C) the promoted content carries spoken languages; PR-8b
+    // (8b.0) now projects the NAME *and* its localised proficiency (ADR 0095 D-E gap closed). This is
+    // a pure BCL projection — no PDF render, no I/O. Fuller superset coverage (skill groups, dynamic
+    // sections) lives in CvDocumentModelCompletenessTests.
+
+    private static CvDocumentModel.LanguageLine Lang(string name, string? proficiency) =>
+        new(name, proficiency);
 
     [Fact]
-    public void From_ResumeContentWithLanguages_ProjectsLanguageNamesIntoModel()
+    public void From_ResumeContentWithLanguages_ProjectsNameAndLocalisedProficiency()
     {
         var content = ResumeContentFixture() with
         {
@@ -239,10 +256,11 @@ public class CvRendererTests
             ],
         };
 
-        var model = CvDocumentModel.From(content, "pågående");
+        var model = CvDocumentModel.From(
+            content, "pågående", p => CvRenderStrings.ProficiencyLabel(p, ResumeLanguage.Sv));
 
-        // Names only, in order; the proficiency level is not projected (later PR, ADR 0095 D-E).
-        model.Languages.ShouldBe(["Svenska", "Tyska"]);
+        // Native → localised "Modersmål"; NotStated → null (an honest bare name, never fabricated, §5).
+        model.Languages.ShouldBe([Lang("Svenska", "Modersmål"), Lang("Tyska", null)]);
     }
 
     [Fact]
@@ -250,7 +268,8 @@ public class CvRendererTests
     {
         // The fixture leaves Languages empty (legacy/degraded content) → honest empty list, not a
         // synthesised placeholder (CLAUDE.md §5). Regression guard for the previously hard-coded [].
-        var model = CvDocumentModel.From(ResumeContentFixture(), "pågående");
+        var model = CvDocumentModel.From(
+            ResumeContentFixture(), "pågående", p => CvRenderStrings.ProficiencyLabel(p, ResumeLanguage.Sv));
 
         model.Languages.ShouldBeEmpty();
     }

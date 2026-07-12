@@ -13,8 +13,11 @@ namespace Jobbliggaren.Infrastructure.Resumes.Rendering;
 /// §8.3). Pure: takes an already-decrypted <see cref="ParsedResume"/> (Invariant 3 owned by the
 /// read-handler), produces bytes in memory, and streams them compute-on-demand (CTO Q6 — no
 /// artifact persistence, nothing written to disk). The document metadata timestamps are PINNED
-/// (no wall-clock — §5 forbids DateTime.Now) so the same CV renders to a stable output. NO
-/// AI/LLM. The QuestPDF Community licence is set (idempotently) in this type's static
+/// (no wall-clock — §5 forbids DateTime.Now) so the same CV renders to stable, deterministic
+/// CONTENT (identical visible text + layout run-to-run). The exact PDF BYTES are deliberately NOT
+/// identity-stable — QuestPDF varies the PDF <c>/ID</c> and its process-global font-subset packing —
+/// so callers must never hash / ETag / dedupe the bytes; determinism here is a content guarantee,
+/// not a byte guarantee. NO AI/LLM. The QuestPDF Community licence is set (idempotently) in this type's static
 /// constructor — so every construction path is covered (DI via <c>AddCvRendering</c> and
 /// direct construction in tests).
 /// </summary>
@@ -61,7 +64,8 @@ internal sealed class CvRenderer : ICvRenderer
         cancellationToken.ThrowIfCancellationRequested();
 
         var labels = CvRenderStrings.For(language);
-        var model = CvDocumentModel.From(content, labels.Ongoing);
+        var model = CvDocumentModel.From(
+            content, labels.Ongoing, proficiency => CvRenderStrings.ProficiencyLabel(proficiency, language));
 
         var document = Document.Create(container =>
             CvDocumentComposer.Compose(container, model, labels, profile));

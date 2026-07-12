@@ -27,8 +27,24 @@
     "cadenceLabel": "How often to receive the summary",
     "cadenceDaily": "Daily",
     "cadenceWeekly": "Weekly",
-    "cadenceHint": "Applies to the email summary of strong matches. Top matches are always emailed right away.",
-    "cadenceHintDisabled": "Turn on match notifications to choose how often the email summary is sent.",
+    "cadenceHint": "Applies to the email summary of strong matches and to the notifications about companies you follow. Top matches are always emailed right away.",
+    "cadenceHintDisabled": "Turn on match notifications, or notifications about companies you follow, to choose how often the email summary is sent.",
+    "savedAt": "Saved {time}",
+    "errors": {
+      "notLoggedIn": "You are not signed in.",
+      "invalidInput": "Invalid input.",
+      "saveFailed": "The change could not be saved. Please try again.",
+      "tooManyAttempts": "Too many attempts. Wait a moment and try again."
+    }
+  },
+  "followedCompanyNotifications": {
+    "title": "Notifications about companies you follow",
+    "intro": "New ads from companies you follow always appear in the app, under Overview and Companies. Here you choose whether we should also email them to you.",
+    "toggleLabel": "Email me new ads from companies I follow",
+    "toggleDescription": "Off by default. Turning it on means you consent to us emailing you new ads from the companies you follow. You can withdraw your consent at any time by turning this off.",
+    "cadenceNote": "The email follows the same rate as the match notifications: {cadence}. You change the rate in the Match notifications card.",
+    "cadenceNoteDisabled": "The email follows the same rate as the match notifications. You change the rate in the Match notifications card.",
+    "filterNote": "If you have set a filter on a company, it applies to the emails as well. You change the filters under Companies.",
     "savedAt": "Saved {time}",
     "errors": {
       "notLoggedIn": "You are not signed in.",

@@ -63,6 +63,14 @@ export const jobSeekerProfileSchema = z.object({
   // weeklySummary keys were retired — they gated no email path.)
   backgroundMatchNotificationsEnabled: z.boolean(),
   digestCadence: digestCadenceSchema,
+  // ADR 0087 D5 / bevakning F4 (#803): consent for the followed-company email
+  // digest. A DISTINCT processing purpose from the background-match consent
+  // above (its own flag, its own Art. 7 timestamps, its own endpoint) — but the
+  // two SHARE `digestCadence` (ADR 0087 D2), which is why only one card renders
+  // a cadence control. After 7C the in-app follow-rail runs for every follower
+  // regardless of this flag (Art. 6(1)(b)); the flag gates the EMAIL channel
+  // only (Art. 6(1)(a), default OFF). Backend always projects it → required key.
+  followedCompanyNotificationsEnabled: z.boolean(),
   createdAt: z.string(),
   hasStatedDesiredOccupation: z.boolean(),
   preferredOccupationGroups: z.array(z.string()).readonly(),

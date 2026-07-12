@@ -100,3 +100,24 @@ export function makeUpdateNotificationConsentSchema(_t: ValidationTranslator) {
 export type UpdateNotificationConsentInput = z.infer<
   ReturnType<typeof makeUpdateNotificationConsentSchema>
 >;
+
+/**
+ * Bevakning F4 (#803) — input-schema för
+ * `updateFollowedCompanyNotificationConsentAction`. Speglar backend
+ * `UpdateFollowedCompanyNotificationConsentCommand` (`{ enabled }`) — INGEN
+ * kadens: den är delad med matchningsnotiserna (ADR 0087 D2) och skrivs via
+ * `makeUpdateNotificationConsentSchema` ovan. Strukturellt skydd /
+ * defense-in-depth (backend är sista barriären), därför ingen användarvänd
+ * valideringstext; translatorn tas för factory-konsekvens.
+ */
+export function makeUpdateFollowedCompanyNotificationConsentSchema(
+  _t: ValidationTranslator
+) {
+  return z.object({
+    enabled: z.boolean(),
+  });
+}
+
+export type UpdateFollowedCompanyNotificationConsentInput = z.infer<
+  ReturnType<typeof makeUpdateFollowedCompanyNotificationConsentSchema>
+>;

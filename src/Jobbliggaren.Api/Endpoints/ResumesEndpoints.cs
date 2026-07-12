@@ -1,6 +1,7 @@
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.JobSeekers.Commands.SetPrimaryResume;
 using Jobbliggaren.Application.Resumes.Commands.ApplyCvImprovements;
+using Jobbliggaren.Application.Resumes.Commands.ChangeTemplateOptions;
 using Jobbliggaren.Application.Resumes.Commands.CreateResume;
 using Jobbliggaren.Application.Resumes.Commands.DeleteResume;
 using Jobbliggaren.Application.Resumes.Commands.DeleteResumeVersion;
@@ -363,6 +364,23 @@ public static class ResumesEndpoints
                 : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
+        // Replace the CV's visual template options — template, accent, font pair, density
+        // (Fas 4b PR-8b 8b.2, ADR 0096). The write-half of the CvTemplateOptions lifecycle;
+        // the builder UI (8b.3) is the first consumer. Owner-scoped, writes non-PII plain
+        // columns (nyckelfri — no DEK, not a review input), 204 on success. The photo config
+        // is intentionally NOT on this contract (DPIA-gated to PR-10) — the handler preserves
+        // the persisted photo members. Write-rate-limited.
+        group.MapPut("/{id:guid}/template-options", async (
+            Guid id, ChangeTemplateOptionsBody body, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new ChangeTemplateOptionsCommand(
+                id, body.Template, body.AccentColor, body.FontPair, body.Density), ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
         group.MapPut("/{id:guid}/set-as-primary", async (
             Guid id, IMediator mediator, CancellationToken ct) =>
         {
@@ -425,6 +443,8 @@ public static class ResumesEndpoints
     private sealed record CreateResumeBody(string Name, string FullName);
     private sealed record RenameResumeBody(string Name);
     private sealed record SetLanguageBody(string Language);
+    private sealed record ChangeTemplateOptionsBody(
+        string Template, string AccentColor, string FontPair, string Density);
     private sealed record SetFindingStatusBody(string Status);
     private sealed record PromoteParsedResumeBody(string Name, ResumeContentDto Content);
     private sealed record PreviewImprovementBody(

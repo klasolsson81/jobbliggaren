@@ -85,6 +85,37 @@ public class CvTemplateOptionsTests
     }
 
     // ---------------------------------------------------------------
+    // EffectiveAtsSafe — composed honest verdict (Fas 4b PR-8b 8b.2)
+    // Template.AtsSafe && !PhotoEnabled. The SINGLE source consumed by the DTO (8b.2)
+    // and the per-render label (8b.3), so both surfaces agree by construction.
+    // ---------------------------------------------------------------
+
+    [Theory]
+    // Single-column, ATS-safe templates with no photo → the honest green "Klarar ATS".
+    [InlineData("Klar", false, true)]
+    [InlineData("Accentlinje", false, true)]
+    // Two-column template → not ATS-safe regardless of photo ("För människor").
+    [InlineData("MorkPanel", false, false)]
+    // A photo downgrades even an ATS-safe template (the composition's whole point).
+    [InlineData("Klar", true, false)]
+    [InlineData("Accentlinje", true, false)]
+    [InlineData("MorkPanel", true, false)]
+    public void EffectiveAtsSafe_IsTemplateAtsSafe_AndNoPhoto(
+        string templateName, bool photoEnabled, bool expected)
+    {
+        var options = CvTemplateOptions.Default with
+        {
+            Template = CvTemplate.FromName(templateName),
+            PhotoEnabled = photoEnabled,
+        };
+
+        options.EffectiveAtsSafe.ShouldBe(expected);
+        // The composition never disagrees with the template half when there is no photo.
+        if (!photoEnabled)
+            options.EffectiveAtsSafe.ShouldBe(options.Template.AtsSafe);
+    }
+
+    // ---------------------------------------------------------------
     // Persisted-name contract — Name tokens are the stored column vocabulary
     // ---------------------------------------------------------------
 

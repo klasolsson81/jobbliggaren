@@ -142,6 +142,11 @@ public sealed class ResumeConfiguration : IEntityTypeConfiguration<Resume>
             // Computed completeness guard (consumed by Resume.ChangeTemplateOptions) —
             // never a column.
             opts.Ignore(o => o.IsComplete);
+
+            // Computed ATS-safety verdict (Template.AtsSafe && !PhotoEnabled) — the single
+            // honest source consumed by the query DTO (8b.2) + per-render label (8b.3);
+            // derived, never a column.
+            opts.Ignore(o => o.EffectiveAtsSafe);
         });
         builder.Navigation(r => r.TemplateOptions).IsRequired();
 

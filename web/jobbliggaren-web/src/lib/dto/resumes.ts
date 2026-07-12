@@ -50,9 +50,15 @@ export const spokenLanguageDtoSchema = z.object({
 export type SpokenLanguageDto = z.infer<typeof spokenLanguageDtoSchema>;
 
 /** En post i en dynamisk yrkesstyrd CV-sektion (Fas 4b superset, ADR 0095 D-B).
- * `lines` är valfria brödrader (STJ passerar undefined när nyckeln utelämnas). */
+ * `lines` är valfria brödrader (STJ passerar undefined när nyckeln utelämnas).
+ *
+ * `title` är NULLBAR (#815, ADR 0095 D-E-amendering): domänen tillåter en post utan
+ * rubrik ("Referenser / Lämnas på begäran."), så API:t kan emittera `"title": null`.
+ * Stod schemat kvar som `z.string()` skulle ett enda sådant CV få HELA detaljsidan att
+ * falla till felläge — skrivvägen hade kunnat persistera ett tillstånd läsvägen inte kan
+ * tolka. Det är exakt den skriv/läs-asymmetri #815 handlar om, speglad. */
 export const sectionEntryDtoSchema = z.object({
-  title: z.string(),
+  title: z.string().nullish(),
   lines: z.array(z.string()).optional(),
 });
 export type SectionEntryDto = z.infer<typeof sectionEntryDtoSchema>;

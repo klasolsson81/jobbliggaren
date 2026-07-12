@@ -22,8 +22,10 @@ interface WithdrawApplicationButtonProps {
 
 /**
  * Footer-handling "Återta ansökan" = Withdrawn-transition (DOMÄN-KORREKT
- * soft-state-övergång, EJ hard-delete — ingen DELETE-endpoint finns).
- * v3-prototypens "Ta bort ansökan" var mock; real domän = Withdrawn.
+ * soft-state-övergång som BEHÅLLER posten som en terminal status). Att helt TA
+ * BORT en ansökan är en SEPARAT affordans ("Radera ansökan", #782/ADR 0104 — en
+ * riktig hard-delete via DELETE /api/v1/applications/{id}, DeleteApplicationButton);
+ * de två intenten samexisterar åtskilt (återta = behåll posten; ta bort = utplåna).
  * Renderas av anroparen ENDAST när Withdrawn ∈ getAllowedTransitions
  * (annars utelämnas helt — ingen disabled-teater, ADR 0053-amendment-anda).
  *

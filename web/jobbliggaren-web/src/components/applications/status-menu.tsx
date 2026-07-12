@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,7 +45,7 @@ export function StatusMenu({
 }) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
-  const { pendingIds, transition } = useApplicationActions();
+  const { pendingIds, transition, deleteApplication } = useApplicationActions();
   const pending = pendingIds.has(application.id);
 
   const renderItem = (status: ApplicationStatus) => {
@@ -112,6 +112,29 @@ export function StatusMenu({
           </DropdownMenuLabel>
           {STATUS_MENU_CLOSED_GROUP.map(renderItem)}
         </DropdownMenuGroup>
+        {/* #782 (ADR 0104) — destructive HARD delete. Placed behind the overflow
+            menu with a mandatory confirm dialog (deleteApplication opens the ONE
+            shared DeleteApplicationDialog on the island) rather than a bare card
+            red-×, so a whole-record delete cannot be fat-fingered. Distinct intent
+            from the Withdrawn status above: återta = keep the record; ta bort =
+            remove it. Separated + danger-tinted (colour reinforces, the label
+            carries the meaning — WCAG 1.4.1). */}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          // DropdownMenuItem-primitiven sätter ovillkorligt focus:text-accent-
+          // foreground (0-2-0) som annars slår .text-danger-700 (0-1-0) → posten
+          // tappar sin röda identitet exakt i interaktionsögonblicket (Radix
+          // flyttar fokus vid hover också). Bevara danger genom focus/hover, per
+          // repo-precedens ui/select.tsx (design-reviewer Major 1, #782).
+          className="jp-statusmenu__item text-danger-700 focus:bg-danger-50 focus:text-danger-700"
+          disabled={pending}
+          onSelect={() => deleteApplication(application)}
+        >
+          <Trash2 size={16} aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate">
+            {tUi("statusMenu.delete")}
+          </span>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

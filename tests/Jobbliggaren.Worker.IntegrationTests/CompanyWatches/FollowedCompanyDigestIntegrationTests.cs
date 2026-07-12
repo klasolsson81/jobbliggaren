@@ -260,6 +260,66 @@ public class FollowedCompanyDigestIntegrationTests(WorkerTestFixture fixture)
             "an all-seen due-set produces no dispatch (the only hit stays dormant Pending)");
     }
 
+    // --------------------------- M-E6 / C-E5 (DPIA Part E §E5/§E7, verified in PR-F3)
+    // A user who turns follow-email consent ON only AFTER hits accumulated (7C: hit creation is
+    // consent-free, so hits exist while the email flag is OFF) must NOT receive a mass-mail of
+    // historical hits they already saw in-app. The SeenAt-suppression (#453) holds ACROSS the opt-in:
+    // seen historical hits stay Pending (never emailed); only the UNSEEN hits drain as ONE bounded
+    // digest. Observable proxy (ConsoleEmailSender captures no body): per-hit notification STATUS —
+    // suppressed=Pending, dispatched=Sent (the file's established proxy, see #453 section above).
+
+    [Fact]
+    public async Task RunWeeklyAsync_LateEmailOptIn_DoesNotMassMailSeenHistoricalHits()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        // Email consent initially OFF — but in-app hits still accumulated (7C hit creation is
+        // consent-free). Some are opened in-app (SeenAt stamped) BEFORE the opt-in.
+        var userId = await SeedWeeklyUserAsync(followConsent: false, ct);
+
+        var seenHistorical = new List<(JobAdId JobAdId, CompanyWatchId WatchId)>();
+        for (var i = 0; i < 3; i++)
+        {
+            var (adId, watchId) = await SeedAdAndWatchAsync(userId, ct);
+            await SeedPendingFollowHitAsync(userId, adId, watchId, ct);
+            await MarkHitSeenAsync(userId, adId, watchId, ct); // opened in-app while email was OFF
+            seenHistorical.Add((adId, watchId));
+        }
+
+        var unseen = new List<(JobAdId JobAdId, CompanyWatchId WatchId)>();
+        for (var i = 0; i < 2; i++)
+        {
+            var (adId, watchId) = await SeedAdAndWatchAsync(userId, ct);
+            await SeedPendingFollowHitAsync(userId, adId, watchId, ct);
+            unseen.Add((adId, watchId));
+        }
+
+        // Late opt-in: the email consent flips ON only now, after the hits already exist.
+        await SetFollowedCompanyConsentAsync(userId, enabled: true, ct);
+
+        await Should.NotThrowAsync(async () =>
+        {
+            using var scope = _fixture.Services.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<DigestDispatchWorker>().RunWeeklyAsync(ct);
+        });
+
+        foreach (var (adId, watchId) in seenHistorical)
+        {
+            var hit = await GetHitAsync(userId, adId, watchId, ct);
+            hit!.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Pending,
+                "en historisk hit som redan setts i appen mass-mejlas ALDRIG vid sen e-post-opt-in " +
+                "(SeenAt-suppression håller över opt-in:en) — förblir Pending");
+        }
+
+        foreach (var (adId, watchId) in unseen)
+        {
+            var hit = await GetHitAsync(userId, adId, watchId, ct);
+            hit!.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Sent,
+                "endast de osedda hitsen dräneras som EN begränsad digest efter opt-in " +
+                "(ingen per-hit-flod av historiska notiser)");
+        }
+    }
+
     // ─────────────────────────── Seeding
 
     private Task<Guid> SeedConsentingWeeklyFollowUserAsync(CancellationToken ct)
@@ -360,6 +420,17 @@ public class FollowedCompanyDigestIntegrationTests(WorkerTestFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var hit = FollowedCompanyAdHit.Create(userId, jobAdId, watchId, new FixedClock(Now)).Value;
         db.FollowedCompanyAdHits.Add(hit);
+        await db.SaveChangesAsync(ct);
+    }
+
+    // M-E6 — flip the SEPARATE follow-email consent flag (Art. 6(1)(a)) on an existing seeker via the
+    // domain method, so a test can model a LATE opt-in (consent turned ON after hits already exist).
+    private async Task SetFollowedCompanyConsentAsync(Guid userId, bool enabled, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var seeker = await db.JobSeekers.SingleAsync(js => js.UserId == userId, ct);
+        seeker.UpdateFollowedCompanyNotificationConsent(enabled, new FixedClock(Now));
         await db.SaveChangesAsync(ct);
     }
 

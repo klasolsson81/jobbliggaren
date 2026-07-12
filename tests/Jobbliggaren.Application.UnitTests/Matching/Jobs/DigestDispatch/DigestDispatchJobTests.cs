@@ -1,6 +1,9 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
@@ -38,6 +41,13 @@ public class DigestDispatchJobTests
     private readonly IEmailSender _emailSender = Substitute.For<IEmailSender>();
     private readonly IUserAccountService _userAccounts = Substitute.For<IUserAccountService>();
 
+    // The per-watch grade filter ports (bevakning F3). These stay UNTOUCHED in the Strong-match +
+    // no-filter follow tests here (the grade path is dormant unless a watch has OnlyMatched set) — the
+    // real ≥Good SQL + the filter narrowing are pinned end-to-end in FollowedCompanyDigestIntegrationTests
+    // (Testcontainers). A test that needs the filter configures these substitutes explicitly.
+    private readonly IMatchProfileBuilder _profileBuilder = Substitute.For<IMatchProfileBuilder>();
+    private readonly IPerUserJobAdSearchQuery _perUserSearch = Substitute.For<IPerUserJobAdSearchQuery>();
+
     private const string ToEmail = "seeker@example.com";
 
     public DigestDispatchJobTests()
@@ -48,7 +58,7 @@ public class DigestDispatchJobTests
 
     private DigestDispatchJob CreateJob(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, int maxItems = 20) =>
-        new(db, _emailSender, _userAccounts, NowClock,
+        new(db, _emailSender, _userAccounts, _profileBuilder, _perUserSearch, NowClock,
             Options.Create(new DigestDispatchOptions { MaxItemsPerDigest = maxItems }),
             NullLogger<DigestDispatchJob>.Instance);
 
@@ -488,6 +498,215 @@ public class DigestDispatchJobTests
         var key = capturedKey.ShouldNotBeNull();
         key.ShouldBe(MatchNotificationIdempotencyKey.ForDigest(
             userId, DigestCadence.Weekly, [matchA.Id.Value, matchB.Id.Value]));
+    }
+
+    // ═══════════════════════════ Company-follow pass — per-watch "endast matchade" grade filter (F3)
+    //
+    // bevakning-reconcile RF-3/RF-5/RF-8=8C (2026-07-12). The read-time grade filter is driven
+    // DETERMINISTICALLY here via the substitute IMatchProfileBuilder + IPerUserJobAdSearchQuery — the
+    // real ≥Good SQL is pinned separately by F1's FilterToMatchingTests (Testcontainers). These tests
+    // pin the WIRING: which hits are claimed/drained vs left Pending, when the fail-fast port is
+    // called, and the 13B FilterSummary the email carries.
+    //
+    // InMemory caveat (verified 2026-07-12): the production follow pass loads the per-watch filter via
+    // db.CompanyWatches.AsNoTracking() → the WatchFilterSpec is re-materialised through its jsonb
+    // ValueConverter, which the EF-InMemory provider DOES apply, so NeedsGradeCheck sees
+    // OnlyMatched==true. If that ever regressed (a filtered-out hit drained instead of staying Pending
+    // in RunAsync_OnlyMatchedWatch_AssessableProfile_DrainsMatchingHit_LeavesFilteredOutPending), these
+    // would move to FollowedCompanyDigestIntegrationTests (Testcontainers) with a real assessable
+    // profile per the architect Test-scope note.
+
+    // A consenting FOLLOW user: the SEPARATE follow-email flag ON (never withdrawn), the shared cadence
+    // set via the background-match consent path (which stays OFF, so the match pass never fires here).
+    private static async Task<Guid> SeedFollowConsentingSeekerAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, DigestCadence cadence,
+        CancellationToken ct)
+    {
+        var userId = Guid.NewGuid();
+        var seeker = JobSeeker.Register(userId, "Follow", NowClock).Value;
+        seeker.UpdateNotificationConsent(enabled: false, cadence, NowClock); // sets DigestCadence only
+        seeker.UpdateFollowedCompanyNotificationConsent(enabled: true, NowClock);
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(ct);
+        return userId;
+    }
+
+    // An ACTIVE watch, optionally narrowed to "endast matchade" (OnlyMatched, no ort dimension). org.nr
+    // is irrelevant to the dispatch pass (watches load by UserId, map by watch.Id) but must be valid.
+    private static async Task<CompanyWatchId> SeedWatchAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId, bool onlyMatched,
+        CancellationToken ct)
+    {
+        var orgNr = "55" + (Math.Abs(Guid.NewGuid().GetHashCode()) % 100000000).ToString(
+            "D8", System.Globalization.CultureInfo.InvariantCulture);
+        var watch = CompanyWatch.Follow(userId, OrganizationNumber.Create(orgNr).Value, NowClock).Value;
+        if (onlyMatched)
+            watch.SetFilter(WatchFilterSpec.Create([], onlyMatched: true).Value).IsSuccess
+                .ShouldBeTrue("SetFilter ska lyckas på en aktiv watch");
+        db.CompanyWatches.Add(watch);
+        await db.SaveChangesAsync(ct);
+        return watch.Id;
+    }
+
+    // A Pending follow hit for (userId, adId, watchId). createdAt staggers the recency order so the
+    // OrderByDescending(CreatedAt) alone decides it and the ThenBy(Id) VO tiebreaker is never invoked
+    // under EF InMemory (parity the Strong-match staggering rationale above).
+    private static async Task SeedFollowHitAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId, JobAdId adId,
+        CompanyWatchId watchId, CancellationToken ct, DateTimeOffset? createdAt = null)
+    {
+        var hit = FollowedCompanyAdHit.Create(userId, adId, watchId, new ClockAt(createdAt ?? NowClock.UtcNow)).Value;
+        db.FollowedCompanyAdHits.Add(hit);
+        await db.SaveChangesAsync(ct);
+    }
+
+    private static async Task<FollowedCompanyAdHit?> ReloadHitAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId, JobAdId adId,
+        CancellationToken ct) =>
+        await db.FollowedCompanyAdHits.AsNoTracking().IgnoreQueryFilters()
+            .FirstOrDefaultAsync(h => h.UserId == userId && h.JobAdId == adId, ct);
+
+    // An ASSESSABLE profile: non-empty Fast.SsykGroupConceptIds → FilterToMatchingAsync IS consulted.
+    private static FullCandidateMatchProfile AssessableProfile() =>
+        new(new CandidateMatchProfile("", ["ssyk-2512"], [], [], []), []);
+
+    // A PROFILE-LESS profile: empty Fast.SsykGroupConceptIds → the "endast matchade" filter is INERT.
+    private static FullCandidateMatchProfile ProfilelessProfile() =>
+        new(new CandidateMatchProfile("", [], [], [], []), []);
+
+    // ── D3 crux + 8C: OnlyMatched + assessable → ≥Good hit drains, below-floor hit LEFT PENDING.
+    [Fact]
+    public async Task RunAsync_OnlyMatchedWatch_AssessableProfile_DrainsMatchingHit_LeavesFilteredOutPending()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var watchId = await SeedWatchAsync(db, userId, onlyMatched: true, ct);
+
+        var ad1 = await SeedActiveAdAsync(db, "Roll 1", "Bolag 1", ct);
+        var ad2 = await SeedActiveAdAsync(db, "Roll 2", "Bolag 2", ct);
+        await SeedFollowHitAsync(db, userId, ad1, watchId, ct, createdAt: NowClock.UtcNow);
+        await SeedFollowHitAsync(db, userId, ad2, watchId, ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+        // Only ad1 grades ≥Good; ad2 is below the fixed "matchande"-floor under the OnlyMatched watch.
+        _perUserSearch.FilterToMatchingAsync(
+                Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new HashSet<JobAdId> { ad1 });
+
+        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+
+        (await ReloadHitAsync(db, userId, ad1, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent, "≥Good-hit dräneras (Sent)");
+        (await ReloadHitAsync(db, userId, ad2, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Pending,
+                "en bortfiltrerad hit (under ≥Good under en OnlyMatched-watch) LÄMNAS Pending — " +
+                "aldrig claimad, aldrig dränerad (8C retroaktiv åter-ytning)");
+    }
+
+    // ── INERT: OnlyMatched watch + profile-less user → the fail-fast port is NEVER called, all pass.
+    [Fact]
+    public async Task RunAsync_OnlyMatchedWatch_ProfilelessUser_FilterIsInert_DispatchesUnfiltered()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var watchId = await SeedWatchAsync(db, userId, onlyMatched: true, ct);
+        var ad = await SeedActiveAdAsync(db, "Roll", "Bolag", ct);
+        await SeedFollowHitAsync(db, userId, ad, watchId, ct);
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(ProfilelessProfile()); // empty-SSYK → filter INERT
+
+        FollowedCompanyNotificationEmail? captured = null;
+        await _emailSender.SendFollowedCompanyNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Do<FollowedCompanyNotificationEmail>(c => captured = c),
+            Arg.Any<FollowedCompanyNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+
+        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+
+        // The ≥Good SQL port fail-fasts on an empty-SSYK profile → the assessability branch must gate it
+        // out entirely (never call it) for a profile-less user.
+        await _perUserSearch.DidNotReceive().FilterToMatchingAsync(
+            Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
+            Arg.Any<CancellationToken>());
+        // The hit is delivered unfiltered (RF-5 under-fork: deliver rather than a dishonest empty set).
+        (await ReloadHitAsync(db, userId, ad, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent);
+        // An INERT OnlyMatched filter is NOT disclosed as active (§5 accuracy) → no summary at all.
+        captured.ShouldNotBeNull();
+        captured.FilterSummary.ShouldBeNull(
+            "ett inert OnlyMatched-filter (profil-lös user) redovisas ALDRIG som aktivt");
+    }
+
+    // ── No OnlyMatched filter → the grade path is dormant (neither port touched); all hits dispatched.
+    [Fact]
+    public async Task RunAsync_NoFilterWatch_DispatchesAllHits_GradePathDormant_NoFilterSummary()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var watchId = await SeedWatchAsync(db, userId, onlyMatched: false, ct); // no filter at all
+
+        var ad1 = await SeedActiveAdAsync(db, "Roll 1", "Bolag 1", ct);
+        var ad2 = await SeedActiveAdAsync(db, "Roll 2", "Bolag 2", ct);
+        await SeedFollowHitAsync(db, userId, ad1, watchId, ct, createdAt: NowClock.UtcNow);
+        await SeedFollowHitAsync(db, userId, ad2, watchId, ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
+
+        FollowedCompanyNotificationEmail? captured = null;
+        await _emailSender.SendFollowedCompanyNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Do<FollowedCompanyNotificationEmail>(c => captured = c),
+            Arg.Any<FollowedCompanyNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+
+        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+
+        (await ReloadHitAsync(db, userId, ad1, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent);
+        (await ReloadHitAsync(db, userId, ad2, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent);
+
+        // Pre-F4 universal path: no contributing watch has OnlyMatched → the grade path is DORMANT.
+        await _perUserSearch.DidNotReceive().FilterToMatchingAsync(
+            Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
+            Arg.Any<CancellationToken>());
+        await _profileBuilder.DidNotReceive().BuildFullForUserIdAsync(
+            Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        captured.ShouldNotBeNull();
+        captured.FilterSummary.ShouldBeNull("inget aktivt filter formade mejlet → ingen disclosure");
+    }
+
+    // ── 13B: an assessable OnlyMatched watch that contributed a hit discloses OnlyMatchedActive=true.
+    [Fact]
+    public async Task RunAsync_OnlyMatchedWatch_AssessableProfile_PopulatesFilterSummary_OnlyMatchedActive()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var watchId = await SeedWatchAsync(db, userId, onlyMatched: true, ct);
+        var ad = await SeedActiveAdAsync(db, "Roll", "Bolag", ct);
+        await SeedFollowHitAsync(db, userId, ad, watchId, ct);
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+        _perUserSearch.FilterToMatchingAsync(
+                Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new HashSet<JobAdId> { ad }); // the hit passes ≥Good
+
+        FollowedCompanyNotificationEmail? captured = null;
+        await _emailSender.SendFollowedCompanyNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Do<FollowedCompanyNotificationEmail>(c => captured = c),
+            Arg.Any<FollowedCompanyNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+
+        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+
+        captured.ShouldNotBeNull();
+        var summary = captured.FilterSummary.ShouldNotBeNull(
+            "en assessable OnlyMatched-watch som bidrog en hit ska redovisa filtret (13B)");
+        summary.OnlyMatchedActive.ShouldBeTrue();
+        summary.LocationFilterActive.ShouldBeFalse("ingen ort-dimension på denna watch");
     }
 
     // A one-off clock for stamping a match's CreatedAt at a chosen instant.

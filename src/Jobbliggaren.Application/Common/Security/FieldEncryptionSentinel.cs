@@ -4,7 +4,7 @@ namespace Jobbliggaren.Application.Common.Security;
 /// TD-13 (ADR 0049 Beslut 4) — SSOT för fält-krypteringens wire-format-
 /// versionssentinel. Sentinel-prefixet (<c>v1:</c>) disambiguerar ciphertext
 /// från klartext-legacy och bär DEK-version för key-rotation (crypto-agility,
-/// OWASP). Tidigare duplicerat i <c>KmsEnvelopeEncryptor</c> +
+/// OWASP). Tidigare duplicerat i <c>AesGcmFieldEncryptor</c> +
 /// <c>FieldEncryptionBackfiller</c> (DRY-brott på knowledge-nivå, Hunt/Thomas
 /// 1999; senior-cto-advisor 2026-05-19 — code-reviewer Finding 1 in-block).
 ///
@@ -25,7 +25,7 @@ public static class FieldEncryptionSentinel
     /// Aktuellt versionssentinel-prefix. Emitteras av
     /// <see cref="IFieldEncryptor.Encrypt"/>; runtime-regexen <c>^v\d+:</c> tål
     /// alla versioner. <b>Bumpa INTE till v2 fristående (#501):</b> läsvägen
-    /// (<c>KmsEnvelopeEncryptor.Decrypt</c> + <c>UserDataKeyStore.ResolveDekAsync</c>)
+    /// (<c>AesGcmFieldEncryptor.Decrypt</c> + <c>UserDataKeyStore.ResolveDekAsync</c>)
     /// är versionsblind — en v2-sentinel utan (a) versionsmedveten
     /// sentinel→DEK-version-matchning och (b) en re-encrypt-migration av befintlig
     /// v1-ciphertext bricker all existerande data (fel DEK → AES-GCM-tag-mismatch).

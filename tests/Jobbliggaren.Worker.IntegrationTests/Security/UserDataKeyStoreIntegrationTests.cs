@@ -1,6 +1,4 @@
 using System.Security.Cryptography;
-using Amazon.KeyManagementService;
-using Amazon.KeyManagementService.Model;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Domain.Common;
@@ -24,13 +22,14 @@ namespace Jobbliggaren.Worker.IntegrationTests.Security;
 /// i konsumtionen).
 ///
 /// <para>
-/// <b>Seam 1 (architect-domen 2026-05-18, Variant A):</b> KMS är ALLTID den
-/// delade deterministiska <see cref="DeterministicFakeKms"/> som
+/// <b>Seam 1 (architect-domen 2026-05-18, Variant A; ADR 0066/#802):</b>
+/// DEK-providern är ALLTID den riktiga <c>LocalDataKeyProvider</c> lindad i den
+/// räknande <see cref="CountingDataKeyProvider"/> som
 /// <see cref="WorkerTestFixture"/> sista-vinner-registrerar för hela grafen —
-/// ingen riktig AWS, ingen prod-override-yta, produktkod orörd. Scenario 7
-/// mäter Decrypt-count mot den delade fakens räknare (Worker-collection seriell
-/// ⇒ deterministiskt). Scenario 9 (fail-closed) direkt-konstruerar ensamt
-/// store+cache+failing-KMS (husets HardDeleteAccountsJob-precedens —
+/// ingen AWS, ingen prod-override-yta, produktkod orörd. Scenario 7 mäter
+/// unwrap-count mot dekoratörens räknare (Worker-collection seriell ⇒
+/// deterministiskt). Scenario 9 (fail-closed) direkt-konstruerar ensamt
+/// store+cache+failing-provider (husets HardDeleteAccountsJob-precedens —
 /// fail-closed-vägen behöver ej DbContext-grafens äkthet, bara att store kastar
 /// + cachen är tom). Postgres är riktig (<c>user_data_keys</c> är en riktig
 /// tabell — InMemory förbjudet, CLAUDE.md/test-stack).
@@ -76,10 +75,11 @@ public class UserDataKeyStoreIntegrationTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         var seeker = await SeedJobSeekerAsync(ct);
 
+        byte[] dek;
         using (var scope = _fixture.Services.CreateScope())
         {
             var store = scope.ServiceProvider.GetRequiredService<IUserDataKeyStore>();
-            await store.GetOrCreateDataKeyAsync(seeker.Id, ct);
+            dek = await store.GetOrCreateDataKeyAsync(seeker.Id, ct);
         }
 
         using var verifyScope = _fixture.Services.CreateScope();
@@ -95,10 +95,10 @@ public class UserDataKeyStoreIntegrationTests(WorkerTestFixture fixture)
         row.WrappedDek.ShouldNotBeNull();
         row.WrappedDek.Length.ShouldBeGreaterThan(0);
 
-        // Wrapped får ALDRIG vara lika med plaintext-DEK (KMS-fakens
-        // plaintext-mönster) — annars lagras klartext-nyckel.
-        var seed = (byte)(seeker.Id.Value.GetHashCode() & 0xFF);
-        row.WrappedDek.ShouldNotBe(DeterministicFakeKms.FakePlaintextDek(seed));
+        // Wrapped får ALDRIG vara lika med plaintext-DEK:en som store returnerade
+        // — annars lagras en klartext-nyckel. Provider-agnostisk jämförelse
+        // (fångar den faktiska returnerade DEK:en, oberoende av wrap-wire-format).
+        row.WrappedDek.ShouldNotBe(dek);
     }
 
     // ── Scenario 5 ──────────────────────────────────────────────────────
@@ -161,19 +161,19 @@ public class UserDataKeyStoreIntegrationTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         var seeker = await SeedJobSeekerAsync(ct);
 
-        // Skapa wrapped-raden i en första scope (KMS Generate, ej Decrypt).
+        // Skapa wrapped-raden i en första scope (DEK Generate, ej unwrap).
         using (var scope0 = _fixture.Services.CreateScope())
         {
             var store0 = scope0.ServiceProvider.GetRequiredService<IUserDataKeyStore>();
             await store0.GetOrCreateDataKeyAsync(seeker.Id, ct);
         }
 
-        // Nollställ Decrypt-räknaren på den DELADE fake-KMS:en innan vi mäter
-        // unwrap-memoiseringen (Worker-collection är seriell ⇒ deterministiskt).
-        _fixture.FakeKms.ResetDecryptCount();
+        // Nollställ unwrap-räknaren på den DELADE räknande provider-dekoratören
+        // innan vi mäter memoiseringen (Worker-collection är seriell ⇒ deterministiskt).
+        _fixture.Deks.ResetUnwrapCount();
 
-        // Inom EN scope: flera GetOrCreate för samma user → KMS Decrypt
-        // (unwrap) ska ske EN gång (cache memoiserar), inte per anrop.
+        // Inom EN scope: flera GetOrCreate för samma user → DEK-unwrap ska ske
+        // EN gång (cache memoiserar), inte per anrop.
         using (var scope = _fixture.Services.CreateScope())
         {
             var store = scope.ServiceProvider.GetRequiredService<IUserDataKeyStore>();
@@ -188,11 +188,11 @@ public class UserDataKeyStoreIntegrationTests(WorkerTestFixture fixture)
                 "DEK-cachen ska unwrappa EN gång per user per scope (ej per anrop)");
         }
 
-        // Den delade fake-KMS:en ska bara ha sett ETT Decrypt-anrop trots tre
-        // GetOrCreate (cachen memoiserade de övriga).
-        _fixture.FakeKms.DecryptCallCount.ShouldBe(
+        // Provider-gränsräknaren ska bara ha sett ETT unwrap-anrop trots tre
+        // GetOrCreate (cachen memoiserade de övriga) — det verkliga krypto-I/O:t.
+        _fixture.Deks.UnwrapCount.ShouldBe(
             1,
-            "KMS Decrypt (unwrap) ska ske exakt en gång per user per scope");
+            "DEK-unwrap (provider) ska ske exakt en gång per user per scope");
     }
 
     // ── Scenario 8 (C1-gate security Minor 2) ───────────────────────────
@@ -226,13 +226,13 @@ public class UserDataKeyStoreIntegrationTests(WorkerTestFixture fixture)
 
     // ── Scenario 9 ──────────────────────────────────────────────────────
     [Fact]
-    public async Task KmsFailOnUnwrap_FailsClosed_NoCachedFallback()
+    public async Task DekUnwrapFail_FailsClosed_NoCachedFallback()
     {
         var ct = TestContext.Current.CancellationToken;
         var seeker = await SeedJobSeekerAsync(ct);
 
-        // Skapa wrapped-raden först via den delade fake-KMS:en (Generate
-        // lyckas) så ResolveDek tar unwrap-grenen i fail-scope:t.
+        // Skapa wrapped-raden först via grafen (Generate lyckas) så ResolveDek
+        // tar unwrap-grenen i fail-scope:t.
         using (var seedScope = _fixture.Services.CreateScope())
         {
             var store = seedScope.ServiceProvider.GetRequiredService<IUserDataKeyStore>();
@@ -240,20 +240,21 @@ public class UserDataKeyStoreIntegrationTests(WorkerTestFixture fixture)
         }
 
         // Seam 1 (architect: scenario 9 ensamt direkt-konstruerar store+cache+
-        // failing-KMS — fail-closed-vägen behöver ej DI-grafens äkthet, bara
+        // failing-provider — fail-closed-vägen behöver ej DI-grafens äkthet, bara
         // att store kastar + cachen tom. Husets HardDeleteAccountsJob-
         // precedens). DbContext resolvas ur en scope så wrapped-raden finns.
         using var dbScope = _fixture.Services.CreateScope();
         var db = dbScope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var failingKms = Substitute.For<IAmazonKeyManagementService>();
-        failingKms
-            .DecryptAsync(Arg.Any<DecryptRequest>(), Arg.Any<CancellationToken>())
-            .Returns<Task<DecryptResponse>>(_ =>
-                throw new AmazonKeyManagementServiceException("KMS Decrypt nere"));
+        // ADR 0066 (#802): fail-closed-vägen mockar IDataKeyProvider direkt —
+        // den tidigare KMS-klient-mocken är borta med providern.
+        var failingProvider = Substitute.For<IDataKeyProvider>();
+        failingProvider
+            .UnwrapDataKeyAsync(
+                Arg.Any<JobSeekerId>(), Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
+            .Returns<Task<byte[]>>(_ =>
+                throw new CryptographicException("Lokal DEK-unwrap nere"));
 
-        var failingProvider = new KmsDataKeyProvider(
-            failingKms, NullLogger<KmsDataKeyProvider>.Instance);
         using var failCache = new ScopedUserDataKeyCache();
         var inspector = dbScope.ServiceProvider.GetRequiredService<IDbExceptionInspector>();
         var failStore = new UserDataKeyStore(
@@ -270,7 +271,7 @@ public class UserDataKeyStoreIntegrationTests(WorkerTestFixture fixture)
             caught = ex;
         }
 
-        caught.ShouldNotBeNull("KMS unwrap-fel måste propageras (fail-closed)");
+        caught.ShouldNotBeNull("DEK unwrap-fel måste propageras (fail-closed)");
         leaked.ShouldBeNull("ingen klartext-DEK får returneras vid KMS-fel");
         failCache.TryPeekCachedDek(seeker.Id, out _).ShouldBeFalse(
             "cachen får INTE innehålla någon klartext/default-DEK efter KMS-fel");

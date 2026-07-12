@@ -6,7 +6,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Infrastructure;
 /// <summary>
 /// #204 / TD-83 PR2 — deterministic recording fake for <see cref="IBackgroundJobController"/> in Api
 /// integration. Registered last-wins in <see cref="ApiFactory"/> (parity with
-/// <see cref="RecordingEmailSender"/> / <see cref="ApiKmsFake"/>) so the integration host never
+/// <see cref="RecordingEmailSender"/>) so the integration host never
 /// composes the real <c>HangfireBackgroundJobController</c>.
 /// <para>
 /// This lets the audit / auth / outcome-mapping tests exercise the full Mediator pipeline (validation,

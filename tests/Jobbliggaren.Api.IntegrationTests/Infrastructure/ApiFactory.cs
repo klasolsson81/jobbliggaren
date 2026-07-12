@@ -24,6 +24,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
     private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
 
+    // ADR 0066 (#802) — deterministisk 32-byte AES-256 test-master-nyckel för den
+    // lokala envelope-krypteringen (injiceras via ConfigureAppConfiguration;
+    // round-trip kräver bara SAMMA nyckel inom host-livstiden, inte en specifik).
+    private static readonly string TestMasterKeyBase64 =
+        Convert.ToBase64String(Enumerable.Range(0, 32).Select(i => (byte)i).ToArray());
+
     private readonly string _privateKeyPath;
     private readonly string _publicKeyPath;
 
@@ -94,6 +100,22 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // Verklig env-override sker via env-var i InitializeAsync nedan.
         builder.UseEnvironment("Development");
 
+        // ADR 0066 (#802) — fält-krypteringen är Local-only. Provider läses via
+        // configuration[...] vid DI-tid i AddPersistence, så det MÅSTE vara ett
+        // config-värde (inte en service-override). In-memory-källan läggs sist i
+        // ConfigureWebHost ⇒ vinner över Program.cs alla källor, inkl. en dev:s
+        // gitignored appsettings.Local.json (som annars kan bära en stale
+        // FieldEncryption-sektion). CI saknar Local.json → master-nyckeln nedan
+        // är den enda källan och krävs (validatorn hård-failar på tom nyckel i
+        // ALLA miljöer). Nyckeln är en deterministisk 32-byte test-nyckel —
+        // round-trip kräver bara SAMMA nyckel inom host-livstiden.
+        builder.ConfigureAppConfiguration((_, cfg) =>
+            cfg.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["FieldEncryption:Provider"] = "Local",
+                ["FieldEncryption:LocalMasterKeyBase64"] = TestMasterKeyBase64,
+            }));
+
         builder.ConfigureServices(services =>
         {
             // Replace AppDbContext
@@ -139,12 +161,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 opts.InstanceName = "jobbliggaren:";
             });
 
-            // TD-13 C3: faka KMS (interceptor-paret anropar GenerateDataKey/
-            // Decrypt vid Application-writes/reads i full Mediator-pipeline).
-            // Annars riktig AWS-KMS med tom CMK → fail. Deterministisk per
-            // owner — round-trip + per-användare-isolering bevaras end-to-end.
-            services.RemoveAll<Amazon.KeyManagementService.IAmazonKeyManagementService>();
-            services.AddSingleton(ApiKmsFake.Create());
+            // ADR 0066 (#802) — fält-krypteringen kör den riktiga
+            // LocalDataKeyProvider (Provider=Local + master-nyckel injiceras via
+            // ConfigureAppConfiguration ovan). Interceptor-paret anropar
+            // Create/Unwrap i full Mediator-pipeline; round-trip +
+            // per-användare-isolering bevaras end-to-end utan någon KMS-fake.
 
             // #241 — replace the configured IEmailSender (Console/Null/Resend per Email:Provider)
             // with a recording fake. Integration tests must never depend on a real external email

@@ -1,57 +1,41 @@
 namespace Jobbliggaren.Infrastructure.Security;
 
 /// <summary>
-/// TD-13 (ADR 0049) — konfiguration för KMS-envelope-fält-kryptering.
-/// CMK-ARN/-id och region bundna via <c>IOptions</c> + env-var (samma
-/// precedens som <c>JobTechOptions</c>/<c>EmailOptions</c> och
-/// Migrate-mönstret, ADR 0049 Kontext). Fail-closed: tom
-/// <see cref="CmkKeyId"/> validerar bort vid startup i Production/Staging
-/// (hård fail); i Development/Test loggas warning och boot tillåts —
-/// runtime-guarden i <c>KmsDataKeyProvider</c> kvarstår fail-closed i alla
-/// miljöer (ADR 0049 Beslut 4 mekanik-not 2026-05-18,
-/// <see cref="FieldEncryptionOptionsValidator"/>).
+/// TD-13 (ADR 0049) / ADR 0066 — konfiguration för lokal envelope-fält-
+/// kryptering. Efter AWS-exiten (ADR 0050/0066 — "no AWS, ever") är
+/// <see cref="LocalDataKeyProvider"/> den enda DEK-wrap-mekanismen; den
+/// AWS-KMS-baserade providern och dess <c>CmkKeyId</c>/<c>AwsRegion</c>-options
+/// är borttagna (#802). Master-nyckeln binds via <c>IOptions</c> + env-var
+/// (samma precedens som <c>JobTechOptions</c>/<c>EmailOptions</c>). Fail-closed:
+/// en tom/ogiltig master-nyckel validerar bort vid startup i ALLA miljöer
+/// (<see cref="FieldEncryptionOptionsValidator"/>) — en trasig lokal nyckel får
+/// aldrig tyst degradera krypteringen.
 /// </summary>
 public sealed class FieldEncryptionOptions
 {
     public const string SectionName = "FieldEncryption";
 
     /// <summary>
-    /// DEK-provider-val: <c>"Kms"</c> (AWS KMS envelope, <see cref="KmsDataKeyProvider"/>)
-    /// eller <c>"Local"</c> (lokal AES-256-GCM-wrappad envelope,
-    /// <see cref="LocalDataKeyProvider"/>). Default <c>"Kms"</c> — bevarar
-    /// befintligt beteende i alla miljöer som inte explicit väljer Local
-    /// (integ-test-fixturer, prod). Dev sätter <c>"Local"</c> i
-    /// <c>appsettings.Development.json</c> (ADR 0066 — AWS avvecklat lokalt).
-    /// Okänt värde → hård fail i DI (paritet med <c>EmailOptions.Provider</c>).
-    /// <see cref="IFieldEncryptor"/> (AES-256-GCM-primitiv) är AWS-fri och
-    /// delas av båda providers — bara DEK-wrap/unwrap skiljer sig.
+    /// DEK-provider-val. Enda giltiga värdet efter AWS-exiten (#802/ADR 0066) är
+    /// <c>"Local"</c> (lokal AES-256-GCM-wrappad envelope,
+    /// <see cref="LocalDataKeyProvider"/>). Default <c>"Local"</c> — en utelämnad
+    /// nyckel ger lokal envelope i alla miljöer. Ett explicit icke-Local-värde
+    /// (t.ex. en kvarlämnad <c>"Kms"</c> i stale config) fail-fastar hårt i DI
+    /// (<c>AddPersistence</c>) — aldrig en tyst fallback (paritet med
+    /// <c>EmailOptions.Provider</c>; #802-footgunklassen). <see cref="IFieldEncryptor"/>
+    /// (AES-256-GCM-primitiv, <see cref="AesGcmFieldEncryptor"/>) är AWS-fri och
+    /// oberoende av provider-valet — bara DEK-wrap/unwrap är provider-specifikt.
     /// </summary>
-    public string Provider { get; init; } = "Kms";
-
-    /// <summary>
-    /// KMS CMK-ARN eller key-id som wrappar per-användar-DEK:erna
-    /// (<c>GenerateDataKey</c>/<c>Decrypt</c>). Obligatorisk i miljöer som
-    /// kör mot riktig KMS — hård startup-validering i Production/Staging,
-    /// warning i Development/Test (se <see cref="FieldEncryptionOptionsValidator"/>).
-    /// Endast relevant när <see cref="Provider"/> = <c>"Kms"</c>.
-    /// </summary>
-    public string CmkKeyId { get; init; } = string.Empty;
-
-    /// <summary>
-    /// AWS-region för KMS-klienten. Default eu-north-1 (Stockholm) —
-    /// GDPR EU-routing, samma som RDS/Secrets Manager. Endast relevant när
-    /// <see cref="Provider"/> = <c>"Kms"</c>.
-    /// </summary>
-    public string AwsRegion { get; init; } = "eu-north-1";
+    public string Provider { get; init; } = "Local";
 
     /// <summary>
     /// Base64 av en 32-byte (AES-256) lokal master-nyckel som wrappar
-    /// per-användar-DEK:erna när <see cref="Provider"/> = <c>"Local"</c>.
+    /// per-användar-DEK:erna (<see cref="LocalDataKeyProvider"/>).
     /// PII-skyddande hemlighet: läses ENBART ur <c>appsettings.Local.json</c>
-    /// (gitignored), aldrig committad config. Loggas/exponeras aldrig
-    /// (CLAUDE.md §5.4). Tom/fel-längd → hård startup-fail i ALLA miljöer
-    /// (se <see cref="FieldEncryptionOptionsValidator"/>) — en trasig lokal
-    /// master-nyckel får aldrig tyst degradera krypteringen.
+    /// (gitignored) lokalt / managed secret i drift, aldrig committad config.
+    /// Loggas/exponeras aldrig (CLAUDE.md §5.4). Tom/fel-längd → hård startup-fail
+    /// i ALLA miljöer (se <see cref="FieldEncryptionOptionsValidator"/>) — en
+    /// trasig lokal master-nyckel får aldrig tyst degradera krypteringen.
     /// </summary>
     public string LocalMasterKeyBase64 { get; init; } = string.Empty;
 }

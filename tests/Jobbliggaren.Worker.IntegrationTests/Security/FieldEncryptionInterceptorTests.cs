@@ -1,7 +1,5 @@
 using System.Data.Common;
 using System.Security.Cryptography;
-using Amazon.KeyManagementService;
-using Amazon.KeyManagementService.Model;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Security;
@@ -36,11 +34,13 @@ namespace Jobbliggaren.Worker.IntegrationTests.Security;
 /// </para>
 ///
 /// <para>
-/// <b>Seam 1 (architect-domen 2026-05-18, Variant A):</b> KMS är ALLTID den
-/// delade deterministiska <see cref="DeterministicFakeKms"/> som
+/// <b>Seam 1 (architect-domen 2026-05-18, Variant A):</b> DEK-providern är den
+/// riktiga <see cref="Jobbliggaren.Infrastructure.Security.LocalDataKeyProvider"/>
+/// insvept i den räknande <see cref="CountingDataKeyProvider"/> som
 /// <see cref="WorkerTestFixture"/> sista-vinner-registrerar för hela grafen —
-/// ingen riktig AWS, produktkod orörd. Fail-closed-scenarierna (10/11)
-/// direkt-konstruerar en failing-KMS-graf via <see cref="FailingKmsGraph"/>
+/// ingen extern nyckeltjänst, produktkod orörd. Fail-closed-scenarierna (10/11)
+/// direkt-konstruerar en failing <see cref="IDataKeyProvider"/> via
+/// <see cref="FailingProviderGraph"/>
 /// (husets <c>UserDataKeyStoreIntegrationTests</c>-scenario-9-precedens).
 /// </para>
 ///
@@ -48,7 +48,7 @@ namespace Jobbliggaren.Worker.IntegrationTests.Security;
 /// <b>Write- OCH read-mekanik (CTO Approach A re-entrancy-fix 2026-05-18):</b>
 /// efter Approach A är BÅDA interceptorerna rena synkrona cache-konsumenter.
 /// <see cref="Jobbliggaren.Infrastructure.Security.FieldEncryptionSaveChangesInterceptor"/>
-/// anropar ALDRIG längre <c>GetOrCreateDataKeyAsync</c>/KMS inifrån SaveChanges
+/// anropar ALDRIG längre <c>GetOrCreateDataKeyAsync</c>/DEK-providern inifrån SaveChanges
 /// (det orsakade re-entrant SaveChangesAsync → EF concurrency-deadlock,
 /// ADR 0049 Mekanik-not 5). DEK värms istället av
 /// <c>FieldEncryptionKeyPrefetchBehavior</c> i ett EGET pipeline-steg före
@@ -78,20 +78,22 @@ namespace Jobbliggaren.Worker.IntegrationTests.Security;
 /// </para>
 ///
 /// <para>
-/// <b>Scenario 10 (KMS-fail-on-save):</b> efter Approach A inträffar KMS-felet
-/// i prefetch-steget (<c>GetOrCreateDataKeyAsync</c> → GenerateDataKey kastar)
+/// <b>Scenario 10 (DEK-provider-fel vid save):</b> efter Approach A inträffar
+/// provider-felet i prefetch-steget (<c>GetOrCreateDataKeyAsync</c> →
+/// <c>CreateDataKeyAsync</c> kastar)
 /// FÖRE <c>SaveChangesAsync</c> — ingen rad persisteras. Sekundärt: save UTAN
 /// varm cache ⇒ SaveChangesInterceptorn kastar <see cref="CryptographicException"/>
 /// (fail-closed), ingen klartext-rad.
 /// </para>
 ///
 /// <para>
-/// <b>Scenario 11 (KMS-fail-on-read):</b> Approach B-konsekvens — vald
+/// <b>Scenario 11 (DEK-provider-fel vid read):</b> Approach B-konsekvens — vald
 /// fail-closed-väg är "ingen cachad DEK ⇒ <see cref="CryptographicException"/>"
-/// (autentiserad scope). I direkt-scope-testet simuleras prefetch INTE när KMS
-/// är nere (KMS-felet inträffar i det simulerade prefetch-steget, fail-closed,
-/// INNAN materialisering). Testet verifierar (1) att prefetch/GetOrCreateDataKeyAsync
-/// kastar och (2) att materialisering UTAN cachad DEK men MED satt owner kastar
+/// (autentiserad scope). I direkt-scope-testet simuleras prefetch INTE när
+/// DEK-providern är nere (provider-felet inträffar i det simulerade prefetch-
+/// steget, fail-closed, INNAN materialisering). Testet verifierar (1) att
+/// prefetch/GetOrCreateDataKeyAsync kastar och (2) att materialisering UTAN
+/// cachad DEK men MED satt owner kastar
 /// <see cref="CryptographicException"/> — ingen ciphertext returneras oläst.
 /// </para>
 ///
@@ -540,37 +542,36 @@ public class FieldEncryptionInterceptorTests(WorkerTestFixture fixture)
             "användare B:s brev ska dekrypteras med B:s DEK — ingen DEK-förväxling");
     }
 
-    // ── 10. KMS-fel vid save → fail-closed, ingen klartext persisterad ───
+    // ── 10. DEK-provider-fel vid save → fail-closed, ingen klartext persisterad ─
     [Fact]
-    public async Task KmsFailOnSave_FailsClosed_NoPlaintextPersisted()
+    public async Task DekProviderFailOnSave_FailsClosed_NoPlaintextPersisted()
     {
         var ct = TestContext.Current.CancellationToken;
         var seeker = await SeedJobSeekerAsync(ct);
         const string secret = "Får ALDRIG nå disken som klartext";
 
         // Fail-closed-graf: speglar fixturen men sista-vinner-registrerar en
-        // KMS som kastar vid GenerateDataKey. Approach A: SaveChangesInterceptorn
-        // anropar INTE längre KMS — felet inträffar i prefetch-steget
-        // (FieldEncryptionKeyPrefetchBehavior → GetOrCreateDataKeyAsync →
-        // GenerateDataKey) FÖRE save. Sekundärt: en save UTAN varm cache →
-        // SaveChangesInterceptorn kastar CryptographicException (fail-closed,
-        // CTO lucka 5). Ingendera vägen persisterar klartext.
-        var failingKms = Substitute.For<IAmazonKeyManagementService>();
-        failingKms
-            .GenerateDataKeyAsync(
-                Arg.Any<GenerateDataKeyRequest>(), Arg.Any<CancellationToken>())
-            .Returns<Task<GenerateDataKeyResponse>>(_ =>
-                throw new AmazonKeyManagementServiceException(
-                    "KMS GenerateDataKey nere"));
+        // DEK-provider som kastar vid CreateDataKeyAsync. Approach A:
+        // SaveChangesInterceptorn anropar INTE längre providern — felet inträffar
+        // i prefetch-steget (FieldEncryptionKeyPrefetchBehavior →
+        // GetOrCreateDataKeyAsync → CreateDataKeyAsync) FÖRE save. Sekundärt: en
+        // save UTAN varm cache → SaveChangesInterceptorn kastar
+        // CryptographicException (fail-closed, CTO lucka 5). Ingendera vägen
+        // persisterar klartext.
+        var failingProvider = Substitute.For<IDataKeyProvider>();
+        failingProvider
+            .CreateDataKeyAsync(Arg.Any<JobSeekerId>(), Arg.Any<CancellationToken>())
+            .Returns<Task<GeneratedDataKey>>(_ =>
+                throw new CryptographicException("Lokal DEK-generering nere"));
 
         await using var failGraph =
-            FailingKmsGraph.Build(_fixture.ConnectionString, failingKms);
+            FailingProviderGraph.Build(_fixture.ConnectionString, failingProvider);
 
         var appId = ApplicationId.New();
         using (var scope = failGraph.Provider.CreateScope())
         {
             // Primärt: prefetch-steget (= FieldEncryptionKeyPrefetchBehavior,
-            // före UnitOfWork) kastar — KMS GenerateDataKey nere. Inget save
+            // före UnitOfWork) kastar — DEK-generering nere. Inget save
             // körs alls ⇒ ingen rad.
             var store = scope.ServiceProvider.GetRequiredService<IUserDataKeyStore>();
             var owner = scope.ServiceProvider.GetRequiredService<ICurrentDataOwner>();
@@ -579,8 +580,8 @@ public class FieldEncryptionInterceptorTests(WorkerTestFixture fixture)
             var prefetchEx = await Record.ExceptionAsync(async () =>
                 await store.GetOrCreateDataKeyAsync(seeker.Id, ct));
             prefetchEx.ShouldNotBeNull(
-                "KMS GenerateDataKey-fel måste propageras i prefetch-steget " +
-                "(fail-closed FÖRE save — Approach A: interceptorn anropar ej KMS)");
+                "DEK-genereringsfel måste propageras i prefetch-steget " +
+                "(fail-closed FÖRE save — Approach A: interceptorn anropar ej providern)");
 
             // Sekundärt: även om save ändå körs UTAN varm cache (prefetch
             // kastade ⇒ ingen cachad DEK) kastar SaveChangesInterceptorn
@@ -607,18 +608,18 @@ public class FieldEncryptionInterceptorTests(WorkerTestFixture fixture)
             $"SELECT cover_letter FROM applications WHERE id = '{appId.Value}'",
             ct);
         raw.ShouldBeNull(
-            "KMS-fel vid save måste fail-closed:a — ingen klartext-rad får persisteras");
+            "DEK-provider-fel vid save måste fail-closed:a — ingen klartext-rad får persisteras");
     }
 
-    // ── 11. KMS-fel vid read → fail-closed (Approach B: prefetch kastar) ─
+    // ── 11. DEK-provider-fel vid read → fail-closed (Approach B: prefetch kastar) ─
     [Fact]
-    public async Task KmsFailOnRead_FailsClosed_NoPlaintextReturned()
+    public async Task DekProviderFailOnRead_FailsClosed_NoPlaintextReturned()
     {
         var ct = TestContext.Current.CancellationToken;
         var seeker = await SeedJobSeekerAsync(ct);
-        const string secret = "Krypterad rad som inte får läcka vid KMS-fel";
+        const string secret = "Krypterad rad som inte får läcka vid DEK-provider-fel";
 
-        // Skapa en korrekt krypterad rad via den delade fake-KMS:en.
+        // Skapa en korrekt krypterad rad via den räknande provider-dekoratören.
         ApplicationId appId;
         using (var scope = _fixture.Services.CreateScope())
         {
@@ -630,20 +631,21 @@ public class FieldEncryptionInterceptorTests(WorkerTestFixture fixture)
             await db.SaveChangesAsync(ct);
         }
 
-        var failingKms = Substitute.For<IAmazonKeyManagementService>();
-        failingKms
-            .DecryptAsync(Arg.Any<DecryptRequest>(), Arg.Any<CancellationToken>())
-            .Returns<Task<DecryptResponse>>(_ =>
-                throw new AmazonKeyManagementServiceException("KMS Decrypt nere"));
+        var failingProvider = Substitute.For<IDataKeyProvider>();
+        failingProvider
+            .UnwrapDataKeyAsync(
+                Arg.Any<JobSeekerId>(), Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
+            .Returns<Task<byte[]>>(_ =>
+                throw new CryptographicException("Lokal DEK-unwrap nere"));
 
         await using var failGraph =
-            FailingKmsGraph.Build(_fixture.ConnectionString, failingKms);
+            FailingProviderGraph.Build(_fixture.ConnectionString, failingProvider);
 
         using var readScope = failGraph.Provider.CreateScope();
 
         // Approach B fail-closed-väg 1: det simulerade prefetch-steget
         // (= FieldEncryptionKeyPrefetchBehavior) anropar GetOrCreateDataKeyAsync →
-        // KMS Decrypt nere ⇒ kastar FÖRE materialisering. Ciphertext når
+        // DEK-unwrap nere ⇒ kastar FÖRE materialisering. Ciphertext når
         // aldrig läsvägen.
         var store = readScope.ServiceProvider.GetRequiredService<IUserDataKeyStore>();
         var owner = readScope.ServiceProvider.GetRequiredService<ICurrentDataOwner>();
@@ -652,7 +654,7 @@ public class FieldEncryptionInterceptorTests(WorkerTestFixture fixture)
         var prefetchEx = await Record.ExceptionAsync(async () =>
             await store.GetOrCreateDataKeyAsync(seeker.Id, ct));
         prefetchEx.ShouldNotBeNull(
-            "KMS Decrypt-fel i prefetch-steget måste propageras (fail-closed " +
+            "DEK-unwrap-fel i prefetch-steget måste propageras (fail-closed " +
             "INNAN materialisering — Approach B)");
 
         // Approach B fail-closed-väg 2: även om materialisering ändå körs UTAN
@@ -672,7 +674,7 @@ public class FieldEncryptionInterceptorTests(WorkerTestFixture fixture)
             "fail-closed-väg: FieldDecryptionMaterializationInterceptor kastar " +
             "CryptographicException när ägar-DEK saknas i scope-cachen");
         loaded.ShouldBeNull(
-            "ingen klartext eller null-fallback får returneras vid dekrypt-KMS-fel");
+            "ingen klartext eller null-fallback får returneras vid DEK-unwrap-fel");
     }
 
     // ── 12. System/Hangfire-scope: ingen owner ⇒ ciphertext orört, ej kast ─
@@ -931,27 +933,28 @@ public class FieldEncryptionInterceptorTests(WorkerTestFixture fixture)
 
     /// <summary>
     /// Speglar <see cref="WorkerTestFixture"/>:s DI-graf men sista-vinner-
-    /// registrerar en valfri (typiskt failing) KMS-klient. Använder ENDAST
-    /// publika produktionsregistreringar (<c>AddPersistence</c> registrerar
-    /// C3-interceptor-paret + DbContext + KMS-graf via AddInterceptors) —
-    /// ingen invented harness, inga test-only produkt-typer. Samma migrations-
-    /// DB (delad container via <c>WorkerTestFixture.ConnectionString</c>) så
-    /// rader skrivna här syns i fixturens verify-scope.
+    /// registrerar en valfri (typiskt failing) <see cref="IDataKeyProvider"/>.
+    /// Använder ENDAST publika produktionsregistreringar (<c>AddPersistence</c>
+    /// registrerar C3-interceptor-paret + DbContext + envelope-graf via
+    /// AddInterceptors) — ingen invented harness, inga test-only produkt-typer.
+    /// Samma migrations-DB (delad container via
+    /// <c>WorkerTestFixture.ConnectionString</c>) så rader skrivna här syns i
+    /// fixturens verify-scope.
     /// </summary>
-    private sealed class FailingKmsGraph : IAsyncDisposable
+    private sealed class FailingProviderGraph : IAsyncDisposable
     {
         public required ServiceProvider Provider { get; init; }
 
-        public static FailingKmsGraph Build(
-            string connectionString, IAmazonKeyManagementService kms)
+        public static FailingProviderGraph Build(
+            string connectionString, IDataKeyProvider failingProvider)
         {
             var configuration = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:Postgres"] = connectionString,
-                    ["FieldEncryption:CmkKeyId"] =
-                        "arn:aws:kms:eu-north-1:000000000000:key/td13-test-cmk",
-                    ["FieldEncryption:AwsRegion"] = "eu-north-1",
+                    ["FieldEncryption:Provider"] = "Local",
+                    ["FieldEncryption:LocalMasterKeyBase64"] =
+                        WorkerTestFixture.TestMasterKeyBase64,
                 })
                 .Build();
 
@@ -965,9 +968,9 @@ public class FieldEncryptionInterceptorTests(WorkerTestFixture fixture)
             services.AddScoped<IRequestContextProvider, WorkerRequestContextProvider>();
 
             // Sista-vinner: hela grafen (interceptor-paret → IUserDataKeyStore →
-            // KmsDataKeyProvider) kör den (failing) KMS:en. Samma Seam-1-mönster
+            // IDataKeyProvider) kör den (failing) providern. Samma Seam-1-mönster
             // som WorkerTestFixture.
-            services.AddSingleton(kms);
+            services.AddSingleton(failingProvider);
 
             services.AddSingleton<Microsoft.Extensions.Hosting.IHostEnvironment>(
                 new Microsoft.Extensions.Hosting.Internal.HostingEnvironment
@@ -977,7 +980,7 @@ public class FieldEncryptionInterceptorTests(WorkerTestFixture fixture)
                     ContentRootPath = AppContext.BaseDirectory,
                 });
 
-            return new FailingKmsGraph
+            return new FailingProviderGraph
             {
                 Provider = services.BuildServiceProvider(),
             };

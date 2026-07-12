@@ -129,7 +129,7 @@ public class CvRenderEncryptionTests(WorkerTestFixture fixture)
         parsed.Content.Contact.FullName.ShouldBe(ContactNameMarker);
         parsed.RawText.ShouldContain(RawTextMarker);
 
-        var rendered = await renderer.RenderAsync(parsed, profile, ct);
+        var rendered = await renderer.RenderAsync(parsed, CvTemplateOptions.Default, profile, ct);
 
         rendered.PdfBytes.ShouldNotBeEmpty();
         rendered.PdfBytes.Take(4).ShouldBe(PdfMagic, "Utdata ska vara en giltig PDF (%PDF).");

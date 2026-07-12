@@ -55,9 +55,10 @@ public class RenderResumeQueryHandlerTests
 
     private void StubRenderer() =>
         _renderer.RenderAsync(
-                Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>())
+                Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), Arg.Any<CvTemplateOptions>(),
+                Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>())
             .Returns(ci => new ValueTask<RenderedCv>(
-                new RenderedCv(PdfMagic, "application/pdf", ci.ArgAt<RenderProfile>(2), ResumeLanguage.Sv)));
+                new RenderedCv(PdfMagic, "application/pdf", ci.ArgAt<RenderProfile>(3), ResumeLanguage.Sv)));
 
     // ===============================================================
     // Happy path
@@ -80,7 +81,8 @@ public class RenderResumeQueryHandlerTests
         result.Language.ShouldBe("Sv");
 
         await _renderer.Received(1).RenderAsync(
-            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), RenderProfile.Ats, Arg.Any<CancellationToken>());
+            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), Arg.Any<CvTemplateOptions>(),
+            RenderProfile.Ats, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -96,7 +98,8 @@ public class RenderResumeQueryHandlerTests
         result.ShouldNotBeNull();
         result!.Profile.ShouldBe("Visual");
         await _renderer.Received(1).RenderAsync(
-            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), RenderProfile.Visual, Arg.Any<CancellationToken>());
+            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), Arg.Any<CvTemplateOptions>(),
+            RenderProfile.Visual, Arg.Any<CancellationToken>());
     }
 
     // ===============================================================
@@ -143,7 +146,8 @@ public class RenderResumeQueryHandlerTests
 
         result.ShouldBeNull();
         await _renderer.DidNotReceive().RenderAsync(
-            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>());
+            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), Arg.Any<CvTemplateOptions>(),
+            Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -162,6 +166,7 @@ public class RenderResumeQueryHandlerTests
         _failedAccess.Received(1).LogCrossUserAttempt(
             "Resume", otherResume.Id.Value, _userId, Arg.Any<string>());
         await _renderer.DidNotReceive().RenderAsync(
-            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>());
+            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), Arg.Any<CvTemplateOptions>(),
+            Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>());
     }
 }

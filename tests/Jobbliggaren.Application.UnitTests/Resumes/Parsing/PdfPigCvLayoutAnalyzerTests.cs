@@ -27,6 +27,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 //   • empty / garbage / non-PDF bytes as Pdf → Failed, NEVER throws, file size still known;
 //   • FileSizeBytes always == the input length;
 //   • a cancellation propagates as OperationCanceledException (not the fail-soft path).
+[Xunit.Collection("QuestPdfRendering")]
 public class PdfPigCvLayoutAnalyzerTests
 {
     private readonly PdfPigCvLayoutAnalyzer _sut = new();

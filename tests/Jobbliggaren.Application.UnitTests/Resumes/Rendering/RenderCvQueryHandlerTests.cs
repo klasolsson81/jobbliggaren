@@ -69,9 +69,10 @@ public class RenderCvQueryHandlerTests
     }
 
     private void StubRenderer() =>
-        _renderer.RenderAsync(Arg.Any<ParsedResume>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>())
+        _renderer.RenderAsync(
+                Arg.Any<ParsedResume>(), Arg.Any<CvTemplateOptions>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>())
             .Returns(ci => new ValueTask<RenderedCv>(
-                new RenderedCv(PdfMagic, "application/pdf", ci.ArgAt<RenderProfile>(1), ResumeLanguage.Sv)));
+                new RenderedCv(PdfMagic, "application/pdf", ci.ArgAt<RenderProfile>(2), ResumeLanguage.Sv)));
 
     // ===============================================================
     // Happy path
@@ -94,7 +95,7 @@ public class RenderCvQueryHandlerTests
         result.Language.ShouldBe("Sv");
 
         await _renderer.Received(1).RenderAsync(
-            Arg.Any<ParsedResume>(), RenderProfile.Ats, Arg.Any<CancellationToken>());
+            Arg.Any<ParsedResume>(), Arg.Any<CvTemplateOptions>(), RenderProfile.Ats, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -110,7 +111,7 @@ public class RenderCvQueryHandlerTests
         result.ShouldNotBeNull();
         result!.Profile.ShouldBe("Visual");
         await _renderer.Received(1).RenderAsync(
-            Arg.Any<ParsedResume>(), RenderProfile.Visual, Arg.Any<CancellationToken>());
+            Arg.Any<ParsedResume>(), Arg.Any<CvTemplateOptions>(), RenderProfile.Visual, Arg.Any<CancellationToken>());
     }
 
     // ===============================================================
@@ -157,7 +158,7 @@ public class RenderCvQueryHandlerTests
 
         result.ShouldBeNull();
         await _renderer.DidNotReceive().RenderAsync(
-            Arg.Any<ParsedResume>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>());
+            Arg.Any<ParsedResume>(), Arg.Any<CvTemplateOptions>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -176,6 +177,6 @@ public class RenderCvQueryHandlerTests
         _failedAccess.Received(1).LogCrossUserAttempt(
             "ParsedResume", otherParsed.Id.Value, _userId, Arg.Any<string>());
         await _renderer.DidNotReceive().RenderAsync(
-            Arg.Any<ParsedResume>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>());
+            Arg.Any<ParsedResume>(), Arg.Any<CvTemplateOptions>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>());
     }
 }

@@ -64,7 +64,7 @@ public sealed class RenderResumeQueryHandler(
         // The validator guarantees a parseable RenderProfile (fail-loud, case-sensitive).
         var profile = Enum.Parse<RenderProfile>(query.Profile);
         var rendered = await renderer.RenderAsync(
-            resume.MasterVersion.Content, resume.Language, profile, cancellationToken);
+            resume.MasterVersion.Content, resume.Language, resume.TemplateOptions, profile, cancellationToken);
         return new RenderedCvDto(
             rendered.PdfBytes, rendered.ContentType, rendered.Profile.ToString(), rendered.Language.ToString());
     }

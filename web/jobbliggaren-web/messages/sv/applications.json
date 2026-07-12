@@ -250,15 +250,10 @@
     },
     "jobInfo": {
       "title": "Om annonsen",
-      "company": "Företag",
-      "published": "Publicerad",
-      "applyBy": "Sista ansökningsdag",
-      "source": "Källa",
-      "viewAdAriaLabel": "Visa annonsen hos {source} (öppnas i ny flik)",
       "viewAd": "Visa annonsen",
-      "coverLetterLabel": "Personligt brev",
-      "hide": "Dölj",
-      "show": "Visa"
+      "viewAdAriaLabel": "Visa annonsen hos {source} (öppnas i ny flik)",
+      "viewAdAriaLabelManual": "Visa annonsen (öppnas i ny flik)",
+      "noLongerActive": "Annonsen är inte längre aktiv hos {source}."
     },
     "preservedAd": {
       "headerCompany": "{company} · sparad kopia",
@@ -269,8 +264,6 @@
       "published": "Publicerad",
       "applyBy": "Sista ansökningsdag",
       "source": "Källa",
-      "viewAdAriaLabel": "Visa annonsen hos {source} (öppnas i ny flik)",
-      "viewAd": "Visa annonsen",
       "descriptionLabel": "Annonstext",
       "minimizedNotice": "Annonstexten har rensats eftersom ansökan är avslutad. Sparad metadata finns kvar."
     },

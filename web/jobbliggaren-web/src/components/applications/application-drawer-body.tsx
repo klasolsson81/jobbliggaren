@@ -3,7 +3,7 @@ import { DrawerLogFollowUpButton } from "@/components/applications/drawer-log-fo
 import { DrawerStatusActions } from "@/components/applications/drawer-status-actions";
 import { FollowUpsSection } from "@/components/applications/follow-ups-section";
 import { NotesSection } from "@/components/applications/notes-section";
-import { PreservedAdPanel } from "@/components/applications/preserved-ad-panel";
+import { SourceAdSection } from "@/components/applications/source-ad-section";
 import { TimelineList } from "@/components/applications/timeline-list";
 import {
   applicationStatusLabel,
@@ -47,9 +47,12 @@ export function ApplicationDrawerBody({
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
 
-  const { jobAd } = application;
+  // ?? null: schemat är .nullable().optional() (deploy-skew-resiliens) → normalisera
+  // en gång, så guarden nedströms bara har två fall att resonera om.
+  const jobAd = application.jobAd ?? null;
+  // #805-3: NÄR den bevarade kopian visas avgörs av SourceAdSection (SPOT) —
+  // på källannonsens Status, inte på jobAd == null (den guarden var vakuös, #821).
   const preservedAd = application.preservedAd ?? null;
-  const showPreservedAd = jobAd == null && preservedAd != null;
   // Toast-visningsnamn ("{company}: …"): företag (live → sparad kopia) före
   // det korta id:t — samma precedens som drawer-headern.
   const displayName =
@@ -148,9 +151,11 @@ export function ApplicationDrawerBody({
         }
       />
 
-      {/* Om annonsen (sparad kopia) (§8.7) — fallback när live-annonsen är
-          arkiverad. Delad PreservedAdPanel (samma som fullsidan). */}
-      {showPreservedAd && <PreservedAdPanel preservedAd={preservedAd} />}
+      {/* Om annonsen (§8.7) — #805-3 (Beslut B). SourceAdSection äger guarden:
+          live → utlänk till källans annons · borta → bevarad kopia (ADR 0086)
+          eller lugn not · manuell → länken användaren sparade. Delad med
+          fullsidan (SPOT). */}
+      <SourceAdSection jobAd={jobAd} preservedAd={preservedAd} />
 
       {/* Tidslinje (§8.8) — REALA händelser, nyast först, alltid öppen (till
           skillnad från fullsidans kollapsade <details>). Ingen updatedAt-syntes. */}

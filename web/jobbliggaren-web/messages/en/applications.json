@@ -250,15 +250,10 @@
     },
     "jobInfo": {
       "title": "About the ad",
-      "company": "Company",
-      "published": "Published",
-      "applyBy": "Application deadline",
-      "source": "Source",
-      "viewAdAriaLabel": "View the ad at {source} (opens in a new tab)",
       "viewAd": "View the ad",
-      "coverLetterLabel": "Cover letter",
-      "hide": "Hide",
-      "show": "Show"
+      "viewAdAriaLabel": "View the ad at {source} (opens in a new tab)",
+      "viewAdAriaLabelManual": "View the ad (opens in a new tab)",
+      "noLongerActive": "The ad is no longer active at {source}."
     },
     "preservedAd": {
       "headerCompany": "{company} · saved copy",
@@ -269,8 +264,6 @@
       "published": "Published",
       "applyBy": "Application deadline",
       "source": "Source",
-      "viewAdAriaLabel": "View the ad at {source} (opens in a new tab)",
-      "viewAd": "View the ad",
       "descriptionLabel": "Ad text",
       "minimizedNotice": "The full ad text was cleared because the application is concluded. The saved metadata is kept."
     },

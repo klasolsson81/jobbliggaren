@@ -37,8 +37,6 @@ describe("applications i18n-paritet (sv ↔ en)", () => {
       "ui.preservedAd.published",
       "ui.preservedAd.applyBy",
       "ui.preservedAd.source",
-      "ui.preservedAd.viewAdAriaLabel",
-      "ui.preservedAd.viewAd",
       "ui.preservedAd.descriptionLabel",
       "ui.preservedAd.minimizedNotice",
     ];
@@ -47,6 +45,36 @@ describe("applications i18n-paritet (sv ↔ en)", () => {
     for (const path of required) {
       expect(sv.has(path), `sv saknar ${path}`).toBe(true);
       expect(en.has(path), `en saknar ${path}`).toBe(true);
+    }
+  });
+
+  // #805-3 (Beslut B): utlänken flyttade FRÅN den bevarade panelen (som bara
+  // renderas när annonsen är BORTA — där hade länken varit död) TILL
+  // SourceAdSection, som visar den medan annonsen ÄR aktiv. Testet pinnar båda
+  // sidorna av flytten så den inte kan backas tyst.
+  it("jobInfo-nycklarna bär utlänken; preservedAd har INGEN länk kvar (#805-3)", () => {
+    const sv = new Set(leafPaths(svApplications));
+    const en = new Set(leafPaths(enApplications));
+
+    const required = [
+      "ui.jobInfo.title",
+      "ui.jobInfo.viewAd",
+      "ui.jobInfo.viewAdAriaLabel",
+      // Manuell ansökan: ingen källa att namnge. Utan denna nyckel skulle
+      // aria-label:n rendera "Visa annonsen hos Manuellt".
+      "ui.jobInfo.viewAdAriaLabelManual",
+      // Borta-läget utan bevarad kopia (ansökan skapad före #315).
+      "ui.jobInfo.noLongerActive",
+    ];
+    for (const path of required) {
+      expect(sv.has(path), `sv saknar ${path}`).toBe(true);
+      expect(en.has(path), `en saknar ${path}`).toBe(true);
+    }
+
+    // Den döda länken får inte smyga tillbaka in i borta-läget.
+    for (const path of ["ui.preservedAd.viewAd", "ui.preservedAd.viewAdAriaLabel"]) {
+      expect(sv.has(path), `sv har kvar borttagen nyckel ${path}`).toBe(false);
+      expect(en.has(path), `en har kvar borttagen nyckel ${path}`).toBe(false);
     }
   });
 });

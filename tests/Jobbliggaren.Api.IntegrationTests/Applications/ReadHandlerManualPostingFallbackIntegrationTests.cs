@@ -118,6 +118,8 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         dto.JobAd.Url.ShouldBe("https://example.com/jobb/1");
         dto.JobAd.Source.ShouldBe(JobSource.Platsbanken.Value);
         dto.JobAd.PublishedAt.ShouldBe(JobAdPublishedAt);
+        // #805-3: en nyskapad JobAd är Active → FE visar "Visa annonsen"-utlänken.
+        dto.JobAd.Status.ShouldBe(JobAdStatus.Active.Value);
     }
 
     // ---------------------------------------------------------------
@@ -148,6 +150,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         dto.JobAd.Source.ShouldBe("Manual");
         dto.JobAd.PublishedAt.ShouldBeNull(); // J1 — CreatedAt projiceras ALDRIG som PublishedAt
         dto.JobAd.ExpiresAt.ShouldBe(new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero));
+        dto.JobAd.Status.ShouldBeNull(); // #805-3 — ingen annonsrad ⇒ ingen livs-utsaga
     }
 
     // ---------------------------------------------------------------
@@ -228,6 +231,77 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         result.JobAd!.JobAdId.ShouldBe(jobAd.Id.Value);
         result.JobAd.Source.ShouldBe(JobSource.Platsbanken.Value);
         result.JobAd.PublishedAt.ShouldBe(JobAdPublishedAt);
+        result.JobAd.Status.ShouldBe(JobAdStatus.Active.Value);
+    }
+
+    // ---------------------------------------------------------------
+    // #805-3 — den ARKIVERADE annonsen. Detta är kärntestet: det pinnar att
+    // arkivering INTE ger jobAd == null (den premiss hela läsvägen tidigare
+    // vilade på), utan en fullt projicerad summary med Status = "Archived".
+    //
+    // Före #805-3 kodades "annonsen är borta" som jobAd == null, delegerat till
+    // soft-delete-axeln JobAd.DeletedAt — som saknar writer (#821). Följd:
+    // PreservedAdPanel (ADR 0086/#315) renderades ALDRIG i produktion, och
+    // produktens enda "Visa annonsen"-utlänk bodde inuti den. Testet gör den
+    // buggen omöjlig att återinföra tyst: skulle någon åter-koppla borta-läget
+    // till null-heten faller ShouldNotBeNull().
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task GetApplicationById_WithArchivedJobAd_KeepsJobAdSummaryAndProjectsArchivedStatus()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = await SeedSeekerAsync(db, clock, _userId);
+        var jobAd = SeedJobAd(db, clock);
+        var app = DomainApplication.Create(seeker.Id, jobAd.Id, null, null, clock).Value;
+        db.Applications.Add(app);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        // Arkivera via domänmetoden — exakt den väg RetainPlatsbankenJobAdsJob
+        // (snapshot-miss) och ExpireJobAdsJob (utgången) tar i produktion.
+        jobAd.Archive(clock).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetApplicationByIdQueryHandler(
+            db, _currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
+        var result = await handler.Handle(
+            new GetApplicationByIdQuery(app.Id.Value), CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        // Annonsraden joinar FORTFARANDE — arkivering är inte radering.
+        result!.JobAd.ShouldNotBeNull();
+        result.JobAd!.JobAdId.ShouldBe(jobAd.Id.Value);
+        result.JobAd.Title.ShouldBe("Backend-utvecklare");
+        // …och bär nu den sanningsenliga borta-signalen. FE:t döljer utlänken
+        // och visar den bevarade kopian på exakt detta värde.
+        result.JobAd.Status.ShouldBe(JobAdStatus.Archived.Value);
+    }
+
+    [Fact]
+    public async Task GetApplications_WithArchivedJobAd_KeepsJobAdSummaryAndProjectsArchivedStatus()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = await SeedSeekerAsync(db, clock, _userId);
+        var jobAd = SeedJobAd(db, clock);
+        var app = DomainApplication.Create(seeker.Id, jobAd.Id, null, null, clock).Value;
+        db.Applications.Add(app);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        jobAd.Archive(clock).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
+
+        var dto = result.Items.ShouldHaveSingleItem();
+        dto.JobAd.ShouldNotBeNull();
+        dto.JobAd!.Status.ShouldBe(JobAdStatus.Archived.Value);
     }
 
     [Fact]
@@ -253,6 +327,10 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         result.JobAd.Source.ShouldBe("Manual");
         result.JobAd.PublishedAt.ShouldBeNull();
         result.JobAd.Title.ShouldBe("Manuell titel");
+        // #805-3: ingen JobAd-rad ⇒ ingen arkivering ⇒ ingen livs-utsaga.
+        // Status är null, ALDRIG defaultad till "Active" (det vore en lögn i
+        // payloaden). FE:t visar länken utan att hävda vare sig live eller borta.
+        result.JobAd.Status.ShouldBeNull();
     }
 
     [Fact]
@@ -332,6 +410,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         dto.JobAd!.JobAdId.ShouldBeNull();
         dto.JobAd.Source.ShouldBe("Manual");
         dto.JobAd.PublishedAt.ShouldBeNull();
+        dto.JobAd.Status.ShouldBeNull(); // #805-3 — ingen annonsrad ⇒ ingen livs-utsaga
     }
 
     [Fact]
@@ -355,6 +434,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         dto.JobAd.ShouldNotBeNull();
         dto.JobAd!.JobAdId.ShouldBe(jobAd.Id.Value);
         dto.JobAd.PublishedAt.ShouldBe(JobAdPublishedAt);
+        dto.JobAd.Status.ShouldBe(JobAdStatus.Active.Value); // #805-3
     }
 
     [Fact]
@@ -382,10 +462,19 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
     }
 
     // ---------------------------------------------------------------
-    // ADR 0048 c — soft-deletad JobAd faller ut via query-filter +
-    // DefaultIfEmpty (jobAd = null), UTAN IgnoreQueryFilters/eget predikat.
-    // Soft-delete-mekanism identisk med ManualPostingPersistenceTests
-    // (JobAd saknar domän-SoftDelete; DeletedAt sätts via EF direkt).
+    // ADR 0048 c — MEKANISM-test: OM en JobAd bär DeletedAt faller den ut via
+    // query-filter + DefaultIfEmpty (jobAd = null), UTAN IgnoreQueryFilters/eget
+    // predikat. Testet pinnar filtret, inte ett produktions-scenario.
+    //
+    // #805-3 sanningssynk — läs detta innan du drar slutsatser av testet: INGEN
+    // produktionsväg sätter JobAd.DeletedAt. Domänen saknar SoftDelete-metod och
+    // src/ har noll writers (#821 retirerar axeln). Testet fabricerar tillståndet
+    // via db.Entry(...) — det är därför det passerar, och det är precis den
+    // falska tryggheten som lät läsvägen koda "annonsen är borta" som
+    // jobAd == null i två releaser. Den verkliga borta-signalen är Status
+    // ("Archived"), pinnad av GetApplicationById/GetApplications_WithArchivedJobAd_*
+    // ovan. Behåll gärna detta test (filtret ÄR korrekt implementerat), men
+    // härled aldrig produktionsbeteende ur det.
     // ---------------------------------------------------------------
 
     [Fact]

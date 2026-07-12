@@ -62,9 +62,10 @@ describe("FollowedCompanyNotificationsCard — samtyckets ram (GDPR)", () => {
     // i copy-form; kortet får inte skeppas utan den.
     renderCard();
     const intro = screen.getByText(/visas alltid i appen/);
+    expect(intro).toHaveTextContent(/oavsett vad du väljer här/);
+    // Namnger den yta som faktiskt visar något i dag (Översikts-räknaren) ...
     expect(intro).toHaveTextContent(/Översikt/);
-    expect(intro).toHaveTextContent(/Företag/);
-    // Flaggan namnger e-post som den kanal den faktiskt styr.
+    // ... och e-post som den kanal flaggan styr.
     expect(intro).toHaveTextContent(/mejla/);
   });
 
@@ -98,11 +99,11 @@ describe("FollowedCompanyNotificationsCard — den delade takten som text", () =
     expect(note).not.toHaveTextContent(/Dagligen/);
   });
 
-  it("filter-noten säger att per-företags-filtret även gäller mejlen", () => {
+  it("lovar INGEN filter-affordans (den finns inte förrän F4b)", () => {
+    // Copy som pekar på en kontroll som inte finns är ett löfte vi bryter i
+    // samma andetag. Filter-noten skeppas med filter-UI:t, inte före det.
     renderCard({ initialEnabled: true });
-    expect(
-      screen.getByText(/gäller det även för mejlen/)
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/filter/i)).not.toBeInTheDocument();
   });
 });
 

@@ -73,7 +73,7 @@ export function SourceAdSection({ jobAd, preservedAd }: SourceAdSectionProps) {
           {tUi("jobInfo.title")}
         </div>
         <div className="jp-modal__match">
-          <div className="jp-modal__match__expl">
+          <div className="jp-source-ad__note">
             {tUi("jobInfo.noLongerActive", { source: sourceLabel })}
           </div>
         </div>
@@ -94,7 +94,7 @@ export function SourceAdSection({ jobAd, preservedAd }: SourceAdSectionProps) {
           från JobAdDetail): sekundär knapp, ExternalLink-ikon, ny flik,
           noopener/noreferrer. aria-label bär källan när vi känner den; för en
           manuell ansökan utelämnas källan helt (annars renderas "…hos Manuellt"). */}
-      <p style={{ marginTop: "12px" }}>
+      <p className="jp-source-ad__action">
         <a
           href={jobAd.url}
           target="_blank"

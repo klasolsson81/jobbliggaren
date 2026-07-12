@@ -437,6 +437,40 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         dto.JobAd.Status.ShouldBe(JobAdStatus.Active.Value); // #805-3
     }
 
+    // #805-3: GetPipeline bygger SAMMA vidgade DTO som GetApplications/
+    // GetApplicationById och är därför lika åter-brytbar — utan detta test kunde
+    // någon åter-koppla borta-läget till null-heten HÄR (t.ex. ett
+    // Status == Active-predikat i joinen) och lämna sviten grön. Kanban-vyn läser
+    // inte Status ännu, men DTO-kontraktet är delat: en tappad Status-projektion
+    // är en tyst regression i det ögonblick ytan börjar läsa den.
+    [Fact]
+    public async Task GetPipeline_WithArchivedJobAd_KeepsJobAdSummaryAndProjectsArchivedStatus()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = await SeedSeekerAsync(db, clock, _userId);
+        var jobAd = SeedJobAd(db, clock);
+        var app = DomainApplication.Create(seeker.Id, jobAd.Id, null, null, clock).Value;
+        db.Applications.Add(app);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        jobAd.Archive(clock).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
+
+        var group = result.ShouldHaveSingleItem();
+        var dto = group.Applications.ShouldHaveSingleItem();
+        // Arkivering är inte radering — raden joinar kvar…
+        dto.JobAd.ShouldNotBeNull();
+        dto.JobAd!.JobAdId.ShouldBe(jobAd.Id.Value);
+        // …och bär den sanningsenliga borta-signalen.
+        dto.JobAd.Status.ShouldBe(JobAdStatus.Archived.Value);
+    }
+
     [Fact]
     public async Task GetPipeline_WithNeither_ProjectsNullJobAd()
     {

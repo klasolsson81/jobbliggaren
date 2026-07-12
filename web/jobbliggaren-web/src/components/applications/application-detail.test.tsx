@@ -235,7 +235,11 @@ describe("ApplicationDetail", () => {
       screen.getByText("Om annonsen (sparad kopia)")
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Den ursprungliga annonsen finns inte längre/)
+      // m5 (code-reviewer) + M2 (design-reviewer): copy:n sade tidigare att
+      // annonsen "finns inte längre" — men panelen renderas för VARJE icke-Active
+      // status, inklusive Expired, där en utgången annons oftast finns kvar hos
+      // källan. Vi påstår nu bara det vi vet: den är inte längre aktiv.
+      screen.getByText(/Annonsen är inte längre aktiv/)
     ).toBeInTheDocument();
     // Bevarad metadata (ort i panelen).
     expect(screen.getByText("Ort")).toBeInTheDocument();
@@ -396,5 +400,12 @@ describe("ApplicationDetail", () => {
       />
     );
     expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
+    // …och ingen BORTA-utsaga heller: "Annonsen är inte längre aktiv" vore lika
+    // falskt som en död länk — vi vet inte att den är borta. Utan denna assert
+    // passerar en guard som läser borta-läget som `status !== "Active"` (utan
+    // null-villkoret), och skew:en skulle då tala om för användaren att en
+    // annons som mycket väl ligger uppe är död. Uttömmande grentäckning för
+    // detta tillstånd bor i source-ad-section.test.tsx (guarden själv).
+    expect(screen.queryByText(/inte längre aktiv/)).toBeNull();
   });
 });

@@ -29,7 +29,6 @@ describe("applications i18n-paritet (sv ↔ en)", () => {
 
   it("preservedAd-nycklarna finns i båda katalogerna (#315 / ADR 0086)", () => {
     const required = [
-      "ui.preservedAd.headerCompany",
       "ui.preservedAd.panelTitle",
       "ui.preservedAd.savedNotice",
       "ui.preservedAd.company",

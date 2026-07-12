@@ -256,9 +256,8 @@
       "noLongerActive": "The ad is no longer active at {source}."
     },
     "preservedAd": {
-      "headerCompany": "{company} · saved copy",
       "panelTitle": "About the ad (saved copy)",
-      "savedNotice": "The original ad is no longer available. This is a saved copy from {date}.",
+      "savedNotice": "The ad is no longer active. This is a saved copy from {date}.",
       "company": "Company",
       "location": "Location",
       "published": "Published",

@@ -250,4 +250,30 @@ describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
     expect(screen.getByText("Stockholm")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
   });
+
+  // The drawer's OWN new code in #805-3 is the `application.jobAd ?? null`
+  // normalisation (the schema is .nullable().optional()). A cover-letter-only
+  // application has no ad row at all — the drawer must hand `null` to the guard
+  // and render no ad surface, rather than crash on an undefined. The guard's own
+  // branch matrix is exhausted in source-ad-section.test.tsx; this pins the
+  // wiring of the one case the drawer previously never constructed.
+  it("renders no source-ad surface when the application has no ad row at all", () => {
+    render(
+      <ApplicationDrawerBody
+        application={makeDetail({
+          jobAd: null,
+          jobAdId: null,
+          preservedAd: null,
+        })}
+        now={NOW}
+      />,
+    );
+    expect(screen.queryByText("Om annonsen")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Om annonsen (sparad kopia)"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
+    // The rest of the drawer still renders (the guard degrades, it does not gate).
+    expect(screen.getByText("Status")).toBeInTheDocument();
+  });
 });

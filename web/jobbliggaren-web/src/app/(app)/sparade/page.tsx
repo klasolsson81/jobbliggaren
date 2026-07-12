@@ -12,8 +12,14 @@ type PagesTranslator = Awaited<ReturnType<typeof getTranslations<"pages">>>;
  * bokmärkta annonser. Paritet `/sokningar` (ADR 0060 FE-arbetet).
  *
  * Tom-tillstånd ger kontext om var bokmärken skapas (i annonsdetaljen).
- * Borttagen JobAd renderas med fallback-rad ("Annonsen är borttagen" —
- * ADR 0048 Beslut c soft-delete-trail respekteras).
+ * Saknad annonsRAD (föräldralöst `JobAdId`) renderas med fallback-rad
+ * ("Annonsen är borttagen").
+ *
+ * #805-3 sanningssynk: den tidigare utsagan ("borttagen JobAd … soft-delete-trail
+ * respekteras") var falsk — `JobAd.DeletedAt` saknar writer (#821). En annons som
+ * dragits tillbaka ARKIVERAS (`Status = "Archived"`) och renderas som en vanlig
+ * rad; fallback-raden gäller enbart en saknad rad. Att surfa aktiv/inaktiv här
+ * är #817.
  */
 export default async function SparadePage() {
   const user = await getServerSession();

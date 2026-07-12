@@ -88,6 +88,8 @@ function makeDetail(
       source: "Platsbanken",
       publishedAt: "2026-05-01",
       expiresAt: "2026-06-01",
+      // #805-3: en JobAd-länkad ansökan bär alltid en status ("Active" = normalfallet).
+      status: "Active",
     },
     coverLetter: null,
     followUps: [],
@@ -137,32 +139,41 @@ describe("@modal/(.)ansokningar/[id] page header (#315 / ADR 0086)", () => {
     ).toBeInTheDocument();
   });
 
-  it("live-annons borta + snapshot → modalrubriken = BEVARAD titel, EJ mono-#id", async () => {
+  // #805-3 SANNINGSKORRIGERING: detta test triggade tidigare borta-läget med
+  // `jobAd: null` och krävde att headern föll tillbaka på SNAPSHOT-titeln. Båda
+  // delarna var fel. `jobAd` blir aldrig null för en JobAd-länkad ansökan
+  // (JobAd.DeletedAt saknar writer, #821), så grenen kunde aldrig nås — testet
+  // var grönt mot ett tillstånd produktionen inte har. Och arkivering är inte
+  // radering: annonsraden finns kvar och bär sin egen titel/företag, så headern
+  // ska visa DEN, inte snapshottens. Header-grenen är borttagen; det som ÄR
+  // borta-specifikt (den bevarade kopian) ägs av kroppen (SourceAdSection).
+  it("ARKIVERAD annons → modalrubriken = annonsens egen titel (raden lever kvar)", async () => {
     getApplicationById.mockResolvedValue({
       kind: "ok",
-      data: makeDetail({ jobAd: null, preservedAd: makeSnapshot() }),
+      data: makeDetail({
+        jobAd: { ...makeDetail().jobAd!, status: "Archived" },
+        preservedAd: makeSnapshot(),
+      }),
     });
     await renderModal();
 
-    // KÄRNAN i fyndet: dialogens accessible name MÅSTE vara den bevarade titeln
-    // (samma som kroppens "Om annonsen (sparad kopia)"-panel), inte mono-#id.
-    const dialog = screen.getByRole("dialog", {
-      name: /Systemutvecklare \.NET/,
-    });
-    expect(dialog).toBeInTheDocument();
-    // Headerns <h2> bär den bevarade titeln och är INTE mono (riktig prosa).
-    const heading = screen.getByRole("heading", {
-      name: "Systemutvecklare .NET",
-    });
-    expect(heading).not.toHaveClass("jp-mono");
-    // Den generiska mono-#id-fallbacken får INTE visas.
+    // Dialogens accessible name = annonsens titel. Arkivering tar inte raden.
     expect(
-      screen.queryByText("Ansökan #aaaaaaaa")
-    ).not.toBeInTheDocument();
-    // Subtitle bär "sparad kopia"-markören (företag + markör).
-    expect(
-      screen.getByText(/Spotify · sparad kopia/)
+      screen.getByRole("dialog", { name: /Backend-utvecklare/ })
     ).toBeInTheDocument();
+    const heading = screen.getByRole("heading", { name: "Backend-utvecklare" });
+    expect(heading).not.toHaveClass("jp-mono");
+    // Ingen mono-#id-fallback (vi HAR en identitet).
+    expect(screen.queryByText("Ansökan #aaaaaaaa")).not.toBeInTheDocument();
+    // Subtitle = annonsens företag. Ingen "sparad kopia"-markör i headern —
+    // den utsagan bär kroppens panel, på ett ställe (SPOT).
+    expect(screen.getByText(/Volvo/)).toBeInTheDocument();
+    expect(screen.queryByText(/sparad kopia · #/)).not.toBeInTheDocument();
+    // Kroppen bär borta-läget: bevarad kopia, ingen utlänk.
+    expect(
+      screen.getByText("Om annonsen (sparad kopia)")
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
   });
 
   it("varken annons eller snapshot → oförändrad mono-#id-fallback", async () => {

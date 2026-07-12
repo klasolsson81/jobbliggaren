@@ -74,12 +74,19 @@ export function ApplicationDetail({
   // preservedAd kan vara undefined på deploy-skewade/äldre svar.
   const preservedAd = application.preservedAd ?? null;
   const shortId = application.id.slice(0, 8);
-  // jobAd == null ⇒ ansökan har ingen annonsrad alls (enbart personligt brev).
-  // preservedAd fångas bara via CreateFromJobAd och är därför null där — grenen
-  // behålls defensivt ifall en JobAd-rad någonsin skulle försvinna helt.
+  // #805-3: headern hade en preserved-title-gren för fallet jobAd == null &&
+  // preservedAd != null. Den är OÅTKOMLIG: en AdSnapshot fångas bara via
+  // CreateFromJobAd, JobAd har ingen hård-raderingsväg, och jobAd blir aldrig
+  // null för en JobAd-länkad ansökan (#821). Grenen är borttagen — vi raderade
+  // JobInfoPanel på svagare grunder än så.
+  //
+  // Två sanna tillstånd kvar: annonsrad finns (live ELLER arkiverad — arkivering
+  // är inte radering, raden bär fortfarande titel/företag) → annonsens identitet;
+  // ingen annonsrad alls (enbart personligt brev) → generisk "#id"-fallback.
+  // Allt som sägs om annonsens LIVSTID ägs av SourceAdSection i kroppen.
   const title = hasIdentity
     ? jobAd.title
-    : (preservedAd?.title ?? tUi("detail.fallbackTitle", { shortId }));
+    : tUi("detail.fallbackTitle", { shortId });
 
   const variant = PILL_VARIANT_CLASS[STATUS_BADGE_VARIANT[application.status]];
   const statusLabel = applicationStatusLabel(t, application.status);
@@ -112,9 +119,7 @@ export function ApplicationDetail({
           <div style={{ flex: 1 }}>
             <h1
               className={
-                hasIdentity || preservedAd != null
-                  ? "jp-modal__title"
-                  : "jp-modal__title jp-mono"
+                hasIdentity ? "jp-modal__title" : "jp-modal__title jp-mono"
               }
             >
               {title}
@@ -124,17 +129,6 @@ export function ApplicationDetail({
                 <>
                   {jobAd.company} ·{" "}
                   <span className="jp-mono">#{shortId}</span>
-                </>
-              ) : preservedAd != null ? (
-                /* #315: live-annonsen är borta men en kopia finns. Titel =
-                   bevarad titel (riktig prosa, ej mono-id); subtitle bär
-                   bevarat företag + "sparad kopia"-markör så headern signalerar
-                   fallback-tillståndet direkt. */
-                <>
-                  {tUi("preservedAd.headerCompany", {
-                    company: preservedAd.company,
-                  })}{" "}
-                  · <span className="jp-mono">#{shortId}</span>
                 </>
               ) : (
                 /* Titel = "Ansökan #shortId"-fallback. Ekas EJ som subtitle
@@ -236,18 +230,22 @@ export function ApplicationDetail({
           followUps={application.followUps}
         />
 
+        {/* Om annonsen — #805-3 (Beslut B). SourceAdSection äger hela guarden
+            (live → utlänk till källan · borta → bevarad kopia/lugn not · manuell
+            → länken användaren sparade). Delad med modalkroppen (SPOT).
+            Placeringen speglar drawerns §8.7-ordning (efter UPPFÖLJNINGAR, före
+            ANTECKNINGAR): SPOT gäller PLATSEN lika mycket som innehållet — två
+            ytor som är eniga om vad de säger men oeniga om var de säger det är
+            fortfarande drift (design-reviewer M1). Fullsidan flyttar; drawerns
+            ordning är låst av 2a-handoffen. */}
+        <SourceAdSection jobAd={jobAd} preservedAd={preservedAd} />
+
         {/* Anteckningar — REAL notes[] (Prompt 4: speglar disclosure-
             mönstret från FollowUpsSection). */}
         <NotesSection
           applicationId={application.id}
           notes={application.notes}
         />
-
-        {/* Om annonsen — #805-3 (Beslut B). SourceAdSection äger hela guarden
-            (live → utlänk till källan · borta → bevarad kopia/lugn not · manuell
-            → länken användaren sparade). Delad med modalkroppen (SPOT) så de två
-            ytorna aldrig kan glida isär om vad ansökan får säga om annonsen. */}
-        <SourceAdSection jobAd={jobAd} preservedAd={preservedAd} />
 
         {/* Personligt brev — endast om coverLetter finns. Sist + 68ch
             läsbredd (#344). */}

@@ -35,7 +35,7 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries;
 /// assessed. A count of ADS over a named grade threshold, never an opaque match score (Goodhart,
 /// ADR 0071); carries no user-PII and never exposes the raw org.nr.
 /// </para>
-/// </summary>
+///
 /// <para>
 /// <b><see cref="Filter"/> — the per-watch notification filter (bevakning F4b, RF-2).</b> <c>null</c>
 /// means no filter, mirroring the domain's canonical representation (the NULL jsonb column) — there is

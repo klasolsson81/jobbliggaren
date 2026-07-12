@@ -3,7 +3,7 @@
 // "use client": dialogen håller DRAFT-state (ort-paret + "endast matchande") och en useTransition runt
 // save-actionen. Draften committas atomiskt med "Spara filter" — inget av detta går i en Server Component.
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import {
@@ -70,6 +70,7 @@ export function WatchFilterDialog({
   matchingNotAssessed,
 }: WatchFilterDialogProps) {
   const t = useTranslations("jobads.companyWatches.filter");
+  const inertNudgeId = useId();
 
   // Draften seedas från det persisterade filtret. `key` på dialogen (i raden) monterar om komponenten
   // när filtret ändras, så draften kan aldrig visa ett inaktuellt värde efter en revalidate.
@@ -128,12 +129,16 @@ export function WatchFilterDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="jp-matchdialog">
-        <DialogTitle className="jp-matchdialog__title">
-          {t("dialogTitle", { company: companyName })}
-        </DialogTitle>
-        <DialogDescription className="jp-matchdialog__intro">
-          {t("dialogIntro")}
-        </DialogDescription>
+        {/* `__head` bär den padding-right som håller titeln fri från den absolut-positionerade
+            ×-knappen — ett långt företagsnamn skulle annars löpa in under den. */}
+        <div className="jp-matchdialog__head">
+          <DialogTitle className="jp-matchdialog__title">
+            {t("dialogTitle", { company: companyName })}
+          </DialogTitle>
+          <DialogDescription className="jp-matchdialog__intro">
+            {t("dialogIntro")}
+          </DialogDescription>
+        </div>
 
         <div className="jp-matchdialog__body">
           <section className="jp-matchdialog__section">
@@ -143,6 +148,12 @@ export function WatchFilterDialog({
                   label={t("onlyMatchedLabel")}
                   checked={draftOnlyMatched}
                   onToggle={() => setDraftOnlyMatched((prev) => !prev)}
+                  // Kontrollen låses ALDRIG (se doc:en ovan) — men då MÅSTE skälet till att filtret är
+                  // inert nå en skärmläsar-användare via kontrollen själv. I forms-mode läses bara det
+                  // tillgängliga namnet + beskrivningen: utan den här kopplingen hörs "kryssruta, ej
+                  // markerad", användaren kryssar i, sparar, och får ett inert filter utan att någonsin
+                  // få veta varför. Det vore den tysta smalningen igen, ett lager ned.
+                  describedBy={matchingNotAssessed ? inertNudgeId : undefined}
                 />
                 {/* InfoDialog som SYSKON till kontrollraden — aldrig som barn (ett klick på "?" får
                     inte toggla kontrollen). */}
@@ -156,7 +167,7 @@ export function WatchFilterDialog({
               {matchingNotAssessed && (
                 // Ärligt not-assessed: filtret SPARAS men gäller inte förrän ett yrke angetts. Vi
                 // låser inte kontrollen — filtret aktiveras retroaktivt i samma stund profilen finns.
-                <p className="jp-matchline">
+                <p id={inertNudgeId} className="jp-matchline">
                   {t("onlyMatchedInert")}{" "}
                   <Link href={MATCH_SETTINGS_HREF} className="jp-nudgelink">
                     {t("onlyMatchedInertCta")}
@@ -186,13 +197,21 @@ export function WatchFilterDialog({
           </section>
         </div>
 
-        {saveError && (
-          <p role="alert" className="text-body-sm text-danger-700">
-            {saveError}
-          </p>
-        )}
-
-        <div className="jp-matchdialog__actions">
+        {/* Husets modal-fot (paritet match-preferences-dialog): primär först, sedan avbryt, sedan
+            felet. Den bär padding, gap och den nedre radien — utan den ligger knapparna kant i kant
+            mot modalens hörn. */}
+        <div className="jp-matchdialog__foot">
+          <Button type="button" onClick={handleSave} disabled={isSaving}>
+            {isSaving ? t("saving") : t("save")}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={isSaving}
+          >
+            {t("cancel")}
+          </Button>
           {/* Visas bara när det FINNS något att rensa. Rensar DRAFTEN — "Spara filter" är den enda
               commit-gränsen, så ett oavsiktligt klick är ångrbart med "Avbryt". */}
           {draftHasFilter && (
@@ -205,17 +224,11 @@ export function WatchFilterDialog({
               {t("clearAll")}
             </button>
           )}
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => onOpenChange(false)}
-            disabled={isSaving}
-          >
-            {t("cancel")}
-          </Button>
-          <Button type="button" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? t("saving") : t("save")}
-          </Button>
+          {saveError && (
+            <p role="alert" className="text-body-sm text-danger-600">
+              {saveError}
+            </p>
+          )}
         </div>
       </DialogContent>
     </Dialog>

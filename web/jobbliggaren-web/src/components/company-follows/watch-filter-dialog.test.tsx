@@ -299,6 +299,29 @@ describe("WatchFilterDialog — 'endast matchande' låses ALDRIG (CTO Q8-b)", ()
     });
   });
 
+  it("den inerta nudgen är KOPPLAD till kontrollen (aria-describedby), inte bara placerad bredvid", () => {
+    // Kontrollen låses aldrig (se testet ovan) — då måste skälet nå en skärmläsar-användare via
+    // kontrollen SJÄLV. I forms-mode läses bara namnet + beskrivningen: en text som bara står bredvid
+    // hörs aldrig. Utan kopplingen kryssar användaren i, sparar, och får ett inert filter utan att
+    // någonsin få veta varför — den tysta smalningen igen, ett lager ned.
+    render(<Host matchingNotAssessed />);
+
+    const check = screen.getByRole("checkbox", { name: ONLY_MATCHED });
+    const describedBy = check.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+
+    const description = document.getElementById(describedBy as string);
+    expect(description).not.toBeNull();
+    expect(description).toHaveTextContent(/Filtret sparas och börjar gälla/);
+  });
+
+  it("med matchningsprofil finns ingen inert-beskrivning att koppla", () => {
+    render(<Host />);
+    expect(
+      screen.getByRole("checkbox", { name: ONLY_MATCHED })
+    ).not.toHaveAttribute("aria-describedby");
+  });
+
   it("utan matchningsprofil visas en ärlig inert-nudge som pekar på matchnings-inställningarna", () => {
     render(<Host matchingNotAssessed />);
 

@@ -4,7 +4,7 @@ namespace Jobbliggaren.Infrastructure.Security;
 
 /// <summary>
 /// TD-13 / ADR 0049 — the single audited AES-256-GCM envelope primitive shared by the string
-/// field cipher (<see cref="KmsEnvelopeEncryptor"/>, Form A/B, wraps this as <c>"v1:"+base64</c>)
+/// field cipher (<see cref="AesGcmFieldEncryptor"/>, Form A/B, wraps this as <c>"v1:"+base64</c>)
 /// and the binary cipher (<see cref="BinaryFieldEncryptor"/>, Form C, prepends a 1-byte version).
 /// Produces/consumes the raw <c>nonce(12) || ciphertext || tag(16)</c> core. Random nonce per
 /// <see cref="Seal"/> → ciphertext is never deterministic (equality between PII values does not

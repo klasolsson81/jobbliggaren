@@ -102,7 +102,8 @@
     "detail": {
       "loadErrorTitle": "Could not load CV",
       "errorBody": "A technical error occurred. Try reloading the page or go back to the CV list.",
-      "updatedAt": "Last updated"
+      "updatedAt": "Last updated",
+      "customizeTemplate": "Customize template"
     },
     "review": {
       "title": "Review imported CV",
@@ -142,6 +143,49 @@
       "errorBody": "A technical error occurred. Try reloading the page or go back to the CV page.",
       "backLink": "Back to CV",
       "loading": "Loading the review…"
+    },
+    "mall": {
+      "title": "Customize template",
+      "lede": "Choose a template, accent colour and density for your CV. Your choices appear in the preview and are saved only when you choose Save template.",
+      "backLink": "Back to CV",
+      "loadErrorTitle": "Could not load the template builder",
+      "errorBody": "A technical error occurred. Try reloading the page or go back to the CV page.",
+      "templateGroupLabel": "Template",
+      "accentGroupLabel": "Accent colour",
+      "densityGroupLabel": "Density",
+      "templates": {
+        "Klar": "Clean",
+        "Accentlinje": "Accent line",
+        "MorkPanel": "Dark panel"
+      },
+      "accents": {
+        "NavyBlue": "Navy blue",
+        "ForestGreen": "Forest green",
+        "WineRed": "Wine red",
+        "Graphite": "Graphite"
+      },
+      "densities": {
+        "Airy": "Airy",
+        "Normal": "Normal",
+        "Compact": "Compact"
+      },
+      "atsSafeLabel": "Passes ATS review",
+      "atsSafeHint": "This template is read cleanly by applicant tracking systems (ATS): a single column, plain text.",
+      "atsUnsafeLabel": "Designed for reading",
+      "atsUnsafeHint": "This template has a layout for human readers. Applicant tracking systems (ATS) may read it less well.",
+      "previewHeading": "Preview",
+      "previewStale": "The preview does not show your latest choices yet. Choose Update preview.",
+      "updatePreview": "Update preview",
+      "previewLoading": "Rendering the preview…",
+      "previewLoadingLabel": "Rendering the preview",
+      "previewError": "The preview could not be loaded. Try again in a moment.",
+      "previewRateLimited": "You have made too many requests in a short time. Try again in {seconds, plural, one {# second} other {# seconds}}.",
+      "previewNotFound": "The preview could not be found. Go back to the CV page and try again.",
+      "iframeTitle": "CV preview",
+      "openInNewTab": "Open in a new tab",
+      "save": "Save template",
+      "savePending": "Saving…",
+      "saved": "Template saved."
     },
     "importApi": {
       "notMultipart": "Upload the file as multipart/form-data.",

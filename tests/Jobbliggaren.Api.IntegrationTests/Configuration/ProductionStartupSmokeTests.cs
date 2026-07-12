@@ -110,12 +110,9 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
         // tid innan replace körs. Sätt till container-CS:erna så registreringen passerar.
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
-        // TD-13 (ADR 0049): Production-env hård-validerar FieldEncryption:CmkKeyId
-        // (FieldEncryptionOptionsValidator). En Production-smoke MÅSTE förse det
-        // Production kräver. KMS-klienten anropas ej i en ren startup-smoke.
-        Environment.SetEnvironmentVariable(
-            "FieldEncryption__CmkKeyId",
-            "arn:aws:kms:eu-north-1:000000000000:key/test-cmk");
+        // ADR 0066 (#802): fält-krypteringen är Local-only och validatorn kräver en
+        // giltig master-nyckel i ALLA miljöer (även Production-smoke) — den sätts
+        // systemiskt av TestSecrets-module-init (process-env-var) före boot.
 
         using var scope = Services.CreateScope();
         // F6 P4 — pg_trgm krävs av F6P4aJobAdTrigramIndexes (se ApiFactory).
@@ -133,7 +130,6 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
-        Environment.SetEnvironmentVariable("FieldEncryption__CmkKeyId", null);
 
         if (File.Exists(_privateKeyPath)) File.Delete(_privateKeyPath);
         if (File.Exists(_publicKeyPath)) File.Delete(_publicKeyPath);

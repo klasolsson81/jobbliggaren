@@ -78,19 +78,11 @@
     <!-- Npgsql 10.0.2 minimum: matchar transitiv-krav från Npgsql.EntityFrameworkCore.PostgreSQL 10.0.1
          (kräver Npgsql >= 10.0.2). Direkt-referens från Jobbliggaren.Migrate. -->
     <PackageVersion Include="Npgsql" Version="10.0.3" />
-    <!-- AWSSDK.SecretsManager borttaget (TD-105 / #199 / ADR 0050 — AWS-exit;
-         Migrate re-homad till env/Docker-secret-creds, se MigrateEnv). -->
-    <!-- AWS KMS — TD-13 (ADR 0049) per-användare-DEK envelope encryption.
-         4.0.8.8 kräver AWSSDK.Core >= 4.0.3.12 (vår pin 4.0.6.1 uppfyller). -->
-    <PackageVersion Include="AWSSDK.KeyManagementService" Version="4.0.8.8" />
-    <!-- AWSSDK.SimpleEmailV2 borttaget 2026-06-06 (ADR 0066 — AWS-avveckling;
-         SES ersatt av ConsoleEmailSender lokalt, transaktionell mejlväg är TD
-         för Hetzner-fasen). KMS-paketet behålls som referens-impl (ADR 0049). -->
-    <!-- Transitiv CVE-pinning: GHSA-9cvc-h2w8-phrp (region-input-validering)
-         påverkar AWSSDK.Core < 4.0.3.3. Vi pinnar 4.0.6.1 (matchar minimum-krav
-         från AWSSDK.KeyManagementService 4.0.8.8) för att eliminera
-         Warning-as-Error vid build. -->
-    <PackageVersion Include="AWSSDK.Core" Version="4.0.6.1" />
+    <!-- Alla AWSSDK-paket borttagna: SecretsManager (TD-105 / #199 / ADR 0050),
+         SimpleEmailV2 (2026-06-06, ADR 0066), KeyManagementService + Core
+         (#802 — fält-krypteringen är Local-only, ADR 0049/0050). 0 Amazon-paket
+         i lösningen; ett tripwire-arch-test håller det så (NoAmazonReferenceTests). -->
+
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.9" />
     <!-- TD-104 / Pre-4 STEG 6 — persistent strukturerad logg-sink (senior-cto-advisor
          Variant B: MEL → Seq, additivt på befintlig MEL-pipeline; Serilog avvisat YAGNI).

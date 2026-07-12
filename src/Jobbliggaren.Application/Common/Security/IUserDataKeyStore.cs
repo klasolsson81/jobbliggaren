@@ -7,7 +7,7 @@ namespace Jobbliggaren.Application.Common.Security;
 /// aldrig <c>UserDataKey</c>-typen (Infrastructure-intern, FRÅGA 2) — bara
 /// <see cref="JobSeekerId"/> in och plaintext-DEK (<c>byte[]</c>) ut.
 ///
-/// Fail-closed: KMS-fel propageras — aldrig en default/klartext-fallback-DEK
+/// Fail-closed: provider-fel propageras — aldrig en default/klartext-fallback-DEK
 /// (CTO-domen 2026-05-18). Anroparen äger den returnerade bufferten och bör
 /// nolla den efter bruk (cachen nollar sin egen kopia vid scope-dispose).
 /// </summary>
@@ -15,9 +15,9 @@ public interface IUserDataKeyStore
 {
     /// <summary>
     /// Hämtar (eller skapar vid första behov) användarens DEK och returnerar
-    /// den unwrappad. Skapar + persisterar wrapped-DEK (KMS GenerateDataKey)
-    /// om ingen rad finns; annars unwrappas befintlig (KMS Decrypt). Memoiseras
-    /// per scope via <see cref="IUserDataKeyCache"/> (en KMS-op per användare
+    /// den unwrappad. Skapar + persisterar wrapped-DEK (DEK create/wrap)
+    /// om ingen rad finns; annars unwrappas befintlig (DEK unwrap). Memoiseras
+    /// per scope via <see cref="IUserDataKeyCache"/> (en DEK-op per användare
     /// per scope).
     /// </summary>
     Task<byte[]> GetOrCreateDataKeyAsync(JobSeekerId owner, CancellationToken ct);

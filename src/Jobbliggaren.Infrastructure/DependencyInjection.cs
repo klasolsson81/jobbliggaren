@@ -691,6 +691,13 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Rendering.Abstractions.ICvRenderer,
             Jobbliggaren.Infrastructure.Resumes.Rendering.CvRenderer>();
+        // The template-catalog's ONLY Infrastructure-resident egress (Fas 4b PR-8b 8b.3): the
+        // curated accent hexes live private in CvPalette; this port exposes them (name→hex) so the
+        // Application catalog handler composes them with the Domain-sourced names + atsSafe without
+        // importing Infrastructure. Stateless singleton (parity CvRenderer).
+        services.AddSingleton<
+            Jobbliggaren.Application.Resumes.Rendering.Abstractions.ICvAccentSwatchProvider,
+            Jobbliggaren.Infrastructure.Resumes.Rendering.CvAccentSwatchProvider>();
         return services;
     }
 
@@ -986,18 +993,15 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        // TD-13 (ADR 0049) — KMS-envelope fält-kryptering. Registrerad i
-        // AddPersistence: per-användare-DEK + interceptor-paret (C3) lever på
-        // AppDbContext-livscykeln; måste vara tillgänglig i både Api och
-        // Worker (HardDeleteAccountsJob crypto-erasure, C6). KMS-klient +
-        // KmsEnvelopeEncryptor är stateless/trådsäkra → singleton (samma
-        // mönster som SES-klienten). Fail-closed startup: ADR 0049 Beslut 4
-        // mekanik-not (CTO-triage 2026-05-18 Approach D) — miljö-villkorad
-        // validering via IValidateOptions (.ValidateOnStart() triggar den vid
-        // boot). Hård fail i Production/Staging; warning i Development/Test
-        // (runtime-guard i KmsDataKeyProvider är det faktiska fail-closed-
-        // skyddet i alla miljöer). Löser C1 J3-regression: global .Validate()
-        // bröt ~6 KMS-fakande integ-test-hostar.
+        // TD-13 (ADR 0049) / ADR 0066 — lokal envelope-fält-kryptering.
+        // Registrerad i AddPersistence: per-användare-DEK + interceptor-paret
+        // (C3) lever på AppDbContext-livscykeln; måste vara tillgänglig i både
+        // Api och Worker (HardDeleteAccountsJob crypto-erasure, C6).
+        // AesGcmFieldEncryptor + LocalDataKeyProvider är stateless/trådsäkra →
+        // singleton. Fail-closed startup via IValidateOptions
+        // (.ValidateOnStart()): en tom/ogiltig lokal master-nyckel hård-failar
+        // i ALLA miljöer (FieldEncryptionOptionsValidator) — provider-agnostiskt
+        // sedan KMS-grenen togs bort (#802).
         services.AddOptions<Security.FieldEncryptionOptions>()
             .Bind(configuration.GetSection(Security.FieldEncryptionOptions.SectionName))
             .ValidateOnStart();
@@ -1005,43 +1009,30 @@ public static class DependencyInjection
             Microsoft.Extensions.Options.IValidateOptions<Security.FieldEncryptionOptions>,
             Security.FieldEncryptionOptionsValidator>();
 
-        // IFieldEncryptor (AES-256-GCM-primitiv) är AWS-fri och delas av BÅDA
-        // DEK-providers — registreras ovillkorligt. Bara DEK-wrap/unwrap
-        // (IDataKeyProvider) skiljer Kms- från Local-grenen.
+        // IFieldEncryptor (AES-256-GCM-primitiv) är AWS-fri och oberoende av
+        // DEK-wrap-mekanismen — registreras ovillkorligt.
         services.AddSingleton<Jobbliggaren.Application.Common.Security.IFieldEncryptor,
-            Security.KmsEnvelopeEncryptor>();
+            Security.AesGcmFieldEncryptor>();
 
-        // ADR 0066 — provider-switch (paritet EmailOptions.Provider). Default
-        // "Kms" bevarar befintligt beteende i alla miljöer som inte explicit
-        // väljer Local (integ-test-fixturer override:ar KMS-klienten last-wins;
-        // prod glömmer-Provider → KMS-försök → loud runtime-fail, ingen tyst
-        // lokal krypto). Dev sätter "Local" i appsettings.Development.json.
+        // ADR 0066 (AWS-exit klar, #802) — Local är enda DEK-providern. En
+        // utelämnad Provider defaultar Local; ett explicit icke-Local-värde
+        // (t.ex. en kvarlämnad "Kms" i stale config) MÅSTE dö loud vid boot —
+        // aldrig tyst falla till Local (det skulle maskera en felkonfiguration;
+        // #802-footgunklassen). Den AWS-KMS-baserade providern + klienten är
+        // borttagna; ingen Amazon-SDK-instans registreras.
         var fieldEncryptionProvider = configuration[
-            $"{Security.FieldEncryptionOptions.SectionName}:Provider"] ?? "Kms";
-        if (string.Equals(fieldEncryptionProvider, "Kms", StringComparison.OrdinalIgnoreCase))
-        {
-            var kmsRegion = configuration[
-                $"{Security.FieldEncryptionOptions.SectionName}:AwsRegion"] ?? "eu-north-1";
-            services.AddSingleton<Amazon.KeyManagementService.IAmazonKeyManagementService>(
-                _ => new Amazon.KeyManagementService.AmazonKeyManagementServiceClient(
-                    Amazon.RegionEndpoint.GetBySystemName(kmsRegion)));
-            services.AddSingleton<Jobbliggaren.Application.Common.Security.IDataKeyProvider,
-                Security.KmsDataKeyProvider>();
-        }
-        else if (string.Equals(fieldEncryptionProvider, "Local", StringComparison.OrdinalIgnoreCase))
-        {
-            // Local-grenen registrerar INTE IAmazonKeyManagementService — ingen
-            // onödig AWS-SDK-instans. Master-nyckeln binds via IOptions
-            // (appsettings.Local.json, gitignored).
-            services.AddSingleton<Jobbliggaren.Application.Common.Security.IDataKeyProvider,
-                Security.LocalDataKeyProvider>();
-        }
-        else
+            $"{Security.FieldEncryptionOptions.SectionName}:Provider"];
+        if (!string.IsNullOrWhiteSpace(fieldEncryptionProvider)
+            && !string.Equals(fieldEncryptionProvider, "Local", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
                 $"FieldEncryption:Provider='{fieldEncryptionProvider}' stöds inte. " +
-                "Använd 'Kms' eller 'Local'.");
+                "AWS KMS-providern är borttagen (ADR 0066/#802) — enda giltiga " +
+                "värdet är 'Local' (eller utelämna nyckeln för default).");
         }
+
+        services.AddSingleton<Jobbliggaren.Application.Common.Security.IDataKeyProvider,
+            Security.LocalDataKeyProvider>();
 
         // TD-13 C2 (ADR 0049 Beslut 1, CTO FRÅGA 2). Scoped: delar scopets
         // AppDbContext (DeleteDataKeysAsync deltar i hard-delete-transaktionen

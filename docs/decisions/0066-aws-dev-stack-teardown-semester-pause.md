@@ -317,7 +317,10 @@ Vid trigger: ny ADR skapas. ADR 0066 superseras eller amenderas explicit.
   (CI måste passera) + ADR 0065 (PR-gate).
 - **ADR 0049 (TD-13 KMS-envelope):** KMS field-key bevarad i prod-baseline
   per Beslut 4. ADR 0049:s envelope-encryption-mekanik orörd; data raderas
-  via RDS-destroy. Ingen amendment.
+  via RDS-destroy. Ingen amendment. _(Not 2026-07-12 #802: den KOD-sidiga
+  AWS-KMS DEK-providern är nu borttagen — fält-krypteringen är Local-only. Detta
+  rör inte 0066:s AWS-resident-nyckel-/teardown-resonemang; se ADR 0049/0050-
+  amendments 2026-07-12.)_
 - **ADR 0050 (Hetzner-exit, Proposed):** **EJ supersedad av ADR 0066.** ADR
   0050 är full permanent provider-exit med KMS-rehoming-blocker; ADR 0066 är
   temporär semester-pause med reversibel återstart mot samma AWS-yta. Olika

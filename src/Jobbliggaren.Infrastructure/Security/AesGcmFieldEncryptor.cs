@@ -8,8 +8,10 @@ namespace Jobbliggaren.Infrastructure.Security;
 /// <summary>
 /// TD-13 (ADR 0049 Beslut 4) — <see cref="IFieldEncryptor"/> via AES-256-GCM
 /// (BCL <see cref="AesGcm"/>, AEAD: konfidentialitet + integritet). Ren
-/// symmetrisk primitiv — DEK:en kommer utifrån (<see cref="IDataKeyProvider"/>,
-/// KMS-envelope). Ingen AWS-bagage → enhetstestbar utan KMS.
+/// symmetrisk primitiv — DEK:en kommer utifrån
+/// (<see cref="IDataKeyProvider"/>, lokal envelope, ADR 0066). AWS-fri och
+/// oberoende av DEK-wrap-mekanismen (namnet var tidigare KmsEnvelopeEncryptor
+/// men klassen har aldrig rört AWS — den delas oförändrad av Local-providern).
 ///
 /// Wire-format: <c>"v1:" + base64(nonce(12) || ciphertext || tag(16))</c>.
 /// AES-GCM-kärnan (nonce/seal/open/fail-closed) delas med Form C via
@@ -23,7 +25,7 @@ namespace Jobbliggaren.Infrastructure.Security;
 /// pinnat av ett fryst pre-refaktor-ciphertext-test (back-compat: befintlig
 /// at-rest-data måste alltid förbli dekrypterbar). Stateless → singleton-säker.
 /// </summary>
-public sealed partial class KmsEnvelopeEncryptor : IFieldEncryptor
+public sealed partial class AesGcmFieldEncryptor : IFieldEncryptor
 {
     [GeneratedRegex(@"^v\d+:", RegexOptions.CultureInvariant)]
     private static partial Regex SentinelPattern();

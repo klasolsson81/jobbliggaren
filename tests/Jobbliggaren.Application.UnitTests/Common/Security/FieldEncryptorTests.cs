@@ -7,7 +7,7 @@ namespace Jobbliggaren.Application.UnitTests.Common.Security;
 
 /// <summary>
 /// TD-13 FAS 3.5 batch C1 — svit A (architect §5).
-/// Verifierar KmsEnvelopeEncryptor (ren symmetrisk AES-256-GCM via BCL AesGcm,
+/// Verifierar AesGcmFieldEncryptor (ren symmetrisk AES-256-GCM via BCL AesGcm,
 /// ingen AWS) mot IFieldEncryptor-kontraktet: sentinel-prefix v1: + base64,
 /// nonce-unikhet, fail-closed auth-tag-verifiering (ADR 0049 Beslut 4,
 /// CTO-domen 2026-05-18 — ingen klartext-fallback, ingen läcka i exception).
@@ -29,8 +29,8 @@ public class FieldEncryptorTests
         return dek;
     }
 
-    // Konkret typ (CA1859) — testar KmsEnvelopeEncryptor mot IFieldEncryptor-kontraktet.
-    private readonly KmsEnvelopeEncryptor _sut = new();
+    // Konkret typ (CA1859) — testar AesGcmFieldEncryptor mot IFieldEncryptor-kontraktet.
+    private readonly AesGcmFieldEncryptor _sut = new();
 
     [Fact]
     public void Encrypt_ThenDecrypt_RoundTripsPlaintext()
@@ -117,7 +117,7 @@ public class FieldEncryptorTests
     public void Decrypt_FrozenPreRefactorCiphertext_StillRoundTrips()
     {
         // Fas 4b PR-9a — wire-format back-compat pin for the AesGcmEnvelope refactor
-        // (ADR 0100): this literal was produced by the PRE-refactor KmsEnvelopeEncryptor
+        // (ADR 0100): this literal was produced by the PRE-refactor AesGcmFieldEncryptor
         // (2026-07-10) under Dek(). All Form A/B ciphertext at rest has this exact layout —
         // if this test ever fails, the wire format drifted and existing at-rest data bricks.
         const string frozen =

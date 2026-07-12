@@ -16,6 +16,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 // exercised with a synthesized in-memory WordprocessingDocument (incl. åäö); the PDF
 // path's happy case is exercised by the integration/manual path — here we only assert
 // the malformed-PDF fail-soft contract (a faked valid PDF would not be a real test).
+[Xunit.Collection("QuestPdfRendering")]
 public class PdfPigOpenXmlCvTextExtractorTests
 {
     private readonly PdfPigOpenXmlCvTextExtractor _sut = new();

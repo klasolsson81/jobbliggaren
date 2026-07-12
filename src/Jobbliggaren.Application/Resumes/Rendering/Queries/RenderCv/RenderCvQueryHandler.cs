@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Resumes.Rendering.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
+using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -60,7 +61,11 @@ public sealed class RenderCvQueryHandler(
 
         // The validator guarantees a parseable RenderProfile (fail-loud, case-sensitive).
         var profile = Enum.Parse<RenderProfile>(query.Profile);
-        var rendered = await renderer.RenderAsync(resume, profile, cancellationToken);
+        // A parsed staging CV carries no template options — styling is a promoted-Resume concern
+        // (PR-8b): render it with the handoff defaults (Klar). The visual builder operates on a
+        // promoted Resume, never on parsed staging.
+        var rendered = await renderer.RenderAsync(
+            resume, CvTemplateOptions.Default, profile, cancellationToken);
         return new RenderedCvDto(
             rendered.PdfBytes, rendered.ContentType, rendered.Profile.ToString(), rendered.Language.ToString());
     }

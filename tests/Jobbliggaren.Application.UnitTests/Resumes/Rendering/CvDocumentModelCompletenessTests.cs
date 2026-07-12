@@ -18,6 +18,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Rendering;
 /// RENDERED-fidelity invariant (every field actually reaches the PDF text — loss can happen in a
 /// composer branch, not only the projection). NO AI/LLM: content is rendered verbatim (§5).
 /// </summary>
+[Xunit.Collection("QuestPdfRendering")]
 public class CvDocumentModelCompletenessTests
 {
     // A maximal promoted CV exercising every superset surface at once:
@@ -73,12 +74,12 @@ public class CvDocumentModelCompletenessTests
         new PdfPigOpenXmlCvTextExtractor()
             .Extract(pdf, CvFileKind.Pdf, TestContext.Current.CancellationToken).RawText;
 
-    private static async Task<string> RenderTextAsync(ResumeContent content, RenderProfile profile)
-    {
-        var rendered = await new CvRenderer().RenderAsync(
-            content, ResumeLanguage.Sv, profile, TestContext.Current.CancellationToken);
-        return Extract(rendered.PdfBytes);
-    }
+    private static async Task<string> RenderTextAsync(ResumeContent content, RenderProfile profile) =>
+        Extract((await RenderAsync(content, profile)).PdfBytes);
+
+    private static async Task<RenderedCv> RenderAsync(ResumeContent content, RenderProfile profile) =>
+        await new CvRenderer().RenderAsync(
+            content, ResumeLanguage.Sv, CvTemplateOptions.Default, profile, TestContext.Current.CancellationToken);
 
     private static ResumeContent WithSections(params ResumeSection[] sections) =>
         new(new PersonalInfo("Test Person", null, null, null), sections: sections);
@@ -173,8 +174,7 @@ public class CvDocumentModelCompletenessTests
     [InlineData(RenderProfile.Visual)]
     public async Task Render_EmitsEveryAppCopyField_IntoThePdfText_ForBothProfiles(RenderProfile profile)
     {
-        var rendered = await new CvRenderer().RenderAsync(
-            Maximal(), ResumeLanguage.Sv, profile, TestContext.Current.CancellationToken);
+        var rendered = await RenderAsync(Maximal(), profile);
 
         var extracted = new PdfPigOpenXmlCvTextExtractor().Extract(
             rendered.PdfBytes, CvFileKind.Pdf, TestContext.Current.CancellationToken);
@@ -195,10 +195,8 @@ public class CvDocumentModelCompletenessTests
     {
         var content = Maximal();
 
-        var first = await new CvRenderer().RenderAsync(
-            content, ResumeLanguage.Sv, RenderProfile.Visual, TestContext.Current.CancellationToken);
-        var second = await new CvRenderer().RenderAsync(
-            content, ResumeLanguage.Sv, RenderProfile.Visual, TestContext.Current.CancellationToken);
+        var first = await RenderAsync(content, RenderProfile.Visual);
+        var second = await RenderAsync(content, RenderProfile.Visual);
 
         // Content determinism — byte-identity is impossible (QuestPDF /ID + font-subset packing);
         // the extracted text is the honest, parallel-safe determinism signal (§5, FixedTimestamp).

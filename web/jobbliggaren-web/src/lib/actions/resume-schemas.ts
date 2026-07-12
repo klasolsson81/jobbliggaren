@@ -135,27 +135,36 @@ const makeSpokenLanguageSchema = (t: ValidationTranslator) =>
     proficiency: z.enum(LANGUAGE_PROFICIENCY_TOKENS),
   });
 
-// Mirrors the domain `Resume.ValidateContent` (ADR 0095 D-E): the entry title is
-// required-only in the domain; the entry's lines are capped by their SUMMED length
-// (max 2 000 across all lines, NOT per line — the domain sums `l?.Length`). We add
-// a UI-affordance max (200) to the required-only title, matching the label-field
-// convention (Company/Role = 200).
+// Mirrors the domain `Resume.ValidateContent` (ADR 0095 D-E, amended by #815): the entry
+// title is OPTIONAL — "Referenser / Lämnas på begäran." is an ordinary CV shape, and the
+// deterministic parser will not invent a heading for it (ADR 0071). What the domain forbids
+// is an entry carrying NEITHER title nor lines (`Resume.SectionEntryEmpty`), so the schema
+// enforces exactly that, cross-field. The lines are capped by their SUMMED length (max
+// 2 000 across all lines, NOT per line — the domain sums `l?.Length`). The 200-char title
+// cap is a UI affordance, matching the label-field convention (Company/Role = 200).
 const makeSectionEntrySchema = (t: ValidationTranslator) =>
-  z.object({
-    title: z
-      .string()
-      .trim()
-      .min(1, t("resume.sectionEntryTitleRequired"))
-      .max(200, t("resume.sectionEntryTitleMax")),
-    lines: z
-      .array(z.string())
-      .optional()
-      .refine(
-        (lines) =>
-          !lines || lines.reduce((sum, line) => sum + line.length, 0) <= 2_000,
-        { message: t("resume.sectionEntryTooLong") },
-      ),
-  });
+  z
+    .object({
+      title: z
+        .string()
+        .trim()
+        .max(200, t("resume.sectionEntryTitleMax"))
+        .optional(),
+      lines: z
+        .array(z.string())
+        .optional()
+        .refine(
+          (lines) =>
+            !lines || lines.reduce((sum, line) => sum + line.length, 0) <= 2_000,
+          { message: t("resume.sectionEntryTooLong") },
+        ),
+    })
+    .refine(
+      (entry) =>
+        (entry.title?.trim().length ?? 0) > 0 ||
+        (entry.lines?.some((line) => line.trim().length > 0) ?? false),
+      { message: t("resume.sectionEntryEmpty"), path: ["title"] },
+    );
 
 const makeResumeSectionSchema = (t: ValidationTranslator) =>
   z.object({

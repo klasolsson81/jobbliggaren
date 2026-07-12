@@ -26,7 +26,11 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     private const int MaxLanguages = 50;
     private const int MaxEntries = 100;
 
-    // DoS-paritet med MaxSkills/MaxLanguages. Truncation is bounded by RawText keeping everything.
+    // DoS bound, parity with MaxSkills/MaxLanguages. NOTE: unlike those, truncation here is a
+    // real (if pathological) content loss — RawText is NOT exposed in ParsedResumeDetailDto, so a
+    // dropped section is not recoverable from the guide. 30 sections is far past any honest CV;
+    // a document that exceeds it is adversarial, and refusing to allocate for it is the right
+    // call. Do not restate this as "lossless" — it is not.
     private const int MaxSections = 30;
 
     // Reference data: immutable, loaded once (parity LocalTextAnalyzer.LoadStopwords).
@@ -171,12 +175,25 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
             if (atSectionBoundary && colon > 0)
             {
                 var inlineContent = lines[i][(colon + 1)..].Trim();
+                // #815: the inline split is restricted to TYPED headings. A free heading may only
+                // be recognised as a whole line.
+                //
+                // Why: every entry in Erfarenhet/Utbildning is separated by a blank line, so an
+                // entry's FIRST line always satisfies the boundary gate above. A label-shaped free
+                // token would then hijack it — "Kurs: Databaser 7,5 hp" inside an education entry
+                // would TERMINATE Utbildning and degrade the remaining entries into free-section
+                // text. That is the engine inventing structure the user did not write, which is the
+                // one thing it must never do (ADR 0071). The typed vocabulary is small, curated and
+                // already lives with this gate (2026-07-01 bind); the free vocabulary is open and
+                // label-shaped, so it does not get the same privilege.
+                //
+                // Cost, accepted: "Projekt: A, B" written inline is not recognised as a section.
+                // Its content stays in the section above — visible, editable, lossless. That is the
+                // honest failure mode, and it is strictly better than a fabricated section boundary.
                 if (inlineContent.Length > 0
-                    && TryMatchHeading(lines[i][..colon], out var inlineKind, out var inlineMatched))
+                    && TryMatchHeading(lines[i][..colon], out var inlineKind, out var inlineMatched)
+                    && inlineKind is not null)
                 {
-                    // The inline split stays LEXICON-GATED (both typed and free tokens) — never
-                    // "any text before a colon", which would turn every colon line at a section
-                    // boundary into a section. That is the mirror risk the 2026-07-01 bind closed.
                     headings.Add(new HeadingHit(
                         i, inlineKind, inlineMatched, HeadingTextOf(lines[i][..colon]), inlineContent));
                 }

@@ -266,6 +266,53 @@ describe("CvCompleteGuide — Spara (befordran)", () => {
   });
 });
 
+describe("CvCompleteGuide — en TITELLÖS prefylld post går att spara (#815)", () => {
+  // Det här är testet som saknades, och som lät regressionen slinka igenom hela vägen till
+  // granskning: det befintliga spar-testet SKRIVER IN titeln för hand, så det körde aldrig
+  // kedjan prefyll → Spara. Parsern sätter medvetet title = null för en enradig eller
+  // punktlistad post (den hittar aldrig på en rubrik, ADR 0071) — och skrivytan krävde en
+  // titel. Följden var att användaren såg sitt eget innehåll prefyllt i guiden och sedan
+  // nekades att spara det, med enda utvägen att radera exakt det innehållet.
+  it("Referenser / Lämnas på begäran. (ingen titel) blockerar inte Spara", async () => {
+    const user = userEvent.setup();
+    promoteMock.mockClear();
+
+    renderGuide(
+      makeContent({
+        sections: [
+          {
+            heading: "Referenser",
+            entries: [{ title: null, lines: ["Lämnas på begäran."] }],
+          },
+        ],
+      }),
+    );
+
+    // Till Spara-steget och submit — INGEN titel skrivs in för hand. Det är hela poängen.
+    await user.click(screen.getByRole("button", { name: "Spara" }));
+    await user.click(screen.getByRole("button", { name: "Spara CV" }));
+
+    // Före fixen stannade valideringen här: "Titel krävs på sektionspost."
+    await waitFor(() => expect(promoteMock).toHaveBeenCalledTimes(1));
+
+    const [, , content] = promoteMock.mock.calls[0]! as [
+      string,
+      string,
+      {
+        sections: Array<{
+          heading: string;
+          entries: Array<{ title?: string | null; lines?: string[] }>;
+        }>;
+      },
+    ];
+
+    // Innehållet överlever — och titeln förblir tom, aldrig påhittad.
+    expect(content.sections[0]!.heading).toBe("Referenser");
+    expect(content.sections[0]!.entries[0]!.lines).toContain("Lämnas på begäran.");
+    expect(content.sections[0]!.entries[0]!.title ?? "").toBe("");
+  });
+});
+
 describe("CvCompleteGuide — fria sektioner prefylls (#815)", () => {
   it("PROJEKT från CV:t hamnar i sektionsfältet, med rubriken ordagrant", async () => {
     const user = userEvent.setup();

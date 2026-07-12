@@ -1,5 +1,5 @@
 {
-  "version": "1.1",
+  "version": "1.2",
   "note": "F4-8 deterministic CV segmentation lexicon (ADR 0071/0074, NO AI/LLM). Versioned data, never inline C# strings (CLAUDE.md §5). Section headings (Swedish + English), free-section headings (#815 — recognised so they TERMINATE the preceding section, and carried verbatim as content), and language-detection function words. Own-authored from common CV conventions; no third-party data imported.",
   "headings": {
     "contact": [
@@ -162,12 +162,9 @@
     "utvalda projekt",
     "egna projekt",
     "referenser",
-    "referens",
     "certifieringar",
     "certifikat",
-    "certifiering",
     "kurser",
-    "kurs",
     "vidareutbildning",
     "fortbildning",
     "uppdrag",
@@ -175,25 +172,20 @@
     "fortroendeuppdrag",
     "ideella uppdrag",
     "publikationer",
-    "publikation",
     "utmärkelser",
     "utmarkelser",
     "priser",
     "stipendier",
     "intressen",
     "fritidsintressen",
-    "fritid",
     "övrigt",
     "ovrigt",
-    "körkort",
-    "korkort",
     "projects",
     "selected projects",
     "references",
     "certifications",
     "certificates",
     "courses",
-    "training",
     "assignments",
     "publications",
     "awards",
@@ -201,8 +193,6 @@
     "honors",
     "interests",
     "hobbies",
-    "other",
-    "volunteering",
-    "licenses"
+    "volunteering"
   ]
 }

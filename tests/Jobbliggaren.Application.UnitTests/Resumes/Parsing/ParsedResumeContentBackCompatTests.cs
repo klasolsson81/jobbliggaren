@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Jobbliggaren.Domain.Resumes.Parsing;
+using Jobbliggaren.Infrastructure.Security;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
@@ -16,8 +17,12 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 /// </summary>
 public class ParsedResumeContentBackCompatTests
 {
+    // PRODUKTIONENS serializer, inte en lokal kopia. Ett back-compat-test som kallar sig
+    // "kontraktet" måste köra samma JsonSerializerOptions som den krypterade shadow-kolumnen
+    // faktiskt använder (EncryptedFieldRegistry.ContentJsonOptions) — annars pinnar det en
+    // konfiguration ingen användares data någonsin rör.
     private static readonly JsonSerializerOptions Options =
-        new() { PropertyNameCaseInsensitive = true };
+        EncryptedFieldRegistry.ContentJsonOptions;
 
     [Fact]
     public void Deserialize_LegacyJsonWithoutSectionsKey_YieldsEmptyList_NotNull_NotThrow()

@@ -1376,21 +1376,44 @@ public class ResumeTests
         result.Error.Code.ShouldBe("Resume.SectionHeadingRequired");
     }
 
-    [Fact]
-    public void UpdateMasterContent_WithSectionEntryTitleEmpty_ReturnsSectionEntryTitleRequired()
+    // #815: the invariant flipped. A titleless entry WITH lines is an ordinary CV shape
+    // ("Referenser / Lämnas på begäran."), and the deterministic parser will not invent a
+    // heading for it. Requiring one made the user's own prefilled content unsavable.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void UpdateMasterContent_WithSectionEntryWithoutTitleButWithLines_Succeeds(string? title)
     {
         var resume = CreateValidResume();
         var content = new ResumeContent(
             new PersonalInfo(ValidFullName, null, null, null),
             sections: new[]
             {
-                new ResumeSection("Projekt", new[] { new SectionEntry(string.Empty, ["Rad"]) }),
+                new ResumeSection("Referenser", new[] { new SectionEntry(title, ["Lämnas på begäran."]) }),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithSectionEntryCarryingNeitherTitleNorLines_ReturnsSectionEntryEmpty()
+    {
+        // Det som ALDRIG får passera: en post som inte bär någonting alls.
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            sections: new[]
+            {
+                new ResumeSection("Projekt", new[] { new SectionEntry(null, ["   "]) }),
             });
 
         var result = resume.UpdateMasterContent(content, Clock);
 
         result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Resume.SectionEntryTitleRequired");
+        result.Error.Code.ShouldBe("Resume.SectionEntryEmpty");
     }
 
     [Fact]

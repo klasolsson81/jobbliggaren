@@ -141,6 +141,58 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
     });
   });
 
+  // #823 — min-längdsgrinden. Backend avvisar q kortare än 2 tecken
+  // (SearchCriteria.QMinLength; ett enteckens q matchar närapå hela tabellen).
+  // Utan grinden navigerade heron till ?q=a, fick 400 och renderade teknisk-fel-
+  // kortet — och eftersom commit() också driver live-deltat slog det till redan vid
+  // FÖRSTA tecknet i ett nytt sökord. Grinden sitter i commit() (enda
+  // navigeringspunkten), så testerna nedan täcker både Sök-knappen och live-vägen.
+  describe("min-längd på söktexten (#823)", () => {
+    it("Sök med ett tecken navigerar INTE och visar vägledningen", async () => {
+      const user = userEvent.setup();
+      setup();
+
+      await user.type(screen.getByRole("combobox"), "a");
+      await user.click(screen.getByRole("button", { name: /^Sök/ }));
+
+      expect(replaceMock).not.toHaveBeenCalled();
+      expect(
+        screen.getByText(/Söktexten måste vara minst 2 tecken/),
+      ).toBeInTheDocument();
+    });
+
+    it("ett andra tecken släpper igenom söket och notisen försvinner", async () => {
+      const user = userEvent.setup();
+      setup();
+
+      await user.type(screen.getByRole("combobox"), "a");
+      await user.click(screen.getByRole("button", { name: /^Sök/ }));
+      expect(replaceMock).not.toHaveBeenCalled();
+
+      await user.type(screen.getByRole("combobox"), "b");
+      await user.click(screen.getByRole("button", { name: /^Sök/ }));
+
+      expect(replaceMock).toHaveBeenCalledWith("/jobb?q=ab&commit=true", {
+        scroll: false,
+      });
+      expect(
+        screen.queryByText(/Söktexten måste vara minst 2 tecken/),
+      ).toBeNull();
+    });
+
+    it("tomt q (×-clear / ren filter-commit) passerar grinden", async () => {
+      const user = userEvent.setup();
+      setup({ q: "volvo" });
+
+      await user.click(screen.getByRole("button", { name: "Rensa sökfältet" }));
+
+      // Tomt q är giltigt för backend — grinden får inte hålla kvar rensningen.
+      expect(replaceMock).toHaveBeenCalled();
+      const [href] = replaceMock.mock.calls[0] ?? [];
+      expect(String(href)).not.toContain("q=");
+    });
+  });
+
   it("live-typing (mellanslag) committar UTAN commit-intent — ingen capture", async () => {
     const user = userEvent.setup();
     setup();

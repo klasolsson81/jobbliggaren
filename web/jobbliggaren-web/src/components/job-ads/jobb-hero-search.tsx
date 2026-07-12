@@ -12,6 +12,7 @@ import { useTranslations } from "next-intl";
 import { Search, X } from "lucide-react";
 import {
   Q_MAX_LENGTH,
+  Q_MIN_LENGTH,
   type JobAdSortBy,
   type SuggestionDto,
 } from "@/lib/dto/job-ads";
@@ -167,7 +168,11 @@ export function JobbHeroSearch({
     serializeSearchText(base, resolveLabel, labelIndex),
   );
   const [caret, setCaret] = useState<number | null>(null);
-  const [limitNotice, setLimitNotice] = useState(false);
+  // Hjälpradens notis-slot. Ett värde i taget: "limit" = söktexten är full
+  // (Q_MAX_LENGTH), "tooShort" = söktexten är kortare än Q_MIN_LENGTH (#823).
+  // Båda vaktar samma sak — att navigera med ett q som backend avvisar (400) och
+  // därmed måla teknisk-fel-kortet mitt i skrivflödet.
+  const [notice, setNotice] = useState<"limit" | "tooShort" | null>(null);
   const [announcement, setAnnouncement] = useState("");
 
   // #419 pt6 (CTO A1) — "är det här söket sparat i Senaste sökningar?". SSOT-signalen
@@ -249,7 +254,7 @@ export function JobbHeroSearch({
       );
       setText(nextText);
       setPrevClaims(parseSearchText(nextText, labelIndex, null));
-      setLimitNotice(false);
+      setNotice(null);
       setCaret(null);
       setAnnouncement("");
       setLastCommitted(base);
@@ -269,6 +274,19 @@ export function JobbHeroSearch({
   // sameUrlState (transient signal) — den adderas bara på navigerings-
   // strängen och strippas efter mount (StripCommitParam).
   function commit(next: JobbUrlState, announce: string, markCommit = false) {
+    // #823 — min-längdsgrinden sitter HÄR för att commit() är den enda
+    // navigeringspunkten: live-delta (runDelta), Enter/Sök, förslags-val och
+    // ×-clear går alla igenom den. Ett q under backendens minimum (2 tecken)
+    // navigerar annars till ?q=a, får 400 av ListJobAdsQueryValidator och målar
+    // teknisk-fel-kortet — redan vid FÖRSTA tecknet i ett nytt sökord. Håll
+    // navigeringen, visa vägledningen i hjälpraden i stället. Tomt q (×-clear,
+    // ren filter-commit) är giltigt och passerar.
+    const pendingQ = next.q.trim();
+    if (pendingQ.length > 0 && pendingQ.length < Q_MIN_LENGTH) {
+      setNotice("tooShort");
+      return;
+    }
+
     setLastCommitted(next);
     setRecentCommits((prev) => [...prev, next].slice(-10));
     // #419 pt6 (CTO A1) — ETT ställe för spar-signalen: en avsiktlig commit (markCommit)
@@ -289,7 +307,7 @@ export function JobbHeroSearch({
     const claims = parseSearchText(nextText, labelIndex, caretIndex);
     const result = applyClaimsDelta(lastCommitted, prevClaims, claims, taxonomy);
     setPrevClaims(result.appliedClaims);
-    setLimitNotice(result.rejectedQ.length > 0);
+    setNotice(result.rejectedQ.length > 0 ? "limit" : null);
     if (!sameUrlState(result.next, lastCommitted)) {
       commit(
         result.next,
@@ -360,7 +378,7 @@ export function JobbHeroSearch({
     setText(nextText);
     setCaret(null);
     setPrevClaims(delta.appliedClaims);
-    setLimitNotice(delta.rejectedQ.length > 0);
+    setNotice(delta.rejectedQ.length > 0 ? "limit" : null);
     // Förslags-val är en commit-punkt (E2j): committa ALLTID med commit-intent
     // så sökningen auto-capturas — även i det sällsynta fall valet inte
     // ändrar filter-staten (re-val av redan applicerat förslag = "kör igen").
@@ -380,7 +398,7 @@ export function JobbHeroSearch({
     const claims = parseSearchText(text, labelIndex, null);
     const result = applyClaimsDelta(lastCommitted, prevClaims, claims, taxonomy);
     setPrevClaims(result.appliedClaims);
-    setLimitNotice(result.rejectedQ.length > 0);
+    setNotice(result.rejectedQ.length > 0 ? "limit" : null);
     commit(
       result.next,
       [
@@ -406,7 +424,7 @@ export function JobbHeroSearch({
     setText("");
     setCaret(null);
     setPrevClaims(EMPTY_CLAIMS);
-    setLimitNotice(false);
+    setNotice(null);
     commit(delta.next, t("heroSearch.announceCleared"), true);
   }
 
@@ -504,11 +522,13 @@ export function JobbHeroSearch({
         </button>
       </div>
       {/* Hjälptext bär tagg-/Tab-instruktionen (ALDRIG placeholder — Klas
-          hård regel). role="status" så q-max-skiftet annonseras. */}
+          hård regel). role="status" så notis-skiftet (q-max/q-min) annonseras. */}
       <p id={helpId} role="status" className="jp-hero__searchhelp">
-        {limitNotice
+        {notice === "limit"
           ? t("heroSearch.limitNotice", { max: Q_MAX_LENGTH })
-          : t("heroSearch.help")}
+          : notice === "tooShort"
+            ? t("heroSearch.minNotice", { min: Q_MIN_LENGTH })
+            : t("heroSearch.help")}
       </p>
 
       {/* #419 pt6 (Klas + CTO A1) — "Spara sökningen"-länken: diskret text-knapp

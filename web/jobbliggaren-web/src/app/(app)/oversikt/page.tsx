@@ -7,6 +7,7 @@ import { getRecentSearches } from "@/lib/api/recent-searches";
 import { getResumes } from "@/lib/api/resumes";
 import { getMatchCount } from "@/lib/api/match-count";
 import { getNewMatchCount } from "@/lib/api/me-matches";
+import { getNewFollowedCompanyAdCount } from "@/lib/api/company-follows";
 import { fetchLandingStats } from "@/lib/api/landing";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { hasSeenSetupWelcome } from "@/lib/onboarding/setup-welcome";
@@ -53,6 +54,7 @@ export default async function OversiktRoute({
     landingStats,
     matchCount,
     newMatchCount,
+    newFollowedCompanyAdCount,
   ] = await Promise.all([
     getMyProfile(),
     getPipeline(),
@@ -78,6 +80,11 @@ export default async function OversiktRoute({
     // Promise.all eller redirecta — det löses till 0 nedan så raden alltid visar
     // en honest siffra och resten av sidan renderar.
     getNewMatchCount(),
+    // Bevakning F2 (#801, RF-6=6B) — "Nya annonser från bevakade företag"-count (nya sedan senaste
+    // /foretag-besök) för Sammanfattningens Bevakning-rad. Degraderar CIVILT och OBEROENDE precis som
+    // `getNewMatchCount`: ett fel får aldrig reject:a Promise.all eller redirecta — det löses till 0
+    // nedan så raden alltid visar en honest siffra och resten av sidan renderar.
+    getNewFollowedCompanyAdCount(),
   ]);
 
   // Unauthorized mid-render (token expired mellan layout-check och här):
@@ -108,6 +115,13 @@ export default async function OversiktRoute({
   // kritisk yta, paritet `matchCount`).
   const newMatchCountValue =
     newMatchCount.kind === "ok" ? newMatchCount.data.count : 0;
+
+  // Bevakning F2 (#801, RF-6=6B) — live "Nya annonser från bevakade företag"-count → number. Endast
+  // `ok` ger den riktiga siffran; alla andra Result-kinds (unauthorized mid-render / rateLimited /
+  // error) degraderar till 0 (honest fallback — raden visar alltid en siffra, aldrig en mock). En
+  // unauthorized HÄR driver ingen redirect (icke-kritisk yta, paritet `newMatchCount`).
+  const newFollowedCompanyAdCountValue =
+    newFollowedCompanyAdCount.kind === "ok" ? newFollowedCompanyAdCount.data.count : 0;
 
   // ADR 0077 STEG 5 — välkomst-/första-setup-modal. Visas bara när profilen
   // laddats, inget yrke ännu angetts (`hasStatedDesiredOccupation`) OCH cookien
@@ -153,6 +167,7 @@ export default async function OversiktRoute({
         landingStats={landingStats}
         matchCount={matchCountValue}
         newMatchCount={newMatchCountValue}
+        newFollowedCompanyAdCount={newFollowedCompanyAdCountValue}
       />
       {shouldMountSetup && taxonomy !== null && profile.kind === "ok" && (
         <MatchSetupLauncher

@@ -61,6 +61,11 @@ public sealed class JobSeekerConfiguration : IEntityTypeConfiguration<JobSeeker>
         // ADR 0087 D5 (#311 PR-4) — company-follow scan high-water-mark (first-class nullable
         // column, sibling of last_match_scan_at; advanced atomically by CompanyWatchScanJob).
         builder.Property(js => js.LastCompanyWatchScanAt);
+        // Bevakning F2 (#801, RF-6=6B) — company-follow USER-read watermark for the in-app follow
+        // rail (first-class nullable column, sibling of last_seen_matches_at/last_seen_jobs_at;
+        // advanced when the user visits /foretag). DISTINCT from last_company_watch_scan_at above
+        // (system scan mark) — see JobSeeker.cs field comment.
+        builder.Property(js => js.LastSeenFollowedAdsAt);
 
         builder.Property(js => js.CreatedAt).IsRequired();
         builder.Property(js => js.UpdatedAt);

@@ -21,6 +21,13 @@ interface SummaryProps {
    * renderas som "0"; aldrig en mock-siffra. Raden länkar till /matchningar.
    */
   readonly newMatchCount: number;
+  /**
+   * Bevakning F2 (#801, RF-6=6B) — antalet nya annonser från bevakade företag
+   * NYA sedan senaste /foretag-besök (live `GET /me/followed-company-ads/new-count`).
+   * `0` är ett honest svar (inget nytt) och renderas som "0"; aldrig en mock-siffra.
+   * Raden länkar till /foretag (syskon till "Nya matchningar" → /matchningar).
+   */
+  readonly newFollowedCompanyAdCount: number;
   readonly cvCount: number;
   readonly personalLettersCount: number;
   readonly lastUpdatedCvDate: string | null;
@@ -42,6 +49,7 @@ export function Summary({
   lastSearchName,
   activeJobAdsTotal,
   newMatchCount,
+  newFollowedCompanyAdCount,
   cvCount,
   personalLettersCount,
   lastUpdatedCvDate,
@@ -109,6 +117,15 @@ export function Summary({
           value={formatNumber(format, newMatchCount)}
           hint={t("summary.hintSinceLastVisit")}
           href="/matchningar"
+        />
+        {/* Bevakning F2 (#801, RF-6=6B) — nya annonser från bevakade företag, syskon till
+            "Nya matchningar": ny-sedan-besök-räknare som länkar till follows-hubben. Watermarket
+            avancerar när /foretag öppnas. */}
+        <SummaryRow
+          label={t("summary.rowNewFollowedAds")}
+          value={formatNumber(format, newFollowedCompanyAdCount)}
+          hint={t("summary.hintSinceLastVisit")}
+          href="/foretag"
         />
         <SummaryRow
           label={t("summary.rowActiveJobAdsTotal")}

@@ -5,7 +5,7 @@ namespace Jobbliggaren.Application.Common.Security;
 /// <summary>
 /// TD-13 (ADR 0049 Beslut 1, CTO-triage FRÅGA 1) — scoped memoisering av
 /// unwrappad plaintext-DEK per <see cref="JobSeekerId"/> inom ETT
-/// SaveChanges-/request-scope. Undviker ett KMS <c>Decrypt</c>-anrop per rad
+/// SaveChanges-/request-scope. Undviker ett DEK-unwrap-anrop per rad
 /// (latens/kostnad/throttle). <b>Ingen process-wide static / <c>AsyncLocal</c></b>
 /// — nyckelmaterialets livslängd = scopets livslängd.
 ///
@@ -21,7 +21,7 @@ public interface IUserDataKeyCache : IDisposable
     /// <summary>
     /// Returnerar en kopia av den cachade plaintext-DEK:en för
     /// <paramref name="owner"/>; kör annars <paramref name="unwrapFactory"/>
-    /// (KMS unwrap/create) exakt en gång, cachar resultatet och returnerar en
+    /// (DEK unwrap/create) exakt en gång, cachar resultatet och returnerar en
     /// kopia. Cachen äger sin buffert (nollas vid dispose); anroparen får en
     /// oberoende kopia.
     /// </summary>

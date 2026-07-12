@@ -3,7 +3,7 @@ namespace Jobbliggaren.Application.Common.Security;
 /// <summary>
 /// TD-13 (ADR 0049) — symmetrisk fält-kryptering med en data-encryption-key
 /// (DEK). Ren krypto-primitiv: ingen AWS-bagage, ingen DEK-livscykel. DEK:en
-/// kommer från <see cref="IDataKeyProvider"/> (KMS-envelope). Output bär
+/// kommer från <see cref="IDataKeyProvider"/> (envelope-wrappad). Output bär
 /// sentinel-/versionsprefix (<c>v1:</c>) så read-path kan disambiguera
 /// krypterat från klartext-legacy och bära DEK-version för key-rotation
 /// (ADR 0049 Beslut 4, mekanik-not 2026-05-18).

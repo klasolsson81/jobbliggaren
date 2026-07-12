@@ -29,13 +29,22 @@ public sealed class WorkerTestFixture : IAsyncLifetime
     public string ConnectionString { get; private set; } = string.Empty;
 
     /// <summary>
-    /// TD-13 C2 Seam 1 — den delade deterministiska fake-KMS som hela
-    /// <see cref="Services"/>-grafen kör. Scenario 7 mäter cache-memoisering
-    /// mot <see cref="DeterministicFakeKms.DecryptCallCount"/> (Worker-collection
-    /// är seriell ⇒ deterministisk). Scenario 9 (fail-closed) använder INTE
-    /// denna — den direkt-konstruerar store+cache+failing-KMS.
+    /// ADR 0066 — deterministisk 32-byte AES-256 test-master-nyckel för den
+    /// lokala envelope-krypteringen (round-trip kräver bara SAMMA nyckel inom
+    /// host-livstiden, inte en specifik). Ersätter den tidigare fake-KMS:en.
     /// </summary>
-    public DeterministicFakeKms FakeKms { get; } = new();
+    internal static readonly string TestMasterKeyBase64 =
+        Convert.ToBase64String(Enumerable.Range(0, 32).Select(i => (byte)i).ToArray());
+
+    /// <summary>
+    /// ADR 0066 — räknande <see cref="Application.Common.Security.IDataKeyProvider"/>-
+    /// dekoratör runt den riktiga <c>LocalDataKeyProvider</c> som hela
+    /// <see cref="Services"/>-grafen kör. Scenario 7 mäter cache-memoisering mot
+    /// <see cref="CountingDataKeyProvider.UnwrapCount"/> (Worker-collection är
+    /// seriell ⇒ deterministisk). Scenario 9 (fail-closed) använder INTE denna —
+    /// den direkt-konstruerar store+cache+failing-provider.
+    /// </summary>
+    public CountingDataKeyProvider Deks => Services.GetRequiredService<CountingDataKeyProvider>();
 
     public async ValueTask InitializeAsync()
     {
@@ -46,13 +55,13 @@ public sealed class WorkerTestFixture : IAsyncLifetime
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Postgres"] = ConnectionString,
-                // TD-13 C2 Seam 1: FieldEncryptionOptions.CmkKeyId har
-                // .ValidateOnStart() (fail-closed) — KMS-klienten fakas ändå
-                // (sista-vinner-singleton nedan), men options-validering kräver
-                // ett icke-tomt CMK-id i testkonfigen.
-                ["FieldEncryption:CmkKeyId"] =
-                    "arn:aws:kms:eu-north-1:000000000000:key/td13-test-cmk",
-                ["FieldEncryption:AwsRegion"] = "eu-north-1",
+                // ADR 0066 — lokal envelope. FieldEncryptionOptionsValidator har
+                // .ValidateOnStart() (fail-closed) och kräver en giltig 32-byte
+                // master-nyckel i ALLA miljöer; grafen kör den räknande
+                // dekoratören runt den riktiga LocalDataKeyProvider (sista-vinner
+                // nedan). Provider="Local" är default men sätts explicit här.
+                ["FieldEncryption:Provider"] = "Local",
+                ["FieldEncryption:LocalMasterKeyBase64"] = TestMasterKeyBase64,
             })
             .Build();
 
@@ -127,20 +136,26 @@ public sealed class WorkerTestFixture : IAsyncLifetime
         });
         services.AddMediatorPipelineBehaviors();
 
-        // TD-13 C2 Seam 1 (architect-domen 2026-05-18, Variant A): sista-vinner-
-        // registrering ⇒ hela grafen (KmsDataKeyProvider → UserDataKeyStore →
-        // ScopedUserDataKeyCache) kör den delade deterministiska fake-KMS:en.
+        // ADR 0066 (#802) — sista-vinner-registrering ⇒ hela grafen
+        // (LocalDataKeyProvider → UserDataKeyStore → ScopedUserDataKeyCache) kör
+        // den räknande dekoratören runt den RIKTIGA LocalDataKeyProvider.
         // Produktkod orörd, ingen prod-override-yta. AddPersistence registrerar
-        // riktig AmazonKeyManagementServiceClient (DI rad 316) — denna
-        // singleton-registrering läggs EFTER och vinner i DI-upplösning.
-        services.AddSingleton<Amazon.KeyManagementService.IAmazonKeyManagementService>(
-            _ => FakeKms.Substitute);
+        // LocalDataKeyProvider som IDataKeyProvider — denna registrering läggs
+        // EFTER och vinner. CountingDataKeyProvider.UnwrapCount ger scenario 7:s
+        // memoiserings-mätpunkt (ersätter DeterministicFakeKms.DecryptCallCount).
+        services.AddSingleton<CountingDataKeyProvider>(sp =>
+            new CountingDataKeyProvider(
+                ActivatorUtilities.CreateInstance<
+                    Jobbliggaren.Infrastructure.Security.LocalDataKeyProvider>(sp)));
+        services.AddSingleton<Jobbliggaren.Application.Common.Security.IDataKeyProvider>(
+            sp => sp.GetRequiredService<CountingDataKeyProvider>());
 
-        // TD-13 hotfix Approach D: FieldEncryptionOptionsValidator tar
-        // IHostEnvironment (riktig Worker/Api kör generic host som ger den).
-        // Denna fixture bygger en bar ServiceCollection utan host → registrera
-        // en Test-env explicit (IsProduction/IsStaging = false → validator
-        // loggar warning + Success; CmkKeyId-dummyn ovan gör den Success ändå).
+        // Riktig Worker/Api kör generic host som ger IHostEnvironment; vissa
+        // seedrar (IdempotentAdminRoleSeeder / TaxonomySnapshotSeeder) tar den via
+        // ctor. Denna fixture bygger en bar ServiceCollection utan host →
+        // registrera en Test-env explicit. (FieldEncryptionOptionsValidator tar
+        // den INTE längre efter KMS-borttaget #802 — registreringen är kvar för
+        // host-paritet.)
         services.AddSingleton<Microsoft.Extensions.Hosting.IHostEnvironment>(
             new Microsoft.Extensions.Hosting.Internal.HostingEnvironment
             {

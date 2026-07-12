@@ -361,6 +361,16 @@ in-block (CTO axel 6) men `.github/`-touch kräver egen Klas-GO + egen
 PR). `AWSSDK.KeyManagementService` BEHÅLLS (KMS referens-impl, ADR 0066-
 reversibilitet). `AWSSDK.SecretsManager` rensas när Migrate re-homas (TD-105).
 
+> **Truth-sync 2026-07-12 (#802):** ovanstående "`AWSSDK.KeyManagementService`
+> BEHÅLLS ... ADR 0066-reversibilitet" gäller **inte längre**. Klas bekräftade
+> "no AWS, ever" (2026-07-12) → `AWSSDK.KeyManagementService` + `AWSSDK.Core` +
+> `KmsDataKeyProvider` är borttagna; fält-krypteringen är **Local-only**
+> (`LocalDataKeyProvider`), Provider-default `"Local"` med DI-fail-fast på ett
+> explicit icke-Local-värde. Lösningen har nu **0 Amazon-paket**. Config-switchen
+> `FieldEncryption:Provider "Kms"/"Local"` (nämnd tidigare i denna ADR) är
+> reducerad till enbart `"Local"`. Prod-master-nyckelns skyddsmodell kvarstår
+> **TD-102** — självständig från den borttagna KMS-providern.
+
 ## Relaterade beslut
 
 - **ADR 0005** — kostnadsskydd/launch-gating. Post-migration blir Budget

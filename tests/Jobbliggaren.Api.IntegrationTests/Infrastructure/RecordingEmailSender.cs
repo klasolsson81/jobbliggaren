@@ -5,7 +5,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Infrastructure;
 
 /// <summary>
 /// #241 — deterministic recording fake for <see cref="IEmailSender"/> in Api integration.
-/// Registered last-wins in <see cref="ApiFactory"/> (parity with <see cref="ApiKmsFake"/>) so the
+/// Registered last-wins in <see cref="ApiFactory"/> (parity with <see cref="RecordingBackgroundJobController"/>) so the
 /// integration host NEVER composes the real transactional provider. Without it, a gitignored
 /// <c>appsettings.Local.json</c> carrying <c>Email:Provider=Resend</c> + a live key makes the host
 /// resolve <c>ResendEmailSender</c>; Resend's test-mode only sends to the account owner, so any

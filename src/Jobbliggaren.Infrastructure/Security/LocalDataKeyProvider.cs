@@ -8,17 +8,17 @@ using Microsoft.Extensions.Options;
 namespace Jobbliggaren.Infrastructure.Security;
 
 /// <summary>
-/// ADR 0066 (AWS-avveckling) — lokal/Hetzner-ersättare för
-/// <see cref="KmsDataKeyProvider"/>. Implementerar samma envelope-kontrakt
-/// (<see cref="IDataKeyProvider"/>) men wrappar per-användar-DEK:en med en
-/// lokal AES-256-GCM master-nyckel istället för AWS KMS. Vald via
-/// <c>FieldEncryption:Provider="Local"</c> (DI-switch i AddPersistence).
+/// ADR 0066 (AWS-avveckling) — sedan #802 den enda
+/// <see cref="IDataKeyProvider"/>-implementationen (den tidigare AWS-KMS-baserade
+/// providern är borttagen). Wrappar per-användar-DEK:en med en lokal
+/// AES-256-GCM master-nyckel istället för AWS KMS. Default-provider; ett explicit
+/// <c>FieldEncryption:Provider</c> ≠ <c>"Local"</c> fail-fastar i AddPersistence.
 ///
 /// <para>
 /// <b>Envelope bevarad:</b> per-JobSeeker genereras en 32-byte DEK
 /// (<see cref="RandomNumberGenerator"/>); DEK:en wrappas med master-nyckeln och
 /// lagras i <c>user_data_keys</c> precis som KMS-varianten. Fält-krypteringen
-/// (<see cref="IFieldEncryptor"/>/<see cref="KmsEnvelopeEncryptor"/>) är
+/// (<see cref="IFieldEncryptor"/>/<see cref="AesGcmFieldEncryptor"/>) är
 /// oförändrad — bara DEK-wrap byter mekanism. Detta är inte bara en dev-hack:
 /// samma mönster bär Hetzner-prod-kryptering utan KMS (master-nyckel injicerad
 /// via env/secret).
@@ -68,7 +68,7 @@ public sealed partial class LocalDataKeyProvider : IDataKeyProvider
     {
         _logger = logger;
 
-        // Re-guard förbi options-pipelinen (paritet KmsEnvelopeEncryptor.
+        // Re-guard förbi options-pipelinen (paritet AesGcmFieldEncryptor.
         // EnsureAes256Dek): master-nyckeln MÅSTE vara 32 byte. Fel-längd/format
         // → fail-closed redan vid konstruktion. Ingen nyckel-byte i message.
         var base64 = options.Value.LocalMasterKeyBase64;

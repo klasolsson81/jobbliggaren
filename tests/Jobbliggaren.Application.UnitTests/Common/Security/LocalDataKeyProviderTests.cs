@@ -10,10 +10,11 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Common.Security;
 
 /// <summary>
-/// ADR 0066 (AWS-avveckling) — LocalDataKeyProvider (IDataKeyProvider) som
-/// wrappar per-användar-DEK:en med en lokal AES-256-GCM master-nyckel istället
-/// för AWS KMS. Verifierar samma envelope-kontrakt som KmsDataKeyProvider:
-/// 32-byte DEK, owner-AAD-binding (cross-owner-unwrap hindras), fail-closed
+/// ADR 0066 (AWS-avveckling) / #802 — LocalDataKeyProvider (IDataKeyProvider),
+/// sedan #802 den enda DEK-providern, wrappar per-användar-DEK:en med en lokal
+/// AES-256-GCM master-nyckel (den tidigare AWS-KMS-providern är borttagen).
+/// Verifierar envelope-kontraktet: 32-byte DEK, owner-AAD-binding
+/// (cross-owner-unwrap hindras), fail-closed
 /// auth-tag/format-fel (ADR 0049 Beslut 4, CTO-domen 2026-05-18 — ingen
 /// klartext-fallback) och crypto-agility-prefix [0x4C, 0x01].
 ///

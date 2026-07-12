@@ -524,7 +524,7 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `PATCH /api/v1/applications/{id}` (notes, attach resume version, cover letter)
 - `POST /api/v1/applications/{id}/submit`
 - `POST /api/v1/applications/{id}/transition` (body: `{ status, occurredAt }`)
-- `DELETE /api/v1/applications/{id}` (soft delete)
+- `DELETE /api/v1/applications/{id}` (användar-initierad **hard delete**, #782/ADR 0104 — se §7.3)
 - `POST /api/v1/applications/{id}/follow-ups`
 - `GET /api/v1/applications/{id}/follow-ups`
 - `POST /api/v1/applications/{id}/notes`
@@ -783,6 +783,13 @@ Alla FK-kolumner har index. Utöver det:
 - Hard delete efter 30 dagar via schedulerad Hangfire-job
 - `DELETE /me` sätter `deleted_at` på alla aggregat tillhörande användaren
 - Restore-endpoint (`POST /api/v1/admin/users/{id}/restore`) återställer inom 30 dagar
+- **Undantag — användar-initierad per-ansökan-radering** (#782/ADR 0104): `DELETE
+  /api/v1/applications/{id}` ("Radera ansökan") är en **hard delete** — raden + barnen
+  (follow_ups/application_notes/application_status_changes via FK-cascade) tas bort
+  omedelbart, audit-raden (`Application.Deleted`) överlever (Art. 5(2)). INTE soft:
+  copyn lovar "kan inte ångras", ingen per-ansökan-sweeper finns, och GDPR-minimering
+  (Art. 5(1)(c)/(e)) gynnas av omedelbar utplåning. Konto-nivåns `SoftDelete`-cascade
+  (ADR 0024) och aggregatets `Application.SoftDelete` är orörda.
 
 ### 7.4 Migrations
 

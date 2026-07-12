@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { FollowUpsSection } from "./follow-ups-section";
 import type { FollowUpDto } from "@/lib/types/applications";
 
@@ -53,7 +53,9 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
         followUps={[pendingFollowUp()]}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    fireEvent.click(
+      within(screen.getByRole("list")).getByRole("button", { expanded: false }),
+    );
     expect(screen.getByLabelText("Utfall")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Spara utfall/ }),
@@ -67,7 +69,9 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
         followUps={[respondedFollowUp()]}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    fireEvent.click(
+      within(screen.getByRole("list")).getByRole("button", { expanded: false }),
+    );
     expect(screen.queryByLabelText("Utfall")).not.toBeInTheDocument();
     // Outcome-label syns som text i body.
     expect(screen.getAllByText("Svar mottaget").length).toBeGreaterThan(0);
@@ -80,7 +84,11 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
         followUps={[pendingFollowUp(), respondedFollowUp()]}
       />,
     );
-    const rows = screen.getAllByRole("button", { expanded: false });
+    // #805 punkt 5: "?"-triggern i sektionsetiketten bär också aria-expanded →
+    // scopa till listan så bara uppföljningsraderna räknas.
+    const rows = within(screen.getByRole("list")).getAllByRole("button", {
+      expanded: false,
+    });
     fireEvent.click(rows[0]!);
     fireEvent.click(rows[1]!);
     const expanded = screen.getAllByRole("button", { expanded: true });
@@ -94,10 +102,14 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
         followUps={[pendingFollowUp()]}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    fireEvent.click(
+      within(screen.getByRole("list")).getByRole("button", { expanded: false }),
+    );
     expect(screen.getByRole("button", { expanded: true })).toBeInTheDocument();
     fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.getByRole("button", { expanded: false })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("list")).getByRole("button", { expanded: false }),
+    ).toBeInTheDocument();
   });
 
   it("default visar '+ Lägg till uppföljning'-knapp, ej form", () => {

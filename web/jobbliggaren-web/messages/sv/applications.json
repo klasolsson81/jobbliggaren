@@ -234,7 +234,13 @@
       "addLog": "+ Lägg till",
       "addHeading": "Lägg till uppföljning",
       "outcomeLabel": "Utfall:",
-      "noteLabel": "Anteckning:"
+      "noteLabel": "Anteckning:",
+      "help": {
+        "title": "Uppföljning eller anteckning?",
+        "p1": "En uppföljning betyder att du agerat, till exempel ringt eller mejlat arbetsgivaren. Den räknar om väntetiden så att ansökan kan lämna åtgärdskön.",
+        "p2": "Vill du bara spara en privat minnesanteckning som inte påverkar väntetiden använder du Anteckningar i stället.",
+        "aria": "Vad är detta? Skillnaden mellan uppföljning och anteckning"
+      }
     },
     "harAnsokt": {
       "applied": "Ansökt",
@@ -272,7 +278,13 @@
       "sectionLabel": "Anteckningar",
       "empty": "Inga anteckningar ännu.",
       "add": "+ Lägg till anteckning",
-      "addHeading": "Lägg till anteckning"
+      "addHeading": "Lägg till anteckning",
+      "help": {
+        "title": "Anteckning eller uppföljning?",
+        "p1": "En anteckning är en privat minnesanteckning för dig själv. Den påverkar inte väntetiden eller åtgärdskön.",
+        "p2": "Har du kontaktat arbetsgivaren loggar du i stället en uppföljning, som räknar om väntetiden.",
+        "aria": "Vad är detta? Skillnaden mellan anteckning och uppföljning"
+      }
     },
     "recordOutcome": {
       "notice": "Utfallet kan inte ändras när det har sparats. Kontrollera att det stämmer innan du sparar.",

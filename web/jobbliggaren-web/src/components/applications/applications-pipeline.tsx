@@ -164,7 +164,9 @@ export function ApplicationsPipeline({
               N aktiva") — undvik dubbelräkning i rubriken. */}
           {view === "lista" && (
             <>
-              <span className="jp-section__count">{shownTotal}</span>
+              {/* #805 punkt 2: inline "(N)" intill rubriken — samma form som
+                  status-sektionerna och Tavla-kolumnerna (3-vy-konsekvens). */}
+              <span className="jp-section__count">({shownTotal})</span>
               <span className="jp-section__hint">{tUi("all.hint")}</span>
             </>
           )}

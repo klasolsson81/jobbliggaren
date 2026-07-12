@@ -5,6 +5,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { AddFollowUpForm } from "./add-follow-up-form";
 import { RecordFollowUpOutcomeForm } from "./record-follow-up-outcome-form";
+import { InfoDialog } from "@/components/common/info-dialog";
 import {
   channelLabel,
   followUpOutcomeLabel,
@@ -83,7 +84,20 @@ export function FollowUpsSection({
   return (
     <div>
       <div className="jp-section-label jp-section-label--row">
-        {tUi("followUps.sectionLabel")}
+        {/* #805 punkt 5: inline "?"-hjälp bunden till etiketten förklarar
+            skillnaden uppföljning vs anteckning (inline-help-doktrin, #408).
+            Ligger i den DELADE sektionen så både detaljsidan och drawern får
+            den. Uppföljning = du agerade → väntetiden räknas om; anteckning =
+            privat minnesanteckning utan tidseffekt. */}
+        <span className="jp-labelhelp">
+          {tUi("followUps.sectionLabel")}
+          <InfoDialog
+            title={tUi("followUps.help.title")}
+            paragraphs={[tUi("followUps.help.p1"), tUi("followUps.help.p2")]}
+            ariaLabel={tUi("followUps.help.aria")}
+            triggerClassName="jp-labelhelp__trigger"
+          />
+        </span>
         {headerAction}
       </div>
 

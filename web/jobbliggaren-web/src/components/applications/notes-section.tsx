@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { AddNoteForm } from "./add-note-form";
+import { InfoDialog } from "@/components/common/info-dialog";
 import { formatDate } from "@/lib/i18n/format";
 import type { NoteDto } from "@/lib/types/applications";
 
@@ -46,7 +47,20 @@ export function NotesSection({ applicationId, notes }: NotesSectionProps) {
 
   return (
     <div>
-      <div className="jp-section-label">{tUi("notes.sectionLabel")}</div>
+      {/* #805 punkt 5: inline "?"-hjälp bunden till etiketten (samma doktrin som
+          uppföljningar) — förklarar att en anteckning är privat och inte
+          påverkar väntetiden/åtgärdskön (till skillnad från en uppföljning). */}
+      <div className="jp-section-label jp-section-label--row">
+        <span className="jp-labelhelp">
+          {tUi("notes.sectionLabel")}
+          <InfoDialog
+            title={tUi("notes.help.title")}
+            paragraphs={[tUi("notes.help.p1"), tUi("notes.help.p2")]}
+            ariaLabel={tUi("notes.help.aria")}
+            triggerClassName="jp-labelhelp__trigger"
+          />
+        </span>
+      </div>
 
       {sorted.length === 0 ? (
         <p className="text-body-sm text-text-primary">

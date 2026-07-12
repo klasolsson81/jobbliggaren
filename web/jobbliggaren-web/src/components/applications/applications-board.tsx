@@ -262,7 +262,9 @@ function BoardColumn({
         <span className="jp-board-col__name jp-mono" title={label}>
           {label}
         </span>
-        <span className="jp-board-col__count">{apps.length}</span>
+        {/* #805 punkt 2: antalet inline "(N)" intill kolumnnamnet (var tidigare
+            en chip-pill) → samma form som Lista/Alla-vyerna (3-vy-konsekvens). */}
+        <span className="jp-board-col__count">({apps.length})</span>
       </div>
       <div className="jp-board-col__list">
         {apps.length === 0 ? (

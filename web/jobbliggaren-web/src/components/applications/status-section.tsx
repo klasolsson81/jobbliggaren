@@ -96,7 +96,11 @@ export function StatusSection({
             aria-hidden="true"
           />
           <span className="jp-section__title-text">{label}</span>
-          <span className="jp-section__count">{shown}</span>
+          {/* #805 punkt 2: antalet inline "Skickad (1)" intill etiketten (var
+              tidigare långt till höger via margin-left:auto). Samma inline-(N)-
+              form som "Alla ansökningar (N)" och Tavla-kolumnerna → de tre
+              vyerna läser konsistent. */}
+          <span className="jp-section__count">({shown})</span>
           {!open && (
             <span className="jp-section__closedhint">
               {tUi("pipeline.clickToShow")}

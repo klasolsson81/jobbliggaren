@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { NotesSection } from "./notes-section";
 import type { NoteDto } from "@/lib/types/applications";
 
@@ -29,7 +29,11 @@ describe("NotesSection — disclosure-mönster (Prompt 4)", () => {
     render(
       <NotesSection applicationId="app-1" notes={[baseNote()]} />,
     );
-    const row = screen.getByRole("button", { expanded: false });
+    // #805 punkt 5: sektionsetiketten bär nu en InfoDialog-"?"-trigger (även
+    // aria-expanded) utanför listan → scopa rad-queryn till <ul role="list">.
+    const row = within(screen.getByRole("list")).getByRole("button", {
+      expanded: false,
+    });
     fireEvent.click(row);
     expect(screen.getByRole("button", { expanded: true })).toBeInTheDocument();
     // Full text (med whitespace-pre-line) syns i body.
@@ -60,11 +64,17 @@ describe("NotesSection — disclosure-mönster (Prompt 4)", () => {
     render(
       <NotesSection applicationId="app-1" notes={[baseNote()]} />,
     );
-    const row = screen.getByRole("button", { expanded: false });
+    // #805 punkt 5: sektionsetiketten bär nu en InfoDialog-"?"-trigger (även
+    // aria-expanded) utanför listan → scopa rad-queryn till <ul role="list">.
+    const row = within(screen.getByRole("list")).getByRole("button", {
+      expanded: false,
+    });
     fireEvent.click(row);
     expect(screen.getByRole("button", { expanded: true })).toBeInTheDocument();
     fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.getByRole("button", { expanded: false })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("list")).getByRole("button", { expanded: false }),
+    ).toBeInTheDocument();
   });
 
   it("default visar '+ Lägg till anteckning'-knapp, ej form", () => {

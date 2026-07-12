@@ -83,36 +83,44 @@ export default async function AnsokningarPage() {
             <h1 className="jp-pagehero__title">{t("ansokningar.title")}</h1>
             <p className="jp-pagehero__lede">{t("ansokningar.lede")}</p>
           </div>
-          <div className="jp-pagehero__aside">
-            {/* Sidåtgärderna ligger i plattan (Klas-beslut 2026-07-10): vita
-                kontroller på gradienten — Ny ansökan = primär (vit-fylld),
-                Statistik + Aktivitetsrapport = sekundära (vit kant, hero-ink
-                via `.jp-pagehero .jp-btn--secondary`, samma vit-på-gradient-
-                behandling som /cv-heron; löser G3-avläsningen "grön-
-                genomskinlig" som en gång flyttade dem till den vita ytan).
-                En-primary bibehållen. Hjälpen sitter som inline "?" (#408)
-                tätt bunden till Aktivitetsrapport-knappen den förklarar (egen
-                smal-gap-grupp så "?" inte läses som hjälp för primär-CTA:n,
-                design-reviewer Minor 2026-07-10), med hero-ink-trigger så
-                glyfen syns mot gradienten. */}
-            <Link href="/statistik" className="jp-btn jp-btn--secondary">
-              <BarChart3 size={16} aria-hidden="true" /> {t("ansokningar.statistics")}
-            </Link>
-            <span className="jp-pagehero__helpedctl">
-              <Link href="/aktivitetsrapport" className="jp-btn jp-btn--secondary">
-                <FileText size={16} aria-hidden="true" />{" "}
-                {t("ansokningar.activityReport")}
+          {/* Sidåtgärderna ligger i plattan (Klas-beslut 2026-07-10; #805
+              punkt 7): två rader i asiden via den ansökningar-scopeade
+              `--stacked`-modifiern (bas-`.jp-pagehero__aside` är DELAD av 7 ytor
+              och lämnas orörd). Rad 1 = primär "Ny ansökan" (ren vit fyllning) —
+              den ENDA solida primären (ADR 0038). Rad 2 = verktygsraden Statistik
+              + Aktivitetsrapport, nu VIT-fyllda läsbara kontroller (accent-50
+              off-white, tema-pinnad i plattan) i stället för den tidigare
+              genomskinliga vit-kanten Klas läste som "grön-genomskinlig" —
+              subtilt underordnade den rena vita primären + egen rad = hierarki
+              bevarad. Aktivitetsrapport-hjälpens "?" (#408) sitter INNE i
+              knappens pill (`__helpedctl` = en enad vit yta) så glyfen läses som
+              del av just den kontrollen. */}
+          <div className="jp-pagehero__aside jp-pagehero__aside--stacked">
+            <div className="jp-pagehero__btnrow">
+              <Link href="/ny-ansokan" className="jp-btn jp-btn--primary">
+                <Plus size={16} aria-hidden="true" /> {t("ansokningar.newApplication")}
               </Link>
-              <InfoDialog
-                title={ta("info.title")}
-                paragraphs={[ta("info.p1"), ta("info.p2"), ta("info.p3")]}
-                ariaLabel={ta("info.whatIsThisAria")}
-                triggerClassName="jp-pagehero__help"
-              />
-            </span>
-            <Link href="/ny-ansokan" className="jp-btn jp-btn--primary">
-              <Plus size={16} aria-hidden="true" /> {t("ansokningar.newApplication")}
-            </Link>
+            </div>
+            <div className="jp-pagehero__btnrow">
+              <Link href="/statistik" className="jp-btn jp-btn--secondary">
+                <BarChart3 size={16} aria-hidden="true" /> {t("ansokningar.statistics")}
+              </Link>
+              <span className="jp-pagehero__helpedctl">
+                <Link
+                  href="/aktivitetsrapport"
+                  className="jp-btn jp-btn--secondary jp-pagehero__helpedbtn"
+                >
+                  <FileText size={16} aria-hidden="true" />{" "}
+                  {t("ansokningar.activityReport")}
+                </Link>
+                <InfoDialog
+                  title={ta("info.title")}
+                  paragraphs={[ta("info.p1"), ta("info.p2"), ta("info.p3")]}
+                  ariaLabel={ta("info.whatIsThisAria")}
+                  triggerClassName="jp-pagehero__help"
+                />
+              </span>
+            </div>
           </div>
         </div>
       </section>

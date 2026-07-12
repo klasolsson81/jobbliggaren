@@ -47,9 +47,16 @@ public sealed class GetApplicationsQueryHandler(
         var totalCount = await baseQuery.CountAsync(cancellationToken);
 
         // ADR 0048: EN LEFT JOIN job_ads via GroupJoin/DefaultIfEmpty FÖRE
-        // materialisering. JobAd:s globala query-filter (DeletedAt == null)
-        // ärvs automatiskt → soft-deletad JobAd ger j == null → fallback.
-        // IgnoreQueryFilters / manuellt DeletedAt-predikat FÖRBJUDET (ADR 0048 c).
+        // materialisering. IgnoreQueryFilters / manuellt DeletedAt-predikat
+        // FÖRBJUDET (ADR 0048 c).
+        //
+        // #805-3 sanningssynk: j == null betyder att ansökan saknar ANNONSRAD
+        // (manuell eller enbart personligt brev) — INTE att annonsen är borta.
+        // Den gamla utsagan ("soft-deletad JobAd ger j == null") var falsk: det
+        // globala query-filtret är DeletedAt == null, och DeletedAt saknar writer
+        // (#821), så filtret exkluderar aldrig en rad. En annons som inte längre
+        // är aktiv bär Status == "Archived" och joinar fortfarande — därför bär
+        // JobAdSummaryDto numera Status.
         var items = await baseQuery
             .OrderByDescending(a => a.UpdatedAt)
             .Skip((query.Page - 1) * query.PageSize)
@@ -61,8 +68,8 @@ public sealed class GetApplicationsQueryHandler(
                 j,
                 // Väg (D): härled FK-Guid ur joinade JobAd (j) — undviker
                 // Nullable<JobAdId>.Value-unwrap i uttrycksträdet (InMemory-
-                // brott). Soft-deletad JobAd → j == null → JobAdGuid null
-                // (önskat, ADR 0048 — FK ej mot rad användaren ej får se).
+                // brott). Ingen annonsrad → j == null → JobAdGuid null
+                // (ADR 0048 — FK ej mot rad användaren ej får se).
                 JobAdGuid = j != null ? (Guid?)j.Id.Value : null
             })
             .Select(r => new ApplicationDto(
@@ -72,15 +79,18 @@ public sealed class GetApplicationsQueryHandler(
                 r.a.Status.Name,
                 r.a.CreatedAt,
                 r.a.UpdatedAt,
+                // #805-3: Status projiceras (value-converter → string, samma idiom
+                // som Source). Manuell → null: ingen JobAd-rad ⇒ ingen arkivering
+                // ⇒ ingen livs-utsaga (aldrig defaultad till "Active").
                 r.j != null
                     ? new JobAdSummaryDto(
                         r.j.Id.Value, r.j.Title, r.j.Company.Name, r.j.Url,
-                        r.j.Source.Value, r.j.PublishedAt, r.j.ExpiresAt)
+                        r.j.Source.Value, r.j.PublishedAt, r.j.ExpiresAt, r.j.Status.Value)
                     : r.a.ManualPosting != null
                         ? new JobAdSummaryDto(
                             null, r.a.ManualPosting.Title, r.a.ManualPosting.Company,
                             r.a.ManualPosting.Url, "Manual",
-                            (DateTimeOffset?)null, r.a.ManualPosting.ExpiresAt)
+                            (DateTimeOffset?)null, r.a.ManualPosting.ExpiresAt, null)
                         : null,
                 r.a.AppliedAt,
                 // #342 (ADR 0085 §3): attention envelope projected atomically in

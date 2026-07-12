@@ -22,8 +22,13 @@ export const savedJobAdJobAdSummarySchema = z.object({
   source: jobSourceSchema,
   publishedAt: z.string().nullable(),
   expiresAt: z.string().nullable(),
-  // Status finns INTE på JobAdSummaryDto (det är en summary, inte detail).
-  // Behåll schema-paritet med backend record — utöka vid backend-ändring.
+  // #805-3: backend `JobAdSummaryDto` bär numera Status (annonsens livscykel).
+  // Den tidigare kommentaren här ("Status finns INTE på JobAdSummaryDto …
+  // utöka vid backend-ändring") instruerade bokstavligen sin egen borttagning —
+  // detta ÄR backend-ändringen. Sparade annonser har alltid en JobAd-rad, så
+  // värdet är aldrig null här; nullable behålls för shape-paritet med recorden.
+  // Lös z.string() av samma skäl som i applications.ts (default-deny > parse-fail).
+  status: z.string().nullable().optional(),
 });
 export type SavedJobAdJobAdSummary = z.infer<typeof savedJobAdJobAdSummarySchema>;
 

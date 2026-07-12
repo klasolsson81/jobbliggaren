@@ -53,8 +53,7 @@
       "loadErrorTitle": "Kunde inte ladda ansökan",
       "fallbackTitle": "Ansökan #{shortId}",
       "subtitle": "{company} · #{shortId}",
-      "createdSubtitle": "Skapad {date}",
-      "preservedSubtitle": "{company} · sparad kopia · #{shortId}"
+      "createdSubtitle": "Skapad {date}"
     }
   },
   "cv": {

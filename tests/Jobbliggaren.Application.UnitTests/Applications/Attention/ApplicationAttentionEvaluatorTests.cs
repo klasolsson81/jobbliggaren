@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Applications.Attention;
 using Jobbliggaren.Application.Applications.Queries;
 using Jobbliggaren.Domain.Applications;
+using Jobbliggaren.Domain.JobAds;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Applications.Attention;
@@ -412,10 +413,14 @@ public class ApplicationAttentionEvaluatorTests
         // every anchor-driven test exercises the null (no-follow-up) path unchanged.
         DateTimeOffset? lastFollowUpAt = null)
     {
+        // #805-3: Status = "Active" — dessa fixtures modellerar en JobAd-länkad
+        // ansökan, och en sådan bär alltid en status. Attention-reglerna läser
+        // den inte (de nyttjar ExpiresAt), men payloaden ska vara sann.
         JobAdSummaryDto? jobAd = expiresAt is null
             ? null
             : new JobAdSummaryDto(
-                Guid.NewGuid(), "Utvecklare", "Acme", null, "Platsbanken", null, expiresAt);
+                Guid.NewGuid(), "Utvecklare", "Acme", null, "Platsbanken", null, expiresAt,
+                JobAdStatus.Active.Value);
 
         return new ApplicationDto(
             Id: Guid.NewGuid(),

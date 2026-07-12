@@ -1,5 +1,6 @@
 "use server";
 
+import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
@@ -155,6 +156,80 @@ export async function updateMasterContentAction(
 
   revalidatePath("/cv");
   revalidatePath(`/cv/${resumeId}`);
+  return { success: true };
+}
+
+/**
+ * De fyra visuella malloptionerna som mallbyggaren skriver (Fas 4b PR-8b 8b.3). Namnen
+ * är SmartEnum Name-tokens ur `template-catalog` — klient-zod är en guard (kontrollerad
+ * UI), backendens validator är auktoritativ (okänt namn → 400 fail-loud). `fontPair`
+ * bärs oförändrad genom byggaren (TYPSNITT-kontrollen är deferrad, Klas 2026-07-12) så
+ * skrivningen bevarar den persisterade fonten.
+ */
+const templateOptionsInputSchema = z.object({
+  template: z.string().trim().min(1).max(64),
+  accentColor: z.string().trim().min(1).max(64),
+  fontPair: z.string().trim().min(1).max(64),
+  density: z.string().trim().min(1).max(64),
+});
+export type TemplateOptionsInput = z.infer<typeof templateOptionsInputSchema>;
+
+/**
+ * Sparar ett CV:s visuella malloptioner (Fas 4b PR-8b 8b.3, CTO-bind) — mallbyggarens
+ * "Spara mall". Speglar `updateMasterContentAction`: getSessionId-guard + `isValidId`
+ * (SSRF/path-injektion-barriär) + zod-validering FÖRE fetch, server-till-server via
+ * `authedFetch` (httpOnly `__Host-`-sessionscookien bär auth; endpointen exponeras
+ * aldrig klient-sidan). Body-nycklarna matchar backendens `ChangeTemplateOptionsBody`
+ * (`template`/`accentColor`/`fontPair`/`density`) — INTE query-parametrarnas korta
+ * namn. Vid lyckad 204 revalideras hubben (kort-metadata), detaljvyn och mall-vyn.
+ * `mapActionError` läser ALDRIG ProblemDetails-body:n (säkerhetsinvariant, TD-10) men
+ * sväljer aldrig felet (returnerar alltid `{success:false}`, aldrig tyst lyckat).
+ */
+export async function updateTemplateOptionsAction(
+  resumeId: string,
+  options: TemplateOptionsInput
+): Promise<ActionResult> {
+  const tr = await getTranslations("resumes.actions");
+  const te = await getTranslations("errors");
+  const sessionId = await getSessionId();
+  if (!sessionId) return { success: false, error: tr("notLoggedIn") };
+
+  if (!isValidId(resumeId)) {
+    return { success: false, error: tr("invalidResumeId") };
+  }
+  const parsed = templateOptionsInputSchema.safeParse(options);
+  if (!parsed.success) {
+    return { success: false, error: tr("invalidData") };
+  }
+
+  try {
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/resumes/${encodeURIComponent(resumeId)}/template-options`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          template: parsed.data.template,
+          accentColor: parsed.data.accentColor,
+          fontPair: parsed.data.fontPair,
+          density: parsed.data.density,
+        }),
+      }
+    );
+
+    if (!res.ok) {
+      return {
+        success: false,
+        error: mapActionError(res, tr("templateSaveFailed"), te),
+      };
+    }
+  } catch {
+    return { success: false, error: tr("serverUnreachable") };
+  }
+
+  revalidatePath("/cv");
+  revalidatePath(`/cv/${resumeId}`);
+  revalidatePath(`/cv/${resumeId}/mall`);
   return { success: true };
 }
 

@@ -6,7 +6,11 @@ import {
   emptySkill,
   findMasterVersion,
 } from "./content-utils";
-import type { ResumeDetailDto, ResumeVersionDto } from "@/lib/types/resumes";
+import type {
+  CvTemplateOptionsDto,
+  ResumeDetailDto,
+  ResumeVersionDto,
+} from "@/lib/types/resumes";
 
 function makeVersion(
   kind: "Master" | "Tailored",
@@ -21,6 +25,16 @@ function makeVersion(
   };
 }
 
+const templateOptions: CvTemplateOptionsDto = {
+  template: "Klar",
+  accentColor: "NavyBlue",
+  fontPair: "Modern",
+  density: "Normal",
+  photoEnabled: false,
+  photoShape: "Circle",
+  effectiveAtsSafe: true,
+};
+
 describe("findMasterVersion", () => {
   it("returns the Master version when present", () => {
     const resume: ResumeDetailDto = {
@@ -29,6 +43,7 @@ describe("findMasterVersion", () => {
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
       versions: [makeVersion("Tailored", "t1"), makeVersion("Master", "m1")],
+      templateOptions,
     };
     expect(findMasterVersion(resume)?.id).toBe("m1");
   });
@@ -40,6 +55,7 @@ describe("findMasterVersion", () => {
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
       versions: [],
+      templateOptions,
     };
     expect(findMasterVersion(resume)).toBeNull();
   });

@@ -4,8 +4,10 @@ import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   getResumesResultSchema,
   resumeDetailDtoSchema,
+  templateCatalogDtoSchema,
   type GetResumesResult,
   type ResumeDetailDto,
+  type TemplateCatalogDto,
 } from "@/lib/dto/resumes";
 import {
   parsedResumeDetailDtoSchema,
@@ -166,6 +168,37 @@ export async function getResumeById(
       resumeDetailDtoSchema,
       `GET /api/v1/resumes/${id}`,
       { includeNotFound: true }
+    );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * Hämtar den slutna, icke-PII-katalogen av malloptioner (Fas 4b PR-8b 8b.3,
+ * CTO-bind Q2) — mallbyggarens pickers läser mall/accent/font/täthet-namn plus de
+ * två BE-auktoritativa fakta FE inte får härleda: per-mall `atsSafe` (domänregeln,
+ * P5) och accent-`hex` (den WCAG-vaktade paletten). Statisk referensdata, samma för
+ * alla användare (backend cache:ar `private, max-age=3600`), auth-gated passthrough.
+ * Speglar `getResumeById` (Zod vid ACL-gränsen, 401/429/fel → ApiResult). Ingen id
+ * → ingen SSRF-guard behövs. Katalogen är ESSENTIELL för byggaren; en icke-ok
+ * degraderas av sidan till ett felskal (byggaren kan inte renderas utan optioner).
+ */
+export async function getTemplateCatalog(): Promise<
+  ApiResult<TemplateCatalogDto>
+> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+
+  try {
+    const res = await authedFetch(
+      sessionId,
+      "/api/v1/resumes/template-catalog"
+    );
+    return await responseToResult(
+      res,
+      templateCatalogDtoSchema,
+      "GET /api/v1/resumes/template-catalog"
     );
   } catch {
     return { kind: "error" };

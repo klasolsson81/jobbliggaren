@@ -354,6 +354,7 @@
     "createFailed": "Kunde inte skapa CV:t.",
     "renameFailed": "Kunde inte byta namn.",
     "saveFailed": "Kunde inte spara CV:t.",
+    "templateSaveFailed": "Kunde inte spara mallen.",
     "deleteFailed": "Kunde inte radera CV:t.",
     "deleteVersionFailed": "Kunde inte radera versionen.",
     "discardFailed": "Kunde inte ta bort utkastet.",

@@ -48,7 +48,9 @@ import {
   promoteParsedResumeFromGuideAction,
   discardParsedResumeAction,
   setFindingStatusAction,
+  updateTemplateOptionsAction,
   type FindingStatusValue,
+  type TemplateOptionsInput,
 } from "./resumes";
 
 const VALID_ID = "11111111-1111-4111-8111-111111111111";
@@ -442,6 +444,126 @@ describe("setFindingStatusAction", () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("network"));
 
     const result = await setFindingStatusAction(VALID_ID, "A7", "Open");
+
+    expect(result).toEqual({
+      success: false,
+      error: "Kunde inte nå servern. Försök igen.",
+    });
+  });
+});
+
+// Mallbyggarens "Spara mall" (Fas 4b PR-8b 8b.3, CTO-bind) — PUT
+// /api/v1/resumes/{id}/template-options. Klient-validerar resumeId (GUID) + de fyra
+// optionerna (icke-tomma) FÖRE fetch; body-nycklarna matchar backendens
+// ChangeTemplateOptionsBody (template/accentColor/fontPair/density) — INTE
+// query-parametrarnas korta namn. `fontPair` bevaras oförändrad (TYPSNITT deferrad).
+// Vid 204 revalideras hubben + detaljvyn + mall-vyn; 400/500 mappas via mapActionError
+// (ekar aldrig ProblemDetails-body:n, TD-10).
+describe("updateTemplateOptionsAction", () => {
+  const originalFetch = global.fetch;
+
+  const validOptions: TemplateOptionsInput = {
+    template: "Klar",
+    accentColor: "NavyBlue",
+    fontPair: "Modern",
+    density: "Normal",
+  };
+
+  beforeEach(() => {
+    getSessionIdMock.mockResolvedValue("sess-1");
+  });
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+    getSessionIdMock.mockReset();
+    revalidatePathMock.mockReset();
+    redirectMock.mockClear();
+  });
+
+  it("avvisar utan session (notLoggedIn) — backend nås aldrig", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    const result = await updateTemplateOptionsAction(VALID_ID, validOptions);
+
+    expect(result).toEqual({ success: false, error: "Du är inte inloggad." });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("avvisar ogiltigt resumeId (icke-GUID) med invalidResumeId — backend nås aldrig", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    const result = await updateTemplateOptionsAction("inte-en-guid", validOptions);
+
+    expect(result).toEqual({ success: false, error: "Ogiltigt CV-ID." });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("avvisar en tom option (klient-guard) med invalidData — backend nås aldrig", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    const result = await updateTemplateOptionsAction(VALID_ID, {
+      ...validOptions,
+      template: "",
+    });
+
+    expect(result).toEqual({ success: false, error: "Ogiltiga uppgifter." });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("204 → PUT:ar {template, accentColor, fontPair, density} och revaliderar /cv, detalj + mall", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    global.fetch = fetchMock;
+
+    const result = await updateTemplateOptionsAction(VALID_ID, validOptions);
+
+    expect(result).toEqual({ success: true });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      `http://test-backend/api/v1/resumes/${VALID_ID}/template-options`,
+    );
+    expect(init.method).toBe("PUT");
+    // Body-nycklarna är backendens (accentColor/fontPair), inte query-parametrarnas
+    // korta namn (accent/font) — den kritiska kontrakts-detaljen.
+    expect(JSON.parse(init.body as string)).toEqual({
+      template: "Klar",
+      accentColor: "NavyBlue",
+      fontPair: "Modern",
+      density: "Normal",
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/cv");
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/cv/${VALID_ID}`);
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/cv/${VALID_ID}/mall`);
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("backend-fel (500) → success:false med mappat templateSaveFailed (ekar ej body), ingen revalidering", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: "PII 19900101-1234" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const result = await updateTemplateOptionsAction(VALID_ID, validOptions);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBe("Kunde inte spara mallen.");
+      expect(result.error).not.toContain("PII");
+    }
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("nätverksfel → success:false med serverUnreachable", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("network"));
+
+    const result = await updateTemplateOptionsAction(VALID_ID, validOptions);
 
     expect(result).toEqual({
       success: false,

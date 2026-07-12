@@ -20,22 +20,30 @@ namespace Jobbliggaren.Application.Resumes.Rendering.Abstractions;
 /// </summary>
 public interface ICvRenderer
 {
+    /// <summary>
+    /// Renders a parsed staging CV. <paramref name="options"/> selects the visual template + accent
+    /// / font / density (PR-8b); a parsed CV has no stored options, so the caller passes
+    /// <see cref="CvTemplateOptions.Default"/> (Klar) — styling is a promoted-Resume concern.
+    /// </summary>
     ValueTask<RenderedCv> RenderAsync(
         ParsedResume parsedResume,
+        CvTemplateOptions options,
         RenderProfile profile,
         CancellationToken cancellationToken);
 
     /// <summary>
     /// Renders a promoted Resume's already-decrypted <paramref name="content"/> (the Master
     /// version content, owner-resolved + DEK-decrypted by the read-handler) in
-    /// <paramref name="language"/>. Mirrors the parsed overload: same <c>CvDocumentModel</c>
-    /// projection + composer, only the source shape differs. The promoted content stores
-    /// structured <c>DateOnly</c> periods (formatted to a display string for the PDF) and has no
-    /// languages section (rendered as an honest partial — never a placeholder, §5).
+    /// <paramref name="language"/> using the CV's <paramref name="options"/> (visual template + accent
+    /// / font / density, PR-8b). Mirrors the parsed overload: same <c>CvDocumentModel</c> projection +
+    /// composer, only the source shape differs. The <see cref="RenderProfile.Ats"/> profile always
+    /// renders the plain single-column ATS parallel from the SAME content, ignoring the visual template
+    /// (design handoff §5.5/§8) — so a two-column choice never costs the user a parseable version.
     /// </summary>
     ValueTask<RenderedCv> RenderAsync(
         ResumeContent content,
         ResumeLanguage language,
+        CvTemplateOptions options,
         RenderProfile profile,
         CancellationToken cancellationToken);
 }

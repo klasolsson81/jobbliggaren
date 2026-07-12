@@ -28,4 +28,23 @@ public sealed class CvTemplate : SmartEnum<CvTemplate>
     public static readonly CvTemplate MorkPanel = new(nameof(MorkPanel), 3);
 
     private CvTemplate(string name, int value) : base(name, value) { }
+
+    /// <summary>
+    /// Whether this template's <em>visual</em> rendering is safe to submit directly to an ATS
+    /// (Applicant Tracking System) — true for the single-column templates a parser reads top-to-bottom
+    /// (<see cref="Klar"/>, <see cref="Accentlinje"/>), false for the two-column
+    /// <see cref="MorkPanel"/> (a side panel confuses linear parsers — "För människor"). This is the
+    /// single honest source for the ATS-labeling shown to the user (green "Klarar ATS" vs orange "För
+    /// människor"); it is advisory and NEVER blocking — an ATS-safe plain version is always generated
+    /// in parallel from the same AppCopy (design handoff §5.5/§8). A photo (once PR-10 ships) further
+    /// downgrades ATS-safety, so the full verdict is <c>AtsSafe &amp;&amp; !effectivePhoto</c>, composed by
+    /// the consumer (DTO in 8b.2, per-render label in 8b.3) — this property is the template half.
+    /// </summary>
+    /// <remarks>
+    /// A POSITIVE whitelist, deliberately not <c>this != MorkPanel</c>: a new template must actively
+    /// classify itself as single-column-parseable to earn the green "Klarar ATS" claim. The honest,
+    /// fail-safe default for an unclassified template is <c>false</c> ("För människor") — a trust-bearing
+    /// label must never over-promise by accident (P5).
+    /// </remarks>
+    public bool AtsSafe => this == Klar || this == Accentlinje;
 }

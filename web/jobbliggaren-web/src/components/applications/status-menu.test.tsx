@@ -11,9 +11,13 @@ const transitionStatusAction = vi.hoisted(() =>
 const logFollowUpAction = vi.hoisted(() =>
   vi.fn(async () => ({ success: true as const })),
 );
+const deleteApplicationAction = vi.hoisted(() =>
+  vi.fn(async () => ({ success: true as const })),
+);
 vi.mock("@/lib/actions/applications", () => ({
   transitionStatusAction,
   logFollowUpAction,
+  deleteApplicationAction,
 }));
 
 function makeApplication(
@@ -52,9 +56,28 @@ describe("StatusMenu (design §5, #630 PR 7)", () => {
     const menu = await screen.findByRole("menu");
     expect(screen.getByText("Flytta till · Aktiv väg")).toBeInTheDocument();
     expect(screen.getByText("Avslut & vilande")).toBeInTheDocument();
+    // 10 status-byten + 1 destruktiv "Ta bort ansökan" (#782). De 10 status-
+    // posterna bär färgpricken; delete-posten gör det inte (Trash2-ikon).
     expect(menu.querySelectorAll("[data-slot='dropdown-menu-item']")).toHaveLength(
-      10,
+      11,
     );
+    expect(menu.querySelectorAll(".jp-statusmenu__dot")).toHaveLength(10);
+  });
+
+  it("visar en destruktiv 'Ta bort ansökan'-post skild från statusbytena (#782)", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+    await user.click(screen.getByRole("button", { name: "Byt status" }));
+
+    const item = await screen.findByRole("menuitem", { name: "Ta bort ansökan" });
+    // Att välja posten ÖPPNAR bekräftelse-dialogen (ADR 0047) — ingen direkt
+    // radering, och absolut ingen statustransition.
+    await user.click(item);
+    expect(
+      await screen.findByRole("dialog", { name: "Radera ansökan?" }),
+    ).toBeInTheDocument();
+    expect(transitionStatusAction).not.toHaveBeenCalled();
+    expect(deleteApplicationAction).not.toHaveBeenCalled();
   });
 
   it("markerar nuvarande status med ✓ och gör den ovalbar (self-transition = no-op)", async () => {

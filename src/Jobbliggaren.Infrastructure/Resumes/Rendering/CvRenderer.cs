@@ -33,16 +33,17 @@ internal sealed class CvRenderer : ICvRenderer
         QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
     public ValueTask<RenderedCv> RenderAsync(
-        ParsedResume parsedResume, RenderProfile profile, CancellationToken cancellationToken)
+        ParsedResume parsedResume, CvTemplateOptions options, RenderProfile profile, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(parsedResume);
+        ArgumentNullException.ThrowIfNull(options);
         cancellationToken.ThrowIfCancellationRequested();
 
         var model = CvDocumentModel.From(parsedResume.Content);
         var labels = CvRenderStrings.For(parsedResume.DetectedLanguage);
 
         var document = Document.Create(container =>
-            CvDocumentComposer.Compose(container, model, labels, profile));
+            CvDocumentComposer.Compose(container, model, labels, options, profile));
 
         var metadata = new DocumentMetadata
         {
@@ -58,9 +59,10 @@ internal sealed class CvRenderer : ICvRenderer
     }
 
     public ValueTask<RenderedCv> RenderAsync(
-        ResumeContent content, ResumeLanguage language, RenderProfile profile, CancellationToken cancellationToken)
+        ResumeContent content, ResumeLanguage language, CvTemplateOptions options, RenderProfile profile, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(options);
         cancellationToken.ThrowIfCancellationRequested();
 
         var labels = CvRenderStrings.For(language);
@@ -68,7 +70,7 @@ internal sealed class CvRenderer : ICvRenderer
             content, labels.Ongoing, proficiency => CvRenderStrings.ProficiencyLabel(proficiency, language));
 
         var document = Document.Create(container =>
-            CvDocumentComposer.Compose(container, model, labels, profile));
+            CvDocumentComposer.Compose(container, model, labels, options, profile));
 
         var metadata = new DocumentMetadata
         {

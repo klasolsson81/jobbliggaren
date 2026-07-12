@@ -23,12 +23,14 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Rendering;
 /// deterministic via fixed document metadata; exact byte-equality is avoided (the PDF /ID can
 /// vary), so determinism is asserted via stable output size + valid structure.
 /// </summary>
+[Xunit.Collection("QuestPdfRendering")]
 public class CvRendererTests
 {
     private static readonly byte[] PdfMagic = [0x25, 0x50, 0x44, 0x46]; // "%PDF"
 
     private static async Task<RenderedCv> RenderAsync(ParsedResume resume, RenderProfile profile) =>
-        await new CvRenderer().RenderAsync(resume, profile, TestContext.Current.CancellationToken);
+        await new CvRenderer().RenderAsync(
+            resume, CvTemplateOptions.Default, profile, TestContext.Current.CancellationToken);
 
     private static bool IsPdf(byte[] bytes) =>
         bytes.Length >= 4 && bytes.Take(4).SequenceEqual(PdfMagic);
@@ -121,7 +123,8 @@ public class CvRendererTests
 
     private static async Task<RenderedCv> RenderAsync(
         ResumeContent content, ResumeLanguage language, RenderProfile profile) =>
-        await new CvRenderer().RenderAsync(content, language, profile, TestContext.Current.CancellationToken);
+        await new CvRenderer().RenderAsync(
+            content, language, CvTemplateOptions.Default, profile, TestContext.Current.CancellationToken);
 
     private static ResumeContent ResumeContentFixture() =>
         new(
@@ -231,7 +234,7 @@ public class CvRendererTests
     {
         await Should.ThrowAsync<ArgumentNullException>(async () =>
             await new CvRenderer().RenderAsync(
-                (ResumeContent)null!, ResumeLanguage.Sv, RenderProfile.Ats,
+                (ResumeContent)null!, ResumeLanguage.Sv, CvTemplateOptions.Default, RenderProfile.Ats,
                 TestContext.Current.CancellationToken));
     }
 

@@ -79,7 +79,8 @@
       "trigger": "Change status",
       "groupActive": "Move to · Active path",
       "groupClosed": "Closed & dormant",
-      "currentSuffix": "current status"
+      "currentSuffix": "current status",
+      "delete": "Delete application"
     },
     "urgency": {
       "deadline": "Deadline {date}",
@@ -303,6 +304,13 @@
       "confirmBody": "The application changes from <b>{from}</b> to <b>{to}</b>. A withdrawn application is closed and cannot be changed further without manual action.",
       "withdrawing": "Withdrawing…"
     },
+    "delete": {
+      "action": "Delete application",
+      "confirmTitle": "Delete application?",
+      "confirmBody": "The application and its entire history are permanently removed. This cannot be undone.",
+      "deleting": "Deleting…",
+      "confirmButton": "Delete application"
+    },
     "actions": {
       "notLoggedIn": "You are not logged in.",
       "invalidJobAdId": "Invalid ad ID.",
@@ -314,7 +322,8 @@
       "addFollowUpFailed": "Could not save the follow-up.",
       "logFollowUpFailed": "Could not log the follow-up.",
       "addNoteFailed": "Could not save the note.",
-      "recordOutcomeFailed": "Could not record the outcome."
+      "recordOutcomeFailed": "Could not record the outcome.",
+      "deleteFailed": "The application could not be deleted."
     }
   }
 }

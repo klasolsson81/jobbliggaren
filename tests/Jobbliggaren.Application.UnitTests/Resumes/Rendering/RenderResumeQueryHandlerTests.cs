@@ -55,9 +55,10 @@ public class RenderResumeQueryHandlerTests
 
     private void StubRenderer() =>
         _renderer.RenderAsync(
-                Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>())
+                Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), Arg.Any<CvTemplateOptions>(),
+                Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>())
             .Returns(ci => new ValueTask<RenderedCv>(
-                new RenderedCv(PdfMagic, "application/pdf", ci.ArgAt<RenderProfile>(2), ResumeLanguage.Sv)));
+                new RenderedCv(PdfMagic, "application/pdf", ci.ArgAt<RenderProfile>(3), ResumeLanguage.Sv)));
 
     // ===============================================================
     // Happy path
@@ -80,7 +81,8 @@ public class RenderResumeQueryHandlerTests
         result.Language.ShouldBe("Sv");
 
         await _renderer.Received(1).RenderAsync(
-            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), RenderProfile.Ats, Arg.Any<CancellationToken>());
+            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), Arg.Any<CvTemplateOptions>(),
+            RenderProfile.Ats, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -96,7 +98,32 @@ public class RenderResumeQueryHandlerTests
         result.ShouldNotBeNull();
         result!.Profile.ShouldBe("Visual");
         await _renderer.Received(1).RenderAsync(
-            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), RenderProfile.Visual, Arg.Any<CancellationToken>());
+            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), Arg.Any<CvTemplateOptions>(),
+            RenderProfile.Visual, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldPassTheResumesOwnTemplateOptionsToTheRenderer_NotADefault()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var resume = await SeedOwnedResumeAsync(db, _userId);
+
+        // Choose NON-default options so "the resume's own options are threaded" is proven — a bug that
+        // passed CvTemplateOptions.Default (or ignored the choice) would not match this value.
+        var chosen = new CvTemplateOptions(
+            CvTemplate.MorkPanel, CvAccentColor.WineRed, CvFontPair.Classic,
+            CvDensity.Airy, PhotoEnabled: false, CvPhotoShape.Rounded);
+        resume.ChangeTemplateOptions(chosen, FakeDateTimeProvider.Default);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        StubRenderer();
+
+        await CreateSut(db).Handle(
+            new RenderResumeQuery(resume.Id.Value, "Visual"), TestContext.Current.CancellationToken);
+
+        // Record value-equality: the renderer received exactly the resume's persisted options.
+        await _renderer.Received(1).RenderAsync(
+            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), chosen,
+            RenderProfile.Visual, Arg.Any<CancellationToken>());
     }
 
     // ===============================================================
@@ -143,7 +170,8 @@ public class RenderResumeQueryHandlerTests
 
         result.ShouldBeNull();
         await _renderer.DidNotReceive().RenderAsync(
-            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>());
+            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), Arg.Any<CvTemplateOptions>(),
+            Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -162,6 +190,7 @@ public class RenderResumeQueryHandlerTests
         _failedAccess.Received(1).LogCrossUserAttempt(
             "Resume", otherResume.Id.Value, _userId, Arg.Any<string>());
         await _renderer.DidNotReceive().RenderAsync(
-            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>());
+            Arg.Any<ResumeContent>(), Arg.Any<ResumeLanguage>(), Arg.Any<CvTemplateOptions>(),
+            Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>());
     }
 }

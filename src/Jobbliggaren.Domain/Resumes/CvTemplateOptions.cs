@@ -55,4 +55,17 @@ public sealed record CvTemplateOptions(
         && FontPair is not null
         && Density is not null
         && PhotoShape is not null;
+
+    /// <summary>
+    /// The composed, honest ATS-safety verdict for this configuration:
+    /// <see cref="CvTemplate.AtsSafe"/> (the template renders a linear, single-column
+    /// parseable layout) AND no photo (a photo further downgrades ATS-safety — its
+    /// XML-doc: "the full verdict is <c>AtsSafe &amp;&amp; !effectivePhoto</c>, composed by
+    /// the consumer"). This is the SINGLE honest source for the persisted-state ATS label,
+    /// consumed by the query DTO (Fas 4b PR-8b 8b.2) and the per-render label (8b.3) alike —
+    /// neither re-derives the rule, so the two surfaces can never disagree (P5). Advisory,
+    /// never blocking: an ATS-safe plain version is always generated in parallel.
+    /// EF-ignored (a computed member, never a column — <see cref="Resume.ChangeTemplateOptions"/> parity with <see cref="IsComplete"/>).
+    /// </summary>
+    public bool EffectiveAtsSafe => Template.AtsSafe && !PhotoEnabled;
 }

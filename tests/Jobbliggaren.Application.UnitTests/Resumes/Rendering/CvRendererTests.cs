@@ -91,6 +91,12 @@ public class CvRendererTests
     {
         var resume = Resume();
 
+        // Warm QuestPDF's process-global font-subset cache first. An embedded font subset's
+        // byte-size is stable only once the cache has seen the document's glyphs — the cache is
+        // a lazily-built, process-global structure, so a render in another test class can leave it
+        // mid-build and make the FIRST render here differ from the second by subset packing alone.
+        // The determinism we assert is steady-state: identical input in a warm cache → identical bytes.
+        _ = await RenderAsync(resume, profile);
         var first = await RenderAsync(resume, profile);
         var second = await RenderAsync(resume, profile);
 
@@ -166,6 +172,9 @@ public class CvRendererTests
     {
         var content = ResumeContentFixture();
 
+        // Warm the process-global font-subset cache first (see the parsed determinism test) so the
+        // assertion is steady-state, not sensitive to a cache another render test left mid-build.
+        _ = await RenderAsync(content, ResumeLanguage.Sv, RenderProfile.Ats);
         var first = await RenderAsync(content, ResumeLanguage.Sv, RenderProfile.Ats);
         var second = await RenderAsync(content, ResumeLanguage.Sv, RenderProfile.Ats);
 
@@ -223,12 +232,16 @@ public class CvRendererTests
     }
 
     // ----- CvDocumentModel.From(ResumeContent) — Fas 4b superset language projection (#651) -----
-    // Since the AppCopy superset (ADR 0095 D-C) the promoted content carries spoken languages, so
-    // their NAMES feed the existing languages slot (proficiency + the other superset fields are not
-    // rendered yet). This is a pure BCL projection (Phase A) — no PDF render, no I/O.
+    // Since the AppCopy superset (ADR 0095 D-C) the promoted content carries spoken languages; PR-8b
+    // (8b.0) now projects the NAME *and* its localised proficiency (ADR 0095 D-E gap closed). This is
+    // a pure BCL projection — no PDF render, no I/O. Fuller superset coverage (skill groups, dynamic
+    // sections) lives in CvDocumentModelCompletenessTests.
+
+    private static CvDocumentModel.LanguageLine Lang(string name, string? proficiency) =>
+        new(name, proficiency);
 
     [Fact]
-    public void From_ResumeContentWithLanguages_ProjectsLanguageNamesIntoModel()
+    public void From_ResumeContentWithLanguages_ProjectsNameAndLocalisedProficiency()
     {
         var content = ResumeContentFixture() with
         {
@@ -239,10 +252,11 @@ public class CvRendererTests
             ],
         };
 
-        var model = CvDocumentModel.From(content, "pågående");
+        var model = CvDocumentModel.From(
+            content, "pågående", p => CvRenderStrings.ProficiencyLabel(p, ResumeLanguage.Sv));
 
-        // Names only, in order; the proficiency level is not projected (later PR, ADR 0095 D-E).
-        model.Languages.ShouldBe(["Svenska", "Tyska"]);
+        // Native → localised "Modersmål"; NotStated → null (an honest bare name, never fabricated, §5).
+        model.Languages.ShouldBe([Lang("Svenska", "Modersmål"), Lang("Tyska", null)]);
     }
 
     [Fact]
@@ -250,7 +264,8 @@ public class CvRendererTests
     {
         // The fixture leaves Languages empty (legacy/degraded content) → honest empty list, not a
         // synthesised placeholder (CLAUDE.md §5). Regression guard for the previously hard-coded [].
-        var model = CvDocumentModel.From(ResumeContentFixture(), "pågående");
+        var model = CvDocumentModel.From(
+            ResumeContentFixture(), "pågående", p => CvRenderStrings.ProficiencyLabel(p, ResumeLanguage.Sv));
 
         model.Languages.ShouldBeEmpty();
     }

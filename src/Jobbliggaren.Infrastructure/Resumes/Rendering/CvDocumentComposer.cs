@@ -14,6 +14,14 @@ namespace Jobbliggaren.Infrastructure.Resumes.Rendering;
 /// rendered verbatim — never translated or synthesised (CLAUDE.md §5). All fields are
 /// nullable/empty-tolerant: a degraded parse renders an honest partial CV, never a placeholder.
 /// </summary>
+/// <remarks>
+/// PR-8b (8b.0) renders the FULL AppCopy superset so no field is silently dropped before the
+/// template work builds on it (P2/P5): grouped skills (a group row plus any UNGROUPED remainder —
+/// every skill appears at least once, no loss), spoken-language proficiency (appended to the name,
+/// omitted when unknown), and dynamic profession-driven sections (verbatim user headings/entries,
+/// always shown — P4). Section ORDERING for the profession-driven sections is a later slice
+/// (8b.4a, SSYK reorder); this composer appends them deterministically after the standard sections.
+/// </remarks>
 internal static class CvDocumentComposer
 {
     public static void Compose(
@@ -80,8 +88,9 @@ internal static class CvDocumentComposer
                     }
                 }
 
-                ListSection(col, labels.Skills, model.Skills, heading);
-                ListSection(col, labels.Languages, model.Languages, heading);
+                SkillsSection(col, labels.Skills, model.Skills, model.SkillGroups, heading);
+                LanguagesSection(col, labels.Languages, model.Languages, heading);
+                DynamicSections(col, model.Sections, heading, secondary);
             });
         });
     }
@@ -110,10 +119,73 @@ internal static class CvDocumentComposer
         }
     }
 
-    private static void ListSection(
-        ColumnDescriptor col, string label, IReadOnlyList<string> items, string headingColor)
+    /// <summary>
+    /// Renders the Kompetenser section: each skill GROUP as a "Grupp: post, post" row (ATS spec §5.6
+    /// rule 9) followed by any UNGROUPED skill as a plain trailing list. The ungrouped remainder is
+    /// the authoritative flat set minus every name already shown in a group — so every skill appears
+    /// at least once and none is dropped (P2/P5, no content loss). Omitted only when there is nothing
+    /// to show.
+    /// </summary>
+    private static void SkillsSection(
+        ColumnDescriptor col,
+        string label,
+        IReadOnlyList<string> skills,
+        IReadOnlyList<CvDocumentModel.SkillGroupLine> groups,
+        string headingColor)
     {
-        var values = items.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+        var renderableGroups = groups
+            .Select(g => (g.Name, Members: g.Members.Where(m => !string.IsNullOrWhiteSpace(m)).ToList()))
+            .Where(g => g.Members.Count > 0)
+            .ToList();
+
+        // Ungrouped remainder — the authoritative skills not already shown in any group (no double
+        // render, no loss). Ordinal match mirrors the SkillGroup membership invariant (member ∈ Skills[].Name).
+        var grouped = renderableGroups.SelectMany(g => g.Members).ToHashSet(StringComparer.Ordinal);
+        var ungrouped = skills
+            .Where(s => !string.IsNullOrWhiteSpace(s) && !grouped.Contains(s))
+            .ToList();
+
+        if (renderableGroups.Count == 0 && ungrouped.Count == 0)
+        {
+            return;
+        }
+
+        Section(col, label, headingColor);
+
+        foreach (var (name, members) in renderableGroups)
+        {
+            col.Item().Text(text =>
+            {
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    text.Span($"{name}: ").SemiBold();
+                }
+                text.Span(string.Join(", ", members));
+            });
+        }
+
+        if (ungrouped.Count > 0)
+        {
+            col.Item().Text(string.Join(", ", ungrouped));
+        }
+    }
+
+    /// <summary>
+    /// Renders the Språk section — each language name with its localised proficiency appended in
+    /// parentheses when known (e.g. "Svenska (Modersmål)"); an unknown level renders the bare name
+    /// (never a fabricated level — ADR 0074 OQ3 / §5). Omitted when empty (honest partial).
+    /// </summary>
+    private static void LanguagesSection(
+        ColumnDescriptor col,
+        string label,
+        IReadOnlyList<CvDocumentModel.LanguageLine> languages,
+        string headingColor)
+    {
+        var values = languages
+            .Where(l => !string.IsNullOrWhiteSpace(l.Name))
+            .Select(l => string.IsNullOrWhiteSpace(l.Proficiency) ? l.Name : $"{l.Name} ({l.Proficiency})")
+            .ToList();
+
         if (values.Count == 0)
         {
             return;
@@ -121,6 +193,53 @@ internal static class CvDocumentComposer
 
         Section(col, label, headingColor);
         col.Item().Text(string.Join(", ", values));
+    }
+
+    /// <summary>
+    /// Renders the dynamic profession-driven sections (Projekt, Legitimation, Referenser, …) verbatim
+    /// — the user's heading (never a SmartEnum, always shown, P4), each entry's title in semibold and
+    /// its body lines beneath. Their ordering is a later slice (8b.4a); here they append after the
+    /// standard sections in content order. A section with neither heading text nor entries is skipped.
+    /// </summary>
+    private static void DynamicSections(
+        ColumnDescriptor col,
+        IReadOnlyList<CvDocumentModel.SectionLine> sections,
+        string headingColor,
+        string secondaryColor)
+    {
+        foreach (var section in sections)
+        {
+            var entries = section.Entries;
+            var hasHeading = !string.IsNullOrWhiteSpace(section.Heading);
+            if (!hasHeading && entries.Count == 0)
+            {
+                continue;
+            }
+
+            if (hasHeading)
+            {
+                Section(col, section.Heading, headingColor);
+            }
+
+            foreach (var entry in entries)
+            {
+                var lines = entry.Lines.Where(l => !string.IsNullOrWhiteSpace(l)).ToList();
+                if (string.IsNullOrWhiteSpace(entry.Title) && lines.Count == 0)
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(entry.Title))
+                {
+                    col.Item().Text(entry.Title).SemiBold();
+                }
+
+                foreach (var line in lines)
+                {
+                    col.Item().Text(line);
+                }
+            }
+        }
     }
 
     private static string Join(string separator, params string?[] parts) =>

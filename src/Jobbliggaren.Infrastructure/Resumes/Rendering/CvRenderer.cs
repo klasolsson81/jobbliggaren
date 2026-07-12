@@ -61,7 +61,8 @@ internal sealed class CvRenderer : ICvRenderer
         cancellationToken.ThrowIfCancellationRequested();
 
         var labels = CvRenderStrings.For(language);
-        var model = CvDocumentModel.From(content, labels.Ongoing);
+        var model = CvDocumentModel.From(
+            content, labels.Ongoing, proficiency => CvRenderStrings.ProficiencyLabel(proficiency, language));
 
         var document = Document.Create(container =>
             CvDocumentComposer.Compose(container, model, labels, profile));

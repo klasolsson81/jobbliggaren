@@ -122,6 +122,117 @@ public class HeadingDrivenResumeSegmenterTests
         result.Content.Contact.FullName.ShouldBe("Anna Andersson");
     }
 
+    // ── #815 — Ort (location) ───────────────────────────────────────────────────────
+    //
+    // Location was never extracted at all: ParsedContact was constructed with
+    // `Location: null` hardcoded. So HasLocation was false for 100 % of imports ever made,
+    // every parsed-CV review carried a false "ort saknas", and the Slutför guide always
+    // asked for a city the CV already stated.
+
+    [Theory]
+    [InlineData("Ort: Göteborg")]
+    [InlineData("Bostadsort: Göteborg")]
+    [InlineData("Stad: Göteborg")]
+    [InlineData("Location: Göteborg")]
+    public void Segment_LabelledLocation_ExtractsTheCity(string labelled)
+    {
+        var cv =
+            $"""
+            Anna Andersson
+            anna.andersson@example.com
+            {labelled}
+
+            Profil
+            Erfaren utvecklare.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Contact.Location.ShouldBe("Göteborg");
+    }
+
+    [Fact]
+    public void Segment_PostalCodeLine_ExtractsTheCityAfterTheCode()
+    {
+        var cv =
+            """
+            Anna Andersson
+            Storgatan 1
+            412 58 Göteborg
+            anna.andersson@example.com
+
+            Profil
+            Erfaren utvecklare.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Contact.Location.ShouldBe("Göteborg");
+    }
+
+    [Fact]
+    public void Segment_BareCityInTheContactBlock_ExtractsItFromTheMunicipalityLexicon()
+    {
+        // Klas's CV: "Göteborg" stands alone in the contact rail, with no label and no postal
+        // code. The kommun vocabulary comes from the versioned taxonomy snapshot (ADR 0043) —
+        // never a hand-written city list in C# (§5).
+        var result = _sut.Segment(SidebarOrderCv);
+
+        result.Content.Contact.Location.ShouldBe("Göteborg");
+    }
+
+    [Fact]
+    public void Segment_CityOnlyInsideAnExperienceEntry_DoesNotBecomeThePersonsLocation()
+    {
+        // THE HONESTY GUARD. "Operatör — Verkstaden AB, Göteborg" states the EMPLOYER's city.
+        // Inferring that the person lives there is a fabrication, and this engine never
+        // synthesises what the user did not write (ADR 0071). Honest-absent beats a confident
+        // guess. The bare-city rung therefore only ever looks inside contact scope.
+        var cv =
+            """
+            Anna Andersson
+            anna.andersson@example.com
+
+            Arbetslivserfarenhet
+            Operatör — Verkstaden AB, Göteborg
+            2005 - 2010
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Contact.Location.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Segment_LocationFound_DoesNotSilentlyRegradeContactConfidence()
+    {
+        // The confidence formula is hasName && (hasEmail || hasPhone). Folding Location into it
+        // would re-grade every historical parse the moment this shipped. Evidence may grow; the
+        // LEVEL must not move.
+        const string withoutLocation =
+            """
+            Anna Andersson
+            anna.andersson@example.com
+
+            Profil
+            Erfaren utvecklare.
+            """;
+        const string withLocation =
+            """
+            Anna Andersson
+            anna.andersson@example.com
+            Ort: Göteborg
+
+            Profil
+            Erfaren utvecklare.
+            """;
+
+        var before = LevelOf(_sut.Segment(withoutLocation), ParsedSectionKind.Contact);
+        var after = LevelOf(_sut.Segment(withLocation), ParsedSectionKind.Contact);
+
+        after.ShouldBe(before);
+    }
+
     private const string SwedishCv =
         """
         Anna Andersson

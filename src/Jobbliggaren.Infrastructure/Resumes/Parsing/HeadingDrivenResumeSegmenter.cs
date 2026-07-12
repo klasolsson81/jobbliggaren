@@ -35,6 +35,10 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     // NormalizeHeading pass HeadingMap uses so a banner matches regardless of case/punctuation.
     private static readonly FrozenSet<string> NameBanners;
 
+    // #815: the labels that introduce a city ("Ort:", "Bostadsort:", "Location:"). Lexicon data,
+    // lowercased once, so the vocabulary can grow without a code change (§5).
+    private static readonly FrozenSet<string> LocationLabels;
+
     private static readonly JsonSerializerOptions LexiconJsonOptions =
         new() { PropertyNameCaseInsensitive = true };
 
@@ -59,6 +63,11 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
             .Select(NormalizeHeading)
             .Where(banner => banner.Length > 0)
             .ToFrozenSet(StringComparer.Ordinal);
+
+        LocationLabels = (lexicon.ContactLabels?.Location ?? [])
+            .Select(label => label.Trim().ToLowerInvariant())
+            .Where(label => label.Length > 0)
+            .ToFrozenSet(StringComparer.Ordinal);
     }
 
     public ResumeSegmentationResult Segment(string rawText)
@@ -74,7 +83,15 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         var email = FirstEmail(rawText);
         var phone = FirstPhone(rawText);
         var fullName = DetectName(preamble, blocks);
-        var contact = new ParsedContact(fullName, email, phone, Location: null);
+
+        // #815: Location was `null` here, hardcoded — city extraction did not exist, so every CV
+        // ever imported reported "ort saknas" even when the CV stated the city plainly. The bare-
+        // city rung reads ONLY contact scope (contact block + preamble): an employer's city inside
+        // an experience entry must never become the person's home (see ContactLocationExtractor).
+        var contactScope = ContactScopeLines(preamble, blocks);
+        var location = ContactLocationExtractor.Extract(rawText, contactScope, LocationLabels);
+
+        var contact = new ParsedContact(fullName, email, phone, location);
 
         var profileText = SectionText(blocks, ParsedSectionKind.Profile);
         var experiences = ParseExperiences(blocks);
@@ -647,10 +664,31 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
                 $"Embedded CV-parsing lexicon {LexiconResourceName} deserialized to null.");
     }
 
+    /// <summary>
+    /// The lines a bare city name may be read from: the preamble (everything before the first
+    /// heading — where a rail-style CV puts its contact details) plus the Contact block itself.
+    /// Deliberately NOT the whole document: see ContactLocationExtractor for why that scope is the
+    /// honesty guard, not an optimisation.
+    /// </summary>
+    private static List<string> ContactScopeLines(
+        List<string> preamble, Dictionary<ParsedSectionKind, string> blocks)
+    {
+        var scope = new List<string>(preamble);
+
+        if (blocks.TryGetValue(ParsedSectionKind.Contact, out var contactBlock))
+            scope.AddRange(SplitLines(contactBlock));
+
+        return scope;
+    }
+
     private sealed record Lexicon(
         Dictionary<string, string[]> Headings,
         Dictionary<string, string[]> LanguageHints,
-        string[]? NameBanners);
+        string[]? NameBanners,
+        ContactLabels? ContactLabels);
+
+    /// <summary>Contact-field label vocabulary — versioned data, never inline C# strings (§5).</summary>
+    private sealed record ContactLabels(string[]? Location);
 
     [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
     private static partial Regex WhitespaceRegex();

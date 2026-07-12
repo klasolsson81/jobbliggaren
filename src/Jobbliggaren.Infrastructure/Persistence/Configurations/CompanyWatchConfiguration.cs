@@ -1,6 +1,7 @@
 using Jobbliggaren.Domain.CompanyWatches;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Jobbliggaren.Infrastructure.Persistence.Configurations;
 
@@ -56,6 +57,19 @@ public sealed class CompanyWatchConfiguration : IEntityTypeConfiguration<Company
 
         builder.Property(w => w.CreatedAt).IsRequired();
         builder.Property(w => w.DeletedAt);
+
+        // Per-watch filter (RF-2, 2026-07-12) — nullable jsonb via property-level converter
+        // (NOT OwnsOne().ToJson(): it does not map IReadOnlyList<string> stably, Npgsql #3129 —
+        // the MatchPreferences precedent). EF never invokes the converter for null → SQL NULL
+        // round-trips as CLR null = no filter; existing rows are back-compatible for free.
+        // Non-generic ValueConverter cast: the helper is non-null-typed while the property is
+        // nullable (the known nullable-jsonb-VO trap). No index — the filter is always read
+        // via the watch row, never queried by content.
+        var filter = builder.Property(w => w.Filter)
+            .HasConversion((ValueConverter)WatchFilterSpecConversion.Converter)
+            .HasColumnName("filter")
+            .HasColumnType("jsonb");
+        filter.Metadata.SetValueComparer(WatchFilterSpecConversion.Comparer);
 
         // FORK B1 — active-partial UNIQUE: at most one ACTIVE follow per (user, org.nr). The
         // resurrect handler keeps it one physical row total. Quoted snake_case filter (parity with

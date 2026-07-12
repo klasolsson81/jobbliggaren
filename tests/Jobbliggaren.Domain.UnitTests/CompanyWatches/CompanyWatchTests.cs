@@ -121,4 +121,94 @@ public class CompanyWatchTests
         // the PR-4 notification rail is a batch scan — no reactive consumer of a follow event.
         FollowValid().DomainEvents.ShouldBeEmpty();
     }
+
+    // ---------------------------------------------------------------
+    // Per-watch filter (bevaknings-reconcile RF-2, 2026-07-12)
+    // ---------------------------------------------------------------
+
+    private static WatchFilterSpec ValidFilter() =>
+        WatchFilterSpec.Create(["kommun_a"], onlyMatched: true).Value;
+
+    [Fact]
+    public void Follow_CreatesWatchWithoutFilter()
+    {
+        FollowValid().Filter.ShouldBeNull();
+    }
+
+    [Fact]
+    public void SetFilter_OnActiveWatch_SetsFilter()
+    {
+        var watch = FollowValid();
+        var filter = ValidFilter();
+
+        var result = watch.SetFilter(filter);
+
+        result.IsSuccess.ShouldBeTrue();
+        watch.Filter.ShouldBe(filter);
+    }
+
+    [Fact]
+    public void SetFilter_OnDeletedWatch_Fails()
+    {
+        var watch = FollowValid();
+        watch.SoftDelete(Clock);
+
+        var result = watch.SetFilter(ValidFilter());
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("CompanyWatch.NotActive");
+        watch.Filter.ShouldBeNull();
+    }
+
+    [Fact]
+    public void SetFilter_WithNull_Fails()
+    {
+        var watch = FollowValid();
+
+        var result = watch.SetFilter(null!);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("CompanyWatch.FilterRequired");
+    }
+
+    [Fact]
+    public void ClearFilter_RemovesFilter_AndIsIdempotent()
+    {
+        var watch = FollowValid();
+        watch.SetFilter(ValidFilter());
+
+        watch.ClearFilter();
+        watch.Filter.ShouldBeNull();
+
+        watch.ClearFilter(); // idempotent no-op
+        watch.Filter.ShouldBeNull();
+    }
+
+    [Fact]
+    public void CompanyWatch_Unfollow_ClearsFilter()
+    {
+        // RF-2 sub-bind (senior-cto-advisor 2026-07-12): unfollow ends the 6(1)(b) relation —
+        // the profiling-adjacent filter preference must not sit latent on the soft-deleted row.
+        var watch = FollowValid();
+        watch.SetFilter(ValidFilter());
+
+        watch.SoftDelete(FakeDateTimeProvider.At(Clock.UtcNow.AddDays(3)));
+
+        watch.Filter.ShouldBeNull();
+    }
+
+    [Fact]
+    public void CompanyWatch_RefollowAfterFilteredUnfollow_StartsWithDefaultFilter()
+    {
+        // RF-2 sub-bind: the resurrected follow is a clean show-all follow — no silently
+        // inherited narrowing (§5 transparency; the exact resurrect trap the underlag flagged).
+        var watch = FollowValid();
+        watch.SetFilter(ValidFilter());
+        watch.SoftDelete(FakeDateTimeProvider.At(Clock.UtcNow.AddDays(3)));
+
+        watch.Refollow(FakeDateTimeProvider.At(Clock.UtcNow.AddDays(10)));
+
+        watch.DeletedAt.ShouldBeNull();
+        watch.Filter.ShouldBeNull();
+    }
 }

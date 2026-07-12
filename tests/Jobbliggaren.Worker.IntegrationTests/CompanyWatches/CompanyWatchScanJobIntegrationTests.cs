@@ -32,6 +32,12 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
 
     private static readonly DateTimeOffset Now = new(2026, 6, 15, 3, 25, 0, TimeSpan.Zero);
 
+    // RF-3 ort-filter concept-ids (JobTech municipality concept-ids). Stable literals are safe here:
+    // the scan only considers ads whose org.nr is WATCHED, and each test uses a UNIQUE org.nr, so ort
+    // ids never cross-contaminate between tests (unlike org.nr, which must be unique per test).
+    private const string KommunA = "kommun-a-cwscan";
+    private const string KommunB = "kommun-b-cwscan";
+
     // Per-test-unique org.nrs (the [Collection] shares one Postgres; the scan has no filter knob and
     // matches EVERY active ad whose org.nr is watched, so tests must not cross-contaminate).
     private static string UniqueLegalOrgNr() =>
@@ -191,6 +197,76 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
         hits.Select(h => h.JobAdId).ShouldNotContain(oldAdId, "an ad older than the cold-start floor is excluded");
     }
 
+    // ─────────────────────────── RF-3 per-watch ort filter (bevaknings-reconcile PR-F1)
+
+    [Fact]
+    public async Task RunAsync_OrtFilter_AdmitsOnlyAdsInFilteredMunicipality()
+    {
+        // RF-3=3D (scan-time) / RF-8=8A (never-created): a watch narrowed to [KommunA] produces a hit
+        // ONLY for an ad in KommunA. An ad in KommunB is filtered out; an ad WITHOUT a municipality
+        // (län-only, NULL) also fails the active ort filter (AdmitsMunicipality: a NULL municipality
+        // never matches an active list — 8A data-minimizing stance). A filtered-out ad produces NO hit
+        // row (the ort check is enforced scan-side, per (ad, watch) pair — the D5 seal extended).
+        var ct = TestContext.Current.CancellationToken;
+        var orgNr = UniqueLegalOrgNr();
+        var (userId, _) = await SeedConsentingUserAsync(ct);
+        await SeedWatchWithOrtFilterAsync(userId, orgNr, [KommunA], ct);
+        var adInA = await SeedAdWithOrgNrAndMunicipalityAsync(orgNr, "A Bygg AB", KommunA, ct);
+        await SeedAdWithOrgNrAndMunicipalityAsync(orgNr, "B Bygg AB", KommunB, ct);
+        await SeedAdWithOrgNrAndMunicipalityAsync(orgNr, "Län Bygg AB", municipalityConceptId: null, ct);
+
+        await RunJobAsync(ct);
+
+        var hits = await GetHitsAsync(userId, ct);
+        hits.Select(h => h.JobAdId).ShouldBe(
+            [adInA],
+            "endast annonsen i den filtrerade kommunen (KommunA) ska ge en hit — KommunB och den " +
+            "län-only-annonsen (NULL municipality) avvisas av det aktiva ort-filtret, ingen hit-rad skapas");
+    }
+
+    [Fact]
+    public async Task RunAsync_NoFilter_AdmitsAdsRegardlessOfMunicipality()
+    {
+        // Regression guard (RF-2 no-filter = show-all): a watch WITHOUT a filter notifies for every
+        // watched-org.nr ad regardless of ort — including a KommunB ad AND a län-only (NULL) ad that an
+        // active ort filter WOULD reject. Proves the pre-filter behaviour is unregressed by PR-F1.
+        var ct = TestContext.Current.CancellationToken;
+        var orgNr = UniqueLegalOrgNr();
+        var (userId, _) = await SeedConsentingUserAsync(ct);
+        await SeedWatchAsync(userId, orgNr, ct); // no filter
+        var adInB = await SeedAdWithOrgNrAndMunicipalityAsync(orgNr, "B Bygg AB", KommunB, ct);
+        var adLanOnly = await SeedAdWithOrgNrAndMunicipalityAsync(orgNr, "Län Bygg AB", municipalityConceptId: null, ct);
+
+        await RunJobAsync(ct);
+
+        var hits = await GetHitsAsync(userId, ct);
+        hits.Count.ShouldBe(2, "en bevakning UTAN filter ska ge hit för varje annons oavsett ort");
+        hits.Select(h => h.JobAdId).ShouldContain(adInB);
+        hits.Select(h => h.JobAdId).ShouldContain(adLanOnly);
+    }
+
+    [Fact]
+    public async Task RunAsync_OrtFilter_AdvancesWatermark_EvenWhenEveryCandidateFilteredOut()
+    {
+        // The atomicity/idempotens invariant holds when the ort filter rejects EVERY candidate: the
+        // watermark still advances to the scan instant (a later in-filter ad only catches FUTURE ads,
+        // never a re-scan of the rejected ones), and no hit is created. The rejected ad IS a candidate
+        // (watched org.nr + Active + within window) — only the client-side ort check drops it — so the
+        // scan reaches the watermark advance after rejecting it.
+        var ct = TestContext.Current.CancellationToken;
+        var orgNr = UniqueLegalOrgNr();
+        var (userId, _) = await SeedConsentingUserAsync(ct);
+        await SeedWatchWithOrtFilterAsync(userId, orgNr, [KommunA], ct);
+        await SeedAdWithOrgNrAndMunicipalityAsync(orgNr, "B Bygg AB", KommunB, ct);
+
+        await RunJobAsync(ct);
+
+        (await GetHitsAsync(userId, ct)).ShouldBeEmpty("den bortfiltrerade annonsen ger ingen hit");
+        var seeker = await GetSeekerAsync(userId, ct);
+        seeker.LastCompanyWatchScanAt.ShouldBe(Now,
+            "vattenmärket avancerar även när alla kandidat-annonser filtrerats bort (atomiciteten består)");
+    }
+
     // ─────────────────────────── Seeding helpers
 
     private enum FollowConsent { Off, On, Withdrawn }
@@ -236,6 +312,55 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
         db.CompanyWatches.Add(watch);
         await db.SaveChangesAsync(ct);
         return watch.Id;
+    }
+
+    // Seeds an ACTIVE watch narrowed by a per-watch ORT filter (RF-2): only ads in `municipalities`
+    // (JobTech concept-ids) notify. onlyMatched stays false — this suite has no profile/scorer, so the
+    // ort dimension is isolated here (RF-5 "endast matchade" is proven separately by FilterToMatchingTests).
+    private async Task<CompanyWatchId> SeedWatchWithOrtFilterAsync(
+        Guid userId, string orgNr, IEnumerable<string> municipalities, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = new FixedClock(Now);
+
+        var watch = CompanyWatch.Follow(userId, OrganizationNumber.Create(orgNr).Value, clock).Value;
+        var filter = WatchFilterSpec.Create(municipalities, onlyMatched: false).Value;
+        watch.SetFilter(filter).IsSuccess.ShouldBeTrue("SetFilter ska lyckas på en aktiv watch");
+        db.CompanyWatches.Add(watch);
+        await db.SaveChangesAsync(ct);
+        return watch.Id;
+    }
+
+    // As SeedAdWithOrgNrAsync, but the ad ALSO carries workplace_address.municipality_concept_id, so the
+    // STORED generated `municipality_concept_id` column auto-populates (the RF-3 ort filter reads it). A
+    // NULL municipalityConceptId omits workplace_address entirely → the column is NULL (a län-only ad).
+    private async Task<JobAdId> SeedAdWithOrgNrAndMunicipalityAsync(
+        string orgNr, string companyName, string? municipalityConceptId, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var externalId = $"cw-scan-{Guid.NewGuid():N}";
+        var addressJson = municipalityConceptId is null
+            ? string.Empty
+            : $",\"workplace_address\":{{\"municipality_concept_id\":\"{municipalityConceptId}\"}}";
+        var rawPayload =
+            $"{{\"id\":\"{externalId}\"," +
+            $"\"employer\":{{\"name\":\"{companyName}\",\"organization_number\":\"{orgNr}\"}}{addressJson}}}";
+
+        var jobAd = JobAd.Import(
+            title: "Snickare",
+            company: Company.Create(companyName).Value,
+            description: "beskrivning",
+            url: $"https://example.com/jobs/{externalId}",
+            external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
+            rawPayload: rawPayload,
+            publishedAt: Now.AddDays(-1),
+            expiresAt: Now.AddDays(60),
+            clock: new FixedClock(Now)).Value;
+        db.JobAds.Add(jobAd);
+        await db.SaveChangesAsync(ct);
+        return jobAd.Id;
     }
 
     // Seeds a watch then immediately UNFOLLOWS it (soft-delete) — the query filter should hide it.

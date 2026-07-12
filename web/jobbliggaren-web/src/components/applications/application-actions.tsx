@@ -14,6 +14,7 @@ import { clampAnchoredTop } from "@/lib/applications/anchored-top";
 import type { ApplicationDto, ApplicationStatus } from "@/lib/dto/applications";
 import { FinishDraftDialog } from "./finish-draft-dialog";
 import { LogFollowUpDialog } from "./log-follow-up-dialog";
+import { DeleteApplicationDialog } from "./delete-application-dialog";
 
 /**
  * Dialogens topp ankras ~170px ovanför klickpunkten (design §9 — "aldrig fast
@@ -34,7 +35,7 @@ function anchoredTop(anchorY: number | null): number | null {
 }
 
 interface DialogState {
-  kind: "finishDraft" | "logFollowUp";
+  kind: "finishDraft" | "logFollowUp" | "delete";
   application: ApplicationDto;
   top: number | null;
 }
@@ -56,6 +57,13 @@ export interface ApplicationActionsValue {
   openFinishDraft: (application: ApplicationDto, anchorY: number | null) => void;
   /** "Logga uppföljning"-dialogen (design §9). anchorY = klickets viewport-Y. */
   openLogFollowUp: (application: ApplicationDto, anchorY: number | null) => void;
+  /**
+   * #782 (ADR 0104) — "Ta bort ansökan": opens the destructive HARD-delete
+   * confirm (ONE shared centered dialog on the island, never N per row). No
+   * anchorY — a destructive confirm is centered (WithdrawApplicationButton
+   * precedent), not click-anchored like the two dialogs above.
+   */
+  deleteApplication: (application: ApplicationDto) => void;
 }
 
 const ApplicationActionsContext = createContext<ApplicationActionsValue | null>(
@@ -141,9 +149,19 @@ export function ApplicationActionsProvider({
     [],
   );
 
+  const deleteApplication = useCallback((application: ApplicationDto) => {
+    setDialog({ kind: "delete", application, top: null });
+  }, []);
+
   const value = useMemo<ApplicationActionsValue>(
-    () => ({ pendingIds, transition, openFinishDraft, openLogFollowUp }),
-    [pendingIds, transition, openFinishDraft, openLogFollowUp],
+    () => ({
+      pendingIds,
+      transition,
+      openFinishDraft,
+      openLogFollowUp,
+      deleteApplication,
+    }),
+    [pendingIds, transition, openFinishDraft, openLogFollowUp, deleteApplication],
   );
 
   const closeDialog = (open: boolean) => {
@@ -170,6 +188,13 @@ export function ApplicationActionsProvider({
           contextCompany={dialog.application.jobAd?.company ?? null}
           toastCompany={applicationDisplayName(dialog.application)}
           top={dialog.top}
+        />
+      )}
+      {dialog?.kind === "delete" && (
+        <DeleteApplicationDialog
+          open
+          onOpenChange={closeDialog}
+          applicationId={dialog.application.id}
         />
       )}
     </ApplicationActionsContext.Provider>

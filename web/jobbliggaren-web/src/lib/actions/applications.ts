@@ -168,6 +168,45 @@ export async function transitionStatusAction(
 }
 
 /**
+ * #782 (ADR 0104) — HARD delete of an application ("Radera ansökan"). Removes an
+ * application created by mistake / for cleanup; DISTINCT from the Withdrawn
+ * transition (keeps the record as a terminal status) and from account erasure.
+ * No redirect here (mirrors createApplicationFromJobAdAction): the list-surface
+ * caller stays put and the revalidatePath refreshes the list; the detail-page
+ * caller navigates away client-side after success (the row is now gone). 204 on
+ * success maps to { success: true }.
+ */
+export async function deleteApplicationAction(
+  applicationId: string
+): Promise<ActionResult> {
+  const tUi = await getTranslations("applications.ui");
+  const te = await getTranslations("errors");
+  const sessionId = await getSessionId();
+  if (!sessionId) return { success: false, error: tUi("actions.notLoggedIn") };
+  // Allowlist-guard: reject a non-GUID before the id reaches the backend URL
+  // (SSRF barrier + path-injection guard), mirroring the other id-taking actions.
+  if (!isValidId(applicationId)) return { success: false, error: tUi("actions.invalidInput") };
+
+  try {
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/applications/${encodeURIComponent(applicationId)}`,
+      { method: "DELETE" }
+    );
+
+    if (!res.ok) {
+      return { success: false, error: mapActionError(res, tUi("actions.deleteFailed"), te) };
+    }
+  } catch {
+    return { success: false, error: tUi("actions.serverUnreachable") };
+  }
+
+  revalidatePath("/ansokningar");
+  revalidatePath(`/ansokningar/${applicationId}`);
+  return { success: true };
+}
+
+/**
  * Bulk-statusbyte (#630 PR 10, Tabell-vyns bulkrad + grupp-ångra). Speglar
  * `transitionStatusAction` men mot batch-endpointen (PR 9): per-item-par
  * `{ applicationId, targetStatus }` så EN atomär all-or-nothing-transaktion

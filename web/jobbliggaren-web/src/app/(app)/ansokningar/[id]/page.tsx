@@ -6,6 +6,7 @@ import { getServerSession } from "@/lib/auth/session";
 import { getApplicationById } from "@/lib/api/applications";
 import { ApplicationDetail } from "@/components/applications/application-detail";
 import { WithdrawApplicationButton } from "@/components/applications/withdraw-application-button";
+import { DeleteApplicationButton } from "@/components/applications/delete-application-button";
 import { getAllowedTransitions } from "@/lib/applications/status";
 
 interface Props {
@@ -64,6 +65,10 @@ export default async function AnsokanDetailPage({ params }: Props) {
             <ApplicationDetail application={application} />
             <div className="jp-modal__foot">
               <span className="jp-modal__foot__spacer" />
+              {/* #782 (ADR 0104) — always available (deletion has no transition
+                  precondition, unlike Withdraw). "Ta bort ansökan" = HARD remove;
+                  "Återta ansökan" = keep as a terminal status. */}
+              <DeleteApplicationButton applicationId={application.id} />
               {canWithdraw && (
                 <WithdrawApplicationButton
                   applicationId={application.id}

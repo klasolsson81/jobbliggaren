@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Applications.Commands.AttachResumeVersion;
 using Jobbliggaren.Application.Applications.Commands.BatchTransition;
 using Jobbliggaren.Application.Applications.Commands.CreateApplication;
 using Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJobAd;
+using Jobbliggaren.Application.Applications.Commands.DeleteApplication;
 using Jobbliggaren.Application.Applications.Commands.LogFollowUp;
 using Jobbliggaren.Application.Applications.Commands.RecordFollowUpOutcome;
 using Jobbliggaren.Application.Applications.Commands.TransitionTo;
@@ -180,6 +181,22 @@ public static class ApplicationsEndpoints
             Guid id, AttachResumeVersionBody body, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new AttachResumeVersionCommand(id, body.ResumeVersionId), ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        // #782 (ADR 0104) — user-initiated per-application HARD delete ("Radera
+        // ansökan"): remove an application created by mistake / for cleanup. DISTINCT
+        // from the Withdrawn transition (keeps the record as a terminal status) and
+        // from account-erasure (ADR 0024). Owner-scoped + IFailedAccessLogger — an
+        // unknown or foreign id returns an identical 404 (no enumeration oracle). 204
+        // on success. Same MeWritePolicy rate-limit as the other owner-scoped writes.
+        group.MapDelete("/{id:guid}", async (
+            Guid id, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new DeleteApplicationCommand(id), ct);
             return result.IsSuccess
                 ? Results.NoContent()
                 : result.Error.ToProblemResult();

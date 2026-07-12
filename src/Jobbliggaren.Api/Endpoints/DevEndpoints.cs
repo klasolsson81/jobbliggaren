@@ -1,3 +1,5 @@
+using Jobbliggaren.Application.Dev.Abstractions;
+using Jobbliggaren.Application.Dev.Commands.ConfirmEmail;
 using Jobbliggaren.Application.Dev.Commands.ResetMyData;
 using Mediator;
 
@@ -30,5 +32,30 @@ public static class DevEndpoints
                     title: result.Error.Code,
                     statusCode: 400);
         }).RequireAuthorization();
+
+        // DEV-ONLY — token-free confirmed-login seam for the Playwright E2E suite (#796).
+        // Force-confirms a test account's email so the loginAs specs can obtain a login-
+        // capable user against a flag-ON backend (Auth:RequireEmailConfirmation=true)
+        // without a real out-of-band email round-trip. UNAUTHENTICATED by design: the
+        // caller has just registered and is login-gated (no session yet). Reachable ONLY
+        // in Development — this whole group is mapped under Program.cs's IsDevelopment()
+        // gate AND the IDevEmailConfirmer impl is DI-registered ONLY in Development (two
+        // independent structural gates). REMOVE BEFORE LAUNCH.
+        group.MapPost("/confirm-email", async (
+            ConfirmEmailDevRequest body,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(body?.Email))
+                return Results.BadRequest();
+
+            var outcome = await mediator.Send(new ConfirmEmailDevCommand(body.Email), ct);
+            return outcome == DevEmailConfirmOutcome.Confirmed
+                ? Results.NoContent()
+                : Results.NotFound();
+        });
     }
+
+    /// <summary>DEV-ONLY request body for <c>POST /api/v1/dev/confirm-email</c> (#796).</summary>
+    public sealed record ConfirmEmailDevRequest(string? Email);
 }

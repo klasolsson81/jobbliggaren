@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -157,5 +158,33 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
         var response = await _client.GetAsync("/api/ready", ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    // #796 map-gate guardrail (HARD merge gate, CLAUDE.md §12): the whole /api/v1/dev/*
+    // group — including the token-free confirmed-login seam — MUST be unmapped outside
+    // Development. A 404 (not 401/405) proves the route does not exist in Production; if
+    // the Program.cs IsDevelopment() gate ever regressed, these turn red before deploy.
+
+    [Fact]
+    public async Task POST_dev_confirm_email_is_unmapped_in_Production_env()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/dev/confirm-email",
+            new { email = "x@e2e.jobbliggaren.test" },
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task POST_dev_reset_my_data_is_unmapped_in_Production_env()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var response = await _client.PostAsync("/api/v1/dev/reset-my-data", content: null, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 }

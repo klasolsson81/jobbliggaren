@@ -107,8 +107,20 @@ test.describe("/jobb — auth-gated rendering", () => {
     page,
   }) => {
     await page.goto("/jobb");
+    await page.waitForLoadState("networkidle");
     await page.getByLabel(SEARCH_FIELD_LABEL).fill("a");
+
+    // SETTLA navigeringen på en signal som är FALSK vid t=0. Klicket triggar router.replace
+    // (klient-side RSC-fetch); assertar man dessförinnan passerar de negativa påståendena
+    // trivialt på första pollen. Ett `waitForURL`-predikat duger INTE här: URL:en får aldrig
+    // något q i det här flödet, så predikatet är sant hela tiden och Playwright returnerar
+    // direkt utan att vänta in någon navigering. (Jag skrev först precis det. code-reviewer
+    // fångade det — sessionens sjätte assertion som inte kunde falla.)
+    const rsc = page.waitForResponse(
+      (r) => r.url().includes("/jobb") && r.status() === 200
+    );
     await page.getByRole("button", { name: "Sök", exact: true }).click();
+    await rsc;
 
     // Vägledningen står i hjälpraden. (Notistexten finns även i komponentens aria-live-
     // region — scopa till den SYNLIGA raden, annars strict-mode.)
@@ -119,13 +131,11 @@ test.describe("/jobb — auth-gated rendering", () => {
     await expect(
       page.locator("p.jp-hero__searchhelp:not(.jp-hero__searchhelp--notice)")
     ).toContainText(/Ord blir taggar i filterraden/);
-    // SETTLA navigeringen först. Klicket triggar router.replace (klient-side RSC-fetch);
-    // utvärderas de negativa assertions dessförinnan passerar de trivialt på första pollen,
-    // medan URL:en fortfarande är /jobb och gamla resultat står kvar — dvs. de hade inte
-    // kunnat falla. (code-reviewer fångade det; samma defektklass som resten av sessionen.)
-    await page.waitForURL((u) => !new URL(u).searchParams.has("q"));
-
-    // Det avgörande: backendens 400-väg nås aldrig, så teknisk-fel-kortet syns inte.
+    // POSITIVT påstående, inte bara ett negativt: träffytan ska ha renderats. Felkortet
+    // ERSÄTTER den, så en regression (q=a committas → backend 400) gör att tomtillståndet
+    // aldrig dyker upp och det här faller. Ett ensamt toHaveCount(0) hade varit grönt även
+    // om sidan inte renderat någonting alls.
+    await expect(page.getByText("Inga jobb hittades")).toBeVisible();
     await expect(
       page.getByText("Kunde inte ladda jobbannonser")
     ).toHaveCount(0);
@@ -138,6 +148,9 @@ test.describe("/jobb — auth-gated rendering", () => {
     page,
   }) => {
     await page.goto("/jobb?q=a");
+    // Positivt: träfflistans yta renderade (felkortet hade ersatt den). Testets NAMN lovar
+    // det — då ska det också asserteras, inte bara frånvaron av felkortet.
+    await expect(page.getByText("Inga jobb hittades")).toBeVisible();
     await expect(
       page.getByText("Kunde inte ladda jobbannonser")
     ).toHaveCount(0);

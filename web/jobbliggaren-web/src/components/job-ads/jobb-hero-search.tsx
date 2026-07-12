@@ -379,6 +379,9 @@ export function JobbHeroSearch({
       // grenen ovan redan nollar annonsen för.
       setAnnouncement("");
     }
+    // (Två Sök-tryck på SAMMA för-korta ord utan mellanliggande redigering förblir tyst:
+    // identisk sträng → ingen DOM-mutation. Medvetet — ingenting nytt har hänt, och att
+    // upprepa samma mening vore brus. Det är redigeringen som gör notisen inaktuell.)
     // Commit-punkt = tecknet före caret är en avgränsare (ordet avslutades
     // nyss). Ren radering committas inte per keystroke — deltat landar vid
     // nästa commit-punkt/Enter (CTO VAL 3, dokumenterad konsekvens).

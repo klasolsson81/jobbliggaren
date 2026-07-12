@@ -352,8 +352,6 @@ function emptyToUndefined(s: string | undefined): string | undefined {
   return s && s.trim().length > 0 ? s.trim() : undefined;
 }
 
-
-
 // Normaliserar string | string[] | undefined → string[] (tomma värden bort).
 function toStringList(raw: string | string[] | undefined): string[] {
   if (raw === undefined) return [];

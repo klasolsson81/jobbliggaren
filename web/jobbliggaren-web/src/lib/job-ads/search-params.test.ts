@@ -274,6 +274,11 @@ describe("clampSubMinimumQ (#823)", () => {
     expect(clampSubMinimumQ(" a ")).toBeUndefined();
   });
 
+  it("normaliserar (trimmar) så båda URL-vägarna emitterar samma q", () => {
+    // Utan detta kör sidan "ab" medan pagineringslänken bär "+ab+".
+    expect(clampSubMinimumQ(" ab ")).toBe("ab");
+  });
+
   it("behåller allt som backend faktiskt accepterar", () => {
     expect(clampSubMinimumQ("ab")).toBe("ab");
     // Regeln gäller HELA strängen, aldrig per ord — "a bc" är 4 tecken och giltigt.

@@ -231,6 +231,10 @@ export function buildJobbHref(state: JobbUrlState): string {
  */
 export function clampSubMinimumQ(q: string | undefined): string | undefined {
   if (q === undefined) return undefined;
+  // Returnera det TRIMMADE värdet, inte det råa: annars normaliserar de två callerna olika
+  // (page.tsx trimmar via emptyToUndefined, buildPageHref gjorde det inte) och
+  // "/jobb?q=%20ab%20" hade kört sökningen "ab" medan sidlänken re-emitterade "+ab+".
+  // Samma divergens-form som klampen infördes för att stänga.
   const trimmed = q.trim();
-  return trimmed.length < Q_MIN_LENGTH ? undefined : q;
+  return trimmed.length < Q_MIN_LENGTH ? undefined : trimmed;
 }

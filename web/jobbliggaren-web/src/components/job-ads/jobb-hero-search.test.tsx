@@ -217,6 +217,42 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
 
       expect(noticeLine()).toBe("");
     });
+
+    // VAKTEN för `setAnnouncement("")` vid självläkningen. Utan den ligger notissträngen
+    // kvar i live-regionen, och ett UPPREPAT för-kort försök producerar en IDENTISK sträng
+    // → ingen DOM-mutation → aria-live fyrar aldrig. Seende användare ser notisen igen;
+    // skärmläsaranvändaren får total tystnad efter ett tryck på primär-CTA:n (WCAG 4.1.3).
+    // Det observerbara villkoret är att regionen är TOM mellan de två identiska strängarna.
+    // (Fixen hade först bara "verified live" som bevis — code-reviewer påpekade att en fix
+    // utan assertion är samma defektklass som resten av sessionen.)
+    it("live-regionen töms vid redigering, så ett UPPREPAT för-kort försök annonseras igen", async () => {
+      const user = userEvent.setup();
+      setup();
+      // OBS: det finns TVÅ polite live-regioner runt fältet (typeaheadens + heron:s). Ett
+      // querySelector hade tagit den FÖRSTA — typeaheadens, som är tom — och gjort testet
+      // vakuöst. Aggregera i stället; en selector-miss ger då "" och faller på toMatch.
+      const liveRegion = () =>
+        Array.from(
+          document.querySelectorAll("p[role='status'][aria-live='polite']")
+        )
+          .map((e) => e.textContent ?? "")
+          .join("");
+
+      await user.type(screen.getByRole("combobox"), "a");
+      await user.click(screen.getByRole("button", { name: /^Sök/ }));
+      expect(liveRegion()).toMatch(/”a” är kortare än 2 tecken/);
+
+      // Redigering → notisen är inaktuell → live-regionen MÅSTE tömmas.
+      await user.type(screen.getByRole("combobox"), "b");
+      expect(liveRegion()).toBe("");
+
+      // Tillbaka till samma för-korta ord → samma sträng igen. Den fyrar bara om regionen
+      // hann bli tom däremellan.
+      await user.clear(screen.getByRole("combobox"));
+      await user.type(screen.getByRole("combobox"), "a");
+      await user.click(screen.getByRole("button", { name: /^Sök/ }));
+      expect(liveRegion()).toMatch(/”a” är kortare än 2 tecken/);
+    });
   });
 
   it("live-typing (mellanslag) committar UTAN commit-intent — ingen capture", async () => {

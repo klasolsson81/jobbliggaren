@@ -69,7 +69,14 @@ public sealed class GetApplicationByIdQueryHandler(
         }
 
         // JobAd-summary: projicerad left-join (ADR 0048, ej krypterat).
-        // JobAd:s globala query-filter ärvs → soft-deletad → null → fallback.
+        // #805-3: Status projiceras med (JobAdStatus → string via value-converter,
+        // samma idiom som Source) — den enda sanningsenliga live/borta-signalen på
+        // den här läsvägen. Den gamla utsagan "soft-deletad → null → fallback" var
+        // FALSK: JobAd.DeletedAt saknar writer, så det globala query-filtret
+        // (DeletedAt == null) exkluderar aldrig en rad och jobAd blir aldrig null
+        // för en JobAd-länkad ansökan. jobAd == null betyder numera exakt EN sak:
+        // ansökan har ingen annonsrad alls (manuell eller enbart personligt brev).
+        // Den döda axeln retireras i #821.
         JobAdSummaryDto? jobAd = null;
         if (app.JobAdId is { } jobAdId)
         {
@@ -78,14 +85,16 @@ public sealed class GetApplicationByIdQueryHandler(
                 .Where(j => j.Id == jobAdId)
                 .Select(j => new JobAdSummaryDto(
                     j.Id.Value, j.Title, j.Company.Name, j.Url,
-                    j.Source.Value, j.PublishedAt, j.ExpiresAt))
+                    j.Source.Value, j.PublishedAt, j.ExpiresAt, j.Status.Value))
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
+        // Manuell ansökan: ingen JobAd-rad ⇒ ingen arkivering ⇒ ingen livs-utsaga.
+        // Status = null (aldrig "Active" — det vore en lögn i payloaden).
         jobAd ??= app.ManualPosting is { } manual
             ? new JobAdSummaryDto(
                 null, manual.Title, manual.Company, manual.Url, "Manual",
-                (DateTimeOffset?)null, manual.ExpiresAt)
+                (DateTimeOffset?)null, manual.ExpiresAt, null)
             : null;
 
         // #315 (ADR 0086): the preserved ad-text snapshot, mapped from the

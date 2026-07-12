@@ -1,8 +1,10 @@
 import { z } from "zod";
 
 // AF activity-report read model (issue #316). Job metadata is nullable: a
-// soft-deleted JobAd or a degenerate cover-letter-only application yields no
-// employer/title/location; a manual posting has no location. The FE renders a
+// cover-letter-only application (no ad row at all) yields no employer/title/
+// location; a manual posting has no location. #805-3 truth-sync: the previous
+// claim ("a soft-deleted JobAd") was false — JobAd.DeletedAt has no writer (#821),
+// so a retracted ad is ARCHIVED and still joins, metadata intact. The FE renders a
 // neutral "Saknas" placeholder and no copy button for an empty field. nullable +
 // optional gives deploy-skew resilience (an older cached response missing a
 // field still parses).

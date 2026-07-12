@@ -33,11 +33,20 @@ namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationCo
 /// </para>
 ///
 /// <para>
+/// <b>⚠ DISPUTED — see #824 (raised by #805-3). The claim below is believed FALSE and is preserved
+/// verbatim only so the disputed text is traceable; do NOT rely on it.</b> <c>JobAd.DeletedAt</c> has
+/// no writer anywhere in <c>src/</c>, so the global soft-delete filter is vacuous (#821). A retracted
+/// ad is ARCHIVED (<c>Status = "Archived"</c>) and <b>still joins</b> — its org.nr resolves and the
+/// application IS counted. That is the opposite of the "known limitation" recorded below, and it also
+/// means #445's premise needs re-examination. #824 decides the intended behaviour and updates the
+/// DPIA. Original claim:
+/// <para>
 /// <b>Archived-ad honesty (#444 / DPIA #456 parity).</b> Only submitted applications joined to a LIVE
 /// (non-soft-deleted) ad contribute org.nr (the <c>SelectMany</c> filters <c>OrgNr != null</c>; the
 /// reader inherits the global soft-delete filter). An application whose ad was retracted has no
 /// resolvable org.nr and is not attributed — the known, honestly-recorded #444 limitation (#445 tracks
 /// capturing org.nr on <c>AdSnapshot</c>), not a silent miscount.
+/// </para>
 /// </para>
 /// </summary>
 public sealed class GetEmployerApplicationCountBatchQueryHandler(
@@ -65,7 +74,8 @@ public sealed class GetEmployerApplicationCountBatchQueryHandler(
             return Empty;
 
         // (1) Page ads -> employer org.nr, server-side (#455 reader: `= ANY` raw SQL + EF.Property shadow
-        // column, inherits the global soft-delete filter). org.nr is a server-side-only value here.
+        // column, inherits the global soft-delete filter — which is VACUOUS, see the DISPUTED note on
+        // the class: an archived ad still resolves its org.nr, #824). org.nr is server-side-only here.
         var orgNrByJobAdId = await employerReader.GetOrganizationNumbersByJobAdIdsAsync(
             query.JobAdIds, cancellationToken);
 

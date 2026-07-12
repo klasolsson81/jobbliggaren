@@ -52,6 +52,7 @@ describe("jobSeekerProfileSchema", () => {
     // default OFF) + digest cadence (wire enum `Daily`/`Weekly`).
     backgroundMatchNotificationsEnabled: false,
     digestCadence: "Weekly",
+    followedCompanyNotificationsEnabled: false,
     createdAt: "2026-05-11T10:00:00Z",
     // F4-12 PR-B (ADR 0076) — matchnings-önskemål + härlett nudge-flagg.
     hasStatedDesiredOccupation: false,
@@ -129,6 +130,15 @@ describe("jobSeekerProfileSchema", () => {
   it("rejects when backgroundMatchNotificationsEnabled missing (kontraktsdrift, ADR 0080)", () => {
     const without: Partial<typeof valid> = { ...valid };
     delete without.backgroundMatchNotificationsEnabled;
+    expect(jobSeekerProfileSchema.safeParse(without).success).toBe(false);
+  });
+
+  it("rejects when followedCompanyNotificationsEnabled missing (kontraktsdrift, bevakning F4)", () => {
+    // Ett `undefined` skulle maskera kontraktsdrift OCH tyst rendera
+    // samtyckes-kortet som avslaget — den farligaste defaulten för en
+    // GDPR-flagga. Backend projicerar alltid fältet.
+    const without: Partial<typeof valid> = { ...valid };
+    delete without.followedCompanyNotificationsEnabled;
     expect(jobSeekerProfileSchema.safeParse(without).success).toBe(false);
   });
 

@@ -79,3 +79,51 @@ export async function updateNotificationConsent(input: {
     return { kind: "error" };
   }
 }
+
+/**
+ * Bevakning F4 (#803, CTO RF-12=12C) — sets the current user's consent for the
+ * followed-company email digest (GDPR Art. 6(1)(a)/7, default OFF; turning it
+ * off is the Art. 7(3) withdrawal). A DISTINCT purpose from the background-match
+ * consent above, hence its own endpoint.
+ *
+ * The body carries ONLY `{ enabled }`: the digest cadence is SHARED between the
+ * two notification purposes (ADR 0087 D2) and is written through
+ * `updateNotificationConsent` — sending a cadence here would imply a second,
+ * independent cadence that does not exist.
+ *
+ * Mirrors the sibling write exactly: `PUT` + JSON body, idempotent full-replace,
+ * 204 on success / Problem 400 on failure (the status code is the whole truth —
+ * the body is NEVER read, TD-10). The current state is READ via `getMyProfile()`
+ * (`followedCompanyNotificationsEnabled` rides the JobSeekerProfileDto
+ * projection); there is no dedicated read endpoint. Server-only.
+ */
+export async function updateFollowedCompanyNotificationConsent(input: {
+  enabled: boolean;
+}): Promise<ApiResult<void>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+
+  try {
+    const res = await authedFetch(
+      sessionId,
+      "/api/v1/me/followed-company-notification-consent",
+      {
+        method: "PUT",
+        body: JSON.stringify({ enabled: input.enabled }),
+      }
+    );
+
+    if (res.status === 204) return { kind: "ok", data: undefined };
+    if (res.status === 401) return { kind: "unauthorized" };
+    if (res.status === 403) return { kind: "forbidden" };
+    if (res.status === 429) {
+      return {
+        kind: "rateLimited",
+        retryAfterSeconds: parseRetryAfter(res.headers.get("Retry-After")),
+      };
+    }
+    return { kind: "error" };
+  } catch {
+    return { kind: "error" };
+  }
+}

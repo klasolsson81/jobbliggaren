@@ -8,6 +8,7 @@
 // som sidan (RSC) redan hämtat; ön härleder aldrig ATS-regeln eller hex själv (P5).
 
 import {
+  type CSSProperties,
   useCallback,
   useEffect,
   useId,
@@ -16,10 +17,12 @@ import {
   useTransition,
 } from "react";
 import { useTranslations } from "next-intl";
+import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
+import { Check, Info } from "lucide-react";
 import { BrandSpinner } from "@/components/brand/brand-spinner";
-import { Button } from "@/components/ui/button";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { StatusDot } from "@/components/ui/status-dot";
+import { Segment } from "@/components/ui/segment";
+import { StatusPill } from "@/components/ui/status-pill";
+import { TemplateSchematic } from "@/components/resumes/template-schematic";
 import { updateTemplateOptionsAction } from "@/lib/actions/resumes";
 import type {
   CvTemplateOptionsDto,
@@ -91,10 +94,17 @@ export function TemplateBuilder({
 
   const abortRef = useRef<AbortController | null>(null);
   const blobUrlRef = useRef<string | null>(null);
+  // Speglar det nu valda alternativet så en Server Action som är i luften kan upptäcka
+  // att användaren hunnit byta val sedan klicket (se handleSave). Skrivs enbart ur
+  // event-handlers (aldrig under render).
+  const selectionRef = useRef(initialKey);
 
   const templateHeadingId = useId();
   const accentHeadingId = useId();
   const densityHeadingId = useId();
+  const previewHeadingId = useId();
+  // Bas för mallkortens etikett- och beskrivnings-id:n (aria-labelledby/-describedby).
+  const cardIdBase = useId();
 
   // Applicerar en PDF-hämtning (persisterad eller efemär) → object-URL → iframe. Första
   // satsen är ett await → INGEN synkron setState (all setState ligger i await-fortsätt-
@@ -194,17 +204,21 @@ export function TemplateBuilder({
     );
   }
 
-  // Vid varje valändring nollställs spara-kvittot (det gäller inte längre det nya valet).
+  // Vid varje valändring nollställs spara-kvittot (det gäller inte längre det nya valet)
+  // och selectionRef följer med, så en pågående skrivning vet att valet flyttat sig.
   function selectTemplate(value: string) {
     setTemplate(value);
+    selectionRef.current = selectionKey(value, accentColor, density);
     resetSaveFeedback();
   }
   function selectAccent(value: string) {
     setAccentColor(value);
+    selectionRef.current = selectionKey(template, value, density);
     resetSaveFeedback();
   }
   function selectDensity(value: string) {
     setDensity(value);
+    selectionRef.current = selectionKey(template, accentColor, value);
     resetSaveFeedback();
   }
   function resetSaveFeedback() {
@@ -214,6 +228,10 @@ export function TemplateBuilder({
 
   function handleSave() {
     resetSaveFeedback();
+    // Valet som FAKTISKT skrivs. Server Action-anropet stänger över det här värdet,
+    // så kvittot får bara gälla exakt det.
+    const savedKey = currentKey;
+
     startSaving(async () => {
       const result = await updateTemplateOptionsAction(resumeId, {
         template,
@@ -221,10 +239,24 @@ export function TemplateBuilder({
         fontPair,
         density,
       });
+
+      // Ett FEL är ett påstående om SKRIVNINGEN ("kunde inte spara") och är sant oavsett
+      // vad som råkar vara valt när svaret landar — det ytas alltid. Frånvaro av fel
+      // läses som framgång, så en tystad skrivfel-signal vore värre än en sen sådan.
       if (!result.success) {
         setSaveError(result.error);
         return;
       }
+
+      // Ett KVITTO är däremot ett påstående om VALET. useTransition blockerar inte
+      // inmatning, så användaren kan hinna byta mall medan skrivningen är i luften:
+      // valbytet nollställer kvittot (resetSaveFeedback), men utan den här grinden
+      // skulle transitionens sena setSaved(true) skriva tillbaka det — och "Mallen
+      // sparad." skulle stå bredvid ett val som aldrig sparades. Ett kvitto som ljuger
+      // är värre än inget kvitto. selectionRef läses (inte `currentKey`) eftersom
+      // closuren bär värdet från klickögonblicket.
+      if (selectionRef.current !== savedKey) return;
+
       setSaved(true);
     });
   }
@@ -248,200 +280,271 @@ export function TemplateBuilder({
   // per-render-etiketten delar en enda källa och kan aldrig motsäga varandra).
   const atsSafe = selectedTemplate?.atsSafe ?? false;
 
+  // Den valda accentens hex ur KATALOGEN (den WCAG-gardade CvPalette). Aldrig
+  // FE-härledd: en swatch eller schematik får aldrig visa en färg PDF:en inte har.
+  // Okänt namn → katalogens första post; saknas katalogen helt bär CSS-varianten
+  // sin egen fallback (--jp-ink-1), så resultatet blir bläck — aldrig fel färg.
+  const accentHex =
+    catalog.accents.find((a) => a.name === accentColor)?.hex ??
+    catalog.accents[0]?.hex;
+
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
-      {/* Vänster reglage: de tre optionsgrupperna + Spara. */}
-      <div className="flex flex-col gap-8">
-        <section
-          aria-labelledby={templateHeadingId}
-          className="flex flex-col gap-3"
-        >
-          <h2
-            id={templateHeadingId}
-            className="text-h3 font-medium text-text-primary"
-          >
+    <div className="jp-mallbuilder">
+      {/* Vänster: de tre optionsgrupperna + ATS-utfallet + Spara. */}
+      <div className="jp-mallbuilder__options">
+        <section aria-labelledby={templateHeadingId} className="jp-mallsec">
+          <h2 id={templateHeadingId} className="jp-mallsec__title">
             {t("templateGroupLabel")}
           </h2>
-          <RadioGroup
+
+          {/* Radix-primitiven (samma som ui/radio-group.tsx bygger på) ger
+              role=radiogroup/radio, aria-checked, roving tabindex och piltangenter.
+              Vi använder primitiven direkt eftersom ui/radio-group.tsx hårdkodar en
+              label + prick-layout som ett kort inte kan bära — den lämnas orörd så
+              inga andra konsumenter regrerar.
+              Katalogens hex sätts EN gång på gruppen som datakanal; varje schematik
+              läser den via fill: var(--jp-mallcard-accent) → swatch och schematik
+              kan aldrig visa olika färg. */}
+          <RadioGroupPrimitive.Root
             value={template}
             onValueChange={selectTemplate}
             aria-labelledby={templateHeadingId}
+            className="jp-mallgrid"
+            style={
+              accentHex
+                ? ({ "--jp-mallcard-accent": accentHex } as CSSProperties)
+                : undefined
+            }
           >
-            {catalog.templates.map((tpl) => (
-              <RadioGroupItem
-                key={tpl.name}
-                id={`mall-template-${tpl.name}`}
-                value={tpl.name}
-              >
-                {optionLabel("templates", tpl.name)}
-              </RadioGroupItem>
-            ))}
-          </RadioGroup>
+            {catalog.templates.map((tpl) => {
+              const labelId = `${cardIdBase}-${tpl.name}-label`;
+              const descId = `${cardIdBase}-${tpl.name}-desc`;
+              const descKey =
+                `templateDescriptions.${tpl.name}` as Parameters<typeof t>[0];
+              // Okänd (framtida) katalogmall får ingen påhittad beskrivning.
+              const hasDesc = t.has(descKey);
+
+              return (
+                <RadioGroupPrimitive.Item
+                  key={tpl.name}
+                  id={`mall-template-${tpl.name}`}
+                  value={tpl.name}
+                  className="jp-mallcard"
+                  // Namnet = ENBART etiketten (aria-labelledby vinner över innehållet),
+                  // beskrivningen är en description — annars skulle den svälla det
+                  // tillgängliga namnet och göra radion svår att adressera.
+                  aria-labelledby={labelId}
+                  aria-describedby={hasDesc ? descId : undefined}
+                >
+                  <span className="jp-mallcard__figure">
+                    <TemplateSchematic template={tpl.name} />
+                  </span>
+                  <span className="jp-mallcard__labelrow">
+                    <span className="jp-mallcard__ind" aria-hidden="true">
+                      <RadioGroupPrimitive.Indicator>
+                        <Check size={12} strokeWidth={3.2} />
+                      </RadioGroupPrimitive.Indicator>
+                    </span>
+                    <span id={labelId} className="jp-mallcard__label">
+                      {optionLabel("templates", tpl.name)}
+                    </span>
+                  </span>
+                  {hasDesc && (
+                    <span id={descId} className="jp-mallcard__desc">
+                      {t(descKey)}
+                    </span>
+                  )}
+                </RadioGroupPrimitive.Item>
+              );
+            })}
+          </RadioGroupPrimitive.Root>
+
+          {/* Anti-överdrifts-raden: en schematik är ett strukturdiagram, inte en preview. */}
+          <p className="jp-mallsec__hint">{t("schematicNote")}</p>
+
+          {/* ATS-utfallet hör till den VALDA mallen → det bor i mall-sektionen.
+              Live-region: Radix auto-checkar vid piltangent-fokus, så en tangentbords-
+              användare byter mall utan att lämna gruppen. Utan aria-live hör hen bara
+              "Mörk panel, alternativknapp, markerad" — medan sidans enda förtroende-
+              bärande påstående tyst vänder från "Klarar ATS-granskning" till "Utformad
+              för läsning". Det utfallet måste annonseras, inte bara visas. */}
+          <div className="jp-mallats" role="status" aria-live="polite">
+            <StatusPill
+              tone={atsSafe ? "success" : "neutral"}
+              className="jp-mallats__pill"
+            >
+              {atsSafe ? t("atsSafeLabel") : t("atsUnsafeLabel")}
+            </StatusPill>
+            <p className="jp-mallats__hint">
+              {atsSafe ? t("atsSafeHint") : t("atsUnsafeHint")}
+            </p>
+          </div>
         </section>
 
-        <section
-          aria-labelledby={accentHeadingId}
-          className="flex flex-col gap-3"
-        >
-          <h2
-            id={accentHeadingId}
-            className="text-h3 font-medium text-text-primary"
-          >
+        <section aria-labelledby={accentHeadingId} className="jp-mallsec">
+          <h2 id={accentHeadingId} className="jp-mallsec__title">
             {t("accentGroupLabel")}
           </h2>
-          <RadioGroup
+          <RadioGroupPrimitive.Root
             value={accentColor}
             onValueChange={selectAccent}
             aria-labelledby={accentHeadingId}
+            className="jp-swatchrow"
           >
             {catalog.accents.map((accent) => (
-              <RadioGroupItem
+              <RadioGroupPrimitive.Item
                 key={accent.name}
                 id={`mall-accent-${accent.name}`}
                 value={accent.name}
+                className="jp-swatch"
               >
-                <span className="inline-flex items-center gap-2">
-                  {/* Swatch färgad från katalogens hex (den WCAG-vaktade paletten) —
-                      dynamiskt data-värde, aria-hidden; namnet bär betydelsen. */}
-                  <span
-                    aria-hidden="true"
-                    className="size-4 shrink-0 rounded-pill border border-border-default"
-                    style={{ backgroundColor: accent.hex }}
-                  />
+                {/* Färgen kommer ur katalogens hex (WCAG-gardad palett). Pricken är
+                    dekor (aria-hidden) — etiketten bär betydelsen för skärmläsaren. */}
+                <span
+                  className="jp-swatch__dot"
+                  aria-hidden="true"
+                  style={{ backgroundColor: accent.hex }}
+                >
+                  <RadioGroupPrimitive.Indicator className="jp-swatch__check">
+                    <Check size={14} strokeWidth={3.2} />
+                  </RadioGroupPrimitive.Indicator>
+                </span>
+                <span className="jp-swatch__label">
                   {optionLabel("accents", accent.name)}
                 </span>
-              </RadioGroupItem>
+              </RadioGroupPrimitive.Item>
             ))}
-          </RadioGroup>
+          </RadioGroupPrimitive.Root>
+          <p className="jp-mallsec__hint">{t("accentHint")}</p>
         </section>
 
-        <section
-          aria-labelledby={densityHeadingId}
-          className="flex flex-col gap-3"
-        >
-          <h2
-            id={densityHeadingId}
-            className="text-h3 font-medium text-text-primary"
-          >
+        <section aria-labelledby={densityHeadingId} className="jp-mallsec">
+          <h2 id={densityHeadingId} className="jp-mallsec__title">
             {t("densityGroupLabel")}
           </h2>
-          <RadioGroup
+          {/* Segment bär redan hela W3C-radiogroup-mönstret (roving tabindex,
+              piltangenter, aria-checked) — ingen ny a11y-maskin uppfinns här. */}
+          <Segment<string>
             value={density}
-            onValueChange={selectDensity}
-            aria-labelledby={densityHeadingId}
-          >
-            {catalog.densities.map((d) => (
-              <RadioGroupItem
-                key={d.name}
-                id={`mall-density-${d.name}`}
-                value={d.name}
-              >
-                {optionLabel("densities", d.name)}
-              </RadioGroupItem>
-            ))}
-          </RadioGroup>
+            onChange={selectDensity}
+            aria-label={t("densityGroupLabel")}
+            options={catalog.densities.map((d) => ({
+              value: d.name,
+              label: optionLabel("densities", d.name),
+            }))}
+          />
+          <p className="jp-mallsec__hint">{t("densityHint")}</p>
         </section>
 
-        <div className="flex flex-col gap-2 border-t border-border pt-6">
-          <div>
-            <Button type="button" onClick={handleSave} disabled={isSaving}>
-              {isSaving ? t("savePending") : t("save")}
-            </Button>
+        <div className="jp-mallsave">
+          <button
+            type="button"
+            className="jp-btn jp-btn--primary"
+            onClick={handleSave}
+            disabled={isSaving}
+          >
+            {isSaving ? t("savePending") : t("save")}
+          </button>
+          {/* Live-regionen är PERMANENT monterad och får sitt innehåll senare. En artig
+              region som skapas samtidigt som sin text missas av flera skärmläsare — de
+              annonserar bara ändringar i en region som redan fanns. (role="alert" klarar
+              sig vid insättning, men vi håller båda i samma alltid-närvarande behållare
+              så kvittot och felet aldrig kan tappas bort.) */}
+          <div role="status" aria-live="polite">
+            {saved && !saveError && <p className="jp-mallsave__ok">{t("saved")}</p>}
           </div>
-          {saved && !saveError && (
-            <p className="text-body-sm text-text-secondary" role="status">
-              {t("saved")}
-            </p>
-          )}
           {saveError && (
-            <p className="text-body-sm text-danger-700" role="alert">
+            <p className="jp-mallsave__err" role="alert">
               {saveError}
             </p>
           )}
         </div>
       </div>
 
-      {/* Höger: ärlig ATS-etikett + förhandsvisning + Uppdatera-knapp. */}
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <StatusDot tone={atsSafe ? "success" : "neutral"}>
-            {atsSafe ? t("atsSafeLabel") : t("atsUnsafeLabel")}
-          </StatusDot>
-          <p className="max-w-[68ch] text-body-sm text-text-secondary">
-            {atsSafe ? t("atsSafeHint") : t("atsUnsafeHint")}
-          </p>
-        </div>
+      {/* Höger: förhandsvisningen i ett inramat kort (huvud / stale / kropp / fot). */}
+      <aside className="jp-mallbuilder__preview" aria-labelledby={previewHeadingId}>
+        <div className="jp-mallpreview">
+          <div className="jp-mallpreview__head">
+            <h2 id={previewHeadingId} className="jp-mallpreview__title">
+              {t("previewHeading")}
+            </h2>
+            <button
+              type="button"
+              className="jp-btn jp-btn--secondary jp-btn--sm"
+              onClick={handleUpdatePreview}
+              disabled={previewStatus === "loading"}
+            >
+              {t("updatePreview")}
+            </button>
+          </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-h3 font-medium text-text-primary">
-            {t("previewHeading")}
-          </h2>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleUpdatePreview}
-            disabled={previewStatus === "loading"}
-          >
-            {t("updatePreview")}
-          </Button>
-        </div>
-
-        {isStale && previewStatus !== "loading" && (
-          <p className="text-body-sm text-text-secondary" role="status">
-            {t("previewStale")}
-          </p>
-        )}
-
-        {previewStatus === "ready" && blobUrl ? (
-          <>
-            <iframe
-              src={blobUrl}
-              title={t("iframeTitle")}
-              className="jp-pdf-frame"
-            />
-            {previewSourceUrl && (
-              <p className="jp-pdf-frame__fallback">
-                <a
-                  href={previewSourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {t("openInNewTab")}
-                </a>
-              </p>
-            )}
-          </>
-        ) : (
-          <div className="flex min-h-[min(70vh,800px)] flex-col items-center justify-center gap-3 rounded-sm bg-surface-secondary p-6 text-center">
-            {previewStatus === "loading" && (
-              <>
-                <BrandSpinner size={48} label={t("previewLoadingLabel")} />
-                <p className="text-body-sm text-text-secondary" aria-hidden="true">
-                  {t("previewLoading")}
-                </p>
-              </>
-            )}
-            {/* Live-regioner (WCAG 4.1.3): en tangentbords-/skärmläsaranvändare måste
-                få veta att en "Uppdatera"-omtrigga misslyckades. Fel = assertiv
-                (role=alert), rate-limit/saknad = artig (role=status). */}
-            {previewStatus === "rateLimited" && (
-              <p className="max-w-[68ch] text-body text-text-primary" role="status">
-                {t("previewRateLimited", { seconds: retryAfterSeconds })}
-              </p>
-            )}
-            {previewStatus === "notFound" && (
-              <p className="max-w-[68ch] text-body text-text-primary" role="status">
-                {t("previewNotFound")}
-              </p>
-            )}
-            {previewStatus === "error" && (
-              <p className="max-w-[68ch] text-body text-text-primary" role="alert">
-                {t("previewError")}
+          {/* Permanent monterad artig live-region (se spara-kvittot ovan). Stale-remsan
+              visas BARA när förhandsvisningen faktiskt står och är inaktuell: vid 429/
+              fel/saknad bär platshållaren redan ett meddelande, och två samtidiga texter
+              där den ena säger "välj Uppdatera" och den andra "du har gjort för många
+              förfrågningar" motsäger varandra. */}
+          <div role="status" aria-live="polite">
+            {isStale && previewStatus === "ready" && (
+              <p className="jp-mallpreview__stale">
+                <Info size={15} aria-hidden="true" />
+                <span>{t("previewStale")}</span>
               </p>
             )}
           </div>
-        )}
-      </div>
+
+          <div className="jp-mallpreview__body">
+            {previewStatus === "ready" && blobUrl ? (
+              <iframe
+                src={blobUrl}
+                title={t("iframeTitle")}
+                className="jp-mallframe"
+              />
+            ) : (
+              <div className="jp-mallpreview__placeholder">
+                {previewStatus === "loading" && (
+                  <>
+                    <BrandSpinner size={48} label={t("previewLoadingLabel")} />
+                    <p className="text-body-sm" aria-hidden="true">
+                      {t("previewLoading")}
+                    </p>
+                  </>
+                )}
+                {/* Live-regioner (WCAG 4.1.3): en tangentbords-/skärmläsaranvändare måste
+                    få veta att en "Uppdatera"-omtrigga misslyckades. Fel = assertiv
+                    (role=alert, annonseras pålitligt vid insättning); rate-limit/saknad =
+                    artig och ligger därför i en permanent monterad region nedan. */}
+                {previewStatus === "error" && (
+                  <p className="max-w-[68ch] text-body" role="alert">
+                    {t("previewError")}
+                  </p>
+                )}
+                <div role="status" aria-live="polite">
+                  {previewStatus === "rateLimited" && (
+                    <p className="max-w-[68ch] text-body">
+                      {t("previewRateLimited", { seconds: retryAfterSeconds })}
+                    </p>
+                  )}
+                  {previewStatus === "notFound" && (
+                    <p className="max-w-[68ch] text-body">
+                      {t("previewNotFound")}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {previewStatus === "ready" && previewSourceUrl && (
+            // iOS Safari renderar inte alltid PDF i iframe — den här länken är den
+            // riktiga mobil-vägen, inte en dekoration.
+            <p className="jp-mallpreview__foot">
+              <a href={previewSourceUrl} target="_blank" rel="noopener noreferrer">
+                {t("openInNewTab")}
+              </a>
+            </p>
+          )}
+        </div>
+      </aside>
     </div>
   );
 }

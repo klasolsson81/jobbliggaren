@@ -52,7 +52,9 @@ export async function loginAs(page: Page, runId: number): Promise<void> {
   // för att fånga felkonfigurerade baseURL (CI mot prod) innan credentials fylls i.
   assertSafeBaseURL(page.url());
   await page.getByLabel("E-postadress").fill(testEmail(runId));
-  await page.getByLabel("Lösenord").fill(TEST_PASSWORD);
+  // exact: the shared PasswordInput's "Visa lösenord" toggle also matches a loose
+  // "Lösenord" label (strict-mode violation → fill fails), same as auth.spec.ts.
+  await page.getByLabel("Lösenord", { exact: true }).fill(TEST_PASSWORD);
   await page.getByRole("button", { name: "Logga in" }).click();
   await page.waitForURL("**/mig");
 }

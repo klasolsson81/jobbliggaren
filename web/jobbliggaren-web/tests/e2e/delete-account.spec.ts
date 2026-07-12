@@ -43,7 +43,7 @@ test.describe("Radera konto (/mig)", () => {
     await page
       .getByLabel(/Skriv din e-postadress/)
       .fill("fel@example.se");
-    await page.getByLabel("Lösenord").fill(TEST_PASSWORD);
+    await page.getByLabel("Lösenord", { exact: true }).fill(TEST_PASSWORD);
     await expect(submitBtn).toBeDisabled();
 
     // Rätt email → submit aktiveras
@@ -75,7 +75,7 @@ test.describe("Radera konto (/mig)", () => {
       .click();
 
     await page.getByLabel(/Skriv din e-postadress/).fill(testEmail(runId));
-    await page.getByLabel("Lösenord").fill(TEST_PASSWORD);
+    await page.getByLabel("Lösenord", { exact: true }).fill(TEST_PASSWORD);
     await page.getByRole("button", { name: "Radera mitt konto" }).click();
 
     // Server action → deleteSessionCookie + redirect("/logga-in")
@@ -105,7 +105,7 @@ test.describe("Radera konto (/mig)", () => {
       .click();
 
     await page.getByLabel(/Skriv din e-postadress/).fill(testEmail(runId));
-    await page.getByLabel("Lösenord").fill("WrongPassword!");
+    await page.getByLabel("Lösenord", { exact: true }).fill("WrongPassword!");
     await page.getByRole("button", { name: "Radera mitt konto" }).click();
 
     // PR2c-1: re-auth är server-enforced — POST /api/v1/me/delete med fel lösenord → 401 →

@@ -73,8 +73,8 @@ public sealed class FollowedCompanyAdHit : AggregateRoot<FollowedCompanyAdHitId>
     /// <summary>
     /// Creates a Pending hit linking <paramref name="userId"/> to the new <paramref name="jobAdId"/>
     /// that matched their <paramref name="companyWatchId"/> follow. Guards non-empty user + non-default
-    /// ids (the scan constructs these from its own read of consenting users' active watches, so the
-    /// guards are defense-in-depth against a caller bug).
+    /// ids (the scan constructs these from its own read of active followers' watches — 7C, no consent
+    /// gate on hit creation — so the guards are defense-in-depth against a caller bug).
     /// </summary>
     public static Result<FollowedCompanyAdHit> Create(
         Guid userId,

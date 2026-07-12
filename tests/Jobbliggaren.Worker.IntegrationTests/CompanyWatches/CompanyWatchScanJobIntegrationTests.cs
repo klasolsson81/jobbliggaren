@@ -16,8 +16,16 @@ namespace Jobbliggaren.Worker.IntegrationTests.CompanyWatches;
 /// ADR 0087 D5 (#311 PR-4) — Testcontainers integration tests for <see cref="CompanyWatchScanJob"/>
 /// against REAL Postgres. NEVER EF-InMemory: the org.nr membership matches the STORED generated
 /// <c>organization_number</c> column (<c>raw_payload-&gt;'employer'-&gt;&gt;'organization_number'</c>) via
-/// <c>EF.Property + IN</c> — only Postgres computes that column (hidden by InMemory). The consent
-/// predicate also runs against the real jsonb <c>preferences</c> column.
+/// <c>EF.Property + IN</c> — only Postgres computes that column (hidden by InMemory).
+/// <para>
+/// <b>7C (bevakning-reconcile RF-7, 2026-07-12 — Klas-ratified; DPIA Part E §E8(1)(c)):</b> the scan
+/// creates hits for EVERY user with ≥1 ACTIVE follow with NO consent predicate — hit creation is the
+/// requested SERVICE (GDPR Art. 6(1)(b)); the email opt-in
+/// (<c>FollowedCompanyNotificationsEnabled</c>, Art. 6(1)(a)) gates only the DISPATCH pass. The
+/// <see cref="FollowConsent"/> seed knob therefore does NOT change the number of hits created here —
+/// it exists to prove that invariant (see
+/// <see cref="RunAsync_CreatesHitsForAllActiveFollowers_RegardlessOfEmailConsent"/>).
+/// </para>
 /// <para>
 /// The job is CONSTRUCTED DIRECTLY (<c>new CompanyWatchScanJob(...)</c>, parity
 /// <c>BackgroundMatchingJobIntegrationTests</c>). An injected <see cref="FixedClock"/> makes the
@@ -85,8 +93,15 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
     }
 
     [Fact]
-    public async Task RunAsync_OnlyConsentingUsersAreScanned_OffAndWithdrawnExcluded()
+    public async Task RunAsync_CreatesHitsForAllActiveFollowers_RegardlessOfEmailConsent()
     {
+        // 7C (bevakning-reconcile RF-7, 2026-07-12 — Klas-ratified; DPIA Part E §E8(1)(c), the
+        // hit-creation side): creating a hit is part of the SERVICE the user requested by following the
+        // company (GDPR Art. 6(1)(b)), so the scan persists a hit for EVERY active follower with NO
+        // consent predicate. The email opt-in (FollowedCompanyNotificationsEnabled, Art. 6(1)(a)) gates
+        // ONLY the DigestDispatchJob email pass — never hit creation here. This INVERTS the pre-7C
+        // assertion (email consent OFF/withdrawn → no hit) that this test used to make: the scan-time
+        // consent gate (ADR 0087 D5) is superseded (explicit supersession #2).
         var ct = TestContext.Current.CancellationToken;
         var orgNr = UniqueLegalOrgNr();
 
@@ -101,9 +116,13 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
 
         await RunJobAsync(ct);
 
-        (await GetHitsAsync(offUserId, ct)).ShouldBeEmpty("consent OFF → not scanned");
-        (await GetHitsAsync(withdrawnUserId, ct)).ShouldBeEmpty("consent withdrawn → not scanned");
-        (await GetHitsAsync(onUserId, ct)).Count.ShouldBe(1, "consent ON → one follow hit");
+        (await GetHitsAsync(offUserId, ct)).Count.ShouldBe(1,
+            "e-post-consent OFF → hit skapas ändå (7C: hit-skapande är 6(1)(b)-tjänsten, " +
+            "consent grindar bara e-postkanalen vid dispatch)");
+        (await GetHitsAsync(withdrawnUserId, ct)).Count.ShouldBe(1,
+            "återkallad e-post-consent → hit skapas ändå (in-app-hit-skapandet är oberoende av " +
+            "e-postkanalens samtycke — E8(1)(c))");
+        (await GetHitsAsync(onUserId, ct)).Count.ShouldBe(1, "e-post-consent ON → hit skapas");
     }
 
     [Fact]
@@ -124,19 +143,25 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
     }
 
     [Fact]
-    public async Task RunAsync_AdvancesWatermark_ForConsentingUserWithNoWatches()
+    public async Task RunAsync_DoesNotScan_UserWithNoActiveFollows()
     {
+        // 7C (bevakning-reconcile RF-7 / architect D1, 2026-07-12): the scan's due-set is
+        // db.CompanyWatches.Select(w => w.UserId).Distinct() — EVERY user with ≥1 ACTIVE follow. A user
+        // with NO active follows is NOT in the due-set → never scanned → the watermark stays NULL (their
+        // FIRST follow later gets the cold-start floor, never a post-hoc backfill). This REPURPOSES the
+        // pre-7C test, which asserted a followless user's watermark still advanced (that scan-everyone
+        // due-set is gone: the DISTINCT-UserId set only contains users that own an active watch).
         var ct = TestContext.Current.CancellationToken;
         var (userId, _) = await SeedConsentingUserAsync(ct);
-        // No CompanyWatch seeded.
+        // No CompanyWatch seeded → the user is absent from the DISTINCT-UserId due-set.
 
         await RunJobAsync(ct);
 
         var seeker = await GetSeekerAsync(userId, ct);
-        seeker.LastCompanyWatchScanAt.ShouldBe(Now,
-            "a consenting user with no follows still advances the watermark (a later follow only " +
-            "catches future ads)");
-        (await GetHitsAsync(userId, ct)).ShouldBeEmpty();
+        seeker.LastCompanyWatchScanAt.ShouldBeNull(
+            "en användare utan aktiva follows ligger utanför due-set:et (scannas aldrig) → " +
+            "vattenmärket förblir null");
+        (await GetHitsAsync(userId, ct)).ShouldBeEmpty("ingen scan → ingen hit");
     }
 
     [Fact]

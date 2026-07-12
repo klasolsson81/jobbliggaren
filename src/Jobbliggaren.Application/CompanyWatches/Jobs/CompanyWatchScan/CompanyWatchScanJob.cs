@@ -8,13 +8,21 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan;
 
 /// <summary>
-/// ADR 0087 D5 (#311 PR-4) — the scheduled company-follow scan. For every CONSENTING user (the
-/// SEPARATE company-follow opt-in ON, not withdrawn — GDPR Art. 6/7), it finds the ads published
+/// ADR 0087 D5 (#311 PR-4) + 7C (bevakning-reconcile RF-7, 2026-07-12) — the scheduled
+/// company-follow scan. For every user with at least one ACTIVE follow, it finds the ads published
 /// since that user's <see cref="Domain.JobSeekers.JobSeeker.LastCompanyWatchScanAt"/> watermark
 /// whose <c>organization_number</c> is one of the user's ACTIVE watched org.nrs, and persists a
 /// <see cref="FollowedCompanyAdHit"/> for each. Registered as a Hangfire RecurringJob in the same
 /// nightly window as <c>BackgroundMatchingJob</c>, with its OWN watermark. NO AI/LLM, NO skill
 /// scorer (a company hit requires only org.nr membership — ADR 0087 D5).
+/// <para>
+/// <b>7C consent split (bevakning-reconcile RF-7, 2026-07-12 — Klas-ratified; supersedes ADR 0087
+/// D5's scan-time consent gate):</b> creating a hit is part of the SERVICE a user requested by
+/// following the company (GDPR Art. 6(1)(b)), so the scan persists hits for EVERY active follower
+/// with NO consent predicate. The SEPARATE email opt-in
+/// (<c>FollowedCompanyNotificationsEnabled</c>, Art. 6(1)(a)) gates only the
+/// <c>DigestDispatchJob</c> email pass at DISPATCH time — never hit creation here.
+/// </para>
 /// <para>
 /// <b>Dedicated job, NOT a fold into <c>BackgroundMatchingJob</c> (ADR 0087 D5, Alt Z — rejected):</b>
 /// skill-scoring and watched-org.nr-membership are two independent change reasons (SRP). This job
@@ -54,19 +62,22 @@ public sealed partial class CompanyWatchScanJob(
     {
         var now = clock.UtcNow;
 
-        // The CONSENTING set (GDPR Art. 6/7): the SEPARATE company-follow opt-in ON and not
-        // withdrawn. A withdrawal stops scan/dispatch immediately. Default OFF → the set is small.
-        var optedInUserIds = await db.JobSeekers
-            .Where(js => js.Preferences.FollowedCompanyNotificationsEnabled
-                         && js.Preferences.FollowedCompanyNotificationConsentWithdrawnAt == null)
-            .Select(js => js.UserId)
+        // 7C (bevakning-reconcile RF-7, 2026-07-12) — the due set is EVERY user with at least one
+        // ACTIVE follow, NOT a consent-gated subset. Following a company IS the request for the
+        // in-app notification service (GDPR Art. 6(1)(b)); the email channel stays consent-gated
+        // (Art. 6(1)(a)) at DISPATCH, never here. Supersedes ADR 0087 D5's scan-time consent gate
+        // (explicit supersession #2, Klas-ratified). The CompanyWatches query filter excludes
+        // soft-deleted/unfollowed rows, so DISTINCT UserId over it IS the active-follower set.
+        var followerUserIds = await db.CompanyWatches
+            .Select(w => w.UserId)
+            .Distinct()
             .ToListAsync(cancellationToken);
 
-        LogOptedIn(logger, optedInUserIds.Count);
+        LogFollowers(logger, followerUserIds.Count);
 
         var processedUsers = 0;
         var totalHits = 0;
-        foreach (var userId in optedInUserIds)
+        foreach (var userId in followerUserIds)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
@@ -84,7 +95,7 @@ public sealed partial class CompanyWatchScanJob(
 
             processedUsers++;
             if (processedUsers % ProgressLogEvery == 0)
-                LogProgress(logger, processedUsers, optedInUserIds.Count);
+                LogProgress(logger, processedUsers, followerUserIds.Count);
         }
 
         LogComplete(logger, processedUsers, totalHits);
@@ -97,7 +108,7 @@ public sealed partial class CompanyWatchScanJob(
         var jobSeeker = await db.JobSeekers
             .FirstOrDefaultAsync(js => js.UserId == userId, ct);
         if (jobSeeker is null)
-            return 0; // consent row without a JobSeeker (shouldn't happen) — nothing to scan.
+            return 0; // a follower UserId without a JobSeeker (shouldn't happen) — nothing to scan.
 
         // The user's ACTIVE follows (the query filter excludes unfollowed/soft-deleted rows). The
         // active-partial UNIQUE guarantees ≤1 active watch per org.nr, so the org.nr → watch map is
@@ -200,8 +211,8 @@ public sealed partial class CompanyWatchScanJob(
     }
 
     [LoggerMessage(Level = LogLevel.Information,
-        Message = "CompanyWatchScanJob: {Count} consenting users to scan")]
-    private static partial void LogOptedIn(ILogger logger, int count);
+        Message = "CompanyWatchScanJob: {Count} users with active follows to scan")]
+    private static partial void LogFollowers(ILogger logger, int count);
 
     [LoggerMessage(Level = LogLevel.Information,
         Message = "CompanyWatchScanJob: {Processed}/{Total} users scanned")]

@@ -9118,9 +9118,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 /* --- MALL: valbara kort med mini-schematik --- */
+/* Tracken har ett TAK: utan det svaller korten i enspalts-laget (640-1099px) till
+   ~300x420px och laser da som renderingar i stallet for strukturdiagram — vilket
+   motsager bade copyn ("miniatyrerna visar mallens struktur") och den riktiga
+   forhandsvisningen de star bredvid. auto-fit tal fortfarande en 4:e mall. */
 .jp-mallgrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); /* tal en 4:e mall */
+  grid-template-columns: repeat(auto-fit, minmax(118px, 172px));
+  justify-content: start;
   gap: 12px;
 }
 .jp-mallcard {
@@ -9145,7 +9150,18 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-color: var(--jp-accent-800);
 }
 [data-theme="dark"] .jp-mallcard[data-state="checked"] { border-color: var(--jp-accent-700); }
+/* Figuren avbildar en PDF, och PDF:ens papper ar VITT i varje tema — renderaren
+   kanner inte till appens dark mode. Utan en pin foljer .jp-schem__paper/-ink/-line
+   temat: i dark blir papperet #1B2B47, och de fyra katalogaccenterna (WCAG-gardade
+   mot VITT) faller till ~1,2-1,5:1 → accentlinjerna och HELA Mork panels sidopanel
+   blir osynliga, dvs kortens enda sarskiljande signal dor. Vi pinnar darfor
+   dokument-tokens till sina LJUSA varden inuti figuren. Samma scoped-token-override-
+   mekanism som [data-theme="dark"] .jp-header / .jp-land-top. */
 .jp-mallcard__figure {
+  --jp-surface: #FFFFFF;
+  --jp-ink-1: #0C1A2E;
+  --jp-border-strong: #7C8AA0;
+
   display: block;
   aspect-ratio: 1 / 1.414; /* A4 */
   background: var(--jp-surface);
@@ -9178,8 +9194,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 /* WCAG 1.4.1: valet bars av TRE icke-fargsignaler (bock, fet etikett, ramfarg). */
 .jp-mallcard[data-state="checked"] .jp-mallcard__label { font-weight: var(--jp-fw-bold); }
+/* body-sm, INTE micro: micro-tiern ar for counts/badge-text/proveniens, och det har
+   ar tva meningars prosa som anvandaren maste lasa for att valja mall (ADR 0038). */
 .jp-mallcard__desc {
-  font-size: var(--text-micro);
+  font-size: var(--text-body-sm);
   line-height: 1.45;
   color: var(--jp-ink-1);
 }
@@ -9229,10 +9247,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
   gap: 7px;
   padding: 4px 2px;
+  min-width: 44px; /* ADR 0038 traffyte-golv: "Grafit" ar annars bara ~40px bred */
   background: transparent;
   border: 0;
   cursor: pointer;
 }
+/* Prickens FYLL ar en dokumentfarg (de fyra morka katalog-hexarna) — mot dark-canvas
+   ligger den pa ~1,4-1,6:1, sa hela grans-uppfattningen vilar pa border:n. Den maste
+   darfor klara WCAG 1.4.11 (3:1) som UI-komponent: --jp-border-strong, inte --jp-border. */
 .jp-swatch__dot {
   position: relative;
   width: 36px;
@@ -9241,7 +9263,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
   justify-content: center;
   border-radius: var(--jp-r-pill);
-  border: 1px solid var(--jp-border); /* sa en ljus framtida accent inte forsvinner mot ytan */
+  border: 1px solid var(--jp-border-strong);
   color: var(--jp-on-fill); /* vit bock — alla fyra katalog-hex ar WCAG-gardade mot vitt */
 }
 /* Ringen ar en BORDER pa ett pseudo-element (aldrig box-shadow/glow, DESIGN.md §5).

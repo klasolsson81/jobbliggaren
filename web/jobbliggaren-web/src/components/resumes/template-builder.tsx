@@ -94,10 +94,15 @@ export function TemplateBuilder({
 
   const abortRef = useRef<AbortController | null>(null);
   const blobUrlRef = useRef<string | null>(null);
+  // Speglar det nu valda alternativet så en Server Action som är i luften kan upptäcka
+  // att användaren hunnit byta val sedan klicket (se handleSave). Skrivs enbart ur
+  // event-handlers (aldrig under render).
+  const selectionRef = useRef(initialKey);
 
   const templateHeadingId = useId();
   const accentHeadingId = useId();
   const densityHeadingId = useId();
+  const previewHeadingId = useId();
   // Bas för mallkortens etikett- och beskrivnings-id:n (aria-labelledby/-describedby).
   const cardIdBase = useId();
 
@@ -199,17 +204,21 @@ export function TemplateBuilder({
     );
   }
 
-  // Vid varje valändring nollställs spara-kvittot (det gäller inte längre det nya valet).
+  // Vid varje valändring nollställs spara-kvittot (det gäller inte längre det nya valet)
+  // och selectionRef följer med, så en pågående skrivning vet att valet flyttat sig.
   function selectTemplate(value: string) {
     setTemplate(value);
+    selectionRef.current = selectionKey(value, accentColor, density);
     resetSaveFeedback();
   }
   function selectAccent(value: string) {
     setAccentColor(value);
+    selectionRef.current = selectionKey(template, value, density);
     resetSaveFeedback();
   }
   function selectDensity(value: string) {
     setDensity(value);
+    selectionRef.current = selectionKey(template, accentColor, value);
     resetSaveFeedback();
   }
   function resetSaveFeedback() {
@@ -219,6 +228,10 @@ export function TemplateBuilder({
 
   function handleSave() {
     resetSaveFeedback();
+    // Valet som FAKTISKT skrivs. Server Action-anropet stänger över det här värdet,
+    // så kvittot får bara gälla exakt det.
+    const savedKey = currentKey;
+
     startSaving(async () => {
       const result = await updateTemplateOptionsAction(resumeId, {
         template,
@@ -226,6 +239,15 @@ export function TemplateBuilder({
         fontPair,
         density,
       });
+
+      // useTransition blockerar INTE inmatning: användaren kan hinna byta mall medan
+      // skrivningen är i luften. Valbytet nollställer kvittot (resetSaveFeedback), men
+      // utan den här grinden skulle transitionens sena setSaved(true) skriva tillbaka
+      // det — och "Mallen sparad." skulle stå bredvid ett val som aldrig sparades. Ett
+      // kvitto som ljuger är värre än inget kvitto. selectionRef läses (inte `currentKey`)
+      // eftersom closuren bär värdet från klickögonblicket.
+      if (selectionRef.current !== savedKey) return;
+
       if (!result.success) {
         setSaveError(result.error);
         return;
@@ -335,8 +357,13 @@ export function TemplateBuilder({
           {/* Anti-överdrifts-raden: en schematik är ett strukturdiagram, inte en preview. */}
           <p className="jp-mallsec__hint">{t("schematicNote")}</p>
 
-          {/* ATS-utfallet hör till den VALDA mallen → det bor i mall-sektionen. */}
-          <div className="jp-mallats">
+          {/* ATS-utfallet hör till den VALDA mallen → det bor i mall-sektionen.
+              Live-region: Radix auto-checkar vid piltangent-fokus, så en tangentbords-
+              användare byter mall utan att lämna gruppen. Utan aria-live hör hen bara
+              "Mörk panel, alternativknapp, markerad" — medan sidans enda förtroende-
+              bärande påstående tyst vänder från "Klarar ATS-granskning" till "Utformad
+              för läsning". Det utfallet måste annonseras, inte bara visas. */}
+          <div className="jp-mallats" role="status" aria-live="polite">
             <StatusPill
               tone={atsSafe ? "success" : "neutral"}
               className="jp-mallats__pill"
@@ -413,11 +440,14 @@ export function TemplateBuilder({
           >
             {isSaving ? t("savePending") : t("save")}
           </button>
-          {saved && !saveError && (
-            <p className="jp-mallsave__ok" role="status">
-              {t("saved")}
-            </p>
-          )}
+          {/* Live-regionen är PERMANENT monterad och får sitt innehåll senare. En artig
+              region som skapas samtidigt som sin text missas av flera skärmläsare — de
+              annonserar bara ändringar i en region som redan fanns. (role="alert" klarar
+              sig vid insättning, men vi håller båda i samma alltid-närvarande behållare
+              så kvittot och felet aldrig kan tappas bort.) */}
+          <div role="status" aria-live="polite">
+            {saved && !saveError && <p className="jp-mallsave__ok">{t("saved")}</p>}
+          </div>
           {saveError && (
             <p className="jp-mallsave__err" role="alert">
               {saveError}
@@ -427,10 +457,12 @@ export function TemplateBuilder({
       </div>
 
       {/* Höger: förhandsvisningen i ett inramat kort (huvud / stale / kropp / fot). */}
-      <aside className="jp-mallbuilder__preview">
+      <aside className="jp-mallbuilder__preview" aria-labelledby={previewHeadingId}>
         <div className="jp-mallpreview">
           <div className="jp-mallpreview__head">
-            <h2 className="jp-mallpreview__title">{t("previewHeading")}</h2>
+            <h2 id={previewHeadingId} className="jp-mallpreview__title">
+              {t("previewHeading")}
+            </h2>
             <button
               type="button"
               className="jp-btn jp-btn--secondary jp-btn--sm"
@@ -441,12 +473,19 @@ export function TemplateBuilder({
             </button>
           </div>
 
-          {isStale && previewStatus !== "loading" && (
-            <p className="jp-mallpreview__stale" role="status">
-              <Info size={15} aria-hidden="true" />
-              <span>{t("previewStale")}</span>
-            </p>
-          )}
+          {/* Permanent monterad artig live-region (se spara-kvittot ovan). Stale-remsan
+              visas BARA när förhandsvisningen faktiskt står och är inaktuell: vid 429/
+              fel/saknad bär platshållaren redan ett meddelande, och två samtidiga texter
+              där den ena säger "välj Uppdatera" och den andra "du har gjort för många
+              förfrågningar" motsäger varandra. */}
+          <div role="status" aria-live="polite">
+            {isStale && previewStatus === "ready" && (
+              <p className="jp-mallpreview__stale">
+                <Info size={15} aria-hidden="true" />
+                <span>{t("previewStale")}</span>
+              </p>
+            )}
+          </div>
 
           <div className="jp-mallpreview__body">
             {previewStatus === "ready" && blobUrl ? (
@@ -467,22 +506,25 @@ export function TemplateBuilder({
                 )}
                 {/* Live-regioner (WCAG 4.1.3): en tangentbords-/skärmläsaranvändare måste
                     få veta att en "Uppdatera"-omtrigga misslyckades. Fel = assertiv
-                    (role=alert), rate-limit/saknad = artig (role=status). */}
-                {previewStatus === "rateLimited" && (
-                  <p className="max-w-[68ch] text-body" role="status">
-                    {t("previewRateLimited", { seconds: retryAfterSeconds })}
-                  </p>
-                )}
-                {previewStatus === "notFound" && (
-                  <p className="max-w-[68ch] text-body" role="status">
-                    {t("previewNotFound")}
-                  </p>
-                )}
+                    (role=alert, annonseras pålitligt vid insättning); rate-limit/saknad =
+                    artig och ligger därför i en permanent monterad region nedan. */}
                 {previewStatus === "error" && (
                   <p className="max-w-[68ch] text-body" role="alert">
                     {t("previewError")}
                   </p>
                 )}
+                <div role="status" aria-live="polite">
+                  {previewStatus === "rateLimited" && (
+                    <p className="max-w-[68ch] text-body">
+                      {t("previewRateLimited", { seconds: retryAfterSeconds })}
+                    </p>
+                  )}
+                  {previewStatus === "notFound" && (
+                    <p className="max-w-[68ch] text-body">
+                      {t("previewNotFound")}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </div>

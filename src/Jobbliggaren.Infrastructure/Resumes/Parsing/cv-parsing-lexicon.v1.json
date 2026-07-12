@@ -1,6 +1,6 @@
 {
-  "version": "2",
-  "note": "F4-8 deterministic CV segmentation lexicon (ADR 0071/0074, NO AI/LLM). Versioned data, never inline C# strings (CLAUDE.md §5). Section headings (Swedish + English), language-detection function words, and contact-field labels (#815: location was never extracted). Own-authored from common CV conventions; no third-party data imported.",
+  "version": "3",
+  "note": "F4-8 deterministic CV segmentation lexicon (ADR 0071/0074, NO AI/LLM). Versioned data, never inline C# strings (CLAUDE.md §5). Section headings (Swedish + English), language-detection function words, contact-field labels (#815: location was never extracted), and free-section headings (#815: recognised so they TERMINATE the preceding section, and carried verbatim as content). Own-authored from common CV conventions; no third-party data imported.",
   "headings": {
     "contact": [
       "kontakt",
@@ -165,5 +165,45 @@
       "city",
       "based in"
     ]
-  }
+  },
+  "freeSectionHeadings": [
+    "projekt",
+    "projektportfölj",
+    "projektportfolj",
+    "utvalda projekt",
+    "egna projekt",
+    "referenser",
+    "certifieringar",
+    "certifikat",
+    "kurser",
+    "vidareutbildning",
+    "fortbildning",
+    "uppdrag",
+    "förtroendeuppdrag",
+    "fortroendeuppdrag",
+    "ideella uppdrag",
+    "publikationer",
+    "utmärkelser",
+    "utmarkelser",
+    "priser",
+    "stipendier",
+    "intressen",
+    "fritidsintressen",
+    "övrigt",
+    "ovrigt",
+    "projects",
+    "selected projects",
+    "references",
+    "certifications",
+    "certificates",
+    "courses",
+    "assignments",
+    "publications",
+    "awards",
+    "honours",
+    "honors",
+    "interests",
+    "hobbies",
+    "volunteering"
+  ]
 }

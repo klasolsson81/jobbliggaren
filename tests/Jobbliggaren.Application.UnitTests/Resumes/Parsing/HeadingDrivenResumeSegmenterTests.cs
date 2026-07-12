@@ -233,6 +233,139 @@ public class HeadingDrivenResumeSegmenterTests
         after.ShouldBe(before);
     }
 
+    // ── #815 fynd 3 — fria sektioner (CTO-bind A′) ───────────────────────────────────
+    //
+    // Rubriker vi INTE typar ("Projekt", "Referenser") terminerade ingenting: en sektion
+    // löpte till nästa IGENKÄND rubrik, så "PROFIL ... PROJEKT ..." svalde hela projekt-
+    // listan in i sammanfattningen. Klas såg profil + projekt som en enda textmassa.
+
+    private const string CvWithProjectsAndReferences =
+        """
+        Anna Andersson
+        anna.andersson@example.com
+
+        Profil
+        Erfaren backend-utvecklare med fokus på betaltjänster.
+
+        PROJEKT
+        Betalplattform
+        Byggde en betaltjänst i .NET.
+
+        Bokningssystem
+        Ansvarade för API:et.
+
+        Referenser
+        Lämnas på begäran.
+
+        Kompetenser
+        C#, PostgreSQL
+        """;
+
+    [Fact]
+    public void Segment_UnknownHeading_TerminatesTheProfile_NoMoreSpaghetti()
+    {
+        var result = _sut.Segment(CvWithProjectsAndReferences);
+
+        // Profilen får INTE svälja projektlistan.
+        var profile = result.Content.Profile.ShouldNotBeNull();
+        profile.ShouldBe("Erfaren backend-utvecklare med fokus på betaltjänster.");
+        profile.ShouldNotContain("Betalplattform");
+        profile.ShouldNotContain("Lämnas på begäran");
+    }
+
+    [Fact]
+    public void Segment_TwoFreeSections_StayTwoSectionsWithTheirOwnVerbatimHeadings()
+    {
+        // ANTI-KOLLISIONSTESTET. Detta är testet som gör den avvisade designen
+        // (ParsedSectionKind.Other) omöjlig att smyga tillbaka: med sektionerna keyade på
+        // en enda "Other"-kind hade PROJEKT och Referenser konkatenerats till ETT block —
+        // spagettin igen, ett lager ner — och rubrikerna användaren skrev hade kastats bort.
+        var result = _sut.Segment(CvWithProjectsAndReferences);
+
+        result.Content.Sections.Count.ShouldBe(2);
+
+        // Rubriken är ANVÄNDARENS text, ordagrant. "PROJEKT" är inte "projekt".
+        result.Content.Sections[0].Heading.ShouldBe("PROJEKT");
+        result.Content.Sections[1].Heading.ShouldBe("Referenser");
+
+        // Dokumentordning bevarad.
+        result.Content.Sections[0].Entries.Count.ShouldBe(2);
+        result.Content.Sections[0].Entries[0].Title.ShouldBe("Betalplattform");
+        result.Content.Sections[0].Entries[1].Title.ShouldBe("Bokningssystem");
+        result.Content.Sections[1].Entries[0].Lines.ShouldContain("Lämnas på begäran.");
+    }
+
+    [Fact]
+    public void Segment_FreeSectionDoesNotLeakIntoTheTypedSections()
+    {
+        var result = _sut.Segment(CvWithProjectsAndReferences);
+
+        // Kompetenser efter de fria sektionerna ska fortfarande hittas typat.
+        result.Content.Skills.ShouldContain("C#");
+        // Och projekttexten ska inte ha hamnat i erfarenhet.
+        result.Content.Experience.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Segment_InlineFreeHeading_CarriesItsContent()
+    {
+        const string cv =
+            """
+            Anna Andersson
+
+            Profil
+            Erfaren utvecklare.
+
+            Projekt: Betalplattform, Bokningssystem
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Sections.Count.ShouldBe(1);
+        result.Content.Sections[0].Heading.ShouldBe("Projekt");
+        result.Content.Sections[0].Entries[0].Lines
+            .ShouldContain("Betalplattform, Bokningssystem");
+    }
+
+    [Fact]
+    public void Segment_BulletedFreeSection_DoesNotInventATitle()
+    {
+        const string cv =
+            """
+            Anna Andersson
+
+            Intressen
+            - Segling
+            - Schack
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var entry = result.Content.Sections[0].Entries[0];
+        // Parsern befordrar ALDRIG en punktlista-rad till en rubrik den inte skrivit.
+        entry.Title.ShouldBeNull();
+        entry.Lines.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public void Segment_NoFreeSections_YieldsEmptyList_NotNull()
+    {
+        var result = _sut.Segment(SwedishCv);
+
+        result.Content.Sections.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Segment_FreeSectionHeading_DoesNotDisturbParseConfidence()
+    {
+        // De sex typade sektionerna behåller sitt konfidenskontrakt: en fri sektion får
+        // varken skeva det dokument-övergripande verdiktet eller dyka upp som en sektion.
+        var withFree = _sut.Segment(CvWithProjectsAndReferences);
+
+        withFree.Confidence.Sections.Count.ShouldBe(6);
+        withFree.Confidence.Sections.ShouldAllBe(s => s.Kind != default || true);
+    }
+
     private const string SwedishCv =
         """
         Anna Andersson

@@ -66,7 +66,7 @@ export default async function CanonicalCvReviewPage({
       notFound();
     case "rateLimited":
       return (
-        <div className="flex flex-col gap-4">
+        <div className="jp-container jp-page flex flex-col gap-4">
           <h1 className="jp-h1">{t("common.rateLimitedTitle")}</h1>
           <p className="jp-lede">
             {t("common.rateLimitedBody", {
@@ -83,7 +83,7 @@ export default async function CanonicalCvReviewPage({
     case "forbidden":
     case "error":
       return (
-        <div className="flex flex-col gap-4">
+        <div className="jp-container jp-page flex flex-col gap-4">
           <h1 className="jp-h1">{t("cv.granska.loadErrorTitle")}</h1>
           <p className="jp-lede">{t("cv.granska.errorBody")}</p>
           <div>
@@ -104,7 +104,7 @@ export default async function CanonicalCvReviewPage({
     reviewResult.kind === "ok" ? reviewResult.data : null;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="jp-container jp-page flex flex-col gap-6">
       <Link
         href="/cv"
         className="inline-flex items-center gap-1 text-body-sm text-text-primary hover:underline self-start"

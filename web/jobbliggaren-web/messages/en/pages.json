@@ -53,8 +53,7 @@
       "loadErrorTitle": "Could not load the application",
       "fallbackTitle": "Application #{shortId}",
       "subtitle": "{company} · #{shortId}",
-      "createdSubtitle": "Created {date}",
-      "preservedSubtitle": "{company} · saved copy · #{shortId}"
+      "createdSubtitle": "Created {date}"
     }
   },
   "cv": {

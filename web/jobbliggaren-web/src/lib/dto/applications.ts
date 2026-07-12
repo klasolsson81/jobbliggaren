@@ -44,6 +44,17 @@ export const jobAdSummaryDtoSchema = z.object({
   source: z.string(),
   publishedAt: z.string().nullable(),
   expiresAt: z.string().nullable(),
+  // #805-3: källannonsens livscykel-status ("Active" | "Expired" | "Archived"),
+  // projicerad ur JobAd.Status. Detta är den ENDA sanningsenliga live/borta-
+  // signalen på ansöknings-läsvägen — jobAd == null betyder "ingen annonsrad
+  // alls" (manuell eller enbart brev), ALDRIG "annonsen är borta" (#821).
+  //
+  // null ⟺ ManualPosting: ingen JobAd-rad ⇒ ingen arkivering ⇒ ingen livs-utsaga.
+  // Lös z.string() (INTE jobAdStatusSchema-enum:en): filen typar medvetet även
+  // `source` löst, så ett framtida statusvärde degraderar till "inte Active"
+  // (default-deny) i stället för att hard-faila parse av HELA ansökningslistan.
+  // .optional() = deploy-skew-resiliens (samma konvention som fälten nedan).
+  status: z.string().nullable().optional(),
 });
 export type JobAdSummaryDto = z.infer<typeof jobAdSummaryDtoSchema>;
 

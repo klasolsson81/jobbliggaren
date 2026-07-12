@@ -50,38 +50,33 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
       const jobAd = application.jobAd ?? null;
       const shortId = application.id.slice(0, 8);
       const hasIdentity = jobAd != null;
-      // #315 (ADR 0086): the modal header MUST agree with the body
-      // (ApplicationDetail, headless). The body shows the "Om annonsen (sparad
-      // kopia)" panel with the PRESERVED title when the live ad is archived
-      // (jobAd == null) but a snapshot exists — so the modal's title (the
-      // dialog's accessible name via aria-labelledby) must show the same
-      // preserved title, not the generic mono "#id" fallback. Mirror the exact
-      // 3-state precedence the component uses: live → preserved → generic-#id.
-      const preservedAd = application.preservedAd ?? null;
-      const showPreservedAd = jobAd == null && preservedAd != null;
+      // #805-3: the header used to carry a THIRD copy of the
+      // `showPreservedAd = jobAd == null && preservedAd != null` guard — the very
+      // predicate this PR proves unreachable (JobAd.DeletedAt has no writer, so
+      // jobAd is never null for a JobAd-linked application; #821). Its preserved-
+      // title branch could therefore never render, and the comment that justified
+      // it taught the disproven model to the next reader. Both are gone.
+      //
+      // The header now has exactly two truthful states: an ad row exists (live OR
+      // archived — arkivering är inte radering, so the row still supplies
+      // title/company) → the ad's own identity; no ad row at all (cover-letter-only)
+      // → the generic "#id" fallback. The BODY (SourceAdSection) owns everything
+      // said about the ad's LIVENESS — header and body cannot disagree, because
+      // only one of them makes that claim.
       const title = hasIdentity
         ? jobAd.title
-        : showPreservedAd
-          ? preservedAd.title
-          : t("ansokningar.detail.fallbackTitle", { shortId });
-      // Subtitle precedence mirrors the title: live → "{company} · #shortId";
-      // preserved → "{company} · sparad kopia · #shortId" (saved-copy marker,
-      // same key shape as the component's preservedAd.headerCompany); generic
-      // (no snapshot) → "Skapad {date}" (created-date metadata, NOT an echo of
-      // the "#shortId"-fallback title — design-reviewer F5 Major #2 2026-05-20).
+        : t("ansokningar.detail.fallbackTitle", { shortId });
+      // Subtitle mirrors the title: ad row → "{company} · #shortId"; no ad row →
+      // "Skapad {date}" (created-date metadata, NOT an echo of the "#shortId"
+      // fallback title — design-reviewer F5 Major #2 2026-05-20).
       const subtitle = hasIdentity
         ? t("ansokningar.detail.subtitle", {
             company: jobAd.company,
             shortId,
           })
-        : showPreservedAd
-          ? t("ansokningar.detail.preservedSubtitle", {
-              company: preservedAd.company,
-              shortId,
-            })
-          : t("ansokningar.detail.createdSubtitle", {
-              date: formatDate(format, application.createdAt) ?? "",
-            }).trim();
+        : t("ansokningar.detail.createdSubtitle", {
+            date: formatDate(format, application.createdAt) ?? "",
+          }).trim();
       // Strict read-mode surface (#630 PR 6 lineage): NO Withdraw footer /
       // status mutation here — status changes live on the rows (PR 7). `now`
       // is the per-request reference time for the "N dagar i detta steg"
@@ -90,10 +85,10 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
         <ApplicationModalShell
           title={title}
           subtitle={subtitle}
-          // mono only for the truly-no-identity case (no live ad AND no
-          // snapshot). The preserved title is real prose, so it renders
-          // non-mono — matching the component header (#315).
-          mono={!hasIdentity && !showPreservedAd}
+          // mono only when there is no ad row at all (the "#id" fallback title).
+          // An archived ad still supplies real prose, so it renders non-mono —
+          // matching the component header (#805-3).
+          mono={!hasIdentity}
         >
           {/* jp-modal__body äger padding + intern scroll i .jp-modal-flexkolumnen
               (samma anropar-wrapp som @modal/(.)jobb) — utan den svämmar kroppen

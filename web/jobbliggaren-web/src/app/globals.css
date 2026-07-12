@@ -2923,6 +2923,18 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
   margin-bottom: 10px;
 }
+
+/* #805-3 (Beslut B) — "Om annonsen"-ytan (SourceAdSection). Två små token-only
+   primitiv i stället för px-literaler i TSX (ADR 0085 PR E: inget magiskt px i
+   TSX) och i stället för att låna `.jp-modal__match__expl`, som saknar bas-regel
+   och därför bidrar med noll (design-reviewer Minor 1-2). Visuellt identiska med
+   det de ersätter — ingen ny färg, ingen ny radie, ingen skugga. */
+.jp-source-ad__action {
+  margin-top: 12px;
+}
+.jp-source-ad__note {
+  color: var(--jp-ink-1);
+}
 /* #630 PR 7: rubrikrad med höger-yta (drawerns "+ Lägg till" i UPPFÖLJNINGAR,
    §8.6) resp. inline-hjälptext (stegväljarens "klicka på ett steg, även
    bakåt", §8.4). Additiv — bas-etiketten orörd. */

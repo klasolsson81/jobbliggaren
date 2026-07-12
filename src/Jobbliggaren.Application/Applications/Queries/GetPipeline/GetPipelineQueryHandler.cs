@@ -33,9 +33,14 @@ public sealed class GetPipelineQueryHandler(
 
         // ADR 0048: EN LEFT JOIN job_ads FÖRE materialisering; GroupBy
         // in-memory EFTER (pipeline = kanban-vy, ej DB-aggregering — N+1-fri
-        // eftersom all data hämtas i den ENA queryn). JobAd:s query-filter
-        // ärvs → soft-deletad JobAd ger j == null → fallback. IgnoreQueryFilters
-        // / manuellt DeletedAt-predikat FÖRBJUDET (ADR 0048 c).
+        // eftersom all data hämtas i den ENA queryn). IgnoreQueryFilters /
+        // manuellt DeletedAt-predikat FÖRBJUDET (ADR 0048 c).
+        //
+        // #805-3 sanningssynk: j == null betyder att ansökan saknar ANNONSRAD
+        // (manuell eller enbart personligt brev) — INTE att annonsen är borta.
+        // JobAd:s query-filter (DeletedAt == null) exkluderar aldrig något:
+        // DeletedAt saknar writer (#821). En annons som inte längre är aktiv bär
+        // Status == "Archived" och joinar fortfarande — därav Status på DTO:n.
         var rows = await db.Applications
             .AsNoTracking()
             .Where(a => a.JobSeekerId == jobSeekerId)
@@ -57,15 +62,18 @@ public sealed class GetPipelineQueryHandler(
                 r.a.Status.Name,
                 r.a.CreatedAt,
                 r.a.UpdatedAt,
+                // #805-3: Status projiceras (value-converter → string, samma idiom
+                // som Source). Manuell → null: ingen JobAd-rad ⇒ ingen arkivering
+                // ⇒ ingen livs-utsaga (aldrig defaultad till "Active").
                 r.j != null
                     ? new JobAdSummaryDto(
                         r.j.Id.Value, r.j.Title, r.j.Company.Name, r.j.Url,
-                        r.j.Source.Value, r.j.PublishedAt, r.j.ExpiresAt)
+                        r.j.Source.Value, r.j.PublishedAt, r.j.ExpiresAt, r.j.Status.Value)
                     : r.a.ManualPosting != null
                         ? new JobAdSummaryDto(
                             null, r.a.ManualPosting.Title, r.a.ManualPosting.Company,
                             r.a.ManualPosting.Url, "Manual",
-                            (DateTimeOffset?)null, r.a.ManualPosting.ExpiresAt)
+                            (DateTimeOffset?)null, r.a.ManualPosting.ExpiresAt, null)
                         : null,
                 r.a.AppliedAt,
                 // #342 (ADR 0085 §3): attention envelope, projected at the read

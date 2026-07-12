@@ -14,6 +14,15 @@ namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationHi
 /// (<c>AppliedAt != null</c>) are history; drafts are intent (Art. 6(1)(b) purpose, ADR 0090 D1).
 ///
 /// <para>
+/// <b>⚠ DISPUTED — see #824 (raised by #805-3). The claim below is believed FALSE and is
+/// preserved verbatim only so the disputed text is traceable; do NOT rely on it.</b>
+/// It assumes a retracted ad is soft-deleted and therefore filtered out. But <c>JobAd.DeletedAt</c>
+/// has no writer anywhere in <c>src/</c>, so the global filter is vacuous (#821): a retracted ad is
+/// ARCHIVED (<c>Status = "Archived"</c>) and <b>still joins</b> — its org.nr resolves and the
+/// application IS attributed. The behaviour is probably the desired one, but it is the opposite of
+/// what DPIA #456 records, which is an accountability problem in its own right. #824 decides the
+/// intended behaviour, updates the DPIA, and pins it with a test. Original claim:
+/// <para>
 /// <b>Archived-ad honesty (DPIA #456 finding).</b> The JOIN inherits <c>job_ads</c>' global
 /// soft-delete query-filter (ADR 0048): an application whose ad has since been retracted resolves to
 /// no live ad, so its org.nr is unresolvable and it is NOT attributed to an employer here.

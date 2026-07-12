@@ -1,7 +1,10 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Notifications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
+using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
 using Microsoft.EntityFrameworkCore;
@@ -20,8 +23,10 @@ namespace Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 /// here. Registered as two Hangfire RecurringJobs (~06:00 UTC, deliberately AFTER the 03:20 scan).
 /// NO AI/LLM (ADR 0071).
 /// <para>
-/// <b>Consent is the query gate (GDPR Art. 6/7):</b> opt-in ON and not withdrawn — identical to the
-/// scan. A withdrawal stops dispatch immediately (its Pending rows are simply never picked up).
+/// <b>Consent is the query gate (GDPR Art. 6/7) for the STRONG-match pass:</b> opt-in ON and not
+/// withdrawn — identical to the background-match scan (NOT the company-follow scan, which under 7C
+/// creates hits for every active follower — see the follow-pass section below). A withdrawal stops
+/// dispatch immediately (its Pending rows are simply never picked up).
 /// </para>
 /// <para>
 /// <b>Idempotent claim-then-send:</b> HTTP is not transactional, so per user the sequence is
@@ -55,6 +60,8 @@ public sealed partial class DigestDispatchJob(
     IAppDbContext db,
     IEmailSender emailSender,
     IUserAccountService userAccounts,
+    IMatchProfileBuilder profileBuilder,
+    IPerUserJobAdSearchQuery perUserSearch,
     IDateTimeProvider clock,
     IOptions<DigestDispatchOptions> options,
     ILogger<DigestDispatchJob> logger)
@@ -251,18 +258,19 @@ public sealed partial class DigestDispatchJob(
             match.MarkSent(clock);
     }
 
-    // ─── Company-follow digest (ADR 0087 D5) — the exact SHAPE of DispatchUserDigestAsync above, but
-    // over FollowedCompanyAdHit rows (no grade) + the FollowedCompanyNotificationEmail contract. Kept
-    // as a SEPARATE method so the two aggregate sources never share fetch/dispatch state (SoC).
+    // ─── Company-follow digest (ADR 0087 D5) — the SHAPE of DispatchUserDigestAsync above, but over
+    // FollowedCompanyAdHit rows + the FollowedCompanyNotificationEmail contract. Kept as a SEPARATE
+    // method so the two aggregate sources never share fetch/dispatch state (SoC). The hit + contract
+    // stay grade-FREE (Goodhart/D1 seal); 7C adds a read-time per-watch OnlyMatched grade FILTER that
+    // decides email INCLUSION only — the grade is never persisted or surfaced per item.
     private async Task<bool> DispatchUserFollowedCompanyDigestAsync(
         Guid userId, DigestCadence cadence, CancellationToken ct)
     {
         // The user's Pending follow-hit rows (tracked — MarkQueued/MarkSent mutate them). Ordered by
-        // recency (CreatedAt desc, then Id for determinism) — no grade concept for follows.
+        // recency (CreatedAt desc, then Id for determinism) — the HIT carries no grade (Goodhart seal).
         // #453 (cross-channel dedup) — AND SeenAt == null: a hit the user already opened in-app is
         // suppressed ("aldrig mejla något jag sett i appen"). A stamped-but-Pending hit is never claimed
-        // here (falls dormant) and the scan's triple-dedup never re-creates it. This predicate MUST match
-        // the displayRows fetch below, or the claimed set would diverge from the displayed set.
+        // here (falls dormant) and the scan's triple-dedup never re-creates it.
         var pending = await db.FollowedCompanyAdHits
             .Where(h => h.UserId == userId
                         && h.NotificationStatus == FollowedCompanyAdHitStatus.Pending
@@ -274,26 +282,95 @@ public sealed partial class DigestDispatchJob(
         if (pending.Count == 0)
             return false;
 
-        // Display items (capped) joined to each ad's PUBLIC title/company (never the org.nr — ADR
-        // 0087 D8). Read BEFORE the claim, AsNoTracking, same ordering. The inner join honours the
-        // JobAd soft-delete query filter, so a retracted ad falls out of the body but is still
-        // drained below. Joining (not filtering by an id set) sidesteps the strongly-typed-VO
-        // Contains trap (parity the match digest).
-        var displayRows = await (
-                from h in db.FollowedCompanyAdHits.AsNoTracking()
-                where h.UserId == userId
-                      && h.NotificationStatus == FollowedCompanyAdHitStatus.Pending
-                      // #453 — MUST mirror the `pending` claim predicate above (suppress seen-in-app hits).
-                      && h.SeenAt == null
-                join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
-                orderby h.CreatedAt descending, h.Id
-                select new { j.Title, Company = j.Company.Name })
-            .Take(_options.MaxItemsPerDigest)
-            .ToListAsync(ct);
+        // ─── Per-watch "endast matchade" filter (bevakning-reconcile RF-3/RF-5/RF-8=8C, 2026-07-12).
+        // Read-time, grade NEVER persisted (Goodhart — the hit has no grade column). The ort filter was
+        // already applied SCAN-time (8A, F1); only the OnlyMatched flag needs a dispatch-time grade
+        // check. Load the user's ACTIVE watches (whole-watch load, parity the scan/ListCompanyWatches)
+        // → CompanyWatchId → WatchFilterSpec?. A hit whose watch was unfollowed since creation is absent
+        // → treated as no-filter → passes (its WatchFilterSpec was cleared on SoftDelete anyway).
+        var filterByWatchId = (await db.CompanyWatches
+                .AsNoTracking()
+                .Where(w => w.UserId == userId)
+                .ToListAsync(ct))
+            .ToDictionary(w => w.Id, w => w.Filter);
 
-        // Claim ALL pending follow rows (Pending → Queued) and commit BEFORE the send — the
+        bool NeedsGradeCheck(FollowedCompanyAdHit h) =>
+            filterByWatchId.TryGetValue(h.CompanyWatchId, out var f) && f is { OnlyMatched: true };
+
+        var idsToGrade = pending.Where(NeedsGradeCheck)
+            .Select(h => h.JobAdId)
+            .Distinct()
+            .ToList();
+
+        // The notifiable subset after the read-time grade filter. A hit FILTERED OUT (below ≥Good under
+        // an OnlyMatched watch) is LEFT PENDING — never claimed, never drained — so a later profile
+        // change re-surfaces it retroactively (8C); the deferred retention sweep (DPIA R-E2/M-E2) bounds
+        // the accumulation. `gradeAssessable` gates the 13B OnlyMatched disclosure: a profile-less
+        // user's filter is INERT, so disclosing it as active would be a §5 accuracy miss.
+        List<FollowedCompanyAdHit> effective;
+        var gradeAssessable = false;
+        if (idsToGrade.Count == 0)
+        {
+            // No OnlyMatched filter on any contributing watch → the whole pending set is notifiable
+            // (also the ONLY path until PR-F4 ships the filter-set UI — the grade path stays dormant).
+            effective = pending;
+        }
+        else
+        {
+            var (matching, assessable) = await MatchingAdIdsAsync(userId, idsToGrade, ct);
+            gradeAssessable = assessable;
+            effective = pending
+                .Where(h => !NeedsGradeCheck(h) || matching.Contains(h.JobAdId))
+                .ToList();
+            if (effective.Count == 0)
+                // Every pending hit was filtered out (below ≥Good) — nothing to email. Leave them
+                // Pending for retroactive re-surfacing (8C); NEVER drain (that would consume them).
+                return false;
+        }
+
+        // 13B filter-summary — disclose the filters that shaped THIS email (contributing watches only).
+        // Email-level, grade-free (D1 seal); F4 renders the Swedish copy.
+        var filterSummary = BuildFilterSummary(effective, filterByWatchId, gradeAssessable);
+
+        // Display items — the PUBLIC title/company per ad (never the org.nr — ADR 0087 D8), AsNoTracking,
+        // same ordering. Read BEFORE the claim (the join predicate needs the rows still Pending). The
+        // inner join honours the JobAd soft-delete filter (a retracted ad falls out of the body but its
+        // hit is still drained below). Joining (not an id-set filter) sidesteps the strongly-typed-VO
+        // Contains trap.
+        var itemsQuery =
+            from h in db.FollowedCompanyAdHits.AsNoTracking()
+            where h.UserId == userId
+                  && h.NotificationStatus == FollowedCompanyAdHitStatus.Pending
+                  && h.SeenAt == null
+            join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
+            orderby h.CreatedAt descending, h.Id
+            select new { h.JobAdId, j.Title, Company = j.Company.Name };
+
+        List<FollowedCompanyAdItem> items;
+        if (effective.Count == pending.Count)
+        {
+            // Unfiltered (the common path; the ONLY path until F4) — keep the server-side cap so the
+            // fetch stays bounded (no unpaginated read).
+            items = (await itemsQuery.Take(_options.MaxItemsPerDigest).ToListAsync(ct))
+                .Select(r => new FollowedCompanyAdItem(r.Title, r.Company))
+                .ToList();
+        }
+        else
+        {
+            // The grade filter pruned the set — SQL cannot express "∈ effective", so fetch the
+            // (per-user bounded) window and intersect in-memory, preserving order, then cap.
+            var effectiveAdIds = effective.Select(h => h.JobAdId).ToHashSet();
+            items = (await itemsQuery.ToListAsync(ct))
+                .Where(r => effectiveAdIds.Contains(r.JobAdId))
+                .Take(_options.MaxItemsPerDigest)
+                .Select(r => new FollowedCompanyAdItem(r.Title, r.Company))
+                .ToList();
+        }
+
+        // Claim the EFFECTIVE follow rows (Pending → Queued) and commit BEFORE the send — the
         // idempotency spine (parity the match digest; single-threaded, DisableConcurrentExecution).
-        foreach (var hit in pending)
+        // Filtered-out hits are NOT in `effective` → they stay Pending.
+        foreach (var hit in effective)
             hit.MarkQueued();
         await db.SaveChangesAsync(ct);
 
@@ -305,25 +382,22 @@ public sealed partial class DigestDispatchJob(
             return false;
         }
 
-        if (displayRows.Count == 0)
+        if (items.Count == 0)
         {
-            // Every followed-ad was retracted since detection — drain (mark Sent) so the empty window
+            // Every notifiable ad was retracted since detection — drain (mark Sent) so the empty window
             // doesn't re-process every run; send nothing (an empty digest is noise).
-            DrainSent(pending);
+            DrainSent(effective);
             await db.SaveChangesAsync(ct);
-            LogFollowEmptyDrained(logger, pending.Count, userId);
+            LogFollowEmptyDrained(logger, effective.Count, userId);
             return false;
         }
 
-        var items = displayRows
-            .Select(r => new FollowedCompanyAdItem(r.Title, r.Company))
-            .ToList();
-        var content = new FollowedCompanyNotificationEmail(cadence, items, pending.Count);
+        var content = new FollowedCompanyNotificationEmail(cadence, items, effective.Count, filterSummary);
 
-        // Idempotency key: CONTENT fingerprint of the claimed hit set (namespaced follow/v1/…), NOT a
+        // Idempotency key: CONTENT fingerprint of the CLAIMED hit set (namespaced follow/v1/…), NOT a
         // wall-clock window — two same-period runs that claimed different sets get different keys.
         var idempotencyKey = FollowedCompanyNotificationIdempotencyKey.ForDigest(
-            userId, cadence, pending.Select(h => h.Id.Value));
+            userId, cadence, effective.Select(h => h.Id.Value));
 
         try
         {
@@ -338,12 +412,57 @@ public sealed partial class DigestDispatchJob(
             return false;
         }
 
-        // Drain: mark ALL window rows Sent (not just the displayed cap) so the un-displayed remainder
-        // cannot re-surface next digest.
-        DrainSent(pending);
+        // Drain: mark ALL claimed window rows Sent (not just the displayed cap) so the un-displayed
+        // remainder cannot re-surface next digest.
+        DrainSent(effective);
         await db.SaveChangesAsync(ct);
-        LogFollowSent(logger, userId, pending.Count, items.Count);
+        LogFollowSent(logger, userId, effective.Count, items.Count);
         return true;
+    }
+
+    // Read-time ≥Good membership for the OnlyMatched filter (RF-5=5A fixed floor). Builds the user's
+    // DEK-free Fast profile (the Worker has no ICurrentUser → BuildFullForUserIdAsync) and delegates to
+    // the shared GradeRankExpression SSOT via FilterToMatchingAsync (ADR 0079 — the grade authority read
+    // at read-time, never persisted). A PROFILE-LESS user (no stated occupation) makes the "endast
+    // matchade" filter INERT (RF-5 under-fork i: deliver unfiltered rather than a dishonest empty set),
+    // so branch on assessability BEFORE the call — FilterToMatchingAsync fail-fasts on an empty-SSYK
+    // profile. Returns (matching-set, assessable) so the caller keeps filtered-out hits Pending and the
+    // 13B summary discloses OnlyMatched only when it actually narrowed.
+    private async ValueTask<(IReadOnlySet<JobAdId> Matching, bool Assessable)> MatchingAdIdsAsync(
+        Guid userId, IReadOnlyList<JobAdId> jobAdIds, CancellationToken ct)
+    {
+        var profile = await profileBuilder.BuildFullForUserIdAsync(userId, ct);
+        if (profile.Fast.SsykGroupConceptIds.Count == 0)
+            return (jobAdIds.ToHashSet(), false); // INERT: everything passes; never call the fail-fast port
+
+        return (await perUserSearch.FilterToMatchingAsync(profile, jobAdIds, ct), true);
+    }
+
+    // 13B (RF-13) — aggregate the per-watch filters of the watches that CONTRIBUTED a hit to this email
+    // into a per-email disclosure (booleans only; no ort names, no grade — D1/Goodhart safe). The ort
+    // filter always narrows (scan-time, 8A) so it discloses unconditionally; OnlyMatched only narrows
+    // when the user is assessable (a profile-less filter is INERT), so it discloses only then. Null when
+    // no contributing watch has an active, effective filter.
+    private static FollowedCompanyFilterSummary? BuildFilterSummary(
+        IReadOnlyList<FollowedCompanyAdHit> effective,
+        Dictionary<CompanyWatchId, WatchFilterSpec?> filterByWatchId,
+        bool onlyMatchedAssessable)
+    {
+        var onlyMatched = false;
+        var location = false;
+        foreach (var watchId in effective.Select(h => h.CompanyWatchId).Distinct())
+        {
+            if (!filterByWatchId.TryGetValue(watchId, out var filter) || filter is null)
+                continue;
+            if (filter.OnlyMatched && onlyMatchedAssessable)
+                onlyMatched = true;
+            if (filter.Municipalities.Count > 0)
+                location = true;
+        }
+
+        return onlyMatched || location
+            ? new FollowedCompanyFilterSummary(onlyMatched, location)
+            : null;
     }
 
     // Queued → Sent for the whole claimed follow-hit batch (parity the match DrainSent).

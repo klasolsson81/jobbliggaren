@@ -185,13 +185,18 @@ public class ScbCompanyRegisterStoreTests(WorkerTestFixture fixture)
         // Seed the contaminating row via the REAL write path, then take a fresh context and assert null —
         // this FAILS without the FreshContextAsync audit-clear (returns 1000) and PASSES with it.
         var ct = TestContext.Current.CancellationToken;
+
+        // Date the seed row relative to the REAL clock (the store's window is now()-90-days). A fixed date
+        // would eventually drift out of the window and let this pin pass VACUOUSLY without the fix — the
+        // very fixed-date-vs-real-clock coupling that caused #685. One day ago is always in-window.
+        var recent = DateTimeOffset.UtcNow.AddDays(-1);
         await using (var seed = await FreshContextAsync(ct))
         {
             var auditor = seed.Scope.ServiceProvider.GetRequiredService<ISystemEventAuditor>();
             await auditor.RecordAsync(
                 new CompanyRegisterSynced(
                     AggregateId: Guid.NewGuid(),
-                    OccurredAt: T1,                 // inside the 90-day window relative to the real clock
+                    OccurredAt: recent,
                     RowsUpserted: 1000,
                     RowsDeregistered: 0,
                     RowsExcludedPersonnummerShaped: 0,
@@ -201,9 +206,15 @@ public class ScbCompanyRegisterStoreTests(WorkerTestFixture fixture)
                     SweepSkipReason: null,
                     ProtectedPartitionCount: 0,
                     FailedPartitionCount: 0,
-                    StartedAt: T0,
-                    CompletedAt: T1),
+                    StartedAt: recent,
+                    CompletedAt: recent),
                 ct);
+
+            // Control: the seeded row IS visible to the baseline read in this context — so the null
+            // assertion below can only pass because FreshContextAsync cleared it, never because the row
+            // was out of window. This makes the pin self-proving (it cannot pass vacuously).
+            (await new ScbCompanyRegisterStore(seed.Db).GetMaxObservedTotalRowsFetchedAsync(days: 90, ct))
+                .ShouldBe(1000);
         }
 
         await using var ctx = await FreshContextAsync(ct);

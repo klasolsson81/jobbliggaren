@@ -38,12 +38,12 @@ public class MeTests(ApiFactory factory)
     }
 
     /// <summary>
-    /// #822 — regressionsvakt. Endpointen användes tidigare bara som auth-prob (statuskod +
-    /// userId), aldrig mot BODYN. Under den luckan slutade <c>email</c> tyst att fyllas i:
-    /// den lästes ur en claim som bara den avvecklade JWT-vägen emit:ade, så varje inloggad
-    /// användare fick <c>""</c> — vilket i sin tur dödade den typade bekräftelsen i
-    /// radera-konto-dialogen (GDPR Art. 17-vägen i UI:t). Adressen som registrerades MÅSTE
-    /// komma tillbaka.
+    /// #822 — regression guard. This endpoint was only ever asserted as an auth probe
+    /// (status code + userId), never against its BODY. Under that gap the <c>email</c>
+    /// field silently stopped being populated: it was read from a claim only the retired
+    /// JWT path emitted, so every signed-in user got <c>""</c> — which in turn killed the
+    /// typed confirmation in the delete-account dialog (the GDPR Art. 17 path in the UI).
+    /// The address the account registered with MUST come back.
     /// </summary>
     [Fact]
     public async Task GET_me_returns_the_authenticated_users_actual_email()

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import {
   deleteSessionCookie,
+  getServerSession,
   getSessionId,
   setSessionCookie,
 } from "@/lib/auth/session";
@@ -136,8 +137,7 @@ export async function updateNotificationConsentAction(
  * NEVER logged on the error path.
  */
 export async function deleteAccountAction(
-  input: DeleteMyAccountInput,
-  currentEmail: string
+  input: DeleteMyAccountInput
 ): Promise<ActionResult> {
   const ts = await getTranslations("settings");
   const te = await getTranslations("errors");
@@ -150,11 +150,24 @@ export async function deleteAccountAction(
     };
   }
 
-  // Email-match — case-insensitive, trimmed. Done here (not in Zod) so we can
-  // compare against currentEmail (server-trusted) rather than client input alone.
+  // Email-match — case-insensitive, trimmed. #822: the expected address is now resolved
+  // from the SESSION here, not passed in from the client. It used to arrive as a Server
+  // Action argument, i.e. serialized from the browser and fully caller-controlled, while
+  // the comment claimed it was "server-trusted" — a caller could post a matching pair and
+  // walk straight through. The authoritative control was, and remains, the password
+  // re-auth the API enforces; this typed confirmation is friction against the user's own
+  // mistake. But friction that an attacker can hand itself is not friction at all.
+  const session = await getServerSession();
+  if (!session) {
+    return { success: false, error: ts("account.errors.notLoggedIn") };
+  }
+
   const confirm = parsed.data.confirmEmail.trim().toLowerCase();
-  const expected = currentEmail.trim().toLowerCase();
-  if (confirm !== expected) {
+  const expected = session.email.trim().toLowerCase();
+  // Fail closed if the expected address is absent — never let the comparison degenerate
+  // to "" === "" and arm an irreversible action on an empty field (ASVS V6.2.5). This is
+  // the server-side mirror of the guard in delete-account-dialog.tsx.
+  if (expected.length === 0 || confirm !== expected) {
     return {
       success: false,
       error: ts("account.errors.emailMismatch"),

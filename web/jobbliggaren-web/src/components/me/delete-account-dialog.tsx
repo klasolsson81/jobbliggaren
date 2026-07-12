@@ -23,9 +23,11 @@ export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) 
   const confirmEmailId = useId();
   const [confirmEmail, setConfirmEmail] = useState("");
 
-  // Case-insensitive, trimmed match against the signed-in account. This is
-  // client-side friction only (GitHub/Stripe typed-confirmation pattern); the
-  // Server Action re-checks it against the server-trusted email.
+  // Case-insensitive, trimmed match against the signed-in account. This is client-side
+  // friction only (GitHub/Stripe typed-confirmation pattern). The Server Action re-checks
+  // it against the address it resolves from the SESSION (#822 — it used to trust an
+  // address the client passed in); the authoritative control is the password re-auth the
+  // API enforces.
   //
   // #822 — the expected address MUST be non-empty for the gate to arm. While /me
   // returned an empty email, this comparison degenerated to "" === "" and the gate
@@ -52,9 +54,7 @@ export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) 
       cancelLabel={ts("account.delete.cancel")}
       variant="destructive"
       // The password travels with the delete; the server re-authenticates it.
-      action={(password) =>
-        deleteAccountAction({ confirmEmail, password }, currentEmail)
-      }
+      action={(password) => deleteAccountAction({ confirmEmail, password })}
       canSubmit={() => emailMatches}
       onOpenChange={(open) => {
         if (!open) setConfirmEmail("");

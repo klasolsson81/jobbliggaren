@@ -23,14 +23,6 @@ public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICur
     public bool IsAuthenticated =>
         Principal?.Identity?.IsAuthenticated == true;
 
-    public string? Jti => Principal?.FindFirstValue(JwtRegisteredClaimNames.Jti);
-
-    // #822: Email är borttaget. SessionAuthenticationHandler emit:ar ingen e-post-claim
-    // (bara NameIdentifier/Sub/session_id_prefix) — den enda emitteringen fanns i den
-    // avvecklade JwtTokenGenerator — så egenskapen returnerade alltid null under den
-    // auth-scheman som faktiskt kör. E-post hämtas ur identity-storen via
-    // IUserAccountService.GetEmailAsync.
-
     public SessionId? SessionId =>
         httpContextAccessor.HttpContext?.Items["SessionId"] is SessionId sid ? sid : null;
 

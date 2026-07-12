@@ -5,12 +5,14 @@ import { DeleteAccountDialog } from "./delete-account-dialog";
 import type { ActionResult } from "@/lib/actions/me";
 import type { DeleteMyAccountInput } from "@/lib/actions/me-schemas";
 
+// #822 — the action no longer takes the expected address as an argument: it resolves it
+// from the session server-side (a Server Action argument is client-controlled).
 const deleteAccountActionMock =
-  vi.fn<(input: DeleteMyAccountInput, currentEmail: string) => Promise<ActionResult>>();
+  vi.fn<(input: DeleteMyAccountInput) => Promise<ActionResult>>();
 
 vi.mock("@/lib/actions/me", () => ({
-  deleteAccountAction: (input: DeleteMyAccountInput, currentEmail: string) =>
-    deleteAccountActionMock(input, currentEmail),
+  deleteAccountAction: (input: DeleteMyAccountInput) =>
+    deleteAccountActionMock(input),
 }));
 
 // PR2c-1 — DeleteAccountDialog is now a thin wrapper over the generic
@@ -195,10 +197,10 @@ describe("DeleteAccountDialog", () => {
     await waitFor(() => {
       expect(deleteAccountActionMock).toHaveBeenCalledTimes(1);
     });
-    expect(deleteAccountActionMock).toHaveBeenCalledWith(
-      { confirmEmail: "anna@example.se", password: "S3kret!pass" },
-      "anna@example.se"
-    );
+    expect(deleteAccountActionMock).toHaveBeenCalledWith({
+      confirmEmail: "anna@example.se",
+      password: "S3kret!pass",
+    });
   });
 
   it("shows server error when action returns { success:false, error }", async () => {

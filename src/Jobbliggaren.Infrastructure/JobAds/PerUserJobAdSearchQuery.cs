@@ -315,6 +315,64 @@ internal sealed class PerUserJobAdSearchQuery(
             .ToDictionary(x => x.OrgNr!, x => x.Count, StringComparer.Ordinal);
     }
 
+    public async ValueTask<IReadOnlySet<JobAdId>> FilterToMatchingAsync(
+        FullCandidateMatchProfile profile,
+        IReadOnlyCollection<JobAdId> jobAdIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(jobAdIds);
+
+        // Fail-fast (parity SearchByStatusAsync's active-status throw): an empty-SSYK profile
+        // grades every ad 0 — the empty result would MEAN "not assessable", not "zero matches"
+        // (the dishonest-0 trap). The caller branches on assessability BEFORE calling (a
+        // profile-less user's "endast matchade" filter is inert — RF-5 under-fork (i)).
+        if (profile.Fast.SsykGroupConceptIds.Count == 0)
+            throw new ArgumentException(
+                "FilterToMatchingAsync kräver en bedömbar profil (minst en angiven yrkesgrupp); "
+                + "för en profil-lös användare är \"endast matchade\"-filtret inert och metoden "
+                + "ska inte anropas.",
+                nameof(profile));
+
+        if (jobAdIds.Count == 0)
+            return new HashSet<JobAdId>();
+
+        var fast = profile.Fast;
+        var ortStated = fast.PreferredRegionConceptIds.Count > 0
+                        || fast.PreferredMunicipalityConceptIds.Count > 0;
+        var employmentStated = fast.PreferredEmploymentTypeConceptIds.Count > 0;
+
+        // SAME shared GradeRankExpression SSOT as SearchPerUserAsync/CountPerUser* (ADR 0079);
+        // the ≥Good floor is the FIXED Fast band {Good, Strong} (RF-5=5A — exact: Fast ≡ Full at
+        // ≥Good; Top never lifts an ad ACROSS the Good threshold, only within the band).
+        var rankExpr = GradeRankExpression(
+            fast.SsykGroupConceptIds,
+            fast.RelatedSsykGroupConceptIds,
+            fast.PreferredRegionConceptIds,
+            fast.PreferredMunicipalityConceptIds,
+            fast.ContainmentRegionConceptIds,
+            fast.PreferredEmploymentTypeConceptIds,
+            ortStated,
+            employmentStated);
+        var goodOrBetterRanks = new[] { GradeToRank(MatchGrade.Good), GradeToRank(MatchGrade.Strong) };
+
+        // ONE round-trip via parameterized `= ANY` (the canonical strongly-typed-id-set pattern
+        // from MatchScorer.ScoreBatchAsync — Contains() over JobAdId does not translate;
+        // FromSql parameterizes the Guid[], injection-safe, CLAUDE.md §5). Composes with the
+        // global soft-delete filter; Status gate parity CountPerUserByEmployerAsync.
+        var ids = jobAdIds.Select(id => id.Value).Distinct().ToArray();
+
+        var matching = await db.JobAds
+            .FromSql($"SELECT * FROM job_ads WHERE id = ANY({ids})")
+            .AsNoTracking()
+            .Where(j => j.Status == JobAdStatus.Active)
+            .Where(RankInSet(rankExpr, goodOrBetterRanks))
+            .Select(j => j.Id)
+            .ToListAsync(cancellationToken);
+
+        return matching.ToHashSet();
+    }
+
     public async ValueTask<PagedResult<JobAdDto>> SearchByStatusAsync(
         JobAdFilterCriteria filter,
         JobSeekerId seekerId,

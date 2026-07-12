@@ -47,6 +47,13 @@ public sealed class CompanyWatch : AggregateRoot<CompanyWatchId>
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? DeletedAt { get; private set; }
 
+    /// <summary>
+    /// Per-watch notification filter (RF-2, 2026-07-12) — null = no filter (the canonical
+    /// "show all" representation; a present spec always narrows something). Persisted as a
+    /// nullable jsonb column via a property-level converter (Infrastructure).
+    /// </summary>
+    public WatchFilterSpec? Filter { get; private set; }
+
     // EF Core constructor
     private CompanyWatch() { }
 
@@ -91,17 +98,28 @@ public sealed class CompanyWatch : AggregateRoot<CompanyWatchId>
     /// Soft-deletes the follow (unfollow). Idempotent — a no-op on an already-unfollowed watch.
     /// Joins the Art.17 hard-delete cascade by UserId (<c>AccountHardDeleter</c> RemoveRanges
     /// these rows regardless of soft-delete state).
+    ///
+    /// <para>
+    /// <b>Clears the per-watch <see cref="Filter"/> (RF-2 sub-bind, senior-cto-advisor
+    /// 2026-07-12):</b> unfollow ends the 6(1)(b) relation, so its setting has no remaining
+    /// processing purpose — profiling-adjacent preference data must not sit latent on the
+    /// soft-deleted row (Art. 5(1)(c)/(e)), and a later <see cref="Refollow"/> must start as a
+    /// clean show-all follow (§5 transparency — no silently-inherited narrowing).
+    /// </para>
     /// </summary>
     public void SoftDelete(IDateTimeProvider clock)
     {
         if (DeletedAt.HasValue) return;
         DeletedAt = clock.UtcNow;
+        Filter = null;
     }
 
     /// <summary>
     /// Resurrects a previously soft-deleted follow (FORK B1): clears <see cref="DeletedAt"/> and
     /// refreshes <see cref="CreatedAt"/> to now (the follow starts a new active period). Idempotent
     /// — a no-op on an already-active watch, so re-following an active org.nr changes nothing.
+    /// The resurrected follow has no <see cref="Filter"/> — <see cref="SoftDelete"/> already
+    /// cleared it (RF-2 sub-bind), so no filter-specific logic is needed here.
     /// </summary>
     public void Refollow(IDateTimeProvider clock)
     {
@@ -109,4 +127,32 @@ public sealed class CompanyWatch : AggregateRoot<CompanyWatchId>
         DeletedAt = null;
         CreatedAt = clock.UtcNow;
     }
+
+    /// <summary>
+    /// Sets (or replaces) the per-watch notification filter (RF-2, 2026-07-12). The spec is an
+    /// already-validated <see cref="WatchFilterSpec"/> (the caller constructs it via
+    /// <see cref="WatchFilterSpec.Create"/>). Precondition: the watch is active — filtering an
+    /// unfollowed watch is meaningless (its filter was cleared by <see cref="SoftDelete"/>).
+    /// </summary>
+    public Result SetFilter(WatchFilterSpec filter)
+    {
+        if (filter is null)
+            return Result.Failure(DomainError.Validation(
+                "CompanyWatch.FilterRequired",
+                "Ett filter krävs — använd ClearFilter för att ta bort filtret."));
+
+        if (DeletedAt.HasValue)
+            return Result.Failure(DomainError.Validation(
+                "CompanyWatch.NotActive",
+                "Bevakningen är borttagen och kan inte filtreras."));
+
+        Filter = filter;
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Removes the per-watch filter (back to show-all). Idempotent — a no-op when no filter
+    /// is set; allowed regardless of soft-delete state (clearing never widens exposure).
+    /// </summary>
+    public void ClearFilter() => Filter = null;
 }

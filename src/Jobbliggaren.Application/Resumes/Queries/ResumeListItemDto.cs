@@ -8,6 +8,10 @@ namespace Jobbliggaren.Application.Resumes.Queries;
 /// reviewed at the current rubric", which the UI must render as "Granska", never as
 /// zero — §5 never mis-report). <see cref="Origin"/>/<see cref="Template"/> are the
 /// non-PII root metadata names (ADR 0096) for the Importerad/Skapad card badges.
+/// <see cref="EffectiveAtsSafe"/> is the persisted-state ATS verdict
+/// (<c>CvTemplateOptions.EffectiveAtsSafe</c> = <c>Template.AtsSafe &amp;&amp; !PhotoEnabled</c>)
+/// for the card's "Klarar ATS" / "För människor" badge — computed on the root, so the list
+/// need not carry the full option set (ADR 0045 lean list budget).
 /// </summary>
 public sealed record ResumeListItemDto(
     Guid Id,
@@ -22,4 +26,5 @@ public sealed record ResumeListItemDto(
     IReadOnlyList<string> TopSkills,
     int? OpenFindingCount,
     string Origin,
-    string Template);
+    string Template,
+    bool EffectiveAtsSafe);

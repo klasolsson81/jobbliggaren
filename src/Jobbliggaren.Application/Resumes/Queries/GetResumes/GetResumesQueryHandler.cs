@@ -85,7 +85,10 @@ public sealed class GetResumesQueryHandler(
                 ? x.OpenFindingCount
                 : null,
             x.Resume.Origin.Name,
-            x.Resume.TemplateOptions.Template.Name)).ToList();
+            x.Resume.TemplateOptions.Template.Name,
+            // In-memory (post-ToListAsync): EffectiveAtsSafe compares SmartEnum singletons
+            // (Template.AtsSafe), which does NOT translate to SQL — must stay off the EF path.
+            x.Resume.TemplateOptions.EffectiveAtsSafe)).ToList();
 
         return new PagedResult<ResumeListItemDto>(resumes, totalCount, query.Page, query.PageSize);
     }

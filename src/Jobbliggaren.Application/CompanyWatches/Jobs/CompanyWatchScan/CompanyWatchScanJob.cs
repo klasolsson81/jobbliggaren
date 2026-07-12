@@ -117,13 +117,15 @@ public sealed partial class CompanyWatchScanJob(
             return 0;
         }
 
-        var watchIdByOrgNr = activeWatches.ToDictionary(
-            w => w.OrganizationNumber.Value, w => w.Id, StringComparer.Ordinal);
+        // Whole-watch map (RF-2/RF-3, 2026-07-12): the per-watch Filter must be available in the
+        // hit loop for the client-side ort check, so map org.nr → watch (not just its id).
+        var watchByOrgNr = activeWatches.ToDictionary(
+            w => w.OrganizationNumber.Value, w => w, StringComparer.Ordinal);
         // IReadOnlyList<string> (not List<string>) so the org.nr membership uses the LINQ
         // Enumerable.Contains overload — EF translates it to SQL IN over the nullable shadow column
         // (parity the D6 ApplyFilter employer filter; a List<string>.Contains would reject the
         // string? column arg at compile time).
-        IReadOnlyList<string> watchedOrgNrs = watchIdByOrgNr.Keys.ToList();
+        IReadOnlyList<string> watchedOrgNrs = watchByOrgNr.Keys.ToList();
 
         var since = jobSeeker.LastCompanyWatchScanAt ?? now.AddDays(-ColdStartDays);
 
@@ -132,13 +134,20 @@ public sealed partial class CompanyWatchScanJob(
         // CreatedAt > since catches EVERY ad ingested since the last scan). The org.nr IN-membership
         // uses the STORED generated shadow column (EF.Property — the same translation-safe pattern
         // as the D6 employer filter; org.nr on job_ads is a plain string, not a VO). Project the id +
-        // its org.nr so we can map back to the originating watch client-side (no join).
+        // its org.nr (to map back to the originating watch client-side, no join) + its municipality
+        // (for the per-watch ort filter — RF-3=3D: the ort check is CLIENT-SIDE per (ad, watch) pair,
+        // keeping the SQL a pure set-membership query; the D5 seal EXTENDED, still scorer-/profile-free).
         var newAds = await db.JobAds
             .AsNoTracking()
             .Where(j => j.Status == JobAdStatus.Active
                         && j.CreatedAt > since
                         && watchedOrgNrs.Contains(EF.Property<string?>(j, "OrganizationNumber")))
-            .Select(j => new { j.Id, OrgNr = EF.Property<string?>(j, "OrganizationNumber") })
+            .Select(j => new
+            {
+                j.Id,
+                OrgNr = EF.Property<string?>(j, "OrganizationNumber"),
+                Municipality = EF.Property<string?>(j, "MunicipalityConceptId"),
+            })
             .ToListAsync(ct);
 
         var hitCount = 0;
@@ -160,13 +169,20 @@ public sealed partial class CompanyWatchScanJob(
             {
                 // The ad matched the IN of non-null watched org.nrs, so OrgNr is present and maps to
                 // exactly one active watch; TryGetValue is defense-in-depth against a NULL leak.
-                if (ad.OrgNr is null || !watchIdByOrgNr.TryGetValue(ad.OrgNr, out var watchId))
+                if (ad.OrgNr is null || !watchByOrgNr.TryGetValue(ad.OrgNr, out var watch))
                     continue;
 
-                if (existing.Contains((ad.Id, watchId)))
+                // Per-watch ort filter (RF-3=3D scan-time / RF-8=8A never-created): an active ort
+                // filter admits only ads in its municipalities — a filtered-out ad produces NO hit
+                // row (data minimization). An ad without a municipality (län-only) never passes an
+                // active ort filter (the VO's AdmitsMunicipality semantics). No filter → all pass.
+                if (watch.Filter is { } filter && !filter.AdmitsMunicipality(ad.Municipality))
                     continue;
 
-                var created = FollowedCompanyAdHit.Create(userId, ad.Id, watchId, clock);
+                if (existing.Contains((ad.Id, watch.Id)))
+                    continue;
+
+                var created = FollowedCompanyAdHit.Create(userId, ad.Id, watch.Id, clock);
                 if (created.IsSuccess)
                 {
                     db.FollowedCompanyAdHits.Add(created.Value);

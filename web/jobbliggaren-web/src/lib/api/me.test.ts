@@ -11,7 +11,10 @@ vi.mock("@/lib/auth/session", () => ({
   getSessionId: getSessionIdMock,
 }));
 
-import { updateNotificationConsent } from "./me";
+import {
+  updateFollowedCompanyNotificationConsent,
+  updateNotificationConsent,
+} from "./me";
 
 const originalFetch = global.fetch;
 
@@ -139,6 +142,114 @@ describe("updateNotificationConsent (ADR 0080 Vag 4 PR-6)", () => {
     const result = await updateNotificationConsent({
       enabled: true,
       cadence: "Weekly",
+    });
+    expect(result).toEqual({ kind: "error" });
+  });
+});
+
+describe("updateFollowedCompanyNotificationConsent (bevakning F4, #803)", () => {
+  it("utan session → unauthorized utan backend-rundtur", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    const result = await updateFollowedCompanyNotificationConsent({
+      enabled: true,
+    });
+
+    expect(result).toEqual({ kind: "unauthorized" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("PUT mot FÖLJ-endpointen med Bearer + en body som bär {enabled} och INGEN kadens", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    global.fetch = fetchMock;
+
+    await updateFollowedCompanyNotificationConsent({ enabled: true });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    // Egen endpoint per samtyckesändamål — aldrig matchnings-endpointen.
+    expect(url).toBe(
+      "http://test-backend/api/v1/me/followed-company-notification-consent"
+    );
+    expect(init.method).toBe("PUT");
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      "Bearer sess-1"
+    );
+    // Kadensen är DELAD (ADR 0087 D2) och skrivs av matchnings-endpointen. Att
+    // skicka den här skulle implicera en andra, oberoende takt som inte finns.
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body).toEqual({ enabled: true });
+    expect(body).not.toHaveProperty("cadence");
+  });
+
+  it("204 → ok (samtycke sparat)", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+
+    const result = await updateFollowedCompanyNotificationConsent({
+      enabled: true,
+    });
+
+    expect(result).toEqual({ kind: "ok", data: undefined });
+  });
+
+  it("opt-out (Art. 7(3)-withdrawal) skickas som {enabled:false}", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    global.fetch = fetchMock;
+
+    await updateFollowedCompanyNotificationConsent({ enabled: false });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ enabled: false });
+  });
+
+  it("401 → unauthorized", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response("", { status: 401 }));
+    const result = await updateFollowedCompanyNotificationConsent({
+      enabled: true,
+    });
+    expect(result).toEqual({ kind: "unauthorized" });
+  });
+
+  it("403 → forbidden", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response("", { status: 403 }));
+    const result = await updateFollowedCompanyNotificationConsent({
+      enabled: true,
+    });
+    expect(result).toEqual({ kind: "forbidden" });
+  });
+
+  it("429 → rateLimited med Retry-After", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("", { status: 429, headers: { "Retry-After": "30" } })
+      );
+    const result = await updateFollowedCompanyNotificationConsent({
+      enabled: true,
+    });
+    expect(result).toEqual({ kind: "rateLimited", retryAfterSeconds: 30 });
+  });
+
+  it("400 (Problem) → error (body läses aldrig, TD-10)", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response("", { status: 400 }));
+    const result = await updateFollowedCompanyNotificationConsent({
+      enabled: true,
+    });
+    expect(result).toEqual({ kind: "error" });
+  });
+
+  it("network-fail → error (kastar aldrig)", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("ENETUNREACH"));
+    const result = await updateFollowedCompanyNotificationConsent({
+      enabled: true,
     });
     expect(result).toEqual({ kind: "error" });
   });

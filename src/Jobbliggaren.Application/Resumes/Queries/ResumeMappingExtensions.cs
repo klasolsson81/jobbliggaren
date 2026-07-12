@@ -40,6 +40,15 @@ internal static class ResumeMappingExtensions
         v.CreatedAt,
         v.UpdatedAt);
 
+    public static CvTemplateOptionsDto ToDto(this CvTemplateOptions o) => new(
+        o.Template.Name,
+        o.AccentColor.Name,
+        o.FontPair.Name,
+        o.Density.Name,
+        o.PhotoEnabled,
+        o.PhotoShape.Name,
+        o.EffectiveAtsSafe);
+
     public static ResumeDetailDto ToDetailDto(this Resume r) => new(
         r.Id.Value,
         r.Name,
@@ -48,5 +57,6 @@ internal static class ResumeMappingExtensions
         r.Versions
             .Where(v => v.DeletedAt is null)
             .Select(v => v.ToDto())
-            .ToList());
+            .ToList(),
+        r.TemplateOptions.ToDto());
 }

@@ -294,6 +294,8 @@
       "ongoingLabel": "Pågående",
       "ongoingHint": "Slutdatum döljs när tjänsten pågår.",
       "dateMissing": "Datum saknas",
+
+      "dateConfirm": "Bekräfta datum",
       "removeExperience": "Ta bort erfarenhet {index}",
       "educationHeading": "Utbildning",
       "addEducation": "Lägg till utbildning",

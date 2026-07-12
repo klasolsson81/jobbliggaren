@@ -1035,11 +1035,23 @@ function ExperienceCard({
             </span>
           )}
         </span>
-        {startDate.trim().length === 0 && (
-          <StatusPill tone="warning" dot={false}>
-            {tr("experience.dateMissing")}
-          </StatusPill>
-        )}
+        {/* #815: this used to read "Datum saknas" on EVERY entry. The parser deliberately
+            never guesses dates (DQ3-3a), so the structured dates always start empty — while
+            the period the CV DOES state is rendered right above as periodHint. The pill was
+            therefore claiming the dates were missing one line under the dates. What is
+            actually missing is the user's CONFIRMATION, which is this guide's whole doctrine
+            (confirm, never fill). "Datum saknas" now means what it says: the CV states no
+            period at all. */}
+        {startDate.trim().length === 0 &&
+          (periodHint.trim().length > 0 ? (
+            <StatusPill tone="neutral" dot={false}>
+              {tr("experience.dateConfirm")}
+            </StatusPill>
+          ) : (
+            <StatusPill tone="warning" dot={false}>
+              {tr("experience.dateMissing")}
+            </StatusPill>
+          ))}
         <Button
           type="button"
           variant="ghost"
@@ -1217,11 +1229,23 @@ function EducationCard({
             </span>
           )}
         </span>
-        {startDate.trim().length === 0 && (
-          <StatusPill tone="warning" dot={false}>
-            {tr("experience.dateMissing")}
-          </StatusPill>
-        )}
+        {/* #815: this used to read "Datum saknas" on EVERY entry. The parser deliberately
+            never guesses dates (DQ3-3a), so the structured dates always start empty — while
+            the period the CV DOES state is rendered right above as periodHint. The pill was
+            therefore claiming the dates were missing one line under the dates. What is
+            actually missing is the user's CONFIRMATION, which is this guide's whole doctrine
+            (confirm, never fill). "Datum saknas" now means what it says: the CV states no
+            period at all. */}
+        {startDate.trim().length === 0 &&
+          (periodHint.trim().length > 0 ? (
+            <StatusPill tone="neutral" dot={false}>
+              {tr("experience.dateConfirm")}
+            </StatusPill>
+          ) : (
+            <StatusPill tone="warning" dot={false}>
+              {tr("experience.dateMissing")}
+            </StatusPill>
+          ))}
         <Button
           type="button"
           variant="ghost"

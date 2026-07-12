@@ -11,7 +11,10 @@ import {
 } from "@/lib/auth/session";
 import { authedFetch } from "@/lib/http/authed-fetch";
 import { readProblemTitle } from "@/lib/http/problem";
-import { updateNotificationConsent } from "@/lib/api/me";
+import {
+  updateFollowedCompanyNotificationConsent,
+  updateNotificationConsent,
+} from "@/lib/api/me";
 import {
   makeChangePasswordSchema,
   makeChangeEmailSchema,
@@ -21,6 +24,8 @@ import {
   type UpdateMyProfileInput,
   makeUpdateNotificationConsentSchema,
   type UpdateNotificationConsentInput,
+  makeUpdateFollowedCompanyNotificationConsentSchema,
+  type UpdateFollowedCompanyNotificationConsentInput,
 } from "./me-schemas";
 import { mapActionError } from "./_action-error";
 import type { ActionResult } from "./_action-result";
@@ -117,6 +122,57 @@ export async function updateNotificationConsentAction(
       return {
         success: false,
         error: ts("backgroundMatch.errors.saveFailed"),
+      };
+  }
+}
+
+/**
+ * Bevakning F4 (#803, CTO RF-12=12C) — sets consent for the followed-company
+ * email digest. The canonical GDPR Art. 7(3) withdrawal surface for that
+ * channel: opting in is consent (Art. 6(1)(a)/7), switching it off withdraws it.
+ * The Domain owns the consent stamping; this action is pure transport.
+ *
+ * Carries ONLY `{ enabled }` — the digest cadence is SHARED with the
+ * background-match notifications (ADR 0087 D2) and is written by
+ * `updateNotificationConsentAction`. After 7C the in-app follow-rail is
+ * unaffected by this flag (Art. 6(1)(b) service); this gates the EMAIL channel
+ * only. Revalidates `/installningar` so the card mirrors the saved state.
+ */
+export async function updateFollowedCompanyNotificationConsentAction(
+  input: UpdateFollowedCompanyNotificationConsentInput
+): Promise<ActionResult> {
+  const ts = await getTranslations("settings");
+  const t = await getTranslations("validation");
+  const parsed =
+    makeUpdateFollowedCompanyNotificationConsentSchema(t).safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error:
+        parsed.error.issues[0]?.message ??
+        ts("followedCompanyNotifications.errors.invalidInput"),
+    };
+  }
+
+  const result = await updateFollowedCompanyNotificationConsent(parsed.data);
+  switch (result.kind) {
+    case "ok":
+      revalidatePath("/installningar");
+      return { success: true };
+    case "unauthorized":
+      return {
+        success: false,
+        error: ts("followedCompanyNotifications.errors.notLoggedIn"),
+      };
+    case "rateLimited":
+      return {
+        success: false,
+        error: ts("followedCompanyNotifications.errors.tooManyAttempts"),
+      };
+    default:
+      return {
+        success: false,
+        error: ts("followedCompanyNotifications.errors.saveFailed"),
       };
   }
 }

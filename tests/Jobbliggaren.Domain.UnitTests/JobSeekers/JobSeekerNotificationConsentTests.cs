@@ -112,6 +112,54 @@ public class JobSeekerNotificationConsentTests
     }
 
     [Fact]
+    public void UpdateNotificationConsent_CadenceChangeAfterWithdrawal_PreservesArticle7Timestamps()
+    {
+        // Bevakning F4 (#803): the digest cadence is SHARED with the followed-company
+        // notifications (ADR 0087 D2), so the settings UI now lets a user change the
+        // cadence while THIS consent is withdrawn — a call shape that was previously
+        // unreachable (the cadence control was disabled when the flag was off). The
+        // Art. 7 evidence trail must survive it: an already-withdrawn consent must not
+        // be re-stamped with a fresh withdrawal time on every cadence save, and the
+        // original consent time must not be cleared. Without this test, "simplifying"
+        // the on->off guard into an unconditional `withdrawnAt = now` would silently
+        // corrupt the accountability record while every other test stayed green.
+        var seeker = NewSeeker();
+        var consentAt = Later(1);
+        var withdrawnAt = Later(4);
+        seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, consentAt);
+        seeker.UpdateNotificationConsent(enabled: false, DigestCadence.Weekly, withdrawnAt);
+
+        // Two cadence saves while withdrawn — only the cadence may move.
+        seeker.UpdateNotificationConsent(enabled: false, DigestCadence.Daily, Later(9));
+        seeker.UpdateNotificationConsent(enabled: false, DigestCadence.Weekly, Later(12));
+
+        var prefs = seeker.Preferences;
+        prefs.BackgroundMatchNotificationsEnabled.ShouldBeFalse();
+        prefs.NotificationConsentAt.ShouldBe(consentAt.UtcNow);
+        prefs.NotificationConsentWithdrawnAt.ShouldBe(withdrawnAt.UtcNow);
+        prefs.DigestCadence.ShouldBe(DigestCadence.Weekly);
+    }
+
+    [Fact]
+    public void UpdateNotificationConsent_CadenceChangeWhileWithdrawn_LeavesFollowedCompanyConsentUntouched()
+    {
+        // The two purposes have separate flags and separate Art. 7 timestamp pairs.
+        // A cadence write through the background-match command must not touch the
+        // followed-company consent evidence (the shared cadence is the ONLY overlap).
+        var seeker = NewSeeker();
+        var followConsentAt = Later(1);
+        seeker.UpdateFollowedCompanyNotificationConsent(enabled: true, followConsentAt);
+
+        seeker.UpdateNotificationConsent(enabled: false, DigestCadence.Daily, Later(5));
+
+        var prefs = seeker.Preferences;
+        prefs.FollowedCompanyNotificationsEnabled.ShouldBeTrue();
+        prefs.FollowedCompanyNotificationConsentAt.ShouldBe(followConsentAt.UtcNow);
+        prefs.FollowedCompanyNotificationConsentWithdrawnAt.ShouldBeNull();
+        prefs.DigestCadence.ShouldBe(DigestCadence.Daily);
+    }
+
+    [Fact]
     public void UpdateNotificationConsent_CadenceChangeWhileEnabled_Persists()
     {
         var seeker = NewSeeker();

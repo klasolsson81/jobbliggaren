@@ -299,6 +299,19 @@ describe("WatchFilterDialog — 'endast matchande' låses ALDRIG (CTO Q8-b)", ()
     });
   });
 
+  /** Löser upp aria-describedby (som kan bära FLERA id) till den text en skärmläsare faktiskt läser. */
+  function describedText(el: HTMLElement): string {
+    const ids = (el.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
+    expect(ids.length).toBeGreaterThan(0);
+    return ids
+      .map((id) => {
+        const node = document.getElementById(id);
+        expect(node).not.toBeNull();
+        return node?.textContent ?? "";
+      })
+      .join(" ");
+  }
+
   it("den inerta nudgen är KOPPLAD till kontrollen (aria-describedby), inte bara placerad bredvid", () => {
     // Kontrollen låses aldrig (se testet ovan) — då måste skälet nå en skärmläsar-användare via
     // kontrollen SJÄLV. I forms-mode läses bara namnet + beskrivningen: en text som bara står bredvid
@@ -306,20 +319,23 @@ describe("WatchFilterDialog — 'endast matchande' låses ALDRIG (CTO Q8-b)", ()
     // någonsin få veta varför — den tysta smalningen igen, ett lager ned.
     render(<Host matchingNotAssessed />);
 
-    const check = screen.getByRole("checkbox", { name: ONLY_MATCHED });
-    const describedBy = check.getAttribute("aria-describedby");
-    expect(describedBy).toBeTruthy();
-
-    const description = document.getElementById(describedBy as string);
-    expect(description).not.toBeNull();
-    expect(description).toHaveTextContent(/Filtret sparas och börjar gälla/);
+    const described = describedText(
+      screen.getByRole("checkbox", { name: ONLY_MATCHED })
+    );
+    // Båda halvorna hörs: vad kontrollen gör, OCH varför den inte gäller än.
+    expect(described).toMatch(/matchar de yrken, orter och kompetenser/);
+    expect(described).toMatch(/Filtret sparas och börjar gälla/);
   });
 
-  it("med matchningsprofil finns ingen inert-beskrivning att koppla", () => {
+  it("med matchningsprofil beskrivs kontrollen av hjälptexten, utan dinglande inert-skäl", () => {
     render(<Host />);
-    expect(
+
+    const described = describedText(
       screen.getByRole("checkbox", { name: ONLY_MATCHED })
-    ).not.toHaveAttribute("aria-describedby");
+    );
+    expect(described).toMatch(/matchar de yrken, orter och kompetenser/);
+    // Inget inert-skäl att annonsera när filtret faktiskt gäller.
+    expect(described).not.toMatch(/Filtret sparas och börjar gälla/);
   });
 
   it("utan matchningsprofil visas en ärlig inert-nudge som pekar på matchnings-inställningarna", () => {

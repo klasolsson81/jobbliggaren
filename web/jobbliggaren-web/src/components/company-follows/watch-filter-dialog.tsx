@@ -70,6 +70,7 @@ export function WatchFilterDialog({
   matchingNotAssessed,
 }: WatchFilterDialogProps) {
   const t = useTranslations("jobads.companyWatches.filter");
+  const hintId = useId();
   const inertNudgeId = useId();
 
   // Draften seedas från det persisterade filtret. `key` på dialogen (i raden) monterar om komponenten
@@ -152,8 +153,12 @@ export function WatchFilterDialog({
                   // inert nå en skärmläsar-användare via kontrollen själv. I forms-mode läses bara det
                   // tillgängliga namnet + beskrivningen: utan den här kopplingen hörs "kryssruta, ej
                   // markerad", användaren kryssar i, sparar, och får ett inert filter utan att någonsin
-                  // få veta varför. Det vore den tysta smalningen igen, ett lager ned.
-                  describedBy={matchingNotAssessed ? inertNudgeId : undefined}
+                  // få veta varför. Det vore den tysta smalningen igen, ett lager ned. Hjälptexten
+                  // kopplas alltid; skälet bara när filtret faktiskt är inert (ingen dinglande
+                  // beskrivning för en användare som har profil).
+                  describedBy={
+                    matchingNotAssessed ? `${hintId} ${inertNudgeId}` : hintId
+                  }
                 />
                 {/* InfoDialog som SYSKON till kontrollraden — aldrig som barn (ett klick på "?" får
                     inte toggla kontrollen). */}
@@ -163,7 +168,9 @@ export function WatchFilterDialog({
                   ariaLabel={t("onlyMatchedHelpAria")}
                 />
               </div>
-              <p className="jp-settings-field__hint">{t("onlyMatchedHelp")}</p>
+              <p id={hintId} className="jp-settings-field__hint">
+                {t("onlyMatchedHelp")}
+              </p>
               {matchingNotAssessed && (
                 // Ärligt not-assessed: filtret SPARAS men gäller inte förrän ett yrke angetts. Vi
                 // låser inte kontrollen — filtret aktiveras retroaktivt i samma stund profilen finns.

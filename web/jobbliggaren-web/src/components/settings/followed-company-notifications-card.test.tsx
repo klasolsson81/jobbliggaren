@@ -108,7 +108,9 @@ describe("FollowedCompanyNotificationsCard — den delade takten som text", () =
     renderCard({ initialEnabled: true });
 
     const note = screen.getByText(/Har du satt ett filter på ett företag/);
-    expect(note).toHaveTextContent(/gäller det även för mejlen/);
+    // Noten måste bära BÅDA halvorna: filtret styr app-notiserna OCH mejlen. Bara "mejlen"
+    // vore en halv sanning på ett kort vars flagga bara grindar e-postkanalen.
+    expect(note).toHaveTextContent(/både i appen och för mejlen/);
     expect(note).toHaveTextContent(/under Företag/);
   });
 

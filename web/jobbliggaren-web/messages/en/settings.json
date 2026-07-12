@@ -44,7 +44,7 @@
     "toggleDescription": "Off by default. Turning it on means you consent to us emailing you new ads from the companies you follow. You can withdraw your consent at any time by turning this off.",
     "cadenceNote": "The email follows the same rate as the match notifications: {cadence}. You change the rate in the Match notifications card.",
     "cadenceNoteDisabled": "The email follows the same rate as the match notifications. You change the rate in the Match notifications card.",
-    "filterNote": "If you have set a filter on a company, it applies to the emails as well. You change the filters under Companies.",
+    "filterNote": "If you have set a filter on a company, it applies both in the app and to the emails. You change the filters under Companies.",
     "savedAt": "Saved {time}",
     "errors": {
       "notLoggedIn": "You are not signed in.",

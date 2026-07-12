@@ -4808,6 +4808,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
   cursor: default;
 }
 .jp-rowbtn--ink { color: var(--jp-ink-1); }
+/* Rad-CTA-betoning (#788, CTO-bind 2026-07-12): den foreslagna radhandlingen
+   lyfts via accent-700-kant + fet vikt over bas-.jp-rowbtn (vit bg, accent-700 text).
+   UNDERORDNAD den solida en-per-skarm-primaren (.jp-btn--primary, accent-800-fyllning)
+   — ALDRIG solid fyllning har (N rader = N knappar), sa ADR 0038 "max EN primar per
+   skarm" halls. Arver bas-hover (accent-50); ingen egen :hover behovs. */
+.jp-rowbtn--emphasis {
+  border-color: var(--jp-accent-700);
+  font-weight: var(--jp-fw-bold);
+}
 /* Bråttom-taggar (design §11): samma rektangulära .jp-tag-form, omvänd
    kodning — vit bakgrund + text OCH kant i signalfärgen. Färgen förstärker;
    texten bär betydelsen (WCAG 1.4.1). */

@@ -159,7 +159,7 @@ export function ApplicationRow({
         {primary != null && (
           <button
             type="button"
-            className="jp-rowbtn jp-rowbtn--primary"
+            className="jp-rowbtn jp-rowbtn--emphasis"
             disabled={pending}
             onClick={primary.onClick}
           >

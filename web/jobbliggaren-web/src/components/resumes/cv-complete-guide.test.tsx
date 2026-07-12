@@ -263,3 +263,53 @@ describe("CvCompleteGuide — Spara (befordran)", () => {
     ]);
   });
 });
+
+describe("CvCompleteGuide — datumflaggan säger sanning (#815)", () => {
+  // Klas live-review: en post som tydligt läser "2005 - nu" i CV:t flaggades ändå
+  // "Datum saknas". Parsern gissar ALDRIG datum (DQ3-3a), så det strukturerade
+  // startdatumet är alltid tomt från början — och guiden renderar samtidigt den
+  // tolkade perioden precis ovanför flaggan. Pillen påstod alltså att datumen saknades
+  // en rad under datumen. Det som saknas är BEKRÄFTELSEN, inte datumen.
+
+  it("periodHint finns → 'Bekräfta datum', inte 'Datum saknas'", async () => {
+    const user = userEvent.setup();
+    renderGuide(
+      makeContent({
+        experiences: [
+          {
+            title: "Operatör",
+            organization: "Verkstaden AB",
+            period: "2005 - nu",
+            rawText: "Operatör, Verkstaden AB",
+          },
+        ],
+      })
+    );
+
+    await user.click(screen.getByRole("button", { name: /erfarenhet/i }));
+
+    expect(screen.queryByText("Datum saknas")).not.toBeInTheDocument();
+    expect(screen.getByText("Bekräfta datum")).toBeInTheDocument();
+  });
+
+  it("ingen periodHint → 'Datum saknas' (då är påståendet sant)", async () => {
+    const user = userEvent.setup();
+    renderGuide(
+      makeContent({
+        experiences: [
+          {
+            title: "Operatör",
+            organization: "Verkstaden AB",
+            period: null,
+            rawText: "Operatör, Verkstaden AB",
+          },
+        ],
+      })
+    );
+
+    await user.click(screen.getByRole("button", { name: /erfarenhet/i }));
+
+    expect(screen.getByText("Datum saknas")).toBeInTheDocument();
+    expect(screen.queryByText("Bekräfta datum")).not.toBeInTheDocument();
+  });
+});

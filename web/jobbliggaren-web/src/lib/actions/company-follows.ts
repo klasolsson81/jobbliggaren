@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
+import { z } from "zod";
 import {
   followCompany,
   followCompanyFromJobAd,
+  setWatchFilter,
   unfollowCompany,
 } from "@/lib/api/company-follows";
 
@@ -89,5 +91,54 @@ export async function unfollowCompanyAction(
     case "rateLimited":
     case "error":
       return { success: false, error: t("unfollowCompanyFailed") };
+  }
+}
+
+/**
+ * Bevakning F4b (#803) — replace ONE watch's notification filter.
+ *
+ * The two geo axes are kept SEPARATE all the way to the wire. A whole-län pick stays a län concept-id;
+ * expanding it into that län's municipalities would silently drop every ad tagged at län granularity
+ * (no municipality) from the user's notifications. The zod guard is structural defense-in-depth — the
+ * domain is the authority — but it does pin the axes apart, so a crossed mapping fails here rather than
+ * being stored as a filter that matches nothing.
+ *
+ * An ALL-EMPTY selection is VALID: it is how the user clears the filter (the backend maps it to the
+ * canonical NULL). The UI must never turn "I unchecked everything" into a validation error.
+ */
+const setWatchFilterInputSchema = z.object({
+  municipalities: z.array(z.string()).readonly(),
+  regions: z.array(z.string()).readonly(),
+  onlyMatched: z.boolean(),
+});
+
+export type SetWatchFilterInput = z.infer<typeof setWatchFilterInputSchema>;
+
+export async function setWatchFilterAction(
+  companyWatchId: string,
+  input: SetWatchFilterInput
+): Promise<UnfollowCompanyResult> {
+  const t = await getTranslations("jobads.actions");
+
+  const parsed = setWatchFilterInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: t("setWatchFilterFailed") };
+  }
+
+  const result = await setWatchFilter(companyWatchId, parsed.data);
+  switch (result.kind) {
+    case "ok":
+      // Only /foretag renders the filter (the row disclosure + the editor's pre-fill). The caller
+      // closes the dialog BEFORE this revalidate lands — a Server Action that re-renders the RSC tree
+      // unmounts an open dialog mid-flow (the #141 trap).
+      revalidatePath("/foretag");
+      return { success: true };
+    case "unauthorized":
+      return { success: false, error: t("notLoggedIn") };
+    case "notFound":
+    case "forbidden":
+    case "rateLimited":
+    case "error":
+      return { success: false, error: t("setWatchFilterFailed") };
   }
 }

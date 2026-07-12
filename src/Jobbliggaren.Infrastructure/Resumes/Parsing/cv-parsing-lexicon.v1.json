@@ -1,6 +1,6 @@
 {
-  "version": "1",
-  "note": "F4-8 deterministic CV segmentation lexicon (ADR 0071/0074, NO AI/LLM). Versioned data, never inline C# strings (CLAUDE.md §5). Section headings (Swedish + English) and language-detection function words. Own-authored from common CV conventions; no third-party data imported.",
+  "version": "2",
+  "note": "F4-8 deterministic CV segmentation lexicon (ADR 0071/0074, NO AI/LLM). Versioned data, never inline C# strings (CLAUDE.md §5). Section headings (Swedish + English), language-detection function words, and contact-field labels (#815: location was never extracted). Own-authored from common CV conventions; no third-party data imported.",
   "headings": {
     "contact": [
       "kontakt",
@@ -154,5 +154,16 @@
     "resume",
     "personligt brev",
     "cover letter"
-  ]
+  ],
+  "contactLabels": {
+    "location": [
+      "ort",
+      "bostadsort",
+      "stad",
+      "ort/stad",
+      "location",
+      "city",
+      "based in"
+    ]
+  }
 }

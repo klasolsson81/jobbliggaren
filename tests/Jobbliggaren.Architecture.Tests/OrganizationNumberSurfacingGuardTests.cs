@@ -147,6 +147,24 @@ public class OrganizationNumberSurfacingGuardTests
     }
 
     [Fact]
+    public void Watch_filter_dto_never_surfaces_an_org_nr()
+    {
+        // Bevakning F4b (#803) — the per-watch filter DTO rides ALONG the org.nr-bearing CompanyWatchDto
+        // but is itself a taxonomy-reference carrier (concept-ids + a bool). It therefore needs NO
+        // classification above: it never enters the org.nr-surfacing set at all.
+        //
+        // The partition test would flag an org.nr member on it as unclassified — but the fix a hurried
+        // developer would reach for is to add the type to one of the two lists. This pins the STRONGER
+        // rule: the filter DTO may never carry an org.nr member in the first place, so there is no
+        // list-entry that can make it legal. (D8 / §5 — an enskild-firma org.nr can be a personnummer,
+        // and a notification filter has no business holding one.)
+        OrgNrSurfaceScan.HasOrgNrMember(typeof(WatchFilterDto)).ShouldBeFalse(
+            "WatchFilterDto exponerar ett org.nr-format medlem. Filtret bär taxonomi-referenser " +
+            "(concept-id) — aldrig en identitet. Ta bort medlemmen; klassificera den INTE i " +
+            "MaskingOrgNrDtos/ExemptOrgNrDtos.");
+    }
+
+    [Fact]
     public void Raw_org_nr_reading_sources_never_log_an_org_nr()
     {
         // Every source that reads a raw org.nr into scope must keep its logging surface clean (ADR

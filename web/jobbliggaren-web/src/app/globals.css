@@ -4457,34 +4457,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 /* ── /cv match-setup-bar + post-promote-prompt (ADR 0077 STEG 5) ──
    Bar = kort med ledtext + wizard-trigger; prompten wrap:ar full bredd under. */
-.jp-cvmatch-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-bottom: 20px;
-  padding: 16px 20px;
-  background: var(--jp-surface);
-  border: 1px solid var(--jp-border);
-  border-radius: var(--jp-r-md);
-}
-.jp-cvmatch-bar__lead {
-  flex: 1 1 320px;
-  min-width: 0;
-}
-.jp-cvmatch-bar__title {
-  margin: 0;
-  font-size: var(--text-h4);
-  font-weight: var(--jp-fw-bold);
-  color: var(--jp-ink-1);
-}
-.jp-cvmatch-bar__text {
-  margin: 4px 0 0;
-  max-width: 68ch;
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-1);
-}
 /* Post-promote-prompten: full bredd under baren, vänster accent-kant
    (information bärs av text + struktur, inte enbart färg). Dismissbar. */
 .jp-matchnudge {
@@ -8088,6 +8060,30 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-ui);
   font-weight: var(--jp-fw-medium);
   color: var(--jp-ink-1);
+}
+
+/* Bevakning F4b — den vilande filter-disclosuren på en bevakningsrad (BC-9′). Ren LAYOUT: färg, storlek
+   och vikt ärvs från samma ink-ramp som .jp-matchline (aldrig grå text; båda teman följer via --jp-*).
+   Ikonen ärver currentColor. Inga nya tokens, ingen ny radie, ingen ny textstorlek. */
+.jp-watchfilterline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-ink-1);
+}
+
+/* Bevakning F4b — rad-chassit .jp-job/.jp-app delas med /jobb, där HELA kortet är klickbart. På /foretag
+   (och i ansökningshistoriken) är bara knapparna klickbara, så pekaren + hover-accentkanten lovar en
+   interaktion som inte finns. Med en andra knapp i raden blir den falska affordansen aktivt vilseledande.
+   Modifiern tar bort löftet utan att röra /jobb. */
+.jp-job--static {
+  cursor: default;
+}
+.jp-job--static:hover {
+  border-color: var(--jp-border);
 }
 
 /* Popover-empty — var 4 inline-kopior (hero-chip, jobb-filter-popover x2,

@@ -294,6 +294,8 @@
       "ongoingLabel": "Ongoing",
       "ongoingHint": "The end date is hidden while the role is ongoing.",
       "dateMissing": "Date missing",
+
+      "dateConfirm": "Confirm dates",
       "removeExperience": "Remove experience {index}",
       "educationHeading": "Education",
       "addEducation": "Add education",

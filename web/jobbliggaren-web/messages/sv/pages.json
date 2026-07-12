@@ -169,6 +169,14 @@
         "Normal": "Normal",
         "Compact": "Kompakt"
       },
+      "templateDescriptions": {
+        "Klar": "En spalt. Namn med tunn accentlinje och versala, understrukna rubriker.",
+        "Accentlinje": "En spalt. Färgat streck före varje rubrik och färgade kompetensgrupper.",
+        "MorkPanel": "Två spalter. Sidopanelen får accentfärgen och vit text."
+      },
+      "schematicNote": "Miniatyrerna visar mallens struktur. Den färdiga PDF:en syns i förhandsvisningen.",
+      "accentHint": "Accentfärgen används i rubriker och linjer i ditt CV, inte i appen.",
+      "densityHint": "Täthet styr radavstånd och marginaler. Innehållet i CV:t är detsamma.",
       "atsSafeLabel": "Klarar ATS-granskning",
       "atsSafeHint": "Den här mallen läses rent av ansökningssystem (ATS): en spalt, ren text.",
       "atsUnsafeLabel": "Utformad för läsning",

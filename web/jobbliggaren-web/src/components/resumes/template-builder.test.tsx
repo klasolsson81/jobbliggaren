@@ -357,19 +357,128 @@ describe("<TemplateBuilder /> (Fas 4b PR-8b 8b.3 — mallbyggare)", () => {
     ).toBeInTheDocument();
   });
 
-  it("ATS-etikettens StatusDot-ton: success för ATS-säker, neutral (INTE warning) för icke-ATS-säker (ruling B)", async () => {
+  // #820: ATS-utfallet bärs numera av en framträdande StatusPill i stället för en
+  // StatusDot. KLASS-namnen ändras, men KONTRAKTET är ruling B — icke-ATS-säker är
+  // NEUTRAL, aldrig warning (en mall optimerad för mänskliga läsare är ett giltigt
+  // val; amber skulle uppfinna en fara). Det är den assertionen som är testets syfte.
+  it("ATS-utfallets pill-ton: success för ATS-säker, neutral (INTE warning) för icke-ATS-säker (ruling B)", async () => {
     const user = userEvent.setup();
     renderBuilder();
     await screen.findByTitle("Förhandsvisning av CV");
 
     // Klar (atsSafe: true) → success-ton + text-flip.
-    const safeDot = screen.getByText("Klarar ATS-granskning");
-    expect(safeDot).toHaveClass("jp-statusDot--success");
+    const safePill = screen.getByText("Klarar ATS-granskning");
+    expect(safePill).toHaveClass("jp-pill--success");
 
     // Mörk panel (MorkPanel, atsSafe: false) → NEUTRAL (ärligt neutral, aldrig warning).
     await user.click(screen.getByRole("radio", { name: "Mörk panel" }));
-    const neutralDot = screen.getByText("Utformad för läsning");
-    expect(neutralDot).toHaveClass("jp-statusDot--neutral");
-    expect(neutralDot).not.toHaveClass("jp-statusDot--warning");
+    const neutralPill = screen.getByText("Utformad för läsning");
+    expect(neutralPill).toHaveClass("jp-pill--neutral");
+    expect(neutralPill).not.toHaveClass("jp-pill--warning");
+  });
+
+  // ---------------------------------------------------------------------------
+  // #820 — UI-upplyftets egna kontrakt (kort, swatchar, segment, schematik).
+  // ---------------------------------------------------------------------------
+
+  it("mallkorten är riktiga radioknappar med aria-checked (inte klickbara divar)", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    const klar = screen.getByRole("radio", { name: "Klar" });
+    const mork = screen.getByRole("radio", { name: "Mörk panel" });
+    expect(klar).toHaveAttribute("aria-checked", "true");
+    expect(mork).toHaveAttribute("aria-checked", "false");
+
+    await user.click(mork);
+    expect(screen.getByRole("radio", { name: "Mörk panel" })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.getByRole("radio", { name: "Klar" })).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
+  });
+
+  it("kortets beskrivning ligger i aria-describedby, inte i det tillgängliga namnet", async () => {
+    renderBuilder();
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    // Namnet får INTE svälla med beskrivningen (annars blir radion oadresserbar).
+    const klar = screen.getByRole("radio", { name: "Klar" });
+    const descId = klar.getAttribute("aria-describedby");
+    expect(descId).toBeTruthy();
+
+    const desc = document.getElementById(descId as string);
+    expect(desc).toHaveTextContent(
+      "En spalt. Namn med tunn accentlinje och versala, understrukna rubriker."
+    );
+  });
+
+  it("schematiken bär den VALDA accentens katalog-hex via CSS-variabeln (aldrig FE-härledd)", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    // Kortgruppen (radiogroup "Mall") bär datakanalen.
+    const grid = screen.getByRole("radiogroup", { name: "Mall" });
+    expect(grid.getAttribute("style")).toContain("--jp-mallcard-accent: #1E3A5F");
+
+    // Byt accent → variabeln följer katalogens hex, inte en FE-lista.
+    await user.click(screen.getByRole("radio", { name: "Skogsgrön" }));
+    expect(
+      screen.getByRole("radiogroup", { name: "Mall" }).getAttribute("style")
+    ).toContain("--jp-mallcard-accent: #15603F");
+  });
+
+  it("täthet renderas som segmented control med radio-semantik", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    const kompakt = screen.getByRole("radio", { name: "Kompakt" });
+    expect(kompakt).toHaveAttribute("aria-checked", "false");
+
+    await user.click(kompakt);
+    expect(screen.getByRole("radio", { name: "Kompakt" })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+  });
+
+  it("exakt en primärknapp på sidan (ADR 0038) och det är Spara mall", async () => {
+    const { container } = renderBuilder();
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    const primaries = container.querySelectorAll(".jp-btn--primary");
+    expect(primaries).toHaveLength(1);
+    expect(primaries[0]).toHaveTextContent("Spara mall");
+  });
+
+  it("okänd katalogmall får varken beskrivning eller accentfärgad schematik", async () => {
+    const catalogWithUnknown: TemplateCatalogDto = {
+      ...catalog,
+      templates: [...catalog.templates, { name: "FramtidaMall", atsSafe: true }],
+    };
+
+    render(
+      <TemplateBuilder
+        resumeId={RESUME_ID}
+        initialOptions={initialOptions}
+        catalog={catalogWithUnknown}
+      />
+    );
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    // FramtidaMall saknar både etikett och beskrivning → inget påhittat.
+    const framtida = screen.getByRole("radio", { name: "FramtidaMall" });
+    expect(framtida).not.toHaveAttribute("aria-describedby");
+
+    // Fail-safe: en oklassificerad mall gör INGET färgpåstående (noll accent-element).
+    const svg = framtida.querySelector("svg");
+    expect(svg).not.toBeNull();
+    expect(svg?.querySelectorAll(".jp-schem__accent")).toHaveLength(0);
   });
 });

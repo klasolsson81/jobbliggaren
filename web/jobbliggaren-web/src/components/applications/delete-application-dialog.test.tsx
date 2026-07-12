@@ -27,7 +27,7 @@ describe("DeleteApplicationDialog (#782 — destruktiv hard-delete-bekräftelse)
     );
 
     expect(
-      screen.getByRole("dialog", { name: "Ta bort ansökan?" })
+      screen.getByRole("dialog", { name: "Radera ansökan?" })
     ).toBeInTheDocument();
     expect(
       screen.getByText(/tas bort permanent\. Det går inte att ångra/)

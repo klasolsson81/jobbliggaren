@@ -74,7 +74,7 @@ describe("StatusMenu (design §5, #630 PR 7)", () => {
     // radering, och absolut ingen statustransition.
     await user.click(item);
     expect(
-      await screen.findByRole("dialog", { name: "Ta bort ansökan?" }),
+      await screen.findByRole("dialog", { name: "Radera ansökan?" }),
     ).toBeInTheDocument();
     expect(transitionStatusAction).not.toHaveBeenCalled();
     expect(deleteApplicationAction).not.toHaveBeenCalled();

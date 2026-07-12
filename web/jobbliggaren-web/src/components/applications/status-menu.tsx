@@ -121,7 +121,12 @@ export function StatusMenu({
             carries the meaning — WCAG 1.4.1). */}
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          className="jp-statusmenu__item text-danger-700"
+          // DropdownMenuItem-primitiven sätter ovillkorligt focus:text-accent-
+          // foreground (0-2-0) som annars slår .text-danger-700 (0-1-0) → posten
+          // tappar sin röda identitet exakt i interaktionsögonblicket (Radix
+          // flyttar fokus vid hover också). Bevara danger genom focus/hover, per
+          // repo-precedens ui/select.tsx (design-reviewer Major 1, #782).
+          className="jp-statusmenu__item text-danger-700 focus:bg-danger-50 focus:text-danger-700"
           disabled={pending}
           onSelect={() => deleteApplication(application)}
         >

@@ -49,6 +49,23 @@ public class DeleteApplicationEndpointTests(ApiFactory factory)
         return (await post.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("id").GetString()!;
     }
 
+    // Counts the child rows (follow_ups / application_notes / application_status_changes)
+    // still bound to an application, bypassing the soft-delete query filters. The shadow FK
+    // "ApplicationId" is the strongly-typed value object (it mirrors the principal key type),
+    // so the predicate compares against the value object, not a raw Guid.
+    private static async Task<(int followUps, int notes, int statusChanges)> ChildCountsAsync(
+        AppDbContext db, Guid appGuid, CancellationToken ct)
+    {
+        var appIdVo = new Jobbliggaren.Domain.Applications.ApplicationId(appGuid);
+        var followUps = await db.Set<FollowUp>().IgnoreQueryFilters()
+            .CountAsync(f => EF.Property<Jobbliggaren.Domain.Applications.ApplicationId>(f, "ApplicationId") == appIdVo, ct);
+        var notes = await db.Set<ApplicationNote>().IgnoreQueryFilters()
+            .CountAsync(n => EF.Property<Jobbliggaren.Domain.Applications.ApplicationId>(n, "ApplicationId") == appIdVo, ct);
+        var statusChanges = await db.Set<StatusChange>().IgnoreQueryFilters()
+            .CountAsync(s => EF.Property<Jobbliggaren.Domain.Applications.ApplicationId>(s, "ApplicationId") == appIdVo, ct);
+        return (followUps, notes, statusChanges);
+    }
+
     [Fact]
     public async Task DELETE_without_auth_returns_401()
     {
@@ -77,7 +94,8 @@ public class DeleteApplicationEndpointTests(ApiFactory factory)
         var response = await client.DeleteAsync($"/api/v1/applications/{appId}", ct);
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
-        // Gone from detail (the global query filter hides the removed row).
+        // Gone from detail — the row is physically removed (hard delete), so it is
+        // absent, not merely hidden by the soft-delete query filter.
         var detail = await client.GetAsync($"/api/v1/applications/{appId}", ct);
         detail.StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
@@ -105,6 +123,19 @@ public class DeleteApplicationEndpointTests(ApiFactory factory)
         (await client.PostAsJsonAsync($"/api/v1/applications/{appId}/follow-ups/log",
             new { note = "Ringde arbetsgivaren" }, ct)).StatusCode.ShouldBe(HttpStatusCode.Created);
 
+        // Prove the shadow-FK predicate MATCHES the seeded child rows BEFORE the
+        // delete, so the post-delete == 0 assertions below cannot pass vacuously
+        // (e.g. if the strongly-typed VO predicate silently matched nothing) —
+        // "1+ before -> 0 after" is what actually proves the cascade (test-writer Gap 1).
+        using (var preScope = _factory.Services.CreateScope())
+        {
+            var preDb = preScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var (fu, no, sc) = await ChildCountsAsync(preDb, appGuid, ct);
+            fu.ShouldBeGreaterThan(0);
+            no.ShouldBeGreaterThan(0);
+            sc.ShouldBeGreaterThan(0);
+        }
+
         var response = await client.DeleteAsync($"/api/v1/applications/{appId}", ct);
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
@@ -117,15 +148,11 @@ public class DeleteApplicationEndpointTests(ApiFactory factory)
         (await db.Applications.IgnoreQueryFilters().AnyAsync(a => a.Id == appIdVo, ct))
             .ShouldBeFalse();
 
-        // The three child tables are physically emptied by the DB FK cascade. The
-        // shadow FK "ApplicationId" is the strongly-typed value object (it mirrors the
-        // principal key type), so compare against the value object, not a raw Guid.
-        (await db.Set<FollowUp>().IgnoreQueryFilters()
-            .CountAsync(f => EF.Property<Jobbliggaren.Domain.Applications.ApplicationId>(f, "ApplicationId") == appIdVo, ct)).ShouldBe(0);
-        (await db.Set<ApplicationNote>().IgnoreQueryFilters()
-            .CountAsync(n => EF.Property<Jobbliggaren.Domain.Applications.ApplicationId>(n, "ApplicationId") == appIdVo, ct)).ShouldBe(0);
-        (await db.Set<StatusChange>().IgnoreQueryFilters()
-            .CountAsync(s => EF.Property<Jobbliggaren.Domain.Applications.ApplicationId>(s, "ApplicationId") == appIdVo, ct)).ShouldBe(0);
+        // The three child tables are physically emptied by the DB FK cascade.
+        var (fuAfter, noAfter, scAfter) = await ChildCountsAsync(db, appGuid, ct);
+        fuAfter.ShouldBe(0);
+        noAfter.ShouldBe(0);
+        scAfter.ShouldBe(0);
 
         // The audit trail survives the hard delete (Art. 5(2) accountability).
         (await db.AuditLogEntries.AsNoTracking()

@@ -306,7 +306,7 @@
     },
     "delete": {
       "action": "Ta bort ansökan",
-      "confirmTitle": "Ta bort ansökan?",
+      "confirmTitle": "Radera ansökan?",
       "confirmBody": "Ansökan och hela dess historik tas bort permanent. Det går inte att ångra.",
       "deleting": "Tar bort…",
       "confirmButton": "Radera ansökan"

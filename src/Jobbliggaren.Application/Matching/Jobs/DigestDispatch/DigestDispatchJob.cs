@@ -309,16 +309,20 @@ public sealed partial class DigestDispatchJob(
         // OnlyMatched watch: an in-memory Any() over data already loaded, so the common path (no
         // such watch) still costs nothing and the fail-fast port is never called on an empty-SSYK
         // profile. The profile is built AT MOST ONCE and reused for the grade filter below.
-        var hasOnlyMatchedWatch = filterByWatchId.Values.Any(f => f is { OnlyMatched: true });
-        var gradeAssessable = false;
-        FullCandidateMatchProfile? profile = null;
-        if (hasOnlyMatchedWatch)
+        // ONE carrier for the whole "we may grade this user" invariant: a NON-NULL profile IS the
+        // assessability claim. A (bool, nullable-profile) pair would only ASSERT the coupling — and
+        // would need a null-forgiving `!` at the call site to say what the compiler cannot see.
+        FullCandidateMatchProfile? assessableProfile = null;
+        if (filterByWatchId.Values.Any(f => f is { OnlyMatched: true }))
         {
-            profile = await profileBuilder.BuildFullForUserIdAsync(userId, ct);
+            var profile = await profileBuilder.BuildFullForUserIdAsync(userId, ct);
+
             // A profile-less user (no stated occupation) makes the filter INERT (RF-5 under-fork i):
             // deliver unfiltered rather than a dishonest empty set, and disclose nothing (claiming an
-            // inert filter narrowed something is a §5 accuracy miss).
-            gradeAssessable = profile.Fast.SsykGroupConceptIds.Count > 0;
+            // inert filter narrowed something is a §5 accuracy miss). Leaving the carrier null here is
+            // what keeps the fail-fast port from ever seeing an empty-SSYK profile.
+            if (profile.Fast.SsykGroupConceptIds.Count > 0)
+                assessableProfile = profile;
         }
 
         // The notifiable subset after the read-time grade filter. A hit FILTERED OUT (below ≥Good under
@@ -326,7 +330,7 @@ public sealed partial class DigestDispatchJob(
         // change re-surfaces it retroactively (8C); the deferred retention sweep (DPIA R-E2/M-E2) bounds
         // the accumulation.
         List<FollowedCompanyAdHit> effective;
-        if (idsToGrade.Count == 0 || !gradeAssessable)
+        if (idsToGrade.Count == 0 || assessableProfile is null)
         {
             // Nothing to grade (no OnlyMatched hit pending), or the filter is inert → the whole pending
             // set is notifiable.
@@ -334,7 +338,8 @@ public sealed partial class DigestDispatchJob(
         }
         else
         {
-            var matching = await perUserSearch.FilterToMatchingAsync(profile!, idsToGrade, ct);
+            var matching = await perUserSearch.FilterToMatchingAsync(
+                assessableProfile, idsToGrade, ct);
             effective = pending
                 .Where(h => !NeedsGradeCheck(h) || matching.Contains(h.JobAdId))
                 .ToList();
@@ -351,7 +356,8 @@ public sealed partial class DigestDispatchJob(
         // disclosure's ABSENCE a false claim: a watch whose filter suppressed 100% of that company's
         // new ads contributes zero hits, so the email would stay silent about a real narrowing —
         // the very failure RF-13 rejected, reached by another route. Email-level, grade-free (D1 seal).
-        var filterSummary = BuildFilterSummary(filterByWatchId, gradeAssessable);
+        var filterSummary = BuildFilterSummary(
+            filterByWatchId, onlyMatchedAssessable: assessableProfile is not null);
 
         // Display items — the PUBLIC title/company per ad (never the org.nr — ADR 0087 D8), AsNoTracking,
         // same ordering. Read BEFORE the claim (the join predicate needs the rows still Pending). The

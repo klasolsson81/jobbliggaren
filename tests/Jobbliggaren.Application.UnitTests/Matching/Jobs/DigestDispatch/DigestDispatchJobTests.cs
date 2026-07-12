@@ -667,12 +667,15 @@ public class DigestDispatchJobTests
         (await ReloadHitAsync(db, userId, ad2, ct))!.NotificationStatus
             .ShouldBe(FollowedCompanyAdHitStatus.Sent);
 
-        // Pre-F4 universal path: no contributing watch has OnlyMatched → the grade path is DORMANT.
+        // The common path: the user has NO OnlyMatched watch → the grade path is dormant AND no profile
+        // is built at all (the gate is an in-memory Any() over already-loaded data, never a per-digest
+        // profile build).
         await _perUserSearch.DidNotReceive().FilterToMatchingAsync(
             Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
             Arg.Any<CancellationToken>());
         await _profileBuilder.DidNotReceive().BuildFullForUserIdAsync(
             Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+
         captured.ShouldNotBeNull();
         // REWRITTEN under CTO sub-bind A′ (2026-07-12): the old assertion message ("inget aktivt filter
         // FORMADE MEJLET") encoded the contributing-watch quantifier that A′ removed. The claim is now a
@@ -681,10 +684,6 @@ public class DigestDispatchJobTests
         captured.FilterSummary.ShouldBeNull(
             "användaren har inga aktiva bevakningsfilter → ingen disclosure (och null är här ett SANT " +
             "påstående: inget av företagen du följer är filtrerat)");
-        // The common path must not build a profile at all (the gate is "has an OnlyMatched watch",
-        // in-memory over already-loaded data — never a per-digest profile build).
-        await _profileBuilder.DidNotReceive().BuildFullForUserIdAsync(
-            Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     // ═══════════════════════ CTO sub-bind A′ (2026-07-12) — the quantifier is the user's SETTINGS

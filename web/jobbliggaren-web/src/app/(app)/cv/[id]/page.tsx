@@ -50,7 +50,7 @@ export default async function CvDetailPage({ params }: Props) {
       notFound();
     case "rateLimited":
       return (
-        <div className="flex flex-col gap-4">
+        <div className="jp-container jp-page flex flex-col gap-4">
           <h1 className="jp-h1">{t("common.rateLimitedTitle")}</h1>
           <p className="jp-lede">
             {t("common.rateLimitedBody", {
@@ -67,7 +67,7 @@ export default async function CvDetailPage({ params }: Props) {
     case "forbidden":
     case "error":
       return (
-        <div className="flex flex-col gap-4">
+        <div className="jp-container jp-page flex flex-col gap-4">
           <h1 className="jp-h1">{t("cv.detail.loadErrorTitle")}</h1>
           <p className="jp-lede">{t("cv.detail.errorBody")}</p>
           <div>
@@ -87,7 +87,11 @@ export default async function CvDetailPage({ params }: Props) {
   const initialContent = master?.content ?? emptyContent();
 
   return (
-    <div className="flex flex-col gap-6">
+    // jp-container jp-page: CV-familjens breddcontainer (#812). Utan den renderas sidan
+    // edge-to-edge — på en ultrawide (3440px) sträcks fälten till 1000+ px och innehållet
+    // klistras mot skärmkanterna. Klasserna sätter bara boxmodell (max-width/marginal/
+    // padding), så de kombineras direkt med flex-roten. Samma wrap som /cv/[id]/mall.
+    <div className="jp-container jp-page flex flex-col gap-6">
       <Link
         href="/cv"
         className="inline-flex items-center gap-1 text-body-sm text-text-primary hover:underline self-start"

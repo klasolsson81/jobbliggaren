@@ -691,6 +691,13 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Rendering.Abstractions.ICvRenderer,
             Jobbliggaren.Infrastructure.Resumes.Rendering.CvRenderer>();
+        // The template-catalog's ONLY Infrastructure-resident egress (Fas 4b PR-8b 8b.3): the
+        // curated accent hexes live private in CvPalette; this port exposes them (name→hex) so the
+        // Application catalog handler composes them with the Domain-sourced names + atsSafe without
+        // importing Infrastructure. Stateless singleton (parity CvRenderer).
+        services.AddSingleton<
+            Jobbliggaren.Application.Resumes.Rendering.Abstractions.ICvAccentSwatchProvider,
+            Jobbliggaren.Infrastructure.Resumes.Rendering.CvAccentSwatchProvider>();
         return services;
     }
 

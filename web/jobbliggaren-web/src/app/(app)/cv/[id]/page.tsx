@@ -105,6 +105,9 @@ export default async function CvDetailPage({ params }: Props) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button asChild variant="outline">
+            <Link href={`/cv/${id}/mall`}>{t("cv.detail.customizeTemplate")}</Link>
+          </Button>
           <RenameResumeForm resumeId={id} currentName={resume.name} />
           <DeleteResumeDialog resumeId={id} resumeName={resume.name} />
         </div>

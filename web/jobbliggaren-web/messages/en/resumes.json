@@ -354,6 +354,7 @@
     "createFailed": "Could not create the CV.",
     "renameFailed": "Could not rename.",
     "saveFailed": "Could not save the CV.",
+    "templateSaveFailed": "Could not save the template.",
     "deleteFailed": "Could not delete the CV.",
     "deleteVersionFailed": "Could not delete the version.",
     "discardFailed": "Could not remove the draft.",

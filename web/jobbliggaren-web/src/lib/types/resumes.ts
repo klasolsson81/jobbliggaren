@@ -14,4 +14,6 @@ export type {
   ResumeListItemDto,
   GetResumesResult,
   ResumeDetailDto,
+  CvTemplateOptionsDto,
+  TemplateCatalogDto,
 } from "@/lib/dto/resumes";

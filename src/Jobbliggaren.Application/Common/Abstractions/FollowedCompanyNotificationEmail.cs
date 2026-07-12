@@ -35,9 +35,30 @@ public sealed record FollowedCompanyAdItem(
 /// this contract has no Kind discriminator. <see cref="Cadence"/> drives the "daglig/veckovis"
 /// phrasing; <see cref="TotalCount"/> is the honest window total (≥ <see cref="Items"/>.Count when
 /// the display is capped) so the template can render "och N till".
+/// <para>
+/// <b><see cref="FilterSummary"/> (bevakning-reconcile RF-13=13B, 2026-07-12):</b> an OPTIONAL
+/// per-email disclosure of the per-watch filters that shaped this digest (null = no filter → no
+/// disclosure). Email-level, never per-item, so the D1 seal holds. F3 populates it; the Swedish
+/// disclosure copy is rendered by PR-F4.
 /// </para>
 /// </summary>
 public sealed record FollowedCompanyNotificationEmail(
     DigestCadence Cadence,
     IReadOnlyList<FollowedCompanyAdItem> Items,
-    int TotalCount);
+    int TotalCount,
+    FollowedCompanyFilterSummary? FilterSummary = null);
+
+/// <summary>
+/// Bevakning-reconcile RF-13=13B (2026-07-12) — a per-EMAIL disclosure of the per-watch filters that
+/// shaped this follow digest, so the copy can honestly say the email is narrowed (§5 transparency)
+/// WITHOUT breaking the D1 seal (per-item stays grade-free — this is email-level, not per-item).
+/// Booleans only, aggregated across the watches that CONTRIBUTED a hit to this email:
+/// <see cref="OnlyMatchedActive"/> = at least one contributing watch filters to "endast matchade
+/// annonser" (read-time ≥Good, applied at dispatch); <see cref="LocationFilterActive"/> = at least
+/// one contributing watch filters by municipality (applied SCAN-time, 8A). Carries NO ort NAMES and
+/// NO grade value (data-minimizing; Goodhart-safe). The Swedish disclosure copy is rendered by
+/// PR-F4 (RF-12/RF-13 route the copy + filter-set UI there); F3 only populates this field.
+/// </summary>
+public sealed record FollowedCompanyFilterSummary(
+    bool OnlyMatchedActive,
+    bool LocationFilterActive);

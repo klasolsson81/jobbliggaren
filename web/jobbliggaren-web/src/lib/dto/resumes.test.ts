@@ -1,12 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   atsTextResponseSchema,
+  cvTemplateOptionsDtoSchema,
   getResumesResultSchema,
   resumeContentDtoSchema,
   resumeDetailDtoSchema,
   resumeLanguageSchema,
   resumeListItemDtoSchema,
   resumeVersionKindSchema,
+  templateCatalogDtoSchema,
 } from "./resumes";
 
 const validContent = {
@@ -251,6 +253,16 @@ describe("resumeListItemDtoSchema", () => {
   });
 });
 
+const validTemplateOptions = {
+  template: "Klar",
+  accentColor: "NavyBlue",
+  fontPair: "Modern",
+  density: "Normal",
+  photoEnabled: false,
+  photoShape: "Circle",
+  effectiveAtsSafe: true,
+};
+
 describe("resumeDetailDtoSchema", () => {
   it("accepts valid detail with nested versions", () => {
     const detail = {
@@ -267,8 +279,20 @@ describe("resumeDetailDtoSchema", () => {
           updatedAt: "2026-05-11T10:00:00Z",
         },
       ],
+      templateOptions: validTemplateOptions,
     };
     expect(resumeDetailDtoSchema.safeParse(detail).success).toBe(true);
+  });
+
+  it("rejects when templateOptions is missing (BE always emits it)", () => {
+    const detail = {
+      id: "33333333-3333-3333-3333-333333333333",
+      name: "Master CV",
+      createdAt: "2026-05-11T10:00:00Z",
+      updatedAt: "2026-05-11T10:00:00Z",
+      versions: [],
+    };
+    expect(resumeDetailDtoSchema.safeParse(detail).success).toBe(false);
   });
 
   it("rejects when version.content broken", () => {
@@ -288,6 +312,48 @@ describe("resumeDetailDtoSchema", () => {
       ],
     };
     expect(resumeDetailDtoSchema.safeParse(detail).success).toBe(false);
+  });
+});
+
+describe("cvTemplateOptionsDtoSchema", () => {
+  it("accepts the persisted six member names + effectiveAtsSafe", () => {
+    expect(
+      cvTemplateOptionsDtoSchema.safeParse(validTemplateOptions).success
+    ).toBe(true);
+  });
+
+  it("rejects a non-boolean effectiveAtsSafe", () => {
+    expect(
+      cvTemplateOptionsDtoSchema.safeParse({
+        ...validTemplateOptions,
+        effectiveAtsSafe: "true",
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe("templateCatalogDtoSchema", () => {
+  it("accepts the closed catalog shape (names + atsSafe + hex)", () => {
+    const catalog = {
+      templates: [
+        { name: "Klar", atsSafe: true },
+        { name: "MorkPanel", atsSafe: false },
+      ],
+      accents: [{ name: "NavyBlue", hex: "#1E3A5F" }],
+      fontPairs: [{ name: "Modern" }, { name: "Classic" }],
+      densities: [{ name: "Airy" }, { name: "Normal" }, { name: "Compact" }],
+    };
+    expect(templateCatalogDtoSchema.safeParse(catalog).success).toBe(true);
+  });
+
+  it("rejects a template entry missing atsSafe (FE must not re-derive it)", () => {
+    const catalog = {
+      templates: [{ name: "Klar" }],
+      accents: [{ name: "NavyBlue", hex: "#1E3A5F" }],
+      fontPairs: [{ name: "Modern" }],
+      densities: [{ name: "Normal" }],
+    };
+    expect(templateCatalogDtoSchema.safeParse(catalog).success).toBe(false);
   });
 });
 

@@ -97,14 +97,45 @@ test.describe("/jobb — auth-gated rendering", () => {
     await page.waitForURL(/\/jobb$/);
   });
 
-  // BORTTAGET TEST (#813, dokumenterat — inte tyst): "validation: q=1 tecken ger
-  // felmeddelande och blockerar submit". Den copy det asserterade ("Söktexten måste vara
-  // 2–100 tecken") finns inte längre någonstans i messages/ — hero-omdesignen ersatte
-  // min-2-submit-blocket med en max-100-guard. Testet var alltså dött oavsett, och att
-  // låta det ligga hade gett falsk trygghet. Beteendet i sig var däremot TRASIGT (ett
-  // enteckens sök gav ett tekniskt felkort) → #823 fixar det och lägger tillbaka en
-  // assertion mot det beteende den skapar. Min-längdsregeln har kvar unit-täckning i
-  // src/lib/dto/job-ads.test.ts.
+  // #823 — ERSÄTTER det borttagna "q=1 tecken ger felmeddelande"-testet (#813 raderade det
+  // dokumenterat: copyn det asserterade fanns inte längre, och BETEENDET var trasigt —
+  // ett enteckens sök gav ett tekniskt felkort). Här asserteras beteendet #823 skapar.
+  //
+  // Semantiken speglar backendens SearchQueryParser: ett för kort sökord används inte, men
+  // frågan körs vidare på sina dimensioner. Alltså: inget felkort, och inget q i URL:en.
+  test("ett enteckens sökord ger vägledning — inte ett tekniskt felkort (#823)", async ({
+    page,
+  }) => {
+    await page.goto("/jobb");
+    await page.getByLabel(SEARCH_FIELD_LABEL).fill("a");
+    await page.getByRole("button", { name: "Sök", exact: true }).click();
+
+    // Vägledningen står i hjälpraden. (Notistexten finns även i komponentens aria-live-
+    // region — scopa till den SYNLIGA raden, annars strict-mode.)
+    await expect(page.locator("p.jp-hero__searchhelp")).toContainText(
+      /Sökord kortare än 2 tecken används inte/
+    );
+    // Det avgörande: backendens 400-väg nås aldrig, så teknisk-fel-kortet syns inte.
+    await expect(
+      page.getByText("Kunde inte ladda jobbannonser")
+    ).toHaveCount(0);
+    await expect(page).not.toHaveURL(/[?&]q=a(&|$)/);
+  });
+
+  // #823 — direktlänken. Klienten kan inte grinda en bokmärkt/handredigerad URL; page.tsx
+  // klampar därför ett för kort q server-side (paritet med parsern). Utan den klampen
+  // 400:ar backend och sidan målar teknisk-fel-kortet.
+  test("direktlänk /jobb?q=a renderar träfflistan, inte ett felkort (#823)", async ({
+    page,
+  }) => {
+    await page.goto("/jobb?q=a");
+    await expect(
+      page.getByText("Kunde inte ladda jobbannonser")
+    ).toHaveCount(0);
+    // Och heron ärver inte det förgiftade q:t — fältet är tomt, så nästa sökning
+    // skickar inte med "a" igen.
+    await expect(page.getByLabel(SEARCH_FIELD_LABEL)).toHaveValue("");
+  });
 
   test("nav-länk Jobb syns i layout", async ({ page }) => {
     await page.goto("/ansokningar");

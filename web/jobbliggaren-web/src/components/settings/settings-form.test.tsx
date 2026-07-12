@@ -37,6 +37,7 @@ const baseProfile: JobSeekerProfileDto = {
   language: "sv",
   backgroundMatchNotificationsEnabled: false,
   digestCadence: "Weekly",
+  followedCompanyNotificationsEnabled: false,
   createdAt: "2026-05-01T08:00:00Z",
   hasStatedDesiredOccupation: false,
   preferredOccupationGroups: [],
@@ -65,7 +66,11 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
     // Personuppgifter. `taxonomy={null}` → kortet degraderar men behåller sin
     // h2-rubrik.
     // TD-115 (2026-06-25): det gamla "Aviseringar"-kortet (EmailNotifications +
-    // WeeklySummary) togs bort — Matchningsnotiser är nu den enda notis-ytan.
+    // WeeklySummary) togs bort — de styrde ingen e-postväg.
+    // Bevakning F4 (#803): "Notiser om företag du följer" ligger DIREKT efter
+    // Matchningsnotiser. Adjacensen är funktionell, inte estetisk: de två delar
+    // digest-kadens (ADR 0087 D2), vars kontroll bara finns i det förra kortet —
+    // och DOM-ordningen håller även när gridden kollapsar till en kolumn.
     // #678: the change-password card sits in the second column, before Sekretess
     // och data (privacy/danger zone) and Logga ut.
     // #679: the change-email card sits directly before change-password (identity
@@ -75,6 +80,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
       "Matchning",
       "Visning",
       "Matchningsnotiser",
+      "Notiser om företag du följer",
       "Byt e-postadress",
       "Byt lösenord",
       "Sekretess och data",
@@ -131,7 +137,7 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
     expect(english).toBeEnabled();
   });
 
-  it("Matchningsnotiser är den enda notis-toggeln (TD-115: Aviseringar-kortet borttaget)", () => {
+  it("exakt två notis-toggles, en per samtyckesändamål (TD-115 + bevakning F4)", () => {
     render(
       <SettingsForm
         initialProfile={baseProfile}
@@ -141,12 +147,38 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
       />,
     );
     // TD-115: det gamla Aviseringar-kortets två toggles (EmailNotifications +
-    // WeeklySummary) togs bort — de styrde ingen e-postväg. Matchningsnotiser-
-    // kortets opt-in-toggle (default OFF) är nu den ENDA switchen på sidan.
-    expect(screen.getAllByRole("switch")).toHaveLength(1);
+    // WeeklySummary) togs bort — de styrde ingen e-postväg. Kvar står EN switch
+    // per SAMTYCKESÄNDAMÅL (GDPR Art. 6(1)(a)): matchningsnotiser och notiser om
+    // följda företag (bevakning F4 / ADR 0087 D5 — skilda flaggor, skilda Art. 7-
+    // tidsstämplar, skilda endpoints). Testet pinnar antalet så en tredje toggle
+    // aldrig smyger in utan ett eget ändamål.
+    expect(screen.getAllByRole("switch")).toHaveLength(2);
     expect(
       screen.getByRole("switch", { name: "Matcha nya annonser åt mig" }),
     ).toHaveAttribute("aria-checked", "false");
+    expect(
+      screen.getByRole("switch", {
+        name: "Mejla mig nya annonser från företag jag följer",
+      }),
+    ).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("bara ETT kadens-val på sidan — takten är delad (ADR 0087 D2)", () => {
+    render(
+      <SettingsForm
+        initialProfile={baseProfile}
+        userEmail="klas@example.se"
+        taxonomy={null}
+        initialSkillGroups={[]}
+      />,
+    );
+    // Följ-notis-kortet visar takten som TEXT och pekar på matchnings-kortet.
+    // Två kontroller för ett värde vore garanterad drift.
+    expect(
+      screen.getAllByRole("radiogroup", {
+        name: "Hur ofta vill du få sammanfattningen",
+      }),
+    ).toHaveLength(1);
   });
 
   it("Sekretess och data-kortet använder DeleteAccountSection-stub", () => {

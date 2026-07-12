@@ -56,7 +56,10 @@ export async function loginAs(page: Page, runId: number): Promise<void> {
   // "Lösenord" label (strict-mode violation → fill fails), same as auth.spec.ts.
   await page.getByLabel("Lösenord", { exact: true }).fill(TEST_PASSWORD);
   await page.getByRole("button", { name: "Logga in" }).click();
-  await page.waitForURL("**/mig");
+  // A successful login redirects to /oversikt (loginAction's safeRedirectPath default) —
+  // the old "**/mig" wait could never match: /mig has been a 308 → /installningar since
+  // ADR 0057, and it was never the post-login target. #813.
+  await page.waitForURL("**/oversikt");
 }
 
 export async function ensureTestUser(baseURL: string, runId: number): Promise<void> {

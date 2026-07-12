@@ -159,6 +159,15 @@ export const SUGGEST_DEBOUNCE_MS = 300;
 // memory `project_crossref_badge_status`).
 export const Q_MAX_LENGTH = 100;
 
+// #823 — samma kontrakt i andra änden: backend avvisar en söktext KORTARE än 2
+// tecken (ListJobAdsQueryValidator -> SearchCriteria.QMinLength; ett enteckens q
+// matchar närapå hela tabellen, så minimum är en DoS-spärr och flyttar sig inte).
+// Utan spegling här navigerar heron till ?q=a, får 400 och renderar teknisk-fel-
+// kortet mitt i skrivflödet — precis den felklass Q_MAX_LENGTH redan vaktar mot i
+// andra riktningen. Backend förblir SSOT och sista barriär; det här är UI-friktion.
+// Synk-krav vid ändring backend-side (samma cross-ref-disciplin som Q_MAX_LENGTH).
+export const Q_MIN_LENGTH = 2;
+
 // ADR 0042 Beslut B — maxantal-cap per taxonomilista. Speglar backend
 // SearchCriteria.MaxConceptIds (=400, höjt 10→400 i ADR 0042-amendment
 // 2026-06-09 / ADR 0067 Fas C1 så "Välj alla yrkesgrupper" (~400 ssyk-

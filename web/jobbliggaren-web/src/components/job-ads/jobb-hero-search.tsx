@@ -12,6 +12,7 @@ import { useTranslations } from "next-intl";
 import { Search, X } from "lucide-react";
 import {
   Q_MAX_LENGTH,
+  Q_MIN_LENGTH,
   type JobAdSortBy,
   type SuggestionDto,
 } from "@/lib/dto/job-ads";
@@ -35,6 +36,7 @@ import {
   sameUrlState,
   serializeSearchText,
   updateTextForStateChange,
+  type ClaimsDeltaResult,
   type ParsedClaims,
 } from "@/lib/job-ads/tokenize";
 import { JobAdTypeahead } from "./job-ad-typeahead";
@@ -101,6 +103,18 @@ interface JobbHeroSearchProps {
 
 const emptySubscribe = () => () => {};
 
+/**
+ * Hjälpradens notis-slot (#823). Ett värde i taget:
+ * - `limit`    — söktexten är full (Q_MAX_LENGTH): skrivna ord committas inte.
+ * - `tooShort` — den sammansatta söktexten är kortare än Q_MIN_LENGTH och används
+ *   därför inte i sökningen (dimensionerna körs ändå — spegling av backendens
+ *   SearchQueryParser).
+ */
+type Notice =
+  | { kind: "limit" }
+  | { kind: "tooShort"; word: string }
+  | null;
+
 export function JobbHeroSearch({
   taxonomy,
   q,
@@ -119,6 +133,7 @@ export function JobbHeroSearch({
   const t = useTranslations("jobads.ui");
   const [, startTransition] = useTransition();
   const helpId = useId();
+  const noticeId = useId();
 
   const hydrated = useSyncExternalStore(
     emptySubscribe,
@@ -167,7 +182,11 @@ export function JobbHeroSearch({
     serializeSearchText(base, resolveLabel, labelIndex),
   );
   const [caret, setCaret] = useState<number | null>(null);
-  const [limitNotice, setLimitNotice] = useState(false);
+  // Hjälpradens notis-slot. Ett värde i taget: "limit" = söktexten är full
+  // (Q_MAX_LENGTH), "tooShort" = söktexten är kortare än Q_MIN_LENGTH (#823).
+  // Båda vaktar samma sak — att navigera med ett q som backend avvisar (400) och
+  // därmed måla teknisk-fel-kortet mitt i skrivflödet.
+  const [notice, setNotice] = useState<Notice>(null);
   const [announcement, setAnnouncement] = useState("");
 
   // #419 pt6 (CTO A1) — "är det här söket sparat i Senaste sökningar?". SSOT-signalen
@@ -249,7 +268,7 @@ export function JobbHeroSearch({
       );
       setText(nextText);
       setPrevClaims(parseSearchText(nextText, labelIndex, null));
-      setLimitNotice(false);
+      setNotice(null);
       setCaret(null);
       setAnnouncement("");
       setLastCommitted(base);
@@ -284,24 +303,57 @@ export function JobbHeroSearch({
     if (announce) setAnnouncement(announce);
   }
 
+  // #823 — SPOT för notis-precedensen. `limit` väger tyngst: där FÖRLORAR användaren
+  // skriven text (taket är nått), medan ett för kort ord bara inte används i sökningen.
+  // Tre kopior av en precedensregel är tre ställen att få den fel på.
+  function noticeFor(result: ClaimsDeltaResult): Notice {
+    if (result.rejectedQ.length > 0) return { kind: "limit" };
+    const tooShort = result.tooShortQ[0];
+    if (tooShort !== undefined) return { kind: "tooShort", word: tooShort };
+    return null;
+  }
+
+  // Notis-texten annonseras genom den befintliga annons-regionen (EN live-region i
+  // komponenten) — hjälpraden är därför INTE längre en egen role="status". Annars
+  // annonserades hela default-hjälptexten om varje gång en notis släcktes.
+  function noticeText(next: Notice): string | null {
+    if (next?.kind === "limit")
+      return t("heroSearch.limitNotice", { max: Q_MAX_LENGTH });
+    if (next?.kind === "tooShort")
+      return t("heroSearch.minNotice", {
+        min: Q_MIN_LENGTH,
+        word: next.word,
+      });
+    return null;
+  }
+
+  function noticeAnnouncement(next: Notice): string[] {
+    const text = noticeText(next);
+    return text ? [text] : [];
+  }
+
   // Delta-commit (C′ regel 1): parse → diff mot förra anspråken → applicera.
   function runDelta(nextText: string, caretIndex: number | null) {
     const claims = parseSearchText(nextText, labelIndex, caretIndex);
     const result = applyClaimsDelta(lastCommitted, prevClaims, claims, taxonomy);
     setPrevClaims(result.appliedClaims);
-    setLimitNotice(result.rejectedQ.length > 0);
+    const nextNotice = noticeFor(result);
+    setNotice(nextNotice);
+    const announce = [
+      ...result.addedLabels.map((l) =>
+        t("heroSearch.announceAdded", { label: l }),
+      ),
+      ...result.removedLabels.map((l) =>
+        t("heroSearch.announceRemoved", { label: l }),
+      ),
+      ...noticeAnnouncement(nextNotice),
+    ].join(". ");
     if (!sameUrlState(result.next, lastCommitted)) {
-      commit(
-        result.next,
-        [
-          ...result.addedLabels.map((l) =>
-            t("heroSearch.announceAdded", { label: l }),
-          ),
-          ...result.removedLabels.map((l) =>
-            t("heroSearch.announceRemoved", { label: l }),
-          ),
-        ].join(". "),
-      );
+      commit(result.next, announce);
+    } else if (announce) {
+      // Staten ändrades inte (t.ex. enbart ett enteckensord skrevs), så ingen commit —
+      // men notisen måste ändå nå skärmläsaren.
+      setAnnouncement(announce);
     }
   }
 
@@ -312,6 +364,24 @@ export function JobbHeroSearch({
     // (redan på första tecknet, före delta-commit) → nolla den så UI:t inte påstår sparat
     // om texten redan divergerat. Länken återkommer när deltat committas (savedByIntent).
     if (savedNotice) setSavedNotice(false);
+    // #823 — min-längdsnotisen beskriver det SENAST försökta söket, så vilken redigering
+    // som helst gör den inaktuell: släpp den på tangenttrycket. Ett pågående ord är INTE
+    // en commit-punkt (CTO VAL 3), så utan detta hade notisen stått kvar och påstått
+    // "minst 2 tecken" medan fältet redan visade fler — eller, värre, medan fältet var
+    // TOMT (×-knappen renderas inte då, så användaren kunde inte ens rensa bort den).
+    // Räcker texten fortfarande inte sätts notisen om vid nästa commit-försök.
+    if (notice?.kind === "tooShort") {
+      setNotice(null);
+      // Nolla ÄVEN annonsen. Annars ligger notissträngen kvar i live-regionen, och nästa
+      // för-korta försök producerar en IDENTISK sträng → ingen DOM-mutation → aria-live
+      // fyrar aldrig. Seende användare ser notisen igen; skärmläsaren får total tystnad
+      // efter ett tryck på primär-CTA:n (WCAG 4.1.3). Samma felklass som extern-divergens-
+      // grenen ovan redan nollar annonsen för.
+      setAnnouncement("");
+    }
+    // (Två Sök-tryck på SAMMA för-korta ord utan mellanliggande redigering förblir tyst:
+    // identisk sträng → ingen DOM-mutation. Medvetet — ingenting nytt har hänt, och att
+    // upprepa samma mening vore brus. Det är redigeringen som gör notisen inaktuell.)
     // Commit-punkt = tecknet före caret är en avgränsare (ordet avslutades
     // nyss). Ren radering committas inte per keystroke — deltat landar vid
     // nästa commit-punkt/Enter (CTO VAL 3, dokumenterad konsekvens).
@@ -360,13 +430,23 @@ export function JobbHeroSearch({
     setText(nextText);
     setCaret(null);
     setPrevClaims(delta.appliedClaims);
-    setLimitNotice(delta.rejectedQ.length > 0);
+    // OBS (#823): composeSuggestionChip kan appenda ett Title-q-ord EFTER att
+    // applyClaimsDelta kört sin q-min-regel, så ett enteckens Title-förslag ("C", "R")
+    // skulle kunna committa ?q=C utan notis. Server-klampen i page.tsx fångar det (ingen
+    // 400, inget felkort) — men regeln bor alltså inte på ETT ställe för just den vägen.
+    // Ofarligt i praktiken (inga enteckens-labels i taxonomin idag); dokumenterat hellre
+    // än tyst.
+    const selectNotice = noticeFor(delta);
+    setNotice(selectNotice);
     // Förslags-val är en commit-punkt (E2j): committa ALLTID med commit-intent
     // så sökningen auto-capturas — även i det sällsynta fall valet inte
     // ändrar filter-staten (re-val av redan applicerat förslag = "kör igen").
     commit(
       withSelection,
-      t("heroSearch.announceAdded", { label: suggestion.label }),
+      [
+        t("heroSearch.announceAdded", { label: suggestion.label }),
+        ...noticeAnnouncement(selectNotice),
+      ].join(". "),
       true,
     );
   }
@@ -380,7 +460,8 @@ export function JobbHeroSearch({
     const claims = parseSearchText(text, labelIndex, null);
     const result = applyClaimsDelta(lastCommitted, prevClaims, claims, taxonomy);
     setPrevClaims(result.appliedClaims);
-    setLimitNotice(result.rejectedQ.length > 0);
+    const submitNotice = noticeFor(result);
+    setNotice(submitNotice);
     commit(
       result.next,
       [
@@ -390,6 +471,7 @@ export function JobbHeroSearch({
         ...result.removedLabels.map((l) =>
           t("heroSearch.announceRemoved", { label: l }),
         ),
+        ...noticeAnnouncement(submitNotice),
       ].join(". "),
       true,
     );
@@ -406,7 +488,7 @@ export function JobbHeroSearch({
     setText("");
     setCaret(null);
     setPrevClaims(EMPTY_CLAIMS);
-    setLimitNotice(false);
+    setNotice(null);
     commit(delta.next, t("heroSearch.announceCleared"), true);
   }
 
@@ -470,7 +552,7 @@ export function JobbHeroSearch({
             selectOnTab
             wrapperClassName="jp-hero__searchfield"
             inputClassName="jp-hero__input"
-            ariaDescribedBy={helpId}
+            ariaDescribedBy={notice ? `${helpId} ${noticeId}` : helpId}
           />
         ) : (
           // Pre-hydration/no-JS: rått q-fält — native GET-submit bär hela
@@ -481,7 +563,7 @@ export function JobbHeroSearch({
             type="search"
             defaultValue={q}
             className="jp-hero__input"
-            aria-describedby={helpId}
+            aria-describedby={notice ? `${helpId} ${noticeId}` : helpId}
           />
         )}
         {/* Kontrollerad ×-clear (E2j): ersätter native
@@ -503,13 +585,25 @@ export function JobbHeroSearch({
           <Search size={18} aria-hidden="true" /> {t("heroSearch.submit")}
         </button>
       </div>
-      {/* Hjälptext bär tagg-/Tab-instruktionen (ALDRIG placeholder — Klas
-          hård regel). role="status" så q-max-skiftet annonseras. */}
-      <p id={helpId} role="status" className="jp-hero__searchhelp">
-        {limitNotice
-          ? t("heroSearch.limitNotice", { max: Q_MAX_LENGTH })
-          : t("heroSearch.help")}
+      {/* Hjälptext bär tagg-/Tab-instruktionen (ALDRIG placeholder — Klas hård regel).
+          INGEN role="status" (#823): raden bytte tidigare innehåll mellan hjälptext och
+          notis, så varje släckt notis lät skärmläsaren läsa upp HELA default-hjälptexten på
+          nytt. Notiserna annonseras i stället genom komponentens enda live-region.
+          Notisen LÄGGS TILL — den ersätter inte hjälptexten (#823, design-review): annars
+          försvinner instruktionen för hela sökmodellen, både visuellt och ur fältets
+          accessible description, i exakt det läge användaren visade sig behöva den. Båda
+          raderna ingår i aria-describedby (GOV.UK hint + message). */}
+      <p id={helpId} className="jp-hero__searchhelp">
+        {t("heroSearch.help")}
       </p>
+      {noticeText(notice) !== null && (
+        <p
+          id={noticeId}
+          className="jp-hero__searchhelp jp-hero__searchhelp--notice"
+        >
+          {noticeText(notice)}
+        </p>
+      )}
 
       {/* #419 pt6 (Klas + CTO A1) — "Spara sökningen"-länken: diskret text-knapp
           (INTE <a> — ingen navigering) som visas när ett sparbart sök komponerats via

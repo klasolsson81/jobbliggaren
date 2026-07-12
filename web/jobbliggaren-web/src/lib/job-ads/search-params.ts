@@ -1,4 +1,4 @@
-import type { JobAdSortBy } from "@/lib/dto/job-ads";
+import { Q_MIN_LENGTH, type JobAdSortBy } from "@/lib/dto/job-ads";
 
 /**
  * Centraliserad searchParams-builder för /jobb (F4). Hero-filter-popovers
@@ -216,4 +216,25 @@ export function buildJobbHref(state: JobbUrlState): string {
   if (state.pageSize) params.set("pageSize", state.pageSize);
   const qs = params.toString();
   return qs.length > 0 ? `/jobb?${qs}` : "/jobb";
+}
+
+/**
+ * #823 — en söktext kortare än backendens minimum behandlas som INGEN söktext.
+ * Speglar `SearchQueryParser`, som nollar en residual under `SearchCriteria.QMinLength`
+ * och kör vidare på dimensionerna i stället för att vägra frågan; `ListJobAdsQueryValidator`
+ * skulle annars 400:a och sidan måla teknisk-fel-kortet.
+ *
+ * SPOT: BÅDA URL-vägarna på /jobb måste klampa lika. page.tsx klampar vid entry, och
+ * `buildPageHref` (den andra URL-byggaren, i jobb-results.tsx) klampar när den bygger
+ * pagineringslänkar — annars re-emitterar sidlänkarna ett q som sidan självt ignorerar,
+ * dvs. en URL som påstår ett sök som inte körs. Backend förblir SSOT och sista barriär.
+ */
+export function clampSubMinimumQ(q: string | undefined): string | undefined {
+  if (q === undefined) return undefined;
+  // Returnera det TRIMMADE värdet, inte det råa: annars normaliserar de två callerna olika
+  // (page.tsx trimmar via emptyToUndefined, buildPageHref gjorde det inte) och
+  // "/jobb?q=%20ab%20" hade kört sökningen "ab" medan sidlänken re-emitterade "+ab+".
+  // Samma divergens-form som klampen infördes för att stänga.
+  const trimmed = q.trim();
+  return trimmed.length < Q_MIN_LENGTH ? undefined : trimmed;
 }

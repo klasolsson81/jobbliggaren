@@ -199,6 +199,75 @@ describe("applyClaimsDelta (C′ regel 1 — delta, aldrig replace)", () => {
     expect(r.next.q).toBe("a".repeat(95));
     expect(r.appliedClaims.qWords).toEqual([]);
   });
+
+  // #823 — q-min-regeln, spegelbilden av q-max ovan. Backend avvisar en söktext under 2
+  // tecken (400 → teknisk-fel-kort), medan dess EGEN parser nollar en för kort residual
+  // och kör vidare på dimensionerna. Klienten speglar parsern.
+  describe("q-min-regeln (#823)", () => {
+    it("enteckensord: q droppas, staten är oförändrad, ordet ingår EJ i appliedClaims", () => {
+      const claims = parseSearchText("a", index, null);
+      const r = applyClaimsDelta(empty, EMPTY_CLAIMS, claims, taxonomy);
+
+      expect(r.tooShortQ).toEqual(["a"]);
+      expect(r.next.q).toBe("");
+      // Ingenting att navigera till — heron ser sameUrlState och committar inte.
+      expect(sameUrlState(r.next, empty)).toBe(true);
+      // Avgörande för koherensen: prevClaims får ALDRIG göra anspråk på något staten
+      // saknar, annars kan en framtida borttagning inte härledas.
+      expect(r.appliedClaims.qWords).toEqual([]);
+    });
+
+    it("'i göteborg': dimensionen appliceras, residualen 'i' droppas — ingen återvändsgränd", () => {
+      const claims = parseSearchText("i göteborg", index, null);
+      const r = applyClaimsDelta(empty, EMPTY_CLAIMS, claims, taxonomy);
+
+      expect(r.next.municipality).toEqual(["PVZL_BQT_XtL"]);
+      expect(r.next.q).toBe("");
+      expect(r.tooShortQ).toEqual(["i"]);
+    });
+
+    it("'a bc' BEHÅLLS — regeln gäller hela q-strängen, aldrig per ord", () => {
+      // Backend kräver minst 2 tecken på HELA Q, inte på varje ord. En per-ord-regel
+      // hade tyst strypt en term servern accepterar — klienten får aldrig uppfinna en
+      // strängare regel än den som faktiskt gäller.
+      const claims = parseSearchText("a bc", index, null);
+      const r = applyClaimsDelta(empty, EMPTY_CLAIMS, claims, taxonomy);
+
+      expect(r.next.q).toBe("a bc");
+      expect(r.tooShortQ).toEqual([]);
+      expect(r.appliedClaims.qWords).toEqual(["a", "bc"]);
+    });
+
+    it("REGRESSION: ett droppat ord kan appliceras IGEN när texten blir lång nog", () => {
+      // Vakten för `appliedQ.length = 0`. Utan den nollningen bär prevClaims ett anspråk
+      // ("i") som staten INTE har (q = ""). Nästa delta ser då "i" i prevQKeys, tar
+      // add-loopens genväg ("finns redan"), och ordet återförs ALDRIG till q — det är tyst
+      // förlorat för alltid. "i" + "java" är 6 tecken, alltså fullt giltigt för backend.
+      //
+      // (En första version av det här testet asserterade i stället att en chip-borttagning
+      // överlever en tooShort-delta. Det testet var INERT: matchnings-borttagningen rörs
+      // aldrig av q-bokföringen, så det gick grönt även med hela regeln bortplockad.
+      // code-reviewer fångade det. Detta är sekvensen som faktiskt går sönder.)
+      const afterI = applyClaimsDelta(
+        empty,
+        EMPTY_CLAIMS,
+        parseSearchText("i", index, null),
+        taxonomy,
+      );
+      expect(afterI.next.q).toBe("");
+      expect(afterI.appliedClaims.qWords).toEqual([]);
+
+      const afterJava = applyClaimsDelta(
+        afterI.next,
+        afterI.appliedClaims,
+        parseSearchText("i java", index, null),
+        taxonomy,
+      );
+      // BÅDA orden måste nå staten. Utan nollningen blir det bara "java".
+      expect(afterJava.next.q).toBe("i java");
+      expect(afterJava.tooShortQ).toEqual([]);
+    });
+  });
 });
 
 describe("serializeSearchText + rundtripps-teoremet (C′ regel 4)", () => {

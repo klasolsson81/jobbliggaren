@@ -65,6 +65,24 @@ jobs:
       BACKEND_URL: "http://localhost:5049" # frontend (env.ts) + ensureTestUser/confirmTestUser
       PLAYWRIGHT_BASE_URL: "http://localhost:3000"
       TEST_USER_PASSWORD: "E2eTestPass123!Dev"
+      # Relax rate limits for the suite — every spec registers/logs in from the same
+      # localhost IP in a burst, which trips the default AuthWrite limiter (429). Mirrors
+      # ApiFactory's integration-test overrides (10000 / 60s). These are the only limiters
+      # the e2e flows touch (register/login = AuthWrite/AuthLoose; list/me reads + writes).
+      RateLimiting__AuthWrite__PermitLimit: "10000"
+      RateLimiting__AuthWrite__WindowSeconds: "60"
+      RateLimiting__AuthLoose__PermitLimit: "10000"
+      RateLimiting__AuthLoose__WindowSeconds: "60"
+      RateLimiting__ListRead__PermitLimit: "10000"
+      RateLimiting__ListRead__WindowSeconds: "60"
+      RateLimiting__MeListRead__PermitLimit: "10000"
+      RateLimiting__MeListRead__WindowSeconds: "60"
+      RateLimiting__MeWrite__PermitLimit: "10000"
+      RateLimiting__MeWrite__WindowSeconds: "60"
+      RateLimiting__JobAdStatusBatch__PermitLimit: "10000"
+      RateLimiting__JobAdStatusBatch__WindowSeconds: "60"
+      RateLimiting__JobAdMatchBatch__PermitLimit: "10000"
+      RateLimiting__JobAdMatchBatch__WindowSeconds: "60"
 
     steps:
       - uses: actions/checkout@v7

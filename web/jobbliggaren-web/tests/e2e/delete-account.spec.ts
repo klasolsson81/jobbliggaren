@@ -110,11 +110,13 @@ test.describe("Radera konto (/mig)", () => {
 
     // PR2c-1: re-auth är server-enforced — POST /api/v1/me/delete med fel lösenord → 401 →
     // action returnerar { success:false, error:"Lösenordet är felaktigt." } (inget separat /auth/verify-steg)
-    await expect(page.getByRole("alert")).toContainText(
-      "Lösenordet är felaktigt"
-    );
+    // Scopa till dialogen: /installningar bär flera role="alert"-regioner (strict-mode).
+    await expect(
+      page.getByRole("dialog").getByRole("alert")
+    ).toContainText("Lösenordet är felaktigt");
 
-    // Session intakt: vi är fortfarande på /mig
-    await expect(page).toHaveURL(/\/mig/);
+    // Session intakt: vi är kvar på inställningssidan. /mig är en 308 till
+    // /installningar sedan ADR 0057 — URL:en efter goto("/mig") är den senare.
+    await expect(page).toHaveURL(/\/installningar/);
   });
 });

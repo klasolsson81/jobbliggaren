@@ -60,9 +60,12 @@ test.describe("Detaljvy och redigering (/cv/[id])", () => {
     await page.getByLabel("Roll").fill("Utvecklare");
     await page.getByLabel("Startdatum").first().fill("2024-01-01");
 
-    // Spara
+    // Spara — /cv/[id] har flera role="status"-regioner (innehållsformulärets
+    // spar-status + mallbyggarens). Scopa till spar-statusen, annars strict-mode.
     await page.getByRole("button", { name: "Spara CV" }).click();
-    await expect(page.getByRole("status")).toContainText("Sparat");
+    await expect(
+      page.getByRole("status").filter({ hasText: "Sparat" })
+    ).toBeVisible();
 
     // Verifiera att data finns kvar efter omladdning
     await page.reload();

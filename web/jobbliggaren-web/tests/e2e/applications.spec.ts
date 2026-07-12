@@ -66,11 +66,18 @@ test.describe("Pipeline-vy (/ansokningar)", () => {
   test("skapad ansökan dyker upp som rad i listan", async ({ page }) => {
     await createApplication(page);
     await page.goto("/ansokningar");
-    // Rad-identitet = "titel — företag" (ApplicationRow). Manuell ansökan
-    // projicerar en jobAd-summary, så identiteten finns.
+    // Statusgrupperna är hopfällda som default ("Utkast (1) — Klicka för att visa").
+    // Disclosure-knappen är den enda med aria-expanded; steg-chippen i pipelinen
+    // ("1 UTKAST") matchar också namnet men är ingen disclosure.
+    await page
+      .getByRole("button", { name: /Utkast/, expanded: false })
+      .click();
+    // Rad-identitet är titeln (länken); företaget står som eget fält i kortet
+    // efter att Lista antog Tabellens fältordning (#780/#787).
     await expect(
-      page.getByText(`${NEW_TITLE} — ${NEW_COMPANY}`)
+      page.getByRole("link", { name: new RegExp(NEW_TITLE) })
     ).toBeVisible();
+    await expect(page.getByText(NEW_COMPANY).first()).toBeVisible();
   });
 });
 
@@ -151,13 +158,18 @@ test.describe("Detaljvy (/ansokningar/[id])", () => {
     ).toHaveCount(0);
   });
 
+  // Noteringsfältet ligger bakom "+ Lägg till anteckning"-disclosuren i
+  // Anteckningar-sektionen (#805/#818) — det är inte längre ett alltid-synligt
+  // formulär. Scenariointentionen (skriv notering → spara → syns) är oförändrad.
   test("visar formulär för att lägga till notering", async ({ page }) => {
+    await page.getByRole("button", { name: "Lägg till anteckning" }).click();
     await expect(
       page.getByRole("textbox", { name: "Notering" })
     ).toBeVisible();
   });
 
   test("kan lägga till en notering", async ({ page }) => {
+    await page.getByRole("button", { name: "Lägg till anteckning" }).click();
     await page
       .getByRole("textbox", { name: "Notering" })
       .fill("Intressant tjänst, bra matchning.");

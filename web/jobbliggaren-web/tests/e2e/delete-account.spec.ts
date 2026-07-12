@@ -114,7 +114,8 @@ test.describe("Radera konto (/mig)", () => {
       "Lösenordet är felaktigt"
     );
 
-    // Session intakt: vi är fortfarande på /mig
-    await expect(page).toHaveURL(/\/mig/);
+    // Session intakt: vi är kvar på inställningssidan. /mig är en 308 till
+    // /installningar sedan ADR 0057 — URL:en efter goto("/mig") är den senare.
+    await expect(page).toHaveURL(/\/installningar/);
   });
 });

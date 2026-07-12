@@ -476,7 +476,9 @@ function toStringList(raw: string | string[] | undefined): string[] {
   return arr.map((v) => v.trim()).filter((v) => v.length > 0);
 }
 
-function buildPageHref(
+// Exporterad ENBART för test (#823): klampen härinne var annars otestad — e2e:n når den
+// aldrig (tom annons-DB ⇒ ingen paginering renderas), så raden hade kunnat tas bort tyst.
+export function buildPageHref(
   params: JobbResultsProps["rawParams"],
   targetPage: number,
   defaultPageSize: number

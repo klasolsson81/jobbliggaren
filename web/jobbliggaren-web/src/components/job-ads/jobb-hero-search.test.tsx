@@ -242,9 +242,13 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
       await user.click(screen.getByRole("button", { name: /^Sök/ }));
       expect(liveRegion()).toMatch(/”a” är kortare än 2 tecken/);
 
-      // Redigering → notisen är inaktuell → live-regionen MÅSTE tömmas.
+      // Redigering → notisen är inaktuell → heron:s live-region MÅSTE tömmas.
+      // (not.toMatch, inte toBe(""): vid två tecken är typeaheadens debounce armerad och
+      // dess EGEN live-region kan bära "laddar…". Aggregatet skulle då bli icke-tomt och ge
+      // ett falskt rött. Under setAnnouncement("")-mutanten bär heron:s region fortfarande
+      // notisen, så det här faller ändå — verifierat.)
       await user.type(screen.getByRole("combobox"), "b");
-      expect(liveRegion()).toBe("");
+      expect(liveRegion()).not.toMatch(/kortare än 2 tecken/);
 
       // Tillbaka till samma för-korta ord → samma sträng igen. Den fyrar bara om regionen
       // hann bli tom däremellan.

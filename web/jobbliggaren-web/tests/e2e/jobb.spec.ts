@@ -117,7 +117,11 @@ test.describe("/jobb — auth-gated rendering", () => {
     // direkt utan att vänta in någon navigering. (Jag skrev först precis det. code-reviewer
     // fångade det — sessionens sjätte assertion som inte kunde falla.)
     const rsc = page.waitForResponse(
-      (r) => r.url().includes("/jobb") && r.status() === 200
+      // pathname-exakt: `includes("/jobb")` hade även matchat /api/jobb/suggest,
+      // /api/jobb/facet-counts och prod-chunkar under .../app/(app)/jobb/… — ofarligt just
+      // här bara för att testet råkar skriva ETT tecken (suggest kräver två), vilket är tur,
+      // inte konstruktion.
+      (r) => new URL(r.url()).pathname === "/jobb" && r.status() === 200
     );
     await page.getByRole("button", { name: "Sök", exact: true }).click();
     await rsc;
@@ -131,10 +135,24 @@ test.describe("/jobb — auth-gated rendering", () => {
     await expect(
       page.locator("p.jp-hero__searchhelp:not(.jp-hero__searchhelp--notice)")
     ).toContainText(/Ord blir taggar i filterraden/);
-    // POSITIVT påstående, inte bara ett negativt: träffytan ska ha renderats. Felkortet
-    // ERSÄTTER den, så en regression (q=a committas → backend 400) gör att tomtillståndet
-    // aldrig dyker upp och det här faller. Ett ensamt toHaveCount(0) hade varit grönt även
-    // om sidan inte renderat någonting alls.
+    // DEN BÄRANDE ASSERTIONEN — en BOUNDED WAIT PÅ DET DÅLIGA TILLSTÅNDET.
+    //
+    // Det goda utfallet är att ingenting händer med URL:en, och "ingenting händer" går inte
+    // att assertera med en retrying-matcher: allt som pollar mot frånvaro passerar på första
+    // försöket. Jag har nu gått i den fällan två gånger i rad — först ett waitForURL-predikat
+    // som var INVARIANT, sedan ett "settlat" skalärt påstående som fortfarande låg FÖRE
+    // router.replace (verifierat: under mutation föll testet på tomtillståndet, aldrig på
+    // URL-raden). Vänd på det: vänta aktivt PÅ regressionen, med tak. Committas ett q löser
+    // waitForURL och vi faller. Gör den det inte inom taket är frånvaron bevisad, inte antagen.
+    const poisoned = await page
+      .waitForURL(/[?&]q=/, { timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+    expect(poisoned, `q committades: ${page.url()}`).toBe(false);
+
+    // Sekundära, medvetet svagare: "Inga jobb hittades" är redan synligt före klicket (tom
+    // annons-DB) och React håller kvar det gamla trädet genom startTransition, så de kan
+    // passera på det gamla trädet. De står kvar som beskrivning — inte som garanti.
     await expect(page.getByText("Inga jobb hittades")).toBeVisible();
     await expect(
       page.getByText("Kunde inte ladda jobbannonser")

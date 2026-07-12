@@ -272,9 +272,9 @@ public class UserDataKeyStoreIntegrationTests(WorkerTestFixture fixture)
         }
 
         caught.ShouldNotBeNull("DEK unwrap-fel måste propageras (fail-closed)");
-        leaked.ShouldBeNull("ingen klartext-DEK får returneras vid KMS-fel");
+        leaked.ShouldBeNull("ingen klartext-DEK får returneras vid DEK-unwrap-fel");
         failCache.TryPeekCachedDek(seeker.Id, out _).ShouldBeFalse(
-            "cachen får INTE innehålla någon klartext/default-DEK efter KMS-fel");
+            "cachen får INTE innehålla någon klartext/default-DEK efter DEK-unwrap-fel");
     }
 
     // ── Scenario 10 (#501) — versionsblind läsväg: v2-rad kastar loud ────

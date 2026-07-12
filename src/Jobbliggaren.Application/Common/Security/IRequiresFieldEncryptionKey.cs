@@ -8,6 +8,6 @@ namespace Jobbliggaren.Application.Common.Security;
 /// scope-bundna cachen INNAN handlern materialiserar entiteten, så
 /// <c>FieldDecryptionMaterializationInterceptor</c> blir en ren synkron
 /// cache-hit (EF Core 10:s InitializedInstance är synkron; §3.5 förbjuder
-/// sync-over-async). Meddelanden utan markören gör ingen KMS-op.
+/// sync-over-async). Meddelanden utan markören gör ingen DEK-op.
 /// </summary>
 public interface IRequiresFieldEncryptionKey;

@@ -24,12 +24,6 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
     private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
 
-    // ADR 0066 (#802) — deterministisk 32-byte AES-256 test-master-nyckel för den
-    // lokala envelope-krypteringen (injiceras via ConfigureAppConfiguration;
-    // round-trip kräver bara SAMMA nyckel inom host-livstiden, inte en specifik).
-    private static readonly string TestMasterKeyBase64 =
-        Convert.ToBase64String(Enumerable.Range(0, 32).Select(i => (byte)i).ToArray());
-
     private readonly string _privateKeyPath;
     private readonly string _publicKeyPath;
 
@@ -113,7 +107,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             cfg.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["FieldEncryption:Provider"] = "Local",
-                ["FieldEncryption:LocalMasterKeyBase64"] = TestMasterKeyBase64,
+                ["FieldEncryption:LocalMasterKeyBase64"] = TestSecrets.MasterKeyBase64,
             }));
 
         builder.ConfigureServices(services =>

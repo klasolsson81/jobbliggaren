@@ -41,7 +41,7 @@ namespace Jobbliggaren.Worker.IntegrationTests.Security;
 /// <b>Rollback-atomicitet (scenario 9):</b> att injicera ett fel exakt EFTER
 /// <c>DeleteDataKeysAsync</c> men FÖRE <c>CommitAsync</c> kräver en sömfog som
 /// produktkoden inte exponerar (felinjektion vore test-only-produkt-yta —
-/// förbjudet, jfr C3/C4-FailingKmsGraph-disciplinen). Atomiciteten är
+/// förbjudet, jfr C3/C4-FailingProviderGraph-disciplinen). Atomiciteten är
 /// architect-verifierad 2026-05-19 (ExecuteDeleteAsync enlistar i ambient tx,
 /// catch ⇒ RollbackAsync ⇒ throw). Vi testar därför den observerbara
 /// konsekvensen: vid LYCKAD delete är BÅDE DEK-rader OCH aggregat borta

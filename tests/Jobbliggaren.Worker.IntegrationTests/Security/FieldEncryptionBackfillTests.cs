@@ -32,9 +32,10 @@ namespace Jobbliggaren.Worker.IntegrationTests.Security;
 /// <b>Seedning av legacy-rader:</b> rå INSERT förbi interceptor-paret (ingen
 /// <c>v1:</c>-sentinel; tre Form A text-kolumner — resume_versions Form B-armen
 /// pensionerad vid cutover, #507a, seedas ej) — exakt C3/C4.4-precedensens
-/// <c>RawInsertLegacy*</c>-mönster. <b>KMS</b> är den delade deterministiska
-/// fake-KMS:en som <see cref="WorkerTestFixture"/> sista-vinner-registrerar
-/// (ingen riktig AWS, produktkod orörd).
+/// <c>RawInsertLegacy*</c>-mönster. DEK-providern är den riktiga
+/// <c>LocalDataKeyProvider</c> insvept i den räknande
+/// <see cref="CountingDataKeyProvider"/> som <see cref="WorkerTestFixture"/>
+/// sista-vinner-registrerar (ingen AWS, produktkod orörd).
 /// </para>
 ///
 /// <para>

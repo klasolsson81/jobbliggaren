@@ -62,8 +62,6 @@
     "importCv": "Import CV",
     "newCv": "New CV",
     "loadErrorTitle": "Could not load CV",
-    "matchBarTitle": "Matching against your CV",
-    "matchBarText": "Set which occupations, regions and employment types you are looking for. We suggest based on your CV. You choose what is included.",
     "emptyKicker": "CV variants",
     "emptyTitle": "No CVs yet",
     "emptyBody": "Create your first CV to get started. You can have several variants (for example one for leadership and one for a technical role) and choose the right CV for each application.",

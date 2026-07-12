@@ -62,8 +62,6 @@
     "importCv": "Importera CV",
     "newCv": "Nytt CV",
     "loadErrorTitle": "Kunde inte ladda CV",
-    "matchBarTitle": "Matchning mot ditt CV",
-    "matchBarText": "Ställ in vilka yrken, regioner och anställningsformer du söker. Vi föreslår utifrån ditt CV. Du väljer själv vad som tas med.",
     "emptyKicker": "CV-varianter",
     "emptyTitle": "Inga CV ännu",
     "emptyBody": "Skapa ditt första CV för att komma igång. Du kan ha flera varianter (t.ex. en för ledarskap och en för teknisk roll) och välja rätt CV per ansökan.",

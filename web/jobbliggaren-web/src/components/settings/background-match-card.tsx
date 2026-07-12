@@ -16,8 +16,21 @@ import { Segment, type SegmentOption } from "@/components/ui/segment";
 interface BackgroundMatchCardProps {
   /** Sparat consent-läge från profilen (default OFF, GDPR Art. 6/7). */
   readonly initialEnabled: boolean;
-  /** Sparad digest-kadens (default Weekly; meningsfull endast när enabled). */
-  readonly initialCadence: DigestCadence;
+  /**
+   * Digest-kadensen — KONTROLLERAD av SettingsForm. Kadensen är DELAD med
+   * notiserna om följda företag (ADR 0087 D2) och visas som text i det kortet,
+   * så den kan inte bo lokalt här: ett värde, en ägare (SSOT).
+   */
+  readonly cadence: DigestCadence;
+  /** Rapporterar upp både den optimistiska kadens-ändringen och en revert-vid-fel. */
+  readonly onCadenceChange: (next: DigestCadence) => void;
+  /**
+   * Bevakning F4 (#803): är e-postnotiserna om FÖLJDA FÖRETAG påslagna? Kadensen
+   * driver BÅDA utskicken, så kadens-väljaren måste vara åtkomlig så snart
+   * MINST EN av kanalerna är på. Utan detta kunde en användare som bara slår på
+   * följ-notiser inte välja takt för kanalen hon just slog på.
+   */
+  readonly followEnabled: boolean;
 }
 
 /**
@@ -36,20 +49,30 @@ interface BackgroundMatchCardProps {
  * Kortet äger sin EGEN save (egen action/endpoint `PUT /me/notification-consent`,
  * egen useTransition) — INTE det delade `updateMyProfileAction`-flödet. Toggle
  * och kadens-byte skickar båda HELA `{enabled, cadence}` (idempotent full-
- * replace). Kadens-väljaren är alltid renderad men `disabled` när toggeln är av
- * (det inaktiva läget annonseras av Segment via `aria-disabled`; bättre a11y än
- * att dölja den, och hjälptexten förklarar att den används först när påslaget).
+ * replace).
+ *
+ * Bevakning F4 (#803): kadensen driver NU TVÅ utskick (matchningar + följda
+ * företag, ADR 0087 D2) men kontrollen bor bara här. Därför är väljaren
+ * åtkomlig så snart minst EN av kanalerna är på (`enabled || followEnabled`) —
+ * annars kan en användare som bara slagit på följ-notiser inte välja takten för
+ * kanalen hon just slog på. Att spara kadens medan detta korts flagga är av är
+ * GDPR-säkert: `JobSeeker.UpdateNotificationConsent` stämplar en Art. 7(3)-
+ * withdrawal ENDAST vid övergången på→av, så `{enabled: false, cadence}` skriver
+ * bara kadensen. Väljaren är alltid renderad men `disabled` när BÅDA kanalerna
+ * är av (det inaktiva läget annonseras av Segment via `aria-disabled`; bättre
+ * a11y än att dölja den, och hjälptexten förklarar hur den aktiveras).
  */
 export function BackgroundMatchCard({
   initialEnabled,
-  initialCadence,
+  cadence,
+  onCadenceChange,
+  followEnabled,
 }: BackgroundMatchCardProps) {
   const t = useTranslations("settings");
   const format = useFormatter();
 
   // Optimistisk lokal state som reverteras vid fel — varje ändring sparas direkt.
   const [enabled, setEnabled] = useState<boolean>(initialEnabled);
-  const [cadence, setCadence] = useState<DigestCadence>(initialCadence);
   const [isSaving, startSaving] = useTransition();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -82,10 +105,12 @@ export function BackgroundMatchCard({
     persist({ enabled: nextEnabled, cadence }, () => setEnabled(prevEnabled));
   }
 
-  function onCadenceChange(nextCadence: DigestCadence) {
+  function handleCadenceChange(nextCadence: DigestCadence) {
     const prevCadence = cadence;
-    setCadence(nextCadence);
-    persist({ enabled, cadence: nextCadence }, () => setCadence(prevCadence));
+    onCadenceChange(nextCadence);
+    persist({ enabled, cadence: nextCadence }, () =>
+      onCadenceChange(prevCadence)
+    );
   }
 
   return (
@@ -112,12 +137,12 @@ export function BackgroundMatchCard({
         <Segment
           aria-label={t("backgroundMatch.cadenceLabel")}
           value={cadence}
-          onChange={onCadenceChange}
+          onChange={handleCadenceChange}
           options={cadenceOptions}
-          disabled={!enabled || isSaving}
+          disabled={(!enabled && !followEnabled) || isSaving}
         />
         <p className="jp-settings-field__hint">
-          {enabled
+          {enabled || followEnabled
             ? t("backgroundMatch.cadenceHint")
             : t("backgroundMatch.cadenceHintDisabled")}
         </p>

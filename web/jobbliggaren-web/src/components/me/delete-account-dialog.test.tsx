@@ -5,12 +5,14 @@ import { DeleteAccountDialog } from "./delete-account-dialog";
 import type { ActionResult } from "@/lib/actions/me";
 import type { DeleteMyAccountInput } from "@/lib/actions/me-schemas";
 
+// #822 — the action no longer takes the expected address as an argument: it resolves it
+// from the session server-side (a Server Action argument is client-controlled).
 const deleteAccountActionMock =
-  vi.fn<(input: DeleteMyAccountInput, currentEmail: string) => Promise<ActionResult>>();
+  vi.fn<(input: DeleteMyAccountInput) => Promise<ActionResult>>();
 
 vi.mock("@/lib/actions/me", () => ({
-  deleteAccountAction: (input: DeleteMyAccountInput, currentEmail: string) =>
-    deleteAccountActionMock(input, currentEmail),
+  deleteAccountAction: (input: DeleteMyAccountInput) =>
+    deleteAccountActionMock(input),
 }));
 
 // PR2c-1 — DeleteAccountDialog is now a thin wrapper over the generic
@@ -136,6 +138,29 @@ describe("DeleteAccountDialog", () => {
     ).toBeDisabled();
   });
 
+  // #822 — the typed-confirmation gate must FAIL CLOSED when the expected address is
+  // absent. While GET /api/v1/me returned an empty email, the match degenerated to
+  // "" === "" and the gate INVERTED: an empty field armed the delete, while a user who
+  // typed their address correctly was blocked. The backend now supplies the address;
+  // this pins the safeguard so the inversion cannot return through any future
+  // regression that empties it. An irreversible action never loses its confirmation
+  // (ASVS V6.2.5).
+  it("keeps submit disabled when the expected email is empty, even with an empty field", async () => {
+    const user = userEvent.setup();
+    render(<DeleteAccountDialog currentEmail="" />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Radera konto permanent" })
+    );
+
+    await user.type(screen.getByLabelText("Lösenord"), "S3kret!pass");
+
+    // Confirm-email field left empty — the pre-#822 gate would have armed here.
+    expect(
+      screen.getByRole("button", { name: "Radera mitt konto" })
+    ).toBeDisabled();
+  });
+
   it("matches email case-insensitively (uppercase input)", async () => {
     const user = userEvent.setup();
     render(<DeleteAccountDialog currentEmail="anna@example.se" />);
@@ -172,10 +197,10 @@ describe("DeleteAccountDialog", () => {
     await waitFor(() => {
       expect(deleteAccountActionMock).toHaveBeenCalledTimes(1);
     });
-    expect(deleteAccountActionMock).toHaveBeenCalledWith(
-      { confirmEmail: "anna@example.se", password: "S3kret!pass" },
-      "anna@example.se"
-    );
+    expect(deleteAccountActionMock).toHaveBeenCalledWith({
+      confirmEmail: "anna@example.se",
+      password: "S3kret!pass",
+    });
   });
 
   it("shows server error when action returns { success:false, error }", async () => {

@@ -18,8 +18,6 @@ public sealed class WorkerSystemUser : ICurrentUser
 {
     public Guid? UserId => null;
     public bool IsAuthenticated => false;
-    public string? Jti => null;
-    public string? Email => null;
     public SessionId? SessionId => null;
 
     // System-jobb har inga roller. Admin-only commands får aldrig dispatchas från Worker —

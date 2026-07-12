@@ -23,11 +23,6 @@ public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICur
     public bool IsAuthenticated =>
         Principal?.Identity?.IsAuthenticated == true;
 
-    public string? Jti => Principal?.FindFirstValue(JwtRegisteredClaimNames.Jti);
-
-    public string? Email => Principal?.FindFirstValue(JwtRegisteredClaimNames.Email)
-        ?? Principal?.FindFirstValue(ClaimTypes.Email);
-
     public SessionId? SessionId =>
         httpContextAccessor.HttpContext?.Items["SessionId"] is SessionId sid ? sid : null;
 

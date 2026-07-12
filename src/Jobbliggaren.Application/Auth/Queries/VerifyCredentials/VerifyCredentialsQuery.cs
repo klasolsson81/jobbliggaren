@@ -11,8 +11,11 @@ namespace Jobbliggaren.Application.Auth.Queries.VerifyCredentials;
 /// (Auth.InvalidCredentials).
 ///
 /// Skapad som dedikerad endpoint istället för att återanvända /auth/login
-/// (CTO-triage 2026-05-11 — SRP/ISP). Använder ICurrentUser.Email för att
-/// hämta email från claim, så klienten skickar endast password.
+/// (CTO-triage 2026-05-11 — SRP/ISP). Klienten skickar endast password: adressen
+/// slås upp per userId i identity-storen via IReauthenticationService
+/// (IUserAccountService.GetEmailAsync). (Kommentaren påstod tidigare att den lästes
+/// ur ICurrentUser.Email — den vägen fanns aldrig under opaka sessioner och är
+/// borttagen i #822.)
 /// </summary>
 public sealed record VerifyCredentialsQuery(string? Password)
     : IQuery<Result>, IAuthenticatedRequest;

@@ -7,20 +7,25 @@
 # a silent default.
 #
 # It stands up the real stack — ephemeral Postgres + Redis service containers, the
-# .NET Api (migrated out-of-band via `dotnet ef`), and the Next.js dev server — and
+# .NET Api (migrated out-of-band via `dotnet ef`), and a Next.js PRODUCTION build — and
 # runs every e2e spec in ONE pass with the launch-representative flag ON
 # (Auth__RequireEmailConfirmation=true). The loginAs specs obtain a confirmed user via
 # the dev-only confirmed-login seam (POST /api/v1/dev/confirm-email, #796); auth.spec.ts
 # runs against an unconfirmed user. See docs/runbooks/e2e-ci.md.
 #
-# TRIGGER = workflow_dispatch ONLY (2026-07-12, #813). The pre-existing specs are not yet
-# green (loginAs waited for the wrong post-login URL) and the job hits the 25-min timeout
-# on `pnpm dev` cold-compile, so running on every push/PR only produced a red check +
-# ~25 min of wasted full-stack CI per PR. Kept as manual-dispatch for #813 development;
-# restore the push/pull_request triggers once #813 makes the suite green and fast.
+# The push/pull_request triggers are RESTORED (#813). They were pulled back to
+# workflow_dispatch-only in #814 because the suite was red and slow; both causes are fixed:
+# `loginAs` waited for `**/mig` (login redirects to /oversikt, and /mig has been a 308 to
+# /installningar since ADR 0057), and the frontend now runs a PRODUCTION build, so routes
+# are precompiled instead of cold-compiling on first hit. Measured locally: the full suite
+# runs in ~2 minutes against a prod build, against ~25 min (timeout) on `pnpm dev`.
 name: e2e
 
 on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -28,13 +33,17 @@ permissions:
 
 concurrency:
   group: e2e-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel superseded PR runs (a new push makes the old one moot), but let main runs
+  # finish: main is the ref whose result we actually want recorded, and under parallel
+  # merges a cancel-in-progress there means the observe-only signal is rarely collected
+  # at all (#813 finding — runs were being cancelled before they could complete).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   e2e:
     name: playwright e2e (observe-only)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     continue-on-error: true # observe-only Fas 1 (ADR 0045) — never blocks merge
 
     services:
@@ -164,7 +173,18 @@ jobs:
         working-directory: web/jobbliggaren-web
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Run E2E (Playwright starts the Next dev server)
+      # Build the frontend for PRODUCTION as its own step (#813). `next dev` compiled each
+      # route on first hit, which — with workers:1 and retries:2 — could not finish inside
+      # the job timeout. As an explicit step the compile cost is VISIBLE (it shows up as
+      # its own timing rather than hiding inside the first navigation) and every route is
+      # precompiled before a single spec runs; playwright.config's webServer then serves
+      # it with `pnpm start`. NB: this is a cold build each run — there is no .next/cache
+      # restore wired up. Adding one is a possible later speed-up, not a claim made here.
+      - name: Build web (production)
+        working-directory: web/jobbliggaren-web
+        run: pnpm build
+
+      - name: Run E2E (Playwright serves the production build)
         working-directory: web/jobbliggaren-web
         run: pnpm test:e2e
 

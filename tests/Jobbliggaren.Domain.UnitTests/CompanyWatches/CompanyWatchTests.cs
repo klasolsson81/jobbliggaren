@@ -127,7 +127,7 @@ public class CompanyWatchTests
     // ---------------------------------------------------------------
 
     private static WatchFilterSpec ValidFilter() =>
-        WatchFilterSpec.Create(["kommun_a"], onlyMatched: true).Value;
+        WatchFilterSpec.Create(["kommun_a"], ["lan_a"], onlyMatched: true).Value;
 
     [Fact]
     public void Follow_CreatesWatchWithoutFilter()

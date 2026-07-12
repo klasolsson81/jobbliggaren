@@ -7,14 +7,16 @@ workflow. Companion to [`local-dev-setup.md`](local-dev-setup.md) and
 ## What runs where
 
 - **Workflow:** [`.github/workflows/e2e.yml`](../../.github/workflows/e2e.yml),
-  triggers on `push`/`pull_request` to `main` + `workflow_dispatch`.
+  triggers on `push`/`pull_request` to `main` + `workflow_dispatch`. (They were pulled
+  back to dispatch-only in #814 while the suite was red; #813 restored them.)
 - **Specs:** `web/jobbliggaren-web/tests/e2e/*.spec.ts`
   (`applications`, `cv`, `delete-account`, `jobb`, `security-headers`, `auth`),
   single chromium project, serial (`workers: 1`).
 - **Stack the job assembles:** ephemeral `postgres:18` + `redis:8-alpine` service
   containers → migrations via `dotnet ef database update` → the .NET Api on
-  `:5049` (background, health-waited on `/api/ready`) → the Next.js dev server on
-  `:3000` (started by Playwright's own `webServer`).
+  `:5049` (background, health-waited on `/api/ready`) → a Next.js **production build**
+  served on `:3000` (`pnpm build` as its own step; Playwright's `webServer` runs
+  `pnpm start`).
 
 ## Observe-only — and the ratchet rule
 
@@ -57,17 +59,28 @@ Helper wiring (`tests/e2e/helpers/auth.ts`): the `loginAs` specs seed via
 keeps `ensureTestUser` (register-only, stays unconfirmed) — do **not** fold confirm
 into `ensureTestUser`.
 
-## Frontend: `pnpm dev`, not a prod build
+## Frontend: a production build, not `pnpm dev`
 
-The job runs the frontend via `pnpm dev` (Playwright's `webServer`), matching the
-default config. Reason: `security-headers.spec.ts` asserts **dev-mode** CSP
-directives; a production build (`pnpm build && pnpm start`) flips the CSP mode and
-would break that spec. The `__Host-` session cookie works over `http://localhost`
-because Chromium treats localhost as a secure context. Trade-off: Next dev compiles
-each route on-demand on first hit, so `playwright.config.ts` gives CI extra headroom
-(`timeout: 60s`, `webServer.timeout: 180s`) and `retries: 2` absorbs cold-compile
-flake. If flake proves stubborn, revisit a prod build + a CSP-mode-aware
-`security-headers.spec`.
+CI serves a **production build** (`pnpm build` as an explicit step; the Playwright
+`webServer` then runs `pnpm start`). Locally the default is still `pnpm dev`, and an
+already-running server is reused.
+
+This is the fix for the timeout that made the gate unusable (#813). `next dev` compiles
+each route on demand on first hit; with `workers: 1` and `retries: 2` the suite could not
+finish inside the job timeout. Against a production build every route is precompiled:
+the full suite runs in **~2 minutes** locally, versus ~25 min (timeout) on `pnpm dev`.
+`retries` is accordingly `1` in CI, not `2`.
+
+`security-headers.spec.ts` passes in both modes: it asserts the branch-invariant CSP
+directives, the dev/prod mutual-exclusion invariant (a policy carrying `'unsafe-eval'`/`ws:`
+must NOT also carry `upgrade-insecure-requests`, and vice versa — that catches directive
+leakage ACROSS the branches), and — under `CI`, where the build mode is actually **known** —
+that the served policy is the production branch. The last part matters: the mutual-exclusion
+check is self-referential, so a prod build that accidentally served the whole dev CSP would
+still be internally consistent and pass. Anchoring the mode is what makes it a real guard.
+
+The `__Host-` session cookie works over `http://localhost` because Chromium treats
+localhost as a secure context.
 
 ## Secrets in CI (env-only, never committed)
 
@@ -80,14 +93,30 @@ flake. If flake proves stubborn, revisit a prod build + a CSP-mode-aware
 
 ## Run the suite locally
 
+Do **not** run the suite against the shared dev Postgres (:5435) — another session may own
+the stack (CLAUDE.md §6.5). Stand up an isolated stack on alt ports:
+
 ```bash
-# 1. Stack up (Postgres 5435 / Redis 6379 / Seq) + Api + Worker per local-dev-setup.md
-# 2. Frontend must see the backend:
+# 1. Ephemeral Postgres + Redis (own ports, own containers)
+docker run -d --name jbl-e2e-pg -e POSTGRES_DB=jobbliggaren -e POSTGRES_USER=postgres   -e POSTGRES_PASSWORD=postgres -p 5445:5432 postgres:18
+docker run -d --name jbl-e2e-redis -p 6395:6379 redis:8-alpine
+docker exec jbl-e2e-pg psql -U postgres -d jobbliggaren -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+
+# 2. Migrate, then run the Api in Development with the flag ON + relaxed rate limits
+#    (every spec registers from one IP in a burst -> AuthWrite 429 otherwise), a Local
+#    DEK master key, and throwaway JWT keys. See the workflow's env block for the full set.
+#    NB: `dotnet ef`'s -c is --context, NOT --configuration.
+dotnet ef database update --configuration Release --project src/Jobbliggaren.Infrastructure   --startup-project src/Jobbliggaren.Api --context AppDbContext   # + AppIdentityDbContext
+
+# 3. Frontend: build + serve, then point Playwright at it
 cd web/jobbliggaren-web
-BACKEND_URL=http://localhost:5049 pnpm test:e2e
-# The loginAs specs need the confirmed-login seam, which requires the backend in
-# Development with Auth:RequireEmailConfirmation=true (the dev default).
+BACKEND_URL=http://localhost:5079 pnpm build
+BACKEND_URL=http://localhost:5079 PORT=3055 pnpm start &
+PLAYWRIGHT_BASE_URL=http://localhost:3055 BACKEND_URL=http://localhost:5079 pnpm test:e2e
 ```
+
+Iterate locally, not through CI: a CI cycle is minutes and can be cancelled by a parallel
+merge. Verify a green run on main afterwards with `gh workflow run e2e.yml --ref main`.
 
 ## Triage a red run
 

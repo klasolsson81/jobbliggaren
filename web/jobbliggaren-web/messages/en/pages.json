@@ -53,8 +53,7 @@
       "loadErrorTitle": "Could not load the application",
       "fallbackTitle": "Application #{shortId}",
       "subtitle": "{company} · #{shortId}",
-      "createdSubtitle": "Created {date}",
-      "preservedSubtitle": "{company} · saved copy · #{shortId}"
+      "createdSubtitle": "Created {date}"
     }
   },
   "cv": {
@@ -169,6 +168,14 @@
         "Normal": "Normal",
         "Compact": "Compact"
       },
+      "templateDescriptions": {
+        "Klar": "One column. Name with a thin accent line and uppercase underlined headings.",
+        "Accentlinje": "One column. A coloured bar before each heading and coloured skill groups.",
+        "MorkPanel": "Two columns. The side panel takes the accent colour with white text."
+      },
+      "schematicNote": "The thumbnails show the structure of the template. The finished PDF appears in the preview.",
+      "accentHint": "The accent colour is used in headings and lines in your CV, not in the app.",
+      "densityHint": "Density controls line spacing and margins. The content of the CV is the same.",
       "atsSafeLabel": "Passes ATS review",
       "atsSafeHint": "This template is read cleanly by applicant tracking systems (ATS): a single column, plain text.",
       "atsUnsafeLabel": "Designed for reading",

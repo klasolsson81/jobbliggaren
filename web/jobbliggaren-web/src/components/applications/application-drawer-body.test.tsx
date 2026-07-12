@@ -32,10 +32,13 @@ function makeDetail(
       jobAdId: "ad-1",
       title: "Backend-utvecklare",
       company: "Volvo",
-      url: null,
+      url: "https://example.com/ad",
       source: "Platsbanken",
       publishedAt: null,
       expiresAt: null,
+      // #805-3: en JobAd-länkad ansökan bär alltid en status; "Active" är
+      // prod-normalfallet (annonsen ligger uppe hos källan).
+      status: "Active",
     },
     coverLetter: null,
     followUps: [],
@@ -206,22 +209,38 @@ describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
     expect(screen.getByText("+ Lägg till anteckning")).toBeInTheDocument();
   });
 
-  it("shows the preserved-ad panel ONLY as a fallback when the live ad is gone", () => {
+  // #805-3: the drawer and the full page share ONE guard (SourceAdSection), so
+  // this pins that the shared component is actually wired in here too — the two
+  // surfaces cannot drift apart on what the application may claim about the ad.
+  //
+  // Truth-correction: the archived case used to be triggered with `jobAd: null`,
+  // a state production never reaches (JobAd.DeletedAt has no writer, #821) — so
+  // this test was green while the panel never rendered for a real user. It now
+  // triggers on the field production actually writes: `jobAd.status`.
+  it("shows the preserved-ad panel ONLY when the source ad is no longer active", () => {
     const { rerender } = render(
       <ApplicationDrawerBody
         application={makeDetail({ preservedAd: snapshot })}
         now={NOW}
       />,
     );
-    // Live ad present → no preserved panel.
+    // Ad is live → out-link to the source, no preserved panel.
     expect(
       screen.queryByText("Om annonsen (sparad kopia)"),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: "Visa annonsen hos Platsbanken (öppnas i ny flik)",
+      }),
+    ).toHaveAttribute("href", "https://example.com/ad");
 
-    // Live ad archived → preserved panel is the fallback.
+    // Ad archived → no link (it would be dead), preserved copy instead.
     rerender(
       <ApplicationDrawerBody
-        application={makeDetail({ jobAd: null, preservedAd: snapshot })}
+        application={makeDetail({
+          jobAd: { ...makeDetail().jobAd!, status: "Archived" },
+          preservedAd: snapshot,
+        })}
         now={NOW}
       />,
     );
@@ -229,5 +248,32 @@ describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
       screen.getByText("Om annonsen (sparad kopia)"),
     ).toBeInTheDocument();
     expect(screen.getByText("Stockholm")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
+  });
+
+  // The drawer's OWN new code in #805-3 is the `application.jobAd ?? null`
+  // normalisation (the schema is .nullable().optional()). A cover-letter-only
+  // application has no ad row at all — the drawer must hand `null` to the guard
+  // and render no ad surface, rather than crash on an undefined. The guard's own
+  // branch matrix is exhausted in source-ad-section.test.tsx; this pins the
+  // wiring of the one case the drawer previously never constructed.
+  it("renders no source-ad surface when the application has no ad row at all", () => {
+    render(
+      <ApplicationDrawerBody
+        application={makeDetail({
+          jobAd: null,
+          jobAdId: null,
+          preservedAd: null,
+        })}
+        now={NOW}
+      />,
+    );
+    expect(screen.queryByText("Om annonsen")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Om annonsen (sparad kopia)"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
+    // The rest of the drawer still renders (the guard degrades, it does not gate).
+    expect(screen.getByText("Status")).toBeInTheDocument();
   });
 });

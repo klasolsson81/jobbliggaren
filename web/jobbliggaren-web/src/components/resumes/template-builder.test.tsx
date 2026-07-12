@@ -357,19 +357,309 @@ describe("<TemplateBuilder /> (Fas 4b PR-8b 8b.3 — mallbyggare)", () => {
     ).toBeInTheDocument();
   });
 
-  it("ATS-etikettens StatusDot-ton: success för ATS-säker, neutral (INTE warning) för icke-ATS-säker (ruling B)", async () => {
+  // #820: ATS-utfallet bärs numera av en framträdande StatusPill i stället för en
+  // StatusDot. KLASS-namnen ändras, men KONTRAKTET är ruling B — icke-ATS-säker är
+  // NEUTRAL, aldrig warning (en mall optimerad för mänskliga läsare är ett giltigt
+  // val; amber skulle uppfinna en fara). Det är den assertionen som är testets syfte.
+  it("ATS-utfallets pill-ton: success för ATS-säker, neutral (INTE warning) för icke-ATS-säker (ruling B)", async () => {
     const user = userEvent.setup();
     renderBuilder();
     await screen.findByTitle("Förhandsvisning av CV");
 
     // Klar (atsSafe: true) → success-ton + text-flip.
-    const safeDot = screen.getByText("Klarar ATS-granskning");
-    expect(safeDot).toHaveClass("jp-statusDot--success");
+    const safePill = screen.getByText("Klarar ATS-granskning");
+    expect(safePill).toHaveClass("jp-pill--success");
 
     // Mörk panel (MorkPanel, atsSafe: false) → NEUTRAL (ärligt neutral, aldrig warning).
     await user.click(screen.getByRole("radio", { name: "Mörk panel" }));
-    const neutralDot = screen.getByText("Utformad för läsning");
-    expect(neutralDot).toHaveClass("jp-statusDot--neutral");
-    expect(neutralDot).not.toHaveClass("jp-statusDot--warning");
+    const neutralPill = screen.getByText("Utformad för läsning");
+    expect(neutralPill).toHaveClass("jp-pill--neutral");
+    expect(neutralPill).not.toHaveClass("jp-pill--warning");
+  });
+
+  // ---------------------------------------------------------------------------
+  // #820 — UI-upplyftets egna kontrakt (kort, swatchar, segment, schematik).
+  // ---------------------------------------------------------------------------
+
+  it("mallkorten är riktiga radioknappar med aria-checked (inte klickbara divar)", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    const klar = screen.getByRole("radio", { name: "Klar" });
+    const mork = screen.getByRole("radio", { name: "Mörk panel" });
+    expect(klar).toHaveAttribute("aria-checked", "true");
+    expect(mork).toHaveAttribute("aria-checked", "false");
+
+    await user.click(mork);
+    expect(screen.getByRole("radio", { name: "Mörk panel" })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.getByRole("radio", { name: "Klar" })).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
+  });
+
+  it("kortets beskrivning ligger i aria-describedby, inte i det tillgängliga namnet", async () => {
+    renderBuilder();
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    // Namnet får INTE svälla med beskrivningen (annars blir radion oadresserbar).
+    const klar = screen.getByRole("radio", { name: "Klar" });
+    const descId = klar.getAttribute("aria-describedby");
+    expect(descId).toBeTruthy();
+
+    const desc = document.getElementById(descId as string);
+    expect(desc).toHaveTextContent(
+      "En spalt. Namn med tunn accentlinje och versala, understrukna rubriker."
+    );
+  });
+
+  it("schematiken bär den VALDA accentens katalog-hex via CSS-variabeln (aldrig FE-härledd)", async () => {
+    const user = userEvent.setup();
+
+    // SENTINEL-hexar, INTE palettens riktiga. Poängen med testet är PROVENIENS: en dev
+    // som hårdkodar en FE-färgkarta (`const HEX = { NavyBlue: "#1E3A5F", ... }`) — exakt
+    // den P5-överträdelse testet finns för att stoppa — skulle passera grönt mot en
+    // fixtur som råkar bära de äkta värdena. Med påhittade hexar kan bara katalogen
+    // producera dem.
+    const sentinelCatalog: TemplateCatalogDto = {
+      ...catalog,
+      accents: [
+        { name: "NavyBlue", hex: "#AB12CD" },
+        { name: "ForestGreen", hex: "#12CD34" },
+        { name: "WineRed", hex: "#CD3412" },
+        { name: "Graphite", hex: "#345678" },
+      ],
+    };
+
+    render(
+      <TemplateBuilder
+        resumeId={RESUME_ID}
+        initialOptions={initialOptions}
+        catalog={sentinelCatalog}
+      />
+    );
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    // Kortgruppen (radiogroup "Mall") bär datakanalen som schematikens fills läser.
+    const grid = screen.getByRole("radiogroup", { name: "Mall" });
+    expect(grid.getAttribute("style")).toContain("--jp-mallcard-accent: #AB12CD");
+
+    // Swatch-pricken målas ur SAMMA källa → de två kan aldrig visa olika färg.
+    // (jsdom normaliserar background-color till rgb(); #AB12CD = rgb(171, 18, 205).)
+    const dot = screen
+      .getByRole("radio", { name: "Marinblå" })
+      .querySelector(".jp-swatch__dot");
+    expect(dot?.getAttribute("style")).toContain("rgb(171, 18, 205)");
+
+    // Byt accent → variabeln följer katalogens hex, inte en FE-lista.
+    await user.click(screen.getByRole("radio", { name: "Skogsgrön" }));
+    expect(
+      screen.getByRole("radiogroup", { name: "Mall" }).getAttribute("style")
+    ).toContain("--jp-mallcard-accent: #12CD34");
+  });
+
+  it("INGEN auto-render vid valändring — bara det explicita Uppdatera-klicket kostar en render", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    // Efter första paint (den PERSISTERADE renderingen) ska exakt ett anrop ha skett.
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    expect(fetchMock.mock.calls).toHaveLength(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/preview?profile=Visual");
+
+    // Varje efemär render kostar en DEK-dekryptering + en QuestPDF-render bakom en
+    // rate limit. Att byta mall/accent/täthet får INTE trigga någon av dem.
+    await user.click(screen.getByRole("radio", { name: "Mörk panel" }));
+    await user.click(screen.getByRole("radio", { name: "Vinröd" }));
+    await user.click(screen.getByRole("radio", { name: "Kompakt" }));
+
+    expect(fetchMock.mock.calls).toHaveLength(1);
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes("/render/preview"))
+    ).toBe(false);
+
+    // Först knappen kostar något.
+    await user.click(
+      screen.getByRole("button", { name: "Uppdatera förhandsvisning" })
+    );
+    await waitFor(() => expect(fetchMock.mock.calls).toHaveLength(2));
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/render/preview");
+  });
+
+  it("object-URL:er revokeras: den gamla släpps vid ny render, och den sista vid unmount", async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderBuilder();
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    const revoke = URL.revokeObjectURL as ReturnType<typeof vi.fn>;
+    expect(revoke).not.toHaveBeenCalled();
+
+    // En ny render ersätter den gamla blobben → den gamla MÅSTE släppas.
+    await user.click(
+      screen.getByRole("button", { name: "Uppdatera förhandsvisning" })
+    );
+    await waitFor(() => expect(revoke).toHaveBeenCalled());
+
+    // Och den sista släpps när ön lämnar DOM:en. Utan detta läcker en sida vars hela
+    // syfte är upprepade PDF-renders en blob per klick.
+    revoke.mockClear();
+    unmount();
+    expect(revoke).toHaveBeenCalled();
+  });
+
+  it("snabb mount→unmount hinner inte spendera en render (första paint är macrotask-schemalagd)", async () => {
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    const { unmount } = renderBuilder();
+
+    // Effekten schemalägger hämtningen på setTimeout(0) och rensar den i sin cleanup.
+    // Lämnar användaren sidan direkt kostar besöket NOLL renders.
+    unmount();
+
+    // Assertionen MÅSTE ligga efter macrotasken. Görs den synkront är den vakuös: fetch
+    // kan omöjligt ha hunnit anropas ändå, och testet blir grönt även om clearTimeout
+    // raderas ur cleanupen — dvs det skyddar då ingenting.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fetchMock.mock.calls).toHaveLength(0);
+  });
+
+  it.each([
+    ["Mall", "Mörk panel"],
+    ["Accentfärg", "Skogsgrön"],
+    ["Täthet", "Kompakt"],
+  ])(
+    "spara-kvittot försvinner när %s ändras — det gäller inte längre det nya valet",
+    async (_group, option) => {
+      const user = userEvent.setup();
+      renderBuilder();
+      await screen.findByTitle("Förhandsvisning av CV");
+
+      await user.click(screen.getByRole("button", { name: "Spara mall" }));
+      expect(await screen.findByText("Mallen sparad.")).toBeInTheDocument();
+
+      // Ett kvitto som ljuger är värre än inget kvitto.
+      await user.click(screen.getByRole("radio", { name: option }));
+      expect(screen.queryByText("Mallen sparad.")).not.toBeInTheDocument();
+    }
+  );
+
+  it("ett valbyte UNDER en pågående Spara får inte kvitteras när skrivningen landar", async () => {
+    const user = userEvent.setup();
+
+    // Håll Server Action:en i luften tills vi bestämmer oss.
+    let resolveSave: (value: ActionResult) => void = () => {};
+    updateTemplateOptionsMock.mockImplementation(
+      () =>
+        new Promise<ActionResult>((resolve) => {
+          resolveSave = resolve;
+        })
+    );
+
+    renderBuilder();
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    const saveButton = screen.getByRole("button", { name: "Spara mall" });
+    await user.click(saveButton);
+    // Knappen är disabled så länge transitionen pågår — vår hållpunkt.
+    await waitFor(() => expect(saveButton).toBeDisabled());
+
+    // Användaren hinner byta mall medan skrivningen är i luften.
+    await user.click(screen.getByRole("radio", { name: "Mörk panel" }));
+
+    resolveSave({ success: true });
+
+    // POSITIV KONTROLL: vänta tills transitionen FAKTISKT landat (knappen återaktiveras
+    // först då). Utan den vore den negativa assertionen nedan vakuös — den skulle
+    // utvärderas innan transitionens fortsättning kört, och därmed vara grön även om
+    // grinden i handleSave togs bort.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Spara mall" })).toBeEnabled()
+    );
+
+    // Kvittot gällde det GAMLA valet. Skulle det dyka upp nu stod "Mallen sparad."
+    // bredvid en mall som aldrig sparades.
+    expect(screen.queryByText("Mallen sparad.")).not.toBeInTheDocument();
+  });
+
+  it("ett sparFEL ytas även om användaren hunnit byta val — frånvaro av fel läses som framgång", async () => {
+    const user = userEvent.setup();
+
+    let resolveSave: (value: ActionResult) => void = () => {};
+    updateTemplateOptionsMock.mockImplementation(
+      () =>
+        new Promise<ActionResult>((resolve) => {
+          resolveSave = resolve;
+        })
+    );
+
+    renderBuilder();
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    const saveButton = screen.getByRole("button", { name: "Spara mall" });
+    await user.click(saveButton);
+    await waitFor(() => expect(saveButton).toBeDisabled());
+
+    await user.click(screen.getByRole("radio", { name: "Mörk panel" }));
+
+    // Skrivningen avvisas. Ett fel är ett påstående om SKRIVNINGEN, inte om valet — det
+    // ska ytas oavsett vad som råkar vara valt när svaret landar (fail-loud).
+    resolveSave({ success: false, error: "Kunde inte spara mallen." });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Kunde inte spara mallen."
+    );
+  });
+
+  it("täthet renderas som segmented control med radio-semantik", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    const kompakt = screen.getByRole("radio", { name: "Kompakt" });
+    expect(kompakt).toHaveAttribute("aria-checked", "false");
+
+    await user.click(kompakt);
+    expect(screen.getByRole("radio", { name: "Kompakt" })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+  });
+
+  it("exakt en primärknapp på sidan (ADR 0038) och det är Spara mall", async () => {
+    const { container } = renderBuilder();
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    const primaries = container.querySelectorAll(".jp-btn--primary");
+    expect(primaries).toHaveLength(1);
+    expect(primaries[0]).toHaveTextContent("Spara mall");
+  });
+
+  it("okänd katalogmall får varken beskrivning eller accentfärgad schematik", async () => {
+    const catalogWithUnknown: TemplateCatalogDto = {
+      ...catalog,
+      templates: [...catalog.templates, { name: "FramtidaMall", atsSafe: true }],
+    };
+
+    render(
+      <TemplateBuilder
+        resumeId={RESUME_ID}
+        initialOptions={initialOptions}
+        catalog={catalogWithUnknown}
+      />
+    );
+    await screen.findByTitle("Förhandsvisning av CV");
+
+    // FramtidaMall saknar både etikett och beskrivning → inget påhittat.
+    const framtida = screen.getByRole("radio", { name: "FramtidaMall" });
+    expect(framtida).not.toHaveAttribute("aria-describedby");
+
+    // Fail-safe: en oklassificerad mall gör INGET färgpåstående (noll accent-element).
+    const svg = framtida.querySelector("svg");
+    expect(svg).not.toBeNull();
+    expect(svg?.querySelectorAll(".jp-schem__accent")).toHaveLength(0);
   });
 });

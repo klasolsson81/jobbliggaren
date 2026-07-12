@@ -145,9 +145,12 @@ public sealed partial class CompanyWatchScanJob(
         // CreatedAt > since catches EVERY ad ingested since the last scan). The org.nr IN-membership
         // uses the STORED generated shadow column (EF.Property — the same translation-safe pattern
         // as the D6 employer filter; org.nr on job_ads is a plain string, not a VO). Project the id +
-        // its org.nr (to map back to the originating watch client-side, no join) + its municipality
-        // (for the per-watch ort filter — RF-3=3D: the ort check is CLIENT-SIDE per (ad, watch) pair,
-        // keeping the SQL a pure set-membership query; the D5 seal EXTENDED, still scorer-/profile-free).
+        // its org.nr (to map back to the originating watch client-side, no join) + BOTH its geo
+        // axes (for the per-watch ort filter — RF-3=3D: the ort check is CLIENT-SIDE per (ad, watch)
+        // pair, keeping the SQL a pure set-membership query; the D5 seal EXTENDED, still scorer-/
+        // profile-free). Both axes are STORED generated columns, and both are needed: an ad may be
+        // tagged at län granularity with NO municipality, and a whole-län filter must still admit it
+        // (F4a / CTO Q3=B — the union semantics the rest of the house already uses).
         var newAds = await db.JobAds
             .AsNoTracking()
             .Where(j => j.Status == JobAdStatus.Active
@@ -158,6 +161,7 @@ public sealed partial class CompanyWatchScanJob(
                 j.Id,
                 OrgNr = EF.Property<string?>(j, "OrganizationNumber"),
                 Municipality = EF.Property<string?>(j, "MunicipalityConceptId"),
+                Region = EF.Property<string?>(j, "RegionConceptId"),
             })
             .ToListAsync(ct);
 
@@ -184,11 +188,14 @@ public sealed partial class CompanyWatchScanJob(
                     continue;
 
                 // Per-watch ort filter (RF-3=3D scan-time / RF-8=8A never-created): an active ort
-                // filter admits only ads in its municipalities — a filtered-out ad produces NO hit
-                // row (data minimization). An ad without a municipality (län-only) never passes an
-                // active ort filter (the VO's AdmitsMunicipality semantics). No filter → all pass.
-                if (watch.Filter is { } filter && !filter.AdmitsMunicipality(ad.Municipality))
+                // filter admits an ad whose municipality OR whose region is selected — a filtered-out
+                // ad produces NO hit row (data minimization). An ad tagged with NEITHER axis never
+                // passes an active ort filter (the VO's AdmitsLocation semantics). No filter → all pass.
+                if (watch.Filter is { } filter
+                    && !filter.AdmitsLocation(ad.Municipality, ad.Region))
+                {
                     continue;
+                }
 
                 if (existing.Contains((ad.Id, watch.Id)))
                     continue;

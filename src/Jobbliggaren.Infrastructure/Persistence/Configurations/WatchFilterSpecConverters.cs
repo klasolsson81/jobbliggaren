@@ -27,6 +27,10 @@ internal sealed class WatchFilterSpecJsonConverter : JsonConverter<WatchFilterSp
             throw new JsonException("WatchFilterSpec-jsonb måste vara ett objekt.");
 
         List<string> municipalities = [];
+        // A row written before F4a has NO "Regions" key — it reads back as an empty
+        // region axis, which is exactly what it meant (kommun-only filter). The
+        // backward direction is pinned by a Testcontainers back-compat test.
+        List<string> regions = [];
         var onlyMatched = false;
 
         while (reader.Read())
@@ -43,6 +47,9 @@ internal sealed class WatchFilterSpecJsonConverter : JsonConverter<WatchFilterSp
             {
                 case "Municipalities":
                     municipalities = ReadStringOrStringArray(ref reader, "Municipalities");
+                    break;
+                case "Regions":
+                    regions = ReadStringOrStringArray(ref reader, "Regions");
                     break;
                 case "OnlyMatched":
                     onlyMatched = reader.TokenType switch
@@ -67,7 +74,7 @@ internal sealed class WatchFilterSpecJsonConverter : JsonConverter<WatchFilterSp
         // Re-validate via the Domain factory (single source of invariants + normalization).
         // Stored data was valid at write time; a stored spec that no longer satisfies the
         // invariants (e.g. an empty spec — which Create forbids) fails loud, never silently.
-        var result = WatchFilterSpec.Create(municipalities, onlyMatched);
+        var result = WatchFilterSpec.Create(municipalities, regions, onlyMatched);
         if (result.IsFailure)
             throw new JsonException(
                 $"Lagrad WatchFilterSpec-jsonb bröt domän-invariant: {result.Error.Code}.");
@@ -78,13 +85,20 @@ internal sealed class WatchFilterSpecJsonConverter : JsonConverter<WatchFilterSp
         Utf8JsonWriter writer, WatchFilterSpec value, JsonSerializerOptions options)
     {
         // Always array form + PascalCase (= VO property names = jsonb-key contract).
-        // OnlyMatched is always written explicitly for a deterministic canonical form.
+        // Both geo axes and OnlyMatched are always written explicitly, even when empty,
+        // for a deterministic canonical form.
         writer.WriteStartObject();
 
         writer.WritePropertyName("Municipalities");
         writer.WriteStartArray();
         foreach (var m in value.Municipalities)
             writer.WriteStringValue(m);
+        writer.WriteEndArray();
+
+        writer.WritePropertyName("Regions");
+        writer.WriteStartArray();
+        foreach (var r in value.Regions)
+            writer.WriteStringValue(r);
         writer.WriteEndArray();
 
         writer.WriteBoolean("OnlyMatched", value.OnlyMatched);

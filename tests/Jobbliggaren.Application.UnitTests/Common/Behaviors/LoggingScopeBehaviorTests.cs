@@ -26,8 +26,8 @@ public class LoggingScopeBehaviorTests
         var userId = Guid.NewGuid();
         _correlationIdProvider.Current.Returns(correlationId);
         _currentUser.UserId.Returns(userId);
-        // Email exists on the port but must NEVER be scoped (security-auditor STEG 6).
-        _currentUser.Email.Returns("klas@example.com");
+        // PII must NEVER be scoped (security-auditor STEG 6). The port no longer even
+        // exposes Email (#822) — the exact-key assertion below is the standing guard.
 
         Dictionary<string, object?>? captured = null;
         _logger.BeginScope(Arg.Do<Dictionary<string, object?>>(d => captured = d))
@@ -42,8 +42,6 @@ public class LoggingScopeBehaviorTests
         captured["CorrelationId"].ShouldBe(correlationId);
         captured["UserId"].ShouldBe(userId);
         captured["OperationType"].ShouldBe(nameof(TestCommand));
-        // No PII (email) leaks into the scope that ships to the persistent sink.
-        captured.Values.ShouldNotContain("klas@example.com");
     }
 
     [Fact]

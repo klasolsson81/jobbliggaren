@@ -12,9 +12,11 @@ import { updateMyProfileAction } from "@/lib/actions/me";
 import type { JobSeekerProfileDto } from "@/lib/types/me";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import type { SkillGroup } from "@/lib/dto/skills";
+import type { DigestCadence } from "@/lib/dto/me";
 import { PersonalInfoCard } from "./personal-info-card";
 import { DisplayCard } from "./display-card";
 import { BackgroundMatchCard } from "./background-match-card";
+import { FollowedCompanyNotificationsCard } from "./followed-company-notifications-card";
 import { MatchPreferencesCard } from "./match-preferences-card";
 import { ChangeEmailCard } from "./change-email-card";
 import { ChangePasswordCard } from "./change-password-card";
@@ -83,6 +85,20 @@ export function SettingsForm({
   const [isPending, startTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Bevakning F4 (#803): de två notis-kortens DELADE tillstånd bor här, inte i
+   * korten. Kadensen driver båda utskicken (ADR 0087 D2) och följ-flaggan avgör
+   * om kadens-väljaren är åtkomlig — så båda värdena har två läsare och därmed
+   * exakt EN ägare (SSOT). Varje kort behåller sin EGEN save/endpoint; det är
+   * bara sanningen som är delad, aldrig skrivvägen.
+   */
+  const [cadence, setCadence] = useState<DigestCadence>(
+    initialProfile.digestCadence === "Daily" ? "Daily" : "Weekly",
+  );
+  const [followEnabled, setFollowEnabled] = useState<boolean>(
+    initialProfile.followedCompanyNotificationsEnabled,
+  );
 
   function buildPayload(
     overrides: Partial<UpdateMyProfileInput> = {},
@@ -185,12 +201,26 @@ export function SettingsForm({
         {/* ADR 0080 Vag 4 PR-6: bakgrundsmatchnings-notiser (opt-in + kadens).
             Äger sin EGEN action/endpoint (PUT /me/notification-consent) — INTE
             det delade applyChange/updateMyProfile-flödet — så ett consent-spar
-            aldrig blandas med profil-skrivet. Pre-fyller från profilen. */}
+            aldrig blandas med profil-skrivet. Pre-fyller från profilen.
+            Bevakning F4: kadensen är delad (D2) → kontrollerad härifrån, och
+            väljaren öppnas så snart någon av de två kanalerna är på. */}
         <BackgroundMatchCard
           initialEnabled={initialProfile.backgroundMatchNotificationsEnabled}
-          initialCadence={
-            initialProfile.digestCadence === "Daily" ? "Daily" : "Weekly"
-          }
+          cadence={cadence}
+          onCadenceChange={setCadence}
+          followEnabled={followEnabled}
+        />
+        {/* Bevakning F4 (#803, RF-12=12C): notiser om följda företag. Den
+            kanoniska Art. 7(3)-withdrawal-ytan för E-POST-kanalen (in-app-rälen
+            går oavsett — 6(1)(b) efter 7C). Egen action/endpoint
+            (PUT /me/followed-company-notification-consent). Placerad direkt
+            efter matchnings-kortet: de två delar kadens, och adjacensen är vad
+            som gör kadens-hänvisningen hittbar även när gridden kollapsar till
+            en kolumn. INGEN kadens-kontroll här (ett värde, en kontroll). */}
+        <FollowedCompanyNotificationsCard
+          enabled={followEnabled}
+          onEnabledChange={setFollowEnabled}
+          cadence={cadence}
         />
         {/* #679 — self-service change-email (request step). Owns its own
             action/endpoint (POST /auth/change-email), not the shared

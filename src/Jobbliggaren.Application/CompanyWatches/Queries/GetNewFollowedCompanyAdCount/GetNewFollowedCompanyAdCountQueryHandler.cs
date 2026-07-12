@@ -32,7 +32,7 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.GetNewFollowedCompanyA
 /// </para>
 /// <para>
 /// <b>Hot-path shape (branch-on-need, ADR 0045):</b> when NO active watch has an OnlyMatched filter
-/// (the common path, and the ONLY path until F4 ships the filter-set UI), the count is a pure SQL
+/// (the common path — reachable since F4a shipped the filter-set write path), the count is a pure SQL
 /// <c>COUNT</c> over the hit↔active-watch join — no row materialization, no unpaginated fetch (§5).
 /// Only when an OnlyMatched watch contributes do we materialize the (per-user-bounded) new hits to
 /// grade-filter them (parity the dispatch loading its pending set). An unfollowed watch's hit is
@@ -97,7 +97,7 @@ public sealed class GetNewFollowedCompanyAdCountQueryHandler(
 
         if (gradeWatchIds.Count == 0)
         {
-            // Common path (no OnlyMatched watch — the ONLY path until F4 ships the filter-set UI):
+            // Common path (no OnlyMatched watch):
             // a pure SQL COUNT over the join, no row materialization.
             var commonCount = await newHitsBase.CountAsync(cancellationToken);
             return new NewFollowedCompanyAdCountDto(commonCount);

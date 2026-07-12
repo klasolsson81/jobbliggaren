@@ -58,10 +58,17 @@ public sealed class GetActivityReportQueryHandler(
             return new ActivityReportDto(year, month, []);
 
         // ADR 0048: EN LEFT JOIN job_ads via GroupJoin/DefaultIfEmpty FÖRE
-        // materialisering. JobAd:s globala query-filter (DeletedAt == null) ärvs
-        // → soft-deletad JobAd ger j == null → ingen metadata (önskat; vi visar
-        // inte detaljer för en annons användaren inte längre får se).
-        // IgnoreQueryFilters / manuellt DeletedAt-predikat FÖRBJUDET (ADR 0048 c).
+        // materialisering. IgnoreQueryFilters / manuellt DeletedAt-predikat
+        // FÖRBJUDET (ADR 0048 c).
+        //
+        // #805-3 sanningssynk: j == null betyder att ansökan saknar ANNONSRAD
+        // (manuell eller enbart brev) — INTE att annonsen är tillbakadragen. Den
+        // gamla utsagan ("soft-deletad JobAd ger j == null") var falsk: JobAd.DeletedAt
+        // saknar writer, så det globala filtret exkluderar aldrig en rad (#821). En
+        // tillbakadragen annons ARKIVERAS (Status = "Archived") och joinar fortfarande
+        // → metadatan visas. Det är rimligt här (användaren sökte ju jobbet), men
+        // observera att samma falska premiss bär en DPIA-utsaga på employer-
+        // attributions-vägarna → #824.
         var rows = await db.Applications
             .AsNoTracking()
             .Where(a => a.JobSeekerId == jobSeekerId
@@ -77,8 +84,10 @@ public sealed class GetActivityReportQueryHandler(
                 j,
                 // "Ort"-källa: kommun-concept-id är en shadow-prop (ACL, ADR
                 // 0043/0067 — ingen Domain-koppling till JobTech-taxonomin),
-                // härledd STORED ur raw_payload. Manuell ansökan + soft-deletad
-                // annons → j == null → ingen ort.
+                // härledd STORED ur raw_payload. Ingen annonsrad (manuell/enbart
+                // brev) → j == null → ingen ort. (#805-3: en ARKIVERAD annons
+                // joinar fortfarande och bär sin ort — den gamla "soft-deletad"-
+                // utsagan var falsk, #821.)
                 MunicipalityConceptId =
                     j != null ? EF.Property<string?>(j, "MunicipalityConceptId") : null
             })

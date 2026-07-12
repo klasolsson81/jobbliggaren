@@ -6,10 +6,13 @@ import { test, expect, type Page } from "@playwright/test";
 // edit could keep the module correct yet drop the headers() wiring; this catches
 // that. No backend/auth needed — both routes are public.
 //
-// Runs against `pnpm dev` (see playwright.config.ts webServer), so it asserts the
-// branch-invariant directives, not the production-only `upgrade-insecure-requests`
-// (that + the exact prod policy are covered by the unit contract test and the
-// production-build rendered-verify). Not yet CI-wired — rides #574.
+// Mode-agnostic by construction: CI serves a production build and local runs serve
+// `pnpm dev` (playwright.config.ts webServer), so the shared assertions cover only the
+// branch-invariant directives. The dev/prod difference is then asserted as an
+// INVARIANT rather than assumed (#813): a policy carrying the dev relaxations must not
+// also carry the production-only `upgrade-insecure-requests`, and vice versa. That
+// catches a mode mixup — e.g. a prod deploy that accidentally ships the dev CSP —
+// which a purely branch-invariant spec would wave through.
 
 async function headersFor(page: Page, path: string): Promise<Record<string, string>> {
   const res = await page.goto(path);
@@ -50,5 +53,33 @@ for (const path of ["/", "/logga-in"]) {
     expect(csp).toMatch(/script-src 'self' 'unsafe-inline'/);
     // connect-src stays same-origin (dev appends ws: for HMR).
     expect(csp).toMatch(/connect-src 'self'/);
+
+    // Mode consistency (#813): the two CSP branches are mutually exclusive. Whichever
+    // build served this response, its relaxations and its hardening must belong to the
+    // SAME branch — directive leakage across the branches (say `'unsafe-eval'`
+    // unconditionally, or `ws:` without the isDev gate) fails here.
+    const isDevPolicy = csp!.includes("'unsafe-eval'");
+
+    // Anchor the mode where it is actually KNOWN. The consistency check above is
+    // self-referential — it validates whatever policy was served against itself, so a
+    // production build that accidentally shipped the whole dev CSP would still be
+    // internally consistent and pass. CI serves `pnpm start` (a production build), so
+    // there the expected branch is not a guess: assert it. That is what turns this from
+    // "the policy is coherent" into "the policy is the RIGHT one for this build".
+    if (process.env.CI) {
+      expect(isDevPolicy, "CI serves a production build — the CSP must be the prod branch")
+        .toBe(false);
+    }
+    if (isDevPolicy) {
+      expect(csp, "dev CSP appends the HMR websocket").toContain("connect-src 'self' ws:");
+      expect(csp, "dev CSP must NOT carry upgrade-insecure-requests").not.toContain(
+        "upgrade-insecure-requests"
+      );
+    } else {
+      expect(csp, "prod CSP upgrades insecure requests").toContain(
+        "upgrade-insecure-requests"
+      );
+      expect(csp, "prod CSP must NOT allow ws:").not.toContain("ws:");
+    }
   });
 }

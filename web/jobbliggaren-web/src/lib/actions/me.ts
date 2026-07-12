@@ -5,12 +5,16 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import {
   deleteSessionCookie,
+  getServerSession,
   getSessionId,
   setSessionCookie,
 } from "@/lib/auth/session";
 import { authedFetch } from "@/lib/http/authed-fetch";
 import { readProblemTitle } from "@/lib/http/problem";
-import { updateNotificationConsent } from "@/lib/api/me";
+import {
+  updateFollowedCompanyNotificationConsent,
+  updateNotificationConsent,
+} from "@/lib/api/me";
 import {
   makeChangePasswordSchema,
   makeChangeEmailSchema,
@@ -20,6 +24,8 @@ import {
   type UpdateMyProfileInput,
   makeUpdateNotificationConsentSchema,
   type UpdateNotificationConsentInput,
+  makeUpdateFollowedCompanyNotificationConsentSchema,
+  type UpdateFollowedCompanyNotificationConsentInput,
 } from "./me-schemas";
 import { mapActionError } from "./_action-error";
 import type { ActionResult } from "./_action-result";
@@ -121,6 +127,57 @@ export async function updateNotificationConsentAction(
 }
 
 /**
+ * Bevakning F4 (#803, CTO RF-12=12C) — sets consent for the followed-company
+ * email digest. The canonical GDPR Art. 7(3) withdrawal surface for that
+ * channel: opting in is consent (Art. 6(1)(a)/7), switching it off withdraws it.
+ * The Domain owns the consent stamping; this action is pure transport.
+ *
+ * Carries ONLY `{ enabled }` — the digest cadence is SHARED with the
+ * background-match notifications (ADR 0087 D2) and is written by
+ * `updateNotificationConsentAction`. After 7C the in-app follow-rail is
+ * unaffected by this flag (Art. 6(1)(b) service); this gates the EMAIL channel
+ * only. Revalidates `/installningar` so the card mirrors the saved state.
+ */
+export async function updateFollowedCompanyNotificationConsentAction(
+  input: UpdateFollowedCompanyNotificationConsentInput
+): Promise<ActionResult> {
+  const ts = await getTranslations("settings");
+  const t = await getTranslations("validation");
+  const parsed =
+    makeUpdateFollowedCompanyNotificationConsentSchema(t).safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error:
+        parsed.error.issues[0]?.message ??
+        ts("followedCompanyNotifications.errors.invalidInput"),
+    };
+  }
+
+  const result = await updateFollowedCompanyNotificationConsent(parsed.data);
+  switch (result.kind) {
+    case "ok":
+      revalidatePath("/installningar");
+      return { success: true };
+    case "unauthorized":
+      return {
+        success: false,
+        error: ts("followedCompanyNotifications.errors.notLoggedIn"),
+      };
+    case "rateLimited":
+      return {
+        success: false,
+        error: ts("followedCompanyNotifications.errors.tooManyAttempts"),
+      };
+    default:
+      return {
+        success: false,
+        error: ts("followedCompanyNotifications.errors.saveFailed"),
+      };
+  }
+}
+
+/**
  * TD-28 / PR2c-1 — delete account with server-enforced re-auth. Two steps:
  *   1. Validate the typed confirmation (email-match) + password form (client
  *      friction only).
@@ -136,8 +193,7 @@ export async function updateNotificationConsentAction(
  * NEVER logged on the error path.
  */
 export async function deleteAccountAction(
-  input: DeleteMyAccountInput,
-  currentEmail: string
+  input: DeleteMyAccountInput
 ): Promise<ActionResult> {
   const ts = await getTranslations("settings");
   const te = await getTranslations("errors");
@@ -150,11 +206,24 @@ export async function deleteAccountAction(
     };
   }
 
-  // Email-match — case-insensitive, trimmed. Done here (not in Zod) so we can
-  // compare against currentEmail (server-trusted) rather than client input alone.
+  // Email-match — case-insensitive, trimmed. #822: the expected address is now resolved
+  // from the SESSION here, not passed in from the client. It used to arrive as a Server
+  // Action argument, i.e. serialized from the browser and fully caller-controlled, while
+  // the comment claimed it was "server-trusted" — a caller could post a matching pair and
+  // walk straight through. The authoritative control was, and remains, the password
+  // re-auth the API enforces; this typed confirmation is friction against the user's own
+  // mistake. But friction that an attacker can hand itself is not friction at all.
+  const session = await getServerSession();
+  if (!session) {
+    return { success: false, error: ts("account.errors.notLoggedIn") };
+  }
+
   const confirm = parsed.data.confirmEmail.trim().toLowerCase();
-  const expected = currentEmail.trim().toLowerCase();
-  if (confirm !== expected) {
+  const expected = session.email.trim().toLowerCase();
+  // Fail closed if the expected address is absent — never let the comparison degenerate
+  // to "" === "" and arm an irreversible action on an empty field (ASVS V6.2.5). This is
+  // the server-side mirror of the guard in delete-account-dialog.tsx.
+  if (expected.length === 0 || confirm !== expected) {
     return {
       success: false,
       error: ts("account.errors.emailMismatch"),

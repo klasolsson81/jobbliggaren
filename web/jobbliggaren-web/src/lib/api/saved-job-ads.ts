@@ -11,8 +11,14 @@ import { isValidId } from "@/lib/validation/guid";
 /**
  * F6 P5 Punkt 2 Del A — hämta inloggad användares bokmärken.
  * `GET /api/v1/me/saved-job-ads`, auth-gated, JobSeeker-scopad.
- * ADR 0048 in-handler-join: jobAd-fältet är null när annonsen
- * soft-deletats (`JobAd.DeletedAt != null`) → UI renderar fallback.
+ * ADR 0048 in-handler-join: jobAd-fältet är null när annonsRADEN saknas
+ * (föräldralöst `JobAdId` — pinnat av `Handle_WhenJobAdMissing_RowsJobAdSummaryIsNull`).
+ *
+ * #805-3 sanningssynk: den tidigare utsagan ("null när annonsen soft-deletats,
+ * `JobAd.DeletedAt != null`") var falsk. `JobAd.DeletedAt` saknar writer, så det
+ * globala query-filtret exkluderar aldrig en rad (#821). En annons som dragits
+ * tillbaka ARKIVERAS (`Status = "Archived"`) och joinar fortfarande — den bär
+ * numera `jobAd.status`, som är den sanningsenliga live/borta-signalen.
  */
 export async function getSavedJobAds(): Promise<
   ApiResult<ListSavedJobAdsResult>

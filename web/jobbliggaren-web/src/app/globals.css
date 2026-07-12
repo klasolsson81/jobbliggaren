@@ -2923,6 +2923,18 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
   margin-bottom: 10px;
 }
+
+/* #805-3 (Beslut B) — "Om annonsen"-ytan (SourceAdSection). Två små token-only
+   primitiv i stället för px-literaler i TSX (ADR 0085 PR E: inget magiskt px i
+   TSX) och i stället för att låna `.jp-modal__match__expl`, som saknar bas-regel
+   och därför bidrar med noll (design-reviewer Minor 1-2). Visuellt identiska med
+   det de ersätter — ingen ny färg, ingen ny radie, ingen skugga. */
+.jp-source-ad__action {
+  margin-top: 12px;
+}
+.jp-source-ad__note {
+  color: var(--jp-ink-1);
+}
 /* #630 PR 7: rubrikrad med höger-yta (drawerns "+ Lägg till" i UPPFÖLJNINGAR,
    §8.6) resp. inline-hjälptext (stegväljarens "klicka på ett steg, även
    bakåt", §8.4). Additiv — bas-etiketten orörd. */
@@ -9078,3 +9090,308 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* Sakerhetsventil: skulle tagg+trigger anda inte fa plats bryts triggern ned
    pa egen rad i cellen i stallet for att svamma over grannkolumnen. */
 .jp-apptable__statuszone { flex-wrap: wrap; }
+
+/* ============================================================================
+   Mallbyggaren (/cv/[id]/mall, #820) — reglage + forhandsvisning sida vid sida.
+   Inga nya design-tokens: allt komponeras ur befintliga --jp-*. Den enda nya
+   custom-propertyn ar --jp-mallcard-accent, som ar en DATAKANAL (varde = BE-
+   katalogens AccentOptionDto.Hex, satt inline pa kortgruppen) och lases av
+   schematikens fills — inte en token, och aldrig i :root.
+   ========================================================================== */
+
+.jp-mallbuilder {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: start;
+}
+/* Tva spalter forst nar bade reglagen och en lasbar A4-preview far plats. */
+@media (min-width: 1100px) {
+  .jp-mallbuilder { grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 28px; }
+}
+/* minmax(0, ...) pa bada spar: iframen far inte spranga rutnatet. */
+.jp-mallbuilder__options { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+.jp-mallbuilder__preview { display: flex; flex-direction: column; min-width: 0; }
+
+/* --- Optionsgrupp (rubrik + kontroll + ev. hjalptext) --- */
+.jp-mallsec { display: flex; flex-direction: column; gap: 12px; }
+.jp-mallsec__title {
+  margin: 0;
+  font-size: var(--text-h3);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-heading-2);
+}
+.jp-mallsec__hint {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.5;
+  color: var(--jp-ink-1); /* ingen gra brodtext */
+  max-width: 60ch;
+}
+
+/* --- MALL: valbara kort med mini-schematik --- */
+/* Korten far INTE svalla: utan tak stracker de sig over hela innehallsbredden i
+   enspalts-laget (640-1099px) och laser da som renderingar i stallet for struktur-
+   diagram — vilket motsager bade copyn ("miniatyrerna visar mallens struktur") och den
+   riktiga forhandsvisningen de star bredvid.
+   Taket sitter pa GRIDDEN, inte pa tracken: auto-fit raknar antalet spar pa track-
+   funktionens MAX nar den ar definit (CSS Grid §7.2.3.2), sa `minmax(118px, 172px)`
+   skulle styra aven hur manga kort som ryms — 440px-spalten tog da bara 2 kort och
+   lade Mork panel ensam pa rad 2, vilket bryter hela "valj en av tre"-jamforelsen.
+   Med 1fr som max raknas sparen pa MIN (118px) och max-width haller kortbredden.
+   540px = 3 x 172 + 2 x 12. */
+.jp-mallgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  max-width: 540px;
+  gap: 12px;
+}
+.jp-mallcard {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 10px;
+  text-align: left;
+  background: var(--jp-surface);
+  /* 1.5px redan i vila -> valt kort byter FARG, aldrig bredd (ingen layout-shift). */
+  border: 1.5px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  cursor: pointer;
+  transition: background 90ms ease, border-color 90ms ease;
+}
+.jp-mallcard:hover:not([data-state="checked"]) {
+  background: var(--jp-surface-3);
+  border-color: var(--jp-border-strong);
+}
+.jp-mallcard[data-state="checked"] {
+  background: var(--jp-accent-50);
+  border-color: var(--jp-accent-800);
+}
+[data-theme="dark"] .jp-mallcard[data-state="checked"] { border-color: var(--jp-accent-700); }
+/* Figuren avbildar en PDF, och PDF:ens papper ar VITT i varje tema — renderaren
+   kanner inte till appens dark mode. Utan en pin foljer .jp-schem__paper/-ink/-line
+   temat: i dark blir papperet #1B2B47, och de fyra katalogaccenterna (WCAG-gardade
+   mot VITT) faller till ~1,2-1,5:1 → accentlinjerna och HELA Mork panels sidopanel
+   blir osynliga, dvs kortens enda sarskiljande signal dor. Vi pinnar darfor
+   dokument-tokens till sina LJUSA varden inuti figuren. Samma scoped-token-override-
+   mekanism som [data-theme="dark"] .jp-header / .jp-land-top. */
+.jp-mallcard__figure {
+  --jp-surface: #FFFFFF;
+  --jp-ink-1: #0C1A2E;
+  --jp-border-strong: #7C8AA0;
+
+  display: block;
+  aspect-ratio: 1 / 1.414; /* A4 */
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-sm);
+  overflow: hidden;
+}
+.jp-mallcard__labelrow { display: flex; align-items: center; gap: 8px; }
+/* Indikatorn ar alltid narvarande (bara bocken tillkommer) -> ingen shift vid val. */
+.jp-mallcard__ind {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-surface);
+  border: 1.5px solid var(--jp-border-input);
+  color: var(--jp-on-fill);
+}
+.jp-mallcard[data-state="checked"] .jp-mallcard__ind {
+  background: var(--jp-accent-800);
+  border-color: var(--jp-accent-800);
+}
+.jp-mallcard__label {
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-1);
+}
+/* WCAG 1.4.1: valet bars av TRE icke-fargsignaler (bock, fet etikett, ramfarg). */
+.jp-mallcard[data-state="checked"] .jp-mallcard__label { font-weight: var(--jp-fw-bold); }
+/* body-sm, INTE micro: micro-tiern ar for counts/badge-text/proveniens, och det har
+   ar tva meningars prosa som anvandaren maste lasa for att valja mall (ADR 0038). */
+.jp-mallcard__desc {
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+  color: var(--jp-ink-1);
+}
+
+/* --- Mini-schematik (SVG). Alla fills gar via klass -> noll fargliteraler. --- */
+.jp-schem { display: block; width: 100%; height: 100%; }
+.jp-schem__paper { fill: var(--jp-surface); }
+.jp-schem__ink { fill: var(--jp-ink-1); }
+.jp-schem__line { fill: var(--jp-border-strong); } /* dekorativa "textrader", ej text */
+/* Datakanal, inte token: hex:en kommer ur BE-katalogen. Saknas den -> black, aldrig fel farg. */
+.jp-schem__accent { fill: var(--jp-mallcard-accent, var(--jp-ink-1)); }
+.jp-schem__panelink { fill: var(--jp-on-fill); }
+.jp-schem__panelline { fill: var(--jp-on-fill); opacity: 0.72; }
+
+/* --- ATS-utfall for den VALDA mallen --- */
+.jp-mallats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  background: var(--jp-surface-2);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-mallats__pill { height: 30px; padding: 0 12px; font-size: var(--text-body-sm); }
+/* Scopad override: den neutrala pillen ar annars ink-2 (gra). Har bar den ett
+   fortroendepastaende och ska lasas som ett medvetet utfall, inte dampad metadata.
+   .jp-pill globalt lamnas orort. */
+.jp-mallats .jp-pill--neutral {
+  color: var(--jp-ink-1);
+  border-color: var(--jp-border-strong);
+}
+.jp-mallats__hint {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.5;
+  color: var(--jp-ink-1);
+  max-width: 60ch;
+}
+
+/* --- ACCENTFARG: swatchar --- */
+.jp-swatchrow { display: flex; flex-wrap: wrap; gap: 14px; }
+.jp-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 2px;
+  min-width: 44px; /* ADR 0038 traffyte-golv: "Grafit" ar annars bara ~40px bred */
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+/* Prickens FYLL ar en dokumentfarg (de fyra morka katalog-hexarna) — mot dark-canvas
+   ligger den pa ~1,4-1,6:1, sa hela grans-uppfattningen vilar pa border:n. Den maste
+   darfor klara WCAG 1.4.11 (3:1) som UI-komponent: --jp-border-strong, inte --jp-border. */
+.jp-swatch__dot {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--jp-r-pill);
+  border: 1px solid var(--jp-border-strong);
+  color: var(--jp-on-fill); /* vit bock — alla fyra katalog-hex ar WCAG-gardade mot vitt */
+}
+/* Ringen ar en BORDER pa ett pseudo-element (aldrig box-shadow/glow, DESIGN.md §5).
+   Ringen ar gron (--jp-accent-700): den ar APP-krom. Den valda CV-fargen malar bara
+   dokumentinnehall (swatch-pricken + schematiken), aldrig kromet. */
+.jp-swatch[data-state="checked"] .jp-swatch__dot::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 2px solid var(--jp-accent-700);
+  border-radius: var(--jp-r-pill);
+}
+.jp-swatch__check { display: inline-flex; }
+.jp-swatch__label { font-size: var(--text-body-sm); color: var(--jp-ink-1); }
+.jp-swatch[data-state="checked"] .jp-swatch__label { font-weight: var(--jp-fw-semibold); }
+
+/* --- Spara --- */
+.jp-mallsave {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  padding-top: 20px;
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-mallsave__ok {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-success);
+}
+.jp-mallsave__err { margin: 0; font-size: var(--text-body-sm); color: var(--jp-danger); }
+
+/* De permanent monterade live-regionerna ar flex-items aven nar de ar tomma och ater
+   da ett gap (8px spokluft under Spara, ~6px ur centrum i platshallaren). Ta dem ur
+   FLODET nar de ar tomma — men ALDRIG med display:none: det plockar bort regionen ur
+   a11y-tradet och aterinfor exakt den insert-with-content-bugg som forhandsmonteringen
+   finns for att forhindra. */
+.jp-mallsave > [role="status"]:empty,
+.jp-mallpreview__placeholder > [role="status"]:empty {
+  position: absolute;
+}
+
+/* --- Forhandsvisning: inramat kort (huvud / stale-remsa / kropp / fot) --- */
+.jp-mallpreview {
+  display: flex;
+  flex-direction: column;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  overflow: hidden;
+}
+.jp-mallpreview__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-mallpreview__title {
+  margin: 0;
+  font-size: var(--text-h3);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-heading-2);
+}
+.jp-mallpreview__stale {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 14px;
+  background: var(--jp-surface-2);
+  border-bottom: 1px solid var(--jp-border-soft);
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-mallpreview__body { padding: 14px; background: var(--jp-surface-2); }
+.jp-mallframe {
+  display: block;
+  width: 100%;
+  height: min(70vh, 800px);
+  border: 0;
+  border-radius: var(--jp-r-sm);
+  background: var(--jp-surface);
+}
+.jp-mallpreview__placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: min(70vh, 800px);
+  padding: 24px;
+  text-align: center;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-sm);
+  color: var(--jp-ink-1);
+}
+@media (max-width: 640px) {
+  .jp-mallframe { height: min(60vh, 520px); }
+  .jp-mallpreview__placeholder { min-height: min(60vh, 520px); }
+}
+/* iOS Safari vagrar rendera PDF i iframe -> "Oppna i ny flik" ar den riktiga
+   mobil-vagen och far aldrig stylas bort. */
+.jp-mallpreview__foot {
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--jp-border-soft);
+  font-size: var(--text-body-sm);
+}

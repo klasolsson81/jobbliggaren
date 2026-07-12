@@ -23,11 +23,22 @@ export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) 
   const confirmEmailId = useId();
   const [confirmEmail, setConfirmEmail] = useState("");
 
-  // Case-insensitive, trimmed match against the signed-in account. This is
-  // client-side friction only (GitHub/Stripe typed-confirmation pattern); the
-  // Server Action re-checks it against the server-trusted email.
+  // Case-insensitive, trimmed match against the signed-in account. This is client-side
+  // friction only (GitHub/Stripe typed-confirmation pattern). The Server Action re-checks
+  // it against the address it resolves from the SESSION (#822 — it used to trust an
+  // address the client passed in); the authoritative control is the password re-auth the
+  // API enforces.
+  //
+  // #822 — the expected address MUST be non-empty for the gate to arm. While /me
+  // returned an empty email, this comparison degenerated to "" === "" and the gate
+  // INVERTED: it blocked the user who typed their address correctly and armed on an
+  // empty field. The backend fix restores the address; this guard makes the safeguard
+  // fail closed rather than open if the expected value is ever absent again — an
+  // irreversible action must never lose its confirmation (ASVS V6.2.5).
+  const expectedEmail = currentEmail.trim().toLowerCase();
   const emailMatches =
-    confirmEmail.trim().toLowerCase() === currentEmail.trim().toLowerCase();
+    expectedEmail.length > 0 &&
+    confirmEmail.trim().toLowerCase() === expectedEmail;
 
   return (
     <ReAuthDialog
@@ -43,9 +54,7 @@ export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) 
       cancelLabel={ts("account.delete.cancel")}
       variant="destructive"
       // The password travels with the delete; the server re-authenticates it.
-      action={(password) =>
-        deleteAccountAction({ confirmEmail, password }, currentEmail)
-      }
+      action={(password) => deleteAccountAction({ confirmEmail, password })}
       canSubmit={() => emailMatches}
       onOpenChange={(open) => {
         if (!open) setConfirmEmail("");

@@ -33,6 +33,9 @@ function makeDetail(
       source: "Platsbanken",
       publishedAt: "2026-05-01",
       expiresAt: "2026-06-01",
+      // #805-3: en JobAd-länkad ansökan bär ALLTID en status. "Active" är
+      // prod-normalfallet (annonsen ligger uppe hos källan) → utlänken visas.
+      status: "Active",
     },
     coverLetter: null,
     followUps: [],
@@ -170,9 +173,16 @@ describe("ApplicationDetail", () => {
     expect(screen.getByText("Ansökan #aaaaaaaa")).toBeInTheDocument();
   });
 
-  // ── #315 (ADR 0086): bevarad annons-snapshot som fallback ──────────────
+  // ── #315 (ADR 0086) + #805-3: bevarad annons-snapshot som fallback ─────
+  //
+  // #805-3 SANNINGSKORRIGERING av denna svit: testerna nedan triggade tidigare
+  // den bevarade panelen med `jobAd: null` — ett tillstånd produktionen ALDRIG
+  // når för en JobAd-länkad ansökan (JobAd.DeletedAt saknar writer, #821), så
+  // panelen renderades aldrig i verkligheten trots att sviten var grön. Den
+  // falska tryggheten är en del av rotorsaken. Borta-läget triggas nu på det
+  // fältet produktionen faktiskt skriver: `jobAd.status !== "Active"`.
 
-  it("(a) visar INGEN sparad-kopia-panel när live-annonsen finns", () => {
+  it("(a) live-annons → INGEN sparad-kopia-panel, MEN en utlänk till källan", () => {
     render(
       <ApplicationDetail
         application={makeDetail({ preservedAd: makeSnapshot() })}
@@ -182,8 +192,8 @@ describe("ApplicationDetail", () => {
     expect(
       screen.getByRole("heading", { name: "Backend-utvecklare" })
     ).toBeInTheDocument();
-    // Den bevarade panelen renderas EJ när live-annonsen finns (scope:
-    // snapshotten är fallback för när annonsen är borta).
+    // Den bevarade panelen renderas EJ medan annonsen är aktiv (snapshotten är
+    // borta-lägets fallback, inte en dubblett av live-annonsen).
     expect(
       screen.queryByText("Om annonsen (sparad kopia)")
     ).not.toBeInTheDocument();
@@ -192,36 +202,46 @@ describe("ApplicationDetail", () => {
         "Vi söker en utvecklare med erfarenhet av distribuerade system."
       )
     ).not.toBeInTheDocument();
+    // #805-3: utlänken till KÄLLANS annons (Beslut B) — pekar på live-annonsens
+    // url, inte snapshottens, och öppnas säkert i ny flik.
+    const link = screen.getByRole("link", {
+      name: "Visa annonsen hos Platsbanken (öppnas i ny flik)",
+    });
+    expect(link).toHaveAttribute("href", "https://example.com/ad");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 
-  it("(b) live-annons borta + snapshot med text → bevarad titel/företag/not/kropp", () => {
+  it("(b) annons ARKIVERAD + snapshot med text → ingen länk, bevarad kopia visas", () => {
     render(
       <ApplicationDetail
         application={makeDetail({
-          jobAd: null,
+          jobAd: { ...makeDetail().jobAd!, status: "Archived" },
           preservedAd: makeSnapshot(),
         })}
       />
     );
-    // Headern bär den BEVARADE titeln (riktig prosa, ej mono-id-fallback).
+    // Headern bär fortfarande annonsens titel — arkivering är inte radering,
+    // raden joinar kvar. (Före #805-3 föll headern tillbaka på snapshot-titeln,
+    // men bara i det fabricerade jobAd == null-fallet.)
     expect(
-      screen.getByRole("heading", { name: "Systemutvecklare .NET" })
+      screen.getByRole("heading", { name: "Backend-utvecklare" })
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText("Ansökan #aaaaaaaa")
-    ).not.toBeInTheDocument();
-    // Subtitle bär bevarat företag + "sparad kopia"-markör.
-    expect(
-      screen.getByText(/Spotify · sparad kopia/)
-    ).toBeInTheDocument();
+    // INGEN utlänk: annonsen är inte längre aktiv hos källan, så vi kan inte
+    // hävda att URL:en svarar. Beslut B: "ingen död länk".
+    expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
     // Panel + lugn "sparad kopia"-not.
     expect(
       screen.getByText("Om annonsen (sparad kopia)")
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Den ursprungliga annonsen finns inte längre/)
+      // m5 (code-reviewer) + M2 (design-reviewer): copy:n sade tidigare att
+      // annonsen "finns inte längre" — men panelen renderas för VARJE icke-Active
+      // status, inklusive Expired, där en utgången annons oftast finns kvar hos
+      // källan. Vi påstår nu bara det vi vet: den är inte längre aktiv.
+      screen.getByText(/Annonsen är inte längre aktiv/)
     ).toBeInTheDocument();
-    // Bevarad metadata (företag + ort i panelen).
+    // Bevarad metadata (ort i panelen).
     expect(screen.getByText("Ort")).toBeInTheDocument();
     expect(screen.getByText("Stockholm")).toBeInTheDocument();
     // Annonstexten — den enda platsen annonskroppen visas på detaljen.
@@ -237,20 +257,17 @@ describe("ApplicationDetail", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("(c) live-annons borta + snapshot utan text (terminal) → metadata + minimerings-not, ingen kropp", () => {
+  it("(c) annons ARKIVERAD + snapshot utan text (terminal) → metadata + minimerings-not, ingen kropp", () => {
     render(
       <ApplicationDetail
         application={makeDetail({
-          jobAd: null,
+          jobAd: { ...makeDetail().jobAd!, status: "Archived" },
           status: "Rejected",
           preservedAd: makeSnapshot({ description: null }),
         })}
       />
     );
-    // Titel/företag/metadata visas fortfarande.
-    expect(
-      screen.getByRole("heading", { name: "Systemutvecklare .NET" })
-    ).toBeInTheDocument();
+    // Bevarad metadata visas fortfarande (retention-minimeringen tar bara kroppen).
     expect(screen.getByText("Stockholm")).toBeInTheDocument();
     // Annonstext-etiketten finns kvar men kroppen ersätts av en neutral not.
     expect(screen.getByText("Annonstext")).toBeInTheDocument();
@@ -265,7 +282,7 @@ describe("ApplicationDetail", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("(d) preservedAd null (manuell/pre-#315) → oförändrad mono-id-fallback", () => {
+  it("(d) ingen annonsrad alls (enbart brev) → mono-id-fallback, ingen annons-yta", () => {
     render(
       <ApplicationDetail
         application={makeDetail({
@@ -279,5 +296,116 @@ describe("ApplicationDetail", () => {
     expect(
       screen.queryByText("Om annonsen (sparad kopia)")
     ).not.toBeInTheDocument();
+    expect(screen.queryByText("Om annonsen")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
+  });
+
+  // ── #805-3 (Beslut B): "Visa annonsen" — utlänk till källan ────────────
+
+  it("(e) UTGÅNGEN annons (Expired) behandlas som borta — ingen länk", () => {
+    // Domänen har TRE statusvärden (Active | Expired | Archived). Liveness
+    // hävdas bara på positivt "Active" (default-deny); den naiva inversen
+    // (!== "Archived" ⇒ live) hade skeppat en död länk här.
+    render(
+      <ApplicationDetail
+        application={makeDetail({
+          jobAd: { ...makeDetail().jobAd!, status: "Expired" },
+          preservedAd: makeSnapshot(),
+        })}
+      />
+    );
+    expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
+    expect(
+      screen.getByText("Om annonsen (sparad kopia)")
+    ).toBeInTheDocument();
+  });
+
+  it("(f) annons borta UTAN bevarad kopia (pre-#315) → lugn not, ingen länk", () => {
+    render(
+      <ApplicationDetail
+        application={makeDetail({
+          jobAd: { ...makeDetail().jobAd!, status: "Archived" },
+          preservedAd: null,
+        })}
+      />
+    );
+    expect(
+      screen.getByText("Annonsen är inte längre aktiv hos Platsbanken.")
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
+  });
+
+  it("(g) MANUELL ansökan med sparad url → länk utan källa-påstående", () => {
+    // Ingen JobAd-rad ⇒ ingen arkivering ⇒ vi kan inte hävda live ELLER borta.
+    // Vi visar länken användaren själv sparade och påstår ingenting om den.
+    // aria-label:n utelämnar källan — annars: "Visa annonsen hos Manuellt".
+    render(
+      <ApplicationDetail
+        application={makeDetail({
+          jobAdId: null,
+          jobAd: {
+            jobAdId: null,
+            title: "Manuell titel",
+            company: "Manuellt företag",
+            url: "https://example.com/manuell",
+            source: "Manual",
+            publishedAt: null,
+            expiresAt: null,
+            status: null,
+          },
+          preservedAd: null,
+        })}
+      />
+    );
+    const link = screen.getByRole("link", {
+      name: "Visa annonsen (öppnas i ny flik)",
+    });
+    expect(link).toHaveAttribute("href", "https://example.com/manuell");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    // Ingen borta-not — vi gör ingen livs-utsaga för manuella.
+    expect(screen.queryByText(/inte längre aktiv/)).toBeNull();
+  });
+
+  it("(h) manuell ansökan UTAN url → ingen länk, ingen tom sektion", () => {
+    render(
+      <ApplicationDetail
+        application={makeDetail({
+          jobAdId: null,
+          jobAd: {
+            jobAdId: null,
+            title: "Manuell titel",
+            company: "Manuellt företag",
+            url: null,
+            source: "Manual",
+            publishedAt: null,
+            expiresAt: null,
+            status: null,
+          },
+          preservedAd: null,
+        })}
+      />
+    );
+    expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
+    expect(screen.queryByText("Om annonsen")).not.toBeInTheDocument();
+  });
+
+  it("(i) deploy-skew: status saknas i svaret → ingen länk (default-deny)", () => {
+    // Äldre/cachead BE-respons utan status-fältet. Vi vet inte om annonsen
+    // lever → vi hävdar ingenting och länkar inte. Aldrig en gissad länk.
+    const { jobAd } = makeDetail();
+    const { status: _omitted, ...withoutStatus } = jobAd!;
+    render(
+      <ApplicationDetail
+        application={makeDetail({ jobAd: withoutStatus, preservedAd: null })}
+      />
+    );
+    expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
+    // …och ingen BORTA-utsaga heller: "Annonsen är inte längre aktiv" vore lika
+    // falskt som en död länk — vi vet inte att den är borta. Utan denna assert
+    // passerar en guard som läser borta-läget som `status !== "Active"` (utan
+    // null-villkoret), och skew:en skulle då tala om för användaren att en
+    // annons som mycket väl ligger uppe är död. Uttömmande grentäckning för
+    // detta tillstånd bor i source-ad-section.test.tsx (guarden själv).
+    expect(screen.queryByText(/inte längre aktiv/)).toBeNull();
   });
 });

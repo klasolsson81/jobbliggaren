@@ -27,8 +27,23 @@
     "cadenceLabel": "Hur ofta vill du få sammanfattningen",
     "cadenceDaily": "Dagligen",
     "cadenceWeekly": "Veckovis",
-    "cadenceHint": "Gäller e-postsammanfattningen av starka matchningar. Toppmatchningar skickas alltid direkt via e-post.",
-    "cadenceHintDisabled": "Slå på matchningsnotiser för att välja hur ofta e-postsammanfattningen skickas.",
+    "cadenceHint": "Gäller e-postsammanfattningen av starka matchningar och notiserna om företag du följer. Toppmatchningar skickas alltid direkt via e-post.",
+    "cadenceHintDisabled": "Slå på matchningsnotiser eller notiser om företag du följer för att välja hur ofta e-postsammanfattningen skickas.",
+    "savedAt": "Sparat {time}",
+    "errors": {
+      "notLoggedIn": "Du är inte inloggad.",
+      "invalidInput": "Ogiltiga uppgifter.",
+      "saveFailed": "Ändringen kunde inte sparas. Försök igen.",
+      "tooManyAttempts": "För många försök. Vänta en stund och försök igen."
+    }
+  },
+  "followedCompanyNotifications": {
+    "title": "Notiser om företag du följer",
+    "intro": "Nya annonser från företag du följer visas alltid i appen, oavsett vad du väljer här. På Översikt ser du hur många som är nya. Här väljer du om vi också ska mejla dem till dig.",
+    "toggleLabel": "Mejla mig nya annonser från företag jag följer",
+    "toggleDescription": "Avstängt som standard. Slår du på det samtycker du till att vi mejlar dig nya annonser från företagen du följer. Du kan dra tillbaka samtycket när som helst genom att stänga av det här.",
+    "cadenceNote": "Utskicket följer samma takt som matchningsnotiserna: {cadence}. Du ändrar takten i kortet Matchningsnotiser.",
+    "cadenceNoteDisabled": "Utskicket följer samma takt som matchningsnotiserna. Du ändrar takten i kortet Matchningsnotiser.",
     "savedAt": "Sparat {time}",
     "errors": {
       "notLoggedIn": "Du är inte inloggad.",

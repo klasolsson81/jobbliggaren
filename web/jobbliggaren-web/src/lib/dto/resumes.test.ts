@@ -102,6 +102,27 @@ describe("resumeContentDtoSchema", () => {
     expect(resumeContentDtoSchema.safeParse(superset).success).toBe(true);
   });
 
+  // #815: domänen tillåter en sektionspost UTAN titel ("Referenser / Lämnas på begäran."),
+  // så API:t kan emittera `"title": null`. Läs-schemat MÅSTE ta emot det. Gjorde det inte
+  // det skulle ett enda sådant sparat CV få HELA detaljsidan att falla till felläge —
+  // skrivvägen hade kunnat persistera ett tillstånd läsvägen inte kan tolka.
+  it.each([[null], [undefined]])(
+    "accepterar en sektionspost vars titel är %s (domänen tillåter titellös post)",
+    (title) => {
+      const withTitlelessEntry = {
+        ...validContent,
+        sections: [
+          {
+            heading: "Referenser",
+            entries: [{ title, lines: ["Lämnas på begäran."] }],
+          },
+        ],
+      };
+
+      expect(resumeContentDtoSchema.safeParse(withTitlelessEntry).success).toBe(true);
+    },
+  );
+
   it("avvisar ett språk med ogiltig proficiency-token (LÅST z.enum)", () => {
     const broken = {
       ...validContent,

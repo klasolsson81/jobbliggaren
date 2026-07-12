@@ -79,7 +79,8 @@
       "trigger": "Byt status",
       "groupActive": "Flytta till · Aktiv väg",
       "groupClosed": "Avslut & vilande",
-      "currentSuffix": "nuvarande status"
+      "currentSuffix": "nuvarande status",
+      "delete": "Ta bort ansökan"
     },
     "urgency": {
       "deadline": "Deadline {date}",
@@ -303,6 +304,13 @@
       "confirmBody": "Ansökan ändras från <b>{from}</b> till <b>{to}</b>. En återtagen ansökan avslutas och kan inte ändras vidare utan manuell åtgärd.",
       "withdrawing": "Återtar…"
     },
+    "delete": {
+      "action": "Ta bort ansökan",
+      "confirmTitle": "Ta bort ansökan?",
+      "confirmBody": "Ansökan och hela dess historik tas bort permanent. Det går inte att ångra.",
+      "deleting": "Tar bort…",
+      "confirmButton": "Radera ansökan"
+    },
     "actions": {
       "notLoggedIn": "Du är inte inloggad.",
       "invalidJobAdId": "Ogiltigt annons-ID.",
@@ -314,7 +322,8 @@
       "addFollowUpFailed": "Kunde inte spara uppföljningen.",
       "logFollowUpFailed": "Kunde inte logga uppföljningen.",
       "addNoteFailed": "Kunde inte spara noteringen.",
-      "recordOutcomeFailed": "Kunde inte registrera utfallet."
+      "recordOutcomeFailed": "Kunde inte registrera utfallet.",
+      "deleteFailed": "Det gick inte att ta bort ansökan."
     }
   }
 }

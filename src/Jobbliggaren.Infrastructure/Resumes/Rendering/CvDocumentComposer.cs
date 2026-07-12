@@ -90,7 +90,7 @@ internal static class CvDocumentComposer
 
                 SkillsSection(col, labels.Skills, model.Skills, model.SkillGroups, heading);
                 LanguagesSection(col, labels.Languages, model.Languages, heading);
-                DynamicSections(col, model.Sections, heading, secondary);
+                DynamicSections(col, model.Sections, heading);
             });
         });
     }
@@ -204,8 +204,7 @@ internal static class CvDocumentComposer
     private static void DynamicSections(
         ColumnDescriptor col,
         IReadOnlyList<CvDocumentModel.SectionLine> sections,
-        string headingColor,
-        string secondaryColor)
+        string headingColor)
     {
         foreach (var section in sections)
         {

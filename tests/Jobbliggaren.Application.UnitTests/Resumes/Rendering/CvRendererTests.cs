@@ -1,7 +1,9 @@
+using Jobbliggaren.Application.Resumes.Abstractions;
 using Jobbliggaren.Application.Resumes.Rendering.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Rendering;
 using Shouldly;
 using static Jobbliggaren.Application.UnitTests.Resumes.Improvement.CvImprovementFixtures;
@@ -30,6 +32,14 @@ public class CvRendererTests
 
     private static bool IsPdf(byte[] bytes) =>
         bytes.Length >= 4 && bytes.Take(4).SequenceEqual(PdfMagic);
+
+    // The rendered CONTENT (extracted PDF text) is the honest determinism signal: it is robust to
+    // QuestPDF's benign byte variations (the PDF /ID and process-global font-subset packing) and to
+    // parallel test execution, where exact-byte or byte-length assertions flake. Reuses the repo's
+    // own deterministic extractor (no SDK type crosses the port).
+    private static string ExtractText(byte[] pdf) =>
+        new PdfPigOpenXmlCvTextExtractor()
+            .Extract(pdf, CvFileKind.Pdf, TestContext.Current.CancellationToken).RawText;
 
     [Theory]
     [InlineData(RenderProfile.Ats)]
@@ -91,19 +101,15 @@ public class CvRendererTests
     {
         var resume = Resume();
 
-        // Warm QuestPDF's process-global font-subset cache first. An embedded font subset's
-        // byte-size is stable only once the cache has seen the document's glyphs — the cache is
-        // a lazily-built, process-global structure, so a render in another test class can leave it
-        // mid-build and make the FIRST render here differ from the second by subset packing alone.
-        // The determinism we assert is steady-state: identical input in a warm cache → identical bytes.
-        _ = await RenderAsync(resume, profile);
         var first = await RenderAsync(resume, profile);
         var second = await RenderAsync(resume, profile);
 
-        // Pinned metadata ⇒ stable output. Assert stable size (a robust determinism signal that
-        // does not flake on the PDF /ID) plus both being valid PDFs.
-        second.PdfBytes.Length.ShouldBe(first.PdfBytes.Length,
-            "Samma CV ska rendera till samma storlek (deterministisk renderare).");
+        // Byte-identity is impossible (QuestPDF varies the PDF /ID + its process-global font-subset
+        // packing); the determinism that matters — no wall-clock/random reaches the rendered CONTENT
+        // (§5, FixedTimestamp) — is asserted at the extracted text, robust to those benign byte
+        // variations and to parallel test execution.
+        ExtractText(second.PdfBytes).ShouldBe(ExtractText(first.PdfBytes),
+            "Samma CV ska rendera till samma innehåll (deterministisk renderare).");
         IsPdf(first.PdfBytes).ShouldBeTrue();
         IsPdf(second.PdfBytes).ShouldBeTrue();
     }
@@ -172,14 +178,12 @@ public class CvRendererTests
     {
         var content = ResumeContentFixture();
 
-        // Warm the process-global font-subset cache first (see the parsed determinism test) so the
-        // assertion is steady-state, not sensitive to a cache another render test left mid-build.
-        _ = await RenderAsync(content, ResumeLanguage.Sv, RenderProfile.Ats);
         var first = await RenderAsync(content, ResumeLanguage.Sv, RenderProfile.Ats);
         var second = await RenderAsync(content, ResumeLanguage.Sv, RenderProfile.Ats);
 
-        second.PdfBytes.Length.ShouldBe(first.PdfBytes.Length,
-            "Samma innehåll ska rendera till samma storlek (deterministisk renderare).");
+        // Content determinism (see the parsed determinism test) — robust to QuestPDF's byte drift.
+        ExtractText(second.PdfBytes).ShouldBe(ExtractText(first.PdfBytes),
+            "Samma innehåll ska rendera till samma innehåll (deterministisk renderare).");
     }
 
     // ----- FormatPeriod (CTO D1 / Variant A — year-span, en-dash, localised ongoing) -----

@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Resumes.Abstractions;
 using Jobbliggaren.Application.Resumes.Rendering.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Rendering;
 using Shouldly;
@@ -67,6 +68,23 @@ public class CvDocumentModelCompletenessTests
     private static CvDocumentModel From(ResumeContent content) =>
         CvDocumentModel.From(
             content, "pagaende", p => CvRenderStrings.ProficiencyLabel(p, ResumeLanguage.Sv));
+
+    private static string Extract(byte[] pdf) =>
+        new PdfPigOpenXmlCvTextExtractor()
+            .Extract(pdf, CvFileKind.Pdf, TestContext.Current.CancellationToken).RawText;
+
+    private static async Task<string> RenderTextAsync(ResumeContent content, RenderProfile profile)
+    {
+        var rendered = await new CvRenderer().RenderAsync(
+            content, ResumeLanguage.Sv, profile, TestContext.Current.CancellationToken);
+        return Extract(rendered.PdfBytes);
+    }
+
+    private static ResumeContent WithSections(params ResumeSection[] sections) =>
+        new(new PersonalInfo("Test Person", null, null, null), sections: sections);
+
+    private static ResumeContent WithSkills(IReadOnlyList<Skill> skills, IReadOnlyList<SkillGroup> groups) =>
+        new(new PersonalInfo("Test Person", null, null, null), skills: skills, skillGroups: groups);
 
     // ---------------------------------------------------------------
     // MODEL floor — every AppCopy field reaches the projection.
@@ -177,17 +195,214 @@ public class CvDocumentModelCompletenessTests
     {
         var content = Maximal();
 
-        // Warm the process-global font-subset cache first — an embedded subset's byte-size is stable
-        // only once the cache has seen this document's glyphs; another render test can leave the
-        // lazily-built, process-global cache mid-build. The guarantee asserted is steady-state.
-        _ = await new CvRenderer().RenderAsync(
-            content, ResumeLanguage.Sv, RenderProfile.Visual, TestContext.Current.CancellationToken);
         var first = await new CvRenderer().RenderAsync(
             content, ResumeLanguage.Sv, RenderProfile.Visual, TestContext.Current.CancellationToken);
         var second = await new CvRenderer().RenderAsync(
             content, ResumeLanguage.Sv, RenderProfile.Visual, TestContext.Current.CancellationToken);
 
-        second.PdfBytes.Length.ShouldBe(first.PdfBytes.Length,
-            "Samma superset-innehåll ska rendera till samma storlek (deterministisk renderare).");
+        // Content determinism — byte-identity is impossible (QuestPDF /ID + font-subset packing);
+        // the extracted text is the honest, parallel-safe determinism signal (§5, FixedTimestamp).
+        Extract(second.PdfBytes).ShouldBe(Extract(first.PdfBytes),
+            "Samma superset-innehåll ska rendera till samma innehåll (deterministisk renderare).");
+    }
+
+    // ---------------------------------------------------------------
+    // Proficiency localisation — every STATED level maps to a non-null
+    // label in both languages (a growing SmartEnum must not silently
+    // fall through to a bare name — content degradation, P2/P5). Guards
+    // the `_ => null` fallback in ProficiencyLabel.
+    // ---------------------------------------------------------------
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ProficiencyLabel_ReturnsNonNullLabel_ForEveryStatedLevel(bool swedish)
+    {
+        var language = swedish ? ResumeLanguage.Sv : ResumeLanguage.En;
+        foreach (var level in LanguageProficiency.List.Where(l => l != LanguageProficiency.NotStated))
+        {
+            CvRenderStrings.ProficiencyLabel(level, language).ShouldNotBeNullOrWhiteSpace(
+                $"Nivån '{level.Name}' ({language.Name}) saknar etikett — en tyst content-degradation (P2/P5).");
+        }
+    }
+
+    [Theory]
+    [InlineData(true, "Grundläggande", "God", "Flytande", "Modersmål")]
+    [InlineData(false, "Basic", "Good", "Fluent", "Native")]
+    public void ProficiencyLabel_MapsEachLevel_ToItsLocalisedLabel(
+        bool swedish, string basic, string good, string fluent, string native)
+    {
+        var language = swedish ? ResumeLanguage.Sv : ResumeLanguage.En;
+        CvRenderStrings.ProficiencyLabel(LanguageProficiency.Basic, language).ShouldBe(basic);
+        CvRenderStrings.ProficiencyLabel(LanguageProficiency.Good, language).ShouldBe(good);
+        CvRenderStrings.ProficiencyLabel(LanguageProficiency.Fluent, language).ShouldBe(fluent);
+        CvRenderStrings.ProficiencyLabel(LanguageProficiency.Native, language).ShouldBe(native);
+        CvRenderStrings.ProficiencyLabel(LanguageProficiency.NotStated, language).ShouldBeNull(); // honest omission
+    }
+
+    // ---------------------------------------------------------------
+    // Skill grouping edge cases — every skill reaches the PDF once,
+    // regardless of grouping shape. Loss/double-render can only hide in
+    // the composer's remainder branch, so these assert rendered output.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task Render_UngroupedSkillsOnly_TheCommonCase_AllReachThePdf()
+    {
+        var content = WithSkills([new Skill("C#", null), new Skill("Rust", null), new Skill("Go", null)], []);
+
+        var text = await RenderTextAsync(content, RenderProfile.Ats);
+
+        foreach (var skill in new[] { "C#", "Rust", "Go" })
+        {
+            text.ShouldContain(skill, Case.Insensitive, $"Ogrupperad kompetens '{skill}' tappades.");
+        }
+    }
+
+    [Fact]
+    public void From_SkillSharedByTwoGroups_ProjectsIntoBoth_AndKeepsFlatStore()
+    {
+        var content = WithSkills(
+            [new Skill("C#", null), new Skill("SQL", null)],
+            [new SkillGroup("Backend", ["C#", "SQL"]), new SkillGroup("Data", ["SQL"])]);
+
+        var model = From(content);
+
+        // Faithful to the user's grouping — SQL is shown in both groups; the flat store is preserved.
+        model.SkillGroups[0].Members.ShouldContain("SQL");
+        model.SkillGroups[1].Members.ShouldContain("SQL");
+        model.Skills.ShouldBe(["C#", "SQL"]);
+    }
+
+    [Fact]
+    public async Task Render_GroupsCoverAllSkills_NoUngroupedRemainderRow_ButNoLoss()
+    {
+        // All skills are grouped → the ungrouped remainder is empty; every skill still reaches the PDF.
+        var content = WithSkills(
+            [new Skill("C#", null), new Skill("SQL", null)],
+            [new SkillGroup("Backend och .NET", ["C#", "SQL"])]);
+
+        var text = await RenderTextAsync(content, RenderProfile.Ats);
+
+        text.ShouldContain("Backend och .NET", Case.Insensitive);
+        text.ShouldContain("C#", Case.Insensitive);
+        text.ShouldContain("SQL", Case.Insensitive);
+    }
+
+    [Fact]
+    public async Task Render_GroupMemberNotInFlatSkills_StillRenders_NeverDropped()
+    {
+        // Defensive: a member absent from Skills[] (Resume.ValidateContent rejects this upstream, but
+        // the renderer must never DROP content). It renders in its group; the remainder is unaffected.
+        var content = WithSkills(
+            [new Skill("C#", null)],
+            [new SkillGroup("Backend", ["C#", "Phantom"])]);
+
+        var text = await RenderTextAsync(content, RenderProfile.Ats);
+
+        text.ShouldContain("Phantom", Case.Insensitive);
+        text.ShouldContain("C#", Case.Insensitive);
+    }
+
+    [Fact]
+    public async Task Render_BlankGroupName_RendersMembersWithoutPrefix_NoLoss()
+    {
+        var content = WithSkills(
+            [new Skill("C#", null), new Skill("SQL", null)],
+            [new SkillGroup("   ", ["C#", "SQL"])]);
+
+        var text = await RenderTextAsync(content, RenderProfile.Ats);
+
+        text.ShouldContain("C#", Case.Insensitive);
+        text.ShouldContain("SQL", Case.Insensitive);
+    }
+
+    [Fact]
+    public async Task Render_AllWhitespaceGroupMembers_GroupOmitted_UngroupedSkillStillRenders()
+    {
+        // A group whose members are all whitespace contributes nothing (nothing to show), but a real
+        // ungrouped skill alongside it must still render — no collateral loss.
+        var content = WithSkills(
+            [new Skill("Ledarskap", null)],
+            [new SkillGroup("Tom grupp", ["  ", ""])]);
+
+        var text = await RenderTextAsync(content, RenderProfile.Ats);
+
+        text.ShouldContain("Ledarskap", Case.Insensitive);
+    }
+
+    // ---------------------------------------------------------------
+    // Dynamic-section edge cases — a section/entry that is partially
+    // empty must render whatever content it DOES carry, never drop it.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task Render_DynamicSection_HeadingWithoutEntries_StillRendersHeading()
+    {
+        var content = WithSections(new ResumeSection("Referenser", []));
+
+        var text = await RenderTextAsync(content, RenderProfile.Ats);
+
+        text.ShouldContain("Referenser", Case.Insensitive);
+    }
+
+    [Fact]
+    public async Task Render_DynamicEntry_TitleWithoutLines_StillRendersTitle()
+    {
+        var content = WithSections(
+            new ResumeSection("Certifikat", [new SectionEntry("AWS Certified", [])]));
+
+        var text = await RenderTextAsync(content, RenderProfile.Ats);
+
+        text.ShouldContain("AWS Certified", Case.Insensitive);
+    }
+
+    [Fact]
+    public async Task Render_DynamicEntry_LinesWithoutTitle_StillRendersLines()
+    {
+        var content = WithSections(
+            new ResumeSection("Övrigt", [new SectionEntry("", ["Körkort B", "Volontärarbete"])]));
+
+        var text = await RenderTextAsync(content, RenderProfile.Ats);
+
+        text.ShouldContain("Körkort B", Case.Insensitive);
+        text.ShouldContain("Volontärarbete", Case.Insensitive);
+    }
+
+    [Fact]
+    public async Task Render_DynamicEntry_AllWhitespaceLines_EntrySkipped_OtherContentSurvives()
+    {
+        var content = WithSections(
+            new ResumeSection("Projekt", [new SectionEntry("Riktigt projekt", ["  ", ""])]));
+
+        var text = await RenderTextAsync(content, RenderProfile.Ats);
+
+        // The all-whitespace lines contribute nothing, but the entry title (real content) survives.
+        text.ShouldContain("Riktigt projekt", Case.Insensitive);
+    }
+
+    // ---------------------------------------------------------------
+    // Parsed staging path — carries no groups/proficiency/sections, so
+    // those project empty/null (an honest partial, never fabricated).
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void From_ParsedContent_ProjectsEmptyGroupsAndSections_AndNullProficiency()
+    {
+        var parsed = new ParsedResumeContent(
+            new ParsedContact("Parsed Person", null, null, null),
+            skills: ["C#", "SQL"],
+            languages: ["Svenska", "Engelska"]);
+
+        var model = CvDocumentModel.From(parsed);
+
+        model.Skills.ShouldBe(["C#", "SQL"]);
+        model.SkillGroups.ShouldBeEmpty();
+        model.Sections.ShouldBeEmpty();
+        model.Languages.ShouldBe(
+        [
+            new CvDocumentModel.LanguageLine("Svenska", null),
+            new CvDocumentModel.LanguageLine("Engelska", null),
+        ]);
     }
 }

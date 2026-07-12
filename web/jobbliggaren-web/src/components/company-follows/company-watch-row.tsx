@@ -3,11 +3,14 @@
 import { useId, useState, useTransition } from "react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
-import { ShieldAlert, Trash2 } from "lucide-react";
+import { Filter, ShieldAlert, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/i18n/format";
 import { formatOrgNr } from "@/lib/company-follows/org-nr";
 import { unfollowCompanyAction } from "@/lib/actions/company-follows";
 import type { CompanyWatch } from "@/lib/dto/company-follows";
+import type { TaxonomyRegion } from "@/lib/dto/taxonomy";
+import { InfoDialog } from "@/components/common/info-dialog";
+import { WatchFilterDialog } from "./watch-filter-dialog";
 
 /**
  * #452 — which per-company count the hub toggle is emphasising. `matching` (default) leads with the
@@ -27,6 +30,8 @@ const MATCH_SETTINGS_HREF = "/installningar#matchning";
 interface CompanyWatchRowProps {
   item: CompanyWatch;
   mode: CompanyWatchViewMode;
+  /** Taxonomins län (med kommuner) för filter-dialogens ort-picker. Tom lista → picker degraderar civilt. */
+  regions: ReadonlyArray<TaxonomyRegion>;
 }
 
 /**
@@ -49,16 +54,42 @@ interface CompanyWatchRowProps {
  * state over a client-side optimistic copy, §5). `useTransition` covers the DELETE latency
  * (`aria-busy`); parity with FollowCompanyToggle the button is never `disabled` (the backend is
  * idempotent, so a mis-click is recoverable). On failure the row stays and shows the error inline.</para>
+ *
+ * <para><b>Bevakning F4b — the RESTING-state filter disclosure (BC-9′) is load-bearing, not polish.</b>
+ * An active filter narrows this watch's notifications AND the Översikt "nya annonser"-count, while the
+ * row's own numbers stay deliberately filter-UNaware (RF-8 — they answer a different question). Worse:
+ * when every watch suppresses everything, no digest email is sent at all, so the email cannot disclose
+ * anything either — silence is indistinguishable from "nothing was published". This row is therefore the
+ * ONLY surface that can carry the transparency guarantee in that case, which is why the disclosure must
+ * be visible WITHOUT opening anything. It names the axes, and counts the orter rather than listing them
+ * (a whole-län pick can cover ~49 kommuner; the names live one click away, in the editor).</para>
  */
-export function CompanyWatchRow({ item, mode }: CompanyWatchRowProps) {
+export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
   const t = useTranslations("jobads.companyWatches");
   const format = useFormatter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [filterOpen, setFilterOpen] = useState(false);
   const hintId = useId();
 
   const displayName = item.companyName ?? t("unknownCompany");
   const followedSince = formatDate(format, item.followedAt);
+
+  // Antalet valda ORTER är summan av de två axlarna: ett helt-läns-val är ETT val (och lagras som ett
+  // läns-id), inte länets alla kommuner. Att räkna dem var för sig vore att ljuga om vad användaren valt.
+  const ortCount = item.filter
+    ? item.filter.municipalities.length + item.filter.regions.length
+    : 0;
+  const onlyMatchedActive = item.filter?.onlyMatched ?? false;
+
+  // Frånvaro = inget filter. Ingen "Inget filter"-rad, ingen tom chip.
+  const filterLine = !item.filter
+    ? null
+    : onlyMatchedActive && ortCount > 0
+      ? t("filter.activeBoth", { count: ortCount })
+      : onlyMatchedActive
+        ? t("filter.activeOnlyMatched")
+        : t("filter.activeOrter", { count: ortCount });
 
   function handleUnfollow() {
     setError(null);
@@ -71,7 +102,13 @@ export function CompanyWatchRow({ item, mode }: CompanyWatchRowProps) {
 
   return (
     <li>
-      <article className="jp-job" style={{ gridTemplateColumns: "1fr auto" }}>
+      {/* `jp-job--static`: raden bär ett chassi som delas med /jobb, där kortet ÄR klickbart. Här är det
+          bara knapparna som är det — med en andra knapp i raden blir en falsk klick-affordans (pekare +
+          hover-accentkant) aktivt vilseledande, så modifiern tar bort den. /jobb rörs inte. */}
+      <article
+        className="jp-job jp-job--static"
+        style={{ gridTemplateColumns: "1fr auto" }}
+      >
         <div className="jp-job__body">
           <h3 className="jp-job__title">{displayName}</h3>
           {mode === "matching" &&
@@ -120,6 +157,24 @@ export function CompanyWatchRow({ item, mode }: CompanyWatchRowProps) {
             </span>
             {followedSince && <span>{t("followedSince", { date: followedSince })}</span>}
           </div>
+          {/* BC-9′ — the resting-state disclosure. Visible without opening anything, because it is the
+              only surface that can tell the user their notifications are narrowed when no email is sent
+              at all. The InfoDialog is a SIBLING of the text (never a child of a control) and explains
+              the one thing this line cannot: that the row's COUNTS are not filter-aware. */}
+          {filterLine && (
+            <p className="jp-watchfilterline">
+              <Filter size={14} aria-hidden="true" />
+              {filterLine}
+              <InfoDialog
+                title={t("filter.scopeHelpTitle")}
+                paragraphs={[
+                  t("filter.scopeHelpBody1"),
+                  t("filter.scopeHelpBody2"),
+                ]}
+                ariaLabel={t("filter.scopeHelpAria", { company: displayName })}
+              />
+            </p>
+          )}
           {error && (
             <p role="alert" className="mt-2 text-body-sm text-danger-700">
               {error}
@@ -130,6 +185,18 @@ export function CompanyWatchRow({ item, mode }: CompanyWatchRowProps) {
           className="jp-job__actions"
           style={{ flexDirection: "row", alignItems: "center" }}
         >
+          {/* Text, aldrig icon-only: en ikon-tratt är en gåta i en civic-utility. Det tillgängliga
+              namnet bär företaget, annars hör en skärmläsar-användare "Filtrera" N gånger utan kontext
+              (och den synliga etiketten ingår i namnet — WCAG 2.5.3). */}
+          <button
+            type="button"
+            className="jp-rowbtn"
+            aria-label={t("filter.openAria", { company: displayName })}
+            onClick={() => setFilterOpen(true)}
+          >
+            {t("filter.open")}
+          </button>
+          {/* Destruktiv åtgärd sist. */}
           <button
             type="button"
             className="jp-icon-btn"
@@ -142,6 +209,23 @@ export function CompanyWatchRow({ item, mode }: CompanyWatchRowProps) {
           </button>
         </div>
       </article>
+
+      {/* Monteras bara när den öppnas, och `key` på det persisterade filtret monterar om den efter en
+          save — draften kan därför aldrig visa ett inaktuellt värde. */}
+      {filterOpen && (
+        <WatchFilterDialog
+          key={JSON.stringify(item.filter)}
+          open={filterOpen}
+          onOpenChange={setFilterOpen}
+          companyWatchId={item.id}
+          companyName={displayName}
+          filter={item.filter}
+          regions={regions}
+          // Samma diskriminator som radens nudge (SPOT): null = användaren har inte angett något yrke,
+          // så "matchande" är odefinierat — aldrig en falsk 0.
+          matchingNotAssessed={item.matchingAdCount === null}
+        />
+      )}
     </li>
   );
 }

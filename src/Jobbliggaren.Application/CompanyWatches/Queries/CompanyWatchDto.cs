@@ -35,6 +35,23 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries;
 /// assessed. A count of ADS over a named grade threshold, never an opaque match score (Goodhart,
 /// ADR 0071); carries no user-PII and never exposes the raw org.nr.
 /// </para>
+///
+/// <para>
+/// <b><see cref="Filter"/> — the per-watch notification filter (bevakning F4b, RF-2).</b> <c>null</c>
+/// means no filter, mirroring the domain's canonical representation (the NULL jsonb column) — there is
+/// deliberately no redundant <c>hasFilter</c> bool beside it, which would be two representations of one
+/// truth. The FE needs it for two things: to pre-fill the filter editor, and to disclose in the row's
+/// RESTING state that this watch is filtered (BC-9′). The resting-state disclosure is load-bearing, not
+/// polish: an active filter narrows the notifications AND the Översikt rail count, and when every watch
+/// suppresses everything no digest email is sent at all — so this row is the ONLY surface that can carry
+/// the RF-13 transparency guarantee in that case.
+/// </para>
+///
+/// <para>
+/// The counts above are deliberately NOT filter-aware (RF-8): they answer "does this employer post ads
+/// I match?" (a follow-DECISION signal), while the filter answers "which of them should notify me". Three
+/// scopes of ONE grade definition, each independently explainable.
+/// </para>
 /// </summary>
 public sealed record CompanyWatchDto(
     Guid Id,
@@ -43,4 +60,22 @@ public sealed record CompanyWatchDto(
     string? CompanyName,
     DateTimeOffset FollowedAt,
     int ActiveAdCount,
-    int? MatchingAdCount);
+    int? MatchingAdCount,
+    WatchFilterDto? Filter);
+
+/// <summary>
+/// The user's notification filter for ONE followed company (bevakning F4b). Carries the two DISJOINT
+/// JobTech geo namespaces as they are stored — a whole-län pick lives in <see cref="Regions"/> and is
+/// never expanded into its municipalities (see <c>WatchFilterSpec</c>) — plus the fixed-floor
+/// "endast matchande" flag.
+///
+/// <para>
+/// <b>No org.nr member (D8), and no grade value (Goodhart/C-E2).</b> The concept-ids are taxonomy
+/// references, not personal identifiers; the LABELS are resolved FE-side from the taxonomy tree the ort
+/// picker already holds, so there is exactly one label authority and no second one to drift from it.
+/// </para>
+/// </summary>
+public sealed record WatchFilterDto(
+    IReadOnlyList<string> Municipalities,
+    IReadOnlyList<string> Regions,
+    bool OnlyMatched);

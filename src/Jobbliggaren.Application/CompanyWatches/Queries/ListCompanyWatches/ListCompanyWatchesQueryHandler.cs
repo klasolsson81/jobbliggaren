@@ -139,7 +139,17 @@ public sealed class ListCompanyWatchesQueryHandler(
                     // org.nr is masked (public data, no user-PII).
                     MatchingAdCount: matchingByOrgNr is null
                         ? null
-                        : matchingByOrgNr.GetValueOrDefault(w.OrganizationNumber.Value));
+                        : matchingByOrgNr.GetValueOrDefault(w.OrganizationNumber.Value),
+                    // F4b: the per-watch filter, straight off the already-materialised aggregate (no
+                    // extra query, no per-watch GET). null = no filter, mirroring the domain's canonical
+                    // NULL — never a redundant hasFilter bool beside it. Labels stay FE-side (the picker
+                    // already holds the taxonomy tree; a second label authority could only drift).
+                    Filter: w.Filter is null
+                        ? null
+                        : new WatchFilterDto(
+                            w.Filter.Municipalities,
+                            w.Filter.Regions,
+                            w.Filter.OnlyMatched));
             })
             .ToList();
     }

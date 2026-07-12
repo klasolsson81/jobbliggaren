@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getCompanyWatches, markFollowedAdsSeen } from "@/lib/api/company-follows";
+import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { getApplicationHistory } from "@/lib/api/application-history";
 import { assertNever, type ApiResult } from "@/lib/dto/_helpers";
 import { CompanyLookup } from "@/components/company-follows/company-lookup";
@@ -41,11 +42,19 @@ export default async function ForetagPage() {
   // lost, so awaiting it in-batch guarantees it completes. It cannot reject the batch (markFollowedAdsSeen
   // never throws — a failure just leaves the count un-reset this visit), and no seenThrough is sent (the
   // hub renders no individual hits to preserve → the backend advances to clock-now, the safe fallback).
-  const [watchResult, historyResult] = await Promise.all([
+  // F4b: the per-watch filter editor reuses the match-setup ort picker, which needs the taxonomy tree.
+  // Fetched server-side alongside the rest (it is a per-deploy static snapshot, cached) and passed down;
+  // on failure the picker degrades civilly to an empty region list rather than failing the page.
+  // NOTE: markFollowedAdsSeen stays LAST. It is awaited for its side effect and its result is never
+  // destructured, so anything placed after it would silently bind to the wrong promise.
+  const [watchResult, historyResult, taxonomyResult] = await Promise.all([
     getCompanyWatches(),
     getApplicationHistory(),
+    getTaxonomyTree(),
     markFollowedAdsSeen(),
   ]);
+
+  const regions = taxonomyResult.kind === "ok" ? taxonomyResult.data.regions : [];
 
   // #454 (ADR 0088, F1(a) — CTO-bind + Klas 2026-07-02): registry-uppslags-sektionen är
   // FEATURE-DARK i prod tills den riktiga SCB-adaptern aktiveras (en sökruta som alltid svarar
@@ -74,7 +83,7 @@ export default async function ForetagPage() {
         <section className="jp-section scroll-mt-6">
           <h2 className="jp-section__title">{t("foretag.watchesHeading")}</h2>
           {renderSection(watchResult, t, t("foretag.loadErrorTitle"), (data) => (
-            <CompanyWatchList items={data} />
+            <CompanyWatchList items={data} regions={regions} />
           ))}
         </section>
 

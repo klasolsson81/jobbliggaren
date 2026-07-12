@@ -10,7 +10,11 @@ import {
   type ListCompanyWatchesResult,
   type NewFollowedCompanyAdCount,
 } from "@/lib/dto/company-follows";
-import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
+import {
+  parseRetryAfter,
+  responseToResult,
+  type ApiResult,
+} from "@/lib/dto/_helpers";
 import { isValidId } from "@/lib/validation/guid";
 
 const BASE = "/api/v1/me/company-watches";
@@ -94,6 +98,59 @@ export async function unfollowCompany(companyWatchId: string): Promise<ApiResult
     });
     if (res.status === 204) return { kind: "ok", data: undefined };
     if (res.status === 401) return { kind: "unauthorized" };
+    return { kind: "error" };
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * Bevakning F4b (#803) — replace ONE watch's notification filter. `PUT /me/company-watches/{id}/filter`.
+ *
+ * Full-replace, and an ALL-EMPTY selection is how the user clears the filter (the backend maps it to the
+ * canonical NULL — there is no separate DELETE route to get out of sync with). The two geo axes are
+ * DISJOINT namespaces and are sent exactly as picked: a whole-län selection travels as a län concept-id
+ * and is never expanded into its municipalities, because an ad tagged at län granularity carries no
+ * municipality and would silently stop notifying the user.
+ *
+ * 204 on success; the body is never read (TD-10). A cross-user id yields 404, never 403.
+ */
+export async function setWatchFilter(
+  companyWatchId: string,
+  filter: {
+    municipalities: ReadonlyArray<string>;
+    regions: ReadonlyArray<string>;
+    onlyMatched: boolean;
+  }
+): Promise<ApiResult<void>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+  if (!isValidId(companyWatchId)) return { kind: "notFound" };
+
+  try {
+    const res = await authedFetch(
+      sessionId,
+      `${BASE}/${encodeURIComponent(companyWatchId)}/filter`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          municipalities: filter.municipalities,
+          regions: filter.regions,
+          onlyMatched: filter.onlyMatched,
+        }),
+      }
+    );
+
+    if (res.status === 204) return { kind: "ok", data: undefined };
+    if (res.status === 401) return { kind: "unauthorized" };
+    if (res.status === 403) return { kind: "forbidden" };
+    if (res.status === 404) return { kind: "notFound" };
+    if (res.status === 429) {
+      return {
+        kind: "rateLimited",
+        retryAfterSeconds: parseRetryAfter(res.headers.get("Retry-After")),
+      };
+    }
     return { kind: "error" };
   } catch {
     return { kind: "error" };

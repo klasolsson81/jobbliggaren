@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatches;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
@@ -264,5 +265,117 @@ public class ListCompanyWatchesQueryHandlerTests
                 && g.Contains(MatchGrade.Good)
                 && g.Contains(MatchGrade.Strong)),
             Arg.Any<CancellationToken>());
+    }
+
+    // ── F4b (#803) — the per-watch filter projection. The FE needs it for TWO things: to pre-fill the
+    //    editor, and to render the RESTING-state disclosure (BC-9′) that is the only surface able to
+    //    tell the user their notifications are narrowed when no digest email is sent at all. A dropped
+    //    or re-homed axis here is therefore not a cosmetic bug — it is a silent-narrowing failure. ──
+
+    [Fact]
+    public async Task Handle_WhenWatchHasFilter_ProjectsBothGeoAxesAndOnlyMatched()
+    {
+        // The two axes are DISJOINT JobTech namespaces. A whole-län pick lives in Regions as ONE län
+        // concept-id and must reach the DTO unexpanded and un-swapped — expanding it into the län's
+        // kommuner (or crossing the axes) would produce a filter that matches nothing.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var watch = CompanyWatch.Follow(
+            _userId, OrganizationNumber.Create("5592804784").Value, _clock).Value;
+        watch.SetFilter(
+            WatchFilterSpec.Create(["gbg_kn"], ["skane_lan"], onlyMatched: true).Value)
+            .IsSuccess.ShouldBeTrue();
+        db.CompanyWatches.Add(watch);
+        await db.SaveChangesAsync(ct);
+
+        var dto = (await Handler(db).Handle(new ListCompanyWatchesQuery(), ct)).ShouldHaveSingleItem();
+
+        dto.Filter.ShouldNotBeNull();
+        dto.Filter!.Municipalities.ShouldBe(["gbg_kn"]);
+        dto.Filter.Regions.ShouldBe(["skane_lan"],
+            "läns-axeln måste nå DTO:n som ETT läns-id — aldrig expanderad till länets kommuner, " +
+            "aldrig flyttad till kommun-axeln");
+        dto.Filter.OnlyMatched.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_WhenWatchHasOnlyMatchedFilterWithoutGeo_ProjectsEmptyAxesNotNullFilter()
+    {
+        // A geo-free filter is a REAL filter: the watch is narrowed even though both ort lists are
+        // empty. Projecting null here (because "no orter") would erase the disclosure for exactly the
+        // watch whose notifications may be suppressed hardest.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var watch = CompanyWatch.Follow(
+            _userId, OrganizationNumber.Create("5592804784").Value, _clock).Value;
+        watch.SetFilter(WatchFilterSpec.Create([], [], onlyMatched: true).Value)
+            .IsSuccess.ShouldBeTrue();
+        db.CompanyWatches.Add(watch);
+        await db.SaveChangesAsync(ct);
+
+        var dto = (await Handler(db).Handle(new ListCompanyWatchesQuery(), ct)).ShouldHaveSingleItem();
+
+        dto.Filter.ShouldNotBeNull();
+        dto.Filter!.Municipalities.ShouldBeEmpty();
+        dto.Filter.Regions.ShouldBeEmpty();
+        dto.Filter.OnlyMatched.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_WhenWatchHasNoFilter_ProjectsNullFilter()
+    {
+        // null = no filter, mirroring the domain's canonical NULL column. NOT an empty WatchFilterDto:
+        // two representations of "no filter" would mean every reader has to know both, and the FE's
+        // "absence = unfiltered" rule (no disclosure rendered) would break against the wrong one.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        Add(db, _userId, "5592804784");
+        await db.SaveChangesAsync(ct);
+
+        var dto = (await Handler(db).Handle(new ListCompanyWatchesQuery(), ct)).ShouldHaveSingleItem();
+
+        dto.Filter.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_ProjectsFilterPerWatch_NeverBleedingBetweenWatches()
+    {
+        // Two watches, one filtered. A projection bug that reused one watch's filter for the whole
+        // list would silently claim the unfiltered watch is narrowed (and vice versa) — the row-level
+        // disclosure is only trustworthy if it is per-watch.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var filteredWatch = CompanyWatch.Follow(
+            _userId, OrganizationNumber.Create("5592804784").Value, _clock).Value;
+        filteredWatch.SetFilter(
+            WatchFilterSpec.Create(["gbg_kn"], [], onlyMatched: false).Value)
+            .IsSuccess.ShouldBeTrue();
+        var unfilteredWatch = CompanyWatch.Follow(
+            _userId, OrganizationNumber.Create("2120000142").Value, _clock).Value;
+        db.CompanyWatches.AddRange(filteredWatch, unfilteredWatch);
+        await db.SaveChangesAsync(ct);
+
+        var result = await Handler(db).Handle(new ListCompanyWatchesQuery(), ct);
+
+        var filtered = result.Single(d => d.OrganizationNumber == "5592804784");
+        filtered.Filter.ShouldNotBeNull();
+        filtered.Filter!.Municipalities.ShouldBe(["gbg_kn"]);
+        result.Single(d => d.OrganizationNumber == "2120000142").Filter.ShouldBeNull();
+    }
+
+    [Fact]
+    public void WatchFilterDto_CarriesNoOrgNrAndNoGradeValue()
+    {
+        // D8 (ADR 0087) — the filter DTO is a taxonomy-reference carrier, not an identity carrier: an
+        // enskild-firma org.nr CAN BE a personnummer, so the type must not even have a member to leak
+        // one through. The architecture guard's fail-closed partition would flag an org.nr member as
+        // unclassified; this pins the STRONGER rule for this type (it may never be classified INTO the
+        // surfacing set at all). Also pins the Goodhart bind: no grade value crosses the boundary.
+        var members = typeof(WatchFilterDto)
+            .GetProperties()
+            .Select(p => p.Name)
+            .ToList();
+
+        members.ShouldBe(["Municipalities", "Regions", "OnlyMatched"], ignoreOrder: true);
     }
 }

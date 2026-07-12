@@ -71,10 +71,13 @@ finish inside the job timeout. Against a production build every route is precomp
 the full suite runs in **~2 minutes** locally, versus ~25 min (timeout) on `pnpm dev`.
 `retries` is accordingly `1` in CI, not `2`.
 
-`security-headers.spec.ts` is **mode-agnostic** and passes in both: it asserts the
-branch-invariant CSP directives, plus the dev/prod branches as a mutual-exclusion
-invariant (a policy carrying `'unsafe-eval'`/`ws:` must NOT also carry
-`upgrade-insecure-requests`, and vice versa). So the prod build cannot silently weaken it.
+`security-headers.spec.ts` passes in both modes: it asserts the branch-invariant CSP
+directives, the dev/prod mutual-exclusion invariant (a policy carrying `'unsafe-eval'`/`ws:`
+must NOT also carry `upgrade-insecure-requests`, and vice versa — that catches directive
+leakage ACROSS the branches), and — under `CI`, where the build mode is actually **known** —
+that the served policy is the production branch. The last part matters: the mutual-exclusion
+check is self-referential, so a prod build that accidentally served the whole dev CSP would
+still be internally consistent and pass. Anchoring the mode is what makes it a real guard.
 
 The `__Host-` session cookie works over `http://localhost` because Chromium treats
 localhost as a secure context.

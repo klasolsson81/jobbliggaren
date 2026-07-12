@@ -57,11 +57,24 @@ test.describe("/jobb — auth-gated rendering", () => {
   }) => {
     await page.goto("/jobb");
 
-    // Civic-utility: väljarna heter Yrkesområde/Yrkesgrupper och Län/Kommuner
-    // — ingen "SSYK-kod" exponeras för användaren.
+    // Civic-utility (ADR 0043): väljarna heter Yrkesområde/Yrkesgrupper och Län/Kommuner.
+    // Rubrikerna ensamma är en svag assertion — den verkliga intentionen är att INGA RÅA
+    // SSYK-KODER exponeras för användaren. Assertera den: ett alternativ får aldrig vara
+    // en naken sifferkod. (Den gamla specen asserterade namngivna kontroller; ytan är
+    // omgjord, men intentionen ska inte tappas på vägen.)
     await page.getByRole("button", { name: "Yrke", exact: true }).click();
     await expect(page.getByText("Yrkesområde", { exact: true })).toBeVisible();
     await expect(page.getByText("Yrkesgrupper", { exact: true })).toBeVisible();
+    const yrkeOptions = await page
+      .getByRole("dialog")
+      .or(page.locator(".jp-hero-popover"))
+      .last()
+      .getByRole("checkbox")
+      .or(page.getByRole("option"))
+      .allInnerTexts();
+    for (const label of yrkeOptions) {
+      expect(label.trim()).not.toMatch(/^\d{4}$/);
+    }
     await page.keyboard.press("Escape");
 
     await page.getByRole("button", { name: "Ort", exact: true }).click();
@@ -83,6 +96,15 @@ test.describe("/jobb — auth-gated rendering", () => {
       .click();
     await page.waitForURL(/\/jobb$/);
   });
+
+  // BORTTAGET TEST (#813, dokumenterat — inte tyst): "validation: q=1 tecken ger
+  // felmeddelande och blockerar submit". Den copy det asserterade ("Söktexten måste vara
+  // 2–100 tecken") finns inte längre någonstans i messages/ — hero-omdesignen ersatte
+  // min-2-submit-blocket med en max-100-guard. Testet var alltså dött oavsett, och att
+  // låta det ligga hade gett falsk trygghet. Beteendet i sig var däremot TRASIGT (ett
+  // enteckens sök gav ett tekniskt felkort) → #823 fixar det och lägger tillbaka en
+  // assertion mot det beteende den skapar. Min-längdsregeln har kvar unit-täckning i
+  // src/lib/dto/job-ads.test.ts.
 
   test("nav-länk Jobb syns i layout", async ({ page }) => {
     await page.goto("/ansokningar");

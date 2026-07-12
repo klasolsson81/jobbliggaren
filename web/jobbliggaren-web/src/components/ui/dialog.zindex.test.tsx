@@ -28,9 +28,23 @@ import {
  * mobile-nav `.jp-drawer` still occupies the 99/100 band and lowering the
  * floor would only invite regressions.
  *
- * The user-visible occlusion assertion (real browser hit-test) lives in the
- * Playwright spec — tests/e2e/applications.spec.ts. That spec is not wired into
- * CI yet (see the #565 CI-gap note); this in-CI vitest test is the actual gate.
+ * The browser-level companion lives in tests/e2e/applications.spec.ts and is now
+ * wired into CI (#813). Correction while we were in here: that spec used to claim
+ * a real `.click()` was the occlusion hit-test. **It is not.** Radix's
+ * DismissableLayer sets `pointer-events: none` on `<body>` for a MODAL dialog
+ * (`modal` defaults to true), and `.jp-modal-scrim` declares no `pointer-events` of
+ * its own, so it INHERITS `none` — it cannot intercept the click no matter what it
+ * paints over. A dialog regressed to z-50, painting UNDER the z-80 scrim, still
+ * clicks through green (verified by mutation). (Conditional, not a Radix law: with
+ * `modal={false}`, or if the scrim ever declares its own `pointer-events: auto`,
+ * interception returns.) #565's reachable symptom is therefore "invisible", not
+ * "unclickable", so the e2e spec now probes real paint order via
+ * `document.elementFromPoint` with the scrim's hit-testability restored — which also
+ * survives a portal-container change that a bare z-index comparison would wave through.
+ *
+ * Note the limit of THIS guard: it renders a bare <DialogContent> and reads the z-
+ * class. `cn()` is tailwind-merge, so a CONSUMER passing `className="z-50"` would
+ * silently override z-110 and this test would not see it. Only the e2e probe would.
  */
 
 // The historical maximum opaque host band (the retired detail drawer's

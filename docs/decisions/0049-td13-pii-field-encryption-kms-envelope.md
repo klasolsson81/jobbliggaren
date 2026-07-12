@@ -30,6 +30,22 @@
 > inte. Verifierat denna session: `KmsEnvelopeEncryptor` har noll AWS-import
 > (ren BCL `AesGcm`); enda AWS-touchpoint var `KmsDataKeyProvider`.
 
+> **Not 2026-07-12 (#802 — KMS-providern borttagen, Local-only):** AWS-exiten är
+> nu slutförd för fält-krypteringen. `KmsDataKeyProvider` +
+> `CmkKeyId`/`AwsRegion`-options + `AWSSDK.KeyManagementService`/`AWSSDK.Core` är
+> **borttagna** (0 Amazon-paket i lösningen); `LocalDataKeyProvider` är den enda
+> `IDataKeyProvider`. Provider-default är nu `"Local"`; ett explicit icke-Local-
+> värde fail-fastar i DI (`AddPersistence`) — aldrig en tyst fallback. Den
+> AWS-fria `IFieldEncryptor`-primitiven är omdöpt `KmsEnvelopeEncryptor` →
+> `AesGcmFieldEncryptor` (truth-in-naming; wire-format oförändrat, pinnat av det
+> frysta ciphertext-testet). Detta **ersätter** 2026-06-06-notens "KMS-impl +
+> paket BEHÅLLS som referens". Besluts-substansen (envelope-struktur, owner-AAD-
+> bindning, fail-closed-invariant, AES-256-GCM-primitiv) är **fortsatt
+> oförändrad** — bara den döda KMS-wrap-grenen försvinner. Prod-master-nyckelns
+> skyddsmodell + rotation på Hetzner kvarstår **TD-102** (Major, Hetzner-deploy),
+> självständig från den borttagna KMS-providern och en senare separat
+> 0049-amendment.
+
 ---
 
 ## Kontext

@@ -53,10 +53,10 @@ export FieldEncryption__LocalMasterKeyBase64="$MK"   # required for BOTH Api and
 ```
 
 The dev `appsettings` Postgres string uses a `${...}` placeholder the launch
-must expand, else `28P01`. `FieldEncryption:Provider` code-defaults to `"Kms"`
-(deliberate prod fail-loud, ADR 0066), so omitting the FieldEncryption vars
-boots green but breaks every DEK-needing flow (CV import/read, crypto-erasure)
-at first use — and the master key MUST be the main copy's: it wrapped all
+must expand, else `28P01`. `FieldEncryption:Provider` code-defaults to `"Local"`
+(#802 — the KMS provider is removed; the `Provider` export above is now optional),
+but the master KEY is still mandatory: the validator hard-fails at startup on an
+empty/wrong-length key in ALL environments, and it MUST be the main copy's: it wrapped all
 existing per-user DEKs, a fresh key cannot unwrap them. Set the vars only in
 the launching shell — never persist them to a dotfile or a committed wrapper
 script (security-auditor 2026-07-02). The launch does NOT
@@ -267,12 +267,12 @@ test:  Postgres 5433 · Redis 6380                (DB "jobbliggaren_test", profi
   Redis from env or `appsettings.Local.json`.
 - **Field-encryption (DEK) config lives ONLY in the main copy's gitignored
   `appsettings.Local.json`** (`FieldEncryption: Provider=Local` + master key) —
-  a worktree launch must inject `FieldEncryption__Provider` +
-  `FieldEncryption__LocalMasterKeyBase64` as env for **both Api and Worker**
-  (§2). Without them the code default `Kms` (retired AWS, ADR 0066) throws
-  `AmazonClientException` on every DEK flow; the CV-import BFF then masks that
-  500 as a misleading 400 "Filen kunde inte läsas…" (it never echoes backend
-  bodies — PII discipline), so diagnose by curling the Api directly.
+  a worktree launch must inject `FieldEncryption__LocalMasterKeyBase64` as env for
+  **both Api and Worker** (§2; `FieldEncryption__Provider` is optional since #802 —
+  the default is now `Local`, the KMS provider is removed). Without the master key
+  the host hard-fails at startup (the validator rejects an empty/wrong-length key
+  in ALL environments — no more silent `AmazonClientException` at first DEK use);
+  a stale `FieldEncryption__Provider=Kms` now fail-fasts in DI (unsupported value).
 - **Single stack-owner:** Api/Worker/`dotnet ef`/Migrate all point at the same
   5435 DB → two live stacks collide on data + Hangfire state. Only the
   stack-owner runs against 5435; everyone else uses **Testcontainers**.

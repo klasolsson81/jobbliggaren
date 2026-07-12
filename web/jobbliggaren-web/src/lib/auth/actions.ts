@@ -43,8 +43,10 @@ export type AuthActionState = {
   // #733: set alongside the login 403 gate (Auth.EmailNotConfirmed) so LoginForm can offer a
   // "resend confirmation link" action. Only reachable with a correct password, so not an oracle.
   emailNotConfirmed?: boolean;
-  // #733: the submitted email echoed back so the register check-inbox panel (which unmounts the form)
-  // can hand it to the resend action. Lives only in the returned action state; never logged.
+  // #733: the submitted email echoed back so the resend action can read it from the action state.
+  // Both consumers rely on this rather than the input: the register check-inbox panel unmounts the
+  // form, and the login-403 gate keeps the form mounted but React 19 resets its live input (#791).
+  // Lives only in the returned action state; never logged.
   email?: string;
 } | null;
 
@@ -82,9 +84,15 @@ export async function loginAction(
     // with a valid password, so it is not an enumeration oracle (a wrong password stays a 401 above).
     // #733: flag the state so LoginForm can render the resend-confirmation-link action.
     if (res.status === 403) {
+      // #733/#791: echo the submitted email so LoginForm's resend button reads it from the action
+      // state. React 19 resets the (uncontrolled) form after the action completes, clearing the live
+      // email input — reading it at click time would yield "" and the resend would silently no-op.
+      // Uniform-safe: the 403 is only reachable with a correct password (a wrong one stays 401 above),
+      // so echoing the address the caller just proved they own introduces no enumeration oracle.
       return {
         error: t("auth.actions.emailNotConfirmed"),
         emailNotConfirmed: true,
+        email,
       };
     }
     if (!res.ok) {

@@ -74,11 +74,12 @@ export function LoginForm() {
         </p>
       )}
 
-      {/* #733: the email input stays mounted here, so read it live at click time. */}
+      {/* #733/#791: read the submitted email from the action state, not the live input. The form
+          stays mounted on the 403, but React 19 resets its (uncontrolled) fields after the login
+          action, so emailInputRef.current.value is "" at click time and the resend would silently
+          no-op. loginAction echoes the submitted email on the 403 for exactly this. */}
       {state?.emailNotConfirmed && (
-        <ResendConfirmationButton
-          getEmail={() => emailInputRef.current?.value ?? ""}
-        />
+        <ResendConfirmationButton getEmail={() => state.email ?? ""} />
       )}
 
       <Button type="submit" disabled={isPending} className="w-full">

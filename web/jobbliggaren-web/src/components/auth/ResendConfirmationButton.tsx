@@ -3,8 +3,9 @@
 // #733 — shared resend-confirmation-link island. Client because it owns an explicit click interaction,
 // a local sending/sent/error state machine, and a client-side cooldown timer (setInterval). Consumed by
 // LoginForm (the 403 "email not confirmed" state) and RegisterForm (the 202 check-inbox panel), each of
-// which passes the current email through `getEmail` — a function, not a string, so the value is read at
-// click time (the login email input can still change; the register panel echoes the submitted address).
+// which passes the submitted email through `getEmail`, read at click time from the server-action state.
+// Both consumers echo the address from the action result (register unmounts the form; login's live input
+// is reset by React 19 after the action, #791), so getEmail never depends on a mutable or reset input.
 //
 // SECURITY (§5): the email is user PII. It is read from `getEmail()` only to hand to the server action
 // and is NEVER logged (no `console.*`). The success message is the SAME uniform anti-enumeration copy

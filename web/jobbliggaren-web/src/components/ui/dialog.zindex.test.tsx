@@ -30,14 +30,21 @@ import {
  *
  * The browser-level companion lives in tests/e2e/applications.spec.ts and is now
  * wired into CI (#813). Correction while we were in here: that spec used to claim
- * a real `.click()` was the occlusion hit-test. **It is not.** With a Radix modal
- * open, `pointer-events: none` is set on body AND on the scrim, so the scrim
- * cannot intercept the click no matter what it paints over — a dialog regressed to
- * z-50, painting UNDER the z-80 scrim, still clicks through green (verified by
- * mutation). #565's reachable symptom is therefore "invisible", not "unclickable",
- * and the e2e spec now asserts the PAINT order (computed z-index in a real browser,
- * real cascade) instead. That assertion does fail under the z-50 regression.
- * This vitest guard remains the in-CI contract gate; the e2e one is observe-only.
+ * a real `.click()` was the occlusion hit-test. **It is not.** Radix's
+ * DismissableLayer sets `pointer-events: none` on `<body>` for a MODAL dialog
+ * (`modal` defaults to true), and `.jp-modal-scrim` declares no `pointer-events` of
+ * its own, so it INHERITS `none` — it cannot intercept the click no matter what it
+ * paints over. A dialog regressed to z-50, painting UNDER the z-80 scrim, still
+ * clicks through green (verified by mutation). (Conditional, not a Radix law: with
+ * `modal={false}`, or if the scrim ever declares its own `pointer-events: auto`,
+ * interception returns.) #565's reachable symptom is therefore "invisible", not
+ * "unclickable", so the e2e spec now probes real paint order via
+ * `document.elementFromPoint` with the scrim's hit-testability restored — which also
+ * survives a portal-container change that a bare z-index comparison would wave through.
+ *
+ * Note the limit of THIS guard: it renders a bare <DialogContent> and reads the z-
+ * class. `cn()` is tailwind-merge, so a CONSUMER passing `className="z-50"` would
+ * silently override z-110 and this test would not see it. Only the e2e probe would.
  */
 
 // The historical maximum opaque host band (the retired detail drawer's

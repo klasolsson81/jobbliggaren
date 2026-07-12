@@ -57,11 +57,24 @@ test.describe("/jobb — auth-gated rendering", () => {
   }) => {
     await page.goto("/jobb");
 
-    // Civic-utility: väljarna heter Yrkesområde/Yrkesgrupper och Län/Kommuner
-    // — ingen "SSYK-kod" exponeras för användaren.
+    // Civic-utility (ADR 0043): väljarna heter Yrkesområde/Yrkesgrupper och Län/Kommuner.
+    // Rubrikerna ensamma är en svag assertion — den verkliga intentionen är att INGA RÅA
+    // SSYK-KODER exponeras för användaren. Assertera den: ett alternativ får aldrig vara
+    // en naken sifferkod. (Den gamla specen asserterade namngivna kontroller; ytan är
+    // omgjord, men intentionen ska inte tappas på vägen.)
     await page.getByRole("button", { name: "Yrke", exact: true }).click();
     await expect(page.getByText("Yrkesområde", { exact: true })).toBeVisible();
     await expect(page.getByText("Yrkesgrupper", { exact: true })).toBeVisible();
+    const yrkeOptions = await page
+      .getByRole("dialog")
+      .or(page.locator(".jp-hero-popover"))
+      .last()
+      .getByRole("checkbox")
+      .or(page.getByRole("option"))
+      .allInnerTexts();
+    for (const label of yrkeOptions) {
+      expect(label.trim()).not.toMatch(/^\d{4}$/);
+    }
     await page.keyboard.press("Escape");
 
     await page.getByRole("button", { name: "Ort", exact: true }).click();

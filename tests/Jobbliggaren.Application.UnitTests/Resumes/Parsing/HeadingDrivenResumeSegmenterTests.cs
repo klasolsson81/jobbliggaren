@@ -307,24 +307,30 @@ public class HeadingDrivenResumeSegmenterTests
     }
 
     [Fact]
-    public void Segment_InlineFreeHeading_CarriesItsContent()
+    public void Segment_LabelShapedFreeToken_DoesNotHijackARealSection()
     {
+        // Fria rubriker känns igen ENBART som hel rad, aldrig i inline-form ("Kurs: ...").
+        // Varje post i Utbildning inleds efter en tom rad, så postens första rad passerar alltid
+        // inline-splittens boundary-port. En etikettformad fri token hade därför TERMINERAT
+        // Utbildning och degraderat resterande poster till fri-sektionstext — motorn hade uppfunnit
+        // en sektionsgräns användaren inte skrev. Innehållet stannar i stället kvar där det står:
+        // förlustfritt, synligt, redigerbart.
         const string cv =
             """
             Anna Andersson
 
-            Profil
-            Erfaren utvecklare.
+            Utbildning
+            Civilingenjör — KTH
+            2016 - 2021
 
-            Projekt: Betalplattform, Bokningssystem
+            Kurs: Databaser 7,5 hp
+            Fördjupning i relationsdatabaser.
             """;
 
         var result = _sut.Segment(cv);
 
-        result.Content.Sections.Count.ShouldBe(1);
-        result.Content.Sections[0].Heading.ShouldBe("Projekt");
-        result.Content.Sections[0].Entries[0].Lines
-            .ShouldContain("Betalplattform, Bokningssystem");
+        result.Content.Sections.ShouldBeEmpty();
+        result.Content.Education.Count.ShouldBeGreaterThanOrEqualTo(1);
     }
 
     [Fact]
@@ -362,8 +368,21 @@ public class HeadingDrivenResumeSegmenterTests
         // varken skeva det dokument-övergripande verdiktet eller dyka upp som en sektion.
         var withFree = _sut.Segment(CvWithProjectsAndReferences);
 
+        // Exakt de sex typade sektionerna — en fri sektion får inte dyka upp som en
+        // konfidenspost och skeva det dokument-övergripande verdiktet.
         withFree.Confidence.Sections.Count.ShouldBe(6);
-        withFree.Confidence.Sections.ShouldAllBe(s => s.Kind != default || true);
+        withFree.Confidence.Sections
+            .Select(s => s.Kind)
+            .ShouldBe(
+                [
+                    ParsedSectionKind.Contact,
+                    ParsedSectionKind.Profile,
+                    ParsedSectionKind.Experience,
+                    ParsedSectionKind.Education,
+                    ParsedSectionKind.Skills,
+                    ParsedSectionKind.Languages,
+                ],
+                ignoreOrder: true);
     }
 
     private const string SwedishCv =

@@ -132,7 +132,16 @@ public static class ResumeContentLinearizer
         var lines = new List<string> { section.Heading };
         foreach (var entry in section.Entries)
         {
-            lines.Add(entry.Title);
+            // #815: a titleless entry contributes NO line here — it must not contribute an empty
+            // one. string.Join would render a null/blank title as an empty string, i.e. a BLANK
+            // LINE, and a blank line is precisely the block separator ("\n\n") that the citation
+            // substrate and the review rules split on (ADR 0093 §D8). An unguarded null title would
+            // therefore inject a phantom block boundary into the evidence a CV verdict is cited
+            // from. Skipping it keeps D8 losslessness intact: a heading that does not exist
+            // contributes zero citable units.
+            if (!string.IsNullOrWhiteSpace(entry.Title))
+                lines.Add(entry.Title);
+
             lines.AddRange(entry.Lines.Where(l => !string.IsNullOrWhiteSpace(l)));
         }
 

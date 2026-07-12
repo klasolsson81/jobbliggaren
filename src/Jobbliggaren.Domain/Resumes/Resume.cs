@@ -716,9 +716,17 @@ public sealed class Resume : AggregateRoot<ResumeId>
 
             foreach (var entry in section.Entries)
             {
-                if (string.IsNullOrWhiteSpace(entry.Title))
+                // #815: an entry must carry SOMETHING — but not necessarily a title. A CV that says
+                // "Referenser / Lämnas på begäran." has an entry with lines and no heading, and that
+                // is a normal document, not a malformed one. Requiring a title here made the parser's
+                // honest "no title" (ADR 0071 — it never invents one) unsavable, so a user could see
+                // her own project list prefilled in the guide and then be refused permission to save
+                // it. What must never happen is an entry that carries neither.
+                if (string.IsNullOrWhiteSpace(entry.Title)
+                    && entry.Lines.All(string.IsNullOrWhiteSpace))
                     return Result.Failure(DomainError.Validation(
-                        "Resume.SectionEntryTitleRequired", "Titel krävs på sektionspost."));
+                        "Resume.SectionEntryEmpty",
+                        "En sektionspost måste ha en titel eller innehåll."));
 
                 if (entry.Lines.Sum(l => l?.Length ?? 0) > 2_000)
                     return Result.Failure(DomainError.Validation(

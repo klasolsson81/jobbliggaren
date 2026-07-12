@@ -286,7 +286,7 @@
       "clearField": "Rensa sökfältet",
       "submit": "Sök",
       "limitNotice": "Söktexten är full (max {max} tecken). Ta bort en tagg för att lägga till fler ord.",
-      "minNotice": "Söktexten måste vara minst {min} tecken. Skriv ett ord till eller lägg till ett tecken.",
+      "minNotice": "Sökord kortare än {min} tecken används inte i sökningen.",
       "help": "Ord blir taggar i filterraden vid träffarna när du skriver mellanslag eller komma. Välj förslag med piltangenterna och Tab.",
       "announceAdded": "Lade till {label}",
       "announceRemoved": "Tog bort {label}",

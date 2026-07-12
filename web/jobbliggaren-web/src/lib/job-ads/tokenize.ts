@@ -1,4 +1,4 @@
-import { Q_MAX_LENGTH, type SuggestionKind } from "@/lib/dto/job-ads";
+import { Q_MAX_LENGTH, Q_MIN_LENGTH, type SuggestionKind } from "@/lib/dto/job-ads";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import { composeSuggestionChip } from "./chip-composition";
 import {
@@ -200,6 +200,13 @@ export interface ClaimsDeltaResult {
   removedLabels: string[];
   /** q-ord vägrade av Q_MAX_LENGTH-guarden (står kvar i texten). */
   rejectedQ: string[];
+  /**
+   * #823 — q-ord som föll bort för att den SAMMANSATTA söktexten hamnade under
+   * Q_MIN_LENGTH (står kvar i texten, precis som `rejectedQ`). Speglar backendens
+   * `SearchQueryParser`: en residual under minimum NOLLAS, frågan körs vidare på
+   * sina dimensioner — den vägras inte.
+   */
+  tooShortQ: string[];
   /** Anspråk som faktiskt applicerades (nästa prevClaims). */
   appliedClaims: ParsedClaims;
 }
@@ -277,6 +284,30 @@ export function applyClaimsDelta(
     appliedQ.push(w);
   }
 
+  // #823 — min-längdsregeln, spegelvänd mot Q_MAX_LENGTH-avvisningen ovan. Backend
+  // avvisar en söktext under 2 tecken (ListJobAdsQueryValidator), medan dess EGEN parser
+  // (SearchQueryParser) nollar en residual under minimum och kör vidare på dimensionerna.
+  // Klienten gör detsamma: det för korta ordet står kvar i TEXTEN men appliceras inte på
+  // staten — så "i göteborg" ger Göteborg-chippen (residualen "i" droppas), i stället för
+  // att hela söket dör. Att i stället vägra committa hade skapat en återvändsgränd.
+  //
+  // Regeln gäller den SAMMANSATTA q-strängen, aldrig per ord: backend kräver minst 2
+  // tecken på hela Q, inte på varje ord. "a bc" (4 tecken) är fullt giltigt och MÅSTE
+  // släppas igenom — en per-ord-regel hade tyst strypt en term servern accepterar, dvs.
+  // klienten hade uppfunnit en strängare regel än den som faktiskt gäller. (En sammansatt
+  // q under 2 tecken kan bara vara ETT enteckensord: två ord med mellanslag är redan ≥ 3.)
+  //
+  // Ordningen är bärande: droppen måste ske FÖRE enforceClaims, annars läggs ordet
+  // tillbaka av I1-enforcementen. `appliedQ` nollas med — prevClaims får aldrig göra
+  // anspråk på något staten saknar (annars kan en borttagning aldrig härledas igen).
+  const tooShortQ: string[] = [];
+  const assembledQ = state.q.trim();
+  if (assembledQ.length > 0 && assembledQ.length < Q_MIN_LENGTH) {
+    tooShortQ.push(...splitQWords(state.q));
+    state = { ...state, q: "" };
+    appliedQ.length = 0;
+  }
+
   // I1-enforcement (CTO-addendum 2026-06-12 BESLUT 2): texten är användarens
   // explicita anspråk — varje next-claim SKA finnas i staten även om compose-
   // vägens per-län-normalisering (dokumenterad kosmetik, E2b) eller
@@ -289,8 +320,10 @@ export function applyClaimsDelta(
     addedLabels,
     removedLabels,
     rejectedQ,
-    // Vägrade q-ord ingår INTE — de står kvar i texten och får nytt
-    // add-försök vid nästa commit-punkt (efter att utrymme frigjorts).
+    tooShortQ,
+    // Vägrade q-ord (Q_MAX) och för korta q-ord (Q_MIN) ingår INTE — de står kvar i
+    // texten och får nytt add-försök vid nästa commit-punkt (efter att utrymme frigjorts
+    // respektive efter att texten blivit lång nog).
     appliedClaims: { matches: next.matches, qWords: appliedQ },
   };
 }

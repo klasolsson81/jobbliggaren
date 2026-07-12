@@ -66,6 +66,14 @@ function stubSuggest(
   );
 }
 
+
+// #823 — notis-texten finns med FLIT på två ställen: den synliga hjälpraden och den enda
+// aria-live-regionen (hjälpraden är inte längre en egen role="status", annars lästes hela
+// default-hjälptexten upp på nytt varje gång en notis släcktes). Testerna läser därför den
+// SYNLIGA raden explicit i stället för att matcha texten globalt.
+const helpLine = () =>
+  document.querySelector("p.jp-hero__searchhelp")?.textContent ?? "";
+
 beforeEach(() => {
   replaceMock.mockClear();
   pushMock.mockClear();
@@ -141,55 +149,64 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
     });
   });
 
-  // #823 — min-längdsgrinden. Backend avvisar q kortare än 2 tecken
-  // (SearchCriteria.QMinLength; ett enteckens q matchar närapå hela tabellen).
-  // Utan grinden navigerade heron till ?q=a, fick 400 och renderade teknisk-fel-
-  // kortet — och eftersom commit() också driver live-deltat slog det till redan vid
-  // FÖRSTA tecknet i ett nytt sökord. Grinden sitter i commit() (enda
-  // navigeringspunkten), så testerna nedan täcker både Sök-knappen och live-vägen.
-  describe("min-längd på söktexten (#823)", () => {
-    it("Sök med ett tecken navigerar INTE och visar vägledningen", async () => {
+  // #823 — q-min-regeln. Den bor i applyClaimsDelta (enhetstestad i tokenize.test.ts);
+  // här pinnas komponentens beteende: söket KÖRS, det för korta ordet används bara inte,
+  // och notisen förklarar varför. En tidigare version höll hela navigeringen i stället —
+  // det skapade en återvändsgränd ("i göteborg" gick inte att söka) och korrumperade
+  // delta-bokföringen. Semantiken speglar backendens SearchQueryParser.
+  describe("q-min-regeln (#823)", () => {
+    it("Sök med ett tecken: navigerar UTAN q och visar notisen — inget teknisk-fel-kort", async () => {
       const user = userEvent.setup();
       setup();
 
       await user.type(screen.getByRole("combobox"), "a");
       await user.click(screen.getByRole("button", { name: /^Sök/ }));
 
-      expect(replaceMock).not.toHaveBeenCalled();
-      expect(
-        screen.getByText(/Söktexten måste vara minst 2 tecken/),
-      ).toBeInTheDocument();
-    });
-
-    it("ett andra tecken släpper igenom söket och notisen försvinner", async () => {
-      const user = userEvent.setup();
-      setup();
-
-      await user.type(screen.getByRole("combobox"), "a");
-      await user.click(screen.getByRole("button", { name: /^Sök/ }));
-      expect(replaceMock).not.toHaveBeenCalled();
-
-      await user.type(screen.getByRole("combobox"), "b");
-      await user.click(screen.getByRole("button", { name: /^Sök/ }));
-
-      expect(replaceMock).toHaveBeenCalledWith("/jobb?q=ab&commit=true", {
-        scroll: false,
-      });
-      expect(
-        screen.queryByText(/Söktexten måste vara minst 2 tecken/),
-      ).toBeNull();
-    });
-
-    it("tomt q (×-clear / ren filter-commit) passerar grinden", async () => {
-      const user = userEvent.setup();
-      setup({ q: "volvo" });
-
-      await user.click(screen.getByRole("button", { name: "Rensa sökfältet" }));
-
-      // Tomt q är giltigt för backend — grinden får inte hålla kvar rensningen.
       expect(replaceMock).toHaveBeenCalled();
       const [href] = replaceMock.mock.calls[0] ?? [];
+      // Ingen q-param → backendens 400-väg nås aldrig.
       expect(String(href)).not.toContain("q=");
+      expect(helpLine()).toMatch(/Sökord kortare än 2 tecken används inte/);
+    });
+
+    it("'i göteborg': ortfiltret körs ändå — residualen 'i' stryks, ingen återvändsgränd", async () => {
+      const user = userEvent.setup();
+      setup();
+
+      await user.type(screen.getByRole("combobox"), "i göteborg");
+      await user.click(screen.getByRole("button", { name: /^Sök/ }));
+
+      const [href] = replaceMock.mock.calls.at(-1) ?? [];
+      expect(String(href)).toContain("municipality=PVZL_BQT_XtL");
+      expect(String(href)).not.toContain("q=");
+      expect(helpLine()).toMatch(/Sökord kortare än 2 tecken används inte/);
+    });
+
+    it("'a bc' släpps igenom oförändrat — regeln gäller hela q, inte varje ord", async () => {
+      const user = userEvent.setup();
+      setup();
+
+      await user.type(screen.getByRole("combobox"), "a bc");
+      await user.click(screen.getByRole("button", { name: /^Sök/ }));
+
+      const [href] = replaceMock.mock.calls.at(-1) ?? [];
+      expect(String(href)).toContain("q=a+bc");
+      expect(helpLine()).not.toMatch(/Sökord kortare än 2 tecken/);
+    });
+
+    it("notisen försvinner vid nästa redigering — utan att man behöver söka igen", async () => {
+      // Ett pågående ord är ingen commit-punkt (CTO VAL 3), så utan självläkning stod
+      // notisen kvar och ljög — även med TOMT fält, där ×-knappen inte ens renderas.
+      const user = userEvent.setup();
+      setup();
+
+      await user.type(screen.getByRole("combobox"), "a");
+      await user.click(screen.getByRole("button", { name: /^Sök/ }));
+      expect(helpLine()).toMatch(/Sökord kortare än 2 tecken används inte/);
+
+      await user.type(screen.getByRole("combobox"), "b");
+
+      expect(helpLine()).not.toMatch(/Sökord kortare än 2 tecken/);
     });
   });
 
@@ -261,9 +278,7 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
     const user = userEvent.setup();
     setup({ q: "a".repeat(95) });
     await user.type(screen.getByRole("combobox"), " jättelångt ");
-    expect(
-      screen.getByText(/Söktexten är full \(max 100 tecken\)/),
-    ).toBeInTheDocument();
+    expect(helpLine()).toMatch(/Söktexten är full \(max 100 tecken\)/);
   });
 });
 

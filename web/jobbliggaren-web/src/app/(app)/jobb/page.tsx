@@ -6,7 +6,11 @@ import { getMyProfile } from "@/lib/api/me";
 import { getRecentSearches } from "@/lib/api/recent-searches";
 import { getSavedJobAds } from "@/lib/api/saved-job-ads";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
-import { jobAdSortBySchema, type JobAdSortBy } from "@/lib/dto/job-ads";
+import {
+  jobAdSortBySchema,
+  Q_MIN_LENGTH,
+  type JobAdSortBy,
+} from "@/lib/dto/job-ads";
 import { isListMatchGrade } from "@/lib/dto/job-ad-match";
 import {
   MATCHNING_OFF_VALUE,
@@ -121,7 +125,14 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // matchGrades); buildPageHref använder SAMMA parser så page-parse och
   // paginerings-href aldrig divergerar.
   const employer = parseEmployerParam(params.employer);
-  const q = emptyToUndefined(params.q);
+  // #823 — klampa en söktext under backendens minimum till "ingen söktext", exakt som
+  // backendens egen SearchQueryParser gör med en residual under QMinLength. Utan detta
+  // 400:ar ListJobAdsQueryValidator på ?q=a och sidan målar teknisk-fel-kortet — vilket
+  // träffar bokmärkta/delade/handredigerade länkar och no-JS-submit:en, alltså vägar som
+  // ingen klient-grind når. Dessutom ÄRVDE heron det förgiftade q:t: `base.q` blev "a",
+  // så varje efterföljande commit skickade med det och 400:ade igen även efter att
+  // användaren lagt till ett giltigt filter. Klampen sker tyst (paritet med parsern).
+  const q = clampSubMinimumQ(emptyToUndefined(params.q));
   // E2j — commit-intent gatar backend-auto-capture. Strippas ur URL:en efter
   // mount av <StripCommitParam> (delningsbar länk re-capturerar inte).
   const commit = params.commit === "true";
@@ -174,7 +185,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
       page: params.page ?? "",
       pageSize: params.pageSize ?? "",
       sortBy: params.sortBy ?? "",
-      q: params.q ?? "",
+      q: q ?? "",
     })
   ).toString();
   const occupationGroupKey = occupationGroup.join(",");
@@ -342,6 +353,16 @@ function parseSortBy(raw: string | undefined): JobAdSortBy {
 
 function emptyToUndefined(s: string | undefined): string | undefined {
   return s && s.trim().length > 0 ? s.trim() : undefined;
+}
+
+/**
+ * #823 — en söktext kortare än backendens minimum behandlas som ingen söktext.
+ * Speglar `SearchQueryParser`, som nollar en residual under `SearchCriteria.QMinLength`
+ * och kör vidare på dimensionerna i stället för att vägra frågan. Backend förblir SSOT;
+ * detta är gränssnittets klamp, så en direktlänk aldrig kan trigga 400-vägen.
+ */
+function clampSubMinimumQ(s: string | undefined): string | undefined {
+  return s !== undefined && s.length < Q_MIN_LENGTH ? undefined : s;
 }
 
 // Normaliserar string | string[] | undefined → string[] (tomma värden bort).

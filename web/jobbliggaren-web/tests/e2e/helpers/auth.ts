@@ -75,3 +75,37 @@ export async function ensureTestUser(baseURL: string, runId: number): Promise<vo
     }
   }
 }
+
+/**
+ * Force-confirms the test account's email via the DEV-ONLY confirmed-login seam
+ * (`POST /api/v1/dev/confirm-email`, #796). Only reachable in Development — the
+ * endpoint is mapped and the impl DI-registered ONLY under IsDevelopment(). Lets the
+ * loginAs specs obtain a CONFIRMED, login-capable user against a flag-ON backend
+ * (Auth:RequireEmailConfirmation=true) without a real out-of-band email round-trip.
+ * Tolerates 404 (account not found — treated as a no-op so callers can be defensive).
+ */
+export async function confirmTestUser(baseURL: string, runId: number): Promise<void> {
+  assertSafeBaseURL(baseURL);
+  const res = await fetch(`${baseURL}/api/v1/dev/confirm-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: testEmail(runId) }),
+  });
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`Failed to confirm test user: ${res.status}`);
+  }
+}
+
+/**
+ * Register + confirm in one step: the seeding path for every `loginAs`-based spec.
+ * Under the launch-representative flag ON, a bare register leaves the account
+ * unconfirmed (→ login-403), so `loginAs` would time out waiting for /mig. This pairs
+ * the register with the dev confirmed-login seam so the account can log in.
+ *
+ * NOTE: keep `ensureTestUser` (register-only) for `auth.spec.ts`, whose login-403
+ * regression deliberately needs an UNCONFIRMED user — do not fold confirm into it.
+ */
+export async function ensureConfirmedTestUser(baseURL: string, runId: number): Promise<void> {
+  await ensureTestUser(baseURL, runId);
+  await confirmTestUser(baseURL, runId);
+}

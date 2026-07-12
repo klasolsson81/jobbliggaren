@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { loginAs, ensureTestUser, TEST_PASSWORD, testEmail } from "./helpers/auth";
+import { loginAs, ensureConfirmedTestUser, TEST_PASSWORD, testEmail } from "./helpers/auth";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 
@@ -15,7 +15,7 @@ const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 test.describe("Radera konto (/mig)", () => {
   test("öppnar modal med typed-confirmation och håller submit disabled tills email-match + password", async ({ page }) => {
     const runId = Date.now() + Math.floor(Math.random() * 1_000_000);
-    await ensureTestUser(BACKEND_URL, runId);
+    await ensureConfirmedTestUser(BACKEND_URL, runId);
     await loginAs(page, runId);
 
     await page.goto("/mig");
@@ -53,7 +53,7 @@ test.describe("Radera konto (/mig)", () => {
 
   test("happy path: delete → redirect till /logga-in + session ogiltig", async ({ page }) => {
     const runId = Date.now() + Math.floor(Math.random() * 1_000_000);
-    await ensureTestUser(BACKEND_URL, runId);
+    await ensureConfirmedTestUser(BACKEND_URL, runId);
     await loginAs(page, runId);
 
     // Fånga session-token FÖRE delete så vi kan verifiera Redis-revoke
@@ -95,7 +95,7 @@ test.describe("Radera konto (/mig)", () => {
 
   test("fel lösenord → form-error och session intakt", async ({ page }) => {
     const runId = Date.now() + Math.floor(Math.random() * 1_000_000);
-    await ensureTestUser(BACKEND_URL, runId);
+    await ensureConfirmedTestUser(BACKEND_URL, runId);
     await loginAs(page, runId);
 
     await page.goto("/mig");

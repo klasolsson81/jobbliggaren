@@ -59,3 +59,15 @@ export type CompanyWatch = z.infer<typeof companyWatchSchema>;
 /** `GET /me/company-watches` returns a bare array (no pagination — the watch set is user-bounded). */
 export const listCompanyWatchesResultSchema = z.array(companyWatchSchema);
 export type ListCompanyWatchesResult = z.infer<typeof listCompanyWatchesResultSchema>;
+
+/**
+ * Bevakning F2 (#801, RF-6=6B) — the count of new ads from followed employers NEW since the user last
+ * visited /foretag (mirrors backend `NewFollowedCompanyAdCountDto`). A bare count — carries NO org.nr
+ * and no company name (D8; the Översikt row is a generic ledger row "från bevakade företag").
+ * `count === 0` is an honest answer (no active follows, or nothing new since the last visit) — the
+ * row renders "0", never a mock number. Drives the Översikt "Nya annonser från bevakade företag"-row.
+ */
+export const newFollowedCompanyAdCountSchema = z.object({
+  count: z.number().int().nonnegative(),
+});
+export type NewFollowedCompanyAdCount = z.infer<typeof newFollowedCompanyAdCountSchema>;

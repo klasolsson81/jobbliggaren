@@ -5,8 +5,10 @@ import {
   companyWatchStatusBatchSchema,
   followCompanyResultSchema,
   listCompanyWatchesResultSchema,
+  newFollowedCompanyAdCountSchema,
   type CompanyFollowState,
   type ListCompanyWatchesResult,
+  type NewFollowedCompanyAdCount,
 } from "@/lib/dto/company-follows";
 import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
 import { isValidId } from "@/lib/validation/guid";
@@ -151,6 +153,58 @@ export async function markFollowedCompanyAdSeen(jobAdId: string): Promise<ApiRes
     );
     if (res.status === 204) return { kind: "ok", data: undefined };
     if (res.status === 401) return { kind: "unauthorized" };
+    return { kind: "error" };
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * Bevakning F2 (#801, RF-6=6B) — the count of new ads from followed employers NEW since the user last
+ * visited /foretag, for the Översikt "Nya annonser från bevakade företag"-row. Consumes
+ * `GET /api/v1/me/followed-company-ads/new-count` (auth-gated, MeListReadPolicy). Mirrors
+ * `getNewMatchCount`'s Result/error shape (ADR 0030). `count === 0` is honest (no active follows /
+ * nothing new) — the row renders 0, never a mock number.
+ */
+export async function getNewFollowedCompanyAdCount(): Promise<
+  ApiResult<NewFollowedCompanyAdCount>
+> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+
+  try {
+    const res = await authedFetch(sessionId, "/api/v1/me/followed-company-ads/new-count");
+    return await responseToResult(
+      res,
+      newFollowedCompanyAdCountSchema,
+      "GET /api/v1/me/followed-company-ads/new-count"
+    );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * Bevakning F2 (#801, RF-6=6B) — advance the follow-rail watermark (reset the Översikt count).
+ * Called when the user VISITS the follows hub (/foretag) — the sibling of `markMatchesSeen` (Klas
+ * decision: advance on visiting the surface). `POST /api/v1/me/followed-company-ads/seen` → 204
+ * (auth-gated, MeWritePolicy). No `seenThrough` sent (the hub renders no individual hits to preserve)
+ * → the backend advances to clock-now (the documented safe fallback). Idempotent and NON-critical: a
+ * failure must NEVER block the page render (the count just does not reset this time) — degrades
+ * civilly like `markMatchesSeen`. 204 → ok; anything else → error-kind.
+ */
+export async function markFollowedAdsSeen(seenThrough?: string): Promise<ApiResult<void>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+
+  try {
+    const res = await authedFetch(sessionId, "/api/v1/me/followed-company-ads/seen", {
+      method: "POST",
+      ...(seenThrough ? { body: JSON.stringify({ seenThrough }) } : {}),
+    });
+    if (res.status === 204) return { kind: "ok", data: undefined };
+    if (res.status === 401) return { kind: "unauthorized" };
+    if (res.status === 403) return { kind: "forbidden" };
     return { kind: "error" };
   } catch {
     return { kind: "error" };

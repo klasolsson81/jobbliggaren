@@ -62,6 +62,13 @@ interface OversiktPageProps {
    * fallback när bakgrundsmatchning ej kunde läsas).
    */
   readonly newMatchCount: number;
+  /**
+   * Bevakning F2 (#801, RF-6=6B) — antalet nya annonser från bevakade företag
+   * NYA sedan senaste /foretag-besök (live `GET /me/followed-company-ads/new-count`,
+   * per-watch grad-filtrerat read-time). Degraderar till `0` vid fetch-fel (paritet
+   * `newMatchCount`); ett honest 0 är korrekt fallback. Raden länkar till /foretag.
+   */
+  readonly newFollowedCompanyAdCount: number;
 }
 
 /**
@@ -86,6 +93,7 @@ export function OversiktPage({
   landingStats,
   matchCount,
   newMatchCount,
+  newFollowedCompanyAdCount,
 }: OversiktPageProps) {
   // Synchronous next-intl translator — keeps OversiktPage a non-async RSC.
   const t = useTranslations("oversikt");
@@ -417,6 +425,7 @@ export function OversiktPage({
             lastSearchName={lastSearchName}
             activeJobAdsTotal={activeJobAdsTotal}
             newMatchCount={newMatchCount}
+            newFollowedCompanyAdCount={newFollowedCompanyAdCount}
             cvCount={cvCount}
             personalLettersCount={OVERSIKT_MOCK.personalLettersCount}
             lastUpdatedCvDate={lastUpdatedCvDate}

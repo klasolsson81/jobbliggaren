@@ -40,7 +40,8 @@ function renderOversikt(
   matchCount: number | null = 42,
   newMatchCount = 0,
   recentSearches: ApiResult<ListRecentSearchesResult> = errored,
-  profileOverrides: Partial<JobSeekerProfileDto> = {}
+  profileOverrides: Partial<JobSeekerProfileDto> = {},
+  newFollowedCompanyAdCount = 0
 ) {
   const profile: ApiResult<JobSeekerProfileDto> = {
     kind: "ok",
@@ -58,6 +59,7 @@ function renderOversikt(
       landingStats={null}
       matchCount={matchCount}
       newMatchCount={newMatchCount}
+      newFollowedCompanyAdCount={newFollowedCompanyAdCount}
     />
   );
 }
@@ -183,6 +185,43 @@ describe("OversiktPage — live match-count (ADR 0079 STEG 6)", () => {
     expect(
       screen.queryByRole("link", { name: /Visa annonser/ })
     ).toBeNull();
+  });
+});
+
+describe("OversiktPage — Sammanfattnings-rad 'Nya annonser från bevakade företag' (Bevakning F2 #801)", () => {
+  it("renderar live newFollowedCompanyAdCount och länkar raden till /foretag", () => {
+    renderOversikt(true, 42, 7, errored, {}, 5);
+
+    const row = screen.getByRole("link", {
+      name: /Nya annonser från bevakade företag/,
+    });
+    expect(row).toHaveAttribute("href", "/foretag");
+    expect(row).toHaveTextContent("5");
+  });
+
+  it("newFollowedCompanyAdCount === 0 (honest fallback) → raden visar 0, länken kvar", () => {
+    renderOversikt(true, 42, 7, errored, {}, 0);
+
+    const row = screen.getByRole("link", {
+      name: /Nya annonser från bevakade företag/,
+    });
+    expect(row).toHaveAttribute("href", "/foretag");
+    expect(row).toHaveTextContent("0");
+  });
+
+  it("4-siffrig count → svensk tusenavgränsning '1 234' (inte '1234')", () => {
+    // Parity med 'Nya matchningar'-raden: locale-aware gruppering (non-breaking
+    // space, CLAUDE.md §10). `not.toHaveTextContent("1234")` är den bitande
+    // assertionen; värdecellens råa textContent låser separator-TYPEN.
+    renderOversikt(true, 42, 7, errored, {}, 1234);
+
+    const row = screen.getByRole("link", {
+      name: /Nya annonser från bevakade företag/,
+    });
+    expect(row).not.toHaveTextContent("1234");
+    const value = row.querySelector(".jp-summary__row__value");
+    // NBSP separator as an escape (never a literal Unicode space in source, CLAUDE.md §10).
+    expect(value?.textContent).toBe("1\u00A0234");
   });
 });
 

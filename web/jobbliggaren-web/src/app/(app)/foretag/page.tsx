@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
-import { getCompanyWatches } from "@/lib/api/company-follows";
+import { getCompanyWatches, markFollowedAdsSeen } from "@/lib/api/company-follows";
 import { getApplicationHistory } from "@/lib/api/application-history";
 import { assertNever, type ApiResult } from "@/lib/dto/_helpers";
 import { CompanyLookup } from "@/components/company-follows/company-lookup";
@@ -33,10 +33,18 @@ export default async function ForetagPage() {
 
   const t = await getTranslations("pages");
 
-  // Both sections are pure read consumers — fetch in parallel (independent endpoints).
+  // Both sections are pure read consumers — fetch in parallel (independent endpoints). The follow-rail
+  // watermark advance (Bevakning F2 #801, RF-6=6B) rides the same parallel batch: visiting this hub is
+  // the Klas-chosen "seen" trigger, so it resets the /oversikt "nya annonser från bevakade företag"-
+  // count. It is AWAITED inside Promise.all (result ignored, not destructured) — deliberately NOT a
+  // detached promise: a detached write could be killed when the RSC request scope closes and silently
+  // lost, so awaiting it in-batch guarantees it completes. It cannot reject the batch (markFollowedAdsSeen
+  // never throws — a failure just leaves the count un-reset this visit), and no seenThrough is sent (the
+  // hub renders no individual hits to preserve → the backend advances to clock-now, the safe fallback).
   const [watchResult, historyResult] = await Promise.all([
     getCompanyWatches(),
     getApplicationHistory(),
+    markFollowedAdsSeen(),
   ]);
 
   // #454 (ADR 0088, F1(a) — CTO-bind + Klas 2026-07-02): registry-uppslags-sektionen är

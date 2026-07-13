@@ -732,3 +732,83 @@ describe("CvCompleteGuide — chip-listan är ingen återvändsgränd (#815, CTO
     expect(screen.getByText("React")).toBeInTheDocument();
   });
 });
+
+describe("CvCompleteGuide — ingen yta får DÖLJA ett blockerande fel (#815, rond-3 Major)", () => {
+  // Parsern gissar aldrig datum (DQ3-3a), så VARJE parsad erfarenhet saknar startdatum
+  // och är blockerande vid första submit. Korten seedas kollapsade (bekräfta-mönstret),
+  // och routeToError expanderade bara FÖRSTA felet — så ett CV med två erfarenheter
+  // visade ett fel, medan railen sa "2 fel" och foten sa "De är markerade nedan".
+  // De kollapsade korten visade dessutom en lugn, neutral "Bekräfta datum"-pill om
+  // poster som faktiskt hindrade sparandet. Expansionen är nu HÄRLEDD ur samma parse.
+  it("två parsade erfarenheter → BÅDA felen renderas, inte bara det första", async () => {
+    const user = userEvent.setup();
+    renderGuide(
+      makeContent({
+        experiences: [
+          {
+            title: "Operatör",
+            organization: "Verkstaden AB",
+            period: "2005 - 2010",
+            rawText: "Operatör",
+          },
+          {
+            title: "Tekniker",
+            organization: "Beta AB",
+            period: "2010 - nu",
+            rawText: "Tekniker",
+          },
+        ],
+      }),
+    );
+
+    const rail = screen.getByRole("navigation", { name: "Steg i guiden" });
+    await user.click(within(rail).getByRole("button", { name: /^Spara/ }));
+    await user.click(screen.getByRole("button", { name: "Spara CV" }));
+
+    // Fokus routas till steg 2. Båda posternas startdatum-fel måste vara SYNLIGA —
+    // annars påstår foten att felen är markerade nedan medan de är gömda i kollapsade kort.
+    await waitFor(() =>
+      expect(
+        document.getElementById("guide-exp-0-startDate-error"),
+      ).not.toBeNull(),
+    );
+    expect(document.getElementById("guide-exp-1-startDate-error")).not.toBeNull();
+
+    // Och de lugnande "Bekräfta datum"-pillarna sitter inte kvar på blockerande poster.
+    expect(screen.queryByText("Bekräfta datum")).not.toBeInTheDocument();
+  });
+
+  // Bekräfta-raden bär en grön bock ("detta stämmer"). Den fick sitta kvar på ett fält
+  // som blockerade sparandet — bocken ljög, och felet fanns ingenstans att se.
+  it("ett ogiltigt kontaktfält faller ur bekräfta-läge och visar sitt fel", async () => {
+    const user = userEvent.setup();
+    const tooLongPhone = "0".repeat(60); // > 50 tecken → blockerande
+    renderGuide(
+      makeContent({
+        contact: {
+          fullName: "Anna Andersson",
+          email: null,
+          phone: tooLongPhone,
+          location: null,
+        },
+      }),
+    );
+
+    // Telefonen hittades i filen → renderas i bekräfta-läge (grön bock + "Ändra").
+    expect(
+      screen.getByRole("button", { name: "Ändra Telefon" }),
+    ).toBeInTheDocument();
+
+    const rail = screen.getByRole("navigation", { name: "Steg i guiden" });
+    await user.click(within(rail).getByRole("button", { name: /^Spara/ }));
+    await user.click(screen.getByRole("button", { name: "Spara CV" }));
+
+    // Efter submit får bocken inte stå kvar: fältet öppnas och bär sitt fel.
+    await waitFor(() =>
+      expect(document.getElementById("guide-pi-phone-error")).not.toBeNull(),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Ändra Telefon" }),
+    ).not.toBeInTheDocument();
+  });
+});

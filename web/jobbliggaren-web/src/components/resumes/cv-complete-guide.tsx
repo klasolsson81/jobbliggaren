@@ -513,6 +513,30 @@ export function CvCompleteGuide({
   }
 
   /**
+   * Bär NÅGOT fält under den här prefixen ett live-fel? (t.ex. `experiences.0.`)
+   *
+   * Finns för att expansionen måste vara HÄRLEDD, inte state. En kollapsad post och
+   * en bekräfta-rad är båda ytor som kan DÖLJA ett fel: parsern gissar aldrig datum
+   * (DQ3-3a), så varje parsad erfarenhet saknar startdatum och är därmed blockerande
+   * vid första submit — men kortet renderades kollapsat, med en lugn "Bekräfta datum"
+   * i stället för felet, medan foten påstod att allt var markerat nedan. `routeToError`
+   * öppnade bara FÖRSTA felet, så ett CV med två erfarenheter dolde resten
+   * (code-reviewer Major, rond 3).
+   *
+   * Att i stället expandera alla felbärande ytor inne i `routeToError` hade lagat
+   * symptomet, inte klassen: nästa kollapsbara yta någon lägger till hade återinfört
+   * buggen. Härleds expansionen ur samma parse som allt annat kan en yta med ett fel
+   * per konstruktion inte renderas stängd.
+   */
+  function hasErrorUnder(prefix: string): boolean {
+    if (!submitAttempted) return false;
+    for (const formPath of live.messageByFormPath.keys()) {
+      if (formPath.startsWith(prefix)) return true;
+    }
+    return false;
+  }
+
+  /**
    * Fel som bärs av en chip-LISTA. Chip-listan är själva fältet — det finns ingen
    * per-chip-input att markera — så felet renderas vid listan och NAMNGER chippet.
    * Utan den här ytan sa foten "De är markerade nedan" om något som inte var
@@ -775,7 +799,13 @@ export function CvCompleteGuide({
               {CONTACT_FIELDS.map((field) => {
                 const label = contactLabel(field.key);
                 const found = isPresent(content.contact[field.key]);
-                const confirmMode = found && !expandedContact.has(field.key);
+                // Bekräfta-raden bär en grön bock ("detta stämmer"). Den får ALDRIG
+                // sitta på ett fält som hindrar sparande — då ljuger bocken, och
+                // felet finns ingenstans att se (rond-3 Major).
+                const confirmMode =
+                  found &&
+                  !expandedContact.has(field.key) &&
+                  !errorFor(`personalInfo.${field.key}`);
                 if (confirmMode) {
                   return (
                     <div key={field.key} className="jp-guide__confirm">
@@ -934,7 +964,12 @@ export function CvCompleteGuide({
                     key={field.id}
                     form={form}
                     index={index}
-                    expanded={!collapsedEntries.has(field.id)}
+                    // Expansionen är HÄRLEDD: ett kort som bär ett blockerande fel
+                    // kan inte renderas kollapsat och gömma det (rond-3 Major).
+                    expanded={
+                      !collapsedEntries.has(field.id) ||
+                      hasErrorUnder(`experiences.${index}.`)
+                    }
                     onExpand={() => expandEntry(field.id)}
                     onRemove={() => experiences.remove(index)}
                     disabled={isPending}
@@ -975,7 +1010,10 @@ export function CvCompleteGuide({
                     key={field.id}
                     form={form}
                     index={index}
-                    expanded={!collapsedEntries.has(field.id)}
+                    expanded={
+                      !collapsedEntries.has(field.id) ||
+                      hasErrorUnder(`educations.${index}.`)
+                    }
                     onExpand={() => expandEntry(field.id)}
                     onRemove={() => educations.remove(index)}
                     disabled={isPending}
@@ -1232,11 +1270,15 @@ export function CvCompleteGuide({
           </Button>
         )}
         <span className="jp-guide__foot-spacer" />
-        {/* Ett äkta serverfel slår valideringsraden (det är den färskare sanningen).
-            Valideringsraden är härledd och försvinner i samma stund felen är rättade. */}
-        {(serverError || validationMessage) && (
+        {/* Valideringsraden vinner över serverfelet — den är HÄRLEDD och därmed alltid
+            färsk, medan `serverError` är state från ett tidigare försök. Tömmer man ett
+            fält efter ett serverfel blir fältet rödmarkerat, och foten måste då säga
+            vad som ska rättas i stället för att upprepa ett gammalt serversvar. Vid
+            själva serverfelet är formen giltig (servern anropas bara med giltig
+            payload) → `validationMessage` är null → serverfelet visas där det ska. */}
+        {(validationMessage || serverError) && (
           <p id={ERROR_ID} role="alert" className="jp-guide__error">
-            {serverError?.message ?? validationMessage}
+            {validationMessage ?? serverError?.message}
           </p>
         )}
         {step < GUIDE_STEP_SAVE ? (

@@ -86,8 +86,8 @@ on the below↔above-cap transition (ADR 0045 Beslut 3, 512 MiB soft cap).
 
 ```sql
 -- Chart workingSetBytes over a run.
-select @Timestamp, @Properties['workingSetBytes'] as workingSetBytes,
-       @Properties['gcHeapBytes'] as gcHeapBytes, @Properties['gen2Collections'] as gen2Collections
+select @Timestamp, @Properties['WorkingSetBytes'] as workingSetBytes,
+       @Properties['GcHeapBytes'] as gcHeapBytes, @Properties['Gen2Collections'] as gen2Collections
 from stream
 where @MessageTemplate = 'WorkerMemoryTrend: workingSetBytes={WorkingSetBytes}, gcHeapBytes={GcHeapBytes}, gen2Collections={Gen2Collections}.'
 order by @Timestamp asc
@@ -95,7 +95,7 @@ order by @Timestamp asc
 
 ```sql
 -- Edge transitions only (breach + recovery) — a much shorter list than the full trend.
-select @Timestamp, @MessageTemplate, @Properties['workingSetBytes'] as workingSetBytes
+select @Timestamp, @MessageTemplate, @Properties['WorkingSetBytes'] as workingSetBytes
 from stream
 where @MessageTemplate like 'WorkerMemoryAboveSoftCap:%' or @MessageTemplate like 'WorkerMemoryBackWithinSoftCap:%'
 order by @Timestamp asc
@@ -133,10 +133,40 @@ started→completed window and falls back afterward is the expected shape. A ram
 **not** fall back after the snapshot completes is the ADR 0032-class regression this
 instrument exists to catch.
 
-A rising `gen2Collections` count *together with* a rising `workingSetBytes` is the ADR
+A rising `Gen2Collections` count *together with* a rising `WorkingSetBytes` is the ADR
 0032 memory-pressure signature — distinct from a large-but-flat working set, which is
 more likely a steady-state cache (the taxonomy singleton, ADR 0043; the skill-taxonomy
 index).
+
+### When the trend series goes silent
+
+The sampler is deliberately unable to fault the Worker (a telemetry component that can kill
+the process it monitors is worse than no telemetry). So it fails *quietly*, and a missing
+trend line is a real possibility rather than an impossible one. Two events tell you which:
+
+```sql
+select @Timestamp, @MessageTemplate, @Exception
+from stream
+where @MessageTemplate like 'WorkerMemoryTrendSampler:%'   -- probe or sink failure, per tick
+   or @MessageTemplate like 'WorkerMemoryTrendService:%'   -- unexpected tick failure
+order by @Timestamp desc
+```
+
+If **neither** appears and the trend is still absent, the hosted service never started — check
+for an `OptionsValidationException` at Worker boot (`WorkerMemoryTrend:SampleIntervalSeconds`
+must be 1–3600). Also note the first sample lands at **t + one interval**, not at t0: a Worker
+that has been up for less than a minute has legitimately logged nothing yet.
+
+### The config knobs are not in `appsettings.json` — on purpose
+
+`WorkerMemoryTrend` and `IngestionThroughput` have **no section in any `appsettings.json`**.
+The options classes carry the ADR 0045 values as C# defaults (512 MiB; 200 jobs/min), and
+binding an absent section leaves those defaults in force.
+
+That is the intended posture, not an omission: **a cap change must be a dated ADR amendment,
+never a silent config bump** (§E point 3). A knob sitting in `appsettings.json` invites exactly
+the edit the ADR forbids. Add a section locally if you want to *experiment* — it binds normally
+— but shipping one is an ADR 0045 decision, not a config decision.
 
 ---
 
@@ -151,9 +181,9 @@ config section).
 
 ```sql
 -- Throughput trend, both jobs — one byte-identical template matches both.
-select @Timestamp, @Properties['source'] as source, @Properties['jobType'] as jobType,
-       @Properties['fetched'] as fetched, @Properties['durationSec'] as durationSec,
-       @Properties['itemsPerMinute'] as itemsPerMinute
+select @Timestamp, @Properties['Source'] as source, @Properties['JobType'] as jobType,
+       @Properties['Fetched'] as fetched, @Properties['DurationSec'] as durationSec,
+       @Properties['ItemsPerMinute'] as itemsPerMinute
 from stream
 where @MessageTemplate = 'IngestionThroughput: source={Source}, jobType={JobType}, fetched={Fetched}, durationSec={DurationSec}, itemsPerMinute={ItemsPerMinute}.'
 order by @Timestamp desc

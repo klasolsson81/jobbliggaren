@@ -51,6 +51,10 @@ public sealed partial class SyncPlatsbankenStreamJob(
     // 5 min overlap utöver 10-min cron-cykel. Upserts är idempotenta via UNIQUE-index.
     private static readonly TimeSpan OverlapWindow = TimeSpan.FromMinutes(15);
 
+    // Ett namn, ett ställe (§5 magic strings). Audit-raden och throughput-eventet MÅSTE bära
+    // samma jobType — runbook §B korrelerar dem mot varandra i Seq.
+    private const string JobTypeName = "stream";
+
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         // Per-run-Guid för audit-rad — bevarar AggregateId-invarianten (non-Empty)
@@ -60,6 +64,12 @@ public sealed partial class SyncPlatsbankenStreamJob(
         var since = startedAt - OverlapWindow;
 
         LogStarted(logger, jobSource.Source.Value, since);
+
+        // Sätts först när foreach:en fullbordats normalt. Läses i `finally` så en LYCKAD körning
+        // får EN enda completion-instans — LogCompleted, audit-raden och throughput-eventet
+        // rapporterar då samma durationSec (två klockläsningar hade rapporterat marginellt olika
+        // tal för samma körning, och runbook §C ber folk stämma av dem mot varandra).
+        DateTimeOffset? succeededAt = null;
 
         var fetched = 0;
         var added = 0;
@@ -128,14 +138,14 @@ public sealed partial class SyncPlatsbankenStreamJob(
             // and warn about capacity when the real event was a failure
             // (already logged at Error by LogEventFailed / the OCE rethrow
             // below propagating out of RunAsync entirely).
-            var throughputCompletedAt = clock.UtcNow;
+            succeededAt = clock.UtcNow;
             throughputReporter.Report(
-                jobSource.Source.Value, "stream", fetched,
-                (throughputCompletedAt - startedAt).TotalSeconds);
+                jobSource.Source.Value, JobTypeName, fetched,
+                (succeededAt.Value - startedAt).TotalSeconds);
         }
         finally
         {
-            var completedAt = clock.UtcNow;
+            var completedAt = succeededAt ?? clock.UtcNow;
             LogCompleted(logger, jobSource.Source.Value, fetched, added, updated,
                 archived, skipped, errors, (completedAt - startedAt).TotalSeconds);
 
@@ -152,7 +162,7 @@ public sealed partial class SyncPlatsbankenStreamJob(
                     AggregateId: runId,
                     OccurredAt: completedAt,
                     Source: jobSource.Source.Value,
-                    JobType: "stream",
+                    JobType: JobTypeName,
                     Fetched: fetched,
                     Added: added,
                     Updated: updated,

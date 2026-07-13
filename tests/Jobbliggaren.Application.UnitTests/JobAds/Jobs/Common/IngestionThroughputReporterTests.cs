@@ -146,22 +146,22 @@ public class IngestionThroughputReporterTests
     }
 
     [Fact]
-    public void Report_QualifyingRun_UsesFetchedNotAddedPlusUpdated()
+    public void Report_WhenTheLogSinkItselfThrows_DoesNotPropagate()
     {
-        // ADR 0045/#754 Q3(i) — the numerator is `fetched`, the value passed
-        // in directly. This test pins the CONTRACT: the reporter takes a
-        // single `fetched` count and never derives it from
-        // added/updated/skipped — the caller (the sync job) is responsible
-        // for passing pipeline throughput, not "items that caused a DB write".
-        var recorder = new RecordingLogger<IngestionThroughputReporter>();
-        var reporter = CreateReporter(recorder);
+        // The reporter is called from SyncPlatsbankenSnapshotJob BETWEEN LogCompleted and
+        // auditor.RecordAsync, on a path with NO `finally`. An exception escaping here would
+        // drop the JobAdsSynced audit row AND fail the Hangfire job — forcing a full ~47k-item
+        // re-run of an ingestion that actually SUCCEEDED. A throughput verdict is never worth
+        // that (dotnet-architect, #754).
+        //
+        // The sink is the realistic thing to fail, which is why a NESTED guard is required: an
+        // un-nested `catch { LogReportFailed(logger, ex); }` would itself throw here, and the
+        // exception would escape exactly as if the guard were absent.
+        var reporter = new IngestionThroughputReporter(
+            Options.Create(new IngestionThroughputOptions()),
+            new ThrowingSinkLogger<IngestionThroughputReporter>());
 
-        // A healthy snapshot: 47000 fetched, only 1000 of which wrote
-        // anything (46000 Skipped as duplicates) — if the numerator were
-        // add+update this would compute to a tiny, warn-triggering rate.
-        reporter.Report("platsbanken", "snapshot", fetched: 47_000, durationSec: 2400);
-
-        recorder.Records.ShouldNotContain(r => r.EventId.Id == 6202,
-            "fetched=47000 over 2400s is ~1175/min, well above the floor — a below-floor warn here would mean the numerator silently became add+update");
+        // A qualifying run — the only kind that reaches a log call at all.
+        Should.NotThrow(() => reporter.Report("platsbanken", "snapshot", fetched: 47_000, durationSec: 2400));
     }
 }

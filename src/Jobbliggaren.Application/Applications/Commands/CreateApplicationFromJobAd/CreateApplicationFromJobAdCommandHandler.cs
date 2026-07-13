@@ -21,7 +21,10 @@ namespace Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJo
 /// fields are PROJECTED (not the JobAd aggregate materialised — dotnet-architect
 /// B2) into a frozen <see cref="AdSnapshot"/> stored on the Application, so the
 /// ad content survives the source JobAd being archived. The municipality is
-/// captured as the raw <c>MunicipalityConceptId</c> STORED shadow property (via
+/// captured as the raw <c>MunicipalityConceptId</c> column (#841: an ordinary, C#-written
+/// ingest column since 2026-07-13 — it used to be a STORED generated column derived from
+/// raw_payload, so applying to an ad past the 30-day horizon froze a permanent NULL into the
+/// snapshot that exists precisely to OUTLIVE the ad. That is fixed at the root) (via
 /// EF.Property) and resolved to a name on the READ path (ADR 0086 D4, final
 /// ruling): the write side stays free of <c>ITaxonomyReadModel</c>, honouring the
 /// project's codified read-side-only ACL invariant (TaxonomyAclLayerTests). A
@@ -59,7 +62,7 @@ public sealed class CreateApplicationFromJobAdCommandHandler(
 
         // Project the snapshot-relevant JobAd fields (ADR 0086 / ADR 0048 Beslut d
         // amendment): a one-time write-side copy, NOT materialising the JobAd
-        // aggregate (dotnet-architect B2). The MunicipalityConceptId STORED shadow
+        // aggregate (dotnet-architect B2). The MunicipalityConceptId
         // property is read via EF.Property (the #316 pattern) and FROZEN as-is — it
         // is resolved to a name on the read path, keeping this write handler free
         // of the taxonomy ACL port (ADR 0086 D4). No row → NotFound, replacing the

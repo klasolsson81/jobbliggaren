@@ -4,6 +4,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
@@ -12,7 +13,7 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 // ADR 0067 Beslut 4 (Platsbanken sök-paritet Fas D1) — per-option facet-counts.
 // Verifierar IJobAdSearchQuery.FacetCountsAsync mot riktig Postgres
-// (Testcontainers, ALDRIG EF-InMemory: GROUP BY mot STORED shadow-column +
+// (Testcontainers, ALDRIG EF-InMemory: GROUP BY mot facett-kolumn +
 // EF.Property<string?>-translation översätts enbart av Npgsql — InMemory ger
 // falska gröna, jfr feedback_ef_strongly_typed_vo_contains_translation).
 //
@@ -36,7 +37,7 @@ public class JobAdFacetCountsTests(ApiFactory factory)
 
     // Seedar en importerad, AKTIV JobAd med valfria shadow-värden via raw_payload.
     // occupation_group är TOP-LEVEL; municipality + region bor BÅDA i
-    // workplace_address (verifierat mot JobAdGeneratedColumnsTests + JobAdConfiguration).
+    // workplace_address (verifierat mot JobAdFacetsSurvivePurgeTests + JobAdConfiguration).
     private async Task SeedAsync(
         string title,
         string? occupationGroup,
@@ -91,6 +92,7 @@ public class JobAdFacetCountsTests(ApiFactory factory)
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
+            facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
             clock: clock).Value;

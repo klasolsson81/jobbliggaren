@@ -127,7 +127,7 @@ internal sealed class JobAdSearchQuery(
         return result;
     }
 
-    // FacetDimension → STORED shadow-column (kolumnnamn är Infrastructure-hemlighet;
+    // FacetDimension → facett-kolumn (kolumnnamn är Infrastructure-hemlighet;
     // läcker aldrig till Application). Äger GroupBy-nyckelns kolumn, INTE filter-
     // predikatet (det äger ApplyCriteria) — olika ansvar, samma kolumn-konstant.
     private static string ShadowColumn(FacetDimension dimension) => dimension switch

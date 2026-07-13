@@ -1,6 +1,7 @@
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -80,7 +81,7 @@ public sealed class JobAdExtractedTermsPersistenceTests : IAsyncLifetime
             new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero));
         return JobAd.Import(
             title, company, description, "https://example.com/jobb/1",
-            external, "{\"id\":\"x\"}",
+            external, "{\"id\":\"x\"}", TestFacets.FromPayload("{\"id\":\"x\"}"),
             new DateTimeOffset(2026, 5, 1, 0, 0, 0, TimeSpan.Zero),
             new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock).Value;
     }

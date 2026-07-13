@@ -8,12 +8,12 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
-
 // The Application type clashes with the Jobbliggaren.Application namespace; the integration project has
 // no global alias, so it is declared per file (parity GetEmployerApplicationHistoryQueryHandlerIntegrationTests).
 using DomainApplication = Jobbliggaren.Domain.Applications.Application;
@@ -64,6 +64,7 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
+            facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-publishedDaysAgo),
             expiresAt: clock.UtcNow.AddDays(30),
             clock: clock).Value;
@@ -427,8 +428,22 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
     }
 
     [Fact]
-    public async Task Handle_DoesNotCountPriorApplication_WhenItsAdWasPurged_EvenThoughStillActive()
+    public async Task Handle_StillCountsPriorApplication_AfterItsAdsPayloadWasPurged()
     {
+        // #841 — THIS TEST USED TO ASSERT THE DEFECT, and it was written to fail the day the defect died.
+        //
+        // Its predecessor was `Handle_DoesNotCountPriorApplication_WhenItsAdWasPurged_EvenThoughStillActive`,
+        // a characterization test (Feathers) from the #824 lane. It pinned the real, shipped behaviour: an
+        // ad past the 30-day payload horizon but STILL ACTIVE silently lost its employer, because
+        // organization_number was a STORED generated column derived from raw_payload and the purge made
+        // Postgres recompute it to NULL. The badge then undercounted — the user HAD applied to this
+        // employer and was told nothing. Its own closing comment said, in as many words: *"the root cause
+        // [is] removed in #841 — when #841 lands this SHOULD start counting again, and this assertion
+        // should fail."*
+        //
+        // It did. That red assertion, in the full Api suite, is the cleanest end-to-end proof this PR has:
+        // the defect is gone from the product, not merely from the schema. The test now asserts the
+        // corrected behaviour, and it would catch a regression back to the old one.
         var ct = TestContext.Current.CancellationToken;
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -455,19 +470,23 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
         await PurgeThisAdsPayloadAsync(scope.ServiceProvider, db, clock, priorStale, ct);
         db.ChangeTracker.Clear();
 
-        // The prior ad is still Active and still present — only its org.nr was recomputed to NULL.
+        // The ad is still Active, still present — and now its org.nr SURVIVES the purge, because it is an
+        // ordinary C#-written column rather than one Postgres recomputes from the payload it just deleted.
         var (status, orgNr) = await db.JobAds.AsNoTracking()
             .Where(j => j.Id == priorStale.Id)
             .Select(j => ValueTuple.Create(j.Status.Value, EF.Property<string?>(j, "OrganizationNumber")))
             .SingleAsync(ct);
         status.ShouldBe("Active");
-        orgNr.ShouldBeNull();
+        orgNr.ShouldBe(orgX,
+            "#841: organization_number is written at ingest and outlives raw_payload. Before #841 the " +
+            "purge recomputed it to NULL and the employer identity of a LIVE ad simply vanished.");
 
-        // So the badge silently undercounts: the user HAS applied to this employer, and is told nothing.
-        // Pinned as the CURRENT behaviour; the copy is hedged in #824 PR 4 and the root cause removed in
-        // #841 — when #841 lands this SHOULD start counting again, and this assertion should fail.
+        // ...so the badge keeps telling the truth. The user HAS applied to this employer, and is told so —
+        // 24 hours a day, not the ~2.5 h a day the old design allowed.
         var result = await CreateHandler(db, reader, userId).Handle(query, ct);
-        result.CountsByJobAdId.ShouldBeEmpty();
+        result.CountsByJobAdId[pageAd.Id.Value].ShouldBe(1,
+            "the prior application must still be attributed to this employer after the payload purge. " +
+            "This assertion is the inverse of the one it replaces, and that inversion is the fix (#841).");
     }
 
     // --- personnummer / M1 (no org.nr ever surfaced) --------------------------------------------

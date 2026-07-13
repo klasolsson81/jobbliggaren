@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.JobAds.Commands.ArchiveExternalJobAd;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.TestSupport;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 
@@ -34,7 +35,7 @@ public class ArchiveExternalJobAdCommandHandlerTests
         var clock = new FakeDateTimeProvider(Now.AddDays(-2));
         var jobAd = JobAd.Import(
             "Titel", company, "Beskrivning", "https://example.com/jobs/seed",
-            external, "{\"id\":\"seed\"}",
+            external, "{\"id\":\"seed\"}", TestFacets.FromPayload("{\"id\":\"seed\"}"),
             Now.AddDays(-1), Now.AddDays(30), clock).Value;
 
         if (archive)

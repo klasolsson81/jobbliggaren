@@ -35,29 +35,36 @@ namespace Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 /// </para>
 ///
 /// <para>
-/// <b>⚠ BLAST RADIUS — nulling raw_payload destroys SEVEN columns, not one (#824 / #841).</b>
-/// <c>job_ads</c> carries seven STORED generated columns derived from <c>raw_payload</c>
+/// <b>THE BLAST RADIUS IS CLOSED (#841, 2026-07-13) — and this paragraph now records why, because its
+/// previous version was the most important warning in the repo and it is no longer true.</b>
+/// Until #841, <c>job_ads</c> carried SEVEN STORED generated columns derived from <c>raw_payload</c>
 /// (<c>organization_number</c>, <c>municipality_concept_id</c>, <c>ssyk_concept_id</c>,
 /// <c>region_concept_id</c>, <c>occupation_group_concept_id</c>, <c>employment_type_concept_id</c>,
-/// <c>worktime_extent_concept_id</c> — see <c>JobAdConfiguration</c>). Postgres RECOMPUTES a stored
-/// generated column on every UPDATE of its base, so this job silently nulls all seven. Known consumers,
-/// all of which therefore degrade for an ad past the horizon:
-/// <list type="bullet">
-/// <item><c>JobAdSearchComposition</c> / <c>JobAdSearchQuery</c> — facet-filtered search drops the ad;</item>
-/// <item><c>PerUserJobAdSearchQuery</c> — per-user background matching drops it;</item>
-/// <item><c>CompanyWatchScanJob</c> — the followed-company location filter misses it;</item>
-/// <item><c>GetEmployerApplicationHistory</c> / <c>GetEmployerApplicationCountBatch</c> — the
-/// application can no longer be attributed to an employer (#824);</item>
-/// <item><b><c>CreateApplicationFromJobAdCommandHandler</c> — the worst one: it FREEZES
-/// <c>MunicipalityConceptId</c> into <c>AdSnapshot</c> at apply time, so applying to an
-/// already-purged ad captures a permanent NULL into the snapshot that was built to outlive the ad;</b></item>
-/// <item><c>GetActivityReportQueryHandler</c>.</item>
-/// </list>
-/// This job's own stated purpose says nothing about any of that — which is exactly why the defect
-/// survived four separate column additions (see the ADR 0032 §8-amendment 2026-07-12). Root cause is
-/// fixed in #841 (materialise the seven as ordinary, C#-written ingest columns);
-/// do NOT "fix" it by exempting ads from the purge (that subordinates a GDPR minimisation control to
-/// a search-correctness need — senior-cto-advisor, 2026-07-12).
+/// <c>worktime_extent_concept_id</c>). Postgres RECOMPUTES a stored generated column on every UPDATE of
+/// its base — so THIS JOB silently nulled all seven, on ads that were still ACTIVE. Facet-filtered search,
+/// the per-user matching engine, the company-watch location filter and employer attribution all lost the
+/// ad for ~21.5 h of every 24 (the 02:00 sync rewrote the payload and resurrected the columns; the worst
+/// consumer was <c>CreateApplicationFromJobAdCommandHandler</c>, which FREEZES the municipality into
+/// <c>AdSnapshot</c> at apply time and so captured a permanent NULL).
+/// </para>
+///
+/// <para>
+/// <b>Today this job nulls <c>raw_payload</c> and nothing else.</b> The seven are ordinary columns,
+/// written in C# by <c>JobAd.SetSourcePayload</c> at the ingest funnel, atomically with the payload they
+/// were parsed from — so they outlive it, which is exactly what ADR 0032 §8 always specified
+/// ("30 dagar för raw_payload, indefinitively för sanitized fields"). That is not a convention anyone has
+/// to remember: <c>JobAdRawPayloadDerivationGuardTests</c> fails the build if any column is derived from
+/// <c>raw_payload</c> in the database again, and <c>JobAdFacetsSurvivePurgeTests</c> runs this job against
+/// real Postgres and asserts all seven survive it.
+/// </para>
+///
+/// <para>
+/// <b>Two things that must NOT be done to this job.</b> (1) Do not exempt ads from the purge to protect a
+/// column — that subordinates a GDPR minimisation control to a search-correctness need (senior-cto-advisor,
+/// 2026-07-12). (2) Do not add a second bulk <c>ExecuteUpdate</c> writer of <c>RawPayload</c> anywhere:
+/// <c>ExecuteUpdate</c> bypasses the aggregate, and therefore bypasses the type-system guarantee that the
+/// payload and its facets are written together. This file is the ONLY permitted exception, and the arch
+/// test above enforces that.
 /// </para>
 ///
 /// <para>

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using NpgsqlTypes;
@@ -13,9 +14,11 @@ using NpgsqlTypes;
 namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260713191535_MaterialiseJobAdSourceFacets")]
+    partial class MaterialiseJobAdSourceFacets
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -327,52 +330,6 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasFilter("\"deleted_at\" IS NULL");
 
                     b.ToTable("company_watches", (string)null);
-                });
-
-            modelBuilder.Entity("Jobbliggaren.Domain.CompanyWatches.CompanyWatchCriterion", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("deleted_at");
-
-                    b.Property<string>("Label")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)")
-                        .HasColumnName("label");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.PrimitiveCollection<List<string>>("_municipalityCodes")
-                        .IsRequired()
-                        .HasColumnType("text[]")
-                        .HasColumnName("kommun_codes");
-
-                    b.PrimitiveCollection<List<string>>("_sniCodes")
-                        .IsRequired()
-                        .HasColumnType("text[]")
-                        .HasColumnName("sni_codes");
-
-                    b.HasKey("Id")
-                        .HasName("pk_company_watch_criteria");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_company_watch_criteria_user_id");
-
-                    b.ToTable("company_watch_criteria", (string)null);
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.CompanyWatches.FollowedCompanyAdHit", b =>
@@ -1228,11 +1185,6 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SeatMunicipalityCode")
                         .HasDatabaseName("ix_company_register_sate_kommun_code");
-
-                    b.HasIndex("SniCodes")
-                        .HasDatabaseName("ix_company_register_sni_codes_gin");
-
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SniCodes"), "gin");
 
                     b.HasIndex("Status")
                         .HasDatabaseName("ix_company_register_status");

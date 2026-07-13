@@ -268,8 +268,37 @@ internal sealed partial class PlatsbankenJobSource(
             PublishedAt: publishedAt,
             ExpiresAt: expiresAt,
             SanitizedRawPayload: sanitized,
+            Facets: MapFacets(hit),
             Requirements: MapRequirements(hit));
     }
+
+    // #841 — ACL translation of the seven source facets. Until 2026-07-13 these were derived by POSTGRES,
+    // as STORED generated columns reading raw_payload — which meant the 30-day raw_payload purge recomputed
+    // every one of them to NULL and filtered search, the matching engine and the company-watch scan silently
+    // lost still-ACTIVE ads ~21.5 h/day. The values now come from here, are written in C# at the single
+    // ingest funnel, and outlive the payload (ADR 0032 §8: "indefinitively för sanitized fields").
+    //
+    // THIS METHOD IS THE ONLY PLACE IN THE SYSTEM THAT KNOWS THE PAYLOAD'S SHAPE, and it must stay that
+    // way — the JSON nesting and the naming gaps below are precisely the foreign-model knowledge an ACL
+    // exists to absorb (Evans 2003 §14). Named arguments are mandatory: seven same-typed positional
+    // strings would make a transposition a silently compiling bug.
+    //
+    // Two traps live here, both previously encoded in the SQL and both load-bearing:
+    //   * occupation_group / employment_type / working_hours_type are TOP-LEVEL in the payload, while
+    //     occupation (ssyk) and employer (org.nr) are NESTED. Reading ssyk from the top level yields a
+    //     permanently NULL column with no compile error.
+    //   * NAME GAP: the column/taxonomy type is worktime-extent (ADR 0067 Beslut 2) but the wire key is
+    //     working_hours_type. Mapping WorktimeExtentConceptId from anything else yields silent always-NULL.
+    // JobAdFacets normalises blank -> null, so a "" from the wire cannot enter the partial IS NOT NULL
+    // indexes as a value nothing can ever match.
+    private static JobAdFacets MapFacets(JobTechHit hit) =>
+        new(ssykConceptId: hit.Occupation?.ConceptId,
+            occupationGroupConceptId: hit.OccupationGroup?.ConceptId,
+            municipalityConceptId: hit.WorkplaceAddress?.MunicipalityConceptId,
+            regionConceptId: hit.WorkplaceAddress?.RegionConceptId,
+            employmentTypeConceptId: hit.EmploymentType?.ConceptId,
+            worktimeExtentConceptId: hit.WorkingHoursType?.ConceptId,
+            organizationNumber: hit.Employer?.OrganizationNumber);
 
     // F4-4b — ACL-översättning: JobTech must_have/nice_to_have-SKILLS → neutrala
     // Application-Requirements (CTO Decision 1A: bara skills v1 — concept_id delar

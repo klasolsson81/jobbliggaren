@@ -10,6 +10,7 @@ using Jobbliggaren.Domain.Matching;
 using Jobbliggaren.Infrastructure.Matching;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.TextAnalysis;
+using Jobbliggaren.TestSupport;
 using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -432,7 +433,7 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
             Lexeme: conceptId, Display: display, Kind: ExtractedTermKind.Requirement,
             Source: source, MatchedOn: display, ConceptId: conceptId, Weight: 1);
 
-    // Seeds an Imported (→ Active) JobAd whose raw_payload drives the STORED shadow columns
+    // Seeds an Imported (→ Active) JobAd whose raw_payload drives the facet columns
     // (occupation_group / region / employment) and, when terms is non-null, the extracted_terms
     // VO (which generates the STORED extracted_lexemes GIN column). Parity
     // FullMatchScorerIntegrationTests.
@@ -469,6 +470,7 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
+            facets: TestFacets.FromPayload(rawPayload),
             publishedAt: publishedAt,
             expiresAt: publishedAt.AddDays(60),
             clock: new FixedClock(Now)).Value; // CreatedAt = Now (deterministic ingest time)

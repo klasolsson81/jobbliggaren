@@ -8,6 +8,7 @@ using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Matching;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.TextAnalysis;
+using Jobbliggaren.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -105,7 +106,7 @@ public class MatchCountOracleTests(ApiFactory factory)
         Q: null);
 
     // ---------------------------------------------------------------
-    // Seeding — raw_payload drives the STORED shadow columns. null group/region/employment →
+    // Seeding — raw_payload drives the facet columns. null group/region/employment →
     // key omitted → that shadow column is NULL (the NotAssessed-by-NULL path).
     // ---------------------------------------------------------------
     private async Task<JobAdId> SeedJobAdAsync(
@@ -134,6 +135,7 @@ public class MatchCountOracleTests(ApiFactory factory)
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
+            facets: TestFacets.FromPayload(rawPayload),
             publishedAt: publishedAt,
             expiresAt: clock.UtcNow.AddDays(30),
             clock: clock).Value;

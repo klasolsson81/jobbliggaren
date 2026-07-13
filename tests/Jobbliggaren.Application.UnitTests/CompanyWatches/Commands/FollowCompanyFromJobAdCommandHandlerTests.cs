@@ -12,7 +12,7 @@ namespace Jobbliggaren.Application.UnitTests.CompanyWatches.Commands;
 
 /// <summary>
 /// #455 — the follow-from-card handler resolves org.nr via <see cref="IJobAdEmployerReader"/> (faked
-/// here — the STORED shadow column is Postgres-computed, so the real resolution is Testcontainers-only)
+/// here — the facet column is Postgres-computed, so the real resolution is Testcontainers-only)
 /// and delegates to the shared idempotent <c>CompanyWatchFollowExecutor</c>. These prove the branching:
 /// resolved org.nr → follow, absent ad → 404, null org.nr → 400, plus idempotency + resurrect + the
 /// sole-prop-still-followable D8 guarantee.

@@ -29,9 +29,19 @@ namespace Jobbliggaren.Application.JobAds.Jobs.Common;
 /// <see cref="IJobSource.RefetchByExternalIdAsync"/> (JobTech <c>/ad/{id}</c>,
 /// deterministisk per-ID — undviker snapshot-trunkering, ADR 0032-amendment
 /// 2026-05-16) och kör samma <see cref="UpsertExternalJobAdCommand"/>-pipeline
-/// som snapshot-jobbet. UNIQUE-collision triggar UPDATE, raw_payload re-skrivs
-/// HELT → Postgres STORED computed columns re-evaluerar (alla kolumner, inte
-/// bara den som styrde filtret).
+/// som snapshot-jobbet. UNIQUE-collision triggar UPDATE och raw_payload re-skrivs HELT
+/// (alla kolumner, inte bara den som styrde filtret).
+/// </para>
+///
+/// <para>
+/// <b>#841 — this runner is the DEPLOY REPAIR TOOL, and that is a load-bearing role, not a side effect.</b>
+/// Since 2026-07-13 the ingest funnel re-writes the seven facet columns in C#
+/// (<c>JobAd.SetSourcePayload</c>, atomically with the payload). So an ad whose facets the raw_payload
+/// purge had already nulled matches the NULL predicate, gets re-fetched, and has all seven written afresh.
+/// (This paragraph previously said "Postgres STORED computed columns re-evaluate" — the sentence that
+/// explained why the repair worked, and it became false in the same PR that made the repair necessary.)
+/// <b>The honest limit:</b> an ad that has LEFT the feed 404s on refetch and is skipped. Its facets are
+/// unrecoverable — and they were unrecoverable before #841 too.
 /// </para>
 ///
 /// <para>

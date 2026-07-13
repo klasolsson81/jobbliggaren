@@ -5,6 +5,7 @@ using Jobbliggaren.Application.JobAds.Queries.SuggestJobAdTerms;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
@@ -39,6 +40,7 @@ public class SuggestJobAdTermsUnionTests(ApiFactory factory)
             url: $"https://example.com/jobs/{ext}",
             external: ExternalReference.Create(JobSource.Platsbanken, ext).Value,
             rawPayload: $"{{\"id\":\"{ext}\"}}",
+            facets: TestFacets.FromPayload($"{{\"id\":\"{ext}\"}}"),
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
             clock: clock).Value;

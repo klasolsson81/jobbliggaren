@@ -17,6 +17,65 @@ namespace Jobbliggaren.Application.UnitTests.JobAds.Infrastructure;
 public class JobTechHitDeserializationTests
 {
     [Fact]
+    public void Deserialize_PopulatesEmployerOrganizationNumber()
+    {
+        // #841 — the ONE link in the wire→POCO→facet→column chain that had no test, and it is the link
+        // that carries PII. The other six wire keys (occupation, occupation_group, workplace_address×2,
+        // employment_type, working_hours_type) are pinned below; `employer.organization_number` never was,
+        // because until 2026-07-13 no C# code read it — Postgres derived organization_number straight out
+        // of the raw_payload JSON, so the wire key was only ever encoded in SQL.
+        //
+        // It is pinned now, and the stake is higher than for the other six: this column went from
+        // self-destructing after 30 days (the #841 defect, working as an accidental erasure control) to
+        // persisting INDEFINITELY. A silent [JsonPropertyName] drift here would mean the canonical employer
+        // key — and the one value that can be a sole proprietor's PERSONNUMMER (ADR 0087 D8) — quietly
+        // stops being ingested at all: no error, no failing test, company-follow and employer attribution
+        // simply going empty.
+        const string wireJson = """
+        {
+            "id": "31063032",
+            "headline": "Backend Developer",
+            "employer": {
+                "name": "Acme AB",
+                "organization_number": "5592804784",
+                "workplace": "Acme Stockholm"
+            }
+        }
+        """;
+
+        var hit = JsonSerializer.Deserialize<JobTechHit>(wireJson);
+
+        hit.ShouldNotBeNull();
+        hit.Employer.ShouldNotBeNull();
+        hit.Employer.OrganizationNumber.ShouldBe("5592804784",
+            "the wire key is employer.organization_number (NESTED, not top-level). If this stops " +
+            "deserialising, PlatsbankenJobSource.MapFacets writes a null org.nr facet and the canonical " +
+            "employer key vanishes from every new ad — silently.");
+        hit.Employer.Name.ShouldBe("Acme AB");
+    }
+
+    [Fact]
+    public void Deserialize_LeavesOrganizationNumberNull_WhenTheEmployerBlockOmitsIt()
+    {
+        // Graceful degradation: many ads carry an employer with no org.nr. The facet must be null (and
+        // JobAdFacets normalises blank→null on top of that), so the row simply does not enter the partial
+        // ix_job_ads_organization_number index.
+        const string wireJson = """
+        {
+            "id": "31063033",
+            "headline": "Backend Developer",
+            "employer": { "name": "Acme AB" }
+        }
+        """;
+
+        var hit = JsonSerializer.Deserialize<JobTechHit>(wireJson);
+
+        hit.ShouldNotBeNull();
+        hit.Employer.ShouldNotBeNull();
+        hit.Employer.OrganizationNumber.ShouldBeNull();
+    }
+
+    [Fact]
     public void Deserialize_PopulatesOccupationConceptId()
     {
         const string wireJson = """
@@ -159,7 +218,7 @@ public class JobTechHitDeserializationTests
     }
 
     [Fact]
-    public void RoundTripThroughSanitizer_PreservesClassificationForGeneratedColumns()
+    public void RoundTripThroughSanitizer_PreservesTheKeysTheFacetsAreParsedFrom()
     {
         // End-to-end-flödet PlatsbankenJobSource.cs:184-185:
         //   rawJson = JsonSerializer.Serialize(hit);

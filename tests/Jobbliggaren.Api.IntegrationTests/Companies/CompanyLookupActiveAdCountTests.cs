@@ -9,6 +9,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
@@ -79,7 +80,7 @@ public class CompanyLookupActiveAdCountTests
 
     // Seeds one imported JobAd whose raw_payload carries employer.organization_number — the STORED
     // generated organization_number column is computed by Postgres at INSERT (never in C#, never in
-    // InMemory). Mirrors JobAdGeneratedColumnsTests / CompanyWatchMatchCountTests seeding verbatim.
+    // InMemory). Mirrors JobAdFacetsSurvivePurgeTests / CompanyWatchMatchCountTests seeding verbatim.
     private async Task SeedAdAsync(
         string orgNr,
         CancellationToken ct,
@@ -103,6 +104,7 @@ public class CompanyLookupActiveAdCountTests
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
+            facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
             clock: clock).Value;

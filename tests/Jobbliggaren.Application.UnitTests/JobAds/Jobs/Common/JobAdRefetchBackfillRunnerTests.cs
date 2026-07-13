@@ -6,6 +6,7 @@ using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,12 +20,15 @@ namespace Jobbliggaren.Application.UnitTests.JobAds.Jobs.Common;
 /// Delad re-ingest-kärna (senior-cto-advisor Variant H 2026-06-08, extraherad ur
 /// BackfillJobAdSsykJob). Iterar JobAds som matchar ett NULL-kolumn-predikat,
 /// re-fetchar mot JobTech per ID, och kör UpsertExternalJobAd-pipelinen för att
-/// re-skriva raw_payload (STORED computed columns re-evaluerar). Testerna
-/// använder ssyk-predikatet (<c>SsykConceptId IS NULL</c>) som representativ
-/// stand-in — i InMemory är alla shadow-kolumner NULL (computed columns körs ej)
-/// så predikatet matchar alla seedade rader; samma täckning som gällde när loopen
-/// bodde i ssyk-jobbet. Klass2-/ssyk-wrappers är tunna delegationer (predikat +
-/// auditJobType) och verifieras via runnern + Testcontainers-generated-column-test.
+/// re-skriva raw_payload — och sedan #841 skriver ingest-funneln OM de sju facett-
+/// kolumnerna i C# (JobAd.SetSourcePayload). Det gör runnern till #841:s DEPLOY-
+/// REPARATIONSVERKTYG: annonser vars facetter purgen redan nollat matchar NULL-
+/// predikatet, re-fetchas, och får alla sju skrivna på nytt. Testerna använder
+/// ssyk-predikatet (<c>SsykConceptId IS NULL</c>) som representativ stand-in — de
+/// seedade raderna skrivs utan facetter, så predikatet matchar dem; samma täckning
+/// som gällde när loopen bodde i ssyk-jobbet. Klass2-/ssyk-wrappers är tunna
+/// delegationer (predikat + auditJobType) och verifieras via runnern +
+/// JobAdFacetsSurvivePurgeTests (riktig Postgres).
 ///
 /// Verifierar:
 /// <list type="bullet">
@@ -55,20 +59,29 @@ public class JobAdRefetchBackfillRunnerTests
             url: $"https://example.com/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: "{\"id\":\"" + externalId + "\"}",
+            facets: TestFacets.FromPayload("{\"id\":\"" + externalId + "\"}"),
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(30),
             clock: clock).Value;
 
-    private static JobAdImportItem RefetchedItem(string externalId) => new(
-        ExternalId: externalId,
-        Title: $"Refetched-{externalId}",
-        CompanyName: "Acme",
-        Description: "Beskrivning",
-        Url: $"https://example.com/{externalId}",
-        PublishedAt: Now.AddDays(-1),
-        ExpiresAt: Now.AddDays(30),
-        SanitizedRawPayload: "{\"id\":\"" + externalId + "\",\"occupation\":{\"concept_id\":\"fg7B_yov_smw\"}}",
-        Requirements: []);
+    private static JobAdImportItem RefetchedItem(string externalId)
+    {
+        // #841 — the refetched item now carries its facets, exactly as the real ACL would supply them.
+        // This is what makes the refetch backfill the repair tool for ads whose facets were nulled by
+        // the purge: re-ingesting through UpsertExternalJobAd writes the seven columns in C#.
+        var payload = "{\"id\":\"" + externalId + "\",\"occupation\":{\"concept_id\":\"fg7B_yov_smw\"}}";
+        return new JobAdImportItem(
+            ExternalId: externalId,
+            Title: $"Refetched-{externalId}",
+            CompanyName: "Acme",
+            Description: "Beskrivning",
+            Url: $"https://example.com/{externalId}",
+            PublishedAt: Now.AddDays(-1),
+            ExpiresAt: Now.AddDays(30),
+            SanitizedRawPayload: payload,
+            Facets: TestFacets.FromPayload(payload),
+            Requirements: []);
+    }
 
     private sealed class FakeScopeFactory(IMediator mediator)
         : IServiceScopeFactory, IServiceScope, IServiceProvider

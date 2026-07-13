@@ -164,8 +164,8 @@ public class CompanyWatchCriterionTests
     {
         // The getter computes a VO over two MUTABLE backing lists that UpdateCriteria Clears and
         // AddRanges IN PLACE. If the getter aliased those lists, this previously-read spec would
-        // silently mutate under a caller that is still holding it (and, worse, the "old value" EF
-        // compares against would move too).
+        // silently mutate under a caller that is still holding it — a value object that changes
+        // value is not a value object.
         var criterion = CreateValid();
         var before = criterion.Criteria;
 

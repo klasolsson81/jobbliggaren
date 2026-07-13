@@ -9,8 +9,10 @@ namespace Jobbliggaren.Domain.UnitTests.CompanyWatches;
 /// <see cref="CompanyWatchCriteriaSpec"/>: the BOTH-axes-required invariant with SEPARATE per-axis
 /// error codes, the shared normalization (trim → drop blank → distinct ordinal → sort ordinal), the
 /// per-element format guard (5-digit SNI vs 4-digit kommun — two different namespaces, RF-4), the
-/// per-axis DoS caps, structural equality (the EF <c>text[]</c> value comparison rests on it), and
-/// the copy-semantics of <see cref="CompanyWatchCriteriaSpec.FromTrusted"/>.
+/// per-axis DoS caps, structural DOMAIN equality (a record over <c>IReadOnlyList</c> would otherwise
+/// compare by reference — note this is NOT what EF compares: the VO is <c>Ignore</c>d and change
+/// detection runs on the aggregate's backing lists), and the copy-semantics of
+/// <see cref="CompanyWatchCriteriaSpec.FromTrusted"/>.
 ///
 /// <para>
 /// <b>The leading zero is the one that bites.</b> "0180" is Stockholm's SCB kommun code. Any place
@@ -336,7 +338,8 @@ public class CompanyWatchCriteriaSpecTests
     }
 
     // ---------------------------------------------------------------
-    // Structural equality — the EF text[] value comparison rests on it
+    // Structural DOMAIN equality (NOT EF's — the VO is Ignore'd; EF
+    // compares the aggregate's List<string> backing fields instead)
     // ---------------------------------------------------------------
 
     [Fact]
@@ -368,9 +371,12 @@ public class CompanyWatchCriteriaSpecTests
     [Fact]
     public void Equals_SpecsDifferingOnlyInMunicipalityAxis_AreNotEqual()
     {
-        // Regression pin for the EF VALUE COMPARISON on the kommun_codes column: if equality ignored
-        // the kommun axis, EF change detection would call a kommun-only edit a no-op and SILENTLY
-        // never persist the user's new selection — the write "succeeds" and changes nothing.
+        // Equality must span BOTH axes. A record whose Equals silently ignored the kommun axis would
+        // call two materially different watches ("IT in Stockholm" and "IT in Göteborg") the same
+        // thing — breaking every domain comparison and dedupe built on it. (It would NOT lose a
+        // write: EF does not compare this type — it is Ignore'd, and change detection runs on the
+        // aggregate's backing lists. The persistence oracle for that is
+        // CompanyWatchCriterionPersistenceTests.)
         var stockholm = CompanyWatchCriteriaSpec.Create([SniIt], [KommunStockholm]).Value;
         var goteborg = CompanyWatchCriteriaSpec.Create([SniIt], [KommunGoteborg]).Value;
 

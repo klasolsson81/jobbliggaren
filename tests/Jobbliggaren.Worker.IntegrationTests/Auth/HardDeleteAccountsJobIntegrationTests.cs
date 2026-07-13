@@ -519,6 +519,20 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
                 userId, criteria, "IT i Stockholm", seedClock).Value;
             db.CompanyWatchCriteria.Add(criterion);
 
+            // A SOFT-DELETED criterion too (security-auditor Minor 1, 2026-07-13) — and this is the
+            // row that actually carries the Art. 17 risk. A soft-deleted criterion RETAINS its full
+            // payload (the user's complete job-hunt predicate), so the account cascade is the only
+            // thing that ever erases it, and the ONLY thing making the cascade see it at all is the
+            // single .IgnoreQueryFilters() in AccountHardDeleter. Without this second row, dropping
+            // that one call in some future refactor would leave this test GREEN while soft-deleted
+            // criteria-PII survived account deletion — a silent Art. 17 breach. Seeding only the
+            // ACTIVE row would have tested the easy half.
+            var deletedCriteria = CompanyWatchCriteriaSpec.Create(["43210"], ["1480"]).Value;
+            var deletedCriterion = CompanyWatchCriterion.Create(
+                userId, deletedCriteria, "El i Göteborg", seedClock).Value;
+            deletedCriterion.SoftDelete(seedClock);
+            db.CompanyWatchCriteria.Add(deletedCriterion);
+
             await db.SaveChangesAsync(ct);
         }
 
@@ -558,11 +572,15 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
                 .Where(h => h.UserId == userId).CountAsync(ct);
             hitCount.ShouldBe(1, "seed must persist exactly one followed_company_ad_hits row before the job runs");
 
+            // TWO rows: one active, one SOFT-DELETED. IgnoreQueryFilters is what makes the soft-deleted
+            // one visible here — and it is the one that actually carries the Art. 17 risk, because a
+            // soft-deleted criterion retains its full payload (the user's complete job-hunt predicate).
             var criterionCount = await preDb.CompanyWatchCriteria
                 .IgnoreQueryFilters().AsNoTracking()
                 .Where(c => c.UserId == userId).CountAsync(ct);
-            criterionCount.ShouldBe(1,
-                "seed must persist exactly one company_watch_criteria row before the job runs");
+            criterionCount.ShouldBe(2,
+                "seed must persist exactly two company_watch_criteria rows (one active, one "
+                + "soft-deleted) before the job runs — the soft-deleted one is the Art. 17 case");
         }
 
         await RunJobAsync(now, ct);

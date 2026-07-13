@@ -18,11 +18,19 @@ namespace Jobbliggaren.Worker.IntegrationTests.CompanyWatches;
 /// <para>
 /// <b>The load-bearing test is <see cref="UpdateCriteria_OnAMaterialisedRow_PersistsTheNewCodes"/>.</b>
 /// <c>ApplyCriteria</c> mutates the backing lists IN PLACE (Clear + AddRange), so the tracked entity's
-/// list instance never changes identity. Without a deep <c>ValueComparer</c>, EF snapshots the
-/// collection BY REFERENCE — the "original" and the "current" value are then the SAME object, EF sees
-/// no change, and <c>SaveChanges</c> emits NO UPDATE. The write returns success and persists nothing:
-/// the user edits their criterion, gets a 200, and the old predicate silently stays live. That failure
-/// is invisible to every unit test and to InMemory; only a real round-trip in a NEW context catches it.
+/// list instance never changes identity. If EF snapshotted the collection BY REFERENCE, the "original"
+/// and the "current" value would be the SAME object, EF would see no change, and <c>SaveChanges</c>
+/// would emit no array update: the user edits their criterion, gets a 200, and the old predicate
+/// silently stays live. This test is what stands between us and that failure — it is invisible to
+/// every unit test and to InMemory, and only a real round-trip in a NEW context catches it.
+/// </para>
+///
+/// <para>
+/// <b>What actually prevents it</b> (mutation-verified 2026-07-13, code-reviewer Minor 3): Npgsql's
+/// array type mapping supplies its own deep comparer, so the deep snapshot holds even with the
+/// configuration's explicit <c>SetValueComparer</c> calls commented out — this suite stays green.
+/// The explicit comparer is kept as defense-in-depth and house precedent, but it is NOT the thing
+/// doing the work, and no comment here should say otherwise.
 /// </para>
 /// </summary>
 [Collection("Worker")]
@@ -117,8 +125,10 @@ public class CompanyWatchCriterionPersistenceTests(WorkerTestFixture fixture)
 
             var written = await db.SaveChangesAsync(ct);
             written.ShouldBe(1,
-                "SaveChanges måste faktiskt skriva en rad — 0 här betyder att EF inte SÅG ändringen "
-                + "(ValueComparer:n saknas/är fel ⇒ snapshot by reference ⇒ tyst utebliven UPDATE)");
+                "SaveChanges ska rapportera en skriven rad (UpdateCriteria stämplar även UpdatedAt). "
+                + "OBS: detta är INTE snapshot-orakeln — en by-reference-snapshot av arrayerna hade "
+                + "ändå gett 1 här (UpdatedAt är en skalär ändring), bara utan array-kolumnerna. "
+                + "Beviset ligger i scope 3 nedan, som läser tillbaka koderna ur Postgres.");
         }
 
         // Scope 3 — read back from Postgres. This is where a by-reference snapshot shows up: the row

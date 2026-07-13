@@ -21,10 +21,16 @@ namespace Jobbliggaren.Infrastructure.Persistence.Configurations;
 /// </para>
 ///
 /// <para>
-/// <b>The <see cref="ValueComparer{T}"/> is load-bearing.</b> <c>UpdateCriteria</c> mutates the
-/// backing lists IN PLACE (Clear/AddRange). Without a deep, sequence-based comparer EF snapshots the
-/// collection BY REFERENCE — old and new snapshot are the same object, EF sees no change, and the
-/// update silently never persists.
+/// <b>The explicit <see cref="ValueComparer{T}"/> is defense-in-depth, NOT load-bearing —
+/// mutation-verified 2026-07-13.</b> <c>UpdateCriteria</c> mutates the backing lists IN PLACE
+/// (Clear/AddRange), which WOULD be lost if EF snapshotted the collection by reference. It does not:
+/// Npgsql's array type mapping supplies its own deep comparer, and with both
+/// <c>SetValueComparer</c> calls below commented out the persistence suite stays GREEN. The explicit
+/// comparer is kept anyway — it is the house precedent (<c>RecentJobSearchConfiguration</c>,
+/// <c>ScbCompanyRegisterEntryConfiguration</c>) and it pins the snapshot semantics we depend on
+/// rather than inheriting them from a provider detail that could change. Do not describe it as the
+/// thing preventing the silent-lost-update: the earlier version of this comment did, and it was
+/// wrong (code-reviewer Minor 3).
 /// </para>
 /// </summary>
 public sealed class CompanyWatchCriterionConfiguration : IEntityTypeConfiguration<CompanyWatchCriterion>

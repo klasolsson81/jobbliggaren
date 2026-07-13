@@ -47,6 +47,16 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 /// </para>
 ///
 /// <para>
+/// <b>Open condition for PR-3 (security-auditor C-D8, 2026-07-13):</b> retaining the payload is the
+/// right answer to "should SoftDelete gut the row" — but it does NOT by itself settle Art. 5(1)(e).
+/// A soft-deleted criterion keeps the user's full job-hunt predicate indefinitely, and there is no
+/// purge sweep. PR-3 must decide the delete semantics explicitly (hard delete on user delete — the
+/// #782 precedent — OR a defined retention window plus a sweep), and decide at the same time whether
+/// <see cref="MaxPerUser"/> counts soft-deleted rows (a query-filtered count would let a user
+/// accumulate unbounded deleted criteria, each carrying a full predicate).
+/// </para>
+///
+/// <para>
 /// <b>No domain events (mirrors <see cref="CompanyWatch"/> / <c>UserJobAdMatch</c>):</b> the
 /// Art. 17 cascade is handler-driven by UserId and the browse is a read — there is no reactive
 /// consumer of a criterion-created/-deleted event in v1.
@@ -182,8 +192,8 @@ public sealed class CompanyWatchCriterion : AggregateRoot<CompanyWatchCriterionI
 
     /// <summary>
     /// Soft-deletes the criterion. Idempotent — a no-op on an already-deleted one. Deliberately
-    /// KEEPS the criteria payload (see the class summary): the row's rows are erased for real by
-    /// the Art. 17 account cascade, not by gutting a still-persisted row into an invariant-breaking
+    /// KEEPS the criteria payload (see the class summary): the row's data is erased for real by the
+    /// Art. 17 account cascade, not by gutting a still-persisted row into an invariant-breaking
     /// state.
     /// </summary>
     public void SoftDelete(IDateTimeProvider clock)
@@ -193,9 +203,12 @@ public sealed class CompanyWatchCriterion : AggregateRoot<CompanyWatchCriterionI
         UpdatedAt = clock.UtcNow;
     }
 
-    // Mutates the mapped lists IN PLACE. EF snapshots them through the configured
-    // ValueComparer (deep, sequence-based) — without that comparer EF would snapshot by
-    // reference and this update would silently never persist.
+    // Mutates the mapped lists IN PLACE (Clear/AddRange). EF's change detection therefore has to
+    // snapshot them DEEPLY, or this update would be invisible to it. It does: Npgsql's array type
+    // mapping supplies a deep comparer, and the configuration pins an explicit one on top
+    // (defense-in-depth — mutation-verified 2026-07-13: the persistence suite stays green without
+    // it). The persistence oracle is CompanyWatchCriterionPersistenceTests, which proves the update
+    // actually reaches Postgres.
     private void ApplyCriteria(CompanyWatchCriteriaSpec criteria)
     {
         _sniCodes.Clear();

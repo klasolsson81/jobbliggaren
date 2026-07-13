@@ -14,7 +14,17 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 /// <b>House pattern-sibling of <see cref="WatchFilterSpec"/></b>: same normalization (trim →
 /// drop blank → distinct ordinal → sort ordinal), same per-element format validation, same
 /// explicit structural equality (a record with an <see cref="IReadOnlyList{T}"/> member gets
-/// REFERENCE equality by default — the EF value comparison relies on structural equality).
+/// REFERENCE equality by default, which is never what a value object means).
+/// </para>
+///
+/// <para>
+/// <b>The equality here is DOMAIN equality — it is not what EF compares</b> (code-reviewer Minor,
+/// 2026-07-13). Unlike <see cref="WatchFilterSpec"/>, which IS an EF-mapped property (jsonb, with a
+/// converter whose comparer delegates to the VO's <c>Equals</c>), this spec is
+/// <c>builder.Ignore</c>d: EF never sees this type. Change detection runs on the aggregate's two
+/// <c>List&lt;string&gt;</c> backing fields, not on this record. So a broken <see cref="Equals"/>
+/// here CANNOT cause a silently-lost UPDATE — it would only break domain comparisons (and the
+/// tests that rely on them). The sibling's comment does not transfer; do not re-import it.
 /// </para>
 ///
 /// <para>
@@ -80,7 +90,8 @@ public sealed record CompanyWatchCriteriaSpec
     public IReadOnlyList<string> SniCodes { get; private init; } = [];
     public IReadOnlyList<string> MunicipalityCodes { get; private init; } = [];
 
-    // EF + record copy-semantics
+    // For the object initializers in Create/FromTrusted and for `with`. NOT for EF — EF never
+    // constructs this type (it is Ignore'd in the configuration).
     private CompanyWatchCriteriaSpec() { }
 
     public static Result<CompanyWatchCriteriaSpec> Create(
@@ -182,8 +193,9 @@ public sealed record CompanyWatchCriteriaSpec
     }
 
     // Structural VO equality (Evans 2003 ch. 5) — the lists are normalized (sorted+distinct
-    // ordinal) in Create, so sequence comparison is deterministic. EF's value comparison for the
-    // two text[] columns relies on this.
+    // ordinal) in Create, so sequence comparison is deterministic. This is DOMAIN equality only:
+    // EF never compares this type (it is Ignore'd; change detection runs on the aggregate's
+    // List<string> backing fields). See the class summary.
     public bool Equals(CompanyWatchCriteriaSpec? other)
     {
         if (other is null)

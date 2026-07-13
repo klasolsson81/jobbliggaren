@@ -454,7 +454,7 @@ describe("CvCompleteGuide — stegstatus säger sanning (#815 fynd 6, CTO-bind Q
     // submit ändå nekade.
     await waitFor(() =>
       expect(
-        within(railStep(/erfarenhet/i)).getByText(/fel behöver rättas/),
+        within(railStep(/erfarenhet/i)).getByText(/att åtgärda/),
       ).toBeInTheDocument(),
     );
     expect(
@@ -892,5 +892,60 @@ describe("CvCompleteGuide — ytan slår inte igen när felet rättas (#815, ron
     // Fältet finns kvar (faller inte tillbaka till bekräfta-raden) och behåller fokus.
     expect(document.getElementById("guide-pi-location")).not.toBeNull();
     expect(document.activeElement).toBe(location);
+  });
+});
+
+describe("CvCompleteGuide — markeringen skriver inte över statusen (#815, design Blocker)", () => {
+  // Axlarna delades korrekt i JSX (data-state = var jag står, data-status = vad steget
+  // säger) — men CSS:en slog ihop dem igen via SPECIFICITET: en descendant-selektor på
+  // [data-state="active"] vägde tyngre än [data-status="done"]. Följden i ljust tema:
+  // bocken färgades accent-700, som är SAMMA hex som accent-800-fyllningen → mörkgrön
+  // bock på mörkgrön skiva (1,0:1, glyfen borta), och varningstriangeln blev GRÖN på
+  // det enda steg som faktiskt blockerar sparandet.
+  //
+  // jsdom applicerar ingen CSS, så testet pinnar KONTRAKTET selektorerna vilar på:
+  // indikatorn behåller sin status även när steget är aktivt, och glyfen byts inte ut.
+  function railStep(name: RegExp) {
+    const rail = screen.getByRole("navigation", { name: "Steg i guiden" });
+    return within(rail).getByRole("button", { name });
+  }
+
+  it("ett aktivt KLART steg behåller data-status='done' (och sin bock)", async () => {
+    const user = userEvent.setup();
+    renderGuide(makeContent({ skills: ["React"], languages: ["Svenska"] }));
+
+    // Kompetenser är klart (båda uppgifterna fyllda, inga fel). Gå dit → aktivt + klart.
+    const step = railStep(/^Kompetenser/);
+    await user.click(step);
+
+    const active = railStep(/^Kompetenser/);
+    expect(active).toHaveAttribute("data-state", "active");
+    expect(active).toHaveAttribute("data-status", "done");
+
+    const indicator = active.querySelector(".jp-guide__railind");
+    expect(indicator).not.toBeNull();
+    // Statusen överlever markeringen — annars kan CSS:en aldrig färga bocken rätt.
+    expect(indicator).toHaveAttribute("data-status", "done");
+    // Och glyfen är fortfarande bocken, inte stegsiffran.
+    expect(indicator!.querySelector("svg")).not.toBeNull();
+    expect(indicator!.textContent).not.toContain("3");
+  });
+
+  it("ett aktivt BLOCKERANDE steg behåller data-status='attention' (och sin varning)", async () => {
+    const user = userEvent.setup();
+    renderGuide(makeContent());
+
+    // Skapa en blockerare på steg 2 (tom appendad post) och stanna kvar där.
+    await user.click(railStep(/erfarenhet/i));
+    await user.click(screen.getByRole("button", { name: /Lägg till erfarenhet/ }));
+
+    const active = railStep(/erfarenhet/i);
+    expect(active).toHaveAttribute("data-state", "active");
+    expect(active).toHaveAttribute("data-status", "attention");
+
+    const indicator = active.querySelector(".jp-guide__railind");
+    // Varningen får inte skrivas över av markeringen — det steget BLOCKERAR sparandet
+    // och får aldrig bära produktens success-färg.
+    expect(indicator).toHaveAttribute("data-status", "attention");
   });
 });

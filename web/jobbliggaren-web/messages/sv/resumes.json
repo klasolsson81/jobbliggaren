@@ -253,7 +253,7 @@
     "stepPosition": "Steg {step} av {total}",
     "railStatusDone": "klart",
     "railStatusRemaining": "{count, plural, one {# uppgift kvar} other {# uppgifter kvar}}",
-    "railStatusAttention": "{count, plural, one {# fel behöver rättas} other {# fel behöver rättas}}",
+    "railStatusAttention": "{count} att åtgärda",
     "fixFields": "Några uppgifter behöver rättas. De är markerade nedan.",
     "steps": {
       "details": "Uppgifter",
@@ -340,7 +340,7 @@
       "intro": "Se över och spara. Källfilen sparas orörd.",
       "summaryDone": "Klart",
       "summaryRemaining": "{count, plural, one {# uppgift kvar} other {# uppgifter kvar}}",
-      "summaryBlocked": "{count, plural, one {# fel behöver rättas} other {# fel behöver rättas}}",
+      "summaryBlocked": "{count} att åtgärda",
       "remainingOptional": "Du kan spara ändå. Uppgifterna som är kvar är frivilliga, och du kan fylla i dem senare.",
       "summaryJump": "Gå till {step}",
       "nameLabel": "Namn på CV",

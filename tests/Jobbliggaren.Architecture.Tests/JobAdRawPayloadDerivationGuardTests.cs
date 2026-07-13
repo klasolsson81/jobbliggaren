@@ -349,6 +349,19 @@ public class JobAdRawPayloadDerivationGuardTests
         BulkWrites(
             "s.SetProperty(j => j.MunicipalityConceptId, _ => null)", "MunicipalityConceptId").ShouldBeTrue();
 
+        // The two spellings that defeated the FIRST version of this regex. They are pinned rather than
+        // asserted in prose because I claimed to have broadened the regex in a commit message BEFORE
+        // actually doing it — which is the same defect as a comment describing a control that does not
+        // exist, committed to main. A reviewer caught it. These lines make that impossible to repeat.
+        BulkWrites(
+            "s.SetProperty(static j => j.OrganizationNumber, _ => null)", "OrganizationNumber").ShouldBeTrue(
+            "an IDE quick-fix can add `static` to a lambda MECHANICALLY — a guard defeated by a keyword " +
+            "nobody typed on purpose is not a guard");
+
+        BulkWrites(
+            "s.SetProperty<string>(j => j.OrganizationNumber, _ => null)", "OrganizationNumber").ShouldBeTrue(
+            "the generic overload is the same write");
+
         // ...and it does not fire on an unrelated field.
         BulkWrites("s.SetProperty(j => j.Status, _ => archived)", "RawPayload").ShouldBeFalse();
     }
@@ -380,7 +393,13 @@ public class JobAdRawPayloadDerivationGuardTests
     /// aggregate.
     /// </summary>
     private static bool BulkWrites(string code, string field) =>
-        Regex.IsMatch(code, @"SetProperty\(\s*\w+\s*=>\s*\w+\." + Regex.Escape(field) + @"\b");
+        Regex.IsMatch(
+            code,
+            // `static j =>` matters and is not hypothetical: an IDE quick-fix ("make lambda static") can
+            // introduce it MECHANICALLY, blinding the guard without anyone intending to. The generic
+            // overload SetProperty<T>(...) is the same story. A guard defeated by a keyword nobody typed
+            // on purpose is not a guard.
+            @"SetProperty(?:<[^>]+>)?\(\s*(?:static\s+)?\w+\s*=>\s*\w+\." + Regex.Escape(field) + @"\b");
 
     // Remove line, block and XML-doc comments while leaving string literals intact.
     private static string StripComments(string source) =>

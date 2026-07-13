@@ -22,10 +22,13 @@ namespace Jobbliggaren.Architecture.Tests;
 /// </para>
 ///
 /// <para>
-/// <b>Guard 2 — only the purge may bulk-write <c>RawPayload</c>.</b> #841's primary defence is the type
-/// system: <c>JobAd.SetSourcePayload</c> writes the payload and its facets atomically, and the facets are
-/// a required parameter, so a payload write without them cannot compile. <c>ExecuteUpdateAsync</c> is the
-/// one route around that — it bypasses the aggregate entirely. Exactly one such writer exists
+/// <b>Guard 2 — nothing outside the aggregate may write the payload or its facets.</b> #841's primary
+/// defence is the type system: <c>JobAd.SetSourcePayload</c> writes the payload and its facets
+/// atomically, and the facets are a required parameter, so a payload write without them cannot compile.
+/// There are TWO routes around that, and an earlier version of this file claimed there was one:
+/// <c>ExecuteUpdateAsync</c> (<c>SetProperty</c>) and RAW SQL (<c>ExecuteSqlAsync</c> — a live idiom
+/// here; <c>AuditTrailEraser</c> erases Art. 17 data exactly that way). Both bypass the aggregate
+/// entirely, and both are now scanned. Exactly one such writer exists
 /// (<c>PurgeStaleRawPayloadsJob</c>, which writes NULL and now leaves the facets standing). A second one
 /// would re-open #841 with the type-system guard fully intact and green. This test is what makes layer 1
 /// a closed guard rather than a leaky one.
@@ -246,6 +249,79 @@ public class JobAdRawPayloadDerivationGuardTests
             "it no longer self-nulls with the purge), add the file to BulkWritableJobAdFields for that " +
             "field and say why. Offenders: " + string.Join(", ", offenders));
     }
+
+    /// <summary>
+    /// Source files permitted to write <c>job_ads</c> with RAW SQL. Empty — and when #842's Tier B
+    /// tombstone lands (it MUST clear <c>organization_number</c>, which no longer self-nulls with the
+    /// purge — CTO bind 3c), it adds itself here, deliberately.
+    /// </summary>
+    private static readonly string[] RawSqlJobAdWriters = [];
+
+    [Fact]
+    public void No_raw_SQL_write_of_job_ads_outside_the_aggregate()
+    {
+        // THE SECOND WAY AROUND THE AGGREGATE, and the guard above claimed there was only one.
+        //
+        // `ExecuteUpdateAsync`/`SetProperty` is not the sole bypass: `Database.ExecuteSqlAsync` is a live
+        // idiom in this repo, and it is used for EXACTLY this kind of erasure — AuditTrailEraser wipes
+        // Art. 17 data with raw SQL. So #842's Tier B tombstone — the very write the guard above exists to
+        // catch — could reasonably be written as
+        //
+        //     ExecuteSqlAsync($"UPDATE job_ads SET organization_number = NULL WHERE ...")
+        //
+        // along the path of least resistance AND the repo's own precedent, with every other guard green.
+        // The control was narrower than its claim. Again. (Found by code-reviewer, third time this PR —
+        // which is itself the finding: the failure mode is not a bug you fix once, it is a habit.)
+        var root = RepoRoot();
+        var offenders = new List<string>();
+
+        foreach (var file in Directory.EnumerateFiles(
+                     Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(root, file).Replace('\\', '/');
+
+            // Migrations are DDL and are reviewed as such (and the generated-column guard covers them).
+            if (relative.Contains("/Migrations/", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (RawSqlJobAdWriters.Contains(relative, StringComparer.OrdinalIgnoreCase))
+                continue;
+
+            if (WritesJobAdsWithRawSql(File.ReadAllText(file)))
+                offenders.Add(relative);
+        }
+
+        offenders.ShouldBeEmpty(
+            "A source file writes job_ads with raw SQL. That bypasses the aggregate exactly as an " +
+            "ExecuteUpdate does — so JobAd.SetSourcePayload never runs, and the payload and its seven " +
+            "facets can silently drift apart, which is the whole defect #841 closes.\n\n" +
+            "If you genuinely need one (#842's Art. 17 tombstone must clear organization_number — it no " +
+            "longer self-nulls with the purge), add the file to RawSqlJobAdWriters and say why. " +
+            "Offenders: " + string.Join(", ", offenders));
+    }
+
+    [Fact]
+    public void Raw_SQL_scan_sees_the_write_it_forbids()
+    {
+        // Self-proving negative — including the exact line #842 Tier B will want to write.
+        WritesJobAdsWithRawSql(
+            """await db.Database.ExecuteSqlAsync($"UPDATE job_ads SET organization_number = NULL WHERE id = {id}");""")
+            .ShouldBeTrue();
+
+        WritesJobAdsWithRawSql("""ExecuteSqlRawAsync("update job_ads set raw_payload = null")""")
+            .ShouldBeTrue("the scan must be case-insensitive — SQL is");
+
+        // ...and it must not fire on a READ, or every query in Infrastructure becomes an offender.
+        WritesJobAdsWithRawSql("""FromSql($"SELECT * FROM job_ads WHERE id = ANY({ids})")""").ShouldBeFalse();
+        WritesJobAdsWithRawSql("// UPDATE job_ads SET ... would be forbidden here").ShouldBeFalse(
+            "a comment describing the forbidden write is not the forbidden write");
+    }
+
+    // `UPDATE job_ads SET …` (or DELETE) in a string literal, in code, not comments.
+    private static bool WritesJobAdsWithRawSql(string source) =>
+        Regex.IsMatch(
+            StripComments(source),
+            @"(UPDATE\s+job_ads\s+SET|DELETE\s+FROM\s+job_ads)",
+            RegexOptions.IgnoreCase);
 
     [Fact]
     public void Bulk_write_guard_is_not_vacuous_the_scan_finds_the_one_legitimate_writer()

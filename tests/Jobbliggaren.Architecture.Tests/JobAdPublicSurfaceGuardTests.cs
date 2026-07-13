@@ -241,6 +241,67 @@ public class JobAdPublicSurfaceGuardTests
     }
 
     [Fact]
+    public void The_PII_bearing_records_do_not_print_their_contents_in_ToString()
+    {
+        // THE SECOND FORM OF THE SAME HOLE, and it needed no `@` at all.
+        //
+        // `JobAdImportItem` and `JobAdFacets` are records, and a record's compiler-generated ToString()
+        // prints EVERY public member. So this line —
+        //
+        //     LogWarning("skipping malformed item {Item}", item);
+        //
+        // — has no `{@`, and carries none of the tokens the org.nr scan looks for
+        // (organization/orgnr/org_nr/personnummer). It sails past BOTH guards, and MEL's default
+        // formatting then writes the organisation number (a sole proprietor's PERSONNUMMER), the entire
+        // raw payload, and the recruiter free-text in the description into the log.
+        //
+        // Exactly the lesson that produced the shape-based destructuring guard — the hole is in the FORM,
+        // not the spelling — recurring one level down, in the framework's default rendering. An overridden
+        // ToString() makes it structurally impossible rather than guard-dependent, and this test keeps it
+        // that way. (Found by security-auditor, on re-review.)
+        var facets = TestFacetsForGuard();
+        var facetsText = facets.ToString();
+
+        facetsText.Contains("5592804784", StringComparison.Ordinal).ShouldBeFalse(
+            "JobAdFacets.ToString() must not print the organisation number — a record's generated " +
+            "ToString() prints every public member, and MEL renders it for a plain {Facets} placeholder.");
+        facetsText.Contains("AvNB_uwa_6n6", StringComparison.Ordinal).ShouldBeFalse();
+
+        var item = new JobAdImportItem(
+            ExternalId: "ext-1",
+            Title: "Sjuksköterska",
+            CompanyName: "Region Stockholm",
+            Description: "kontakta rekryteraren på anna@example.com",
+            Url: "https://example.com/jobs/1",
+            PublishedAt: default,
+            ExpiresAt: null,
+            SanitizedRawPayload: "{\"employer\":{\"organization_number\":\"5592804784\"}}",
+            Facets: facets,
+            Requirements: []);
+
+        var itemText = item.ToString();
+
+        itemText.Contains("5592804784", StringComparison.Ordinal).ShouldBeFalse(
+            "the org.nr must never reach a log through ToString()");
+        itemText.Contains("anna@example.com", StringComparison.Ordinal).ShouldBeFalse(
+            "the recruiter free-text in Description must not be printed either (#842)");
+        itemText.Contains("organization_number", StringComparison.Ordinal).ShouldBeFalse(
+            "the raw payload must not be printed — it carries both of the above");
+
+        // ...and it must still be USEFUL for debugging, or someone will "fix" it by logging the object.
+        itemText.Contains("ext-1", StringComparison.Ordinal).ShouldBeTrue();
+    }
+
+    private static JobAdFacets TestFacetsForGuard() =>
+        new(ssykConceptId: "Ssyk_uwa_111",
+            occupationGroupConceptId: null,
+            municipalityConceptId: "AvNB_uwa_6n6",
+            regionConceptId: null,
+            employmentTypeConceptId: null,
+            worktimeExtentConceptId: null,
+            organizationNumber: "5592804784");
+
+    [Fact]
     public void Log_destructuring_guard_reads_only_string_literals_never_prose()
     {
         // The scan looks INSIDE string literals only. It must not fire on a comment that merely names the

@@ -102,8 +102,11 @@ public sealed record JobAdRemoval(
 ///
 /// <para>
 /// <b>PII:</b> <c>Facets.OrganizationNumber</c> can be a sole proprietor's personnummer (ADR 0087 D8).
-/// This record must never be structured-logged — <c>OrganizationNumberSurfacingGuardTests</c> fails the
-/// build on any <c>{@JobAdImportItem}</c> destructuring.
+/// This record must never be structured-logged. <c>JobAdPublicSurfaceGuardTests</c> bans <c>{@…}</c>
+/// destructuring anywhere in <c>src/</c>, and <see cref="ToString"/> below is redacted so that even a
+/// plain <c>{Item}</c> placeholder cannot print the org.nr. (An earlier draft cited
+/// <c>OrganizationNumberSurfacingGuardTests</c> here. False: that class token-scans an allowlist of
+/// paths, and a destructured record carries none of its tokens.)
 /// </para>
 /// </summary>
 public sealed record JobAdImportItem(
@@ -116,4 +119,21 @@ public sealed record JobAdImportItem(
     DateTimeOffset? ExpiresAt,
     string SanitizedRawPayload,
     JobAdFacets Facets,
-    IReadOnlyList<JobAdRequirement> Requirements);
+    IReadOnlyList<JobAdRequirement> Requirements)
+{
+    /// <summary>
+    /// REDACTED on purpose — see <see cref="JobAdFacets.ToString"/> for the full reasoning. A record's
+    /// compiler-generated <c>ToString()</c> prints every public member, so
+    /// <c>LogWarning("skipping {Item}", item)</c> — with NO <c>@</c> anywhere — would dump
+    /// <c>Facets.OrganizationNumber</c> (a sole proprietor's personnummer), the whole
+    /// <c>SanitizedRawPayload</c>, and the recruiter free-text in <c>Description</c> (#842) straight into
+    /// the log through MEL's default formatting. That form slips past both the destructuring guard (no
+    /// <c>{@</c>) and the org.nr token scan (no org.nr token in the template).
+    ///
+    /// <para>
+    /// Only the fields that identify the item for debugging survive. Found by <c>security-auditor</c>.
+    /// </para>
+    /// </summary>
+    public override string ToString() =>
+        $"JobAdImportItem(ExternalId={ExternalId}, Title={Title}, redacted)";
+}

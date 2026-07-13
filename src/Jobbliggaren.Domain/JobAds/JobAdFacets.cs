@@ -89,8 +89,12 @@ public sealed record JobAdFacets
     /// <b>PII (highest priority, CLAUDE.md §5).</b> A Swedish sole proprietorship's org.nr IS the owner's
     /// personnummer, in plaintext. It is never logged and never surfaced un-flagged: consumers mask via
     /// <c>OrganizationNumber.IsPersonnummerShaped</c> at the display boundary (ADR 0087 D8(c)). The
-    /// build-time guards are <c>JobAdPublicSurfaceGuardTests</c> (fail-closed classification) and
-    /// <c>OrganizationNumberSurfacingGuardTests</c> (no structured-logging of this type at all).
+    /// build-time guard is <c>JobAdPublicSurfaceGuardTests</c>: it fail-closed-classifies the aggregate's
+    /// public surface AND bans <c>{@…}</c> destructuring anywhere in <c>src/</c>. (NOT
+    /// <c>OrganizationNumberSurfacingGuardTests</c> — an earlier draft of this comment said so, and it
+    /// was false: that class runs a TOKEN scan over an allowlist of paths, and a destructured record
+    /// carries none of its tokens. Citing a real class that does not hold the invariant is worse than
+    /// citing one that does not exist — the real name makes the claim look verified.)
     /// </para>
     /// </summary>
     public string? OrganizationNumber { get; }
@@ -104,6 +108,23 @@ public sealed record JobAdFacets
         && EmploymentTypeConceptId is null
         && WorktimeExtentConceptId is null
         && OrganizationNumber is null;
+
+    /// <summary>
+    /// REDACTED on purpose. A record's compiler-generated <c>ToString()</c> prints every public member —
+    /// so <c>LogWarning("bad facets {Facets}", facets)</c>, with NO <c>@</c> anywhere, would print the
+    /// <see cref="OrganizationNumber"/> straight into the log via MEL's default formatting. That form
+    /// slips past BOTH guards: the destructuring scan sees no <c>{@</c>, and the org.nr token scan sees no
+    /// org.nr token in the template. Same lesson as the guard that missed <c>{@jobAd}</c> — the hole is in
+    /// the FORM, not the spelling — one level down, in the framework's default rendering.
+    ///
+    /// <para>
+    /// Overriding it makes the leak structurally impossible rather than guard-dependent. A sole
+    /// proprietor's org.nr IS a personnummer (ADR 0087 D8(c); CLAUDE.md §5, highest priority). Found by
+    /// <c>security-auditor</c>.
+    /// </para>
+    /// </summary>
+    public override string ToString() =>
+        IsEmpty ? "JobAdFacets(empty)" : "JobAdFacets(redacted — carries an organisation number)";
 
     // Blank -> null. See the empty-string invariant above: this is the difference between a row the
     // partial index excludes (correct) and a row the index contains but no IN (...) list can ever match.

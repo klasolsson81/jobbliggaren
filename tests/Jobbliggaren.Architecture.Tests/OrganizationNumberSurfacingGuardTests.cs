@@ -1,5 +1,6 @@
 using System.IO;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationHistory;
 using Jobbliggaren.Application.CompanyWatches.Queries;
@@ -23,8 +24,10 @@ namespace Jobbliggaren.Architecture.Tests;
 ///     assembly that exposes an org.nr-shaped member must be classified — either
 ///     <see cref="MaskingOrgNrDtos"/> (structurally mask-capable: a nullable <c>string?</c> org.nr it
 ///     CAN null + a <c>bool</c> protection flag) or <see cref="ExemptOrgNrDtos"/> (explicit, with a
-///     reason). A new org.nr-surfacing DTO of ANY shape lands in neither and fails the build until a
-///     human classifies it (Saltzer &amp; Schroeder fail-safe default; parity
+///     reason). The scan is NAME-, SHAPE- and VISIBILITY-independent (class or record struct, public
+///     or internal, nested or not, property or field), so a new org.nr-surfacing type lands in
+///     neither and fails the build until a human classifies it (Saltzer &amp; Schroeder fail-safe
+///     default; parity
 ///     <see cref="AccountHardDeleteCascadeFitnessTests"/>). The one present subject is
 ///     <see cref="CompanyWatchDto"/> (PR-3); the guard is forward-looking for PR-2b's disambiguation
 ///     DTO — the "reactive-catch" failure mode #374 was built to end.</item>
@@ -186,7 +189,8 @@ public class OrganizationNumberSurfacingGuardTests
         // Only the handler's Mask() stands between — and discipline is not a guard.
         var applicationAsm = typeof(CompanyWatchDto).Assembly;
 
-        var offenders = OrgNrSurfaceScan.FindRawCarriersInResponses(applicationAsm, RawOrgNrCarriers);
+        var offenders = OrgNrSurfaceScan.FindRawCarriersInResponses(
+            applicationAsm, [.. MaskingOrgNrDtos, .. ExemptOrgNrDtos]);
 
         offenders.ShouldBeEmpty(
             "Följande Mediator-svar exponerar (transitivt) en RÅ org.nr-bärare. En rå bärare får bara " +
@@ -194,6 +198,40 @@ public class OrganizationNumberSurfacingGuardTests
             "+ bool-flagga) innan den blir ett svar. Ett rått org.nr på tråden kan vara ett " +
             "personnummer (enskild firma, ADR 0087 D8 / §5). Överträdelser: " +
             string.Join(", ", offenders));
+    }
+
+    [Fact]
+    public void No_raw_org_nr_carrier_is_named_anywhere_in_the_Api_project()
+    {
+        // The walker above guards the MEDIATOR boundary. That is NOT the same thing as the Api boundary,
+        // and the difference is a live hole (security-auditor re-review, 2026-07-13):
+        // ICompanyWatchBrowseQuery is public and DI-registered, so a minimal-API delegate could inject
+        // the port DIRECTLY and return PagedResult<CompanyBrowseResult> without a Mediator request
+        // anywhere in sight. The walker would see nothing, the build would be green, and a raw
+        // (possibly personnummer-shaped) org.nr would be on the wire.
+        //
+        // Nothing in the repo forces Api -> Application to go through Mediator; today it is a convention.
+        // So this guards the boundary directly: a raw carrier's NAME may not appear in the Api project
+        // at all. Blunt, but fail-closed and trivially non-vacuous — and an endpoint cannot return a
+        // type it cannot name.
+        var apiSources = Directory.EnumerateFiles(
+            Path.Combine(FindRepoRoot(), "src", "Jobbliggaren.Api"), "*.cs", SearchOption.AllDirectories);
+
+        var offenders = new List<string>();
+        foreach (var file in apiSources)
+        {
+            foreach (var carrier in OrgNrSurfaceScan.FindCarrierNamesInSource(
+                         File.ReadAllText(file), RawOrgNrCarriers))
+            {
+                offenders.Add($"{Path.GetFileName(file)}: {carrier}");
+            }
+        }
+
+        offenders.ShouldBeEmpty(
+            "Api-projektet namnger en RÅ org.nr-bärare. En bärare får bara leva INUTI Application-" +
+            "gränsen — en endpoint måste returnera det maskerade *Dto:t handlern producerar, aldrig " +
+            "portens råa radtyp. Ett rått org.nr på tråden kan vara ett personnummer (enskild firma, " +
+            "ADR 0087 D8 / §5). Överträdelser: " + string.Join(", ", offenders));
     }
 
     [Fact]
@@ -450,7 +488,20 @@ internal static class OrgNrSurfaceScan
     /// </summary>
     internal static IReadOnlyList<Type> OrgNrSurfacingTypes(Assembly applicationAssembly) =>
         applicationAssembly.GetTypes()
-            .Where(t => t is { IsClass: true, IsAbstract: false, IsPublic: true })
+            // No visibility filter and value types INCLUDED (security-auditor re-review, 2026-07-13).
+            // Three cracks were closed here at once: (1) `IsClass` excluded record structs — while
+            // FindRawCarriersInResponses, in this same file, explicitly includes value types, so the two
+            // scanners disagreed about what a type even is, and §3 prescribes `record struct` for value
+            // objects; (2) `Type.IsPublic` is FALSE for a nested public type (it needs IsNestedPublic —
+            // the sibling guard in this repo gets that right); (3) filtering on public at all NARROWED
+            // coverage versus the scan this replaced, which saw internal *Dtos too. A type that slips
+            // the partition slips BOTH guards, because the response walker only looks for types already
+            // in RawOrgNrCarriers.
+            .Where(t => (t is { IsClass: true, IsAbstract: false }) || (t.IsValueType && !t.IsEnum))
+            // Compiler artifacts only — closure display-classes and async state machines CAPTURE locals
+            // (org.nr among them) as fields, so dropping the visibility filter made them visible. They
+            // are not types anyone can name, return, or serialize; excluding them narrows nothing real.
+            .Where(t => !t.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false))
             .Where(HasOrgNrMember)
             .ToList();
 
@@ -467,9 +518,16 @@ internal static class OrgNrSurfaceScan
     /// graph contains one of <paramref name="rawCarriers"/>. Returns "QueryName -> CarrierName" strings.
     /// </summary>
     internal static IReadOnlyList<string> FindRawCarriersInResponses(
-        Assembly applicationAssembly, IReadOnlyCollection<Type> rawCarriers)
+        Assembly applicationAssembly, IReadOnlyCollection<Type> maskedOrExempt)
     {
-        var carriers = rawCarriers.ToHashSet();
+        // A DETECTOR, not a matcher (code-reviewer re-review, 2026-07-13). The first version asked "is
+        // any of the four types I was TOLD about reachable from a response?" — its coverage was
+        // inherited from whoever remembered to fill the list, which is the fail-open shape all over
+        // again. It now asks the question that actually matters: "does any response reach a type that
+        // exposes an org.nr and is NOT a classified masking DTO?" Name-independent, shape-independent,
+        // list-independent — a new raw carrier of any form is caught by construction, whether or not a
+        // human ever classified it.
+        var safe = maskedOrExempt.ToHashSet();
         var offenders = new List<string>();
 
         foreach (var request in applicationAssembly.GetTypes()
@@ -478,13 +536,32 @@ internal static class OrgNrSurfaceScan
             foreach (var iface in request.GetInterfaces().Where(IsMediatorRequest))
             {
                 var response = iface.GetGenericArguments()[0];
-                foreach (var reached in ReachableTypes(response).Where(carriers.Contains))
+                foreach (var reached in ReachableTypes(response)
+                             .Where(HasOrgNrMember)
+                             .Where(t => !safe.Contains(t)))
+                {
                     offenders.Add($"{request.Name} -> {reached.Name}");
+                }
             }
         }
 
         return offenders.Distinct(StringComparer.Ordinal).OrderBy(o => o, StringComparer.Ordinal).ToList();
     }
+
+    /// <summary>
+    /// Every raw-carrier type name that appears anywhere in the Api project's source. The response
+    /// walker guards the MEDIATOR boundary; this guards the Api boundary, which is a different thing
+    /// (security-auditor re-review, 2026-07-13): <c>ICompanyWatchBrowseQuery</c> is public and
+    /// DI-registered, so a minimal-API delegate could inject the port DIRECTLY and return
+    /// <c>PagedResult&lt;CompanyBrowseResult&gt;</c> with no Mediator request anywhere in sight — the
+    /// walker would see nothing, the build would be green, and a raw org.nr would be on the wire.
+    /// </summary>
+    internal static IReadOnlyList<string> FindCarrierNamesInSource(
+        string source, IEnumerable<Type> rawCarriers) =>
+        rawCarriers
+            .Where(c => Regex.IsMatch(source, @"\b" + Regex.Escape(c.Name) + @"\b"))
+            .Select(c => c.Name)
+            .ToList();
 
     private static bool IsMediatorRequest(Type iface) =>
         iface.IsGenericType
@@ -523,6 +600,11 @@ internal static class OrgNrSurfaceScan
 
             foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
                 pending.Push(property.PropertyType);
+
+            // Fields too — a walker whose entire job is "no path from a response to a carrier" cannot
+            // have a whole member kind it does not look at (security-auditor re-review, 2026-07-13).
+            foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
+                pending.Push(field.FieldType);
         }
 
         return [.. seen];
@@ -565,12 +647,22 @@ internal static class OrgNrSurfaceScan
     }
 
     internal static bool HasOrgNrMember(Type type) =>
-        type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Any(IsOrgNrProperty);
+        type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Any(IsOrgNrProperty)
+        // Fields too — otherwise a field-based carrier is invisible to the detector whose entire job is
+        // finding carriers (security-auditor re-review, 2026-07-13).
+        || type.GetFields(BindingFlags.Public | BindingFlags.Instance).Any(IsOrgNrField);
 
     private static bool IsOrgNrProperty(PropertyInfo p)
     {
         var t = Nullable.GetUnderlyingType(p.PropertyType) ?? p.PropertyType;
         return p.Name.Contains("OrganizationNumber", StringComparison.Ordinal)
+               || string.Equals(t.Name, "OrganizationNumber", StringComparison.Ordinal);
+    }
+
+    private static bool IsOrgNrField(FieldInfo f)
+    {
+        var t = Nullable.GetUnderlyingType(f.FieldType) ?? f.FieldType;
+        return f.Name.Contains("OrganizationNumber", StringComparison.Ordinal)
                || string.Equals(t.Name, "OrganizationNumber", StringComparison.Ordinal);
     }
 

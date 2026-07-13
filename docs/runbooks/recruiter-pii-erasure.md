@@ -1,271 +1,224 @@
 # Recruiter PII erasure (GDPR Art. 17) — operational procedure
 
-> What a human does on the day a recruiter asks us to erase their contact
-> details from an ad we imported from Platsbanken.
+> What a human does on the day a recruiter asks us to erase her contact details
+> from an ad we imported from Platsbanken.
 > Contract: **ADR 0106** (two-tier). Issue: **#842**.
 
-**Last updated:** 2026-07-13 (#842 PR1 — containment + truth)
-**Applies to:** the state of the system **today** (post-PR1, pre-PR2/PR3).
+**Last updated:** 2026-07-13 (#842 PR2 — Tier B: provable erasure on request)
+**Applies to:** the state of the system **today** (post-PR2, pre-PR3).
 
 ---
 
 ## 0. STATUS — read this before anything else
 
-**There is no working automated erasure path. There never was.**
+**There is now a working erasure path. It removes the whole ad record and blocks
+its re-import.** That is new as of PR2, and it is the first time in this
+product's life that a confirmation sent under Art. 12(3) is a true statement.
 
-- `POST /api/v1/admin/job-ads/redact-recruiter-pii` now returns **501 Not
-  Implemented** with a truthful problem detail
-  (`src/Jobbliggaren.Api/Endpoints/AdminJobAdsEndpoints.cs:70-79`). The route is
-  kept, not deleted, so that ADR 0024's Art. 17 cascade registry does not
-  silently dangle and so an operator holding an older copy of this runbook is
-  told the truth instead of being served a lie.
-- `RecruiterPiiPurger`, `IRecruiterPiiPurger` and the `RedactRecruiterPii`
-  command/handler are **deleted**. Dead code that impersonates a safety control
-  is worse than no code.
-- **The previous version of this runbook was wrong in a way that mattered.** It
-  told the operator that `rowsAffected = 0` "är OK" and then told the operator to
-  *"Återkoppla rekryterar — bekräfta att radering är genomförd."* **That
-  confirmation has never been true. Not once.** Anyone who followed the old
-  procedure and told a recruiter "raderat" made a false statement to a data
-  subject (Art. 12(3)) on top of a failure to erase (Art. 17).
-- **Measured, dev Postgres, 2026-07-13:** the endpoint has been called **0
-  times** (`audit_log` rows matching `%RecruiterPiiRedact%` = **0**). As far as
-  the audit log shows, **no data subject has yet received a false confirmation**,
-  and no notification duty is live. That is why the correction is cheap. It is
-  not a reason to have waited.
+What is **still missing**, and what it means:
 
-### Why the old mechanism could never work (all measured or quoted)
-
-| Claim in the old runbook | Reality |
+| | State |
 |---|---|
-| The erasure searches `raw_payload` for `{"employer":{"contact_email": …}}` | That key **cannot exist**. The wire POCO cannot emit it (`JobTechSearchResponse.cs:125-143`) and the ingest sanitizer's default-deny allowlist drops it (`JobTechPayloadSanitizer.cs:62-64, :107-108`). **Measured: 0 of 93 469 ingested ads carry it.** `rowsAffected = 0` was the only outcome the code could produce. |
-| "Sanitizer strips PII at ingest" | The sanitizer strips the **field**, not the **address**. It is a key-name filter that never examines a value, and it **deliberately retains every free-text key** (`description`, `text`, `company_information`, `needs`, `requirements`, `salary_description` — `JobTechPayloadSanitizer.cs:33-35, :55`). **PII in free text was never a gap in the design. It IS the design.** |
-| "Free-text remnants are purged after 30 days" | `PurgeStaleRawPayloadsJob` only nulls `raw_payload` (`PurgeStaleRawPayloadsJob.cs:93-97`). It **never touches `description`**. It claimed to erase exactly the PII it cannot reach. |
-| The manual Name fallback | Its search SQL looked in **both** `raw_payload` and `description`, and its erasure SQL updated **only `raw_payload`** — leaving the address in `description` and in `search_vector`. Even the reserve path was incomplete by construction. **That recipe is deleted from this runbook. Do not reach for it.** |
-| TD-75: *"Email är primär rekryterar-identifier i JobTech-payloads"* | **Falsified, not stale.** The email is **never** a structured key in storage. **TD-75 is closed as VOID** (CTO V17). |
+| **Tier B — erasure on request (Art. 17)** | ✅ **SHIPPED.** `POST /api/v1/admin/job-ads/redact-recruiter-pii`. §2 is the procedure. |
+| **Tier A — not storing the contact at all (Art. 25)** | ❌ **NOT SHIPPED** (PR3, sequenced behind #841). We still ingest and store ~27 000 recruiters' contact details in plaintext free text, full-text indexed. |
+| **Launch gate** | 🔒 **CLOSED. No `v*` prod tag until BOTH tiers have shipped.** See below — this is not negotiable and it is not a product decision. |
 
-### Where the data actually is
+### Why the gate stays closed even though erasure now works
 
-The recruiter's address sits **verbatim, in plaintext, in `job_ads.description`**
-(`PlatsbankenJobSource.cs:199-207` → `JobAd.cs:50` / `:156`), and it is
-**full-text searchable by any user today**: `search_vector` is a STORED generated
-column over `title || description` (`JobAdConfiguration.cs:174-179`), queried on
-every non-blank `/jobb` search (`JobAdSearchComposition.cs:175-191`). Proven
-against real Postgres: `search_vector @@ websearch_to_tsquery('swedish',
-'<email>')` returns a hit. **The recruiter's name is independently searchable
-too**, and no regex can reach it.
+An Art. 17 endpoint answers the people who **ask**. Art. 25(2) is about the
+~37 000 recruiters who will **never know we exist and will never ask**, and
+whose addresses sit in `job_ads.description` in plaintext, inside a GIN-backed
+`search_vector` that **any logged-in user can reverse-query**. Tier B does not
+touch that population, and **an Art. 17 endpoint does not discharge an Art. 25
+duty.** Shipping to production with the ingest scrub un-shipped would be the same
+category of claim this issue exists to stop making.
 
-**Measured on the real corpus (93 469 ads, 2026-07-13):** **27 077 (29 %)** carry
-a well-formed email in the ad body, **13 134** carry a phone number, and only
-**17** use textual obfuscation.
+*(This corrects the CTO re-bind, which carried STOPP-6 over verbatim while
+reordering the PRs, and so read as though Tier B alone lifted the gate. It does
+not. Amended by the security-auditor's B2, 2026-07-13.)*
+
+### The history, kept because it is the reason for every rule below
+
+The mechanism this replaces **erased nothing, on every request, always**, and
+reported success. It probed `raw_payload` for
+`{"employer":{"contact_email": …}}` — a key the wire POCO cannot emit and the
+ingest sanitizer's default-deny allowlist drops. **Measured: 0 of 93 469
+ingested ads carried it.** `rowsAffected = 0` was its only possible outcome, and
+the old version of this runbook told the operator that 0 "är OK" and then told
+him to *"bekräfta att radering är genomförd."* **That confirmation was never
+true. Not once.**
+
+The audit log shows the endpoint was called **0 times**, so no data subject ever
+received that false confirmation. That is luck, not design.
 
 ---
 
-## 1. If a request arrives RIGHT NOW
+## 1. If a request arrives
 
-1. **Do not improvise SQL.** Nothing in this runbook is a self-service erasure
-   button. There isn't one.
-2. **Escalate to the data controller (Klas).** Every step below runs under his
-   sign-off. He decides what is done and he approves what is said back.
-3. **Record the request and the date it was received.** Art. 12(3) starts a
-   **one-month clock** for informing the data subject of the action taken (or of
-   the reasons for taking none, plus the right to lodge a complaint with IMY and
-   to seek a judicial remedy). If the compliant remedy (PR3, §3) will not land
-   inside that window, the extension or interim-communication decision is
-   **Klas's, not the operator's**.
-4. **Do not put the requester's email, phone number or name into the repo, into a
+1. **Verify identity first.** The requester must demonstrate control of the
+   address or number in question (a request from the same address, or a written
+   request). A name-only request needs a different, controller-level judgement —
+   escalate.
+2. **Record the request and the date it was received.** Art. 12(3) starts a
+   **one-month clock** for informing the data subject of the action taken — or of
+   the reasons for taking none, plus her right to lodge a complaint with IMY and
+   to seek a judicial remedy.
+3. **Do not put the requester's email, phone number or name into the repo, into a
    commit message, into a log line, or into an issue.** This repo is public
-   (ADR 0072) and CLAUDE.md §5 forbids logging sensitive data. The identifier
-   lives in the controller's case record, outside the repo.
-5. **Verify identity** before anything else: the requester must demonstrate
-   control of the address/number in question (a request from the same address, or
-   a written request).
+   (ADR 0072). The identifier lives in the controller's case record. The
+   application itself never stores it: the audit row carries an
+   **HMAC-SHA256** of it, never the value.
+4. **Klas signs off before the destructive call.** The dry run is yours to run;
+   the erasure is his to approve.
 
 ---
 
-## 2. Interim manual procedure (today's only complete remedy)
+## 2. The procedure
 
-**Be clear about what this is.** The only complete remedy available today is to
-**remove the whole ad record** for the matching ads. There is no supported
-surgical redaction: clearing `description` alone leaves `extracted_terms`
-(C#-written, not generated) intact, and every one-shot `UPDATE` is undone anyway
-(see the durability warning below).
+Admin session required. The route is `POST /api/v1/admin/job-ads/redact-recruiter-pii`.
 
-This is a **manual, controller-supervised** procedure. It is not a substitute for
-PR3; it is what we do while PR3 is being built.
+### 2.1 Dry run — always first, and the API enforces it
 
-### 2.1 Search — two channels, both required
-
-Run both. FTS will not find an obfuscated address; a substring scan finds
-everything and over-matches. Over-match, then let a human confirm (fail-safe).
-
-```sql
--- Channel 1: literal substring scan (catches obfuscated and partial forms).
--- Run once per identifier: email, phone number, and the recruiter's NAME.
-SELECT id, external_source, external_id, status, published_at, expires_at, url,
-       left(description, 240) AS description_excerpt
-FROM job_ads
-WHERE description ILIKE '%' || :identifier || '%'
-   OR title ILIKE '%' || :identifier || '%'
-   OR raw_payload::text ILIKE '%' || :identifier || '%';
-
--- Channel 2: FTS probe — the channel a user would actually use against /jobb.
--- The config MUST be 'swedish' or the probe misses the GIN index behind
--- search_vector (JobAdConfiguration.cs:174-179).
-SELECT id, external_source, external_id, status
-FROM job_ads
-WHERE search_vector @@ websearch_to_tsquery('swedish', :identifier);
+```jsonc
+// POST /api/v1/admin/job-ads/redact-recruiter-pii
+{
+  "identifier": "<email, phone number, OR name>",
+  "dryRun": true,
+  "confirmedJobAdCount": null
+}
 ```
 
-Notes:
-- `:identifier` is PII. Pass it as a psql variable; do not leave it in shell
-  history, in a script committed to the repo, or in a log.
-- Search the **name** as well as the address. The name is what the address-shaped
-  searches will miss, and it is separately searchable by users.
-- There is **no soft-delete axis to hide behind**: `JobAd.DeletedAt` is never
-  written by anything (#821), so a "deleted" ad is a fiction. Do not use it.
+**One free-text identifier. There is no type discriminator, and that is
+deliberate** — TD-75's premise ("email är primär rekryterar-identifier") was not
+stale, it was **falsified**: the email is never a structured key in storage, so
+every identifier is matched over free text either way. **TD-75 is closed as
+void.** Run the dry run once per identifier you hold: her address, her number,
+**and her name**.
+
+Matching runs on **two channels**: full-text search (the exposure a user can
+actually exploit against `/jobb`) **and** a case-insensitive substring scan over
+`title`, `description` and `raw_payload`. FTS alone will not find an obfuscated
+address (`anna(at)acme.se` tokenises as ordinary words), and the substring scan
+reaches `employer.name` — which is how a request naming an **enskild firma's**
+owner finds her ad at all. The union **over-matches on purpose**: a false
+positive costs you a second look, a false negative costs a false confirmation to
+a named person.
+
+The response:
+
+```jsonc
+{
+  "requestId": "…",              // correlates with the audit_log row
+  "outcome": "DryRun",           // NoMatchingDataHeld | DryRun | AdsErased
+  "dryRun": true,
+  "matched": { "jobAds": 3, "recentJobSearches": 1, "savedSearches": 2 },
+  "erased":  { "jobAds": 0, "recentJobSearches": 0, "savedSearches": 0 },
+  "erasedExternalIds": []
+}
+```
+
+**Read `matched` against `erased`. The gap is not a bug — it is the disclosure.**
+See §3.
 
 ### 2.2 Human confirmation — mandatory, before anything destructive
 
 A substring match is not a match. Common names produce false positives, and a
 company inbox is not necessarily the requester's personal address. **A human
-reads each candidate ad body and confirms it is the requester's data.** Record
-which `external_id`s were confirmed and which were rejected.
+reads each candidate ad and confirms it is the requester's data.** Record which
+`externalId`s were confirmed.
 
-### 2.3 Klas signs off before any destructive statement is executed
+### 2.3 The erasure
 
-**No destructive statement is composed by an operator and no destructive
-statement is executed without the data controller's explicit sign-off.** The
-statement is written with him, against the confirmed id list, with these
-constraints on the table:
-
-- **FK: `applications.job_ad_id` references `job_ads`.** A naive `DELETE` either
-  fails or cascades into users' own applications. The shipped remedy (PR3) is a
-  **tombstone**, not a hard delete, for exactly this reason.
-- **Durability: a one-shot write is undone.** The nightly full backfill
-  (`sync-platsbanken-snapshot`, 02:00 UTC) and the 10-minute stream both funnel
-  into `UpdateFromSource`, which **unconditionally** reassigns `Title`,
-  `Description`, `Url` and `RawPayload` (`JobAd.cs:155-159`) and re-runs the term
-  extractor. **There is no re-import block until PR3 ships.** Therefore:
-  - **Ad no longer published at Arbetsförmedlingen** (check its `url`): it has
-    left the feed, the sync will not rewrite it, and a removal is **durable**.
-  - **Ad still published at Arbetsförmedlingen**: any removal is **undone within
-    ≤10 minutes (stream) or ≤24 hours (nightly backfill)**. **Do not confirm
-    erasure to the data subject in this case.** Klas decides between an interim
-    holding reply (§4, template C) and any other controller-level action. Do not
-    invent one.
-- **Blast radius:** nulling `raw_payload` also nulls the seven generated columns
-  derived from it (#824/#841). On a removed ad this is irrelevant — the row is
-  excluded from every read path by the `Status == Active` filters — but it is not
-  irrelevant on a live one.
-- **Postgres residue:** an `UPDATE`/`DELETE` does not remove the old row version
-  from disk until `VACUUM`, and copies remain in WAL/backups. **Do not make any
-  statement to the data subject about backups or residual copies.** The
-  backup/PITR retention window is not yet decided (CTO STOPP-4). Do not invent
-  one.
-
-### 2.4 Art. 30 audit trail — keep this step, but know what it does today
-
-`audit_log.payload` (jsonb) **exists** as a column, but
-`AuditLogEntry.Create` **hard-codes `payload: null`**
-(`src/Jobbliggaren.Domain/Auditing/AuditLogEntry.cs:92`). So every audit row the
-application writes today has an empty payload, and the old runbook's verification
-query (`SELECT … payload FROM audit_log …`) returns an **empty column**. It looked
-like a verification. It verified nothing.
-
-For a manual action, write the audit row by hand — **carrying the external ids
-and the counts, and no recruiter identifier at all**. The `external_id`s are not
-PII and they are the accountability spine: they let a future auditor verify that
-the erasure actually happened. The identifier itself stays in the controller's
-case record.
-
-```sql
--- Executed under the same sign-off as the destructive statement.
-INSERT INTO audit_log (
-  id, occurred_at, correlation_id, event_type, aggregate_type,
-  aggregate_id, payload
-)
-VALUES (
-  gen_random_uuid(), now(), gen_random_uuid(),
-  'Admin.RecruiterAdsErasedManual',
-  'System.RecruiterPiiErasure',
-  gen_random_uuid(),
-  jsonb_build_object(
-    'matchedExternalIds', jsonb_build_array('<external_id1>', '<external_id2>'),
-    'erasedCount', 2,
-    'operator', '<operator>',
-    'reason', 'GDPR Art. 17 request, case <case-ref>, received <YYYY-MM-DD>'
-  )
-);
+```jsonc
+{
+  "identifier": "<the same identifier>",
+  "dryRun": false,
+  "confirmedJobAdCount": 3     // the number the dry run reported
+}
 ```
 
-**Never `md5()` the identifier.** The previous runbook suggested it. An md5 of an
-email address is reversible by dictionary in milliseconds; it is not a pseudonym,
-it is a fig leaf. **CTO V16 rejected it.** PR3 wires the audit payload properly,
-with **HMAC-SHA256 over the server pepper** (the house primitive and precedent —
-ADR 0090 D5).
+**`confirmedJobAdCount` is what makes the dry run mandatory in code rather than
+in this sentence.** Omit it and the request is rejected (400). Supply a number
+that no longer matches reality and the request is refused (**409**) and
+**nothing is destroyed** — ingest runs every ten minutes, so the match set
+genuinely moves between looking and confirming. If you get a 409: re-run the dry
+run, re-read the matches, re-confirm.
+
+**Erasure is irreversible and it removes the ad for every user.**
+
+### 2.4 What it does, and why it is provable
+
+It deletes the **carrier**, not the **string**. `JobAd.Erase` clears `title`,
+`description`, `company_name`, `url`, `raw_payload` and `extracted_terms` in one
+transition, and sets `status = 'Erased'`. The STORED `search_vector` recomputes
+to empty by itself, `extracted_lexemes` follows, and the seven
+`raw_payload`-derived generated columns go NULL with it — among them
+`organization_number`, which for an enskild firma **may be a personnummer**.
+
+So there is **no recall question, no obfuscation question and no image-embedded
+question**, and it reaches the recruiter's **name**, which no regex ever will.
+
+**And it stays erased.** `UpdateFromSource` refuses on `Erased`, so the nightly
+snapshot sync (02:00) and the 10-minute stream cannot write her back — the
+re-import tombstone, keyed on the existing `(source, external_id)` tuple. It
+stores **no personal data**: a source, an id and a status. *(This is why there is
+no suppression ledger and never will be: a ledger would store her email in order
+to keep erasing it — the one design that leaves us holding more of her data after
+her request than before it.)*
+
+`applications.job_ad_id` FKs still point at the row, so applicants keep their own
+records. The ad detail endpoint returns **410 Gone**, not 404: it existed, and it
+is deliberately gone.
+
+### 2.5 The audit trail
+
+Written automatically, by the pipeline, on **success and on rejection** — a
+refused rights request that leaves no trace is its own Art. 12(3) exposure.
+
+```sql
+SELECT occurred_at, event_type, payload
+FROM audit_log
+WHERE aggregate_type = 'RecruiterErasureRequest'
+ORDER BY occurred_at DESC;
+```
+
+`payload` carries `{ identifierHmac, dryRun, succeeded, outcome, matched, erased,
+erasedExternalIds }`. The `externalId`s are Arbetsförmedlingen's public ad
+identifiers — **not personal data**, and the accountability spine (Art. 5(2)/30):
+they are what lets an auditor, or the recruiter, verify the erasure actually
+happened.
+
+**The identifier is HMAC-SHA256'd under the server pepper. Never md5** — an
+unkeyed digest of an email is dictionary-reversible in milliseconds; it is not a
+pseudonym, it is a fig leaf. *(This column was never written by any command until
+PR2. The old runbook's "verification query" selected a column that was always
+NULL and nobody noticed. It looked like a verification. It verified nothing.)*
 
 ---
 
-## 3. What replaces this procedure (bound, NOT yet shipped)
+## 3. What is NOT erased — say this, do not discover it later
 
-ADR 0106 binds a **two-tier** contract. **Neither tier exists in the code yet.**
-Do not describe either of them to a data subject as a control we have. Writing
-about a control we do not have is the exact defect this whole issue is about.
+The response reports `matched` and `erased` **per surface**. Where they differ,
+we hold something we did not erase, and **the reply must say so.** We do not
+claim to have erased what we have not erased. That is #842, applied to ourselves.
 
-- **Tier A — Art. 25, everyone, no request needed, heuristic, disclosed (PR2).**
-  We stop **storing** recruiter contact details: email and phone are stripped from
-  the ad body **at ingest, as a `JobAd` aggregate invariant**
-  (`RecruiterContactRedactor`, deterministic, no LLM), and replaced by a marker
-  pointing to the canonical ad at Arbetsförmedlingen. Detection is imperfect and
-  **we say so** in the privacy policy.
-- **Tier B — Art. 17, on request, provable, no detector involved (PR3, lifts the
-  launch gate).** On a valid request we **remove the entire ad record**
-  (`JobAdStatus.Erased`, zero migration) and **block its re-import**. It deletes
-  the **carrier**, not the **string**: `description`, `search_vector`,
-  `extracted_terms`, `extracted_lexemes`, `raw_payload` and the seven derived
-  columns go together. No recall question, no obfuscation question, no
-  image-embedded question — **and it covers the recruiter's name**, which no regex
-  can reach.
+| Surface | Erased? | Why |
+|---|---|---|
+| `job_ads` (the ad, all of it) | ✅ **Yes** | Whole-record removal. Provable. |
+| `recent_job_searches` | ✅ **Yes**, hard-deleted | If a user searched the recruiter's name, that name is sitting in her search history. Auto-capture rows have no audit-trail dignity, the cap-20 list rebuilds on her next search, so the user loses nothing. |
+| `saved_searches` | ❌ **No** | A saved search is the **user's own** artefact, processed under Art. **6(1)(b)** (our contract with her). **Art. 21(1) textually reaches only 6(1)(e)/(f)**, so the recruiter's objection never fires against it, and the 17(1)(c) ground that would flow from a successful objection never arises. *(And the remedies are broken anyway: `SoftDelete()` leaves `criteria` in the row — it hides, it does not erase — and stripping the search term is not always constructible, because a saved search whose only criterion IS the recruiter's name cannot have it removed.)* **Reported, disclosed, and a human decides with the affected user in the loop.** |
+| `applications.snapshot_description` | ❌ **No** | The applicant's frozen record of an ad she applied to (ADR 0086 exists precisely so it outlives the ad). Nulling it destroys **her** evidence to serve a third party's request. Ground: Art. 17(3)(e). **Klas's to affirm — STOPP-3, still open.** |
+| Backups / WAL / PITR | ⚠️ **Unstated** | An `UPDATE` does not remove the old row version from disk until `VACUUM`, and copies remain in WAL and backups. **Do not make any statement to the data subject about backups.** The retention window is not yet decided (**STOPP-4**). Do not invent one. |
 
-**The operator-facing shape of Tier B**, which is what will replace §2:
-
-- `EraseRecruiterAdsCommand(identifier, dryRun)` with **two-channel fail-safe
-  matching** (FTS **plus** substring over `title`/`description`/`raw_payload`) —
-  the same two channels §2.1 runs by hand.
-- **A dry-run is mandatory before the destructive call.** A rule engine never
-  rewrites silently (CLAUDE.md §5), and this is the one operation in the system
-  that destroys content for every user.
-- **An explicit outcome discriminator in the response body**, never a bare
-  `rowsAffected`:
-  - `NoMatchingDataHeld` — we hold nothing matching this identifier.
-  - `AdsErased(count, externalIds)` — this is what we removed.
-  - `DryRun(matches)` — this is what we would remove.
-  **This is the whole point.** `rowsAffected: 0` is exactly what a broken
-  mechanism and an empty result set look like to an operator, and they must never
-  again be indistinguishable.
-- The ad detail endpoint returns **410 Gone** for an erased ad; a resync does not
-  resurrect it.
-
-**Until PR3 lands, the launch gate stays closed: no `v*` prod tag** (CTO STOPP-6).
-
-### Out of scope, recorded (not omitted)
-
-**Tier B does not reach `applications.snapshot_description`** — an applicant's
-frozen copy of the ad she applied to (ADR 0086 exists precisely so the snapshot
-outlives the ad; nulling it would destroy her own record of what she applied to).
-This is a **recorded decision** (CTO V13); the legal ground (Art. 17(3)(e)) is
-Klas's to affirm (STOPP-3). Measured: the dev DB currently holds **0 non-null
-`snapshot_description` rows**. If a reply to a data subject needs to mention it,
-**Klas decides the wording** — the operator does not.
+**If `matched.savedSearches > 0`, the reply must disclose it.** Template B2.
 
 ---
 
 ## 4. Reply templates (drafts for Klas — he approves and sends)
 
 Swedish, "du", no exclamation marks, no emoji, no em-dash (CLAUDE.md §10).
-**Never claim more than was actually done.** Do not add sentences about backups or
-retention (CTO STOPP-4).
+**Never claim more than was actually done.** Do not add sentences about backups
+(STOPP-4).
 
 **A. Acknowledgement, on receipt.**
 
@@ -273,32 +226,30 @@ retention (CTO STOPP-4).
 > vilken åtgärd vi har vidtagit inom en månad från det att begäran kom in. Du når
 > oss under tiden på <kontaktadress>.
 
-**B. Completion — only after a Klas-signed removal of an ad that has LEFT the
-feed.** (If the ad is still published at Arbetsförmedlingen, the removal is not
-durable today. Use template C instead.)
+**B1. Completion — `AdsErased`, and nothing was matched that we did not erase.**
 
-> Vi har tagit bort hela annonsen ur våra system. Annonstexten, sökindexet och de
-> uppgifter vi har härlett ur annonsen är borttagna hos oss. Vi kan inte ta bort
-> annonsen hos Arbetsförmedlingen, som är den som har publicerat den. Vill du att
-> uppgifterna tas bort även där behöver du vända dig till Arbetsförmedlingen eller
-> till arbetsgivaren som publicerade annonsen.
+> Vi har tagit bort hela annonsen ur våra system, och vi hindrar att den hämtas in
+> igen. Annonstexten, sökindexet och de uppgifter vi har härlett ur annonsen är
+> borttagna hos oss. Vi kan inte ta bort annonsen hos Arbetsförmedlingen, som är
+> den som har publicerat den. Vill du att uppgifterna tas bort även där behöver du
+> vända dig till Arbetsförmedlingen eller till arbetsgivaren som publicerade
+> annonsen.
 
-**C. Holding reply — the ad is still in the feed and no durable remedy exists
-yet.** Art. 12(3) requires the reasons and the right to complain.
+**B2. Completion — `AdsErased`, but `matched.savedSearches > 0`.** Use B1 and add:
 
-> Vi har tagit emot din begäran. Annonsen hämtas löpande in på nytt från
-> Arbetsförmedlingens öppna gränssnitt, och vi kan i dag inte hindra att den
-> hämtas in igen. Vi bygger om raderingsvägen så att vi kan ta bort hela annonsen
-> och blockera ny inhämtning, och vi återkommer med besked om vidtagen åtgärd. Du
-> har rätt att lämna klagomål till Integritetsskyddsmyndigheten och att vända dig
-> till domstol.
+> En eller flera användare har sparat en sökning som innehåller ditt namn eller
+> dina kontaktuppgifter som söktext. Den sparade sökningen tillhör användaren och
+> vi tar inte bort den automatiskt. Hör av dig om du vill att vi tittar närmare på
+> det, så hanterar vi det manuellt.
 
-**The bound Tier-B wording (ADR 0106), for use once PR3 has shipped** — it says
-"hindrar att den hämtas in igen", which is **not true today**:
+**C. `NoMatchingDataHeld`.** This sentence is now **true** when we say it — both
+channels ran, over every free-text surface we hold.
 
-> Om du begär radering av dina kontaktuppgifter i en annons vi har hämtat tar vi
-> bort hela annonsen ur våra system och hindrar att den hämtas in igen. Vi kan
-> inte ta bort annonsen hos Arbetsförmedlingen, som är den som publicerat den.
+> Vi har sökt igenom våra system och vi har inga uppgifter som matchar det du har
+> uppgett. Om du har fler uppgifter, till exempel en annan adress, ett telefonnummer
+> eller namnet så som det står i annonsen, hör av dig så söker vi igen. Du har rätt
+> att lämna klagomål till Integritetsskyddsmyndigheten och att vända dig till
+> domstol.
 
 ---
 
@@ -306,18 +257,23 @@ yet.** Art. 12(3) requires the reasons and the right to complain.
 
 - **ADR 0106** — the erasure contract: ingest minimisation (Tier A) + provable
   record removal (Tier B). The binding document.
-- **ADR 0032 §8** (amended 2026-07-13) — the JobTech ingest sanitizer. The
-  amendment withdraws the claim that the sanitizer + purge + email-erasure
-  together covered Art. 5/17/30.
-- **ADR 0024** — audit retention and the Art. 17 cascade registry. Its cascade
-  scope listed only `raw_payload` and never `job_ads.description`.
-- **ADR 0086** — the applicant's ad snapshot (why Tier B does not cascade into it).
-- **ADR 0090 D5** — HMAC-SHA256 over the server pepper (the audit-payload
-  primitive; not md5).
-- **Issue #842** — this defect. **#843** (test fiction), **#845** (the purge job's
-  false retention claim), **#821**/**#841** (`DeletedAt` / generated columns).
+- **ADR 0024** — audit retention and the Art. 17 cascade registry. Its scope
+  listed only `raw_payload` and never `job_ads.description`. **The registry is now
+  code** — `ErasureCascadeRegistry`, enforced by `ErasureCascadeRegistryTests`: a
+  new persisted surface that is not classified **breaks the build**.
+- **ADR 0086** — the applicant's ad snapshot (why erasure does not cascade into it).
+- **ADR 0090 D5** — HMAC-SHA256 over the server pepper. Bound there, **built in
+  #842** (it had never existed).
+- **Issue #842** — this defect. **#843** (the test-fiction rule), **#845**,
+  **#821**/**#841**.
 - `docs/research/2026-07-13-842-erasure-evidence-pack.md` — the proven facts and
   the measurements quoted above (local, gitignored per ADR 0072).
-- `docs/reviews/2026-07-13-842-erasure-contract-cto.md` — the binding CTO ruling
-  (local, gitignored).
 - `docs/runbooks/gdpr-processing-register.md` — Art. 30 register.
+
+### Operational prerequisite
+
+`AuditPseudonymization:PepperBase64` must be set (gitignored
+`appsettings.Local.json` locally, managed secret in ops). **The application will
+not start without it** — deliberately: an HMAC under an absent key looks protected
+while being trivially reversible, and a control that only appears to work is the
+entire subject of this issue. Generate one with `openssl rand -base64 32`.

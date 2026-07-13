@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Commands.UpsertExternalJobAd;
+using Jobbliggaren.Application.JobAds.Jobs.Common;
 using Jobbliggaren.Domain.Common;
 using Mediator;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,6 +44,7 @@ public sealed partial class SyncPlatsbankenSnapshotJob(
     IOptions<JobSourceRetentionOptions> retentionOptions,
     IDateTimeProvider clock,
     ISystemEventAuditor auditor,
+    IngestionThroughputReporter throughputReporter,
     ILogger<SyncPlatsbankenSnapshotJob> logger)
 {
     public async Task<SyncCounts> RunAsync(CancellationToken cancellationToken)
@@ -160,6 +162,15 @@ public sealed partial class SyncPlatsbankenSnapshotJob(
 
         LogCompleted(logger, jobSource.Source.Value, counts.Fetched, counts.Added,
             counts.Updated, counts.Skipped, counts.Errors,
+            (completedAt - startedAt).TotalSeconds);
+
+        // CTO bind #754 Q3 (ADR 0045 Beslut 1 klass (d)) — this point is only
+        // reached on a run that completed the foreach normally (no `finally`,
+        // no earlier `return`, above this line for job-level failure) —
+        // naturally correct placement, no extra guard needed. Reuses the
+        // already-computed startedAt/completedAt — no additional clock read.
+        throughputReporter.Report(
+            jobSource.Source.Value, "snapshot", counts.Fetched,
             (completedAt - startedAt).TotalSeconds);
 
         // Audit-wire α (ADR 0035 + ADR 0032 §8 amendment 2026-05-13).

@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Commands.ArchiveExternalJobAd;
 using Jobbliggaren.Application.JobAds.Commands.UpsertExternalJobAd;
+using Jobbliggaren.Application.JobAds.Jobs.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Mediator;
@@ -44,6 +45,7 @@ public sealed partial class SyncPlatsbankenStreamJob(
     IMediator mediator,
     IDateTimeProvider clock,
     ISystemEventAuditor auditor,
+    IngestionThroughputReporter throughputReporter,
     ILogger<SyncPlatsbankenStreamJob> logger)
 {
     // 5 min overlap utöver 10-min cron-cykel. Upserts är idempotenta via UNIQUE-index.
@@ -118,6 +120,18 @@ public sealed partial class SyncPlatsbankenStreamJob(
                     LogEventFailed(logger, ex, change.ExternalId);
                 }
             }
+
+            // CTO bind #754 Q3 (ADR 0045 Beslut 1 klass (d)) — throughput
+            // verdict only for a run that completed the foreach normally.
+            // Deliberately NOT in `finally`: a crashed run has no valid
+            // capacity claim — a partial run would compute a bogus low rate
+            // and warn about capacity when the real event was a failure
+            // (already logged at Error by LogEventFailed / the OCE rethrow
+            // below propagating out of RunAsync entirely).
+            var throughputCompletedAt = clock.UtcNow;
+            throughputReporter.Report(
+                jobSource.Source.Value, "stream", fetched,
+                (throughputCompletedAt - startedAt).TotalSeconds);
         }
         finally
         {

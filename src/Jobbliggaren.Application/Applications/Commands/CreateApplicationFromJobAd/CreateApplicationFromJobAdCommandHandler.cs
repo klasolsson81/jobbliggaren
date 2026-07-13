@@ -24,10 +24,12 @@ namespace Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJo
 /// captured as the raw <c>MunicipalityConceptId</c> STORED shadow property (via
 /// EF.Property) and resolved to a name on the READ path (ADR 0086 D4, final
 /// ruling): the write side stays free of <c>ITaxonomyReadModel</c>, honouring the
-/// project's codified read-side-only ACL invariant (TaxonomyAclLayerTests). The
-/// projection inherits the JobAd global query filter (DeletedAt == null) so a
-/// soft-deleted ad yields no row → NotFound — exactly the prior <c>AnyAsync</c>
-/// precondition. This is the deliberate write-side amendment of ADR 0048 Beslut
+/// project's codified read-side-only ACL invariant (TaxonomyAclLayerTests). A
+/// missing ad row yields no projection → NotFound — exactly the prior
+/// <c>AnyAsync</c> precondition. (It never meant more than that: the JobAd
+/// soft-delete filter this used to invoke was vacuous and is now retired, #821.
+/// Existence is the whole precondition; an ARCHIVED ad still resolves, and always
+/// did.) This is the deliberate write-side amendment of ADR 0048 Beslut
 /// (d): the read-path reference-by-id stance is unchanged; the snapshot is an
 /// additive, orthogonal write-side concern.
 /// </summary>
@@ -60,9 +62,9 @@ public sealed class CreateApplicationFromJobAdCommandHandler(
         // aggregate (dotnet-architect B2). The MunicipalityConceptId STORED shadow
         // property is read via EF.Property (the #316 pattern) and FROZEN as-is — it
         // is resolved to a name on the read path, keeping this write handler free
-        // of the taxonomy ACL port (ADR 0086 D4). The global query filter
-        // (DeletedAt == null) is inherited → a soft-deleted ad yields no row →
-        // NotFound, replacing the prior AnyAsync existence precondition.
+        // of the taxonomy ACL port (ADR 0086 D4). No row → NotFound, replacing the
+        // prior AnyAsync existence precondition. JobAd carries no query filter
+        // (#821), so this is a pure existence check — an Archived ad still resolves.
         var jobAdData = await db.JobAds
             .AsNoTracking()
             .Where(j => j.Id == jobAdId)

@@ -47,16 +47,17 @@ public sealed class GetApplicationsQueryHandler(
         var totalCount = await baseQuery.CountAsync(cancellationToken);
 
         // ADR 0048: EN LEFT JOIN job_ads via GroupJoin/DefaultIfEmpty FÖRE
-        // materialisering. IgnoreQueryFilters / manuellt DeletedAt-predikat
+        // materialisering. IgnoreQueryFilters / hand-rullade soft-delete-predikat
         // FÖRBJUDET (ADR 0048 c).
         //
-        // #805-3 sanningssynk: j == null betyder att ansökan saknar ANNONSRAD
-        // (manuell eller enbart personligt brev) — INTE att annonsen är borta.
-        // Den gamla utsagan ("soft-deletad JobAd ger j == null") var falsk: det
-        // globala query-filtret är DeletedAt == null, och DeletedAt saknar writer
-        // (#821), så filtret exkluderar aldrig en rad. En annons som inte längre
-        // är aktiv bär Status == "Archived" och joinar fortfarande — därför bär
-        // JobAdSummaryDto numera Status.
+        // j == null betyder EXAKT EN sak: ansökan saknar ANNONSRAD (manuell eller
+        // enbart personligt brev). Det betyder ALDRIG "annonsen är borta" — JobAd
+        // har ingen soft-delete-axel (#821 retirerade den döda DeletedAt-kolumnen)
+        // och kan därför inte falla ur joinen. En annons som inte längre är aktiv
+        // bär Status == "Archived" och joinar fortfarande — därför bär
+        // JobAdSummaryDto Status. Läsvägen kodade en gång "annonsen är borta" som
+        // j == null och delegerade den domen till ett filter utan writer; följden
+        // var att PreservedAdPanel aldrig renderades i produktion (#805-3).
         var items = await baseQuery
             .OrderByDescending(a => a.UpdatedAt)
             .Skip((query.Page - 1) * query.PageSize)

@@ -120,14 +120,15 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
             .ExecuteUpdateAsync(s => s.SetProperty(j => j.RawPayload, _ => null), ct);
     }
 
-    /// <summary>Reads the ad's status, soft-delete tombstone and STORED org.nr shadow column.</summary>
-    private static async Task<(string Status, DateTimeOffset? DeletedAt, string? OrgNr)> ReadAdFactsAsync(
+    /// <summary>Reads the ad's status and STORED org.nr shadow column. (No soft-delete tombstone to
+    /// read: JobAd has no such axis - #821 retired the dead column.)</summary>
+    private static async Task<(string Status, string? OrgNr)> ReadAdFactsAsync(
         AppDbContext db, JobAdId adId, CancellationToken ct) =>
         await db.JobAds
             .AsNoTracking()
             .Where(j => j.Id == adId)
             .Select(j => ValueTuple.Create(
-                j.Status.Value, j.DeletedAt, EF.Property<string?>(j, "OrganizationNumber")))
+                j.Status.Value, EF.Property<string?>(j, "OrganizationNumber")))
             .SingleAsync(ct);
 
     /// <summary>Seeds one application. finalStatus null → left as Draft (never applied).</summary>
@@ -360,7 +361,7 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
     //
     // These two tests replace a single `Handle_ExcludesApplicationsToRetractedAds`, which soft-deleted
     // the ad with raw SQL (`UPDATE job_ads SET deleted_at = ...`) and asserted the application was not
-    // attributed. That test was green forever and proved nothing: JobAd.DeletedAt has NO writer
+    // attributed. That test was green forever and proved nothing: JobAd has NO soft-delete axis
     // anywhere in src/ (#821), so it pinned a state production can never reach — and the false model it
     // encoded was then written into the handler docs and DPIA #456 as fact. See #843.
     //
@@ -423,10 +424,12 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
         await PurgeThisAdsPayloadAsync(scope.ServiceProvider, db, clock, ad, ct);
         db.ChangeTracker.Clear();
 
-        // The ad is untouched as a row — still Active, still not deleted...
-        var (status, deletedAt, orgNr) = await ReadAdFactsAsync(db, ad.Id, ct);
+        // The ad is untouched as a row — it still exists and is still Active. (The old third leg
+        // here asserted deleted_at IS NULL, to rule out soft-delete as the cause of the drop. That
+        // leg is gone because the CAUSE cannot exist: #821 retired the axis. SingleAsync below is
+        // itself the "row still exists" proof.)
+        var (status, orgNr) = await ReadAdFactsAsync(db, ad.Id, ct);
         status.ShouldBe("Active");
-        deletedAt.ShouldBeNull();
         // ...but Postgres recomputed the STORED generated column to NULL, because its base is gone.
         orgNr.ShouldBeNull();
 

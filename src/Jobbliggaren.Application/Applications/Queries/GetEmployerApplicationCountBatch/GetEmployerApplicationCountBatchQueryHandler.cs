@@ -37,8 +37,8 @@ namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationCo
 /// governed by the ad's AGE — not by archival and not by soft delete. The org.nr on both sides of the
 /// join is a STORED generated column derived from <c>raw_payload</c>; <c>PurgeStaleRawPayloadsJob</c>
 /// nulls <c>raw_payload</c> 30 days after <c>PublishedAt</c>, and Postgres then RECOMPUTES that column
-/// to NULL. So an ARCHIVED but recent ad still counts (archival hides no row — <c>JobAd.DeletedAt</c>
-/// has no writer in <c>src/</c> and its filter is vacuous, #821), while an ACTIVE but old ad does not.
+/// to NULL. So an ARCHIVED but recent ad still counts (archival hides no row — <c>JobAd</c> has no
+/// soft-delete axis and no query filter, #821), while an ACTIVE but old ad does not.
 /// Worse, until #841 lands the value <b>thrashes daily for an ad still listed in the Platsbanken feed</b>
 /// (the 02:00 full-backfill sync rewrites <c>raw_payload</c>; the 04:30 purge nulls it again) — so the
 /// same application is counted for ~2.5h/day and not for the other ~21.5h, which makes the number the
@@ -83,8 +83,8 @@ public sealed class GetEmployerApplicationCountBatchQueryHandler(
             return Empty;
 
         // (1) Page ads -> employer org.nr, server-side (#455 reader: `= ANY` raw SQL + EF.Property shadow
-        // column). The reader composes with the global soft-delete filter, but that filter is VACUOUS
-        // (#821) -- an archived ad still resolves its org.nr. What actually removes an ad from this map
+        // column). JobAd carries NO query filter at all (#821 retired the dead soft-delete axis) --
+        // an archived ad still resolves its org.nr. What actually removes an ad from this map
         // is the org.nr having been recomputed to NULL after the raw_payload purge (#824/#841), not any
         // kind of deletion. org.nr is server-side-only here.
         var orgNrByJobAdId = await employerReader.GetOrganizationNumbersByJobAdIdsAsync(

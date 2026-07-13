@@ -72,11 +72,10 @@ public sealed class GetApplicationByIdQueryHandler(
         // #805-3: Status projiceras med (JobAdStatus → string via value-converter,
         // samma idiom som Source) — den enda sanningsenliga live/borta-signalen på
         // den här läsvägen. Den gamla utsagan "soft-deletad → null → fallback" var
-        // FALSK: JobAd.DeletedAt saknar writer, så det globala query-filtret
-        // (DeletedAt == null) exkluderar aldrig en rad och jobAd blir aldrig null
-        // för en JobAd-länkad ansökan. jobAd == null betyder numera exakt EN sak:
+        // FALSK: JobAd har ingen soft-delete-axel alls (#821 retirerade den döda
+        // DeletedAt-kolumnen och dess vakuösa query-filter), så jobAd blir aldrig
+        // null för en JobAd-länkad ansökan. jobAd == null betyder exakt EN sak:
         // ansökan har ingen annonsrad alls (manuell eller enbart personligt brev).
-        // Den döda axeln retireras i #821.
         JobAdSummaryDto? jobAd = null;
         if (app.JobAdId is { } jobAdId)
         {

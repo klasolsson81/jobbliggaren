@@ -72,8 +72,17 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
 
         // Project only the title + the three STORED shadow columns (no wide row,
         // no raw_payload). EF.Property reads the shadows (Npgsql-bound — stays in
-        // Infrastructure, ADR 0062). AsNoTracking: read-only. The HasQueryFilter
-        // (DeletedAt == null) excludes soft-deleted ads → they read as not-found.
+        // Infrastructure, ADR 0062). AsNoTracking: read-only.
+        //
+        // KNOWN GAP (#864) — THERE IS NO STATUS GATE HERE. This comment used to claim the
+        // global soft-delete filter (DeletedAt == null) excluded retracted ads. It never did:
+        // JobAd.DeletedAt had no writer, so the filter was vacuous, and #821 retired it. The
+        // consequence is real and lives today: an ARCHIVED ad resolves and is scored. The
+        // sibling paths DO gate (PerUserJobAdSearchQuery:307/:368) — this one does not.
+        // Adding `.Where(j => j.Status == Active)` here is NOT the fix: ScoreAsync throws
+        // NotFoundException below, so a gate here would make GetJobAdMatchDetail 404 archived
+        // ads, straight against #805-3. Whose job the gate is (scorer / handler / endpoint) is
+        // the open design question — see #864. Pinned by characterization tests.
         var ad = await db.JobAds
             .AsNoTracking()
             .Where(j => j.Id == jobAdId)
@@ -126,10 +135,14 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // post-Select `.Value` form fail at runtime, verified in CI). job_ads is unbounded,
         // so the status-batch "load-all-for-seeker-then-client-filter" escape does not
         // apply. FromSql parameterizes the Guid[] (`= ANY(@p)`, injection-safe, NOT
-        // concatenation — CLAUDE.md §5), composes with the global soft-delete query filter
-        // (DeletedAt == null → soft-deleted ads are absent ⇒ no tag) and the EF.Property
-        // shadow projection (stays in Infrastructure, ADR 0062). The Testcontainers
-        // integration test is the oracle (InMemory hides the translation — same memory).
+        // concatenation — CLAUDE.md §5) and composes with the EF.Property shadow projection
+        // (stays in Infrastructure, ADR 0062). The Testcontainers integration test is the
+        // oracle (InMemory hides the translation — same memory).
+        //
+        // KNOWN GAP (#864) — NO STATUS GATE, same as ScoreAsync. The old comment here claimed
+        // "soft-deleted ads are absent ⇒ no tag"; that filter was vacuous and is retired (#821).
+        // An ARCHIVED ad is loaded and tagged. This is the batch feeding the client-supplied-id
+        // endpoint, so it is where the gap is actually exposed. Pinned by a characterization test.
         var rows = await db.JobAds
             .FromSql($"SELECT * FROM job_ads WHERE id = ANY({ids})")
             .AsNoTracking()
@@ -275,8 +288,14 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // ONE round-trip via parameterized `= ANY` (parity ScoreBatchAsync — Contains
         // over the strongly-typed JobAdId key does not translate, ef_strongly_typed_vo_
         // contains). The extracted_terms VO materializes via its jsonb ValueConverter
-        // exactly as in ScoreFullAsync's .Select; the global soft-delete filter composes
-        // (soft-deleted ads absent ⇒ no entry). Testcontainers is the oracle.
+        // exactly as in ScoreFullAsync's .Select. Testcontainers is the oracle.
+        //
+        // KNOWN GAP (#864) — NO STATUS GATE HERE EITHER, and this is the third of three. The old comment
+        // claimed the global soft-delete filter composed so that "soft-deleted ads are absent ⇒ no
+        // entry"; that filter never had a writer and is retired (#821). An ARCHIVED ad is fully scored.
+        // BackgroundMatchingJob calls this path but gates Status == Active itself (:145), which MASKS the
+        // gap there — no UserJobAdMatch row is ever persisted for an archived ad. The exposure is the
+        // read-only client-supplied-id surface. Pinned by a characterization test.
         var rows = await db.JobAds
             .FromSql($"SELECT * FROM job_ads WHERE id = ANY({ids})")
             .AsNoTracking()

@@ -66,9 +66,10 @@ internal sealed partial class JobAdSnapshotMissTracker(
             resetCount = await resetCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        // (2) Increment miss_count för Active-rader (deleted_at IS NULL,
-        // source matchar) vars external_id INTE i seen-set. Använder
-        // anti-join (NOT EXISTS) snarare än NOT IN (NULL-säkrare i SQL).
+        // (2) Increment miss_count för Active-rader (source matchar) vars external_id
+        // INTE i seen-set. Använder anti-join (NOT EXISTS) snarare än NOT IN
+        // (NULL-säkrare i SQL). #821: status ÄR hela livscykel-axeln — det gamla
+        // `deleted_at IS NULL`-ledet var vakuöst (kolumnen saknade writer) och är borta.
         int incrementedCount;
         await using (var incCmd = connection.CreateCommand())
         {
@@ -79,7 +80,6 @@ internal sealed partial class JobAdSnapshotMissTracker(
                     WHERE j.status = 'Active'
                       AND j.external_source = @source
                       AND j.external_id IS NOT NULL
-                      AND j.deleted_at IS NULL
                       AND NOT EXISTS (
                           SELECT 1 FROM unnest(@seen_ids::text[]) s(id)
                           WHERE s.id = j.external_id
@@ -113,10 +113,10 @@ internal sealed partial class JobAdSnapshotMissTracker(
             throw new ArgumentOutOfRangeException(
                 nameof(threshold), threshold, "Threshold måste vara >= 1.");
 
-        // Bulk-UPDATE via EXISTS-join mot miss-tabellen. ExecuteUpdateAsync
-        // respekterar global query-filter (DeletedAt IS NULL) per EF Core 8+
-        // (verifierat i integration-test). SetProperty på SmartEnum-converter
-        // fungerar med statisk readonly-värde JobAdStatus.Archived.
+        // Bulk-UPDATE via EXISTS-join mot miss-tabellen. #821: JobAd har INGET
+        // query-filter — Status är hela livscykel-axeln, och Where-satsen nedan bär
+        // den explicit. SetProperty på SmartEnum-converter fungerar med statisk
+        // readonly-värde JobAdStatus.Archived.
         //
         // Domain-event-bortfall accepterat (CTO 2026-05-23 Q3=B, D8.a — inga
         // subscribers på JobAdArchivedDomainEvent). Aggregerad audit-rad via
@@ -144,8 +144,8 @@ internal sealed partial class JobAdSnapshotMissTracker(
     {
         ArgumentNullException.ThrowIfNull(source);
 
-        // Global query-filter (DeletedAt IS NULL) appliceras automatiskt på
-        // db.JobAds. External != null säkerställer Manual-rader exkluderas
+        // #821: inget query-filter på db.JobAds — Status == Active bärs explicit av
+        // Where-satsen. External != null säkerställer Manual-rader exkluderas
         // (de saknar External-VO). Paritet med ArchiveJobAdsWithMissCountAtLeastAsync.
         return await db.JobAds
             .Where(j => j.Status == JobAdStatus.Active

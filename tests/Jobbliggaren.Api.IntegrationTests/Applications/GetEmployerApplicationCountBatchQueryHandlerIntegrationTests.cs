@@ -389,7 +389,7 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
     // --- what actually governs the count: the prior ad's AGE, not its status (#824) --------------
     //
     // These two replace `Handle_ExcludesApplicationsToRetractedAds`, which soft-deleted the prior ad
-    // with raw SQL and asserted it was not counted. JobAd.DeletedAt has NO writer in src/ (#821), so
+    // with raw SQL and asserted it was not counted. JobAd has NO soft-delete axis (#821 retired it), so
     // that test pinned an unreachable state, stayed green forever, and its false model was then written
     // into the handler docs and DPIA #456 as fact. See #843. Both tests below reach their state through
     // PRODUCTION writes: the real Archive() domain method, and the purge job's own ExecuteUpdate (scoped

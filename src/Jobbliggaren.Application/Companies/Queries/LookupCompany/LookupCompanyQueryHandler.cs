@@ -75,7 +75,8 @@ public sealed class LookupCompanyQueryHandler(
         // ---- Found: enrich with our own bounded, org.nr-keyed projections. ----
 
         // #447 idiom — public open-role count for THIS org.nr (STORED generated shadow column;
-        // the global soft-delete filter excludes retracted ads). Bounded single-key aggregate.
+        // the Status == Active predicate below IS the whole exclusion — JobAd has no soft-delete
+        // axis and no query filter, #821). Bounded single-key aggregate.
         var orgNrValue = (string?)orgNr.Value;
         var activeAdCount = await db.JobAds
             .AsNoTracking()

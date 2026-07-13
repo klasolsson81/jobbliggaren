@@ -7,10 +7,9 @@ namespace Jobbliggaren.Application.SavedJobAds.Queries;
 /// JobAd-metadata via ADR 0048 in-handler-join (<see cref="JobAdSummaryDto"/>).
 /// <c>JobAd</c> är nullable rent strukturellt (LEFT JOIN + DefaultIfEmpty).
 /// <para>
-/// #805-3 sanningssynk: den tidigare utsagan ("nullable när annonsen
-/// soft-deletats") var falsk — JobAd.DeletedAt saknar writer, så det globala
-/// query-filtret exkluderar aldrig en rad (#821). En annons som inte längre är
-/// aktiv joinar fortfarande och bär <c>JobAdSummaryDto.Status</c> ==
+/// Den tidigare utsagan ("nullable när annonsen soft-deletats") var falsk, och
+/// axeln den namngav är retirerad: JobAd har ingen soft-delete (#821). En annons
+/// som inte längre är aktiv joinar fortfarande och bär <c>JobAdSummaryDto.Status</c> ==
 /// "Archived"/"Expired"; det, inte null-heten, är signalen ett UI ska läsa för
 /// "annonsen är inte längre aktiv".
 /// </para></summary>

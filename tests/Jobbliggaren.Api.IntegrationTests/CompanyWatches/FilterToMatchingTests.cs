@@ -108,8 +108,7 @@ public class FilterToMatchingTests(ApiFactory factory)
         CancellationToken ct,
         ExtractedTerms? terms = null,
         bool archived = false,
-        bool expired = false,
-        bool softDeleted = false)
+        bool expired = false)
     {
         var externalId = $"f2m-{Guid.NewGuid():N}";
 
@@ -149,13 +148,6 @@ public class FilterToMatchingTests(ApiFactory factory)
             await db.SaveChangesAsync(ct);
         }
 
-        // Soft-delete is ORTHOGONAL to status (status stays 'Active'); only DeletedAt is stamped so ONLY
-        // the global soft-delete query filter excludes it.
-        if (softDeleted)
-        {
-            db.Entry(jobAd).Property(nameof(JobAd.DeletedAt)).CurrentValue = clock.UtcNow;
-            await db.SaveChangesAsync(ct);
-        }
 
         return jobAd.Id;
     }
@@ -289,7 +281,7 @@ public class FilterToMatchingTests(ApiFactory factory)
 
     // =========================================================================================
     // 2. Non-Active ads are excluded even at a Good grade (an expired/archived/soft-deleted ad is
-    //    not "matchande") — status='Active' gate + the global soft-delete query filter.
+    //    not "matchande") — the status='Active' gate, which is the whole exclusion (#821).
     // =========================================================================================
 
     [Fact]
@@ -300,16 +292,15 @@ public class FilterToMatchingTests(ApiFactory factory)
         var activeGood = await SeedGoodAsync(orgNr, ct);
         var expiredGood = await SeedAdAsync(orgNr, PrefGroup, PrefRegion, employmentTypeConceptId: null, ct, expired: true);
         var archivedGood = await SeedAdAsync(orgNr, PrefGroup, PrefRegion, employmentTypeConceptId: null, ct, archived: true);
-        var softDeletedGood = await SeedAdAsync(orgNr, PrefGroup, PrefRegion, employmentTypeConceptId: null, ct, softDeleted: true);
 
         var (queryScope, query) = NewPerUserQuery();
         using var queryDispose = queryScope;
         var matching = await query.FilterToMatchingAsync(
-            Profile(), [activeGood, expiredGood, archivedGood, softDeletedGood], ct);
+            Profile(), [activeGood, expiredGood, archivedGood], ct);
 
         matching.ShouldBe(new[] { activeGood }, ignoreOrder: true,
-            "en utgången/arkiverad/soft-deletad annons är inte 'matchande' även med Good-grad — bara " +
-            "den Active annonsen returneras (status='Active' + den globala soft-delete-query-filtren).");
+            "en utgången/arkiverad annons är inte 'matchande' även med Good-grad — bara den Active " +
+            "annonsen returneras (status='Active'-grinden ÄR hela exkluderingen, #821).");
     }
 
     // =========================================================================================

@@ -41,8 +41,8 @@ public sealed partial class ExpireJobAdsJob(
         LogStarted(logger);
 
         // SetProperty på SmartEnum-converter fungerar med statisk readonly-värde.
-        // Global query-filter (DeletedAt IS NULL) respekteras av ExecuteUpdateAsync
-        // (EF Core 8+) → soft-deleted rader rörs ej.
+        // JobAd har inget query-filter (#821 retirerade den döda soft-delete-axeln):
+        // Status == Active i Where-satsen nedan ÄR hela avgränsningen, explicit.
         var archivedStatus = JobAdStatus.Archived;
         var rowsAffected = await db.JobAds
             .Where(j => j.Status == JobAdStatus.Active

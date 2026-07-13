@@ -54,11 +54,14 @@ public sealed class GetJobAdQueryHandler(IAppDbContext db)
             return Result.Failure<JobAdDto>(
                 DomainError.NotFound("JobAd.NotFound", "Annonsen finns inte."));
 
+        // The body is deliberately NEUTRAL. Saying "raderad enligt artikel 17" would let ANY caller
+        // — the ad id is public, and Arbetsförmedlingen publishes the same ad in its open
+        // Historiska annonser dataset — correlate the two and infer that the named recruiter in
+        // that ad exercised a right. The erasure would then broadcast the very fact it exists to
+        // protect. So: it is gone, and we do not say why.
         if (row.Status == JobAdStatus.Erased.Value)
             return Result.Failure<JobAdDto>(
-                DomainError.Gone("JobAd.Erased",
-                    "Annonsen är borttagen. Den innehöll personuppgifter som har raderats på "
-                    + "begäran enligt artikel 17 i dataskyddsförordningen."));
+                DomainError.Gone("JobAd.Gone", "Annonsen är inte längre tillgänglig."));
 
         return Result.Success(row.Dto);
     }

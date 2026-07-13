@@ -27,7 +27,16 @@ public sealed record Company
     /// <c>messages/sv.json</c> (ADR 0106 D4 binds the same exception for the redaction marker).
     /// </para>
     /// </remarks>
-    public static Company Erased { get; } = new("[raderad]");
+    /// <remarks>
+    /// <b>A NEW instance each call, never a shared singleton.</b> <c>Company</c> is an EF <i>owned</i>
+    /// type, so its instance identity is tied to the row that owns it. Handing the same object to two
+    /// erased ads makes the change tracker treat one owner's owned entity as the other's, and the
+    /// second row is written with a NULL <c>company_name</c> — which violates the NOT NULL constraint
+    /// and, worse, would have been a silent data defect if the column were nullable. (Observed:
+    /// <c>23502: null value in column "company_name"</c> the moment a second ad was erased in one
+    /// request.)
+    /// </remarks>
+    public static Company Erased => new("[raderad]");
 
     public static Result<Company> Create(string? name)
     {

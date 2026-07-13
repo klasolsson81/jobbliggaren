@@ -4,6 +4,9 @@ using Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 using Jobbliggaren.Application.JobAds.Commands.UpsertExternalJobAd;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Domain.RecentJobSearches;
+using Jobbliggaren.Domain.SavedSearches;
 using Jobbliggaren.Infrastructure.JobAds;
 using Jobbliggaren.Infrastructure.JobSources.Platsbanken;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -73,6 +76,13 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     private const string SoleTraderName = "Ingrid Lindqvist";
     private const string SoleTraderExternalId = "erasure-e2e-2";
 
+    // AD 3 — the FTS case. The body writes her SURNAME FIRST ("Fagerberg, Magnus"), which is how a
+    // great deal of Swedish ad copy names a contact. She asks us to erase "Magnus Fagerberg". The
+    // substring channel compares strings and misses; Postgres's FTS lexemes both forms and hits.
+    // Without this ad, the entire FTS clause could be deleted and every other test stayed green.
+    private const string ReversedNameQuery = "Magnus Fagerberg";
+    private const string ReversedNameExternalId = "erasure-e2e-3";
+
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
     private WireMockServer _jobTech = default!;
     private ServiceProvider _provider = default!;
@@ -138,6 +148,13 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
           "employer": { "name": "Rekryteringsbyrån AB", "organization_number": "5561234567" },
           "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/{{ExternalId}}",
           "publication_date": "2026-07-01T10:00:00Z"
+        },{
+          "id": "{{ReversedNameExternalId}}",
+          "headline": "Projektledare",
+          "description": { "text": "Kontaktperson för tjänsten: Fagerberg, Magnus. Ansök via länken." },
+          "employer": { "name": "Nordiska Bygg AB", "organization_number": "5567654321" },
+          "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/{{ReversedNameExternalId}}",
+          "publication_date": "2026-07-03T10:00:00Z"
         },{
           "id": "{{SoleTraderExternalId}}",
           "headline": "Snickare sökes",
@@ -251,7 +268,10 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             "any logged-in user can reverse-look-up the recruiter by her address today. That is "
             + "the exposure Tier B closes.");
 
-        (await FtsHitsAsync(db, RecruiterName, ct)).ShouldBe(1,
+        // TWO ads name her: the one that spells her "Magnus Fagerberg", and the one that writes
+        // "Fagerberg, Magnus". FTS lexemes both to the same terms — which is the entire reason the
+        // FTS channel is load-bearing, and it is why this count is 2 and not 1.
+        (await FtsHitsAsync(db, RecruiterName, ct)).ShouldBe(2,
             "her NAME is independently FTS-searchable — unreachable by regex and by any structured "
             + "field, which is the whole reason whole-record erasure is the only provable remedy.");
     }
@@ -284,7 +304,18 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
                 + "exists at all.");
 
         (await FtsHitsAsync(db, RecruiterEmail, ct)).ShouldBe(0);
-        (await FtsHitsAsync(db, RecruiterName, ct)).ShouldBe(0);
+
+        // And here is a fact the operator MUST know, so it is a test and not a footnote: erasing by
+        // her EMAIL does not erase the ad that only names her. Ad 3 ("Fagerberg, Magnus") carries no
+        // address, so it does not match the email — and she is still FTS-searchable through it.
+        //
+        // This is correct behaviour, not a gap: the identifier is what it is. It is also exactly why
+        // the runbook tells the operator to run the dry run once per identifier he holds — her
+        // address, her number, AND her name — and why a completed-erasure reply sent after matching
+        // only her email would be a false statement.
+        (await FtsHitsAsync(db, RecruiterName, ct)).ShouldBe(1,
+            "the ad that names her without her address survives an email-only erasure. Run the name "
+            + "too — the runbook says so, and this is why.");
     }
 
     /// <summary>
@@ -301,7 +332,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var response = await EraseAsync(RecruiterName, ct);
 
         response.Outcome.ShouldBe(ErasureOutcome.AdsErased);
-        response.Erased.JobAds.ShouldBe(1);
+        response.Erased.JobAds.ShouldBe(2, "both the plain and the surname-first ad name her.");
 
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -356,6 +387,98 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
                 + "name IS a natural person's name.");
     }
 
+    /// <summary>
+    /// <b>The FTS channel, proven to be load-bearing.</b> It was not, before this test: delete the
+    /// entire <c>search_vector @@ …</c> clause from the matcher and every other test in this file
+    /// stayed green. A channel nobody can observe failing is a channel nobody knows works — the
+    /// vacuous-control pattern, one level up, inside the fix for the vacuous control.
+    /// <para>
+    /// The case that separates them: the ad names her <b>"Fagerberg, Magnus"</b> (surname first — how
+    /// half of Swedish ad copy writes a contact), and she asks us to erase <b>"Magnus Fagerberg"</b>.
+    /// The substring channel compares strings and MISSES. Postgres's FTS lexemes both forms and HITS.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task The_FTS_channel_finds_her_when_the_substring_channel_CANNOT()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            // Precondition: the reversed form is NOT a substring of the ad body. If a future edit
+            // makes it one, this test would pass for the wrong reason and stop guarding FTS.
+            var ad = await db.JobAds.AsNoTracking()
+                .SingleAsync(j => j.External!.ExternalId == ReversedNameExternalId, ct);
+
+            ad.Description.Contains(ReversedNameQuery, StringComparison.OrdinalIgnoreCase)
+                .ShouldBeFalse("if the body literally contains the query, the substring channel "
+                    + "would find her and this test would no longer prove anything about FTS.");
+        }
+
+        var response = await EraseAsync(ReversedNameQuery, ct);
+
+        response.Outcome.ShouldBe(ErasureOutcome.AdsErased);
+        response.ErasedExternalIds.ShouldContain(ReversedNameExternalId,
+            "FTS lexemes 'Fagerberg, Magnus' and 'Magnus Fagerberg' to the same terms. Remove the "
+            + "FTS clause and this is the test that goes red.");
+    }
+
+    /// <summary>
+    /// <b>The enskild firma, AFTER <c>raw_payload</c> is gone — which is the state MOST of the corpus
+    /// is in.</b>
+    /// <para>
+    /// <c>PurgeStaleRawPayloadsJob</c> NULLs <c>raw_payload</c> 30 days after publication. The
+    /// original matcher reached <c>employer.name</c> ONLY through <c>raw_payload</c>, and
+    /// <c>company_name</c> is not in <c>search_vector</c> (which is built from title and description
+    /// only). So for every ad older than 30 days — i.e. most of 93 469 ads collected over months —
+    /// she would have been answered <i>"we hold no data matching this identifier"</i> while her name
+    /// sat in plaintext in a column we scan on every erasure.
+    /// </para>
+    /// <para>
+    /// The earlier enskild-firma test passed only because its <c>raw_payload</c> was fresh. Its own
+    /// doc said so out loud — <i>"she is still found, because channel 2 scans raw_payload"</i> — and
+    /// that quiet holding precondition is the exact shape of the defect this whole issue is about.
+    /// This test removes it.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task She_is_STILL_found_after_raw_payload_has_been_purged()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        using (var purge = _provider.CreateScope())
+        {
+            var db = purge.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            // Exactly what PurgeStaleRawPayloadsJob does at 30 days.
+            await db.Database.ExecuteSqlRawAsync("UPDATE job_ads SET raw_payload = NULL;", ct);
+
+            var ad = await db.JobAds.AsNoTracking()
+                .SingleAsync(j => j.External!.ExternalId == SoleTraderExternalId, ct);
+
+            ad.RawPayload.ShouldBeNull();
+            ad.Company.Name.ShouldBe(SoleTraderName, "her name is now ONLY in company_name.");
+
+            (await FtsHitsAsync(db, SoleTraderName, ct)).ShouldBe(0,
+                "and company_name is outside search_vector, so FTS cannot reach her either.");
+        }
+
+        var response = await EraseAsync(SoleTraderName, ct);
+
+        response.Outcome.ShouldBe(ErasureOutcome.AdsErased,
+            "without a company_name channel this is NoMatchingDataHeld — a false 'we hold nothing "
+            + "about you' sent to a named person, for most of the corpus.");
+        response.ErasedExternalIds.ShouldContain(SoleTraderExternalId);
+
+        using var check = _provider.CreateScope();
+        var after = check.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await ColumnsStillContainingAsync(after, SoleTraderName, ct)).ShouldBeEmpty();
+    }
+
     // ================================================================================
     // 3. DURABILITY — the finding that killed every naive fix (F-A).
     // ================================================================================
@@ -401,6 +524,55 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         ad.Description.ShouldBeEmpty();
         ad.RawPayload.ShouldBeNull();
         ad.Company.Name.ShouldBe(Company.Erased.Name);
+    }
+
+    // ================================================================================
+    // 3b. THE CASCADE — observed running against a POPULATED table, not an empty one.
+    // ================================================================================
+
+    /// <summary>
+    /// The <c>recent_job_searches</c> cascade, actually observed. It had zero tests: the code ran only
+    /// against an empty table, and <b>code that runs against nothing, that nobody has seen work, is
+    /// how a vacuous control is born the second time.</b>
+    /// <para>
+    /// The row is HARD-DELETED, not nulled: <c>q</c> is a derivative of <c>FilterHash</c>, which is the
+    /// row's identity, and the aggregate binds that they must never diverge — a nulled <c>q</c>
+    /// corrupts the row rather than cleaning it. The user loses nothing; her cap-20 list rebuilds on
+    /// her next search.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task A_recent_search_containing_her_name_is_HARD_DELETED_and_a_saved_search_is_REPORTED()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        var seekerId = await SeedSeekerWithSearchesNamingHerAsync(ct);
+
+        // The dry run must SEE both surfaces before anything is destroyed.
+        var probe = await EraseAsync(RecruiterName, ct, dryRun: true);
+        probe.Matched.RecentJobSearches.ShouldBe(1);
+        probe.Matched.SavedSearches.ShouldBe(1);
+        probe.Erased.Total.ShouldBe(0);
+
+        var response = await EraseAsync(RecruiterName, ct);
+
+        response.Erased.RecentJobSearches.ShouldBe(1, "the auto-capture row is hard-deleted.");
+        response.Matched.SavedSearches.ShouldBe(1);
+        response.Erased.SavedSearches.ShouldBe(0,
+            "a saved search is the USER's artefact. Her right DOES reach it (Art. 6(1)(f) → Art. "
+            + "21(1)), so this is a MECHANISM choice — a human erases it, with that user in the loop "
+            + "— and never a refusal. The gap between Matched and Erased is what forces the reply to "
+            + "say so.");
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        (await db.RecentJobSearches.CountAsync(r => r.JobSeekerId == seekerId, ct))
+            .ShouldBe(0, "hard-deleted, not hidden.");
+
+        (await db.SavedSearches.IgnoreQueryFilters().CountAsync(s => s.JobSeekerId == seekerId, ct))
+            .ShouldBe(1, "the saved search survives — reported, disclosed, and handed to a human.");
     }
 
     // ================================================================================
@@ -459,7 +631,9 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
                 RequestId: Guid.NewGuid(),
                 Identifier: RecruiterEmail,
                 DryRun: false,
-                ConfirmedJobAdCount: 7), // the operator saw 7; reality says 1
+                // The operator confirms an ad that is NOT in the current match set — exactly what a
+                // stale dry-run view looks like after ten minutes of ingest.
+                ConfirmedJobAdIds: [Guid.NewGuid()]),
             ct);
 
         result.IsFailure.ShouldBeTrue();
@@ -473,6 +647,34 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     // ================================================================================
     // Helpers
     // ================================================================================
+
+    /// <summary>
+    /// A user who searched for the recruiter BY NAME — which is exactly what §1.5 proves is possible:
+    /// the FTS index makes her reverse-lookupable, so her name lands in another person's search
+    /// history. Seeded through the aggregates' own factories (no hand-written columns).
+    /// </summary>
+    private async Task<JobSeekerId> SeedSeekerWithSearchesNamingHerAsync(CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = new FixedClock();
+
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(ct);
+
+        var criteria = SearchCriteria.Create(
+            null, null, null, null, null, null, RecruiterName, JobAdSortBy.Relevance).Value;
+
+        db.RecentJobSearches.Add(
+            RecentJobSearch.Capture(seeker.Id, criteria, currentCount: 0, now: clock.UtcNow));
+
+        db.SavedSearches.Add(
+            SavedSearch.Create(seeker.Id, "Bevakning", criteria, notificationEnabled: false, clock).Value);
+
+        await db.SaveChangesAsync(ct);
+        return seeker.Id;
+    }
 
     private static EraseRecruiterAdsCommandHandler NewEraseHandler(IServiceScope scope, AppDbContext db) =>
         new(
@@ -488,13 +690,14 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = NewEraseHandler(scope, db);
 
-        int? confirmed = null;
+        IReadOnlyList<Guid>? confirmed = null;
         if (!dryRun)
         {
-            // The API forces this ordering; the test walks the same road rather than around it.
+            // The API forces this ordering; the test walks the same road rather than around it —
+            // dry run first, REVIEW the ads it returns, then confirm them by id.
             var probe = await handler.Handle(
                 new EraseRecruiterAdsCommand(Guid.NewGuid(), identifier, DryRun: true, null), ct);
-            confirmed = probe.Value.Matched.JobAds;
+            confirmed = [.. probe.Value.Matches.Select(m => m.JobAdId)];
         }
 
         var result = await handler.Handle(

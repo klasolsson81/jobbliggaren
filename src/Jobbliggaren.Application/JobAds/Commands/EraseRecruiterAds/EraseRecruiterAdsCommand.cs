@@ -12,35 +12,28 @@ namespace Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 /// (ADR 0106 Tier B, #842). Admin-only. Destructive and irreversible for every user of those ads.
 /// </summary>
 /// <param name="RequestId">
-/// Generated per request by the endpoint. It is the audited aggregate id — the audited thing is
-/// <b>the request</b>, not the ads, because a request that matches nothing must still leave a
-/// record (Art. 12(3)) and there is no ad id to hang it on.
+/// Minted by the endpoint. It is the audited aggregate id — the audited thing is <b>the request</b>,
+/// not the ads, because a request that matches nothing must still leave a record and there is no ad
+/// id to hang it on.
 /// </param>
 /// <param name="Identifier">
-/// Free text: an email, a phone number, or a NAME. One channel, no discriminator — TD-75's
-/// premise ("email är primär rekryterar-identifier i JobTech-payloads") was not outdated, it was
-/// <b>falsified</b>: the sanitizer and the wire POCO guarantee the email is never a structured key
-/// in storage, so every identifier is matched over free text either way. A discriminator that
-/// changes the query would be a distinction without a difference, and a place for the next bug to
-/// hide. <b>TD-75 is closed as void.</b>
+/// Free text: an email, a phone number, or a NAME. One channel, no discriminator — TD-75's premise
+/// was not outdated, it was falsified (the email is never a structured key in storage), so every
+/// identifier is matched over free text either way. TD-75 is closed as void. See ADR 0106 D8.
 /// </param>
-/// <param name="DryRun">
-/// True ⇒ report what would be erased and write nothing.
-/// </param>
-/// <param name="ConfirmedJobAdCount">
-/// <b>This is what makes the dry run MANDATORY, in code rather than in a runbook sentence.</b> A
-/// destructive call must state how many ads the operator saw in the dry run. If it does not match
-/// the live count, the command refuses with a Conflict. So: you cannot erase without having looked
-/// (the field is required when <c>DryRun</c> is false), and you cannot erase a set that changed
-/// under you between looking and confirming — the nightly sync ingests continuously, so that race
-/// is real, not theoretical. Optimistic concurrency on the one operation that destroys content for
-/// every user. Required when <c>DryRun</c> is false; ignored otherwise.
+/// <param name="DryRun">True ⇒ report what would be erased and write nothing.</param>
+/// <param name="ConfirmedJobAdIds">
+/// <b>The ads the operator actually reviewed</b> — required when <paramref name="DryRun"/> is false.
+/// Not a count: a count cannot be reviewed. A recruiter named <i>Anna</i> substring-matches
+/// <i>Johanna</i> and <i>Marianna</i> across thousands of ads, and an operator who reads "4127" and
+/// retypes "4127" has reviewed nothing while destroying 4 127 ads. He sends back the ids he read.
+/// Anything he did not confirm is not erased — and the response reports the gap.
 /// </param>
 public sealed record EraseRecruiterAdsCommand(
     Guid RequestId,
     string Identifier,
     bool DryRun,
-    int? ConfirmedJobAdCount)
+    IReadOnlyList<Guid>? ConfirmedJobAdIds)
     : ICommand<Result<EraseRecruiterAdsResponse>>,
       IAdminRequest,
       IAuditableCommand<Result<EraseRecruiterAdsResponse>>,
@@ -51,11 +44,19 @@ public sealed record EraseRecruiterAdsCommand(
     public string AggregateType => "RecruiterErasureRequest";
 
     /// <summary>
-    /// Record REJECTED requests too. A rights request that is refused and leaves no trace is an
-    /// Art. 12(3) exposure — we owe the data subject the reasons we did not act and her right to
-    /// complain, and we cannot produce either from a row we never wrote. Today
-    /// <c>AuditBehavior</c> skips audit on failure; this opt-in is why it no longer does here.
+    /// Record handler-rejected requests too (e.g. the 409 when the reviewed set has moved).
     /// </summary>
+    /// <remarks>
+    /// <b>Scope, stated precisely, because an over-claim here would be the very thing this issue is
+    /// about.</b> <c>AuditBehavior</c> is the INNERMOST pipeline behavior, and
+    /// <c>ValidationBehavior</c> / <c>AdminAuthorizationBehavior</c> both <i>throw</i> — outside it.
+    /// So this opt-in records failures the HANDLER returns. It does <b>not</b> record a 400 (bad
+    /// input) or a 403 (non-admin). Those are operator-side errors on an internal admin route, not
+    /// refusals of a data subject's request: her request reaches us as an email to a human, and the
+    /// Art. 12(3) record of a refusal is the controller's case file and the runbook — not this
+    /// route's exception paths. The 403 is nevertheless worth having, and
+    /// <c>AdminAuthorizationBehavior</c> records it separately.
+    /// </remarks>
     public bool AuditFailures => true;
 
     /// <summary>
@@ -71,16 +72,10 @@ public sealed record EraseRecruiterAdsCommand(
     /// </summary>
     /// <remarks>
     /// <b>The identifier is HMAC'd, never stored.</b> Recording the recruiter's email in the audit
-    /// row for her erasure request would make that request the last place her address survives.
+    /// row for her own erasure request would make that request the last place her address survives.
     /// The pseudonymiser is handed in (never reached for), so there is exactly one route from an
     /// identifier into <c>audit_log</c> and it goes through HMAC-SHA256(server pepper). md5 is
-    /// rejected: an unkeyed digest of an email is dictionary-reversible in milliseconds — a fig
-    /// leaf, not a pseudonym.
-    /// <para>
-    /// <c>erasedExternalIds</c> are Arbetsförmedlingen's public ad identifiers, not personal data,
-    /// and they are what lets an auditor verify the erasure actually happened. Failures record the
-    /// error code — never the identifier, never the message (which could echo input).
-    /// </para>
+    /// rejected: an unkeyed digest of an email is dictionary-reversible in milliseconds.
     /// </remarks>
     public string? BuildAuditPayload(
         Result<EraseRecruiterAdsResponse> response, IIdentifierPseudonymizer pseudonymizer)
@@ -98,27 +93,26 @@ public sealed record EraseRecruiterAdsCommand(
         {
             var value = response.Value;
             payload["outcome"] = value.Outcome.ToString();
-            payload["matched"] = new Dictionary<string, int>
-            {
-                ["jobAds"] = value.Matched.JobAds,
-                ["recentJobSearches"] = value.Matched.RecentJobSearches,
-                ["savedSearches"] = value.Matched.SavedSearches,
-            };
-            payload["erased"] = new Dictionary<string, int>
-            {
-                ["jobAds"] = value.Erased.JobAds,
-                ["recentJobSearches"] = value.Erased.RecentJobSearches,
-                ["savedSearches"] = value.Erased.SavedSearches,
-            };
+            payload["matched"] = SurfaceCounts(value.Matched);
+            payload["erased"] = SurfaceCounts(value.Erased);
             payload["erasedExternalIds"] = value.ErasedExternalIds;
         }
         else
         {
-            // The code only. The message may echo operator input, and this row is the one place
-            // we have promised not to keep her identifier (CLAUDE.md §5).
+            // The code only. The message may echo operator input, and this row is the one place we
+            // have promised not to keep her identifier (CLAUDE.md §5).
             payload["errorCode"] = response.Error.Code;
         }
 
         return JsonSerializer.Serialize(payload);
     }
+
+    private static Dictionary<string, int> SurfaceCounts(ErasureSurfaceCounts counts) => new()
+    {
+        ["jobAds"] = counts.JobAds,
+        ["recentJobSearches"] = counts.RecentJobSearches,
+        ["savedSearches"] = counts.SavedSearches,
+        ["applicationSnapshots"] = counts.ApplicationSnapshots,
+        ["userAuthoredText"] = counts.UserAuthoredText,
+    };
 }

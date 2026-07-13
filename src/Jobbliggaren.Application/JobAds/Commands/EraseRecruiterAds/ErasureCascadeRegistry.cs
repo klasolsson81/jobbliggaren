@@ -13,6 +13,41 @@ using Jobbliggaren.Domain.SavedSearches;
 namespace Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 
 /// <summary>
+/// What an Art. 17 erasure of a recruiter does to a given persisted column (#842).
+/// </summary>
+public enum ErasureColumnDisposition
+{
+    /// <summary>Destroyed by the erasure. Provable, no detector involved.</summary>
+    Erased,
+
+    /// <summary>
+    /// Searched and REPORTED; a human erases it. Her right applies — this is a mechanism choice,
+    /// never a refusal, and the reply must never tell her the right does not reach it.
+    /// </summary>
+    MatchedHumanErases,
+
+    /// <summary>
+    /// Searched and REPORTED, and deliberately retained on a written legal ground (Art. 17(3)(e)).
+    /// We search it precisely BECAUSE we do not erase it: a ground asserted over a population we
+    /// never counted is a ground asserted over a silence.
+    /// </summary>
+    MatchedRetained,
+
+    /// <summary>Held only as an HMAC pseudonym (the accountability record itself).</summary>
+    Pseudonymised,
+
+    /// <summary>Structurally cannot hold a recruiter's personal data.</summary>
+    NotRecruiterData,
+
+    /// <summary>
+    /// A DIFFERENT processing with its own basis, its own DPIA and its own erasure route - not
+    /// our copy of the ad. An Art. 17 request about an imported ad does not reach it. Recorded
+    /// here rather than omitted, so nobody has to rediscover that.
+    /// </summary>
+    SeparateProcessing,
+}
+
+/// <summary>
 /// The Art. 17 cascade registry for recruiter PII (#842) — every persisted surface, classified,
 /// with a written reason. <c>ErasureCascadeRegistryTests</c> pins it: a new <c>DbSet</c> on
 /// <c>IAppDbContext</c> that appears in none of the three sets <b>breaks the build</b>.
@@ -53,92 +88,168 @@ public static class ErasureCascadeRegistry
         "JobAds",
         "RecentJobSearches",
         "SavedSearches",
+        "ApplicationSnapshots",
+        "UserAuthoredText",
     };
 
     /// <summary>
-    /// Surfaces the erasure command searches AND erases.
+    /// Every persisted COLUMN that can hold recruiter free text, keyed <c>table.column</c>.
+    /// <c>ErasureCascadeRegistryTests</c> drives this from the EF model and breaks the build on any
+    /// unclassified text/jsonb column.
     /// </summary>
     /// <remarks>
-    /// <see cref="JobAd"/> — the carrier. Whole-record erasure (<see cref="JobAd.Erase"/>), which
-    /// is what makes the promise provable: <c>description</c>, <c>title</c>, <c>company_name</c>,
-    /// <c>url</c>, <c>raw_payload</c>, the seven raw_payload-derived generated columns,
-    /// <c>extracted_terms</c>, the STORED <c>extracted_lexemes</c> shadow and the STORED
-    /// <c>search_vector</c> all go together. No detector, so no recall question.
-    /// <para>
-    /// <see cref="RecentJobSearch"/> — hard-delete of the row. A user who searched the recruiter's
-    /// name persisted that name into her own search history (the FTS reverse-lookup this issue is
-    /// about is exactly what makes that reachable). Nulling <c>q</c> is NOT available: <c>q</c> is
-    /// a derivative of <c>FilterHash</c>, which is the row's identity, and the aggregate states it
-    /// must never diverge — a nulled <c>q</c> corrupts the row rather than cleaning it. The
-    /// aggregate already binds hard-delete as its disposal semantics ("auto-capture-rader har ingen
-    /// audit-trail-värdighet"), and ADR 0067 Fas C2 already mass-deleted rows of this table on the
-    /// same reasoning. User cost is zero: the cap-20 list rebuilds on her next search.
-    /// </para>
+    /// <b>Why column granularity, and why the aggregate-level version was a false assurance.</b> The
+    /// first cut of this registry classified <c>DbSet</c>s. It therefore could not have caught either
+    /// of the two real holes in this very PR: <c>job_ads.company_name</c> (an enskild firma's company
+    /// name IS a person's name) and <c>applications.snapshot_company</c> (non-nullable, so populated
+    /// on EVERY application). Both sit inside aggregates the registry had already ticked off as
+    /// classified. <b>A guard one level coarser than its own defect class does not merely miss — it
+    /// reassures.</b> That is the mechanism by which ADR 0024's registry stayed wrong for two
+    /// releases while an auditor reading it concluded we were compliant.
     /// </remarks>
-    public static IReadOnlySet<Type> Cascaded { get; } = new HashSet<Type>
-    {
-        typeof(JobAd),
-        typeof(RecentJobSearch),
-    };
-
-    /// <summary>
-    /// Surfaces that CAN hold the recruiter's identifier and are deliberately NOT erased. Each
-    /// carries its ground, and each is <b>disclosed</b> — the erasure response reports them as
-    /// matched-but-not-erased, the runbook's reply template says so, and the DPIA says so. We do
-    /// not claim to have erased what we have not erased. That is #842, applied to ourselves.
-    /// </summary>
-    public static IReadOnlyDictionary<Type, string> MatchedButNotErased { get; } =
-        new Dictionary<Type, string>
+    public static IReadOnlyDictionary<string, ErasureColumnDisposition> Columns { get; } =
+        new Dictionary<string, ErasureColumnDisposition>(StringComparer.Ordinal)
         {
-            [typeof(SavedSearch)] =
-                "Art. 21(1) reaches only processing based on 6(1)(e)/(f). A saved search is "
-                + "processed under 6(1)(b) — our contract with the USER — so the recruiter's "
-                + "objection never fires against it, and the 17(1)(c) erasure ground that would "
-                + "flow from a successful objection never arises. (This is a DIFFERENT mechanism "
-                + "from the applicant snapshot below: the snapshot is kept DESPITE Art. 17 "
-                + "applying; the saved search is kept because the request does not reach that "
-                + "processing at all.) The engineering is also decisive on its own: SavedSearch's "
-                + "SoftDelete() leaves `criteria` in the row — it hides, it does not erase, and a "
-                + "cascade built on it would BE the #842 defect class — while stripping Q from the "
-                + "criteria is not universally constructible (SearchCriteria's non-empty invariant "
-                + "and RelevanceRequiresQ mean a saved search whose ONLY criterion is the "
-                + "recruiter's name cannot have its Q removed — the remedy fails exactly on the "
-                + "case the request would be about). Reported in the dry-run; a human decides, "
-                + "with the affected user in the loop (CLAUDE.md §5 — a rule engine never rewrites "
-                + "silently).",
+            // ── job_ads: ERASED, whole-record ────────────────────────────────────────────────
+            ["job_ads.title"] = ErasureColumnDisposition.Erased,
+            ["job_ads.description"] = ErasureColumnDisposition.Erased,
+            ["job_ads.company_name"] = ErasureColumnDisposition.Erased,
+            ["job_ads.url"] = ErasureColumnDisposition.Erased,
+            ["job_ads.raw_payload"] = ErasureColumnDisposition.Erased,
+            ["job_ads.extracted_terms"] = ErasureColumnDisposition.Erased,
+            ["job_ads.extracted_lexemes"] = ErasureColumnDisposition.Erased,
+            ["job_ads.search_vector"] = ErasureColumnDisposition.Erased,
+            ["job_ads.organization_number"] = ErasureColumnDisposition.Erased,
+            ["job_ads.external_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["job_ads.external_source"] = ErasureColumnDisposition.NotRecruiterData,
+            ["job_ads.source"] = ErasureColumnDisposition.NotRecruiterData,
+            ["job_ads.status"] = ErasureColumnDisposition.NotRecruiterData,
 
-            [typeof(DomainApplication)] =
-                "applications.snapshot_description — the applicant's own frozen record of the ad "
-                + "she applied to. ADR 0086 exists precisely so the snapshot outlives the ad; "
-                + "nulling it would destroy HER evidence to serve a third party's request. The "
-                + "legal ground (Art. 17(3)(e), establishment/exercise/defence of legal claims) is "
-                + "Klas's to affirm — STOPP-3, OPEN. Recorded, not omitted. Tier A reaches this "
-                + "surface by minimisation instead (new snapshots are captured from an "
-                + "already-scrubbed body), which is why this is a residual and not a hole.",
+            // ── recent_job_searches: ERASED (hard-delete of the row) ─────────────────────────
+            ["recent_job_searches.q"] = ErasureColumnDisposition.Erased,
+
+            // ── saved_searches: MATCHED, a HUMAN erases ─────────────────────────────────────
+            ["saved_searches.criteria"] = ErasureColumnDisposition.MatchedHumanErases,
+            ["saved_searches.name"] = ErasureColumnDisposition.MatchedHumanErases,
+            ["recent_job_searches.filter_hash"] = ErasureColumnDisposition.Erased,
+
+            // -- user-authored free text: MATCHED, a HUMAN erases -----------------------------
+            // A user can absolutely have written "Ringde Magnus Fagerberg" in her own note. That
+            // is the recruiter's personal data, sitting in a place nobody enumerated until this
+            // registry was driven from the EF model instead of from memory.
+            ["applications.cover_letter"] = ErasureColumnDisposition.MatchedHumanErases,
+            ["applications.manual_company"] = ErasureColumnDisposition.MatchedHumanErases,
+            ["applications.manual_title"] = ErasureColumnDisposition.MatchedHumanErases,
+            ["applications.manual_url"] = ErasureColumnDisposition.NotRecruiterData,
+            ["application_notes.content"] = ErasureColumnDisposition.MatchedHumanErases,
+            ["follow_ups.note"] = ErasureColumnDisposition.MatchedHumanErases,
+
+            // ── applications: MATCHED, RETAINED under Art. 17(3)(e) ─────────────────────────
+            ["applications.snapshot_company"] = ErasureColumnDisposition.MatchedRetained,
+            ["applications.snapshot_description"] = ErasureColumnDisposition.MatchedRetained,
+            ["applications.snapshot_title"] = ErasureColumnDisposition.MatchedRetained,
+            ["applications.snapshot_url"] = ErasureColumnDisposition.MatchedRetained,
+            ["applications.snapshot_source"] = ErasureColumnDisposition.NotRecruiterData,
+            ["applications.snapshot_municipality_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
+
+            // ── audit_log: the accountability record ────────────────────────────────────────
+            ["audit_log.payload"] = ErasureColumnDisposition.Pseudonymised,
+            ["audit_log.event_type"] = ErasureColumnDisposition.NotRecruiterData,
+            ["audit_log.aggregate_type"] = ErasureColumnDisposition.NotRecruiterData,
+            ["audit_log.ip_address"] = ErasureColumnDisposition.NotRecruiterData,
+            ["audit_log.user_agent"] = ErasureColumnDisposition.NotRecruiterData,
+
+            // ── SCB company register: a SEPARATE processing ─────────────────────────────────
+            ["company_register.company_name"] = ErasureColumnDisposition.SeparateProcessing,
+            ["company_register.organization_number"] = ErasureColumnDisposition.SeparateProcessing,
+            ["company_register.sate_kommun_code"] = ErasureColumnDisposition.NotRecruiterData,
+            ["company_register.sate_kommun_name"] = ErasureColumnDisposition.NotRecruiterData,
+            ["company_register.scb_status_raw"] = ErasureColumnDisposition.NotRecruiterData,
+
+            // ── ids, concept codes, hashes, encrypted user content: no recruiter free text ──
+            ["company_watch_criteria.label"] = ErasureColumnDisposition.NotRecruiterData,
+            ["job_ad_snapshot_misses.external_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["job_ad_snapshot_misses.source"] = ErasureColumnDisposition.NotRecruiterData,
+            ["job_ads.ssyk_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["job_ads.region_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["job_ads.municipality_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["job_ads.occupation_group_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["job_ads.employment_type_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["job_ads.worktime_extent_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["resume_finding_statuses.criterion_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["resume_finding_statuses.rubric_version"] = ErasureColumnDisposition.NotRecruiterData,
+            ["resume_finding_statuses.target_fingerprint"] = ErasureColumnDisposition.NotRecruiterData,
+            ["resume_versions.content"] = ErasureColumnDisposition.NotRecruiterData,
+            ["resume_versions.content_enc"] = ErasureColumnDisposition.NotRecruiterData,
+            ["taxonomy_concepts.concept_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["taxonomy_concepts.label"] = ErasureColumnDisposition.NotRecruiterData,
+            ["taxonomy_concepts.parent_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["taxonomy_relations.source_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["taxonomy_relations.related_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
         };
 
     /// <summary>
-    /// Surfaces that structurally CANNOT hold recruiter free text, each with the reason it cannot.
-    /// This is the half of the registry that is easy to get lazily wrong, so the reason is
-    /// required rather than assumed — "we looked and it was fine" is what the last registry said.
+    /// The written ground for every surface we search and do NOT erase. Required by
+    /// <c>ErasureCascadeRegistryTests</c> — a blank ground is a ground nobody thought about, and
+    /// each of these is something we will have to say out loud to a person who asked us to delete
+    /// her data.
     /// </summary>
-    public static IReadOnlyDictionary<Type, string> NoRecruiterTextSurface { get; } =
-        new Dictionary<Type, string>
+    public static IReadOnlyDictionary<string, string> WrittenGrounds { get; } =
+        new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [typeof(JobSeeker)] = "User-owned profile. No ad text.",
-            [typeof(Resume)] = "User-authored CV content. No ad text.",
-            [typeof(ParsedResume)] = "Derived from the user's own CV. No ad text.",
-            [typeof(ResumeFile)] = "The user's own uploaded file bytes. No ad text.",
-            [typeof(SavedJobAd)] = "Join row: (JobSeekerId, JobAdId). Ids only, no prose.",
-            [typeof(UserJobAdMatch)] = "Match result: ids, grade, score. No prose.",
-            [typeof(CompanyWatch)] = "Follow keyed on org.nr/internal id. No ad text.",
-            [typeof(CompanyWatchCriterion)] = "SNI + kommun concept ids. No free text.",
-            [typeof(FollowedCompanyAdHit)] = "Notification hit: ids + timestamps. No prose.",
-            [typeof(AuditLogEntry)] =
-                "The accountability record itself. It holds the erasure request's HMAC "
-                + "pseudonym, never the identifier — and it is EXCLUDED from the cascade by "
-                + "design: erasing the record of an erasure would destroy the Art. 5(2) evidence "
-                + "that we honoured the request. Art. 17(3)(b)/(e) (legal obligation / legal "
-                + "claims) is the ground. Retention is ADR 0024's.",
+            ["saved_searches"] =
+                "HER RIGHT APPLIES. One row carries two data subjects under two bases: the "
+                + "JobSeeker's own criteria rest on Art. 6(1)(b) (our contract with HER), but the "
+                + "RECRUITER'S NAME sitting inside those criteria does not — Art. 6(1)(b) requires "
+                + "the data subject to be a PARTY to the contract, and the recruiter is party to "
+                + "nothing. That processing rests on Art. 6(1)(f), which Art. 21(1) reaches. Her "
+                + "objection fires and Art. 17(1)(c) is available. We do NOT attempt the "
+                + "'compelling legitimate grounds' override: keeping her name in another user's "
+                + "filter is a convenience, and a saved search is recreatable in seconds. "
+                + "WE OWE HER ERASURE AND WE HONOUR IT IN FULL. What we do not do is AUTOMATE it: "
+                + "SavedSearch.SoftDelete() leaves `criteria` in the row (it hides, it does not "
+                + "erase — a cascade built on it would BE the #842 defect class), and stripping the "
+                + "term is not universally constructible (SearchCriteria's non-empty invariant + "
+                + "RelevanceRequiresQ mean a saved search whose ONLY criterion is her name cannot "
+                + "have it removed). So a HUMAN does it, inside the Art. 12(3) month, with the "
+                + "affected user in the loop. That is a MECHANISM choice, never a refusal — and the "
+                + "reply must never tell her the right does not reach it. 'Our code cannot do it' "
+                + "has never been a defence. That IS #842.",
+
+            ["application_notes"] =
+                "USER-AUTHORED PRIVATE NOTES about her own application - she may well have "
+                + "written the recruiter's name in one. That is the RECRUITER'S personal data, "
+                + "processed under Art. 6(1)(f), which Art. 21(1) reaches. HER RIGHT APPLIES. We "
+                + "SEARCH and REPORT it; a HUMAN erases it, with the affected user in the loop, "
+                + "because silently rewriting a user's private note about her own job hunt is not "
+                + "something a job may do (CLAUDE.md 5 - a rule engine never rewrites silently). "
+                + "This surface was found by driving the registry from the EF model. Nobody had "
+                + "enumerated it, and no version of this feature would have searched it.",
+
+            ["follow_ups"] =
+                "Same as application_notes: user-authored free text about her own application, "
+                + "which can name the recruiter. Her right applies (6(1)(f), reached by Art. "
+                + "21(1)); searched, reported, erased by a human.",
+
+            ["company_register"] =
+                "A SEPARATE PROCESSING. company_name IS a natural person's name for an enskild "
+                + "firma - but this table is a replica of a PUBLIC register (SCB, ADR 0090) with "
+                + "its own legal basis, its own DPIA and its own erasure route. It is not our copy "
+                + "of an ad, an Art. 17 request about an imported ad does not reach it, and the "
+                + "DPIA C-D4 firewall explicitly FORBIDS a handler joining it. An enskild firma "
+                + "owner's request against the REGISTER is a different request against a different "
+                + "processing, out of scope for #842. Recorded, not omitted.",
+
+            ["applications"] =
+                "Art. 17(3)(e) — establishment, exercise or defence of legal claims. The applicant's "
+                + "frozen record of an ad she applied to (ADR 0086 exists precisely so the snapshot "
+                + "outlives the ad). And the ground is STRONGER for snapshot_company than for the ad "
+                + "body, not weaker: a Swedish jobseeker must file an AKTIVITETSRAPPORT to "
+                + "Arbetsförmedlingen naming the employer she applied to. The company name is the "
+                + "SPINE of her own legal record; the ad body is its colour. That is why "
+                + "AdSnapshot.WithoutDescription() can drop the body and could never drop the "
+                + "company. We SEARCH it and REPORT it precisely because we do not erase it: a legal "
+                + "ground asserted over a population we never counted is a ground asserted over a "
+                + "silence, and that is how the last registry stayed wrong. STOPP-3 — Klas affirms.",
         };
 }

@@ -84,7 +84,7 @@ Admin session required. The route is `POST /api/v1/admin/job-ads/redact-recruite
 {
   "identifier": "<email, phone number, OR name>",
   "dryRun": true,
-  "confirmedJobAdCount": null
+  "confirmedJobAdIds": null
 }
 ```
 
@@ -95,24 +95,51 @@ every identifier is matched over free text either way. **TD-75 is closed as
 void.** Run the dry run once per identifier you hold: her address, her number,
 **and her name**.
 
-Matching runs on **two channels**: full-text search (the exposure a user can
-actually exploit against `/jobb`) **and** a case-insensitive substring scan over
-`title`, `description` and `raw_payload`. FTS alone will not find an obfuscated
-address (`anna(at)acme.se` tokenises as ordinary words), and the substring scan
-reaches `employer.name` — which is how a request naming an **enskild firma's**
-owner finds her ad at all. The union **over-matches on purpose**: a false
-positive costs you a second look, a false negative costs a false confirmation to
-a named person.
+Matching runs on **three channels**, and each exists because the others miss
+something:
+
+1. **Full-text search** — the exposure a user can actually exploit against
+   `/jobb`. It lexemes, so it finds `Fagerberg, Magnus` when you search
+   `Magnus Fagerberg`. The substring scan cannot.
+2. **Substring over `title`, `description` and `raw_payload`** — it finds the
+   identifier *as you typed it*, and it reaches `employer.name` inside the
+   payload.
+3. **Substring over `company_name`** — because an **enskild firma's company name
+   IS a person's name**, that column is not in the FTS index, and `raw_payload`
+   is nulled 30 days after publication. Without this channel she is told *"we
+   hold no data matching this identifier"* for most of the corpus, while her name
+   sits in plaintext in a column we scan.
+
+The union **over-matches on purpose**: a false positive costs you a second look,
+a false negative costs a false confirmation to a named person.
+
+> ⚠ **What matching does NOT do: it does not de-obfuscate.** Searching
+> `anna@acme.se` will not find an ad that reads `anna(at)acme.se` — the substring
+> channel compares the string you gave it, and FTS lexemes the obfuscated form
+> differently. **What serves that population is her NAME**, which sits in the body
+> in plain words. This is the single most important reason to run the dry run once
+> per identifier: her address, her number, **and her name**. (An earlier version of
+> this runbook credited the substring channel with catching obfuscation. It does
+> not. Crediting the wrong mechanism for a control's coverage is the same defect
+> class this whole issue is about, so it is corrected here rather than quietly.)
 
 The response:
 
 ```jsonc
 {
   "requestId": "…",              // correlates with the audit_log row
-  "outcome": "DryRun",           // NoMatchingDataHeld | DryRun | AdsErased
+  "outcome": "DryRun",           // NoMatchingDataHeld | DryRun | AdsErased | NothingErased
   "dryRun": true,
-  "matched": { "jobAds": 3, "recentJobSearches": 1, "savedSearches": 2 },
-  "erased":  { "jobAds": 0, "recentJobSearches": 0, "savedSearches": 0 },
+  "matched": {
+    "jobAds": 3, "recentJobSearches": 1, "savedSearches": 2,
+    "applicationSnapshots": 4, "userAuthoredText": 1
+  },
+  "erased": { "jobAds": 0, "recentJobSearches": 0, "savedSearches": 0,
+              "applicationSnapshots": 0, "userAuthoredText": 0 },
+  "matches": [                   // ← THE ADS. This is what you review.
+    { "jobAdId": "…", "externalId": "…", "title": "Backend-utvecklare",
+      "matchedExcerpt": "…kontakta ansvarig rekryterare Magnus Fagerberg på…" }
+  ],
   "erasedExternalIds": []
 }
 ```
@@ -133,16 +160,22 @@ reads each candidate ad and confirms it is the requester's data.** Record which
 {
   "identifier": "<the same identifier>",
   "dryRun": false,
-  "confirmedJobAdCount": 3     // the number the dry run reported
+  "confirmedJobAdIds": ["…", "…"]   // the ids of the ads YOU READ, in 2.2
 }
 ```
 
-**`confirmedJobAdCount` is what makes the dry run mandatory in code rather than
-in this sentence.** Omit it and the request is rejected (400). Supply a number
-that no longer matches reality and the request is refused (**409**) and
-**nothing is destroyed** — ingest runs every ten minutes, so the match set
-genuinely moves between looking and confirming. If you get a 409: re-run the dry
-run, re-read the matches, re-confirm.
+**You send back the ads you reviewed. Not a number.** A count cannot be reviewed:
+a recruiter named *Anna* substring-matches *Johanna*, *Susanna* and *Marianna*
+across thousands of ads, and an operator who reads `4127` and retypes `4127` has
+reviewed nothing while irreversibly destroying 4 127 ads.
+
+- Omit `confirmedJobAdIds` and the request is rejected (**400**). You cannot erase
+  without having looked.
+- Confirm an ad that no longer matches and the request is refused (**409**) and
+  **nothing is destroyed** — ingest runs every ten minutes, so the match set
+  genuinely moves between looking and confirming. Re-run the dry run, re-read,
+  re-confirm.
+- **Anything you do not confirm is not erased**, and the response reports the gap.
 
 **Erasure is irreversible and it removes the ad for every user.**
 
@@ -206,8 +239,9 @@ claim to have erased what we have not erased. That is #842, applied to ourselves
 |---|---|---|
 | `job_ads` (the ad, all of it) | ✅ **Yes** | Whole-record removal. Provable. |
 | `recent_job_searches` | ✅ **Yes**, hard-deleted | If a user searched the recruiter's name, that name is sitting in her search history. Auto-capture rows have no audit-trail dignity, the cap-20 list rebuilds on her next search, so the user loses nothing. |
-| `saved_searches` | ❌ **No** | A saved search is the **user's own** artefact, processed under Art. **6(1)(b)** (our contract with her). **Art. 21(1) textually reaches only 6(1)(e)/(f)**, so the recruiter's objection never fires against it, and the 17(1)(c) ground that would flow from a successful objection never arises. *(And the remedies are broken anyway: `SoftDelete()` leaves `criteria` in the row — it hides, it does not erase — and stripping the search term is not always constructible, because a saved search whose only criterion IS the recruiter's name cannot have it removed.)* **Reported, disclosed, and a human decides with the affected user in the loop.** |
-| `applications.snapshot_description` | ❌ **No** | The applicant's frozen record of an ad she applied to (ADR 0086 exists precisely so it outlives the ad). Nulling it destroys **her** evidence to serve a third party's request. Ground: Art. 17(3)(e). **Klas's to affirm — STOPP-3, still open.** |
+| `saved_searches` | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month** | **HER RIGHT APPLIES. Do not tell her otherwise.** One row carries two data subjects under two bases: the user's own criteria rest on Art. 6(1)(b) (our contract with *her*), but **the recruiter's name sitting inside those criteria does not** — 6(1)(b) requires the data subject to be a **party** to the contract, and the recruiter is party to nothing. That processing rests on **Art. 6(1)(f)**, which **Art. 21(1) reaches**. So her objection fires and Art. 17(1)(c) is available. We do not attempt the "compelling legitimate grounds" override: keeping her name in another user's filter is a convenience, and a saved search is recreatable in seconds. **We owe her erasure and we honour it in full** — we simply do not AUTOMATE it, because `SoftDelete()` would leave `criteria` in the row (it hides, it does not erase) and stripping the term is not always constructible. **A human does it, with the affected user in the loop. That is a mechanism choice, never a refusal.** |
+| `applications.cover_letter`, `application_notes.content`, `follow_ups.note` | ⚠️ **Not automatically — a HUMAN erases it** | A user may well have written *"Ringde Magnus Fagerberg"* in her own note. That is the recruiter's personal data, and her right reaches it (6(1)(f) → Art. 21(1)) — but a job does not silently rewrite a person's private notes about her own job hunt. Reported; a human handles it with that user. *(This surface was found by driving the cascade registry from the EF model. Nobody had enumerated it.)* |
+| `applications.snapshot_company` + `snapshot_description` | ❌ **No** | The applicant's frozen record of an ad she applied to (ADR 0086 exists precisely so it outlives the ad). **And the ground is STRONGER for the company name than for the body:** a Swedish jobseeker must file an *aktivitetsrapport* to Arbetsförmedlingen **naming the employer**. The company name is the **spine** of her own legal record; the ad body is its colour. Ground: Art. 17(3)(e). **Klas's to affirm — STOPP-3, still open.** We **search and report** it precisely because we do not erase it: *a legal ground asserted over a population we never counted is a ground asserted over a silence.* |
 | Backups / WAL / PITR | ⚠️ **Unstated** | An `UPDATE` does not remove the old row version from disk until `VACUUM`, and copies remain in WAL and backups. **Do not make any statement to the data subject about backups.** The retention window is not yet decided (**STOPP-4**). Do not invent one. |
 
 **If `matched.savedSearches > 0`, the reply must disclose it.** Template B2.
@@ -235,12 +269,22 @@ Swedish, "du", no exclamation marks, no emoji, no em-dash (CLAUDE.md §10).
 > vända dig till Arbetsförmedlingen eller till arbetsgivaren som publicerade
 > annonsen.
 
-**B2. Completion — `AdsErased`, but `matched.savedSearches > 0`.** Use B1 and add:
+**B2. Completion — `AdsErased`, but `matched.savedSearches` or
+`matched.userAuthoredText` is above zero.** Use B1 and add:
 
-> En eller flera användare har sparat en sökning som innehåller ditt namn eller
-> dina kontaktuppgifter som söktext. Den sparade sökningen tillhör användaren och
-> vi tar inte bort den automatiskt. Hör av dig om du vill att vi tittar närmare på
-> det, så hanterar vi det manuellt.
+> Vi har också hittat ditt namn i en sparad sökning eller i en anteckning som en
+> användare själv har skrivit. Den rätten gäller även där, och vi tar bort
+> uppgifterna. Det görs manuellt, tillsammans med den användare det gäller, och vi
+> hör av oss när det är klart. Det sker inom en månad från det att din begäran kom
+> in.
+
+**Do NOT write that her objection does not cover it.** It does. Art. 6(1)(b)
+requires the data subject to be a *party* to the contract, and she is not a party
+to ours — so the processing of her name inside a user's saved search rests on
+Art. 6(1)(f), which Art. 21(1) reaches. Telling her otherwise would be a false
+statement to a data subject about her own rights (Art. 12(4)), which is the exact
+class of thing this whole issue exists to stop us doing. **"Our code cannot do it"
+is not a legal ground. It never was.**
 
 **C. `NoMatchingDataHeld`.** This sentence is now **true** when we say it — both
 channels ran, over every free-text surface we hold.

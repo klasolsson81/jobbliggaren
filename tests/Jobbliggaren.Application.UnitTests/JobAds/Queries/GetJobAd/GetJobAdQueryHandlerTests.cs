@@ -72,6 +72,13 @@ public class GetJobAdQueryHandlerTests
         result.Error.Kind.ShouldBe(ErrorKind.Gone,
             "an erased ad existed and is deliberately gone — 410, which the central mapper "
             + "already translates. A 404 here would say we never held it.");
-        result.Error.Code.ShouldBe("JobAd.Erased");
+
+        // The message is deliberately NEUTRAL. The ad id is public and Arbetsförmedlingen publishes
+        // the same ad in its open Historiska annonser dataset — so saying "raderad enligt artikel
+        // 17" would let anyone correlate the two and infer that the recruiter named in that ad
+        // exercised a right. The erasure would then broadcast the very fact it exists to protect.
+        result.Error.Code.ShouldBe("JobAd.Gone");
+        result.Error.Message.ShouldNotContain("artikel");
+        result.Error.Message.ShouldNotContain("raderat");
     }
 }

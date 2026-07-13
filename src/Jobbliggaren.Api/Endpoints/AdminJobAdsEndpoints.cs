@@ -81,7 +81,7 @@ public static class AdminJobAdsEndpoints
                 RequestId: Guid.NewGuid(),
                 Identifier: request.Identifier,
                 DryRun: request.DryRun,
-                ConfirmedJobAdCount: request.ConfirmedJobAdCount);
+                ConfirmedJobAdIds: request.ConfirmedJobAdIds);
 
             var result = await mediator.Send(command, ct);
             return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemResult();
@@ -180,17 +180,20 @@ public static class AdminJobAdsEndpoints
 /// </param>
 /// <param name="DryRun">
 /// True ⇒ report what would be erased and write nothing. <b>Run this first. The API enforces it.</b>
+/// The response carries the ads themselves, because reviewing them IS the control.
 /// </param>
-/// <param name="ConfirmedJobAdCount">
-/// Required when <paramref name="DryRun"/> is false: the number of ads the preceding dry run
-/// reported. If it no longer matches, the request is refused with 409 and nothing is destroyed —
-/// ingest runs every ten minutes, so the match set genuinely moves, and a destructive operation
-/// must not run on a stale view.
+/// <param name="ConfirmedJobAdIds">
+/// Required when <paramref name="DryRun"/> is false: the ids of the ads the operator actually
+/// <b>reviewed</b> in the dry run. <b>Not a count.</b> A count cannot be reviewed — a recruiter named
+/// <i>Anna</i> substring-matches <i>Johanna</i> and <i>Marianna</i> across thousands of ads, and an
+/// operator who reads "4127" and retypes "4127" has reviewed nothing while irreversibly destroying
+/// 4 127 ads. Anything he did not confirm is not erased, and any confirmed ad that no longer matches
+/// refuses the whole request with 409 (ingest runs every ten minutes, so the set genuinely moves).
 /// </param>
 public sealed record EraseRecruiterAdsRequest(
     string Identifier,
     bool DryRun,
-    int? ConfirmedJobAdCount);
+    IReadOnlyList<Guid>? ConfirmedJobAdIds);
 
 /// <summary>
 /// Response-body för POST /api/v1/admin/job-ads/backfill-ssyk.

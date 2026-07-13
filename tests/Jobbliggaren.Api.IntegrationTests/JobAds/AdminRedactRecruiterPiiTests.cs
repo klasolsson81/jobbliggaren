@@ -49,7 +49,7 @@ public class AdminRedactRecruiterPiiTests(ApiFactory factory)
     {
         identifier = "alice.andersson@example.com",
         dryRun = true,
-        confirmedJobAdCount = (int?)null,
+        confirmedJobAdIds = (Guid[]?)null,
     };
 
     [Fact]
@@ -143,7 +143,7 @@ public class AdminRedactRecruiterPiiTests(ApiFactory factory)
             {
                 identifier = "alice.andersson@example.com",
                 dryRun = false,
-                confirmedJobAdCount = (int?)null,
+                confirmedJobAdIds = (Guid[]?)null,
             },
             ct);
 
@@ -164,7 +164,7 @@ public class AdminRedactRecruiterPiiTests(ApiFactory factory)
 
         var response = await adminClient.PostAsJsonAsync(
             Route,
-            new { identifier = "a", dryRun = true, confirmedJobAdCount = (int?)null },
+            new { identifier = "a", dryRun = true, confirmedJobAdIds = (Guid[]?)null },
             ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -182,12 +182,12 @@ public class AdminRedactRecruiterPiiTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var adminClient = await CreateAdminClientAsync(_factory.CreateClient(), ct);
 
-        // Confirm a count that cannot be right — the corpus holds nothing for this identifier — so
-        // the handler refuses with a Conflict. A rejected request that must still be recorded.
+        // Confirm an ad id that is NOT in the current match set — a stale dry-run view. The handler
+        // refuses with a Conflict, and THAT rejection must still leave a trace.
         var identifier = $"rejected-{Guid.NewGuid():N}@example.com";
         var response = await adminClient.PostAsJsonAsync(
             Route,
-            new { identifier, dryRun = false, confirmedJobAdCount = 3 },
+            new { identifier, dryRun = false, confirmedJobAdIds = new[] { Guid.NewGuid() } },
             ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);

@@ -98,4 +98,27 @@ public interface ITaxonomyReadModel
     /// </summary>
     ValueTask<IReadOnlyList<string>> GetContainingRegionsAsync(
         IReadOnlyList<string> municipalityConceptIds, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Fas 4b 8b.4a — yrkesgrupp→yrkesområde-containment för CV:ts sektionsförslag. Givet en
+    /// användares BEKRÄFTADE ssyk-4-yrkesgrupper (<c>MatchPreferences.PreferredOccupationGroups</c>),
+    /// returnera de YRKESOMRÅDEN (occupation-field-concept-ids) som INNEHÅLLER dem, via
+    /// <c>TaxonomyConcept.ParentConceptId</c> (yrkesgrupp är barn under yrkesområde, 1:1 — samma
+    /// <c>groupsByField</c>-relation som redan cachas, läst BAKLÄNGES). Exakt spegling av
+    /// <see cref="GetContainingRegionsAsync"/>; yrkesområdet är nyckeln branschgrupp-assetet
+    /// slår upp på (ADR 0107).
+    /// <para>
+    /// Ren in-memory-uppslagning mot den redan cachade snapshoten (ingen ny per-request-DB-träff —
+    /// ADR 0043 §1.4; datan seedas redan av <c>TaxonomySnapshotSeeder</c>, ingen migration).
+    /// Resultatet är dedupliserat (flera yrkesgrupper i samma område → ETT område) — och att det
+    /// KAN returnera flera områden är hela poängen: den anropande läs-slicen vägrar gissa när en
+    /// användares yrkesval spänner två branschgrupper. Okänd yrkesgrupp (taxonomi-drift, saknad
+    /// förälder) bidrar inget — aldrig null/throw (graceful degradation, paritet
+    /// <see cref="ResolveLabelsAsync"/>/<see cref="GetContainingRegionsAsync"/>). Deterministisk
+    /// Ordinal-ordning → stabila tester. Ligger UTANFÖR <c>JobAdSearch.ApplyCriteria</c>-
+    /// shadow-prop-vägen (ADR 0043 Beslut E).
+    /// </para>
+    /// </summary>
+    ValueTask<IReadOnlyList<string>> GetContainingOccupationFieldsAsync(
+        IReadOnlyList<string> occupationGroupConceptIds, CancellationToken cancellationToken);
 }

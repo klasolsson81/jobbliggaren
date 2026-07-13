@@ -1,0 +1,126 @@
+{
+  "branschgruppVersion": "1.0",
+
+  "//": "Fas 4b 8b.4a — Asset A. Maps the JobTech taxonomy's occupation-FIELDS (yrkesområden)",
+  "//1": "onto the four branschgrupper Klas ruled on 2026-07-13, and gives each branschgrupp its",
+  "//2": "section rule-table (design handoff §7). Read by BranschgruppProvider; consumed by the",
+  "//3": "GetCvSectionSuggestions read-slice. NO AI/LLM (ADR 0071) — a static, versioned table.",
+  "//4": "",
+  "//5": "ALL 21 occupation-fields are listed EXPLICITLY, including the 17 that map to 'ovriga'.",
+  "//6": "This is deliberate and is the antidote to the vacuous-filter failure mode (#805-3): a",
+  "//7": "3-entries-plus-a-default table cannot tell 'this field means Övriga' apart from 'this",
+  "//8": "field is unknown to us'. Listing all 21 makes the completeness test possible — it pins",
+  "//9": "the conceptId SET against taxonomy-snapshot.json in BOTH directions, so a JobTech",
+  "//10": "snapshot bump that adds/replaces a field goes RED here instead of silently sending",
+  "//11": "every CV to Övriga. The 'label' is maintainer documentation only and is NOT asserted:",
+  "//12": "the mapping is keyed on conceptId, so an upstream label rewording is harmless and must",
+  "//13": "not raise a false alarm.",
+
+  "occupationFields": [
+    { "conceptId": "apaJ_2ja_LuF", "branschgrupp": "it", "label": "Data/IT" },
+
+    { "conceptId": "NYW6_mP6_vwf", "branschgrupp": "vard", "label": "Hälso- och sjukvård" },
+    { "conceptId": "GazW_2TU_kJw", "branschgrupp": "vard", "label": "Yrken med social inriktning" },
+
+    { "conceptId": "MVqp_eS8_kDZ", "branschgrupp": "skola", "label": "Pedagogik" },
+
+    { "conceptId": "X82t_awd_Qyc", "branschgrupp": "ovriga", "label": "Administration, ekonomi, juridik" },
+    { "conceptId": "j7Cq_ZJe_GkT", "branschgrupp": "ovriga", "label": "Bygg och anläggning" },
+    { "conceptId": "bh3H_Y3h_5eD", "branschgrupp": "ovriga", "label": "Chefer och verksamhetsledare" },
+    { "conceptId": "RPTn_bxG_ExZ", "branschgrupp": "ovriga", "label": "Försäljning, inköp, marknadsföring" },
+    { "conceptId": "PaxQ_o1G_wWH", "branschgrupp": "ovriga", "label": "Hantverk" },
+    { "conceptId": "ScKy_FHB_7wT", "branschgrupp": "ovriga", "label": "Hotell, restaurang, storhushåll" },
+    { "conceptId": "wTEr_CBC_bqh", "branschgrupp": "ovriga", "label": "Industriell tillverkning" },
+    { "conceptId": "yhCP_AqT_tns", "branschgrupp": "ovriga", "label": "Installation, drift, underhåll" },
+    { "conceptId": "Uuf1_GMh_Uvw", "branschgrupp": "ovriga", "label": "Kropps- och skönhetsvård" },
+    { "conceptId": "9puE_nYg_crq", "branschgrupp": "ovriga", "label": "Kultur, media, design" },
+    { "conceptId": "bH5L_uXD_ZAX", "branschgrupp": "ovriga", "label": "Militära yrken" },
+    { "conceptId": "VuuL_7CH_adj", "branschgrupp": "ovriga", "label": "Naturbruk" },
+    { "conceptId": "kJeN_wmw_9wX", "branschgrupp": "ovriga", "label": "Naturvetenskap" },
+    { "conceptId": "whao_Q6A_ScE", "branschgrupp": "ovriga", "label": "Sanering och renhållning" },
+    { "conceptId": "E7hm_BLq_fqZ", "branschgrupp": "ovriga", "label": "Säkerhet och bevakning" },
+    { "conceptId": "ASGV_zcE_bWf", "branschgrupp": "ovriga", "label": "Transport, distribution, lager" },
+
+    { "//": "Klas ruling C3(ii) 2026-07-13, DECLINED: 'Yrken med teknisk inriktning' stays in",
+      "//1": "Övriga. IT/tech's rules are IT-specific — proposing a GitHub link and an AWS",
+      "//2": "certificate to a byggnadsingenjör is the machine-slop impression the civic tone",
+      "//3": "exists to prevent. Coverage bought by mis-suggesting is negative value.",
+      "conceptId": "6Hq3_tKo_V57", "branschgrupp": "ovriga", "label": "Yrken med teknisk inriktning" }
+  ],
+
+  "//14": "The rule table (design handoff §7). 'heading' is the Swedish heading that gets written",
+  "//15": "INTO the user's CV when a suggestion is accepted — it is document CONTENT, not UI chrome,",
+  "//16": "which is why it lives here and not in messages/sv.json. Every heading MUST be recognisable",
+  "//17": "by the parsing lexicon (BranschgruppProvider fails loud at startup if it is not, and the",
+  "//18": "contract test pins it): a heading the segmenter cannot see is a section whose body gets",
+  "//19": "swallowed by the preceding one on the next import — the live #815 bug PR-1 fixed.",
+  "//20": "'rationale' is the badge copy (parity ProposedChange.Rationale: KB-sourced, never",
+  "//21": "synthesised prose). Klas ruling: 'Referenser' is never suggested (a section whose only",
+  "//22": "sanctioned content is 'Lämnas på begäran' is close to worthless).",
+
+  "branschgrupper": [
+    {
+      "id": "it",
+      "rationale": "Vanligt inom data och IT",
+      "standardSections": [
+        { "sectionId": "projekt", "heading": "Projekt" }
+      ],
+      "suggestedSections": [
+        { "sectionId": "certifikat", "heading": "Certifieringar och kurser" }
+      ],
+      "suppressedSectionIds": []
+    },
+    {
+      "id": "vard",
+      "rationale": "Vanligt inom vård och omsorg",
+      "standardSections": [
+        { "sectionId": "legitimation", "heading": "Legitimation och intyg" }
+      ],
+      "suggestedSections": [
+        { "sectionId": "kurser", "heading": "Kurser och intyg" },
+        { "sectionId": "korkort", "heading": "Körkort" }
+      ],
+      "//": "Handoff §7: Projekt is NOT suggested in vård. Suppression only removes it from the",
+      "//1": "SUGGESTION list — rule (a) still holds: a Projekt section the user already wrote is",
+      "//2": "kept and shown, always. The engine never hides the user's own content.",
+      "suppressedSectionIds": ["projekt"]
+    },
+    {
+      "id": "skola",
+      "rationale": "Vanligt inom skola och pedagogik",
+      "//": "Handoff §7 names 'Meriteringsnivå' here. DROPPED (8b.4a engineering call, not a",
+      "//1": "product change): it has no sectionId, and adding one would mean teaching the parsing",
+      "//2": "lexicon to treat 'Meriteringsnivå' as a section boundary on every CV import — a live",
+      "//3": "recognition change. PR-1's bar for a lexicon entry is evidence that real CVs carry the",
+      "//4": "heading and lose text without it (legitimation/korkort had it). Meriteringsnivå has",
+      "//5": "none: it is a Skolverket career step (förstelärare/lektor) — an attribute of a post,",
+      "//6": "belonging inside an Erfarenhet entry or under Lärarlegitimation, not a top-level CV",
+      "//7": "heading. Skola loses nothing: the handoff's other two concepts are already expressible",
+      "//8": "('lärarlegitimation' → legitimation, 'fortbildning' → kurser). Reversible in two lines",
+      "//9": "(one lexicon synonym block + one entry here) the day we have the evidence.",
+      "standardSections": [
+        { "sectionId": "legitimation", "heading": "Lärarlegitimation" }
+      ],
+      "suggestedSections": [
+        { "sectionId": "kurser", "heading": "Kurser och utbildningar" }
+      ],
+      "suppressedSectionIds": []
+    },
+    {
+      "id": "ovriga",
+      "//": "The 62.1 % majority experience (measured against 93 469 ads), NOT a hole. It is a",
+      "//1": "first-class row with its own suggestions. Note the two distinct empty states the",
+      "//2": "read-slice keeps apart: a user with NO stated occupation lands here AND is asked for",
+      "//3": "one; a user WHOSE stated occupation resolves here is NOT asked again — she already",
+      "//4": "answered. Same suggestions, different framing.",
+      "rationale": "Vanliga sektioner i svenska CV",
+      "standardSections": [],
+      "suggestedSections": [
+        { "sectionId": "kurser", "heading": "Kurser" },
+        { "sectionId": "korkort", "heading": "Körkort" },
+        { "sectionId": "ideellt", "heading": "Ideellt engagemang" }
+      ],
+      "suppressedSectionIds": []
+    }
+  ]
+}

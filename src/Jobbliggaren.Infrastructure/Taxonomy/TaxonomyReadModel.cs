@@ -27,7 +27,12 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
         IReadOnlyDictionary<string, IReadOnlyList<string>> RelatedBySource,
         // #477 Low 1 — kommun→län-containment: kommun-concept-id → förälder-län-concept-id
         // (1:1 via ParentConceptId). municipalitiesByRegion läst baklänges; cachas en gång.
-        IReadOnlyDictionary<string, string> RegionByMunicipality);
+        IReadOnlyDictionary<string, string> RegionByMunicipality,
+        // Fas 4b 8b.4a — yrkesgrupp→yrkesområde-containment: ssyk-4-yrkesgrupp-concept-id →
+        // förälder-yrkesområde-concept-id (1:1 via ParentConceptId). groupsByField läst
+        // BAKLÄNGES; exakt samma form som RegionByMunicipality ovan. Nyckeln branschgrupp-
+        // assetet slår upp på (ADR 0107).
+        IReadOnlyDictionary<string, string> FieldByOccupationGroup);
 
     // Cachen fylls en gång och delas av alla läsare. Medvetet INTE
     // Lazy<Task> (security-auditor 2026-05-17 Minor): en faulted Lazy<Task>
@@ -132,6 +137,32 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
             .ToList();
     }
 
+    // Fas 4b 8b.4a — yrkesgrupp→yrkesområde-containment: ssyk-4-grupp-mängd → förälder-område-
+    // mängd. Exakt spegling av GetContainingRegionsAsync ovan (ren dictionary-lookup mot cachen,
+    // ingen per-request-DB-träff). Dedupliserar (flera grupper i samma område → ETT område).
+    // Graceful: okänd/föräldralös grupp bidrar inget, tom input → tom output, aldrig null/throw.
+    // Deterministisk Ordinal-ordning. Att flera områden KAN returneras är avsiktligt — läs-slicen
+    // (ADR 0107) vägrar gissa branschgrupp när användarens yrkesval spänner två.
+    public async ValueTask<IReadOnlyList<string>> GetContainingOccupationFieldsAsync(
+        IReadOnlyList<string> occupationGroupConceptIds, CancellationToken cancellationToken)
+    {
+        if (occupationGroupConceptIds.Count == 0)
+            return [];
+
+        var state = await GetStateAsync(cancellationToken);
+        var fields = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var group in occupationGroupConceptIds)
+        {
+            if (state.FieldByOccupationGroup.TryGetValue(group, out var field))
+                fields.Add(field);   // okänd/föräldralös yrkesgrupp → bidrar inget
+        }
+
+        return fields
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .ToList();
+    }
+
     private async ValueTask<CacheState> GetStateAsync(CancellationToken ct)
     {
         var cached = Volatile.Read(ref _cached);
@@ -214,6 +245,16 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
                       .Select(c => new TaxonomyOccupationGroupDto(c.ConceptId, c.Label))
                       .ToList());
 
+        // Fas 4b 8b.4a — samma yrkesgrupp-barn-under-yrkesområde-relation läst BAKLÄNGES:
+        // yrkesgrupp-concept-id → förälder-yrkesområde-concept-id (1:1). Driver
+        // GetContainingOccupationFieldsAsync utan ny DB-träff. ConceptId är PK på
+        // taxonomy_concepts → varje yrkesgrupp är unik → ingen tie-break behövs (paritet
+        // regionByMunicipality).
+        var fieldByOccupationGroup = concepts
+            .Where(c => c.Kind == TaxonomyConceptKind.OccupationGroup
+                        && c.ParentConceptId is not null)
+            .ToDictionary(c => c.ConceptId, c => c.ParentConceptId!, StringComparer.Ordinal);
+
         var occupationFields = concepts
             .Where(c => c.Kind == TaxonomyConceptKind.OccupationField)
             .OrderBy(c => c.Label, StringComparer.Ordinal)
@@ -284,7 +325,8 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
             labelByConceptId,
             suggestable,
             relatedBySource,
-            regionByMunicipality);
+            regionByMunicipality,
+            fieldByOccupationGroup);
     }
 
     // #268 audit / #471 (parity with OccupationCodeDeriver's no-silent-First tie-break):

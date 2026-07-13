@@ -620,6 +620,17 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.ICvParsingLexicon,
             Resumes.Parsing.CvParsingLexiconProvider>();
+        // Fas 4b 8b.4a — the branschgrupp asset (Asset A). It is a KNOWLEDGE-BANK provider and its
+        // five siblings live in AddCvReview(), but it is registered HERE, deliberately: its hard
+        // dependency is ICvParsingLexicon (the cross-asset pin — it refuses to start if it names a
+        // section the lexicon does not own). Registering it beside the five would leave an
+        // unresolvable singleton in a module the WORKER registers without AddCvParsing() — and the
+        // Worker runs ValidateOnBuild=false (TD-103), so that gap would surface first at
+        // Hangfire-invocation, not at boot. A module that owns its own dependency cannot rot that
+        // way. Consumed by the GetCvSectionSuggestions read-slice (ADR 0107) — never by the engine.
+        services.AddSingleton<
+            Jobbliggaren.Application.KnowledgeBank.Abstractions.IBranschgruppProvider,
+            KnowledgeBank.BranschgruppProvider>();
         return services;
     }
 

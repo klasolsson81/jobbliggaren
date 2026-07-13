@@ -722,4 +722,123 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
 
         containing.ShouldBeEmpty();
     }
+
+    // ───────────────────────────────────────────────────────────────────
+    // Fas 4b 8b.4a (ADR 0107) — yrkesgrupp→yrkesområde-containment.
+    // GetContainingOccupationFieldsAsync maps a user's CONFIRMED ssyk-4 occupation-groups
+    // (MatchPreferences.PreferredOccupationGroups) to their parent occupation-FIELD concept-ids
+    // via TaxonomyConcept.ParentConceptId — the SAME groupsByField relation read BACKWARDS (no
+    // migration; the data is already seeded). The occupation-field is the key the branschgrupp
+    // asset looks up on. Against the REAL seeded snapshot (never InMemory — the reverse
+    // fieldByOccupationGroup dictionary is built off the seeded ParentConceptId rows). The real
+    // group/field pairs are DERIVED from the seeded tree, never hardcoded, so the test cannot go
+    // stale against a snapshot bump.
+    // ───────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetContainingOccupationFieldsAsync_ShouldReturnParentField_WhenGroupSeeded()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+        var tree = await sut.GetTreeAsync(ct);
+
+        var field = tree.OccupationFields.First(f => f.OccupationGroups.Count > 0);
+        var group = field.OccupationGroups[0];
+
+        var containing = await sut.GetContainingOccupationFieldsAsync([group.ConceptId], ct);
+
+        containing.ShouldHaveSingleItem().ShouldBe(field.ConceptId);
+    }
+
+    [Fact]
+    public async Task GetContainingOccupationFieldsAsync_ShouldDedupToSingleField_WhenTwoGroupsShareField()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+        var tree = await sut.GetTreeAsync(ct);
+
+        var field = tree.OccupationFields
+            .Where(f => f.OccupationGroups.Count >= 2)
+            .OrderByDescending(f => f.OccupationGroups.Count)
+            .First();
+
+        var containing = await sut.GetContainingOccupationFieldsAsync(
+            [field.OccupationGroups[0].ConceptId, field.OccupationGroups[1].ConceptId], ct);
+
+        containing.ShouldHaveSingleItem().ShouldBe(
+            field.ConceptId,
+            "Två yrkesgrupper i samma yrkesområde ska dedupliseras till ETT område.");
+    }
+
+    [Fact]
+    public async Task GetContainingOccupationFieldsAsync_ShouldReturnBothFields_WhenGroupsSpanTwoFields()
+    {
+        // The ambiguity the read-slice REFUSES to resolve. The port's job is to report the truth
+        // (two fields); deciding what to do about it is the slice's (→ Övriga, never a coin flip).
+        // If this collapsed to one field, the tie-break upstream could never fire.
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+        var tree = await sut.GetTreeAsync(ct);
+
+        var fields = tree.OccupationFields.Where(f => f.OccupationGroups.Count > 0).Take(2).ToList();
+
+        var containing = await sut.GetContainingOccupationFieldsAsync(
+            [fields[0].OccupationGroups[0].ConceptId, fields[1].OccupationGroups[0].ConceptId], ct);
+
+        containing.Count.ShouldBe(2);
+        containing.ShouldContain(fields[0].ConceptId);
+        containing.ShouldContain(fields[1].ConceptId);
+    }
+
+    [Fact]
+    public async Task GetContainingOccupationFieldsAsync_ShouldCoverEverySeededOccupationGroup()
+    {
+        // The totality claim the whole feature rests on: EVERY ssyk-4 group in the snapshot sits
+        // under exactly one occupation-field. If it did not, some confirmed occupations would
+        // resolve to nothing and fall to Övriga silently — the vacuous-filter failure mode, one
+        // layer below the asset's own completeness test.
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+        var tree = await sut.GetTreeAsync(ct);
+
+        var allGroups = tree.OccupationFields
+            .SelectMany(f => f.OccupationGroups.Select(g => g.ConceptId))
+            .ToList();
+
+        allGroups.ShouldNotBeEmpty("vacuity guard.");
+
+        var containing = await sut.GetContainingOccupationFieldsAsync(allGroups, ct);
+
+        containing.Count.ShouldBe(
+            tree.OccupationFields.Count(f => f.OccupationGroups.Count > 0),
+            "varje seedad yrkesgrupp ska resolva till sitt yrkesområde — noll dinglande grupper.");
+    }
+
+    [Fact]
+    public async Task GetContainingOccupationFieldsAsync_ShouldReturnEmpty_WhenInputEmpty()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+
+        (await sut.GetContainingOccupationFieldsAsync([], ct)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task GetContainingOccupationFieldsAsync_ShouldReturnEmptyNotThrow_WhenGroupUnknown()
+    {
+        // Graceful degradation (parity the sibling): a stale/removed ssyk-4 group contributes
+        // nothing rather than throwing — and contributing nothing lands the user in Övriga, which
+        // is honest.
+        var ct = TestContext.Current.CancellationToken;
+        await RunSeederAsync(ct);
+        var sut = new TaxonomyReadModel(ScopeFactory);
+
+        (await sut.GetContainingOccupationFieldsAsync(["definitivt-okand-yrkesgrupp-99"], ct))
+            .ShouldBeEmpty();
+    }
 }

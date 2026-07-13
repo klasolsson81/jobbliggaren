@@ -14,7 +14,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 // (heading-present-but-empty) block.
 public class HeadingDrivenResumeSegmenterTests
 {
-    private readonly HeadingDrivenResumeSegmenter _sut = new();
+    private readonly HeadingDrivenResumeSegmenter _sut = CvParsingLexiconFixture.Segmenter();
 
     // ── #815 (Klas live-review) — contact extraction ────────────────────────────────
     //

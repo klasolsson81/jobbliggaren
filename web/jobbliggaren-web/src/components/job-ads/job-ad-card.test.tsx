@@ -131,15 +131,26 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
     render(<JobAdCard jobAd={baseAd} previousApplicationCount={1} />);
     // ICU one-branch: "ansökan", not "ansökningar"; a plain integer, never an org.nr.
     expect(
-      screen.getByText("Du har 1 tidigare ansökan till detta företag")
+      screen.getByText("Du har minst 1 tidigare ansökan till detta företag")
     ).toBeInTheDocument();
   });
 
   it("renders the plural previous-applications badge for count > 1", () => {
     render(<JobAdCard jobAd={baseAd} previousApplicationCount={3} />);
     expect(
-      screen.getByText("Du har 3 tidigare ansökningar till detta företag")
+      screen.getByText("Du har minst 3 tidigare ansökningar till detta företag")
     ).toBeInTheDocument();
+  });
+
+  // #824 PR 4 — the count is a FLOOR, not a total: an application whose ad no longer carries the
+  // employer identity is dropped from the attribution, so the badge systematically undercounts. The
+  // card is the compact surface, so the floor marker IS the whole hedge here (the detail view and
+  // /foretag carry the reason). Dropping "minst" turns this null into a hit.
+  it("presents the count as a floor — never as a total (#824)", () => {
+    render(<JobAdCard jobAd={baseAd} previousApplicationCount={3} />);
+    expect(
+      screen.queryByText("Du har 3 tidigare ansökningar till detta företag")
+    ).toBeNull();
   });
 
   // The badge is informative text, never a nested link (B1): the whole card is already one <Link>.

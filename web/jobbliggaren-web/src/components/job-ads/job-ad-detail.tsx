@@ -73,6 +73,12 @@ interface JobAdDetailProps {
    * ytter-`<Link>` → nästlad länk ogiltig, B1/Fork 3C) har detaljvyn inget ytter-ankare, så den renderas
    * som en `<Link>` till `/foretag#ansokningshistorik`. Rent heltal; INGET org.nr i text/attribut/URL
    * (CLAUDE.md §5 — enskild firma = personnummer).
+   *
+   * <para>#824 PR 4 — antalet är ett GOLV. En ansökan attribueras till en arbetsgivare bara så länge
+   * annonsen den skickades till fortfarande bär arbetsgivar-identiteten; historik-handlern släpper
+   * resten. Copyn bär därför båda halvorna av hedgen på den här ytan (golv-markör på siffran +
+   * ofullständigheten hos sammanställningen länken leder till) — ett oreserverat faktapåstående till den
+   * registrerade om hennes egna uppgifter är en Art. 5(1)(a)/(d)-defekt, inte en formuleringsfråga.</para>
    */
   previousApplicationCount?: number;
 }

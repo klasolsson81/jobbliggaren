@@ -78,13 +78,14 @@
   },
   "applicationHistory": {
     "listLabel": "Application history per employer",
-    "emptyTitle": "You have no application history yet",
+    "emptyTitle": "No application history to show",
     "emptyBody": "Search for jobs under Jobs and submit an application. Your history is collected here, grouped by employer.",
     "unknownCompany": "The company name is not available",
     "orgNr": "Org. no. {orgNr}",
     "protectedIdentity": "Protected identity",
     "protectedIdentityHint": "The organisation number is hidden because it may be a personal identity number.",
-    "applicationCount": "{count, plural, one {# submitted application} other {# submitted applications}}",
+    "applicationCount": "At least {count, plural, one {# submitted application} other {# submitted applications}}",
+    "incompleteNote": "The compilation may be incomplete. An application can only be linked to an employer while we still hold the data from the ad. When it is missing, the application is not counted, and an employer may be absent from the list entirely.",
     "showApplications": "{count, plural, one {Show application} other {Show applications}}",
     "appliedAt": "Applied {date}"
   },
@@ -166,7 +167,7 @@
       "publishedYesterday": "yesterday, at {time}",
       "publishedOlder": "{date}, at {time}",
       "lastApplication": "Application deadline",
-      "previousApplications": "You have {count, plural, one {# previous application} other {# previous applications}} to this employer"
+      "previousApplications": "You have at least {count, plural, one {# previous application} other {# previous applications}} to this employer"
     },
     "tags": {
       "new": "New",
@@ -190,7 +191,7 @@
       "openAd": "Open the ad",
       "appliedNotice": "You have marked this ad as applied. See it in",
       "appliedNoticeLink": "My applications",
-      "previousApplications": "You have {count, plural, one {# previous application} other {# previous applications}} to this employer.",
+      "previousApplications": "You have at least {count, plural, one {# previous application} other {# previous applications}} to this employer. The compilation may be incomplete.",
       "previousApplicationsLink": "View application history"
     },
     "match": {

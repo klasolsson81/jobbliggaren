@@ -159,11 +159,15 @@ export function JobAdCard({
           {matchGrade && <MatchChip grade={matchGrade} />}
         </h3>
         <div className="jp-job__company">{jobAd.companyName}</div>
-        {/* #446 (#311) — "Du har X tidigare ansökningar till detta företag".
+        {/* #446 (#311) — "Du har minst X tidigare ansökningar till detta företag".
             POSITIVE-ONLY: bara när räknaren > 0 (mappen bär inga nollor). Egen
             rad direkt under företaget (återbrukar .jp-job__meta → --jp-ink-1,
             hög kontrast, ingen ny CSS). Informativ text, ingen länk (B1); rent
-            heltal, inget org.nr i text/attribut. ICU-plural bär ental/flertal. */}
+            heltal, inget org.nr i text/attribut. ICU-plural bär ental/flertal.
+            #824 PR 4: räknaren är ett GOLV, aldrig en totalsumma — en ansökan
+            vars annons inte längre bär arbetsgivar-identiteten faller ur
+            attributionen. Kortet är den kompakta ytan, så golv-markören bär
+            hela hedgen här; skälet lever på detaljvyn och /foretag. */}
         {previousApplicationCount != null && previousApplicationCount > 0 && (
           <div className="jp-job__meta">
             <span>

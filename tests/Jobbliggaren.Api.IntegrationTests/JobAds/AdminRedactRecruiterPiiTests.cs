@@ -16,38 +16,41 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 /// <summary>
-/// POST /api/v1/admin/job-ads/redact-recruiter-pii — <b>disabled, returns 501</b> (#842).
+/// POST /api/v1/admin/job-ads/redact-recruiter-pii — the Art. 17 erasure route (#842, ADR 0106
+/// Tier B). PR1's 501 containment is lifted here: there is now a path that actually erases.
 ///
 /// <para>
-/// This file used to assert that the endpoint erased recruiter PII. It hand-seeded
-/// <c>raw_payload</c> with an <c>employer.contact_email</c> key straight through
-/// <c>JobAd.Import</c>, bypassing the sanitizer whose default-deny allowlist
-/// <i>guarantees</i> that key is stripped in production — and set <c>description: "d"</c>, so
-/// the free-text case never ran. It asserted against a state production cannot reach, and was
-/// green for two releases while the only Art. 17 erasure path erased nothing.
-/// <b>The green test is what hid the bug.</b>
+/// <b>What this file used to be, and why that matters.</b> It once asserted the endpoint erased
+/// recruiter PII. It hand-seeded <c>raw_payload</c> with an <c>employer.contact_email</c> key
+/// straight through <c>JobAd.Import</c> — a key the ingest sanitizer's default-deny allowlist
+/// <i>guarantees</i> is stripped, and which the wire POCO cannot even emit — and set
+/// <c>description: "d"</c>, so the free-text case never ran. It was green for two releases while
+/// the only Art. 17 path erased nothing on every call. <b>The green test is what hid the bug.</b>
 /// </para>
 ///
 /// <para>
-/// Standing rule this file now obeys (#843, bound 2026-07-13): <i>tests for ingest-derived
-/// state MUST construct it through the production write path — real ACL, real sanitizer, real
-/// Import/UpdateFromSource. Hand-seeding a column that production writes only through a funnel
-/// proves nothing about production.</i>
-/// </para>
-///
-/// <para>
-/// What survives: the admin authorization gate, the one part of this feature that was never
-/// broken. What is added: pins on the 501, on the absence of a <c>rowsAffected</c> field, and
-/// on the absence of an audit row — so nothing silently re-enables a route that would report a
-/// false erasure to a data subject (Art. 12(3)).
+/// The erasure SEMANTICS are therefore proven where they can be proven honestly:
+/// <see cref="RecruiterErasureIngestTests"/>, end to end through the real ACL, the real sanitizer,
+/// the real funnel and real Postgres (#843 — state that production writes through a funnel is
+/// constructed through that funnel, or not at all). This file covers what only the HTTP surface can:
+/// the authorization gate (the one part of this feature that was never broken) and the
+/// request/response CONTRACT — which is where the defect actually lived, because
+/// <c>200 OK, rowsAffected: 0</c> is what let a runbook tell a named person her data was erased.
 /// </para>
 /// </summary>
 [Collection("Api")]
 public class AdminRedactRecruiterPiiTests(ApiFactory factory)
 {
+    private const string Route = "/api/v1/admin/job-ads/redact-recruiter-pii";
+
     private readonly ApiFactory _factory = factory;
 
-    private static readonly object AnyRequest = new { identifier = "alice@example.com", type = "Email" };
+    private static readonly object DryRunRequest = new
+    {
+        identifier = "alice.andersson@example.com",
+        dryRun = true,
+        confirmedJobAdCount = (int?)null,
+    };
 
     [Fact]
     public async Task Anonymous_request_returns_401()
@@ -55,8 +58,7 @@ public class AdminRedactRecruiterPiiTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var client = _factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/admin/job-ads/redact-recruiter-pii", AnyRequest, ct);
+        var response = await client.PostAsJsonAsync(Route, DryRunRequest, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -69,95 +71,153 @@ public class AdminRedactRecruiterPiiTests(ApiFactory factory)
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/admin/job-ads/redact-recruiter-pii", AnyRequest, ct);
+        var response = await client.PostAsJsonAsync(Route, DryRunRequest, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     /// <summary>
-    /// The containment pin. An admin — the one caller who WOULD be answering a real Art. 17
-    /// request — must be told the truth, not served a 200 that means nothing was erased.
-    /// If someone re-enables this route without a working erasure path, this test fails.
+    /// The route works, and it answers with an OUTCOME rather than a number. Against a corpus that
+    /// holds nothing for this identifier the honest answer is <c>NoMatchingDataHeld</c> — the one
+    /// sentence the old mechanism said on every request and could never actually mean.
     /// </summary>
     [Fact]
-    public async Task Admin_request_returns_501_because_no_erasure_path_exists()
+    public async Task Admin_dry_run_returns_an_explicit_outcome_not_a_bare_count()
     {
         var ct = TestContext.Current.CancellationToken;
         var adminClient = await CreateAdminClientAsync(_factory.CreateClient(), ct);
 
-        var response = await adminClient.PostAsJsonAsync(
-            "/api/v1/admin/job-ads/redact-recruiter-pii", AnyRequest, ct);
+        var response = await adminClient.PostAsJsonAsync(Route, DryRunRequest, ct);
 
-        response.StatusCode.ShouldBe(HttpStatusCode.NotImplemented);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        problem.GetProperty("title").GetString().ShouldBe("Ingen raderingsväg finns ännu");
-
-        // The operator must be pointed at the escalation path, not left to improvise.
-        problem.GetProperty("detail").GetString().ShouldNotBeNull().ShouldContain("#842");
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+        body.GetProperty("outcome").GetString().ShouldBe("NoMatchingDataHeld");
+        body.GetProperty("dryRun").GetBoolean().ShouldBeTrue();
     }
 
     /// <summary>
-    /// The response must NOT carry the old success shape. A caller (or a runbook, or a
-    /// script) that reads <c>rowsAffected</c> must break loudly rather than read 0 and
-    /// conclude "nothing matched, so there was nothing to erase" — which is precisely the
-    /// false inference the old endpoint invited on every single call.
+    /// The old success shape must never come back. A caller — or a runbook, or a script — that reads
+    /// <c>rowsAffected</c> and finds 0 concludes "nothing matched, so there was nothing to erase".
+    /// That inference was false on every call the old endpoint ever served, and it is the inference
+    /// the runbook told an operator to relay to a data subject as a completed erasure.
     /// </summary>
     [Fact]
-    public async Task Response_does_not_carry_a_rowsAffected_field()
+    public async Task Response_carries_no_rowsAffected_field_and_reports_per_surface_counts()
     {
         var ct = TestContext.Current.CancellationToken;
         var adminClient = await CreateAdminClientAsync(_factory.CreateClient(), ct);
 
-        var response = await adminClient.PostAsJsonAsync(
-            "/api/v1/admin/job-ads/redact-recruiter-pii", AnyRequest, ct);
-
+        var response = await adminClient.PostAsJsonAsync(Route, DryRunRequest, ct);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
 
         body.TryGetProperty("rowsAffected", out _).ShouldBeFalse(
-            "A rowsAffected field would let a caller infer an erasure outcome from a route "
-            + "that performs no erasure.");
+            "a bare rowsAffected is what let a 0 be read as a completed erasure.");
+
+        // Matched vs erased, PER SURFACE. The gap between them IS the disclosure — a saved search
+        // that mentions the recruiter is matched but never erased — and it is structural, so nobody
+        // has to remember to mention it.
+        foreach (var side in new[] { "matched", "erased" })
+        {
+            var counts = body.GetProperty(side);
+            counts.TryGetProperty("jobAds", out _).ShouldBeTrue();
+            counts.TryGetProperty("recentJobSearches", out _).ShouldBeTrue();
+            counts.TryGetProperty("savedSearches", out _).ShouldBeTrue();
+        }
     }
 
     /// <summary>
-    /// The assertion that defends this issue's own evidence base.
-    /// <para>
-    /// ADR 0024, ADR 0032 and the runbook all rest on one measured fact: <c>audit_log</c> holds
-    /// <b>zero</b> recruiter-PII-redaction rows, therefore no data subject has ever been sent a false
-    /// erasure confirmation. Nothing was defending that fact.
-    /// </para>
-    /// <para>
-    /// It is defeated by a mutation the first two tests do not catch: keep the 501, but send the command
-    /// through the Mediator pipeline behind it. Status, title, detail and the absent <c>rowsAffected</c>
-    /// all still hold, both other tests stay green — and every call writes an
-    /// <c>Admin.RecruiterPiiRedacted</c> audit row. That is a false Art. 30 record of an erasure that did
-    /// not happen: the exact row the old runbook told an operator to read back to the recruiter as proof.
-    /// </para>
-    /// <para>
-    /// An erasure that does not occur must not leave a record saying it did. A 501 must be inert.
-    /// </para>
+    /// <b>The mandatory dry run, enforced by the API rather than by a sentence in a runbook.</b> A
+    /// destructive call must state the ad count the preceding dry run reported. Omit it, and the
+    /// request is rejected: you cannot erase without having looked.
     /// </summary>
     [Fact]
-    public async Task Request_writes_no_erasure_audit_row_because_no_erasure_occurs()
+    public async Task Destructive_call_without_a_confirmed_count_is_REJECTED()
     {
         var ct = TestContext.Current.CancellationToken;
         var adminClient = await CreateAdminClientAsync(_factory.CreateClient(), ct);
 
         var response = await adminClient.PostAsJsonAsync(
-            "/api/v1/admin/job-ads/redact-recruiter-pii", AnyRequest, ct);
-        response.StatusCode.ShouldBe(HttpStatusCode.NotImplemented);
+            Route,
+            new
+            {
+                identifier = "alice.andersson@example.com",
+                dryRun = false,
+                confirmedJobAdCount = (int?)null,
+            },
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest,
+            "erasure is irreversible and corpus-visible. The dry run is not advice.");
+    }
+
+    /// <summary>
+    /// A one-character identifier would substring-match essentially every ad in the corpus. The dry
+    /// run would reveal it — but a floor that makes the mistake unrepresentable beats a review step
+    /// that merely makes it visible, and this is the one command where that trade is obvious.
+    /// </summary>
+    [Fact]
+    public async Task A_dangerously_short_identifier_is_REJECTED()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adminClient = await CreateAdminClientAsync(_factory.CreateClient(), ct);
+
+        var response = await adminClient.PostAsJsonAsync(
+            Route,
+            new { identifier = "a", dryRun = true, confirmedJobAdCount = (int?)null },
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>
+    /// <b>Art. 12(3): a REJECTED rights request must leave a trace.</b> We owe the data subject the
+    /// reasons we did not act and her right to complain — and we cannot produce either from a row we
+    /// never wrote. <c>AuditBehavior</c> skipped every <c>Result.Failure</c> until this command
+    /// opted in, so a refused request vanished silently.
+    /// </summary>
+    [Fact]
+    public async Task A_REJECTED_request_still_writes_an_audit_row_and_never_stores_the_identifier()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adminClient = await CreateAdminClientAsync(_factory.CreateClient(), ct);
+
+        // Confirm a count that cannot be right — the corpus holds nothing for this identifier — so
+        // the handler refuses with a Conflict. A rejected request that must still be recorded.
+        var identifier = $"rejected-{Guid.NewGuid():N}@example.com";
+        var response = await adminClient.PostAsJsonAsync(
+            Route,
+            new { identifier, dryRun = false, confirmedJobAdCount = 3 },
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var erasureAuditRows = await db.AuditLogEntries
-            .CountAsync(a => a.AggregateType == "System.RecruiterPiiRedaction", ct);
+        var payloads = await db.AuditLogEntries
+            .Where(a => a.AggregateType == "RecruiterErasureRequest" && a.Payload != null)
+            .Select(a => a.Payload!)
+            .ToListAsync(ct);
 
-        erasureAuditRows.ShouldBe(0,
-            "A 501 must be inert. An audit row here would be a false Art. 30 record of an erasure that "
-            + "did not happen — and it is what the whole #842 evidence base (audit_log has zero such "
-            + "rows, so nobody has been lied to) depends on staying true.");
+        payloads.ShouldNotBeEmpty(
+            "a refused rights request that leaves no trace is its own Art. 12(3) exposure — and "
+            + "audit_log.payload has existed since ADR 0022 without a single command ever writing "
+            + "it, which is why the runbook's verification query always returned NULL.");
+
+        var mine = payloads.Where(p => p.Contains("ConfirmationMismatch", StringComparison.Ordinal))
+            .ToList();
+        mine.ShouldNotBeEmpty("the rejection reason belongs in the record.");
+
+        // The identifier is HMAC'd, never stored. Writing her address into the audit row for her
+        // own erasure request would make that request the last place it survives — the single most
+        // absurd outcome available to us here.
+        foreach (var payload in payloads)
+        {
+            payload.ShouldNotContain(identifier, Case.Insensitive,
+                "the audit row must never carry the identifier we were asked to erase.");
+            payload.ShouldContain("identifierHmac");
+        }
     }
 
     private async Task<HttpClient> CreateAdminClientAsync(HttpClient client, CancellationToken ct)

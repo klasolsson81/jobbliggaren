@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
+using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Auditing;
 using Jobbliggaren.Domain.Common;
@@ -33,6 +34,12 @@ public class AuditBehaviorTests
     private readonly IRequestContextProvider _requestContextProvider =
         Substitute.For<IRequestContextProvider>();
 
+    // #842 — AuditBehavior now hands the pseudonymiser to IAuditPayloadCommand implementers, so
+    // the ONLY route from an identifier into audit_log.payload goes through HMAC. These tests use
+    // commands that contribute no payload, so it is never called; it is still a real dependency.
+    private readonly IIdentifierPseudonymizer _pseudonymizer =
+        Substitute.For<IIdentifierPseudonymizer>();
+
     public AuditBehaviorTests()
     {
         _currentUser.UserId.Returns(UserId);
@@ -49,7 +56,8 @@ public class AuditBehaviorTests
             _currentUser,
             _clock,
             _correlationIdProvider,
-            _requestContextProvider);
+            _requestContextProvider,
+            _pseudonymizer);
 
     /// <summary>
     /// AuditBehavior anropar bara <c>db.AuditLogEntries.Add(entry)</c> utan
@@ -280,7 +288,8 @@ public class AuditBehaviorTests
             workerCurrentUser,
             _clock,
             _correlationIdProvider,
-            _requestContextProvider);
+            _requestContextProvider,
+            _pseudonymizer);
 
         var command = new AuditableMutationCommand(AggregateGuid);
         MessageHandlerDelegate<AuditableMutationCommand, Result> next =
@@ -304,7 +313,8 @@ public class AuditBehaviorTests
             _currentUser,
             _clock,
             _correlationIdProvider,
-            nullContext);
+            nullContext,
+            _pseudonymizer);
 
         var command = new AuditableMutationCommand(AggregateGuid);
         MessageHandlerDelegate<AuditableMutationCommand, Result> next =

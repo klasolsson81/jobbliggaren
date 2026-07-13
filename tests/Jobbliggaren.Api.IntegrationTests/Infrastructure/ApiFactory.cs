@@ -108,6 +108,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             {
                 ["FieldEncryption:Provider"] = "Local",
                 ["FieldEncryption:LocalMasterKeyBase64"] = TestSecrets.MasterKeyBase64,
+
+                // #842 — Art. 17 audit pepper (fail-closed at startup, all environments).
+                ["AuditPseudonymization:PepperBase64"] = TestSecrets.AuditPepperBase64,
             }));
 
         builder.ConfigureServices(services =>

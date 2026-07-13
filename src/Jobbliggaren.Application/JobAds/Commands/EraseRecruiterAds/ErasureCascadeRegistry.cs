@@ -38,6 +38,24 @@ namespace Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 public static class ErasureCascadeRegistry
 {
     /// <summary>
+    /// The surfaces the erasure RESPONSE reports counts for — i.e. what we tell the data subject we
+    /// looked at. Pinned against <c>ErasureSurfaceCounts</c>'s members by
+    /// <c>ErasureCascadeRegistryTests</c>: a surface the registry reasons about but the response
+    /// does not report would be something we erased (or knowingly kept) without telling her.
+    /// </summary>
+    /// <remarks>
+    /// <c>Application</c> is absent deliberately: <c>snapshot_description</c> lives inside the
+    /// applicant's own aggregate and is disclosed in the reply template and the DPIA (STOPP-3), not
+    /// as a per-surface count of ads.
+    /// </remarks>
+    public static IReadOnlySet<string> ReportedSurfaces { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "JobAds",
+        "RecentJobSearches",
+        "SavedSearches",
+    };
+
+    /// <summary>
     /// Surfaces the erasure command searches AND erases.
     /// </summary>
     /// <remarks>

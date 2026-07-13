@@ -5266,6 +5266,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: var(--jp-accent-50);
   color: var(--jp-accent-700);
 }
+/* Stegets indikator bär STATUS (tre tillstånd), aldrig markeringen — var man står
+   säger railitem[data-state="active"]. Tidigare slogs de ihop i ett data-state, och
+   "klar" kunde skrivas över av "aktiv" (och tvärtom). CTO-bind Q3-A:
+   done = ifyllt OCH inget hindrar sparande · attention = ett fel hindrar sparande ·
+   remaining (default) = varken eller. Glyfen skiljer dem åt (bock/varning/siffra),
+   inte färgen ensam (WCAG 1.4.1) — och sr-only-texten bär påståendet i klartext. */
 .jp-guide__railind {
   display: inline-flex;
   align-items: center;
@@ -5278,14 +5284,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-weight: var(--jp-fw-bold);
   flex-shrink: 0;
 }
-.jp-guide__railind[data-state="active"] {
-  border-color: var(--jp-accent-700);
-  color: var(--jp-accent-700);
-}
-.jp-guide__railind[data-state="done"] {
+.jp-guide__railind[data-status="done"] {
   background: var(--jp-accent-800);
   border-color: var(--jp-accent-800);
   color: var(--jp-on-fill);
+}
+.jp-guide__railind[data-status="attention"] {
+  background: var(--jp-warning-bg);
+  border-color: var(--jp-warning);
+  color: var(--jp-warning);
 }
 .jp-guide__position {
   margin: 0;
@@ -5561,9 +5568,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
   flex-shrink: 0;
 }
-.jp-guide__summary-ind[data-done="true"] {
+/* Samma tre tillstånd som railens indikator — Spara-sammanställningen och railen
+   läser SAMMA predikat, så de kan inte säga emot varandra (CTO-bind Q3-A). */
+.jp-guide__summary-ind[data-status="done"] {
   background: var(--jp-accent-800);
   color: var(--jp-on-fill);
+}
+.jp-guide__summary-ind[data-status="attention"] {
+  background: var(--jp-warning-bg);
+  color: var(--jp-warning);
 }
 .jp-guide__summary-status {
   display: inline-flex;
@@ -5589,6 +5602,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
   flex: 1 1 auto;
 }
 .jp-guide__error {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-danger);
+}
+/* Per-fält-fel: felet står VID fältet det gäller (och kopplas dit med
+   aria-describedby + aria-invalid). Foten bar tidigare ett enda aggregerat fel åt
+   gången — fem fel kostade fem submit-varv. */
+.jp-guide__fielderror {
   margin: 0;
   font-size: var(--text-body-sm);
   color: var(--jp-danger);

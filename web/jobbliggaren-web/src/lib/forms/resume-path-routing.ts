@@ -119,3 +119,46 @@ export function guidePathToStepAndElementId(
 
   return null;
 }
+
+/**
+ * Samma Zod-path, översatt till react-hook-forms FÄLTVÄG i `CvCompleteGuide`s
+ * `FormValues` — så ett valideringsfel kan landa på det fält det handlar om
+ * (`form.setError`) i stället för i en ensam aggregerad rad i foten.
+ *
+ * Formen och payloaden är INTE samma form: `toRawPayload` är en äkta transform.
+ * Den enda strukturella skillnaden en path kan träffa är sektionspostens brödtext
+ * — formen håller en textarea (`body`), payloaden en rad-array (`lines`) — så
+ * `lines` (och `lines.<idx>`) mappas tillbaka till `body`. Resten av namnrymden
+ * är delad, och `content.`-prefixet strippas.
+ *
+ * `null` = okänd path → inget fält att markera (anroparen faller tillbaka på det
+ * aggregerade felet i stället för att gissa fel fält). Kompetens/språk saknar
+ * per-post-input och har därför ingen RHF-kontroll att hänga felet på (chip-listan
+ * ÄR fältet) — de returnerar `null` med flit; deras issues ytas via steg-statusen.
+ *
+ * Kunskapen (Zod-namnrymd ↔ guidens fältuppsättning) är samma som
+ * {@link guidePathToStepAndElementId} redan bär — därför bor den här, som syskon,
+ * och testas isolerat (TD-46).
+ */
+export function guidePathToFormPath(path: string): string | null {
+  if (path === "name") return "name";
+  if (!path.startsWith("content.")) return null;
+  const inner = path.slice("content.".length);
+
+  if (inner.startsWith("personalInfo.") || inner === "summary") return inner;
+
+  const sectionEntryLines = inner.match(
+    /^(sections\.\d+\.entries\.\d+)\.lines(?:\.\d+)?$/,
+  );
+  if (sectionEntryLines) return `${sectionEntryLines[1]}.body`;
+
+  if (
+    inner.startsWith("experiences.") ||
+    inner.startsWith("educations.") ||
+    inner.startsWith("sections.")
+  ) {
+    return inner;
+  }
+
+  return null;
+}

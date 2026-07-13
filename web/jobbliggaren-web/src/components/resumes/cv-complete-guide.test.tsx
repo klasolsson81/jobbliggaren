@@ -386,4 +386,156 @@ describe("CvCompleteGuide — fria sektioner prefylls (#815)", () => {
     expect(await screen.findByDisplayValue("PROJEKT")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Betalplattform")).toBeInTheDocument();
   });
+
+  // #815 fynd 6: sektionspanelen bar ingen proveniens alls, medan Erfarenhet och
+  // Utbildning bar sin. En prefylld PROJEKT-sektion såg därför ut som något guiden
+  // hittat på i stället för något som KOM ur filen.
+  it("prefylld sektion ytar proveniensen ('1 hittad')", async () => {
+    const user = userEvent.setup();
+    renderGuide(
+      makeContent({
+        sections: [
+          { heading: "PROJEKT", entries: [{ title: "Betalplattform", lines: [] }] },
+        ],
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: /erfarenhet/i }));
+
+    const sectionsHeading = screen.getByRole("heading", { name: "Egna sektioner" });
+    const panel = sectionsHeading.closest(".jp-guide__section");
+    expect(panel).not.toBeNull();
+    expect(within(panel as HTMLElement).getByText("1 hittad")).toBeInTheDocument();
+  });
+
+  // Motsatsen, och den fällan proveniensen INTE får gå i: fria sektioner är valfria.
+  // Ett CV utan PROJEKT saknar ingenting — "Saknades i filen" hade påstått en lucka
+  // som inte finns (till skillnad från Erfarenhet, som ÄR en uppgift att stänga).
+  it("utan sektioner i filen påstås INGEN lucka ('Saknades i filen' uteblir i panelen)", async () => {
+    const user = userEvent.setup();
+    renderGuide(makeContent());
+
+    await user.click(screen.getByRole("button", { name: /erfarenhet/i }));
+
+    const sectionsHeading = screen.getByRole("heading", { name: "Egna sektioner" });
+    const panel = sectionsHeading.closest(".jp-guide__section");
+    expect(panel).not.toBeNull();
+    expect(
+      within(panel as HTMLElement).queryByText("Saknades i filen"),
+    ).not.toBeInTheDocument();
+    // Tomt läge bärs av panelens egen text, inte av ett falskt lucke-påstående.
+    expect(
+      within(panel as HTMLElement).getByText("Inga egna sektioner tillagda."),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("CvCompleteGuide — stegstatus säger sanning (#815 fynd 6, CTO-bind Q3-A)", () => {
+  // Den gamla indikatorn var NÄRVARO-baserad: `experiences.length > 0`. En appendad
+  // men tom post räknades därmed som "ifylld" → steget blev grönbockat medan submit
+  // ändå nekade. Bocken påstår nu exakt en sak: ifyllt OCH inget som hindrar sparande.
+  // Railens knappar bär sin status i det tillgängliga namnet (sr-only), och på steg 2
+  // finns dessutom "Lägg till erfarenhet"/"Ta bort erfarenhet 1". Scopa därför alltid
+  // till <nav> — annars matchar en fritextregex både railen och panelens knappar.
+  function railStep(name: RegExp) {
+    const rail = screen.getByRole("navigation", { name: "Steg i guiden" });
+    return within(rail).getByRole("button", { name });
+  }
+
+  it("tom appendad erfarenhet grönbockar INTE steget — den flaggas som fel att rätta", async () => {
+    const user = userEvent.setup();
+    renderGuide(makeContent());
+
+    await user.click(railStep(/erfarenhet/i));
+    await user.click(screen.getByRole("button", { name: /Lägg till erfarenhet/ }));
+
+    // Posten finns men är tom → företag/roll/startdatum saknas → steget BLOCKERAR.
+    // Före fixen räknades den som närvarande ("length > 0") → grön bock, medan
+    // submit ändå nekade.
+    await waitFor(() =>
+      expect(
+        within(railStep(/erfarenhet/i)).getByText(/fel behöver rättas/),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      within(railStep(/erfarenhet/i)).queryByText("klart"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("orört steg är 'kvar', inte 'klart' — schemat tillåter tomma listor, men inget är ifyllt", () => {
+    renderGuide(makeContent());
+
+    // Steg 2 är orört: noll valideringsfel (tomma arrayer ÄR giltiga enligt schemat)
+    // men två uppgifter kvar. En ren validitets-backning hade grönbockat det här.
+    const step = railStep(/erfarenhet/i);
+    expect(within(step).getByText("2 uppgifter kvar")).toBeInTheDocument();
+    expect(within(step).queryByText("klart")).not.toBeInTheDocument();
+  });
+
+  it("ifyllt och giltigt steg är 'klart'", () => {
+    renderGuide(
+      makeContent({
+        contact: {
+          fullName: "Anna Andersson",
+          email: "anna@exempel.se",
+          phone: "070-000 00 00",
+          location: "Göteborg",
+        },
+        profile: "Erfaren backend-utvecklare.",
+      }),
+    );
+
+    // Steg 1: alla fem uppgifter ifyllda ur filen, inga valideringsfel → bocken
+    // är sann i båda leden (ifyllt OCH inget som hindrar sparande).
+    // ^Uppgifter: andra steg bär "N uppgifter kvar" i sitt sr-only-namn.
+    const step = railStep(/^Uppgifter/);
+    expect(within(step).getByText("klart")).toBeInTheDocument();
+    expect(within(step).queryByText(/uppgifter kvar/)).not.toBeInTheDocument();
+  });
+});
+
+describe("CvCompleteGuide — form-semantik och per-fält-fel (#815 fynd 6)", () => {
+  // Roten var en <div> och Spara en type="button" → Enter gjorde ingenting alls,
+  // och required/aria-required kunde aldrig utlösa någon validering.
+  // NB: Enter i en <textarea> ger radbrytning, inte submit — så beviset måste ske i
+  // en <input>. (Det är också därför sammanfattnings-textarean inte "råkar" spara.)
+  it("Enter i ett textfält på steg 1 går VIDARE till steg 2 (sparar inte)", async () => {
+    const user = userEvent.setup();
+    renderGuide(makeContent());
+
+    await user.type(screen.getByLabelText("E-post"), "anna@exempel.se{Enter}");
+
+    // Enter avancerade steget — och nådde absolut inte spar-vägen.
+    expect(
+      await screen.findByRole("heading", { name: "Erfarenhet och utbildning" }),
+    ).toBeInTheDocument();
+    expect(promoteMock).not.toHaveBeenCalled();
+  });
+
+  // Före fixen ytades ETT fel i taget (issues[0]) i foten. Fem fel = fem submit-varv.
+  it("ett blockerande fel landar PÅ sitt fält, med aria-invalid + aria-describedby", async () => {
+    const user = userEvent.setup();
+    renderGuide(makeContent({ contact: { fullName: "", email: null, phone: null, location: null } }));
+
+    // CV-namnet seedas från fullName → tomt → blockerande fel på Spara-steget.
+    // Railens Spara-knapp bär nu sin status i namnet ("Spara 1 fel behöver rättas"),
+    // så matcha på prefix i stället för exakt sträng.
+    const rail = screen.getByRole("navigation", { name: "Steg i guiden" });
+    await user.click(within(rail).getByRole("button", { name: /^Spara/ }));
+    await user.click(screen.getByRole("button", { name: "Spara CV" }));
+
+    const nameInput = await screen.findByLabelText(/Namn på CV/);
+    await waitFor(() =>
+      expect(nameInput).toHaveAttribute("aria-invalid", "true"),
+    );
+
+    // Felet är kopplat till fältet (inte bara en rad i foten) — och beskriver det.
+    const describedBy = nameInput.getAttribute("aria-describedby") ?? "";
+    expect(describedBy).toContain("guide-cv-name-error");
+    const errorEl = document.getElementById("guide-cv-name-error");
+    expect(errorEl?.textContent ?? "").not.toBe("");
+
+    // Backend nåddes aldrig.
+    expect(promoteMock).not.toHaveBeenCalled();
+  });
 });

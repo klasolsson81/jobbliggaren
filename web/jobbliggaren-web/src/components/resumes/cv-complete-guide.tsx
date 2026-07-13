@@ -12,11 +12,12 @@ import {
   useForm,
   useFieldArray,
   Controller,
+  type FieldPath,
   type UseFormReturn,
 } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Check, Plus, X } from "lucide-react";
+import { AlertTriangle, Check, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,7 @@ import {
 import { makePromoteParsedResumeSchema } from "@/lib/actions/resume-schemas";
 import { promoteParsedResumeFromGuideAction } from "@/lib/actions/resumes";
 import {
+  guidePathToFormPath,
   guidePathToStepAndElementId,
   GUIDE_STEP_DETAILS,
   GUIDE_STEP_EXPERIENCE,
@@ -318,10 +320,35 @@ export function CvCompleteGuide({
     setCollapsedEntries(initial);
   }
 
-  // Live-värden → härledd gap-summering (SSOT gap-tasks). Driver stegindikatorerna
-  // och sammanställningen på Spara-steget.
+  // Live-värden → härledd gap-summering (SSOT gap-tasks, LÄSES bara — aldrig
+  // omdefinierad här: hubbens mätare och guiden måste vara överens om vad en
+  // uppgift ÄR). Driver "kvar"-räkningen på stegen och Spara-sammanställningen.
   const values = watch();
   const gaps = deriveGapSummaryFromForm(values);
+
+  // Live-validering mot SAMMA schema som submit (och som servern). Ger stegen ett
+  // ärligt blockerings-tillstånd: närvaro (gaps) och giltighet (issues) är två
+  // olika påståenden, och den gamla indikatorn konflaterade dem — en appendad men
+  // TOM post räknades som "ifylld" och steget blev grönbockat medan submit ändå
+  // nekade (CTO-bind Q3/Q3-A).
+  const liveIssuePathsByStep = useMemo(() => {
+    const parsed = schema.safeParse({
+      parsedResumeId: parsedId,
+      name: values.name,
+      content: toRawPayload(values),
+    });
+    const byStep = new Map<number, string[]>();
+    if (parsed.success) return byStep;
+    for (const issue of parsed.error.issues) {
+      const path = issue.path.join(".");
+      const target = guidePathToStepAndElementId(path);
+      if (!target) continue;
+      const bucket = byStep.get(target.step) ?? [];
+      bucket.push(path);
+      byStep.set(target.step, bucket);
+    }
+    return byStep;
+  }, [schema, parsedId, values]);
 
   // Per-sektions parse-konfidens (ärlig proveniens från backend). Bara "Degraded"
   // ytas som en not; "NotFound" bärs redan av "Saknades i filen"-räkningen.
@@ -359,10 +386,57 @@ export function CvCompleteGuide({
     return keys.filter((key) => !gaps[key]).length;
   }
 
-  function stepIsDone(stepIndex: number): boolean {
-    const keys = STEP_TASK_KEYS[stepIndex] ?? [];
-    return keys.length > 0 && keys.every((key) => gaps[key]);
+  function blockersForStep(stepIndex: number): number {
+    return liveIssuePathsByStep.get(stepIndex)?.length ?? 0;
   }
+
+  /**
+   * Stegets ärliga tillstånd (CTO-bind Q3-A — tre tillstånd, aldrig två):
+   *
+   * - `attention` — steget äger minst ett valideringsfel: det HINDRAR sparande.
+   * - `remaining` — inget hindrar, men uppgifter är ofyllda (gap-tasks).
+   * - `done`      — inget hindrar OCH inget är ofyllt.
+   *
+   * Bocken påstår därmed exakt en sak: "allt på det här steget är ifyllt, och
+   * inget här hindrar dig från att spara." Den kan inte längre sättas av en tom
+   * post (som är ogiltig → `attention`) och inte heller av ett orört steg (som
+   * har gaps kvar → `remaining`). Spara-sammanställningen läser samma predikat,
+   * så railen och den kan inte säga emot varandra.
+   *
+   * Spara-steget äger inga gap-uppgifter och blir därför aldrig `done` — det är
+   * `attention` när CV-namnet saknas, annars neutralt. Det faller ut ur modellen.
+   */
+  function stepState(stepIndex: number): "attention" | "remaining" | "done" {
+    if (blockersForStep(stepIndex) > 0) return "attention";
+    const keys = STEP_TASK_KEYS[stepIndex] ?? [];
+    if (keys.length === 0) return "remaining";
+    return keys.every((key) => gaps[key]) ? "done" : "remaining";
+  }
+
+  /**
+   * Skärmläsar-texten för stegets tillstånd (WCAG 1.4.1 — glyfen bär aldrig
+   * påståendet ensam). `null` när steget inte har något sant att säga: Spara-steget
+   * äger inga uppgifter, så "0 uppgifter kvar" vore brus, inte information.
+   */
+  function stepStatusLabel(stepIndex: number): string | null {
+    const state = stepState(stepIndex);
+    if (state === "attention") {
+      return tr("railStatusAttention", { count: blockersForStep(stepIndex) });
+    }
+    if (state === "done") return tr("railStatusDone");
+    const remaining = remainingForStep(stepIndex);
+    return remaining > 0 ? tr("railStatusRemaining", { count: remaining }) : null;
+  }
+
+  const CONTENT_STEPS = [
+    GUIDE_STEP_DETAILS,
+    GUIDE_STEP_EXPERIENCE,
+    GUIDE_STEP_SKILLS,
+  ];
+  const hasBlockers = liveIssuePathsByStep.size > 0;
+  const hasRemainingTasks = CONTENT_STEPS.some(
+    (stepIndex) => remainingForStep(stepIndex) > 0,
+  );
 
   function requestClose() {
     if (isDirty) {
@@ -400,6 +474,15 @@ export function CvCompleteGuide({
 
   function onSubmit(formValues: FormValues) {
     setServerError(null);
+    form.clearErrors();
+
+    // Enter-semantik (bunden i CTO Q5): formen submittar bara på Spara-steget.
+    // På steg 1-3 är Enter "gå vidare" — inte ett tyst sparförsök.
+    if (step !== GUIDE_STEP_SAVE) {
+      goToStep(step + 1);
+      return;
+    }
+
     const rawPayload = toRawPayload(formValues);
     // Klient-validering speglar server-actionen (server-validering är auktoritativ).
     const parsed = schema.safeParse({
@@ -408,11 +491,25 @@ export function CvCompleteGuide({
       content: rawPayload,
     });
     if (!parsed.success) {
-      const first = parsed.error.issues[0];
-      if (first) {
-        const path = first.path.join(".");
-        routeToError(path);
-        setServerError({ path: path || null, message: first.message });
+      // ALLA issues ytas på sina fält — inte bara issues[0]. Den gamla formen gav
+      // ett fel i taget i foten, så fem fel kostade fem submit-varv.
+      let firstPath: string | null = null;
+      for (const issue of parsed.error.issues) {
+        const path = issue.path.join(".");
+        firstPath ??= path;
+        const formPath = guidePathToFormPath(path);
+        if (formPath) {
+          form.setError(formPath as FieldPath<FormValues>, {
+            type: "validate",
+            message: issue.message,
+          });
+        }
+      }
+      if (firstPath) {
+        routeToError(firstPath);
+        // Foten sammanfattar; fälten bär detaljerna (och fokus landar på det
+        // första felande fältet, vars aria-describedby läser upp sitt eget fel).
+        setServerError({ path: firstPath, message: tr("fixFields") });
       } else {
         setServerError({ path: null, message: tr("invalidData") });
       }
@@ -461,7 +558,16 @@ export function CvCompleteGuide({
   }
 
   return (
-    <div className="jp-guide">
+    // En riktig <form>: Enter submittar (steg 1-3 = gå vidare, steg 4 = spara).
+    // Roten var en <div> och Spara en type="button" → Enter gjorde ingenting alls.
+    //
+    // `noValidate` med flit: Zod-schemat (samma som server-actionen kör) är ENDA
+    // valideringsauktoriteten. Native constraint-validation skulle annars hinna
+    // först på type="email"/"date"/required, blockera submit med webbläsarens egna
+    // engelska bubblor (§10: svensk copy) och kortsluta våra per-fält-fel. Fälten
+    // behåller required/aria-required — de är sanna påståenden om fältet och bär
+    // SR-semantiken; det är auktoriteten, inte kravet, som flyttas till Zod.
+    <form className="jp-guide" onSubmit={form.handleSubmit(onSubmit)} noValidate>
       {/* Header-rad: mono-källrad + Stäng (honesty bind 2 — aldrig "spara utkast"). */}
       <div className="jp-guide__head">
         <p className="jp-guide__source">
@@ -483,36 +589,35 @@ export function CvCompleteGuide({
         <ol className="jp-guide__raillist">
           {stepLabels.map((label, index) => {
             const active = index === step;
-            const done = stepIsDone(index);
-            const state = active ? "active" : done ? "done" : "todo";
-            const hasTasks = (STEP_TASK_KEYS[index]?.length ?? 0) > 0;
+            // Markering (var jag står) och status (vad steget säger) är två skilda
+            // axlar — den gamla indikatorn slog ihop dem i ett enda data-state.
+            const status = stepState(index);
+            const statusLabel = stepStatusLabel(index);
             return (
-              <li key={index} className="jp-guide__railitem-wrap">
+              <li key={index}>
                 <button
                   type="button"
                   className="jp-guide__railitem"
-                  data-state={state}
+                  data-state={active ? "active" : "idle"}
                   aria-current={active ? "step" : undefined}
                   onClick={() => goToStep(index)}
                   disabled={isPending}
                 >
                   <span
                     className="jp-guide__railind"
-                    data-state={state}
+                    data-status={status}
                     aria-hidden="true"
                   >
-                    {done ? (
+                    {status === "done" ? (
                       <Check size={14} strokeWidth={3} />
+                    ) : status === "attention" ? (
+                      <AlertTriangle size={14} strokeWidth={2.5} />
                     ) : (
                       <span>{index + 1}</span>
                     )}
                   </span>
                   <span className="jp-guide__raillabel">{label}</span>
-                  {hasTasks && (
-                    <span className="sr-only">
-                      {done ? tr("railStatusDone") : tr("railStatusTodo")}
-                    </span>
-                  )}
+                  {statusLabel && <span className="sr-only">{statusLabel}</span>}
                 </button>
               </li>
             );
@@ -598,8 +703,21 @@ export function CvCompleteGuide({
                       {...register(`personalInfo.${field.key}`)}
                       required={!field.optional}
                       aria-required={!field.optional || undefined}
+                      aria-invalid={
+                        formState.errors.personalInfo?.[field.key]
+                          ? true
+                          : undefined
+                      }
+                      aria-describedby={describedBy(
+                        formState.errors.personalInfo?.[field.key] &&
+                          `guide-pi-${field.key}-error`,
+                      )}
                       maxLength={field.key === "phone" ? 50 : 200}
                       disabled={isPending}
+                    />
+                    <FieldMessage
+                      id={`guide-pi-${field.key}-error`}
+                      message={formState.errors.personalInfo?.[field.key]?.message}
                     />
                   </div>
                 );
@@ -630,10 +748,19 @@ export function CvCompleteGuide({
                 <Textarea
                   id="guide-summary"
                   {...register("summary")}
-                  aria-describedby="guide-summary-hint guide-summary-count"
+                  aria-invalid={formState.errors.summary ? true : undefined}
+                  aria-describedby={describedBy(
+                    "guide-summary-hint",
+                    "guide-summary-count",
+                    formState.errors.summary && "guide-summary-error",
+                  )}
                   rows={4}
                   maxLength={2000}
                   disabled={isPending}
+                />
+                <FieldMessage
+                  id="guide-summary-error"
+                  message={formState.errors.summary?.message}
                 />
                 <p
                   id="guide-summary-count"
@@ -741,12 +868,17 @@ export function CvCompleteGuide({
               </div>
             </div>
 
-            {/* Egna sektioner (generisk panel, CTO Q7(a) — fri rubrik, inga förslag) */}
+            {/* Egna sektioner (generisk panel, CTO Q7(a) — fri rubrik, inga förslag).
+                Proveniensen saknades här medan Erfarenhet/Utbildning bar sin: sedan
+                #849 prefylls PROJEKT/REFERENSER ur filen, och då måste ytan säga att
+                de KOM ur filen — annars ser användarens egna sektioner ut som något
+                guiden hittade på. */}
             <div className="jp-guide__section">
               <div className="jp-guide__section-head">
                 <h3 className="jp-guide__section-title">
                   {tr("experience.sectionsHeading")}
                 </h3>
+                <FoundProvenance count={content.sections.length} optional />
               </div>
               <p className="jp-guide__intro">{tr("experience.sectionsIntro")}</p>
               {sections.fields.length === 0 && (
@@ -856,31 +988,42 @@ export function CvCompleteGuide({
             </h2>
             <p className="jp-guide__intro">{tr("save.intro")}</p>
 
+            {/* Samma predikat som railen (CTO-bind Q3-A) — de två ytorna kan inte
+                säga emot varandra, för de läser samma tre tillstånd. */}
             <ul className="jp-guide__summary">
               {[GUIDE_STEP_DETAILS, GUIDE_STEP_EXPERIENCE, GUIDE_STEP_SKILLS].map(
                 (stepIndex) => {
+                  const status = stepState(stepIndex);
+                  const blockers = blockersForStep(stepIndex);
                   const remaining = remainingForStep(stepIndex);
-                  const done = remaining === 0;
                   const partLabel = stepLabels[stepIndex] ?? "";
                   return (
                     <li key={stepIndex} className="jp-guide__summary-row">
                       <span className="jp-guide__summary-part">
                         <span
                           className="jp-guide__summary-ind"
-                          data-done={done}
+                          data-status={status}
                           aria-hidden="true"
                         >
-                          {done ? <Check size={14} strokeWidth={3} /> : remaining}
+                          {status === "done" ? (
+                            <Check size={14} strokeWidth={3} />
+                          ) : status === "attention" ? (
+                            <AlertTriangle size={14} strokeWidth={2.5} />
+                          ) : (
+                            remaining
+                          )}
                         </span>
                         {partLabel}
                       </span>
-                      {done ? (
+                      {status === "done" ? (
                         <span className="jp-guide__summary-status">
                           {tr("save.summaryDone")}
                         </span>
                       ) : (
                         <span className="jp-guide__summary-status">
-                          {tr("save.summaryRemaining", { count: remaining })}
+                          {status === "attention"
+                            ? tr("save.summaryBlocked", { count: blockers })
+                            : tr("save.summaryRemaining", { count: remaining })}
                           <Button
                             type="button"
                             variant="link"
@@ -898,6 +1041,13 @@ export function CvCompleteGuide({
               )}
             </ul>
 
+            {/* Obligatoriskt copy-bind (CTO Q3-A): "kvar" får ALDRIG läsas som
+                "krävs". Uppgifterna som återstår är frivilliga — säg det rakt ut,
+                annars är den ärliga modellen ändå oärlig i sin ton. */}
+            {hasRemainingTasks && !hasBlockers && (
+              <p className="jp-guide__note">{tr("save.remainingOptional")}</p>
+            )}
+
             <div className="jp-guide__field">
               <Label htmlFor="guide-cv-name">
                 {tr("save.nameLabel")}
@@ -911,11 +1061,19 @@ export function CvCompleteGuide({
               <Input
                 id="guide-cv-name"
                 {...register("name")}
-                aria-describedby="guide-cv-name-hint"
+                aria-invalid={formState.errors.name ? true : undefined}
+                aria-describedby={describedBy(
+                  "guide-cv-name-hint",
+                  formState.errors.name && "guide-cv-name-error",
+                )}
                 maxLength={200}
                 required
                 aria-required={true}
                 disabled={isPending}
+              />
+              <FieldMessage
+                id="guide-cv-name-error"
+                message={formState.errors.name?.message}
               />
             </div>
 
@@ -943,19 +1101,18 @@ export function CvCompleteGuide({
           </p>
         )}
         {step < GUIDE_STEP_SAVE ? (
-          <Button
-            type="button"
-            onClick={() => goToStep(step + 1)}
-            disabled={isPending}
-          >
+          // type="submit" även här — inte bara för musklicket, utan för att en form
+          // UTAN submit-knapp inte har någon implicit submission alls: Enter i ett
+          // fält hade fortsatt vara dött på steg 1-3 (HTML-specens default button).
+          // onSubmit avgör innebörden: gå vidare på steg 1-3, spara på steg 4.
+          <Button type="submit" disabled={isPending}>
             {tr("next")}
           </Button>
         ) : (
-          <Button
-            type="button"
-            onClick={form.handleSubmit(onSubmit)}
-            disabled={isPending}
-          >
+          // Spara avaktiveras ALDRIG av kvarvarande uppgifter (CTO Q3-A): de är
+          // frivilliga. Bara ett äkta blockerande fel stoppar sparandet, och då
+          // förklaras det på fältet — förklara, blockera inte.
+          <Button type="submit" disabled={isPending}>
             {isPending ? tr("save.pending") : tr("save.cta")}
           </Button>
         )}
@@ -987,14 +1144,57 @@ export function CvCompleteGuide({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </form>
   );
 }
 
-/** Found-count-proveniens per sektion: "{n} hittade" eller "Saknades i filen". */
-function FoundProvenance({ count }: { count: number }) {
+/**
+ * Felmeddelandet för ETT fält. Inte `role="alert"`: vid submit sätts flera fel
+ * samtidigt, och lika många samtidiga alerts blir en uppläsnings-storm som döljer
+ * just det fält fokus landar på. Meddelandet kopplas i stället till sitt fält via
+ * `aria-describedby` (+ `aria-invalid`), så skärmläsaren läser felet när fokus
+ * flyttas dit — vilket `routeToError` gör med det första felet. Foten bär den
+ * aggregerade signalen (`role="alert"`).
+ */
+function FieldMessage({ id, message }: { id: string; message?: string }) {
+  if (!message) return null;
+  return (
+    <p id={id} className="jp-guide__fielderror">
+      {message}
+    </p>
+  );
+}
+
+/**
+ * `aria-describedby` får peka på flera id:n. Ett fält kan ha BÅDE hjälptext och
+ * fel — hjälptexten förklarar fältet, felet förklarar varför det inte gick igenom,
+ * och båda behövs. Tomma led filtreras bort; allt tomt → `undefined` (aldrig ett
+ * tomt describedby som pekar i luften).
+ */
+function describedBy(...ids: Array<string | false | undefined>): string | undefined {
+  const present = ids.filter((id): id is string => Boolean(id));
+  return present.length > 0 ? present.join(" ") : undefined;
+}
+
+/**
+ * Found-count-proveniens per sektion: "{n} hittade" eller "Saknades i filen".
+ *
+ * `optional` — sektioner som INTE är en uppgift att stänga (fria sektioner:
+ * Projekt, Referenser, Certifikat). För dem är noll träffar inget saknat: ett CV
+ * utan PROJEKT saknar ingenting, och "Saknades i filen" hade påstått en lucka som
+ * inte finns. De ytar därför proveniensen bara när parsern faktiskt hittade något;
+ * tomt läge bärs av panelens egen empty-text.
+ */
+function FoundProvenance({
+  count,
+  optional = false,
+}: {
+  count: number;
+  optional?: boolean;
+}) {
   const tr = useTranslations("resumes.guide");
   if (count === 0) {
+    if (optional) return null;
     return (
       <StatusPill tone="neutral" dot={false}>
         {tr("missingInFile")}
@@ -1025,13 +1225,14 @@ function ExperienceCard({
   disabled: boolean;
 }) {
   const tr = useTranslations("resumes.guide");
-  const { register, control, watch, setValue } = form;
+  const { register, control, watch, setValue, formState } = form;
   const role = watch(`experiences.${index}.role`);
   const company = watch(`experiences.${index}.company`);
   const startDate = watch(`experiences.${index}.startDate`);
   const ongoing = watch(`experiences.${index}.ongoing`);
   const periodHint = watch(`experiences.${index}.periodHint`);
   const dateHintId = periodHint ? `guide-exp-${index}-period` : undefined;
+  const errors = formState.errors.experiences?.[index];
 
   if (!expanded) {
     const summary = [role, company].filter((v) => v.trim().length > 0).join(" · ");
@@ -1095,7 +1296,15 @@ function ExperienceCard({
             maxLength={200}
             required
             aria-required={true}
+            aria-invalid={errors?.company ? true : undefined}
+            aria-describedby={describedBy(
+              errors?.company && `guide-exp-${index}-company-error`,
+            )}
             disabled={disabled}
+          />
+          <FieldMessage
+            id={`guide-exp-${index}-company-error`}
+            message={errors?.company?.message}
           />
         </div>
         <div className="jp-guide__field">
@@ -1109,7 +1318,15 @@ function ExperienceCard({
             maxLength={200}
             required
             aria-required={true}
+            aria-invalid={errors?.role ? true : undefined}
+            aria-describedby={describedBy(
+              errors?.role && `guide-exp-${index}-role-error`,
+            )}
             disabled={disabled}
+          />
+          <FieldMessage
+            id={`guide-exp-${index}-role-error`}
+            message={errors?.role?.message}
           />
         </div>
       </div>
@@ -1132,7 +1349,15 @@ function ExperienceCard({
               {...register(`experiences.${index}.startDate`)}
               required
               aria-required={true}
+              aria-invalid={errors?.startDate ? true : undefined}
+              aria-describedby={describedBy(
+                errors?.startDate && `guide-exp-${index}-startDate-error`,
+              )}
               disabled={disabled}
+            />
+            <FieldMessage
+              id={`guide-exp-${index}-startDate-error`}
+              message={errors?.startDate?.message}
             />
           </div>
           {!ongoing && (
@@ -1144,7 +1369,15 @@ function ExperienceCard({
                 id={`guide-exp-${index}-endDate`}
                 type="date"
                 {...register(`experiences.${index}.endDate`)}
+                aria-invalid={errors?.endDate ? true : undefined}
+                aria-describedby={describedBy(
+                  errors?.endDate && `guide-exp-${index}-endDate-error`,
+                )}
                 disabled={disabled}
+              />
+              <FieldMessage
+                id={`guide-exp-${index}-endDate-error`}
+                message={errors?.endDate?.message}
               />
             </div>
           )}
@@ -1179,9 +1412,17 @@ function ExperienceCard({
         <Textarea
           id={`guide-exp-${index}-description`}
           {...register(`experiences.${index}.description`)}
+          aria-invalid={errors?.description ? true : undefined}
+          aria-describedby={describedBy(
+            errors?.description && `guide-exp-${index}-description-error`,
+          )}
           rows={3}
           maxLength={2000}
           disabled={disabled}
+        />
+        <FieldMessage
+          id={`guide-exp-${index}-description-error`}
+          message={errors?.description?.message}
         />
       </div>
 
@@ -1217,13 +1458,14 @@ function EducationCard({
   disabled: boolean;
 }) {
   const tr = useTranslations("resumes.guide");
-  const { register, control, watch, setValue } = form;
+  const { register, control, watch, setValue, formState } = form;
   const degree = watch(`educations.${index}.degree`);
   const institution = watch(`educations.${index}.institution`);
   const startDate = watch(`educations.${index}.startDate`);
   const ongoing = watch(`educations.${index}.ongoing`);
   const periodHint = watch(`educations.${index}.periodHint`);
   const dateHintId = periodHint ? `guide-edu-${index}-period` : undefined;
+  const errors = formState.errors.educations?.[index];
 
   if (!expanded) {
     const summary = [degree, institution]
@@ -1289,7 +1531,15 @@ function EducationCard({
             maxLength={200}
             required
             aria-required={true}
+            aria-invalid={errors?.institution ? true : undefined}
+            aria-describedby={describedBy(
+              errors?.institution && `guide-edu-${index}-institution-error`,
+            )}
             disabled={disabled}
+          />
+          <FieldMessage
+            id={`guide-edu-${index}-institution-error`}
+            message={errors?.institution?.message}
           />
         </div>
         <div className="jp-guide__field">
@@ -1303,7 +1553,15 @@ function EducationCard({
             maxLength={200}
             required
             aria-required={true}
+            aria-invalid={errors?.degree ? true : undefined}
+            aria-describedby={describedBy(
+              errors?.degree && `guide-edu-${index}-degree-error`,
+            )}
             disabled={disabled}
+          />
+          <FieldMessage
+            id={`guide-edu-${index}-degree-error`}
+            message={errors?.degree?.message}
           />
         </div>
       </div>
@@ -1326,7 +1584,15 @@ function EducationCard({
               {...register(`educations.${index}.startDate`)}
               required
               aria-required={true}
+              aria-invalid={errors?.startDate ? true : undefined}
+              aria-describedby={describedBy(
+                errors?.startDate && `guide-edu-${index}-startDate-error`,
+              )}
               disabled={disabled}
+            />
+            <FieldMessage
+              id={`guide-edu-${index}-startDate-error`}
+              message={errors?.startDate?.message}
             />
           </div>
           {!ongoing && (
@@ -1338,7 +1604,15 @@ function EducationCard({
                 id={`guide-edu-${index}-endDate`}
                 type="date"
                 {...register(`educations.${index}.endDate`)}
+                aria-invalid={errors?.endDate ? true : undefined}
+                aria-describedby={describedBy(
+                  errors?.endDate && `guide-edu-${index}-endDate-error`,
+                )}
                 disabled={disabled}
+              />
+              <FieldMessage
+                id={`guide-edu-${index}-endDate-error`}
+                message={errors?.endDate?.message}
               />
             </div>
           )}
@@ -1394,8 +1668,9 @@ function SectionCard({
   disabled: boolean;
 }) {
   const tr = useTranslations("resumes.guide");
-  const { register, control } = form;
+  const { register, control, formState } = form;
   const entries = useFieldArray({ control, name: `sections.${index}.entries` });
+  const errors = formState.errors.sections?.[index];
 
   return (
     <fieldset className="jp-guide__entry">
@@ -1413,11 +1688,19 @@ function SectionCard({
         <Input
           id={`guide-section-${index}-heading`}
           {...register(`sections.${index}.heading`)}
-          aria-describedby={`guide-section-${index}-heading-hint`}
+          aria-invalid={errors?.heading ? true : undefined}
+          aria-describedby={describedBy(
+            `guide-section-${index}-heading-hint`,
+            errors?.heading && `guide-section-${index}-heading-error`,
+          )}
           maxLength={200}
           required
           aria-required={true}
           disabled={disabled}
+        />
+        <FieldMessage
+          id={`guide-section-${index}-heading-error`}
+          message={errors?.heading?.message}
         />
       </div>
 
@@ -1443,8 +1726,22 @@ function SectionCard({
               <Input
                 id={`guide-section-${index}-entry-${entryIndex}-title`}
                 {...register(`sections.${index}.entries.${entryIndex}.title`)}
+                aria-invalid={
+                  errors?.entries?.[entryIndex]?.title ? true : undefined
+                }
+                aria-describedby={describedBy(
+                  errors?.entries?.[entryIndex]?.title &&
+                    `guide-section-${index}-entry-${entryIndex}-title-error`,
+                )}
                 maxLength={200}
                 disabled={disabled}
+              />
+              {/* Post-regeln (titel ELLER text) ytas av zod-refinen på `title` —
+                  den enda platsen den KAN ytas utan att ljuga om vilket fält som
+                  är fel, för det är kombinationen som saknas, inte fältet. */}
+              <FieldMessage
+                id={`guide-section-${index}-entry-${entryIndex}-title-error`}
+                message={errors?.entries?.[entryIndex]?.title?.message}
               />
             </div>
             <div className="jp-guide__field">
@@ -1460,9 +1757,20 @@ function SectionCard({
               <Textarea
                 id={`guide-section-${index}-entry-${entryIndex}-body`}
                 {...register(`sections.${index}.entries.${entryIndex}.body`)}
-                aria-describedby={`guide-section-${index}-entry-${entryIndex}-body-hint`}
+                aria-invalid={
+                  errors?.entries?.[entryIndex]?.body ? true : undefined
+                }
+                aria-describedby={describedBy(
+                  `guide-section-${index}-entry-${entryIndex}-body-hint`,
+                  errors?.entries?.[entryIndex]?.body &&
+                    `guide-section-${index}-entry-${entryIndex}-body-error`,
+                )}
                 rows={3}
                 disabled={disabled}
+              />
+              <FieldMessage
+                id={`guide-section-${index}-entry-${entryIndex}-body-error`}
+                message={errors?.entries?.[entryIndex]?.body?.message}
               />
             </div>
             <div>

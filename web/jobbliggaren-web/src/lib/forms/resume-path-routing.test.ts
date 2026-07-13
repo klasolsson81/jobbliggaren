@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   pathToElementId,
   gapFillPathToElementId,
+  guidePathToFormPath,
   guidePathToStepAndElementId,
   GUIDE_STEP_DETAILS,
   GUIDE_STEP_EXPERIENCE,
@@ -213,6 +214,57 @@ describe("resume-path-routing > guidePathToStepAndElementId (Slutför-guiden, PR
       ["content.educations.x.degree"], // index ej siffra
     ])("returnerar null för %s", (path) => {
       expect(guidePathToStepAndElementId(path)).toBeNull();
+    });
+  });
+});
+
+describe("resume-path-routing > guidePathToFormPath", () => {
+  // Samma Zod-namnrymd, men målet är RHF:s fältväg (form.setError) i stället för
+  // ett element-id. Formen och payloaden är inte samma form — `toRawPayload` är en
+  // äkta transform — och den enda strukturella skillnaden en path kan träffa är
+  // sektionspostens brödtext (form: `body` / payload: `lines`).
+  describe("delad namnrymd → content.-prefixet strippas", () => {
+    it.each([
+      ["name", "name"],
+      ["content.personalInfo.fullName", "personalInfo.fullName"],
+      ["content.personalInfo.location", "personalInfo.location"],
+      ["content.summary", "summary"],
+      ["content.experiences.0.company", "experiences.0.company"],
+      ["content.experiences.2.startDate", "experiences.2.startDate"],
+      ["content.educations.1.degree", "educations.1.degree"],
+      ["content.sections.0.heading", "sections.0.heading"],
+      ["content.sections.1.entries.2.title", "sections.1.entries.2.title"],
+    ])("mappar %s → %s", (path, expected) => {
+      expect(guidePathToFormPath(path)).toBe(expected);
+    });
+  });
+
+  describe("sektionspostens lines → body (den enda strukturella avvikelsen)", () => {
+    it.each([
+      // Post-nivå (summerad längd över raderna).
+      ["content.sections.0.entries.1.lines", "sections.0.entries.1.body"],
+      // Rad-nivå: ett issue på en ENSKILD rad hör ändå hemma i textarean som helhet
+      // — formen har ingen per-rad-kontroll att markera.
+      ["content.sections.2.entries.0.lines.3", "sections.2.entries.0.body"],
+    ])("mappar %s → %s", (path, expected) => {
+      expect(guidePathToFormPath(path)).toBe(expected);
+    });
+  });
+
+  describe("utan RHF-kontroll att markera → null (aldrig ett gissat fält)", () => {
+    it.each([
+      // Chip-listor: chip-listan ÄR fältet; det finns ingen per-post-input att
+      // hänga felet på. De ytas via stegets status i stället.
+      ["content.skills.0.name"],
+      ["content.languages.1.name"],
+      // Okänt/ohanterat.
+      [""],
+      ["garbage"],
+      ["parsedResumeId"],
+      ["personalInfo.fullName"], // saknar content.-prefix
+      ["content.unknownField"],
+    ])("returnerar null för %s", (path) => {
+      expect(guidePathToFormPath(path)).toBeNull();
     });
   });
 });

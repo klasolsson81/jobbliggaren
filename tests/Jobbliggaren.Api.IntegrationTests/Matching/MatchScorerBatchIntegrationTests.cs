@@ -288,7 +288,7 @@ public class MatchScorerBatchIntegrationTests(ApiFactory factory)
     }
 
     // =================================================================
-    // Soft-deleted ads are absent (the global DeletedAt==null filter composes
+    // ARCHIVED ads are NOT absent -- they are scored (no status gate; known gap #864)
     // with the FromSql `= ANY`)
     // =================================================================
 

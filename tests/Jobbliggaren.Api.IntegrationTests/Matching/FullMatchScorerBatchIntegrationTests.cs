@@ -25,7 +25,8 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// <item>Per-key <see cref="FullMatchScore"/> EQUALS <see cref="IMatchScorer.ScoreFullAsync"/>
 /// for that ad + the same profile — the four embedded Fast dims AND the three new dims
 /// (SkillOverlap / MustHaveCoverage / NiceToHaveCoverage).</item>
-/// <item>Missing / non-existent / soft-deleted ids are SILENTLY OMITTED (no
+/// <item>Missing / non-existent ids are SILENTLY OMITTED (an ARCHIVED ad is NOT missing: it is
+/// scored -- known gap #864). (no
 /// NotFoundException — parity <c>ScoreBatchAsync</c>).</item>
 /// <item>Empty id list → empty dict (no query).</item>
 /// </list>
@@ -353,7 +354,7 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
     }
 
     // =================================================================
-    // 9. Missing / soft-deleted ids omitted; empty ids → empty dict
+    // 9. Missing ids omitted (an ARCHIVED ad is NOT omitted -- #864); empty ids → empty dict
     // =================================================================
 
     [Fact]

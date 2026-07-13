@@ -83,8 +83,8 @@ public sealed class GetEmployerApplicationCountBatchQueryHandler(
             return Empty;
 
         // (1) Page ads -> employer org.nr, server-side (#455 reader: `= ANY` raw SQL + EF.Property shadow
-        // column). The reader composes with the global soft-delete filter, but that filter is VACUOUS
-        // (#821) -- an archived ad still resolves its org.nr. What actually removes an ad from this map
+        // column). JobAd carries NO query filter at all (#821 retired the dead soft-delete axis) --
+        // an archived ad still resolves its org.nr. What actually removes an ad from this map
         // is the org.nr having been recomputed to NULL after the raw_payload purge (#824/#841), not any
         // kind of deletion. org.nr is server-side-only here.
         var orgNrByJobAdId = await employerReader.GetOrganizationNumbersByJobAdIdsAsync(

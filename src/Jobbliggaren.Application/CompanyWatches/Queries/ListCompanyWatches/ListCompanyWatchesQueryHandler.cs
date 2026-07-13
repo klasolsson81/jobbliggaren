@@ -87,7 +87,8 @@ public sealed class ListCompanyWatchesQueryHandler(
             .ToDictionary(g => g.Key, g => g.First().Name);
 
         // #447 — active-ad count per followed employer. Same org.nr set, PUBLIC job_ads, but keyed on
-        // status='Active' (repo-wide translation form j.Status == JobAdStatus.Active, value-converted
+        // status='Active' — which is the WHOLE exclusion (JobAd has no soft-delete axis and no query
+        // filter, #821). Repo-wide translation form j.Status == JobAdStatus.Active, value-converted
         // to `status = 'Active'`). GROUP BY the STORED organization_number shadow column server-side;
         // the global soft-delete filter already excludes retracted ads (ADR 0048 — IgnoreQueryFilters
         // / manual deleted_at forbidden). Bounded to the handful of watched org.nrs. Only Postgres

@@ -88,8 +88,17 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
             // only the WHERE clause is gone.
             //
             // CREATE INDEX (not CONCURRENTLY): migrations run inside a transaction via the Migrate
-            // schema task, and CONCURRENTLY cannot run in one. Precedent: every index DDL on this
-            // table. At job_ads volume the ACCESS EXCLUSIVE lock during the build is short.
+            // schema task, and CONCURRENTLY cannot run in one. Precedent: every index DDL on this table.
+            //
+            // DEPLOY WINDOW — MEASURED, not asserted. The five serial rebuilds hold ACCESS EXCLUSIVE on
+            // job_ads for the whole build. Measured against a synthetic 47k-row / 61 MB job_ads on
+            // PostgreSQL 18: search_vector GIN 2.2 s + description trigram GIN 1.6 s + title trigram GIN
+            // 0.27 s + extracted_lexemes GIN 0.06 s + title prefix btree 0.05 s = ~4.2 s total. The Api
+            // therefore BLOCKS on job_ads for roughly four to five seconds while this migration runs.
+            // That is fine for a dev/staging deploy and well inside the migration job's timeout, but it
+            // is NOT nothing and must not be discovered in prod: schedule a maintenance window, or accept
+            // a ~5 s search stall. (An earlier revision of this comment called the lock "short" without
+            // ever measuring it. db-migration-writer called that out, correctly.)
             migrationBuilder.Sql(
                 "CREATE INDEX ix_job_ads_search_vector " +
                 "ON job_ads USING gin (search_vector);");

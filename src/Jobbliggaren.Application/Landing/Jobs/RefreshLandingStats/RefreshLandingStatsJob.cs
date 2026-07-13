@@ -25,7 +25,8 @@ namespace Jobbliggaren.Application.Landing.Jobs.RefreshLandingStats;
 /// <para>
 /// Två räknor (ADR 0056 spec, Klas-bekräftat 2026-05-23):
 /// <list type="bullet">
-///   <item>ActiveCount: COUNT(*) WHERE Status='Active' (soft-delete-filter applicerat).</item>
+///   <item>ActiveCount: COUNT(*) WHERE Status='Active'. Status ÄR hela avgränsningen — JobAd har
+///   ingen soft-delete-axel och inget query-filter (#821).</item>
 ///   <item>NewToday:    COUNT(*) WHERE PublishedAt &gt;= today UTC AND Status='Active'.</item>
 /// </list>
 /// Båda räknorna är indexerade (existerande <c>ix_job_ads_status</c> + partial

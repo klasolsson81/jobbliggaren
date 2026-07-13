@@ -288,8 +288,14 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // ONE round-trip via parameterized `= ANY` (parity ScoreBatchAsync — Contains
         // over the strongly-typed JobAdId key does not translate, ef_strongly_typed_vo_
         // contains). The extracted_terms VO materializes via its jsonb ValueConverter
-        // exactly as in ScoreFullAsync's .Select; the global soft-delete filter composes
-        // (soft-deleted ads absent ⇒ no entry). Testcontainers is the oracle.
+        // exactly as in ScoreFullAsync's .Select. Testcontainers is the oracle.
+        //
+        // KNOWN GAP (#864) — NO STATUS GATE HERE EITHER, and this is the third of three. The old comment
+        // claimed the global soft-delete filter composed so that "soft-deleted ads are absent ⇒ no
+        // entry"; that filter never had a writer and is retired (#821). An ARCHIVED ad is fully scored.
+        // BackgroundMatchingJob calls this path but gates Status == Active itself (:145), which MASKS the
+        // gap there — no UserJobAdMatch row is ever persisted for an archived ad. The exposure is the
+        // read-only client-supplied-id surface. Pinned by a characterization test.
         var rows = await db.JobAds
             .FromSql($"SELECT * FROM job_ads WHERE id = ANY({ids})")
             .AsNoTracking()

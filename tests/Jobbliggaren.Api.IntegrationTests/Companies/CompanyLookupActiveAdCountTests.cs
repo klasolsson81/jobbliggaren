@@ -195,6 +195,6 @@ public class CompanyLookupActiveAdCountTests
         result.IsSuccess.ShouldBeTrue();
         result.Value.ActiveAdCount.ShouldBe(1,
             "Endast den Active-annonsen ska räknas — Expired/Archived exkluderas av status='Active', " +
-            "soft-deleted av den globala soft-delete-query-filtren (ADR 0048).");
+            "som ÄR hela exkluderingen (JobAd har ingen soft-delete-axel, #821).");
     }
 }

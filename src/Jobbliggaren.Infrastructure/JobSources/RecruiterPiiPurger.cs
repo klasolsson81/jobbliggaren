@@ -32,7 +32,12 @@ public sealed class RecruiterPiiPurger(IAppDbContext db) : IRecruiterPiiPurger
     {
         var probe = BuildEmailProbe(email);
 
-        // IgnoreQueryFilters: PII gäller även soft-deletade rader.
+        // IgnoreQueryFilters() är sedan #821 en NO-OP: JobAd har inget query-filter kvar att ignorera
+        // (den döda soft-delete-axeln är retirerad). Scope:t är byte-identiskt — det vakuösa filtret
+        // släppte igenom varje rad, och inget filter gör detsamma. Anropet lämnas kvar därför att #842
+        // skriver om hela den här metoden (Art. 17-vägen är en strukturell no-op: den söker på en
+        // nyckel som ingest garanterat strippat) och den lanen äger filen. Läs INTE detta som att
+        // soft-deletade rader vore ett scope-problem — sådana rader kan inte existera.
         return await db.JobAds
             .IgnoreQueryFilters()
             .Where(j => j.RawPayload != null

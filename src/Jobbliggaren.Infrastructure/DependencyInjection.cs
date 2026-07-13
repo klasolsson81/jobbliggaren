@@ -409,10 +409,13 @@ public static class DependencyInjection
         // AddCvRendering. NO AI/LLM.
         services.AddCvRendering();
 
-        // TD-73 prod-gating: Right-to-erasure-impl för rekryterar-PII (ADR 0032
-        // §8 amendment 2026-05-13). Postgres-specifik JsonContains-LINQ kapslas
-        // in i Infrastructure för att hålla Application Npgsql-fri (Clean Arch).
-        services.AddScoped<IRecruiterPiiPurger, RecruiterPiiPurger>();
+        // #842 (2026-07-13): IRecruiterPiiPurger/RecruiterPiiPurger removed. It was the
+        // only Art. 17 erasure path for recruiter PII and it was structurally incapable of
+        // erasing anything — it probed raw_payload for a jsonb key the ingest sanitizer
+        // guarantees is absent (0 of 93 469 ingested ads carry it), then reported success.
+        // The replacement contract is ADR 0106: minimise at ingest (Tier A) + remove the
+        // whole ad record on request (Tier B). Nothing is registered here in the meantime;
+        // the admin route fails loud with 501 (AdminJobAdsEndpoints).
 
         // #754 (ADR 0045 Beslut 1 klass (d)) — options + delad reporter för
         // ingestion-throughput-fitness-functionen. Bunden HÄR (inte i
@@ -510,7 +513,7 @@ public static class DependencyInjection
         // JobAdRefetchBackfillRunner (paritet Klass2). Predikatet behöver Npgsql
         // jsonb ?-operatorn → kapslas i Infrastructure bakom
         // IJobAdRequirementBackfillFilter så Application förblir Npgsql-fritt (CLAUDE.md
-        // §2.1, paritet IRecruiterPiiPurger). Filtret är stateless → Singleton; jobb +
+        // §2.1). Filtret är stateless → Singleton; jobb +
         // options paritet Klass2. DI i samma commit som jobb/endpoint
         // (feedback_di_with_handlers_same_commit).
         services.AddSingleton<
@@ -604,9 +607,19 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.ICvLayoutAnalyzer,
             Resumes.Parsing.PdfPigCvLayoutAnalyzer>();
+        // Fas 4b 8b.4a — the lexicon is loaded ONCE, HERE, and registered as a value. Two
+        // consequences worth stating: (1) a broken asset throws during host build, not inside a
+        // user's CV import (the static-ctor form it replaced would have surfaced as a
+        // TypeInitializationException → HTTP 500, cached for the life of the process); (2) the
+        // segmenter and the recommendation port receive the SAME instance, so RECOGNITION ("is this
+        // a heading?") and RESOLUTION ("WHICH canonical section is it?") cannot disagree.
+        services.AddSingleton(Resumes.Parsing.CvParsingLexiconLoader.Load());
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.IResumeSegmenter,
             Resumes.Parsing.HeadingDrivenResumeSegmenter>();
+        services.AddSingleton<
+            Jobbliggaren.Application.Resumes.Abstractions.ICvParsingLexicon,
+            Resumes.Parsing.CvParsingLexiconProvider>();
         return services;
     }
 

@@ -10,8 +10,10 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// Kapslar in den Npgsql-specifika <c>jsonb ?</c>-existens-operatorn
 /// (<c>EF.Functions.JsonExists</c>) i Infrastructure så Application-lagret förblir
 /// Npgsql-fritt (CLAUDE.md §2.1; layer-arch-testet förbjuder Npgsql i Application).
-/// Exakt samma inkapslings-mönster som <see cref="JobSources.RecruiterPiiPurger"/>
-/// (jsonb-LINQ bakom <c>IRecruiterPiiPurger</c>) och <c>IDbExceptionInspector</c>.
+/// Exakt samma inkapslings-mönster som <c>IDbExceptionInspector</c>. (Tidigare
+/// citerades även <c>RecruiterPiiPurger</c> här som förebild; den är borttagen i
+/// #842 — den var en Art. 17-raderingsväg som strukturellt inte kunde radera något.
+/// Inkapslings-mönstret överlever, förebilden gör det inte.)
 ///
 /// <para>
 /// <b>EF Core 10 #3745-defensive:</b> <c>EF.Functions.JsonExists</c> är säker;

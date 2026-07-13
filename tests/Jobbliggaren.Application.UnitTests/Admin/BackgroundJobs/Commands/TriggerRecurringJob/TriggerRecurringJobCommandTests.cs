@@ -9,7 +9,7 @@ namespace Jobbliggaren.Application.UnitTests.Admin.BackgroundJobs.Commands.Trigg
 
 /// <summary>
 /// #204 / TD-83 PR2 — audit-marker + authorization contract for the trigger command. Mirrors
-/// <c>RedactRecruiterPiiCommandTests</c> (the audit aggregate-id contract): the per-request
+/// <c>RequeueFailedJobCommandTests</c> (the audit aggregate-id contract): the per-request
 /// <c>RequestId</c> is the audit AggregateId, STABLE across the command lifetime and DISTINCT
 /// per instance (these system mutations have no aggregate-root Guid; <c>Guid.Empty</c> is
 /// forbidden by <c>AuditLogEntry.Create</c>). EventType/AggregateType values are part of the

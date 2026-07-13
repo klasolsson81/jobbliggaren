@@ -7,8 +7,8 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Admin.BackgroundJobs.Commands.RequeueFailedJob;
 
 /// <summary>
-/// #204 / TD-83 PR2 — audit-marker + authorization contract for the requeue command. Mirrors
-/// <c>RedactRecruiterPiiCommandTests</c>: the per-request <c>RequestId</c> is the audit AggregateId,
+/// #204 / TD-83 PR2 — audit-marker + authorization contract for the requeue command. The
+/// per-request <c>RequestId</c> is the audit AggregateId,
 /// STABLE across the command lifetime and DISTINCT per instance (no aggregate-root Guid;
 /// <c>Guid.Empty</c> is forbidden by <c>AuditLogEntry.Create</c>). EventType/AggregateType asserted
 /// by value (stable audit contract).

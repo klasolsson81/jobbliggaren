@@ -16,9 +16,15 @@ namespace Jobbliggaren.Application.Matching.Queries.GetJobAdMatchBatch;
 /// <para>
 /// <b>Honest, anonymous-tolerant:</b> no authenticated user OR no stated occupation
 /// (the gate of the grade ladder) → empty result, no faked tags (ADR 0076 Decision 7).
-/// Only ads that earn a positive grade appear in <c>Entries</c>; ads that do not qualify,
-/// do not exist, or are soft-deleted are simply absent (the scorer omits missing ads,
-/// the calculator returns null below the gate).
+/// Only ads that earn a positive grade appear in <c>Entries</c>; ads that do not qualify or
+/// do not exist are simply absent (the scorer omits missing ads, the calculator returns null
+/// below the gate).
+/// </para>
+/// <para>
+/// <b>KNOWN GAP (#864):</b> an ARCHIVED ad is NOT absent - it is scored and tagged like any other.
+/// <c>MatchScorer</c> carries no <c>Status</c> predicate; it delegated that exclusion to JobAd's
+/// soft-delete query filter, which never had a writer and is now retired (#821). Pinned as a
+/// characterization test, not blessed.
 /// </para>
 /// </summary>
 public sealed class GetJobAdMatchBatchQueryHandler(

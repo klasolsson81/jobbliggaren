@@ -26,7 +26,7 @@ public interface IJobAdSnapshotMissTracker
     /// <summary>
     /// Bokför miss-status för en komplett snapshot-run. För ExternalIds i
     /// <paramref name="seenExternalIds"/>: upsert till <c>miss_count=0</c>.
-    /// För Active+ej-soft-deleted-JobAds med <c>Source=<paramref name="source"/></c>
+    /// För Active-JobAds med <c>Source=<paramref name="source"/></c>
     /// vars ExternalId INTE finns i set:n: increment <c>miss_count</c> +
     /// uppdatera <c>last_missed_at</c> (sätt <c>first_missed_at</c> om null).
     /// <para>
@@ -67,7 +67,7 @@ public interface IJobAdSnapshotMissTracker
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Räknar Active+ej-soft-deleted-JobAds med given källa. Använt av
+    /// Räknar Active-JobAds med given källa (JobAd har ingen soft-delete-axel, #821). Använt av
     /// post-archive circuit-breaker (CTO-rond 2026-05-23 H1 + security-auditor):
     /// retention-jobbet jämför candidates/active mot
     /// <c>MaxArchivePctPerRun</c> innan <c>ExecuteUpdate</c> för fail-loud-skydd
@@ -78,7 +78,7 @@ public interface IJobAdSnapshotMissTracker
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Räknar Active+ej-soft-deleted-JobAds med given källa vars
+    /// Räknar Active-JobAds med given källa vars
     /// <c>JobAdSnapshotMiss.MissCount &gt;= <paramref name="threshold"/></c>.
     /// Använt av post-archive circuit-breaker (samma som ovan) — antalet
     /// rader som SKULLE arkiveras av <see cref="ArchiveJobAdsWithMissCountAtLeastAsync"/>.

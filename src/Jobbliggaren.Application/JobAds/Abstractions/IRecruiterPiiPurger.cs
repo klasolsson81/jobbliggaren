@@ -14,7 +14,10 @@ public interface IRecruiterPiiPurger
     /// <summary>
     /// Null:ar <c>raw_payload</c> på alla JobAds där matchande rekryterar-email
     /// finns i jsonb-strukturen <c>{ employer: { contact_email: ... } }</c>.
-    /// IgnoreQueryFilters tillämpas — soft-deletade rader inkluderas i scope:n.
+    /// <c>IgnoreQueryFilters</c> anropas fortfarande i impl:n men är sedan #821 en NO-OP:
+    /// JobAd har inget query-filter kvar att ignorera (den döda soft-delete-axeln är retirerad).
+    /// Anropet lämnas orört här — <c>RecruiterPiiPurger</c> skrivs om av #842 (Art. 17-vägen är
+    /// en strukturell no-op) och den lanen äger filen.
     /// Idempotent — repeated runs ger 0 rader vid andra körning (raw_payload är
     /// då redan null).
     /// </summary>

@@ -8,12 +8,12 @@ namespace Jobbliggaren.Application.SavedJobAds.Queries.ListSavedJobAds;
 /// <summary>
 /// F6 P5 Punkt 2 Del A — listar aktuella bokmärken för inloggad JobSeeker.
 /// ADR 0048 in-handler-join för JobAd-metadata via DefaultIfEmpty (ADR 0048
-/// Beslut c — IgnoreQueryFilters/manuellt DeletedAt-predikat FÖRBJUDET).
+/// Beslut c — IgnoreQueryFilters/hand-rullade soft-delete-predikat FÖRBJUDET).
 /// <para>
-/// #805-3 sanningssynk: den tidigare utsagan "soft-deletad JobAd → JobAd blir
-/// null via global query filter" var falsk — JobAd.DeletedAt saknar writer, så
-/// filtret (DeletedAt == null) exkluderar aldrig en rad (#821). En annons som
-/// inte längre är aktiv bär Status == "Archived" och joinar fortfarande;
+/// Den tidigare utsagan "soft-deletad JobAd → JobAd blir null via global query
+/// filter" var falsk, och axeln den namngav finns inte längre: JobAd har ingen
+/// soft-delete (#821). En annons som inte längre är aktiv bär
+/// Status == "Archived" och joinar fortfarande;
 /// JobAdSummaryDto.Status bär den signalen (aldrig null här — en sparad annons
 /// har alltid en JobAd-rad).
 /// </para>

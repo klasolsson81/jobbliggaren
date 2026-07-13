@@ -361,8 +361,9 @@ public sealed partial class DigestDispatchJob(
 
         // Display items — the PUBLIC title/company per ad (never the org.nr — ADR 0087 D8), AsNoTracking,
         // same ordering. Read BEFORE the claim (the join predicate needs the rows still Pending). The
-        // inner join honours the JobAd soft-delete filter (a retracted ad falls out of the body but its
-        // hit is still drained below). Joining (not an id-set filter) sidesteps the strongly-typed-VO
+        // inner join drops a hit whose ad row is GONE (the ad body is omitted but the hit is still
+        // drained below). It is not a lifecycle filter: JobAd has no soft-delete axis (#821), so an
+        // ARCHIVED ad still joins. Joining (not an id-set filter) sidesteps the strongly-typed-VO
         // Contains trap.
         var itemsQuery =
             from h in db.FollowedCompanyAdHits.AsNoTracking()

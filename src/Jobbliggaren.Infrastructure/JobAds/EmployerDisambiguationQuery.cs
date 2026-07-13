@@ -26,8 +26,8 @@ internal sealed class EmployerDisambiguationQuery(AppDbContext db) : IEmployerDi
         string nameQuery, int limit, CancellationToken cancellationToken)
     {
         // Case-insensitive CONTAINS on company_name; the user's term is LIKE-escaped so %/_ match
-        // literally (correctness, not a security hole on public data). The global soft-delete filter
-        // (DeletedAt == null) applies automatically. Ads with a NULL org.nr are excluded (partial-index
+        // literally (correctness, not a security hole on public data). JobAd carries no query filter
+        // (no soft-delete axis, #821). Ads with a NULL org.nr are excluded (partial-index
         // predicate). GROUP BY on the RAW org.nr server-side — never on a masked value (a null would
         // collapse distinct sole-props into one phantom row). company_name is stable per org.nr (one
         // legal entity = one registered name), so GROUP BY (org.nr, name) yields one row per entity.

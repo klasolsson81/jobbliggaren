@@ -27,6 +27,7 @@ public sealed record ApplicationDetailDto(
     // ARCHIVED — i.e. when JobAd.Status == "Archived", read off
     // JobAdSummaryDto.Status. It is NOT keyed on "JobAd == null": that was the
     // original (false) claim, and it made this panel unreachable in production
-    // for two releases, because JobAd.DeletedAt has no writer and JobAd therefore
-    // never resolves to null for a JobAd-linked application (#821).
+    // for two releases: it delegated the "gone" verdict to a soft-delete axis that
+    // had no writer, so JobAd never resolved to null for a JobAd-linked
+    // application. That axis is retired (#821); Status is the only signal.
     AdSnapshotDto? PreservedAd);

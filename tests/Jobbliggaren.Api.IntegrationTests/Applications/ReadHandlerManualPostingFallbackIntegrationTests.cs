@@ -34,10 +34,10 @@ namespace Jobbliggaren.Api.IntegrationTests.Applications;
 //
 // Scenarier + assertions bevarade 1:1 (gren 1 JobAd-kopplad, gren 2
 // ManualPosting Source="Manual"/PublishedAt=null [J1], gren 3 null,
-// cross-user ADR 0031, soft-deletad JobAd → fallback). Testnamn bevarade
-// för spårbar täckning (ADR 0044). Mönster (scope/AppDbContext/clock,
-// soft-delete via db.Entry(...).Property(nameof(JobAd.DeletedAt))) kopierat
-// verbatim från ManualPostingPersistenceTests.cs (redan grön mot Npgsql).
+// cross-user ADR 0031). Testnamn bevarade för spårbar täckning (ADR 0044).
+// #821: soft-delete-grenen är BORTA — den fabricerade ett tillstånd produktionen
+// aldrig kunde nå (JobAd hade ingen writer för DeletedAt). Den ÄKTA borta-signalen
+// är Status = "Archived", pinnad av GetApplications_WithArchivedJobAd_* nedan.
 [Collection("Api")]
 public class ReadHandlerManualPostingFallbackIntegrationTests
 {
@@ -240,7 +240,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
     // vilade på), utan en fullt projicerad summary med Status = "Archived".
     //
     // Före #805-3 kodades "annonsen är borta" som jobAd == null, delegerat till
-    // soft-delete-axeln JobAd.DeletedAt — som saknar writer (#821). Följd:
+    // soft-delete-axeln JobAd.DeletedAt — som saknade writer och nu är retirerad (#821). Följd:
     // PreservedAdPanel (ADR 0086/#315) renderades ALDRIG i produktion, och
     // produktens enda "Visa annonsen"-utlänk bodde inuti den. Testet gör den
     // buggen omöjlig att återinföra tyst: skulle någon åter-koppla borta-läget
@@ -493,48 +493,6 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
 
         var group = result.ShouldHaveSingleItem();
         group.Applications.ShouldHaveSingleItem().JobAd.ShouldBeNull();
-    }
-
-    // ---------------------------------------------------------------
-    // ADR 0048 c — MEKANISM-test: OM en JobAd bär DeletedAt faller den ut via
-    // query-filter + DefaultIfEmpty (jobAd = null), UTAN IgnoreQueryFilters/eget
-    // predikat. Testet pinnar filtret, inte ett produktions-scenario.
-    //
-    // #805-3 sanningssynk — läs detta innan du drar slutsatser av testet: INGEN
-    // produktionsväg sätter JobAd.DeletedAt. Domänen saknar SoftDelete-metod och
-    // src/ har noll writers (#821 retirerar axeln). Testet fabricerar tillståndet
-    // via db.Entry(...) — det är därför det passerar, och det är precis den
-    // falska tryggheten som lät läsvägen koda "annonsen är borta" som
-    // jobAd == null i två releaser. Den verkliga borta-signalen är Status
-    // ("Archived"), pinnad av GetApplicationById/GetApplications_WithArchivedJobAd_*
-    // ovan. Behåll gärna detta test (filtret ÄR korrekt implementerat), men
-    // härled aldrig produktionsbeteende ur det.
-    // ---------------------------------------------------------------
-
-    [Fact]
-    public async Task GetApplications_WithSoftDeletedJobAd_FallsBackToNullViaQueryFilter()
-    {
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
-
-        var seeker = await SeedSeekerAsync(db, clock, _userId);
-        var jobAd = SeedJobAd(db, clock);
-        var app = DomainApplication.Create(seeker.Id, jobAd.Id, null, null, clock).Value;
-        db.Applications.Add(app);
-        await db.SaveChangesAsync(CancellationToken.None);
-
-        db.Entry(jobAd).Property(nameof(JobAd.DeletedAt)).CurrentValue = clock.UtcNow;
-        await db.SaveChangesAsync(CancellationToken.None);
-        db.ChangeTracker.Clear();
-
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
-        var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
-
-        // Application själv finns kvar (ej soft-deletad), men JobAd-grenen
-        // faller ut via JobAd:s query-filter + DefaultIfEmpty → JobAd == null.
-        var dto = result.Items.ShouldHaveSingleItem();
-        dto.JobAd.ShouldBeNull();
     }
 
     // ---------------------------------------------------------------

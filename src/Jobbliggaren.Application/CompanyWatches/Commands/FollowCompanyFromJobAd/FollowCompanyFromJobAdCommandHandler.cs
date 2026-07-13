@@ -34,7 +34,8 @@ public sealed class FollowCompanyFromJobAdCommandHandler(
         var orgNrByJobAd = await employerReader.GetOrganizationNumbersByJobAdIdsAsync(
             [command.JobAdId], cancellationToken);
 
-        // Absent from the map ⇒ the ad does not exist (or is soft-deleted / retracted) → NotFound (404).
+        // Absent from the map ⇒ the ad DOES NOT EXIST → NotFound (404). Absence means nothing else:
+        // JobAd has no soft-delete axis (#821), so an archived ad is present in the map, not absent.
         if (!orgNrByJobAd.TryGetValue(command.JobAdId, out var rawOrgNr))
             return Result.Failure<Guid>(
                 DomainError.NotFound("JobAd.NotFound", "Annonsen kunde inte hittas."));

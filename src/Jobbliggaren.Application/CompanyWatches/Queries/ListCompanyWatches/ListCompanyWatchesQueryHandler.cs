@@ -20,9 +20,9 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatches;
 /// <para>
 /// #447 (ADR 0087 D2; senior-cto-advisor 2026-07-01) — each row also carries <c>ActiveAdCount</c>
 /// ("X aktiva annonser just nu"): a SECOND bounded in-handler projection over public <c>job_ads</c>
-/// keyed by the SAME org.nr set (ADR 0048 in-handler cross-aggregate read; the global soft-delete
-/// query filter excludes retracted ads — never a hand-rolled <c>deleted_at</c>), counting only
-/// <c>status='Active'</c>. Kept as a separate additive projection (the name projection is unchanged)
+/// keyed by the SAME org.nr set (ADR 0048 in-handler cross-aggregate read), counting only
+/// <c>status='Active'</c> — which is the WHOLE exclusion: JobAd has no soft-delete axis and no query
+/// filter (#821), so a retracted ad is excluded by its Status, not by a filter. Kept as a separate additive projection (the name projection is unchanged)
 /// rather than merged into one GROUP BY — two bounded round-trips over a handful of distinct org.nrs
 /// is the accepted cost of a lower-risk additive diff (CTO verdict b). The raw org.nr is read
 /// SERVER-SIDE only, to GROUP BY — it is never surfaced (the count is a plain <c>int</c>, public

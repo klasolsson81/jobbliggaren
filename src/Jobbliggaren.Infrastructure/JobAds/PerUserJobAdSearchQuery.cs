@@ -297,8 +297,9 @@ internal sealed class PerUserJobAdSearchQuery(
         var selectedRanks = grades.Select(GradeToRank).Distinct().ToArray();
 
         // Bounded per-employer GROUP BY over PUBLIC Active job_ads (parity #447 ActiveAdCount +
-        // the CountPerUserAsync grade-WHERE). Soft-delete inherited from the global query filter
-        // (ADR 0048 — never a hand-rolled deleted_at). org.nr is the GROUP key only, server-side.
+        // the CountPerUserAsync grade-WHERE). The Status == Active predicate below IS the whole
+        // exclusion: JobAd has no soft-delete axis and no query filter (#821 — and a hand-rolled
+        // deleted_at predicate was always forbidden, ADR 0048). org.nr is the GROUP key only, server-side.
         // Only Postgres computes the generated shadow columns + translates GradeRankExpression +
         // the GROUP BY, so the count is proven by the Testcontainers oracle (InMemory hides all).
         var counts = await db.JobAds
@@ -358,8 +359,9 @@ internal sealed class PerUserJobAdSearchQuery(
 
         // ONE round-trip via parameterized `= ANY` (the canonical strongly-typed-id-set pattern
         // from MatchScorer.ScoreBatchAsync — Contains() over JobAdId does not translate;
-        // FromSql parameterizes the Guid[], injection-safe, CLAUDE.md §5). Composes with the
-        // global soft-delete filter; Status gate parity CountPerUserByEmployerAsync.
+        // FromSql parameterizes the Guid[], injection-safe, CLAUDE.md §5). JobAd carries no query
+        // filter (#821) — the explicit Status gate below is the exclusion, parity
+        // CountPerUserByEmployerAsync.
         var ids = jobAdIds.Select(id => id.Value).Distinct().ToArray();
 
         var matching = await db.JobAds

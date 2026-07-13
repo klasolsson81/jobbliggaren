@@ -37,8 +37,8 @@ namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationCo
 /// governed by the ad's AGE — not by archival and not by soft delete. The org.nr on both sides of the
 /// join is a STORED generated column derived from <c>raw_payload</c>; <c>PurgeStaleRawPayloadsJob</c>
 /// nulls <c>raw_payload</c> 30 days after <c>PublishedAt</c>, and Postgres then RECOMPUTES that column
-/// to NULL. So an ARCHIVED but recent ad still counts (archival hides no row — <c>JobAd.DeletedAt</c>
-/// has no writer in <c>src/</c> and its filter is vacuous, #821), while an ACTIVE but old ad does not.
+/// to NULL. So an ARCHIVED but recent ad still counts (archival hides no row — <c>JobAd</c> has no
+/// soft-delete axis and no query filter, #821), while an ACTIVE but old ad does not.
 /// Worse, until #841 lands the value <b>thrashes daily for an ad still listed in the Platsbanken feed</b>
 /// (the 02:00 full-backfill sync rewrites <c>raw_payload</c>; the 04:30 purge nulls it again) — so the
 /// same application is counted for ~2.5h/day and not for the other ~21.5h, which makes the number the

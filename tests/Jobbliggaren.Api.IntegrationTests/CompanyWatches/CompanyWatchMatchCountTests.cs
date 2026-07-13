@@ -104,8 +104,7 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
         CancellationToken ct,
         ExtractedTerms? terms = null,
         bool archived = false,
-        bool expired = false,
-        bool softDeleted = false)
+        bool expired = false)
     {
         var externalId = $"cwm-{Guid.NewGuid():N}";
 
@@ -147,14 +146,6 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
             await db.SaveChangesAsync(ct);
         }
 
-        // Soft-delete is ORTHOGONAL to status (status stays 'Active'); only DeletedAt is stamped so
-        // ONLY the global soft-delete query filter excludes it (parity #447's soft-deleted case —
-        // JobAd has no domain SoftDelete; DeletedAt is stamped via EF direct).
-        if (softDeleted)
-        {
-            db.Entry(jobAd).Property(nameof(JobAd.DeletedAt)).CurrentValue = clock.UtcNow;
-            await db.SaveChangesAsync(ct);
-        }
 
         return jobAd.Id;
     }
@@ -295,27 +286,26 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
 
     // =========================================================================================
     // 2. DIRECT INTEGRATION — the per-org.nr dict is correct over a mix of matching / Basic /
-    //    untagged / Expired / Archived / soft-deleted ads across TWO employers. Proves the status +
-    //    soft-delete exclusions and the org.nr GROUP key.
+    //    untagged / Expired / Archived ads across TWO employers. Proves the status='Active'
+    //    exclusion (the whole exclusion — JobAd has no soft-delete axis, #821) and the org.nr GROUP key.
     // =========================================================================================
 
     [Fact]
-    public async Task CountPerUserByEmployer_CountsMatchingActiveAds_ExcludesExpiredArchivedAndSoftDeleted()
+    public async Task CountPerUserByEmployer_CountsMatchingActiveAds_ExcludesExpiredAndArchived()
     {
         var ct = TestContext.Current.CancellationToken;
         var orgA = NewOrgNr();
         var orgB = NewOrgNr();
 
         // orgA: 2 matching Active (Strong + Good = ≥Good) + 1 Basic (below) + 1 untagged (below)
-        //       + 1 Expired-matching + 1 Archived-matching + 1 soft-deleted-Active-matching (all
-        //       excluded) → the ≥Good Active count must be exactly 2.
+        //       + 1 Expired-matching + 1 Archived-matching (both excluded by status)
+        //       → the ≥Good Active count must be exactly 2.
         await SeedStrongAsync(orgA, ct);
         await SeedGoodAsync(orgA, ct);
         await SeedBasicNeutralAsync(orgA, ct);
         await SeedUntaggedAsync(orgA, ct);
         await SeedAdAsync(orgA, PrefGroup, PrefRegion, PrefEmployment, ct, expired: true);
         await SeedAdAsync(orgA, PrefGroup, PrefRegion, PrefEmployment, ct, archived: true);
-        await SeedAdAsync(orgA, PrefGroup, PrefRegion, PrefEmployment, ct, softDeleted: true);
 
         // orgB: 1 matching Active (Strong = ≥Good) → count 1. Proves per-org.nr GROUP keying (orgA's
         //       ads never bleed into orgB's count).

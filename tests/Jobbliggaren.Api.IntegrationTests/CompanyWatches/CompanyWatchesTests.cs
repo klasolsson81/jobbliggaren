@@ -445,14 +445,14 @@ public class CompanyWatchesTests(ApiFactory factory)
     private const string CountEmployerOther = "5544800447";   // different employer, 1 active (excluded)
     private const string CountEmployerArchivedOnly = "5544900447"; // 1 archived only → 0
     private const string CountEmployerSoleProp = "9012310447"; // third digit 1 → masked, 1 active → 1
-    private const string CountEmployerSoftDeleted = "5545000447"; // 1 Active-but-soft-deleted → 0
 
     [Fact]
     public async Task GET_list_reports_active_ad_count_over_public_job_ads()
     {
         // #447 (ADR 0087 D2) — the active-ad count is a derived count over PUBLIC job_ads
-        // (status='Active' AND organization_number), via the GLOBAL soft-delete query filter (ADR
-        // 0048). Only Postgres computes the STORED organization_number column + translates the GROUP BY
+        // (status='Active' AND organization_number). status='Active' IS the whole exclusion: JobAd has
+        // no soft-delete axis and no query filter (#821). Only Postgres computes the STORED
+        // organization_number column + translates the GROUP BY
         // count, so this is Testcontainers-only. Seeds 2 Active ads + 1 Archived ad for the followed
         // org.nr, plus 1 Active ad for a DIFFERENT org.nr → the count must be exactly 2 (Archived
         // excluded by the status filter, the other employer excluded by the org.nr filter).
@@ -497,39 +497,6 @@ public class CompanyWatchesTests(ApiFactory factory)
         await SeedImportedJobAdAsync(CountEmployerArchivedOnly, "Gamla Firman AB", ct, archived: true);
         await AuthenticateAsync(ct);
         var id = await FollowAsync(CountEmployerArchivedOnly, ct);
-
-        var list = await ListAsync(ct);
-
-        var item = list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == id);
-        item.GetProperty("activeAdCount").GetInt32().ShouldBe(0);
-    }
-
-    [Fact]
-    public async Task GET_list_excludes_soft_deleted_active_ad_from_active_ad_count()
-    {
-        // #447 — soft-delete is ORTHOGONAL to status: a retracted ad keeps status='Active', so the
-        // status='Active' count predicate alone does NOT exclude it. The ONLY thing that removes it is
-        // the GLOBAL soft-delete query filter (JobAdConfiguration HasQueryFilter DeletedAt == null,
-        // ADR 0048) which the count query inherits — the exact contract the handler comment leans on
-        // ("the global soft-delete filter already excludes retracted ads"). This is the branch the
-        // status-only cases (Archived → count 0) cannot prove. Seed one Active ad, follow the org.nr,
-        // then soft-delete the ad (JobAd has no domain SoftDelete; DeletedAt is stamped via EF direct —
-        // established pattern, ManualPostingPersistenceTests) → the count must be 0, not 1.
-        var ct = TestContext.Current.CancellationToken;
-        var adId = await SeedImportedJobAdAsync(CountEmployerSoftDeleted, "Retraherad Firma AB", ct);
-        await AuthenticateAsync(ct);
-        var id = await FollowAsync(CountEmployerSoftDeleted, ct);
-
-        using (var scope = factory.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
-            var jobAd = await db.JobAds.SingleAsync(j => j.Id == new JobAdId(adId), ct);
-            // status stays 'Active' — only DeletedAt is stamped, exercising the query-filter exclusion,
-            // not the status predicate.
-            db.Entry(jobAd).Property(nameof(JobAd.DeletedAt)).CurrentValue = clock.UtcNow;
-            await db.SaveChangesAsync(ct);
-        }
 
         var list = await ListAsync(ct);
 

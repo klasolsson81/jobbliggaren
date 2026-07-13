@@ -17,9 +17,9 @@ public sealed record JobAdSummaryDto(
     // time ("Active" | "Archived"; JobAdStatus.Expired is declared but never
     // written). This is the ONLY truthful live/gone signal on the Applications
     // read path — the JobAd soft-delete axis it used to be inferred from
-    // (jobAd == null) is dead: JobAd.DeletedAt has no writer, so the global
-    // query filter never excludes a row and jobAd is never null for a
-    // JobAd-linked application (issue #821 retires that axis).
+    // (jobAd == null) is GONE: #821 retired the dead DeletedAt column and its
+    // vacuous query filter, so jobAd is never null for a JobAd-linked application.
+    // Status is the sole lifecycle axis.
     //
     // null ⟺ the ManualPosting fallback: a manual application has no JobAd row,
     // hence no snapshot-miss tracking and no archival — so we hold NO basis to

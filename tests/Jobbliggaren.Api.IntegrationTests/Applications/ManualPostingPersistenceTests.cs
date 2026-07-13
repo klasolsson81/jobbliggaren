@@ -96,58 +96,20 @@ public class ManualPostingPersistenceTests(ApiFactory factory)
     }
 
     // ---------------------------------------------------------------
-    // ADR 0048 c — soft-deletad JobAd faller ut via query-filter +
-    // DefaultIfEmpty (jobAd = null), UTAN IgnoreQueryFilters/eget predikat.
+    // §5c — .ToQueryString() SQL-verifiering: EN LEFT JOIN mot job_ads, och
+    // EXAKT ETT deleted_at-predikat i hela frågan.
+    //
+    // #821: det enda soft-delete-predikatet kommer från APPLICATION-aggregatet
+    // (ApplicationConfiguration HasQueryFilter — en RIKTIG axel med en riktig
+    // SoftDelete-writer). JobAd bidrar med NOLL: dess axel är retirerad. Räkningen
+    // är därför en regressionsvakt åt BÅDA håll — den faller om någon återinför
+    // ett query-filter på JobAd (2), och den faller om Applications egna
+    // soft-delete-filter tappas bort (0). Talet 1 är empiriskt avläst ur den
+    // genererade SQL:en, inte resonerat fram.
     // ---------------------------------------------------------------
 
     [Fact]
-    public async Task ReadJoin_WithSoftDeletedJobAd_FallsBackToNullViaQueryFilter()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
-
-        var seekerId = await SeedSeekerAsync(db, clock, ct);
-
-        var jobAd = JobAd.Create(
-            "Backend-utvecklare", Company.Create("Klarna").Value, "Beskrivning",
-            "https://example.com/jobb/1", JobSource.Platsbanken,
-            clock.UtcNow.AddDays(-2), null, clock).Value;
-        db.JobAds.Add(jobAd);
-        var app = Jobbliggaren.Domain.Applications.Application.Create(seekerId, jobAd.Id, null, null, clock).Value;
-        db.Applications.Add(app);
-        await db.SaveChangesAsync(ct);
-
-        // Soft-delete annonsen genom att sätta DeletedAt (JobAd:s globala
-        // query filter är DeletedAt == null). JobAd har ingen domän-SoftDelete-
-        // metod (Archive sätter Status, ej DeletedAt — verifierat); testet
-        // verifierar query-filter-/read-join-kontraktet, ej ett domän-API, så
-        // DeletedAt sätts via EF direkt (architect-fix-rapport 2026-05-17).
-        db.Entry(jobAd).Property(nameof(JobAd.DeletedAt)).CurrentValue = clock.UtcNow;
-        await db.SaveChangesAsync(ct);
-        db.ChangeTracker.Clear();
-
-        // Default-join (query-filtret exkluderar soft-deletad JobAd FÖRE joinen);
-        // DefaultIfEmpty → null. Detta speglar read-handler-projektionen.
-        var jobAdResult = await (
-            from a in db.Applications.AsNoTracking().Where(a => a.Id == app.Id)
-            join j in db.JobAds on a.JobAdId equals j.Id into ja
-            from j in ja.DefaultIfEmpty()
-            select j).FirstOrDefaultAsync(ct);
-
-        // Application själv finns kvar (ej soft-deletad), men JobAd-grenen är null.
-        jobAdResult.ShouldBeNull();
-    }
-
-    // ---------------------------------------------------------------
-    // §5c — .ToQueryString() SQL-verifiering: EN LEFT JOIN mot job_ads +
-    // query-filter-predikat (deleted_at IS NULL) på den joinade grenen.
-    // Producerad SQL klistras verbatim i STOPP 3a-rapporten (ADR 0048-gate).
-    // ---------------------------------------------------------------
-
-    [Fact]
-    public void ReadJoinQuery_GeneratesExactlyOneLeftJoinAgainstJobAds()
+    public void ReadJoinQuery_GeneratesOneLeftJoinAndExactlyOneSoftDeletePredicate()
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -165,9 +127,9 @@ public class ManualPostingPersistenceTests(ApiFactory factory)
         // EN LEFT JOIN mot job_ads (ej post-materialiserings-lookup/N+1).
         CountOccurrences(sql, "LEFT JOIN").ShouldBe(1);
         sql.ShouldContain("job_ads");
-        // Query-filter-predikatet ska finnas på den joinade job_ads-grenen
-        // (ADR 0048 c — IgnoreQueryFilters FÖRBJUDET; filtret applicerat).
-        sql.ShouldContain("deleted_at");
+        // EXAKT ETT deleted_at-predikat: Applications egna (riktiga) soft-delete-filter.
+        // JobAd bidrar med noll (#821). Två ⇒ någon har återinfört JobAd:s query-filter.
+        CountOccurrences(sql, "deleted_at").ShouldBe(1);
         sql.ShouldNotContain("IgnoreQueryFilters");
     }
 

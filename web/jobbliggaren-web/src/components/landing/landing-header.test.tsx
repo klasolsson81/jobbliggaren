@@ -66,3 +66,28 @@ describe("LandingHeader (LP-4, #257)", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("LandingHeader — omätta tal renderas ALDRIG (CTO-bind 2026-07-13, A′)", () => {
+  it("utelämnar HELA stat-gruppen när talen inte är mätta", () => {
+    // REGRESSION: tidigare gav en kall Redis-cache ett hårdkodat golv (40 000) som backend märkte med
+    // isStale, men FE slängde flaggan och renderade siffran som ett faktum — på produktens ytterdörr,
+    // för varje anonym besökare. Nu är ett omätt tal null och gruppen utelämnas: ett kort tomrum är
+    // billigare än en permanent strukturell osanning.
+    render(<LandingHeader stats={{ activeCount: null, newToday: null }} />);
+
+    expect(screen.getByText("Jobbliggaren")).toBeInTheDocument();
+    expect(screen.queryByText("aktiva annonser")).not.toBeInTheDocument();
+    expect(screen.queryByText("nya idag")).not.toBeInTheDocument();
+    // Framför allt: ingen siffra alls, och absolut inte golvet.
+    expect(screen.queryByText(/40\s?000/)).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/\d/);
+  });
+
+  it("renderar en MÄTT nolla som 0 (0 och null är olika svar)", () => {
+    // En sann nolla ("inget publicerat än idag", kl. 00:05 UTC) får inte döljas — bara "vi vet inte".
+    render(<LandingHeader stats={{ activeCount: 41_475, newToday: 0 }} />);
+
+    expect(screen.getByText("aktiva annonser")).toBeInTheDocument();
+    expect(screen.getByText("+0")).toBeInTheDocument();
+  });
+});

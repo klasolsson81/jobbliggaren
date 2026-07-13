@@ -13,7 +13,9 @@
     "activeCount": "{count, plural, one {aktiv annons} other {aktiva annonser}}",
     "newToday": "nya idag",
     "deltaAriaLabel": "{count, plural, one {# ny} other {# nya}} sedan senaste kontroll",
-    "openMenu": "Öppna meny"
+    "openMenu": "Öppna meny",
+    "valueDash": "–",
+    "activeCountUnmeasured": "aktiva annonser"
   },
   "notifications": {
     "buttonAriaLabel": "Aviseringar",

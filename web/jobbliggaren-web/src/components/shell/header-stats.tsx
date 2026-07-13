@@ -27,6 +27,11 @@ import { formatNumber } from "@/lib/i18n/format";
  * Vid network-fel / 5xx behåller komponenten senaste lyckade värdet (ingen
  * synlig regression). 429 från backend hanteras av proxy:n som 503 → samma
  * "behåll nuvarande"-disciplin.
+ *
+ * **Omätta tal renderas som en en-dash (–), aldrig som en siffra (CTO-bind 2026-07-13, A′).** Tidigare gav en kall
+ * cache ett hårdkodat golv (40 000) som såg ut som ett mätvärde. Nu är en omätt count `null` och raden
+ * visar en en-dash (–) tills en riktig siffra finns. Att BEHÅLLA ett senast mätt värde vid poll-fel är
+ * däremot fortsatt rätt: inaktualitet i ett mätt värde är OK, fabrikation är det inte.
  */
 const POLL_INTERVAL_MS = 10 * 60 * 1000;
 const DELTA_VISIBLE_MS = 8_000;
@@ -38,11 +43,15 @@ export function HeaderStats({
 }) {
   const t = useTranslations("common");
   const format = useFormatter();
+  // Vad som visas i stället för en siffra vi inte mätt: ett streck, aldrig en nolla och aldrig ett
+  // golv. Samma affordans (och samma en-dash) som /oversikt redan använder vid endpoint-fel
+  // (design-reviewer M2). Copy bor i i18n, inte som literal i koden.
+  const unmeasured = t("header.valueDash");
   const [stats, setStats] = useState<LandingStatsDto>(initialStats);
   const [deltaToday, setDeltaToday] = useState<number>(0);
   // Track previous newToday för delta-jämförelse. Initieras till samma
   // värde som initialStats så första polling-svar inte visar falsk delta.
-  const previousNewToday = useRef<number>(initialStats.newToday);
+  const previousNewToday = useRef<number | null>(initialStats.newToday);
   // Unik key för fade-in-animationen — bumpar varje gång en ny delta visas
   // så React monterar om elementet och CSS-keyframes startar om.
   const [deltaKey, setDeltaKey] = useState<number>(0);
@@ -61,12 +70,29 @@ export function HeaderStats({
       if (!parsed.success) return;
 
       const next = parsed.data;
-      const diff = next.newToday - previousNewToday.current;
+      // En delta kräver TVÅ mätta tal. Är endera omätt finns ingen ökning att påstå — och ett omätt
+      // värde får aldrig läsas som 0 (det vore fabrikation via aritmetik).
+      const diff =
+        next.newToday !== null && previousNewToday.current !== null
+          ? next.newToday - previousNewToday.current
+          : 0;
       // Mutera ref + state först efter alla await:s passerat (code-reviewer
       // M2 — undvik strict-mode-doublet-fire-ratchet). setState i React 19
       // är safe-on-unmount; ingen extra cancelled-flag behövs här.
       previousNewToday.current = next.newToday;
       setStats(next);
+
+      // Blir talet OMÄTT måste en kvarhängande delta-pill bort: "+2" bredvid ett streck påstår en
+      // ökning i en storhet vi just sagt oss inte känna. (Deltat var mätt, men dess granne är det
+      // inte längre.)
+      if (next.newToday === null) {
+        setDeltaToday(0);
+        if (deltaTimerRef.current !== null) {
+          clearTimeout(deltaTimerRef.current);
+          deltaTimerRef.current = null;
+        }
+      }
+
       if (diff > 0) {
         setDeltaToday(diff);
         setDeltaKey((k) => k + 1);
@@ -121,10 +147,19 @@ export function HeaderStats({
     >
       <div className="jp-header-stats__item">
         <span className="jp-header-stats__num">
-          {formatNumber(format, stats.activeCount)}
+          {stats.activeCount === null
+            ? unmeasured
+            : formatNumber(format, stats.activeCount)}
         </span>
         <span className="jp-header-stats__label">
-          {t("header.activeCount", { count: stats.activeCount })}
+          {/* Ingen `?? 0` här. Att koerca ett omätt värde till 0 för ICU:s pluralval är ofarligt
+              PRECIS SÅ LÄNGE strängen inte interpolerar `#` — och syskonnyckeln deltaAriaLabel gör
+              det redan. Ett tangenttryck bort skulle raden tyst säga "0 aktiva annonser" bredvid ett
+              streck. Hela poängen med den här ändringen är att invarianten ska bäras av typen, inte
+              av att nästa person är vaken: därför en egen count-fri nyckel när talet är omätt. */}
+          {stats.activeCount === null
+            ? t("header.activeCountUnmeasured")
+            : t("header.activeCount", { count: stats.activeCount })}
         </span>
       </div>
       <span
@@ -134,7 +169,9 @@ export function HeaderStats({
       />
       <div className="jp-header-stats__item">
         <span className="jp-header-stats__num">
-          {formatNumber(format, stats.newToday)}
+          {stats.newToday === null
+            ? unmeasured
+            : formatNumber(format, stats.newToday)}
         </span>
         <span className="jp-header-stats__label">{t("header.newToday")}</span>
         {deltaToday > 0 && (

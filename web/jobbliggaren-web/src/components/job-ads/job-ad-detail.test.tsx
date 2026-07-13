@@ -91,7 +91,9 @@ describe("JobAdDetail (ADR 0053 Fas-3 fält-set)", () => {
     // count is a plain integer — org.nr is never passed to this component (§5, enskild firma =
     // personnummer), so the affordance structurally cannot surface one.
     expect(
-      screen.getByText("Du har 3 tidigare ansökningar till detta företag.")
+      screen.getByText(
+        "Du har minst 3 tidigare ansökningar till detta företag. Sammanställningen kan vara ofullständig."
+      )
     ).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Visa ansökningshistorik" });
     expect(link).toHaveAttribute("href", "/foretag#ansokningshistorik");
@@ -100,7 +102,28 @@ describe("JobAdDetail (ADR 0053 Fas-3 fält-set)", () => {
   it("renders the singular previous-applications sentence for count 1", () => {
     render(<JobAdDetail jobAd={baseAd} previousApplicationCount={1} />);
     expect(
-      screen.getByText("Du har 1 tidigare ansökan till detta företag.")
+      screen.getByText(
+        "Du har minst 1 tidigare ansökan till detta företag. Sammanställningen kan vara ofullständig."
+      )
+    ).toBeInTheDocument();
+  });
+
+  // #824 PR 4 — the detail view has room the card does not, so it carries BOTH halves of the hedge: the
+  // floor marker on the number and the incompleteness of the compilation the link leads to. Losing
+  // either half turns the sentence back into an unreserved factual claim about the user's own data
+  // (Art. 5(1)(a)/(d)).
+  it("presents the count as a floor AND discloses the incompleteness (#824)", () => {
+    render(<JobAdDetail jobAd={baseAd} previousApplicationCount={3} />);
+    // ANCHORED REGEX, deliberately — an exact-string guard here CANNOT FAIL (code-reviewer M1). The
+    // sentence and the disclosure share one <p>, so getNodeText() returns both; dropping "minst" would
+    // yield "Du har 3 … företag. Sammanställningen …", which never equals the bare-total matcher — the
+    // guard would return null and pass while the surface shows a total. A test that cannot fail for its
+    // stated reason IS the #843 defect this PR family exists to condemn. `^` pins the mutation itself.
+    expect(
+      screen.queryByText(/^Du har 3 tidigare ansökningar/)
+    ).toBeNull();
+    expect(
+      screen.getByText(/Sammanställningen kan vara ofullständig/)
     ).toBeInTheDocument();
   });
 });

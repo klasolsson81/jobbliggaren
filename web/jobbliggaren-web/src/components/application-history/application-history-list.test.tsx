@@ -25,10 +25,13 @@ const soleProp: EmployerApplicationHistory = {
 };
 
 describe("ApplicationHistoryList (#311 #448, ADR 0087 D2/D8(c); ADR 0090 R-A4)", () => {
-  it("tom lista → honest civic nollstate-copy, ingen lista renderas", () => {
+  it("tom lista → nollstate-copyn påstår INGENTING om användarens ansökningar, ingen lista renderas", () => {
     render(<ApplicationHistoryList items={[]} />);
+    // #824 PR 4: the compilation can be empty for a user who HAS applied (every one of her ads lost its
+    // employer identity). "Du har ingen ansökningshistorik än" was a first-person claim that could be
+    // false; the title now speaks about the VIEW, and the disclosure below carries the reason.
     expect(
-      screen.getByText("Du har ingen ansökningshistorik än")
+      screen.getByText("Ingen ansökningshistorik att visa")
     ).toBeInTheDocument();
     expect(screen.queryByRole("list")).toBeNull();
   });
@@ -39,18 +42,37 @@ describe("ApplicationHistoryList (#311 #448, ADR 0087 D2/D8(c); ADR 0090 R-A4)",
       screen.getByRole("heading", { name: "Skatteverket" })
     ).toBeInTheDocument();
     expect(screen.getByText("Org.nr 559280-4784")).toBeInTheDocument();
-    expect(screen.getByText("2 skickade ansökningar")).toBeInTheDocument();
+    expect(screen.getByText("Minst 2 skickade ansökningar")).toBeInTheDocument();
   });
 
   it("historik-räknare plural: 1 → 'skickad ansökan', 3 → 'skickade ansökningar'", () => {
     const { rerender } = render(
       <ApplicationHistoryList items={[{ ...legalEntity, applicationCount: 1 }]} />
     );
-    expect(screen.getByText("1 skickad ansökan")).toBeInTheDocument();
+    expect(screen.getByText("Minst 1 skickad ansökan")).toBeInTheDocument();
     rerender(
       <ApplicationHistoryList items={[{ ...legalEntity, applicationCount: 3 }]} />
     );
-    expect(screen.getByText("3 skickade ansökningar")).toBeInTheDocument();
+    expect(screen.getByText("Minst 3 skickade ansökningar")).toBeInTheDocument();
+  });
+
+  // #824 PR 4 — the FLOOR semantics, pinned as behaviour and not as a string. The handler drops every
+  // application whose ad no longer carries the employer identity, so a group undercounts AND a whole
+  // employer can vanish. These two tests fail the moment the count is presented as a total again.
+  it("räknaren presenteras som ett GOLV — aldrig som en totalsumma", () => {
+    render(<ApplicationHistoryList items={[legalEntity]} />);
+    // Anchored regex, not an exact string: the guard must keep failing for the mutation it names even if
+    // the copy later grows a clause (the sibling guard on the detail view was silently vacuous for
+    // exactly that reason — code-reviewer M1). Removing "Minst" turns this null into a hit.
+    expect(screen.queryByText(/^2 skickade ansökningar/)).toBeNull();
+  });
+
+  it("ofullständighets-disclosuren renderas i BÅDA grenarna (tom + fylld) — den är sidans enda yta för den saknade arbetsgivaren", () => {
+    const note = /Sammanställningen kan vara ofullständig/;
+    const { rerender } = render(<ApplicationHistoryList items={[]} />);
+    expect(screen.getByText(note)).toBeInTheDocument();
+    rerender(<ApplicationHistoryList items={[legalEntity]} />);
+    expect(screen.getByText(note)).toBeInTheDocument();
   });
 
   it("entries → ansökt-datum + svensk statusetikett (SPOT applications.enums), aldrig råa engelska tokens", () => {

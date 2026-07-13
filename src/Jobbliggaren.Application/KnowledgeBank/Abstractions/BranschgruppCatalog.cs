@@ -54,7 +54,7 @@ public sealed record BranschgruppCatalog(
     public BranschgruppRules RulesFor(string branschgruppId) =>
         RulesById.TryGetValue(branschgruppId, out var rules)
             ? rules
-            : throw new KeyNotFoundException(
+            : throw new InvalidOperationException(
                 $"Branschgrupp '{branschgruppId}' saknar regeltabell i ssyk-branschgrupp-assetet.");
 }
 

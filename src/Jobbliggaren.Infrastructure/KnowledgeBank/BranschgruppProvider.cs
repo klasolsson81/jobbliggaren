@@ -6,8 +6,16 @@ namespace Jobbliggaren.Infrastructure.KnowledgeBank;
 /// <summary>
 /// <see cref="IBranschgruppProvider"/> over the committed, versioned branschgrupp asset
 /// (Fas 4b 8b.4a). Loads + maps + validates <c>ssyk-branschgrupp.v1.json</c> once at construction
-/// (fail loud at startup, never mid-request) and serves the cached immutable contract — singleton,
-/// parity <see cref="RubricProvider"/>.
+/// and serves the cached immutable contract — singleton, parity <see cref="RubricProvider"/>.
+/// <para>
+/// <b>Fail loud at startup, never mid-request — and that is true only because
+/// <c>AddCvParsing()</c> registers this by INSTANCE, not by type.</b> A type registration would
+/// construct it at the first resolve, i.e. inside the first HTTP request that needs it, so a
+/// malformed asset would surface as a 500 cached for the life of the process (and
+/// <c>ValidateOnBuild</c> does not instantiate singletons, so it would not catch it either). If
+/// this registration is ever changed back to <c>AddSingleton&lt;IPort, Impl&gt;()</c>, this
+/// sentence becomes a lie and the guarantee is gone.
+/// </para>
 /// <para>
 /// <b>Cross-asset pin (the no-fork mechanism).</b> Ctor-injects <see cref="ICvParsingLexicon"/> —
 /// the owner of section IDENTITY — and refuses to start if this asset names a section the lexicon

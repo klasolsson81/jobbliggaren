@@ -17,6 +17,7 @@ import {
   getCvReview,
   getResumeReview,
   getCvImprovements,
+  getCvSectionSuggestions,
 } from "./resumes";
 
 const VALID_ID = "11111111-1111-4111-8111-111111111111";
@@ -536,5 +537,96 @@ describe("getCvImprovements", () => {
     };
     global.fetch = vi.fn().mockResolvedValue(jsonResponse(drifted));
     expect(await getCvImprovements(VALID_ID, "Ats")).toEqual({ kind: "error" });
+  });
+});
+
+describe("getCvSectionSuggestions", () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    getSessionIdMock.mockResolvedValue("sess-1");
+  });
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+    getSessionIdMock.mockReset();
+  });
+
+  const PAYLOAD = {
+    branschgrupp: "vard",
+    hasOccupationPreference: true,
+    rationale: "Vanligt inom vård och omsorg",
+    suggestions: [
+      { sectionId: "legitimation", heading: "Legitimation och intyg", isStandard: true },
+      { sectionId: "korkort", heading: "Körkort", isStandard: false },
+    ],
+  };
+
+  it("returnerar unauthorized utan session (BFF läser aldrig utan Bearer)", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    expect(await getCvSectionSuggestions(VALID_ID)).toEqual({ kind: "unauthorized" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returnerar notFound för ogiltigt (icke-GUID) id utan att nå backend", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    expect(await getCvSectionSuggestions("inte-en-guid")).toEqual({ kind: "notFound" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("anropar den ägar-scopade section-suggestions-endpointen med Bearer och parsar nyttolasten", async () => {
+    // URL:en är värd ett eget test. Sidan mappar allt utom "ok" till null, och guiden
+    // renderar då sin generiska panel — helt tyst. En URL-typo eller en DTO-drift skulle
+    // alltså radera hela funktionen i prod med grön svit i BÅDA ändar. Det här är den enda
+    // platsen där sömmen faktiskt påstås.
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(PAYLOAD));
+    global.fetch = fetchMock;
+
+    const result = await getCvSectionSuggestions(VALID_ID);
+
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.data.branschgrupp).toBe("vard");
+      expect(result.data.hasOccupationPreference).toBe(true);
+      expect(result.data.suggestions).toHaveLength(2);
+      expect(result.data.suggestions[0]).toEqual({
+        sectionId: "legitimation",
+        heading: "Legitimation och intyg",
+        isStandard: true,
+      });
+    }
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      `http://test-backend/api/v1/resumes/parsed/${VALID_ID}/section-suggestions`,
+    );
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer sess-1");
+  });
+
+  it("mappar tomma förslag → ok (ärligt 'inget att lägga till', aldrig en påhittad rad)", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ ...PAYLOAD, suggestions: [] }));
+    const result = await getCvSectionSuggestions(VALID_ID);
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") expect(result.data.suggestions).toEqual([]);
+  });
+
+  it("mappar 404 → notFound (okänt/främmande artefakt; fail-closed i backend)", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
+    expect(await getCvSectionSuggestions(VALID_ID)).toEqual({ kind: "notFound" });
+  });
+
+  it("mappar en shape-drift → error (fail-loud, aldrig halvtolkad nyttolast)", async () => {
+    // hasOccupationPreference som sträng: de två tomma lägena hänger på den flaggan, så en
+    // typdrift där får ALDRIG tolkas välvilligt.
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ ...PAYLOAD, hasOccupationPreference: "ja" }));
+    const result = await getCvSectionSuggestions(VALID_ID);
+    expect(result.kind).toBe("error");
   });
 });

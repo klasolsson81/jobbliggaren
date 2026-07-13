@@ -99,6 +99,6 @@ public class BranschgruppCatalogTieBreakTests
     {
         // An unknown id is a BUG (a field mapped to a grupp with no rules — which the loader
         // already refuses), not a user state. Degrading to an empty table would hide it.
-        Should.Throw<KeyNotFoundException>(() => Catalog().RulesFor("skola"));
+        Should.Throw<InvalidOperationException>(() => Catalog().RulesFor("skola"));
     }
 }

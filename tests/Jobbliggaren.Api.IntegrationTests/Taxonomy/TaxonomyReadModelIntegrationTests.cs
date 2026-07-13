@@ -796,10 +796,14 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task GetContainingOccupationFieldsAsync_ShouldCoverEverySeededOccupationGroup()
     {
-        // The totality claim the whole feature rests on: EVERY ssyk-4 group in the snapshot sits
-        // under exactly one occupation-field. If it did not, some confirmed occupations would
-        // resolve to nothing and fall to Övriga silently — the vacuous-filter failure mode, one
-        // layer below the asset's own completeness test.
+        // Every ssyk-4 group the TREE exposes resolves to its occupation-field — no dangling
+        // groups on the read path the slice actually uses.
+        //
+        // Honest limit, stated because the first draft of this comment overclaimed: the tree is
+        // BUILT from the parent edge, so a parent-less group is invisible to both sides of this
+        // assertion and cannot make it red. This pins the read-model's totality over the tree, not
+        // the seeder's. The seeder's own oracle
+        // (Seeder_ShouldPersistOccupationGroupRowsWithFieldParent) is what guards that.
         var ct = TestContext.Current.CancellationToken;
         await RunSeederAsync(ct);
         var sut = new TaxonomyReadModel(ScopeFactory);

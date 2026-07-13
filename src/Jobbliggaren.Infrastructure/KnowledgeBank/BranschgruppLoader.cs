@@ -12,11 +12,14 @@ namespace Jobbliggaren.Infrastructure.KnowledgeBank;
 /// <c>JsonPropertyName</c> leaks past Infrastructure (CLAUDE.md §2.1, parity
 /// <see cref="RubricLoader"/>).
 /// <para>
-/// SHAPE validation lives here (fail loud at startup, never mid-request). The CROSS-ASSET
-/// validation — every sectionId + heading must be resolvable by the parsing lexicon — lives in
-/// <see cref="BranschgruppProvider"/>, which ctor-injects the source of truth, mirroring
-/// <c>FrameProvider(IVerbMapper)</c>. That is the repo's no-fork mechanism: reference the owner
-/// of the vocabulary, never restate it.
+/// SHAPE validation lives here. The CROSS-ASSET validation — every sectionId + heading must be
+/// resolvable by the parsing lexicon — lives in <see cref="BranschgruppProvider"/>, which
+/// ctor-injects the source of truth, mirroring <c>FrameProvider(IVerbMapper)</c>. That is the
+/// repo's no-fork mechanism: reference the owner of the vocabulary, never restate it.
+/// <para>
+/// Both run at HOST BUILD, not mid-request — but only because <c>AddCvParsing()</c> constructs the
+/// provider eagerly (an INSTANCE registration). See <see cref="BranschgruppProvider"/>.
+/// </para>
 /// </para>
 /// </summary>
 internal static class BranschgruppLoader
@@ -107,8 +110,25 @@ internal static class BranschgruppLoader
                     $"Yrkesområde '{field.ConceptId}' är deklarerat två gånger.");
         }
 
-        if (branschgruppByField.Count == 0)
-            throw new InvalidOperationException("ssyk-branschgrupp-assetet mappar inga yrkesområden.");
+        // An ORPHAN branschgrupp: a rule-table no occupation-field points at. It loads clean and
+        // can never be reached — a whole ruleset, silently dead. The mirror guard (a field
+        // pointing at an unknown branschgrupp) already exists above; this is the other direction,
+        // and it is the guard that belongs here.
+        //
+        // (What stood here was `branschgruppByField.Count == 0`, which was UNREACHABLE: the
+        // OccupationFields.Count check above has already thrown on an empty list, and every loop
+        // iteration either throws or adds exactly one entry. Deleting it broke no test — the same
+        // dead-machinery signature as the suppression field. Both reviewers found it independently.)
+        var reachable = branschgruppByField.Values.ToHashSet(StringComparer.Ordinal);
+        var orphan = rulesById.Keys
+            .Where(id => !string.Equals(id, BranschgruppCatalog.Fallback, StringComparison.Ordinal))
+            .FirstOrDefault(id => !reachable.Contains(id));
+        if (orphan is not null)
+        {
+            throw new InvalidOperationException(
+                $"Branschgruppen '{orphan}' har en regeltabell men inget yrkesområde pekar på den " +
+                "— hela regeluppsättningen vore oåtkomlig.");
+        }
 
         return new BranschgruppCatalog(file.BranschgruppVersion, branschgruppByField, rulesById);
     }

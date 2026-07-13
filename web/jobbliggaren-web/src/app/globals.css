@@ -5598,19 +5598,24 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 /* ── Yrkesstyrda sektionsförslag — .jp-sectionsuggest (Fas 4b 8b.4a, ADR 0107) ──
-   Ingen ny token: komponerar --jp-accent-50/-700, --jp-ink-1/-2, --jp-border(-soft),
-   --jp-r-sm/-pill. Chippen ÄRVER .jp-chip:s civic-form (outline, pill-radie, caption,
-   mixed-case) men är en riktig <button> — en yta som LÄGGER TILL något måste se
-   klickbar ut, inte som en läs-etikett. Ingen gradient, ingen skugga, ingen fyllning
-   utöver den accent-50-tint som markerar "rekommenderad" (DESIGN.md; §5). */
+   Ingen ny token: komponerar --jp-surface(-2), --jp-ink-1/-2, --jp-border-soft,
+   --jp-border-input, --jp-accent-700, --jp-r-md/-pill.
+
+   NEDSÄNKT under-bricka (--jp-surface-2), inte en accent-tonad platta. Första utkastet
+   fyllde den med --jp-accent-50 och gjorde därmed den RÅDGIVANDE ytan till det enda
+   färgade — och alltså högst rankade — elementet i steget, medan UPPGIFTEN (skriv dina
+   egna sektioner) låg tyst i svart på vitt. I mörkt tema blev accent-50 dessutom ett
+   mättat grönt block ovanpå det navyblå kortet. Grönt hör hemma i hover/fokus/länk, inte
+   som containerfärg. --jp-r-md (6px) = panel-radien; --jp-r-sm är input-radien (ADR 0052).
+   Ingen gradient, ingen skugga, ingen glow. */
 .jp-sectionsuggest {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  background: var(--jp-accent-50);
+  background: var(--jp-surface-2);
   border: 1px solid var(--jp-border-soft);
-  border-radius: var(--jp-r-sm);
+  border-radius: var(--jp-r-md);
 }
 .jp-sectionsuggest__head {
   display: flex;
@@ -5625,8 +5630,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
 }
-/* Motiveringen ("Vanligt inom vård och omsorg") är kunskapsbankens text, inte en
-   status → ingen pill-dot, ingen versalisering. Bara en dämpad bisats. */
+/* Motiveringen ("Vanligt inom vård och omsorg") är kunskapsbankens text, inte en status
+   → ingen pill-dot, ingen versalisering. Bara en dämpad bisats. */
 .jp-sectionsuggest__badge {
   font-size: var(--text-caption);
   color: var(--jp-ink-2);
@@ -5639,6 +5644,19 @@ a.jp-adminnav__link[aria-current="page"]::after {
   padding: 0;
   list-style: none;
 }
+/* min-width:0 bryter flex-items default min-width:auto. Utan den kan li:et aldrig krympa
+   under chippets min-content-bredd, och chippet spiller ur brickan vid 320px i stället för
+   att radbrytas (WCAG 1.4.10). */
+.jp-sectionsuggest__list > li {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+}
+/* Chippet ÄRVER .jp-chip:s civic-form (outline, pill-radie, caption, mixed-case) men är en
+   riktig <button> — en yta som LÄGGER TILL något ska se klickbar ut, inte som en läs-
+   etikett. Därför vit yta + --jp-border-input (den INTERAKTIVA kant-tokenen, samma som
+   .jp-btn--secondary 40px längre ned) i stället för den dekorativa --jp-border, som bara
+   når 1,34:1 mot brickan och alltså faller under UI-golvet 3:1 (WCAG 1.4.11). */
 .jp-sectionsuggest__chip {
   display: inline-flex;
   align-items: center;
@@ -5648,9 +5666,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-caption);
   font-weight: var(--jp-fw-medium);
   line-height: 1.4;
+  text-align: left;
   color: var(--jp-ink-1);
-  background: var(--jp-surface-1);
-  border: 1px solid var(--jp-border);
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border-input);
   border-radius: var(--jp-r-pill);
   cursor: pointer;
   max-width: 100%;
@@ -5663,19 +5682,25 @@ a.jp-adminnav__link[aria-current="page"]::after {
   opacity: 0.6;
   cursor: not-allowed;
 }
+/* Rubriken RADBRYTS, den trunkeras inte. Att kapa namnet på den sektion användaren är på
+   väg att lägga till vore fel i sak — hon måste kunna läsa vad hon klickar på. (Utkastet
+   hade nowrap + ellipsis, vilket dessutom aldrig kunde utlösas: li:ets min-width:auto gjorde
+   max-width:100% cirkulärt, så chippet spillde i stället för att kapa.) */
 .jp-sectionsuggest__chiplabel {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
-/* "Rekommenderas" = handoffens "extra standardsektion": den här sektionen FÖRVÄNTAS
-   i yrket, till skillnad från de bara vanliga. Bär sitt påstående i TEXT, aldrig i
-   färg ensam (WCAG 1.4.1). accent-800 (ej -700) — -700 skiftar ljus mint i mörkt
-   tema; -800 är tema-stabil. */
+/* "Rekommenderas" = handoffens "extra standardsektion": sektionen FÖRVÄNTAS i yrket, till
+   skillnad från de bara vanliga. Bär sitt påstående i TEXT, aldrig i färg ensam (WCAG
+   1.4.1). --jp-accent-700 är TEXT-tokenen: den dark-skiftas till ljus mint (#6EE7A8) just
+   FÖR att förbli läsbar som text (9,98:1 mot mörk yta). Utkastet valde -800 med motiveringen
+   att -700 "skiftar" — resonemanget var exakt bakvänt: -800 är FILL-tokenen, dark-skiftas
+   ALDRIG, och ger 2,03:1 som text i mörkt tema. I ljust tema är de samma hex, så bytet
+   kostar ingenting. */
 .jp-sectionsuggest__tag {
   font-size: var(--text-caption);
   font-weight: var(--jp-fw-medium);
-  color: var(--jp-accent-800);
+  color: var(--jp-accent-700);
   white-space: nowrap;
 }
 .jp-sectionsuggest__prompt {

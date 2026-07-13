@@ -455,10 +455,16 @@ export function CvCompleteGuide({
   // guiden har redan betalat det priset en gång (#815: varje yta härleds ur EN källa,
   // annars ljuger de för varandra över tid).
   //
-  // Jämförelsen är på rubrik, inte sectionId, och det räcker: servern har redan tagit bort
-  // allt CV:t bar när sidan laddades (den kan matcha synonymer via lexikonet — det kan
-  // inte FE), så det enda den här filtreringen behöver fånga är den sektion användaren
-  // just lade till från ett förslag, vars rubrik är exakt den vi skrev in.
+  // Jämförelsen är på RUBRIK, inte sectionId, och gränsen är värd att säga rakt ut: FE kan
+  // inte matcha synonymer (lexikonet är backendens). Servern har redan filtrerat bort allt
+  // CV:t bar när sidan laddades, så det den här filtreringen behöver fånga är sektionen
+  // användaren just lade till från ett förslag — vars rubrik är exakt den vi skrev in.
+  //
+  // Kvarvarande, medvetet accepterad avvikelse: skriver hon "Kurser" för hand medan chippet
+  // heter "Kurser och intyg" står chippet kvar, trots att båda är samma sectionId för
+  // servern. Alternativet vore att forka lexikonet till FE — precis den fork PR-1 fanns
+  // till för att omöjliggöra. Hon får ett dubbelförslag i värsta fall; hon får aldrig en
+  // sektion vars text tystnar. Vi väljer det felet.
   const takenHeadings = new Set(
     (values.sections ?? []).map((section) =>
       (section.heading ?? "").trim().toLowerCase()
@@ -1164,8 +1170,19 @@ export function CvCompleteGuide({
                   />
                 ))}
               </div>
-              {sectionSuggestions && (openSuggestions.length > 0 ||
-                !sectionSuggestions.hasOccupationPreference) && (
+              {/* Har hon inga öppna förslag kvar renderas prompten UTAN platt-kromet — en
+                  färgad låda med en ensam mening och ingen rubrik är krom utan innehåll. */}
+              {sectionSuggestions &&
+                openSuggestions.length === 0 &&
+                !sectionSuggestions.hasOccupationPreference && (
+                  <p className="jp-sectionsuggest__prompt">
+                    {tr("experience.suggestionsNoOccupation")}{" "}
+                    <Link href="/installningar#matchning" className="jp-link">
+                      {tr("experience.suggestionsNoOccupationLink")}
+                    </Link>
+                  </p>
+                )}
+              {sectionSuggestions && openSuggestions.length > 0 && (
                 <div className="jp-sectionsuggest">
                   {openSuggestions.length > 0 && (
                     <>
@@ -1203,12 +1220,24 @@ export function CvCompleteGuide({
                                       heading: suggestion.heading,
                                     })
                               }
-                              onClick={() =>
+                              onClick={() => {
+                                // Chippet AVMONTERAS av sitt eget klick (det filtreras bort
+                                // ur openSuggestions), så fokus faller till <body> och
+                                // tangentbords-/skärmläsaranvändaren tappar sin plats utan
+                                // att få veta att något hänt. Flytta fokus till den nya
+                                // sektionens rubrikfält — samma mönster som guiden redan
+                                // använder för sina stegrubriker (WCAG 2.4.3).
+                                const nextIndex = sections.fields.length;
                                 sections.append({
                                   heading: suggestion.heading,
                                   entries: [{ title: "", body: "" }],
-                                })
-                              }
+                                });
+                                queueMicrotask(() =>
+                                  document
+                                    .getElementById(`guide-section-${nextIndex}-heading`)
+                                    ?.focus()
+                                );
+                              }}
                               disabled={isPending}
                             >
                               <Plus size={14} aria-hidden="true" />
@@ -1233,7 +1262,7 @@ export function CvCompleteGuide({
                   {!sectionSuggestions.hasOccupationPreference && (
                     <p className="jp-sectionsuggest__prompt">
                       {tr("experience.suggestionsNoOccupation")}{" "}
-                      <Link href="/installningar" className="jp-link">
+                      <Link href="/installningar#matchning" className="jp-link">
                         {tr("experience.suggestionsNoOccupationLink")}
                       </Link>
                     </p>

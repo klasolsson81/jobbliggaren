@@ -1047,8 +1047,8 @@ describe("CvCompleteGuide — yrkesstyrda sektionsförslag (8b.4a, ADR 0107)", (
     ).toBeInTheDocument();
     // …och hon får vägen in till att förbättra dem.
     expect(
-      screen.getByRole("link", { name: "Till matchningsinställningar" }),
-    ).toHaveAttribute("href", "/installningar");
+      screen.getByRole("link", { name: "Till inställningar" }),
+    ).toHaveAttribute("href", "/installningar#matchning");
   });
 
   it("frågar INTE efter yrket när hon redan angett ett som landar i Övriga", async () => {
@@ -1072,7 +1072,7 @@ describe("CvCompleteGuide — yrkesstyrda sektionsförslag (8b.4a, ADR 0107)", (
       screen.getByRole("button", { name: /Lägg till sektionen Kurser/ }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "Till matchningsinställningar" }),
+      screen.queryByRole("link", { name: "Till inställningar" }),
     ).not.toBeInTheDocument();
   });
 
@@ -1092,21 +1092,99 @@ describe("CvCompleteGuide — yrkesstyrda sektionsförslag (8b.4a, ADR 0107)", (
     expect(heading?.value).toBe("");
   });
 
-  it("visar inte en sektion CV:t redan bär — servern har redan filtrerat bort den", async () => {
-    // Regel (a): filen vinner alltid. Servern matchar synonymer via lexikonet ("Kurser och
-    // intyg" ≡ `kurser`) — det kan inte FE, och ska inte försöka.
+  it("tar bort chippet när användaren själv skriver in samma rubrik — härlett, inte bokfört", async () => {
+    // Bevisar HÄRLEDNINGEN, inte bara resultatet. Det förra testet här filtrerade bort `kurser`
+    // ur sin EGEN input-payload och asserterade sedan att `kurser` inte renderades — det testade
+    // sin fixture. Mekanismen det krediterade (synonym-filtrering) ägs dessutom av servern.
+    //
+    // Det här testet kan bara passera om chip-listan verkligen härleds ur live-formuläret: ett
+    // `useState`-baserat "tillagda"-Set hade renderat chippet vidare, för användaren klickade
+    // aldrig på det.
     const user = userEvent.setup();
-    renderGuide(makeContent(), {
-      ...VARD_SUGGESTIONS,
-      suggestions: VARD_SUGGESTIONS.suggestions.filter((s) => s.sectionId !== "kurser"),
-    });
+    renderGuide(makeContent(), VARD_SUGGESTIONS);
     await gotoSections(user);
 
     expect(
-      screen.queryByRole("button", { name: /Lägg till sektionen Kurser och intyg/ }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Lägg till sektionen Legitimation och intyg/ }),
+      screen.getByRole("button", { name: /Lägg till sektionen Körkort/ }),
     ).toBeInTheDocument();
+
+    // Egen sektion, egen handpåläggning — exakt samma rubrik som chippet bär.
+    await user.click(screen.getByRole("button", { name: /Lägg till sektion$/ }));
+    const heading = document.querySelector<HTMLInputElement>("#guide-section-0-heading");
+    await user.type(heading!, "Körkort");
+
+    expect(
+      screen.queryByRole("button", { name: /Lägg till sektionen Körkort/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("återför chippet när sektionen tas bort igen", async () => {
+    // Den andra riktningen, och den som skiljer en härledning från ett bokfört Set: ångrar hon
+    // tillägget ska förslaget komma TILLBAKA. Ett `added`-Set hade lämnat chippet borta för
+    // alltid — ett dött förslag hon aldrig kan få igen.
+    const user = userEvent.setup();
+    renderGuide(makeContent(), VARD_SUGGESTIONS);
+    await gotoSections(user);
+
+    await user.click(
+      screen.getByRole("button", { name: /Lägg till sektionen Körkort/ }),
+    );
+    expect(
+      screen.queryByRole("button", { name: /Lägg till sektionen Körkort/ }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Ta bort sektion 1/ }));
+
+    expect(
+      screen.getByRole("button", { name: /Lägg till sektionen Körkort/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("flyttar fokus till den nya rubriken när ett förslag läggs till", async () => {
+    // Chippet avmonteras av sitt eget klick. Utan fokusflytt landar fokus på <body> och
+    // tangentbordsanvändaren tappar sin plats utan besked (WCAG 2.4.3).
+    const user = userEvent.setup();
+    renderGuide(makeContent(), VARD_SUGGESTIONS);
+    await gotoSections(user);
+
+    await user.click(
+      screen.getByRole("button", { name: /Lägg till sektionen Legitimation och intyg/ }),
+    );
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        document.querySelector("#guide-section-0-heading"),
+      ),
+    );
+  });
+
+  it("frågar efter yrket ÄVEN när alla generiska förslag redan finns i CV:t", async () => {
+    // Regel (d) får inte dö tyst. Har hon inget yrke angivet OCH bär CV:t redan alla Övriga-
+    // sektionerna blir förslags-listan tom — och då är prompten det ENDA som är kvar att visa.
+    // Utan det här testet kunde render-grinden reduceras till `openSuggestions.length > 0` utan
+    // att något gick rött (mutationen överlevde: test-writer-fynd), och hon hade aldrig fått
+    // frågan om sitt yrke.
+    const user = userEvent.setup();
+    renderGuide(
+      makeContent({
+        sections: [
+          { heading: "Kurser", entries: [] },
+          { heading: "Körkort", entries: [] },
+        ],
+      }),
+      {
+        branschgrupp: "ovriga",
+        hasOccupationPreference: false,
+        rationale: "Vanliga sektioner i svenska CV",
+        // Servern har redan filtrerat bort det CV:t bär → tom lista.
+        suggestions: [],
+      },
+    );
+    await gotoSections(user);
+
+    expect(screen.queryByText("Föreslagna sektioner")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Till inställningar" }),
+    ).toHaveAttribute("href", "/installningar#matchning");
   });
 });

@@ -165,4 +165,95 @@ public class BranschgruppLoaderTests
 
         Should.Throw<InvalidOperationException>(() => BranschgruppLoader.LoadFrom(Json(empty)));
     }
+
+    [Fact]
+    public void LoadFrom_ShouldThrow_WhenABranschgruppHasNoId()
+    {
+        Should.Throw<InvalidOperationException>(() => BranschgruppLoader.LoadFrom(
+            Mutated("\"id\": \"it\",", "\"id\": \"\",")));
+    }
+
+    [Fact]
+    public void LoadFrom_ShouldThrow_WhenTwoBranschgrupperShareAnId()
+    {
+        Should.Throw<InvalidOperationException>(() => BranschgruppLoader.LoadFrom(
+            Mutated("{ \"id\": \"ovriga\", \"rationale\": \"Vanliga sektioner i svenska CV\",",
+                    "{ \"id\": \"it\", \"rationale\": \"Dubblett\",")));
+    }
+
+    [Fact]
+    public void LoadFrom_ShouldThrow_WhenASectionHasNoSectionId()
+    {
+        Should.Throw<InvalidOperationException>(() => BranschgruppLoader.LoadFrom(
+            Mutated("\"sectionId\": \"projekt\"", "\"sectionId\": \"\"")));
+    }
+
+    [Fact]
+    public void LoadFrom_ShouldThrow_WhenTheAssetHasNoBranschgrupper()
+    {
+        var none = """
+            {
+              "branschgruppVersion": "1.0",
+              "occupationFields": [ { "conceptId": "apaJ_2ja_LuF", "branschgrupp": "it" } ],
+              "branschgrupper": []
+            }
+            """;
+
+        Should.Throw<InvalidOperationException>(() => BranschgruppLoader.LoadFrom(Json(none)));
+    }
+
+    [Fact]
+    public void LoadFrom_ShouldThrow_WhenTheDocumentDeserialisesToNull()
+    {
+        Should.Throw<InvalidOperationException>(() => BranschgruppLoader.LoadFrom(Json("null")));
+    }
+
+    [Fact]
+    public void LoadFrom_ShouldThrow_WhenABranschgruppIsOrphaned()
+    {
+        // The guard that SHOULD have stood where a dead one did. A rule-table no occupation-field
+        // points at loads perfectly and can never be reached — an entire ruleset, silently dead.
+        // The mirror guard (a field pointing at an unknown branschgrupp) already existed; this is
+        // the other direction, and nothing checked it.
+        var orphan = """
+            {
+              "branschgruppVersion": "1.0",
+              "occupationFields": [ { "conceptId": "apaJ_2ja_LuF", "branschgrupp": "ovriga" } ],
+              "branschgrupper": [
+                { "id": "it", "rationale": "Ingen pekar hit",
+                  "standardSections": [], "suggestedSections": [] },
+                { "id": "ovriga", "rationale": "Vanliga sektioner i svenska CV",
+                  "standardSections": [], "suggestedSections": [] }
+              ]
+            }
+            """;
+
+        var ex = Should.Throw<InvalidOperationException>(
+            () => BranschgruppLoader.LoadFrom(Json(orphan)));
+
+        ex.Message.ShouldContain("it");
+    }
+
+    [Fact]
+    public void LoadFrom_ShouldNotThrow_WhenOnlyTheFallbackIsUnreferenced()
+    {
+        // The one legitimate exception to the orphan rule: Övriga must keep its rule-table even in
+        // an asset where every mapped field happens to name a specialised branschgrupp, because it
+        // is where an UNRESOLVABLE occupation lands at runtime. Guarding it as an orphan would
+        // forbid the very shape the fallback exists for.
+        var fallbackUnreferenced = """
+            {
+              "branschgruppVersion": "1.0",
+              "occupationFields": [ { "conceptId": "apaJ_2ja_LuF", "branschgrupp": "it" } ],
+              "branschgrupper": [
+                { "id": "it", "rationale": "Vanligt inom data och IT",
+                  "standardSections": [], "suggestedSections": [] },
+                { "id": "ovriga", "rationale": "Vanliga sektioner i svenska CV",
+                  "standardSections": [], "suggestedSections": [] }
+              ]
+            }
+            """;
+
+        Should.NotThrow(() => BranschgruppLoader.LoadFrom(Json(fallbackUnreferenced)));
+    }
 }

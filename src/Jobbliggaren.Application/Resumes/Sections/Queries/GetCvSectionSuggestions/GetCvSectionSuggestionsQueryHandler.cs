@@ -37,9 +37,12 @@ public sealed class GetCvSectionSuggestionsQueryHandler(
         if (!currentUser.UserId.HasValue)
             return null;
 
+        // Projected, not materialised (§3.6) — this read needs exactly two things.
         var jobSeeker = await db.JobSeekers
             .AsNoTracking()
-            .FirstOrDefaultAsync(js => js.UserId == currentUser.UserId.Value, cancellationToken);
+            .Where(js => js.UserId == currentUser.UserId.Value)
+            .Select(js => new { js.Id, js.MatchPreferences })
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (jobSeeker is null)
             return null;
@@ -80,7 +83,7 @@ public sealed class GetCvSectionSuggestionsQueryHandler(
             // contributes nothing rather than throwing (graceful degradation, parity the port's
             // siblings) — and contributing nothing lands her in Övriga, which is honest.
             var fields = await taxonomy.GetContainingOccupationFieldsAsync(
-                [.. preferredGroups], cancellationToken);
+                preferredGroups, cancellationToken);
 
             branschgrupp = catalog.ResolveBranschgrupp(fields);
         }
@@ -92,10 +95,13 @@ public sealed class GetCvSectionSuggestionsQueryHandler(
         // "Kurser och certifikat" and "Fortbildning" to the same canonical id, which is exactly the
         // identity PR-1 created. Without it, this rule could not evaluate its own guard and the
         // panel would cheerfully offer her a section she is already looking at.
-        var present = resume.Content.Sections
-            .Select(section => lexicon.TryResolveFreeSectionId(section.Heading))
-            .Where(id => id is not null)
-            .ToHashSet(StringComparer.Ordinal);
+        var present = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var section in resume.Content.Sections)
+        {
+            var sectionId = lexicon.TryResolveFreeSectionId(section.Heading);
+            if (sectionId is not null)
+                present.Add(sectionId);   // a heading the lexicon does not own suppresses nothing
+        }
 
         var suggestions = rules.StandardSections
             .Select(section => (Section: section, IsStandard: true))

@@ -120,7 +120,8 @@ public class GetCvSectionSuggestionsQueryHandlerTests
         AppDbContext db,
         Guid userId,
         ParsedResumeContent content,
-        IEnumerable<string>? occupationGroups = null)
+        IEnumerable<string>? occupationGroups = null,
+        IEnumerable<ProposedOccupation>? occupationProposals = null)
     {
         var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
 
@@ -135,7 +136,7 @@ public class GetCvSectionSuggestionsQueryHandlerTests
         var parsed = ParsedResume.Create(
             seeker.Id, "cv.pdf", "application/pdf", ResumeLanguage.Sv, content,
             rawText: "Anna Andersson", ConfidentConfidence(),
-            PersonnummerScanOutcome.None, [], FakeDateTimeProvider.Default).Value;
+            PersonnummerScanOutcome.None, occupationProposals ?? [], FakeDateTimeProvider.Default).Value;
 
         db.ParsedResumes.Add(parsed);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -145,11 +146,12 @@ public class GetCvSectionSuggestionsQueryHandlerTests
     /// <summary>The common arrangement: one job seeker who owns one parsed CV.</summary>
     private async Task<(AppDbContext Db, ParsedResume Parsed)> ArrangeAsync(
         IEnumerable<string>? occupationGroups = null,
-        IReadOnlyList<ParsedSection>? sections = null)
+        IReadOnlyList<ParsedSection>? sections = null,
+        IEnumerable<ProposedOccupation>? occupationProposals = null)
     {
         var content = Content(sections);
         var db = NewDb(content);
-        var parsed = await SeedAsync(db, _userId, content, occupationGroups);
+        var parsed = await SeedAsync(db, _userId, content, occupationGroups, occupationProposals);
         return (db, parsed);
     }
 
@@ -352,5 +354,62 @@ public class GetCvSectionSuggestionsQueryHandlerTests
             new GetCvSectionSuggestionsQuery(parsed.Id.Value), CancellationToken.None);
 
         result.ShouldBeNull();
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // The CONFIRMED axis (ADR 0040) — and the drift case
+    // ───────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Handle_ShouldUseTheConfirmedOccupation_WhenTheCvProposesADifferentOne()
+    {
+        // The axis test, made ADVERSARIAL. Until now the slice only used the confirmed axis by
+        // ACCIDENT: no test ever planted an occupation proposal, so a developer who re-pointed the
+        // handler at ParsedResume.OccupationProposals would have seen the suite stay green (the
+        // proposals were always empty), or "fixed" a red test by seeding them.
+        //
+        // Here the two axes DISAGREE on purpose: the CV proposes an IT occupation; she has
+        // confirmed a vård one in her match settings. The answer must be vård.
+        //
+        // Why this matters beyond tidiness: ProposedOccupation is unconfirmed by contract and drops
+        // MatchKind, so an exact hit and a stemmed guess are indistinguishable on the artifact.
+        // Driving a rule-table off it would silently promote "we think you might be a developer"
+        // into "here are a developer's sections" — for a nurse.
+        var (db, parsed) = await ArrangeAsync(
+            occupationGroups: [GroupUnderskoterska],
+            occupationProposals:
+            [
+                new ProposedOccupation(GroupSystemutvecklare, "Systemutvecklare", "titel", 5),
+            ]);
+
+        var result = await CreateHandler(db).Handle(
+            new GetCvSectionSuggestionsQuery(parsed.Id.Value), CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result.Branschgrupp.ShouldBe("vard",
+            "yrket kommer från matchningsinställningarna (bekräftat), aldrig från CV:ts gissning.");
+        result.Suggestions.Select(s => s.SectionId).ShouldContain("legitimation");
+        result.Suggestions.Select(s => s.SectionId).ShouldNotContain("projekt");
+    }
+
+    [Fact]
+    public async Task Handle_ShouldStillNotAskForAnOccupation_WhenTheStatedGroupIsUnknownToTheTaxonomy()
+    {
+        // Taxonomy drift: she stated an occupation, but the snapshot no longer carries that ssyk-4
+        // group, so it resolves to nothing → Övriga. She must STILL not be asked again:
+        // hasOccupationPreference stays true. She answered. That we can no longer use her answer is
+        // OUR failure, not a reason to make her repeat herself.
+        //
+        // The behaviour was previously unpinned, and the DTO doc claimed the true+ovriga case meant
+        // "her occupation is one of the 17" — which is false here. Both are now corrected.
+        var (db, parsed) = await ArrangeAsync(occupationGroups: ["ZZZZ_borttagen_grupp"]);
+
+        var result = await CreateHandler(db).Handle(
+            new GetCvSectionSuggestionsQuery(parsed.Id.Value), CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result.HasOccupationPreference.ShouldBeTrue();
+        result.Branschgrupp.ShouldBe("ovriga");
+        result.Suggestions.ShouldNotBeEmpty("Övriga bär sina egna förslag även vid drift.");
     }
 }

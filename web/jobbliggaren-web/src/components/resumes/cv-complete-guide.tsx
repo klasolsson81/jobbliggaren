@@ -2049,6 +2049,23 @@ function ChipEditor({
     queueMicrotask(() => inputRef.current?.focus());
   }
 
+  /**
+   * Borttagning måste hålla `editingIndex` i takt med listan — annars pekar den på
+   * fel chip. Tar man bort ett chip FÖRE det man redigerar glider allt ett steg ned,
+   * och ett commit hade då skrivit över grannen (tyst, och över användarens innehåll).
+   * Tar man bort just det chip man redigerar finns målet inte längre → avbryt.
+   */
+  function remove(index: number) {
+    onRemove(index);
+    if (editingIndex === null) return;
+    if (index === editingIndex) {
+      setEditingIndex(null);
+      setDraft("");
+    } else if (index < editingIndex) {
+      setEditingIndex(editingIndex - 1);
+    }
+  }
+
   return (
     <div className="jp-guide__chipeditor">
       {names.length === 0 ? (
@@ -2071,7 +2088,7 @@ function ChipEditor({
                 <button
                   type="button"
                   className="jp-chip__remove"
-                  onClick={() => onRemove(index)}
+                  onClick={() => remove(index)}
                   aria-label={removeLabel(name)}
                   disabled={disabled}
                 >

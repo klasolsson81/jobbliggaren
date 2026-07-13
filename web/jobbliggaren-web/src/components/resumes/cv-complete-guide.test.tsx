@@ -687,6 +687,31 @@ describe("CvCompleteGuide — chip-listan är ingen återvändsgränd (#815, CTO
     expect(screen.getByText("TypeScript")).toBeInTheDocument();
   });
 
+  // Stale-index-fällan: `editingIndex` är ett INDEX, och listan kan ändras under tiden.
+  // Tar man bort ett chip FÖRE det man redigerar glider allt ett steg ned — och ett
+  // commit hade då skrivit över grannen, tyst, över användarens eget innehåll.
+  it("borttagning av ett chip FÖRE det man redigerar skriver inte över fel chip", async () => {
+    const user = userEvent.setup();
+    renderGuide(makeContent({ skills: ["Java", "React", "SQL"] }));
+
+    const rail = screen.getByRole("navigation", { name: "Steg i guiden" });
+    await user.click(within(rail).getByRole("button", { name: /^Kompetenser/ }));
+
+    // Redigera "SQL" (index 2), ta sedan bort "Java" (index 0) → SQL blir index 1.
+    await user.click(screen.getByRole("button", { name: "Ändra SQL" }));
+    await user.click(screen.getByRole("button", { name: "Ta bort Java" }));
+
+    // Bekräfta ändringen: SQL ska bli PostgreSQL — React får inte röras.
+    const addInput = document.querySelector<HTMLInputElement>("#guide-skills-add");
+    await user.clear(addInput!);
+    await user.type(addInput!, "PostgreSQL{Enter}");
+
+    expect(screen.getByText("React")).toBeInTheDocument();
+    expect(screen.getByText("PostgreSQL")).toBeInTheDocument();
+    expect(screen.queryByText("SQL")).not.toBeInTheDocument();
+    expect(screen.queryByText("Java")).not.toBeInTheDocument();
+  });
+
   // Fällan som en tidigare version av "Ändra" införde: den PLOCKADE BORT chippet och la
   // texten i draft-fältet. Draften är komponent-lokal — ett stegbyte avmonterar
   // ChipEditor — så ett avbrutet redigeringsförsök raderade chippet för gott. Det vore

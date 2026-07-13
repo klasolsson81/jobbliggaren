@@ -78,13 +78,14 @@
   },
   "applicationHistory": {
     "listLabel": "Ansökningshistorik per arbetsgivare",
-    "emptyTitle": "Du har ingen ansökningshistorik än",
-    "emptyBody": "Sök jobb under Jobb och skicka en ansökan, så samlas historiken här per arbetsgivare.",
+    "emptyTitle": "Ingen ansökningshistorik att visa",
+    "emptyBody": "Historiken samlas här per arbetsgivare när du skickar en ansökan. Sök jobb under Jobb.",
     "unknownCompany": "Företagets namn är inte tillgängligt",
     "orgNr": "Org.nr {orgNr}",
     "protectedIdentity": "Skyddad identitet",
     "protectedIdentityHint": "Organisationsnumret visas inte eftersom det kan vara ett personnummer.",
-    "applicationCount": "{count, plural, one {# skickad ansökan} other {# skickade ansökningar}}",
+    "applicationCount": "Minst {count, plural, one {# skickad ansökan} other {# skickade ansökningar}}",
+    "incompleteNote": "Sammanställningen kan vara ofullständig. Antalen kan vara för låga, och en arbetsgivare kan saknas helt i listan. En ansökan räknas med bara när vi har arbetsgivarens identitet från annonsen, och den saknas för en del ansökningar.",
     "showApplications": "{count, plural, one {Visa ansökan} other {Visa ansökningar}}",
     "appliedAt": "Ansökt {date}"
   },
@@ -166,7 +167,7 @@
       "publishedYesterday": "igår, kl. {time}",
       "publishedOlder": "{date}, kl. {time}",
       "lastApplication": "Sista ansökan",
-      "previousApplications": "Du har {count, plural, one {# tidigare ansökan} other {# tidigare ansökningar}} till detta företag"
+      "previousApplications": "Du har minst {count, plural, one {# tidigare ansökan} other {# tidigare ansökningar}} till detta företag"
     },
     "tags": {
       "new": "Ny",
@@ -190,7 +191,7 @@
       "openAd": "Öppna annonsen",
       "appliedNotice": "Du har markerat denna annons som ansökt. Se i",
       "appliedNoticeLink": "Mina ansökningar",
-      "previousApplications": "Du har {count, plural, one {# tidigare ansökan} other {# tidigare ansökningar}} till detta företag.",
+      "previousApplications": "Du har minst {count, plural, one {# tidigare ansökan} other {# tidigare ansökningar}} till detta företag. Sammanställningen kan vara ofullständig.",
       "previousApplicationsLink": "Visa ansökningshistorik"
     },
     "match": {

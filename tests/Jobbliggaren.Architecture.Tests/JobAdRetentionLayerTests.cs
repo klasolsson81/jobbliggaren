@@ -9,8 +9,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// ADR 0032-amendment 2026-05-23 — snapshot-retention. Låser konsumtionslistan
 /// för <c>IJobAdSnapshotMissTracker</c>-porten + den nya Infrastructure-
 /// entiteten <c>JobAdSnapshotMiss</c>. Mönster paritet
-/// <see cref="AuditingLayerTests"/> (IAccountHardDeleter / IRecruiterPiiPurger
-/// / ISystemEventAuditor).
+/// <see cref="AuditingLayerTests"/> (IAccountHardDeleter / ISystemEventAuditor).
 /// </summary>
 public class JobAdRetentionLayerTests
 {

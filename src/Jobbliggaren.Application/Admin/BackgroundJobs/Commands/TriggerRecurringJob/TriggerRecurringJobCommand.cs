@@ -18,10 +18,11 @@ namespace Jobbliggaren.Application.Admin.BackgroundJobs.Commands.TriggerRecurrin
 /// <para>
 /// <b>Audit (Art. 30):</b> <see cref="IAuditableCommand{TResponse}"/> → one
 /// audit_log row per request. AggregateId = per-request <see cref="RequestId"/>
-/// (these system mutations have no aggregate-root Guid; mirrors the
-/// <c>RedactRecruiterPiiCommand</c> precedent — <c>Guid.Empty</c> is forbidden by
-/// <c>AuditLogEntry.Create</c>). The which-job-was-triggered detail belongs in the
-/// audit Payload column, which is Fas-4-deferred (parity with the precedent).
+/// (these system mutations have no aggregate-root Guid; <c>Guid.Empty</c> is forbidden
+/// by <c>AuditLogEntry.Create</c>). The which-job-was-triggered detail belongs in the
+/// audit Payload column, which is still unwired — <c>AuditLogEntry.Create</c> hard-codes
+/// <c>payload: null</c>. (#842 found that the recruiter-PII command, whose precedent this
+/// used to cite, documented a payload it never wrote. ADR 0106 PR3 wires the column.)
 /// </para>
 /// </summary>
 public sealed record TriggerRecurringJobCommand(string RecurringJobId)

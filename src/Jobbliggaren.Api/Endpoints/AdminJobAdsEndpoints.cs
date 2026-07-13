@@ -1,11 +1,9 @@
 using Hangfire;
 using Jobbliggaren.Application.Common.Authorization;
-using Jobbliggaren.Application.JobAds.Commands.RedactRecruiterPii;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdExtractedTerms;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdKlass2;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdRequirements;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdSsyk;
-using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
 
@@ -15,9 +13,15 @@ namespace Jobbliggaren.Api.Endpoints;
 /// snapshot synkront i HTTP-requesten (ALB-timeout). Snapshot körs nu enbart
 /// via recurring-jobbet <c>sync-platsbanken-snapshot</c> i Worker (schema
 /// 02:00 UTC). Ingen Hangfire-dashboard är exponerad — manuell ad-hoc-körning
-/// kräver operatörsåtgärd via AWS (TD-83). TD-73 prod-gating-batch (ADR 0032
-/// §8 amendment 2026-05-13) behåller right-to-erasure-endpoint för
-/// rekryterar-PII (GDPR Art. 17).
+/// kräver operatörsåtgärd via AWS (TD-83).
+///
+/// <para>
+/// <b>#842 (2026-07-13):</b> the right-to-erasure route for recruiter PII is
+/// <b>disabled and returns 501</b>. It never erased anything (it probed a jsonb key
+/// the ingest sanitizer guarantees is absent) while reporting success. The working
+/// contract is ADR 0106: minimise at ingest (Tier A), remove the whole ad record on
+/// request (Tier B).
+/// </para>
 /// </summary>
 public static class AdminJobAdsEndpoints
 {
@@ -43,22 +47,36 @@ public static class AdminJobAdsEndpoints
                     + "kräver operatörsåtgärd via AWS — ingen publik trigger-yta finns.",
                 statusCode: StatusCodes.Status410Gone));
 
-        // GDPR Art. 17 right-to-erasure för rekryterar-PII i raw_payload
-        // (ADR 0032 §8 amendment 2026-05-13). Email-only — Name defererad till
-        // TD-75. Aggregerad audit-rad per request via IAuditableCommand.
-        group.MapPost("/redact-recruiter-pii", async (
-            RedactRecruiterPiiRequest request,
-            IMediator mediator,
-            CancellationToken ct) =>
-        {
-            var command = new RedactRecruiterPiiCommand(request.Identifier, request.Type);
-            var result = await mediator.Send(command, ct);
-            return result.IsSuccess
-                ? Results.Ok(new RedactRecruiterPiiResponse(
-                    RequestId: command.RequestId,
-                    RowsAffected: result.Value))
-                : result.Error.ToProblemResult();
-        });
+        // GDPR Art. 17 (#842) — CONTAINMENT, 2026-07-13.
+        //
+        // This route used to claim to erase recruiter PII. It could not. It probed
+        // raw_payload for {"employer":{"contact_email":…}} — a key the ingest
+        // sanitizer's default-deny allowlist guarantees is absent, and which the wire
+        // POCO cannot even emit. Measured against the real corpus: 0 of 93 469
+        // ingested ads carry that key. rowsAffected = 0 was its only possible outcome,
+        // while the recruiter's address sat in job_ads.description in plaintext and
+        // was full-text searchable. The route returned 200 OK regardless, and the
+        // runbook instructed the operator to confirm erasure to the data subject.
+        //
+        // A mechanism that reports success while erasing nothing is worse than no
+        // mechanism (Art. 12(3)): it manufactures a false statement to a data subject.
+        // Until the real erasure path ships (ADR 0106 Tier B — whole-record removal),
+        // this route FAILS LOUD. The route is kept rather than deleted so the Art. 17
+        // cascade registry in ADR 0024 does not silently dangle, and so an operator
+        // with an older runbook is told the truth instead of being served a lie.
+        //
+        // 501 stays endpoint-local — no new ErrorKind (CLAUDE.md §3, same precedent as
+        // the endpoint-local 401). Admin auth still applies (group-level policy).
+        group.MapPost("/redact-recruiter-pii", () =>
+            Results.Problem(
+                title: "Ingen raderingsväg finns ännu",
+                detail: "Den automatiska raderingen av rekryterarens kontaktuppgifter "
+                    + "var verkningslös och är avstängd (issue #842). Den sökte efter ett "
+                    + "fält som aldrig sparas, och rapporterade samtidigt att raderingen "
+                    + "var genomförd. En begäran om radering enligt artikel 17 hanteras "
+                    + "tills vidare manuellt: eskalera till dataskyddsansvarig. Se "
+                    + "docs/runbooks/recruiter-pii-erasure.md.",
+                statusCode: StatusCodes.Status501NotImplemented));
 
         // STEG 6 (2026-05-24) — engångs-backfill av ssyk_concept_id för JobAds
         // vars raw_payload saknar occupation-key (pre-2026-05-20-fix). Enqueue:as
@@ -140,22 +158,6 @@ public static class AdminJobAdsEndpoints
         });
     }
 }
-
-/// <summary>
-/// Request-body för POST /api/v1/admin/job-ads/redact-recruiter-pii.
-/// </summary>
-public sealed record RedactRecruiterPiiRequest(
-    string Identifier,
-    RecruiterIdentifierType Type);
-
-/// <summary>
-/// Response-body för POST /api/v1/admin/job-ads/redact-recruiter-pii.
-/// RowsAffected = antal JobAds där raw_payload null:ades.
-/// RequestId = aggregateId för audit-raden (kan användas vid uppföljning).
-/// </summary>
-public sealed record RedactRecruiterPiiResponse(
-    Guid RequestId,
-    int RowsAffected);
 
 /// <summary>
 /// Response-body för POST /api/v1/admin/job-ads/backfill-ssyk.

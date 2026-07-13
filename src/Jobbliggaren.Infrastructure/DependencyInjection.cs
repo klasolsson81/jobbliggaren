@@ -409,10 +409,13 @@ public static class DependencyInjection
         // AddCvRendering. NO AI/LLM.
         services.AddCvRendering();
 
-        // TD-73 prod-gating: Right-to-erasure-impl för rekryterar-PII (ADR 0032
-        // §8 amendment 2026-05-13). Postgres-specifik JsonContains-LINQ kapslas
-        // in i Infrastructure för att hålla Application Npgsql-fri (Clean Arch).
-        services.AddScoped<IRecruiterPiiPurger, RecruiterPiiPurger>();
+        // #842 (2026-07-13): IRecruiterPiiPurger/RecruiterPiiPurger removed. It was the
+        // only Art. 17 erasure path for recruiter PII and it was structurally incapable of
+        // erasing anything — it probed raw_payload for a jsonb key the ingest sanitizer
+        // guarantees is absent (0 of 93 469 ingested ads carry it), then reported success.
+        // The replacement contract is ADR 0106: minimise at ingest (Tier A) + remove the
+        // whole ad record on request (Tier B). Nothing is registered here in the meantime;
+        // the admin route fails loud with 501 (AdminJobAdsEndpoints).
 
         // #754 (ADR 0045 Beslut 1 klass (d)) — options + delad reporter för
         // ingestion-throughput-fitness-functionen. Bunden HÄR (inte i

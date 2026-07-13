@@ -30,9 +30,6 @@ public class AuditingLayerTests
     private const string SystemEventAuditorFqn =
         "Jobbliggaren.Application.Common.Auditing.ISystemEventAuditor";
 
-    private const string RecruiterPiiPurgerFqn =
-        "Jobbliggaren.Application.JobAds.Abstractions.IRecruiterPiiPurger";
-
     [Fact]
     public void IAuditPartitionMaintainer_in_Application_should_only_be_referenced_by_AuditLogRetentionJob()
     {
@@ -278,49 +275,18 @@ public class AuditingLayerTests
             $"Otillåtna: {string.Join(", ", unauthorized)}");
     }
 
-    // ─── IRecruiterPiiPurger (ADR 0032 §8 amendment 2026-05-13 — GDPR Art. 17) ───
+    // ─── IRecruiterPiiPurger — REMOVED 2026-07-13 (#842) ───
     //
-    // Postgres-specifik jsonb-sökning kapslas i Infrastructure för att hålla
-    // Application Npgsql-fri. Konsumentlista låst för att förhindra direkt
-    // PII-purge utanför admin-endpoint-flödet.
-
-    [Fact]
-    public void IRecruiterPiiPurger_in_Application_should_only_be_referenced_by_RedactRecruiterPiiCommandHandler()
-    {
-        var consumers = Types.InAssembly(typeof(Jobbliggaren.Application.AssemblyMarker).Assembly)
-            .That()
-            .HaveDependencyOn(RecruiterPiiPurgerFqn)
-            .GetTypes()
-            .Select(t => t.Name)
-            .ToList();
-
-        var allowed = new[] { "RedactRecruiterPiiCommandHandler" };
-        var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
-
-        unauthorized.ShouldBeEmpty(
-            $"IRecruiterPiiPurger får endast konsumeras av " +
-            $"RedactRecruiterPiiCommandHandler. Otillåtna: " +
-            $"{string.Join(", ", unauthorized)}");
-    }
-
-    [Fact]
-    public void IRecruiterPiiPurger_in_Infrastructure_should_only_be_referenced_by_impl_or_DI()
-    {
-        var consumers = Types.InAssembly(typeof(AppDbContext).Assembly)
-            .That()
-            .HaveDependencyOn(RecruiterPiiPurgerFqn)
-            .GetTypes()
-            .Select(t => t.Name)
-            .ToList();
-
-        var allowed = new[] { "RecruiterPiiPurger", "DependencyInjection" };
-        var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
-
-        unauthorized.ShouldBeEmpty(
-            $"IRecruiterPiiPurger i Infrastructure får endast konsumeras av " +
-            $"RecruiterPiiPurger (impl) eller DependencyInjection (registrering). " +
-            $"Otillåtna: {string.Join(", ", unauthorized)}");
-    }
+    // Two consumer-lock tests lived here. They are deleted rather than left behind,
+    // and the reason matters: a consumer-lock test asserts that NOBODY outside an
+    // allow-list depends on a port. Delete the port and the test does not fail — it
+    // passes VACUOUSLY, because "no type depends on a type that no longer exists" is
+    // trivially true. It would have stayed green forever while guarding nothing.
+    //
+    // That is the exact defect class #842 is about (a green test pinning a fiction),
+    // so leaving these behind would have re-committed the original sin in the very
+    // change that fixes it. The Tier-B erasure command (ADR 0106, PR3) brings its own
+    // consumer lock, written against a port that exists.
 
     [Fact]
     public void IIpAnonymizer_in_Infrastructure_should_only_be_referenced_by_known_consumers()

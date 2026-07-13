@@ -196,13 +196,36 @@ internal sealed partial class PlatsbankenJobSource(
         if (string.IsNullOrWhiteSpace(hit.Id) || hit.PublicationDate is null)
             return null;
 
-        // SECURITY-NOTE (security-auditor 2026-05-12 Maj-1): description.text + url
-        // är fri-text-fält från JobTech som kan innehålla rekryterar-PII
-        // ("Skicka CV till anna@acme.se"). Vi sparar dem klartext eftersom samma
-        // text är publikt indexerad på `arbetsformedlingen.se/platsbanken/annonser/{id}`
-        // (legitimt intresse per GDPR Art. 6(1)(f) — annonsen är redan publicerad).
-        // Sanitizer-allowlist täcker bara raw_payload-jsonb. Regex-baserad
-        // PII-redaction kan lyftas som Trigger-TD vid faktiskt klagomål.
+        // SECURITY-NOTE (security-auditor 2026-05-12 Maj-1) — RESOLVED 2026-07-13 (#842).
+        //
+        // The original note read: "description.text + url are free-text fields from JobTech
+        // that may contain recruiter PII ('Skicka CV till anna@acme.se'). We store them in
+        // plaintext because the same text is publicly indexed at arbetsformedlingen.se
+        // (legitimate interest per Art. 6(1)(f) — the ad is already published). The
+        // sanitizer allowlist only covers the raw_payload jsonb. Regex-based PII redaction
+        // can be raised as a Trigger-TD on an actual complaint."
+        //
+        // Three things were wrong with that, and #842 is the bill:
+        //  1. The deferred mitigation never existed. The trigger fired (an Art. 17 request
+        //     IS the "actual complaint") and there was nothing to trigger — the only erasure
+        //     path probed a jsonb key the sanitizer guarantees is absent.
+        //  2. "Already published" does not defeat an Art. 17 request against OUR copy.
+        //     Google Spain (C-131/12): a downstream indexer is a controller for its own
+        //     processing, and can be ordered to remove the item without removal at source.
+        //  3. It was never rare. Measured: 27 077 of 93 469 ads (29 %) carry an email in
+        //     the body; 13 134 carry a phone number.
+        //
+        // STATUS RIGHT NOW (PR1 = containment): the body below is still stored verbatim.
+        // Nothing here scrubs it yet, and this comment will not pretend otherwise — a
+        // comment that describes a control it does not have is the same defect as a test
+        // that pins a fiction, and it is how #842 survived two releases.
+        //
+        // The fix lands in PR2 (ADR 0106 Tier A): RecruiterContactRedactor applied as a
+        // JobAd aggregate invariant, so the address is removed before it is ever persisted
+        // (Art. 25, data protection by design). The apply route survives via `url` → the
+        // canonical AF ad, which carries the contact block, is always current, and is
+        // operated by the party that actually holds the advertiser's consent. We are a
+        // mirror; a mirror does not need the contact block.
         var headline = hit.Headline?.Trim();
         var description = hit.Description?.Text?.Trim();
         // sec-Min-1: filtrera bort mailto:-länkar (application_details.url-fallback

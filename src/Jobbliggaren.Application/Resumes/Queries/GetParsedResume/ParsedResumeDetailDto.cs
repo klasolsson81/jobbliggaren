@@ -32,7 +32,20 @@ public sealed record ParsedContentDto(
     IReadOnlyList<ParsedExperienceDto> Experiences,
     IReadOnlyList<ParsedEducationDto> Educations,
     IReadOnlyList<string> Skills,
-    IReadOnlyList<string> Languages);
+    IReadOnlyList<string> Languages,
+    IReadOnlyList<ParsedSectionDto> Sections);
+
+/// <summary>
+/// A section the CV has that is not one of the six typed kinds — "Projekt", "Referenser" (#815).
+/// The heading is the user's own line, verbatim: it is content to show back, never a discriminator.
+/// </summary>
+public sealed record ParsedSectionDto(
+    string Heading,
+    IReadOnlyList<ParsedSectionEntryDto> Entries);
+
+/// <summary>One entry inside a free section. <c>Title</c> is null when the entry has none — the
+/// parser does not invent one (ADR 0071).</summary>
+public sealed record ParsedSectionEntryDto(string? Title, IReadOnlyList<string> Lines);
 
 public sealed record ParsedContactDto(string? FullName, string? Email, string? Phone, string? Location);
 

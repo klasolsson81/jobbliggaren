@@ -57,7 +57,10 @@ internal sealed record CvDocumentModel(
     internal sealed record SectionLine(string Heading, IReadOnlyList<SectionEntryLine> Entries);
 
     /// <summary>One entry inside a dynamic section — a title and its body lines (all verbatim).</summary>
-    internal sealed record SectionEntryLine(string Title, IReadOnlyList<string> Lines);
+    // #815: nullable Title, mirroring SectionEntry. CvDocumentComposer is already null-tolerant
+    // here (it skips an entry with neither title nor lines, and only emits the title when present),
+    // so the renderer needs no behavioural change — verified, not assumed.
+    internal sealed record SectionEntryLine(string? Title, IReadOnlyList<string> Lines);
 
     /// <summary>
     /// Projects the parsed content verbatim — no field is synthesised or translated. The parsed

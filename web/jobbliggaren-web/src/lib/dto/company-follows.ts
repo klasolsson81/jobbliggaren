@@ -30,6 +30,22 @@ export interface CompanyFollowState {
 }
 
 /**
+ * Bevakning F4b — the per-watch notification filter (mirrors backend `WatchFilterDto`).
+ *
+ * The two geo axes are DISJOINT JobTech namespaces and are stored as picked: a whole-län selection
+ * lives in `regions` and is never expanded into its municipalities, because an ad may be tagged at län
+ * granularity with no municipality at all (see `WatchFilterSpec` — expanding would silently drop those
+ * ads from the user's notifications). Labels are resolved from the taxonomy tree the ort picker already
+ * holds; the wire carries only concept-ids. No org.nr, no grade value.
+ */
+export const watchFilterSchema = z.object({
+  municipalities: z.array(z.string()).readonly(),
+  regions: z.array(z.string()).readonly(),
+  onlyMatched: z.boolean(),
+});
+export type WatchFilter = z.infer<typeof watchFilterSchema>;
+
+/**
  * #311 #448 (ADR 0087 D2/D3/D8(c)) — one owner-facing followed-company row for the `/foretag` list.
  * Mirrors the backend `CompanyWatchDto`. The backend already applies the personnummer guard: a
  * sole-prop (personnummer-shaped) org.nr arrives with `organizationNumber: null` and
@@ -53,6 +69,11 @@ export const companyWatchSchema = z.object({
   followedAt: z.string(),
   activeAdCount: z.number().int().nonnegative(),
   matchingAdCount: z.number().int().nullable(),
+  // null = no filter (the domain's canonical representation — there is no separate hasFilter bool to
+  // disagree with it). Required key: backend always projects it, and `undefined` would mask contract
+  // drift by silently rendering every watch as unfiltered — which is exactly the silent-narrowing
+  // failure the resting-state disclosure exists to prevent.
+  filter: watchFilterSchema.nullable(),
 });
 export type CompanyWatch = z.infer<typeof companyWatchSchema>;
 

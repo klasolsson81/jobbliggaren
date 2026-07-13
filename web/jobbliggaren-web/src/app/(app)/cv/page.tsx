@@ -4,20 +4,13 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { FileText, Plus, Upload } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getLatestPendingParsedResume, getResumes } from "@/lib/api/resumes";
-import { getMyProfile } from "@/lib/api/me";
-import { getTaxonomyTree } from "@/lib/api/taxonomy";
-import { resolveSkillLabels } from "@/lib/api/skills";
 import { assertNever } from "@/lib/dto/_helpers";
 import { formatDaysAgo } from "@/lib/i18n/relative-time";
 import { formatTime } from "@/lib/i18n/format";
 import { ResumeCard } from "@/components/resumes/resume-card";
-import { CvMatchSetup } from "@/components/resumes/cv-match-setup";
 import { DiscardDraftButton } from "@/components/resumes/discard-draft-button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { countCompletedTasks, TOTAL_GAP_TASKS } from "@/lib/resumes/gap-tasks";
-
-/** Route till CV-importflödet (verifierad on-disk: app/(app)/cv/importera). */
-const IMPORT_CV_HREF = "/cv/importera";
 
 /** Stabil id för åtgärdskortets mätar-etikett → progressbarens tillgängliga namn
  * (aria-labelledby). Endast ett åtgärdskort renderas per sida (senaste pending),
@@ -36,11 +29,7 @@ const PENDING_METER_LABEL_ID = "cv-pending-meter-label";
  * annons-skräddarsöm, en LLM-funktion som ADR 0071 garanterar aldrig byggs.
  * Förbättra-CV-flödet (deterministiskt, F4-10) lever i stället på granska-vyn.
  */
-export default async function CvListPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}) {
+export default async function CvListPage() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
@@ -51,11 +40,6 @@ export default async function CvListPage({
   const fmt = await getFormatter();
   const tPendingRel = await getTranslations("pages.cv.pending.relativeTime");
 
-  // Post-promote-prompten (design C.3) visas när /cv öppnas med ?matchning=1
-  // — sätts av promote-/upload-flödet vid redirect hit. Annars dold.
-  const { matchning } = await searchParams;
-  const showMatchPrompt = matchning === "1";
-
   // CV-listan + taxonomi + profil parallellt. Taxonomi/profil matar
   // match-setup-rail-modalen (samma BFF-fetches som /installningar). Båda
   // degraderar civilt: utan taxonomi visas ingen wizard-trigger (yrkesväljaren
@@ -64,15 +48,10 @@ export default async function CvListPage({
   // parsade CV:t (non-PII summering) hämtas i samma parallell-svep. Backend
   // svarar 200 med `null` när inget pending CV finns (inte 404). Degraderar
   // civilt: vid icke-ok eller `null` visas inget "slutför ditt CV"-kort.
-  const [result, taxonomyResult, profileResult, pendingResult] =
-    await Promise.all([
-      getResumes(),
-      getTaxonomyTree(),
-      getMyProfile(),
-      getLatestPendingParsedResume(),
-    ]);
-  const taxonomy = taxonomyResult.kind === "ok" ? taxonomyResult.data : null;
-  const profile = profileResult.kind === "ok" ? profileResult.data : null;
+  const [result, pendingResult] = await Promise.all([
+    getResumes(),
+    getLatestPendingParsedResume(),
+  ]);
   const pendingCv = pendingResult.kind === "ok" ? pendingResult.data : null;
 
   // Åtgärdskortets härledda värden (Fas 4b PR-8.3). Källrad: filnamn + "Importerad
@@ -98,19 +77,6 @@ export default async function CvListPage({
         };
       })()
     : null;
-
-  // #422 (#253/#277 group-resolution): reverse-resolve the saved skill concept-
-  // ids to GROUPS server-side, mirroring installningar/page.tsx:47-52. Without
-  // this seed the match-setup wizard renders raw concept-ids for a returning
-  // user's saved skills on a cold load (SkillSection's CV auto-suggest is gated
-  // on parsedResumeId, which CvMatchSetup never passes). Depends on the profile
-  // → runs after the parallel fetch; absent profile or a failed resolve → empty
-  // list and the wizard keeps its graceful id-fallback. Empty preferredSkills
-  // short-circuits with no backend round-trip.
-  const skillGroupsResult =
-    profile !== null ? await resolveSkillLabels(profile.preferredSkills) : null;
-  const initialSkillGroups =
-    skillGroupsResult?.kind === "ok" ? skillGroupsResult.data : [];
 
   switch (result.kind) {
     case "ok":
@@ -234,33 +200,12 @@ export default async function CvListPage({
           </div>
         )}
 
-        {/* Match-setup-affordans (ADR 0077 STEG 5): trigger + dismissbar
-            post-promote-prompt. Visas när taxonomi + profil laddats och minst
-            ett CV finns (wizarden prefillar från CV:t). Klient-ö — wizarden bär
-            det enda MatchPreferences-PUT:et. */}
-        {taxonomy !== null && profile !== null && sorted.length > 0 && (
-          <div className="jp-cvmatch-bar">
-            <div className="jp-cvmatch-bar__lead">
-              <p className="jp-cvmatch-bar__title">{t("cv.matchBarTitle")}</p>
-              <p className="jp-cvmatch-bar__text">{t("cv.matchBarText")}</p>
-            </div>
-            <CvMatchSetup
-              occupationFields={taxonomy.occupationFields}
-              regions={taxonomy.regions}
-              employmentTypes={taxonomy.employmentTypes}
-              persistedOccupationGroups={profile.preferredOccupationGroups}
-              persistedRegions={profile.preferredRegions}
-              persistedMunicipalities={profile.preferredMunicipalities}
-              persistedEmploymentTypes={profile.preferredEmploymentTypes}
-              persistedSkills={profile.preferredSkills}
-              persistedSkillGroups={initialSkillGroups}
-              persistedOccupationExperience={profile.preferredOccupationExperience}
-              importCvHref={IMPORT_CV_HREF}
-              hasPreferences={profile.hasStatedDesiredOccupation}
-              showPrompt={showMatchPrompt}
-            />
-          </div>
-        )}
+        {/* #815 (Klas): the match-setup card used to live here. It is gone. Matching is
+            configured under Inställningar, and duplicating that entry point on the CV hub
+            made this page about two different things at once. The hub is about your CVs.
+            Removing it also drops three requests from the page — the taxonomy tree, the
+            profile, and a SEQUENTIAL skill-label round-trip that ran after the parallel
+            fetch purely to seed the wizard. */}
 
         {sorted.length === 0 ? (
           <div className="jp-empty">

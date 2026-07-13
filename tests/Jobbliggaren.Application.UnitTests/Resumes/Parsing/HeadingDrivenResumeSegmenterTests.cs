@@ -16,6 +16,375 @@ public class HeadingDrivenResumeSegmenterTests
 {
     private readonly HeadingDrivenResumeSegmenter _sut = new();
 
+    // ── #815 (Klas live-review) — contact extraction ────────────────────────────────
+    //
+    // A sidebar/two-column CV linearizes with the contact block AFTER the body: the text
+    // extractor emits raw content-stream order, so a left rail drawn late in the PDF lands
+    // last. Every fixture above happens to put the phone on line 3, ahead of any date — which
+    // is exactly why this class was green while the parser was wrong. This fixture reproduces
+    // the real reading order.
+    private const string SidebarOrderCv =
+        """
+        Arbetslivserfarenhet
+        Operatör — Verkstaden AB, Göteborg
+        2005 - nu
+        Skötte produktionslinan.
+
+        Utbildning
+        Gymnasieingenjör — Lindholmen
+        2001 - 2004
+
+        Kontakt
+        Anna Andersson
+        anna.andersson@example.com
+        070-123 45 67
+        Göteborg
+        """;
+
+    [Fact]
+    public void Segment_ContactAfterBody_ExtractsThePhoneNotTheFirstDateRange()
+    {
+        var result = _sut.Segment(SidebarOrderCv);
+
+        // Today PhoneRegex is @"\+?\d[\d\s()\-]{5,}\d" — "any digit run with separators" — and
+        // FirstPhone takes the FIRST match in document order. "2005 - nu" has too few digits,
+        // but "2001 - 2004" is eight digits and wins over the actual phone number. The user then
+        // sees a date range where their mobile should be, which reads as "phone not found".
+        result.Content.Contact.Phone.ShouldBe("070-123 45 67");
+    }
+
+    [Theory]
+    [InlineData("2021 - 2024")]
+    [InlineData("2019-2023")]
+    [InlineData("2016 – 2021")] // en-dash, what Word/Canva autocorrect produce
+    public void Segment_DateRangeIsNeverExtractedAsAPhoneNumber(string period)
+    {
+        var cv =
+            $"""
+            Arbetslivserfarenhet
+            Backend-utvecklare — Acme AB
+            {period}
+
+            Kontakt
+            Anna Andersson
+            anna.andersson@example.com
+            """;
+
+        var result = _sut.Segment(cv);
+
+        // A period is not a phone number. Honest-absent beats a confidently wrong value.
+        result.Content.Contact.Phone.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("070-123 45 67", "070-123 45 67")]
+    [InlineData("070–123 45 67", "070–123 45 67")] // en-dash: today the leading 070 is silently dropped
+    [InlineData("+46 70 123 45 67", "+46 70 123 45 67")]
+    [InlineData("0701234567", "0701234567")]
+    public void Segment_SwedishMobileFormats_AreExtractedInFull(string written, string expected)
+    {
+        var cv =
+            $"""
+            Anna Andersson
+            anna.andersson@example.com
+            {written}
+
+            Profil
+            Erfaren utvecklare.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Contact.Phone.ShouldBe(expected);
+    }
+
+    [Fact]
+    public void Segment_DateRangeFollowedByEmployerText_IsNotMistakenForTheName()
+    {
+        // REGRESSION PIN — read before touching PhoneRegex.
+        // IsNameLike rejects a line if LooksLikePhone(line) is true. That is an ACCIDENT: the
+        // sloppy phone regex happens to match date ranges, so date lines get filtered out of name
+        // detection as a side effect. Tighten the phone regex and this line stops looking like a
+        // phone — and, because it contains letters, it becomes a name candidate. The name must be
+        // rejected on its DATE shape, not on a phone coincidence.
+        var cv =
+            """
+            2021 - 2024 Volvo AB
+            Anna Andersson
+            anna.andersson@example.com
+
+            Profil
+            Erfaren utvecklare.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Contact.FullName.ShouldBe("Anna Andersson");
+    }
+
+    // ── #815 — Ort (location) ───────────────────────────────────────────────────────
+    //
+    // Location was never extracted at all: ParsedContact was constructed with
+    // `Location: null` hardcoded. So HasLocation was false for 100 % of imports ever made,
+    // every parsed-CV review carried a false "ort saknas", and the Slutför guide always
+    // asked for a city the CV already stated.
+
+    [Theory]
+    [InlineData("Ort: Göteborg")]
+    [InlineData("Bostadsort: Göteborg")]
+    [InlineData("Stad: Göteborg")]
+    [InlineData("Location: Göteborg")]
+    public void Segment_LabelledLocation_ExtractsTheCity(string labelled)
+    {
+        var cv =
+            $"""
+            Anna Andersson
+            anna.andersson@example.com
+            {labelled}
+
+            Profil
+            Erfaren utvecklare.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Contact.Location.ShouldBe("Göteborg");
+    }
+
+    [Fact]
+    public void Segment_PostalCodeLine_ExtractsTheCityAfterTheCode()
+    {
+        var cv =
+            """
+            Anna Andersson
+            Storgatan 1
+            412 58 Göteborg
+            anna.andersson@example.com
+
+            Profil
+            Erfaren utvecklare.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Contact.Location.ShouldBe("Göteborg");
+    }
+
+    [Fact]
+    public void Segment_BareCityInTheContactBlock_ExtractsItFromTheMunicipalityLexicon()
+    {
+        // Klas's CV: "Göteborg" stands alone in the contact rail, with no label and no postal
+        // code. The kommun vocabulary comes from the versioned taxonomy snapshot (ADR 0043) —
+        // never a hand-written city list in C# (§5).
+        var result = _sut.Segment(SidebarOrderCv);
+
+        result.Content.Contact.Location.ShouldBe("Göteborg");
+    }
+
+    [Fact]
+    public void Segment_CityOnlyInsideAnExperienceEntry_DoesNotBecomeThePersonsLocation()
+    {
+        // THE HONESTY GUARD. "Operatör — Verkstaden AB, Göteborg" states the EMPLOYER's city.
+        // Inferring that the person lives there is a fabrication, and this engine never
+        // synthesises what the user did not write (ADR 0071). Honest-absent beats a confident
+        // guess. The bare-city rung therefore only ever looks inside contact scope.
+        var cv =
+            """
+            Anna Andersson
+            anna.andersson@example.com
+
+            Arbetslivserfarenhet
+            Operatör — Verkstaden AB, Göteborg
+            2005 - 2010
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Contact.Location.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Segment_LocationFound_DoesNotSilentlyRegradeContactConfidence()
+    {
+        // The confidence formula is hasName && (hasEmail || hasPhone). Folding Location into it
+        // would re-grade every historical parse the moment this shipped. Evidence may grow; the
+        // LEVEL must not move.
+        const string withoutLocation =
+            """
+            Anna Andersson
+            anna.andersson@example.com
+
+            Profil
+            Erfaren utvecklare.
+            """;
+        const string withLocation =
+            """
+            Anna Andersson
+            anna.andersson@example.com
+            Ort: Göteborg
+
+            Profil
+            Erfaren utvecklare.
+            """;
+
+        var before = LevelOf(_sut.Segment(withoutLocation), ParsedSectionKind.Contact);
+        var after = LevelOf(_sut.Segment(withLocation), ParsedSectionKind.Contact);
+
+        after.ShouldBe(before);
+    }
+
+    // ── #815 fynd 3 — fria sektioner (CTO-bind A′) ───────────────────────────────────
+    //
+    // Rubriker vi INTE typar ("Projekt", "Referenser") terminerade ingenting: en sektion
+    // löpte till nästa IGENKÄND rubrik, så "PROFIL ... PROJEKT ..." svalde hela projekt-
+    // listan in i sammanfattningen. Klas såg profil + projekt som en enda textmassa.
+
+    private const string CvWithProjectsAndReferences =
+        """
+        Anna Andersson
+        anna.andersson@example.com
+
+        Profil
+        Erfaren backend-utvecklare med fokus på betaltjänster.
+
+        PROJEKT
+        Betalplattform
+        Byggde en betaltjänst i .NET.
+
+        Bokningssystem
+        Ansvarade för API:et.
+
+        Referenser
+        Lämnas på begäran.
+
+        Kompetenser
+        C#, PostgreSQL
+        """;
+
+    [Fact]
+    public void Segment_UnknownHeading_TerminatesTheProfile_NoMoreSpaghetti()
+    {
+        var result = _sut.Segment(CvWithProjectsAndReferences);
+
+        // Profilen får INTE svälja projektlistan.
+        var profile = result.Content.Profile.ShouldNotBeNull();
+        profile.ShouldBe("Erfaren backend-utvecklare med fokus på betaltjänster.");
+        profile.ShouldNotContain("Betalplattform");
+        profile.ShouldNotContain("Lämnas på begäran");
+    }
+
+    [Fact]
+    public void Segment_TwoFreeSections_StayTwoSectionsWithTheirOwnVerbatimHeadings()
+    {
+        // ANTI-KOLLISIONSTESTET. Detta är testet som gör den avvisade designen
+        // (ParsedSectionKind.Other) omöjlig att smyga tillbaka: med sektionerna keyade på
+        // en enda "Other"-kind hade PROJEKT och Referenser konkatenerats till ETT block —
+        // spagettin igen, ett lager ner — och rubrikerna användaren skrev hade kastats bort.
+        var result = _sut.Segment(CvWithProjectsAndReferences);
+
+        result.Content.Sections.Count.ShouldBe(2);
+
+        // Rubriken är ANVÄNDARENS text, ordagrant. "PROJEKT" är inte "projekt".
+        result.Content.Sections[0].Heading.ShouldBe("PROJEKT");
+        result.Content.Sections[1].Heading.ShouldBe("Referenser");
+
+        // Dokumentordning bevarad.
+        result.Content.Sections[0].Entries.Count.ShouldBe(2);
+        result.Content.Sections[0].Entries[0].Title.ShouldBe("Betalplattform");
+        result.Content.Sections[0].Entries[1].Title.ShouldBe("Bokningssystem");
+        result.Content.Sections[1].Entries[0].Lines.ShouldContain("Lämnas på begäran.");
+    }
+
+    [Fact]
+    public void Segment_FreeSectionDoesNotLeakIntoTheTypedSections()
+    {
+        var result = _sut.Segment(CvWithProjectsAndReferences);
+
+        // Kompetenser efter de fria sektionerna ska fortfarande hittas typat.
+        result.Content.Skills.ShouldContain("C#");
+        // Och projekttexten ska inte ha hamnat i erfarenhet.
+        result.Content.Experience.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Segment_LabelShapedFreeToken_DoesNotHijackARealSection()
+    {
+        // Fria rubriker känns igen ENBART som hel rad, aldrig i inline-form ("Kurs: ...").
+        // Varje post i Utbildning inleds efter en tom rad, så postens första rad passerar alltid
+        // inline-splittens boundary-port. En etikettformad fri token hade därför TERMINERAT
+        // Utbildning och degraderat resterande poster till fri-sektionstext — motorn hade uppfunnit
+        // en sektionsgräns användaren inte skrev. Innehållet stannar i stället kvar där det står:
+        // förlustfritt, synligt, redigerbart.
+        const string cv =
+            """
+            Anna Andersson
+
+            Utbildning
+            Civilingenjör — KTH
+            2016 - 2021
+
+            Kurs: Databaser 7,5 hp
+            Fördjupning i relationsdatabaser.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Sections.ShouldBeEmpty();
+        result.Content.Education.Count.ShouldBeGreaterThanOrEqualTo(1);
+    }
+
+    [Fact]
+    public void Segment_BulletedFreeSection_DoesNotInventATitle()
+    {
+        const string cv =
+            """
+            Anna Andersson
+
+            Intressen
+            - Segling
+            - Schack
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var entry = result.Content.Sections[0].Entries[0];
+        // Parsern befordrar ALDRIG en punktlista-rad till en rubrik den inte skrivit.
+        entry.Title.ShouldBeNull();
+        entry.Lines.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public void Segment_NoFreeSections_YieldsEmptyList_NotNull()
+    {
+        var result = _sut.Segment(SwedishCv);
+
+        result.Content.Sections.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Segment_FreeSectionHeading_DoesNotDisturbParseConfidence()
+    {
+        // De sex typade sektionerna behåller sitt konfidenskontrakt: en fri sektion får
+        // varken skeva det dokument-övergripande verdiktet eller dyka upp som en sektion.
+        var withFree = _sut.Segment(CvWithProjectsAndReferences);
+
+        // Exakt de sex typade sektionerna — en fri sektion får inte dyka upp som en
+        // konfidenspost och skeva det dokument-övergripande verdiktet.
+        withFree.Confidence.Sections.Count.ShouldBe(6);
+        withFree.Confidence.Sections
+            .Select(s => s.Kind)
+            .ShouldBe(
+                [
+                    ParsedSectionKind.Contact,
+                    ParsedSectionKind.Profile,
+                    ParsedSectionKind.Experience,
+                    ParsedSectionKind.Education,
+                    ParsedSectionKind.Skills,
+                    ParsedSectionKind.Languages,
+                ],
+                ignoreOrder: true);
+    }
+
     private const string SwedishCv =
         """
         Anna Andersson

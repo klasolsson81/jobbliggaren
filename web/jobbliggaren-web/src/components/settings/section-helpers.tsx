@@ -14,7 +14,10 @@ import type { Option } from "./match-preferences-shared";
  * `isAll` ger "Välj alla"-radens framträdande stil (samma som jobbsidans
  * popover) och `indeterminate` annonserar `aria-checked="mixed"` (WAI-ARIA
  * tri-state) vid partiellt val — skärmläsaren hör "delvis markerad", inte
- * "omarkerad". Båda är opt-in (default = vanlig rad, oförändrat beteende).
+ * "omarkerad". `describedBy` kopplar en förklaring till kontrollen: i en
+ * skärmläsares forms-mode läses bara namnet + beskrivningen, så en text som
+ * BARA står bredvid kontrollen når aldrig fram (bevakning F4b: skälet till att
+ * ett filter är inert). Alla tre är opt-in — default = oförändrat beteende.
  */
 export function CheckItem({
   label,
@@ -22,18 +25,21 @@ export function CheckItem({
   onToggle,
   isAll,
   indeterminate,
+  describedBy,
 }: {
   readonly label: string;
   readonly checked: boolean;
   readonly onToggle: () => void;
   readonly isAll?: boolean;
   readonly indeterminate?: boolean;
+  readonly describedBy?: string;
 }) {
   return (
     <div
       className={isAll ? "jp-checkitem jp-checkitem--all" : "jp-checkitem"}
       role="checkbox"
       aria-checked={indeterminate ? "mixed" : checked}
+      aria-describedby={describedBy}
       tabIndex={0}
       onClick={onToggle}
       onKeyDown={(e) => {

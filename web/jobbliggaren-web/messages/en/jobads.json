@@ -47,6 +47,33 @@
       "groupLabel": "Show number of ads",
       "matching": "Matching",
       "all": "All ads"
+    },
+    "filter": {
+      "open": "Filter",
+      "openAria": "Filter ads from {company}",
+      "dialogTitle": "Filter ads from {company}",
+      "dialogIntro": "Choose which new ads from this company you want notifications about. The filter applies to the notifications, in the app and by email. It does not change the numbers in the list.",
+      "onlyMatchedLabel": "Only ads that match my profile",
+      "onlyMatchedHelp": "You get notifications only about ads that match the occupations, locations and skills you have stated under Matching.",
+      "onlyMatchedHelpAria": "What counts as a matching ad",
+      "onlyMatchedHelpTitle": "What counts as a matching ad",
+      "onlyMatchedHelpBody1": "An ad counts as matching when it reaches the level Good or higher against your profile. That is the same level used under Jobs and in the number of matching ads here.",
+      "onlyMatchedHelpBody2": "The level cannot be configured. You influence it by changing your choices under Matching.",
+      "onlyMatchedInert": "You have not stated which occupations you are looking for, so we cannot tell which ads match you. The filter is saved and takes effect once you have set up matching.",
+      "onlyMatchedInertCta": "Set up matching",
+      "ortHeading": "Locations in the ad",
+      "ortHelp": "The filter applies to the location in the ad, not the company's registered municipality. If you choose locations, you get no notifications about ads without a location.",
+      "clearAll": "Remove the filter",
+      "save": "Save filter",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "activeOnlyMatched": "Filtered: only matching ads",
+      "activeOrter": "Filtered: {count, plural, one {# location} other {# locations}}",
+      "activeBoth": "Filtered: only matching ads, {count, plural, one {# location} other {# locations}}",
+      "scopeHelpAria": "What the filter for {company} affects",
+      "scopeHelpTitle": "What the filter affects",
+      "scopeHelpBody1": "The filter controls which new ads you get notifications about, in the app and by email.",
+      "scopeHelpBody2": "The numbers in the list (active ads and matching ads) always show all of the company's ads, regardless of the filter."
     }
   },
   "applicationHistory": {
@@ -107,7 +134,8 @@
     "savedJobAdRemoveFailed": "Could not remove the bookmark. Try again.",
     "followCompanyNotFound": "The ad could not be found. It may have been removed.",
     "followCompanyFailed": "Could not follow the company. Try again.",
-    "unfollowCompanyFailed": "Could not stop following the company. Try again."
+    "unfollowCompanyFailed": "Could not stop following the company. Try again.",
+    "setWatchFilterFailed": "The filter could not be saved. Try again."
   },
   "enums": {
     "status": {
@@ -286,6 +314,7 @@
       "clearField": "Clear the search field",
       "submit": "Search",
       "limitNotice": "The search text is full (max {max} characters). Remove a tag to add more words.",
+      "minNotice": "The search word “{word}” is shorter than {min} characters and is not used in the search.",
       "help": "Words become tags in the filter row at the results when you type a space or comma. Choose suggestions with the arrow keys and Tab.",
       "announceAdded": "Added {label}",
       "announceRemoved": "Removed {label}",

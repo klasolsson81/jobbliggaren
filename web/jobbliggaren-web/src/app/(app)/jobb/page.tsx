@@ -9,6 +9,7 @@ import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { jobAdSortBySchema, type JobAdSortBy } from "@/lib/dto/job-ads";
 import { isListMatchGrade } from "@/lib/dto/job-ad-match";
 import {
+  clampSubMinimumQ,
   MATCHNING_OFF_VALUE,
   RELATERADE_ON_VALUE,
   STATUS_ON_VALUE,
@@ -121,7 +122,14 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // matchGrades); buildPageHref använder SAMMA parser så page-parse och
   // paginerings-href aldrig divergerar.
   const employer = parseEmployerParam(params.employer);
-  const q = emptyToUndefined(params.q);
+  // #823 — klampa en söktext under backendens minimum till "ingen söktext", exakt som
+  // backendens egen SearchQueryParser gör med en residual under QMinLength. Utan detta
+  // 400:ar ListJobAdsQueryValidator på ?q=a och sidan målar teknisk-fel-kortet — vilket
+  // träffar bokmärkta/delade/handredigerade länkar och no-JS-submit:en, alltså vägar som
+  // ingen klient-grind når. Dessutom ÄRVDE heron det förgiftade q:t: `base.q` blev "a",
+  // så varje efterföljande commit skickade med det och 400:ade igen även efter att
+  // användaren lagt till ett giltigt filter. Klampen sker tyst (paritet med parsern).
+  const q = clampSubMinimumQ(emptyToUndefined(params.q));
   // E2j — commit-intent gatar backend-auto-capture. Strippas ur URL:en efter
   // mount av <StripCommitParam> (delningsbar länk re-capturerar inte).
   const commit = params.commit === "true";
@@ -174,7 +182,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
       page: params.page ?? "",
       pageSize: params.pageSize ?? "",
       sortBy: params.sortBy ?? "",
-      q: params.q ?? "",
+      q: q ?? "",
     })
   ).toString();
   const occupationGroupKey = occupationGroup.join(",");

@@ -5,14 +5,14 @@ const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 
 /**
  * TD-65 — End-to-end-flow för konto-radering. Verifierar hela kedjan
- * från login → /mig → typed-confirmation + re-auth → backend delete →
- * cookie-borttagning + redirect.
+ * från login → /installningar (goto("/mig") 308-redirectar dit sedan ADR 0057) →
+ * typed-confirmation + re-auth → backend delete → cookie-borttagning + redirect.
  *
  * Varje test skapar egen runId så user:n inte återanvänds (destruktiv
  * operation — gammal user är borta efter delete-success).
  */
 
-test.describe("Radera konto (/mig)", () => {
+test.describe("Radera konto (/installningar)", () => {
   test("öppnar modal med typed-confirmation och håller submit disabled tills email-match + password", async ({ page }) => {
     const runId = Date.now() + Math.floor(Math.random() * 1_000_000);
     await ensureConfirmedTestUser(BACKEND_URL, runId);

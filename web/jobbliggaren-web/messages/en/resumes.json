@@ -294,6 +294,8 @@
       "ongoingLabel": "Ongoing",
       "ongoingHint": "The end date is hidden while the role is ongoing.",
       "dateMissing": "Date missing",
+
+      "dateConfirm": "Confirm dates",
       "removeExperience": "Remove experience {index}",
       "educationHeading": "Education",
       "addEducation": "Add education",
@@ -313,8 +315,9 @@
       "removeSection": "Remove section {index}",
       "addEntry": "Add entry",
       "noEntries": "No entries added.",
-      "entryTitleLabel": "Title",
+      "entryTitleLabel": "Title (optional)",
       "entryBodyLabel": "Text (optional)",
+      "entryHint": "Fill in a title or text. At least one of the fields is needed.",
       "entryBodyHint": "Write one line per paragraph.",
       "removeEntry": "Remove entry {index}"
     },

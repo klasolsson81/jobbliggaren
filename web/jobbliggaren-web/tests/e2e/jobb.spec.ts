@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, errors } from "@playwright/test";
 import { loginAs, ensureConfirmedTestUser } from "./helpers/auth";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
@@ -57,11 +57,24 @@ test.describe("/jobb — auth-gated rendering", () => {
   }) => {
     await page.goto("/jobb");
 
-    // Civic-utility: väljarna heter Yrkesområde/Yrkesgrupper och Län/Kommuner
-    // — ingen "SSYK-kod" exponeras för användaren.
+    // Civic-utility (ADR 0043): väljarna heter Yrkesområde/Yrkesgrupper och Län/Kommuner.
+    // Rubrikerna ensamma är en svag assertion — den verkliga intentionen är att INGA RÅA
+    // SSYK-KODER exponeras för användaren. Assertera den: ett alternativ får aldrig vara
+    // en naken sifferkod. (Den gamla specen asserterade namngivna kontroller; ytan är
+    // omgjord, men intentionen ska inte tappas på vägen.)
     await page.getByRole("button", { name: "Yrke", exact: true }).click();
     await expect(page.getByText("Yrkesområde", { exact: true })).toBeVisible();
     await expect(page.getByText("Yrkesgrupper", { exact: true })).toBeVisible();
+    const yrkeOptions = await page
+      .getByRole("dialog")
+      .or(page.locator(".jp-hero-popover"))
+      .last()
+      .getByRole("checkbox")
+      .or(page.getByRole("option"))
+      .allInnerTexts();
+    for (const label of yrkeOptions) {
+      expect(label.trim()).not.toMatch(/^\d{4}$/);
+    }
     await page.keyboard.press("Escape");
 
     await page.getByRole("button", { name: "Ort", exact: true }).click();
@@ -82,6 +95,92 @@ test.describe("/jobb — auth-gated rendering", () => {
       .getByRole("button", { name: "Rensa sökord och filter" })
       .click();
     await page.waitForURL(/\/jobb$/);
+  });
+
+  // #823 — ERSÄTTER det borttagna "q=1 tecken ger felmeddelande"-testet (#813 raderade det
+  // dokumenterat: copyn det asserterade fanns inte längre, och BETEENDET var trasigt —
+  // ett enteckens sök gav ett tekniskt felkort). Här asserteras beteendet #823 skapar.
+  //
+  // Semantiken speglar backendens SearchQueryParser: ett för kort sökord används inte, men
+  // frågan körs vidare på sina dimensioner. Alltså: inget felkort, och inget q i URL:en.
+  test("ett enteckens sökord ger vägledning — inte ett tekniskt felkort (#823)", async ({
+    page,
+  }) => {
+    await page.goto("/jobb");
+    await page.waitForLoadState("networkidle");
+    await page.getByLabel(SEARCH_FIELD_LABEL).fill("a");
+
+    // SETTLA navigeringen på en signal som är FALSK vid t=0. Klicket triggar router.replace
+    // (klient-side RSC-fetch); assertar man dessförinnan passerar de negativa påståendena
+    // trivialt på första pollen. Ett `waitForURL`-predikat duger INTE här: URL:en får aldrig
+    // något q i det här flödet, så predikatet är sant hela tiden och Playwright returnerar
+    // direkt utan att vänta in någon navigering. (Jag skrev först precis det. code-reviewer
+    // fångade det — sessionens sjätte assertion som inte kunde falla.)
+    const rsc = page.waitForResponse(
+      // pathname-exakt: `includes("/jobb")` hade även matchat /api/jobb/suggest,
+      // /api/jobb/facet-counts och prod-chunkar under .../app/(app)/jobb/… — ofarligt just
+      // här bara för att testet råkar skriva ETT tecken (suggest kräver två), vilket är tur,
+      // inte konstruktion.
+      (r) => new URL(r.url()).pathname === "/jobb" && r.status() === 200
+    );
+    await page.getByRole("button", { name: "Sök", exact: true }).click();
+    await rsc;
+
+    // Vägledningen står i hjälpraden. (Notistexten finns även i komponentens aria-live-
+    // region — scopa till den SYNLIGA raden, annars strict-mode.)
+    await expect(
+      page.locator("p.jp-hero__searchhelp--notice")
+    ).toContainText(/”a” är kortare än 2 tecken och används inte/);
+    // Hjälptexten står kvar — notisen läggs TILL, den ersätter inte instruktionen.
+    await expect(
+      page.locator("p.jp-hero__searchhelp:not(.jp-hero__searchhelp--notice)")
+    ).toContainText(/Ord blir taggar i filterraden/);
+    // DEN BÄRANDE ASSERTIONEN — en BOUNDED WAIT PÅ DET DÅLIGA TILLSTÅNDET.
+    //
+    // Det goda utfallet är att ingenting händer med URL:en, och "ingenting händer" går inte
+    // att assertera med en retrying-matcher: allt som pollar mot frånvaro passerar på första
+    // försöket. Jag har nu gått i den fällan två gånger i rad — först ett waitForURL-predikat
+    // som var INVARIANT, sedan ett "settlat" skalärt påstående som fortfarande låg FÖRE
+    // router.replace (verifierat: under mutation föll testet på tomtillståndet, aldrig på
+    // URL-raden). Vänd på det: vänta aktivt PÅ regressionen, med tak. Committas ett q löser
+    // waitForURL och vi faller. Gör den det inte inom taket är frånvaron bevisad, inte antagen.
+    const poisoned = await page
+      .waitForURL(/[?&]q=/, { timeout: 5_000 })
+      .then(() => true)
+      // ENBART timeout betyder "ingen regression". En ovillkorlig catch hade svalt
+      // page-closed, frame-detached och krascher och gjort dem till PASS (§5: ingen
+      // catch-all utan åtgärd) — den sista otestade grenen i konstruktionen.
+      .catch((e: unknown) => {
+        if (e instanceof errors.TimeoutError) return false;
+        throw e;
+      });
+    expect(poisoned, `q committades: ${page.url()}`).toBe(false);
+
+    // Sekundära, medvetet svagare: "Inga jobb hittades" är redan synligt före klicket (tom
+    // annons-DB) och React håller kvar det gamla trädet genom startTransition, så de kan
+    // passera på det gamla trädet. De står kvar som beskrivning — inte som garanti.
+    await expect(page.getByText("Inga jobb hittades")).toBeVisible();
+    await expect(
+      page.getByText("Kunde inte ladda jobbannonser")
+    ).toHaveCount(0);
+  });
+
+  // #823 — direktlänken. Klienten kan inte grinda en bokmärkt/handredigerad URL; page.tsx
+  // klampar därför ett för kort q server-side (paritet med parsern). Utan den klampen
+  // 400:ar backend och sidan målar teknisk-fel-kortet.
+  test("direktlänk /jobb?q=a renderar träfflistan, inte ett felkort (#823)", async ({
+    page,
+  }) => {
+    await page.goto("/jobb?q=a");
+    // Positivt: träfflistans yta renderade (felkortet hade ersatt den). Testets NAMN lovar
+    // det — då ska det också asserteras, inte bara frånvaron av felkortet.
+    await expect(page.getByText("Inga jobb hittades")).toBeVisible();
+    await expect(
+      page.getByText("Kunde inte ladda jobbannonser")
+    ).toHaveCount(0);
+    // Och heron ärver inte det förgiftade q:t — fältet är tomt, så nästa sökning
+    // skickar inte med "a" igen.
+    await expect(page.getByLabel(SEARCH_FIELD_LABEL)).toHaveValue("");
   });
 
   test("nav-länk Jobb syns i layout", async ({ page }) => {

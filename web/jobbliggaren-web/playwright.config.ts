@@ -33,11 +33,13 @@ export default defineConfig({
   ],
   webServer: {
     // #813: CI serves a PRODUCTION build (`pnpm build` runs as its own workflow step,
-    // so the compile cost is visible and cached rather than hidden inside the first
-    // navigation). `next dev` compiled each route on first hit, which — with
+    // so the compile cost is visible as its own timing instead of hiding inside the
+    // first navigation). `next dev` compiled each route on first hit, which — with
     // workers:1 and retries:2 — could not finish inside the job timeout.
-    // security-headers.spec.ts asserts only branch-invariant CSP directives plus the
-    // dev/prod consistency invariant, so it passes in BOTH modes.
+    // security-headers.spec.ts asserts the branch-invariant CSP directives, the dev/prod
+    // mutual-exclusion invariant, and — under CI, where the build mode is KNOWN — that the
+    // served policy is the production branch. So it passes in both modes without letting a
+    // prod build quietly serve the dev CSP.
     // Locally `pnpm dev` stays the default (fast edit loop); an already-running server
     // is reused.
     command: process.env.CI ? "pnpm start" : "pnpm dev",

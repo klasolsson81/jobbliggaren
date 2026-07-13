@@ -60,7 +60,7 @@
     "languageNameMax": "The language name may be at most 100 characters.",
     "sectionHeadingRequired": "A section heading is required.",
     "sectionHeadingMax": "The heading may be at most 200 characters.",
-    "sectionEntryTitleRequired": "A title is required for the section entry.",
+    "sectionEntryEmpty": "A section entry must have a title or content.",
     "sectionEntryTitleMax": "The title may be at most 200 characters.",
     "sectionEntryTooLong": "A section entry may contain at most 2,000 characters."
   }

@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Frozen;
 using System.Text;
 using System.Text.Json;
@@ -25,6 +26,13 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     private const int MaxLanguages = 50;
     private const int MaxEntries = 100;
 
+    // DoS bound, parity with MaxSkills/MaxLanguages. NOTE: unlike those, truncation here is a
+    // real (if pathological) content loss — RawText is NOT exposed in ParsedResumeDetailDto, so a
+    // dropped section is not recoverable from the guide. 30 sections is far past any honest CV;
+    // a document that exceeds it is adversarial, and refusing to allocate for it is the right
+    // call. Do not restate this as "lossless" — it is not.
+    private const int MaxSections = 30;
+
     // Reference data: immutable, loaded once (parity LocalTextAnalyzer.LoadStopwords).
     private static readonly FrozenDictionary<string, ParsedSectionKind> HeadingMap;
     private static readonly FrozenSet<string> SwedishHints;
@@ -34,6 +42,14 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     // be read as the person's name. Versioned lexicon data (§5), normalized with the same
     // NormalizeHeading pass HeadingMap uses so a banner matches regardless of case/punctuation.
     private static readonly FrozenSet<string> NameBanners;
+
+    // #815: the labels that introduce a city ("Ort:", "Bostadsort:", "Location:"). Lexicon data,
+    // lowercased once, so the vocabulary can grow without a code change (§5).
+    private static readonly FrozenSet<string> LocationLabels;
+
+    // #815: headings we RECOGNISE but do not type ("Projekt", "Referenser"). They terminate the
+    // preceding section and carry their own heading verbatim. Lexicon data, never inline strings.
+    private static readonly FrozenSet<string> FreeHeadings;
 
     private static readonly JsonSerializerOptions LexiconJsonOptions =
         new() { PropertyNameCaseInsensitive = true };
@@ -55,9 +71,19 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         HeadingMap = headingMap.ToFrozenDictionary(StringComparer.Ordinal);
         SwedishHints = ToHintSet(lexicon.LanguageHints, "sv");
         EnglishHints = ToHintSet(lexicon.LanguageHints, "en");
+        FreeHeadings = (lexicon.FreeSectionHeadings ?? [])
+            .Select(NormalizeHeading)
+            .Where(h => h.Length > 0)
+            .ToFrozenSet(StringComparer.Ordinal);
+
         NameBanners = (lexicon.NameBanners ?? [])
             .Select(NormalizeHeading)
             .Where(banner => banner.Length > 0)
+            .ToFrozenSet(StringComparer.Ordinal);
+
+        LocationLabels = (lexicon.ContactLabels?.Location ?? [])
+            .Select(label => label.Trim().ToLowerInvariant())
+            .Where(label => label.Length > 0)
             .ToFrozenSet(StringComparer.Ordinal);
     }
 
@@ -67,14 +93,22 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
 
         var lines = SplitLines(rawText);
         var headings = DetectHeadings(lines);
-        var blocks = BuildSectionBlocks(lines, headings);
+        var (blocks, freeSections) = BuildSectionBlocks(lines, headings);
         var preamble = PreambleLines(lines, headings);
         var language = DetectLanguage(rawText);
 
         var email = FirstEmail(rawText);
         var phone = FirstPhone(rawText);
         var fullName = DetectName(preamble, blocks);
-        var contact = new ParsedContact(fullName, email, phone, Location: null);
+
+        // #815: Location was `null` here, hardcoded — city extraction did not exist, so every CV
+        // ever imported reported "ort saknas" even when the CV stated the city plainly. The bare-
+        // city rung reads ONLY contact scope (contact block + preamble): an employer's city inside
+        // an experience entry must never become the person's home (see ContactLocationExtractor).
+        var contactScope = ContactScopeLines(preamble, blocks);
+        var location = ContactLocationExtractor.Extract(rawText, contactScope, LocationLabels);
+
+        var contact = new ParsedContact(fullName, email, phone, location);
 
         var profileText = SectionText(blocks, ParsedSectionKind.Profile);
         var experiences = ParseExperiences(blocks);
@@ -83,7 +117,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         var languages = ParseList(blocks, ParsedSectionKind.Languages, MaxLanguages);
 
         var content = new ParsedResumeContent(
-            contact, profileText, experiences, educations, skills, languages);
+            contact, profileText, experiences, educations, skills, languages, freeSections);
 
         var sections = new List<SectionConfidence>
         {
@@ -105,8 +139,22 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     // (structural evidence only — never PII), and any content carried inline on the same line
     // after a colon ("Kompetenser: C#, …" → InlineContent "C#, …"). Inline content becomes the
     // section block's first content line (#421, #252-class).
+    /// <param name="Kind">
+    /// The typed section this heading opens, or <c>null</c> for a FREE section (#815 — "Projekt",
+    /// "Referenser", …). A free heading terminates the preceding section exactly like a typed one;
+    /// the difference is only where its body goes, never whether it counts as a boundary.
+    /// </param>
+    /// <param name="Heading">
+    /// The heading line VERBATIM (trimmed, trailing colon removed). Free sections carry this to the
+    /// user as content, so casing and wording are preserved — "PROJEKT" is not "projekt". The
+    /// normalised <c>Matched</c> form remains structural evidence only.
+    /// </param>
     private readonly record struct HeadingHit(
-        int Line, ParsedSectionKind Kind, string Matched, string? InlineContent = null);
+        int Line,
+        ParsedSectionKind? Kind,
+        string Matched,
+        string Heading,
+        string? InlineContent = null);
 
     private static List<HeadingHit> DetectHeadings(string[] lines)
     {
@@ -117,7 +165,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
             // trailing colon). Position-independent: a bare heading token is a heading anywhere.
             if (TryMatchHeading(lines[i], out var kind, out var matched))
             {
-                headings.Add(new HeadingHit(i, kind, matched));
+                headings.Add(new HeadingHit(i, kind, matched, HeadingTextOf(lines[i])));
                 continue;
             }
 
@@ -144,10 +192,27 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
             if (atSectionBoundary && colon > 0)
             {
                 var inlineContent = lines[i][(colon + 1)..].Trim();
+                // #815: the inline split is restricted to TYPED headings. A free heading may only
+                // be recognised as a whole line.
+                //
+                // Why: every entry in Erfarenhet/Utbildning is separated by a blank line, so an
+                // entry's FIRST line always satisfies the boundary gate above. A label-shaped free
+                // token would then hijack it — "Kurs: Databaser 7,5 hp" inside an education entry
+                // would TERMINATE Utbildning and degrade the remaining entries into free-section
+                // text. That is the engine inventing structure the user did not write, which is the
+                // one thing it must never do (ADR 0071). The typed vocabulary is small, curated and
+                // already lives with this gate (2026-07-01 bind); the free vocabulary is open and
+                // label-shaped, so it does not get the same privilege.
+                //
+                // Cost, accepted: "Projekt: A, B" written inline is not recognised as a section.
+                // Its content stays in the section above — visible, editable, lossless. That is the
+                // honest failure mode, and it is strictly better than a fabricated section boundary.
                 if (inlineContent.Length > 0
-                    && TryMatchHeading(lines[i][..colon], out var inlineKind, out var inlineMatched))
+                    && TryMatchHeading(lines[i][..colon], out var inlineKind, out var inlineMatched)
+                    && inlineKind is not null)
                 {
-                    headings.Add(new HeadingHit(i, inlineKind, inlineMatched, inlineContent));
+                    headings.Add(new HeadingHit(
+                        i, inlineKind, inlineMatched, HeadingTextOf(lines[i][..colon]), inlineContent));
                 }
             }
         }
@@ -158,15 +223,41 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     // True when the line normalises to a known section heading, out-ing the matched (normalised,
     // structural-evidence-only) form. Single-sources the HeadingMap lookup for both whole-line
     // detection and inline "heading: content" splitting (#421).
-    private static bool TryMatchHeading(string line, out ParsedSectionKind kind, out string matched)
+    private static bool TryMatchHeading(string line, out ParsedSectionKind? kind, out string matched)
     {
         matched = NormalizeHeading(line);
-        if (matched.Length > 0 && HeadingMap.TryGetValue(matched, out kind))
-            return true;
+        if (matched.Length == 0)
+        {
+            kind = null;
+            return false;
+        }
 
-        kind = default;
+        if (HeadingMap.TryGetValue(matched, out var typed))
+        {
+            kind = typed;
+            return true;
+        }
+
+        // #815: a FREE heading ("Projekt", "Referenser") is still a heading. It terminates the
+        // preceding section — which is the whole fix, since before this a section ran until the
+        // next TYPED heading and swallowed everything in between. Kind stays null; the body lands
+        // in ParsedResumeContent.Sections under this heading, verbatim.
+        if (FreeHeadings.Contains(matched))
+        {
+            kind = null;
+            return true;
+        }
+
+        kind = null;
         return false;
     }
+
+    /// <summary>
+    /// The heading line as the USER wrote it — trimmed, trailing colon/period removed, nothing
+    /// else touched. Free sections show this back to the user, so "PROJEKT" must not come back as
+    /// "projekt" (that is the normalised form, which is structural evidence only).
+    /// </summary>
+    private static string HeadingTextOf(string line) => line.Trim().TrimEnd(':', '.', ' ', '\t');
 
     // Lower-invariant, trim, strip trailing ':'/'.', collapse internal whitespace.
     private static string NormalizeHeading(string line)
@@ -179,11 +270,24 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         return WhitespaceRegex().Replace(lowered, " ");
     }
 
-    private static Dictionary<ParsedSectionKind, string> BuildSectionBlocks(
-        string[] lines,
-        List<HeadingHit> headings)
+    /// <summary>
+    /// Splits the document into the six TYPED blocks (keyed by kind) and the FREE sections
+    /// (an ordered list, #815).
+    ///
+    /// <para>The two destinations are the point. Typed blocks are keyed by kind and a repeated
+    /// heading concatenates — fine, because "Erfarenhet" means one thing. Free sections must NOT be
+    /// keyed by anything: keying them (e.g. on a single <c>ParsedSectionKind.Other</c>) would fuse
+    /// PROJEKT and REFERENSER into one concatenated block and keep only the enum token, throwing
+    /// away the headings the user wrote. That would recreate this very bug one layer down. So free
+    /// sections are appended in document order, never merged — two sections with the SAME heading
+    /// stay two sections.</para>
+    /// </summary>
+    private static (Dictionary<ParsedSectionKind, string> Typed, List<ParsedSection> Free)
+        BuildSectionBlocks(string[] lines, List<HeadingHit> headings)
     {
         var blocks = new Dictionary<ParsedSectionKind, string>();
+        var free = new List<ParsedSection>();
+
         for (var h = 0; h < headings.Count; h++)
         {
             var start = headings[h].Line + 1;
@@ -198,14 +302,63 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
                 bodyLines = bodyLines.Prepend(inlineContent);
 
             var block = string.Join('\n', bodyLines).Trim();
-            // Same section heading twice ⇒ concatenate the blocks deterministically.
-            blocks[headings[h].Kind] = blocks.TryGetValue(headings[h].Kind, out var existing)
-                ? string.Concat(existing, "\n", block).Trim()
-                : block;
+
+            if (headings[h].Kind is { } kind)
+            {
+                // Same typed heading twice ⇒ concatenate the blocks deterministically.
+                blocks[kind] = blocks.TryGetValue(kind, out var existing)
+                    ? string.Concat(existing, "\n", block).Trim()
+                    : block;
+                continue;
+            }
+
+            // Free section. An empty body still counts: the user wrote the heading, and dropping
+            // it would be us deciding their section was worthless.
+            if (free.Count >= MaxSections)
+                continue;
+
+            free.Add(new ParsedSection(headings[h].Heading, BuildSectionEntries(block)));
         }
 
-        return blocks;
+        return (blocks, free);
     }
+
+    /// <summary>
+    /// A free section's body → entries, reusing the SAME blank-line rule as Experience/Education
+    /// (DRY — one owner of what an "entry" is). The first line becomes the entry Title only when
+    /// the entry has more than one line; a lone line, or a bullet, is content, and the parser will
+    /// not promote it into a title it did not write.
+    /// </summary>
+    private static List<ParsedSectionEntry> BuildSectionEntries(string block)
+    {
+        var entries = new List<ParsedSectionEntry>();
+        if (block.Length == 0)
+            return entries;
+
+        foreach (var entry in SplitEntries(block))
+        {
+            if (entries.Count >= MaxEntries)
+                break;
+
+            var lines = entry.Lines;
+            if (lines.Count > 1 && !IsBulletLine(lines[0]))
+                entries.Add(new ParsedSectionEntry(lines[0], [.. lines.Skip(1)]));
+            else
+                entries.Add(new ParsedSectionEntry(null, [.. lines]));
+        }
+
+        return entries;
+    }
+
+    private static bool IsBulletLine(string line)
+    {
+        var trimmed = line.TrimStart();
+        return trimmed.Length > 0 && BulletMarkers.Contains(trimmed[0]);
+    }
+
+    // Bullet glyphs a CV realistically uses. A bulleted first line is content, never a title.
+    private static readonly SearchValues<char> BulletMarkers =
+        SearchValues.Create(['-', '*', '•', '–', '—', '·', '●', '▪']);
 
     private static List<string> PreambleLines(
         string[] lines,
@@ -260,7 +413,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         if (trimmed.Length is 0 or > 60)
             return false;
 
-        if (EmailRegex().IsMatch(trimmed) || LooksLikePhone(trimmed))
+        if (EmailRegex().IsMatch(trimmed) || LooksLikePhone(trimmed) || LooksLikeDatePeriod(trimmed))
             return false;
 
         // Must contain at least one letter (avoid pure dates/separators).
@@ -279,11 +432,25 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         return match.Success ? match.Value : null;
     }
 
+    /// <summary>
+    /// The shortest and longest digit count a phone number may carry. The floor rejects short
+    /// digit runs; the ceiling is E.164's maximum, and it matters: without it a long numeric run
+    /// (an ID, a reference number) starting with 0 would be accepted as a phone.
+    /// </summary>
+    private const int MinPhoneDigits = 7;
+    private const int MaxPhoneDigits = 15;
+
+    private static bool IsPhoneShaped(string candidate)
+    {
+        var digits = CountDigits(candidate);
+        return digits is >= MinPhoneDigits and <= MaxPhoneDigits;
+    }
+
     private static string? FirstPhone(string text)
     {
         foreach (Match candidate in PhoneRegex().Matches(text))
         {
-            if (CountDigits(candidate.Value) >= 7)
+            if (IsPhoneShaped(candidate.Value))
                 return candidate.Value.Trim();
         }
 
@@ -293,8 +460,18 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     private static bool LooksLikePhone(string line)
     {
         var match = PhoneRegex().Match(line);
-        return match.Success && CountDigits(match.Value) >= 7;
+        return match.Success && IsPhoneShaped(match.Value);
     }
+
+    /// <summary>
+    /// A line carrying a date RANGE ("2021 - 2024", "2005 - nu") is a CV period, never a person's
+    /// name. Before #815 this was enforced by ACCIDENT: the old phone pattern matched any digit
+    /// run, so date lines were rejected as "phone-like". Tightening the phone pattern removed that
+    /// side effect, which would have let a line like "2021 - 2024 Volvo AB" — it has letters, so it
+    /// clears the letter check — become a name candidate. The rejection now rests on the date shape
+    /// it was always really about, and DatePatterns is the single owner of that shape (no drift).
+    /// </summary>
+    private static bool LooksLikeDatePeriod(string line) => DateRangeRegex().IsMatch(line);
 
     private static List<ParsedExperience> ParseExperiences(
         Dictionary<ParsedSectionKind, string> blocks)
@@ -623,10 +800,32 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
                 $"Embedded CV-parsing lexicon {LexiconResourceName} deserialized to null.");
     }
 
+    /// <summary>
+    /// The lines a bare city name may be read from: the preamble (everything before the first
+    /// heading — where a rail-style CV puts its contact details) plus the Contact block itself.
+    /// Deliberately NOT the whole document: see ContactLocationExtractor for why that scope is the
+    /// honesty guard, not an optimisation.
+    /// </summary>
+    private static List<string> ContactScopeLines(
+        List<string> preamble, Dictionary<ParsedSectionKind, string> blocks)
+    {
+        var scope = new List<string>(preamble);
+
+        if (blocks.TryGetValue(ParsedSectionKind.Contact, out var contactBlock))
+            scope.AddRange(SplitLines(contactBlock));
+
+        return scope;
+    }
+
     private sealed record Lexicon(
         Dictionary<string, string[]> Headings,
         Dictionary<string, string[]> LanguageHints,
-        string[]? NameBanners);
+        string[]? NameBanners,
+        ContactLabels? ContactLabels,
+        string[]? FreeSectionHeadings);
+
+    /// <summary>Contact-field label vocabulary — versioned data, never inline C# strings (§5).</summary>
+    private sealed record ContactLabels(string[]? Location);
 
     [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
     private static partial Regex WhitespaceRegex();
@@ -634,7 +833,21 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     [GeneratedRegex(@"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", RegexOptions.CultureInvariant)]
     private static partial Regex EmailRegex();
 
-    [GeneratedRegex(@"\+?\d[\d\s()\-]{5,}\d", RegexOptions.CultureInvariant)]
+    // #815: the previous pattern was @"\+?\d[\d\s()\-]{5,}\d" — "any digit run with separators",
+    // not a phone shape. "2021 - 2024" satisfied it (eight digits), and since FirstPhone takes the
+    // FIRST match in document order, a sidebar CV (whose contact block linearizes AFTER the body)
+    // handed the user an experience DATE RANGE where their mobile number should be. It also only
+    // knew the ASCII hyphen, so "070–123 45 67" (en-dash, what Word and Canva autocorrect produce)
+    // matched from the second group onward and silently dropped the 070 prefix.
+    //
+    // A phone number is anchored: it starts with "+" (international) or a "0" trunk prefix. A year
+    // never does. That single anchor is what separates a phone from a date, a postal code
+    // ("412 58"), and an org number ("556677-8899"). Separators accept the en-dash and the
+    // non-breaking hyphen alongside the ASCII one. The digit COUNT is validated in code (7..15,
+    // E.164's ceiling) rather than in the pattern, so the rule stays readable.
+    // The dash class covers the Unicode dash family (hyphen through horizontal bar),
+    // written as escapes so no literal glyph ever enters the source.
+    [GeneratedRegex(@"(?:\+|\b0)[\d\s()\-\u2010-\u2015]{5,}\d", RegexOptions.CultureInvariant)]
     private static partial Regex PhoneRegex();
 
     // #487: the date-range / bare-year patterns moved to the shared DatePatterns helper

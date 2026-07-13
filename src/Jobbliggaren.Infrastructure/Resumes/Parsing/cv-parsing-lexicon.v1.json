@@ -1,6 +1,6 @@
 {
-  "version": "3",
-  "note": "F4-8 deterministic CV segmentation lexicon (ADR 0071/0074, NO AI/LLM). Versioned data, never inline C# strings (CLAUDE.md §5). Section headings (Swedish + English), language-detection function words, contact-field labels (#815: location was never extracted), and free-section headings (#815: recognised so they TERMINATE the preceding section, and carried verbatim as content). Own-authored from common CV conventions; no third-party data imported.",
+  "version": 4,
+  "note": "F4-8 deterministic CV segmentation lexicon (ADR 0071/0074, NO AI/LLM). Versioned data, never inline C# strings (CLAUDE.md §5). Section headings (Swedish + English), language-detection function words, contact-field labels, and free sections. v4 (8b.4a): freeSectionHeadings (a flat token set) became freeSections — a sectionId → synonyms map, the SAME shape the typed `headings` block already uses. The sectionId is the canonical identity a recommendation asset keys on, so RECOGNITION stays owned here and is never forked. The flattened synonym union is unchanged from v3, so segmentation behaviour is identical. Own-authored from common CV conventions; no third-party data imported.",
   "headings": {
     "contact": [
       "kontakt",
@@ -166,44 +166,64 @@
       "based in"
     ]
   },
-  "freeSectionHeadings": [
-    "projekt",
-    "projektportfölj",
-    "projektportfolj",
-    "utvalda projekt",
-    "egna projekt",
-    "referenser",
-    "certifieringar",
-    "certifikat",
-    "kurser",
-    "vidareutbildning",
-    "fortbildning",
-    "uppdrag",
-    "förtroendeuppdrag",
-    "fortroendeuppdrag",
-    "ideella uppdrag",
-    "publikationer",
-    "utmärkelser",
-    "utmarkelser",
-    "priser",
-    "stipendier",
-    "intressen",
-    "fritidsintressen",
-    "övrigt",
-    "ovrigt",
-    "projects",
-    "selected projects",
-    "references",
-    "certifications",
-    "certificates",
-    "courses",
-    "assignments",
-    "publications",
-    "awards",
-    "honours",
-    "honors",
-    "interests",
-    "hobbies",
-    "volunteering"
-  ]
+  "freeSections": {
+    "projekt": [
+      "projekt",
+      "projektportfölj",
+      "projektportfolj",
+      "utvalda projekt",
+      "egna projekt",
+      "projects",
+      "selected projects"
+    ],
+    "certifikat": [
+      "certifieringar",
+      "certifikat",
+      "certifications",
+      "certificates"
+    ],
+    "kurser": [
+      "kurser",
+      "vidareutbildning",
+      "fortbildning",
+      "courses"
+    ],
+    "uppdrag": [
+      "uppdrag",
+      "assignments"
+    ],
+    "ideellt": [
+      "förtroendeuppdrag",
+      "fortroendeuppdrag",
+      "ideella uppdrag",
+      "volunteering"
+    ],
+    "publikationer": [
+      "publikationer",
+      "publications"
+    ],
+    "utmarkelser": [
+      "utmärkelser",
+      "utmarkelser",
+      "priser",
+      "stipendier",
+      "awards",
+      "honours",
+      "honors"
+    ],
+    "intressen": [
+      "intressen",
+      "fritidsintressen",
+      "interests",
+      "hobbies"
+    ],
+    "referenser": [
+      "referenser",
+      "references"
+    ],
+    "ovrigt": [
+      "övrigt",
+      "ovrigt"
+    ]
+  }
 }

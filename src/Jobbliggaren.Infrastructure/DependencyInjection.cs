@@ -607,6 +607,13 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.IResumeSegmenter,
             Resumes.Parsing.HeadingDrivenResumeSegmenter>();
+        // Fas 4b 8b.4a — the lexicon's RECOGNITION vocabulary as a port. The segmenter answers
+        // "is this a heading?"; this answers "WHICH canonical section is it?" — the question a
+        // section-recommendation asset must ask before suggesting a section the CV already has.
+        // Same single load (CvParsingLexicon), so the two can never disagree.
+        services.AddSingleton<
+            Jobbliggaren.Application.Resumes.Abstractions.ICvParsingLexicon,
+            Resumes.Parsing.CvParsingLexiconProvider>();
         return services;
     }
 

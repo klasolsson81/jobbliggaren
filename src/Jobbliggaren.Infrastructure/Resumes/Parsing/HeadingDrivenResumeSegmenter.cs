@@ -19,9 +19,6 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 /// </summary>
 internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
 {
-    private const string LexiconResourceName =
-        "Jobbliggaren.Infrastructure.Resumes.Parsing.cv-parsing-lexicon.v1.json";
-
     private const int MaxSkills = 200;
     private const int MaxLanguages = 50;
     private const int MaxEntries = 100;
@@ -33,59 +30,22 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     // call. Do not restate this as "lossless" — it is not.
     private const int MaxSections = 30;
 
-    // Reference data: immutable, loaded once (parity LocalTextAnalyzer.LoadStopwords).
-    private static readonly FrozenDictionary<string, ParsedSectionKind> HeadingMap;
-    private static readonly FrozenSet<string> SwedishHints;
-    private static readonly FrozenSet<string> EnglishHints;
+    // Reference data: immutable, loaded ONCE by CvParsingLexicon — the single owner (8b.4a). This
+    // class used to load and shape the JSON itself; the lexicon now also answers a second question
+    // ("which canonical section is this heading?", for the recommendation asset), and one knowledge
+    // piece gets one home. These aliases keep the call sites below unchanged.
+    private static FrozenDictionary<string, ParsedSectionKind> HeadingMap => CvParsingLexicon.HeadingMap;
+
+    private static FrozenSet<string> SwedishHints => CvParsingLexicon.SwedishHints;
+
+    private static FrozenSet<string> EnglishHints => CvParsingLexicon.EnglishHints;
 
     // #428: CV-title banners ("Curriculum Vitae", "Meritförteckning", "CV", ...) that must NOT
-    // be read as the person's name. Versioned lexicon data (§5), normalized with the same
-    // NormalizeHeading pass HeadingMap uses so a banner matches regardless of case/punctuation.
-    private static readonly FrozenSet<string> NameBanners;
+    // be read as the person's name.
+    private static FrozenSet<string> NameBanners => CvParsingLexicon.NameBanners;
 
-    // #815: the labels that introduce a city ("Ort:", "Bostadsort:", "Location:"). Lexicon data,
-    // lowercased once, so the vocabulary can grow without a code change (§5).
-    private static readonly FrozenSet<string> LocationLabels;
-
-    // #815: headings we RECOGNISE but do not type ("Projekt", "Referenser"). They terminate the
-    // preceding section and carry their own heading verbatim. Lexicon data, never inline strings.
-    private static readonly FrozenSet<string> FreeHeadings;
-
-    private static readonly JsonSerializerOptions LexiconJsonOptions =
-        new() { PropertyNameCaseInsensitive = true };
-
-    static HeadingDrivenResumeSegmenter()
-    {
-        var lexicon = LoadLexicon();
-
-        var headingMap = new Dictionary<string, ParsedSectionKind>(StringComparer.Ordinal);
-        foreach (var (sectionKey, variants) in lexicon.Headings)
-        {
-            if (!TryMapSection(sectionKey, out var kind))
-                continue;
-
-            foreach (var variant in variants)
-                headingMap[variant.ToLowerInvariant()] = kind;
-        }
-
-        HeadingMap = headingMap.ToFrozenDictionary(StringComparer.Ordinal);
-        SwedishHints = ToHintSet(lexicon.LanguageHints, "sv");
-        EnglishHints = ToHintSet(lexicon.LanguageHints, "en");
-        FreeHeadings = (lexicon.FreeSectionHeadings ?? [])
-            .Select(NormalizeHeading)
-            .Where(h => h.Length > 0)
-            .ToFrozenSet(StringComparer.Ordinal);
-
-        NameBanners = (lexicon.NameBanners ?? [])
-            .Select(NormalizeHeading)
-            .Where(banner => banner.Length > 0)
-            .ToFrozenSet(StringComparer.Ordinal);
-
-        LocationLabels = (lexicon.ContactLabels?.Location ?? [])
-            .Select(label => label.Trim().ToLowerInvariant())
-            .Where(label => label.Length > 0)
-            .ToFrozenSet(StringComparer.Ordinal);
-    }
+    // #815: the labels that introduce a city ("Ort:", "Bostadsort:", "Location:").
+    private static FrozenSet<string> LocationLabels => CvParsingLexicon.LocationLabels;
 
     public ResumeSegmentationResult Segment(string rawText)
     {
@@ -242,7 +202,13 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         // preceding section — which is the whole fix, since before this a section ran until the
         // next TYPED heading and swallowed everything in between. Kind stays null; the body lands
         // in ParsedResumeContent.Sections under this heading, verbatim.
-        if (FreeHeadings.Contains(matched))
+        //
+        // 8b.4a: the lexicon now returns the canonical sectionId rather than a bare bool. The
+        // SEGMENTER deliberately discards it — a free section's identity is CONTENT here, and
+        // ParsedSection.Heading must stay the user's own line. The id exists for the RECOMMENDATION
+        // side (ICvParsingLexicon), which needs to ask "does this CV already have that section?".
+        // Membership is unchanged: the flattened synonym union is identical to v3.
+        if (CvParsingLexicon.FreeSectionIdByHeading.ContainsKey(matched))
         {
             kind = null;
             return true;
@@ -259,16 +225,10 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     /// </summary>
     private static string HeadingTextOf(string line) => line.Trim().TrimEnd(':', '.', ' ', '\t');
 
-    // Lower-invariant, trim, strip trailing ':'/'.', collapse internal whitespace.
-    private static string NormalizeHeading(string line)
-    {
-        var trimmed = line.Trim().TrimEnd(':', '.', ' ', '\t');
-        if (trimmed.Length == 0)
-            return string.Empty;
-
-        var lowered = trimmed.ToLowerInvariant();
-        return WhitespaceRegex().Replace(lowered, " ");
-    }
+    // THE single normalizer lives with the lexicon it normalizes (8b.4a): the lexicon's stored
+    // entries and a CV's heading lines must pass through the SAME function, or a heading silently
+    // stops matching. Two copies of it was a latent bug waiting for one of them to be edited.
+    private static string NormalizeHeading(string line) => CvParsingLexicon.NormalizeHeading(line);
 
     /// <summary>
     /// Splits the document into the six TYPED blocks (keyed by kind) and the FREE sections
@@ -764,42 +724,6 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
 
     private static string? NullIfEmpty(string value) => value.Length == 0 ? null : value;
 
-    private static bool TryMapSection(string key, out ParsedSectionKind kind)
-    {
-        switch (key.ToLowerInvariant())
-        {
-            case "contact": kind = ParsedSectionKind.Contact; return true;
-            case "profile": kind = ParsedSectionKind.Profile; return true;
-            case "experience": kind = ParsedSectionKind.Experience; return true;
-            case "education": kind = ParsedSectionKind.Education; return true;
-            case "skills": kind = ParsedSectionKind.Skills; return true;
-            case "languages": kind = ParsedSectionKind.Languages; return true;
-            default: kind = default; return false;
-        }
-    }
-
-    private static FrozenSet<string> ToHintSet(
-        Dictionary<string, string[]> hints, string key) =>
-        hints.TryGetValue(key, out var words)
-            ? words.Select(w => w.ToLowerInvariant()).ToFrozenSet(StringComparer.Ordinal)
-            : FrozenSet<string>.Empty;
-
-    private static Lexicon LoadLexicon()
-    {
-        var assembly = typeof(HeadingDrivenResumeSegmenter).Assembly;
-        using var stream = assembly.GetManifestResourceStream(LexiconResourceName)
-            ?? throw new InvalidOperationException(
-                $"Embedded CV-parsing lexicon missing: {LexiconResourceName}. " +
-                "Verify <EmbeddedResource> in Jobbliggaren.Infrastructure.csproj.");
-        using var reader = new StreamReader(stream, Encoding.UTF8);
-
-        var lexicon = JsonSerializer.Deserialize<Lexicon>(reader.ReadToEnd(), LexiconJsonOptions);
-
-        return lexicon
-            ?? throw new InvalidOperationException(
-                $"Embedded CV-parsing lexicon {LexiconResourceName} deserialized to null.");
-    }
-
     /// <summary>
     /// The lines a bare city name may be read from: the preamble (everything before the first
     /// heading — where a rail-style CV puts its contact details) plus the Contact block itself.
@@ -816,19 +740,6 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
 
         return scope;
     }
-
-    private sealed record Lexicon(
-        Dictionary<string, string[]> Headings,
-        Dictionary<string, string[]> LanguageHints,
-        string[]? NameBanners,
-        ContactLabels? ContactLabels,
-        string[]? FreeSectionHeadings);
-
-    /// <summary>Contact-field label vocabulary — versioned data, never inline C# strings (§5).</summary>
-    private sealed record ContactLabels(string[]? Location);
-
-    [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
-    private static partial Regex WhitespaceRegex();
 
     [GeneratedRegex(@"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", RegexOptions.CultureInvariant)]
     private static partial Regex EmailRegex();

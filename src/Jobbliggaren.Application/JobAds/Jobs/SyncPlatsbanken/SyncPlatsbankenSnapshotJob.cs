@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Commands.UpsertExternalJobAd;
+using Jobbliggaren.Application.JobAds.Jobs.Common;
 using Jobbliggaren.Domain.Common;
 using Mediator;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,8 +44,13 @@ public sealed partial class SyncPlatsbankenSnapshotJob(
     IOptions<JobSourceRetentionOptions> retentionOptions,
     IDateTimeProvider clock,
     ISystemEventAuditor auditor,
+    IngestionThroughputReporter throughputReporter,
     ILogger<SyncPlatsbankenSnapshotJob> logger)
 {
+    // Ett namn, ett ställe (§5 magic strings). Audit-raden och throughput-eventet MÅSTE bära
+    // samma jobType — runbook §B korrelerar dem mot varandra i Seq.
+    private const string JobTypeName = "snapshot";
+
     public async Task<SyncCounts> RunAsync(CancellationToken cancellationToken)
     {
         // Per-run-Guid för audit-rad (ADR 0035 §2).
@@ -162,6 +168,15 @@ public sealed partial class SyncPlatsbankenSnapshotJob(
             counts.Updated, counts.Skipped, counts.Errors,
             (completedAt - startedAt).TotalSeconds);
 
+        // CTO bind #754 Q3 (ADR 0045 Beslut 1 klass (d)) — this point is only
+        // reached on a run that completed the foreach normally (no `finally`,
+        // no earlier `return`, above this line for job-level failure) —
+        // naturally correct placement, no extra guard needed. Reuses the
+        // already-computed startedAt/completedAt — no additional clock read.
+        throughputReporter.Report(
+            jobSource.Source.Value, JobTypeName, counts.Fetched,
+            (completedAt - startedAt).TotalSeconds);
+
         // Audit-wire α (ADR 0035 + ADR 0032 §8 amendment 2026-05-13).
         // En audit-rad per snapshot-run oavsett om trigger är admin-curl
         // eller nattlig cron (M3 — SyncPlatsbankenSnapshotCommand har inte
@@ -170,7 +185,7 @@ public sealed partial class SyncPlatsbankenSnapshotJob(
             AggregateId: runId,
             OccurredAt: completedAt,
             Source: jobSource.Source.Value,
-            JobType: "snapshot",
+            JobType: JobTypeName,
             Fetched: counts.Fetched,
             Added: counts.Added,
             Updated: counts.Updated,

@@ -12,6 +12,9 @@
 **Sections**
 
 - [Prerequisites](#prerequisites)
+- [§A — Handler p95 vs budget](#a--handler-p95-vs-budget)
+- [§B — Worker memory trend](#b--worker-memory-trend)
+- [§C — Ingestion throughput](#c--ingestion-throughput)
 - [§D — Per-query EF measurement session](#d--per-query-ef-measurement-session)
 - [§E — What to do when a budget is exceeded](#e--what-to-do-when-a-budget-is-exceeded)
 
@@ -35,6 +38,187 @@ run), then query in the Seq UI.
 > codebase — 5601/5602, 5701–5703 and 6001/6002 are each used by two or three unrelated
 > classes. A signal keyed on an EventId will silently match events from a job you were not
 > asking about. The message template is the stable key.
+
+---
+
+## §A — Handler p95 vs budget
+
+`LoggingBehavior` (`src/Jobbliggaren.Application/Common/Behaviors/LoggingBehavior.cs`)
+emits `Handled {MessageName} in {ElapsedMs}ms` for **every** Mediator message — this is
+ADR 0045's own declared measuring point (Beslut 1: "server-side handler-latens ... det
+`LoggingBehavior` redan instrumenterar"), aggregated nowhere until now.
+
+```sql
+-- p95 per handler, slowest first. Set the Seq time-range picker to 1h / 24h as needed.
+select @Properties['MessageName'] as MessageName,
+       percentile(ElapsedMs, 95) as p95_ms,
+       count(*) as n
+from stream
+where @MessageTemplate = 'Handled {MessageName} in {ElapsedMs}ms'
+group by @Properties['MessageName']
+order by p95_ms desc
+```
+
+Map the result's `MessageName` to an ADR 0045 Beslut 1 class before judging it:
+
+| MessageName pattern | Class | p95 budget |
+|---|---|---|
+| `*JobAdsQuery`, `*ListQuery`, `Run*SearchQuery` | (a) read-query/list | 300 ms |
+| Typeahead/suggest queries (SuggestPolicy 30/10s, ADR 0042) | (b) typeahead/suggest | 150 ms |
+| `*Command` (CQRS write handlers) | (c) command/write | 400 ms |
+
+A handler that does not fit one of these rows is not budgeted by ADR 0045 Beslut 1 —
+report it, do not invent a number for it (same discipline as the rest of this runbook).
+
+Read `n` alongside `p95_ms`: a handler invoked twice in the window has a meaningless
+percentile. Widen the window before concluding anything — §E point 1 applies here too.
+
+---
+
+## §B — Worker memory trend
+
+`WorkerMemoryTrendService` (`src/Jobbliggaren.Worker/Hosting/WorkerMemoryTrendService.cs`)
+samples the Worker process every `WorkerMemoryTrend:SampleIntervalSeconds` (default 60s,
+`src/Jobbliggaren.Application/Common/Telemetry/WorkerMemoryTrendOptions.cs`) and emits
+`WorkerMemoryTrend` at Information every tick, plus an edge-triggered
+`WorkerMemoryAboveSoftCap` (Warning) / `WorkerMemoryBackWithinSoftCap` (Information) pair
+on the below↔above-cap transition (ADR 0045 Beslut 3, 512 MiB soft cap).
+
+```sql
+-- Chart workingSetBytes over a run.
+select @Timestamp, @Properties['WorkingSetBytes'] as workingSetBytes,
+       @Properties['GcHeapBytes'] as gcHeapBytes, @Properties['Gen2Collections'] as gen2Collections
+from stream
+where @MessageTemplate = 'WorkerMemoryTrend: workingSetBytes={WorkingSetBytes}, gcHeapBytes={GcHeapBytes}, gen2Collections={Gen2Collections}.'
+order by @Timestamp asc
+```
+
+```sql
+-- Edge transitions only (breach + recovery) — a much shorter list than the full trend.
+select @Timestamp, @MessageTemplate, @Properties['WorkingSetBytes'] as workingSetBytes
+from stream
+where @MessageTemplate like 'WorkerMemoryAboveSoftCap:%' or @MessageTemplate like 'WorkerMemoryBackWithinSoftCap:%'
+order by @Timestamp asc
+```
+
+**No per-job attribution — read this before asking "which job caused this."**
+`Environment.WorkingSet` is a **process** measure. `WorkerCount = 4` means up to four
+Hangfire jobs share the process at once; the working set is their sum plus the host
+baseline. There is no honest in-process attribution of a byte count to one job instance
+(see the dated ADR 0045 Beslut 3 amendment for the full reasoning). The event therefore
+carries no JobId/JobName field, by design — do not add one without solving the
+attribution problem first.
+
+**Correlate to a specific run by time window**, not by field, against the sync jobs' own
+events:
+
+```sql
+-- Stream job start/complete. Query on @MessageTemplate, never EventId — 5301/5302 are
+-- this job's own, but EventIds are not unique elsewhere in this codebase (see the
+-- prerequisites note above).
+select @Timestamp, @MessageTemplate, @Properties
+from stream
+where @MessageTemplate like 'SyncPlatsbankenStreamJob:%'
+order by @Timestamp asc
+
+-- Snapshot job start/complete — the long-running, higher-risk one for OOM.
+select @Timestamp, @MessageTemplate, @Properties
+from stream
+where @MessageTemplate like 'SyncPlatsbankenSnapshotJob:%'
+order by @Timestamp asc
+```
+
+Overlay the two charts by timestamp: a working-set ramp that tracks the snapshot's
+started→completed window and falls back afterward is the expected shape. A ramp that does
+**not** fall back after the snapshot completes is the ADR 0032-class regression this
+instrument exists to catch.
+
+A rising `Gen2Collections` count *together with* a rising `WorkingSetBytes` is the ADR
+0032 memory-pressure signature — distinct from a large-but-flat working set, which is
+more likely a steady-state cache (the taxonomy singleton, ADR 0043; the skill-taxonomy
+index).
+
+### When the trend series goes silent
+
+The sampler is deliberately unable to fault the Worker (a telemetry component that can kill
+the process it monitors is worse than no telemetry). So it fails *quietly*, and a missing
+trend line is a real possibility rather than an impossible one. Two events tell you which:
+
+```sql
+select @Timestamp, @MessageTemplate, @Exception
+from stream
+where @MessageTemplate like 'WorkerMemoryTrendSampler:%'   -- probe or sink failure, per tick
+   or @MessageTemplate like 'WorkerMemoryTrendService:%'   -- unexpected tick failure
+order by @Timestamp desc
+```
+
+If **neither** appears and the trend is still absent, the hosted service never started — check
+for an `OptionsValidationException` at Worker boot (`WorkerMemoryTrend:SampleIntervalSeconds`
+must be 1–3600). Also note the first sample lands at **t + one interval**, not at t0: a Worker
+that has been up for less than a minute has legitimately logged nothing yet.
+
+### The config knobs are not in `appsettings.json` — on purpose
+
+`WorkerMemoryTrend` and `IngestionThroughput` have **no section in any `appsettings.json`**.
+The options classes carry the ADR 0045 values as C# defaults (512 MiB; 200 jobs/min), and
+binding an absent section leaves those defaults in force.
+
+That is the intended posture, not an omission: **a cap change must be a dated ADR amendment,
+never a silent config bump** (§E point 3). A knob sitting in `appsettings.json` invites exactly
+the edit the ADR forbids. Add a section locally if you want to *experiment* — it binds normally
+— but shipping one is an ADR 0045 decision, not a config decision.
+
+---
+
+## §C — Ingestion throughput
+
+`IngestionThroughputReporter`
+(`src/Jobbliggaren.Application/JobAds/Jobs/Common/IngestionThroughputReporter.cs`) is
+called by both Platsbanken sync jobs after a run completes and emits `IngestionThroughput`
+(Information, the trend series) plus `IngestionThroughputBelowFloor` (Warning) when the
+rate falls under the ADR 0045 Beslut 1 klass (d) floor (200 jobb/min, `IngestionThroughput`
+config section).
+
+```sql
+-- Throughput trend, both jobs — one byte-identical template matches both.
+select @Timestamp, @Properties['Source'] as source, @Properties['JobType'] as jobType,
+       @Properties['Fetched'] as fetched, @Properties['DurationSec'] as durationSec,
+       @Properties['ItemsPerMinute'] as itemsPerMinute
+from stream
+where @MessageTemplate = 'IngestionThroughput: source={Source}, jobType={JobType}, fetched={Fetched}, durationSec={DurationSec}, itemsPerMinute={ItemsPerMinute}.'
+order by @Timestamp desc
+```
+
+```sql
+-- Below-floor warnings only.
+select @Timestamp, @Properties
+from stream
+where @MessageTemplate like 'IngestionThroughputBelowFloor:%'
+order by @Timestamp desc
+```
+
+**What "qualifying" means — read this before wondering where a run's rate went.**
+A run only gets a verdict (a logged `itemsPerMinute`, warn or not) if it *qualifies*:
+`fetched >= 200 (MinItemsForVerdict) AND durationSec > 0`. A run that fetched fewer than
+200 items — e.g. a quiet 10-minute stream cron at 03:00 on a Sunday with 3 changed ads —
+emits **nothing**: no `IngestionThroughput` event, no `itemsPerMinute` field anywhere.
+
+**This silence is deliberate, not a gap — do not "fix" it by logging `itemsPerMinute=0`
+or similar.** A logged rate is a claim about capacity. Fewer than 200 observed items
+cannot support a jobs/min claim (it is extrapolation, not measurement), and a fabricated
+`itemsPerMinute` on a healthy quiet run is *exactly* the number someone will chart six
+months from now, where it will look like an outage. The raw `fetched`/`durationSec`
+values are already visible on the jobs' own `LogCompleted` events (5302/5402) — compute a
+rate from those directly if you need one for a specific non-qualifying run, in full view
+of how small the sample is.
+
+The stream job (10-min cron, 15-min overlap window, ADR 0032 §3) is **demand-limited**,
+not capacity-limited — it processes whatever JobTech changed, never a backlog. It will
+therefore rarely qualify, and that is correct: a throughput floor is a capacity claim, and
+applying it to a demand-limited workload would be a category error. When the stream job
+*does* qualify (≥ 200 changes in one 15-minute window) it can still warn, and that is the
+one case worth taking seriously — a capacity-limited stream run that is also slow is the
+ADR 0032 rate-limiter/streaming regression class ADR 0045 exists to catch.
 
 ---
 

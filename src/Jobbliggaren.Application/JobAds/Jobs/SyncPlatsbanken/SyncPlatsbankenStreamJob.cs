@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Commands.ArchiveExternalJobAd;
 using Jobbliggaren.Application.JobAds.Commands.UpsertExternalJobAd;
+using Jobbliggaren.Application.JobAds.Jobs.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Mediator;
@@ -44,10 +45,15 @@ public sealed partial class SyncPlatsbankenStreamJob(
     IMediator mediator,
     IDateTimeProvider clock,
     ISystemEventAuditor auditor,
+    IngestionThroughputReporter throughputReporter,
     ILogger<SyncPlatsbankenStreamJob> logger)
 {
     // 5 min overlap utöver 10-min cron-cykel. Upserts är idempotenta via UNIQUE-index.
     private static readonly TimeSpan OverlapWindow = TimeSpan.FromMinutes(15);
+
+    // Ett namn, ett ställe (§5 magic strings). Audit-raden och throughput-eventet MÅSTE bära
+    // samma jobType — runbook §B korrelerar dem mot varandra i Seq.
+    private const string JobTypeName = "stream";
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
@@ -58,6 +64,12 @@ public sealed partial class SyncPlatsbankenStreamJob(
         var since = startedAt - OverlapWindow;
 
         LogStarted(logger, jobSource.Source.Value, since);
+
+        // Sätts först när foreach:en fullbordats normalt. Läses i `finally` så en LYCKAD körning
+        // får EN enda completion-instans — LogCompleted, audit-raden och throughput-eventet
+        // rapporterar då samma durationSec (två klockläsningar hade rapporterat marginellt olika
+        // tal för samma körning, och runbook §C ber folk stämma av dem mot varandra).
+        DateTimeOffset? succeededAt = null;
 
         var fetched = 0;
         var added = 0;
@@ -118,10 +130,22 @@ public sealed partial class SyncPlatsbankenStreamJob(
                     LogEventFailed(logger, ex, change.ExternalId);
                 }
             }
+
+            // CTO bind #754 Q3 (ADR 0045 Beslut 1 klass (d)) — throughput
+            // verdict only for a run that completed the foreach normally.
+            // Deliberately NOT in `finally`: a crashed run has no valid
+            // capacity claim — a partial run would compute a bogus low rate
+            // and warn about capacity when the real event was a failure
+            // (already logged at Error by LogEventFailed / the OCE rethrow
+            // below propagating out of RunAsync entirely).
+            succeededAt = clock.UtcNow;
+            throughputReporter.Report(
+                jobSource.Source.Value, JobTypeName, fetched,
+                (succeededAt.Value - startedAt).TotalSeconds);
         }
         finally
         {
-            var completedAt = clock.UtcNow;
+            var completedAt = succeededAt ?? clock.UtcNow;
             LogCompleted(logger, jobSource.Source.Value, fetched, added, updated,
                 archived, skipped, errors, (completedAt - startedAt).TotalSeconds);
 
@@ -138,7 +162,7 @@ public sealed partial class SyncPlatsbankenStreamJob(
                     AggregateId: runId,
                     OccurredAt: completedAt,
                     Source: jobSource.Source.Value,
-                    JobType: "stream",
+                    JobType: JobTypeName,
                     Fetched: fetched,
                     Added: added,
                     Updated: updated,

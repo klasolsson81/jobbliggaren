@@ -1177,92 +1177,90 @@ export function CvCompleteGuide({
                 !sectionSuggestions.hasOccupationPreference && (
                   <p className="jp-sectionsuggest__prompt">
                     {tr("experience.suggestionsNoOccupation")}{" "}
-                    <Link href="/installningar#matchning" className="jp-link">
+                    <Link href="/installningar#matchning" className="jp-nudgelink">
                       {tr("experience.suggestionsNoOccupationLink")}
                     </Link>
                   </p>
                 )}
               {sectionSuggestions && openSuggestions.length > 0 && (
                 <div className="jp-sectionsuggest">
-                  {openSuggestions.length > 0 && (
-                    <>
-                      <div className="jp-sectionsuggest__head">
-                        <h4 className="jp-sectionsuggest__title">
-                          {tr("experience.suggestionsHeading")}
-                        </h4>
-                        {/* Motiveringen kommer från kunskapsbanken, inte från i18n:
-                            samma proveniens-regel som ProposedChange.rationale. Ingen
-                            prosa som motorn hittat på. */}
-                        <span className="jp-sectionsuggest__badge">
-                          {sectionSuggestions.rationale}
-                        </span>
-                      </div>
-                      <ul className="jp-sectionsuggest__list">
-                        {openSuggestions.map((suggestion) => (
-                          <li key={suggestion.sectionId}>
-                            <button
-                              type="button"
-                              className="jp-sectionsuggest__chip"
-                              /* Namnet måste säga vad knappen GÖR — "Legitimation och
-                                 intyg" ensamt låter som en etikett, inte en åtgärd. Satt
-                                 som aria-label i stället för en sr-only-span: chippen är en
-                                 flex-container, så ett mellanrums-textnod mellan spannen
-                                 hade blivit ett eget anonymt flex-item med egen bredd. Båda
-                                 de SYNLIGA strängarna ("Legitimation och intyg",
-                                 "Rekommenderas") är delsträngar av namnet — WCAG 2.5.3
-                                 Label in Name håller, och röststyrning kan säga rubriken. */
-                              aria-label={
-                                suggestion.isStandard
-                                  ? tr("experience.addSuggestionRecommended", {
-                                      heading: suggestion.heading,
-                                    })
-                                  : tr("experience.addSuggestion", {
-                                      heading: suggestion.heading,
-                                    })
-                              }
-                              onClick={() => {
-                                // Chippet AVMONTERAS av sitt eget klick (det filtreras bort
-                                // ur openSuggestions), så fokus faller till <body> och
-                                // tangentbords-/skärmläsaranvändaren tappar sin plats utan
-                                // att få veta att något hänt. Flytta fokus till den nya
-                                // sektionens rubrikfält — samma mönster som guiden redan
-                                // använder för sina stegrubriker (WCAG 2.4.3).
-                                const nextIndex = sections.fields.length;
-                                sections.append({
+                  <div className="jp-sectionsuggest__head">
+                    <h4 className="jp-sectionsuggest__title">
+                      {tr("experience.suggestionsHeading")}
+                    </h4>
+                    {/* Motiveringen kommer från kunskapsbanken, inte från i18n: samma
+                        proveniens-regel som ProposedChange.rationale. Ingen prosa som
+                        motorn hittat på. */}
+                    <span className="jp-sectionsuggest__badge">
+                      {sectionSuggestions.rationale}
+                    </span>
+                  </div>
+                  {/* role="list" explicit: list-style:none tar bort list-semantiken i
+                      Safari/VoiceOver. Huskonventionen (follow-ups-section). */}
+                  <ul className="jp-sectionsuggest__list" role="list">
+                    {openSuggestions.map((suggestion) => (
+                      <li key={suggestion.sectionId}>
+                        <button
+                          type="button"
+                          className="jp-sectionsuggest__chip"
+                          /* Namnet måste säga vad knappen GÖR — "Legitimation och intyg"
+                             ensamt låter som en etikett, inte en åtgärd. Satt som
+                             aria-label i stället för en sr-only-span: chippet är en
+                             flex-container, så ett mellanrums-textnod mellan spannen hade
+                             blivit ett eget anonymt flex-item med egen bredd. Båda de
+                             SYNLIGA strängarna är delsträngar av namnet — WCAG 2.5.3
+                             Label in Name håller, och röststyrning kan säga rubriken. */
+                          aria-label={
+                            suggestion.isStandard
+                              ? tr("experience.addSuggestionRecommended", {
                                   heading: suggestion.heading,
-                                  entries: [{ title: "", body: "" }],
-                                });
-                                queueMicrotask(() =>
-                                  document
-                                    .getElementById(`guide-section-${nextIndex}-heading`)
-                                    ?.focus()
-                                );
-                              }}
-                              disabled={isPending}
-                            >
-                              <Plus size={14} aria-hidden="true" />
-                              <span className="jp-sectionsuggest__chiplabel">
-                                {suggestion.heading}
-                              </span>
-                              {suggestion.isStandard && (
-                                <span className="jp-sectionsuggest__tag">
-                                  {tr("experience.suggestionRecommended")}
-                                </span>
-                              )}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                  {/* TVÅ skilda tomma lägen, aldrig hopslagna (ADR 0107). Den här raden
-                      visas BARA när användaren inte angett något yrke alls. Den som HAR
-                      angett ett yrke som landar i Övriga (62 %-majoriteten) får förslagen
-                      utan att bli tillfrågad igen — hon har redan svarat. */}
+                                })
+                              : tr("experience.addSuggestion", {
+                                  heading: suggestion.heading,
+                                })
+                          }
+                          onClick={() => {
+                            // Chippet AVMONTERAS av sitt eget klick (det filtreras bort ur
+                            // openSuggestions), så fokus faller till <body> och tangentbords-/
+                            // skärmläsaranvändaren tappar sin plats utan att få veta att något
+                            // hänt. Flytta fokus till den nya sektionens rubrikfält — samma
+                            // mönster som guiden redan använder för sina stegrubriker (WCAG
+                            // 2.4.3). append() skjuter alltid in sist, så längden FÖRE anropet
+                            // är den nya postens index.
+                            const nextIndex = sections.fields.length;
+                            sections.append({
+                              heading: suggestion.heading,
+                              entries: [{ title: "", body: "" }],
+                            });
+                            queueMicrotask(() =>
+                              document
+                                .getElementById(`guide-section-${nextIndex}-heading`)
+                                ?.focus()
+                            );
+                          }}
+                          disabled={isPending}
+                        >
+                          <Plus size={14} aria-hidden="true" />
+                          <span className="jp-sectionsuggest__chiplabel">
+                            {suggestion.heading}
+                          </span>
+                          {suggestion.isStandard && (
+                            <span className="jp-sectionsuggest__tag">
+                              {tr("experience.suggestionRecommended")}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {/* TVÅ skilda tomma lägen, aldrig hopslagna (ADR 0107). Den här raden visas
+                      BARA när användaren inte angett något yrke alls. Den som HAR angett ett
+                      yrke som landar i Övriga (62 %-majoriteten) får förslagen utan att bli
+                      tillfrågad igen — hon har redan svarat. */}
                   {!sectionSuggestions.hasOccupationPreference && (
                     <p className="jp-sectionsuggest__prompt">
                       {tr("experience.suggestionsNoOccupation")}{" "}
-                      <Link href="/installningar#matchning" className="jp-link">
+                      <Link href="/installningar#matchning" className="jp-nudgelink">
                         {tr("experience.suggestionsNoOccupationLink")}
                       </Link>
                     </p>

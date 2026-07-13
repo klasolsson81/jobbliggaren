@@ -5601,20 +5601,27 @@ a.jp-adminnav__link[aria-current="page"]::after {
    Ingen ny token: komponerar --jp-surface(-2), --jp-ink-1/-2, --jp-border-soft,
    --jp-border-input, --jp-accent-700, --jp-r-md/-pill.
 
-   NEDSÄNKT under-bricka (--jp-surface-2), inte en accent-tonad platta. Första utkastet
-   fyllde den med --jp-accent-50 och gjorde därmed den RÅDGIVANDE ytan till det enda
-   färgade — och alltså högst rankade — elementet i steget, medan UPPGIFTEN (skriv dina
-   egna sektioner) låg tyst i svart på vitt. I mörkt tema blev accent-50 dessutom ett
-   mättat grönt block ovanpå det navyblå kortet. Grönt hör hemma i hover/fokus/länk, inte
-   som containerfärg. --jp-r-md (6px) = panel-radien; --jp-r-sm är input-radien (ADR 0052).
-   Ingen gradient, ingen skugga, ingen glow. */
+   NEDSÄNKT under-bricka, inte en accent-tonad platta. Första utkastet fyllde den med
+   --jp-accent-50 och gjorde därmed den RÅDGIVANDE ytan till det enda färgade — och alltså
+   högst rankade — elementet i steget, medan UPPGIFTEN (skriv dina egna sektioner) låg tyst
+   i svart på vitt. I mörkt tema blev accent-50 dessutom ett mättat grönt block ovanpå det
+   navyblå kortet. Grönt hör hemma i hover/fokus/länk, inte som containerfärg.
+
+   KANTEN bär brickan, inte fyllningen. --jp-surface-2 är samma hex som --jp-canvas i LJUST
+   tema (#F4F6FA), och guidens sektioner är bakgrundslösa hela vägen upp till <body> — så
+   närmaste målade lager ÄR canvasen, och fyllningen blir en no-op (1,00:1). Receptet är
+   lånat från .jp-modal__metaitem, men DÄR ligger brickan på en vit modalyta. Exakt samma
+   fälla sänkte Slutför-guidens räl i #815 PR-2 ("surface-2 var en no-op i ljust tema") —
+   samma fil, en PR tidigare. Fyllningen behålls för mörkt tema (där den ÄR distinkt), men
+   det är --jp-border som gör brickan synlig i båda. --jp-r-md (6px) = panel-radien;
+   --jp-r-sm är input-radien (ADR 0052). Ingen gradient, ingen skugga, ingen glow. */
 .jp-sectionsuggest {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 12px;
   background: var(--jp-surface-2);
-  border: 1px solid var(--jp-border-soft);
+  border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-md);
 }
 .jp-sectionsuggest__head {
@@ -5693,10 +5700,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* "Rekommenderas" = handoffens "extra standardsektion": sektionen FÖRVÄNTAS i yrket, till
    skillnad från de bara vanliga. Bär sitt påstående i TEXT, aldrig i färg ensam (WCAG
    1.4.1). --jp-accent-700 är TEXT-tokenen: den dark-skiftas till ljus mint (#6EE7A8) just
-   FÖR att förbli läsbar som text (9,98:1 mot mörk yta). Utkastet valde -800 med motiveringen
-   att -700 "skiftar" — resonemanget var exakt bakvänt: -800 är FILL-tokenen, dark-skiftas
-   ALDRIG, och ger 2,03:1 som text i mörkt tema. I ljust tema är de samma hex, så bytet
-   kostar ingenting. */
+   FÖR att förbli läsbar som text (9,2:1 mot chipytan i mörkt tema). Utkastet valde -800 med
+   motiveringen att -700 "skiftar" — resonemanget var exakt bakvänt: -800 är FILL-tokenen,
+   dark-skiftas ALDRIG, och ger 2,03:1 som text i mörkt tema. I ljust tema är de samma hex,
+   så bytet kostar ingenting. */
 .jp-sectionsuggest__tag {
   font-size: var(--text-caption);
   font-weight: var(--jp-fw-medium);

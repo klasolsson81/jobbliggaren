@@ -28,7 +28,13 @@ public sealed class BackfillJobAdSsykJob(
     {
         var opts = options.Value;
         return runner.RunAsync(
-            nullColumnPredicate: j => EF.Property<string?>(j, "SsykConceptId") == null,
+            // #841 — compile-checked, and the meaning changed: "ingest never wrote this facet", not
+            // "raw_payload lacks the occupation key". This job is now the DEPLOY REPAIR TOOL: an ad whose
+            // facets were nulled by the purge before the migration matches here, gets re-fetched, and is
+            // re-ingested through UpsertExternalJobAd, which writes all seven columns in C#. (Ads that
+            // have LEFT the feed 404 on refetch and are skipped — their facets are unrecoverable, and
+            // were so before this PR too.)
+            nullColumnPredicate: j => j.SsykConceptId == null,
             options: new BackfillRunnerOptions(
                 opts.PerItemDelayMs, opts.MaxItemsPerRun, opts.ProgressLogEvery),
             auditJobType: "backfill",

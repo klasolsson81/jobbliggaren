@@ -137,6 +137,53 @@ Flip observe-only → blockerande (`ci.needs`-inläggning) sker när perf-mätni
 - ADR 0042 (sök/typeahead), ADR 0044 (coverage gate-mönster)
 - senior-cto-advisor-beslut 2026-05-17 (B1–B7)
 
+## Amendment 2026-07-13 — Beslut 3 clarification: measured unit is process working-set, not per-job
+
+**Date:** 2026-07-13
+**Source:** #754 (ADR 0045 Beslut 3 instrumentation — Worker memory trend sampler)
+**Decision-maker:** senior-cto-advisor (`docs/reviews/2026-07-13-754-752-perf-telemetry-cto.md`, Q2)
+
+### Context
+
+Beslut 3 words the cap as "512 MiB working-set **per Worker-jobbinstans**". That is not
+implementable as written. `Environment.WorkingSet` is a **process** measure. The Worker
+runs `WorkerCount = 4` (Hangfire) — up to four jobs can share the same process at once,
+and the working set observed is their sum plus the host baseline. There is no honest
+in-process attribution of a byte count to a single job instance.
+(`GC.GetAllocatedBytesForCurrentThread()` was considered and rejected — it is
+thread-scoped and does not survive an `await` hop across the thread pool in async code.)
+
+### Clarification (clarifies Beslut 3, does not change the cap)
+
+The measured unit is **process working-set**, not per-job-instance. The instrument
+(`WorkerMemoryTrendService` + `WorkerMemoryTrendSampler` —
+`src/Jobbliggaren.Worker/Hosting/` + `src/Jobbliggaren.Application/Common/Telemetry/`)
+measures and logs the Worker process's working-set bytes, GC heap bytes, and gen2
+collection count, with NO JobId/JobName field — such a field would be fabricated
+attribution. Correlation to a specific job run happens at read time in Seq, by time
+window, against the sync jobs' own start/complete events (5301/5302 stream, 5401/5402
+snapshot) — see `docs/runbooks/performance-measurement.md` §B.
+
+**512 MiB as a process cap is strictly MORE conservative** than a per-job cap would be (a
+per-job cap would tolerate 4 × 512 MiB = 2 GiB in-process before alarming). It is also the
+reading that actually defends against the failure mode this instrument backstops — an OOM
+kills a **process**, not a "job instance". The 512 MiB number itself is UNCHANGED by this
+amendment.
+
+### Implementation trail
+
+- `src/Jobbliggaren.Application/Common/Telemetry/IProcessMemoryProbe.cs` (port)
+- `src/Jobbliggaren.Application/Common/Telemetry/WorkerMemoryTrendOptions.cs` (tunables)
+- `src/Jobbliggaren.Application/Common/Telemetry/WorkerMemoryTrendSampler.cs` (edge-state + gate)
+- `src/Jobbliggaren.Infrastructure/Diagnostics/ProcessMemoryProbe.cs` (adapter)
+- `src/Jobbliggaren.Worker/Hosting/WorkerMemoryTrendService.cs` (`BackgroundService` + `PeriodicTimer`)
+- `docs/runbooks/performance-measurement.md` §B
+
+### References
+
+- `docs/reviews/2026-07-13-754-752-perf-telemetry-cto.md` Q2 (full bind + rejected alternatives)
+- ADR 0032 (the streaming/OOM regression class this instrument backstops)
+
 ---
 
 *ADR-index underhålls av docs-keeper (index-uppdatering sker centralt vid session-end — 3-CC-koordinationsregel, ej denna leverans).*

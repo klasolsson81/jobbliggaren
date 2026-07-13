@@ -19,37 +19,54 @@ import { type LandingStats } from "./landing-stats-format";
  * Sync RSC: `useTranslations`/`useFormatter` resolve synchronously. Stats arrive
  * as a prop from the async <LandingPage/> server-fetch (`getLandingStats`, ADR
  * 0064), keeping this component renderable in tests without mocking the API.
+ *
+ * **Omätta tal renderas ALDRIG (CTO-bind 2026-07-13, A′).** Tills nu returnerade backend ett hårdkodat
+ * golv vid kall cache (`activeCount: 40 000`) och den här raden visade det som ett faktum — en siffra
+ * ingen mätt, på produktens ytterdörr, för varje anonym besökare. Nu är en omätt count `null` och HELA
+ * stat-gruppen utelämnas. Ett kort tomrum (cachen är kall i ≤5 min, och Workern warm-startar den vid
+ * boot) är billigare än en permanent strukturell osanning. En MÄTT nolla är fortfarande 0 och renderas.
  */
 export function LandingHeader({ stats }: { stats: LandingStats }) {
   const { activeCount, newToday } = stats;
   const t = useTranslations("landing");
   const format = useFormatter();
+
+  // Båda talen kommer från samma mätning: har vi det ena har vi det andra. Rendera gruppen bara när
+  // den kan bära sanning.
+  const hasMeasuredStats = activeCount !== null && newToday !== null;
+
   return (
     <header className="jp-head">
       <div className="jp-head__inner">
         <Link href="/" className="jp-brand" aria-label={t("brand.homeAriaLabel")}>
           <BrandLogo />
         </Link>
-        <div
-          className="jp-head__stats"
-          role="group"
-          aria-label={t("topbar.statsAriaLabel")}
-        >
-          <div className="jp-head__stat">
-            <span className="jp-head__stat-num">
-              {formatNumber(format, activeCount)}
-            </span>
-            <span className="jp-head__stat-label">{t("topbar.activeAdsLabel")}</span>
+        {hasMeasuredStats && (
+          <div
+            className="jp-head__stats"
+            role="group"
+            aria-label={t("topbar.statsAriaLabel")}
+          >
+            <div className="jp-head__stat">
+              <span className="jp-head__stat-num">
+                {formatNumber(format, activeCount)}
+              </span>
+              <span className="jp-head__stat-label">
+                {t("topbar.activeAdsLabel")}
+              </span>
+            </div>
+            <span className="jp-head__sep" aria-hidden="true" />
+            <div className="jp-head__stat">
+              <span className="jp-head__stat-num jp-head__stat-delta">
+                {"+"}
+                {formatNumber(format, newToday)}
+              </span>
+              <span className="jp-head__stat-label">
+                {t("topbar.newTodayLabel")}
+              </span>
+            </div>
           </div>
-          <span className="jp-head__sep" aria-hidden="true" />
-          <div className="jp-head__stat">
-            <span className="jp-head__stat-num jp-head__stat-delta">
-              {"+"}
-              {formatNumber(format, newToday)}
-            </span>
-            <span className="jp-head__stat-label">{t("topbar.newTodayLabel")}</span>
-          </div>
-        </div>
+        )}
       </div>
     </header>
   );

@@ -11,7 +11,13 @@
  * för `1 234`. Konsumenterna hämtar formattern via `useFormatter()`.
  */
 
+/**
+ * Talen är NULLABLE (CTO-bind 2026-07-13, A′): `null` = "vi vet inte" (kall cache / backend-fail),
+ * och det MÅSTE renderas som frånvaro, aldrig som en siffra. En MÄTT nolla är `0` och renderas som 0.
+ * Under `strict` gör nullabiliteten det till ett kompileringsfel att glömma fallet — vilket är precis
+ * vad som hände när sanningen bars av en flagga i stället för av typen.
+ */
 export interface LandingStats {
-  activeCount: number;
-  newToday: number;
+  activeCount: number | null;
+  newToday: number | null;
 }

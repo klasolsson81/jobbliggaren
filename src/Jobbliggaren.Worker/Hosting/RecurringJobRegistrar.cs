@@ -8,6 +8,7 @@ using Jobbliggaren.Application.JobAds.Jobs.RetainPlatsbankenJobAds;
 using Jobbliggaren.Application.Landing.Jobs.RefreshLandingStats;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Jobbliggaren.Worker.Hosting;
@@ -44,9 +45,10 @@ namespace Jobbliggaren.Worker.Hosting;
 /// 02:00 UTC motsvarar svensk natt (03:00 vintertid / 04:00 sommartid) —
 /// lägst belastning på dev-DB och ingen konflikt med interaktiv användning.
 /// </summary>
-public sealed class RecurringJobRegistrar(
+public sealed partial class RecurringJobRegistrar(
     IRecurringJobManager manager,
-    IOptions<ScbRegisterOptions> scbOptions) : IHostedService
+    IOptions<ScbRegisterOptions> scbOptions,
+    ILogger<RecurringJobRegistrar> logger) : IHostedService
 {
     public Task StartAsync(CancellationToken cancellationToken)
     {
@@ -156,8 +158,39 @@ public sealed class RecurringJobRegistrar(
             job => job.RunAsync(CancellationToken.None),
             scbOptions.Value.SyncCadenceCron);
 
+        // WARM-START (CTO-bind 2026-07-13, A′ punkt 4): trigga landing-stats-refreshen EN gång vid
+        // Worker-boot i stället för att vänta upp till 5 minuter på nästa cron-tick.
+        //
+        // Sedan golvet togs bort svarar landningssidan ärligt "vet inte" (inga tal) medan cachen är
+        // kall — och en kall cache är precis vad en deploy, en Redis-omstart eller en Worker-start
+        // ger. Rätt botemedel mot det glappet är att KRYMPA det, inte att fylla det med en påhittad
+        // siffra. Idempotent (jobbet är en ren cache-write) och billigt (två indexerade COUNT), så en
+        // extra körning per boot kostar ingenting.
+        //
+        // BEST-EFFORT, och det är en medveten asymmetri mot AddOrUpdate ovan: misslyckas en
+        // REGISTRERING är Workern trasig och ska fail:a fast (inget jobb skulle ändå köra). Men
+        // `Trigger` gör storage-I/O och tar ett distributed lock (15 s timeout) — ett kast här skulle
+        // fälla hela hosten (ingest, retention, digests) för en KOSMETISK uppvärmning. Att
+        // landningssidans siffra dyker upp fem minuter senare är aldrig värt en död Worker; cron
+        // */5 fyller cachen ändå.
+        try
+        {
+            manager.Trigger(RecurringJobIds.RefreshLandingStats);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogWarmStartFailed(logger, ex);
+        }
+
         return Task.CompletedTask;
     }
+
+    [LoggerMessage(
+        EventId = 6401,
+        Level = LogLevel.Warning,
+        Message = "Landing-stats warm-start kunde inte triggas vid Worker-boot. " +
+                  "Cachen fylls av cron inom 5 min; landningssidan visar inga tal tills dess.")]
+    private static partial void LogWarmStartFailed(ILogger logger, Exception ex);
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

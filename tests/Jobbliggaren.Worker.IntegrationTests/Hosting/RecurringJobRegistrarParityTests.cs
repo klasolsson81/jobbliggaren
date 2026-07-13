@@ -2,6 +2,7 @@ using Hangfire;
 using Jobbliggaren.Application.BackgroundJobs;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Worker.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -40,7 +41,8 @@ public class RecurringJobRegistrarParityTests
         // exact cron is irrelevant to the id-parity assertion (any non-empty value works).
         var registrar = new RecurringJobRegistrar(
             manager,
-            Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }));
+            Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }),
+            NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
 

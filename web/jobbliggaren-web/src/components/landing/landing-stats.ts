@@ -1,6 +1,6 @@
 import "server-only";
 import { fetchLandingStats } from "@/lib/api/landing";
-import { LANDING_STATS_FLOOR_DTO } from "@/lib/dto/landing";
+import { LANDING_STATS_UNKNOWN_DTO } from "@/lib/dto/landing";
 import { type LandingStats } from "./landing-stats-format";
 
 /**
@@ -16,15 +16,14 @@ import { type LandingStats } from "./landing-stats-format";
  * ADR 0064). ADR 0056 Beslut 4-utbytespunkt lyft i ADR 0064.
  * </p>
  * <p>
- * Fallback-floor används vid backend-fail (network, 5xx, 429, shape-mismatch).
- * Konservativa värden — ljuger inte uppåt. Frontend exponerar inte
- * `isStale`-flaggan i UI:t (HANDOVER §6.4 nämner ingen sådan affordans);
- * räkneraden ser identisk ut oavsett ursprung. Backend-disciplin med
- * `IsStale=true` bibehålls för operativ telemetri och framtida
- * partner-integrationer.
+ * Vid backend-fail (network, 5xx, 429, shape-mismatch) returneras det ÄRLIGA icke-svaret: inga tal.
+ * Tidigare returnerades ett hårdkodat golv (40 000) och räkneraden såg identisk ut oavsett ursprung —
+ * en siffra ingen mätt, renderad som ett faktum för varje anonym besökare. Golvet är borta
+ * (CTO-bind 2026-07-13, A′): `null` = vi vet inte, och konsumenten MÅSTE hantera det (typen tvingar
+ * det). En mätt nolla är fortfarande `0`.
  * </p>
  */
 export async function getLandingStats(): Promise<LandingStats> {
-  const dto = (await fetchLandingStats()) ?? LANDING_STATS_FLOOR_DTO;
+  const dto = (await fetchLandingStats()) ?? LANDING_STATS_UNKNOWN_DTO;
   return { activeCount: dto.activeCount, newToday: dto.newToday };
 }

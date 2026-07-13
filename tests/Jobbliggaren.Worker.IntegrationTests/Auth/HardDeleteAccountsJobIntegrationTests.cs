@@ -468,9 +468,10 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
         // asserted here — Application (by JobSeekerId), Resume (by JobSeekerId; its
         // ResumeVersions go via DB-FK CASCADE), and UserJobAdMatch (FK-less by UserId,
         // ADR 0080), plus CompanyWatch (FK-less by UserId, ADR 0087 D3, #311 PR-3) and
-        // FollowedCompanyAdHit (FK-less by UserId, ADR 0087 D5, #311 PR-4).
+        // FollowedCompanyAdHit (FK-less by UserId, ADR 0087 D5, #311 PR-4), and
+        // CompanyWatchCriterion (FK-less by UserId, #560 Fork A1, DPIA Part D C-D1).
         // Together with the SavedSearches/RecentJobSearches/SavedJobAds/ParsedResume
-        // tests above, all 9 CascadeMap aggregates are now covered both structurally
+        // tests above, all 10 CascadeMap aggregates are now covered both structurally
         // (build-time) and behaviorally (here) — symmetric layers.
         var ct = TestContext.Current.CancellationToken;
         var now = DateTimeOffset.UtcNow;
@@ -506,6 +507,17 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             var hit = FollowedCompanyAdHit.Create(
                 userId, JobAdId.New(), watch.Id, seedClock).Value;
             db.FollowedCompanyAdHits.Add(hit);
+
+            // CompanyWatchCriterion — FK-less by UserId (#560 Fork A1, DPIA Part D C-D1). The
+            // criterion is personal data ABOUT THE USER (which industries and towns they job-hunt in
+            // — profiling-adjacent), so like CompanyWatch it orphans on hard-delete unless deleted
+            // EXPLICITLY. Note the aggregate's SoftDelete deliberately RETAINS its criteria payload:
+            // this cascade is therefore the ONLY thing that ever erases it, which is precisely why
+            // the C-D1 argument needs a behavioural oracle and not just the structural fitness proxy.
+            var criteria = CompanyWatchCriteriaSpec.Create(["62010"], ["0180"]).Value;
+            var criterion = CompanyWatchCriterion.Create(
+                userId, criteria, "IT i Stockholm", seedClock).Value;
+            db.CompanyWatchCriteria.Add(criterion);
 
             await db.SaveChangesAsync(ct);
         }
@@ -545,6 +557,12 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
                 .IgnoreQueryFilters().AsNoTracking()
                 .Where(h => h.UserId == userId).CountAsync(ct);
             hitCount.ShouldBe(1, "seed must persist exactly one followed_company_ad_hits row before the job runs");
+
+            var criterionCount = await preDb.CompanyWatchCriteria
+                .IgnoreQueryFilters().AsNoTracking()
+                .Where(c => c.UserId == userId).CountAsync(ct);
+            criterionCount.ShouldBe(1,
+                "seed must persist exactly one company_watch_criteria row before the job runs");
         }
 
         await RunJobAsync(now, ct);
@@ -583,6 +601,14 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             .Where(h => h.UserId == userId).CountAsync(ct);
         hitsAfter.ShouldBe(0,
             "FollowedCompanyAdHit (FK-löst by UserId, ADR 0087 D5) ska hard-raderas vid konto-radering (GDPR Art. 17)");
+
+        var criteriaAfter = await verifyDb.CompanyWatchCriteria
+            .IgnoreQueryFilters().AsNoTracking()
+            .Where(c => c.UserId == userId).CountAsync(ct);
+        criteriaAfter.ShouldBe(0,
+            "CompanyWatchCriterion (FK-löst by UserId, #560 Fork A1) ska hard-raderas vid konto-radering "
+            + "(GDPR Art. 17, DPIA Part D C-D1) — annars orphan:as profileringsnära PII (vilka branscher "
+            + "och orter användaren jobbsöker i) efter konto-radering");
     }
 
     // ─── Helpers ───

@@ -62,11 +62,20 @@ public sealed record CompanyWatchCriteriaSpec
     /// the cap never bites a legitimate selection.</summary>
     public const int MaxMunicipalityCodes = 290;
 
-    // Exact 5-digit SNI-2025 leaf / exact 4-digit SCB kommun code. `\z` (not `$`) so a trailing
-    // newline cannot smuggle a second line past the guard — the OrganizationNumber/ConceptIdPattern
-    // idiom. Default-deny: anything else is rejected.
-    private static readonly Regex SniPattern = new(@"^\d{5}\z", RegexOptions.Compiled);
-    private static readonly Regex MunicipalityPattern = new(@"^\d{4}\z", RegexOptions.Compiled);
+    // Exact 5-digit SNI-2025 leaf / exact 4-digit SCB kommun code.
+    //
+    // [0-9], NOT \d — deliberately. In .NET `\d` means `\p{Nd}`: the WHOLE Unicode decimal-digit
+    // category, so "٦٢٠١٠" (Arabic-Indic) and "６２０１０" (fullwidth) both satisfy `^\d{5}\z`. Such a
+    // code would pass this guard, be stored in sni_codes, and then never overlap the ASCII-only SCB
+    // register — the criterion would silently match NOTHING and never error. A silent miss is this
+    // product's cardinal sin, so the guard is ASCII-explicit (test-writer probe, 2026-07-13).
+    //
+    // `\z` (not `$`) so a code cannot smuggle a second line past the guard. NOTE: a TRAILING
+    // newline is already removed by NormalizeList's Trim() before the regex ever runs — what `\z`
+    // actually buys is rejecting an EMBEDDED newline ("62010\n62020"), which Trim does not touch
+    // and which `$` would have accepted.
+    private static readonly Regex SniPattern = new(@"^[0-9]{5}\z", RegexOptions.Compiled);
+    private static readonly Regex MunicipalityPattern = new(@"^[0-9]{4}\z", RegexOptions.Compiled);
 
     public IReadOnlyList<string> SniCodes { get; private init; } = [];
     public IReadOnlyList<string> MunicipalityCodes { get; private init; } = [];

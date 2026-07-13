@@ -38,10 +38,12 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 /// <see cref="CompanyWatch.SoftDelete"/>, which CLEARS its filter).</b> The watch's filter is
 /// ancillary preference data on a row whose own existence still means something; here the
 /// criteria ARE the row's entire payload. Clearing them would persist a row whose domain
-/// invariant is FALSE (an empty spec is invalid per Fork B1) — EF would rehydrate it into a
-/// <see cref="Criteria"/> getter that throws on every read. The structural precedent is
-/// <c>SavedSearch</c> (predicate + label + soft-delete), which likewise retains its criteria;
-/// Art. 5(1)(c) is satisfied by the account-level hard-delete cascade, not by gutting the row.
+/// invariant is FALSE — an empty spec is invalid per Fork B1, yet
+/// <see cref="CompanyWatchCriteriaSpec.FromTrusted"/> does not re-validate, so the gutted row
+/// would rehydrate into a SILENTLY EMPTY spec rather than a loud failure: a criterion that
+/// matches nothing and says nothing. The structural precedent is <c>SavedSearch</c> (predicate +
+/// label + soft-delete), which likewise retains its criteria; Art. 5(1)(c) is satisfied by the
+/// account-level hard-delete cascade, not by gutting the row.
 /// </para>
 ///
 /// <para>

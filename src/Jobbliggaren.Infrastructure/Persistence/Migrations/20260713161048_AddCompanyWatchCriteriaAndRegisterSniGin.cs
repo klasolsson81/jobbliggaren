@@ -32,8 +32,13 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// that consumer. EF-modelled via <c>HasMethod("gin")</c> → the <c>Npgsql:IndexMethod</c>
     /// annotation below; the default GIN operator class for <c>text[]</c> is the built-in
     /// <c>array_ops</c>, which supports <c>&amp;&amp;</c>/<c>@&gt;</c>/<c>&lt;@</c>/<c>=</c>.
-    /// <b>Ops note:</b> building a GIN index over the ~1.17M-row register takes an ACCESS EXCLUSIVE
-    /// lock for the duration — do not apply this migration while the SCB sync job is running.
+    /// <b>Ops note:</b> a plain (non-CONCURRENTLY) <c>CREATE INDEX</c> takes a SHARE lock on the
+    /// table for the duration of the build — it blocks WRITES (i.e. exactly the SCB sync job) but
+    /// NOT reads. Over the ~1.17M-row register that build is not instant, so do not apply this
+    /// migration while the sync job is running. Reads are unaffected, so no read path needs a
+    /// deploy window. <c>CREATE INDEX CONCURRENTLY</c> (which would need
+    /// <c>suppressTransaction: true</c>) is deliberately not used: the register has no live
+    /// consumer yet and the deploy is manually approved, so the added complexity buys nothing.
     /// </para>
     ///
     /// <para>

@@ -223,8 +223,17 @@ public class OrganizationNumberSurfacingGuardTests
         ports.ShouldNotBeEmpty(
             "inga bärar-producerande portar hittades — härledningen är trasig och grinden vakuös.");
 
-        var apiSources = Directory.EnumerateFiles(
-            Path.Combine(FindRepoRoot(), "src", "Jobbliggaren.Api"), "*.cs", SearchOption.AllDirectories);
+        // Hand-written sources only. obj/ and bin/ hold generated files (AssemblyInfo, GlobalUsings, and
+        // — the day the request-delegate generator is switched on — generated endpoint code that could
+        // legitimately name an Application type). Scanning them makes the guard environment-dependent
+        // and gives it a future false-positive vector, and a guard that goes red for the wrong reason is
+        // a guard someone weakens (code-reviewer re-review #3). The direction is fail-closed either way;
+        // this is about keeping the guard credible.
+        var apiSources = Directory
+            .EnumerateFiles(
+                Path.Combine(FindRepoRoot(), "src", "Jobbliggaren.Api"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                        && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal));
 
         var offenders = new List<string>();
         foreach (var file in apiSources)
@@ -639,7 +648,13 @@ internal static class OrgNrSurfaceScan
 
         return applicationAssembly.GetTypes()
             .Where(t => t.IsInterface)
+            // Inherited members included: Type.GetMethods() on an interface returns only what THAT
+            // interface declares. An `IChildPort : IParentPort` whose carrier-returning method lives on
+            // the parent would derive the parent and not the child — and an endpoint injecting the child
+            // names only the child (code-reviewer re-review #3). No such port exists today; the guard
+            // should not depend on that staying true.
             .Where(i => i.GetMethods()
+                .Concat(i.GetInterfaces().SelectMany(b => b.GetMethods()))
                 .Any(m => ReachableTypes(m.ReturnType).Any(carriers.Contains)))
             .ToList();
     }
@@ -760,9 +775,13 @@ internal static class OrgNrSurfaceScan
     /// </para>
     ///
     /// <para>
-    /// So: narrow but complete. <c>OrgNr</c> and <c>OrgNumber</c> ARE covered (the reviewer's actual
-    /// concern); <c>Organization</c> and <c>Personnummer</c> alone are not. The <c>OrganizationNumber</c>
-    /// VO is caught by TYPE regardless of what the member is called.
+    /// <b>What "complete" can and cannot mean here.</b> This list covers the spellings the repo actually
+    /// uses and §1's English-identifier rule permits — <c>OrgNr</c> and <c>OrgNumber</c> included (the
+    /// reviewer's actual concern); <c>Organization</c> and <c>Personnummer</c> alone excluded. But NO
+    /// name detector can be complete: a member called <c>EmployerKey</c> holding a raw org.nr would slip
+    /// it, and no token list fixes that. What carries the guarantee is the STRUCTURAL half beside it —
+    /// a member TYPED <see cref="OrganizationNumber"/> is caught whatever it is called. The name half is
+    /// a heuristic and is scoped as one; the type half is the invariant.
     /// </para>
     /// </summary>
     private static readonly string[] OrgNrMemberNameTokens =

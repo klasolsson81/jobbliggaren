@@ -204,4 +204,36 @@ public class ResumeContentLinearizerTests
     {
         Should.Throw<ArgumentNullException>(() => ResumeContentLinearizer.Linearize(null!));
     }
+
+    // #815 — the least obvious consequence of a nullable entry title, and the most dangerous.
+    // string.Join renders a null title as an EMPTY STRING, i.e. a BLANK LINE. A blank line is
+    // exactly the block separator the citation substrate and the review rules split on (ADR 0093
+    // §D8). An unguarded null title would therefore inject a PHANTOM BLOCK BOUNDARY into the very
+    // evidence a CV verdict is cited from — the engine fabricating structure inside its own proof.
+    [Fact]
+    public void Linearize_SectionEntryWithoutTitle_DoesNotInjectAPhantomBlockBoundary()
+    {
+        var content = new ResumeContent(
+            new PersonalInfo("Anna Andersson", null, null, null),
+            sections:
+            [
+                new ResumeSection(
+                    "Referenser",
+                    [
+                        new SectionEntry(null, ["Lamnas pa begaran."]),
+                        new SectionEntry("Tidigare chef", ["Kontaktas via mig."]),
+                    ]),
+            ]);
+
+        var text = ResumeContentLinearizer.Linearize(content).Text;
+
+        // The section's own block must stay ONE block: no blank line inside it.
+        var fromHeading = text[text.IndexOf("Referenser", StringComparison.Ordinal)..];
+        var blockEnd = fromHeading.IndexOf("\n\n", StringComparison.Ordinal);
+        var sectionBlock = blockEnd < 0 ? fromHeading : fromHeading[..blockEnd];
+
+        sectionBlock.ShouldContain("Lamnas pa begaran.");
+        sectionBlock.ShouldContain("Tidigare chef");
+        sectionBlock.ShouldContain("Kontaktas via mig.");
+    }
 }

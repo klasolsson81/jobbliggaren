@@ -50,5 +50,14 @@ internal static class GetParsedResumeMapper
                 .Select(e => new ParsedEducationDto(e.Institution, e.Degree, e.Period, e.RawText))
                 .ToList(),
             content.Skills,
-            content.Languages);
+            content.Languages,
+            // #815: free sections travel verbatim — heading and lines exactly as the user wrote
+            // them. Nothing is normalised on the way out; the guide shows them back for approval.
+            content.Sections
+                .Select(s => new ParsedSectionDto(
+                    s.Heading,
+                    s.Entries
+                        .Select(e => new ParsedSectionEntryDto(e.Title, e.Lines))
+                        .ToList()))
+                .ToList());
 }

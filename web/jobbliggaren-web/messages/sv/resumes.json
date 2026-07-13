@@ -315,8 +315,9 @@
       "removeSection": "Ta bort sektion {index}",
       "addEntry": "Lägg till post",
       "noEntries": "Inga poster tillagda.",
-      "entryTitleLabel": "Titel",
+      "entryTitleLabel": "Titel (valfritt)",
       "entryBodyLabel": "Text (valfritt)",
+      "entryHint": "Fyll i titel eller text. Minst ett av fälten behövs.",
       "entryBodyHint": "Skriv en rad per stycke.",
       "removeEntry": "Ta bort post {index}"
     },

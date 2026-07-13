@@ -105,7 +105,8 @@ interface CvCompleteGuideProps {
  * Parsern gissar ALDRIG datum (DQ3-3a) — alla strukturerade datum startar tomma.
  * `periodHint` bär den råa tolkade perioden som en civil ledtråd och strippas ur
  * payloaden. Språk prefyllas namn-only (proficiency sätts NotStated i payloaden —
- * aldrig syntetiserad). Dynamiska sektioner startar tomma (parsern producerar dem inte).
+ * aldrig syntetiserad). Fria sektioner ("Projekt", "Referenser") prefylls sedan #815 —
+ * parsern producerar dem numera i stället för att svälja dem in i sammanfattningen.
  */
 function toFormValues(name: string, content: ParsedContentDto): FormValues {
   return {
@@ -136,7 +137,18 @@ function toFormValues(name: string, content: ParsedContentDto): FormValues {
     })),
     skills: content.skills.map((s) => ({ name: s })),
     languages: content.languages.map((l) => ({ name: l })),
-    sections: [],
+    // #815: fria sektioner ("Projekt", "Referenser") prefylls nu. Tidigare producerade
+    // parsern dem inte alls — de svaldes in i sammanfattningen — så fältet startade tomt
+    // och användarens projektlista fanns bara som en textklump i profilen. Rubriken är
+    // användarens egen, ordagrant; en post utan titel behåller sin tomma titel (parsern
+    // hittar aldrig på en).
+    sections: content.sections.map((section) => ({
+      heading: section.heading,
+      entries: section.entries.map((entry) => ({
+        title: entry.title ?? "",
+        body: entry.lines.join("\n"),
+      })),
+    })),
   };
 }
 
@@ -1415,17 +1427,23 @@ function SectionCard({
       <div className="jp-guide__cards">
         {entries.fields.map((entryField, entryIndex) => (
           <div key={entryField.id} className="jp-guide__subentry">
+            {/* Regeln bor på POST-nivå, inte på fältet: ingetdera fältet är obligatoriskt
+                för sig — minst ett av dem måste fyllas i (#815, Resume.SectionEntryEmpty). */}
+            <p className="jp-guide__hint">{tr("experience.entryHint")}</p>
             <div className="jp-guide__field">
+              {/* #815: titeln är INTE obligatorisk. En post kan bära bara text
+                  ("Referenser / Lämnas på begäran."), och parsern hittar aldrig på en
+                  rubrik (ADR 0071). Stod asterisken och `required` kvar hade vi flyttat
+                  rubrik-uppfinnandet från motorn till användaren — precis det model-
+                  ändringen skulle ta bort. Regeln (titel ELLER text) hör hemma på
+                  post-nivå, och zod-refinen ytar den där. */}
               <Label htmlFor={`guide-section-${index}-entry-${entryIndex}-title`}>
                 {tr("experience.entryTitleLabel")}
-                <span aria-hidden="true" className="text-danger-600">{" *"}</span>
               </Label>
               <Input
                 id={`guide-section-${index}-entry-${entryIndex}-title`}
                 {...register(`sections.${index}.entries.${entryIndex}.title`)}
                 maxLength={200}
-                required
-                aria-required={true}
                 disabled={disabled}
               />
             </div>

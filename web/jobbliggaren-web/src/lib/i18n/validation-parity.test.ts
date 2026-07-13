@@ -32,7 +32,7 @@ describe("validation i18n-paritet (sv ↔ en)", () => {
       "resume.languageNameRequired",
       "resume.languageNameMax",
       "resume.sectionHeadingRequired",
-      "resume.sectionEntryTitleRequired",
+      "resume.sectionEntryEmpty",
       "resume.sectionEntryTooLong",
     ];
     const sv = new Set(leafPaths(svValidation));

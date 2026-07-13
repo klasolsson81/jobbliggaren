@@ -105,6 +105,21 @@ export const parsedEducationDtoSchema = z.object({
 });
 export type ParsedEducationDto = z.infer<typeof parsedEducationDtoSchema>;
 
+/** En post i en fri sektion (#815). `title` är null när posten saknar rubrik — parsern
+ *  hittar aldrig på en. */
+export const parsedSectionEntryDtoSchema = z.object({
+  title: z.string().nullable(),
+  lines: z.array(z.string()),
+});
+
+/** En sektion CV:t har som inte är någon av de sex typade ("Projekt", "Referenser").
+ *  `heading` är användarens egen rad, ordagrant — innehåll, inte en diskriminator. */
+export const parsedSectionDtoSchema = z.object({
+  heading: z.string(),
+  entries: z.array(parsedSectionEntryDtoSchema),
+});
+export type ParsedSectionDto = z.infer<typeof parsedSectionDtoSchema>;
+
 export const parsedContentDtoSchema = z.object({
   contact: parsedContactDtoSchema,
   profile: z.string().nullable(),
@@ -112,6 +127,10 @@ export const parsedContentDtoSchema = z.object({
   educations: z.array(parsedEducationDtoSchema),
   skills: z.array(z.string()),
   languages: z.array(z.string()),
+  // Deploy-skew-tolerant (samma mönster som `gaps`/`isIgnorable`): en äldre backend
+  // utelämnar nyckeln, och ett parse-artefakt skrivet före #815 saknar den i sin
+  // krypterade JSON. Bägge landar som [] — aldrig ett kraschat schema.
+  sections: z.array(parsedSectionDtoSchema).nullish().transform((v) => v ?? []),
 });
 export type ParsedContentDto = z.infer<typeof parsedContentDtoSchema>;
 

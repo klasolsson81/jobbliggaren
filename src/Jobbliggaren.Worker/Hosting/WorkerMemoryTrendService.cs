@@ -67,8 +67,14 @@ public sealed partial class WorkerMemoryTrendService(
                 {
                     sampler.Sample();
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
+                    // Shutdown only. WITHOUT the filter, a stray OCE from inside Sample()
+                    // would rethrow into the outer catch, which reads any OCE as "graceful
+                    // shutdown" and returns — the sampler would then be silently dead for the
+                    // rest of the host's life, with no log line saying so (code-reviewer,
+                    // #754). Filtered, a non-shutdown OCE falls to the generic catch below:
+                    // logged, loop continues.
                     throw;
                 }
                 catch (Exception ex)
@@ -77,7 +83,27 @@ public sealed partial class WorkerMemoryTrendService(
                     // guards internally; this catch is last-resort so this
                     // hosted service can NEVER stop the Worker host regardless
                     // of what future change might land inside Sample().
-                    LogTickFailed(logger, ex);
+                    //
+                    // The inner try is not paranoia. This is the LAST handler:
+                    // an exception escaping here faults ExecuteAsync, and the
+                    // default BackgroundServiceExceptionBehavior is StopHost —
+                    // the Worker dies, taking every Hangfire job with it. The
+                    // realistic way to reach this catch is a failing log sink
+                    // (MEL aggregates provider exceptions and rethrows), and in
+                    // that case LogTickFailed would throw for exactly the same
+                    // reason — so an un-nested handler would be no guard at all
+                    // in precisely the scenario it exists for. You cannot log a
+                    // logging failure; you can refuse to die of one.
+                    try
+                    {
+                        LogTickFailed(logger, ex);
+                    }
+                    catch (Exception)
+                    {
+                        // Terminal by design. Keep ticking: the next sample may
+                        // well succeed, and a telemetry component must never be
+                        // able to fault the process it monitors (Nygard).
+                    }
                 }
             }
         }

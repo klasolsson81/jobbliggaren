@@ -68,22 +68,56 @@ public sealed partial class IngestionThroughputReporter(
     /// </summary>
     public void Report(string source, string jobType, int fetched, double durationSec)
     {
-        var opts = options.Value;
-        if (fetched < opts.MinItemsForVerdict || durationSec <= 0)
+        try
         {
-            // Non-qualifying run: NO verdict, NO itemsPerMinute field anywhere.
-            // Silence is the correct signal here — see class doc.
-            return;
+            var opts = options.Value;
+            if (fetched < opts.MinItemsForVerdict || durationSec <= 0)
+            {
+                // Non-qualifying run: NO verdict, NO itemsPerMinute field anywhere.
+                // Silence is the correct signal here — see class doc.
+                return;
+            }
+
+            var itemsPerMinute = fetched * 60.0 / durationSec;
+            LogThroughput(logger, source, jobType, fetched, durationSec, itemsPerMinute);
+
+            if (itemsPerMinute < opts.FloorItemsPerMinute)
+            {
+                LogBelowFloor(logger, source, jobType, fetched, durationSec, itemsPerMinute, opts.FloorItemsPerMinute);
+            }
         }
-
-        var itemsPerMinute = fetched * 60.0 / durationSec;
-        LogThroughput(logger, source, jobType, fetched, durationSec, itemsPerMinute);
-
-        if (itemsPerMinute < opts.FloorItemsPerMinute)
+        catch (Exception ex)
         {
-            LogBelowFloor(logger, source, jobType, fetched, durationSec, itemsPerMinute, opts.FloorItemsPerMinute);
+            // Stability invariant (CTO bind #754 Q1) — a telemetry component must never be
+            // able to fault the process it monitors. The memory sampler got this guard twice
+            // and the reporter got it zero times (dotnet-architect, #754).
+            //
+            // It is load-bearing HERE specifically: in SyncPlatsbankenSnapshotJob the call sits
+            // between LogCompleted and auditor.RecordAsync, on a path with NO `finally`. MEL
+            // aggregates provider exceptions and rethrows, and the Seq sink IS wired
+            // (config-gated on Seq:ServerUrl) — so a sink failure here would drop the
+            // JobAdsSynced audit row entirely AND fail the Hangfire job, forcing a full
+            // ~47k-item re-run of an ingestion that actually SUCCEEDED.
+            try
+            {
+                LogReportFailed(logger, ex);
+            }
+            catch (Exception)
+            {
+                // Terminal, and the whole point of nesting: if the SINK is what threw, the
+                // handler that reports the failure throws for the same reason — an un-nested
+                // guard would let the exception escape exactly as if there were no guard at
+                // all, in precisely the scenario the guard exists for. You cannot log a logging
+                // failure. Losing a throughput verdict is acceptable; losing the audit row and
+                // re-running a successful 47k-item ingestion is not.
+                // Pinned by Report_WhenTheLogSinkItselfThrows_DoesNotPropagate.
+            }
         }
     }
+
+    [LoggerMessage(EventId = 6203, Level = LogLevel.Warning,
+        Message = "IngestionThroughputReporter: failed to emit the throughput verdict — the SYNC ITSELF SUCCEEDED, only this measurement was lost. See docs/runbooks/performance-measurement.md §C.")]
+    private static partial void LogReportFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(EventId = 6201, Level = LogLevel.Information,
         Message = "IngestionThroughput: source={Source}, jobType={JobType}, fetched={Fetched}, durationSec={DurationSec}, itemsPerMinute={ItemsPerMinute}.")]

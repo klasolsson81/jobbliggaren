@@ -428,7 +428,11 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(IngestionThroughputOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
-        services.AddScoped<
+        // Singleton, inte Scoped: reportern är stateless (IOptions + ILogger). Samplern, som
+        // FAKTISKT bär state, är också singleton — lifetime ska spegla state, annars signalerar
+        // den "per-request-state" till nästa läsare (dotnet-architect, #754). Singleton→Scoped-
+        // injektion är alltid laglig, så båda sync-jobben (Scoped) kan konsumera den.
+        services.AddSingleton<
             Jobbliggaren.Application.JobAds.Jobs.Common.IngestionThroughputReporter>();
 
         // F2-P8c: Application-orchestrator-jobb. Konsumeras av Hangfire via

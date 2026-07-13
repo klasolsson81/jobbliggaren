@@ -419,3 +419,32 @@ export const cvImprovementDtoSchema = z.object({
   changes: z.array(proposedChangeDtoSchema),
 });
 export type CvImprovementDto = z.infer<typeof cvImprovementDtoSchema>;
+
+/** Yrkesstyrda sektionsförslag för Slutför-guidens "Lägg till sektion" (8b.4a, ADR 0107).
+ * MEDVETET utanför `cvImprovementDtoSchema`: ett sektionsförslag är ingen `ProposedChange`
+ * — det har inget Before, inget After och ingen transform, alltså ingen diff. En egen
+ * läs-slice, inte en ändring i förbättrings-pipelinen.
+ *
+ * `branschgrupp` är en STABIL slug (`it`/`vard`/`skola`/`ovriga`) — nyttolasten bär ingen
+ * UI-etikett (paritet `cvTemplateCatalogDto`). `heading` är däremot INNEHÅLL, inte krom:
+ * det är rubriken som skrivs IN i användarens CV, och backend garanterar att parsning-
+ * lexikonet känner igen den (annars sväljs sektionens text vid nästa import, #815). Därför
+ * kommer den från servern och inte från `messages/sv.json`. */
+export const sectionSuggestionDtoSchema = z.object({
+  sectionId: z.string(),
+  heading: z.string(),
+  isStandard: z.boolean(),
+});
+export type SectionSuggestionDto = z.infer<typeof sectionSuggestionDtoSchema>;
+
+/** `hasOccupationPreference` skiljer TVÅ tomma lägen som aldrig får slås ihop: `false` =
+ * användaren har inte angett något yrke (visa generisk rad OCH fråga efter yrket); `true`
+ * med `branschgrupp: "ovriga"` = hon HAR angett ett yrke, det landar bara i de 17 områden
+ * som saknar egen regeltabell (62,1 %-majoriteten) — samma förslag, men fråga INTE igen. */
+export const cvSectionSuggestionsDtoSchema = z.object({
+  branschgrupp: z.string(),
+  hasOccupationPreference: z.boolean(),
+  rationale: z.string(),
+  suggestions: z.array(sectionSuggestionDtoSchema),
+});
+export type CvSectionSuggestionsDto = z.infer<typeof cvSectionSuggestionsDtoSchema>;

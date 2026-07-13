@@ -5596,6 +5596,94 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
 }
+
+/* ── Yrkesstyrda sektionsförslag — .jp-sectionsuggest (Fas 4b 8b.4a, ADR 0107) ──
+   Ingen ny token: komponerar --jp-accent-50/-700, --jp-ink-1/-2, --jp-border(-soft),
+   --jp-r-sm/-pill. Chippen ÄRVER .jp-chip:s civic-form (outline, pill-radie, caption,
+   mixed-case) men är en riktig <button> — en yta som LÄGGER TILL något måste se
+   klickbar ut, inte som en läs-etikett. Ingen gradient, ingen skugga, ingen fyllning
+   utöver den accent-50-tint som markerar "rekommenderad" (DESIGN.md; §5). */
+.jp-sectionsuggest {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--jp-accent-50);
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-sm);
+}
+.jp-sectionsuggest__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.jp-sectionsuggest__title {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-ink-1);
+}
+/* Motiveringen ("Vanligt inom vård och omsorg") är kunskapsbankens text, inte en
+   status → ingen pill-dot, ingen versalisering. Bara en dämpad bisats. */
+.jp-sectionsuggest__badge {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+.jp-sectionsuggest__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.jp-sectionsuggest__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* ≥32px hit-area via padding (WCAG 2.5.8) — den synliga ikonen förblir 14px. */
+  padding: 6px 12px;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
+  line-height: 1.4;
+  color: var(--jp-ink-1);
+  background: var(--jp-surface-1);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-pill);
+  cursor: pointer;
+  max-width: 100%;
+}
+.jp-sectionsuggest__chip:hover:not(:disabled) {
+  border-color: var(--jp-accent-700);
+  color: var(--jp-accent-700);
+}
+.jp-sectionsuggest__chip:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.jp-sectionsuggest__chiplabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* "Rekommenderas" = handoffens "extra standardsektion": den här sektionen FÖRVÄNTAS
+   i yrket, till skillnad från de bara vanliga. Bär sitt påstående i TEXT, aldrig i
+   färg ensam (WCAG 1.4.1). accent-800 (ej -700) — -700 skiftar ljus mint i mörkt
+   tema; -800 är tema-stabil. */
+.jp-sectionsuggest__tag {
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-accent-800);
+  white-space: nowrap;
+}
+.jp-sectionsuggest__prompt {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+
 /* Container-drivet, inte viewport-drivet (CTO Q2). Med railen på plats är huvudytan
    ~830px vid 1280 — en @media på VIEWPORT-bredden vet ingenting om det och kunde
    tvinga fram två spalter i en kolumn som inte rymmer dem. auto-fit + minmax mäter

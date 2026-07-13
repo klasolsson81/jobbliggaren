@@ -5,6 +5,7 @@ import { CvCompleteGuide } from "./cv-complete-guide";
 import type {
   ParsedContentDto,
   ParseConfidenceDto,
+  CvSectionSuggestionsDto,
 } from "@/lib/dto/parsed-resume";
 import type { ResumeContentDto } from "@/lib/types/resumes";
 import type { ActionResult } from "@/lib/actions/resumes";
@@ -56,16 +57,34 @@ function makeContent(overrides: Partial<ParsedContentDto> = {}): ParsedContentDt
   };
 }
 
-function renderGuide(content: ParsedContentDto) {
+function renderGuide(
+  content: ParsedContentDto,
+  sectionSuggestions: CvSectionSuggestionsDto | null = null,
+) {
   return render(
     <CvCompleteGuide
       parsedId={PARSED_ID}
       sourceFileName="cv.pdf"
       content={content}
       confidence={CONFIDENCE}
+      sectionSuggestions={sectionSuggestions}
     />,
   );
 }
+
+/** Vård-nyttolasten servern skickar för en undersköterska (8b.4a). Rubrikerna är
+ *  backendens — de skrivs IN i CV:t och backend har redan bevisat att parsning-lexikonet
+ *  känner igen dem. */
+const VARD_SUGGESTIONS: CvSectionSuggestionsDto = {
+  branschgrupp: "vard",
+  hasOccupationPreference: true,
+  rationale: "Vanligt inom vård och omsorg",
+  suggestions: [
+    { sectionId: "legitimation", heading: "Legitimation och intyg", isStandard: true },
+    { sectionId: "kurser", heading: "Kurser och intyg", isStandard: false },
+    { sectionId: "korkort", heading: "Körkort", isStandard: false },
+  ],
+};
 
 beforeEach(() => {
   promoteMock.mockReset();
@@ -947,5 +966,147 @@ describe("CvCompleteGuide — markeringen skriver inte över statusen (#815, des
     // Varningen får inte skrivas över av markeringen — det steget BLOCKERAR sparandet
     // och får aldrig bära produktens success-färg.
     expect(indicator).toHaveAttribute("data-status", "attention");
+  });
+});
+
+describe("CvCompleteGuide — yrkesstyrda sektionsförslag (8b.4a, ADR 0107)", () => {
+  async function gotoSections(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(
+      screen.getByRole("button", { name: /Erfarenhet och utbildning/ }),
+    );
+  }
+
+  it("föreslår yrkets sektioner med kunskapsbankens motivering, och markerar standardsektionen", async () => {
+    const user = userEvent.setup();
+    renderGuide(makeContent(), VARD_SUGGESTIONS);
+    await gotoSections(user);
+
+    expect(screen.getByText("Föreslagna sektioner")).toBeInTheDocument();
+    // Motiveringen kommer från assetet, inte från i18n — samma proveniens-regel som
+    // ProposedChange.rationale (ingen prosa som motorn hittat på).
+    expect(screen.getByText("Vanligt inom vård och omsorg")).toBeInTheDocument();
+
+    // Extra standardsektionen bär "Rekommenderas" i TEXT, aldrig i färg ensam (WCAG 1.4.1).
+    const legitimation = screen.getByRole("button", {
+      name: /Lägg till sektionen Legitimation och intyg/,
+    });
+    expect(within(legitimation).getByText("Rekommenderas")).toBeInTheDocument();
+
+    // De bara-vanliga bär den inte.
+    const korkort = screen.getByRole("button", {
+      name: /Lägg till sektionen Körkort/,
+    });
+    expect(within(korkort).queryByText("Rekommenderas")).not.toBeInTheDocument();
+  });
+
+  it("lägger till sektionen med backendens rubrik när ett förslag klickas — och förslaget försvinner", async () => {
+    const user = userEvent.setup();
+    renderGuide(makeContent(), VARD_SUGGESTIONS);
+    await gotoSections(user);
+
+    await user.click(
+      screen.getByRole("button", { name: /Lägg till sektionen Legitimation och intyg/ }),
+    );
+
+    // Rubriken skrivs in EXAKT som backend angav den. Den är inte kosmetika: en rubrik
+    // segmenteraren inte känner igen får sin text uppslukad av föregående sektion vid
+    // nästa import (#815). FE hittar därför aldrig på en egen.
+    const heading = document.querySelector<HTMLInputElement>(
+      "#guide-section-0-heading",
+    );
+    expect(heading?.value).toBe("Legitimation och intyg");
+
+    // Förslaget är borta — härlett ur live-formuläret, inte ur ett separat "tillagt"-state
+    // som kunde divergera.
+    expect(
+      screen.queryByRole("button", { name: /Lägg till sektionen Legitimation och intyg/ }),
+    ).not.toBeInTheDocument();
+    // Syskonen står kvar.
+    expect(
+      screen.getByRole("button", { name: /Lägg till sektionen Körkort/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("frågar efter yrket NÄR det saknas — generisk rad + väg in i matchningsinställningarna", async () => {
+    // Tomt läge (1): hon har aldrig sagt vad hon jobbar med (handoff-regel (d)).
+    const user = userEvent.setup();
+    renderGuide(makeContent(), {
+      branschgrupp: "ovriga",
+      hasOccupationPreference: false,
+      rationale: "Vanliga sektioner i svenska CV",
+      suggestions: [
+        { sectionId: "kurser", heading: "Kurser", isStandard: false },
+        { sectionId: "korkort", heading: "Körkort", isStandard: false },
+      ],
+    });
+    await gotoSections(user);
+
+    // Övriga är en FÖRSTKLASSIG rad, inte ett hål — förslagen finns.
+    expect(
+      screen.getByRole("button", { name: /Lägg till sektionen Kurser/ }),
+    ).toBeInTheDocument();
+    // …och hon får vägen in till att förbättra dem.
+    expect(
+      screen.getByRole("link", { name: "Till matchningsinställningar" }),
+    ).toHaveAttribute("href", "/installningar");
+  });
+
+  it("frågar INTE efter yrket när hon redan angett ett som landar i Övriga", async () => {
+    // Tomt läge (2), 62,1 %-majoriteten. SAMMA branschgrupp som testet ovan, SAMMA förslag
+    // — bara flaggan skiljer. Det är hela poängen: om de två lägena slogs ihop till ett
+    // "är det Övriga?"-villkor vore det här testet och det förra omöjliga att skilja åt,
+    // och hon skulle få frågan om sitt yrke igen trots att hon redan svarat.
+    const user = userEvent.setup();
+    renderGuide(makeContent(), {
+      branschgrupp: "ovriga",
+      hasOccupationPreference: true,
+      rationale: "Vanliga sektioner i svenska CV",
+      suggestions: [
+        { sectionId: "kurser", heading: "Kurser", isStandard: false },
+        { sectionId: "korkort", heading: "Körkort", isStandard: false },
+      ],
+    });
+    await gotoSections(user);
+
+    expect(
+      screen.getByRole("button", { name: /Lägg till sektionen Kurser/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Till matchningsinställningar" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renderar den generiska panelen oförändrad när förslagen inte kunde hämtas", async () => {
+    // Förslagen är RÅDGIVANDE. En trasig förslagsrad får aldrig blockera det som faktiskt
+    // är uppgiften — att slutföra CV:t. Fri rubrik finns kvar, precis som före 8b.4a.
+    const user = userEvent.setup();
+    renderGuide(makeContent(), null);
+    await gotoSections(user);
+
+    expect(screen.queryByText("Föreslagna sektioner")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Lägg till sektion$/ }));
+    const heading = document.querySelector<HTMLInputElement>(
+      "#guide-section-0-heading",
+    );
+    expect(heading).not.toBeNull();
+    expect(heading?.value).toBe("");
+  });
+
+  it("visar inte en sektion CV:t redan bär — servern har redan filtrerat bort den", async () => {
+    // Regel (a): filen vinner alltid. Servern matchar synonymer via lexikonet ("Kurser och
+    // intyg" ≡ `kurser`) — det kan inte FE, och ska inte försöka.
+    const user = userEvent.setup();
+    renderGuide(makeContent(), {
+      ...VARD_SUGGESTIONS,
+      suggestions: VARD_SUGGESTIONS.suggestions.filter((s) => s.sectionId !== "kurser"),
+    });
+    await gotoSections(user);
+
+    expect(
+      screen.queryByRole("button", { name: /Lägg till sektionen Kurser och intyg/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Lägg till sektionen Legitimation och intyg/ }),
+    ).toBeInTheDocument();
   });
 });

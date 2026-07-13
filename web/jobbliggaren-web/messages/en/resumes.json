@@ -252,7 +252,9 @@
     "railNavLabel": "Steps in the guide",
     "stepPosition": "Step {step} of {total}",
     "railStatusDone": "done",
-    "railStatusTodo": "not done yet",
+    "railStatusRemaining": "{count, plural, one {# task left} other {# tasks left}}",
+    "railStatusAttention": "{count, plural, one {# error needs fixing} other {# errors need fixing}}",
+    "fixFields": "Some details need fixing. They are marked below.",
     "steps": {
       "details": "Details",
       "experience": "Experience and education",
@@ -294,7 +296,6 @@
       "ongoingLabel": "Ongoing",
       "ongoingHint": "The end date is hidden while the role is ongoing.",
       "dateMissing": "Date missing",
-
       "dateConfirm": "Confirm dates",
       "removeExperience": "Remove experience {index}",
       "educationHeading": "Education",
@@ -331,12 +332,16 @@
       "languagesAddLabel": "Add language",
       "languagesEmpty": "No languages added.",
       "removeLanguage": "Remove {name}",
-      "add": "Add"
+      "add": "Add",
+      "editChip": "Edit {name}",
+      "saveChip": "Save change"
     },
     "save": {
       "intro": "Review and save. The source file is kept untouched.",
       "summaryDone": "Done",
       "summaryRemaining": "{count, plural, one {# task left} other {# tasks left}}",
+      "summaryBlocked": "{count, plural, one {# error needs fixing} other {# errors need fixing}}",
+      "remainingOptional": "You can save anyway. The remaining details are optional, and you can fill them in later.",
       "summaryJump": "Go to {step}",
       "nameLabel": "CV name",
       "nameHint": "The name is only for you and is never shown to employers.",

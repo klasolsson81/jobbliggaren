@@ -997,3 +997,131 @@ Räkne-exempel: korpus 56k aktiva, förväntad första-körning ~10k archive ≈
 - ADR 0049 (TD-13 C2 `IUserDataKeyStore`-port-paritet)
 - ADR 0062 (FTS-hybrid + `IJobAdSearchQuery`-port — ApplyCriteria-filter dokumenteras i ADR 0062-amendment 2026-05-23)
 - TD-86 not 2026-05-23 — korpus-storlek-delen (recall-gap punkt 1 m.fl.) löses indirekt av denna amendment via retention; TD-86 förblir öppen för övriga sök/filter-fynd
+
+---
+
+## Amendment 2026-07-12 — §8's retention model is not what the code implements (#824)
+
+**Status:** Accepted. **Trigger:** #824 (DPIA truth-sync) surfaced three defects in §8's own account of
+itself, all verified empirically against real Postgres (Testcontainers). This amendment records the
+truth; the code conformance work is tracked in #841/#842/#845 and is **not** done here.
+
+### A1 — "indefinitively för sanitized fields" is false. Seven of them self-destruct after 30 days.
+
+§8 states the retention model as *"30 dagar för `raw_payload`, **indefinitively för sanitized fields**"*
+and reasons that total null-out is safe because only *debug value* is at stake (CTO-rond 2026-05-13,
+punkt 8).
+
+**Seven "sanitized fields" are STORED generated columns derived from `raw_payload`.** Postgres
+**recomputes** a stored generated column on every UPDATE of its base, so `PurgeStaleRawPayloadsJob`
+nulls all seven. They do not survive indefinitely; they survive 30 days.
+
+**The blast-radius question was never asked — across four separate migrations, over 48 days.** The
+columns did not arrive together, and it matters that the record is exact here (an earlier draft of this
+amendment claimed they landed in one migration "the same day" as the CTO ruling; that was transcribed
+from a review without verification and is **false** — precisely the failure mode this whole issue exists
+to correct, so it is corrected in place rather than quietly):
+
+| Migration | Date | Generated columns added |
+|---|---|---|
+| `20260513111555_F2P9JobAdSearchColumns` | 2026-05-13 | `ssyk_concept_id`, `region_concept_id` |
+| `20260608155047_F6P6JobAdKlass1SearchColumns` | 2026-06-08 | `occupation_group_concept_id`, `municipality_concept_id` |
+| `20260608205054_F6P7JobAdKlass2SearchColumns` | 2026-06-08 | `employment_type_concept_id`, `worktime_extent_concept_id` |
+| `20260630144631_AddJobAdOrganizationNumber` | 2026-06-30 | `organization_number` |
+
+The first two landed the **same day** as the 2026-05-13 ruling that chose total null-out on the grounds
+that only debug value was at stake. The remaining five — including `organization_number`, the column
+that *causes* #824 — landed **26 and 48 days later**. So this is not one unlucky coincidence: **each new
+durable projection was hung off a base column already known to be purged, and nobody re-asked the
+question.** That is the real lesson, and it is a worse one.
+
+**Consequences (all proven, not inferred):** an ad that is **still Active** but published >30 days ago
+disappears from facet-filtered search and from per-user background matching (both filter on those
+columns), is missed by the company-watch location filter (#834), and can no longer be attributed to an
+employer in the application-history projection (#824). Root cause + fix: **#841** — materialise the
+seven as ordinary, C#-written ingest columns, exactly as `extracted_terms` already is (twelve lines
+below them in `JobAdConfiguration`, and it survives the purge).
+
+**Rejected remedy, recorded so it is not re-proposed:** exempting Active/still-listed ads from the
+purge. That subordinates a GDPR minimisation control to a search-correctness need, and ADR 0049
+Beslut 3 leans on this purge to justify excluding `raw_payload` from the DEK envelope. *You do not
+weaken a data-protection control to paper over a schema mistake* (senior-cto-advisor, 2026-07-12).
+
+#### A1.1 — The seven are NOT one loss. The asymmetry is the most useful fact in this amendment.
+
+**The six facet columns are only ever read under `Status == JobAdStatus.Active`** — verified at every
+consumer: `JobAdSearchComposition.cs:65`, `PerUserJobAdSearchQuery.cs:307,368`,
+`BackgroundMatchingJob.cs:145`, `CompanyWatchScanJob.cs:156`,
+`ListCompanyWatchesQueryHandler.cs:99`, `SuggestJobAdTermsQueryHandler.cs:39`. An ad that leaves the
+Platsbanken feed is **Archived at 03:15** by `RetainPlatsbankenJobAdsJob` (ADR 0032-amendment
+2026-05-23) — *before* the 04:30 purge destroys its columns. **So for a DELISTED ad, the facet loss is
+inert: no code path will ever read those columns again.**
+
+**`organization_number` is different, and it is the only real loss.**
+`GetEmployerApplicationHistoryQueryHandler` `GroupJoin`s `db.JobAds` with **no `Status` predicate** —
+an archived ad still joins, so its org.nr is genuinely load-bearing for #444/#446 employer
+attribution. When the purge nulls it on a delisted ad, that attribution is **gone forever** (no
+backfill exists — see the recovery paths closed in
+`docs/reviews/2026-07-12-824-dpia-archived-ad-architect.md`).
+
+**Two distinct defects follow, and they must not be conflated:**
+
+| | Affected ad | Consequence |
+|---|---|---|
+| **Live degradation** (the reason #841 is P1) | **ACTIVE**, published >30d ago, still in the feed | Facets NULL ~21.5h/day → the ad drops out of facet-filtered search + matching. **Self-heals at 02:00, breaks again at 04:30, daily.** |
+| **Permanent loss** | **DELISTED** (Archived), published >30d ago | Six facet columns: **inert** (no reader). `organization_number`: **irrecoverable** — employer attribution for that application is lost forever. |
+
+**Consequence for scheduling (senior-cto-advisor bind, 2026-07-12):** the permanent loss accrues nightly,
+but in a currency that is worthless until real users exist — the applications it would attribute are
+dev/test rows. **#841 is therefore P1, NOT P0 — gated on production launch:** it **must** merge before the
+first `v*` tag / before any real user can submit an application. `ALTER TABLE … DROP EXPRESSION` (PG13+)
+converts the columns in place, **preserving whatever is populated on landing day**, so #841 *is* its own
+salvage and an interim salvage table was rejected (it would replicate a possibly-personnummer org.nr into
+a second at-rest location — the same Art. 5(1)(c) ground on which #445 was downgraded — to rescue data
+with no current reader).
+
+### A2 — the retention rule is "30 days after the ad leaves the feed", not "30 days after publication".
+
+`SyncPlatsbankenSnapshotJob` (cron `0 2 * * *`) is a **daily full backfill** and
+`UpsertExternalJobAdCommandHandler` has **no unchanged/hash short-circuit** — it always calls
+`UpdateFromSource`, which rewrites `RawPayload`. So for any ad still present in the Platsbanken feed the
+02:00 sync **restores** the payload that the 04:30 purge nulled, indefinitely.
+
+Retaining the sanitized payload of a currently-live, publicly-listed ad has a live purpose, so the
+**behaviour is substantively defensible** under Art. 5(1)(e). What is not defensible is that §8 documents
+a rule the code does not implement (Art. 5(2)/24 accountability). Tracked: **#845**.
+
+*Note:* this daily rewrite is also why the A1 defect presents as a ~21.5h/day outage rather than a
+permanent one — the sync accidentally heals the seven columns for ~2.5h each night. **Do not "fix" that
+by suppressing the rewrite:** it would make the columns NULL *permanently* after the first purge,
+converting an intermittent defect into a permanent one.
+
+### A3 — both PII mitigations §8 relies on are largely ineffective against the PII they target.
+
+§8's risk register presents two controls against recruiter PII: the ingest **allowlist sanitizer** and
+this **30-day purge**. Neither works against the form the PII actually takes.
+
+- The sanitizer strips the **structured key** (`employer.contact_email`) but the allowlist
+  **deliberately retains every free-text surface** (`description`, `description_text`, `text`,
+  `company_information`, `needs`, `requirements`, `salary_description`). A recruiter's address written
+  into the ad body ("Skicka CV till anna@acme.se" — the exact case `PlatsbankenJobSource`'s own
+  SECURITY-NOTE describes) survives sanitisation. **It strips the field, not the address.**
+- The purge nulls `raw_payload` — but the identical free text also lives in the **ordinary column
+  `job_ads.description`**, which nothing purges, and remains FTS-searchable via `search_vector`
+  (generated from `title || description`, not from `raw_payload`). The purge deletes a **duplicate** and
+  leaves the original.
+
+**Consequence:** `RecruiterPiiPurger.RedactByEmailAsync` — the *only* Art. 17 erasure path for recruiter
+PII — probes `raw_payload @> {"employer":{"contact_email": …}}`, a key ingest **guarantees is absent**.
+It returns `rowsAffected = 0` structurally, always. Tracked: **#842** (P1, **launch-gate** — no `v*` prod
+tag until fixed; the real fix is at **ingest**, Art. 25, not at the erasure path).
+
+**Knock-on:** ADR 0087 D8(a) justifies plaintext org.nr partly on *"raw_payload är redan plaintext,
+ADR 0032 §8 — PII stripped at ingest"*. **That supporting pillar is false.** D8(a)'s accept-risk survives
+on its own merits (org.nr is genuinely public employer data), but the false pillar is withdrawn from the
+reasoning rather than silently retained.
+
+### Referenser
+- Reviews: `docs/reviews/2026-07-12-824-dpia-archived-ad-security.md` · `-cto.md`
+- Issues: #824 (DPIA truth) · #841 (root cause) · #842 (Art. 17 erasure) · #845 (retention rule) · #843 (test-fiction pattern)
+- DPIA #456 §8 (amended 2026-07-12) · ADR 0087 D1/D8(a) · ADR 0049 Beslut 3 · ADR 0090 D1

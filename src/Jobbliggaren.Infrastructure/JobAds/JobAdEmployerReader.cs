@@ -18,7 +18,9 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// post-Select <c>.Value</c> form fail at runtime); <c>job_ads</c> is unbounded, so the status-batch
 /// "load-all-then-client-filter" escape does not apply. <see cref="RelationalQueryableExtensions.FromSql"/>
 /// parameterizes the <c>Guid[]</c> (<c>= ANY(@p)</c>, injection-safe, NOT concatenation — CLAUDE.md §5),
-/// composes with the global soft-delete query filter (retracted ads are absent from the map), and the
+/// composes with the global soft-delete query filter (which is VACUOUS — <c>JobAd.DeletedAt</c> has no
+/// writer, #821 — so retracted/archived ads are NOT absent from the map; what actually yields a null
+/// org.nr is the raw_payload purge recomputing the generated column, #824/#841), and the
 /// <c>EF.Property</c> shadow projection stays server-side. InMemory hides both the translation and the
 /// generated column, so the Testcontainers integration tests are the oracle (same memory).
 /// </para>

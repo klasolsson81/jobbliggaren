@@ -110,6 +110,24 @@ public class EfCoreLoggingConfigurationTests
 
     [Theory]
     [MemberData(nameof(Hosts))]
+    public void HostConfiguration_EfInfrastructureCategory_StillSurfacesTheSensitiveDataTripwire(string host)
+    {
+        var logger = BuildLogger(host, EfInfrastructureCategory);
+
+        // EF's own SensitiveDataLoggingEnabledWarning is emitted at Warning in THIS category.
+        // The runbook's PII guard-rail (§D) leans on that tripwire: if anyone ever turns
+        // EnableSensitiveDataLogging on, EF says so in the log. Setting this category to None
+        // would silence the tripwire while leaving every "not enabled at Information" assertion
+        // above green — the guard-rail would then be resting on a warning that can no longer
+        // fire. Warning is the floor here, not an accident.
+        logger.IsEnabled(LogLevel.Warning).ShouldBeTrue(
+            $"{host}: this category must stay at Warning, not None — it carries EF's " +
+            "SensitiveDataLoggingEnabledWarning, the tripwire that would tell us someone " +
+            "enabled EnableSensitiveDataLogging (docs/runbooks/performance-measurement.md §D).");
+    }
+
+    [Theory]
+    [MemberData(nameof(Hosts))]
     public void HostConfiguration_EfMigrationsCategory_RemainsEnabledAtInformation(string host)
     {
         var logger = BuildLogger(host, EfMigrationsCategory);

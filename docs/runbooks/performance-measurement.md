@@ -103,20 +103,50 @@ Read the result against ADR 0045 Beslut 1 — but read it as a *component* cost,
 the budgets are stated per **handler** (server-side handler latency, which is what
 `LoggingBehavior` measures), not per statement. A slow statement is a lead, not a breach.
 
+### Where a measurement session may run
+
+> **Loopback Seq only.** Run a measurement session against your local
+> `Seq:ServerUrl=http://localhost:5341` and nowhere else.
+
+Never enable the per-query signal in staging, in production, or against any shared
+`Seq:ServerUrl`. Production points at the self-hosted EU Seq (ADR 0050), and turning this on
+there would stream every statement's SQL text into a sink whose retention and access controls
+are still open work. The env-var form below exists for a **local container**, not for a
+deployed one.
+
 ### Turning it off
 
-Delete the `appsettings.Local.json` entry (or unset the env var) and restart the host. Leaving
-it on is not harmful in a short dev session, but it will drown the next sync you run.
+Delete the `appsettings.Local.json` entry (or unset the env var) and restart the host. On
+loopback, leaving it on for a short session is harmless; it will still drown the next sync you
+run.
+
+Note the provider-scoped variant, because it hides itself: `Logging:Seq:LogLevel:<category>`
+turns a category up **only for the Seq sink**, leaving the console quiet. Someone can enable
+the flood without seeing any sign of it in the terminal they are watching. If Seq looks noisy
+and the console does not, look there.
 
 ### PII guard-rail — read before you widen the logging
 
-> **Never enable `EnableSensitiveDataLogging` to obtain parameter values.**
+> **Redaction protects parameter *values*. It does not protect anything inlined as a
+> *literal*, which is logged verbatim in the command text.**
 
-EF redacts parameters by default (`@p0='?'`), and that redaction is load-bearing. These SQL
-statements carry CV content, parsed CV text, e-mail addresses and tokens — all of which
-CLAUDE.md §5 forbids logging in plaintext, and all of which would land in Seq. A measurement
-session needs **durations**, not **values**. If you find yourself wanting the parameter values
-to reproduce a query, reproduce it against seeded data instead.
+Seq stores the full `commandText` (the §D query above groups by it). EF redacts parameters by
+default (`@p0='?'`) and that redaction is load-bearing — these statements carry CV content,
+parsed CV text, e-mail addresses and tokens, all of which CLAUDE.md §5 forbids logging in
+plaintext. **A measurement session needs durations, not values.**
+
+`EnableSensitiveDataLogging` is the obvious way to defeat that, and it is forbidden. It is not
+the only way, and the others are easier to reach from *this* document:
+
+| Do not | Why it defeats redaction |
+|---|---|
+| `EnableSensitiveDataLogging` | Logs every parameter value verbatim. Not config-bindable (a code call) — keep it that way. |
+| **`TranslateParameterizedCollectionsToConstants`** | An EF **performance** option — one search away for anyone reading a **performance** runbook. It inlines every element of a collection as a SQL literal. Our collections carry **organisation numbers**, and for an enskild firma the organisation number **is a personnummer** — §5's highest-priority red line, reached without touching `EnableSensitiveDataLogging` at all. |
+| `EF.Constant(...)` | Forces a value to be inlined as a literal instead of parameterised. |
+| `FromSqlRaw($"...")` with interpolation | Bakes the interpolated value into the command text. (There are none in `src/` today. Keep it that way.) |
+
+If you want parameter values in order to reproduce a query, reproduce it against **seeded**
+data instead. Never widen the logging to get them.
 
 ---
 

@@ -1047,6 +1047,39 @@ purge. That subordinates a GDPR minimisation control to a search-correctness nee
 Beslut 3 leans on this purge to justify excluding `raw_payload` from the DEK envelope. *You do not
 weaken a data-protection control to paper over a schema mistake* (senior-cto-advisor, 2026-07-12).
 
+#### A1.1 — The seven are NOT one loss. The asymmetry is the most useful fact in this amendment.
+
+**The six facet columns are only ever read under `Status == JobAdStatus.Active`** — verified at every
+consumer: `JobAdSearchComposition.cs:65`, `PerUserJobAdSearchQuery.cs:307,368`,
+`BackgroundMatchingJob.cs:145`, `CompanyWatchScanJob.cs:156`,
+`ListCompanyWatchesQueryHandler.cs:99`, `SuggestJobAdTermsQueryHandler.cs:39`. An ad that leaves the
+Platsbanken feed is **Archived at 03:15** by `RetainPlatsbankenJobAdsJob` (ADR 0032-amendment
+2026-05-23) — *before* the 04:30 purge destroys its columns. **So for a DELISTED ad, the facet loss is
+inert: no code path will ever read those columns again.**
+
+**`organization_number` is different, and it is the only real loss.**
+`GetEmployerApplicationHistoryQueryHandler` `GroupJoin`s `db.JobAds` with **no `Status` predicate** —
+an archived ad still joins, so its org.nr is genuinely load-bearing for #444/#446 employer
+attribution. When the purge nulls it on a delisted ad, that attribution is **gone forever** (no
+backfill exists — see the recovery paths closed in
+`docs/reviews/2026-07-12-824-dpia-archived-ad-architect.md`).
+
+**Two distinct defects follow, and they must not be conflated:**
+
+| | Affected ad | Consequence |
+|---|---|---|
+| **Live degradation** (the reason #841 is P1) | **ACTIVE**, published >30d ago, still in the feed | Facets NULL ~21.5h/day → the ad drops out of facet-filtered search + matching. **Self-heals at 02:00, breaks again at 04:30, daily.** |
+| **Permanent loss** | **DELISTED** (Archived), published >30d ago | Six facet columns: **inert** (no reader). `organization_number`: **irrecoverable** — employer attribution for that application is lost forever. |
+
+**Consequence for scheduling (senior-cto-advisor bind, 2026-07-12):** the permanent loss accrues nightly,
+but in a currency that is worthless until real users exist — the applications it would attribute are
+dev/test rows. **#841 is therefore P1, NOT P0 — gated on production launch:** it **must** merge before the
+first `v*` tag / before any real user can submit an application. `ALTER TABLE … DROP EXPRESSION` (PG13+)
+converts the columns in place, **preserving whatever is populated on landing day**, so #841 *is* its own
+salvage and an interim salvage table was rejected (it would replicate a possibly-personnummer org.nr into
+a second at-rest location — the same Art. 5(1)(c) ground on which #445 was downgraded — to rescue data
+with no current reader).
+
 ### A2 — the retention rule is "30 days after the ad leaves the feed", not "30 days after publication".
 
 `SyncPlatsbankenSnapshotJob` (cron `0 2 * * *`) is a **daily full backfill** and

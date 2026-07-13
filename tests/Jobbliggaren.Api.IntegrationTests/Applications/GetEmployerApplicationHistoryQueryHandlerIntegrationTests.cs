@@ -1,7 +1,6 @@
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationHistory;
 using Jobbliggaren.Application.Common.Abstractions;
-using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 using Jobbliggaren.Domain.Applications;
@@ -11,7 +10,6 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -77,23 +75,49 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
     }
 
     /// <summary>
-    /// Runs the REAL <see cref="PurgeStaleRawPayloadsJob"/> — the production write path — rather than a
-    /// hand-rolled UPDATE. Driving the real job is deliberate (#843): the defect this test class now
-    /// pins survived precisely because the old test hand-seeded a state the production path never
-    /// produces.
+    /// Applies the purge's EXACT production write (<c>raw_payload := null</c>, the same
+    /// <c>ExecuteUpdateAsync</c> shape as <see cref="PurgeStaleRawPayloadsJob"/>) to ONE ad, and first
+    /// asserts that the real job's own cutoff predicate would in fact select that ad — reading the
+    /// BOUND <see cref="JobSourceRetentionOptions"/> from DI, not a compile-time default. So if anyone
+    /// raises <c>JobTech:RawPayloadRetentionDays</c>, this fails loudly instead of quietly pinning a
+    /// horizon production no longer uses.
+    ///
+    /// <para>
+    /// <b>Why not simply call <c>job.RunAsync()</c>?</b> Because it is a TABLE-WIDE
+    /// <c>ExecuteUpdateAsync</c> over every ad past the cutoff, and this suite runs against a SHARED
+    /// <c>[Collection("Api")]</c> Postgres in which several classes seed ads at FIXED dates far beyond
+    /// the horizon (e.g. <c>2026-01-01</c> in ListJobAdsStatusFilterOracleTests / MyMatchesSurfaceTests /
+    /// JobsWatermarkSurfaceTests). Running the real job would silently null THEIR raw_payload — and thus
+    /// their generated columns — with the damage depending on execution order
+    /// (<c>reference_api_integration_shared_db_contamination</c>). No cutoff can exclude them: they are
+    /// OLDER than this test's ad, not younger.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>This is NOT the fiction we just deleted.</b> The removed test hand-wrote
+    /// <c>UPDATE job_ads SET deleted_at = …</c> — a state with ZERO writers in <c>src/</c>, which
+    /// production can never reach. The write below is <b>byte-for-byte the write the purge job performs</b>
+    /// (<c>SetProperty(j =&gt; j.RawPayload, _ =&gt; null)</c>); only its SCOPE is narrowed, from "every ad past
+    /// the cutoff" to "this ad, which the cutoff provably covers". The state is production-reachable, the
+    /// horizon is production-bound, and the job's own predicate is separately pinned by
+    /// <c>PurgeStaleRawPayloadsJobTests</c>.
+    /// </para>
     /// </summary>
-    private static async Task RunRealPurgeJobAsync(
-        IServiceProvider sp, AppDbContext db, IDateTimeProvider clock, CancellationToken ct)
+    private static async Task PurgeThisAdsPayloadAsync(
+        IServiceProvider sp, AppDbContext db, IDateTimeProvider clock, JobAd ad, CancellationToken ct)
     {
-        var job = new PurgeStaleRawPayloadsJob(
-            db,
-            clock,
-            Options.Create(new JobSourceRetentionOptions()), // default RawPayloadRetentionDays = 30
-            sp.GetRequiredService<ISystemEventAuditor>(),
-            NullLogger<PurgeStaleRawPayloadsJob>.Instance);
+        var retentionDays = sp.GetRequiredService<IOptions<JobSourceRetentionOptions>>()
+            .Value.RawPayloadRetentionDays;
+        var cutoff = clock.UtcNow.AddDays(-retentionDays);
 
-        await job.RunAsync(ct);
-        await db.SaveChangesAsync(ct);
+        ad.PublishedAt.ShouldBeLessThan(
+            cutoff,
+            $"the real purge job selects PublishedAt < cutoff (retention {retentionDays}d); if this fails "
+            + "the seeded ad no longer sits past the horizon and the test would prove nothing");
+
+        await db.JobAds
+            .Where(j => j.Id == ad.Id && j.RawPayload != null)
+            .ExecuteUpdateAsync(s => s.SetProperty(j => j.RawPayload, _ => null), ct);
     }
 
     /// <summary>Reads the ad's status, soft-delete tombstone and STORED org.nr shadow column.</summary>
@@ -342,8 +366,10 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
     //
     // The real mechanism: `organization_number` is a STORED generated column derived from raw_payload,
     // and PurgeStaleRawPayloadsJob nulls raw_payload 30 days after PublishedAt -> Postgres recomputes
-    // the column to NULL -> the row is dropped. Both tests below drive the PRODUCTION path (the real
-    // Archive() domain method; the real purge job), never a hand-seeded state.
+    // the column to NULL -> the row is dropped. Both tests below reach their state through PRODUCTION
+    // writes: the real Archive() domain method, and the purge job's own ExecuteUpdate (scoped to one
+    // provably-eligible ad — see PurgeThisAdsPayloadAsync for why the table-wide job cannot be run
+    // against the shared Api Postgres). Never a state that has no writer in src/.
 
     [Fact]
     public async Task Handle_ArchivedButRecentAd_IsStillAttributed()
@@ -392,10 +418,9 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
         (await CreateHandler(db, userId).Handle(Query, ct)).Count
             .ShouldBe(1, "precondition: before the purge the application IS attributed");
 
-        // Run the REAL PurgeStaleRawPayloadsJob (production path, not a hand-rolled UPDATE). Safe
-        // against the shared [Collection("Api")] Postgres: no other Api test seeds an ad older than
-        // 5 days, so the 30-day cutoff can only select this one.
-        await RunRealPurgeJobAsync(scope.ServiceProvider, db, clock, ct);
+        // Apply the purge's exact production write, scoped to this ad (see the helper for why the
+        // table-wide job cannot be run against the shared Api Postgres).
+        await PurgeThisAdsPayloadAsync(scope.ServiceProvider, db, clock, ad, ct);
         db.ChangeTracker.Clear();
 
         // The ad is untouched as a row — still Active, still not deleted...

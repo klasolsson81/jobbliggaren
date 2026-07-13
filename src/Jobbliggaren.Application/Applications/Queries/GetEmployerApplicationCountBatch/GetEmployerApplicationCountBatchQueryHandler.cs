@@ -39,9 +39,11 @@ namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationCo
 /// nulls <c>raw_payload</c> 30 days after <c>PublishedAt</c>, and Postgres then RECOMPUTES that column
 /// to NULL. So an ARCHIVED but recent ad still counts (archival hides no row — <c>JobAd.DeletedAt</c>
 /// has no writer in <c>src/</c> and its filter is vacuous, #821), while an ACTIVE but old ad does not.
-/// Worse, until #841 lands the value <b>thrashes daily</b> (02:00 full-backfill restores
-/// <c>raw_payload</c>, 04:30 purge nulls it) — so the same application is counted for ~2.5h/day and
-/// not for the other ~21.5h, which makes the number the user is shown NON-DETERMINISTIC. That is the
+/// Worse, until #841 lands the value <b>thrashes daily for an ad still listed in the Platsbanken feed</b>
+/// (the 02:00 full-backfill sync rewrites <c>raw_payload</c>; the 04:30 purge nulls it again) — so the
+/// same application is counted for ~2.5h/day and not for the other ~21.5h, which makes the number the
+/// user is shown NON-DETERMINISTIC. (An ad that has LEFT the feed does not thrash: it is never rewritten,
+/// so its org.nr is permanently NULL.) That is the
 /// substance of #824's Art. 5(1)(d) finding: <c>"Du har {count} tidigare ansökningar till detta
 /// företag"</c> is an unhedged factual claim to the data subject about her own data, and it is not
 /// reliably true. The copy is hedged in #824 PR 4; the root cause is fixed in #841.
@@ -110,6 +112,10 @@ public sealed class GetEmployerApplicationCountBatchQueryHandler(
             .SelectMany(
                 x => x.ja.DefaultIfEmpty(),
                 (x, j) => j != null ? EF.Property<string?>(j, "OrganizationNumber") : null)
+            // #824: the silent undercount. An application whose ad has aged past the raw_payload horizon
+            // has a NULL org.nr and drops out here. It stays (the copy is hedged in #824 PR 4; the root
+            // cause dies in #841). Do NOT recover it by matching on CompanyName: a name-guessed overcount
+            // would tell the user she has already applied to a company she may never have applied to.
             .Where(orgNr => orgNr != null)
             .ToListAsync(cancellationToken);
 

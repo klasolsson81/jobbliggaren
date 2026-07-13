@@ -6,7 +6,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationHistory;
 
 /// <summary>
-/// #444 (ADR 0087 D2 read-model; DPIA #456) — projects the signed-in user's OWN application history
+/// #444 (ADR 0087 D2 read-model; DPIA #456; ADR 0090 D1 — the GO ruling + Art. 6(1)(b) basis, which is
+/// the ONLY thing D1 actually says here; it carries no archived-ad passage, see #824) — projects the
+/// signed-in user's OWN application history
 /// grouped by employer org.nr. Owner-scoped on <c>JobSeekerId</c> (resolved from <c>ICurrentUser</c>,
 /// never the wire — M2 / IDOR). JOINs applications to public <c>job_ads</c> to read the employer
 /// org.nr (STORED shadow column <c>"OrganizationNumber"</c>, ADR 0087 D1) and the company name at
@@ -73,11 +75,13 @@ public sealed class GetEmployerApplicationHistoryQueryHandler(
 
         // Owner-scoped submitted applications joined to their employer identity on public job_ads.
         // GroupJoin + SelectMany(DefaultIfEmpty) mirrors GetApplicationsQueryHandler's proven-
-        // translatable LEFT JOIN over the nullable-struct FK (ADR 0048). NOTE: the ad row is NOT what
-        // goes missing -- an archived (or even soft-deleted-in-name-only) ad still joins. What goes
-        // missing is the org.nr VALUE, once the purge nulls raw_payload and Postgres recomputes the
-        // generated column to NULL (see the type remarks + #824). j is therefore almost never null;
-        // OrgNr is. OrgNr is the STORED "OrganizationNumber" shadow column read SERVER-SIDE to group
+        // translatable LEFT JOIN over the nullable-struct FK (ADR 0048). NOTE: for a JobAd-LINKED
+        // application, the ad row is NOT what goes missing -- archiving an ad does not hide it (#821).
+        // What goes missing is the org.nr VALUE, once the purge nulls raw_payload and Postgres
+        // recomputes the generated column to NULL (see the type remarks + #824). j IS still null for a
+        // manually-logged application (JobAdId == null) -- that case is real and separately tested; it
+        // is simply not the archived-ad case the old docs conflated it with.
+        // OrgNr is the STORED "OrganizationNumber" shadow column read SERVER-SIDE to group
         // on; Status is a value-converted SmartEnum projected WHOLE (its .Name is
         // read in memory, never in the expression tree). Bounded to one user's own submitted
         // applications (no pagination v1, parity ListCompanyWatches). Unlike a curated company-watch

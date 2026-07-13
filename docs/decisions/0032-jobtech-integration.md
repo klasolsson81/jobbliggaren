@@ -1012,14 +1012,28 @@ truth; the code conformance work is tracked in #841/#842/#845 and is **not** don
 and reasons that total null-out is safe because only *debug value* is at stake (CTO-rond 2026-05-13,
 punkt 8).
 
-**That reasoning was correct when written and was invalidated the same day.** Migration
-`20260513111555_F2P9JobAdSearchColumns` made seven of those "sanitized fields" **STORED generated
-columns derived from `raw_payload`** (`organization_number`, `municipality_concept_id`,
-`ssyk_concept_id`, `region_concept_id`, `occupation_group_concept_id`, `employment_type_concept_id`,
-`worktime_extent_concept_id`). Postgres **recomputes** a stored generated column on every UPDATE of its
-base, so `PurgeStaleRawPayloadsJob` nulls all seven. They do not survive indefinitely; they survive
-30 days. Two decisions, one day, never reconciled — the purge's blast radius was assessed against a
-schema that was changing underneath it.
+**Seven "sanitized fields" are STORED generated columns derived from `raw_payload`.** Postgres
+**recomputes** a stored generated column on every UPDATE of its base, so `PurgeStaleRawPayloadsJob`
+nulls all seven. They do not survive indefinitely; they survive 30 days.
+
+**The blast-radius question was never asked — across four separate migrations, over 48 days.** The
+columns did not arrive together, and it matters that the record is exact here (an earlier draft of this
+amendment claimed they landed in one migration "the same day" as the CTO ruling; that was transcribed
+from a review without verification and is **false** — precisely the failure mode this whole issue exists
+to correct, so it is corrected in place rather than quietly):
+
+| Migration | Date | Generated columns added |
+|---|---|---|
+| `20260513111555_F2P9JobAdSearchColumns` | 2026-05-13 | `ssyk_concept_id`, `region_concept_id` |
+| `20260608155047_F6P6JobAdKlass1SearchColumns` | 2026-06-08 | `occupation_group_concept_id`, `municipality_concept_id` |
+| `20260608205054_F6P7JobAdKlass2SearchColumns` | 2026-06-08 | `employment_type_concept_id`, `worktime_extent_concept_id` |
+| `20260630144631_AddJobAdOrganizationNumber` | 2026-06-30 | `organization_number` |
+
+The first two landed the **same day** as the 2026-05-13 ruling that chose total null-out on the grounds
+that only debug value was at stake. The remaining five — including `organization_number`, the column
+that *causes* #824 — landed **26 and 48 days later**. So this is not one unlucky coincidence: **each new
+durable projection was hung off a base column already known to be purged, and nobody re-asked the
+question.** That is the real lesson, and it is a worse one.
 
 **Consequences (all proven, not inferred):** an ad that is **still Active** but published >30 days ago
 disappears from facet-filtered search and from per-user background matching (both filter on those

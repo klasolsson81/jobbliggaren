@@ -1,7 +1,6 @@
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationCountBatch;
 using Jobbliggaren.Application.Common.Abstractions;
-using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 using Jobbliggaren.Domain.Applications;
@@ -11,7 +10,6 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -76,22 +74,40 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
     }
 
     /// <summary>
-    /// Runs the REAL <see cref="PurgeStaleRawPayloadsJob"/> — the production write path — rather than a
-    /// hand-rolled UPDATE. Deliberate (#843): the defect these tests now pin survived precisely because
-    /// the old test hand-seeded a state the production path never produces.
+    /// Applies the purge's EXACT production write (<c>raw_payload := null</c>, the same
+    /// <c>ExecuteUpdateAsync</c> shape as <see cref="PurgeStaleRawPayloadsJob"/>) to ONE ad, first
+    /// asserting that the real job's cutoff predicate would select it — reading the BOUND
+    /// <see cref="JobSourceRetentionOptions"/> from DI, never a compile-time default.
+    ///
+    /// <para>
+    /// The table-wide job itself is NOT run: it would null <c>raw_payload</c> for every ad past the
+    /// cutoff in the SHARED <c>[Collection("Api")]</c> Postgres, and several classes seed ads at fixed
+    /// dates far beyond it (<c>2026-01-01</c> and later). No cutoff can exclude them — they are OLDER
+    /// than this ad, not younger.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>This is not the fiction we deleted.</b> That test hand-wrote <c>UPDATE job_ads SET deleted_at</c>
+    /// — a state with ZERO writers in <c>src/</c>. This is byte-for-byte the purge job's own write, merely
+    /// scoped to one provably-eligible ad. Production-reachable state, production-bound horizon; the job's
+    /// predicate is pinned separately by <c>PurgeStaleRawPayloadsJobTests</c>.
+    /// </para>
     /// </summary>
-    private static async Task RunRealPurgeJobAsync(
-        IServiceProvider sp, AppDbContext db, IDateTimeProvider clock, CancellationToken ct)
+    private static async Task PurgeThisAdsPayloadAsync(
+        IServiceProvider sp, AppDbContext db, IDateTimeProvider clock, JobAd ad, CancellationToken ct)
     {
-        var job = new PurgeStaleRawPayloadsJob(
-            db,
-            clock,
-            Options.Create(new JobSourceRetentionOptions()), // default RawPayloadRetentionDays = 30
-            sp.GetRequiredService<ISystemEventAuditor>(),
-            NullLogger<PurgeStaleRawPayloadsJob>.Instance);
+        var retentionDays = sp.GetRequiredService<IOptions<JobSourceRetentionOptions>>()
+            .Value.RawPayloadRetentionDays;
+        var cutoff = clock.UtcNow.AddDays(-retentionDays);
 
-        await job.RunAsync(ct);
-        await db.SaveChangesAsync(ct);
+        ad.PublishedAt.ShouldBeLessThan(
+            cutoff,
+            $"the real purge job selects PublishedAt < cutoff (retention {retentionDays}d); if this fails "
+            + "the seeded ad no longer sits past the horizon and the test would prove nothing");
+
+        await db.JobAds
+            .Where(j => j.Id == ad.Id && j.RawPayload != null)
+            .ExecuteUpdateAsync(s => s.SetProperty(j => j.RawPayload, _ => null), ct);
     }
 
     /// <summary>Seeds one application. finalStatus null → left as Draft (never applied, AppliedAt null).</summary>
@@ -375,7 +391,9 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
     // These two replace `Handle_ExcludesApplicationsToRetractedAds`, which soft-deleted the prior ad
     // with raw SQL and asserted it was not counted. JobAd.DeletedAt has NO writer in src/ (#821), so
     // that test pinned an unreachable state, stayed green forever, and its false model was then written
-    // into the handler docs and DPIA #456 as fact. See #843. Both tests below drive the PRODUCTION path.
+    // into the handler docs and DPIA #456 as fact. See #843. Both tests below reach their state through
+    // PRODUCTION writes: the real Archive() domain method, and the purge job's own ExecuteUpdate (scoped
+    // to one provably-eligible ad — see PurgeThisAdsPayloadAsync).
 
     [Fact]
     public async Task Handle_CountsPriorApplication_WhenItsAdWasArchivedButIsRecent()
@@ -432,9 +450,9 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
             .CountsByJobAdId[pageAd.Id.Value]
             .ShouldBe(1, "precondition: before the purge the prior application IS counted");
 
-        // Run the REAL PurgeStaleRawPayloadsJob. Safe against the shared [Collection("Api")] Postgres:
-        // no other Api test seeds an ad older than 5 days, so the 30-day cutoff selects only this one.
-        await RunRealPurgeJobAsync(scope.ServiceProvider, db, clock, ct);
+        // Apply the purge's exact production write, scoped to this ad (see the helper for why the
+        // table-wide job cannot be run against the shared Api Postgres).
+        await PurgeThisAdsPayloadAsync(scope.ServiceProvider, db, clock, priorStale, ct);
         db.ChangeTracker.Clear();
 
         // The prior ad is still Active and still present — only its org.nr was recomputed to NULL.

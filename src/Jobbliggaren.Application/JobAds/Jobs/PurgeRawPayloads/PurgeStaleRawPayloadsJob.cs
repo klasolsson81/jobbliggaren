@@ -28,12 +28,22 @@ namespace Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 /// (<c>organization_number</c>, <c>municipality_concept_id</c>, <c>ssyk_concept_id</c>,
 /// <c>region_concept_id</c>, <c>occupation_group_concept_id</c>, <c>employment_type_concept_id</c>,
 /// <c>worktime_extent_concept_id</c> — see <c>JobAdConfiguration</c>). Postgres RECOMPUTES a stored
-/// generated column on every UPDATE of its base, so this job silently nulls all seven. Consequences,
-/// all proven against real Postgres: facet-filtered search and per-user background matching lose the
-/// ad (they filter on those columns), the company-watch scan's location filter misses it, and the
-/// employer application-history projection can no longer attribute the application. This job's own
-/// stated purpose says nothing about any of that — which is exactly why the defect survived two
-/// releases. Root cause fixed in #841 (materialise the seven as ordinary, C#-written ingest columns);
+/// generated column on every UPDATE of its base, so this job silently nulls all seven. Known consumers,
+/// all of which therefore degrade for an ad past the horizon:
+/// <list type="bullet">
+/// <item><c>JobAdSearchComposition</c> / <c>JobAdSearchQuery</c> — facet-filtered search drops the ad;</item>
+/// <item><c>PerUserJobAdSearchQuery</c> — per-user background matching drops it;</item>
+/// <item><c>CompanyWatchScanJob</c> — the followed-company location filter misses it;</item>
+/// <item><c>GetEmployerApplicationHistory</c> / <c>GetEmployerApplicationCountBatch</c> — the
+/// application can no longer be attributed to an employer (#824);</item>
+/// <item><b><c>CreateApplicationFromJobAdCommandHandler</c> — the worst one: it FREEZES
+/// <c>MunicipalityConceptId</c> into <c>AdSnapshot</c> at apply time, so applying to an
+/// already-purged ad captures a permanent NULL into the snapshot that was built to outlive the ad;</b></item>
+/// <item><c>GetActivityReportQueryHandler</c>.</item>
+/// </list>
+/// This job's own stated purpose says nothing about any of that — which is exactly why the defect
+/// survived four separate column additions (see the ADR 0032 §8-amendment 2026-07-12). Root cause is
+/// fixed in #841 (materialise the seven as ordinary, C#-written ingest columns);
 /// do NOT "fix" it by exempting ads from the purge (that subordinates a GDPR minimisation control to
 /// a search-correctness need — senior-cto-advisor, 2026-07-12).
 /// </para>

@@ -1,7 +1,4 @@
 using System.Buffers;
-using System.Collections.Frozen;
-using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.Resumes.Abstractions;
 using Jobbliggaren.Domain.Resumes;
@@ -17,7 +14,7 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 /// derive an explainable per-section + document confidence (OQ5). Nothing is
 /// synthesised — every field is what was found or honestly absent.
 /// </summary>
-internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
+internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData lexicon) : IResumeSegmenter
 {
     private const int MaxSkills = 200;
     private const int MaxLanguages = 50;
@@ -30,22 +27,13 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     // call. Do not restate this as "lossless" — it is not.
     private const int MaxSections = 30;
 
-    // Reference data: immutable, loaded ONCE by CvParsingLexicon — the single owner (8b.4a). This
-    // class used to load and shape the JSON itself; the lexicon now also answers a second question
-    // ("which canonical section is this heading?", for the recommendation asset), and one knowledge
-    // piece gets one home. These aliases keep the call sites below unchanged.
-    private static FrozenDictionary<string, ParsedSectionKind> HeadingMap => CvParsingLexicon.HeadingMap;
-
-    private static FrozenSet<string> SwedishHints => CvParsingLexicon.SwedishHints;
-
-    private static FrozenSet<string> EnglishHints => CvParsingLexicon.EnglishHints;
-
-    // #428: CV-title banners ("Curriculum Vitae", "Meritförteckning", "CV", ...) that must NOT
-    // be read as the person's name.
-    private static FrozenSet<string> NameBanners => CvParsingLexicon.NameBanners;
-
-    // #815: the labels that introduce a city ("Ort:", "Bostadsort:", "Location:").
-    private static FrozenSet<string> LocationLabels => CvParsingLexicon.LocationLabels;
+    // The lexicon, injected (8b.4a). This class used to load and shape the JSON itself in a static
+    // ctor. Two things were wrong with that: the load fired on FIRST PARSE — inside a user's CV
+    // import, so a broken asset was an HTTP 500 rather than a failed boot — and the class was
+    // untestable against anything but the shipped asset. It is now ONE DI-registered value, shared
+    // with ICvParsingLexicon, so RECOGNITION and section-id RESOLUTION cannot disagree.
+    private readonly CvParsingLexiconData _lexicon =
+        lexicon ?? throw new ArgumentNullException(nameof(lexicon));
 
     public ResumeSegmentationResult Segment(string rawText)
     {
@@ -66,7 +54,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         // city rung reads ONLY contact scope (contact block + preamble): an employer's city inside
         // an experience entry must never become the person's home (see ContactLocationExtractor).
         var contactScope = ContactScopeLines(preamble, blocks);
-        var location = ContactLocationExtractor.Extract(rawText, contactScope, LocationLabels);
+        var location = ContactLocationExtractor.Extract(rawText, contactScope, _lexicon.LocationLabels);
 
         var contact = new ParsedContact(fullName, email, phone, location);
 
@@ -116,7 +104,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         string Heading,
         string? InlineContent = null);
 
-    private static List<HeadingHit> DetectHeadings(string[] lines)
+    private List<HeadingHit> DetectHeadings(string[] lines)
     {
         var headings = new List<HeadingHit>();
         for (var i = 0; i < lines.Length; i++)
@@ -183,7 +171,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     // True when the line normalises to a known section heading, out-ing the matched (normalised,
     // structural-evidence-only) form. Single-sources the HeadingMap lookup for both whole-line
     // detection and inline "heading: content" splitting (#421).
-    private static bool TryMatchHeading(string line, out ParsedSectionKind? kind, out string matched)
+    private bool TryMatchHeading(string line, out ParsedSectionKind? kind, out string matched)
     {
         matched = NormalizeHeading(line);
         if (matched.Length == 0)
@@ -192,7 +180,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
             return false;
         }
 
-        if (HeadingMap.TryGetValue(matched, out var typed))
+        if (_lexicon.HeadingMap.TryGetValue(matched, out var typed))
         {
             kind = typed;
             return true;
@@ -208,7 +196,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         // ParsedSection.Heading must stay the user's own line. The id exists for the RECOMMENDATION
         // side (ICvParsingLexicon), which needs to ask "does this CV already have that section?".
         // Membership is unchanged: the flattened synonym union is identical to v3.
-        if (CvParsingLexicon.FreeSectionIdByHeading.ContainsKey(matched))
+        if (_lexicon.FreeSectionIdByHeading.ContainsKey(matched))
         {
             kind = null;
             return true;
@@ -225,10 +213,11 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     /// </summary>
     private static string HeadingTextOf(string line) => line.Trim().TrimEnd(':', '.', ' ', '\t');
 
-    // THE single normalizer lives with the lexicon it normalizes (8b.4a): the lexicon's stored
-    // entries and a CV's heading lines must pass through the SAME function, or a heading silently
-    // stops matching. Two copies of it was a latent bug waiting for one of them to be edited.
-    private static string NormalizeHeading(string line) => CvParsingLexicon.NormalizeHeading(line);
+    // THE normalizer lives with the lexicon it normalizes (8b.4a). Every heading the lexicon
+    // STORES and every heading line a CV PRESENTS goes through this one function — including the
+    // TYPED variants, which previously got a bare ToLowerInvariant() and would therefore have gone
+    // DEAD if anyone had added one with a trailing colon or a double space.
+    private static string NormalizeHeading(string line) => CvParsingLexiconLoader.NormalizeHeading(line);
 
     /// <summary>
     /// Splits the document into the six TYPED blocks (keyed by kind) and the FREE sections
@@ -334,7 +323,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
         Dictionary<ParsedSectionKind, string> blocks, ParsedSectionKind kind) =>
         blocks.TryGetValue(kind, out var text) && text.Length > 0 ? text : null;
 
-    private static string? DetectName(
+    private string? DetectName(
         IReadOnlyList<string> preamble, Dictionary<ParsedSectionKind, string> blocks)
     {
         // The name is conventionally the first substantial line at the top of a CV
@@ -365,7 +354,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
     // a CV is document metadata, not the person's name — skip it so DetectName does not return
     // the banner as FullName (which also inflated ContactConfidence via hasName). Banners are
     // versioned lexicon data (§5), matched after the same NormalizeHeading pass headings use.
-    private static bool IsNameBanner(string line) => NameBanners.Contains(NormalizeHeading(line));
+    private bool IsNameBanner(string line) => _lexicon.NameBanners.Contains(NormalizeHeading(line));
 
     private static bool IsNameLike(string line)
     {
@@ -593,15 +582,15 @@ internal sealed partial class HeadingDrivenResumeSegmenter : IResumeSegmenter
 
     // ── Language detection (F4-8 scope; English analysis deferred to F4-9) ──
 
-    private static ResumeLanguage DetectLanguage(string text)
+    private ResumeLanguage DetectLanguage(string text)
     {
         var swedish = 0;
         var english = 0;
         foreach (var word in Tokenize(text))
         {
-            if (SwedishHints.Contains(word))
+            if (_lexicon.SwedishHints.Contains(word))
                 swedish++;
-            if (EnglishHints.Contains(word))
+            if (_lexicon.EnglishHints.Contains(word))
                 english++;
         }
 

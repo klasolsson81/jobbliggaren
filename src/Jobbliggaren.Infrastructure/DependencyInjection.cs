@@ -604,13 +604,16 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.ICvLayoutAnalyzer,
             Resumes.Parsing.PdfPigCvLayoutAnalyzer>();
+        // Fas 4b 8b.4a — the lexicon is loaded ONCE, HERE, and registered as a value. Two
+        // consequences worth stating: (1) a broken asset throws during host build, not inside a
+        // user's CV import (the static-ctor form it replaced would have surfaced as a
+        // TypeInitializationException → HTTP 500, cached for the life of the process); (2) the
+        // segmenter and the recommendation port receive the SAME instance, so RECOGNITION ("is this
+        // a heading?") and RESOLUTION ("WHICH canonical section is it?") cannot disagree.
+        services.AddSingleton(Resumes.Parsing.CvParsingLexiconLoader.Load());
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.IResumeSegmenter,
             Resumes.Parsing.HeadingDrivenResumeSegmenter>();
-        // Fas 4b 8b.4a — the lexicon's RECOGNITION vocabulary as a port. The segmenter answers
-        // "is this a heading?"; this answers "WHICH canonical section is it?" — the question a
-        // section-recommendation asset must ask before suggesting a section the CV already has.
-        // Same single load (CvParsingLexicon), so the two can never disagree.
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.ICvParsingLexicon,
             Resumes.Parsing.CvParsingLexiconProvider>();

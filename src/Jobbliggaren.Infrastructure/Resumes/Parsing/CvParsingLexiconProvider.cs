@@ -3,28 +3,28 @@ using Jobbliggaren.Application.Resumes.Abstractions;
 namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 
 /// <summary>
-/// <see cref="ICvParsingLexicon"/> over the embedded lexicon (Fas 4b 8b.4a). A thin, stateless
-/// singleton facade on <see cref="CvParsingLexicon"/> — it holds NO data of its own, so the
-/// segmenter and every recommendation consumer are provably reading the same load (parity
-/// <c>RubricProvider</c>, which likewise fronts an immutable loaded contract).
+/// <see cref="ICvParsingLexicon"/> over the loaded lexicon (Fas 4b 8b.4a). Stateless singleton: it
+/// holds the SAME <see cref="CvParsingLexiconData"/> instance the segmenter holds (one DI-registered
+/// value, loaded once at host build), so RECOGNITION and section-id RESOLUTION cannot disagree.
 /// </summary>
-internal sealed class CvParsingLexiconProvider : ICvParsingLexicon
+internal sealed class CvParsingLexiconProvider(CvParsingLexiconData lexicon) : ICvParsingLexicon
 {
-    public int Version => CvParsingLexicon.Version;
+    private readonly CvParsingLexiconData _lexicon =
+        lexicon ?? throw new ArgumentNullException(nameof(lexicon));
 
-    public IReadOnlyCollection<string> SectionIds => CvParsingLexicon.FreeSectionIds;
+    public IReadOnlySet<string> FreeSectionIds => _lexicon.FreeSectionIds;
 
-    public string? TryResolveSectionId(string heading)
+    public string? TryResolveFreeSectionId(string heading)
     {
         ArgumentNullException.ThrowIfNull(heading);
 
         // The lexicon's OWN normaliser — the same one the segmenter's heading detection runs. A
-        // caller-side normalisation could drift from it, and the drift would show up as headings
-        // that segment correctly but resolve to no id (a suggestion the user already satisfied).
-        var normalized = CvParsingLexicon.NormalizeHeading(heading);
+        // caller-side normalisation could drift from it, and the drift would show up as headings that
+        // segment correctly but resolve to no id (a suggestion the user has already satisfied).
+        var normalized = CvParsingLexiconLoader.NormalizeHeading(heading);
 
         return normalized.Length > 0
-            && CvParsingLexicon.FreeSectionIdByHeading.TryGetValue(normalized, out var sectionId)
+            && _lexicon.FreeSectionIdByHeading.TryGetValue(normalized, out var sectionId)
                 ? sectionId
                 : null;
     }

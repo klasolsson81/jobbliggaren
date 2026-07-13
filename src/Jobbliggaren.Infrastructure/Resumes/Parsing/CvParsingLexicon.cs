@@ -2,28 +2,39 @@ using System.Collections.Frozen;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Jobbliggaren.Domain.Resumes.Parsing;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 
 /// <summary>
-/// The ONE owner of the embedded CV-parsing lexicon (F4-8, ADR 0071/0074 — NO AI/LLM). Loads the
-/// versioned JSON once into immutable frozen structures; every consumer reads THESE, never the file.
-///
-/// <para><b>Why this type exists (8b.4a).</b> The lexicon owns <b>RECOGNITION</b>: which strings
-/// denote which section. A downstream asset owns <b>RECOMMENDATION</b>: which sections to suggest
-/// for an occupation. Recommendation must be able to ask "does this CV already have the section I am
-/// about to suggest?" — and before v4 it could not, because free sections were a flat token set with
-/// no identity (<c>certifieringar</c>, <c>certifikat</c> and <c>kurser</c> were three unrelated
-/// strings). The only way to answer without FORKING the synonyms into a second file was to give the
-/// lexicon a canonical <c>sectionId</c> and hand it out through a port. That is v4, and this is its
-/// single load site — two loads would be two owners of one knowledge piece.</para>
-///
-/// <para>Segmentation behaviour is UNCHANGED by v4: the flattened synonym union is byte-identical to
-/// v3 (pinned by <c>CvParsingLexiconIntegrityTests</c>), and the segmenter still asks the same
-/// membership question — it simply gets an id back instead of a bool, and discards it
-/// (<c>ParsedSection.Heading</c> stays the user's own line, verbatim).</para>
+/// The loaded CV-parsing lexicon (F4-8, ADR 0071/0074 — NO AI/LLM): immutable reference data, built
+/// once by <see cref="CvParsingLexiconLoader"/> and injected into every consumer. There is exactly
+/// ONE instance (a DI singleton registered from an already-loaded value), so the segmenter's
+/// RECOGNITION and the port's section-id RESOLUTION are provably reading the same data.
 /// </summary>
-internal static partial class CvParsingLexicon
+internal sealed record CvParsingLexiconData(
+    int Version,
+    FrozenDictionary<string, ParsedSectionKind> HeadingMap,
+    FrozenDictionary<string, string> FreeSectionIdByHeading,
+    FrozenSet<string> FreeSectionIds,
+    FrozenSet<string> SwedishHints,
+    FrozenSet<string> EnglishHints,
+    FrozenSet<string> NameBanners,
+    FrozenSet<string> LocationLabels);
+
+/// <summary>
+/// Loads the versioned embedded lexicon (CLAUDE.md §5 — vocabulary is data, never inline C# strings).
+/// Fails LOUD: a missing resource, a null deserialise, an absent section block or a synonym claimed
+/// by two ids all throw here, at <c>AddCvParsing()</c> — i.e. at host build, never mid-request.
+///
+/// <para><b>Why a loader and not a static class with a static ctor.</b> The first draft of 8b.4a put
+/// the frozen structures in <c>static readonly</c> fields. That loads on FIRST USE, which for a
+/// segmenter is inside a user's CV import: a broken asset would have surfaced as a
+/// <c>TypeInitializationException</c> → HTTP 500, cached for the life of the process, instead of a
+/// failed boot. It also made the segmenter untestable against anything but the shipped asset. This
+/// is the form <c>RubricProvider</c> already uses, and its reason is the same one.</para>
+/// </summary>
+internal static partial class CvParsingLexiconLoader
 {
     private const string ResourceName =
         "Jobbliggaren.Infrastructure.Resumes.Parsing.cv-parsing-lexicon.v1.json";
@@ -31,60 +42,56 @@ internal static partial class CvParsingLexicon
     private static readonly JsonSerializerOptions JsonOptions =
         new() { PropertyNameCaseInsensitive = true };
 
-    /// <summary>
-    /// The lexicon's data version. Before v4 the in-file <c>"version"</c> was read by NOTHING — a
-    /// version nobody binds cannot fail loud on drift. It is bound here so a consumer asset can pin
-    /// the lexicon version it was authored against (the <c>FramesLoader</c> ↔ <c>IVerbMapper</c>
-    /// precedent) and a reshape cannot pass silently.
-    /// </summary>
-    internal static int Version { get; }
-
-    /// <summary>Normalised heading → the typed section it denotes.</summary>
-    internal static FrozenDictionary<string, Domain.Resumes.Parsing.ParsedSectionKind> HeadingMap { get; }
-
-    /// <summary>
-    /// Normalised heading → canonical free-section id (v4). The id is the identity a recommendation
-    /// asset keys on; the segmenter uses only the fact that a lookup SUCCEEDS.
-    /// </summary>
-    internal static FrozenDictionary<string, string> FreeSectionIdByHeading { get; }
-
-    /// <summary>Every canonical free-section id, in lexicon order (deterministic).</summary>
-    internal static FrozenSet<string> FreeSectionIds { get; }
-
-    internal static FrozenSet<string> SwedishHints { get; }
-
-    internal static FrozenSet<string> EnglishHints { get; }
-
-    /// <summary>#428 — CV-title banners ("Curriculum Vitae", "Meritförteckning") that must NOT be
-    /// read as the person's name.</summary>
-    internal static FrozenSet<string> NameBanners { get; }
-
-    /// <summary>#815 — the labels that introduce a city ("Ort:", "Bostadsort:", "Location:").</summary>
-    internal static FrozenSet<string> LocationLabels { get; }
-
-    static CvParsingLexicon()
+    internal static CvParsingLexiconData Load()
     {
-        var file = Load();
+        var assembly = typeof(CvParsingLexiconLoader).Assembly;
+        using var stream = assembly.GetManifestResourceStream(ResourceName)
+            ?? throw new InvalidOperationException(
+                $"Embedded CV-parsing lexicon missing: {ResourceName}. " +
+                "Verify <EmbeddedResource> in Jobbliggaren.Infrastructure.csproj.");
 
-        Version = file.Version;
+        return LoadFrom(stream);
+    }
 
-        var headingMap = new Dictionary<string, Domain.Resumes.Parsing.ParsedSectionKind>(StringComparer.Ordinal);
+    /// <summary>The test seam (parity <c>RubricLoader.LoadFrom</c>): the same build over a synthetic
+    /// lexicon, so the loader's fail-loud rules can be exercised without shipping a broken asset.</summary>
+    internal static CvParsingLexiconData LoadFrom(Stream stream)
+    {
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+
+        var file = JsonSerializer.Deserialize<LexiconFile>(reader.ReadToEnd(), JsonOptions)
+            ?? throw new InvalidOperationException(
+                $"CV-parsing lexicon {ResourceName} deserialized to null.");
+
+        if (file.Version <= 0)
+            throw new InvalidOperationException("CV-parsing lexicon carries no usable \"version\".");
+
+        // Non-nullable in the record, but System.Text.Json leaves a missing key null — so a typo'd
+        // or dropped block would surface as a NullReferenceException deep inside the build below,
+        // with no message. Same fail-loud treatment as the rest (minor, dotnet-architect).
+        if (file.Headings is null or { Count: 0 })
+            throw new InvalidOperationException("CV-parsing lexicon has no \"headings\" block.");
+
+        if (file.LanguageHints is null or { Count: 0 })
+            throw new InvalidOperationException("CV-parsing lexicon has no \"languageHints\" block.");
+
+        if (file.FreeSections is null or { Count: 0 })
+            throw new InvalidOperationException("CV-parsing lexicon has no \"freeSections\" block.");
+
+        var headingMap = new Dictionary<string, ParsedSectionKind>(StringComparer.Ordinal);
         foreach (var (sectionKey, variants) in file.Headings)
         {
-            if (!TryMapSection(sectionKey, out var kind))
-                continue;
+            // An unknown key used to be skipped SILENTLY — so a typo ("experiance") would have made
+            // every "Erfarenhet" heading quietly stop being recognised, in the one class whose whole
+            // thesis is fail-loud single ownership (minor, dotnet-architect).
+            var kind = MapSection(sectionKey);
 
             foreach (var variant in variants)
-                headingMap[variant.ToLowerInvariant()] = kind;
+                headingMap[NormalizeHeading(variant)] = kind;
         }
 
-        HeadingMap = headingMap.ToFrozenDictionary(StringComparer.Ordinal);
-
-        // v4: sectionId -> synonyms, inverted to synonym -> sectionId (the lookup direction every
-        // consumer needs). A synonym claimed by two ids is a lexicon bug, not a last-one-wins:
-        // it would make "which section is this?" depend on JSON key order. Fail loud.
         var freeById = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var (sectionId, synonyms) in file.FreeSections ?? [])
+        foreach (var (sectionId, synonyms) in file.FreeSections)
         {
             foreach (var synonym in synonyms)
             {
@@ -92,39 +99,55 @@ internal static partial class CvParsingLexicon
                 if (normalized.Length == 0)
                     continue;
 
+                // Not a last-one-wins: which section a heading denotes would depend on JSON key
+                // order, and the recommendation side would suppress a suggestion for one id while
+                // the CV was recognised as the other.
                 if (freeById.TryGetValue(normalized, out var claimed) && claimed != sectionId)
                 {
                     throw new InvalidOperationException(
-                        $"CV-parsing lexicon v{file.Version}: the free-section synonym '{normalized}' is " +
-                        $"claimed by BOTH '{claimed}' and '{sectionId}'. One heading cannot denote two " +
-                        "sections — the resolved id would depend on JSON key order.");
+                        $"CV-parsing lexicon v{file.Version}: the free-section synonym '{normalized}' " +
+                        $"is claimed by BOTH '{claimed}' and '{sectionId}'. One heading cannot denote " +
+                        "two sections.");
                 }
 
                 freeById[normalized] = sectionId;
             }
         }
 
-        FreeSectionIdByHeading = freeById.ToFrozenDictionary(StringComparer.Ordinal);
-        FreeSectionIds = (file.FreeSections ?? []).Keys.ToFrozenSet(StringComparer.Ordinal);
+        // A free synonym that is ALSO a typed heading would make a typed section (Erfarenhet) resolve
+        // as a free one — it changes how every CV is segmented. Pinned by the integrity suite against
+        // the SHIPPED data; enforced here so a synthetic or future lexicon cannot smuggle it in.
+        var collisions = freeById.Keys.Where(headingMap.ContainsKey).ToList();
+        if (collisions.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"CV-parsing lexicon v{file.Version}: these headings are BOTH typed and free: " +
+                $"{string.Join(", ", collisions)}. The collision silently changes segmentation.");
+        }
 
-        SwedishHints = ToHintSet(file.LanguageHints, "sv");
-        EnglishHints = ToHintSet(file.LanguageHints, "en");
-
-        NameBanners = (file.NameBanners ?? [])
-            .Select(NormalizeHeading)
-            .Where(banner => banner.Length > 0)
-            .ToFrozenSet(StringComparer.Ordinal);
-
-        LocationLabels = (file.ContactLabels?.Location ?? [])
-            .Select(label => label.Trim().ToLowerInvariant())
-            .Where(label => label.Length > 0)
-            .ToFrozenSet(StringComparer.Ordinal);
+        return new CvParsingLexiconData(
+            file.Version,
+            headingMap.ToFrozenDictionary(StringComparer.Ordinal),
+            freeById.ToFrozenDictionary(StringComparer.Ordinal),
+            file.FreeSections.Keys.ToFrozenSet(StringComparer.Ordinal),
+            ToHintSet(file.LanguageHints, "sv"),
+            ToHintSet(file.LanguageHints, "en"),
+            (file.NameBanners ?? []).Select(NormalizeHeading).Where(b => b.Length > 0)
+                .ToFrozenSet(StringComparer.Ordinal),
+            (file.ContactLabels?.Location ?? []).Select(l => l.Trim().ToLowerInvariant())
+                .Where(l => l.Length > 0).ToFrozenSet(StringComparer.Ordinal));
     }
 
     /// <summary>
-    /// Lower-invariant, trim, strip a trailing ':'/'.', collapse internal whitespace. THE single
-    /// normalizer: the lexicon's entries and the CV's heading lines must be normalised by the SAME
-    /// function or a heading silently stops matching. (Before 8b.4a this function existed twice.)
+    /// THE normalizer — lower-invariant, trim, strip a trailing ':'/'.', collapse internal whitespace.
+    ///
+    /// <para>Every heading the lexicon STORES and every heading line a CV PRESENTS passes through
+    /// this one function. That is not tidiness: the two must agree exactly, or a heading silently
+    /// stops matching. Before this it was applied to free headings and name banners but NOT to the
+    /// typed ones (they got a bare <c>ToLowerInvariant()</c>), so a typed variant added with a
+    /// trailing colon or a double space would have been dead on arrival — in the map that decides
+    /// what "Erfarenhet" means. The integrity suite carried a third, weaker copy (no whitespace
+    /// collapse) and it was the copy guarding the data.</para>
     /// </summary>
     internal static string NormalizeHeading(string line)
     {
@@ -132,60 +155,34 @@ internal static partial class CvParsingLexicon
         if (trimmed.Length == 0)
             return string.Empty;
 
-        var lowered = trimmed.ToLowerInvariant();
-        return WhitespaceRegex().Replace(lowered, " ");
+        return WhitespaceRegex().Replace(trimmed.ToLowerInvariant(), " ");
     }
 
-    private static bool TryMapSection(string key, out Domain.Resumes.Parsing.ParsedSectionKind kind)
+    private static ParsedSectionKind MapSection(string key) => key.ToLowerInvariant() switch
     {
-        switch (key.ToLowerInvariant())
-        {
-            case "contact": kind = Domain.Resumes.Parsing.ParsedSectionKind.Contact; return true;
-            case "profile": kind = Domain.Resumes.Parsing.ParsedSectionKind.Profile; return true;
-            case "experience": kind = Domain.Resumes.Parsing.ParsedSectionKind.Experience; return true;
-            case "education": kind = Domain.Resumes.Parsing.ParsedSectionKind.Education; return true;
-            case "skills": kind = Domain.Resumes.Parsing.ParsedSectionKind.Skills; return true;
-            case "languages": kind = Domain.Resumes.Parsing.ParsedSectionKind.Languages; return true;
-            default: kind = default; return false;
-        }
-    }
+        "contact" => ParsedSectionKind.Contact,
+        "profile" => ParsedSectionKind.Profile,
+        "experience" => ParsedSectionKind.Experience,
+        "education" => ParsedSectionKind.Education,
+        "skills" => ParsedSectionKind.Skills,
+        "languages" => ParsedSectionKind.Languages,
+        _ => throw new InvalidOperationException(
+            $"CV-parsing lexicon: unknown typed-heading key '{key}'. A skipped key would make every " +
+            "heading under it silently stop being recognised."),
+    };
 
     private static FrozenSet<string> ToHintSet(Dictionary<string, string[]> hints, string key) =>
         hints.TryGetValue(key, out var words)
             ? words.Select(w => w.ToLowerInvariant()).ToFrozenSet(StringComparer.Ordinal)
             : FrozenSet<string>.Empty;
 
-    private static LexiconFile Load()
-    {
-        var assembly = typeof(CvParsingLexicon).Assembly;
-        using var stream = assembly.GetManifestResourceStream(ResourceName)
-            ?? throw new InvalidOperationException(
-                $"Embedded CV-parsing lexicon missing: {ResourceName}. " +
-                "Verify <EmbeddedResource> in Jobbliggaren.Infrastructure.csproj.");
-        using var reader = new StreamReader(stream, Encoding.UTF8);
-
-        var file = JsonSerializer.Deserialize<LexiconFile>(reader.ReadToEnd(), JsonOptions)
-            ?? throw new InvalidOperationException(
-                $"Embedded CV-parsing lexicon {ResourceName} deserialized to null.");
-
-        if (file.Version <= 0)
-        {
-            throw new InvalidOperationException(
-                $"Embedded CV-parsing lexicon {ResourceName} carries no usable \"version\". " +
-                "A consumer asset pins this value to fail loud on drift; an absent version " +
-                "would make that pin vacuous.");
-        }
-
-        return file;
-    }
-
     [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
     private static partial Regex WhitespaceRegex();
 
     private sealed record LexiconFile(
         int Version,
-        Dictionary<string, string[]> Headings,
-        Dictionary<string, string[]> LanguageHints,
+        Dictionary<string, string[]>? Headings,
+        Dictionary<string, string[]>? LanguageHints,
         string[]? NameBanners,
         ContactLabelsFile? ContactLabels,
         Dictionary<string, string[]>? FreeSections);

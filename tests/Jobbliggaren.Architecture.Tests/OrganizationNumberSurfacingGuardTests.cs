@@ -201,37 +201,80 @@ public class OrganizationNumberSurfacingGuardTests
     }
 
     [Fact]
-    public void No_raw_org_nr_carrier_is_named_anywhere_in_the_Api_project()
+    public void Api_project_names_neither_a_raw_org_nr_carrier_nor_a_port_that_produces_one()
     {
-        // The walker above guards the MEDIATOR boundary. That is NOT the same thing as the Api boundary,
-        // and the difference is a live hole (security-auditor re-review, 2026-07-13):
-        // ICompanyWatchBrowseQuery is public and DI-registered, so a minimal-API delegate could inject
-        // the port DIRECTLY and return PagedResult<CompanyBrowseResult> without a Mediator request
-        // anywhere in sight. The walker would see nothing, the build would be green, and a raw
-        // (possibly personnummer-shaped) org.nr would be on the wire.
+        // The response walker guards the MEDIATOR boundary. That is NOT the Api boundary, and the gap is
+        // a live hole: ICompanyWatchBrowseQuery is public and DI-registered, so a minimal-API delegate
+        // can inject the port DIRECTLY and return PagedResult<CompanyBrowseResult> with no Mediator
+        // request in sight — walker blind, build green, raw org.nr on the wire. Nothing in the repo
+        // forces Api -> Application through Mediator; it is a convention, and it is ALREADY broken
+        // (ISessionStore is injected straight into three endpoints).
         //
-        // Nothing in the repo forces Api -> Application to go through Mediator; today it is a convention.
-        // So this guards the boundary directly: a raw carrier's NAME may not appear in the Api project
-        // at all. Blunt, but fail-closed and trivially non-vacuous — and an endpoint cannot return a
-        // type it cannot name.
+        // Grepping for the CARRIER's name does not close it: `var page = await browse.BrowseAsync(...);
+        // return Results.Ok(page);` never names CompanyBrowseResult. Grepping for the PORT's name does:
+        // you cannot resolve a service from DI without writing its type, and there is no `var` for a
+        // parameter declaration. That is the "cannot be done without naming it" property this guard
+        // needs — and the first version of it claimed to have but did not (code-reviewer re-review #2).
+        var applicationAsm = typeof(CompanyWatchDto).Assembly;
+        var ports = OrgNrSurfaceScan.CarrierProducingPorts(applicationAsm, RawOrgNrCarriers);
+
+        // Sanity: if this ever came back empty the guard would be vacuous by degenerating to "grep for
+        // nothing" — the failure mode the whole PR is about.
+        ports.ShouldNotBeEmpty(
+            "inga bärar-producerande portar hittades — härledningen är trasig och grinden vakuös.");
+
         var apiSources = Directory.EnumerateFiles(
             Path.Combine(FindRepoRoot(), "src", "Jobbliggaren.Api"), "*.cs", SearchOption.AllDirectories);
 
         var offenders = new List<string>();
         foreach (var file in apiSources)
         {
-            foreach (var carrier in OrgNrSurfaceScan.FindCarrierNamesInSource(
-                         File.ReadAllText(file), RawOrgNrCarriers))
+            foreach (var name in OrgNrSurfaceScan.FindForbiddenApiNames(
+                         File.ReadAllText(file), RawOrgNrCarriers, ports))
             {
-                offenders.Add($"{Path.GetFileName(file)}: {carrier}");
+                offenders.Add($"{Path.GetFileName(file)}: {name}");
             }
         }
 
         offenders.ShouldBeEmpty(
-            "Api-projektet namnger en RÅ org.nr-bärare. En bärare får bara leva INUTI Application-" +
-            "gränsen — en endpoint måste returnera det maskerade *Dto:t handlern producerar, aldrig " +
-            "portens råa radtyp. Ett rått org.nr på tråden kan vara ett personnummer (enskild firma, " +
-            "ADR 0087 D8 / §5). Överträdelser: " + string.Join(", ", offenders));
+            "Api-projektet namnger en RÅ org.nr-bärare eller en PORT som kan lämna ut en. En bärare får " +
+            "bara leva INUTI Application-gränsen: endpointen måste gå via Mediator och returnera det " +
+            "maskerade *Dto:t handlern producerar, aldrig portens råa radtyp. Att injicera porten direkt " +
+            "i en endpoint kringgår maskeringen helt — och `Results.Ok(var)` namnger aldrig typen den " +
+            "serialiserar, så det syns inte i en bärar-grep. Ett rått org.nr på tråden kan vara ett " +
+            "personnummer (enskild firma, ADR 0087 D8 / §5). Överträdelser: " +
+            string.Join(", ", offenders));
+    }
+
+    [Fact]
+    public void Api_scan_flags_a_port_injected_without_naming_the_carrier()
+    {
+        // Self-proving negative #5. THE one that matters: the synthetic source below is the exact shape
+        // the previous (carrier-name-only) guard waved through — a port injected into a delegate, the
+        // result bound with `var`, returned with Results.Ok(). CompanyBrowseResult appears NOWHERE in it.
+        // If this ever goes green, the guard has regressed to the vacuous form.
+        const string synthetic = """
+            group.MapGet("/{id:guid}/foretag", async (
+                Guid id, ICompanyWatchBrowseQuery browse, CancellationToken ct) =>
+            {
+                var page = await browse.BrowseAsync(new CompanyBrowseCriteria(spec, 1, 20), ct);
+                return Results.Ok(page);
+            });
+            """;
+
+        synthetic.Contains(
+            nameof(Jobbliggaren.Application.CompanyWatches.Abstractions.CompanyBrowseResult),
+            StringComparison.Ordinal)
+            .ShouldBeFalse(
+                "probens hela poäng är att den ALDRIG namnger bäraren — annars bevisar den ingenting.");
+
+        var ports = OrgNrSurfaceScan.CarrierProducingPorts(
+            typeof(CompanyWatchDto).Assembly, RawOrgNrCarriers);
+
+        OrgNrSurfaceScan.FindForbiddenApiNames(synthetic, RawOrgNrCarriers, ports).ShouldNotBeEmpty(
+            "Api-scannen måste flagga en endpoint som injicerar en bärar-producerande port, ÄVEN när " +
+            "bärartypen aldrig nämns (`var` + Results.Ok). Det var precis hålet i den första versionen " +
+            "av den här grinden.");
     }
 
     [Fact]
@@ -549,19 +592,57 @@ internal static class OrgNrSurfaceScan
     }
 
     /// <summary>
-    /// Every raw-carrier type name that appears anywhere in the Api project's source. The response
-    /// walker guards the MEDIATOR boundary; this guards the Api boundary, which is a different thing
-    /// (security-auditor re-review, 2026-07-13): <c>ICompanyWatchBrowseQuery</c> is public and
-    /// DI-registered, so a minimal-API delegate could inject the port DIRECTLY and return
-    /// <c>PagedResult&lt;CompanyBrowseResult&gt;</c> with no Mediator request anywhere in sight — the
-    /// walker would see nothing, the build would be green, and a raw org.nr would be on the wire.
+    /// The names the Api project must never mention: the raw carriers themselves, AND every Application
+    /// PORT that can hand one out.
+    ///
+    /// <para>
+    /// <b>The port half is the load-bearing half, and the first version of this guard did not have it</b>
+    /// (code-reviewer re-review #2, 2026-07-13). That version greped for carrier NAMES and claimed "an
+    /// endpoint cannot return a type it cannot name". That claim is FALSE, and this repo's own endpoint
+    /// idiom is the counter-example: <c>var page = await browse.BrowseAsync(...); return
+    /// Results.Ok(page);</c> serialises <c>PagedResult&lt;CompanyBrowseResult&gt;</c> while naming
+    /// <c>CompanyBrowseResult</c> nowhere. The guard would have been green and a personnummer-shaped
+    /// org.nr would have been on the wire — the exact accident it was written to prevent. (And the
+    /// convention it leaned on — "everything goes through Mediator" — is already broken in production:
+    /// <c>ISessionStore</c> is injected straight into three endpoints.)
+    /// </para>
+    ///
+    /// <para>
+    /// Naming the PORT, however, is unavoidable: to get a carrier inside Api you must obtain it from the
+    /// port, and to resolve a service from DI you MUST write its type — a delegate parameter,
+    /// <c>[FromServices]</c>, or <c>GetRequiredService&lt;T&gt;()</c>. There is no <c>var</c> for a
+    /// parameter declaration. THAT is the "cannot be done without naming it" property the guard needs.
+    /// </para>
+    ///
+    /// <para>
+    /// The port list is DERIVED, never hand-maintained: any Application interface with a method whose
+    /// return type transitively reaches a carrier is one. A new carrier-producing port is covered the
+    /// day it is written, whether or not anyone remembers this file.
+    /// </para>
     /// </summary>
-    internal static IReadOnlyList<string> FindCarrierNamesInSource(
-        string source, IEnumerable<Type> rawCarriers) =>
-        rawCarriers
-            .Where(c => Regex.IsMatch(source, @"\b" + Regex.Escape(c.Name) + @"\b"))
-            .Select(c => c.Name)
+    internal static IReadOnlyList<string> FindForbiddenApiNames(
+        string source, IEnumerable<Type> rawCarriers, IEnumerable<Type> carrierProducingPorts) =>
+        rawCarriers.Concat(carrierProducingPorts)
+            .Where(t => Regex.IsMatch(source, @"\b" + Regex.Escape(t.Name) + @"\b"))
+            .Select(t => t.Name)
+            .Distinct(StringComparer.Ordinal)
             .ToList();
+
+    /// <summary>
+    /// Every Application interface that can hand a caller a raw carrier — derived from the method return
+    /// types, so the set cannot drift away from reality.
+    /// </summary>
+    internal static IReadOnlyList<Type> CarrierProducingPorts(
+        Assembly applicationAssembly, IReadOnlyCollection<Type> rawCarriers)
+    {
+        var carriers = rawCarriers.ToHashSet();
+
+        return applicationAssembly.GetTypes()
+            .Where(t => t.IsInterface)
+            .Where(i => i.GetMethods()
+                .Any(m => ReachableTypes(m.ReturnType).Any(carriers.Contains)))
+            .ToList();
+    }
 
     private static bool IsMediatorRequest(Type iface) =>
         iface.IsGenericType
@@ -652,17 +733,55 @@ internal static class OrgNrSurfaceScan
         // finding carriers (security-auditor re-review, 2026-07-13).
         || type.GetFields(BindingFlags.Public | BindingFlags.Instance).Any(IsOrgNrField);
 
+    /// <summary>
+    /// Tokens that betray an org.nr in a MEMBER NAME. Deliberately NARROWER than
+    /// <see cref="OrgNrTokens"/>, which the log scan uses — and the difference is now written down
+    /// instead of being an accident (code-reviewer re-review #2, 2026-07-13).
+    ///
+    /// <para>
+    /// The reviewer was right that the two halves of this guard disagreed about what an org.nr looks
+    /// like, and that a carrier spelling it <c>OrgNr</c> was invisible to the half that decides whether
+    /// it must be masked. But the fix is NOT to reuse the log list: the log scan's bare
+    /// <c>"organization"</c> token is broad ON PURPOSE (a log fragment mentioning an organization may
+    /// well carry its number, so flag and let a human look). A MEMBER called <c>Organization</c> is
+    /// something else entirely — it is the EMPLOYER'S NAME. Reusing the log tokens flagged seven types
+    /// on that basis alone (<c>ParsedExperienceDto</c>, <c>ReviewableExperience</c>,
+    /// <c>CvReviewContext</c>, …), none of which carries an org.nr. A guard that cries wolf on the CV
+    /// parser is a guard someone switches off.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>"personnummer"</c> is likewise absent, and for the same kind of reason. In a LOG fragment it
+    /// is a red flag; as a MEMBER NAME it names the personnummer guard's own PII-safe reporting surface
+    /// — <c>PersonnummerScanDto(bool Found, int Count, IReadOnlyList&lt;string&gt; Kinds)</c> ("count +
+    /// kinds, never a raw value", ADR 0074 Invariant 1) and <c>RowsExcludedPersonnummerShaped</c>, an
+    /// <c>int</c>. Those members ARE the protection. Flagging them as suspected carriers would have the
+    /// guard demanding that the guard be masked.
+    /// </para>
+    ///
+    /// <para>
+    /// So: narrow but complete. <c>OrgNr</c> and <c>OrgNumber</c> ARE covered (the reviewer's actual
+    /// concern); <c>Organization</c> and <c>Personnummer</c> alone are not. The <c>OrganizationNumber</c>
+    /// VO is caught by TYPE regardless of what the member is called.
+    /// </para>
+    /// </summary>
+    private static readonly string[] OrgNrMemberNameTokens =
+        ["organizationnumber", "orgnr", "org_nr", "orgnumber"];
+
     private static bool IsOrgNrProperty(PropertyInfo p)
     {
         var t = Nullable.GetUnderlyingType(p.PropertyType) ?? p.PropertyType;
-        return p.Name.Contains("OrganizationNumber", StringComparison.Ordinal)
+        return HasOrgNrName(p.Name)
                || string.Equals(t.Name, "OrganizationNumber", StringComparison.Ordinal);
     }
+
+    private static bool HasOrgNrName(string memberName) =>
+        OrgNrMemberNameTokens.Any(tok => memberName.Contains(tok, StringComparison.OrdinalIgnoreCase));
 
     private static bool IsOrgNrField(FieldInfo f)
     {
         var t = Nullable.GetUnderlyingType(f.FieldType) ?? f.FieldType;
-        return f.Name.Contains("OrganizationNumber", StringComparison.Ordinal)
+        return HasOrgNrName(f.Name)
                || string.Equals(t.Name, "OrganizationNumber", StringComparison.Ordinal);
     }
 

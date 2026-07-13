@@ -155,12 +155,18 @@ public class BrowseCompaniesQueryHandlerTests
         var criterion = await SeedCriterionAsync(db, Owner, SniIt, KommunStockholm, ct);
 
         // ADR 0091 keeps sole traders out of company_register at ingest, so this row should be
-        // unreachable — which is exactly why the masking must not depend on that staying true. A
-        // 12-digit personnummer-shaped "org.nr" is nulled and flagged, never surfaced.
+        // unreachable — which is exactly why the masking must not depend on that staying true.
+        //
+        // "9001011234" is a TEN-digit sole-trader org.nr (= a personnummer). The length matters:
+        // company_register.organization_number is varchar(10), so a 12-digit value can NEVER come out of
+        // that column. Testing one would go green through IsPersonnummerShaped's fail-safe branch
+        // (Length != 10 -> true) and leave the branch this data path CAN actually reach — the
+        // Value[2] < '2' heuristic — completely untested (code-reviewer Major, 2026-07-13). This value
+        // exercises the real heuristic: Value[2] = '0' < '2'.
         var port = Substitute.For<ICompanyWatchBrowseQuery>();
         port.BrowseAsync(Arg.Any<CompanyBrowseCriteria>(), Arg.Any<CancellationToken>())
             .Returns(new PagedResult<CompanyBrowseResult>(
-                [new CompanyBrowseResult("199001011234", "Enskild Firma", "0180", "Stockholm", ["62010"])],
+                [new CompanyBrowseResult("9001011234", "Enskild Firma", "0180", "Stockholm", ["62010"])],
                 totalCount: 1, page: 1, pageSize: 20));
 
         var result = await HandlerFor(db, Owner, port)
@@ -172,6 +178,31 @@ public class BrowseCompaniesQueryHandlerTests
         hit.IsProtectedIdentity.ShouldBeTrue();
         // The rest of the row is public data and still renders — masking hides the identity, not the hit.
         hit.Name.ShouldBe("Enskild Firma");
+    }
+
+    [Fact]
+    public async Task Handle_MalformedOrgNr_IsMaskedByTheFailSafeBranch()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var criterion = await SeedCriterionAsync(db, Owner, SniIt, KommunStockholm, ct);
+
+        // The OTHER branch: IsPersonnummerShaped fail-safes to TRUE on anything that is not exactly ten
+        // ASCII digits ("the unexpected is sensitive"). A varchar(10) column cannot produce this, but a
+        // future non-register caller of the port could — and it must mask, not leak.
+        var port = Substitute.For<ICompanyWatchBrowseQuery>();
+        port.BrowseAsync(Arg.Any<CompanyBrowseCriteria>(), Arg.Any<CancellationToken>())
+            .Returns(new PagedResult<CompanyBrowseResult>(
+                [new CompanyBrowseResult("199001011234", "Tolv Siffror", "0180", "Stockholm", ["62010"])],
+                totalCount: 1, page: 1, pageSize: 20));
+
+        var result = await HandlerFor(db, Owner, port)
+            .Handle(new BrowseCompaniesQuery(criterion.Id.Value, 1, 20), ct);
+
+        result.ShouldNotBeNull();
+        var hit = result.Items.Single();
+        hit.OrganizationNumber.ShouldBeNull();
+        hit.IsProtectedIdentity.ShouldBeTrue();
     }
 
     private static BrowseCompaniesQueryHandler HandlerFor(

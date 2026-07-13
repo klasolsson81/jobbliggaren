@@ -78,6 +78,28 @@ public sealed record CompanyBrowseCriteria(
     int Page,
     int PageSize)
 {
+    /// <summary>
+    /// The bounds are enforced HERE, in the port's input, and not only in
+    /// <c>BrowseCompaniesQueryValidator</c> (security-auditor Minor, 2026-07-13). A validator only
+    /// guards the callers that go through the Mediator pipeline — and this interface's own doc
+    /// anticipates one that will not: PR-3's picker preview of an UNSAVED criterion. That is exactly
+    /// where a validator-only cap silently disappears, taking the unbounded-OFFSET DoS surface and the
+    /// <c>TotalPages ≤ MaxPage</c> guarantee with it. An invariant that holds "as long as you came in
+    /// the front door" is not an invariant.
+    /// </summary>
+    public CompanyWatchCriteriaSpec Criteria { get; } =
+        Criteria ?? throw new ArgumentNullException(nameof(Criteria));
+
+    public int Page { get; } = Page is >= 1 and <= MaxPage
+        ? Page
+        : throw new ArgumentOutOfRangeException(
+            nameof(Page), Page, $"Page måste vara mellan 1 och {MaxPage}.");
+
+    public int PageSize { get; } = PageSize is >= 1 and <= MaxPageSize
+        ? PageSize
+        : throw new ArgumentOutOfRangeException(
+            nameof(PageSize), PageSize, $"PageSize måste vara mellan 1 och {MaxPageSize}.");
+
     /// <summary>House parity (<c>GetApplicationsQueryValidator</c>).</summary>
     public const int MaxPageSize = 100;
 

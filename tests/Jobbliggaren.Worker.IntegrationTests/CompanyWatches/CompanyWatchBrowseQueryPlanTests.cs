@@ -54,6 +54,7 @@ namespace Jobbliggaren.Worker.IntegrationTests.CompanyWatches;
 /// </para>
 /// </summary>
 [Collection("Worker")]
+[Trait("Category", "SmokeTest")]
 public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
 {
     private readonly WorkerTestFixture _fixture = fixture;
@@ -83,6 +84,26 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
             ct);
 
         AssertServedByGin(plan, "items");
+
+        // The ORDER BY must be TOTAL, and this is the deterministic way to pin it (code-reviewer Major,
+        // 2026-07-13). The sibling suite's page-boundary test seeds duplicate company_names and asserts
+        // that no row is lost or duplicated across pages — but whether a MISSING tiebreak would actually
+        // make that test fail is PLAN-DEPENDENT (it relies on top-N heapsort ordering the ties
+        // differently at OFFSET 0/10/20; "can diverge" is not "does diverge"). That is an asserted
+        // non-vacuity, not a demonstrated one.
+        //
+        // The Sort Key in the plan cannot be vacuous: there is no index on (company_name,
+        // organization_number), so a Sort node always sits above the bitmap heap scan, and it always
+        // names its key. Drop `, organization_number` from ItemsSql and this fails immediately —
+        // mutation-verified.
+        plan.ShouldContain(
+            "Sort Key: company_name, organization_number",
+            customMessage:
+                "The items query's ORDER BY is no longer TOTAL. company_name is not unique in a real "
+                + "register (duplicate legal names are normal) and Postgres sorts are not stable, so an "
+                + "OFFSET walk over a non-total order silently drops and duplicates rows ACROSS pages. "
+                + $"organization_number is the PK — it is what makes the order total.{Environment.NewLine}"
+                + $"Plan:{Environment.NewLine}{plan}");
     }
 
     [Fact]

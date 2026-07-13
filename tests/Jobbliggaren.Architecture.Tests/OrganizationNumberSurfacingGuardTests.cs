@@ -108,15 +108,57 @@ public class OrganizationNumberSurfacingGuardTests
     /// </summary>
     private static readonly HashSet<Type> ExemptOrgNrDtos = [];
 
+    /// <summary>
+    /// INBOUND request types whose org.nr is CLIENT-SUPPLIED input, not something we surface. Masking
+    /// is meaningless on an input (the caller already knows the value they sent); what protects these
+    /// is the handler's refuse-posture and the log-boundary scan. They enter the org.nr-surfacing set
+    /// only because the name-independent scan (correctly) cannot tell a request from a response.
+    /// </summary>
+    private static readonly HashSet<Type> InboundOrgNrRequests =
+    [
+        typeof(Jobbliggaren.Application.CompanyWatches.Commands.FollowCompany.FollowCompanyCommand),
+        typeof(Jobbliggaren.Application.Companies.Queries.LookupCompany.LookupCompanyQuery),
+    ];
+
+    /// <summary>
+    /// RAW carriers: types that hold an UN-masked org.nr strictly INSIDE the Application boundary, to
+    /// be masked by a handler before it reaches a DTO. They must never themselves be a serialized
+    /// response — that is not a convention here, it is
+    /// <see cref="No_raw_org_nr_carrier_is_reachable_from_a_mediator_response"/>, which walks every
+    /// Mediator response type's transitive graph and fails the build if one of these appears in it.
+    /// Without that test this bucket would be a promise rather than a partition.
+    ///
+    /// <para>
+    /// Added when the <c>*Dto</c> name filter was removed (security-auditor Major, #560 PR-2): the old
+    /// scan saw only types NAMED <c>*Dto</c>, so every one of these raw carriers was invisible to the
+    /// fail-closed partition it was supposed to be inside.
+    /// </para>
+    /// </summary>
+    private static readonly HashSet<Type> RawOrgNrCarriers =
+    [
+        // The employer-disambiguation port's row type — the handler masks it into
+        // EmployerDisambiguationDto (which IS classified as masking).
+        typeof(Jobbliggaren.Application.JobAds.Abstractions.EmployerAdGroup),
+        // The SCB population channel's ACL record (Worker-side ingest; never a response).
+        typeof(Jobbliggaren.Application.CompanyRegister.Abstractions.ScbCompanyRecord),
+        // ICompanyRegistry's lookup hit — the handler masks it into CompanyLookupDto.
+        typeof(Jobbliggaren.Application.Companies.Abstractions.CompanyRegistryEntry),
+        // #560 PR-2: the browse port's row type — the handler masks it into CompanyBrowseDto.
+        typeof(Jobbliggaren.Application.CompanyWatches.Abstractions.CompanyBrowseResult),
+    ];
+
     [Fact]
     public void Every_org_nr_surfacing_dto_is_classified_masking_or_exempt()
     {
         // FAIL-CLOSED partition. Every *Dto exposing an org.nr-shaped member must be consciously
         // classified — a new one of any shape fails here before it can surface a raw personnummer.
-        var orgNrDtos = OrgNrSurfaceScan.OrgNrSurfacingDtos(typeof(CompanyWatchDto).Assembly);
-        var classified = MaskingOrgNrDtos.Concat(ExemptOrgNrDtos);
+        var orgNrTypes = OrgNrSurfaceScan.OrgNrSurfacingTypes(typeof(CompanyWatchDto).Assembly);
+        var classified = MaskingOrgNrDtos
+            .Concat(ExemptOrgNrDtos)
+            .Concat(InboundOrgNrRequests)
+            .Concat(RawOrgNrCarriers);
 
-        var unclassified = OrgNrSurfaceScan.FindUnclassifiedOrgNrDtos(orgNrDtos, classified);
+        var unclassified = OrgNrSurfaceScan.FindUnclassifiedOrgNrDtos(orgNrTypes, classified);
 
         unclassified.ShouldBeEmpty(
             "Följande org.nr-surfande *Dto(s) är OKLASSIFICERADE. Per fail-safe default (ADR 0087 " +
@@ -126,6 +168,55 @@ public class OrganizationNumberSurfacingGuardTests
             "IsPersonnummerShaped) → lägg i MaskingOrgNrDtos; annars → ExemptOrgNrDtos med en rad om " +
             "varför surfning av rått org.nr är bevisligen säkert. Oklassificerade: " +
             string.Join(", ", unclassified.Select(t => t.Name)));
+    }
+
+    [Fact]
+    public void No_raw_org_nr_carrier_is_reachable_from_a_mediator_response()
+    {
+        // THE test that makes RawOrgNrCarriers a partition rather than a promise (security-auditor +
+        // code-reviewer Major, 2026-07-13). Listing a type as "internal carrier, never serialized" is
+        // worth nothing unless something ENFORCES the "never serialized" half. This walks the transitive
+        // type graph of EVERY Mediator response in the Application assembly and fails the build if a raw
+        // carrier appears in one.
+        //
+        // The concrete accident it prevents: #560 PR-3 builds an endpoint over ICompanyWatchBrowseQuery,
+        // whose port returns PagedResult<CompanyBrowseResult> — the RAW row. Returning the port's shape
+        // straight out of the handler instead of the masked PagedResult<CompanyBrowseDto> compiles,
+        // passes every other test, and puts a raw (possibly personnummer-shaped) org.nr on the wire.
+        // Only the handler's Mask() stands between — and discipline is not a guard.
+        var applicationAsm = typeof(CompanyWatchDto).Assembly;
+
+        var offenders = OrgNrSurfaceScan.FindRawCarriersInResponses(applicationAsm, RawOrgNrCarriers);
+
+        offenders.ShouldBeEmpty(
+            "Följande Mediator-svar exponerar (transitivt) en RÅ org.nr-bärare. En rå bärare får bara " +
+            "leva INUTI Application-gränsen — handlern måste maska den till ett *Dto (nullbar string? " +
+            "+ bool-flagga) innan den blir ett svar. Ett rått org.nr på tråden kan vara ett " +
+            "personnummer (enskild firma, ADR 0087 D8 / §5). Överträdelser: " +
+            string.Join(", ", offenders));
+    }
+
+    [Fact]
+    public void Response_scan_flags_a_raw_carrier_in_a_response()
+    {
+        // Self-proving negative #3: the walker must actually find a carrier nested inside a generic
+        // response, not just a top-level one — otherwise the guard above is vacuous for exactly the
+        // shape it exists to catch (PagedResult<CompanyBrowseResult>).
+        var reachable = OrgNrSurfaceScan.ReachableTypes(
+            typeof(Jobbliggaren.Application.Common.PagedResult<
+                Jobbliggaren.Application.CompanyWatches.Abstractions.CompanyBrowseResult>));
+
+        reachable.ShouldContain(
+            typeof(Jobbliggaren.Application.CompanyWatches.Abstractions.CompanyBrowseResult),
+            "type-walkern måste hitta en rå bärare som ligger NÄSTLAD i ett generiskt svar " +
+            "(PagedResult<T>) — annars är svars-scannen vakuös för precis den form den finns för.");
+
+        // ...and the masked shape the handler actually returns must NOT contain one.
+        OrgNrSurfaceScan.ReachableTypes(
+                typeof(Jobbliggaren.Application.Common.PagedResult<
+                    Jobbliggaren.Application.CompanyWatches.Queries.BrowseCompanies.CompanyBrowseDto>))
+            .ShouldNotContain(
+                typeof(Jobbliggaren.Application.CompanyWatches.Abstractions.CompanyBrowseResult));
     }
 
     [Fact]
@@ -193,6 +284,81 @@ public class OrganizationNumberSurfacingGuardTests
                 $"{relativePath} loggar (eller kan logga) ett rått org.nr — dess [LoggerMessage]-" +
                 "mallar / Log*-anrop får ALDRIG referera ett org.nr-token (ADR 0087 D8, CLAUDE.md §5, " +
                 "enskild firma = personnummer). Träffar: " + string.Join(" | ", offending));
+        }
+    }
+
+    /// <summary>
+    /// The #560 browse read-path files, and the ONE logging call they are allowed to make.
+    /// <c>LogCrossUserAttempt</c> is the ADR 0031 failed-access signal; it carries only pseudonymous
+    /// GUIDs (criterion id + the REQUESTING user's id) — no org.nr, no company name, no criterion
+    /// content.
+    /// </summary>
+    private static readonly IReadOnlyList<string> CountsOnlyLoggingSourcePaths =
+    [
+        "src/Jobbliggaren.Application/CompanyWatches/Queries/BrowseCompanies/BrowseCompaniesQueryHandler.cs",
+        "src/Jobbliggaren.Infrastructure/CompanyRegister/CompanyWatchBrowseQuery.cs",
+    ];
+
+    private static readonly string[] AllowedBrowseLogCalls = ["LogCrossUserAttempt"];
+
+    [Fact]
+    public void Browse_read_path_has_no_logging_surface_at_all()
+    {
+        // DPIA C-D5 (counts-only) — fail-CLOSED (security-auditor Major, 2026-07-13).
+        //
+        // The org.nr token scan below is a BLOCKLIST, and a blocklist is fail-open by construction:
+        // its token list is org.nr-only, so `LogInformation("matched {CompanyName}", row.Name)` passes
+        // it GREEN — while C-D5 covers the company name and the criterion's SNI/kommun content too. Its
+        // regex also truncates at the first ')', so a nested call in the argument list hides everything
+        // after it. Relying on it alone would make "counts-only is mechanically discharged" a claim
+        // stronger than the code — which is the exact vacuity this PR exists to fight.
+        //
+        // The browse read-path logs NOTHING today. Asserting exactly that is fail-closed and covers all
+        // three data classes at once: any new log call in these two files fails the build, whatever it
+        // carries.
+        foreach (var relativePath in CountsOnlyLoggingSourcePaths)
+        {
+            var source = ReadSource(relativePath);
+
+            var surface = OrgNrSurfaceScan.FindLoggingSurface(source, AllowedBrowseLogCalls);
+
+            surface.ShouldBeEmpty(
+                $"{relativePath} har fått en logg-yta. Browse-läsvägen är COUNTS-ONLY (DPIA C-D5): den " +
+                "får inte logga org.nr, företagsnamn ELLER kriterie-innehåll (SNI/kommun). Regeln är " +
+                "fail-closed — ingen loggning alls, inte 'ingen loggning av vissa tokens' (en " +
+                "token-blocklist är per konstruktion fail-open). Enda tillåtna anropet är " +
+                $"{string.Join("/", AllowedBrowseLogCalls)} (ADR 0031, bär bara pseudonyma GUID:n). " +
+                "Hittat: " + string.Join(", ", surface));
+        }
+    }
+
+    [Fact]
+    public void Logging_surface_scan_flags_a_new_log_call()
+    {
+        // Self-proving negative #4: the fail-closed scan must flag a log call that the org.nr TOKEN scan
+        // would wave through — that difference IS the finding it was written for.
+        const string synthetic = """
+            logger.LogInformation("browse matched {CompanyName} in {Kommun}", row.Name, row.SeatMunicipalityCode);
+            """;
+
+        OrgNrSurfaceScan.FindLoggingSurface(synthetic, AllowedBrowseLogCalls).ShouldNotBeEmpty(
+            "logg-yte-scannen ska flagga ett NYTT Log*-anrop även när det inte bär ett org.nr-token — " +
+            "företagsnamn och kriterie-innehåll är också C-D5-skyddat.");
+
+        // ...and it must NOT flag the one allowed call, or the guard would be unusable.
+        OrgNrSurfaceScan.FindLoggingSurface(
+                "failedAccessLogger.LogCrossUserAttempt(\"X\", id, userId, \"Op\");", AllowedBrowseLogCalls)
+            .ShouldBeEmpty("det whitelistade ADR 0031-anropet får inte flaggas.");
+    }
+
+    [Fact]
+    public void Counts_only_logging_source_paths_all_exist()
+    {
+        foreach (var relativePath in CountsOnlyLoggingSourcePaths)
+        {
+            File.Exists(SourceAbsolutePath(relativePath)).ShouldBeTrue(
+                $"arch-testet pekar på en fil som inte finns: {relativePath}. En flyttad/omdöpt fil gör " +
+                "counts-only-guarden tyst vakuös.");
         }
     }
 
@@ -267,23 +433,135 @@ internal static class OrgNrSurfaceScan
         ["organization", "orgnr", "org_nr", "personnummer"];
 
     /// <summary>
-    /// Every concrete <c>*Dto</c> in <paramref name="applicationAssembly"/> that exposes an
+    /// Every concrete PUBLIC type in <paramref name="applicationAssembly"/> that exposes an
     /// org.nr-shaped member (a property named containing <c>OrganizationNumber</c>, or typed
     /// <c>OrganizationNumber</c>).
+    ///
+    /// <para>
+    /// <b>Deliberately NOT filtered on the <c>*Dto</c> name suffix</b> (security-auditor Major,
+    /// 2026-07-13, #560 PR-2). The name filter was FAIL-OPEN: a public Application record carrying a
+    /// raw org.nr that simply is not called <c>*Dto</c> — <c>CompanyBrowseResult</c>, the browse
+    /// port's row type, is exactly one — was invisible to the partition. It could then be returned
+    /// straight out of a future endpoint, serialising a raw (possibly personnummer-shaped) org.nr with
+    /// every architecture test green. That is the same fail-open class this codebase re-architected
+    /// <c>ScbCompanyRegisterLayerTests</c> away from, and the same class that shipped #805-3 and #842:
+    /// a guard whose coverage does not reach the path it claims to protect.
+    /// </para>
     /// </summary>
-    internal static IReadOnlyList<Type> OrgNrSurfacingDtos(Assembly applicationAssembly) =>
+    internal static IReadOnlyList<Type> OrgNrSurfacingTypes(Assembly applicationAssembly) =>
         applicationAssembly.GetTypes()
-            .Where(t => t is { IsClass: true, IsAbstract: false })
-            .Where(t => t.Name.EndsWith("Dto", StringComparison.Ordinal))
+            .Where(t => t is { IsClass: true, IsAbstract: false, IsPublic: true })
             .Where(HasOrgNrMember)
             .ToList();
 
     /// <summary>Fail-closed partition (parity <c>HardDeleteCascadeScan.FindUnclassified</c>).</summary>
     internal static IReadOnlyList<Type> FindUnclassifiedOrgNrDtos(
-        IEnumerable<Type> orgNrDtos, IEnumerable<Type> classified)
+        IEnumerable<Type> orgNrTypes, IEnumerable<Type> classified)
     {
         var known = classified.ToHashSet();
-        return orgNrDtos.Where(t => !known.Contains(t)).ToList();
+        return orgNrTypes.Where(t => !known.Contains(t)).ToList();
+    }
+
+    /// <summary>
+    /// Every Mediator response type in <paramref name="applicationAssembly"/> whose transitive type
+    /// graph contains one of <paramref name="rawCarriers"/>. Returns "QueryName -> CarrierName" strings.
+    /// </summary>
+    internal static IReadOnlyList<string> FindRawCarriersInResponses(
+        Assembly applicationAssembly, IReadOnlyCollection<Type> rawCarriers)
+    {
+        var carriers = rawCarriers.ToHashSet();
+        var offenders = new List<string>();
+
+        foreach (var request in applicationAssembly.GetTypes()
+                     .Where(t => t is { IsClass: true, IsAbstract: false } || (t.IsValueType && !t.IsEnum)))
+        {
+            foreach (var iface in request.GetInterfaces().Where(IsMediatorRequest))
+            {
+                var response = iface.GetGenericArguments()[0];
+                foreach (var reached in ReachableTypes(response).Where(carriers.Contains))
+                    offenders.Add($"{request.Name} -> {reached.Name}");
+            }
+        }
+
+        return offenders.Distinct(StringComparer.Ordinal).OrderBy(o => o, StringComparer.Ordinal).ToList();
+    }
+
+    private static bool IsMediatorRequest(Type iface) =>
+        iface.IsGenericType
+        && (iface.GetGenericTypeDefinition() == typeof(Mediator.IQuery<>)
+            || iface.GetGenericTypeDefinition() == typeof(Mediator.ICommand<>));
+
+    /// <summary>
+    /// The transitive type closure of <paramref name="root"/>: generic arguments, array elements, and
+    /// the property types of any type we own (Application/Domain). BCL types are terminal — we do not
+    /// walk into <c>string</c> or <c>int</c>, and stopping there is what keeps the walk finite.
+    /// </summary>
+    internal static IReadOnlyList<Type> ReachableTypes(Type root)
+    {
+        var seen = new HashSet<Type>();
+        var pending = new Stack<Type>();
+        pending.Push(root);
+
+        while (pending.Count > 0)
+        {
+            var type = pending.Pop();
+            if (type is null || !seen.Add(type))
+                continue;
+
+            if (type.IsGenericType)
+            {
+                foreach (var arg in type.GetGenericArguments())
+                    pending.Push(arg);
+            }
+
+            if (type.IsArray && type.GetElementType() is { } element)
+                pending.Push(element);
+
+            // Only descend into types we author — otherwise the walk wanders through the BCL forever.
+            if (!IsOwnedType(type))
+                continue;
+
+            foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+                pending.Push(property.PropertyType);
+        }
+
+        return [.. seen];
+    }
+
+    private static bool IsOwnedType(Type type) =>
+        type.Namespace?.StartsWith("Jobbliggaren.", StringComparison.Ordinal) ?? false;
+
+    /// <summary>
+    /// Every <c>Log*(</c> call site in <paramref name="source"/> whose method name is not in
+    /// <paramref name="allowed"/>, plus any <c>ILogger</c> declaration. Used to assert a source file has
+    /// NO logging surface at all.
+    ///
+    /// <para>
+    /// <b>Why "no logging surface" and not "no org.nr token" for the browse read-path</b>
+    /// (security-auditor Major, 2026-07-13): the token scan is a BLOCKLIST, and a blocklist is
+    /// fail-open by construction. Its token list is org.nr-only, so a
+    /// <c>LogInformation("matched {CompanyName}", row.Name)</c> would pass it green — while DPIA C-D5
+    /// says COUNTS ONLY, which covers the company name and the criterion's SNI/kommun content too. Its
+    /// regex also truncates at the first <c>)</c>, so a nested call in the argument list hides
+    /// everything after it. The browse path logs nothing today; asserting exactly that is fail-CLOSED
+    /// and covers all three data classes at once.
+    /// </para>
+    /// </summary>
+    internal static IReadOnlyList<string> FindLoggingSurface(string source, IReadOnlyCollection<string> allowed)
+    {
+        var found = new List<string>();
+
+        foreach (Match m in Regex.Matches(source, @"\bILogger\b"))
+            found.Add(m.Value);
+
+        foreach (Match m in Regex.Matches(source, @"\b(Log[A-Z]\w*)\s*\("))
+        {
+            var method = m.Groups[1].Value;
+            if (!allowed.Contains(method))
+                found.Add(method);
+        }
+
+        return found.Distinct(StringComparer.Ordinal).ToList();
     }
 
     internal static bool HasOrgNrMember(Type type) =>

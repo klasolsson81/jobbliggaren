@@ -40,6 +40,24 @@ namespace Jobbliggaren.Infrastructure.CompanyRegister;
 internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBrowseQuery
 {
     /// <summary>
+    /// Explicit, reviewed — never inherited (security-auditor Minor, 2026-07-13). A raw
+    /// <see cref="NpgsqlCommand"/> does NOT pick up EF's <c>SetCommandTimeout</c>; it silently takes the
+    /// connection-string default, which is the same trap <see cref="ScbCompanyRegisterStore"/> documents
+    /// and sets explicitly around. This port copied that class's connection idiom, so it takes its
+    /// timeout discipline too.
+    ///
+    /// <para>
+    /// 30 s is the ceiling on how long ONE browse may hold a pooled connection. The bound-legal worst
+    /// case measures ~3,1 s (1000 SNI × 290 kommuner over 1,17M rows), so this is ~10× headroom on a
+    /// warm cache — deliberately not tighter, because a cold cache legitimately costs multiples of the
+    /// measured number and a spurious 500 on a legal criterion would be worse than a slow answer. It is
+    /// a backstop, not the fix: bounding the pool-exhaustion surface properly is PR-3's rate limit plus
+    /// the ORDER BY index (issue #875).
+    /// </para>
+    /// </summary>
+    internal const int CommandTimeoutSeconds = 30;
+
+    /// <summary>
     /// The predicate — single-sourced so the count query and the page query can NEVER drift apart (a
     /// drift here is a silently wrong total, not a crash).
     ///
@@ -144,6 +162,7 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
         NpgsqlConnection connection, CompanyWatchCriteriaSpec spec, int page, int pageSize)
     {
         var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
         cmd.CommandText = ItemsSql;
         BindPredicate(cmd, spec);
         cmd.Parameters.AddWithValue("@limit", NpgsqlDbType.Integer, pageSize);
@@ -156,6 +175,7 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
         NpgsqlConnection connection, CompanyWatchCriteriaSpec spec, int pageSize)
     {
         var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
         cmd.CommandText = CountSql;
         BindPredicate(cmd, spec);
         // Derived from the page cap, never a hand-picked constant: the two are ONE knowledge piece

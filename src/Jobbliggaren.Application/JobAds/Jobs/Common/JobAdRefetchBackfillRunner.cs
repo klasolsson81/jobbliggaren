@@ -30,7 +30,14 @@ namespace Jobbliggaren.Application.JobAds.Jobs.Common;
 /// deterministisk per-ID — undviker snapshot-trunkering, ADR 0032-amendment
 /// 2026-05-16) och kör samma <see cref="UpsertExternalJobAdCommand"/>-pipeline
 /// som snapshot-jobbet. UNIQUE-collision triggar UPDATE, raw_payload re-skrivs
-/// HELT → Postgres STORED computed columns re-evaluerar (alla kolumner, inte
+/// HELT → och sedan #841 skriver ingest-funneln OM de sju facett-kolumnerna i C#
+/// (JobAd.SetSourcePayload, atomärt med payloaden). Det är precis DÄRFÖR den här
+/// runnern är #841:s DEPLOY-REPARATIONSVERKTYG: en annons vars facetter nollats av
+/// purgen matchar NULL-predikatet, re-fetchas, och får alla sju skrivna på nytt.
+/// (Före #841 stod här "Postgres STORED computed columns re-evaluerar" — den meningen
+/// förklarade varför reparationen fungerade, och den blev falsk i samma PR som gjorde
+/// reparationen nödvändig. En annons som LÄMNAT flödet ger 404 och hoppas över; dess
+/// facetter är oåterkalleliga — de var det före #841 också.) (alla kolumner, inte
 /// bara den som styrde filtret).
 /// </para>
 ///

@@ -473,7 +473,7 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
         var userId = Guid.NewGuid();
         var seeker = await SeedSeekerAsync(db, clock, userId, ct);
 
-        // A LIVE ad whose payload carries no employer.organization_number -> the STORED shadow column
+        // A LIVE ad whose payload carries no employer.organization_number -> the facet column
         // is NULL -> the application cannot be attributed to an employer and is excluded (a realistic
         // Platsbanken ad without an org.nr, distinct from a retracted ad or a manual application).
         var externalId = $"eah-noorg-{Guid.NewGuid():N}";

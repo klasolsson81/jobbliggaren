@@ -124,7 +124,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
             ConceptId: conceptId,
             Weight: 1);
 
-    // Seeds an Imported JobAd whose raw_payload drives the STORED shadow columns
+    // Seeds an Imported JobAd whose raw_payload drives the facet columns
     // (occupation_group / region / employment) AND, when terms is non-null, sets
     // the extracted_terms VO (which generates the STORED extracted_lexemes GIN
     // column). null terms → extracted_terms stays NULL (never-extracted path).

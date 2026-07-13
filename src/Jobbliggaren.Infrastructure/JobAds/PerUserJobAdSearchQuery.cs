@@ -56,7 +56,7 @@ internal sealed class PerUserJobAdSearchQuery(
     IOccupationSynonymExpander synonymExpander,
     IJobAdSearchQuery searchQuery) : IPerUserJobAdSearchQuery
 {
-    // STORED shadow-kolumner (EF.Property-nycklar) — parity MatchScorer; kolumn-
+    // facett-kolumner (EF.Property-nycklar) — parity MatchScorer; kolumn-
     // namnen är en Infrastructure-hemlighet som aldrig läcker till Application.
     private const string OccupationGroupColumn = "OccupationGroupConceptId";
     private const string RegionColumn = "RegionConceptId";

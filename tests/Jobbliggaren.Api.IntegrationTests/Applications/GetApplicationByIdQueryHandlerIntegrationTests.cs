@@ -379,7 +379,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
     // #315 (ADR 0086 D4) — read-time ort-resolvering: en JobAd-länkad ansökan
     // vars JobAd bär ett municipality-concept-id → PreservedAd.Location resolveras
     // till svensk label av read-handlern (riktig ITaxonomyReadModel). Importerad
-    // JobAd m. raw_payload krävs (STORED shadow beräknas bara av Postgres).
+    // JobAd m. raw_payload + facetter (#841: facetterna skrivs i C# vid ingest, EJ av Postgres).
     // ---------------------------------------------------------------
 
     [Fact]

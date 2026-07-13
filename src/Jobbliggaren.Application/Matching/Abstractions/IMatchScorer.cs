@@ -19,7 +19,7 @@ namespace Jobbliggaren.Application.Matching.Abstractions;
 /// full match (F4-6). Explainable by design: each dimension surfaces matched/missing
 /// evidence; the result is category-primary with no opaque total (Goodhart guard).
 /// <para>
-/// The scorer reads only the ad's public title + the STORED shadow columns and the
+/// The scorer reads only the ad's public title + the facet columns and the
 /// confirmed/preferred ids on the profile — no raw CV PII (parity
 /// <see cref="IOccupationCodeDeriver"/>); it never logs. Implemented in
 /// Infrastructure (shadow-column reads via <c>EF.Property</c> are Npgsql-bound,

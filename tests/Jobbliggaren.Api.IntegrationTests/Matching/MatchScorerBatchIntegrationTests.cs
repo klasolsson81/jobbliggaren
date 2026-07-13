@@ -49,7 +49,7 @@ public class MatchScorerBatchIntegrationTests(ApiFactory factory)
         return (scope, new MatchScorer(db, analyzer));
     }
 
-    // Seeds an Imported JobAd whose raw_payload drives the STORED shadow columns
+    // Seeds an Imported JobAd whose raw_payload drives the facet columns
     // (parity MatchScorerIntegrationTests.SeedJobAdAsync). null → key omitted → shadow NULL.
     // Spår 3 PR-B: the optional municipalityConceptId (5th-after-ct, default null) folds into
     // workplace_address.municipality_concept_id — every legacy callsite reduces to region-only.

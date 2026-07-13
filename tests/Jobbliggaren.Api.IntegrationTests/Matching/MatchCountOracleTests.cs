@@ -106,7 +106,7 @@ public class MatchCountOracleTests(ApiFactory factory)
         Q: null);
 
     // ---------------------------------------------------------------
-    // Seeding — raw_payload drives the STORED shadow columns. null group/region/employment →
+    // Seeding — raw_payload drives the facet columns. null group/region/employment →
     // key omitted → that shadow column is NULL (the NotAssessed-by-NULL path).
     // ---------------------------------------------------------------
     private async Task<JobAdId> SeedJobAdAsync(

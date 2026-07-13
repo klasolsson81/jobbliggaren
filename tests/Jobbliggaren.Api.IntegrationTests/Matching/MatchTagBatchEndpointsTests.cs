@@ -25,7 +25,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// <para>
 /// A user registered via <c>RegisterAndGetSessionIdAsync</c> already HAS a JobSeeker
 /// (RegisterCommandHandler creates it). We state their match preferences via the existing
-/// <c>PUT /me/match-preferences</c> endpoint, then seed JobAds whose STORED shadow columns
+/// <c>PUT /me/match-preferences</c> endpoint, then seed JobAds whose facet columns
 /// (occupation_group / region / employment, Postgres generated columns derived from
 /// raw_payload) carry the SAME concept-ids — so the deterministic ladder produces a known
 /// grade per ad.
@@ -70,7 +70,7 @@ public class MatchTagBatchEndpointsTests(ApiFactory factory)
         return await response.Content.ReadFromJsonAsync<JsonElement>(ct);
     }
 
-    // Seeds an Imported JobAd whose raw_payload drives the STORED shadow columns
+    // Seeds an Imported JobAd whose raw_payload drives the facet columns
     // (parity MatchScorerIntegrationTests.SeedJobAdAsync). null → shadow NULL.
     private async Task<Guid> SeedJobAdAsync(
         string title,

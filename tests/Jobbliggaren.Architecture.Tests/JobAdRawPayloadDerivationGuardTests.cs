@@ -95,11 +95,9 @@ public class JobAdRawPayloadDerivationGuardTests
             if (relative.Equals(PurgeJobPath, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            var source = File.ReadAllText(file);
-
             // `SetProperty(j => j.RawPayload, ...)` — the ExecuteUpdate form, which never touches the
             // aggregate and therefore never runs SetSourcePayload.
-            if (Regex.IsMatch(source, @"SetProperty\(\s*\w+\s*=>\s*\w+\.RawPayload\b"))
+            if (BulkWritesRawPayload(File.ReadAllText(file)))
                 offenders.Add(relative);
         }
 
@@ -121,11 +119,45 @@ public class JobAdRawPayloadDerivationGuardTests
         // the allowlist entry would be a fossil.
         var purge = File.ReadAllText(Path.Combine(RepoRoot(), PurgeJobPath));
 
-        Regex.IsMatch(purge, @"SetProperty\(\s*\w+\s*=>\s*\w+\.RawPayload\b").ShouldBeTrue(
+        BulkWritesRawPayload(purge).ShouldBeTrue(
             "PurgeStaleRawPayloadsJob no longer matches the bulk-write pattern this guard scans for. " +
             "Either the purge changed shape (then update the pattern — the guard is now blind) or the " +
             "purge no longer bulk-writes raw_payload (then remove its exemption).");
     }
+
+    [Fact]
+    public void Bulk_write_scan_reads_code_not_comments()
+    {
+        // Found by mutation-testing this very guard: the first version scanned raw source text, so a
+        // COMMENT mentioning the forbidden call failed the build. A guard that fires on the prose
+        // explaining it teaches the next author to delete the explanation instead of the leak — and this
+        // file is nothing but explanation.
+        BulkWritesRawPayload("// never call SetProperty(j => j.RawPayload, _ => null) here")
+            .ShouldBeFalse("a comment describing the forbidden call is not the forbidden call");
+
+        BulkWritesRawPayload("/// <summary>Do not <c>SetProperty(j => j.RawPayload, ...)</c>.</summary>")
+            .ShouldBeFalse();
+
+        // ...and the real thing is still caught, including directly under such a comment.
+        BulkWritesRawPayload("""
+            // never do this
+            await db.JobAds.ExecuteUpdateAsync(s => s.SetProperty(j => j.RawPayload, _ => null), ct);
+            """).ShouldBeTrue("the actual bulk write must still be caught");
+    }
+
+    /// <summary>
+    /// True when the source CODE (comments excluded) bulk-writes <c>RawPayload</c> via
+    /// <c>SetProperty</c> — the <c>ExecuteUpdate</c> form that bypasses the aggregate.
+    /// </summary>
+    private static bool BulkWritesRawPayload(string source) =>
+        Regex.IsMatch(StripComments(source), @"SetProperty\(\s*\w+\s*=>\s*\w+\.RawPayload\b");
+
+    // Remove line, block and XML-doc comments while leaving string literals intact.
+    private static string StripComments(string source) =>
+        Regex.Replace(
+            source,
+            @"(?<comment>//[^\n]*|/\*[\s\S]*?\*/)|(?<keep>@?""(?:[^""\\\n]|\\.|"""")*""|""""""[\s\S]*?"""""")",
+            m => m.Groups["keep"].Success ? m.Groups["keep"].Value : " ");
 
     // Every `.HasComputedColumnSql("<sql>"...)` argument in the file.
     private static List<string> ComputedColumnExpressions(string source) =>

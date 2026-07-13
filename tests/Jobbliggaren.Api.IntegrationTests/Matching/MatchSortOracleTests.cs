@@ -26,7 +26,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// <c>HasComputedColumnSql(stored: true)</c> NULL/Match distinction AND any
 /// <c>= ANY</c>/<c>list.Contains(EF.Property)</c> translation failure; memory
 /// <c>ef_strongly_typed_vo_contains</c>). Mirrors
-/// <see cref="MatchScorerIntegrationTests"/> for the raw_payload → STORED shadow
+/// <see cref="MatchScorerIntegrationTests"/> for the raw_payload → facet-column
 /// column seeding.
 /// <para>
 /// <b>The oracle invariant:</b> for the SAME (profile, ad-shadow) inputs, the SQL
@@ -190,7 +190,7 @@ public class MatchSortOracleTests(ApiFactory factory)
         Q: null);
 
     // ---------------------------------------------------------------
-    // Seeding — raw_payload drives the STORED shadow columns. occupation_group +
+    // Seeding — raw_payload drives the facet columns. occupation_group +
     // employment_type + working_hours_type (the run-isolation worktime-extent) are
     // TOP-LEVEL; region AND municipality live under workplace_address (parity
     // MatchScorerIntegrationTests + JobAdGeneratedColumnsTests). null group/region/

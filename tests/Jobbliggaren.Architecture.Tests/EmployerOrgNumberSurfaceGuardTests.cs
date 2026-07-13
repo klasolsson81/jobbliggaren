@@ -18,8 +18,10 @@ namespace Jobbliggaren.Architecture.Tests;
 /// </summary>
 public class EmployerOrgNumberSurfaceGuardTests
 {
-    // Substrängar som indikerar att org.nr läckt in i en utgående DTO. org.nr lagras
-    // verbatim i shadow-kolumnen organization_number; varje DTO-fält vars namn bär
+    // Substrängar som indikerar att org.nr läckt in i en utgående DTO. org.nr lagras verbatim i
+    // kolumnen organization_number — sedan #841 en ORDINARIE, C#-skriven kolumn (och därmed en PUBLIK
+    // property på JobAd-aggregatet, vilket gör den här guarden MER bärande än förr: ett slarvigt
+    // ToDto() kan nu plocka upp j.OrganizationNumber via autocomplete). Varje DTO-fält vars namn bär
     // "organization"/"orgnr"/"orgnumber" vore en surfacing-regression.
     private static readonly string[] OrgNumberFieldMarkers =
         ["organization", "orgnr", "orgnumber"];

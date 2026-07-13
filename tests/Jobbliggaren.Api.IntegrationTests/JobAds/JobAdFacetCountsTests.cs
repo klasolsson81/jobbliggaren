@@ -13,7 +13,7 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 // ADR 0067 Beslut 4 (Platsbanken sök-paritet Fas D1) — per-option facet-counts.
 // Verifierar IJobAdSearchQuery.FacetCountsAsync mot riktig Postgres
-// (Testcontainers, ALDRIG EF-InMemory: GROUP BY mot STORED shadow-column +
+// (Testcontainers, ALDRIG EF-InMemory: GROUP BY mot facett-kolumn +
 // EF.Property<string?>-translation översätts enbart av Npgsql — InMemory ger
 // falska gröna, jfr feedback_ef_strongly_typed_vo_contains_translation).
 //

@@ -97,12 +97,22 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         // knows the JSON paths; the nesting traps and the worktime_extent/working_hours_type
         // name gap live there now.
         //
-        // .ValueGeneratedNever() IS LOAD-BEARING — do not drop it as noise. While these were
-        // computed, EF marked them ValueGeneratedOnAddOrUpdate, and EF OMITS such properties
-        // from INSERT/UPDATE. Leave the flag on and the C# write compiles, SetSourcePayload
-        // runs, every InMemory test passes — and Postgres never receives the value. That is
-        // #841's own failure mode (a value that looks written and is absent) re-entering
-        // through its own fix. Pinned by JobAdFacetColumnMappingTests + a real-Postgres test.
+        // ABOUT .ValueGeneratedNever() — and this note is honest about its own strength, because
+        // the claim was mutation-tested rather than assumed. It is NOT, by itself, what keeps the
+        // write working: remove it and the seven still persist, because EF's default for a plain
+        // scalar property is already ValueGenerated.Never (verified: the model test stays green).
+        //
+        // What actually protects the write is the ABSENCE of HasComputedColumnSql. A computed
+        // column is what makes EF mark a property ValueGeneratedOnAddOrUpdate — and EF OMITS such
+        // properties from INSERT/UPDATE, because the database is meant to produce the value. So the
+        // dangerous state is the HALF-DONE change: CLR property added, HasComputedColumnSql left
+        // behind. Then the C# compiles, SetSourcePayload runs, every InMemory test passes, and
+        // Postgres never receives the value — #841's own failure mode (a value that looks written
+        // and is functionally absent) re-entering through its own fix. That exact mutation turns
+        // JobAdFacetColumnMappingTests AND JobAdRawPayloadDerivationGuardTests red.
+        //
+        // The flag stays because it says the requirement out loud in the model, and it is what the
+        // model test asserts on. It is defence-in-depth and documentation — not the lock.
         //
         // No HasMaxLength (they are `text`; varchar(n) would force a table rewrite) and no
         // HasIndex: the seven partial `WHERE … IS NOT NULL` indexes are raw-SQL/migration-owned

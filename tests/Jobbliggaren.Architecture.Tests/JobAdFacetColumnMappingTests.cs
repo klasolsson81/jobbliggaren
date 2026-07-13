@@ -12,22 +12,30 @@ namespace Jobbliggaren.Architecture.Tests;
 ///
 /// <para>
 /// <b>This exists because of a silent failure mode that is easy to re-introduce and impossible to see.</b>
-/// While the seven were STORED generated columns, EF marked them <c>ValueGeneratedOnAddOrUpdate</c> — and
-/// <b>EF omits properties with that flag from INSERT and UPDATE statements</b>, because the database is
-/// supposed to produce the value. #841 makes C# produce it instead. If <c>.ValueGeneratedNever()</c> is
-/// ever dropped (it looks like noise; it is not), then:
+/// A computed column makes EF mark its property <c>ValueGeneratedOnAddOrUpdate</c>, and <b>EF omits
+/// properties with that flag from INSERT and UPDATE statements</b> — the database is supposed to produce
+/// the value. #841 makes C# produce it instead. So the dangerous state is the HALF-DONE change: the CLR
+/// property added, <c>HasComputedColumnSql</c> left behind. Then:
 /// </para>
 /// <list type="bullet">
 ///   <item>the C# still compiles;</item>
 ///   <item><c>JobAd.SetSourcePayload</c> still runs and sets all seven;</item>
-///   <item>every EF-InMemory test still passes (InMemory ignores the flag);</item>
+///   <item>every EF-InMemory test still passes (InMemory ignores computed columns entirely);</item>
 ///   <item>and <b>Postgres never receives the values</b> — every facet column is NULL, forever.</item>
 /// </list>
 /// <para>
 /// That is #841's own failure class — a value that looks written and is functionally absent — re-entering
-/// through the fix. Same for a computed-column expression sneaking back: the purge would resume
-/// destroying the seven. Both are pinned here, and again against real Postgres in
-/// <c>JobAdFacetsSurvivePurgeTests</c>. Three locks, because the failure is silent.
+/// through the fix. It is pinned here, and again against real Postgres in
+/// <c>JobAdFacetsSurvivePurgeTests</c>.
+/// </para>
+///
+/// <para>
+/// <b>An honest note about <c>.ValueGeneratedNever()</c>, because the claim was mutation-tested rather
+/// than assumed.</b> Removing that call ALONE changes nothing: EF's default for a plain scalar property is
+/// already <c>ValueGenerated.Never</c>, and this suite stays green. The lock is the ABSENCE of
+/// <c>HasComputedColumnSql</c>; the explicit flag is defence-in-depth and documentation. Both assertions
+/// below are kept — the <c>ValueGenerated</c> one is what actually fires when a computed expression
+/// sneaks back, since a computed column drags the flag along with it.
 /// </para>
 /// </summary>
 public class JobAdFacetColumnMappingTests

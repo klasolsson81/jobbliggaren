@@ -81,7 +81,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
             .ToList();
     }
 
-    // Seeds an Imported JobAd whose raw_payload drives the STORED shadow columns:
+    // Seeds an Imported JobAd whose raw_payload drives the facet columns:
     //   occupation_group.concept_id               → occupation_group_concept_id
     //   workplace_address.region_concept_id       → region_concept_id
     //   workplace_address.municipality_concept_id → municipality_concept_id (Spår 3 PR-B)

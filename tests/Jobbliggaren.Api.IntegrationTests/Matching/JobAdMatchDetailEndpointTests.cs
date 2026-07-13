@@ -97,7 +97,7 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
         $"{prefix}{Guid.NewGuid():N}"[..16];
 
     // ---------------------------------------------------------------
-    // Ad seeding — raw_payload drives the STORED shadow columns
+    // Ad seeding — raw_payload drives the facet columns
     // (occupation_group / region / employment); optional extracted_terms drives
     // the STORED extracted_lexemes GIN (parity FullMatchScorerIntegrationTests).
     // ---------------------------------------------------------------

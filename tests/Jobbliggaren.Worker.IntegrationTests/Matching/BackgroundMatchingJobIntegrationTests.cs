@@ -433,7 +433,7 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
             Lexeme: conceptId, Display: display, Kind: ExtractedTermKind.Requirement,
             Source: source, MatchedOn: display, ConceptId: conceptId, Weight: 1);
 
-    // Seeds an Imported (→ Active) JobAd whose raw_payload drives the STORED shadow columns
+    // Seeds an Imported (→ Active) JobAd whose raw_payload drives the facet columns
     // (occupation_group / region / employment) and, when terms is non-null, the extracted_terms
     // VO (which generates the STORED extracted_lexemes GIN column). Parity
     // FullMatchScorerIntegrationTests.

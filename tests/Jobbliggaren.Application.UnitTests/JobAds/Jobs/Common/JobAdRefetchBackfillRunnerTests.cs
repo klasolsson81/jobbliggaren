@@ -20,12 +20,15 @@ namespace Jobbliggaren.Application.UnitTests.JobAds.Jobs.Common;
 /// Delad re-ingest-kärna (senior-cto-advisor Variant H 2026-06-08, extraherad ur
 /// BackfillJobAdSsykJob). Iterar JobAds som matchar ett NULL-kolumn-predikat,
 /// re-fetchar mot JobTech per ID, och kör UpsertExternalJobAd-pipelinen för att
-/// re-skriva raw_payload (STORED computed columns re-evaluerar). Testerna
-/// använder ssyk-predikatet (<c>SsykConceptId IS NULL</c>) som representativ
-/// stand-in — i InMemory är alla shadow-kolumner NULL (computed columns körs ej)
-/// så predikatet matchar alla seedade rader; samma täckning som gällde när loopen
-/// bodde i ssyk-jobbet. Klass2-/ssyk-wrappers är tunna delegationer (predikat +
-/// auditJobType) och verifieras via runnern + Testcontainers-generated-column-test.
+/// re-skriva raw_payload — och sedan #841 skriver ingest-funneln OM de sju facett-
+/// kolumnerna i C# (JobAd.SetSourcePayload). Det gör runnern till #841:s DEPLOY-
+/// REPARATIONSVERKTYG: annonser vars facetter purgen redan nollat matchar NULL-
+/// predikatet, re-fetchas, och får alla sju skrivna på nytt. Testerna använder
+/// ssyk-predikatet (<c>SsykConceptId IS NULL</c>) som representativ stand-in — de
+/// seedade raderna skrivs utan facetter, så predikatet matchar dem; samma täckning
+/// som gällde när loopen bodde i ssyk-jobbet. Klass2-/ssyk-wrappers är tunna
+/// delegationer (predikat + auditJobType) och verifieras via runnern +
+/// JobAdFacetsSurvivePurgeTests (riktig Postgres).
 ///
 /// Verifierar:
 /// <list type="bullet">

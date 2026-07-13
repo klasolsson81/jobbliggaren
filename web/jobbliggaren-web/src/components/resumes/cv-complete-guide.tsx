@@ -784,11 +784,13 @@ export function CvCompleteGuide({
           `.jp-wizard--rail` är MODALENS mått (fast 1000x648, egen scroll) och dess
           radie är modal-undantaget från ADR 0052 — den kan inte lånas hit. Delade
           TOKENS, inte delade klasser (CTO Q1). */}
-      <nav className="jp-guide__rail" aria-label={tr("railNavLabel")}>
+      <aside className="jp-guide__rail">
+        {/* Proveniens, inte navigation — därför UTANFÖR <nav>-landmärket. */}
         <p className="jp-guide__source">
           {tr("sourceLine", { fileName: sourceFileName })}
         </p>
 
+        <nav aria-label={tr("railNavLabel")}>
         <ol className="jp-guide__raillist">
           {stepLabels.map((label, index) => {
             const active = index === step;
@@ -802,6 +804,7 @@ export function CvCompleteGuide({
                   type="button"
                   className="jp-guide__railitem"
                   data-state={active ? "active" : "idle"}
+                  data-status={status}
                   aria-current={active ? "step" : undefined}
                   onClick={() => goToStep(index)}
                   disabled={isPending}
@@ -833,7 +836,8 @@ export function CvCompleteGuide({
             );
           })}
         </ol>
-      </nav>
+        </nav>
+      </aside>
 
       <div className="jp-guide__main">
         <div className="jp-guide__mainhead">
@@ -844,7 +848,6 @@ export function CvCompleteGuide({
             type="button"
             variant="ghost"
             size="sm"
-            className="jp-guide__close"
             onClick={requestClose}
             disabled={isPending}
           >

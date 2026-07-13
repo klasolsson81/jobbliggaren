@@ -202,6 +202,11 @@
   --jp-fs-countcard-num: 26px;  /* .jp-wizard__countcard-num — wizard-räknarsiffra */
   --jp-fs-brand-word:    24px;  /* brand-lockupens ordmärke */
 
+  /* Skalets sticky header: .jp-header__inner 88px + 1px border-bottom. Ett TOKEN,
+     inte en magisk siffra, så att sticky-positionerade ytor (och scroll-padding)
+     inte kan driva isär från headern när dess höjd ändras. */
+  --jp-header-h: 89px;
+
   /* Display-klassens komponentbundna storlekar (#549 WS2): ADR 0068-undantagen
      flyttade till namngivna tokens (dokumenterade, swappbara) — INTE en del av
      H-skalan. Hero-/pagehero-titeln är display-klass per ADR 0068 Beslut 2 p.2. */
@@ -468,6 +473,16 @@
 html,
 body {
   height: 100%;
+}
+/* Scroll-padding: när webbläsaren scrollar in ett fokuserat fält (Tab) eller ett
+   fragment-mål lägger den det kant-i-kant mot scrollporten. Med en STICKY header
+   (89px) i toppen och sticky fötter i botten landar fältet då BAKOM krom — synligt
+   för musanvändaren, osynligt för den som tabbar. WCAG 2.4.11 (Focus Not Obscured).
+   Golvet i botten (96px) rymmer Slutför-guidens sticky fot (~69px) med luft; det är
+   scroll-containerns ansvar, inte varje komponents. */
+html {
+  scroll-padding-top: calc(var(--jp-header-h) + 16px);
+  scroll-padding-bottom: 96px;
 }
 body {
   /* Sidans BASLAGER = canvas (ej surface-primary/kort-färg). I dark är
@@ -5258,19 +5273,25 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
   overflow-wrap: anywhere;
 }
-/* Railen följer med när huvudytan scrollar (sidan scrollar, inte en inre box). */
+/* Railen följer med när huvudytan scrollar (sidan scrollar, inte en inre box).
+   `top` måste RENSA skalets sticky header — annars pinnas railen in UNDER den, och
+   källraden (det enda som säger vilken fil du slutför) försvinner vid scroll medan
+   fokusringen på steg 1 hamnar bakom kromet (code-reviewer Major).
+
+   Ingen egen fyllnad/ram: `--jp-surface-2` ÄR `--jp-canvas` i ljust tema (#F4F6FA
+   båda) — panelen jag trodde jag byggde fanns inte, och ramen låg på ~1,1:1. Att
+   låna modalens yt-token utan dess vita underlag ger ett dekorativt tomrum, och
+   inverterar hierarkin: navigationen blev sidans minst närvarande yta medan varje
+   innehållsblock är vitt. Railen är SID-MÖBEL (GOV.UK sub-nav), korten är innehåll
+   (design-reviewer Major; principles §1/§3). */
 .jp-guide__rail {
   position: sticky;
-  top: 24px;
-  padding: 18px;
-  background: var(--jp-surface-2);
-  border: 1px solid var(--jp-border-soft);
-  border-radius: var(--jp-r-md);
+  top: calc(var(--jp-header-h) + 24px);
+  align-self: start;
 }
 @media (max-width: 1023px) {
   .jp-guide__rail {
     position: static;
-    padding: 14px;
   }
 }
 .jp-guide__raillist {
@@ -5293,6 +5314,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
   gap: 11px;
   width: 100%;
+  /* ADR 0038 hit-target-golv. Spara-steget saknar konsekvensrad och blev annars
+     ~40px medan de övriga är ~54px — ojämn rytm OCH under golvet. */
+  min-height: 44px;
   padding: 9px 12px;
   text-align: left;
   background: transparent;
@@ -5339,6 +5363,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-weight: var(--jp-fw-semibold);
   color: var(--jp-ink-2);
 }
+.jp-guide__railitem[data-status="done"] .jp-guide__raillabel {
+  color: var(--jp-ink-1);
+}
 .jp-guide__railitem[data-state="active"] .jp-guide__raillabel {
   color: var(--jp-accent-900);
 }
@@ -5354,9 +5381,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   max-width: 100%;
   font-size: var(--text-micro);
   color: var(--jp-ink-2);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Ingen nowrap/ellipsis: raden BÄR påståendet (WCAG 1.4.1) och skulle klippas
+     tyst vid 200 % textzoom (1.4.4) — i just den rad upplyftet finns till för. */
 }
 /* Stegets indikator bär STATUS (tre tillstånd), aldrig markeringen — var man står
    säger railitem[data-state="active"]. Tidigare slogs de ihop i ett data-state, och
@@ -5371,10 +5397,19 @@ a.jp-adminnav__link[aria-current="page"]::after {
   width: 22px;
   height: 22px;
   border-radius: var(--jp-r-pill);
-  border: 1px solid var(--jp-border-strong);
-  font-size: var(--text-caption);
+  background: var(--jp-surface);
+  border: 2px solid var(--jp-border-input);
+  color: var(--jp-ink-2);
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
   font-weight: var(--jp-fw-bold);
+  font-variant-numeric: tabular-nums;
   flex-shrink: 0;
+}
+.jp-guide__railind[data-status="active"],
+.jp-guide__railitem[data-state="active"] .jp-guide__railind {
+  border-color: var(--jp-accent-700);
+  color: var(--jp-accent-700);
 }
 .jp-guide__railind[data-status="done"] {
   background: var(--jp-accent-800);
@@ -5403,7 +5438,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-guide__position {
   margin: 0;
   font-family: var(--jp-font-mono);
-  font-size: var(--text-overline);
+  font-size: var(--text-caption);
   font-weight: var(--jp-fw-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -5555,7 +5590,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    den yta som faktiskt finns. */
 .jp-guide__parallel {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   gap: 16px;
 }
 .jp-guide__card {
@@ -5587,7 +5622,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-guide__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 12px;
 }
 .jp-guide__collapsed {

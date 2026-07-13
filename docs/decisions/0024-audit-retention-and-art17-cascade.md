@@ -456,6 +456,17 @@ ADR 0022 kompletteras implicit av denna ADR — Art. 17-policyn är nu implement
 
 ## Cross-ref-amendment 2026-05-13 — right-to-erasure-cascade för rekryterar-PII i raw_payload
 
+> ### ⚠ SUPERSEDED 2026-07-13 (#842) — DO NOT RELY ON THE ENTRY BELOW
+>
+> **Every clause of the cascade registered in this section is false, and its scope is wrong.**
+> The command no longer exists (deleted); the `raw_payload` null-out was **100 % vacuous** (measured:
+> 0 of 93 469 ads carry the probed key); `PurgeStaleRawPayloadsJob` minimises nothing for this PII
+> (it never touches `description`); and the cascade **omits `job_ads.description`**, which is where
+> the recruiter's contact details actually are (27 077 ads) and which is full-text searchable.
+> **The corrected cascade, the full surface inventory, and the governing contract are in
+> [Amendment 2026-07-13](#amendment-2026-07-13--the-recruiter-pii-art-17-cascade-failed-and-the-registrys-scope-was-wrong-842).**
+> This section is retained unaltered as the record of what was believed and why it failed.
+
 **Datum:** 2026-05-13
 **Källa:** TD-73 prod-gating-batch (CTO-rond 2026-05-13)
 **Trigger:** TD-73 amendment-batch (ADR 0032 §8 punkt 4)
@@ -465,6 +476,8 @@ ADR 0022 kompletteras implicit av denna ADR — Art. 17-policyn är nu implement
 Denna ADR (0024) etablerar Art. 17-cascade-mönstret för **user-ägd data** (JobSeeker + Application + Resume soft-delete → hard-delete via `HardDeleteAccountsJob`, audit-anonymisering via `IAuditTrailEraser`).
 
 För **rekryterar-PII i `job_ads.raw_payload`** (icke-användar-data där JobbPilot ändå är data controller per GDPR Art. 4(1) så snart payload persisteras) implementeras Art. 17 separat per [ADR 0032 §8 amendment 2026-05-13](./0032-jobtech-integration.md#amendment-2026-05-13--%C2%A78-punkt-4-implementeras-audit-wire-%CE%B1-via-adr-0035--right-to-erasure-email-only):
+
+⚠ **FALSIFIED 2026-07-13 (#842) — all four clauses. See the superseded banner above.**
 
 - `RedactRecruiterPiiCommand` admin-endpoint (Email-only nu, Name som TD-75)
 - Total null-out av matchande `raw_payload` via `ExecuteUpdateAsync`
@@ -575,3 +588,115 @@ Restore-fönstret modelleras FORTSATT via `JobSeeker.DeletedAt` (D5 oförändrad
 Additivt amendment (originaltext + tidigare amendments oförändrade). Ingen separat TD; docs-sync i samma PR som scope (ADR 0065). Tester: 3 Testcontainers-integrationstester (färsk orphan sopas EJ [RED-bevisad], åldrad orphan sopas, reverse-orphan icke-destruktiv). security-auditor CONDITIONAL-GREEN (0 Blockers), dotnet-architect + code-reviewer APPROVE.
 
 **Referenser:** #508, #482, #524, ADR 0013, ADR 0066, CTO-bind 2026-07-02, CLAUDE.md §5/§9.2/§12.
+
+---
+
+## Amendment 2026-07-13 — the recruiter-PII Art. 17 cascade failed, and the registry's scope was wrong (#842)
+
+**Datum:** 2026-07-13
+**Källa:** CTO ruling `docs/reviews/2026-07-13-842-erasure-contract-cto.md` (BOUND) + evidence pack `docs/research/2026-07-13-842-erasure-evidence-pack.md` (all `file:line` claims re-verified at HEAD)
+**Trigger:** #842 — the only Art. 17 erasure path for recruiter PII was a structural no-op that reported success. Discovered while auditing #824 (DPIA, archived ads).
+
+This ADR is the canonical Art. 17 erasure-cascade registry: it is the first place an auditor or a DPA looks. The entry it carried for recruiter PII since 2026-05-13 was wrong in **every clause**, and wrong about **scope** in a way that matters more than any of the clauses. This amendment marks it failed and re-registers it correctly.
+
+### 1. What failed
+
+| Registered clause (Cross-ref-amendment 2026-05-13) | Verdict |
+|---|---|
+| "`RedactRecruiterPiiCommand` admin-endpoint (Email-only nu, Name som TD-75)" | **The command no longer exists.** Deleted in #842 PR1, together with `RecruiterPiiPurger`/`IRecruiterPiiPurger` — dead code that impersonated a safety control. The **route is deliberately kept** and now returns **501** (`AdminJobAdsEndpoints.cs:70-79`) so that this registry's reference fails loud rather than dangling silently. **TD-75 is closed as void** (CTO V17): its rationale ("Email är primär rekryterar-identifier i JobTech-payloads") is not outdated, it is **falsified** — the email is never a structured key in storage, so the deferral deferred the only branch that could ever have worked. |
+| "Total null-out av matchande `raw_payload` via `ExecuteUpdateAsync`" | **100 % vacuous — not approximately vacuous.** The purger matched rows by jsonb containment on `{"employer":{"contact_email": …}}`. That key is guaranteed absent by two independent locks: the wire POCO cannot emit it, and the ingest sanitizer's default-deny allowlist drops it. **Measured against the real corpus: 0 of 93 469 ingested ads carry that key.** `rowsAffected = 0` was its **only possible outcome**, for every ad, always. Same defect class as #805-3 (a filter over a column nothing ever writes). |
+| "En aggregerad audit-rad per request via befintlig `AuditBehavior` (`Admin.RecruiterPiiRedacted`)" | The row was written, but it is **empty of everything that matters** — see §4. |
+| "30d-retention via `PurgeStaleRawPayloadsJob` minimerar fönstret" | **It minimises nothing for this PII.** The job's only write is `SetProperty(j => j.RawPayload, _ => null)` (`PurgeStaleRawPayloadsJob.cs:104-106`). It never touches `description`. Its own doc claimed to erase precisely the PII it cannot reach (truth-synced in PR1). |
+
+**And the scope error, which is the more serious half:**
+
+The cascade registered **exactly one surface — `raw_payload` — and never `job_ads.description`.** The ad body is where the recruiter's contact details actually live: stored plaintext and verbatim (`.Trim()` only), and **full-text searchable by any authenticated user today**. Proven against real Postgres: `search_vector @@ websearch_to_tsquery('swedish', '<email>')` returns a hit, and the recruiter's **name** hits independently through ordinary word lexemes.
+
+**Measured on the real corpus (2026-07-13, 93 469 ads):** **27 077 ads (29 %) carry a well-formed email in the ad body**; **13 134** carry a phone number; only **17** use textual obfuscation.
+
+This was never a gap in the sanitizer's design. **It IS the design.** The sanitizer is a **key-name** filter that never examines a value, and it deliberately retains every free-text key (`description`, `text`, `company_information`, `needs`, `requirements`, `salary_description`). **It strips the FIELD, not the ADDRESS.** The registry entry inherited that misunderstanding and made it load-bearing.
+
+**The one mitigating fact:** the endpoint has been called **0 times** (`audit_log` rows matching `%RecruiterPiiRedact%` = 0). **No data subject has yet received a false confirmation**, and no notification duty is live. This bounds the harm (P1, not P0). It does not soften the finding: the documented procedure would have produced a false Art. 12(3) statement on the first real request.
+
+### 2. The cascade, re-registered — the FULL surface inventory
+
+Any erasure of recruiter PII from an ad must account for **every** surface below. The 2026-05-13 entry listed only row 3. This is the table an auditor should read.
+
+| # | Surface | Kind | What clears it |
+|---|---|---|---|
+| 1 | `job_ads.description` | text, plaintext, verbatim | **The real target, and the one the old cascade never named.** Cleared only by rewriting `description` itself (Tier A, at ingest) or by removing the record (Tier B). A `raw_payload` null-out **never touches it**. |
+| 2 | `job_ads.search_vector` | tsvector, **STORED GENERATED**, GIN-indexed (`JobAdConfiguration.cs:174-179`) | **Self-heals.** Postgres recomputes it on any write to `title`/`description` (PG18 §5.4; empirically confirmed). No trigger, no reindex, no backfill; it cannot be written directly. It is **not** derived from `raw_payload` → the old purger could not have affected it even in principle. |
+| 3 | `job_ads.raw_payload` | jsonb | Values scrubbed at ingest (Tier A) or nulled with the record (Tier B). **This is the only surface the failed cascade listed.** |
+| 4 | `job_ads.extracted_terms` | jsonb, **C#-written, NOT generated** (`JobAdConfiguration.cs:191-196` — a plain column, no `HasComputedColumnSql`) | **Does NOT self-heal — this is the load-bearing surface the old cascade did not know existed.** Only a re-run of the extractor clears it: `UpsertExternalJobAdCommandHandler.cs:121-123` reads `jobAd.Title`/`jobAd.Description` (the *aggregate's* values), on both the Add (`:62`) and Update (`:110`) paths. **The recruiter's NAME survives here verbatim** as a `Display`/`MatchedOn` surface form (`JobAdKeywordExtractor.cs:129-136`) — a searchable surface that **no regex over `description` reaches**. |
+| 5 | `job_ads.extracted_lexemes` | jsonb, **STORED GENERATED from `extracted_terms`** (`JobAdConfiguration.cs:208-213`) | Transitively — follows #4 whenever the extractor re-runs. Never derived from `description`. |
+| 6 | The seven `raw_payload`-derived generated columns (`organization_number`, `ssyk_concept_id`, `region_`/`municipality_`/`occupation_group_`/`employment_type_`/`worktime_extent_concept_id` — `JobAdConfiguration.cs:100,104,116,120,138,142,166`) | text, STORED GENERATED | Go NULL with `raw_payload` (`NULL->'x'->>'y'` is NULL). This is the **#824/#841 blast radius**. **On an erased ad it is irrelevant** — the row leaves every read path (§3, Tier B) and its facets have no consumer. Tier A never nulls `raw_payload`, so it does **not** trigger this. |
+| 7 | `job_ads.title` / `job_ads.url` | text | Tier A scrubs `title`; Tier B clears both. (`mailto:` is already filtered out of `url` at ingest.) |
+| 8 | `applications.snapshot_description` (`ApplicationConfiguration.cs:104-105`) | text, **a different aggregate**, one frozen copy **per applicant** | **Explicitly OUT of Tier B — a recorded decision, see §3.3.** Tier A reaches *new* snapshots for free: `AdSnapshot.Capture` copies `jobAdData.Description` (`CreateApplicationFromJobAdCommandHandler.cs:83-92`), which post-Tier-A is already scrubbed. |
+| 9 | Second-order: `recent_job_searches.q`, `saved_searches.criteria` | text / jsonb | Already in this ADR's **user** cascade (Amendment 2026-05-20) — but that cascade is keyed to the *searching user*, not to the recruiter. If a user searches the recruiter's email (which §1 proves works), the string persists in **another user's** row. Whether any such row exists is **UNPROVEN** (no query run). **PR3 queries the DB and cascades if so** (STOPP-4). |
+| 10 | Postgres MVCC residue: pre-update heap tuple, WAL, replicas, base backups/PITR | — | VACUUM reclaims the heap; the rest is a **disclosure** obligation, not a bug. **The backup/PITR retention window is not yet stated, and CC must not invent it** (STOPP-4): the DPIA cannot be signed and no `v*` tag cut until Klas fills it. EDPB CEF 2025 singles out exactly this gap. |
+
+**The durability constraint that binds every row above.** The nightly full backfill (`sync-platsbanken-snapshot`, 02:00) and the 10-minute stream both funnel through `UpdateFromSource`, which **unconditionally reassigns** `Title`/`Description`/`Url`/`RawPayload` and then re-runs the extractor. ⇒ **Any one-shot redacting UPDATE is undone within ≤24 h — within ≤10 min for a still-streaming ad.** This is why the failed cascade could not have been repaired by "make the purger null `description` too". A durable erasure must either live **inside the ingest path** (Tier A) or **remove the carrier and block its re-import** (Tier B). There is no third shape.
+
+### 3. The governing contract — ADR 0106 (BOUND, NOT YET SHIPPED)
+
+> ⚠ **Tense matters here, and it is the exact defect this issue is about.** ADR 0106's two tiers are **bound** (CTO ruling 2026-07-13, executable without further GO). **Neither is shipped.** Tier A ships in PR2, Tier B in PR3. **Today the product has no working Art. 17 erasure path for recruiter PII** — only the containment in §1 (a 501 and a truthful runbook). A doc that describes a control we do not yet have is precisely the failure being corrected; this section must not be read as describing present behaviour.
+
+**Tier A — Art. 25, everyone, no request needed, heuristic, DISCLOSED.** We do not *store* recruiter contact details. Email and phone are stripped from the ad body **at ingest, as a `JobAd` aggregate invariant** (`RecruiterContactRedactor` — deterministic, no LLM per ADR 0071), and replaced by a marker pointing to the canonical ad at Arbetsförmedlingen. Placement in the aggregate (not the handler, not the ACL) is what closes durability and completeness for free: the nightly rewrite goes through the same invariant, and `extracted_terms` is re-derived from the already-scrubbed aggregate values.
+**Reaches:** surfaces 1, 2, 3, 4, 5, 7 — and 8 for new snapshots. **Detection is imperfect and we say so** (misses obfuscation, and image-embedded addresses are a hard 0 %).
+
+**Tier B — Art. 17, on request, PROVABLE, no detector involved.** On a valid request we **remove the entire ad record** (`JobAdStatus.Erased`, zero migration) and **block its re-import**. It deletes the **carrier**, not the **string**.
+**Reaches:** surfaces 1-7 together, with no recall question, no obfuscation question, no image-embedded question — **and it covers the recruiter's NAME (surface 4), which no regex can reach.** Plus surface 9 if the DB query finds rows (STOPP-4).
+**Does not reach:** surface 8 — deliberately (§3.3).
+
+**Each tier is what makes the other honest.** Tier A alone leaves no honest answer to a request (a redact-on-request path tells a named data subject "your data is erased" when we only know "our regex found nothing more" — Art. 17(1) is textually **unqualified**; the "reasonable steps / available technology" language lives **only** in Art. 17(2), which governs informing *other* controllers, not erasure from our own store; and no EDPB/IMY/DPA authority accepts best-effort erasure of unstructured free text). Tier B alone would leave us hoarding contact details for 27 077 ads whose recruiters will never know we exist and will never ask. **Neither is optional. Neither is sufficient.**
+
+#### 3.1 Bound disclosure wording (Swedish, substance bound)
+
+- *Privacy policy (Tier A):* "Vi hämtar annonstexter från Platsbanken. Innan en annons sparas tar vi automatiskt bort e-postadresser och telefonnummer ur annonstexten. Kontaktuppgifterna finns kvar i originalannonsen hos Arbetsförmedlingen, som vi länkar till. Borttagningen är regelbaserad och kan missa uppgifter som skrivits på ovanliga sätt eller som ligger i en bild."
+- *Erasure contract (Tier B):* "Om du begär radering av dina kontaktuppgifter i en annons vi har hämtat tar vi bort hela annonsen ur våra system och hindrar att den hämtas in igen. Vi kan inte ta bort annonsen hos Arbetsförmedlingen, som är den som publicerat den."
+
+The second sentence of the Tier-B text is **mandatory**. *Google Spain* (C-131/12) cuts both ways: it legitimises "we erase our copy, not Arbetsförmedlingen's" — and it **forecloses** refusing a request on the ground that the ad is already published. Erasing our copy does not remove the data from the world, and we say so.
+
+#### 3.2 Shipping order and current status
+
+| PR | Scope | Status |
+|---|---|---|
+| **PR1** | Containment + truth: endpoint → **501**; `RecruiterPiiPurger` + `IRecruiterPiiPurger` + the command deleted; test fiction rewritten (#843); runbook's false confirmation pulled; source docs and ADRs 0032/0024/0049 truth-synced | **COMMITTED** |
+| **PR2** | **Tier A** — ingest scrub as a `JobAd` aggregate invariant + backfill of all 93 469 ads + measured recall/precision | **NOT SHIPPED** |
+| **PR3** | **Tier B** — `JobAdStatus.Erased`, re-import tombstone, 410 Gone on detail, audit payload + failure audit; **lifts the launch gate** | **NOT SHIPPED** |
+
+**No migrations in any of the three** (`JobAdStatus` is a string-converted SmartEnum with no CHECK constraint; `audit_log.payload` jsonb already exists — `AuditLogEntryConfiguration.cs:57`). The #821/#841 migration lane is not touched, not blocked and not waited on. `db-migration-writer` is therefore **not** invoked for #842 — its absence is a ruling, not a skipped gate.
+
+**Launch gate: no `v*` prod tag until Tier B ships** (STOPP-6).
+
+#### 3.3 RECORDED SCOPE DECISION — Tier B does NOT cascade into `applications.snapshot_description`
+
+**This is a decision, not an omission.** It is recorded here, in the cascade registry, precisely because a silent gap in a cascade table is how #842 happened in the first place.
+
+**Bound (CTO V13):** a Tier-B erasure removes the `job_ads` record; it does **not** null or redact applicants' frozen `applications.snapshot_description` copies. [ADR 0086](./0086-applied-ad-snapshot-write-side-retention.md) exists **precisely so the snapshot outlives the ad** — nulling it would destroy an applicant's own record of what she applied to.
+
+The rights collision is real and is resolved explicitly: **the recruiter's Art. 17 interest vs the applicant's interest in her own evidence — resolved in favour of the applicant.** The collision is also *mostly designed away* by minimisation getting there first: post-Tier-A, new snapshots are clean by construction (`AdSnapshot.Capture` copies an already-scrubbed description), and the dev DB currently holds **0 non-null `snapshot_description` rows**. The genuine residual is narrow: a snapshot holding a *missed* contact detail, or a Tier-B erasure of an ad that already has applicant snapshots.
+
+⚠ **The legal ground is PENDING, not settled.** The proposed ground is **Art. 17(3)(e)** (establishment, exercise or defence of legal claims). **Klas must affirm it (STOPP-3);** it is a legal call, not CC's, and it is **not asserted as settled here.** Until affirmed, this row of the cascade carries a technical decision with an unconfirmed legal basis, and the DPIA cannot be signed on it.
+
+### 4. The audit gap in this ADR's own pipeline
+
+The 2026-05-13 entry promised "en aggregerad audit-rad per request". The row exists. **It records nothing.**
+
+- **`AuditLogEntry.Create` hard-codes `payload: null`** (`AuditLogEntry.cs:81-92`, the literal at `:92`), and it is the factory `AuditBehavior` calls. So the recruiter-PII audit row carries **no identifier, no identifier type, no `rowsAffected`** — it is an `event_type` and a timestamp attached to a non-event. This **directly contradicts** what the now-deleted command's own doc claimed it wrote (an audit row with payload `{ identifier, type, rowsAffected }`), and it means the verification query the erasure runbook points an operator at (`recruiter-pii-erasure.md:61-63`) selects a column that is **always NULL**. An Art. 5(2)/30 accountability gap sitting inside the ADR that owns accountability.
+- **`AuditBehavior.cs:35-38` skips audit on `Result.Failure`** ("Fas 1 auditerar bara success per ADR 0022"). So a **rejected** erasure request leaves **no trace it was ever received** — a direct **Art. 12(3)** exposure, since Art. 12(3)/(4) obliges the controller to respond even when it takes no action, and we would have no record that a request arrived at all.
+
+**PR3 fixes both:**
+- `AuditLogEntry.Create` gains a payload parameter. **The `audit_log.payload` jsonb column already exists** (`AuditLogEntryConfiguration.cs:57`) ⇒ this is a **pipeline change, not a migration**. Payload shape: `{ identifierHmac, identifierKind, matchedExternalIds[], erasedCount, dryRun }`. The `externalIds` are not PII and are the accountability spine: they let a future auditor verify the erasure actually happened.
+- **HMAC-SHA256 with the server pepper — explicitly NOT md5** (which the old runbook suggested at `:134`). An md5 of an email address is dictionary-reversible in milliseconds; it is not a pseudonym, it is a fig leaf. Same primitive and same precedent as the org.nr HMAC (ADR 0090 D5, #824 condition C1) — one house rule.
+- **`IAuditableCommand.AuditFailures`, opt-in, default `false`**, set `true` for the erasure command. Opt-in keeps every existing command's behaviour bit-identical (OCP) and holds the blast radius at exactly one command.
+
+The general "Fas 6 retro-fit" of failed-attempt audit (`AuditBehavior.cs:36`) is **not** re-opened here; only the erasure command opts in, because only it carries an Art. 12(3) duty to record a request it refuses.
+
+### 5. Discipline
+
+Additive amendment. The original text and all prior amendments stand unaltered; the 2026-05-13 cross-ref section is **retained as the record of what was believed and why it failed**, with a superseded banner rather than a rewrite. The corrected cascade is §2 of this amendment.
+
+Docs-sync ships in the same PR as scope (ADR 0065) — no docs-only PR. **This ADR does not restate ADR 0106; it points to it.** ADR 0106 is the decision record for the two-tier contract and is **local/gitignored per ADR 0072** (0074+), which is why its substance is summarised here in the tracked registry rather than linked as a tracked file.
+
+**Referenser:** #842, #843, #845, #824, #841, #821, #805-3, ADR 0032 (§8 + amendments A2/A3), ADR 0049, ADR 0071, ADR 0072, ADR 0086, ADR 0087 D8(a), ADR 0090 D5, ADR 0106, CTO ruling 2026-07-13, evidence pack 2026-07-13, GDPR Art. 5(1)(c)/5(2), 12(3), 17(1)/17(3)(e), 19, 25(2), 30, CJEU C-131/12 (*Google Spain*), CLAUDE.md §2.2/§3/§5/§6.5/§9.2/§12.

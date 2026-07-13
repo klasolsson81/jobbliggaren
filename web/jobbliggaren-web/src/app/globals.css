@@ -5406,8 +5406,20 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
-.jp-guide__railind[data-status="active"],
-.jp-guide__railitem[data-state="active"] .jp-guide__railind {
+/* Markeringen får ALDRIG skriva över statusen — bara det NEUTRALA steget färgas av
+   att vara aktivt. Utan `[data-status="remaining"]` väger descendant-selektorn (0,3,0)
+   tyngre än `[data-status="done"]`/`[data-status="attention"]` (0,2,0), och då:
+   (i) aktivt + klart → bocken får `--jp-accent-700`, som i LJUST tema är samma hex som
+   accent-800-fyllningen → mörkgrön bock på mörkgrön skiva, 1,0:1, glyfen borta
+   (WCAG 1.4.11); (ii) aktivt + attention → varningstriangeln blir GRÖN, dvs. det enda
+   steget som BLOCKERAR sparandet bär produktens success-färg (principle §5: statusfärg
+   endast för status).
+   Det är exakt den sammanblandning CTO-bind Q3-A förbjöd, återinförd via specificitet i
+   stället för via attribut (design-reviewer Blocker). Välkomst-wizarden slipper det för
+   att den har ETT data-state på ETT element — när axlarna delas måste selektorerna
+   delas med dem. */
+.jp-guide__railitem[data-state="active"]
+  .jp-guide__railind[data-status="remaining"] {
   border-color: var(--jp-accent-700);
   color: var(--jp-accent-700);
 }

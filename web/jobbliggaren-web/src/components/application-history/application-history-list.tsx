@@ -17,10 +17,11 @@ interface ApplicationHistoryListProps {
  * <para>Honest empty state (no application history yet) names where history comes from — applying to a
  * job — without inventing data (no-mock doctrine, parity `/sparade` + the followed-companies list).</para>
  *
- * <para><b>#824 PR 4 — the incompleteness disclosure is load-bearing, not polish.</b> An application is
- * attributed to an employer only while the ad it was sent to still carries the employer identity; the
- * history handler drops every application whose ad no longer does (`Where(r => r.OrgNr != null)`). That
- * silently undercounts a group AND can drop an employer group in full — up to and including a user who
+ * <para><b>#824 PR 4 — the incompleteness disclosure is load-bearing, not polish.</b> The history handler
+ * drops every application for which no employer identity resolves (`Where(r => r.OrgNr != null)`). The
+ * predicate fires on ABSENCE, by three paths: no ad at all (a manually created application, `JobAdId ==
+ * null`), an ad that never carried an org.nr, and an org.nr purged along with `raw_payload` (the #824
+ * mechanism). That silently undercounts a group AND can drop an employer group in full — up to and including a user who
  * has applied seeing the empty state. Every count on this page is therefore a FLOOR, and the disclosure
  * is the only surface that can say so for the two cases the per-group counter cannot reach: the missing
  * employer and the empty compilation. It renders in BOTH branches, above the content it qualifies (Art.
@@ -33,7 +34,15 @@ export function ApplicationHistoryList({ items }: ApplicationHistoryListProps) {
 
   return (
     <>
-      <p className="mb-4 flex items-start gap-2 text-body-sm font-medium">
+      {/* design-review M1: informationsbärande text sätts ALDRIG under 16px (DESIGN.md §4) — och det
+          här är sidans mest informationsbärande text. `text-body` (16px) + kapad radlängd (68ch,
+          paritet .jp-attention/.jp-matchnudge__text) + explicit ink. Platt rad, INGEN tintad box:
+          husets tintade info-primitiv (.jp-matchsort-note, --jp-info-bg + vänsterkant) hade fått ett
+          neutralt faktum om användarens egna uppgifter att läsa som "ett problem du måste åtgärda"
+          (design-reviewer (c); code-reviewer Minor 4 ville tvärtom, men beskrev primitiven som platt
+          — den är det inte. Adjudicerat till design, som äger designen). Tailwind-utilities, ingen
+          globals.css-touch (hotspot). Färg via --jp-ink-1/currentColor → flippar i dark av sig själv. */}
+      <p className="mt-2 mb-4 flex max-w-[68ch] items-start gap-2 text-body font-medium text-text-primary">
         <Info size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
         <span>{t("incompleteNote")}</span>
       </p>

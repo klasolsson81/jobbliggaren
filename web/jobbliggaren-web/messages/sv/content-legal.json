@@ -33,7 +33,7 @@
           "Ditt cv och tolkat innehåll från det. Används för att spara, visa och arbeta med ditt cv i tjänsten.",
           "Din uppladdade originalfil av cv:t (planerat). När du importerar ett cv sparar vi filen du laddade upp i original och krypterad, så att du kan ladda ner den igen och senare arbeta vidare från den. Filen sparas bara när den inte innehåller ett personnummer i själva texten. Detta är planerat och ännu inte i drift.",
           "Dina ansökningar, personliga brev, egna anteckningar och uppföljningar kopplade till jobb. Används för att hjälpa dig att hålla ordning på dina ansökningar och påminna dig om uppföljning.",
-          "Ansökningshistorik och företagsöversikt (planerat). Vi sammanställer din egen ansökningshistorik per arbetsgivare så att du kan se hur många gånger du sökt hos ett företag, när du senast sökte och i vilket steg en ansökan avslutades. Sammanställningen kan vara ofullständig: en ansökan kan bara knytas till en arbetsgivare när uppgifterna från annonsen finns kvar hos oss, så antalet vi visar är ett minsta antal och en arbetsgivare kan saknas helt. Sammanställningen visas bara för dig. Detta är planerat och ännu inte i drift."
+          "Ansökningshistorik och företagsöversikt (planerat). Vi sammanställer din egen ansökningshistorik per arbetsgivare så att du kan se hur många gånger du sökt hos ett företag, när du senast sökte och i vilket steg en ansökan avslutades. Sammanställningen kan vara ofullständig: en ansökan räknas med bara när vi har arbetsgivarens identitet från annonsen, så antalet vi visar är ett minsta antal och en arbetsgivare kan saknas helt. Sammanställningen visas bara för dig. Detta är planerat och ännu inte i drift."
         ]
       },
       {
@@ -85,7 +85,7 @@
           "När du raderar ditt konto tas uppgifterna bort och de krypterade uppgifterna görs permanent oläsbara, se avsnittet om säkerhet. Efter att du begärt radering finns en period på 30 dagar då ett konto kan återställas, innan det raderas slutgiltigt.",
           "Säkerhets- och händelseloggen sparas i 90 dagar och rensas därefter automatiskt. När ditt konto raderas slutgiltigt avidentifieras de uppgifter i loggen som kan kopplas till dig.",
           "Jobbannonser från JobTech rensas inom 30 dagar.",
-          "Ansökningshistorik (planerat). Historiken, inklusive uppgift om i vilket steg en ansökan avslutades, är en del av dina ansökningar och sparas lika länge som de: så länge ditt konto finns, och tas bort när kontot raderas enligt punkterna ovan."
+          "Ansökningshistorik (planerat). Dina ansökningar, inklusive uppgift om i vilket steg en ansökan avslutades, sparas så länge ditt konto finns och tas bort när kontot raderas enligt punkterna ovan. Kopplingen mellan en ansökan och en arbetsgivare omfattas däremot inte av den garantin: den finns bara där vi har arbetsgivarens identitet från annonsen. Sammanställningen per arbetsgivare kan därför förlora poster permanent."
         ]
       },
       {
@@ -120,7 +120,7 @@
         "paragraphs": [
           "Jobbliggaren fattar inga automatiserade beslut med rättslig eller liknande betydande effekt för dig. Det finns inget sådant beslutsfattande enligt artikel 22 i dataskyddsförordningen.",
           "Matchningen mellan dig och jobb är regelbaserad, förutsägbar och förklarbar. Den bygger på de önskemål och uppgifter du själv anger och på en bestämd jämförelse mot annonserna. Vi visar alltid vilka nyckelord som matchar och vilka som saknas, så att du kan se varför ett jobb föreslås. Jobbliggaren använder ingen AI och inga språkmodeller för matchning, bedömning eller beslut. Det är alltid du som avgör vilka jobb du söker.",
-          "Jobbliggaren planerar en översikt av din egen ansökningshistorik per arbetsgivare, till exempel hur många gånger du har sökt hos ett företag, när du senast sökte och i vilket steg en ansökan avslutades. Översikten är regelbaserad och förklarbar, bygger enbart på uppgifter du själv skapat i tjänsten, visas bara för dig och delas aldrig med arbetsgivare. Antalet som visas är ett minsta antal: en ansökan räknas bara med när uppgifterna från annonsen finns kvar hos oss, och översikten kan därför vara ofullständig. Den används inte för att fatta några beslut om dig. Detta är planerat och ännu inte i drift."
+          "Jobbliggaren planerar en översikt av din egen ansökningshistorik per arbetsgivare, till exempel hur många gånger du har sökt hos ett företag, när du senast sökte och i vilket steg en ansökan avslutades. Översikten är regelbaserad och förklarbar, bygger enbart på uppgifter du själv skapat i tjänsten, visas bara för dig och delas aldrig med arbetsgivare. Antalet som visas är ett minsta antal: en ansökan räknas med bara när vi har arbetsgivarens identitet från annonsen, och översikten kan därför vara ofullständig. Den används inte för att fatta några beslut om dig. Detta är planerat och ännu inte i drift."
         ]
       },
       {

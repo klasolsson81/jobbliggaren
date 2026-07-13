@@ -114,8 +114,13 @@ describe("JobAdDetail (ADR 0053 Fas-3 fält-set)", () => {
   // (Art. 5(1)(a)/(d)).
   it("presents the count as a floor AND discloses the incompleteness (#824)", () => {
     render(<JobAdDetail jobAd={baseAd} previousApplicationCount={3} />);
+    // ANCHORED REGEX, deliberately — an exact-string guard here CANNOT FAIL (code-reviewer M1). The
+    // sentence and the disclosure share one <p>, so getNodeText() returns both; dropping "minst" would
+    // yield "Du har 3 … företag. Sammanställningen …", which never equals the bare-total matcher — the
+    // guard would return null and pass while the surface shows a total. A test that cannot fail for its
+    // stated reason IS the #843 defect this PR family exists to condemn. `^` pins the mutation itself.
     expect(
-      screen.queryByText("Du har 3 tidigare ansökningar till detta företag.")
+      screen.queryByText(/^Du har 3 tidigare ansökningar/)
     ).toBeNull();
     expect(
       screen.getByText(/Sammanställningen kan vara ofullständig/)

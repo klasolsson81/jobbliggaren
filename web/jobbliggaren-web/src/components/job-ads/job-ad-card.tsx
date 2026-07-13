@@ -164,10 +164,12 @@ export function JobAdCard({
             rad direkt under företaget (återbrukar .jp-job__meta → --jp-ink-1,
             hög kontrast, ingen ny CSS). Informativ text, ingen länk (B1); rent
             heltal, inget org.nr i text/attribut. ICU-plural bär ental/flertal.
-            #824 PR 4: räknaren är ett GOLV, aldrig en totalsumma — en ansökan
-            vars annons inte längre bär arbetsgivar-identiteten faller ur
-            attributionen. Kortet är den kompakta ytan, så golv-markören bär
-            hela hedgen här; skälet lever på detaljvyn och /foretag. */}
+            #824 PR 4: räknaren är ett GOLV, aldrig en totalsumma. Attributionen
+            faller på FRÅNVARO av arbetsgivar-identitet på annonsen, tre vägar:
+            ingen annons alls (manuell ansökan), en annons som aldrig bar org.nr,
+            eller ett org.nr som purgats med raw_payload (#824-mekanismen). Kortet
+            är den kompakta ytan, så golv-markören bär hela hedgen här; skälet
+            lever på detaljvyn och /foretag. */}
         {previousApplicationCount != null && previousApplicationCount > 0 && (
           <div className="jp-job__meta">
             <span>

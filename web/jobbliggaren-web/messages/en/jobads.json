@@ -79,13 +79,13 @@
   "applicationHistory": {
     "listLabel": "Application history per employer",
     "emptyTitle": "No application history to show",
-    "emptyBody": "Search for jobs under Jobs and submit an application. Your history is collected here, grouped by employer.",
+    "emptyBody": "History is collected here per employer when you submit an application. Search for jobs under Jobs.",
     "unknownCompany": "The company name is not available",
     "orgNr": "Org. no. {orgNr}",
     "protectedIdentity": "Protected identity",
     "protectedIdentityHint": "The organisation number is hidden because it may be a personal identity number.",
     "applicationCount": "At least {count, plural, one {# submitted application} other {# submitted applications}}",
-    "incompleteNote": "The compilation may be incomplete. An application can only be linked to an employer while we still hold the data from the ad. When it is missing, the application is not counted, and an employer may be absent from the list entirely.",
+    "incompleteNote": "The compilation may be incomplete. The numbers can be too low, and an employer can be missing from the list entirely. An application is only counted when we have the employer's identity from the ad, and for some applications we do not.",
     "showApplications": "{count, plural, one {Show application} other {Show applications}}",
     "appliedAt": "Applied {date}"
   },

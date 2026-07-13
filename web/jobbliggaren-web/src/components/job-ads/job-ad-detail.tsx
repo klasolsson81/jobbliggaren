@@ -74,9 +74,10 @@ interface JobAdDetailProps {
    * som en `<Link>` till `/foretag#ansokningshistorik`. Rent heltal; INGET org.nr i text/attribut/URL
    * (CLAUDE.md §5 — enskild firma = personnummer).
    *
-   * <para>#824 PR 4 — antalet är ett GOLV. En ansökan attribueras till en arbetsgivare bara så länge
-   * annonsen den skickades till fortfarande bär arbetsgivar-identiteten; historik-handlern släpper
-   * resten. Copyn bär därför båda halvorna av hedgen på den här ytan (golv-markör på siffran +
+   * <para>#824 PR 4 — antalet är ett GOLV. Predikatet faller på FRÅNVARO av arbetsgivar-identitet
+   * (`.Where(r => r.OrgNr != null)`), tre vägar: ingen annons alls (manuell ansökan, `JobAdId == null`),
+   * en annons som aldrig bar org.nr, eller ett org.nr som purgats med `raw_payload` (#824-mekanismen).
+   * Copyn bär därför båda halvorna av hedgen på den här ytan (golv-markör på siffran +
    * ofullständigheten hos sammanställningen länken leder till) — ett oreserverat faktapåstående till den
    * registrerade om hennes egna uppgifter är en Art. 5(1)(a)/(d)-defekt, inte en formuleringsfråga.</para>
    */
@@ -157,9 +158,11 @@ export function JobAdDetail({
           </div>
         </dl>
 
-        {/* #593 (#446-uppföljning) — "Du har X tidigare ansökningar till detta företag" som LÄNK till
-            ansökningshistoriken. POSITIVE-ONLY (bara > 0). Giltig länk här (ingen ytter-`<a>` på
-            detaljvyn, till skillnad från list-kortet — B1/Fork 3C). Rent heltal, inget org.nr. */}
+        {/* #593 (#446-uppföljning) — "Du har MINST X tidigare ansökningar till detta företag.
+            Sammanställningen kan vara ofullständig." som LÄNK till ansökningshistoriken. POSITIVE-ONLY
+            (bara > 0). Giltig länk här (ingen ytter-`<a>` på detaljvyn, till skillnad från list-kortet —
+            B1/Fork 3C). Rent heltal, inget org.nr. #824 PR 4: golv-markör + ofullständighet, båda
+            halvorna — se prop-doccen ovan. */}
         {previousApplicationCount != null && previousApplicationCount > 0 && (
           <p className="text-body-sm">
             {tUi("detail.previousApplications", { count: previousApplicationCount })}{" "}

@@ -61,9 +61,10 @@ describe("ApplicationHistoryList (#311 #448, ADR 0087 D2/D8(c); ADR 0090 R-A4)",
   // employer can vanish. These two tests fail the moment the count is presented as a total again.
   it("räknaren presenteras som ett GOLV — aldrig som en totalsumma", () => {
     render(<ApplicationHistoryList items={[legalEntity]} />);
-    // getByText matches the node's full normalised text: a bare total would match this exactly, the
-    // floor-prefixed line does not. Removing "Minst" from the copy turns this null into a hit.
-    expect(screen.queryByText("2 skickade ansökningar")).toBeNull();
+    // Anchored regex, not an exact string: the guard must keep failing for the mutation it names even if
+    // the copy later grows a clause (the sibling guard on the detail view was silently vacuous for
+    // exactly that reason — code-reviewer M1). Removing "Minst" turns this null into a hit.
+    expect(screen.queryByText(/^2 skickade ansökningar/)).toBeNull();
   });
 
   it("ofullständighets-disclosuren renderas i BÅDA grenarna (tom + fylld) — den är sidans enda yta för den saknade arbetsgivaren", () => {

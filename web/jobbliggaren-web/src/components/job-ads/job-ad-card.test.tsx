@@ -148,8 +148,11 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
   // /foretag carry the reason). Dropping "minst" turns this null into a hit.
   it("presents the count as a floor — never as a total (#824)", () => {
     render(<JobAdCard jobAd={baseAd} previousApplicationCount={3} />);
+    // Anchored regex, not an exact string: the guard must keep failing for the mutation it names even
+    // if the copy later grows a clause (the sibling guard on the detail view was silently vacuous for
+    // exactly that reason — code-reviewer M1).
     expect(
-      screen.queryByText("Du har 3 tidigare ansökningar till detta företag")
+      screen.queryByText(/^Du har 3 tidigare ansökningar/)
     ).toBeNull();
   });
 

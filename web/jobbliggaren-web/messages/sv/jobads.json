@@ -79,13 +79,13 @@
   "applicationHistory": {
     "listLabel": "Ansökningshistorik per arbetsgivare",
     "emptyTitle": "Ingen ansökningshistorik att visa",
-    "emptyBody": "Sök jobb under Jobb och skicka en ansökan, så samlas historiken här per arbetsgivare.",
+    "emptyBody": "Historiken samlas här per arbetsgivare när du skickar en ansökan. Sök jobb under Jobb.",
     "unknownCompany": "Företagets namn är inte tillgängligt",
     "orgNr": "Org.nr {orgNr}",
     "protectedIdentity": "Skyddad identitet",
     "protectedIdentityHint": "Organisationsnumret visas inte eftersom det kan vara ett personnummer.",
     "applicationCount": "Minst {count, plural, one {# skickad ansökan} other {# skickade ansökningar}}",
-    "incompleteNote": "Sammanställningen kan vara ofullständig. En ansökan kan bara knytas till en arbetsgivare när uppgifterna från annonsen finns kvar hos oss. Saknas de räknas ansökan inte med, och en arbetsgivare kan då saknas helt i listan.",
+    "incompleteNote": "Sammanställningen kan vara ofullständig. Antalen kan vara för låga, och en arbetsgivare kan saknas helt i listan. En ansökan räknas med bara när vi har arbetsgivarens identitet från annonsen, och den saknas för en del ansökningar.",
     "showApplications": "{count, plural, one {Visa ansökan} other {Visa ansökningar}}",
     "appliedAt": "Ansökt {date}"
   },

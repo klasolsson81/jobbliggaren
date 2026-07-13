@@ -33,7 +33,7 @@
           "Your CV and content parsed from it. Used to store, display and work with your CV in the service.",
           "Your uploaded original CV file (planned). When you import a CV, we store the file you uploaded in its original form and encrypted, so you can download it again and later continue working from it. The file is stored only when it does not contain a personal identity number in its text. This is planned and not yet in operation.",
           "Your applications, cover letters, personal notes and follow-ups linked to jobs. Used to help you keep track of your applications and to remind you about follow-ups.",
-          "Application history and company overview (planned). We compile your own application history per employer so you can see how many times you have applied to a company, when you last applied and at which stage an application ended. The compilation may be incomplete: an application can only be linked to an employer while we still hold the data from the ad, so the number we show is a minimum and an employer may be missing entirely. The compilation is shown only to you. This is planned and not yet in operation."
+          "Application history and company overview (planned). We compile your own application history per employer so you can see how many times you have applied to a company, when you last applied and at which stage an application ended. The compilation may be incomplete: an application is only counted when we have the employer's identity from the ad, so the number we show is a minimum and an employer may be missing entirely. The compilation is shown only to you. This is planned and not yet in operation."
         ]
       },
       {
@@ -85,7 +85,7 @@
           "When you delete your account, the data is removed and the encrypted data is made permanently unreadable, see the section on security. After you have requested deletion, there is a 30-day period during which an account can be restored, before it is deleted permanently.",
           "The security and event log is kept for 90 days and is then cleared automatically. When your account is deleted permanently, the data in the log that can be linked to you is de-identified.",
           "Job ads from JobTech are cleared within 30 days.",
-          "Application history (planned). The history, including the stage at which an application ended, is part of your applications and is kept for as long as they are: while your account exists, and is removed when the account is deleted per the points above."
+          "Application history (planned). Your applications, including the stage at which an application ended, are kept while your account exists and are removed when the account is deleted per the points above. The link between an application and an employer is not covered by that guarantee: it exists only where we have the employer's identity from the ad. The per-employer compilation can therefore lose entries permanently."
         ]
       },
       {
@@ -120,7 +120,7 @@
         "paragraphs": [
           "Jobbliggaren makes no automated decisions with legal or similarly significant effect for you. There is no such decision-making under Article 22 of the GDPR.",
           "The matching between you and jobs is rule-based, predictable and explainable. It is based on the preferences and data you provide yourself and on a fixed comparison against the ads. We always show which keywords match and which are missing, so that you can see why a job is suggested. Jobbliggaren uses no AI and no language models for matching, assessment or decisions. It is always you who decides which jobs you apply for.",
-          "Jobbliggaren plans an overview of your own application history per employer, for example how many times you have applied to a company, when you last applied and at which stage an application ended. The overview is rule-based and explainable, builds solely on data you created in the service yourself, is shown only to you and is never shared with employers. The number shown is a minimum: an application is only counted while we still hold the data from the ad, so the overview may be incomplete. It is not used to make any decisions about you. This is planned and not yet in operation."
+          "Jobbliggaren plans an overview of your own application history per employer, for example how many times you have applied to a company, when you last applied and at which stage an application ended. The overview is rule-based and explainable, builds solely on data you created in the service yourself, is shown only to you and is never shared with employers. The number shown is a minimum: an application is only counted when we have the employer's identity from the ad, so the overview may be incomplete. It is not used to make any decisions about you. This is planned and not yet in operation."
         ]
       },
       {

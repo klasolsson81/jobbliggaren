@@ -42,8 +42,9 @@ internal sealed class ScbCompanyRegisterEntryConfiguration
             .HasColumnName("sate_kommun_name");
 
         // text[] for the ≤5 SNI codes (Npgsql auto-maps List<string>). Value comparer per the
-        // RecentJobSearch text[] precedent so EF snapshots the collection correctly. No GIN index in
-        // v1 — no consumer until smart-bevakning (ADR 0091 / Fork 5).
+        // RecentJobSearch text[] precedent so EF snapshots the collection correctly. The GIN index
+        // ADR 0091 deferred ("no consumer until smart-bevakning") is added below — #560's criteria
+        // wave IS that consumer.
         var sniComparer = new ValueComparer<List<string>>(
             (a, b) => (a ?? new List<string>()).SequenceEqual(b ?? new List<string>(), StringComparer.Ordinal),
             v => v.Aggregate(0, (h, s) => HashCode.Combine(h, s)),
@@ -81,9 +82,26 @@ internal sealed class ScbCompanyRegisterEntryConfiguration
         builder.HasIndex(c => c.Status)
             .HasDatabaseName("ix_company_register_status");
 
-        // sate_kommun_code — the future smart-bevakning kommun facet (ADR 0091 next PR).
+        // sate_kommun_code — the smart-bevakning kommun facet (the `= ANY(@kommun)` half of the
+        // criteria predicate).
         builder.HasIndex(c => c.SeatMunicipalityCode)
             .HasDatabaseName("ix_company_register_sate_kommun_code");
+
+        // #560 Fork B1 — GIN on sni_codes: the index-backed half of the criteria browse predicate
+        // (`sni_codes && @user_sni`, array overlap). The DEFAULT GIN operator class for text[] is
+        // the built-in array_ops, which supports && / @> / <@ / = — no HasOperators() needed, and
+        // no raw SQL: the house raw-SQL GIN precedent (F6P4aJobAdTrigramIndexes) exists only
+        // because those are EXPRESSION indexes (lower(title) gin_trgm_ops) that EF cannot model.
+        // A plain column can be, so it is — the index then lives in the model snapshot and
+        // survives future diffs.
+        //
+        // NOTE for PR-2 (the browse read-path): LINQ does NOT reliably translate to the `&&`
+        // operator — a naive .Where(c => c.SniCodes.Any(s => userSni.Contains(s))) compiles to an
+        // unnest-subquery that does NOT use this index, which would make the index cosmetic. The
+        // port must emit && explicitly and pin it with an EXPLAIN test.
+        builder.HasIndex(c => c.SniCodes)
+            .HasMethod("gin")
+            .HasDatabaseName("ix_company_register_sni_codes_gin");
 
         // synced_at — the vanish-sweep scans "rows not touched this run" by synced_at < runStartedAt.
         builder.HasIndex(c => c.SyncedAt)

@@ -812,3 +812,85 @@ describe("CvCompleteGuide — ingen yta får DÖLJA ett blockerande fel (#815, r
     ).not.toBeInTheDocument();
   });
 });
+
+describe("CvCompleteGuide — ytan slår inte igen när felet rättas (#815, rond-4 Major)", () => {
+  // Den härledda expansionen var korrekt som SPÄRR (ingen yta får dölja ett fel) men
+  // dubbelriktad: rättade användaren felet blev predikatet falskt och kortet kollapsade
+  // MITT I inmatningen — fokus slängdes till <body>, och slutdatum/beskrivning gick inte
+  // att nå. WCAG 3.2.2, på default-vägen (varje parsad post saknar startdatum).
+  // Expansionen är nu en spärrhake: den kan växa, aldrig krympa.
+  it("att fylla i startdatumet stänger INTE kortet och behåller fokus", async () => {
+    const user = userEvent.setup();
+    renderGuide(
+      makeContent({
+        experiences: [
+          {
+            title: "Operatör",
+            organization: "Verkstaden AB",
+            period: "2005 - 2010",
+            rawText: "Operatör",
+          },
+          {
+            title: "Tekniker",
+            organization: "Beta AB",
+            period: "2010 - nu",
+            rawText: "Tekniker",
+          },
+        ],
+      }),
+    );
+
+    const rail = screen.getByRole("navigation", { name: "Steg i guiden" });
+    await user.click(within(rail).getByRole("button", { name: /^Spara/ }));
+    await user.click(screen.getByRole("button", { name: "Spara CV" }));
+
+    // Båda korten är öppna (spärren).
+    await waitFor(() =>
+      expect(document.getElementById("guide-exp-1-startDate")).not.toBeNull(),
+    );
+
+    // Rätta post 2 (den routeToError INTE hoppade till) — det är där buggen bodde.
+    const startDate = document.getElementById(
+      "guide-exp-1-startDate",
+    ) as HTMLInputElement;
+    startDate.focus();
+    await user.type(startDate, "2018-01-01");
+
+    // Kortet är kvar, fältet är kvar i DOM, och fokus ligger kvar i det.
+    expect(document.getElementById("guide-exp-1-startDate")).not.toBeNull();
+    expect(document.getElementById("guide-exp-1-description")).not.toBeNull();
+    expect(document.activeElement).toBe(startDate);
+  });
+
+  it("att rätta ett kontaktfält stänger inte tillbaka det till bekräfta-läge", async () => {
+    const user = userEvent.setup();
+    const tooLongLocation = "x".repeat(210); // > 200 → blockerande
+    renderGuide(
+      makeContent({
+        contact: {
+          fullName: "Anna Andersson",
+          email: null,
+          phone: null,
+          location: tooLongLocation,
+        },
+      }),
+    );
+
+    const rail = screen.getByRole("navigation", { name: "Steg i guiden" });
+    await user.click(within(rail).getByRole("button", { name: /^Spara/ }));
+    await user.click(screen.getByRole("button", { name: "Spara CV" }));
+
+    await waitFor(() =>
+      expect(document.getElementById("guide-pi-location")).not.toBeNull(),
+    );
+
+    const location = document.getElementById("guide-pi-location") as HTMLInputElement;
+    location.focus();
+    await user.clear(location);
+    await user.type(location, "Göteborg");
+
+    // Fältet finns kvar (faller inte tillbaka till bekräfta-raden) och behåller fokus.
+    expect(document.getElementById("guide-pi-location")).not.toBeNull();
+    expect(document.activeElement).toBe(location);
+  });
+});

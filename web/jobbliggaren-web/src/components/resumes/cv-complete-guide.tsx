@@ -619,6 +619,54 @@ export function CvCompleteGuide({
     router.push(CLOSE_HREF);
   }
 
+  /**
+   * Öppnar VARJE yta som bär ett fel — inte bara den `routeToError` hoppar till.
+   *
+   * Utan det här skulle expansionen bara hållas uppe av `hasErrorUnder`, och då
+   * försvinner den i samma stund felet rättas: kortet kollapsar mitt i inmatningen
+   * och fokus ryker. Med state öppnat en gång blir expansionen en spärrhake — den
+   * kan växa men aldrig krympa — medan `hasErrorUnder` står kvar som strukturell
+   * garanti för fel som dyker upp senare.
+   */
+  function expandSurfacesWithErrors(messageByFormPath: ReadonlyMap<string, string>) {
+    const entryIds: string[] = [];
+    const contactKeys: ContactKey[] = [];
+
+    for (const formPath of messageByFormPath.keys()) {
+      const contact = formPath.match(/^personalInfo\.(\w+)$/);
+      if (contact) {
+        contactKeys.push(contact[1] as ContactKey);
+        continue;
+      }
+      const exp = formPath.match(/^experiences\.(\d+)\./);
+      if (exp) {
+        const id = experiences.fields[Number(exp[1])]?.id;
+        if (id) entryIds.push(id);
+        continue;
+      }
+      const edu = formPath.match(/^educations\.(\d+)\./);
+      if (edu) {
+        const id = educations.fields[Number(edu[1])]?.id;
+        if (id) entryIds.push(id);
+      }
+    }
+
+    if (entryIds.length > 0) {
+      setCollapsedEntries((prev) => {
+        const next = new Set(prev);
+        entryIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    }
+    if (contactKeys.length > 0) {
+      setExpandedContact((prev) => {
+        const next = new Set(prev);
+        contactKeys.forEach((key) => next.add(key));
+        return next;
+      });
+    }
+  }
+
   // Vid valideringsfel: hoppa till felets steg, expandera ev. kollapsad post/kontakt,
   // flytta fokus till fältet.
   function routeToError(path: string) {
@@ -668,6 +716,18 @@ export function CvCompleteGuide({
     // exakt samma sjukdom som `clearErrors`, en yta bort).
     const outcome = validateLive(schema, parsedId, formValues);
     if (!outcome.payload) {
+      // SPÄRRHAKE (code-reviewer Major, rond 4). `hasErrorUnder` är en strukturell
+      // spärr — den garanterar att ingen yta kan DÖLJA ett fel — men den är dubbel-
+      // riktad, och det gjorde öppningen destruktiv åt andra hållet: rättade man
+      // felet blev predikatet falskt och kortet SLOG IGEN mitt i inmatningen, med
+      // fokus slängt till <body> (WCAG 3.2.2). Användaren fyllde i det enda hon
+      // ombads fylla i, och ytan rycktes undan.
+      //
+      // Här öppnas därför state EN gång, för ALLA felbärande ytor (drivet av
+      // live-parsen, inte av routeToErrors första-fel-väg). Då gäller båda
+      // egenskaperna samtidigt: inget fel kan gömmas, och att rätta ett fel stänger
+      // aldrig ytan man står i. Expansionen kan bara växa, aldrig krympa.
+      expandSurfacesWithErrors(outcome.messageByFormPath);
       if (outcome.firstPath) routeToError(outcome.firstPath);
       return;
     }

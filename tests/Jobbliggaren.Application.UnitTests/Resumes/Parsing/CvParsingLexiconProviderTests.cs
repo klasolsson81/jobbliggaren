@@ -98,6 +98,45 @@ public class CvParsingLexiconProviderTests
         _sut.TryResolveSectionId(section.Heading).ShouldBe(expectedSectionId);
     }
 
+    /// <summary>
+    /// THE non-circular half of the no-regression pin, and the reason it exists.
+    ///
+    /// <para><see cref="EveryFreeSectionSynonym_StillTerminatesThePrecedingSection"/> draws its rows
+    /// FROM the asset, so it proves asset↔segmenter agreement but is blind to the one thing the v4
+    /// reshape could break: a token silently LOST in the move. Delete a synonym from the JSON and
+    /// that theory simply runs one row fewer — green. So the v3 vocabulary is pinned here
+    /// LITERALLY, independent of the file it guards.</para>
+    ///
+    /// <para>A SUBSET assertion, deliberately: v4 (and any later version) may ADD synonyms — that is
+    /// how the vocabulary is meant to grow — but may never DROP one, because every dropped token is
+    /// a heading that silently stops terminating its section and starts being swallowed again
+    /// (#815). Adding a token does not touch this test; losing one turns it red.</para>
+    /// </summary>
+    [Fact]
+    public void V3Vocabulary_IsFullyPreserved()
+    {
+        // The 38 free-section headings as shipped in lexicon v3, transcribed here so the assertion
+        // does not read the file it is guarding.
+        string[] v3 =
+        [
+            "projekt", "projektportfölj", "projektportfolj", "utvalda projekt", "egna projekt",
+            "referenser", "certifieringar", "certifikat", "kurser", "vidareutbildning",
+            "fortbildning", "uppdrag", "förtroendeuppdrag", "fortroendeuppdrag", "ideella uppdrag",
+            "publikationer", "utmärkelser", "utmarkelser", "priser", "stipendier", "intressen",
+            "fritidsintressen", "övrigt", "ovrigt", "projects", "selected projects", "references",
+            "certifications", "certificates", "courses", "assignments", "publications", "awards",
+            "honours", "honors", "interests", "hobbies", "volunteering",
+        ];
+
+        v3.Length.ShouldBe(38);
+
+        var lost = v3.Where(token => _sut.TryResolveSectionId(token) is null).ToList();
+
+        lost.ShouldBeEmpty(
+            $"Dessa v3-rubriker känns inte längre igen: {string.Join(", ", lost)}. " +
+            "Varje tappad token är en rubrik som tyst slutar avsluta sin sektion — #815-buggen igen.");
+    }
+
     [Theory]
     // The user's own casing and punctuation — the port normalises, the caller must not.
     [InlineData("PROJEKT", "projekt")]

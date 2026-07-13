@@ -67,6 +67,12 @@ public class OrganizationNumberSurfacingGuardTests
         "src/Jobbliggaren.Application/Companies/Queries/LookupCompany/LookupCompanyQueryHandler.cs",
         "src/Jobbliggaren.Infrastructure/CompanyRegistry/CachedCompanyRegistry.cs",
         "src/Jobbliggaren.Infrastructure/CompanyRegistry/FakeCompanyRegistry.cs",
+        // #560 kriterie-vågen PR-2 (DPIA C-D5, counts-only logging) — the criteria browse read-path
+        // reads every matched company's raw org.nr into scope: the port materialises it from
+        // company_register, and the handler masks + flags it before it reaches CompanyBrowseDto. This
+        // scan is what makes "the browse never logs an org.nr" a build gate rather than a discipline.
+        "src/Jobbliggaren.Application/CompanyWatches/Queries/BrowseCompanies/BrowseCompaniesQueryHandler.cs",
+        "src/Jobbliggaren.Infrastructure/CompanyRegister/CompanyWatchBrowseQuery.cs",
     ];
 
     /// <summary>
@@ -86,6 +92,13 @@ public class OrganizationNumberSurfacingGuardTests
         // input upstream (Posture A), so the masked branch is normally unreachable, but the DTO
         // still nulls+flags via IsPersonnummerShaped so no future path can surface a raw value.
         typeof(Jobbliggaren.Application.Companies.Queries.LookupCompany.CompanyLookupDto),
+        // #560 kriterie-vågen PR-2: same defense-in-depth posture as CompanyLookupDto. ADR 0091 keeps
+        // sole traders OUT of company_register at ingest (SCB Juridisk form filter + an
+        // IsPersonnummerShaped guard), so the masked branch should be unreachable — but that is an
+        // ingest-time invariant in a DIFFERENT subsystem, and a personnummer exposure must not rest on
+        // it staying correct. The DTO nulls + flags; the handler routes every row through
+        // IsPersonnummerShaped.
+        typeof(Jobbliggaren.Application.CompanyWatches.Queries.BrowseCompanies.CompanyBrowseDto),
     ];
 
     /// <summary>

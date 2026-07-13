@@ -21,6 +21,22 @@ namespace Jobbliggaren.Architecture.Tests;
 /// H-4 (arch-audit 2026-05-11) renamade <c>PageNumber</c> → <c>Page</c> i alla queries
 /// — heuristiken accepterar inte längre legacy-namnet, så regression till blandad
 /// konvention bryter testet.
+///
+/// <para>
+/// <b><c>Result&lt;PagedResult&lt;T&gt;&gt;</c> är AVSIKTLIGT inte tillåtet</b> (senior-cto-advisor
+/// 2026-07-13, #560 PR-2 — läs detta INNAN du sträcker dig efter en <c>Result&lt;&gt;</c>-unwrap i
+/// <see cref="ReturnsPagedResult"/>). Två skäl. (1) <see cref="PagedResult{T}"/> implementerar
+/// <c>IRecentSearchCaptureResponse</c>, så huset har minst en pipeline-behavior nycklad på
+/// RESPONSTYPENS identitet med en TYST no-op-grind — ett <c>Result&lt;&gt;</c>-hölje byter den
+/// identiteten och kopplar tyst bort responsen från varje sådan mekanism. Testet låser responstypen,
+/// inte bara payload-formatet. (2) En paginerad query vars enda felväg är not-found har inget för
+/// <c>ErrorKind</c> att diskriminera: 401 kastas av <c>AuthorizationBehavior</c> och 400 av
+/// <c>ValidationBehavior</c>, så de når aldrig Result-kanalen. Husregeln: <b>enda felet är not-found →
+/// <c>T?</c></b> (endpointen mappar null → 404; se <c>RunSavedSearchQuery</c> och
+/// <c>BrowseCompaniesQuery</c>); <b><c>Result&lt;T&gt;</c> reserveras för queries där
+/// <c>ErrorKind</c> faktiskt väljer</b> (jfr <c>LookupCompanyQuery</c>, som bär både en
+/// Validation-vägran och en NotFound).
+/// </para>
 /// </summary>
 public class PagedResultContractTests
 {

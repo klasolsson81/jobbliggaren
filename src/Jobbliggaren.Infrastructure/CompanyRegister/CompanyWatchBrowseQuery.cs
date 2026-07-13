@@ -72,7 +72,29 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
         LIMIT @limit OFFSET @offset;
         """;
 
-    private const string CountSql = "SELECT count(*) " + FromWhere + ";";
+    /// <summary>
+    /// The count is CAPPED at <c>MaxPage * pageSize</c> — and that is a CORRECTNESS requirement, not a
+    /// perf tweak (senior-cto-advisor 2026-07-13). <c>PagedResult.TotalPages</c> is
+    /// <c>ceil(TotalCount / PageSize)</c> while <c>CompanyBrowseCriteria.MaxPage</c> makes page 101 a
+    /// 400. An UNCAPPED count over a bound-legal broad criterion (1000 SNI x 290 kommuner matches all
+    /// 1 170 000 rows) would have the pager advertise 58 500 pages of which 100 are fetchable: an
+    /// authoritative number the system that emitted it does not back — the #805-3 shape, not slow but
+    /// FALSE. The cap makes <c>TotalPages &lt;= MaxPage</c> true by construction.
+    ///
+    /// <para>
+    /// It is also, incidentally, what keeps the count off the worst case's 3 147 ms exact
+    /// <c>count(*)</c> over 1,17M rows (measured: ~78 ms capped). That is a welcome side effect and
+    /// NOT the reason — a cap justified by latency is a cap someone removes the day an index lands.
+    /// </para>
+    ///
+    /// <para>
+    /// The subquery selects a constant, not the row: nothing is projected, so the cap costs only the
+    /// LIMIT. The inner query carries the SAME <see cref="FromWhere"/> and the SAME bindings as the
+    /// page query — the count/page SPOT is untouched.
+    /// </para>
+    /// </summary>
+    private const string CountSql =
+        "SELECT count(*) FROM (SELECT 1 " + FromWhere + " LIMIT @count_cap) t;";
 
     public async ValueTask<PagedResult<CompanyBrowseResult>> BrowseAsync(
         CompanyBrowseCriteria criteria, CancellationToken cancellationToken)
@@ -83,7 +105,7 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
 
         // Separate count query BEFORE pagination (CLAUDE.md §3.6). Same FromWhere, same bound values.
         int totalCount;
-        await using (var countCmd = BuildCountCommand(connection, criteria.Criteria))
+        await using (var countCmd = BuildCountCommand(connection, criteria.Criteria, criteria.PageSize))
         {
             var scalar = await countCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
             totalCount = Convert.ToInt32(scalar, System.Globalization.CultureInfo.InvariantCulture);
@@ -131,11 +153,15 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
 
     /// <summary>The count query, exactly as production emits it. See <see cref="BuildItemsCommand"/>.</summary>
     internal static NpgsqlCommand BuildCountCommand(
-        NpgsqlConnection connection, CompanyWatchCriteriaSpec spec)
+        NpgsqlConnection connection, CompanyWatchCriteriaSpec spec, int pageSize)
     {
         var cmd = connection.CreateCommand();
         cmd.CommandText = CountSql;
         BindPredicate(cmd, spec);
+        // Derived from the page cap, never a hand-picked constant: the two are ONE knowledge piece
+        // ("how many rows can this surface ever serve"), so they are single-sourced.
+        cmd.Parameters.AddWithValue(
+            "@count_cap", NpgsqlDbType.Integer, CompanyBrowseCriteria.MaxServableRows(pageSize));
         return cmd;
     }
 

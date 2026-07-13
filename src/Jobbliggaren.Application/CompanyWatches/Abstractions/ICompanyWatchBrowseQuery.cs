@@ -43,7 +43,25 @@ public interface ICompanyWatchBrowseQuery
     /// <summary>
     /// Returns the page of ACTIVE register companies matching <paramref name="criteria"/>
     /// (<c>status = 'Active'</c> is unconditional — DPIA M-D6: a de-registered company is never
-    /// surfaced), together with the total match count from a separate count query (CLAUDE.md §3.6).
+    /// surfaced), together with a SATURATING match count from a separate count query (CLAUDE.md §3.6).
+    ///
+    /// <para>
+    /// <b><see cref="PagedResult{T}.TotalCount"/> is a PAGINATION QUANTITY, not a magnitude. Never
+    /// render it as "N företag matchar."</b> It saturates at
+    /// <see cref="CompanyBrowseCriteria.MaxServableRows"/> — see that constant for why the cap is a
+    /// correctness requirement rather than a performance tweak, and
+    /// <c>docs/reviews/2026-07-13-560-pr2-browse-perf-measurement.md</c> for the measured numbers. A
+    /// surface that wants to say "108 244 företag matchar" (or honestly, "10 000+") needs its OWN
+    /// count with its OWN product-chosen ceiling; it must not read this one.
+    /// </para>
+    ///
+    /// <para>
+    /// This also REVOKES the "count-only caller passes <c>PageSize: 1</c> and reads
+    /// <c>TotalCount</c>" mechanism the architect bound in Q2 (senior-cto-advisor 2026-07-13). Under
+    /// the cap that call would report <c>MaxPage × 1 = 100</c> for a criterion matching 108 244
+    /// companies — a lie generator. Whether PR-3's picker preview gets a second port method or its own
+    /// port is a PR-3 decision; it is deliberately not bound here.
+    /// </para>
     /// </summary>
     ValueTask<PagedResult<CompanyBrowseResult>> BrowseAsync(
         CompanyBrowseCriteria criteria, CancellationToken cancellationToken);
@@ -58,7 +76,47 @@ public interface ICompanyWatchBrowseQuery
 public sealed record CompanyBrowseCriteria(
     CompanyWatchCriteriaSpec Criteria,
     int Page,
-    int PageSize);
+    int PageSize)
+{
+    /// <summary>House parity (<c>GetApplicationsQueryValidator</c>).</summary>
+    public const int MaxPageSize = 100;
+
+    /// <summary>
+    /// Deep-offset ceiling — a DELIBERATE divergence from <c>GetApplicationsQueryValidator</c>, which
+    /// caps <c>PageSize</c> but leaves <c>Page</c> unbounded. That hole is harmless there
+    /// (<c>applications</c> is per-user and small). It is NOT harmless against a 1,17M-row register:
+    /// an <c>OFFSET 5_000_000</c> still makes Postgres produce AND SORT every preceding row before
+    /// discarding it. §5 already forbids "unpaginated list fetches"; an unbounded OFFSET is the same
+    /// sin with a LIMIT on it.
+    /// </summary>
+    public const int MaxPage = 100;
+
+    /// <summary>
+    /// The most rows this surface can EVER serve — and therefore the ceiling the count query is capped
+    /// at (<c>LIMIT MaxPage * pageSize</c>).
+    ///
+    /// <para>
+    /// <b>This cap is a CORRECTNESS requirement, not a performance tweak</b> (senior-cto-advisor
+    /// 2026-07-13). <see cref="PagedResult{T}.TotalPages"/> is <c>ceil(TotalCount / PageSize)</c>, and
+    /// <see cref="MaxPage"/> makes any page beyond 100 a 400. With an UNCAPPED count and a bound-legal
+    /// broad criterion (1000 SNI × 290 kommuner matches all 1 170 000 rows), the pager would advertise
+    /// <c>58 500</c> pages of which <c>100</c> are fetchable — an authoritative number the system that
+    /// emitted it does not back. That is the same failure shape as the vacuous <c>JobAd.DeletedAt</c>
+    /// filter (#805-3): not slow, FALSE. Capping the count at <c>MaxPage × PageSize</c> makes
+    /// <c>TotalPages ≤ MaxPage</c> true BY CONSTRUCTION — the pager cannot advertise a page the
+    /// validator rejects.
+    /// </para>
+    ///
+    /// <para>
+    /// The cap is DERIVED, never a hand-picked number: the page cap and the count cap are the same
+    /// knowledge piece ("how many rows will this surface ever serve"), so they are single-sourced. A
+    /// standalone <c>10001</c> sitting next to an independent <c>MaxPage</c> is duplicated knowledge
+    /// that drifts apart. Measured cost of the capped count: ~78 ms even in the worst case (vs 3 147 ms
+    /// exact).
+    /// </para>
+    /// </summary>
+    public static int MaxServableRows(int pageSize) => MaxPage * pageSize;
+}
 
 /// <summary>
 /// One matched register company as the port returns it — the RAW row, deliberately NOT a

@@ -554,6 +554,34 @@ describe("CvCompleteGuide — form-semantik och per-fält-fel (#815 fynd 6)", ()
     );
   });
 
+  // Major (code-reviewer, andra ronden): fotens text var state satt vid submit, medan
+  // fältmarkeringarna var live-härledda. Rättade användaren felet slocknade markeringen
+  // medan foten stod kvar och sa "De är markerade nedan" — om ingenting. Samma sjukdom
+  // som clearErrors-buggen, en yta bort. Foten härleds nu ur samma parse.
+  it("fotens 'markerade nedan' FÖRSVINNER när felet faktiskt är rättat", async () => {
+    const user = userEvent.setup();
+    // Giltigt utgångsläge (namnet seedas från fullName) → ETT fel att isolera:
+    // vi tömmer CV-namnet själva. Sätter man fullName tomt får man dessutom ett fel
+    // på steg 1, och då står fotens påstående kvar med rätta.
+    renderGuide(makeContent());
+
+    const rail = screen.getByRole("navigation", { name: "Steg i guiden" });
+    await user.click(within(rail).getByRole("button", { name: /^Spara/ }));
+    await user.clear(screen.getByLabelText(/Namn på CV/));
+    await user.click(screen.getByRole("button", { name: "Spara CV" }));
+
+    // Foten påstår att något är markerat...
+    const footError = await screen.findByRole("alert");
+    expect(footError.textContent ?? "").toMatch(/markerade nedan/i);
+
+    // ...och slutar påstå det i samma stund påståendet blir falskt.
+    await user.type(screen.getByLabelText(/Namn på CV/), "Mitt CV");
+
+    await waitFor(() =>
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
+    );
+  });
+
   // Före fixen ytades ETT fel i taget (issues[0]) i foten. Fem fel = fem submit-varv.
   it("ett blockerande fel landar PÅ sitt fält, med aria-invalid + aria-describedby", async () => {
     const user = userEvent.setup();
@@ -603,11 +631,15 @@ describe("CvCompleteGuide — chip-listan är ingen återvändsgränd (#815, CTO
     // att försvinna helt, vilket gjorde chippet omöjligt att hitta OCH att spara).
     const addInput = document.querySelector<HTMLInputElement>("#guide-skills-add");
     expect(addInput).not.toBeNull();
-    // Add-fältet är markerat och pekar på felet (så skärmläsaren läser det när
-    // routeToError flyttar fokus dit).
+    // Add-fältet pekar på felet (routeToError flyttar fokus hit → det läses upp).
+    // Men det är INTE aria-invalid: fältets eget värde är giltigt — det är listan
+    // som fälls, och att märka kontrollen vore ett falskt påstående till AT.
     await waitFor(() =>
-      expect(addInput!.getAttribute("aria-invalid")).toBe("true"),
+      expect(addInput!.getAttribute("aria-describedby")).toBe(
+        "guide-skills-add-error",
+      ),
     );
+    expect(addInput!.getAttribute("aria-invalid")).toBeNull();
     const errorId = addInput!.getAttribute("aria-describedby");
     expect(errorId).toBe("guide-skills-add-error");
     const errorEl = document.getElementById(errorId!);
@@ -626,9 +658,52 @@ describe("CvCompleteGuide — chip-listan är ingen återvändsgränd (#815, CTO
 
     await user.click(screen.getByRole("button", { name: `Ändra ${LONG_SKILL}` }));
 
-    // Chippet ligger nu i add-fältet, redo att kortas — innehållet är inte förlorat.
+    // Chippet ligger nu i inmatningsfältet, redo att kortas — innehållet är inte förlorat.
     const addInput = document.querySelector<HTMLInputElement>("#guide-skills-add");
     expect(addInput).not.toBeNull();
     expect(addInput!.value).toBe(LONG_SKILL);
+
+    // Korta texten och bekräfta → chippet ERSÄTTS (ingen dubblett).
+    await user.clear(addInput!);
+    await user.type(addInput!, "Backend-utveckling{Enter}");
+
+    expect(screen.getByText("Backend-utveckling")).toBeInTheDocument();
+    expect(screen.queryByText(LONG_SKILL)).not.toBeInTheDocument();
+  });
+
+  it("Ändra på ett chip och sedan på ett ANNAT förstör inte det första", async () => {
+    const user = userEvent.setup();
+    renderGuide(makeContent({ skills: ["React", "TypeScript"] }));
+
+    const rail = screen.getByRole("navigation", { name: "Steg i guiden" });
+    await user.click(within(rail).getByRole("button", { name: /^Kompetenser/ }));
+
+    await user.click(screen.getByRole("button", { name: "Ändra React" }));
+    await user.click(screen.getByRole("button", { name: "Ändra TypeScript" }));
+
+    // Båda finns kvar. (Tidigare utkast tog bort chippet vid "Ändra" → det första
+    // skrevs över i draft-fältet och var borta för gott.)
+    expect(screen.getByText("React")).toBeInTheDocument();
+    expect(screen.getByText("TypeScript")).toBeInTheDocument();
+  });
+
+  // Fällan som en tidigare version av "Ändra" införde: den PLOCKADE BORT chippet och la
+  // texten i draft-fältet. Draften är komponent-lokal — ett stegbyte avmonterar
+  // ChipEditor — så ett avbrutet redigeringsförsök raderade chippet för gott. Det vore
+  // att införa exakt den dataförlust affordansen finns till för att ta bort.
+  it("avbruten ändring (stegbyte mitt i) förstör INTE chippet", async () => {
+    const user = userEvent.setup();
+    renderGuide(makeContent({ skills: ["React"] }));
+
+    const rail = screen.getByRole("navigation", { name: "Steg i guiden" });
+    await user.click(within(rail).getByRole("button", { name: /^Kompetenser/ }));
+    await user.click(screen.getByRole("button", { name: "Ändra React" }));
+
+    // Byt steg mitt i redigeringen och kom tillbaka.
+    await user.click(within(rail).getByRole("button", { name: /^Uppgifter/ }));
+    await user.click(within(rail).getByRole("button", { name: /^Kompetenser/ }));
+
+    // Chippet finns kvar — originalet är orört.
+    expect(screen.getByText("React")).toBeInTheDocument();
   });
 });

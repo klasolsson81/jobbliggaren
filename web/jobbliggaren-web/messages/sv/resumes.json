@@ -333,7 +333,8 @@
       "languagesEmpty": "Inga språk tillagda.",
       "removeLanguage": "Ta bort {name}",
       "add": "Lägg till",
-      "editChip": "Ändra {name}"
+      "editChip": "Ändra {name}",
+      "saveChip": "Spara ändring"
     },
     "save": {
       "intro": "Se över och spara. Källfilen sparas orörd.",

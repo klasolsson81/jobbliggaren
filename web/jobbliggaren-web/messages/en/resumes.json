@@ -333,7 +333,8 @@
       "languagesEmpty": "No languages added.",
       "removeLanguage": "Remove {name}",
       "add": "Add",
-      "editChip": "Edit {name}"
+      "editChip": "Edit {name}",
+      "saveChip": "Save change"
     },
     "save": {
       "intro": "Review and save. The source file is kept untouched.",

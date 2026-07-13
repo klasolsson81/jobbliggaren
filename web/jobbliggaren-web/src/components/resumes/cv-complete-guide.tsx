@@ -258,7 +258,8 @@ const STEP_TASK_KEYS: Record<number, ReadonlyArray<keyof ParsedGapSummary>> = {
   [GUIDE_STEP_SKILLS]: ["hasSkills", "hasLanguages"],
 };
 
-type FieldError = { path: string | null; message: string };
+/** Ett ÄKTA serverfel (server-actionen returnerade success:false). */
+type ServerError = { message: string };
 
 const isPresent = (value: string | null): boolean =>
   value != null && value.trim().length > 0;
@@ -291,6 +292,10 @@ interface LiveValidation {
   /** Fel som guidens yta inte alls kan åtgärda (t.ex. parsedResumeId). */
   offSurface: ReadonlyArray<string>;
   ok: boolean;
+  /** Den validerade payloaden — bara vid `ok` (samma parse, inte en andra). */
+  payload: { name: string; content: ResumeContentDto } | null;
+  /** Första felets path — dit fokus routas vid submit. */
+  firstPath: string | null;
 }
 
 function validateLive(
@@ -298,10 +303,16 @@ function validateLive(
   parsedId: string,
   values: FormValues,
 ): LiveValidation {
+  // Den projektion zod faktiskt ser. Chip-namn slås upp HÄR, inte i `values`:
+  // `toRawPayload` filtrerar bort namnlösa chips, så zods index är payloadens —
+  // läser man dem mot den ofiltrerade formen kan ett tomt chip förskjuta indexen
+  // och FEL chip namnges (code-reviewer Minor; onåbart idag, men opinnat vore det
+  // en tickande bomb: uppslaget skulle bero på en C#-fil två lager bort).
+  const payload = toRawPayload(values);
   const parsed = schema.safeParse({
     parsedResumeId: parsedId,
     name: values.name,
-    content: toRawPayload(values),
+    content: payload,
   });
   const issueCountByStep = new Map<number, number>();
   const messageByFormPath = new Map<string, string>();
@@ -314,8 +325,17 @@ function validateLive(
       panelIssues,
       offSurface,
       ok: true,
+      firstPath: null,
+      payload: {
+        name: parsed.data.name,
+        // Schemats utdata matchar ResumeContentDto:ns superset-form (languages +
+        // sections); casten dokumenterar övergången från validerad ingångsform.
+        content: parsed.data.content as ResumeContentDto,
+      },
     };
   }
+
+  const firstPath = parsed.error.issues[0]?.path.join(".") ?? null;
 
   for (const issue of parsed.error.issues) {
     const path = issue.path.join(".");
@@ -339,15 +359,22 @@ function validateLive(
       continue;
     }
 
-    // Panel-nivå: namnge chippet ur formens egna värden (index bor i path:en).
     const index = Number(path.split(".")[2]);
     const chipName =
       (target.panel === "skills"
-        ? values.skills[index]?.name
-        : values.languages[index]?.name) ?? "";
+        ? payload.skills[index]?.name
+        : payload.languages?.[index]?.name) ?? "";
     panelIssues.push({ panel: target.panel, chipName, message: issue.message });
   }
-  return { issueCountByStep, messageByFormPath, panelIssues, offSurface, ok: false };
+  return {
+    issueCountByStep,
+    messageByFormPath,
+    panelIssues,
+    offSurface,
+    ok: false,
+    payload: null,
+    firstPath,
+  };
 }
 
 export function CvCompleteGuide({
@@ -373,7 +400,7 @@ export function CvCompleteGuide({
 
   const [step, setStep] = useState(GUIDE_STEP_DETAILS);
   const [isPending, startTransition] = useTransition();
-  const [serverError, setServerError] = useState<FieldError | null>(null);
+  const [serverError, setServerError] = useState<ServerError | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
   // Fältfel visas först efter ett spar-försök (aldrig medan man fyller i).
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -540,6 +567,22 @@ export function CvCompleteGuide({
     GUIDE_STEP_SKILLS,
   ];
   const hasBlockers = !live.ok;
+
+  /**
+   * Fotens valideringsrad — HÄRLEDD, aldrig state. Sattes den vid submit skulle den
+   * överleva sin egen sanning: användaren rättar felet, fältmarkeringen slocknar
+   * (den är live), och foten står kvar och påstår "De är markerade nedan" om
+   * ingenting. Foten får bara påstå att något är markerat om något FAKTISKT är det
+   * — kan inget fel ytas i guiden (t.ex. ett parsedResumeId-fel som ingen kontroll
+   * äger) bärs den specifika texten i stället, så användaren inte lämnas utan
+   * information (CTO Q3-B).
+   */
+  const validationMessage =
+    submitAttempted && !live.ok
+      ? live.messageByFormPath.size > 0 || live.panelIssues.length > 0
+        ? tr("fixFields")
+        : (live.offSurface[0] ?? tr("invalidData"))
+      : null;
   const hasRemainingTasks = CONTENT_STEPS.some(
     (stepIndex) => remainingForStep(stepIndex) > 0,
   );
@@ -593,45 +636,25 @@ export function CvCompleteGuide({
     // stegbyte och slocknar när felet faktiskt är rättat.
     setSubmitAttempted(true);
 
-    const rawPayload = toRawPayload(formValues);
-    // Klient-validering speglar server-actionen (server-validering är auktoritativ).
-    const parsed = schema.safeParse({
-      parsedResumeId: parsedId,
-      name: formValues.name,
-      content: rawPayload,
-    });
-    if (!parsed.success) {
-      const first = parsed.error.issues[0];
-      const firstPath = first ? first.path.join(".") : null;
-      // Foten får bara påstå "De är markerade nedan" om något fel FAKTISKT landade
-      // på ett fält eller en panel. Gjorde det inte det (t.ex. ett parsedResumeId-
-      // fel, som ingen kontroll i guiden äger) måste den specifika texten fram i
-      // stället — annars tappas den enda information användaren hade att gå på
-      // (CTO Q3-B: inget fel får försvinna i en generisk rad).
-      const outcome = validateLive(schema, parsedId, formValues);
-      const surfaced =
-        outcome.messageByFormPath.size > 0 || outcome.panelIssues.length > 0;
-      if (firstPath) routeToError(firstPath);
-      setServerError({
-        path: firstPath,
-        message: surfaced
-          ? tr("fixFields")
-          : (outcome.offSurface[0] ?? first?.message ?? tr("invalidData")),
-      });
+    // EN parse (klient-validering speglar server-actionen; servern är auktoritativ).
+    // Valideringsmeddelandet i foten sätts INTE här — det härleds i render ur samma
+    // parse (se `validationMessage`). Sattes det som state skulle det överleva sin
+    // egen sanning: användaren rättar felet, fältmarkeringen slocknar, och foten står
+    // kvar och påstår "De är markerade nedan" om ingenting (code-reviewer Major —
+    // exakt samma sjukdom som `clearErrors`, en yta bort).
+    const outcome = validateLive(schema, parsedId, formValues);
+    if (!outcome.payload) {
+      if (outcome.firstPath) routeToError(outcome.firstPath);
       return;
     }
+
+    const { name, content } = outcome.payload;
     startTransition(async () => {
-      // NEXT_REDIRECT (→ /cv) är en framgångssignal som får propagera. Bara ett
-      // returnerat success:false hanteras som fel här.
-      const result = await promoteParsedResumeFromGuideAction(
-        parsedId,
-        parsed.data.name,
-        // Schemats utdata matchar ResumeContentDto:ns superset-form (languages +
-        // sections); casten dokumenterar övergången från validerad ingångsform.
-        parsed.data.content as ResumeContentDto,
-      );
+      // NEXT_REDIRECT (→ /cv/{id}/granska) är en framgångssignal som får propagera.
+      // Bara ett returnerat success:false hanteras som fel här.
+      const result = await promoteParsedResumeFromGuideAction(parsedId, name, content);
       if (!result.success) {
-        setServerError({ path: null, message: result.error });
+        setServerError({ message: result.error });
       }
     });
   }
@@ -1047,8 +1070,10 @@ export function CvCompleteGuide({
                   names={watch("skills").map((s) => s.name)}
                   onAdd={(name) => skills.append({ name })}
                   onRemove={(index) => skills.remove(index)}
+                  onReplace={(index, name) => skills.update(index, { name })}
                   addLabel={tr("skills.skillsAddLabel")}
                   addButtonLabel={tr("skills.add")}
+                  saveButtonLabel={tr("skills.saveChip")}
                   emptyLabel={tr("skills.skillsEmpty")}
                   removeLabel={(name) => tr("skills.removeSkill", { name })}
                   editLabel={(name) => tr("skills.editChip", { name })}
@@ -1072,10 +1097,12 @@ export function CvCompleteGuide({
                   names={watch("languages").map((l) => l.name)}
                   onAdd={(name) => languages.append({ name })}
                   onRemove={(index) => languages.remove(index)}
+                  onReplace={(index, name) => languages.update(index, { name })}
                   editLabel={(name) => tr("skills.editChip", { name })}
                   issues={chipIssuesFor("languages")}
                   addLabel={tr("skills.languagesAddLabel")}
                   addButtonLabel={tr("skills.add")}
+                  saveButtonLabel={tr("skills.saveChip")}
                   emptyLabel={tr("skills.languagesEmpty")}
                   removeLabel={(name) => tr("skills.removeLanguage", { name })}
                   disabled={isPending}
@@ -1205,9 +1232,11 @@ export function CvCompleteGuide({
           </Button>
         )}
         <span className="jp-guide__foot-spacer" />
-        {serverError && (
+        {/* Ett äkta serverfel slår valideringsraden (det är den färskare sanningen).
+            Valideringsraden är härledd och försvinner i samma stund felen är rättade. */}
+        {(serverError || validationMessage) && (
           <p id={ERROR_ID} role="alert" className="jp-guide__error">
-            {serverError.message}
+            {serverError?.message ?? validationMessage}
           </p>
         )}
         {step < GUIDE_STEP_SAVE ? (
@@ -1955,8 +1984,10 @@ function ChipEditor({
   names,
   onAdd,
   onRemove,
+  onReplace,
   addLabel,
   addButtonLabel,
+  saveButtonLabel,
   emptyLabel,
   removeLabel,
   editLabel,
@@ -1967,8 +1998,10 @@ function ChipEditor({
   names: string[];
   onAdd: (name: string) => void;
   onRemove: (index: number) => void;
+  onReplace: (index: number, name: string) => void;
   addLabel: string;
   addButtonLabel: string;
+  saveButtonLabel: string;
   emptyLabel: string;
   removeLabel: (name: string) => string;
   editLabel: (name: string) => string;
@@ -1976,29 +2009,42 @@ function ChipEditor({
   disabled: boolean;
 }) {
   const [draft, setDraft] = useState("");
+  // Vilket chip som redigeras (null = draften är ett NYTT chip).
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const errorId = `${inputId}-error`;
 
   function commit() {
     const value = draft.trim();
     if (value.length === 0) return;
-    onAdd(value);
+    if (editingIndex === null) {
+      onAdd(value);
+    } else {
+      onReplace(editingIndex, value);
+      setEditingIndex(null);
+    }
     setDraft("");
   }
 
   /**
-   * "Ändra" på ett chip: lyft ut texten i draft-fältet och fokusera det.
+   * "Ändra" på ett chip: lyft texten till inmatningsfältet och fokusera det.
    *
-   * Utan den här affordansen var chip-listan en ÅTERVÄNDSGRÄND. Parsern kan seeda
-   * ett chip som är längre än schemats gräns (`ParseList` cappar antalet, aldrig
-   * längden — se följd-issuen), och chips gick bara att TA BORT. Den användaren
-   * kunde alltså inte spara sitt CV, och enda utvägen var att radera innehåll som
-   * parsern lyft ur hennes egen fil. Det är precis vad #849 handlade om (motorn får
-   * aldrig kasta det användaren skrivit), inverterat så att användaren tvingas göra
-   * kastandet. Nu kortas texten i stället (CTO-bind Q3-B).
+   * Utan den här affordansen var chip-listan en ÅTERVÄNDSGRÄND. Parsern kan seeda ett
+   * chip som är längre än schemats gräns (`ParseList` cappar antalet, aldrig längden
+   * — #856), och chips gick bara att TA BORT. Den användaren kunde alltså inte spara
+   * sitt CV, och enda utvägen var att radera innehåll parsern lyft ur hennes egen fil.
+   * Det är precis vad #849 handlade om (motorn får aldrig kasta det användaren skrivit),
+   * inverterat så att användaren tvingas göra kastandet (CTO-bind Q3-B).
+   *
+   * Chippet tas INTE bort här. Ett tidigare utkast av den här funktionen plockade bort
+   * chippet och la texten i draft-fältet — men draften är komponent-lokal state, så
+   * ett stegbyte (ChipEditor avmonteras) eller ett klick på "Ändra" på ett ANNAT chip
+   * hade raderat det första för gott. Det vore att införa exakt den dataförlust den
+   * här funktionen finns till för att ta bort. Nu ligger chippet kvar tills ändringen
+   * bekräftas; avbryter man är originalet orört.
    */
   function edit(index: number, name: string) {
-    onRemove(index);
+    setEditingIndex(index);
     setDraft(name);
     queueMicrotask(() => inputRef.current?.focus());
   }
@@ -2072,7 +2118,10 @@ function ChipEditor({
               commit();
             }
           }}
-          aria-invalid={issues.length > 0 ? true : undefined}
+          // INGET aria-invalid: add-fältets EGET värde är giltigt (det är oftast
+          // tomt) — det är listan som fälls. Att märka kontrollen som ogiltig vore
+          // ett falskt påstående till skärmläsaren, samma ärlighetsregel en nivå ned.
+          // aria-describedby räcker: routeToError flyttar fokus hit, och felet läses.
           aria-describedby={issues.length > 0 ? errorId : undefined}
           maxLength={100}
           disabled={disabled}
@@ -2084,7 +2133,15 @@ function ChipEditor({
           onClick={commit}
           disabled={disabled}
         >
-          <Plus size={14} aria-hidden="true" /> {addButtonLabel}
+          {editingIndex === null ? (
+            <>
+              <Plus size={14} aria-hidden="true" /> {addButtonLabel}
+            </>
+          ) : (
+            // Ärlig etikett: i redigeringsläge LÄGGER knappen inte till något nytt,
+            // den ersätter chippet man valde att ändra.
+            saveButtonLabel
+          )}
         </Button>
       </div>
     </div>

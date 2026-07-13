@@ -69,17 +69,6 @@ internal sealed class BranschgruppProvider : IBranschgruppProvider
                         "uppslukad av föregående sektion vid nästa import (#815).");
                 }
             }
-
-            foreach (var suppressed in rules.SuppressedSectionIds)
-            {
-                if (!lexicon.FreeSectionIds.Contains(suppressed))
-                {
-                    throw new InvalidOperationException(
-                        $"Branschgrupp '{rules.Id}' undertrycker sektionen '{suppressed}' som " +
-                        "parsning-lexikonet inte äger — en undertryckning som inte kan träffa något " +
-                        "är en tyst no-op (och döljer sannolikt ett stavfel).");
-                }
-            }
         }
     }
 

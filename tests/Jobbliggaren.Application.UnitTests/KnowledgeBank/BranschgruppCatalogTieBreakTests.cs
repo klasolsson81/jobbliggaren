@@ -10,10 +10,10 @@ namespace Jobbliggaren.Application.UnitTests.KnowledgeBank;
 /// Övriga.
 /// <para>
 /// The refusal case is the point. A user who states both an IT and a vård occupation gets the
-/// generic row, never a coin flip: the two rule-tables contradict each other (vård SUPPRESSES
-/// Projekt, IT makes it the standard section), and guessing which one she "really" meant is
-/// exactly the mis-suggestion the Övriga row exists to avoid. Coverage bought by mis-suggesting
-/// is negative value.
+/// generic row, never a coin flip: the two rule-tables genuinely disagree (IT makes Projekt its
+/// standard section; vård deliberately does not offer it at all), and guessing which one she
+/// "really" meant is exactly the mis-suggestion the Övriga row exists to avoid. Coverage bought by
+/// mis-suggesting is negative value.
 /// </para>
 /// </summary>
 public class BranschgruppCatalogTieBreakTests
@@ -36,9 +36,9 @@ public class BranschgruppCatalogTieBreakTests
         },
         new Dictionary<string, BranschgruppRules>(StringComparer.Ordinal)
         {
-            ["it"] = new("it", "Vanligt inom data och IT", [], [], []),
-            ["vard"] = new("vard", "Vanligt inom vård och omsorg", [], [], []),
-            ["ovriga"] = new("ovriga", "Vanliga sektioner i svenska CV", [], [], []),
+            ["it"] = new("it", "Vanligt inom data och IT", [], []),
+            ["vard"] = new("vard", "Vanligt inom vård och omsorg", [], []),
+            ["ovriga"] = new("ovriga", "Vanliga sektioner i svenska CV", [], []),
         });
 
     [Fact]

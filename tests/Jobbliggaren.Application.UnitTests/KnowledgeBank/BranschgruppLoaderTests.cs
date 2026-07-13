@@ -38,9 +38,9 @@ public class BranschgruppLoaderTests
           "branschgrupper": [
             { "id": "it", "rationale": "Vanligt inom data och IT",
               "standardSections": [ { "sectionId": "projekt", "heading": "Projekt" } ],
-              "suggestedSections": [], "suppressedSectionIds": [] },
+              "suggestedSections": [] },
             { "id": "ovriga", "rationale": "Vanliga sektioner i svenska CV",
-              "standardSections": [], "suggestedSections": [], "suppressedSectionIds": [] }
+              "standardSections": [], "suggestedSections": [] }
           ]
         }
         """;
@@ -92,7 +92,7 @@ public class BranschgruppLoaderTests
               "branschgruppVersion": "1.0",
               "occupationFields": [ { "conceptId": "apaJ_2ja_LuF", "branschgrupp": "it" } ],
               "branschgrupper": [
-                { "id": "it", "rationale": "x", "standardSections": [], "suggestedSections": [], "suppressedSectionIds": [] }
+                { "id": "it", "rationale": "x", "standardSections": [], "suggestedSections": [] }
               ]
             }
             """;
@@ -110,31 +110,27 @@ public class BranschgruppLoaderTests
     }
 
     [Fact]
-    public void LoadFrom_ShouldThrow_WhenABranschgruppBothSuggestsAndSuppressesTheSameSection()
+    public void LoadFrom_ShouldThrow_WhenABranschgruppOffersTheSameSectionTwice()
     {
-        // A contradiction the data must not be able to express: the read-slice would silently drop
-        // the section, and the asset would READ as if it offered something it never does.
-        //
-        // Written out in full rather than string-replaced into MinimalValid: the first version of
-        // this test used a .Replace() whose pattern never matched, so the "contradiction" was never
-        // injected and the assertion could not fail. A negative test that cannot see the thing it
-        // negates is worse than no test — it reports safety it never checked.
-        var contradiction = """
+        // A data typo that would render as two chips for one thing. (This replaced a
+        // "suggests AND suppresses the same section" test: suppression was removed from the
+        // contract once mutation testing showed the filter reading it could never fire.)
+        var twice = """
             {
               "branschgruppVersion": "1.0",
               "occupationFields": [ { "conceptId": "apaJ_2ja_LuF", "branschgrupp": "it" } ],
               "branschgrupper": [
                 { "id": "it", "rationale": "Vanligt inom data och IT",
                   "standardSections": [ { "sectionId": "projekt", "heading": "Projekt" } ],
-                  "suggestedSections": [], "suppressedSectionIds": ["projekt"] },
+                  "suggestedSections": [ { "sectionId": "projekt", "heading": "Utvalda projekt" } ] },
                 { "id": "ovriga", "rationale": "Vanliga sektioner i svenska CV",
-                  "standardSections": [], "suggestedSections": [], "suppressedSectionIds": [] }
+                  "standardSections": [], "suggestedSections": [] }
               ]
             }
             """;
 
         var ex = Should.Throw<InvalidOperationException>(
-            () => BranschgruppLoader.LoadFrom(Json(contradiction)));
+            () => BranschgruppLoader.LoadFrom(Json(twice)));
 
         ex.Message.ShouldContain("projekt");
     }
@@ -162,7 +158,7 @@ public class BranschgruppLoaderTests
               "branschgruppVersion": "1.0",
               "occupationFields": [],
               "branschgrupper": [
-                { "id": "ovriga", "rationale": "x", "standardSections": [], "suggestedSections": [], "suppressedSectionIds": [] }
+                { "id": "ovriga", "rationale": "x", "standardSections": [], "suggestedSections": [] }
               ]
             }
             """;

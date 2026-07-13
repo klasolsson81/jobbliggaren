@@ -20,8 +20,9 @@ namespace Jobbliggaren.Application.Resumes.Sections.Queries.GetCvSectionSuggesti
 /// <param name="Rationale">The badge copy for the resolved branschgrupp ("Vanligt inom vård och
 /// omsorg"). KB-sourced Swedish — never prose the engine synthesised (§5).</param>
 /// <param name="Suggestions">Sections to offer, in asset order (standard first). Sections the CV
-/// ALREADY has are excluded, and so are the ones this branschgrupp suppresses. May be empty — an
-/// honest "nothing to add", never a fabricated row.</param>
+/// ALREADY has are excluded — handoff rule (a), the file always wins. A section this occupation
+/// should not be offered (vård and Projekt) is simply absent from its rule-table, not filtered out
+/// here. May be empty: an honest "nothing to add", never a fabricated row.</param>
 public sealed record CvSectionSuggestionsDto(
     string Branschgrupp,
     bool HasOccupationPreference,

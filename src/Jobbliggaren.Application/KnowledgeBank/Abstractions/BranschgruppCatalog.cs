@@ -69,15 +69,24 @@ public sealed record BranschgruppCatalog(
 /// "Extra standardsektioner". Surfaced ahead of the merely-suggested ones.</param>
 /// <param name="SuggestedSections">Sections that are common but optional — "Föreslås i Lägg till
 /// sektion".</param>
-/// <param name="SuppressedSectionIds">Sections NOT offered to this occupation ("Visas ej som
-/// förslag"). Suppression removes a section from the SUGGESTION list only; a section the user
-/// already wrote is always kept and shown (handoff rule (a) — the file always wins).</param>
+/// <remarks>
+/// There is deliberately no "suppressed sections" member, though the handoff's §7 table has a
+/// "Visas ej som förslag" column. Nothing is inherited from a base set — each branschgrupp lists
+/// its own suggestions outright — so a subtraction could never subtract anything. Vård's "not
+/// Projekt" is expressed by Projekt simply not being in its list. A field whose only possible
+/// outcomes are "no effect" or "crash at startup" is a trap for the next editor, not a guard; the
+/// first draft of this type had one, and mutation testing exposed it (deleting the filter that
+/// read it broke no test, because it could never fire).
+/// <para>
+/// This is only about what the engine OFFERS. Handoff rule (a) is untouched: a section the user
+/// wrote herself is always kept and shown. The engine never hides her content.
+/// </para>
+/// </remarks>
 public sealed record BranschgruppRules(
     string Id,
     string Rationale,
     IReadOnlyList<SectionRecommendation> StandardSections,
-    IReadOnlyList<SectionRecommendation> SuggestedSections,
-    IReadOnlyList<string> SuppressedSectionIds);
+    IReadOnlyList<SectionRecommendation> SuggestedSections);
 
 /// <summary>
 /// One recommendable section: the lexicon's canonical <paramref name="SectionId"/> plus the

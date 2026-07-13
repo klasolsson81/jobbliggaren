@@ -117,20 +117,19 @@ internal static class BranschgruppLoader
     {
         var standard = grupp.StandardSections.Select(Map).ToList();
         var suggested = grupp.SuggestedSections.Select(Map).ToList();
-        var suppressed = grupp.SuppressedSectionIds;
 
-        // A section that is both offered and suppressed is a contradiction the data must not be
-        // allowed to express — the read-slice would silently drop it and the asset would read as
-        // if it offered something it never does.
-        var offered = standard.Concat(suggested).Select(s => s.SectionId).ToHashSet(StringComparer.Ordinal);
-        var contradiction = suppressed.FirstOrDefault(id => offered.Contains(id));
-        if (contradiction is not null)
+        // The same section offered twice (once as standard, once as merely-suggested) would render
+        // as two chips for one thing. It is a data typo, not a user state.
+        var offered = standard.Concat(suggested).Select(s => s.SectionId).ToList();
+        var duplicate = offered.GroupBy(id => id, StringComparer.Ordinal)
+            .FirstOrDefault(g => g.Count() > 1);
+        if (duplicate is not null)
         {
             throw new InvalidOperationException(
-                $"Branschgrupp '{grupp.Id}' både föreslår och undertrycker sektionen '{contradiction}'.");
+                $"Branschgrupp '{grupp.Id}' föreslår sektionen '{duplicate.Key}' två gånger.");
         }
 
-        return new BranschgruppRules(grupp.Id, grupp.Rationale, standard, suggested, suppressed);
+        return new BranschgruppRules(grupp.Id, grupp.Rationale, standard, suggested);
 
         SectionRecommendation Map(BranschgruppFile.SectionFile section)
         {
@@ -181,9 +180,6 @@ internal sealed record BranschgruppFile
 
         [JsonPropertyName("suggestedSections")]
         public IReadOnlyList<SectionFile> SuggestedSections { get; init; } = [];
-
-        [JsonPropertyName("suppressedSectionIds")]
-        public IReadOnlyList<string> SuppressedSectionIds { get; init; } = [];
     }
 
     internal sealed record SectionFile(

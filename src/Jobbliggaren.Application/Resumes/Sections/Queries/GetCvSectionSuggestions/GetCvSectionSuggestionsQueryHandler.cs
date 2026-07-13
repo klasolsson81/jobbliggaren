@@ -97,13 +97,10 @@ public sealed class GetCvSectionSuggestionsQueryHandler(
             .Where(id => id is not null)
             .ToHashSet(StringComparer.Ordinal);
 
-        var suppressed = rules.SuppressedSectionIds.ToHashSet(StringComparer.Ordinal);
-
         var suggestions = rules.StandardSections
             .Select(section => (Section: section, IsStandard: true))
             .Concat(rules.SuggestedSections.Select(section => (Section: section, IsStandard: false)))
-            .Where(candidate => !present.Contains(candidate.Section.SectionId)
-                                && !suppressed.Contains(candidate.Section.SectionId))
+            .Where(candidate => !present.Contains(candidate.Section.SectionId))
             .Select(candidate => new SectionSuggestionDto(
                 candidate.Section.SectionId, candidate.Section.Heading, candidate.IsStandard))
             .ToList();

@@ -78,8 +78,7 @@ public class BranschgruppProviderTests
         var catalog = LoadCatalog();
 
         var named = catalog.RulesById.Values
-            .SelectMany(r => r.StandardSections.Concat(r.SuggestedSections).Select(s => s.SectionId)
-                .Concat(r.SuppressedSectionIds))
+            .SelectMany(r => r.StandardSections.Concat(r.SuggestedSections).Select(s => s.SectionId))
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
@@ -125,7 +124,7 @@ public class BranschgruppProviderTests
             new Dictionary<string, BranschgruppRules>
             {
                 ["it"] = new("it", "Vanligt inom data och IT",
-                    [new SectionRecommendation("meritering", "Meriteringsnivå")], [], []),
+                    [new SectionRecommendation("meritering", "Meriteringsnivå")], []),
             });
 
         var ex = Should.Throw<InvalidOperationException>(
@@ -147,29 +146,13 @@ public class BranschgruppProviderTests
             new Dictionary<string, BranschgruppRules>
             {
                 ["it"] = new("it", "Vanligt inom data och IT",
-                    [], [new SectionRecommendation("certifikat", "Kurser och certifikat")], []),
+                    [], [new SectionRecommendation("certifikat", "Kurser och certifikat")]),
             });
 
         var ex = Should.Throw<InvalidOperationException>(
             () => BranschgruppProvider.ValidateAgainstLexicon(drifted, RealLexicon()));
 
         ex.Message.ShouldContain("kurser");
-    }
-
-    [Fact]
-    public void Constructing_ShouldThrow_WhenASuppressedSectionIsNotOwnedByTheLexicon()
-    {
-        // A suppression that cannot hit anything is a silent no-op — and almost certainly a typo.
-        var drifted = new BranschgruppCatalog(
-            "1.0",
-            new Dictionary<string, string> { ["NYW6_mP6_vwf"] = "vard" },
-            new Dictionary<string, BranschgruppRules>
-            {
-                ["vard"] = new("vard", "Vanligt inom vård och omsorg", [], [], ["projekkt"]),
-            });
-
-        Should.Throw<InvalidOperationException>(
-            () => BranschgruppProvider.ValidateAgainstLexicon(drifted, RealLexicon()));
     }
 
     // ───────────────────────────────────────────────────────────────────
@@ -243,15 +226,23 @@ public class BranschgruppProviderTests
     }
 
     [Fact]
-    public void Vard_ShouldSuppressProjekt_AndOfferLegitimationAsStandard()
+    public void Vard_ShouldNotOfferProjekt_AndShouldOfferLegitimationAsStandard()
     {
-        // Handoff §7, the vård row: Legitimation och intyg is the EXTRA STANDARD section, and
-        // Projekt is explicitly not offered.
+        // Handoff §7, the vård row: "Legitimation och intyg" is the EXTRA STANDARD section, and
+        // Projekt sits under "Visas ej som förslag".
+        //
+        // That column is expressed by ABSENCE, and this test asserts the absence in the OFFERED
+        // set — not the presence of a "suppressed" field. The first draft did the latter, and it
+        // was testing decoration: the suppression list could never subtract anything (nothing is
+        // inherited from a base set), so the filter reading it was unreachable. Deleting that
+        // filter broke no test. Now the claim under test is the one the user actually experiences.
         var vard = LoadCatalog().RulesFor("vard");
 
         vard.StandardSections.Select(s => s.SectionId).ShouldBe(["legitimation"]);
-        vard.SuppressedSectionIds.ShouldContain("projekt");
         vard.SuggestedSections.Select(s => s.SectionId).ShouldBe(["kurser", "korkort"]);
+
+        var offered = vard.StandardSections.Concat(vard.SuggestedSections).Select(s => s.SectionId);
+        offered.ShouldNotContain("projekt");
     }
 
     [Fact]

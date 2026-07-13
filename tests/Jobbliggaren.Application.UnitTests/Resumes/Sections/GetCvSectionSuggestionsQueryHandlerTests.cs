@@ -198,7 +198,7 @@ public class GetCvSectionSuggestionsQueryHandlerTests
     // ───────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Handle_ShouldOfferLegitimationFirstAndSuppressProjekt_ForAVardOccupation()
+    public async Task Handle_ShouldOfferLegitimationFirstAndNotOfferProjekt_ForAVardOccupation()
     {
         // The product promise of 8b.4a, end to end: an undersköterska is offered "Legitimation och
         // intyg" — and is NOT offered Projekt (design handoff §7, vård row).
@@ -239,8 +239,8 @@ public class GetCvSectionSuggestionsQueryHandlerTests
     public async Task Handle_ShouldReturnOvriga_WhenTheStatedOccupationsSpanTwoBranschgrupper()
     {
         // The tie-break, through the handler: an IT group AND a vård group → refuse, do not guess.
-        // The two rule-tables actively contradict each other (vård SUPPRESSES Projekt; IT makes it
-        // the standard section), so there is no defensible merge.
+        // The two rule-tables genuinely disagree (IT makes Projekt its standard section; vård does
+        // not offer it at all), so there is no defensible merge.
         var (db, parsed) = await ArrangeAsync(
             occupationGroups: [GroupSystemutvecklare, GroupUnderskoterska]);
 
@@ -278,8 +278,8 @@ public class GetCvSectionSuggestionsQueryHandlerTests
     [Fact]
     public async Task Handle_ShouldIgnoreAFreeSectionTheLexiconCannotResolve_WhenComputingPresence()
     {
-        // A heading the lexicon does not own ("Mina husdjur") resolves to null. It must suppress
-        // nothing — and must not throw.
+        // A heading the lexicon does not own ("Mina husdjur") resolves to null. It must remove
+        // nothing from the suggestions — and must not throw.
         var (db, parsed) = await ArrangeAsync(
             occupationGroups: [GroupUnderskoterska],
             sections: [Section("Mina husdjur")]);

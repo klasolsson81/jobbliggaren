@@ -67,8 +67,7 @@
       ],
       "suggestedSections": [
         { "sectionId": "certifikat", "heading": "Certifieringar och kurser" }
-      ],
-      "suppressedSectionIds": []
+      ]
     },
     {
       "id": "vard",
@@ -80,10 +79,14 @@
         { "sectionId": "kurser", "heading": "Kurser och intyg" },
         { "sectionId": "korkort", "heading": "Körkort" }
       ],
-      "//": "Handoff §7: Projekt is NOT suggested in vård. Suppression only removes it from the",
-      "//1": "SUGGESTION list — rule (a) still holds: a Projekt section the user already wrote is",
-      "//2": "kept and shown, always. The engine never hides the user's own content.",
-      "suppressedSectionIds": ["projekt"]
+      "//": "Handoff §7 lists Projekt under 'Visas ej som förslag' for vård. That is expressed by",
+      "//1": "ABSENCE — Projekt is simply not in the suggestion list above. There is deliberately no",
+      "//2": "suppression FIELD: nothing is inherited from a base set, so a subtraction could never",
+      "//3": "subtract anything. Its only possible outcomes would be 'no effect' or 'crash at",
+      "//4": "startup' — a trap for the next editor, not a guard. Mutation testing proved it:",
+      "//5": "deleting the filter that read it broke no test, because it could never fire.",
+      "//6": "Rule (a) holds regardless: a Projekt section the user already WROTE is kept and shown.",
+      "//7": "The engine never HIDES the user's own content — it only declines to suggest."
     },
     {
       "id": "skola",
@@ -103,8 +106,7 @@
       ],
       "suggestedSections": [
         { "sectionId": "kurser", "heading": "Kurser och utbildningar" }
-      ],
-      "suppressedSectionIds": []
+      ]
     },
     {
       "id": "ovriga",
@@ -119,8 +121,7 @@
         { "sectionId": "kurser", "heading": "Kurser" },
         { "sectionId": "korkort", "heading": "Körkort" },
         { "sectionId": "ideellt", "heading": "Ideellt engagemang" }
-      ],
-      "suppressedSectionIds": []
+      ]
     }
   ]
 }

@@ -414,6 +414,27 @@ public static class DependencyInjection
         // in i Infrastructure för att hålla Application Npgsql-fri (Clean Arch).
         services.AddScoped<IRecruiterPiiPurger, RecruiterPiiPurger>();
 
+        // #754 (ADR 0045 Beslut 1 klass (d)) — options + delad reporter för
+        // ingestion-throughput-fitness-functionen. Bunden HÄR (inte i
+        // Worker/Program.cs) eftersom AddJobSources är den ENDA modulen båda
+        // hosts passerar (Api via AddInfrastructure, Worker direkt) — en
+        // registrering här kan strukturellt inte drifta mellan Api och Worker
+        // (CTO bind #754 Q4; precedent JobSourceRetentionOptions ovan).
+        // Same-commit DI (feedback_di_with_handlers_same_commit): options +
+        // reporter + de två jobbens ctor-ändring hör ihop — Worker kör
+        // ValidateOnBuild=false, så en saknad registrering hade annars
+        // synts först vid 02:00 UTC-invocationen.
+        services.AddOptions<IngestionThroughputOptions>()
+            .Bind(configuration.GetSection(IngestionThroughputOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        // Singleton, inte Scoped: reportern är stateless (IOptions + ILogger). Samplern, som
+        // FAKTISKT bär state, är också singleton — lifetime ska spegla state, annars signalerar
+        // den "per-request-state" till nästa läsare (dotnet-architect, #754). Singleton→Scoped-
+        // injektion är alltid laglig, så båda sync-jobben (Scoped) kan konsumera den.
+        services.AddSingleton<
+            Jobbliggaren.Application.JobAds.Jobs.Common.IngestionThroughputReporter>();
+
         // F2-P8c: Application-orchestrator-jobb. Konsumeras av Hangfire via
         // Worker-wrappers (SyncPlatsbankenStream/SnapshotWorker —
         // DisableConcurrentExecution) som löser jobbet ur DI-scope. Snapshot

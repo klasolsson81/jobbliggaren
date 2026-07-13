@@ -10,6 +10,22 @@
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- #752 — EfCoreLoggingConfigurationTests asserts the SHIPPED host configuration through
+       the real MEL filter engine. Both hosts ship a file literally named appsettings.json, so
+       the transitive project-reference copy would land them on the same output path (one
+       silently overwriting the other). Link them under distinct names so the test reads the
+       host it names. -->
+  <ItemGroup>
+    <Content Include="..\..\src\Jobbliggaren.Api\appsettings.json"
+             Link="hosts\Api.appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\src\Jobbliggaren.Api\appsettings.Development.json"
+             Link="hosts\Api.appsettings.Development.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\src\Jobbliggaren.Worker\appsettings.json"
+             Link="hosts\Worker.appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\src\Jobbliggaren.Worker\appsettings.Development.json"
+             Link="hosts\Worker.appsettings.Development.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>

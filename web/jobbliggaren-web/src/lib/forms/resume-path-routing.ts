@@ -119,3 +119,72 @@ export function guidePathToStepAndElementId(
 
   return null;
 }
+
+/**
+ * Var ett valideringsfel kan ÅTGÄRDAS i guiden.
+ *
+ * Invarianten (CTO-bind Q3-B): **varje fel måste ytas där det går att rätta.**
+ * Ingen issue får försvinna in i en generisk rad i foten, och foten får aldrig
+ * påstå "de är markerade nedan" om ingenting faktiskt är markerat. Det är §5 (en
+ * CV-yta felrapporterar aldrig) applicerat på fel-lagret.
+ *
+ * Därför ett DISKRIMINERAT mål i stället för `string | null`: kompetens- och
+ * språklistorna har ingen per-post-kontroll (chip-listan ÄR fältet), och en
+ * `null`-retur för dem gjorde det möjligt för anroparen att tappa felet tyst —
+ * vilket den också gjorde. Nu är det olagliga tillståndet orepresenterbart:
+ *
+ * - `field` — felet hör till en RHF-kontroll (markera fältet).
+ * - `panel` — felet hör till en chip-lista (yta det VID listan, namnge chippet).
+ * - `null`  — path:en tillhör inte guidens yta alls (t.ex. `parsedResumeId`);
+ *             anroparen måste då visa den specifika texten i stället för att
+ *             påstå att något är markerat.
+ */
+export type GuideErrorTarget =
+  | { kind: "field"; formPath: string }
+  | { kind: "panel"; panel: "skills" | "languages" };
+
+/**
+ * Zod-path → var felet kan åtgärdas ({@link GuideErrorTarget}).
+ *
+ * Formen och payloaden är INTE samma form: `toRawPayload` är en äkta transform.
+ * Den enda strukturella skillnaden en path kan träffa är sektionspostens brödtext
+ * — formen håller en textarea (`body`), payloaden en rad-array (`lines`) — så
+ * `lines` (och `lines.<idx>`) mappas tillbaka till `body`. Resten av namnrymden
+ * är delad, och `content.`-prefixet strippas.
+ *
+ * Kunskapen (Zod-namnrymd ↔ guidens fältuppsättning) är samma som
+ * {@link guidePathToStepAndElementId} redan bär — därför bor den här, som syskon,
+ * och testas isolerat (TD-46).
+ */
+export function guidePathToErrorTarget(path: string): GuideErrorTarget | null {
+  if (path === "name") return { kind: "field", formPath: "name" };
+  if (!path.startsWith("content.")) return null;
+  const inner = path.slice("content.".length);
+
+  if (inner.startsWith("personalInfo.") || inner === "summary") {
+    return { kind: "field", formPath: inner };
+  }
+
+  const sectionEntryLines = inner.match(
+    /^(sections\.\d+\.entries\.\d+)\.lines(?:\.\d+)?$/,
+  );
+  if (sectionEntryLines) {
+    return { kind: "field", formPath: `${sectionEntryLines[1]}.body` };
+  }
+
+  if (
+    inner.startsWith("experiences.") ||
+    inner.startsWith("educations.") ||
+    inner.startsWith("sections.")
+  ) {
+    return { kind: "field", formPath: inner };
+  }
+
+  // Chip-listorna: inget per-post-fält finns, men felet MÅSTE fram. Panelen bär det.
+  if (inner.startsWith("skills.")) return { kind: "panel", panel: "skills" };
+  if (inner.startsWith("languages.")) {
+    return { kind: "panel", panel: "languages" };
+  }
+
+  return null;
+}

@@ -16,7 +16,7 @@ import {
 } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Check, Plus, X } from "lucide-react";
+import { AlertTriangle, Check, Pencil, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +33,7 @@ import {
 import { makePromoteParsedResumeSchema } from "@/lib/actions/resume-schemas";
 import { promoteParsedResumeFromGuideAction } from "@/lib/actions/resumes";
 import {
+  guidePathToErrorTarget,
   guidePathToStepAndElementId,
   GUIDE_STEP_DETAILS,
   GUIDE_STEP_EXPERIENCE,
@@ -257,10 +258,124 @@ const STEP_TASK_KEYS: Record<number, ReadonlyArray<keyof ParsedGapSummary>> = {
   [GUIDE_STEP_SKILLS]: ["hasSkills", "hasLanguages"],
 };
 
-type FieldError = { path: string | null; message: string };
+/** Ett ÄKTA serverfel (server-actionen returnerade success:false). */
+type ServerError = { message: string };
 
 const isPresent = (value: string | null): boolean =>
   value != null && value.trim().length > 0;
+
+/**
+ * Guidens valideringstillstånd, härlett ur EN parse av det som faktiskt skulle
+ * skickas. Tre projektioner av samma sanning, så att inga två ytor kan divergera:
+ *
+ * - `issueCountByStep` — railens och Spara-sammanställningens "blockerar"-tillstånd.
+ * - `messageByFormPath` — felet vid det fält det gäller.
+ * - `unassignable`     — fel som INGET fält kan bära (kompetens-/språk-chips: listan
+ *                        ÄR fältet, det finns ingen per-post-input). De MÅSTE ytas
+ *                        någonstans, annars påstår foten "De är markerade nedan" om
+ *                        något som inte är markerat, och den specifika texten (t.ex.
+ *                        "…högst 100 tecken") når aldrig användaren. De renderas vid
+ *                        sin lista och räknas in i stegets blockerare.
+ */
+interface PanelIssue {
+  panel: "skills" | "languages";
+  /** Chippet som fälls — namngivet, så användaren slipper gissa vilket det är. */
+  chipName: string;
+  message: string;
+}
+
+interface LiveValidation {
+  issueCountByStep: ReadonlyMap<number, number>;
+  messageByFormPath: ReadonlyMap<string, string>;
+  /** Fel som bärs av en chip-LISTA (ingen per-post-kontroll finns att markera). */
+  panelIssues: ReadonlyArray<PanelIssue>;
+  /** Fel som guidens yta inte alls kan åtgärda (t.ex. parsedResumeId). */
+  offSurface: ReadonlyArray<string>;
+  ok: boolean;
+  /** Den validerade payloaden — bara vid `ok` (samma parse, inte en andra). */
+  payload: { name: string; content: ResumeContentDto } | null;
+  /** Första felets path — dit fokus routas vid submit. */
+  firstPath: string | null;
+}
+
+function validateLive(
+  schema: ReturnType<typeof makePromoteParsedResumeSchema>,
+  parsedId: string,
+  values: FormValues,
+): LiveValidation {
+  // Den projektion zod faktiskt ser. Chip-namn slås upp HÄR, inte i `values`:
+  // `toRawPayload` filtrerar bort namnlösa chips, så zods index är payloadens —
+  // läser man dem mot den ofiltrerade formen kan ett tomt chip förskjuta indexen
+  // och FEL chip namnges (code-reviewer Minor; onåbart idag, men opinnat vore det
+  // en tickande bomb: uppslaget skulle bero på en C#-fil två lager bort).
+  const payload = toRawPayload(values);
+  const parsed = schema.safeParse({
+    parsedResumeId: parsedId,
+    name: values.name,
+    content: payload,
+  });
+  const issueCountByStep = new Map<number, number>();
+  const messageByFormPath = new Map<string, string>();
+  const panelIssues: PanelIssue[] = [];
+  const offSurface: string[] = [];
+  if (parsed.success) {
+    return {
+      issueCountByStep,
+      messageByFormPath,
+      panelIssues,
+      offSurface,
+      ok: true,
+      firstPath: null,
+      payload: {
+        name: parsed.data.name,
+        // Schemats utdata matchar ResumeContentDto:ns superset-form (languages +
+        // sections); casten dokumenterar övergången från validerad ingångsform.
+        content: parsed.data.content as ResumeContentDto,
+      },
+    };
+  }
+
+  const firstPath = parsed.error.issues[0]?.path.join(".") ?? null;
+
+  for (const issue of parsed.error.issues) {
+    const path = issue.path.join(".");
+    const target = guidePathToErrorTarget(path);
+    const step = guidePathToStepAndElementId(path);
+
+    // Varje fel måste ta sig NÅGONSTANS (CTO Q3-B). Kan guidens yta inte åtgärda
+    // det bärs den specifika texten av foten — aldrig tyst bortkastad.
+    if (!target || !step) {
+      offSurface.push(issue.message);
+      continue;
+    }
+
+    issueCountByStep.set(step.step, (issueCountByStep.get(step.step) ?? 0) + 1);
+
+    if (target.kind === "field") {
+      // Första felet per fält vinner (zod kan ge flera; fältet visar ett).
+      if (!messageByFormPath.has(target.formPath)) {
+        messageByFormPath.set(target.formPath, issue.message);
+      }
+      continue;
+    }
+
+    const index = Number(path.split(".")[2]);
+    const chipName =
+      (target.panel === "skills"
+        ? payload.skills[index]?.name
+        : payload.languages?.[index]?.name) ?? "";
+    panelIssues.push({ panel: target.panel, chipName, message: issue.message });
+  }
+  return {
+    issueCountByStep,
+    messageByFormPath,
+    panelIssues,
+    offSurface,
+    ok: false,
+    payload: null,
+    firstPath,
+  };
+}
 
 export function CvCompleteGuide({
   parsedId,
@@ -285,8 +400,10 @@ export function CvCompleteGuide({
 
   const [step, setStep] = useState(GUIDE_STEP_DETAILS);
   const [isPending, startTransition] = useTransition();
-  const [serverError, setServerError] = useState<FieldError | null>(null);
+  const [serverError, setServerError] = useState<ServerError | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
+  // Fältfel visas först efter ett spar-försök (aldrig medan man fyller i).
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   // Contact-fält som befordrats från bekräfta-läge till redigerbart (Ändra).
   const [expandedContact, setExpandedContact] = useState<ReadonlySet<ContactKey>>(
@@ -318,10 +435,31 @@ export function CvCompleteGuide({
     setCollapsedEntries(initial);
   }
 
-  // Live-värden → härledd gap-summering (SSOT gap-tasks). Driver stegindikatorerna
-  // och sammanställningen på Spara-steget.
+  // Live-värden → härledd gap-summering (SSOT gap-tasks, LÄSES bara — aldrig
+  // omdefinierad här: hubbens mätare och guiden måste vara överens om vad en
+  // uppgift ÄR). Driver "kvar"-räkningen på stegen och Spara-sammanställningen.
   const values = watch();
   const gaps = deriveGapSummaryFromForm(values);
+
+  // Live-validering mot SAMMA schema som submit (och som servern). Ger stegen ett
+  // ärligt blockerings-tillstånd: närvaro (gaps) och giltighet (issues) är två
+  // olika påståenden, och den gamla indikatorn konflaterade dem — en appendad men
+  // TOM post räknades som "ifylld" och steget blev grönbockat medan submit ändå
+  // nekade (CTO-bind Q3/Q3-A).
+  //
+  // INGEN useMemo här, med flit: `watch()` returnerar ett NYTT objekt varje render
+  // (RHF bygger om `_formValues`), så en dep-array på `values` matchar aldrig och
+  // memon hade varit ren dekoration — den ser ut som en optimering men kör ändå
+  // varje render (code-reviewer Minor). Parsen är ren och billig; ärligare utan.
+  //
+  // Live-parsen är felens ENDA sanningskälla — inte `formState.errors`. Skälet är
+  // en riktig bugg: `handleSubmit` nollställer RHF:s felmängd vid varje submit (och
+  // "Nästa" ÄR en submit), så per-fält-markeringarna försvann när användaren gick
+  // vidare medan railen fortsatte påstå "2 fel behöver rättas" — fälten och railen
+  // sa emot varandra (code-reviewer Major). Härleds felen i stället ur samma parse
+  // som railen läser kan de per konstruktion inte divergera, och de försvinner i
+  // samma stund som felet faktiskt är rättat.
+  const live = validateLive(schema, parsedId, values);
 
   // Per-sektions parse-konfidens (ärlig proveniens från backend). Bara "Degraded"
   // ytas som en not; "NotFound" bärs redan av "Saknades i filen"-räkningen.
@@ -359,10 +497,119 @@ export function CvCompleteGuide({
     return keys.filter((key) => !gaps[key]).length;
   }
 
-  function stepIsDone(stepIndex: number): boolean {
-    const keys = STEP_TASK_KEYS[stepIndex] ?? [];
-    return keys.length > 0 && keys.every((key) => gaps[key]);
+  function blockersForStep(stepIndex: number): number {
+    return live.issueCountByStep.get(stepIndex) ?? 0;
   }
+
+  /**
+   * Felet för ett fält — men först efter ett spar-FÖRSÖK. Att markera fält rött
+   * medan användaren fortfarande fyller i formuläret vore att skälla på henne för
+   * att hon inte är klar (GOV.UK-mönstret: validera vid submit, inte vid mount).
+   * Railens "N fel behöver rättas" är däremot live hela tiden — den beskriver, den
+   * anklagar inte.
+   */
+  function errorFor(formPath: string): string | undefined {
+    return submitAttempted ? live.messageByFormPath.get(formPath) : undefined;
+  }
+
+  /**
+   * Bär NÅGOT fält under den här prefixen ett live-fel? (t.ex. `experiences.0.`)
+   *
+   * Finns för att expansionen måste vara HÄRLEDD, inte state. En kollapsad post och
+   * en bekräfta-rad är båda ytor som kan DÖLJA ett fel: parsern gissar aldrig datum
+   * (DQ3-3a), så varje parsad erfarenhet saknar startdatum och är därmed blockerande
+   * vid första submit — men kortet renderades kollapsat, med en lugn "Bekräfta datum"
+   * i stället för felet, medan foten påstod att allt var markerat nedan. `routeToError`
+   * öppnade bara FÖRSTA felet, så ett CV med två erfarenheter dolde resten
+   * (code-reviewer Major, rond 3).
+   *
+   * Att i stället expandera alla felbärande ytor inne i `routeToError` hade lagat
+   * symptomet, inte klassen: nästa kollapsbara yta någon lägger till hade återinfört
+   * buggen. Härleds expansionen ur samma parse som allt annat kan en yta med ett fel
+   * per konstruktion inte renderas stängd.
+   */
+  function hasErrorUnder(prefix: string): boolean {
+    if (!submitAttempted) return false;
+    for (const formPath of live.messageByFormPath.keys()) {
+      if (formPath.startsWith(prefix)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Fel som bärs av en chip-LISTA. Chip-listan är själva fältet — det finns ingen
+   * per-chip-input att markera — så felet renderas vid listan och NAMNGER chippet.
+   * Utan den här ytan sa foten "De är markerade nedan" om något som inte var
+   * markerat, och zod-texten (t.ex. längdgränsen) nådde aldrig användaren.
+   */
+  function chipIssuesFor(list: "skills" | "languages"): PanelIssue[] {
+    if (!submitAttempted) return [];
+    return live.panelIssues.filter((issue) => issue.panel === list);
+  }
+
+  /**
+   * Stegets ärliga tillstånd (CTO-bind Q3-A — tre tillstånd, aldrig två):
+   *
+   * - `attention` — steget äger minst ett valideringsfel: det HINDRAR sparande.
+   * - `remaining` — inget hindrar, men uppgifter är ofyllda (gap-tasks).
+   * - `done`      — inget hindrar OCH inget är ofyllt.
+   *
+   * Bocken påstår därmed exakt en sak: "allt på det här steget är ifyllt, och
+   * inget här hindrar dig från att spara." Den kan inte längre sättas av en tom
+   * post (som är ogiltig → `attention`) och inte heller av ett orört steg (som
+   * har gaps kvar → `remaining`). Spara-sammanställningen läser samma predikat,
+   * så railen och den kan inte säga emot varandra.
+   *
+   * Spara-steget äger inga gap-uppgifter och blir därför aldrig `done` — det är
+   * `attention` när CV-namnet saknas, annars neutralt. Det faller ut ur modellen.
+   */
+  function stepState(stepIndex: number): "attention" | "remaining" | "done" {
+    if (blockersForStep(stepIndex) > 0) return "attention";
+    const keys = STEP_TASK_KEYS[stepIndex] ?? [];
+    if (keys.length === 0) return "remaining";
+    return keys.every((key) => gaps[key]) ? "done" : "remaining";
+  }
+
+  /**
+   * Skärmläsar-texten för stegets tillstånd (WCAG 1.4.1 — glyfen bär aldrig
+   * påståendet ensam). `null` när steget inte har något sant att säga: Spara-steget
+   * äger inga uppgifter, så "0 uppgifter kvar" vore brus, inte information.
+   */
+  function stepStatusLabel(stepIndex: number): string | null {
+    const state = stepState(stepIndex);
+    if (state === "attention") {
+      return tr("railStatusAttention", { count: blockersForStep(stepIndex) });
+    }
+    if (state === "done") return tr("railStatusDone");
+    const remaining = remainingForStep(stepIndex);
+    return remaining > 0 ? tr("railStatusRemaining", { count: remaining }) : null;
+  }
+
+  const CONTENT_STEPS = [
+    GUIDE_STEP_DETAILS,
+    GUIDE_STEP_EXPERIENCE,
+    GUIDE_STEP_SKILLS,
+  ];
+  const hasBlockers = !live.ok;
+
+  /**
+   * Fotens valideringsrad — HÄRLEDD, aldrig state. Sattes den vid submit skulle den
+   * överleva sin egen sanning: användaren rättar felet, fältmarkeringen slocknar
+   * (den är live), och foten står kvar och påstår "De är markerade nedan" om
+   * ingenting. Foten får bara påstå att något är markerat om något FAKTISKT är det
+   * — kan inget fel ytas i guiden (t.ex. ett parsedResumeId-fel som ingen kontroll
+   * äger) bärs den specifika texten i stället, så användaren inte lämnas utan
+   * information (CTO Q3-B).
+   */
+  const validationMessage =
+    submitAttempted && !live.ok
+      ? live.messageByFormPath.size > 0 || live.panelIssues.length > 0
+        ? tr("fixFields")
+        : (live.offSurface[0] ?? tr("invalidData"))
+      : null;
+  const hasRemainingTasks = CONTENT_STEPS.some(
+    (stepIndex) => remainingForStep(stepIndex) > 0,
+  );
 
   function requestClose() {
     if (isDirty) {
@@ -370,6 +617,54 @@ export function CvCompleteGuide({
       return;
     }
     router.push(CLOSE_HREF);
+  }
+
+  /**
+   * Öppnar VARJE yta som bär ett fel — inte bara den `routeToError` hoppar till.
+   *
+   * Utan det här skulle expansionen bara hållas uppe av `hasErrorUnder`, och då
+   * försvinner den i samma stund felet rättas: kortet kollapsar mitt i inmatningen
+   * och fokus ryker. Med state öppnat en gång blir expansionen en spärrhake — den
+   * kan växa men aldrig krympa — medan `hasErrorUnder` står kvar som strukturell
+   * garanti för fel som dyker upp senare.
+   */
+  function expandSurfacesWithErrors(messageByFormPath: ReadonlyMap<string, string>) {
+    const entryIds: string[] = [];
+    const contactKeys: ContactKey[] = [];
+
+    for (const formPath of messageByFormPath.keys()) {
+      const contact = formPath.match(/^personalInfo\.(\w+)$/);
+      if (contact) {
+        contactKeys.push(contact[1] as ContactKey);
+        continue;
+      }
+      const exp = formPath.match(/^experiences\.(\d+)\./);
+      if (exp) {
+        const id = experiences.fields[Number(exp[1])]?.id;
+        if (id) entryIds.push(id);
+        continue;
+      }
+      const edu = formPath.match(/^educations\.(\d+)\./);
+      if (edu) {
+        const id = educations.fields[Number(edu[1])]?.id;
+        if (id) entryIds.push(id);
+      }
+    }
+
+    if (entryIds.length > 0) {
+      setCollapsedEntries((prev) => {
+        const next = new Set(prev);
+        entryIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    }
+    if (contactKeys.length > 0) {
+      setExpandedContact((prev) => {
+        const next = new Set(prev);
+        contactKeys.forEach((key) => next.add(key));
+        return next;
+      });
+    }
   }
 
   // Vid valideringsfel: hoppa till felets steg, expandera ev. kollapsad post/kontakt,
@@ -400,36 +695,50 @@ export function CvCompleteGuide({
 
   function onSubmit(formValues: FormValues) {
     setServerError(null);
-    const rawPayload = toRawPayload(formValues);
-    // Klient-validering speglar server-actionen (server-validering är auktoritativ).
-    const parsed = schema.safeParse({
-      parsedResumeId: parsedId,
-      name: formValues.name,
-      content: rawPayload,
-    });
-    if (!parsed.success) {
-      const first = parsed.error.issues[0];
-      if (first) {
-        const path = first.path.join(".");
-        routeToError(path);
-        setServerError({ path: path || null, message: first.message });
-      } else {
-        setServerError({ path: null, message: tr("invalidData") });
-      }
+
+    // Enter-semantik (bunden i CTO Q5): formen submittar bara på Spara-steget.
+    // På steg 1-3 är Enter "gå vidare" — inte ett tyst sparförsök.
+    if (step !== GUIDE_STEP_SAVE) {
+      goToStep(step + 1);
       return;
     }
+
+    // Spar-försök: härifrån får fälten visa sina fel. INGEN setError/clearErrors —
+    // felen härleds ur live-parsen (samma källa som railen), så de överlever ett
+    // stegbyte och slocknar när felet faktiskt är rättat.
+    setSubmitAttempted(true);
+
+    // EN parse (klient-validering speglar server-actionen; servern är auktoritativ).
+    // Valideringsmeddelandet i foten sätts INTE här — det härleds i render ur samma
+    // parse (se `validationMessage`). Sattes det som state skulle det överleva sin
+    // egen sanning: användaren rättar felet, fältmarkeringen slocknar, och foten står
+    // kvar och påstår "De är markerade nedan" om ingenting (code-reviewer Major —
+    // exakt samma sjukdom som `clearErrors`, en yta bort).
+    const outcome = validateLive(schema, parsedId, formValues);
+    if (!outcome.payload) {
+      // SPÄRRHAKE (code-reviewer Major, rond 4). `hasErrorUnder` är en strukturell
+      // spärr — den garanterar att ingen yta kan DÖLJA ett fel — men den är dubbel-
+      // riktad, och det gjorde öppningen destruktiv åt andra hållet: rättade man
+      // felet blev predikatet falskt och kortet SLOG IGEN mitt i inmatningen, med
+      // fokus slängt till <body> (WCAG 3.2.2). Användaren fyllde i det enda hon
+      // ombads fylla i, och ytan rycktes undan.
+      //
+      // Här öppnas därför state EN gång, för ALLA felbärande ytor (drivet av
+      // live-parsen, inte av routeToErrors första-fel-väg). Då gäller båda
+      // egenskaperna samtidigt: inget fel kan gömmas, och att rätta ett fel stänger
+      // aldrig ytan man står i. Expansionen kan bara växa, aldrig krympa.
+      expandSurfacesWithErrors(outcome.messageByFormPath);
+      if (outcome.firstPath) routeToError(outcome.firstPath);
+      return;
+    }
+
+    const { name, content } = outcome.payload;
     startTransition(async () => {
-      // NEXT_REDIRECT (→ /cv) är en framgångssignal som får propagera. Bara ett
-      // returnerat success:false hanteras som fel här.
-      const result = await promoteParsedResumeFromGuideAction(
-        parsedId,
-        parsed.data.name,
-        // Schemats utdata matchar ResumeContentDto:ns superset-form (languages +
-        // sections); casten dokumenterar övergången från validerad ingångsform.
-        parsed.data.content as ResumeContentDto,
-      );
+      // NEXT_REDIRECT (→ /cv/{id}/granska) är en framgångssignal som får propagera.
+      // Bara ett returnerat success:false hanteras som fel här.
+      const result = await promoteParsedResumeFromGuideAction(parsedId, name, content);
       if (!result.success) {
-        setServerError({ path: null, message: result.error });
+        setServerError({ message: result.error });
       }
     });
   }
@@ -461,7 +770,16 @@ export function CvCompleteGuide({
   }
 
   return (
-    <div className="jp-guide">
+    // En riktig <form>: Enter submittar (steg 1-3 = gå vidare, steg 4 = spara).
+    // Roten var en <div> och Spara en type="button" → Enter gjorde ingenting alls.
+    //
+    // `noValidate` med flit: Zod-schemat (samma som server-actionen kör) är ENDA
+    // valideringsauktoriteten. Native constraint-validation skulle annars hinna
+    // först på type="email"/"date"/required, blockera submit med webbläsarens egna
+    // engelska bubblor (§10: svensk copy) och kortsluta våra per-fält-fel. Fälten
+    // behåller required/aria-required — de är sanna påståenden om fältet och bär
+    // SR-semantiken; det är auktoriteten, inte kravet, som flyttas till Zod.
+    <form className="jp-guide" onSubmit={form.handleSubmit(onSubmit)} noValidate>
       {/* Header-rad: mono-källrad + Stäng (honesty bind 2 — aldrig "spara utkast"). */}
       <div className="jp-guide__head">
         <p className="jp-guide__source">
@@ -483,36 +801,35 @@ export function CvCompleteGuide({
         <ol className="jp-guide__raillist">
           {stepLabels.map((label, index) => {
             const active = index === step;
-            const done = stepIsDone(index);
-            const state = active ? "active" : done ? "done" : "todo";
-            const hasTasks = (STEP_TASK_KEYS[index]?.length ?? 0) > 0;
+            // Markering (var jag står) och status (vad steget säger) är två skilda
+            // axlar — den gamla indikatorn slog ihop dem i ett enda data-state.
+            const status = stepState(index);
+            const statusLabel = stepStatusLabel(index);
             return (
-              <li key={index} className="jp-guide__railitem-wrap">
+              <li key={index}>
                 <button
                   type="button"
                   className="jp-guide__railitem"
-                  data-state={state}
+                  data-state={active ? "active" : "idle"}
                   aria-current={active ? "step" : undefined}
                   onClick={() => goToStep(index)}
                   disabled={isPending}
                 >
                   <span
                     className="jp-guide__railind"
-                    data-state={state}
+                    data-status={status}
                     aria-hidden="true"
                   >
-                    {done ? (
+                    {status === "done" ? (
                       <Check size={14} strokeWidth={3} />
+                    ) : status === "attention" ? (
+                      <AlertTriangle size={14} strokeWidth={2.5} />
                     ) : (
                       <span>{index + 1}</span>
                     )}
                   </span>
                   <span className="jp-guide__raillabel">{label}</span>
-                  {hasTasks && (
-                    <span className="sr-only">
-                      {done ? tr("railStatusDone") : tr("railStatusTodo")}
-                    </span>
-                  )}
+                  {statusLabel && <span className="sr-only">{statusLabel}</span>}
                 </button>
               </li>
             );
@@ -542,7 +859,13 @@ export function CvCompleteGuide({
               {CONTACT_FIELDS.map((field) => {
                 const label = contactLabel(field.key);
                 const found = isPresent(content.contact[field.key]);
-                const confirmMode = found && !expandedContact.has(field.key);
+                // Bekräfta-raden bär en grön bock ("detta stämmer"). Den får ALDRIG
+                // sitta på ett fält som hindrar sparande — då ljuger bocken, och
+                // felet finns ingenstans att se (rond-3 Major).
+                const confirmMode =
+                  found &&
+                  !expandedContact.has(field.key) &&
+                  !errorFor(`personalInfo.${field.key}`);
                 if (confirmMode) {
                   return (
                     <div key={field.key} className="jp-guide__confirm">
@@ -598,8 +921,19 @@ export function CvCompleteGuide({
                       {...register(`personalInfo.${field.key}`)}
                       required={!field.optional}
                       aria-required={!field.optional || undefined}
+                      aria-invalid={
+                        errorFor(`personalInfo.${field.key}`) ? true : undefined
+                      }
+                      aria-describedby={describedBy(
+                        errorFor(`personalInfo.${field.key}`) &&
+                          `guide-pi-${field.key}-error`,
+                      )}
                       maxLength={field.key === "phone" ? 50 : 200}
                       disabled={isPending}
+                    />
+                    <FieldMessage
+                      id={`guide-pi-${field.key}-error`}
+                      message={errorFor(`personalInfo.${field.key}`)}
                     />
                   </div>
                 );
@@ -630,10 +964,19 @@ export function CvCompleteGuide({
                 <Textarea
                   id="guide-summary"
                   {...register("summary")}
-                  aria-describedby="guide-summary-hint guide-summary-count"
+                  aria-invalid={errorFor("summary") ? true : undefined}
+                  aria-describedby={describedBy(
+                    "guide-summary-hint",
+                    "guide-summary-count",
+                    errorFor("summary") && "guide-summary-error",
+                  )}
                   rows={4}
                   maxLength={2000}
                   disabled={isPending}
+                />
+                <FieldMessage
+                  id="guide-summary-error"
+                  message={errorFor("summary")}
                 />
                 <p
                   id="guide-summary-count"
@@ -681,10 +1024,16 @@ export function CvCompleteGuide({
                     key={field.id}
                     form={form}
                     index={index}
-                    expanded={!collapsedEntries.has(field.id)}
+                    // Expansionen är HÄRLEDD: ett kort som bär ett blockerande fel
+                    // kan inte renderas kollapsat och gömma det (rond-3 Major).
+                    expanded={
+                      !collapsedEntries.has(field.id) ||
+                      hasErrorUnder(`experiences.${index}.`)
+                    }
                     onExpand={() => expandEntry(field.id)}
                     onRemove={() => experiences.remove(index)}
                     disabled={isPending}
+                    errorFor={errorFor}
                   />
                 ))}
               </div>
@@ -721,10 +1070,14 @@ export function CvCompleteGuide({
                     key={field.id}
                     form={form}
                     index={index}
-                    expanded={!collapsedEntries.has(field.id)}
+                    expanded={
+                      !collapsedEntries.has(field.id) ||
+                      hasErrorUnder(`educations.${index}.`)
+                    }
                     onExpand={() => expandEntry(field.id)}
                     onRemove={() => educations.remove(index)}
                     disabled={isPending}
+                    errorFor={errorFor}
                   />
                 ))}
               </div>
@@ -741,12 +1094,17 @@ export function CvCompleteGuide({
               </div>
             </div>
 
-            {/* Egna sektioner (generisk panel, CTO Q7(a) — fri rubrik, inga förslag) */}
+            {/* Egna sektioner (generisk panel, CTO Q7(a) — fri rubrik, inga förslag).
+                Proveniensen saknades här medan Erfarenhet/Utbildning bar sin: sedan
+                #849 prefylls PROJEKT/REFERENSER ur filen, och då måste ytan säga att
+                de KOM ur filen — annars ser användarens egna sektioner ut som något
+                guiden hittade på. */}
             <div className="jp-guide__section">
               <div className="jp-guide__section-head">
                 <h3 className="jp-guide__section-title">
                   {tr("experience.sectionsHeading")}
                 </h3>
+                <FoundProvenance count={content.sections.length} optional />
               </div>
               <p className="jp-guide__intro">{tr("experience.sectionsIntro")}</p>
               {sections.fields.length === 0 && (
@@ -760,6 +1118,7 @@ export function CvCompleteGuide({
                     index={index}
                     onRemove={() => sections.remove(index)}
                     disabled={isPending}
+                    errorFor={errorFor}
                   />
                 ))}
               </div>
@@ -809,10 +1168,14 @@ export function CvCompleteGuide({
                   names={watch("skills").map((s) => s.name)}
                   onAdd={(name) => skills.append({ name })}
                   onRemove={(index) => skills.remove(index)}
+                  onReplace={(index, name) => skills.update(index, { name })}
                   addLabel={tr("skills.skillsAddLabel")}
                   addButtonLabel={tr("skills.add")}
+                  saveButtonLabel={tr("skills.saveChip")}
                   emptyLabel={tr("skills.skillsEmpty")}
                   removeLabel={(name) => tr("skills.removeSkill", { name })}
+                  editLabel={(name) => tr("skills.editChip", { name })}
+                  issues={chipIssuesFor("skills")}
                   disabled={isPending}
                 />
               </div>
@@ -832,8 +1195,12 @@ export function CvCompleteGuide({
                   names={watch("languages").map((l) => l.name)}
                   onAdd={(name) => languages.append({ name })}
                   onRemove={(index) => languages.remove(index)}
+                  onReplace={(index, name) => languages.update(index, { name })}
+                  editLabel={(name) => tr("skills.editChip", { name })}
+                  issues={chipIssuesFor("languages")}
                   addLabel={tr("skills.languagesAddLabel")}
                   addButtonLabel={tr("skills.add")}
+                  saveButtonLabel={tr("skills.saveChip")}
                   emptyLabel={tr("skills.languagesEmpty")}
                   removeLabel={(name) => tr("skills.removeLanguage", { name })}
                   disabled={isPending}
@@ -856,31 +1223,42 @@ export function CvCompleteGuide({
             </h2>
             <p className="jp-guide__intro">{tr("save.intro")}</p>
 
+            {/* Samma predikat som railen (CTO-bind Q3-A) — de två ytorna kan inte
+                säga emot varandra, för de läser samma tre tillstånd. */}
             <ul className="jp-guide__summary">
               {[GUIDE_STEP_DETAILS, GUIDE_STEP_EXPERIENCE, GUIDE_STEP_SKILLS].map(
                 (stepIndex) => {
+                  const status = stepState(stepIndex);
+                  const blockers = blockersForStep(stepIndex);
                   const remaining = remainingForStep(stepIndex);
-                  const done = remaining === 0;
                   const partLabel = stepLabels[stepIndex] ?? "";
                   return (
                     <li key={stepIndex} className="jp-guide__summary-row">
                       <span className="jp-guide__summary-part">
                         <span
                           className="jp-guide__summary-ind"
-                          data-done={done}
+                          data-status={status}
                           aria-hidden="true"
                         >
-                          {done ? <Check size={14} strokeWidth={3} /> : remaining}
+                          {status === "done" ? (
+                            <Check size={14} strokeWidth={3} />
+                          ) : status === "attention" ? (
+                            <AlertTriangle size={14} strokeWidth={2.5} />
+                          ) : (
+                            remaining
+                          )}
                         </span>
                         {partLabel}
                       </span>
-                      {done ? (
+                      {status === "done" ? (
                         <span className="jp-guide__summary-status">
                           {tr("save.summaryDone")}
                         </span>
                       ) : (
                         <span className="jp-guide__summary-status">
-                          {tr("save.summaryRemaining", { count: remaining })}
+                          {status === "attention"
+                            ? tr("save.summaryBlocked", { count: blockers })
+                            : tr("save.summaryRemaining", { count: remaining })}
                           <Button
                             type="button"
                             variant="link"
@@ -898,6 +1276,13 @@ export function CvCompleteGuide({
               )}
             </ul>
 
+            {/* Obligatoriskt copy-bind (CTO Q3-A): "kvar" får ALDRIG läsas som
+                "krävs". Uppgifterna som återstår är frivilliga — säg det rakt ut,
+                annars är den ärliga modellen ändå oärlig i sin ton. */}
+            {hasRemainingTasks && !hasBlockers && (
+              <p className="jp-guide__note">{tr("save.remainingOptional")}</p>
+            )}
+
             <div className="jp-guide__field">
               <Label htmlFor="guide-cv-name">
                 {tr("save.nameLabel")}
@@ -911,11 +1296,19 @@ export function CvCompleteGuide({
               <Input
                 id="guide-cv-name"
                 {...register("name")}
-                aria-describedby="guide-cv-name-hint"
+                aria-invalid={errorFor("name") ? true : undefined}
+                aria-describedby={describedBy(
+                  "guide-cv-name-hint",
+                  errorFor("name") && "guide-cv-name-error",
+                )}
                 maxLength={200}
                 required
                 aria-required={true}
                 disabled={isPending}
+              />
+              <FieldMessage
+                id="guide-cv-name-error"
+                message={errorFor("name")}
               />
             </div>
 
@@ -937,25 +1330,30 @@ export function CvCompleteGuide({
           </Button>
         )}
         <span className="jp-guide__foot-spacer" />
-        {serverError && (
+        {/* Valideringsraden vinner över serverfelet — den är HÄRLEDD och därmed alltid
+            färsk, medan `serverError` är state från ett tidigare försök. Tömmer man ett
+            fält efter ett serverfel blir fältet rödmarkerat, och foten måste då säga
+            vad som ska rättas i stället för att upprepa ett gammalt serversvar. Vid
+            själva serverfelet är formen giltig (servern anropas bara med giltig
+            payload) → `validationMessage` är null → serverfelet visas där det ska. */}
+        {(validationMessage || serverError) && (
           <p id={ERROR_ID} role="alert" className="jp-guide__error">
-            {serverError.message}
+            {validationMessage ?? serverError?.message}
           </p>
         )}
         {step < GUIDE_STEP_SAVE ? (
-          <Button
-            type="button"
-            onClick={() => goToStep(step + 1)}
-            disabled={isPending}
-          >
+          // type="submit" även här — inte bara för musklicket, utan för att en form
+          // UTAN submit-knapp inte har någon implicit submission alls: Enter i ett
+          // fält hade fortsatt vara dött på steg 1-3 (HTML-specens default button).
+          // onSubmit avgör innebörden: gå vidare på steg 1-3, spara på steg 4.
+          <Button type="submit" disabled={isPending}>
             {tr("next")}
           </Button>
         ) : (
-          <Button
-            type="button"
-            onClick={form.handleSubmit(onSubmit)}
-            disabled={isPending}
-          >
+          // Spara avaktiveras ALDRIG av kvarvarande uppgifter (CTO Q3-A): de är
+          // frivilliga. Bara ett äkta blockerande fel stoppar sparandet, och då
+          // förklaras det på fältet — förklara, blockera inte.
+          <Button type="submit" disabled={isPending}>
             {isPending ? tr("save.pending") : tr("save.cta")}
           </Button>
         )}
@@ -987,14 +1385,57 @@ export function CvCompleteGuide({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </form>
   );
 }
 
-/** Found-count-proveniens per sektion: "{n} hittade" eller "Saknades i filen". */
-function FoundProvenance({ count }: { count: number }) {
+/**
+ * Felmeddelandet för ETT fält. Inte `role="alert"`: vid submit sätts flera fel
+ * samtidigt, och lika många samtidiga alerts blir en uppläsnings-storm som döljer
+ * just det fält fokus landar på. Meddelandet kopplas i stället till sitt fält via
+ * `aria-describedby` (+ `aria-invalid`), så skärmläsaren läser felet när fokus
+ * flyttas dit — vilket `routeToError` gör med det första felet. Foten bär den
+ * aggregerade signalen (`role="alert"`).
+ */
+function FieldMessage({ id, message }: { id: string; message?: string }) {
+  if (!message) return null;
+  return (
+    <p id={id} className="jp-guide__fielderror">
+      {message}
+    </p>
+  );
+}
+
+/**
+ * `aria-describedby` får peka på flera id:n. Ett fält kan ha BÅDE hjälptext och
+ * fel — hjälptexten förklarar fältet, felet förklarar varför det inte gick igenom,
+ * och båda behövs. Tomma led filtreras bort; allt tomt → `undefined` (aldrig ett
+ * tomt describedby som pekar i luften).
+ */
+function describedBy(...ids: Array<string | false | undefined>): string | undefined {
+  const present = ids.filter((id): id is string => Boolean(id));
+  return present.length > 0 ? present.join(" ") : undefined;
+}
+
+/**
+ * Found-count-proveniens per sektion: "{n} hittade" eller "Saknades i filen".
+ *
+ * `optional` — sektioner som INTE är en uppgift att stänga (fria sektioner:
+ * Projekt, Referenser, Certifikat). För dem är noll träffar inget saknat: ett CV
+ * utan PROJEKT saknar ingenting, och "Saknades i filen" hade påstått en lucka som
+ * inte finns. De ytar därför proveniensen bara när parsern faktiskt hittade något;
+ * tomt läge bärs av panelens egen empty-text.
+ */
+function FoundProvenance({
+  count,
+  optional = false,
+}: {
+  count: number;
+  optional?: boolean;
+}) {
   const tr = useTranslations("resumes.guide");
   if (count === 0) {
+    if (optional) return null;
     return (
       <StatusPill tone="neutral" dot={false}>
         {tr("missingInFile")}
@@ -1016,6 +1457,7 @@ function ExperienceCard({
   onExpand,
   onRemove,
   disabled,
+  errorFor,
 }: {
   form: UseFormReturn<FormValues>;
   index: number;
@@ -1023,6 +1465,7 @@ function ExperienceCard({
   onExpand: () => void;
   onRemove: () => void;
   disabled: boolean;
+  errorFor: (formPath: string) => string | undefined;
 }) {
   const tr = useTranslations("resumes.guide");
   const { register, control, watch, setValue } = form;
@@ -1032,6 +1475,16 @@ function ExperienceCard({
   const ongoing = watch(`experiences.${index}.ongoing`);
   const periodHint = watch(`experiences.${index}.periodHint`);
   const dateHintId = periodHint ? `guide-exp-${index}-period` : undefined;
+  // Felen kommer ur live-parsen (via errorFor), inte ur RHF:s formState — se
+  // kommentaren vid `validateLive`: handleSubmit nollställer formState vid varje
+  // submit, och "Nästa" ÄR en submit.
+  const errors = {
+    company: errorFor(`experiences.${index}.company`),
+    role: errorFor(`experiences.${index}.role`),
+    startDate: errorFor(`experiences.${index}.startDate`),
+    endDate: errorFor(`experiences.${index}.endDate`),
+    description: errorFor(`experiences.${index}.description`),
+  };
 
   if (!expanded) {
     const summary = [role, company].filter((v) => v.trim().length > 0).join(" · ");
@@ -1095,7 +1548,15 @@ function ExperienceCard({
             maxLength={200}
             required
             aria-required={true}
+            aria-invalid={errors.company ? true : undefined}
+            aria-describedby={describedBy(
+              errors.company && `guide-exp-${index}-company-error`,
+            )}
             disabled={disabled}
+          />
+          <FieldMessage
+            id={`guide-exp-${index}-company-error`}
+            message={errors.company}
           />
         </div>
         <div className="jp-guide__field">
@@ -1109,7 +1570,15 @@ function ExperienceCard({
             maxLength={200}
             required
             aria-required={true}
+            aria-invalid={errors.role ? true : undefined}
+            aria-describedby={describedBy(
+              errors.role && `guide-exp-${index}-role-error`,
+            )}
             disabled={disabled}
+          />
+          <FieldMessage
+            id={`guide-exp-${index}-role-error`}
+            message={errors.role}
           />
         </div>
       </div>
@@ -1132,7 +1601,15 @@ function ExperienceCard({
               {...register(`experiences.${index}.startDate`)}
               required
               aria-required={true}
+              aria-invalid={errors.startDate ? true : undefined}
+              aria-describedby={describedBy(
+                errors.startDate && `guide-exp-${index}-startDate-error`,
+              )}
               disabled={disabled}
+            />
+            <FieldMessage
+              id={`guide-exp-${index}-startDate-error`}
+              message={errors.startDate}
             />
           </div>
           {!ongoing && (
@@ -1144,7 +1621,15 @@ function ExperienceCard({
                 id={`guide-exp-${index}-endDate`}
                 type="date"
                 {...register(`experiences.${index}.endDate`)}
+                aria-invalid={errors.endDate ? true : undefined}
+                aria-describedby={describedBy(
+                  errors.endDate && `guide-exp-${index}-endDate-error`,
+                )}
                 disabled={disabled}
+              />
+              <FieldMessage
+                id={`guide-exp-${index}-endDate-error`}
+                message={errors.endDate}
               />
             </div>
           )}
@@ -1179,9 +1664,17 @@ function ExperienceCard({
         <Textarea
           id={`guide-exp-${index}-description`}
           {...register(`experiences.${index}.description`)}
+          aria-invalid={errors.description ? true : undefined}
+          aria-describedby={describedBy(
+            errors.description && `guide-exp-${index}-description-error`,
+          )}
           rows={3}
           maxLength={2000}
           disabled={disabled}
+        />
+        <FieldMessage
+          id={`guide-exp-${index}-description-error`}
+          message={errors.description}
         />
       </div>
 
@@ -1208,6 +1701,7 @@ function EducationCard({
   onExpand,
   onRemove,
   disabled,
+  errorFor,
 }: {
   form: UseFormReturn<FormValues>;
   index: number;
@@ -1215,6 +1709,7 @@ function EducationCard({
   onExpand: () => void;
   onRemove: () => void;
   disabled: boolean;
+  errorFor: (formPath: string) => string | undefined;
 }) {
   const tr = useTranslations("resumes.guide");
   const { register, control, watch, setValue } = form;
@@ -1224,6 +1719,12 @@ function EducationCard({
   const ongoing = watch(`educations.${index}.ongoing`);
   const periodHint = watch(`educations.${index}.periodHint`);
   const dateHintId = periodHint ? `guide-edu-${index}-period` : undefined;
+  const errors = {
+    institution: errorFor(`educations.${index}.institution`),
+    degree: errorFor(`educations.${index}.degree`),
+    startDate: errorFor(`educations.${index}.startDate`),
+    endDate: errorFor(`educations.${index}.endDate`),
+  };
 
   if (!expanded) {
     const summary = [degree, institution]
@@ -1289,7 +1790,15 @@ function EducationCard({
             maxLength={200}
             required
             aria-required={true}
+            aria-invalid={errors.institution ? true : undefined}
+            aria-describedby={describedBy(
+              errors.institution && `guide-edu-${index}-institution-error`,
+            )}
             disabled={disabled}
+          />
+          <FieldMessage
+            id={`guide-edu-${index}-institution-error`}
+            message={errors.institution}
           />
         </div>
         <div className="jp-guide__field">
@@ -1303,7 +1812,15 @@ function EducationCard({
             maxLength={200}
             required
             aria-required={true}
+            aria-invalid={errors.degree ? true : undefined}
+            aria-describedby={describedBy(
+              errors.degree && `guide-edu-${index}-degree-error`,
+            )}
             disabled={disabled}
+          />
+          <FieldMessage
+            id={`guide-edu-${index}-degree-error`}
+            message={errors.degree}
           />
         </div>
       </div>
@@ -1326,7 +1843,15 @@ function EducationCard({
               {...register(`educations.${index}.startDate`)}
               required
               aria-required={true}
+              aria-invalid={errors.startDate ? true : undefined}
+              aria-describedby={describedBy(
+                errors.startDate && `guide-edu-${index}-startDate-error`,
+              )}
               disabled={disabled}
+            />
+            <FieldMessage
+              id={`guide-edu-${index}-startDate-error`}
+              message={errors.startDate}
             />
           </div>
           {!ongoing && (
@@ -1338,7 +1863,15 @@ function EducationCard({
                 id={`guide-edu-${index}-endDate`}
                 type="date"
                 {...register(`educations.${index}.endDate`)}
+                aria-invalid={errors.endDate ? true : undefined}
+                aria-describedby={describedBy(
+                  errors.endDate && `guide-edu-${index}-endDate-error`,
+                )}
                 disabled={disabled}
+              />
+              <FieldMessage
+                id={`guide-edu-${index}-endDate-error`}
+                message={errors.endDate}
               />
             </div>
           )}
@@ -1387,11 +1920,13 @@ function SectionCard({
   index,
   onRemove,
   disabled,
+  errorFor,
 }: {
   form: UseFormReturn<FormValues>;
   index: number;
   onRemove: () => void;
   disabled: boolean;
+  errorFor: (formPath: string) => string | undefined;
 }) {
   const tr = useTranslations("resumes.guide");
   const { register, control } = form;
@@ -1413,11 +1948,22 @@ function SectionCard({
         <Input
           id={`guide-section-${index}-heading`}
           {...register(`sections.${index}.heading`)}
-          aria-describedby={`guide-section-${index}-heading-hint`}
+          aria-invalid={
+            errorFor(`sections.${index}.heading`) ? true : undefined
+          }
+          aria-describedby={describedBy(
+            `guide-section-${index}-heading-hint`,
+            errorFor(`sections.${index}.heading`) &&
+              `guide-section-${index}-heading-error`,
+          )}
           maxLength={200}
           required
           aria-required={true}
           disabled={disabled}
+        />
+        <FieldMessage
+          id={`guide-section-${index}-heading-error`}
+          message={errorFor(`sections.${index}.heading`)}
         />
       </div>
 
@@ -1443,8 +1989,24 @@ function SectionCard({
               <Input
                 id={`guide-section-${index}-entry-${entryIndex}-title`}
                 {...register(`sections.${index}.entries.${entryIndex}.title`)}
+                aria-invalid={
+                  errorFor(`sections.${index}.entries.${entryIndex}.title`)
+                    ? true
+                    : undefined
+                }
+                aria-describedby={describedBy(
+                  errorFor(`sections.${index}.entries.${entryIndex}.title`) &&
+                    `guide-section-${index}-entry-${entryIndex}-title-error`,
+                )}
                 maxLength={200}
                 disabled={disabled}
+              />
+              {/* Post-regeln (titel ELLER text) ytas av zod-refinen på `title` —
+                  den enda platsen den KAN ytas utan att ljuga om vilket fält som
+                  är fel, för det är kombinationen som saknas, inte fältet. */}
+              <FieldMessage
+                id={`guide-section-${index}-entry-${entryIndex}-title-error`}
+                message={errorFor(`sections.${index}.entries.${entryIndex}.title`)}
               />
             </div>
             <div className="jp-guide__field">
@@ -1460,9 +2022,22 @@ function SectionCard({
               <Textarea
                 id={`guide-section-${index}-entry-${entryIndex}-body`}
                 {...register(`sections.${index}.entries.${entryIndex}.body`)}
-                aria-describedby={`guide-section-${index}-entry-${entryIndex}-body-hint`}
+                aria-invalid={
+                  errorFor(`sections.${index}.entries.${entryIndex}.body`)
+                    ? true
+                    : undefined
+                }
+                aria-describedby={describedBy(
+                  `guide-section-${index}-entry-${entryIndex}-body-hint`,
+                  errorFor(`sections.${index}.entries.${entryIndex}.body`) &&
+                    `guide-section-${index}-entry-${entryIndex}-body-error`,
+                )}
                 rows={3}
                 disabled={disabled}
+              />
+              <FieldMessage
+                id={`guide-section-${index}-entry-${entryIndex}-body-error`}
+                message={errorFor(`sections.${index}.entries.${entryIndex}.body`)}
               />
             </div>
             <div>
@@ -1511,29 +2086,86 @@ function ChipEditor({
   names,
   onAdd,
   onRemove,
+  onReplace,
   addLabel,
   addButtonLabel,
+  saveButtonLabel,
   emptyLabel,
   removeLabel,
+  editLabel,
+  issues,
   disabled,
 }: {
   inputId: string;
   names: string[];
   onAdd: (name: string) => void;
   onRemove: (index: number) => void;
+  onReplace: (index: number, name: string) => void;
   addLabel: string;
   addButtonLabel: string;
+  saveButtonLabel: string;
   emptyLabel: string;
   removeLabel: (name: string) => string;
+  editLabel: (name: string) => string;
+  issues: ReadonlyArray<PanelIssue>;
   disabled: boolean;
 }) {
   const [draft, setDraft] = useState("");
+  // Vilket chip som redigeras (null = draften är ett NYTT chip).
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const errorId = `${inputId}-error`;
 
   function commit() {
     const value = draft.trim();
     if (value.length === 0) return;
-    onAdd(value);
+    if (editingIndex === null) {
+      onAdd(value);
+    } else {
+      onReplace(editingIndex, value);
+      setEditingIndex(null);
+    }
     setDraft("");
+  }
+
+  /**
+   * "Ändra" på ett chip: lyft texten till inmatningsfältet och fokusera det.
+   *
+   * Utan den här affordansen var chip-listan en ÅTERVÄNDSGRÄND. Parsern kan seeda ett
+   * chip som är längre än schemats gräns (`ParseList` cappar antalet, aldrig längden
+   * — #856), och chips gick bara att TA BORT. Den användaren kunde alltså inte spara
+   * sitt CV, och enda utvägen var att radera innehåll parsern lyft ur hennes egen fil.
+   * Det är precis vad #849 handlade om (motorn får aldrig kasta det användaren skrivit),
+   * inverterat så att användaren tvingas göra kastandet (CTO-bind Q3-B).
+   *
+   * Chippet tas INTE bort här. Ett tidigare utkast av den här funktionen plockade bort
+   * chippet och la texten i draft-fältet — men draften är komponent-lokal state, så
+   * ett stegbyte (ChipEditor avmonteras) eller ett klick på "Ändra" på ett ANNAT chip
+   * hade raderat det första för gott. Det vore att införa exakt den dataförlust den
+   * här funktionen finns till för att ta bort. Nu ligger chippet kvar tills ändringen
+   * bekräftas; avbryter man är originalet orört.
+   */
+  function edit(index: number, name: string) {
+    setEditingIndex(index);
+    setDraft(name);
+    queueMicrotask(() => inputRef.current?.focus());
+  }
+
+  /**
+   * Borttagning måste hålla `editingIndex` i takt med listan — annars pekar den på
+   * fel chip. Tar man bort ett chip FÖRE det man redigerar glider allt ett steg ned,
+   * och ett commit hade då skrivit över grannen (tyst, och över användarens innehåll).
+   * Tar man bort just det chip man redigerar finns målet inte längre → avbryt.
+   */
+  function remove(index: number) {
+    onRemove(index);
+    if (editingIndex === null) return;
+    if (index === editingIndex) {
+      setEditingIndex(null);
+      setDraft("");
+    } else if (index < editingIndex) {
+      setEditingIndex(editingIndex - 1);
+    }
   }
 
   return (
@@ -1548,8 +2180,17 @@ function ChipEditor({
                 <span className="jp-chip__label">{name}</span>
                 <button
                   type="button"
+                  className="jp-chip__edit"
+                  onClick={() => edit(index, name)}
+                  aria-label={editLabel(name)}
+                  disabled={disabled}
+                >
+                  <Pencil size={13} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
                   className="jp-chip__remove"
-                  onClick={() => onRemove(index)}
+                  onClick={() => remove(index)}
                   aria-label={removeLabel(name)}
                   disabled={disabled}
                 >
@@ -1560,12 +2201,34 @@ function ChipEditor({
           ))}
         </ul>
       )}
+
+      {/* Listan ÄR fältet — så felet bor här, och namnger chippet det gäller.
+          Föll det här bort sa foten "De är markerade nedan" om ingenting.
+
+          INGEN role="alert" (samma doktrin som FieldMessage): vid submit kan flera
+          fel sättas samtidigt, och lika många samtidiga alerts blir en uppläsnings-
+          storm som dränker just det fel fokus landar på. Felet kopplas i stället
+          till add-fältet via aria-describedby, och `routeToError` flyttar fokus dit
+          (`guide-skills-add`/`guide-languages-add`) — då läses det upp, en gång. */}
+      {issues.length > 0 && (
+        <ul id={errorId} className="jp-guide__chiperrors">
+          {issues.map((issue, index) => (
+            <li key={index} className="jp-guide__fielderror">
+              {issue.chipName.length > 0
+                ? `${issue.chipName}: ${issue.message}`
+                : issue.message}
+            </li>
+          ))}
+        </ul>
+      )}
+
       <div className="jp-guide__chipadd">
         <Label htmlFor={inputId} className="sr-only">
           {addLabel}
         </Label>
         <Input
           id={inputId}
+          ref={inputRef}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
@@ -1574,6 +2237,11 @@ function ChipEditor({
               commit();
             }
           }}
+          // INGET aria-invalid: add-fältets EGET värde är giltigt (det är oftast
+          // tomt) — det är listan som fälls. Att märka kontrollen som ogiltig vore
+          // ett falskt påstående till skärmläsaren, samma ärlighetsregel en nivå ned.
+          // aria-describedby räcker: routeToError flyttar fokus hit, och felet läses.
+          aria-describedby={issues.length > 0 ? errorId : undefined}
           maxLength={100}
           disabled={disabled}
         />
@@ -1584,7 +2252,15 @@ function ChipEditor({
           onClick={commit}
           disabled={disabled}
         >
-          <Plus size={14} aria-hidden="true" /> {addButtonLabel}
+          {editingIndex === null ? (
+            <>
+              <Plus size={14} aria-hidden="true" /> {addButtonLabel}
+            </>
+          ) : (
+            // Ärlig etikett: i redigeringsläge LÄGGER knappen inte till något nytt,
+            // den ersätter chippet man valde att ändra.
+            saveButtonLabel
+          )}
         </Button>
       </div>
     </div>

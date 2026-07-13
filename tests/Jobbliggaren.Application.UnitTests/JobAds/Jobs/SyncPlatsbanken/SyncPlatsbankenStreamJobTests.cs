@@ -3,12 +3,14 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Commands.ArchiveExternalJobAd;
 using Jobbliggaren.Application.JobAds.Commands.UpsertExternalJobAd;
+using Jobbliggaren.Application.JobAds.Jobs.Common;
 using Jobbliggaren.Application.JobAds.Jobs.SyncPlatsbanken;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Mediator;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
 
@@ -44,12 +46,16 @@ public class SyncPlatsbankenStreamJobTests
     private static SyncPlatsbankenStreamJob CreateJob(
         IJobSource jobSource,
         IMediator mediator,
-        FakeDateTimeProvider? clock = null,
-        ISystemEventAuditor? auditor = null) =>
+        IDateTimeProvider? clock = null,
+        ISystemEventAuditor? auditor = null,
+        IngestionThroughputReporter? throughputReporter = null) =>
         new(
             jobSource, mediator,
             clock ?? new FakeDateTimeProvider(Now),
             auditor ?? Substitute.For<ISystemEventAuditor>(),
+            throughputReporter ?? new IngestionThroughputReporter(
+                Options.Create(new IngestionThroughputOptions()),
+                NullLogger<IngestionThroughputReporter>.Instance),
             NullLogger<SyncPlatsbankenStreamJob>.Instance);
 
     private static IJobSource StubJobSource(params JobAdChange[] changes)
@@ -244,5 +250,85 @@ public class SyncPlatsbankenStreamJobTests
 
         await mediator.Received(1).Send(
             Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>());
+    }
+
+    // #754 — call-placement guards for IngestionThroughputReporter. The
+    // reporter's OWN gating/arithmetic logic (qualifying gate, below-floor,
+    // durationSec==0) is tested exhaustively and in isolation in
+    // IngestionThroughputReporterTests; these two tests exist ONLY to pin
+    // WHERE the call happens: end of the try block, never in `finally`.
+
+    [Fact]
+    public async Task RunAsync_OnNormalCompletion_ReportsThroughputAgainstRealDefaults()
+    {
+        // 205 items >= the REAL MinItemsForVerdict default (200) — qualifies
+        // without lowering any threshold. Uses an ADVANCING clock: a frozen
+        // FakeDateTimeProvider would make durationSec compute to exactly 0
+        // (startedAt == completedAt), which would make this run non-qualifying
+        // for the wrong reason and defeat the test (CTO bind #754 Q3(ii)).
+        // ALL items resolve to Skipped (added=0) so fetched(205) != added(0) —
+        // a call-site numerator mix-up (passing added instead of fetched,
+        // ADR 0045/#754 Q3(i)) would show up as "fetched=0" and be caught by
+        // the field-anchored assertion below.
+        var items = Enumerable.Range(1, 205)
+            .Select(i => (JobAdChange)new JobAdUpsert($"ext-{i}", ValidItem($"ext-{i}"), Now))
+            .ToArray();
+        var jobSource = StubJobSource(items);
+        var mediator = Substitute.For<IMediator>();
+        mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(UpsertOutcome.Skipped));
+        var recorder = new RecordingLogger<IngestionThroughputReporter>();
+        var reporter = new IngestionThroughputReporter(
+            Options.Create(new IngestionThroughputOptions()), recorder);
+        var job = CreateJob(
+            jobSource, mediator,
+            clock: new AdvancingFakeDateTimeProvider(Now, TimeSpan.FromSeconds(1)),
+            throughputReporter: reporter);
+
+        await job.RunAsync(TestContext.Current.CancellationToken);
+
+        // Field-anchored (not bare substring) so a source/jobType swap or a
+        // fetched/added numerator mix-up at the call site is actually caught.
+        var record = recorder.Records.Single(r => r.EventId.Id == 6201);
+        record.Message.ShouldContain("source=platsbanken");
+        record.Message.ShouldContain("jobType=stream");
+        record.Message.ShouldContain("fetched=205");
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenRunThrowsAfterQualifyingFetchCount_DoesNotReportThroughput()
+    {
+        // Regression guard for CTO bind #754 Q3's call-placement bind ("end of
+        // the try block, NOT in finally"): fetched reaches 205 (>= the 200
+        // qualifying floor) BEFORE the 205th send throws OperationCanceledException
+        // and aborts the run. If the reporter call were moved into `finally` it
+        // would fire here with a bogus low rate for a run that never completed —
+        // this test would go red.
+        var items = Enumerable.Range(1, 250)
+            .Select(i => (JobAdChange)new JobAdUpsert($"ext-{i}", ValidItem($"ext-{i}"), Now))
+            .ToArray();
+        var jobSource = StubJobSource(items);
+        var mediator = Substitute.For<IMediator>();
+        var callCount = 0;
+        mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
+            .Returns<Result<UpsertOutcome>>(_ =>
+            {
+                callCount++;
+                if (callCount == 205)
+                    throw new OperationCanceledException("simulerad mid-stream cancel");
+                return Result.Success(UpsertOutcome.Added);
+            });
+        var recorder = new RecordingLogger<IngestionThroughputReporter>();
+        var reporter = new IngestionThroughputReporter(
+            Options.Create(new IngestionThroughputOptions()), recorder);
+        var job = CreateJob(
+            jobSource, mediator,
+            clock: new AdvancingFakeDateTimeProvider(Now, TimeSpan.FromSeconds(1)),
+            throughputReporter: reporter);
+
+        await Should.ThrowAsync<OperationCanceledException>(
+            () => job.RunAsync(TestContext.Current.CancellationToken));
+
+        recorder.Records.ShouldBeEmpty();
     }
 }

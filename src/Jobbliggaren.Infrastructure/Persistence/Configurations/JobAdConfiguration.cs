@@ -78,6 +78,23 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         // WHERE … IS NOT NULL) skapas i migration F2P9JobAdSearchColumns.
         // LINQ-referens: EF.Property<string?>(j, "SsykConceptId") /
         // EF.Property<string?>(j, "RegionConceptId").
+        //
+        // ⚠ DE SJU KOLUMNERNA NEDAN SJÄLVFÖRSTÖRS EFTER 30 DAGAR (#824 / #841).
+        // "Drift omöjlig" är sant men vilseledande: de härleds ur raw_payload,
+        // och PurgeStaleRawPayloadsJob NOLLAR raw_payload 30 dagar efter
+        // published_at (GDPR Art. 5(1)(c), ADR 0032 §8). Postgres räknar om en
+        // STORED generated column vid varje UPDATE av dess bas → alla sju blir
+        // NULL. Följd (bevisad mot riktig Postgres): en fortfarande AKTIV annons
+        // försvinner ur facett-filtrerad sökning, ur per-user-matchningen och ur
+        // company-watch-scanens ortsfilter, och dess org.nr går inte längre att
+        // attribuera i ansökningshistoriken.
+        //
+        // Detta motsäger ADR 0032 §8:s egen retention-modell ("30 dagar för
+        // raw_payload, INDEFINITIVELY för sanitized fields") — kolumnerna ÄR de
+        // sanitiserade fälten, och de överlever inte. Rätt form finns tolv rader
+        // ned i samma fil: extracted_terms skrivs av C# vid ingest-funneln och
+        // ÖVERLEVER purgen. #841 flyttar dessa sju till samma form. Lägg INTE
+        // till fler generated columns härledda ur raw_payload.
         builder.Property<string?>("SsykConceptId")
             .HasColumnName("ssyk_concept_id")
             .HasComputedColumnSql("raw_payload->'occupation'->>'concept_id'", stored: true);

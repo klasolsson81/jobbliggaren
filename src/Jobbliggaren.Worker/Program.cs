@@ -264,6 +264,24 @@ builder.Services.AddHangfireServer(opts =>
 builder.Services.Configure<HostOptions>(opts =>
     opts.ShutdownTimeout = TimeSpan.FromSeconds(hangfireOpts.ShutdownTimeoutSeconds + 3));
 
+// #754 (ADR 0045 Beslut 3) — Worker memory trend sampler. Options bound HÄR
+// (inte i AddJobSources) eftersom instrumentet existerar ENDAST i Worker — en
+// delad modul hade tryckt in ett Worker-only-koncept i Api:ts container för
+// ingenting (CTO bind #754 Q4). WorkerMemoryTrendSampler registreras singleton
+// (den bär below/above-cap-edge-state över ticks) — Worker kör
+// ValidateScopes=true och hela beroendekedjan (probe, IOptions, ILogger) är
+// singleton-säker per konstruktion (CTO bind #754 Q2).
+builder.Services.AddOptions<Jobbliggaren.Application.Common.Telemetry.WorkerMemoryTrendOptions>()
+    .Bind(builder.Configuration.GetSection(
+        Jobbliggaren.Application.Common.Telemetry.WorkerMemoryTrendOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddSingleton<
+    Jobbliggaren.Application.Common.Telemetry.IProcessMemoryProbe,
+    Jobbliggaren.Infrastructure.Diagnostics.ProcessMemoryProbe>();
+builder.Services.AddSingleton<Jobbliggaren.Application.Common.Telemetry.WorkerMemoryTrendSampler>();
+builder.Services.AddHostedService<Jobbliggaren.Worker.Hosting.WorkerMemoryTrendService>();
+
 // Recurring-jobs registreras vid host-start.
 builder.Services.AddHostedService<RecurringJobRegistrar>();
 

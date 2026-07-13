@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Commands.UpsertExternalJobAd;
+using Jobbliggaren.Application.JobAds.Jobs.Common;
 using Jobbliggaren.Application.JobAds.Jobs.SyncPlatsbanken;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
@@ -104,7 +105,9 @@ public class SyncPlatsbankenSnapshotJobTests
         IJobSource jobSource,
         IServiceScopeFactory scopeFactory,
         ISystemEventAuditor? auditor = null,
-        IJobAdSnapshotMissTracker? missTracker = null)
+        IJobAdSnapshotMissTracker? missTracker = null,
+        IDateTimeProvider? clock = null,
+        IngestionThroughputReporter? throughputReporter = null)
     {
         IJobAdSnapshotMissTracker tracker;
         if (missTracker is null)
@@ -135,8 +138,11 @@ public class SyncPlatsbankenSnapshotJobTests
         });
 
         return new SyncPlatsbankenSnapshotJob(
-            jobSource, scopeFactory, tracker, opts, new FakeDateTimeProvider(Now),
+            jobSource, scopeFactory, tracker, opts, clock ?? new FakeDateTimeProvider(Now),
             auditor ?? Substitute.For<ISystemEventAuditor>(),
+            throughputReporter ?? new IngestionThroughputReporter(
+                Options.Create(new IngestionThroughputOptions()),
+                NullLogger<IngestionThroughputReporter>.Instance),
             NullLogger<SyncPlatsbankenSnapshotJob>.Instance);
     }
 
@@ -388,6 +394,8 @@ public class SyncPlatsbankenSnapshotJobTests
         var job = new SyncPlatsbankenSnapshotJob(
             jobSource, new FakeScopeFactory(mediator), tracker, opts,
             new FakeDateTimeProvider(Now), auditor,
+            new IngestionThroughputReporter(
+                Options.Create(new IngestionThroughputOptions()), NullLogger<IngestionThroughputReporter>.Instance),
             NullLogger<SyncPlatsbankenSnapshotJob>.Instance);
 
         var counts = await job.RunAsync(TestContext.Current.CancellationToken);
@@ -428,6 +436,8 @@ public class SyncPlatsbankenSnapshotJobTests
         var job = new SyncPlatsbankenSnapshotJob(
             jobSource, new FakeScopeFactory(mediator), tracker, opts,
             new FakeDateTimeProvider(Now), auditor,
+            new IngestionThroughputReporter(
+                Options.Create(new IngestionThroughputOptions()), NullLogger<IngestionThroughputReporter>.Instance),
             NullLogger<SyncPlatsbankenSnapshotJob>.Instance);
 
         var counts = await job.RunAsync(TestContext.Current.CancellationToken);
@@ -508,5 +518,83 @@ public class SyncPlatsbankenSnapshotJobTests
         // Kärn-assertionen: EN child-scope per item (5 items → 5 scopes).
         // CreateAsyncScope()-extensionen anropar internt CreateScope().
         scopeFactory.ScopesCreated.ShouldBe(5);
+    }
+
+    // #754 — call-placement guards for IngestionThroughputReporter. The
+    // reporter's OWN gating/arithmetic logic (qualifying gate, below-floor,
+    // durationSec==0) is tested exhaustively and in isolation in
+    // IngestionThroughputReporterTests; these two tests exist ONLY to pin
+    // WHERE the call happens: after LogCompleted, a point only reached when
+    // RunAsync completes the foreach normally.
+
+    [Fact]
+    public async Task RunAsync_OnNormalCompletion_ReportsThroughputAgainstRealDefaults()
+    {
+        // 205 items >= the REAL MinItemsForVerdict default (200) — qualifies
+        // without lowering any threshold. Uses an ADVANCING clock: a frozen
+        // FakeDateTimeProvider would make durationSec compute to exactly 0
+        // (startedAt == completedAt), which would make this run non-qualifying
+        // for the wrong reason and defeat the test (CTO bind #754 Q3(ii)).
+        // ALL items resolve to Skipped (added=0) so fetched(205) != added(0) —
+        // a call-site numerator mix-up (passing added instead of fetched,
+        // ADR 0045/#754 Q3(i)) would show up as "fetched=0" and be caught by
+        // the field-anchored assertion below.
+        var items = Enumerable.Range(1, 205).Select(i => ValidItem($"ext-{i}")).ToArray();
+        var jobSource = StubJobSource(items);
+        var mediator = Substitute.For<IMediator>();
+        mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(UpsertOutcome.Skipped));
+        var recorder = new RecordingLogger<IngestionThroughputReporter>();
+        var reporter = new IngestionThroughputReporter(
+            Options.Create(new IngestionThroughputOptions()), recorder);
+        var job = CreateJob(
+            jobSource, new FakeScopeFactory(mediator),
+            clock: new AdvancingFakeDateTimeProvider(Now, TimeSpan.FromSeconds(1)),
+            throughputReporter: reporter);
+
+        await job.RunAsync(TestContext.Current.CancellationToken);
+
+        // Field-anchored (not bare substring) so a source/jobType swap or a
+        // fetched/added numerator mix-up at the call site is actually caught.
+        var record = recorder.Records.Single(r => r.EventId.Id == 6201);
+        record.Message.ShouldContain("source=platsbanken");
+        record.Message.ShouldContain("jobType=snapshot");
+        record.Message.ShouldContain("fetched=205");
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenPerItemOperationCanceledAfterQualifyingFetchCount_DoesNotReportThroughput()
+    {
+        // Regression guard: fetched reaches 205 (>= the 200 qualifying floor)
+        // before the 205th send throws OperationCanceledException and aborts
+        // the run BEFORE reaching LogCompleted/the throughput-report call
+        // (there is no `finally` here — an exception mid-foreach skips
+        // straight out of RunAsync). If the call were ever hoisted earlier
+        // (e.g. into a wrapping finally), it would fire here with a bogus
+        // rate for a run that never completed — this test would go red.
+        var items = Enumerable.Range(1, 250).Select(i => ValidItem($"ext-{i}")).ToArray();
+        var jobSource = StubJobSource(items);
+        var mediator = Substitute.For<IMediator>();
+        var callCount = 0;
+        mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
+            .Returns<Result<UpsertOutcome>>(_ =>
+            {
+                callCount++;
+                if (callCount == 205)
+                    throw new OperationCanceledException("simulerad mid-batch cancel");
+                return Result.Success(UpsertOutcome.Added);
+            });
+        var recorder = new RecordingLogger<IngestionThroughputReporter>();
+        var reporter = new IngestionThroughputReporter(
+            Options.Create(new IngestionThroughputOptions()), recorder);
+        var job = CreateJob(
+            jobSource, new FakeScopeFactory(mediator),
+            clock: new AdvancingFakeDateTimeProvider(Now, TimeSpan.FromSeconds(1)),
+            throughputReporter: reporter);
+
+        await Should.ThrowAsync<OperationCanceledException>(
+            () => job.RunAsync(TestContext.Current.CancellationToken));
+
+        recorder.Records.ShouldBeEmpty();
     }
 }

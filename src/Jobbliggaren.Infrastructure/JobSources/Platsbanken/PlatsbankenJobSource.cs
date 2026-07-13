@@ -196,14 +196,12 @@ internal sealed partial class PlatsbankenJobSource(
         if (string.IsNullOrWhiteSpace(hit.Id) || hit.PublicationDate is null)
             return null;
 
-        // SECURITY-NOTE (security-auditor 2026-05-12 Maj-1) — RESOLVED 2026-07-13 (#842).
+        // SECURITY-NOTE (security-auditor 2026-05-12 Maj-1) — FALSIFIED, NOT YET FIXED (#842).
         //
-        // The original note read: "description.text + url are free-text fields from JobTech
-        // that may contain recruiter PII ('Skicka CV till anna@acme.se'). We store them in
-        // plaintext because the same text is publicly indexed at arbetsformedlingen.se
-        // (legitimate interest per Art. 6(1)(f) — the ad is already published). The
-        // sanitizer allowlist only covers the raw_payload jsonb. Regex-based PII redaction
-        // can be raised as a Trigger-TD on an actual complaint."
+        // The note that stood here said we store description.text + url in plaintext because the
+        // ad is already public at arbetsformedlingen.se (Art. 6(1)(f)), and that regex-based PII
+        // redaction "can be raised as a Trigger-TD on an actual complaint". (Verbatim text: see
+        // git history for this file at 64e4c654.)
         //
         // Three things were wrong with that, and #842 is the bill:
         //  1. The deferred mitigation never existed. The trigger fired (an Art. 17 request

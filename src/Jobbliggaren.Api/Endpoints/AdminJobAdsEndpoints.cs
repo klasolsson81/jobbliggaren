@@ -23,8 +23,18 @@ namespace Jobbliggaren.Api.Endpoints;
 /// request (Tier B).
 /// </para>
 /// </summary>
-public static class AdminJobAdsEndpoints
+public static partial class AdminJobAdsEndpoints
 {
+    // No identifier, no request body — an Art. 17 request is itself about a person, and the
+    // one thing we must not do while failing to erase her address is write it to a log sink.
+    [LoggerMessage(
+        EventId = 8420,
+        Level = LogLevel.Warning,
+        Message = "Art. 17 recruiter-PII erasure was attempted, but no erasure path exists (#842). "
+            + "The request was refused with 501 and NOTHING was erased. A real erasure request is "
+            + "likely in flight: escalate to the data controller per docs/runbooks/recruiter-pii-erasure.md.")]
+    private static partial void LogErasureAttemptedWithNoPathAvailable(ILogger logger);
+
     public static void MapAdminJobAdsEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/admin/job-ads")
@@ -67,8 +77,24 @@ public static class AdminJobAdsEndpoints
         //
         // 501 stays endpoint-local — no new ErrorKind (CLAUDE.md §3, same precedent as
         // the endpoint-local 401). Admin auth still applies (group-level policy).
-        group.MapPost("/redact-recruiter-pii", () =>
-            Results.Problem(
+        //
+        // The route runs NO Mediator pipeline, so it writes NO audit row — deliberately, and
+        // this is load-bearing. An erasure that does not happen must not leave a record saying
+        // it did: the old route's Admin.RecruiterPiiRedacted row is exactly what the old runbook
+        // told an operator to read back to the recruiter as proof. (A test pins this — keeping
+        // the 501 while running the old pipeline behind it would satisfy every other assertion
+        // in that file while writing a false Art. 30 record.)
+        //
+        // A hit here is still a signal worth having: it means someone is following the old
+        // procedure, which means a REAL Art. 17 request is in flight. So: a Warning, carrying no
+        // identifier. The lambda binds no request body, so the recruiter's address is never read,
+        // validated, logged or persisted (CLAUDE.md §5 — no PII in logs).
+        group.MapPost("/redact-recruiter-pii", (ILoggerFactory loggerFactory) =>
+        {
+            LogErasureAttemptedWithNoPathAvailable(
+                loggerFactory.CreateLogger(typeof(AdminJobAdsEndpoints)));
+
+            return Results.Problem(
                 title: "Ingen raderingsväg finns ännu",
                 detail: "Den automatiska raderingen av rekryterarens kontaktuppgifter "
                     + "var verkningslös och är avstängd (issue #842). Den sökte efter ett "
@@ -76,7 +102,8 @@ public static class AdminJobAdsEndpoints
                     + "var genomförd. En begäran om radering enligt artikel 17 hanteras "
                     + "tills vidare manuellt: eskalera till dataskyddsansvarig. Se "
                     + "docs/runbooks/recruiter-pii-erasure.md.",
-                statusCode: StatusCodes.Status501NotImplemented));
+                statusCode: StatusCodes.Status501NotImplemented);
+        });
 
         // STEG 6 (2026-05-24) — engångs-backfill av ssyk_concept_id för JobAds
         // vars raw_payload saknar occupation-key (pre-2026-05-20-fix). Enqueue:as

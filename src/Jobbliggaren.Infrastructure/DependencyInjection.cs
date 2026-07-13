@@ -513,7 +513,7 @@ public static class DependencyInjection
         // JobAdRefetchBackfillRunner (paritet Klass2). Predikatet behöver Npgsql
         // jsonb ?-operatorn → kapslas i Infrastructure bakom
         // IJobAdRequirementBackfillFilter så Application förblir Npgsql-fritt (CLAUDE.md
-        // §2.1, paritet IRecruiterPiiPurger). Filtret är stateless → Singleton; jobb +
+        // §2.1). Filtret är stateless → Singleton; jobb +
         // options paritet Klass2. DI i samma commit som jobb/endpoint
         // (feedback_di_with_handlers_same_commit).
         services.AddSingleton<

@@ -26,10 +26,12 @@ namespace Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 /// which survives the sanitizer (the free-text surface in description) disappears after 30
 /// days". <b>That was false in the most direct way possible: this job never touches
 /// <c>description</c>.</b> It nulls <c>raw_payload</c> and nothing else (see
-/// <c>PurgeRawPayloadsAsync</c> below). It claimed to erase precisely the PII it cannot
-/// reach — and ADR 0032 §8 recorded that claim as one of two GDPR mitigations for inbound
-/// recruiter PII. The real control is <c>RecruiterContactRedactor</c> at ingest (ADR 0106
-/// Tier A); this job's honest scope is raw_payload retention, which is all it ever did.
+/// <see cref="RunAsync"/> below). It claimed to erase precisely the PII it cannot reach —
+/// and ADR 0032 §8 recorded that claim as one of two GDPR mitigations for inbound recruiter
+/// PII. The control that will actually remove it is <c>RecruiterContactRedactor</c> at ingest
+/// (ADR 0106 Tier A, PR2 — <b>NOT shipped as of this PR</b>; the address is still sitting in
+/// <c>description</c> today). This job's honest scope is raw_payload retention, which is all
+/// it ever did.
 /// </para>
 ///
 /// <para>

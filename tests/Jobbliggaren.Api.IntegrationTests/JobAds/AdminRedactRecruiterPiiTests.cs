@@ -7,7 +7,9 @@ using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Infrastructure.Identity;
+using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -17,34 +19,27 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// POST /api/v1/admin/job-ads/redact-recruiter-pii — <b>disabled, returns 501</b> (#842).
 ///
 /// <para>
-/// <b>What this file used to be, and why that matters.</b> It used to assert that the
-/// endpoint erased recruiter PII. It did so by hand-seeding <c>raw_payload</c> with an
-/// <c>employer.contact_email</c> key through <c>JobAd.Import</c> directly, bypassing
-/// <c>PlatsbankenJobSource</c> and <c>JobTechPayloadSanitizer</c> — the sanitizer whose
-/// default-deny allowlist <i>guarantees</i> that key is stripped in production. It also
-/// set <c>description: "d"</c>, so the free-text case never ran.
+/// This file used to assert that the endpoint erased recruiter PII. It hand-seeded
+/// <c>raw_payload</c> with an <c>employer.contact_email</c> key straight through
+/// <c>JobAd.Import</c>, bypassing the sanitizer whose default-deny allowlist
+/// <i>guarantees</i> that key is stripped in production — and set <c>description: "d"</c>, so
+/// the free-text case never ran. It asserted against a state production cannot reach, and was
+/// green for two releases while the only Art. 17 erasure path erased nothing.
+/// <b>The green test is what hid the bug.</b>
 /// </para>
 ///
 /// <para>
-/// The test therefore constructed a state production can never reach, and asserted
-/// against it. It was green for two releases while the only Art. 17 erasure path in the
-/// system erased nothing: measured against the real corpus, <b>0 of 93 469</b> ingested
-/// ads carry the probed key, so <c>rowsAffected = 0</c> was its only possible outcome —
-/// and the endpoint returned 200 OK anyway. <b>The green test is what hid the bug.</b>
+/// Standing rule this file now obeys (#843, bound 2026-07-13): <i>tests for ingest-derived
+/// state MUST construct it through the production write path — real ACL, real sanitizer, real
+/// Import/UpdateFromSource. Hand-seeding a column that production writes only through a funnel
+/// proves nothing about production.</i>
 /// </para>
 ///
 /// <para>
-/// Standing rule this file now obeys (#843, bound by senior-cto-advisor 2026-07-13):
-/// <i>tests for ingest-derived state MUST construct that state through the production
-/// write path (real ACL, real sanitizer, real Import/UpdateFromSource). Hand-seeding a
-/// column that production writes only through a funnel proves nothing about production.</i>
-/// The Tier-A ingest tests (ADR 0106, PR2) are written that way, against real Postgres.
-/// </para>
-///
-/// <para>
-/// What survives here is the part of the feature that was never broken: the admin
-/// authorization gate. Plus a pin on the 501, so nothing silently re-enables a route
-/// that would report a false erasure to a data subject (Art. 12(3)).
+/// What survives: the admin authorization gate, the one part of this feature that was never
+/// broken. What is added: pins on the 501, on the absence of a <c>rowsAffected</c> field, and
+/// on the absence of an audit row — so nothing silently re-enables a route that would report a
+/// false erasure to a data subject (Art. 12(3)).
 /// </para>
 /// </summary>
 [Collection("Api")]
@@ -123,6 +118,46 @@ public class AdminRedactRecruiterPiiTests(ApiFactory factory)
         body.TryGetProperty("rowsAffected", out _).ShouldBeFalse(
             "A rowsAffected field would let a caller infer an erasure outcome from a route "
             + "that performs no erasure.");
+    }
+
+    /// <summary>
+    /// The assertion that defends this issue's own evidence base.
+    /// <para>
+    /// ADR 0024, ADR 0032 and the runbook all rest on one measured fact: <c>audit_log</c> holds
+    /// <b>zero</b> recruiter-PII-redaction rows, therefore no data subject has ever been sent a false
+    /// erasure confirmation. Nothing was defending that fact.
+    /// </para>
+    /// <para>
+    /// It is defeated by a mutation the first two tests do not catch: keep the 501, but send the command
+    /// through the Mediator pipeline behind it. Status, title, detail and the absent <c>rowsAffected</c>
+    /// all still hold, both other tests stay green — and every call writes an
+    /// <c>Admin.RecruiterPiiRedacted</c> audit row. That is a false Art. 30 record of an erasure that did
+    /// not happen: the exact row the old runbook told an operator to read back to the recruiter as proof.
+    /// </para>
+    /// <para>
+    /// An erasure that does not occur must not leave a record saying it did. A 501 must be inert.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Request_writes_no_erasure_audit_row_because_no_erasure_occurs()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adminClient = await CreateAdminClientAsync(_factory.CreateClient(), ct);
+
+        var response = await adminClient.PostAsJsonAsync(
+            "/api/v1/admin/job-ads/redact-recruiter-pii", AnyRequest, ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.NotImplemented);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var erasureAuditRows = await db.AuditLogEntries
+            .CountAsync(a => a.AggregateType == "System.RecruiterPiiRedaction", ct);
+
+        erasureAuditRows.ShouldBe(0,
+            "A 501 must be inert. An audit row here would be a false Art. 30 record of an erasure that "
+            + "did not happen — and it is what the whole #842 evidence base (audit_log has zero such "
+            + "rows, so nobody has been lied to) depends on staying true.");
     }
 
     private async Task<HttpClient> CreateAdminClientAsync(HttpClient client, CancellationToken ct)

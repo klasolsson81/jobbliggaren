@@ -6,8 +6,6 @@ using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Authorization;
-using Jobbliggaren.Application.JobAds.Commands.RedactRecruiterPii;
-using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -18,31 +16,48 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 /// <summary>
-/// TD-73 prod-gating — admin endpoint POST /api/v1/admin/job-ads/redact-recruiter-pii.
-/// Per ADR 0032 §8 amendment 2026-05-13 + ADR 0035 + CTO Q2 (total null-out) + Q3 (aggregerad audit).
+/// POST /api/v1/admin/job-ads/redact-recruiter-pii — <b>disabled, returns 501</b> (#842).
 ///
-/// Verifierar end-to-end:
-/// <list type="bullet">
-/// <item>Email-typ matchar JobAds via EF.Functions.JsonContains mot Postgres jsonb</item>
-/// <item>Total null-out av raw_payload (CTO Q2)</item>
-/// <item>Auth: 401 anonymous, 403 non-admin, 200 admin</item>
-/// <item>Aggregerad audit-rad skrivs via AuditBehavior (Admin.RecruiterPiiRedacted)</item>
-/// <item>Name-typ → 400 NameNotSupportedYet (TD-75-deferral)</item>
-/// </list>
+/// <para>
+/// This file used to assert that the endpoint erased recruiter PII. It hand-seeded
+/// <c>raw_payload</c> with an <c>employer.contact_email</c> key straight through
+/// <c>JobAd.Import</c>, bypassing the sanitizer whose default-deny allowlist
+/// <i>guarantees</i> that key is stripped in production — and set <c>description: "d"</c>, so
+/// the free-text case never ran. It asserted against a state production cannot reach, and was
+/// green for two releases while the only Art. 17 erasure path erased nothing.
+/// <b>The green test is what hid the bug.</b>
+/// </para>
+///
+/// <para>
+/// Standing rule this file now obeys (#843, bound 2026-07-13): <i>tests for ingest-derived
+/// state MUST construct it through the production write path — real ACL, real sanitizer, real
+/// Import/UpdateFromSource. Hand-seeding a column that production writes only through a funnel
+/// proves nothing about production.</i>
+/// </para>
+///
+/// <para>
+/// What survives: the admin authorization gate, the one part of this feature that was never
+/// broken. What is added: pins on the 501, on the absence of a <c>rowsAffected</c> field, and
+/// on the absence of an audit row — so nothing silently re-enables a route that would report a
+/// false erasure to a data subject (Art. 12(3)).
+/// </para>
 /// </summary>
 [Collection("Api")]
 public class AdminRedactRecruiterPiiTests(ApiFactory factory)
 {
     private readonly ApiFactory _factory = factory;
 
+    private static readonly object AnyRequest = new { identifier = "alice@example.com", type = "Email" };
+
     [Fact]
     public async Task Anonymous_request_returns_401()
     {
         var ct = TestContext.Current.CancellationToken;
         var client = _factory.CreateClient();
+
         var response = await client.PostAsJsonAsync(
-            "/api/v1/admin/job-ads/redact-recruiter-pii",
-            new { identifier = "alice@example.com", type = "Email" }, ct);
+            "/api/v1/admin/job-ads/redact-recruiter-pii", AnyRequest, ct);
+
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
@@ -55,147 +70,94 @@ public class AdminRedactRecruiterPiiTests(ApiFactory factory)
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         var response = await client.PostAsJsonAsync(
-            "/api/v1/admin/job-ads/redact-recruiter-pii",
-            new { identifier = "alice@example.com", type = "Email" }, ct);
+            "/api/v1/admin/job-ads/redact-recruiter-pii", AnyRequest, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
+    /// <summary>
+    /// The containment pin. An admin — the one caller who WOULD be answering a real Art. 17
+    /// request — must be told the truth, not served a 200 that means nothing was erased.
+    /// If someone re-enables this route without a working erasure path, this test fails.
+    /// </summary>
     [Fact]
-    public async Task Admin_redact_by_email_nulls_matching_raw_payload_and_leaves_non_matching()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var targetEmail = $"alice-{Guid.NewGuid():N}@example.com";
-        var otherEmail = $"bob-{Guid.NewGuid():N}@example.com";
-
-        var (matchingId, nonMatchingId) = await SeedJobAdsWithRecruiterEmailsAsync(targetEmail, otherEmail, ct);
-
-        var adminClient = await CreateAdminClientAsync(_factory.CreateClient(), ct);
-        var response = await adminClient.PostAsJsonAsync(
-            "/api/v1/admin/job-ads/redact-recruiter-pii",
-            new { identifier = targetEmail, type = "Email" }, ct);
-
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        json.GetProperty("rowsAffected").GetInt32().ShouldBe(1);
-        json.GetProperty("requestId").GetGuid().ShouldNotBe(Guid.Empty);
-
-        // Verifiera DB-state
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var matching = await db.JobAds.IgnoreQueryFilters()
-            .FirstAsync(j => j.External!.ExternalId == matchingId, ct);
-        var nonMatching = await db.JobAds.IgnoreQueryFilters()
-            .FirstAsync(j => j.External!.ExternalId == nonMatchingId, ct);
-
-        matching.RawPayload.ShouldBeNull("Matching row should be null:ad");
-        nonMatching.RawPayload.ShouldNotBeNull("Non-matching row preserved");
-    }
-
-    [Fact]
-    public async Task Admin_redact_by_email_writes_audit_row_with_correct_event_type()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var targetEmail = $"alice-{Guid.NewGuid():N}@example.com";
-
-        await SeedJobAdsWithRecruiterEmailsAsync(targetEmail, otherEmail: null, ct);
-
-        var adminClient = await CreateAdminClientAsync(_factory.CreateClient(), ct);
-        var response = await adminClient.PostAsJsonAsync(
-            "/api/v1/admin/job-ads/redact-recruiter-pii",
-            new { identifier = targetEmail, type = "Email" }, ct);
-
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        var requestId = json.GetProperty("requestId").GetGuid();
-
-        // Verifiera audit-rad — aggregerad EN rad per request (CTO Q3=B)
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var auditRow = await db.AuditLogEntries
-            .FirstOrDefaultAsync(a => a.AggregateId == requestId, ct);
-
-        auditRow.ShouldNotBeNull();
-        auditRow.EventType.ShouldBe("Admin.RecruiterPiiRedacted");
-        auditRow.AggregateType.ShouldBe("System.RecruiterPiiRedaction");
-    }
-
-    [Fact]
-    public async Task Admin_redact_by_name_returns_400_NameNotSupportedYet()
+    public async Task Admin_request_returns_501_because_no_erasure_path_exists()
     {
         var ct = TestContext.Current.CancellationToken;
         var adminClient = await CreateAdminClientAsync(_factory.CreateClient(), ct);
 
         var response = await adminClient.PostAsJsonAsync(
-            "/api/v1/admin/job-ads/redact-recruiter-pii",
-            new { identifier = "Alice Anka", type = "Name" }, ct);
+            "/api/v1/admin/job-ads/redact-recruiter-pii", AnyRequest, ct);
 
-        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        response.StatusCode.ShouldBe(HttpStatusCode.NotImplemented);
+
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        problem.GetProperty("title").GetString().ShouldBe("RedactRecruiterPii.NameNotSupportedYet");
+        problem.GetProperty("title").GetString().ShouldBe("Ingen raderingsväg finns ännu");
+
+        // The operator must be pointed at the escalation path, not left to improvise.
+        problem.GetProperty("detail").GetString().ShouldNotBeNull().ShouldContain("#842");
     }
 
+    /// <summary>
+    /// The response must NOT carry the old success shape. A caller (or a runbook, or a
+    /// script) that reads <c>rowsAffected</c> must break loudly rather than read 0 and
+    /// conclude "nothing matched, so there was nothing to erase" — which is precisely the
+    /// false inference the old endpoint invited on every single call.
+    /// </summary>
     [Fact]
-    public async Task Admin_redact_with_no_matches_returns_zero_rowsAffected()
+    public async Task Response_does_not_carry_a_rowsAffected_field()
     {
         var ct = TestContext.Current.CancellationToken;
         var adminClient = await CreateAdminClientAsync(_factory.CreateClient(), ct);
 
         var response = await adminClient.PostAsJsonAsync(
-            "/api/v1/admin/job-ads/redact-recruiter-pii",
-            new { identifier = $"nonexistent-{Guid.NewGuid():N}@example.com", type = "Email" }, ct);
+            "/api/v1/admin/job-ads/redact-recruiter-pii", AnyRequest, ct);
 
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        json.GetProperty("rowsAffected").GetInt32().ShouldBe(0);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+
+        body.TryGetProperty("rowsAffected", out _).ShouldBeFalse(
+            "A rowsAffected field would let a caller infer an erasure outcome from a route "
+            + "that performs no erasure.");
     }
 
-    private async Task<(string MatchingExternalId, string NonMatchingExternalId)>
-        SeedJobAdsWithRecruiterEmailsAsync(string targetEmail, string? otherEmail, CancellationToken ct)
+    /// <summary>
+    /// The assertion that defends this issue's own evidence base.
+    /// <para>
+    /// ADR 0024, ADR 0032 and the runbook all rest on one measured fact: <c>audit_log</c> holds
+    /// <b>zero</b> recruiter-PII-redaction rows, therefore no data subject has ever been sent a false
+    /// erasure confirmation. Nothing was defending that fact.
+    /// </para>
+    /// <para>
+    /// It is defeated by a mutation the first two tests do not catch: keep the 501, but send the command
+    /// through the Mediator pipeline behind it. Status, title, detail and the absent <c>rowsAffected</c>
+    /// all still hold, both other tests stay green — and every call writes an
+    /// <c>Admin.RecruiterPiiRedacted</c> audit row. That is a false Art. 30 record of an erasure that did
+    /// not happen: the exact row the old runbook told an operator to read back to the recruiter as proof.
+    /// </para>
+    /// <para>
+    /// An erasure that does not occur must not leave a record saying it did. A 501 must be inert.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Request_writes_no_erasure_audit_row_because_no_erasure_occurs()
     {
-        var matchingId = $"match-{Guid.NewGuid():N}";
-        var nonMatchingId = $"nomatch-{Guid.NewGuid():N}";
+        var ct = TestContext.Current.CancellationToken;
+        var adminClient = await CreateAdminClientAsync(_factory.CreateClient(), ct);
+
+        var response = await adminClient.PostAsJsonAsync(
+            "/api/v1/admin/job-ads/redact-recruiter-pii", AnyRequest, ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.NotImplemented);
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var clock = scope.ServiceProvider
-            .GetRequiredService<Jobbliggaren.Domain.Common.IDateTimeProvider>();
 
-        var matchingPayload = JsonSerializer.Serialize(new
-        {
-            id = matchingId,
-            employer = new { contact_email = targetEmail.ToLowerInvariant() },
-        });
-        var matching = JobAd.Import(
-            title: "Match", company: Company.Create("X").Value,
-            description: "d", url: "https://example.com/m",
-            external: ExternalReference.Create(JobSource.Platsbanken, matchingId).Value,
-            rawPayload: matchingPayload,
-            publishedAt: clock.UtcNow.AddDays(-1),
-            expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock).Value;
-        db.JobAds.Add(matching);
+        var erasureAuditRows = await db.AuditLogEntries
+            .CountAsync(a => a.AggregateType == "System.RecruiterPiiRedaction", ct);
 
-        if (otherEmail is not null)
-        {
-            var otherPayload = JsonSerializer.Serialize(new
-            {
-                id = nonMatchingId,
-                employer = new { contact_email = otherEmail.ToLowerInvariant() },
-            });
-            var nonMatching = JobAd.Import(
-                title: "NonMatch", company: Company.Create("Y").Value,
-                description: "d", url: "https://example.com/n",
-                external: ExternalReference.Create(JobSource.Platsbanken, nonMatchingId).Value,
-                rawPayload: otherPayload,
-                publishedAt: clock.UtcNow.AddDays(-1),
-                expiresAt: clock.UtcNow.AddDays(30),
-                clock: clock).Value;
-            db.JobAds.Add(nonMatching);
-        }
-
-        await db.SaveChangesAsync(ct);
-        return (matchingId, nonMatchingId);
+        erasureAuditRows.ShouldBe(0,
+            "A 501 must be inert. An audit row here would be a false Art. 30 record of an erasure that "
+            + "did not happen — and it is what the whole #842 evidence base (audit_log has zero such "
+            + "rows, so nobody has been lied to) depends on staying true.");
     }
 
     private async Task<HttpClient> CreateAdminClientAsync(HttpClient client, CancellationToken ct)

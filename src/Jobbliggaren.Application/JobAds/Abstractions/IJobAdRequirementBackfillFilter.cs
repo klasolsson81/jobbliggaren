@@ -12,8 +12,7 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// (<c>EF.Functions.JsonExists</c>), which lives ONLY in the Npgsql package — it
 /// must not be referenced from the Application layer (CLAUDE.md §2.1; the layer
 /// arch test forbids Npgsql in Application). So, exactly as
-/// <c>IRecruiterPiiPurger</c>/<c>RecruiterPiiPurger</c> and
-/// <c>IDbExceptionInspector</c> do, the Npgsql-specific LINQ is encapsulated in
+/// <c>IDbExceptionInspector</c> does, the Npgsql-specific LINQ is encapsulated in
 /// the Infrastructure implementation behind this Application-owned port, and the
 /// <c>BackfillJobAdRequirementsJob</c> consumes only the abstraction. The base
 /// <c>EF.Property</c> shadow-column predicates used by the ssyk/Klass2 backfills

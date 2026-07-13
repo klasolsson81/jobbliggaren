@@ -18,8 +18,10 @@ namespace Jobbliggaren.Application.Admin.BackgroundJobs.Commands.RequeueFailedJo
 /// <para>
 /// <b>Audit (Art. 30):</b> <see cref="IAuditableCommand{TResponse}"/> → one
 /// audit_log row per successful requeue (AuditBehavior skips on failure).
-/// AggregateId = per-request <see cref="RequestId"/> (RedactRecruiterPii precedent;
-/// <c>Guid.Empty</c> is forbidden by <c>AuditLogEntry.Create</c>).
+/// AggregateId = per-request <see cref="RequestId"/> (<c>Guid.Empty</c> is forbidden
+/// by <c>AuditLogEntry.Create</c>; the per-request-Guid convention for system events
+/// with no aggregate root originated in the recruiter-PII erasure command, which was
+/// removed in #842 — the convention outlives it).
 /// </para>
 /// </summary>
 public sealed record RequeueFailedJobCommand(string JobId)

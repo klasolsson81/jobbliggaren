@@ -9,7 +9,7 @@ variable "worker_log_group_name" {
 }
 
 variable "api_log_group_name" {
-  description = "CloudWatch LogGroup-namnet där Api-loggarna skrivs (t.ex. /aws/ecs/jobbpilot-dev/api). SystemEventAuditor kan triggas av admin-endpoint (RedactRecruiterPiiCommand) → audit_write_failure-events kan synas på api-sidan också. Metric filter speglas över båda groups så aggregat-metricen täcker full yta."
+  description = "CloudWatch LogGroup-namnet där Api-loggarna skrivs (t.ex. /aws/ecs/jobbpilot-dev/api). SystemEventAuditor kan triggas av Api-sidiga admin-endpoints → audit_write_failure-events kan synas på api-sidan också. Metric filter speglas över båda groups så aggregat-metricen täcker full yta. (Motiveringen citerade tidigare RedactRecruiterPiiCommand; det kommandot är borttaget i #842 — speglingen behålls för de kvarvarande Api-sidiga admin-kommandona.)"
   type        = string
 }
 

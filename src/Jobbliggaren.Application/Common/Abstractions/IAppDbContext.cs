@@ -38,6 +38,10 @@ public interface IAppDbContext
     // ADR 0087 D5 (#311 PR-4) — company-follow notification hits (written by CompanyWatchScanJob,
     // read/dispatched by DigestDispatchJob).
     DbSet<FollowedCompanyAdHit> FollowedCompanyAdHits { get; }
+    // #560 Fork A1 — criteria-based company watches (SNI ∧ kommun predicate, browsed against the
+    // SCB register via ICompanyWatchBrowseQuery). NOTE: company_register itself is deliberately
+    // NOT on this port (DPIA C-D4 / M-C5 firewall — see ScbCompanyRegisterLayerTests).
+    DbSet<CompanyWatchCriterion> CompanyWatchCriteria { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

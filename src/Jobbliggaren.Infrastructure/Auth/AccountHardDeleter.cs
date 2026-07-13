@@ -209,6 +209,17 @@ public sealed partial class AccountHardDeleter(
             .Where(h => h.UserId == userId)
             .ToListAsync(cancellationToken);
 
+        // #560 Fork A1 / DPIA Part D C-D1 — CompanyWatchCriterion is an FK-less by-UserId aggregate
+        // (ADR 0011 soft-reference). The criterion is personal data ABOUT THE USER (which industries
+        // and towns they job-hunt in — profiling-adjacent, Art. 6(1)(b)), so like CompanyWatch it
+        // must be deleted EXPLICITLY here or its rows orphan on hard-delete. IgnoreQueryFilters also
+        // takes soft-deleted rows (SoftDelete deliberately RETAINS the criteria payload — the
+        // account cascade is what erases it for real).
+        var companyWatchCriteria = await db.CompanyWatchCriteria
+            .IgnoreQueryFilters()
+            .Where(c => c.UserId == userId)
+            .ToListAsync(cancellationToken);
+
         // Steg 2 a — Öppna explicit transaction (UoWBehavior är inte i pipelinen
         // för worker-jobb-anrop direkt mot porten).
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -228,6 +239,7 @@ public sealed partial class AccountHardDeleter(
             db.UserJobAdMatches.RemoveRange(userJobAdMatches);
             db.CompanyWatches.RemoveRange(companyWatches);
             db.FollowedCompanyAdHits.RemoveRange(followedCompanyAdHits);
+            db.CompanyWatchCriteria.RemoveRange(companyWatchCriteria);
             db.JobSeekers.Remove(jobSeeker);
 
             // GDPR Art. 17 (#370, found by the #268 audit) — ParsedResume is an FK-less

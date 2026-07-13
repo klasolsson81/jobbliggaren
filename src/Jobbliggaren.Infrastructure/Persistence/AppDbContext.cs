@@ -35,6 +35,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CompanyWatch> CompanyWatches => Set<CompanyWatch>();
     // ADR 0087 D5 (#311 PR-4) — company-follow notification hits.
     public DbSet<FollowedCompanyAdHit> FollowedCompanyAdHits => Set<FollowedCompanyAdHit>();
+    // #560 Fork A1 — criteria-based company watches (SNI ∧ kommun discovery predicate).
+    public DbSet<CompanyWatchCriterion> CompanyWatchCriteria => Set<CompanyWatchCriterion>();
 
     public void Detach(object entity) => Entry(entity).State = EntityState.Detached;
 

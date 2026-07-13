@@ -107,6 +107,7 @@ public class AccountHardDeleteCascadeFitnessTests
         [typeof(UserJobAdMatch)] = "UserJobAdMatches",
         [typeof(CompanyWatch)] = "CompanyWatches",
         [typeof(FollowedCompanyAdHit)] = "FollowedCompanyAdHits",
+        [typeof(CompanyWatchCriterion)] = "CompanyWatchCriteria",
     };
 
     /// <summary>
@@ -207,6 +208,7 @@ public class AccountHardDeleteCascadeFitnessTests
                 db.SavedJobAds.RemoveRange(savedJobAds);
                 db.CompanyWatches.RemoveRange(companyWatches);
                 db.FollowedCompanyAdHits.RemoveRange(followedCompanyAdHits);
+                db.CompanyWatchCriteria.RemoveRange(companyWatchCriteria);
                 var queued = await db.UserJobAdMatches.Where(m => m.UserId == userId).CountAsync(ct);
                 await db.ParsedResumes.Where(p => p.JobSeekerId == jsId).ExecuteDeleteAsync(ct);
                 await db.ResumeFiles.Where(f => f.JobSeekerId == jsId).ExecuteDeleteAsync(ct);

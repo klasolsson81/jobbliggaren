@@ -213,17 +213,40 @@ internal sealed partial class PlatsbankenJobSource(
         //  3. It was never rare. Measured: 27 077 of 93 469 ads (29 %) carry an email in
         //     the body; 13 134 carry a phone number.
         //
-        // STATUS RIGHT NOW (PR1 = containment): the body below is still stored verbatim.
-        // Nothing here scrubs it yet, and this comment will not pretend otherwise — a
-        // comment that describes a control it does not have is the same defect as a test
-        // that pins a fiction, and it is how #842 survived two releases.
+        // STATUS RIGHT NOW (PR1 = containment, PR2 = Tier B): the body below is still stored
+        // verbatim. Nothing here scrubs it yet, and this comment will not pretend otherwise — a
+        // comment that describes a control it does not have is the same defect as a test that pins
+        // a fiction, and it is how #842 survived two releases.
         //
-        // The fix lands in PR2 (ADR 0106 Tier A): RecruiterContactRedactor applied as a
-        // JobAd aggregate invariant, so the address is removed before it is ever persisted
-        // (Art. 25, data protection by design). The apply route survives via `url` → the
-        // canonical AF ad, which carries the contact block, is always current, and is
-        // operated by the party that actually holds the advertiser's consent. We are a
-        // mirror; a mirror does not need the contact block.
+        // M10 — A FALSE CLAIM THIS FILE MADE, WITHDRAWN.
+        // PR1 replaced eleven false doc claims and, in the same commit, added a twelfth. The text
+        // that stood here said the apply route survives via the AF link because "we are a mirror;
+        // a mirror does not need the contact block."
+        //
+        // We are NOT a mirror, and the code says so. AdSnapshot (ADR 0086) exists precisely so the
+        // frozen ad OUTLIVES the source's copy — a mirror has no need to outlive what it mirrors.
+        // An aggregate whose whole purpose is to preserve the applied-to ad after
+        // Arbetsförmedlingen de-lists it is the signature of an APPLICATION-TRACKING TOOL, whose
+        // core loop is "follow up on what you applied to". And AF de-lists the ad exactly when the
+        // follow-up happens, so "just click through to AF" is not an equivalent lesser measure —
+        // it is a dead link at the moment of need.
+        //
+        // That mattered: the mirror premise was load-bearing for a strip-everything ingest control,
+        // and it was wrong in the expensive direction. Measured against the live JobTech API (100
+        // ads, 2026-07-13): ~45 % carry the contact ONLY in the structured `application_contacts`
+        // block, which we currently discard, while ~22 % carry it only in the free text, which we
+        // keep, index into search_vector, and cannot erase. We were throwing away the good copy and
+        // keeping the bad one.
+        //
+        // The fix lands in PR3 (ADR 0106 Tier A, re-bound): deserialize `application_contacts` into
+        // a typed domain field, promote what the regex finds in the body into the same field, and
+        // then scrub the body — moving the contact from a carrier that is unbounded, full-text
+        // indexed and un-erasable into one that is bounded, un-indexed, retention-bounded and
+        // surgically erasable. Tier A is sequenced behind #841 (the job_ads migration lane).
+        //
+        // Until then, the Art. 17 remedy for anything in this body is Tier B: whole-record erasure
+        // (EraseRecruiterAdsCommand), which needs no detector and reaches the recruiter's NAME —
+        // which no regex ever will.
         var headline = hit.Headline?.Trim();
         var description = hit.Description?.Text?.Trim();
         // sec-Min-1: filtrera bort mailto:-länkar (application_details.url-fallback

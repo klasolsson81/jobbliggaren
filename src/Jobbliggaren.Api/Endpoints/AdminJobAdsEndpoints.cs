@@ -1,9 +1,12 @@
 using Hangfire;
+using Jobbliggaren.Api.Common;
 using Jobbliggaren.Application.Common.Authorization;
+using Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdExtractedTerms;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdKlass2;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdRequirements;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdSsyk;
+using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
 
@@ -16,25 +19,15 @@ namespace Jobbliggaren.Api.Endpoints;
 /// kräver operatörsåtgärd via AWS (TD-83).
 ///
 /// <para>
-/// <b>#842 (2026-07-13):</b> the right-to-erasure route for recruiter PII is
-/// <b>disabled and returns 501</b>. It never erased anything (it probed a jsonb key
-/// the ingest sanitizer guarantees is absent) while reporting success. The working
-/// contract is ADR 0106: minimise at ingest (Tier A), remove the whole ad record on
-/// request (Tier B).
+/// <b>#842 (2026-07-13):</b> the right-to-erasure route for recruiter PII WORKS — see
+/// <see cref="EraseRecruiterAdsCommand"/> (ADR 0106 Tier B). PR1's 501 containment is lifted here.
+/// The old mechanism probed a jsonb key the ingest sanitizer guarantees is absent, erased nothing
+/// on every request, and reported success anyway; the replacement removes the whole ad record and
+/// blocks its re-import, so completeness is provable rather than estimated.
 /// </para>
 /// </summary>
-public static partial class AdminJobAdsEndpoints
+public static class AdminJobAdsEndpoints
 {
-    // No identifier, no request body — an Art. 17 request is itself about a person, and the
-    // one thing we must not do while failing to erase her address is write it to a log sink.
-    [LoggerMessage(
-        EventId = 8420,
-        Level = LogLevel.Warning,
-        Message = "Art. 17 recruiter-PII erasure was attempted, but no erasure path exists (#842). "
-            + "The request was refused with 501 and NOTHING was erased. A real erasure request is "
-            + "likely in flight: escalate to the data controller per docs/runbooks/recruiter-pii-erasure.md.")]
-    private static partial void LogErasureAttemptedWithNoPathAvailable(ILogger logger);
-
     public static void MapAdminJobAdsEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/admin/job-ads")
@@ -57,52 +50,41 @@ public static partial class AdminJobAdsEndpoints
                     + "kräver operatörsåtgärd via AWS — ingen publik trigger-yta finns.",
                 statusCode: StatusCodes.Status410Gone));
 
-        // GDPR Art. 17 (#842) — CONTAINMENT, 2026-07-13.
+        // GDPR Art. 17 — recruiter-PII erasure (#842, ADR 0106 Tier B). PR1's 501 is lifted:
+        // there is now a path that actually erases.
         //
-        // This route used to claim to erase recruiter PII. It could not. It probed
-        // raw_payload for {"employer":{"contact_email":…}} — a key the ingest
-        // sanitizer's default-deny allowlist guarantees is absent, and which the wire
-        // POCO cannot even emit. Measured against the real corpus: 0 of 93 469
-        // ingested ads carry that key. rowsAffected = 0 was its only possible outcome,
-        // while the recruiter's address sat in job_ads.description in plaintext and
-        // was full-text searchable. The route returned 200 OK regardless, and the
-        // runbook instructed the operator to confirm erasure to the data subject.
+        // The route is UNCHANGED in address (/redact-recruiter-pii) so ADR 0024's cascade registry
+        // and any older runbook still land somewhere real. Its CONTRACT is new:
         //
-        // A mechanism that reports success while erasing nothing is worse than no
-        // mechanism (Art. 12(3)): it manufactures a false statement to a data subject.
-        // Until the real erasure path ships (ADR 0106 Tier B — whole-record removal),
-        // this route FAILS LOUD. The route is kept rather than deleted so the Art. 17
-        // cascade registry in ADR 0024 does not silently dangle, and so an operator
-        // with an older runbook is told the truth instead of being served a lie.
+        //   * dryRun: true                → what WOULD be erased, per surface. Writes nothing.
+        //   * dryRun: false               → requires confirmedJobAdCount, i.e. the number the
+        //                                   operator saw in the dry run. Mismatch ⇒ 409 and nothing
+        //                                   is destroyed. That is what makes the dry run mandatory
+        //                                   in CODE rather than in a runbook sentence.
+        //   * never a bare rowsAffected   → an explicit outcome (NoMatchingDataHeld | DryRun |
+        //                                   AdsErased) plus matched-vs-erased counts per surface.
+        //                                   Art. 12(3) asks what we DID; a lone integer could not
+        //                                   say, and the old one always said 0.
         //
-        // 501 stays endpoint-local — no new ErrorKind (CLAUDE.md §3, same precedent as
-        // the endpoint-local 401). Admin auth still applies (group-level policy).
+        // Rejected requests are audited too (IAuditableCommand.AuditFailures) — a refused rights
+        // request that leaves no trace is its own Art. 12(3) exposure.
         //
-        // The route runs NO Mediator pipeline, so it writes NO audit row — deliberately, and
-        // this is load-bearing. An erasure that does not happen must not leave a record saying
-        // it did: the old route's Admin.RecruiterPiiRedacted row is exactly what the old runbook
-        // told an operator to read back to the recruiter as proof. (A test pins this — keeping
-        // the 501 while running the old pipeline behind it would satisfy every other assertion
-        // in that file while writing a false Art. 30 record.)
-        //
-        // A hit here is still a signal worth having: it means someone is following the old
-        // procedure, which means a REAL Art. 17 request is in flight. So: a Warning, carrying no
-        // identifier. The lambda binds no request body, so the recruiter's address is never read,
-        // validated, logged or persisted (CLAUDE.md §5 — no PII in logs).
-        group.MapPost("/redact-recruiter-pii", (ILoggerFactory loggerFactory) =>
+        // Admin auth applies at the group level, and AdminAuthorizationBehavior re-checks it on
+        // IAdminRequest (defense in depth — the one part of this feature that was never broken).
+        group.MapPost("/redact-recruiter-pii", async (
+            EraseRecruiterAdsRequest request, IMediator mediator, CancellationToken ct) =>
         {
-            LogErasureAttemptedWithNoPathAvailable(
-                loggerFactory.CreateLogger(typeof(AdminJobAdsEndpoints)));
+            // RequestId is minted here, not accepted from the caller: it is the audit row's
+            // aggregate id, and a client-supplied one would let two different requests collide in
+            // the accountability record.
+            var command = new EraseRecruiterAdsCommand(
+                RequestId: Guid.NewGuid(),
+                Identifier: request.Identifier,
+                DryRun: request.DryRun,
+                ConfirmedJobAdCount: request.ConfirmedJobAdCount);
 
-            return Results.Problem(
-                title: "Ingen raderingsväg finns ännu",
-                detail: "Den automatiska raderingen av rekryterarens kontaktuppgifter "
-                    + "var verkningslös och är avstängd (issue #842). Den sökte efter ett "
-                    + "fält som aldrig sparas, och rapporterade samtidigt att raderingen "
-                    + "var genomförd. En begäran om radering enligt artikel 17 hanteras "
-                    + "tills vidare manuellt: eskalera till dataskyddsansvarig. Se "
-                    + "docs/runbooks/recruiter-pii-erasure.md.",
-                statusCode: StatusCodes.Status501NotImplemented);
+            var result = await mediator.Send(command, ct);
+            return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemResult();
         });
 
         // STEG 6 (2026-05-24) — engångs-backfill av ssyk_concept_id för JobAds
@@ -185,6 +167,30 @@ public static partial class AdminJobAdsEndpoints
         });
     }
 }
+
+/// <summary>
+/// Request-body för POST /api/v1/admin/job-ads/redact-recruiter-pii (GDPR Art. 17, #842).
+/// </summary>
+/// <param name="Identifier">
+/// The recruiter's email, phone number OR name — one free-text field, no type discriminator.
+/// TD-75's premise ("email är primär rekryterar-identifier i JobTech-payloads") was not outdated,
+/// it was falsified: the ingest sanitizer and the wire POCO guarantee the email is never a
+/// structured key in storage, so every identifier is matched over free text either way. TD-75 is
+/// closed as void.
+/// </param>
+/// <param name="DryRun">
+/// True ⇒ report what would be erased and write nothing. <b>Run this first. The API enforces it.</b>
+/// </param>
+/// <param name="ConfirmedJobAdCount">
+/// Required when <paramref name="DryRun"/> is false: the number of ads the preceding dry run
+/// reported. If it no longer matches, the request is refused with 409 and nothing is destroyed —
+/// ingest runs every ten minutes, so the match set genuinely moves, and a destructive operation
+/// must not run on a stale view.
+/// </param>
+public sealed record EraseRecruiterAdsRequest(
+    string Identifier,
+    bool DryRun,
+    int? ConfirmedJobAdCount);
 
 /// <summary>
 /// Response-body för POST /api/v1/admin/job-ads/backfill-ssyk.

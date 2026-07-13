@@ -57,10 +57,16 @@ public sealed class AuditLogEntry : Entity<AuditLogEntryId>
     }
 
     /// <summary>
-    /// Faktor för command-audit-rader (skrivs av <c>AuditBehavior</c> efter
-    /// <c>IAuditableCommand</c>-success). Payload förblir null per ADR 0022 i
-    /// Fas 1/2 (sanerings-krav defererat till Fas 4).
+    /// Faktor för command-audit-rader (skrivs av <c>AuditBehavior</c>).
     /// </summary>
+    /// <remarks>
+    /// <b>#842 — <paramref name="payload"/> is no longer hard-coded to null.</b> The column has
+    /// existed since ADR 0022 and no command ever wrote it, which is why the erasure runbook's
+    /// verification query selected a column that was always NULL and nobody noticed. The payload
+    /// is opt-in per command via <c>IAuditPayloadCommand</c> and <b>must</b> already be free of
+    /// un-pseudonymised personal data when it arrives here — this entity is a write-only record
+    /// and does not sanitise (CLAUDE.md §5).
+    /// </remarks>
     public static AuditLogEntry Create(
         DateTimeOffset occurredAt,
         Guid correlationId,
@@ -70,7 +76,8 @@ public sealed class AuditLogEntry : Entity<AuditLogEntryId>
         Guid aggregateId,
         string? ipAddress,
         string? userAgent,
-        Guid? impersonatedBy = null)
+        Guid? impersonatedBy = null,
+        string? payload = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(eventType);
         ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
@@ -89,7 +96,7 @@ public sealed class AuditLogEntry : Entity<AuditLogEntryId>
             aggregateId,
             ipAddress,
             userAgent,
-            payload: null);
+            payload);
     }
 
     /// <summary>

@@ -780,24 +780,15 @@ export function CvCompleteGuide({
     // behåller required/aria-required — de är sanna påståenden om fältet och bär
     // SR-semantiken; det är auktoriteten, inte kravet, som flyttas till Zod.
     <form className="jp-guide" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-      {/* Header-rad: mono-källrad + Stäng (honesty bind 2 — aldrig "spara utkast"). */}
-      <div className="jp-guide__head">
+      {/* Steglistan (272px). Speglar välkomst-wizardens ribba, men i sidans geometri:
+          `.jp-wizard--rail` är MODALENS mått (fast 1000x648, egen scroll) och dess
+          radie är modal-undantaget från ADR 0052 — den kan inte lånas hit. Delade
+          TOKENS, inte delade klasser (CTO Q1). */}
+      <nav className="jp-guide__rail" aria-label={tr("railNavLabel")}>
         <p className="jp-guide__source">
           {tr("sourceLine", { fileName: sourceFileName })}
         </p>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={requestClose}
-          disabled={isPending}
-        >
-          {tr("close")}
-        </Button>
-      </div>
 
-      {/* Klickbar stegrad (fri navigering — inget steg blockeras). */}
-      <nav className="jp-guide__rail" aria-label={tr("railNavLabel")}>
         <ol className="jp-guide__raillist">
           {stepLabels.map((label, index) => {
             const active = index === step;
@@ -828,8 +819,15 @@ export function CvCompleteGuide({
                       <span>{index + 1}</span>
                     )}
                   </span>
-                  <span className="jp-guide__raillabel">{label}</span>
-                  {statusLabel && <span className="sr-only">{statusLabel}</span>}
+                  <span className="jp-guide__railitem-text">
+                    <span className="jp-guide__raillabel">{label}</span>
+                    {/* Konsekvensraden: glyfen får aldrig bära påståendet ensam
+                        (WCAG 1.4.1). Den var sr-only och alltså osynlig för alla som
+                        SER skärmen — nu står den i klartext, som i välkomst-wizarden. */}
+                    {statusLabel && (
+                      <span className="jp-guide__railmeta">{statusLabel}</span>
+                    )}
+                  </span>
                 </button>
               </li>
             );
@@ -837,11 +835,24 @@ export function CvCompleteGuide({
         </ol>
       </nav>
 
-      <p className="jp-guide__position">
-        {tr("stepPosition", { step: step + 1, total: STEP_COUNT })}
-      </p>
+      <div className="jp-guide__main">
+        <div className="jp-guide__mainhead">
+          <span className="jp-guide__position">
+            {tr("stepPosition", { step: step + 1, total: STEP_COUNT })}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="jp-guide__close"
+            onClick={requestClose}
+            disabled={isPending}
+          >
+            {tr("close")}
+          </Button>
+        </div>
 
-      <div className="jp-guide__body">
+        <div className="jp-guide__body">
         {/* ── Steg 1: Uppgifter ─────────────────────────────────────── */}
         {step === GUIDE_STEP_DETAILS && (
           <section aria-labelledby="guide-step-details">
@@ -1357,6 +1368,7 @@ export function CvCompleteGuide({
             {isPending ? tr("save.pending") : tr("save.cta")}
           </Button>
         )}
+        </div>
       </div>
 
       {/* Stäng-bekräftelse (honesty bind 2): visas bara när formen är ändrad. */}

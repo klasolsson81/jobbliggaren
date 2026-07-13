@@ -454,7 +454,7 @@ describe("CvCompleteGuide — stegstatus säger sanning (#815 fynd 6, CTO-bind Q
     // submit ändå nekade.
     await waitFor(() =>
       expect(
-        within(railStep(/erfarenhet/i)).getByText(/fel behöver rättas/),
+        within(railStep(/erfarenhet/i)).getByText(/att åtgärda/),
       ).toBeInTheDocument(),
     );
     expect(

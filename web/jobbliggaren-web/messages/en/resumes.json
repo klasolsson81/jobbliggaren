@@ -253,7 +253,7 @@
     "stepPosition": "Step {step} of {total}",
     "railStatusDone": "done",
     "railStatusRemaining": "{count, plural, one {# task left} other {# tasks left}}",
-    "railStatusAttention": "{count, plural, one {# error needs fixing} other {# errors need fixing}}",
+    "railStatusAttention": "{count, plural, one {# to fix} other {# to fix}}",
     "fixFields": "Some details need fixing. They are marked below.",
     "steps": {
       "details": "Details",
@@ -340,7 +340,7 @@
       "intro": "Review and save. The source file is kept untouched.",
       "summaryDone": "Done",
       "summaryRemaining": "{count, plural, one {# task left} other {# tasks left}}",
-      "summaryBlocked": "{count, plural, one {# error needs fixing} other {# errors need fixing}}",
+      "summaryBlocked": "{count, plural, one {# to fix} other {# to fix}}",
       "remainingOptional": "You can save anyway. The remaining details are optional, and you can fill them in later.",
       "summaryJump": "Go to {step}",
       "nameLabel": "CV name",

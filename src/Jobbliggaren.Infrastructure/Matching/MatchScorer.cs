@@ -86,7 +86,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         var ad = await db.JobAds
             .AsNoTracking()
             .Where(j => j.Id == jobAdId)
-            .Select(j => new AdShadowRow(
+            .Select(j => new AdFacetRow(
                 j.Title,
                 EF.Property<string?>(j, OccupationGroupColumn),
                 EF.Property<string?>(j, RegionColumn),
@@ -684,14 +684,14 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // the raw_payload purge silently nulled).
     // A constructor-projected type (EF maps the ctor); shadow values are nullable
     // (NULL ⇒ the ad has no value on that dimension ⇒ NotAssessed).
-    private sealed record AdShadowRow(
+    private sealed record AdFacetRow(
         string Title,
         string? OccupationGroupConceptId,
         string? RegionConceptId,
         string? EmploymentTypeConceptId,
         string? MunicipalityConceptId);
 
-    // The batch row (F4-13) — AdShadowRow plus the JobAdId key, so ScoreBatchAsync can
+    // The batch row (F4-13) — AdFacetRow plus the JobAdId key, so ScoreBatchAsync can
     // key the result dictionary. j.Id materializes via its value converter (parity the
     // single-ad equality filter); shadow values are nullable (NULL ⇒ NotAssessed).
     private sealed record AdBatchShadowRow(

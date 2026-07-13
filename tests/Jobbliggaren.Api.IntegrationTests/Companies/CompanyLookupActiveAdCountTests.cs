@@ -80,7 +80,7 @@ public class CompanyLookupActiveAdCountTests
 
     // Seeds one imported JobAd whose raw_payload carries employer.organization_number — the STORED
     // generated organization_number column is computed by Postgres at INSERT (never in C#, never in
-    // InMemory). Mirrors JobAdGeneratedColumnsTests / CompanyWatchMatchCountTests seeding verbatim.
+    // InMemory). Mirrors JobAdFacetsSurvivePurgeTests / CompanyWatchMatchCountTests seeding verbatim.
     private async Task SeedAdAsync(
         string orgNr,
         CancellationToken ct,

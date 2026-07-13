@@ -193,7 +193,7 @@ public class MatchSortOracleTests(ApiFactory factory)
     // Seeding — raw_payload drives the facet columns. occupation_group +
     // employment_type + working_hours_type (the run-isolation worktime-extent) are
     // TOP-LEVEL; region AND municipality live under workplace_address (parity
-    // MatchScorerIntegrationTests + JobAdGeneratedColumnsTests). null group/region/
+    // MatchScorerIntegrationTests + JobAdFacetsSurvivePurgeTests). null group/region/
     // employment → key omitted → that shadow column is NULL (the NotAssessed-by-NULL
     // path). publishedAt is explicit so we can prove the tie-break within a grade.
     // <para>

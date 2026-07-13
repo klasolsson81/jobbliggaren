@@ -44,8 +44,23 @@ public class JobAdRawPayloadDerivationGuardTests
     private const string PurgeJobPath =
         "src/Jobbliggaren.Application/JobAds/Jobs/PurgeRawPayloads/PurgeStaleRawPayloadsJob.cs";
 
+    /// <summary>
+    /// The migrations permitted to contain <c>GENERATED ALWAYS AS (… raw_payload …) STORED</c>: the four
+    /// that originally created the seven columns (history — they are applied, immutable, and describe the
+    /// world as it was), and #841's own migration, whose <c>Down()</c> must legitimately re-create them in
+    /// order to be a real rollback. A NEW migration doing this is the defect coming back.
+    /// </summary>
+    private static readonly string[] HistoricalGeneratedColumnMigrations =
+    [
+        "20260513111555_F2P9JobAdSearchColumns.cs",
+        "20260608155047_F6P6JobAdKlass1SearchColumns.cs",
+        "20260608205054_F6P7JobAdKlass2SearchColumns.cs",
+        "20260630144631_AddJobAdOrganizationNumber.cs",
+        "20260713191535_MaterialiseJobAdSourceFacets.cs", // its Down() restores the old schema, by design
+    ];
+
     [Fact]
-    public void No_generated_column_may_be_derived_from_raw_payload()
+    public void No_generated_column_may_be_derived_from_raw_payload_via_EF_configuration()
     {
         var source = File.ReadAllText(Path.Combine(RepoRoot(), JobAdConfigurationPath));
 
@@ -61,6 +76,91 @@ public class JobAdRawPayloadDerivationGuardTests
             "value from the payload, parse it in the ACL and write it in C# at the ingest funnel " +
             "(JobAd.SetSourcePayload), the way the seven facets and extracted_terms are written.\n\n" +
             "Offending computed column SQL: " + string.Join(" | ", offenders));
+    }
+
+    [Fact]
+    public void No_generated_column_may_be_derived_from_raw_payload_via_raw_SQL_in_a_migration()
+    {
+        // WITHOUT THIS, THE GUARD ABOVE IS NARROWER THAN ITS OWN CLAIM — which is the exact defect class
+        // #841 exists to kill, and a reviewer caught it here. The rule is "nothing durable may be derived
+        // from raw_payload IN THE DATABASE", but the EF-configuration scan only sees the fluent API. Raw
+        // `migrationBuilder.Sql` is this repo's ESTABLISHED idiom for job_ads DDL the fluent API cannot
+        // express — all seven partial indexes were created that way. So
+        //
+        //     migrationBuilder.Sql("ALTER TABLE job_ads ADD COLUMN foo text " +
+        //                          "GENERATED ALWAYS AS (raw_payload->>'foo') STORED;");
+        //
+        // would have re-opened #841 with the EF-side guard fully green. It is not a contrived path; it is
+        // the path of least resistance.
+        var root = RepoRoot();
+        var migrationsDir = Path.Combine(root, "src", "Jobbliggaren.Infrastructure", "Persistence", "Migrations");
+        var offenders = new List<string>();
+
+        foreach (var file in Directory.EnumerateFiles(migrationsDir, "*.cs"))
+        {
+            var name = Path.GetFileName(file);
+            if (HistoricalGeneratedColumnMigrations.Contains(name, StringComparer.OrdinalIgnoreCase))
+                continue;
+
+            if (DerivesAGeneratedColumnFromRawPayload(File.ReadAllText(file)))
+                offenders.Add(name);
+        }
+
+        offenders.ShouldBeEmpty(
+            "A migration creates a GENERATED column derived from raw_payload in raw SQL. raw_payload is " +
+            "the only column on job_ads with a retention TTL (PurgeStaleRawPayloadsJob nulls it after 30 " +
+            "days, ADR 0032 §8), and Postgres RECOMPUTES any stored generated column when its base " +
+            "changes — so the new column would be silently destroyed on still-ACTIVE ads, exactly as the " +
+            "seven facets were for two releases (#841). Parse it in the ACL and write it in C# at the " +
+            "ingest funnel instead. Offending migrations: " + string.Join(", ", offenders));
+    }
+
+    [Fact]
+    public void Migration_scan_is_not_vacuous_it_finds_the_historical_generated_columns()
+    {
+        // The allowlist must be EARNED. If the pattern stopped matching (SQL reformatted, the fluent API
+        // gained partial-index support and the raw SQL disappeared), the scan above would be guarding an
+        // empty set and every allowlist entry would be a fossil making it look thorough.
+        var root = RepoRoot();
+        var migrationsDir = Path.Combine(root, "src", "Jobbliggaren.Infrastructure", "Persistence", "Migrations");
+
+        var found = HistoricalGeneratedColumnMigrations
+            .Where(name => File.Exists(Path.Combine(migrationsDir, name)))
+            .Where(name => DerivesAGeneratedColumnFromRawPayload(
+                File.ReadAllText(Path.Combine(migrationsDir, name))))
+            .ToList();
+
+        found.Count.ShouldBe(HistoricalGeneratedColumnMigrations.Length,
+            "every allowlisted migration must actually contain a raw_payload-derived generated column — " +
+            "otherwise the scan cannot see them, and the guard above is vacuous. Found: " +
+            string.Join(", ", found));
+    }
+
+    /// <summary>
+    /// True when a migration creates a generated column derived from <c>raw_payload</c>, in EITHER of the
+    /// two forms this repo actually uses. Both are load-bearing, and the first version of this scan only
+    /// saw one — which made the guard narrower than its claim, the very defect it is here to prevent. The
+    /// non-vacuity test caught it: only 1 of the 5 allowlisted migrations matched.
+    /// <list type="number">
+    ///   <item>raw SQL: <c>migrationBuilder.Sql("… GENERATED ALWAYS AS (raw_payload->>'x') STORED …")</c>
+    ///     — the form #841's own <c>Down()</c> uses;</item>
+    ///   <item>the EF fluent form: <c>migrationBuilder.AddColumn&lt;string&gt;(…, computedColumnSql:
+    ///     "raw_payload->…")</c> — the form ALL FOUR historical migrations used, and therefore the form a
+    ///     scaffolded migration would use again.</item>
+    /// </list>
+    /// </summary>
+    private static bool DerivesAGeneratedColumnFromRawPayload(string source)
+    {
+        var code = StripComments(source);
+
+        var rawSql = Regex.Matches(code, @"GENERATED\s+ALWAYS\s+AS\s*\((?<expr>[^)]*(?:\([^)]*\)[^)]*)*)\)",
+                RegexOptions.IgnoreCase)
+            .Any(m => m.Groups["expr"].Value.Contains("raw_payload", StringComparison.OrdinalIgnoreCase));
+
+        var efFluent = Regex.Matches(code, @"computedColumnSql\s*:\s*""(?<sql>(?:[^""\\]|\\.)*)""")
+            .Any(m => m.Groups["sql"].Value.Contains("raw_payload", StringComparison.OrdinalIgnoreCase));
+
+        return rawSql || efFluent;
     }
 
     [Fact]
@@ -82,8 +182,39 @@ public class JobAdRawPayloadDerivationGuardTests
         expressions.ShouldContain(sql => sql.Contains("jsonb_path_query_array", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// The payload and its seven facets are ONE fact ("this is what the source said"), and the aggregate
+    /// writes them atomically. <c>ExecuteUpdateAsync</c> is the one route around that — it never touches
+    /// the aggregate, so <c>SetSourcePayload</c> never runs and #841's type-system guard cannot see it.
+    ///
+    /// <para>
+    /// Every field of that one fact is therefore listed here, each with the ONE file allowed to bulk-write
+    /// it. The first version of this guard covered only <c>RawPayload</c> — which protected one half of an
+    /// invariant it claimed to hold whole. A reviewer pointed out the other direction is just as fatal:
+    /// <c>SetProperty(j =&gt; j.OrganizationNumber, _ =&gt; null)</c> splits the facets from the payload with
+    /// `SetSourcePayload` fully intact and green. That is not hypothetical — <b>CTO bind 3c requires
+    /// #842's Tier B tombstone to bulk-clear <c>organization_number</c></b>, so the next lane will write
+    /// exactly that line. It should do so deliberately, against a fail-closed allowlist.
+    /// </para>
+    /// </summary>
+    private static readonly Dictionary<string, string[]> BulkWritableJobAdFields = new(StringComparer.Ordinal)
+    {
+        // The retention control. Writes NULL, and — since #841 — leaves the facets standing.
+        ["RawPayload"] = [PurgeJobPath],
+
+        // The seven facets: nobody may bulk-write them today. When #842 Tier B lands, add its file to
+        // OrganizationNumber's list — the build will demand it, which is the point.
+        ["SsykConceptId"] = [],
+        ["OccupationGroupConceptId"] = [],
+        ["MunicipalityConceptId"] = [],
+        ["RegionConceptId"] = [],
+        ["EmploymentTypeConceptId"] = [],
+        ["WorktimeExtentConceptId"] = [],
+        ["OrganizationNumber"] = [],
+    };
+
     [Fact]
-    public void Only_the_purge_job_may_bulk_write_raw_payload_outside_the_aggregate()
+    public void No_bulk_write_of_the_payload_or_its_facets_outside_the_aggregate()
     {
         var root = RepoRoot();
         var offenders = new List<string>();
@@ -92,37 +223,58 @@ public class JobAdRawPayloadDerivationGuardTests
                      Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories))
         {
             var relative = Path.GetRelativePath(root, file).Replace('\\', '/');
-            if (relative.Equals(PurgeJobPath, StringComparison.OrdinalIgnoreCase))
-                continue;
+            var code = StripComments(File.ReadAllText(file));
 
-            // `SetProperty(j => j.RawPayload, ...)` — the ExecuteUpdate form, which never touches the
-            // aggregate and therefore never runs SetSourcePayload.
-            if (BulkWritesRawPayload(File.ReadAllText(file)))
-                offenders.Add(relative);
+            foreach (var (field, allowed) in BulkWritableJobAdFields)
+            {
+                if (allowed.Contains(relative, StringComparer.OrdinalIgnoreCase))
+                    continue;
+
+                if (BulkWrites(code, field))
+                    offenders.Add($"{relative} → JobAd.{field}");
+            }
         }
 
         offenders.ShouldBeEmpty(
-            "A bulk ExecuteUpdate write of JobAd.RawPayload bypasses the aggregate — and therefore " +
-            "bypasses SetSourcePayload, which is the ONLY thing keeping the payload and its seven facet " +
-            "columns in agreement. #841's type-system guard (facets as a required parameter of " +
-            "Import/UpdateFromSource) cannot see through ExecuteUpdate: this write would compile, pass " +
-            "every unit test, and silently re-open the defect. If you genuinely need a bulk payload " +
-            "write, it must decide explicitly what happens to the seven facets. Offenders: " +
-            string.Join(", ", offenders));
+            "A bulk ExecuteUpdate write of JobAd.RawPayload or one of its seven source facets bypasses " +
+            "the aggregate — and therefore bypasses SetSourcePayload, the ONLY thing keeping the payload " +
+            "and the facets in agreement. #841's type-system guard (facets as a required parameter of " +
+            "Import/UpdateFromSource) CANNOT SEE THROUGH ExecuteUpdate: such a write compiles, passes " +
+            "every unit test, and silently splits the two halves of one fact — which is precisely the " +
+            "defect #841 exists to close.\n\n" +
+            "If you genuinely need one (e.g. #842's Art. 17 tombstone must clear organization_number — " +
+            "it no longer self-nulls with the purge), add the file to BulkWritableJobAdFields for that " +
+            "field and say why. Offenders: " + string.Join(", ", offenders));
     }
 
     [Fact]
-    public void Purge_job_guard_is_not_vacuous_the_scan_finds_the_one_legitimate_writer()
+    public void Bulk_write_guard_is_not_vacuous_the_scan_finds_the_one_legitimate_writer()
     {
         // The exemption must be earned, not assumed: if PurgeStaleRawPayloadsJob stopped matching the
         // pattern (refactored to a different EF form), the test above would be guarding an empty set and
         // the allowlist entry would be a fossil.
         var purge = File.ReadAllText(Path.Combine(RepoRoot(), PurgeJobPath));
 
-        BulkWritesRawPayload(purge).ShouldBeTrue(
+        BulkWrites(StripComments(purge), "RawPayload").ShouldBeTrue(
             "PurgeStaleRawPayloadsJob no longer matches the bulk-write pattern this guard scans for. " +
             "Either the purge changed shape (then update the pattern — the guard is now blind) or the " +
             "purge no longer bulk-writes raw_payload (then remove its exemption).");
+    }
+
+    [Fact]
+    public void Bulk_write_guard_sees_a_facet_write_not_just_the_payload()
+    {
+        // The half of the invariant the first version did not hold. This is the line #842 Tier B will
+        // write, and it must be seen.
+        BulkWrites(
+            "await db.JobAds.ExecuteUpdateAsync(s => s.SetProperty(j => j.OrganizationNumber, _ => null), ct);",
+            "OrganizationNumber").ShouldBeTrue();
+
+        BulkWrites(
+            "s.SetProperty(j => j.MunicipalityConceptId, _ => null)", "MunicipalityConceptId").ShouldBeTrue();
+
+        // ...and it does not fire on an unrelated field.
+        BulkWrites("s.SetProperty(j => j.Status, _ => archived)", "RawPayload").ShouldBeFalse();
     }
 
     [Fact]
@@ -132,25 +284,27 @@ public class JobAdRawPayloadDerivationGuardTests
         // COMMENT mentioning the forbidden call failed the build. A guard that fires on the prose
         // explaining it teaches the next author to delete the explanation instead of the leak — and this
         // file is nothing but explanation.
-        BulkWritesRawPayload("// never call SetProperty(j => j.RawPayload, _ => null) here")
+        BulkWrites(StripComments("// never call SetProperty(j => j.RawPayload, _ => null) here"), "RawPayload")
             .ShouldBeFalse("a comment describing the forbidden call is not the forbidden call");
 
-        BulkWritesRawPayload("/// <summary>Do not <c>SetProperty(j => j.RawPayload, ...)</c>.</summary>")
-            .ShouldBeFalse();
+        BulkWrites(
+            StripComments("/// <summary>Do not <c>SetProperty(j => j.RawPayload, ...)</c>.</summary>"),
+            "RawPayload").ShouldBeFalse();
 
         // ...and the real thing is still caught, including directly under such a comment.
-        BulkWritesRawPayload("""
+        BulkWrites(StripComments("""
             // never do this
             await db.JobAds.ExecuteUpdateAsync(s => s.SetProperty(j => j.RawPayload, _ => null), ct);
-            """).ShouldBeTrue("the actual bulk write must still be caught");
+            """), "RawPayload").ShouldBeTrue("the actual bulk write must still be caught");
     }
 
     /// <summary>
-    /// True when the source CODE (comments excluded) bulk-writes <c>RawPayload</c> via
-    /// <c>SetProperty</c> — the <c>ExecuteUpdate</c> form that bypasses the aggregate.
+    /// True when the given source CODE (pass it through <see cref="StripComments"/> first) bulk-writes
+    /// <paramref name="field"/> via <c>SetProperty</c> — the <c>ExecuteUpdate</c> form that bypasses the
+    /// aggregate.
     /// </summary>
-    private static bool BulkWritesRawPayload(string source) =>
-        Regex.IsMatch(StripComments(source), @"SetProperty\(\s*\w+\s*=>\s*\w+\.RawPayload\b");
+    private static bool BulkWrites(string code, string field) =>
+        Regex.IsMatch(code, @"SetProperty\(\s*\w+\s*=>\s*\w+\." + Regex.Escape(field) + @"\b");
 
     // Remove line, block and XML-doc comments while leaving string literals intact.
     private static string StripComments(string source) =>

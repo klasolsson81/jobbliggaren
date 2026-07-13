@@ -39,12 +39,22 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// </para>
     ///
     /// <para>
-    /// <b>The guard below is the point of this file.</b> It counts non-null values per column BEFORE and
-    /// AFTER, and <c>RAISE</c>s if a single one is lost; it then asserts all seven are ordinary and all
-    /// seven indexes survive. Run the scaffolded migration through it and the counts crater to zero and
-    /// the indexes vanish → the transaction rolls back and the deploy fails LOUDLY. The catastrophe is
-    /// made structurally unshippable rather than merely avoided by discipline — the next person will not
-    /// have read the probe. Postgres DDL is transactional, so the rollback is real.
+    /// <b>The guard below is the point of this file — and here is precisely what it is and is not.</b> It
+    /// counts non-null values per column BEFORE and AFTER the ALTER and <c>RAISE</c>s if a single one is
+    /// lost, then asserts all seven columns are ordinary (<c>attgenerated = ''</c>) and all seven indexes
+    /// survive <c>indisvalid</c>. Postgres DDL is transactional, so the rollback is real — and it was
+    /// mutation-verified: fed the scaffolded <c>DROP COLUMN</c>/<c>ADD COLUMN</c> SQL against 47 000
+    /// seeded rows, it aborts with <c>"46998 non-null values before, 0 after"</c> and the data survives.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>What it does NOT do</b> (an earlier draft of this comment over-claimed, and that is exactly the
+    /// defect this PR exists to kill): it cannot stop someone REGENERATING this file — the scaffolded
+    /// migration is a different file and would carry no <c>DO</c> block at all. What stops that is the
+    /// test suite: <c>JobAdIndexOracleTests.FacetIndex_SurvivesTheMaterialisation</c> and
+    /// <c>JobAdFacetsSurvivePurgeTests</c> run every migration against real Postgres and go red. The
+    /// unique, irreplaceable value of the guard below is the value census against <b>production data</b> —
+    /// which no Testcontainers test can perform, because no test knows what the real table held.
     /// </para>
     ///
     /// <para>
@@ -60,9 +70,27 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// <b>Deploy (ADR 0032 §8; CTO ruling Q4).</b> Postgres rejects an INSERT/UPDATE that supplies a value
     /// to a <c>GENERATED ALWAYS … STORED</c> column (SQLSTATE 428C9), so model and schema must ship
     /// together. An OLD Worker against the NEW schema inserts NULL facets SILENTLY — worse than the loud
-    /// failure of the reverse. Sequence: STOP the Worker → migrate → start the new Worker → trigger
-    /// <c>POST /admin/job-ads/sync/platsbanken</c> to repopulate every still-listed ad immediately. The API
-    /// may stay up: it only READS these columns.
+    /// failure of the reverse. This is therefore a <b>stop-the-world migration for the Worker</b>; the API
+    /// may stay up, since it only READS these columns.
+    /// </para>
+    ///
+    /// <para>
+    /// Sequence: <b>stop the Worker → migrate → start the new Worker → trigger a full snapshot sync →
+    /// verify.</b> The sync repopulates every still-listed ad immediately rather than up to 24 h later (it
+    /// is the work the 02:00 cron would do anyway, moved earlier). The trigger is
+    /// <c>POST /api/v1/admin/jobs/recurring/sync-platsbanken-snapshot/trigger</c>.
+    /// <b>NOT <c>POST /admin/job-ads/sync/platsbanken</c></b> — that endpoint has returned <c>410 Gone</c>
+    /// since 2026-05-16 (ADR 0032 §9-amendment X4) and can trigger nothing. The wrong URL was in this
+    /// comment on the first pass, and a deploy instruction is read verbatim during an incident, which is
+    /// the worst possible moment to discover it. Found by <c>db-migration-writer</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// Run the migration through EF (<c>Database.MigrateAsync()</c> / <c>dotnet ef database update</c>),
+    /// which wraps it in a transaction so the guard's <c>RAISE</c> actually rolls back. If you instead
+    /// apply a generated script with <c>psql</c>, you MUST pass <c>--single-transaction</c>: without it the
+    /// <c>DO</c> block would fail and the subsequent <c>INSERT INTO "__EFMigrationsHistory"</c> would still
+    /// run, marking a failed migration as applied.
     /// </para>
     /// </summary>
     public partial class MaterialiseJobAdSourceFacets : Migration

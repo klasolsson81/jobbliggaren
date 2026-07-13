@@ -224,7 +224,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     /// <b>The one route around this guard</b> is <c>ExecuteUpdateAsync</c>, which bypasses the aggregate
     /// entirely. Exactly one such writer of <c>RawPayload</c> exists — <c>PurgeStaleRawPayloadsJob</c>,
     /// which writes NULL and, after #841, leaves the seven standing. That exclusivity is not a convention
-    /// either: <c>JobAdRawPayloadWriteGuardTests</c> fails the build if a second one appears.
+    /// either: <c>JobAdRawPayloadDerivationGuardTests</c> fails the build if a second one appears.
     /// </para>
     /// </summary>
     private void SetSourcePayload(string rawPayload, JobAdFacets facets)

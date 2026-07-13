@@ -83,7 +83,7 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         // location filter dropped still-ACTIVE ads for ~21.5 h of every 24, every day — and
         // CreateApplicationFromJobAd froze a NULL municipality into AdSnapshot, permanently.
         //
-        // THE RULE THAT REPLACES IT (executable, not prose — JobAdGeneratedColumnGuardTests):
+        // THE RULE THAT REPLACES IT (executable, not prose — JobAdRawPayloadDerivationGuardTests):
         // NOTHING DURABLE MAY BE DERIVED FROM raw_payload IN THE DATABASE. raw_payload is the
         // only column on this table with a retention TTL; anything computed from it inherits
         // that TTL, silently. The rule is NOT "no generated columns" — search_vector (from

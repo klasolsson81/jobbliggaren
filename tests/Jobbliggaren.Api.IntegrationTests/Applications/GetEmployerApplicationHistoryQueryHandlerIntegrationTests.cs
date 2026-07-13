@@ -401,8 +401,20 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
     }
 
     [Fact]
-    public async Task Handle_ActiveButPurgedAd_IsNotAttributed()
+    public async Task Handle_ActiveButPurgedAd_IsStillAttributed()
     {
+        // #841 — THIS TEST WAS BUILT TO FAIL TODAY, and it did.
+        //
+        // It was `Handle_ActiveButPurgedAd_IsNotAttributed`, a characterization test from the #824 lane
+        // pinning the shipped defect: a still-ACTIVE ad past the 30-day payload horizon lost its
+        // organization_number (a STORED generated column that Postgres recomputed to NULL when the purge
+        // deleted its base), so the user's OWN SUBMITTED APPLICATION silently vanished from her history —
+        // the very drop DPIA #456 §8 forbade. Its closing comment said so: *"#841 removes the root cause.
+        // When either lands, this assertion SHOULD fail — that is the point of it."*
+        //
+        // It failed. The assertions below are its inverse, and that inversion is the fix: the application
+        // stays attributed, and it stays attributed all day rather than the ~2.5 h window the 02:00 sync
+        // used to grant. Art. 5(1)(d) accuracy — the same number at 03:00 and at 05:00.
         var ct = TestContext.Current.CancellationToken;
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -431,16 +443,18 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
         // itself the "row still exists" proof.)
         var (status, orgNr) = await ReadAdFactsAsync(db, ad.Id, ct);
         status.ShouldBe("Active");
-        // ...but Postgres recomputed the STORED generated column to NULL, because its base is gone.
-        orgNr.ShouldBeNull();
+        // ...and the org.nr SURVIVES the purge now: it is an ordinary column written in C# at ingest, not
+        // one Postgres recomputes from the payload the purge just deleted (#841).
+        orgNr.ShouldBe("5560360794",
+            "before #841 this was NULL — Postgres recomputed the generated column when its base went away");
 
-        // ...and so the user's own submitted application silently vanishes from her history.
-        // This is the drop DPIA #456 §8 forbade ("must degrade honestly ... never fabricate").
-        // Pinned as the CURRENT, honestly-recorded behaviour; #824 PR 3 replaces it with an honest
-        // bucket, and #841 removes the root cause. When either lands, this assertion SHOULD fail —
-        // that is the point of it.
+        // ...so the user's own submitted application stays in her history, where it belongs.
         var result = await CreateHandler(db, userId).Handle(Query, ct);
-        result.ShouldBeEmpty();
+        result.Count.ShouldBe(1,
+            "a submitted application to a still-ACTIVE ad must not disappear from the user's history " +
+            "because a background job deleted a debug artefact 30 days after publication (#824/#841).");
+        result[0].OrganizationNumber.ShouldBe("5560360794");
+        result[0].ApplicationCount.ShouldBe(1);
     }
 
     [Fact]

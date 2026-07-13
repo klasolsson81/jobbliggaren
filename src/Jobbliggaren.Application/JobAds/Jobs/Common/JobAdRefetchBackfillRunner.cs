@@ -29,16 +29,19 @@ namespace Jobbliggaren.Application.JobAds.Jobs.Common;
 /// <see cref="IJobSource.RefetchByExternalIdAsync"/> (JobTech <c>/ad/{id}</c>,
 /// deterministisk per-ID — undviker snapshot-trunkering, ADR 0032-amendment
 /// 2026-05-16) och kör samma <see cref="UpsertExternalJobAdCommand"/>-pipeline
-/// som snapshot-jobbet. UNIQUE-collision triggar UPDATE, raw_payload re-skrivs
-/// HELT → och sedan #841 skriver ingest-funneln OM de sju facett-kolumnerna i C#
-/// (JobAd.SetSourcePayload, atomärt med payloaden). Det är precis DÄRFÖR den här
-/// runnern är #841:s DEPLOY-REPARATIONSVERKTYG: en annons vars facetter nollats av
-/// purgen matchar NULL-predikatet, re-fetchas, och får alla sju skrivna på nytt.
-/// (Före #841 stod här "Postgres STORED computed columns re-evaluerar" — den meningen
-/// förklarade varför reparationen fungerade, och den blev falsk i samma PR som gjorde
-/// reparationen nödvändig. En annons som LÄMNAT flödet ger 404 och hoppas över; dess
-/// facetter är oåterkalleliga — de var det före #841 också.) (alla kolumner, inte
-/// bara den som styrde filtret).
+/// som snapshot-jobbet. UNIQUE-collision triggar UPDATE och raw_payload re-skrivs HELT
+/// (alla kolumner, inte bara den som styrde filtret).
+/// </para>
+///
+/// <para>
+/// <b>#841 — this runner is the DEPLOY REPAIR TOOL, and that is a load-bearing role, not a side effect.</b>
+/// Since 2026-07-13 the ingest funnel re-writes the seven facet columns in C#
+/// (<c>JobAd.SetSourcePayload</c>, atomically with the payload). So an ad whose facets the raw_payload
+/// purge had already nulled matches the NULL predicate, gets re-fetched, and has all seven written afresh.
+/// (This paragraph previously said "Postgres STORED computed columns re-evaluate" — the sentence that
+/// explained why the repair worked, and it became false in the same PR that made the repair necessary.)
+/// <b>The honest limit:</b> an ad that has LEFT the feed 404s on refetch and is skipped. Its facets are
+/// unrecoverable — and they were unrecoverable before #841 too.
 /// </para>
 ///
 /// <para>

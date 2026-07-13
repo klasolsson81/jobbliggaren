@@ -170,7 +170,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
     }
 
     // occupation_group + employment_type are TOP-LEVEL; region lives under
-    // workplace_address (parity MatchScorerIntegrationTests / JobAdGeneratedColumnsTests).
+    // workplace_address (parity MatchScorerIntegrationTests / JobAdFacetsSurvivePurgeTests).
     private static string BuildRawPayload(
         string externalId,
         string? occupationGroupConceptId,

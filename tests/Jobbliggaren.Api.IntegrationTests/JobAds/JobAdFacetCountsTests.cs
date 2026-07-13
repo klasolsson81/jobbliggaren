@@ -37,7 +37,7 @@ public class JobAdFacetCountsTests(ApiFactory factory)
 
     // Seedar en importerad, AKTIV JobAd med valfria shadow-värden via raw_payload.
     // occupation_group är TOP-LEVEL; municipality + region bor BÅDA i
-    // workplace_address (verifierat mot JobAdGeneratedColumnsTests + JobAdConfiguration).
+    // workplace_address (verifierat mot JobAdFacetsSurvivePurgeTests + JobAdConfiguration).
     private async Task SeedAsync(
         string title,
         string? occupationGroup,

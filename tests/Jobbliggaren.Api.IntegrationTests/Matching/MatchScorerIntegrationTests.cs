@@ -20,10 +20,10 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// seeded JobAd (raw_payload → STORED generated shadow columns) on real Postgres
 /// (Testcontainers, ALDRIG EF-InMemory — InMemory ignorerar
 /// <c>HasComputedColumnSql(stored: true)</c> så NULL/Match-distinktionen skulle ge
-/// falska gröna, jfr JobAdGeneratedColumnsTests) + the real Swedish Snowball
+/// falska gröna, jfr JobAdFacetsSurvivePurgeTests) + the real Swedish Snowball
 /// <c>ITextAnalyzer</c> (dim-2 lexem måste matcha to_tsvector's stem). Mirrors
 /// OccupationCodeDeriverIntegrationTests' real-analyzer construction and
-/// JobAdGeneratedColumnsTests' raw_payload seeding (occupation_group /
+/// JobAdFacetsSurvivePurgeTests' raw_payload seeding (occupation_group /
 /// workplace_address.region_concept_id / employment_type top-level paths).
 ///
 /// SUT contract (CTO Decision 3/4/5, bound shapes):
@@ -130,7 +130,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
     }
 
     // occupation_group + employment_type are TOP-LEVEL; region AND municipality live
-    // under workplace_address (paritet JobAdGeneratedColumnsTests.BuildRawPayload +
+    // under workplace_address (paritet JobAdFacetsSurvivePurgeTests.BuildRawPayload +
     // JobAdConfiguration: region_concept_id / municipality_concept_id both read from
     // raw_payload->'workplace_address'->>...). workplace_address is null ONLY when BOTH
     // location ids are null (both shadows NULL); otherwise it carries exactly the present
@@ -583,7 +583,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
     // and must NOT appear in Missing.
     //
     // RED until ScoreOrtUnion replaces ScoreMembership for RegionFit in all four
-    // score paths and the AdShadowRow projects the MunicipalityConceptId shadow.
+    // score paths and the AdFacetRow projects the MunicipalityConceptId shadow.
     // =================================================================
 
     [Fact]

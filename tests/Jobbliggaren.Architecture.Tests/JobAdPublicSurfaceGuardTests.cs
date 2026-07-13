@@ -101,11 +101,11 @@ public class JobAdPublicSurfaceGuardTests
     };
 
     /// <summary>
-    /// Types that must never be structured-logged, because destructuring them serialises a raw org.nr
-    /// (and, for <see cref="JobAd"/>, the raw payload and the recruiter free-text as well).
+    /// Source files permitted to structured-log (<c>{@…}</c>-destructure) ANYTHING. Empty, and it should
+    /// stay that way — see <see cref="No_source_file_structured_logs_anything"/> for why the guard is a
+    /// blanket prohibition rather than a list of forbidden type names.
     /// </summary>
-    private static readonly string[] NeverDestructuredTypes =
-        ["JobAd", "JobAdImportItem", "JobAdFacets"];
+    private static readonly string[] DestructuringAllowlist = [];
 
     [Fact]
     public void Every_public_property_on_JobAd_is_classified()
@@ -171,45 +171,73 @@ public class JobAdPublicSurfaceGuardTests
     }
 
     [Fact]
-    public void No_source_file_structured_logs_a_JobAd_or_its_import_item()
+    public void No_source_file_structured_logs_anything()
     {
+        // A BLANKET prohibition on `{@…}` destructuring anywhere in src/ — not a list of forbidden type
+        // names. That distinction is the entire finding of this guard's own review round, and it is worth
+        // stating plainly because the first version got it wrong in the exact way it was built to prevent.
+        //
+        // v1 matched `{@JobAd}`, `{@JobAdImportItem}`, `{@JobAdFacets}` — three PascalCase spellings. But
+        // an MEL / [LoggerMessage] placeholder is named after the VARIABLE, not the type, and the source
+        // generator binds it case-insensitively. So `{@jobAd}` — the most natural thing a developer
+        // actually writes — sailed straight through, as did `{@ad}` and `{@item}`. The guard that was the
+        // agreed PRICE for promoting a personnummer-shaped org.nr onto the aggregate could be defeated by
+        // a lower-case letter. Both reviewers found it independently; the code reviewer called it "the
+        // mutation you did not run", and it was.
+        //
+        // The fix costs nothing, which is what makes the original choice indefensible: `grep -rn "{@" src`
+        // returns ZERO code hits today. A blanket ban therefore needs an EMPTY allowlist, and the
+        // invariant becomes SHAPE-based (destructuring is forbidden) instead of NAME-based (these three
+        // spellings are forbidden). A name-based guard on an unbounded set of names is not a prohibition;
+        // it is a spelling test.
+        //
+        // Why forbid destructuring outright rather than only on PII types: `{@x}` serialises an object's
+        // whole public surface into the log. On a JobAd that is an org.nr (a sole proprietor's org.nr IS
+        // a personnummer, in plaintext — ADR 0087 D8(c), CLAUDE.md §5, highest priority) plus raw_payload
+        // plus the recruiter free-text in description (#842). We have no legitimate use for `{@…}`
+        // anywhere, so the cheap, unforgeable rule is: none.
         var root = RepoRoot();
         var offenders = new List<string>();
 
         foreach (var file in Directory.EnumerateFiles(
                      Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories))
         {
-            var source = File.ReadAllText(file);
-            if (Destructures(source))
-                offenders.Add(Path.GetRelativePath(root, file).Replace('\\', '/'));
+            var relative = Path.GetRelativePath(root, file).Replace('\\', '/');
+            if (DestructuringAllowlist.Contains(relative, StringComparer.OrdinalIgnoreCase))
+                continue;
+
+            if (Destructures(File.ReadAllText(file)))
+                offenders.Add(relative);
         }
 
         offenders.ShouldBeEmpty(
-            "A source file structured-logs (`{@...}`-destructures) a JobAd, a JobAdImportItem or a " +
-            "JobAdFacets. Serialising any of them writes an ORGANISATION NUMBER into the log — and a " +
-            "sole proprietor's org.nr IS a personnummer, in plaintext (ADR 0087 D8, CLAUDE.md §5: the " +
-            "personnummer guard is the highest-priority rule). Destructuring a JobAd also serialises " +
-            "raw_payload and the recruiter free-text in description (#842).\n\n" +
-            "Log the JobAdId, or specific non-PII fields. Never the object. Offenders: " +
-            string.Join(", ", offenders));
+            "A source file structured-logs with `{@…}` (destructuring). That serialises the object's " +
+            "whole public surface into the log. On a JobAd or a JobAdImportItem that includes an " +
+            "ORGANISATION NUMBER — and a sole proprietor's org.nr IS a personnummer, in plaintext " +
+            "(ADR 0087 D8(c); CLAUDE.md §5 makes the personnummer guard the highest-priority rule) — " +
+            "plus raw_payload and the recruiter free-text in description (#842).\n\n" +
+            "Log the id, or named non-PII fields: `{JobAdId}`, `{Title}`. Never `{@object}`. " +
+            "Offenders: " + string.Join(", ", offenders));
     }
 
     [Fact]
-    public void Log_destructuring_guard_is_not_vacuous()
+    public void Log_destructuring_guard_catches_every_spelling_including_the_lower_case_one()
     {
-        // Self-proving negative (the OrganizationNumberSurfacingGuardTests idiom). A scan that cannot
-        // recognise the thing it forbids is a green test guarding nothing — and this guard's whole reason
-        // for existing is that the OLDER org.nr log scan, which matches on the tokens
-        // "organization"/"orgnr"/"org_nr"/"personnummer", CANNOT SEE `{@JobAd}` at all.
-        Destructures("""LogInformation("processing {@JobAd} now", jobAd);""").ShouldBeTrue(
-            "the destructuring scan no longer recognises `{@JobAd}` — it has gone blind, and the guard " +
-            "above is now vacuous");
-
-        Destructures("""LogWarning("item {@JobAdImportItem} skipped", item);""").ShouldBeTrue();
+        // Self-proving negative — and specifically the mutations that DEFEATED the first version of this
+        // guard. Each of these was green before the guard became shape-based.
+        Destructures("""LogInformation("processing {@JobAd} now", jobAd);""").ShouldBeTrue();
+        Destructures("""LogInformation("processing {@jobAd} now", jobAd);""").ShouldBeTrue(
+            "lower-case is the form a developer naturally writes — the MEL placeholder is named after " +
+            "the variable, not the type, and it binds case-insensitively. A name-based guard misses it.");
+        Destructures("""LogWarning("skipped {@item}", item);""").ShouldBeTrue(
+            "an alias defeats any guard keyed on type names — hence the blanket rule");
+        Destructures("""LogWarning("upserting {@ad}", jobAd);""").ShouldBeTrue();
+        Destructures("""LogInformation("item {@JobAdImportItem} skipped", item);""").ShouldBeTrue();
 
         // ...and it must not fire on the safe forms, or people will route around it.
         Destructures("""LogInformation("archived {JobAdId}", jobAd.Id);""").ShouldBeFalse();
         Destructures("""LogInformation("ad {Title} imported", jobAd.Title);""").ShouldBeFalse();
+        Destructures("""LogInformation("count {Count} of {Total}", n, total);""").ShouldBeFalse();
     }
 
     [Fact]
@@ -230,14 +258,13 @@ public class JobAdPublicSurfaceGuardTests
     }
 
     /// <summary>
-    /// True when a forbidden type is <c>{@…}</c>-destructured inside an actual string literal.
-    /// Comments are excluded deliberately: a guard that fires on prose describing it teaches people to
-    /// delete the prose.
+    /// True when ANY <c>{@…}</c> destructuring placeholder appears inside an actual string literal.
+    /// Shape-based, not name-based — see <see cref="No_source_file_structured_logs_anything"/>.
+    /// Comments are excluded deliberately: a guard that fires on the prose describing it teaches people
+    /// to delete the prose.
     /// </summary>
     private static bool Destructures(string source) =>
-        StringLiterals(source).Any(literal =>
-            NeverDestructuredTypes.Any(t =>
-                Regex.IsMatch(literal, @"\{@\s*" + Regex.Escape(t) + @"\w*\s*[,:}]")));
+        StringLiterals(source).Any(literal => Regex.IsMatch(literal, @"\{@\s*\w"));
 
     // One pass over the source, classifying comments and string literals. Only the literals come back:
     // matching a comment and a log template with the same regex is how this guard first went wrong.

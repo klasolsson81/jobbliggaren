@@ -24,7 +24,7 @@ import {
  * <p>
  * Vid fetch-fail (nätverk, 5xx, 429, shape-mismatch) returneras `null` —
  * caller (`getLandingStats`-helper i landing-components) ansvarar för
- * civil UX-degradering (visa floor-värden eller dölja sektion).
+ * civil UX-degradering (visa inga tal eller dölja sektion).
  * </p>
  */
 export const fetchLandingStats = cache(

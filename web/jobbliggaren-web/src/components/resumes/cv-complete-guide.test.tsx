@@ -512,6 +512,48 @@ describe("CvCompleteGuide — form-semantik och per-fält-fel (#815 fynd 6)", ()
     expect(promoteMock).not.toHaveBeenCalled();
   });
 
+  // Major (code-reviewer): `clearErrors()` körde på VARJE submit — och "Nästa" ÄR en
+  // submit. Ett fel man just fått syn på försvann alltså när man gick vidare för att
+  // rätta något annat, medan railen fortsatte visa "1 fel behöver rättas". Fälten och
+  // railen sa emot varandra, och foten påstod "De är markerade nedan" om ingenting.
+  // Felen härleds nu ur live-parsen (samma källa som railen) och kan inte divergera.
+  it("per-fält-felet ÖVERLEVER ett stegbyte (och slocknar när felet är rättat)", async () => {
+    const user = userEvent.setup();
+    renderGuide(
+      makeContent({ contact: { fullName: "", email: null, phone: null, location: null } }),
+    );
+
+    const rail = screen.getByRole("navigation", { name: "Steg i guiden" });
+
+    // Framkalla det blockerande felet (tomt CV-namn) på Spara-steget.
+    await user.click(within(rail).getByRole("button", { name: /^Spara/ }));
+    await user.click(screen.getByRole("button", { name: "Spara CV" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText(/Namn på CV/)).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      ),
+    );
+
+    // Gå till ett annat steg och tillbaka — felet ska stå kvar. (Före fixen var det
+    // borta, medan railen fortfarande sa att det fanns ett fel att rätta.)
+    await user.click(within(rail).getByRole("button", { name: /^Uppgifter/ }));
+    await user.click(within(rail).getByRole("button", { name: /^Spara/ }));
+
+    expect(screen.getByLabelText(/Namn på CV/)).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+
+    // Och när felet FAKTISKT är rättat slocknar det — utan ett nytt submit-varv.
+    await user.type(screen.getByLabelText(/Namn på CV/), "Mitt CV");
+    await waitFor(() =>
+      expect(screen.getByLabelText(/Namn på CV/)).not.toHaveAttribute(
+        "aria-invalid",
+      ),
+    );
+  });
+
   // Före fixen ytades ETT fel i taget (issues[0]) i foten. Fem fel = fem submit-varv.
   it("ett blockerande fel landar PÅ sitt fält, med aria-invalid + aria-describedby", async () => {
     const user = userEvent.setup();
@@ -537,5 +579,56 @@ describe("CvCompleteGuide — form-semantik och per-fält-fel (#815 fynd 6)", ()
 
     // Backend nåddes aldrig.
     expect(promoteMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("CvCompleteGuide — chip-listan är ingen återvändsgränd (#815, CTO Q3-B)", () => {
+  // Parsern cappar ANTALET kompetenser (MaxSkills = 200) men aldrig LÄNGDEN: en lång
+  // punkt utan komma blir ett chip på över 100 tecken, vilket schemat fäller. Chips
+  // gick bara att TA BORT, och felet ytades ingenstans — foten sa "De är markerade
+  // nedan" medan ingenting var markerat. Den användaren kunde alltså inte spara sitt
+  // CV, och enda utvägen var att radera innehåll parsern lyft ur hennes egen fil.
+  const LONG_SKILL =
+    "Erfaren backend-utvecklare med djup kunskap inom distribuerade system och molnarkitektur samt lång vana av att leda tekniska initiativ";
+
+  it("ett för långt parsat chip NAMNGES vid sin lista i stället för att försvinna", async () => {
+    const user = userEvent.setup();
+    renderGuide(makeContent({ skills: [LONG_SKILL] }));
+
+    const rail = screen.getByRole("navigation", { name: "Steg i guiden" });
+    await user.click(within(rail).getByRole("button", { name: /^Spara/ }));
+    await user.click(screen.getByRole("button", { name: "Spara CV" }));
+
+    // Felet ytas — vid listan, och det säger VILKET chip som fälls (i stället för
+    // att försvinna helt, vilket gjorde chippet omöjligt att hitta OCH att spara).
+    const addInput = document.querySelector<HTMLInputElement>("#guide-skills-add");
+    expect(addInput).not.toBeNull();
+    // Add-fältet är markerat och pekar på felet (så skärmläsaren läser det när
+    // routeToError flyttar fokus dit).
+    await waitFor(() =>
+      expect(addInput!.getAttribute("aria-invalid")).toBe("true"),
+    );
+    const errorId = addInput!.getAttribute("aria-describedby");
+    expect(errorId).toBe("guide-skills-add-error");
+    const errorEl = document.getElementById(errorId!);
+    expect(errorEl?.textContent ?? "").toContain(LONG_SKILL);
+
+    // Och sparandet nådde aldrig backend.
+    expect(promoteMock).not.toHaveBeenCalled();
+  });
+
+  it("'Ändra' lyfter chippet till inmatningsfältet så texten kan KORTAS, inte bara raderas", async () => {
+    const user = userEvent.setup();
+    renderGuide(makeContent({ skills: [LONG_SKILL] }));
+
+    const rail = screen.getByRole("navigation", { name: "Steg i guiden" });
+    await user.click(within(rail).getByRole("button", { name: /^Kompetenser/ }));
+
+    await user.click(screen.getByRole("button", { name: `Ändra ${LONG_SKILL}` }));
+
+    // Chippet ligger nu i add-fältet, redo att kortas — innehållet är inte förlorat.
+    const addInput = document.querySelector<HTMLInputElement>("#guide-skills-add");
+    expect(addInput).not.toBeNull();
+    expect(addInput!.value).toBe(LONG_SKILL);
   });
 });

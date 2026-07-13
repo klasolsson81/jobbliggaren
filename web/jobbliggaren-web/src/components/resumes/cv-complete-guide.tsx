@@ -12,12 +12,11 @@ import {
   useForm,
   useFieldArray,
   Controller,
-  type FieldPath,
   type UseFormReturn,
 } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { AlertTriangle, Check, Plus, X } from "lucide-react";
+import { AlertTriangle, Check, Pencil, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,7 +33,7 @@ import {
 import { makePromoteParsedResumeSchema } from "@/lib/actions/resume-schemas";
 import { promoteParsedResumeFromGuideAction } from "@/lib/actions/resumes";
 import {
-  guidePathToFormPath,
+  guidePathToErrorTarget,
   guidePathToStepAndElementId,
   GUIDE_STEP_DETAILS,
   GUIDE_STEP_EXPERIENCE,
@@ -264,6 +263,93 @@ type FieldError = { path: string | null; message: string };
 const isPresent = (value: string | null): boolean =>
   value != null && value.trim().length > 0;
 
+/**
+ * Guidens valideringstillstånd, härlett ur EN parse av det som faktiskt skulle
+ * skickas. Tre projektioner av samma sanning, så att inga två ytor kan divergera:
+ *
+ * - `issueCountByStep` — railens och Spara-sammanställningens "blockerar"-tillstånd.
+ * - `messageByFormPath` — felet vid det fält det gäller.
+ * - `unassignable`     — fel som INGET fält kan bära (kompetens-/språk-chips: listan
+ *                        ÄR fältet, det finns ingen per-post-input). De MÅSTE ytas
+ *                        någonstans, annars påstår foten "De är markerade nedan" om
+ *                        något som inte är markerat, och den specifika texten (t.ex.
+ *                        "…högst 100 tecken") når aldrig användaren. De renderas vid
+ *                        sin lista och räknas in i stegets blockerare.
+ */
+interface PanelIssue {
+  panel: "skills" | "languages";
+  /** Chippet som fälls — namngivet, så användaren slipper gissa vilket det är. */
+  chipName: string;
+  message: string;
+}
+
+interface LiveValidation {
+  issueCountByStep: ReadonlyMap<number, number>;
+  messageByFormPath: ReadonlyMap<string, string>;
+  /** Fel som bärs av en chip-LISTA (ingen per-post-kontroll finns att markera). */
+  panelIssues: ReadonlyArray<PanelIssue>;
+  /** Fel som guidens yta inte alls kan åtgärda (t.ex. parsedResumeId). */
+  offSurface: ReadonlyArray<string>;
+  ok: boolean;
+}
+
+function validateLive(
+  schema: ReturnType<typeof makePromoteParsedResumeSchema>,
+  parsedId: string,
+  values: FormValues,
+): LiveValidation {
+  const parsed = schema.safeParse({
+    parsedResumeId: parsedId,
+    name: values.name,
+    content: toRawPayload(values),
+  });
+  const issueCountByStep = new Map<number, number>();
+  const messageByFormPath = new Map<string, string>();
+  const panelIssues: PanelIssue[] = [];
+  const offSurface: string[] = [];
+  if (parsed.success) {
+    return {
+      issueCountByStep,
+      messageByFormPath,
+      panelIssues,
+      offSurface,
+      ok: true,
+    };
+  }
+
+  for (const issue of parsed.error.issues) {
+    const path = issue.path.join(".");
+    const target = guidePathToErrorTarget(path);
+    const step = guidePathToStepAndElementId(path);
+
+    // Varje fel måste ta sig NÅGONSTANS (CTO Q3-B). Kan guidens yta inte åtgärda
+    // det bärs den specifika texten av foten — aldrig tyst bortkastad.
+    if (!target || !step) {
+      offSurface.push(issue.message);
+      continue;
+    }
+
+    issueCountByStep.set(step.step, (issueCountByStep.get(step.step) ?? 0) + 1);
+
+    if (target.kind === "field") {
+      // Första felet per fält vinner (zod kan ge flera; fältet visar ett).
+      if (!messageByFormPath.has(target.formPath)) {
+        messageByFormPath.set(target.formPath, issue.message);
+      }
+      continue;
+    }
+
+    // Panel-nivå: namnge chippet ur formens egna värden (index bor i path:en).
+    const index = Number(path.split(".")[2]);
+    const chipName =
+      (target.panel === "skills"
+        ? values.skills[index]?.name
+        : values.languages[index]?.name) ?? "";
+    panelIssues.push({ panel: target.panel, chipName, message: issue.message });
+  }
+  return { issueCountByStep, messageByFormPath, panelIssues, offSurface, ok: false };
+}
+
 export function CvCompleteGuide({
   parsedId,
   sourceFileName,
@@ -289,6 +375,8 @@ export function CvCompleteGuide({
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<FieldError | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
+  // Fältfel visas först efter ett spar-försök (aldrig medan man fyller i).
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   // Contact-fält som befordrats från bekräfta-läge till redigerbart (Ändra).
   const [expandedContact, setExpandedContact] = useState<ReadonlySet<ContactKey>>(
@@ -331,24 +419,20 @@ export function CvCompleteGuide({
   // olika påståenden, och den gamla indikatorn konflaterade dem — en appendad men
   // TOM post räknades som "ifylld" och steget blev grönbockat medan submit ändå
   // nekade (CTO-bind Q3/Q3-A).
-  const liveIssuePathsByStep = useMemo(() => {
-    const parsed = schema.safeParse({
-      parsedResumeId: parsedId,
-      name: values.name,
-      content: toRawPayload(values),
-    });
-    const byStep = new Map<number, string[]>();
-    if (parsed.success) return byStep;
-    for (const issue of parsed.error.issues) {
-      const path = issue.path.join(".");
-      const target = guidePathToStepAndElementId(path);
-      if (!target) continue;
-      const bucket = byStep.get(target.step) ?? [];
-      bucket.push(path);
-      byStep.set(target.step, bucket);
-    }
-    return byStep;
-  }, [schema, parsedId, values]);
+  //
+  // INGEN useMemo här, med flit: `watch()` returnerar ett NYTT objekt varje render
+  // (RHF bygger om `_formValues`), så en dep-array på `values` matchar aldrig och
+  // memon hade varit ren dekoration — den ser ut som en optimering men kör ändå
+  // varje render (code-reviewer Minor). Parsen är ren och billig; ärligare utan.
+  //
+  // Live-parsen är felens ENDA sanningskälla — inte `formState.errors`. Skälet är
+  // en riktig bugg: `handleSubmit` nollställer RHF:s felmängd vid varje submit (och
+  // "Nästa" ÄR en submit), så per-fält-markeringarna försvann när användaren gick
+  // vidare medan railen fortsatte påstå "2 fel behöver rättas" — fälten och railen
+  // sa emot varandra (code-reviewer Major). Härleds felen i stället ur samma parse
+  // som railen läser kan de per konstruktion inte divergera, och de försvinner i
+  // samma stund som felet faktiskt är rättat.
+  const live = validateLive(schema, parsedId, values);
 
   // Per-sektions parse-konfidens (ärlig proveniens från backend). Bara "Degraded"
   // ytas som en not; "NotFound" bärs redan av "Saknades i filen"-räkningen.
@@ -387,7 +471,29 @@ export function CvCompleteGuide({
   }
 
   function blockersForStep(stepIndex: number): number {
-    return liveIssuePathsByStep.get(stepIndex)?.length ?? 0;
+    return live.issueCountByStep.get(stepIndex) ?? 0;
+  }
+
+  /**
+   * Felet för ett fält — men först efter ett spar-FÖRSÖK. Att markera fält rött
+   * medan användaren fortfarande fyller i formuläret vore att skälla på henne för
+   * att hon inte är klar (GOV.UK-mönstret: validera vid submit, inte vid mount).
+   * Railens "N fel behöver rättas" är däremot live hela tiden — den beskriver, den
+   * anklagar inte.
+   */
+  function errorFor(formPath: string): string | undefined {
+    return submitAttempted ? live.messageByFormPath.get(formPath) : undefined;
+  }
+
+  /**
+   * Fel som bärs av en chip-LISTA. Chip-listan är själva fältet — det finns ingen
+   * per-chip-input att markera — så felet renderas vid listan och NAMNGER chippet.
+   * Utan den här ytan sa foten "De är markerade nedan" om något som inte var
+   * markerat, och zod-texten (t.ex. längdgränsen) nådde aldrig användaren.
+   */
+  function chipIssuesFor(list: "skills" | "languages"): PanelIssue[] {
+    if (!submitAttempted) return [];
+    return live.panelIssues.filter((issue) => issue.panel === list);
   }
 
   /**
@@ -433,7 +539,7 @@ export function CvCompleteGuide({
     GUIDE_STEP_EXPERIENCE,
     GUIDE_STEP_SKILLS,
   ];
-  const hasBlockers = liveIssuePathsByStep.size > 0;
+  const hasBlockers = !live.ok;
   const hasRemainingTasks = CONTENT_STEPS.some(
     (stepIndex) => remainingForStep(stepIndex) > 0,
   );
@@ -474,7 +580,6 @@ export function CvCompleteGuide({
 
   function onSubmit(formValues: FormValues) {
     setServerError(null);
-    form.clearErrors();
 
     // Enter-semantik (bunden i CTO Q5): formen submittar bara på Spara-steget.
     // På steg 1-3 är Enter "gå vidare" — inte ett tyst sparförsök.
@@ -482,6 +587,11 @@ export function CvCompleteGuide({
       goToStep(step + 1);
       return;
     }
+
+    // Spar-försök: härifrån får fälten visa sina fel. INGEN setError/clearErrors —
+    // felen härleds ur live-parsen (samma källa som railen), så de överlever ett
+    // stegbyte och slocknar när felet faktiskt är rättat.
+    setSubmitAttempted(true);
 
     const rawPayload = toRawPayload(formValues);
     // Klient-validering speglar server-actionen (server-validering är auktoritativ).
@@ -491,28 +601,23 @@ export function CvCompleteGuide({
       content: rawPayload,
     });
     if (!parsed.success) {
-      // ALLA issues ytas på sina fält — inte bara issues[0]. Den gamla formen gav
-      // ett fel i taget i foten, så fem fel kostade fem submit-varv.
-      let firstPath: string | null = null;
-      for (const issue of parsed.error.issues) {
-        const path = issue.path.join(".");
-        firstPath ??= path;
-        const formPath = guidePathToFormPath(path);
-        if (formPath) {
-          form.setError(formPath as FieldPath<FormValues>, {
-            type: "validate",
-            message: issue.message,
-          });
-        }
-      }
-      if (firstPath) {
-        routeToError(firstPath);
-        // Foten sammanfattar; fälten bär detaljerna (och fokus landar på det
-        // första felande fältet, vars aria-describedby läser upp sitt eget fel).
-        setServerError({ path: firstPath, message: tr("fixFields") });
-      } else {
-        setServerError({ path: null, message: tr("invalidData") });
-      }
+      const first = parsed.error.issues[0];
+      const firstPath = first ? first.path.join(".") : null;
+      // Foten får bara påstå "De är markerade nedan" om något fel FAKTISKT landade
+      // på ett fält eller en panel. Gjorde det inte det (t.ex. ett parsedResumeId-
+      // fel, som ingen kontroll i guiden äger) måste den specifika texten fram i
+      // stället — annars tappas den enda information användaren hade att gå på
+      // (CTO Q3-B: inget fel får försvinna i en generisk rad).
+      const outcome = validateLive(schema, parsedId, formValues);
+      const surfaced =
+        outcome.messageByFormPath.size > 0 || outcome.panelIssues.length > 0;
+      if (firstPath) routeToError(firstPath);
+      setServerError({
+        path: firstPath,
+        message: surfaced
+          ? tr("fixFields")
+          : (outcome.offSurface[0] ?? first?.message ?? tr("invalidData")),
+      });
       return;
     }
     startTransition(async () => {
@@ -704,12 +809,10 @@ export function CvCompleteGuide({
                       required={!field.optional}
                       aria-required={!field.optional || undefined}
                       aria-invalid={
-                        formState.errors.personalInfo?.[field.key]
-                          ? true
-                          : undefined
+                        errorFor(`personalInfo.${field.key}`) ? true : undefined
                       }
                       aria-describedby={describedBy(
-                        formState.errors.personalInfo?.[field.key] &&
+                        errorFor(`personalInfo.${field.key}`) &&
                           `guide-pi-${field.key}-error`,
                       )}
                       maxLength={field.key === "phone" ? 50 : 200}
@@ -717,7 +820,7 @@ export function CvCompleteGuide({
                     />
                     <FieldMessage
                       id={`guide-pi-${field.key}-error`}
-                      message={formState.errors.personalInfo?.[field.key]?.message}
+                      message={errorFor(`personalInfo.${field.key}`)}
                     />
                   </div>
                 );
@@ -748,11 +851,11 @@ export function CvCompleteGuide({
                 <Textarea
                   id="guide-summary"
                   {...register("summary")}
-                  aria-invalid={formState.errors.summary ? true : undefined}
+                  aria-invalid={errorFor("summary") ? true : undefined}
                   aria-describedby={describedBy(
                     "guide-summary-hint",
                     "guide-summary-count",
-                    formState.errors.summary && "guide-summary-error",
+                    errorFor("summary") && "guide-summary-error",
                   )}
                   rows={4}
                   maxLength={2000}
@@ -760,7 +863,7 @@ export function CvCompleteGuide({
                 />
                 <FieldMessage
                   id="guide-summary-error"
-                  message={formState.errors.summary?.message}
+                  message={errorFor("summary")}
                 />
                 <p
                   id="guide-summary-count"
@@ -812,6 +915,7 @@ export function CvCompleteGuide({
                     onExpand={() => expandEntry(field.id)}
                     onRemove={() => experiences.remove(index)}
                     disabled={isPending}
+                    errorFor={errorFor}
                   />
                 ))}
               </div>
@@ -852,6 +956,7 @@ export function CvCompleteGuide({
                     onExpand={() => expandEntry(field.id)}
                     onRemove={() => educations.remove(index)}
                     disabled={isPending}
+                    errorFor={errorFor}
                   />
                 ))}
               </div>
@@ -892,6 +997,7 @@ export function CvCompleteGuide({
                     index={index}
                     onRemove={() => sections.remove(index)}
                     disabled={isPending}
+                    errorFor={errorFor}
                   />
                 ))}
               </div>
@@ -945,6 +1051,8 @@ export function CvCompleteGuide({
                   addButtonLabel={tr("skills.add")}
                   emptyLabel={tr("skills.skillsEmpty")}
                   removeLabel={(name) => tr("skills.removeSkill", { name })}
+                  editLabel={(name) => tr("skills.editChip", { name })}
+                  issues={chipIssuesFor("skills")}
                   disabled={isPending}
                 />
               </div>
@@ -964,6 +1072,8 @@ export function CvCompleteGuide({
                   names={watch("languages").map((l) => l.name)}
                   onAdd={(name) => languages.append({ name })}
                   onRemove={(index) => languages.remove(index)}
+                  editLabel={(name) => tr("skills.editChip", { name })}
+                  issues={chipIssuesFor("languages")}
                   addLabel={tr("skills.languagesAddLabel")}
                   addButtonLabel={tr("skills.add")}
                   emptyLabel={tr("skills.languagesEmpty")}
@@ -1061,10 +1171,10 @@ export function CvCompleteGuide({
               <Input
                 id="guide-cv-name"
                 {...register("name")}
-                aria-invalid={formState.errors.name ? true : undefined}
+                aria-invalid={errorFor("name") ? true : undefined}
                 aria-describedby={describedBy(
                   "guide-cv-name-hint",
-                  formState.errors.name && "guide-cv-name-error",
+                  errorFor("name") && "guide-cv-name-error",
                 )}
                 maxLength={200}
                 required
@@ -1073,7 +1183,7 @@ export function CvCompleteGuide({
               />
               <FieldMessage
                 id="guide-cv-name-error"
-                message={formState.errors.name?.message}
+                message={errorFor("name")}
               />
             </div>
 
@@ -1216,6 +1326,7 @@ function ExperienceCard({
   onExpand,
   onRemove,
   disabled,
+  errorFor,
 }: {
   form: UseFormReturn<FormValues>;
   index: number;
@@ -1223,16 +1334,26 @@ function ExperienceCard({
   onExpand: () => void;
   onRemove: () => void;
   disabled: boolean;
+  errorFor: (formPath: string) => string | undefined;
 }) {
   const tr = useTranslations("resumes.guide");
-  const { register, control, watch, setValue, formState } = form;
+  const { register, control, watch, setValue } = form;
   const role = watch(`experiences.${index}.role`);
   const company = watch(`experiences.${index}.company`);
   const startDate = watch(`experiences.${index}.startDate`);
   const ongoing = watch(`experiences.${index}.ongoing`);
   const periodHint = watch(`experiences.${index}.periodHint`);
   const dateHintId = periodHint ? `guide-exp-${index}-period` : undefined;
-  const errors = formState.errors.experiences?.[index];
+  // Felen kommer ur live-parsen (via errorFor), inte ur RHF:s formState — se
+  // kommentaren vid `validateLive`: handleSubmit nollställer formState vid varje
+  // submit, och "Nästa" ÄR en submit.
+  const errors = {
+    company: errorFor(`experiences.${index}.company`),
+    role: errorFor(`experiences.${index}.role`),
+    startDate: errorFor(`experiences.${index}.startDate`),
+    endDate: errorFor(`experiences.${index}.endDate`),
+    description: errorFor(`experiences.${index}.description`),
+  };
 
   if (!expanded) {
     const summary = [role, company].filter((v) => v.trim().length > 0).join(" · ");
@@ -1296,15 +1417,15 @@ function ExperienceCard({
             maxLength={200}
             required
             aria-required={true}
-            aria-invalid={errors?.company ? true : undefined}
+            aria-invalid={errors.company ? true : undefined}
             aria-describedby={describedBy(
-              errors?.company && `guide-exp-${index}-company-error`,
+              errors.company && `guide-exp-${index}-company-error`,
             )}
             disabled={disabled}
           />
           <FieldMessage
             id={`guide-exp-${index}-company-error`}
-            message={errors?.company?.message}
+            message={errors.company}
           />
         </div>
         <div className="jp-guide__field">
@@ -1318,15 +1439,15 @@ function ExperienceCard({
             maxLength={200}
             required
             aria-required={true}
-            aria-invalid={errors?.role ? true : undefined}
+            aria-invalid={errors.role ? true : undefined}
             aria-describedby={describedBy(
-              errors?.role && `guide-exp-${index}-role-error`,
+              errors.role && `guide-exp-${index}-role-error`,
             )}
             disabled={disabled}
           />
           <FieldMessage
             id={`guide-exp-${index}-role-error`}
-            message={errors?.role?.message}
+            message={errors.role}
           />
         </div>
       </div>
@@ -1349,15 +1470,15 @@ function ExperienceCard({
               {...register(`experiences.${index}.startDate`)}
               required
               aria-required={true}
-              aria-invalid={errors?.startDate ? true : undefined}
+              aria-invalid={errors.startDate ? true : undefined}
               aria-describedby={describedBy(
-                errors?.startDate && `guide-exp-${index}-startDate-error`,
+                errors.startDate && `guide-exp-${index}-startDate-error`,
               )}
               disabled={disabled}
             />
             <FieldMessage
               id={`guide-exp-${index}-startDate-error`}
-              message={errors?.startDate?.message}
+              message={errors.startDate}
             />
           </div>
           {!ongoing && (
@@ -1369,15 +1490,15 @@ function ExperienceCard({
                 id={`guide-exp-${index}-endDate`}
                 type="date"
                 {...register(`experiences.${index}.endDate`)}
-                aria-invalid={errors?.endDate ? true : undefined}
+                aria-invalid={errors.endDate ? true : undefined}
                 aria-describedby={describedBy(
-                  errors?.endDate && `guide-exp-${index}-endDate-error`,
+                  errors.endDate && `guide-exp-${index}-endDate-error`,
                 )}
                 disabled={disabled}
               />
               <FieldMessage
                 id={`guide-exp-${index}-endDate-error`}
-                message={errors?.endDate?.message}
+                message={errors.endDate}
               />
             </div>
           )}
@@ -1412,9 +1533,9 @@ function ExperienceCard({
         <Textarea
           id={`guide-exp-${index}-description`}
           {...register(`experiences.${index}.description`)}
-          aria-invalid={errors?.description ? true : undefined}
+          aria-invalid={errors.description ? true : undefined}
           aria-describedby={describedBy(
-            errors?.description && `guide-exp-${index}-description-error`,
+            errors.description && `guide-exp-${index}-description-error`,
           )}
           rows={3}
           maxLength={2000}
@@ -1422,7 +1543,7 @@ function ExperienceCard({
         />
         <FieldMessage
           id={`guide-exp-${index}-description-error`}
-          message={errors?.description?.message}
+          message={errors.description}
         />
       </div>
 
@@ -1449,6 +1570,7 @@ function EducationCard({
   onExpand,
   onRemove,
   disabled,
+  errorFor,
 }: {
   form: UseFormReturn<FormValues>;
   index: number;
@@ -1456,16 +1578,22 @@ function EducationCard({
   onExpand: () => void;
   onRemove: () => void;
   disabled: boolean;
+  errorFor: (formPath: string) => string | undefined;
 }) {
   const tr = useTranslations("resumes.guide");
-  const { register, control, watch, setValue, formState } = form;
+  const { register, control, watch, setValue } = form;
   const degree = watch(`educations.${index}.degree`);
   const institution = watch(`educations.${index}.institution`);
   const startDate = watch(`educations.${index}.startDate`);
   const ongoing = watch(`educations.${index}.ongoing`);
   const periodHint = watch(`educations.${index}.periodHint`);
   const dateHintId = periodHint ? `guide-edu-${index}-period` : undefined;
-  const errors = formState.errors.educations?.[index];
+  const errors = {
+    institution: errorFor(`educations.${index}.institution`),
+    degree: errorFor(`educations.${index}.degree`),
+    startDate: errorFor(`educations.${index}.startDate`),
+    endDate: errorFor(`educations.${index}.endDate`),
+  };
 
   if (!expanded) {
     const summary = [degree, institution]
@@ -1531,15 +1659,15 @@ function EducationCard({
             maxLength={200}
             required
             aria-required={true}
-            aria-invalid={errors?.institution ? true : undefined}
+            aria-invalid={errors.institution ? true : undefined}
             aria-describedby={describedBy(
-              errors?.institution && `guide-edu-${index}-institution-error`,
+              errors.institution && `guide-edu-${index}-institution-error`,
             )}
             disabled={disabled}
           />
           <FieldMessage
             id={`guide-edu-${index}-institution-error`}
-            message={errors?.institution?.message}
+            message={errors.institution}
           />
         </div>
         <div className="jp-guide__field">
@@ -1553,15 +1681,15 @@ function EducationCard({
             maxLength={200}
             required
             aria-required={true}
-            aria-invalid={errors?.degree ? true : undefined}
+            aria-invalid={errors.degree ? true : undefined}
             aria-describedby={describedBy(
-              errors?.degree && `guide-edu-${index}-degree-error`,
+              errors.degree && `guide-edu-${index}-degree-error`,
             )}
             disabled={disabled}
           />
           <FieldMessage
             id={`guide-edu-${index}-degree-error`}
-            message={errors?.degree?.message}
+            message={errors.degree}
           />
         </div>
       </div>
@@ -1584,15 +1712,15 @@ function EducationCard({
               {...register(`educations.${index}.startDate`)}
               required
               aria-required={true}
-              aria-invalid={errors?.startDate ? true : undefined}
+              aria-invalid={errors.startDate ? true : undefined}
               aria-describedby={describedBy(
-                errors?.startDate && `guide-edu-${index}-startDate-error`,
+                errors.startDate && `guide-edu-${index}-startDate-error`,
               )}
               disabled={disabled}
             />
             <FieldMessage
               id={`guide-edu-${index}-startDate-error`}
-              message={errors?.startDate?.message}
+              message={errors.startDate}
             />
           </div>
           {!ongoing && (
@@ -1604,15 +1732,15 @@ function EducationCard({
                 id={`guide-edu-${index}-endDate`}
                 type="date"
                 {...register(`educations.${index}.endDate`)}
-                aria-invalid={errors?.endDate ? true : undefined}
+                aria-invalid={errors.endDate ? true : undefined}
                 aria-describedby={describedBy(
-                  errors?.endDate && `guide-edu-${index}-endDate-error`,
+                  errors.endDate && `guide-edu-${index}-endDate-error`,
                 )}
                 disabled={disabled}
               />
               <FieldMessage
                 id={`guide-edu-${index}-endDate-error`}
-                message={errors?.endDate?.message}
+                message={errors.endDate}
               />
             </div>
           )}
@@ -1661,16 +1789,17 @@ function SectionCard({
   index,
   onRemove,
   disabled,
+  errorFor,
 }: {
   form: UseFormReturn<FormValues>;
   index: number;
   onRemove: () => void;
   disabled: boolean;
+  errorFor: (formPath: string) => string | undefined;
 }) {
   const tr = useTranslations("resumes.guide");
-  const { register, control, formState } = form;
+  const { register, control } = form;
   const entries = useFieldArray({ control, name: `sections.${index}.entries` });
-  const errors = formState.errors.sections?.[index];
 
   return (
     <fieldset className="jp-guide__entry">
@@ -1688,10 +1817,13 @@ function SectionCard({
         <Input
           id={`guide-section-${index}-heading`}
           {...register(`sections.${index}.heading`)}
-          aria-invalid={errors?.heading ? true : undefined}
+          aria-invalid={
+            errorFor(`sections.${index}.heading`) ? true : undefined
+          }
           aria-describedby={describedBy(
             `guide-section-${index}-heading-hint`,
-            errors?.heading && `guide-section-${index}-heading-error`,
+            errorFor(`sections.${index}.heading`) &&
+              `guide-section-${index}-heading-error`,
           )}
           maxLength={200}
           required
@@ -1700,7 +1832,7 @@ function SectionCard({
         />
         <FieldMessage
           id={`guide-section-${index}-heading-error`}
-          message={errors?.heading?.message}
+          message={errorFor(`sections.${index}.heading`)}
         />
       </div>
 
@@ -1727,10 +1859,12 @@ function SectionCard({
                 id={`guide-section-${index}-entry-${entryIndex}-title`}
                 {...register(`sections.${index}.entries.${entryIndex}.title`)}
                 aria-invalid={
-                  errors?.entries?.[entryIndex]?.title ? true : undefined
+                  errorFor(`sections.${index}.entries.${entryIndex}.title`)
+                    ? true
+                    : undefined
                 }
                 aria-describedby={describedBy(
-                  errors?.entries?.[entryIndex]?.title &&
+                  errorFor(`sections.${index}.entries.${entryIndex}.title`) &&
                     `guide-section-${index}-entry-${entryIndex}-title-error`,
                 )}
                 maxLength={200}
@@ -1741,7 +1875,7 @@ function SectionCard({
                   är fel, för det är kombinationen som saknas, inte fältet. */}
               <FieldMessage
                 id={`guide-section-${index}-entry-${entryIndex}-title-error`}
-                message={errors?.entries?.[entryIndex]?.title?.message}
+                message={errorFor(`sections.${index}.entries.${entryIndex}.title`)}
               />
             </div>
             <div className="jp-guide__field">
@@ -1758,11 +1892,13 @@ function SectionCard({
                 id={`guide-section-${index}-entry-${entryIndex}-body`}
                 {...register(`sections.${index}.entries.${entryIndex}.body`)}
                 aria-invalid={
-                  errors?.entries?.[entryIndex]?.body ? true : undefined
+                  errorFor(`sections.${index}.entries.${entryIndex}.body`)
+                    ? true
+                    : undefined
                 }
                 aria-describedby={describedBy(
                   `guide-section-${index}-entry-${entryIndex}-body-hint`,
-                  errors?.entries?.[entryIndex]?.body &&
+                  errorFor(`sections.${index}.entries.${entryIndex}.body`) &&
                     `guide-section-${index}-entry-${entryIndex}-body-error`,
                 )}
                 rows={3}
@@ -1770,7 +1906,7 @@ function SectionCard({
               />
               <FieldMessage
                 id={`guide-section-${index}-entry-${entryIndex}-body-error`}
-                message={errors?.entries?.[entryIndex]?.body?.message}
+                message={errorFor(`sections.${index}.entries.${entryIndex}.body`)}
               />
             </div>
             <div>
@@ -1823,6 +1959,8 @@ function ChipEditor({
   addButtonLabel,
   emptyLabel,
   removeLabel,
+  editLabel,
+  issues,
   disabled,
 }: {
   inputId: string;
@@ -1833,15 +1971,36 @@ function ChipEditor({
   addButtonLabel: string;
   emptyLabel: string;
   removeLabel: (name: string) => string;
+  editLabel: (name: string) => string;
+  issues: ReadonlyArray<PanelIssue>;
   disabled: boolean;
 }) {
   const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const errorId = `${inputId}-error`;
 
   function commit() {
     const value = draft.trim();
     if (value.length === 0) return;
     onAdd(value);
     setDraft("");
+  }
+
+  /**
+   * "Ändra" på ett chip: lyft ut texten i draft-fältet och fokusera det.
+   *
+   * Utan den här affordansen var chip-listan en ÅTERVÄNDSGRÄND. Parsern kan seeda
+   * ett chip som är längre än schemats gräns (`ParseList` cappar antalet, aldrig
+   * längden — se följd-issuen), och chips gick bara att TA BORT. Den användaren
+   * kunde alltså inte spara sitt CV, och enda utvägen var att radera innehåll som
+   * parsern lyft ur hennes egen fil. Det är precis vad #849 handlade om (motorn får
+   * aldrig kasta det användaren skrivit), inverterat så att användaren tvingas göra
+   * kastandet. Nu kortas texten i stället (CTO-bind Q3-B).
+   */
+  function edit(index: number, name: string) {
+    onRemove(index);
+    setDraft(name);
+    queueMicrotask(() => inputRef.current?.focus());
   }
 
   return (
@@ -1856,6 +2015,15 @@ function ChipEditor({
                 <span className="jp-chip__label">{name}</span>
                 <button
                   type="button"
+                  className="jp-chip__edit"
+                  onClick={() => edit(index, name)}
+                  aria-label={editLabel(name)}
+                  disabled={disabled}
+                >
+                  <Pencil size={13} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
                   className="jp-chip__remove"
                   onClick={() => onRemove(index)}
                   aria-label={removeLabel(name)}
@@ -1868,12 +2036,34 @@ function ChipEditor({
           ))}
         </ul>
       )}
+
+      {/* Listan ÄR fältet — så felet bor här, och namnger chippet det gäller.
+          Föll det här bort sa foten "De är markerade nedan" om ingenting.
+
+          INGEN role="alert" (samma doktrin som FieldMessage): vid submit kan flera
+          fel sättas samtidigt, och lika många samtidiga alerts blir en uppläsnings-
+          storm som dränker just det fel fokus landar på. Felet kopplas i stället
+          till add-fältet via aria-describedby, och `routeToError` flyttar fokus dit
+          (`guide-skills-add`/`guide-languages-add`) — då läses det upp, en gång. */}
+      {issues.length > 0 && (
+        <ul id={errorId} className="jp-guide__chiperrors">
+          {issues.map((issue, index) => (
+            <li key={index} className="jp-guide__fielderror">
+              {issue.chipName.length > 0
+                ? `${issue.chipName}: ${issue.message}`
+                : issue.message}
+            </li>
+          ))}
+        </ul>
+      )}
+
       <div className="jp-guide__chipadd">
         <Label htmlFor={inputId} className="sr-only">
           {addLabel}
         </Label>
         <Input
           id={inputId}
+          ref={inputRef}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
@@ -1882,6 +2072,8 @@ function ChipEditor({
               commit();
             }
           }}
+          aria-invalid={issues.length > 0 ? true : undefined}
+          aria-describedby={issues.length > 0 ? errorId : undefined}
           maxLength={100}
           disabled={disabled}
         />

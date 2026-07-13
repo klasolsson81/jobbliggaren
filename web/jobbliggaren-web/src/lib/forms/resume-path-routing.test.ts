@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   pathToElementId,
   gapFillPathToElementId,
-  guidePathToFormPath,
+  guidePathToErrorTarget,
   guidePathToStepAndElementId,
   GUIDE_STEP_DETAILS,
   GUIDE_STEP_EXPERIENCE,
@@ -218,12 +218,12 @@ describe("resume-path-routing > guidePathToStepAndElementId (Slutför-guiden, PR
   });
 });
 
-describe("resume-path-routing > guidePathToFormPath", () => {
-  // Samma Zod-namnrymd, men målet är RHF:s fältväg (form.setError) i stället för
-  // ett element-id. Formen och payloaden är inte samma form — `toRawPayload` är en
-  // äkta transform — och den enda strukturella skillnaden en path kan träffa är
-  // sektionspostens brödtext (form: `body` / payload: `lines`).
-  describe("delad namnrymd → content.-prefixet strippas", () => {
+describe("resume-path-routing > guidePathToErrorTarget", () => {
+  // Samma Zod-namnrymd, men målet är VAR felet kan åtgärdas. Invarianten (CTO Q3-B):
+  // varje fel måste ytas där det går att rätta — inget får försvinna i en generisk
+  // rad i foten. Därför ett diskriminerat mål: `field` (RHF-kontroll) vs `panel`
+  // (chip-lista, som ÄR fältet). Ett `null` betyder "guidens yta äger inte det här".
+  describe("field-mål: delad namnrymd, content.-prefixet strippas", () => {
     it.each([
       ["name", "name"],
       ["content.personalInfo.fullName", "personalInfo.fullName"],
@@ -234,8 +234,8 @@ describe("resume-path-routing > guidePathToFormPath", () => {
       ["content.educations.1.degree", "educations.1.degree"],
       ["content.sections.0.heading", "sections.0.heading"],
       ["content.sections.1.entries.2.title", "sections.1.entries.2.title"],
-    ])("mappar %s → %s", (path, expected) => {
-      expect(guidePathToFormPath(path)).toBe(expected);
+    ])("mappar %s → fältet %s", (path, formPath) => {
+      expect(guidePathToErrorTarget(path)).toEqual({ kind: "field", formPath });
     });
   });
 
@@ -246,25 +246,34 @@ describe("resume-path-routing > guidePathToFormPath", () => {
       // Rad-nivå: ett issue på en ENSKILD rad hör ändå hemma i textarean som helhet
       // — formen har ingen per-rad-kontroll att markera.
       ["content.sections.2.entries.0.lines.3", "sections.2.entries.0.body"],
-    ])("mappar %s → %s", (path, expected) => {
-      expect(guidePathToFormPath(path)).toBe(expected);
+    ])("mappar %s → fältet %s", (path, formPath) => {
+      expect(guidePathToErrorTarget(path)).toEqual({ kind: "field", formPath });
     });
   });
 
-  describe("utan RHF-kontroll att markera → null (aldrig ett gissat fält)", () => {
+  describe("panel-mål: chip-listorna har ingen per-post-kontroll", () => {
+    // Regressions-pin. Returnerade de här `null` (som en tidigare version gjorde)
+    // tappades felet TYST: inget fält markerades, och foten påstod ändå "De är
+    // markerade nedan". Ett för långt parsat chip blev då omöjligt att spara OCH
+    // omöjligt att hitta.
     it.each([
-      // Chip-listor: chip-listan ÄR fältet; det finns ingen per-post-input att
-      // hänga felet på. De ytas via stegets status i stället.
-      ["content.skills.0.name"],
-      ["content.languages.1.name"],
-      // Okänt/ohanterat.
+      ["content.skills.0.name", "skills"],
+      ["content.skills.3.yearsExperience", "skills"],
+      ["content.languages.1.name", "languages"],
+    ])("mappar %s → panelen %s", (path, panel) => {
+      expect(guidePathToErrorTarget(path)).toEqual({ kind: "panel", panel });
+    });
+  });
+
+  describe("utanför guidens yta → null (anroparen måste visa den specifika texten)", () => {
+    it.each([
       [""],
       ["garbage"],
       ["parsedResumeId"],
       ["personalInfo.fullName"], // saknar content.-prefix
       ["content.unknownField"],
     ])("returnerar null för %s", (path) => {
-      expect(guidePathToFormPath(path)).toBeNull();
+      expect(guidePathToErrorTarget(path)).toBeNull();
     });
   });
 });

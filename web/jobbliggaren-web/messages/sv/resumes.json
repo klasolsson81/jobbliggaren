@@ -296,7 +296,6 @@
       "ongoingLabel": "Pågående",
       "ongoingHint": "Slutdatum döljs när tjänsten pågår.",
       "dateMissing": "Datum saknas",
-
       "dateConfirm": "Bekräfta datum",
       "removeExperience": "Ta bort erfarenhet {index}",
       "educationHeading": "Utbildning",
@@ -333,7 +332,8 @@
       "languagesAddLabel": "Lägg till språk",
       "languagesEmpty": "Inga språk tillagda.",
       "removeLanguage": "Ta bort {name}",
-      "add": "Lägg till"
+      "add": "Lägg till",
+      "editChip": "Ändra {name}"
     },
     "save": {
       "intro": "Se över och spara. Källfilen sparas orörd.",

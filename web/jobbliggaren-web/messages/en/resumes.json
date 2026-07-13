@@ -296,7 +296,6 @@
       "ongoingLabel": "Ongoing",
       "ongoingHint": "The end date is hidden while the role is ongoing.",
       "dateMissing": "Date missing",
-
       "dateConfirm": "Confirm dates",
       "removeExperience": "Remove experience {index}",
       "educationHeading": "Education",
@@ -333,7 +332,8 @@
       "languagesAddLabel": "Add language",
       "languagesEmpty": "No languages added.",
       "removeLanguage": "Remove {name}",
-      "add": "Add"
+      "add": "Add",
+      "editChip": "Edit {name}"
     },
     "save": {
       "intro": "Review and save. The source file is kept untouched.",

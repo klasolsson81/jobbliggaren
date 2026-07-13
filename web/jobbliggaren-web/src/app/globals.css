@@ -3357,9 +3357,34 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-danger);
   background: var(--jp-danger-bg);
 }
+/* Ändra-kontrollen: samma mått som borttagning, men NEUTRAL ton — att korta en
+   text är inte destruktivt (WCAG 1.4.1: tonen bär betydelse, inte bara färgen).
+   Finns för att ett parsat chip kan vara för långt för schemat, och listan annars
+   var en återvändsgränd: chips gick bara att TA BORT, så enda utvägen var att
+   radera innehåll ur användarens eget CV (CTO-bind Q3-B). */
+.jp-chip__edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 5px;
+  margin: -2px 0;
+  color: var(--jp-ink-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--jp-r-pill);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.jp-chip__edit:hover {
+  color: var(--jp-ink-1);
+  background: var(--jp-surface-3);
+}
 @media (max-width: 768px) {
   /* WCAG 2.5.5 — touch ≥44px (visuell ikon oförändrad, padding bär målet). */
-  .jp-chip__remove {
+  .jp-chip__remove,
+  .jp-chip__edit {
     width: 32px;
     height: 32px;
     padding: 9px;
@@ -5613,6 +5638,17 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin: 0;
   font-size: var(--text-body-sm);
   color: var(--jp-danger);
+}
+/* Chip-listans fel: listan ÄR fältet (inget per-chip-fält finns att markera), så
+   felet bor vid listan och namnger chippet. Utan den här ytan påstod foten "De är
+   markerade nedan" om något som inte var markerat. */
+.jp-guide__chiperrors {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 /* ── Animations ──────────────────────────────────── */

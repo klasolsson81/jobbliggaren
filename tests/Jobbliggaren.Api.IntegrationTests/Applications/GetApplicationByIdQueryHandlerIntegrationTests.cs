@@ -9,11 +9,11 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
-
 // Alias matchar Application.UnitTests GlobalUsings.cs (Application-typen
 // krockar med Jobbliggaren.Application-namespacet); integrationsprojektet har
 // ingen global alias, så den deklareras per fil.
@@ -406,7 +406,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
             "Backend-utvecklare", Company.Create("Klarna").Value, "En beskrivning.",
             "https://example.com/jobb/1",
             ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
-            rawPayload, clock.UtcNow, null, clock).Value;
+            rawPayload, TestFacets.FromPayload(rawPayload), clock.UtcNow, null, clock).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(CancellationToken.None);
 

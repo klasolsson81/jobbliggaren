@@ -4,6 +4,7 @@ using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -493,6 +494,7 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
+            facets: TestFacets.FromPayload(rawPayload),
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(60),
             clock: new FixedClock(Now)).Value;
@@ -543,6 +545,7 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
+            facets: TestFacets.FromPayload(rawPayload),
             publishedAt: createdAt.AddDays(-1),
             expiresAt: createdAt.AddDays(60),
             clock: new FixedClock(createdAt)).Value;

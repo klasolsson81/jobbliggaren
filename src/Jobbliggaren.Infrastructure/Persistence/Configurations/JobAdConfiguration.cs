@@ -70,99 +70,95 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
                 .HasDatabaseName("ix_job_ads_external_source_external_id");
         });
 
-        // F2-P9 (TD-70, CTO-rond 2026-05-13 Q2-C): shadow properties som speglar
-        // Postgres generated columns. Värdena härleds STORED från raw_payload
-        // av PostgreSQL → drift omöjlig, ingen Domain-koppling till JobTech-
-        // taxonomi (Evans 2003 §14 Anti-Corruption Layer). Indexes (partial,
-        // WHERE … IS NOT NULL) skapas i migration F2P9JobAdSearchColumns.
-        // LINQ-referens: EF.Property<string?>(j, "SsykConceptId") /
-        // EF.Property<string?>(j, "RegionConceptId").
+        // ── #841 — THE SEVEN SOURCE FACETS. Ordinary columns, written in C#. ────────────
         //
-        // ⚠ DE SJU KOLUMNERNA NEDAN SJÄLVFÖRSTÖRS EFTER 30 DAGAR (#824 / #841).
-        // "Drift omöjlig" är sant men vilseledande: de härleds ur raw_payload,
-        // och PurgeStaleRawPayloadsJob NOLLAR raw_payload 30 dagar efter
-        // published_at (GDPR Art. 5(1)(c), ADR 0032 §8). Postgres räknar om en
-        // STORED generated column vid varje UPDATE av dess bas → alla sju blir
-        // NULL. Följd (bevisad mot riktig Postgres): en fortfarande AKTIV annons
-        // försvinner ur facett-filtrerad sökning, ur per-user-matchningen och ur
-        // company-watch-scanens ortsfilter, och dess org.nr går inte längre att
-        // attribuera i ansökningshistoriken.
+        // WHAT THEY WERE, AND WHY THAT WAS WRONG. Until 2026-07-13 all seven were Postgres
+        // STORED generated columns reading raw_payload (F2P9 / F6P6 / F6P7 / #311 D1). The
+        // justification on record was "drift omöjlig, ingen C#-skrivväg" — true, and
+        // catastrophic: PurgeStaleRawPayloadsJob nulls raw_payload 30 days after published_at
+        // (GDPR Art. 5(1)(c)/(e), ADR 0032 §8), and Postgres RECOMPUTES a stored generated
+        // column on every UPDATE of its base. So the purge silently nulled all seven, and the
+        // 02:00 snapshot sync rewrote the payload and resurrected them. Measured against real
+        // Postgres: facet-filtered search, the per-user matching engine and the company-watch
+        // location filter dropped still-ACTIVE ads for ~21.5 h of every 24, every day — and
+        // CreateApplicationFromJobAd froze a NULL municipality into AdSnapshot, permanently.
         //
-        // Detta motsäger ADR 0032 §8:s egen retention-modell ("30 dagar för
-        // raw_payload, INDEFINITIVELY för sanitized fields") — kolumnerna ÄR de
-        // sanitiserade fälten, och de överlever inte. Rätt form finns tolv rader
-        // ned i samma fil: extracted_terms skrivs av C# vid ingest-funneln och
-        // ÖVERLEVER purgen. #841 flyttar dessa sju till samma form. Lägg INTE
-        // till fler generated columns härledda ur raw_payload.
-        builder.Property<string?>("SsykConceptId")
+        // THE RULE THAT REPLACES IT (executable, not prose — JobAdGeneratedColumnGuardTests):
+        // NOTHING DURABLE MAY BE DERIVED FROM raw_payload IN THE DATABASE. raw_payload is the
+        // only column on this table with a retention TTL; anything computed from it inherits
+        // that TTL, silently. The rule is NOT "no generated columns" — search_vector (from
+        // title/description) and extracted_lexemes (from extracted_terms) are legitimate and
+        // stay, because their bases have no TTL.
+        //
+        // These seven ARE the "sanitized fields" ADR 0032 §8 promised to retain INDEFINITELY.
+        // They are now written by JobAd.SetSourcePayload, atomically with the payload they were
+        // parsed from, at the single ingest funnel — the shape extracted_terms has always had,
+        // twenty lines below. The ACL (PlatsbankenJobSource.MapFacets) is the ONLY place that
+        // knows the JSON paths; the nesting traps and the worktime_extent/working_hours_type
+        // name gap live there now.
+        //
+        // .ValueGeneratedNever() IS LOAD-BEARING — do not drop it as noise. While these were
+        // computed, EF marked them ValueGeneratedOnAddOrUpdate, and EF OMITS such properties
+        // from INSERT/UPDATE. Leave the flag on and the C# write compiles, SetSourcePayload
+        // runs, every InMemory test passes — and Postgres never receives the value. That is
+        // #841's own failure mode (a value that looks written and is absent) re-entering
+        // through its own fix. Pinned by JobAdFacetColumnMappingTests + a real-Postgres test.
+        //
+        // No HasMaxLength (they are `text`; varchar(n) would force a table rewrite) and no
+        // HasIndex: the seven partial `WHERE … IS NOT NULL` indexes are raw-SQL/migration-owned
+        // and EF's model snapshot is blind to them (the fluent API cannot express a partial
+        // index). Those predicates are NULL-SPARSITY, not lifecycle-derived, and they stay —
+        // #821 Q2 bans lifecycle-derived predicates on job_ads indexes, nothing else.
+        builder.Property(j => j.SsykConceptId)
             .HasColumnName("ssyk_concept_id")
-            .HasComputedColumnSql("raw_payload->'occupation'->>'concept_id'", stored: true);
+            .ValueGeneratedNever();
 
-        builder.Property<string?>("RegionConceptId")
+        builder.Property(j => j.RegionConceptId)
             .HasColumnName("region_concept_id")
-            .HasComputedColumnSql("raw_payload->'workplace_address'->>'region_concept_id'", stored: true);
+            .ValueGeneratedNever();
 
-        // B1 (ADR 0067 Beslut 2 + ADR 0043-amendment 2026-06-08) — Klass 1
-        // STORED generated columns för Platsbanken sök-paritet. Payload finns
-        // redan (POCO deserialiserar occupation_group + workplace_address.
-        // municipality_concept_id, sanitizer-allowlist passerar dem) → ADD
-        // COLUMN populerar från befintlig raw_payload utan re-ingest.
-        // OBS: occupation_group är TOP-LEVEL i payloaden (EJ nested under
-        // occupation som ssyk_concept_id) — namnglappet "occupation_group"
-        // pekar på ssyk-level-4 (yrkesgrupp), JobTechs primära yrke-filternivå.
-        builder.Property<string?>("OccupationGroupConceptId")
+        builder.Property(j => j.OccupationGroupConceptId)
             .HasColumnName("occupation_group_concept_id")
-            .HasComputedColumnSql("raw_payload->'occupation_group'->>'concept_id'", stored: true);
+            .ValueGeneratedNever();
 
-        builder.Property<string?>("MunicipalityConceptId")
+        builder.Property(j => j.MunicipalityConceptId)
             .HasColumnName("municipality_concept_id")
-            .HasComputedColumnSql("raw_payload->'workplace_address'->>'municipality_concept_id'", stored: true);
+            .ValueGeneratedNever();
 
-        // B2 (ADR 0067 Beslut 2, Platsbanken sök-paritet) — Klass 2 STORED
-        // generated columns: anställningsform (employment_type) + omfattning
-        // (worktime_extent). Båda TOP-LEVEL i payloaden (som occupation_group i
-        // B1). SKILLNAD MOT B1/Klass 1: raw_payload saknar dessa keys för ALLA
-        // befintliga rader (JobTechHit-POCO deserialiserade dem aldrig förrän B2)
-        // → kolumnerna är NULL för 100% av raderna tills POCO-tillägg + full
-        // re-ingest (backfill-klass2-jobbet) re-serialiserar raw_payload. ADD
-        // COLUMN backfillar INGET här (till skillnad mot B1 där payload fanns).
-        //
-        // NAMNGLAPP-FÄLLA: kolumnen heter worktime_extent_concept_id (taxonomi-typ
-        // worktime-extent) men källan i payloaden heter working_hours_type. ADR
-        // 0067 Beslut 2 låser kolumnnamnet efter taxonomi-typen. Pekar
-        // computedColumnSql på fel path ('worktime_extent') blir kolumnen tyst
-        // alltid-NULL utan kompileringsfel — verifierat av JobAdGeneratedColumnsTests.
-        builder.Property<string?>("EmploymentTypeConceptId")
+        builder.Property(j => j.EmploymentTypeConceptId)
             .HasColumnName("employment_type_concept_id")
-            .HasComputedColumnSql("raw_payload->'employment_type'->>'concept_id'", stored: true);
+            .ValueGeneratedNever();
 
-        builder.Property<string?>("WorktimeExtentConceptId")
+        builder.Property(j => j.WorktimeExtentConceptId)
             .HasColumnName("worktime_extent_concept_id")
-            .HasComputedColumnSql("raw_payload->'working_hours_type'->>'concept_id'", stored: true);
+            .ValueGeneratedNever();
 
-        // #311 D1 (följ arbetsgivare, org.nr-promotion, ADR 0087) — STORED generated
-        // column för arbetsgivarens organisationsnummer, den KANONISKA följ-nyckeln
-        // (ingen fuzzy namn-matchning, "Volvo×20"-fällan). NESTED under employer
-        // (raw_payload->'employer'->>'organization_number') — EJ top-level som
-        // occupation_group/employment_type. Samma B2-mönster som F6P7: raw_payload
-        // saknar employer.organization_number för 100% av befintliga rader
-        // (JobTechEmployer-POCO:n deserialiserade den aldrig förrän #311) → kolumnen
-        // NULL tills POCO-tillägg + full re-ingest re-serialiserar raw_payload. Drift
-        // omöjlig (Postgres härleder ur raw_payload, ingen C#-skrivväg). Partial-index
-        // (WHERE … IS NOT NULL) skapas i migrationen (fluent-API saknar partial-stöd för
-        // shadow-properties → raw SQL, samma skäl som F6P7/F2P9). LINQ-referens:
-        // EF.Property<string?>(j, "OrganizationNumber"). ENSKILD FIRMA-NOT (GDPR
-        // Art. 32, ADR 0087 D8): org.nr kan vara ett personnummer (enskild firma).
-        // PUBLIK Platsbanken-data (arbetsgivaren publicerade det på annonsen) och en
-        // STORED generated column → PLAINTEXT at-rest (en generated column kan inte
-        // DEK-krypteras; raw_payload är redan plaintext, ADR 0032 §8). Accept-risk
-        // per ADR 0087 D8 (Klas Art. 32-sign-off 2026-06-30; Art. 32-balanstest:
-        // publik källa + queryability-nödvändighet). Skyddet ligger vid SURFNINGS-/
-        // LOGG-gränsen, INTE at-rest: ALDRIG loggad/surfad oflaggat; sole-prop
-        // flaggas/maskeras i disambiguerings-display (CLAUDE.md §5, högsta prioritet).
-        builder.Property<string?>("OrganizationNumber")
+        // #311 D1 (ADR 0087) — the employer's organisation number: the CANONICAL follow /
+        // attribution key (no fuzzy name matching, the "Volvo×20" trap).
+        //
+        // ENSKILD FIRMA (GDPR Art. 32, ADR 0087 D8, CLAUDE.md §5 — highest priority): a sole
+        // proprietor's org.nr IS a personnummer, in plaintext. It is PLAINTEXT AT REST, and
+        // #841 changes one of the reasons why. The old justification said "a generated column
+        // cannot be DEK-encrypted" — after this change it is an ordinary column, so that leg is
+        // GONE. The posture is unchanged and rests on the leg that already carries D8(b) and
+        // that Klas signed on 2026-06-30: QUERYABILITY NECESSITY. A DEK-encrypted column could
+        // not carry ix_job_ads_organization_number, could not serve the IN-set in
+        // CompanyWatchScanJob, and could not be the GROUP BY key in employer attribution
+        // (#824) — the EF strongly-typed-VO Contains trap. See ADR 0087 D8(a) amendment
+        // 2026-07-13.
+        //
+        // RETENTION CHANGED HERE, DELIBERATELY: while this was a generated column it self-nulled
+        // with the purge, so an ad that left the feed lost its org.nr after ~30 days by accident.
+        // It now persists INDEFINITELY — which is what ADR 0032 §8 always specified for sanitized
+        // fields, and what #824 requires (an application filed in 2026 must still be attributable
+        // to its employer in 2028). Any Art. 17 erasure path must now clear this column EXPLICITLY;
+        // it will not vanish on its own (#842 Tier B tombstone).
+        //
+        // The protection is at the SURFACING/LOG boundary, not at rest: never logged, never
+        // surfaced un-flagged; sole-prop values are masked+flagged via IsPersonnummerShaped.
+        builder.Property(j => j.OrganizationNumber)
             .HasColumnName("organization_number")
-            .HasComputedColumnSql("raw_payload->'employer'->>'organization_number'", stored: true);
+            .ValueGeneratedNever();
 
         // F6 P4 (ADR 0062) — FTS search_vector. STORED tsvector generated column,
         // härledd från title + description av PostgreSQL ('swedish'-config för

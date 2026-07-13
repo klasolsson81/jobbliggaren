@@ -91,6 +91,20 @@ public sealed record JobAdRemoval(
 /// <see cref="Requirements"/> (F4-4b) är de strukturerade arbetsgivar-kraven
 /// (must_have/nice_to_have-skills) som ACL:n parsat ur JobTech-payloaden — tom
 /// lista när annonsen saknar krav eller källan inte bär dem.
+///
+/// <para>
+/// #841 — <see cref="Facets"/> carries the seven taxonomy/employer concept ids the ACL parsed out of the
+/// same payload. It travels WITH the payload because the aggregate writes the two atomically: the JSON
+/// paths (and the <c>working_hours_type</c> → <c>worktime_extent</c> rename) are ACL knowledge and stay in
+/// the ACL, but the VALUES are the domain's, and they must outlive the payload's 30-day TTL. Before #841
+/// these seven were Postgres STORED generated columns and self-destructed with the purge.
+/// </para>
+///
+/// <para>
+/// <b>PII:</b> <c>Facets.OrganizationNumber</c> can be a sole proprietor's personnummer (ADR 0087 D8).
+/// This record must never be structured-logged — <c>OrganizationNumberSurfacingGuardTests</c> fails the
+/// build on any <c>{@JobAdImportItem}</c> destructuring.
+/// </para>
 /// </summary>
 public sealed record JobAdImportItem(
     string ExternalId,
@@ -101,4 +115,5 @@ public sealed record JobAdImportItem(
     DateTimeOffset PublishedAt,
     DateTimeOffset? ExpiresAt,
     string SanitizedRawPayload,
+    JobAdFacets Facets,
     IReadOnlyList<JobAdRequirement> Requirements);

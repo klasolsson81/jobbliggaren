@@ -10,6 +10,7 @@ using Jobbliggaren.Domain.Matching;
 using Jobbliggaren.Infrastructure.Matching;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.TextAnalysis;
+using Jobbliggaren.TestSupport;
 using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -469,6 +470,7 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
+            facets: TestFacets.FromPayload(rawPayload),
             publishedAt: publishedAt,
             expiresAt: publishedAt.AddDays(60),
             clock: new FixedClock(Now)).Value; // CreatedAt = Now (deterministic ingest time)

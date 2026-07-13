@@ -8,12 +8,12 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
-
 // The Application type clashes with the Jobbliggaren.Application namespace; the integration project has
 // no global alias, so it is declared per file (parity GetEmployerApplicationHistoryQueryHandlerIntegrationTests).
 using DomainApplication = Jobbliggaren.Domain.Applications.Application;
@@ -64,6 +64,7 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
+            facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-publishedDaysAgo),
             expiresAt: clock.UtcNow.AddDays(30),
             clock: clock).Value;

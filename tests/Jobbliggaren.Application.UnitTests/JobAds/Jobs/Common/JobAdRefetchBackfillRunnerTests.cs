@@ -6,6 +6,7 @@ using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -55,20 +56,29 @@ public class JobAdRefetchBackfillRunnerTests
             url: $"https://example.com/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: "{\"id\":\"" + externalId + "\"}",
+            facets: TestFacets.FromPayload("{\"id\":\"" + externalId + "\"}"),
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(30),
             clock: clock).Value;
 
-    private static JobAdImportItem RefetchedItem(string externalId) => new(
-        ExternalId: externalId,
-        Title: $"Refetched-{externalId}",
-        CompanyName: "Acme",
-        Description: "Beskrivning",
-        Url: $"https://example.com/{externalId}",
-        PublishedAt: Now.AddDays(-1),
-        ExpiresAt: Now.AddDays(30),
-        SanitizedRawPayload: "{\"id\":\"" + externalId + "\",\"occupation\":{\"concept_id\":\"fg7B_yov_smw\"}}",
-        Requirements: []);
+    private static JobAdImportItem RefetchedItem(string externalId)
+    {
+        // #841 — the refetched item now carries its facets, exactly as the real ACL would supply them.
+        // This is what makes the refetch backfill the repair tool for ads whose facets were nulled by
+        // the purge: re-ingesting through UpsertExternalJobAd writes the seven columns in C#.
+        var payload = "{\"id\":\"" + externalId + "\",\"occupation\":{\"concept_id\":\"fg7B_yov_smw\"}}";
+        return new JobAdImportItem(
+            ExternalId: externalId,
+            Title: $"Refetched-{externalId}",
+            CompanyName: "Acme",
+            Description: "Beskrivning",
+            Url: $"https://example.com/{externalId}",
+            PublishedAt: Now.AddDays(-1),
+            ExpiresAt: Now.AddDays(30),
+            SanitizedRawPayload: payload,
+            Facets: TestFacets.FromPayload(payload),
+            Requirements: []);
+    }
 
     private sealed class FakeScopeFactory(IMediator mediator)
         : IServiceScopeFactory, IServiceScope, IServiceProvider

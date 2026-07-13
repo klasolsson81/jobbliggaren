@@ -13,6 +13,7 @@ using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
@@ -85,6 +86,7 @@ public sealed class MyMatchesSurfaceTests(ApiFactory factory)
             url: url,
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: $"{{\"id\":\"{externalId}\"}}",
+            facets: TestFacets.FromPayload($"{{\"id\":\"{externalId}\"}}"),
             publishedAt: T0,
             expiresAt: clock.UtcNow.AddDays(30),
             clock: clock).Value;

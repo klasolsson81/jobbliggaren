@@ -327,12 +327,19 @@ static async Task<int> RunExplainSearchAsync(ILogger log, CancellationToken ct)
 
     foreach (var term in terms)
     {
-        // Speglar JobAdSearchQuery.ApplyCriteria q-FTS-hybrid-grenen + global
-        // query filter (deleted_at IS NULL). COUNT-vägen — representativ för
-        // filter-kostnaden. description-LIKE körs INTE längre (ADR 0062).
+        // Speglar JobAdSearchQuery.ApplyCriteria q-FTS-hybrid-grenen. COUNT-vägen —
+        // representativ för filter-kostnaden. description-LIKE körs INTE längre (ADR 0062).
+        //
+        // #821 — TVÅ rättelser, båda i sanningsriktningen. (1) `deleted_at IS NULL` är
+        // borta: kolumnen är retirerad (den saknade writer, filtret var vakuöst).
+        // (2) `status = 'Active'` är TILLAGT — och det saknades redan FÖRE #821: SPOT-
+        // filtret i JobAdSearchComposition.ApplyFilter har emitterat det sedan ADR 0032-
+        // amendment 2026-05-23, men detta instrument speglade aldrig ändringen. Ett
+        // EXPLAIN-verktyg som inte kör produktionens fråga ljuger — och det ljög i den
+        // BETRYGGANDE riktningen (en billigare plan än den verkliga).
         const string countSql =
             "EXPLAIN (ANALYZE, BUFFERS) SELECT count(*) FROM job_ads "
-            + "WHERE deleted_at IS NULL "
+            + "WHERE status = 'Active' "
             + "AND (search_vector @@ websearch_to_tsquery('swedish', @term) "
             + "OR lower(title) LIKE @p);";
         await ExplainAndLogAsync(conn, countSql, term, "COUNT", log, ct);
@@ -340,7 +347,7 @@ static async Task<int> RunExplainSearchAsync(ILogger log, CancellationToken ct)
         // Items-vägen — filter + ORDER BY published_at DESC (default-sort) + LIMIT.
         const string itemsSql =
             "EXPLAIN (ANALYZE, BUFFERS) SELECT id FROM job_ads "
-            + "WHERE deleted_at IS NULL "
+            + "WHERE status = 'Active' "
             + "AND (search_vector @@ websearch_to_tsquery('swedish', @term) "
             + "OR lower(title) LIKE @p) "
             + "ORDER BY published_at DESC, id LIMIT 5;";

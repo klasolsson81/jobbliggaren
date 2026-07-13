@@ -239,6 +239,11 @@ DB är källan. Hangfire upserter dit. `GET /api/v1/job-ads` (P7) läser DB dire
 
 ### 8. GDPR: PII-fri externtrafik + sync-audit-events
 
+> ⚠ **Superseded by the 2026-07-13 amendment (#842) — see below.** The heading reads as a blanket PII
+> guarantee. It holds for **outbound** traffic only. The **inbound** surface — recruiter contact details
+> in the ad body, stored verbatim in `job_ads.description` — is real, was never mitigated, and is
+> FTS-searchable by any user today.
+
 **Inga PII skickas till JobTech.** Search-params (SSYK-kod, region, fritext) är publik metadata. Användardata kopplas aldrig till JobTech-anrop.
 
 **Sync-job-runs auditeras** via nytt domain-event:
@@ -379,6 +384,11 @@ Ursprungs-ADR §8 säger "PII-fri externtrafik" — det stämmer för **utgåend
 
 **1. PII-stripping vid ingest (P8b-leverans)**
 
+> ⚠ **Superseded by the 2026-07-13 amendment (#842) — see below.** The sanitizer strips the **field, not
+> the address**: it is a key-name filter that never inspects a value, and it deliberately retains every
+> free-text key (`description`, `text`, `company_information`, `needs`, `requirements`,
+> `salary_description`).
+
 `JobTechAdUpsert`-handler (P8b) får en `JobTechPayloadSanitizer` som strippar kända PII-keys före persistering. Implementation: allowlist över JobTech-schema-keys vi vill bevara, eller blocklist över kända PII-keys (`employer.contact_email`, `employer.contact_name`, etc.). Allowlist-approach föredragen (Saltzer/Schroeder default-deny).
 
 Pseudo-kod:
@@ -401,6 +411,11 @@ public sealed class JobTechPayloadSanitizer
 
 **2. Retention-policy för raw_payload (P8c-leverans eller separat batch)**
 
+> ⚠ **Superseded by the 2026-07-12 (#824, A1/A2) and 2026-07-13 (#842) amendments — see below.** Three
+> drifts: the 02:00 backfill restores the payload nightly, so the real rule is "30 days after the ad
+> **leaves the feed**"; the cron is `30 4 * * *`, not 03:00; and the job never touches
+> `job_ads.description`, which is where the recruiter PII actually is.
+
 `raw_payload` null:as via Hangfire-job 30 dagar efter `job_ads.published_at`. Job-spec:
 - `PurgeStaleRawPayloadsJob` (Hangfire daglig cron 03:00)
 - `UPDATE job_ads SET raw_payload = NULL WHERE published_at < now() - interval '30 days' AND raw_payload IS NOT NULL`
@@ -411,6 +426,11 @@ public sealed class JobTechPayloadSanitizer
 **3. Processing-register-entry**
 
 JobTech som PII-datakälla läggs till i `docs/runbooks/gdpr-processing-register.md` (skapas om saknas) per GDPR Art. 30: datakategori (publicerad annons-metadata + rekryterar-kontaktinfo), syfte (matchning + visning), rättslig grund (legitimt intresse — JobTech har redan publicerat), lagringstid (30 dagar för raw_payload, indefinitively för sanitized fields).
+
+> ⚠ **Superseded by the 2026-07-12 (#824, A1) and 2026-07-13 (#842) amendments — see below.**
+> "indefinitively för sanitized fields" is false (seven STORED generated columns die with `raw_payload`),
+> and the stated retention covers a surface that does not hold the recruiter PII. The Art. 30 register
+> inherits both errors and is corrected separately (local file, ADR 0072).
 
 **4. Right-to-erasure-stöd**
 
@@ -523,19 +543,52 @@ Original §8 specade ett `JobAdsSyncedDomainEvent` som skulle skrivas till `audi
 
 **Name-baserad sökning defererad till TD-75** (ny TD allokerad 2026-05-13): Name-matching kräver multi-path jsonb-search + ev. full-text på `description.text`. YAGNI tills faktisk request finns. Email är primär rekryterar-identifier i JobTech-payloads. `RecruiterIdentifierType.Name` returnerar `Result.Failure(DomainError.Validation("RedactRecruiterPii.NameNotSupportedYet", ...))` med dokumenterad trigger i `docs/runbooks/recruiter-pii-erasure.md`.
 
+> ⚠ **Superseded by the 2026-07-13 amendment (#842) — see below.** The rationale ("Email är primär
+> rekryterar-identifier") is **falsified**: the email is never a structured key in storage at all. The
+> deferral deferred the only branch that could ever have worked and shipped the one that provably never
+> matches. **TD-75 is closed as VOID; the rationale is withdrawn, not re-scoped.**
+
 **GIN-index på raw_payload defererad till TD-76** (ny TD): seq-scan på ~5–10k rader är acceptabel latens för admin one-off (sekunder). GIN-index har reell write-overhead på stream-cron (~80k operations/dygn). YAGNI tills faktisk latens-trigger eller volym-skifte.
 
 ### Krav för stängning av TD-73
 
+> ⚠ **Superseded by the 2026-07-13 amendment (#842) — see below.** Five of these seven boxes were ticked
+> over controls that do not do what the checklist says they do. The boxes are kept as the historical
+> record and annotated per item; **TD-73's closure no longer supports a prod tag** (see the re-imposed
+> gate below).
+
 - [x] `JobTechPayloadSanitizer` implementerad + unit-tester (F2-P8b 2026-05-13, commit `8c09191`)
+  — ⚠ **RE-OPENED 2026-07-13 (#842):** the class exists and works as written, but it strips the *field*,
+  not the *address*; it never covered the free-text surface the PII actually occupies.
 - [x] AllowedKeys-lista verifierad mot JobTech-API-spec (web-search 2026-05-12 + JobTech-docs)
+  — ⚠ **RE-OPENED 2026-07-13 (#842):** the list was verified against the JobTech *schema*, never against
+  the PII surface. Every retained free-text key carries recruiter contact details in practice.
 - [x] `PurgeStaleRawPayloadsJob` Hangfire-job implementerad + integration-test (F2-P8c 2026-05-13, commit `81dfab6`)
+  — ⚠ **RE-OPENED 2026-07-13 (#842/#845):** the job never touches `job_ads.description`, and the 02:00
+  backfill restores what it nulls. Its own doc claims to erase exactly the PII it cannot reach.
 - [x] `RawPayloadPurgedDomainEvent` audit-wire (TD-73 prod-batch 2026-05-13 — ersatt av `SystemAuditEvent.RawPayloadPurged` per ADR 0035)
+  — ✅ **STANDS** for the purge job's system event. ⚠ **But the erasure command's audit payload promised
+  above (`{ identifier, type, rowsAffected }`) was never written:** `AuditLogEntry.Create` hard-codes
+  `payload: null` (`AuditLogEntry.cs:81-92`), and a rejected request is not audited at all
+  (`AuditBehavior.cs:35-38`). Art. 5(2)/30 coverage for recruiter-PII erasure does not exist.
 - [x] `docs/runbooks/gdpr-processing-register.md` skapad eller utökad med JobTech-entry (F2-P8b 2026-05-13)
+  — ⚠ **RE-OPENED 2026-07-13 (#842/#824):** the entry inherits the false retention statement from point 3
+  above. Correction is local (ADR 0072).
 - [x] ADR 0024 cross-ref för right-to-erasure-cascade till raw_payload (TD-73 prod-batch 2026-05-13)
+  — ⚠ **RE-OPENED 2026-07-13 (#842):** the cascade registry (`ADR 0024:467-472`) lists **only**
+  `raw_payload` and never `job_ads.description`. It records a cascade that erases nothing. Dated in-file
+  amendment to ADR 0024 ships with #842.
 - [x] Security-auditor verify-pass innan v0.2-prod-tag (TD-73 prod-batch 2026-05-13)
+  — ⚠ **RE-OPENED 2026-07-13 (#842):** the 2026-07-12 security-auditor review
+  (`docs/reviews/2026-07-12-824-dpia-archived-ad-security.md`) falsifies the controls this pass signed off.
+  A fresh verify-pass is a condition of lifting the re-imposed gate.
 
 ### Operativa konsekvenser
+
+> ⚠ **WITHDRAWN by the 2026-07-13 amendment (#842) — see below.** The first bullet is the sentence that
+> released the prod gate, and **all three controls it names are falsified.** The gate is **RE-IMPOSED**:
+> no `v*` prod tag until ADR 0106 Tier B ships. The second bullet is false too: the manual runbook
+> fallback searched `description` and then deleted only `raw_payload`, and TD-75 is closed as void.
 
 - v0.2-prod-tag är inte längre gated på TD-73. PurgeStaleRawPayloadsJob + audit-wire + Email-only-erasure tillsammans täcker GDPR Art. 5/17/30 för rekryterar-PII i raw_payload.
 - Name-baserad erasure hanteras manuellt via runbook (`docs/runbooks/recruiter-pii-erasure.md`) tills TD-75 levereras.
@@ -1125,3 +1178,249 @@ reasoning rather than silently retained.
 - Reviews: `docs/reviews/2026-07-12-824-dpia-archived-ad-security.md` · `-cto.md`
 - Issues: #824 (DPIA truth) · #841 (root cause) · #842 (Art. 17 erasure) · #845 (retention rule) · #843 (test-fiction pattern)
 - DPIA #456 §8 (amended 2026-07-12) · ADR 0087 D1/D8(a) · ADR 0049 Beslut 3 · ADR 0090 D1
+
+---
+
+## Amendment 2026-07-13 — the Art. 17 erasure path is 100 % vacuous; the prod gate is RE-IMPOSED (#842)
+
+**Status:** Accepted. **Decision-maker:** senior-cto-advisor 2026-07-13, BOUND —
+`docs/reviews/2026-07-13-842-erasure-contract-cto.md` (not advice; executable without further GO except
+its six STOPP items).
+**Evidence:** `docs/research/2026-07-13-842-erasure-evidence-pack.md` — every `file:line` below was
+re-verified at HEAD `64e4c654`, and every number below was **measured** against the real dev Postgres on
+2026-07-13 (PG 18.3, 93 469 ads, all ingested through the real JobTech path). **There is no prod DB, so
+that corpus is the whole world of ingested ads.**
+**Governing contract from here on:** **ADR 0106** — *"Recruiter-PII erasure contract: ingest minimisation
++ provable record removal"* (local/gitignored per ADR 0072). This amendment corrects §8's record; ADR 0106
+carries the new mechanism.
+**Relation to the 2026-07-12 amendment (#824):** A2 and A3 above already state parts of this truth. This
+amendment does **not** re-argue them — it **propagates** them into the six passages of the ADR body that
+still contradict them, and it re-imposes the gate that one of those passages released.
+
+> **Line-number note:** the `:NNN` references below are as at HEAD `64e4c654`, i.e. **before** the inline
+> "⚠ superseded" pointers this amendment adds shifted them.
+
+### B1 — `:540` is WITHDRAWN. The prod gate it released is RE-IMPOSED.
+
+> *"v0.2-prod-tag är inte längre gated på TD-73. **PurgeStaleRawPayloadsJob + audit-wire +
+> Email-only-erasure tillsammans täcker GDPR Art. 5/17/30 för rekryterar-PII i raw_payload.**"* — `:540`
+
+**All three named controls are falsified.** This is the single most load-bearing false sentence in the
+repo for this issue: it is what converted an unfinished GDPR control into a released launch gate.
+
+**(1) Email-only-erasure — 100 % vacuous, not approximately vacuous.**
+`RecruiterPiiPurger.RedactByEmailAsync` (`RecruiterPiiPurger.cs:31-52`) was the **only** Art. 17 erasure
+path for recruiter PII. It matched rows by jsonb containment on `{"employer":{"contact_email": …}}` and
+nulled `raw_payload` — nothing else. That key **cannot exist in any ingested row**, under two independent
+locks:
+
+- the wire POCO cannot emit it — `JobTechEmployer` declares exactly `name` + `organization_number`
+  (`JobTechSearchResponse.cs:125-143`), and `raw_payload` is `JsonSerializer.Serialize(hit)`
+  (`PlatsbankenJobSource.cs:238`);
+- the sanitizer's default-deny allowlist would drop it anyway (`JobTechPayloadSanitizer.cs:62-64`,
+  `:107-108`), at the one and only write path into `raw_payload`.
+
+**Measured 2026-07-13:** rows with `raw_payload->'employer' ? 'contact_email'` = **0 of 93 469**.
+`rowsAffected = 0` was its **only possible outcome**, structurally, always — and the endpoint returned
+**200 OK** regardless (`AdminJobAdsEndpoints.cs:54-61`, `RedactRecruiterPiiCommandHandler.cs:48-50`):
+there was no code path that distinguished "erased nothing" from "erased something". Same defect class as
+#805-3 (`JobAd.DeletedAt` never written → vacuous filter).
+
+**(2) `PurgeStaleRawPayloadsJob` — erases a duplicate and leaves the original.**
+It only does `SetProperty(j => j.RawPayload, _ => null)` (`PurgeStaleRawPayloadsJob.cs:93-97`). It never
+touches `job_ads.description`, where the address actually lives — while its own doc comment (`:18-20`)
+claimed it removed *"rekryterar-PII som överlever sanitizer:n (free-text-yta i description)"*. **It
+claimed to erase exactly the PII it cannot reach.** Add A2 above: the 02:00 full backfill restores the
+payload nightly anyway (#845).
+
+**(3) The audit-wire — no Art. 30 coverage for recruiter-PII erasure exists.**
+`:517` promises one audit row per request with payload `{ identifier, type, rowsAffected }`.
+`AuditLogEntry.Create` hard-codes `payload: null` (`AuditLogEntry.cs:81-92`), so nothing is recorded about
+*what* was erased; and `AuditBehavior.cs:35-38` skips audit on `Result.Failure`, so a **rejected** request
+left no trace it was ever received (Art. 12(3) exposure). The runbook's own verification query selected a
+column that is always NULL.
+
+**Where the PII actually is, and that it is searchable today.** The ad body is stored verbatim (`.Trim()`
+only — `PlatsbankenJobSource.cs:207` → `JobAd.cs:50`/`:156`) in plaintext `job_ads.description`.
+`search_vector` is a STORED generated column over `title || description`
+(`JobAdConfiguration.cs:174-179`), and the FTS branch runs for **any** non-blank query
+(`JobAdSearchComposition.cs:137, 175-191`). **Proven against real Postgres:**
+`search_vector @@ websearch_to_tsquery('swedish', '<recruiter email>')` returns a hit — so **any
+authenticated user can reverse-look-up a recruiter by typing the address into /jobb**. The recruiter's
+**name** hits independently via ordinary word lexemes.
+
+**Scale, measured on the corpus (not estimated):** **27 077 of 93 469 ads (29 %)** carry a well-formed
+email in the ad body; **13 134** carry a phone number; only **17** use textual obfuscation. This is not an
+edge case; it is roughly three ads in ten.
+
+**Why this is not yet a harm, and why that is not a reason to wait.** `audit_log` rows matching
+`%RecruiterPiiRedact%` = **0** (measured): **the endpoint has never been called, so no data subject has
+yet received a false confirmation.** That is why #842 is P1 and not P0 — and it is why the correction is
+**cheap**, not why it is deferrable.
+
+**THE GATE (this replaces `:540`):** **any `v*` prod tag IS gated on #842.** The gate lifts **only** when
+ADR 0106 **Tier B** (provable erasure on request — PR3) is merged with green tests. Tier A alone (PR2)
+does **not** lift it: ingest scrubbing makes us hold far less, but leaves no working Art. 17 path for the
+detector's misses (CTO STOPP-6). Independently, the DPIA cannot be signed until the Hetzner-phase
+backup/PITR retention window is filled in by Klas (CTO STOPP-4) — CC must not invent it.
+
+### B2 — `:240-242` (§8's heading): true for OUTBOUND only.
+
+> *"### 8. GDPR: **PII-fri externtrafik** + sync-audit-events … **Inga PII skickas till JobTech.**"* — `:240-242`
+
+The outbound claim stands: search-params are public metadata. But the heading reads as a blanket PII-free
+guarantee for §8, and the **inbound** surface was only bolted on by the 2026-05-12 amendment (`:374`) and
+then covered by a control that does not reach it (B3). §8 makes **no** valid claim about inbound recruiter
+PII. `PlatsbankenJobSource.cs:199-207` says so in-file — it records that `description.text` may carry
+recruiter PII, accepts it under Art. 6(1)(f), and defers the remedy: *"Regex-baserad PII-redaction kan
+lyftas som Trigger-TD vid faktiskt klagomål."* **An Art. 17 request IS that "faktiskt klagomål", and the
+mitigation it defers to never existed.** The inbound control is ADR 0106 Tier A — **bound, not yet
+shipped** (PR2).
+
+### B3 — `:380-382`: it strips the FIELD, not the ADDRESS.
+
+> *"**1. PII-stripping vid ingest (P8b-leverans)** … en `JobTechPayloadSanitizer` som **strippar kända
+> PII-keys** före persistering."* — `:380-382`
+
+The sanitizer is a **key-name filter that never examines a value**, and its allowlist **deliberately
+retains every free-text key**: `headline`, `description`, `description_html`, `description_text`, `text`,
+`text_formatted`, `company_information`, `needs`, `requirements` (`JobTechPayloadSanitizer.cs:33-35`) and
+`salary_description` (`:55`); values are `DeepClone()`d unexamined (`:99`).
+
+**This retention is not an oversight. It is what the sanitizer is for** — an ad without its body is not an
+ad. **PII in free text was never a gap in the design; it IS the design.** The correction is therefore not
+"fix the sanitizer": the sanitizer **stays exactly as it is**, as defense-in-depth for structured keys
+(CTO V3). What changes is (a) this false claim, (b) the sanitizer's own false XML doc
+(`JobTechPayloadSanitizer.cs:7`, *"Strippar PII (rekryterar-namn, email, telefon, firmatecknare)"* —
+truth-synced in PR1), and (c) the addition of a free-text control that does not exist yet (Tier A).
+
+### B4 — `:404-407` + `:413`: both halves of the retention rule are false, plus a cron drift.
+
+> *"`raw_payload` null:as via Hangfire-job **30 dagar efter** `job_ads.published_at`"* … *"lagringstid
+> (**30 dagar för raw_payload, indefinitively för sanitized fields**)"* — `:404-407`, `:413`
+
+- **(a) "30 days after `published_at`" is not the implemented rule.** The 02:00 full backfill rewrites
+  `RawPayload` unconditionally (`JobAd.cs:155-159`; no hash short-circuit in
+  `UpsertExternalJobAdCommandHandler`), so for any ad still in the feed the payload is **restored** each
+  night. The real rule is **"30 days after the ad leaves the feed"** — see A2 above (#845, **doc-only**:
+  A2 explicitly forbids "fixing" this by suppressing the nightly rewrite, which would convert #841's
+  intermittent column-NULL defect into a permanent one).
+- **(b) "indefinitively för sanitized fields" is false.** Seven of the nine STORED generated columns are
+  derived from `raw_payload` and are nulled with it — see A1 above (#824/#841).
+- **(c) Cron drift.** The ADR says **03:00**; the code registers `30 4 * * *`
+  (`RecurringJobRegistrar.cs:98-101`).
+- **(d) And none of it is about the right surface.** The entire retention model governs `raw_payload`. The
+  recruiter's address is in `job_ads.description`, which **nothing** purges, expires or redacts.
+
+The Art. 30 register (`docs/runbooks/gdpr-processing-register.md`) inherits (a), (b) and (d); it is a
+gitignored local file (ADR 0072) and is corrected outside this PR.
+
+### B5 — `:524`: TD-75's rationale is falsified. TD-75 is CLOSED AS VOID.
+
+> *"Name-baserad sökning defererad till TD-75 … YAGNI tills faktisk request finns. **Email är primär
+> rekryterar-identifier i JobTech-payloads.**"* — `:524`
+
+The premise is destroyed by the two locks in B1: **the email is never a structured key in storage at
+all.** The deferral therefore deferred the **only branch that could ever have worked** (free text) and
+shipped the one that **provably never matches** — while `RecruiterIdentifierType.Name` returned
+`NameNotSupportedYet` for the identifier that §1.5 of the pack proves is independently FTS-searchable.
+
+**The rationale is WITHDRAWN, not re-scoped. TD-75 is closed as VOID** (CTO V17). Under ADR 0106 the
+erasure command takes a **single free-text identifier**; `kind` survives only as operator-supplied audit
+metadata, **never as a matching switch** — matching is over free text either way, so a discriminator that
+changes the query is a distinction without a difference and a place for the next bug to hide.
+
+*Flagged, not ruled here:* TD-76 (GIN index on `raw_payload`, `:526`) rests on the same premise — that the
+erasure query is a jsonb search over `raw_payload`. With the purger deleted (PR1) that query has no
+caller. #842's owner should re-triage it; this amendment does not close it.
+
+### B6 — `:530-536`: five of the seven TD-73 closure boxes are re-opened.
+
+Seven `[x]` boxes — including *"Security-auditor verify-pass innan v0.2-prod-tag"* — sat above controls
+that do not do what the checklist says. They are **kept as the historical record and annotated per item**
+in place (see the checklist above): the sanitizer box, the AllowedKeys box, the purge-job box, the Art. 30
+register box, the ADR 0024 cross-ref box and the security-verify box are **RE-OPENED**; the
+`SystemAuditEvent.RawPayloadPurged` box **stands** for the purge job's system event, but the *erasure
+command's* audit payload it is read as covering was never written (B1(3)). **TD-73's closure no longer
+supports a prod tag.**
+
+The ADR 0024 cross-ref deserves its own line, because it is where an auditor looks first: the Art. 17
+cascade registry (`ADR 0024:467-472`) lists **only** `raw_payload` and never `job_ads.description`. A
+dated in-file amendment to ADR 0024 ships with #842, as does one to ADR 0049 (`:148-184`), which declined
+to bring `raw_payload` into the DEK envelope partly in order **not to break the `JsonContains` Art. 17
+mechanism** — a mechanism that was already structurally broken. Its conclusion may survive on other
+merits; its stated justification cannot.
+
+### B7 — What replaces §8's PII story: ADR 0106's two-tier contract (BOUND, **not yet shipped**).
+
+> **Tense discipline, deliberately:** neither tier exists in the code today. Describing a control we do
+> not have is the exact defect this amendment corrects. **Tier A and Tier B are BOUND (CTO 2026-07-13) and
+> UNSHIPPED.** What has already landed on this branch is PR1 only: the endpoint now returns **501** with a
+> truthful problem detail, `RecruiterPiiPurger` + `IRecruiterPiiPurger` + the `RedactRecruiterPii`
+> command/handler are **deleted**, the test fiction is rewritten (#843), and the source docs are
+> truth-synced. **PR1 is containment and truth. It is not a fix.**
+
+**Tier A — Art. 25 (everyone, no request needed, heuristic, DISCLOSED).** We do not *store* recruiter
+contact details: email and phone are stripped from the ad body **at ingest, as a `JobAd` aggregate
+invariant** (`RecruiterContactRedactor`, deterministic, `GeneratedRegex`, **no LLM** — ADR 0071 /
+CLAUDE.md §5), and replaced with a marker pointing to the canonical ad at Arbetsförmedlingen. Placement in
+the aggregate (`JobAd.Import` + `JobAd.UpdateFromSource`) is what makes it durable: the nightly backfill
+and the 10-minute stream both rewrite through `UpdateFromSource`, so the scrub is re-applied on **every**
+write — **no suppression ledger, no tombstone column, no migration.** Detection is imperfect **and we say
+so**. Ships in PR2, with a measured precision/recall number for the DPIA (gold set is a **local, never
+committed** artefact — this repo is public, ADR 0072).
+
+**Tier B — Art. 17 (on request, PROVABLE, no detector involved).** On a valid request we **remove the
+entire ad record** (`JobAdStatus.Erased` — a fourth SmartEnum value on the existing string column, **zero
+migration**) and **block its re-import** (`UpdateFromSource` refuses on `Erased`, keyed by the existing
+`(source, external_id)` UNIQUE tuple; the detail route returns **410 Gone**). It deletes the **carrier**,
+not the **string**: `description`, `search_vector`, `extracted_terms`, `extracted_lexemes`, `raw_payload`
+and the seven derived columns all go together. **No recall question, no obfuscation question, no
+image-embedded question — and it covers the recruiter's NAME**, which no regex can reach. Ships in PR3.
+
+**Each tier is what makes the other honest.** Tier A alone leaves no honest answer to a request (Art.
+17(1) is textually **unqualified**; the *"reasonable steps / available technology"* language lives **only**
+in Art. 17(2), which governs informing **other** controllers — not erasure from our own store — and no
+EDPB/IMY/DPA authority accepts best-effort erasure of unstructured free text). Tier B alone would leave us
+hoarding 27 077 recruiters' contact details that we do not need at all. And Art. 12(3) is why the vacuous
+path had to be hard-failed **today**: a mechanism that reports success while erasing nothing manufactures
+a false statement to a data subject — an **independent** breach on top of the Art. 17 failure.
+
+**Google Spain (C-131/12) cuts both ways, and both halves are load-bearing:** it legitimises *"we erase
+our copy; we cannot erase Arbetsförmedlingen's"*, and it **forecloses** refusing a request on the ground
+that the ad is already published — which is precisely the argument `PlatsbankenJobSource.cs:203` leans on.
+
+**Bound disclosure wording** (substance bound by the CTO; Swedish per CLAUDE.md §10 — "du", no em-dash, no
+exclamation marks, no emoji):
+
+- *Privacy policy (Tier A):* "Vi hämtar annonstexter från Platsbanken. Innan en annons sparas tar vi
+  automatiskt bort e-postadresser och telefonnummer ur annonstexten. Kontaktuppgifterna finns kvar i
+  originalannonsen hos Arbetsförmedlingen, som vi länkar till. Borttagningen är regelbaserad och kan missa
+  uppgifter som skrivits på ovanliga sätt eller som ligger i en bild."
+- *Erasure contract (Tier B):* "Om du begär radering av dina kontaktuppgifter i en annons vi har hämtat tar
+  vi bort hela annonsen ur våra system och hindrar att den hämtas in igen. Vi kan inte ta bort annonsen hos
+  Arbetsförmedlingen, som är den som publicerat den."
+
+**No migration, either tier** (CTO V10): `job_ads.status` has no CHECK constraint and no PG enum type, and
+`audit_log.payload` (jsonb) already exists. ⇒ **#842 does not touch, block or wait on the #821/#841
+migration lane**, and `db-migration-writer` is deliberately not invoked.
+
+### B8 — Shipping order and what lifts the gate
+
+| PR | Scope | Status | Gate |
+|---|---|---|---|
+| **PR1** | Containment + truth: endpoint → **501**; purger + command **deleted**; test fiction rewritten (#843); source docs + this amendment truth-synced | **Committed on this branch** | Does not lift |
+| **PR2** | **Tier A** — ingest scrub as a `JobAd` aggregate invariant + backfill of all 93 469 ads + measured recall + privacy-policy disclosure | **Bound, not shipped** | Does not lift |
+| **PR3** | **Tier B** — `JobAdStatus.Erased`, re-import block, 410 Gone, dry-run-first erasure command, HMAC-SHA256 audit payload (never md5) | **Bound, not shipped** | **LIFTS the gate** |
+
+Until PR3 is merged with green provable-erasure tests: **no `v*` prod tag.** An Art. 17 request arriving
+before then is escalated to Klas and handled manually — the runbook (PR1) now says exactly that, and says
+plainly that no automated erasure path exists.
+
+### Referenser
+- **Ruling:** `docs/reviews/2026-07-13-842-erasure-contract-cto.md` (senior-cto-advisor, BOUND — V1/V3/V5/V10/V14/V17, STOPP-1..6)
+- **Evidence:** `docs/research/2026-07-13-842-erasure-evidence-pack.md` (§1 the defect, §2 surface inventory, §5 false doc claims, §9 measurements on 93 469 ads)
+- **Prior review:** `docs/reviews/2026-07-12-824-dpia-archived-ad-security.md`
+- **Governing contract:** **ADR 0106** (local/gitignored per ADR 0072) · amendments shipped with #842: **ADR 0024** (`:467-472`, Art. 17 cascade registry) · **ADR 0049** (`:148-184`, DEK-envelope exclusion) · **ADR 0087** D8(a) withdrawal (drafted verbatim in A3 above)
+- **Law:** GDPR Art. 5(1)(c)/(2), 12(3), 17(1)/(2), 25(2), 30 — https://gdpr-info.eu (accessed 2026-07-13) · CJEU **C-131/12** *Google Spain* (13 May 2014)
+- **Issues:** #842 (this) · #843 (test fiction) · #845 (retention rule, doc-only) · #824/#841 (generated-column blast radius) · #821 (`DeletedAt` never written)

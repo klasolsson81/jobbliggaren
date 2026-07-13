@@ -34,12 +34,12 @@ public sealed class GetPipelineQueryHandler(
         // ADR 0048: EN LEFT JOIN job_ads FÖRE materialisering; GroupBy
         // in-memory EFTER (pipeline = kanban-vy, ej DB-aggregering — N+1-fri
         // eftersom all data hämtas i den ENA queryn). IgnoreQueryFilters /
-        // manuellt DeletedAt-predikat FÖRBJUDET (ADR 0048 c).
+        // hand-rullade soft-delete-predikat FÖRBJUDET (ADR 0048 c).
         //
-        // #805-3 sanningssynk: j == null betyder att ansökan saknar ANNONSRAD
-        // (manuell eller enbart personligt brev) — INTE att annonsen är borta.
-        // JobAd:s query-filter (DeletedAt == null) exkluderar aldrig något:
-        // DeletedAt saknar writer (#821). En annons som inte längre är aktiv bär
+        // j == null betyder att ansökan saknar ANNONSRAD (manuell eller enbart
+        // personligt brev) — ALDRIG att annonsen är borta. JobAd har ingen
+        // soft-delete-axel och inget query-filter (#821): Status är hela
+        // livscykel-axeln. En annons som inte längre är aktiv bär
         // Status == "Archived" och joinar fortfarande — därav Status på DTO:n.
         var rows = await db.Applications
             .AsNoTracking()

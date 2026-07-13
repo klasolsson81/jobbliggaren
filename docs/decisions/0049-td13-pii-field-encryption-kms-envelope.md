@@ -186,6 +186,227 @@ exklusion (EDPB CEF 2025: exklusion *med* motivering = accepterat).
 WHERE/LIKE-konsument bryts kryptering rakt-av och frågan om
 searchable-encryption återöppnas (utanför scope, YAGNI idag).
 
+---
+
+> **AMENDMENT 2026-07-13 (#842) — Beslut 3: the stated justification for excluding
+> `raw_payload` is WITHDRAWN. The conclusion is NOT reversed. The `JsonContains`
+> constraint is VOID.**
+
+**Scope of this amendment.** It touches **Beslut 3 only**. Beslut 1, 2, 4 and 5
+(per-user DEK, crypto-erasure, hybrid lazy encrypt-on-write, jsonb→text
+expand/contract) and Mekanik-not 1-7 are unaffected. It **withdraws a stated
+justification**; it does **not** reverse the decision that justification supported, and
+it does **not** decide whether `raw_payload` should now be encrypted. That question is
+re-opened on the merits and left **open** (§D below). The false pillar is being removed
+from the reasoning rather than silently retained — which is the whole discipline #842
+exists to enforce.
+
+#### A. What Beslut 3 stated (verbatim)
+
+The exclusion rested on a *"tre-lagers befintlig motivering"* (`:148-152`):
+
+> "`job_ads.raw_payload` krypteras **inte** av TD-13-envelopet. Exklusionen
+> dokumenteras med tre-lagers befintlig motivering: JobTech-payloaden är redan
+> saniterad (`JobTechPayloadSanitizer` allowlist, ADR 0032 §8-amendment),
+> self-purgande (30d, `PurgeStaleRawPayloadsJob`) och Art. 17-null-out:ad
+> (`RecruiterPiiPurger`). Envelope ovanpå tre befintliga kontroller på
+> redan-saniterad icke-user-PII ger **noll additionell GDPR-vinst** men bryter tre
+> Postgres-side-mekanismer:"
+
+The third of those Postgres-side mechanisms was the Art. 17 erasure path itself
+(`:162-164`):
+
+> "3. **Art. 17-redaction** (`RecruiterPiiPurger.cs:38-41`,
+>    `EF.Functions.JsonContains` = Postgres `@>` direkt mot raw_payload) —
+>    ciphertext → `@>` matchar ej → **Art. 17-radering bryts**."
+
+And the trade-off was booked as a bounded, defensible one (`:182-184`):
+
+> "**Trade-off:** raw_payload förblir klartext-JSONB at-app-rest (skyddad av RDS
+> KMS + sanitizer + 30d-purge + Art. 17-null-out). Medveten dokumenterad
+> exklusion (EDPB CEF 2025: exklusion *med* motivering = accepterat)."
+
+#### B. What is false, layer by layer
+
+**Layer 1 — *"redan saniterad"*: FALSE as an inference, and false in the direction that
+matters.** `JobTechPayloadSanitizer` is a **key-name filter that never examines a
+value**. Its default-deny allowlist drops the PII *keys*
+(`JobTechPayloadSanitizer.cs:107-108`) but **deliberately retains every free-text key** —
+`headline`, `description`, `description_html`, `description_text`, `text`,
+`text_formatted`, `company_information`, `needs`, `requirements` (`:33-35`) and
+`salary_description` (`:55`) — whose values are `DeepClone()`d unexamined (`:99`).
+**It strips the field, not the address.** PII in free text was never a gap in the
+sanitizer's design; it **is** the design. Consequently `raw_payload` carries the
+recruiter's email in its retained free-text keys, in plaintext, at app-rest — the exact
+class of exposure this envelope exists to close. Measured on the real corpus
+(2026-07-13, dev Postgres 18.3, 93 469 ads): **27 077 ads (29 %) carry a well-formed
+email in the ad body and 13 134 carry a phone number.** *"Redan saniterad"* was read as
+*"contains no recruiter PII"*. It never meant that.
+
+**Layer 2 — *"self-purgande (30d)"*: materially false.** `PurgeStaleRawPayloadsJob` does
+exactly one thing — `SetProperty(j => j.RawPayload, _ => null)` (`:93-97`) — and it
+**never touches `description`**, while its own doc comment (`:18-20`) claims it erases
+*"rekryterar-PII som överlever sanitizer:n (free-text-yta i description)"*. It claims to
+erase precisely the PII it cannot reach. And the 30-day clock does not run as documented:
+the nightly full backfill (`SyncPlatsbankenSnapshotJob`) and the 10-minute stream both
+funnel through `UpdateFromSource`, which **unconditionally reassigns `RawPayload`**
+(`JobAd.cs:155-159`), so a purged payload is **restored within ≤24 h for any ad still in
+the feed** (#845; already recorded at ADR 0032 A2 `:1090-1092`). The real rule is *"30
+days after the ad leaves the feed"*, not *"30 days after publication"*.
+
+**Layer 3 — *"Art. 17-null-out:ad (`RecruiterPiiPurger`)"*: FALSE, completely.**
+`RecruiterPiiPurger` probed jsonb containment on `{"employer":{"contact_email": …}}`
+(`RecruiterPiiPurger.cs:31-52`) — a key the ingest path **guarantees is absent**. Two
+independent locks: the wire POCO declares only `name` + `organization_number` and cannot
+emit it (`JobTechSearchResponse.cs:125-143`), and the sanitizer's default-deny allowlist
+would drop it anyway. **Measured: 0 of 93 469 ingested ads carry that key.**
+`rowsAffected = 0` was its **only possible outcome**. It was not approximately vacuous;
+it was **100 % vacuous**. It has been deleted (#842, PR1), together with
+`IRecruiterPiiPurger` and the `RedactRecruiterPii` command; the admin endpoint now
+returns **501** with a truthful problem detail.
+
+**Stale by-catch, recorded not re-litigated:** the Trade-off's *"skyddad av RDS KMS"* leg
+also no longer exists. AWS was retired (ADR 0066) and the KMS provider removed (#802) —
+see the 2026-06-06 and 2026-07-12 notes at the head of this ADR. The Hetzner-phase
+disk-at-rest and master-key protection model remains **TD-102** and is unbuilt. This
+amendment does not re-open it; it is flagged only because the Trade-off sentence still
+reads as if all four protective legs stand. **One of the four remains: the sanitizer, and
+only for the structured keys it actually filters.**
+
+#### C. The irony, stated plainly
+
+Field encryption was declined for `raw_payload` in part **in order to avoid breaking an
+Art. 17 mechanism that was already structurally incapable of erasing anything**. The
+reasoning at `:162-164` — *"ciphertext → `@>` matchar ej → Art. 17-radering bryts"* — is
+literally true and completely worthless: encryption would indeed have broken the `@>`
+probe, and the `@>` probe matched nothing, could match nothing, and had matched nothing
+in 93 469 ads. **We protected a no-op from encryption.** Worse, the mechanism we protected
+was cited as evidence that there was nothing left to protect (Layer 3 of the same
+justification), while the data it was supposed to erase sat in plaintext in the very
+column the envelope was declined for.
+
+The practical harm to date is bounded and should be stated as fairly as the defect:
+`audit_log` holds **0 rows** for the erasure endpoint — it has **never been called**, so
+**no data subject has yet received a false confirmation**. That bounds the damage. It does
+not excuse the reasoning.
+
+#### D. Verdicts
+
+**WITHDRAWN — the three-layer justification.** *"Envelope ovanpå tre befintliga kontroller
+på redan-saniterad icke-user-PII ger noll additionell GDPR-vinst"* is withdrawn in full.
+Two of its three controls are falsified (Layers 2 and 3) and the third does not do what
+the sentence assumes it does (Layer 1). The premise *"there is no recruiter PII in
+`raw_payload` worth encrypting"* was **factually wrong at the time it was written**.
+
+**VOID — the `JsonContains` constraint (`:162-164`).** There is **no `@>` erasure
+mechanism left to protect**: `RecruiterPiiPurger` is deleted and the replacement contract
+(ADR 0106) uses **no jsonb-containment probe of any kind**. Mechanism 3 of Beslut 3, and
+the *"JsonContains-ersättning"* cost item in the rejection of alternative **(b)**
+(*"Alternativ övervägda — Beslut 3"*), are **void and must never again be cited as a
+reason against encrypting `raw_payload`.** The cost they priced has already been paid: the
+mechanism is gone.
+
+**NOT REVERSED — the decision itself.** Beslut 3's conclusion (`raw_payload` stays outside
+the DEK envelope) **survives, for now, on reasoning that is independent of the withdrawn
+pillar**:
+
+1. **The generated-column constraint is intact and is broader than the ADR recorded.**
+   `job_ads` carries **9 STORED generated columns, 7 of which derive from `raw_payload`**
+   (`organization_number`, `ssyk_concept_id`, `region_concept_id`,
+   `municipality_concept_id`, `occupation_group_concept_id`, `employment_type_concept_id`,
+   `worktime_extent_concept_id`) — the ADR named only two (`:156-158`). Postgres computes
+   `raw_payload->…` at write time; **ciphertext is not valid JSONB and the `->` operator
+   cannot be computed over it at all.** Mechanism 1 (and mechanism 2, the taxonomy-search
+   SPOT, which depends on it transitively) stands **unchanged and unweakened**. This is a
+   real, still-valid, load-bearing constraint — and it, not the falsified PII pillar, is
+   what actually holds the decision up.
+2. **Post-ADR-0106 there will be materially less to protect.** Under Tier A the ad body is
+   scrubbed of detected contact details **at ingest**, and the redactor is applied to the
+   `rawPayload` string as well — redacting values **in place**, never nulling, with a
+   replacement token carrying no JSON-structural character, so the document stays valid
+   JSONB and the seven generated columns keep computing. **Tense discipline: Tier A is
+   BOUND but NOT YET SHIPPED (PR2). Today `raw_payload` still holds those addresses.**
+
+**OPEN — whether `raw_payload` should now be encrypted is re-openable on the merits, and
+is NOT decided by this amendment.** It is genuinely live, for reasons the original Beslut
+3 could not have weighed:
+
+- One of the two costs that priced alternative **(b)** has already evaporated (the
+  `JsonContains` replacement is done — see VOID above).
+- **#841** would materialise the seven `raw_payload`-derived columns as **C#-written
+  ingest columns**, which changes the shape of the single surviving constraint against
+  encryption. If those columns stop being computed by Postgres over the jsonb, the
+  strongest remaining argument for the exclusion is no longer the same argument.
+- Even after Tier A, `raw_payload` retains what the detector misses (obfuscation,
+  image-embedded addresses, and the recruiter's **name**, which no regex reaches).
+
+**This amendment takes no position on that question. It is open.** Whoever re-opens it must
+argue it on (1) the generated-column constraint as it stands after #841, and (2) the
+residual PII in the free-text keys after Tier A — **and must not resurrect the withdrawn
+three-layer pillar or the void `JsonContains` constraint.**
+
+#### E. Passages in this ADR that inherit the withdrawn pillar
+
+Cited by section (not by line) because this amendment shifts line numbers below it. The
+original prose is **left standing as the historical record**; **this amendment overrides
+it** wherever they conflict:
+
+| Section | Inherited claim | Status |
+|---|---|---|
+| **Beslut 3**, `:148-152` | *"tre-lagers befintlig motivering … noll additionell GDPR-vinst"* | **Withdrawn** (§D) |
+| **Beslut 3**, `:162-164` | Mechanism 3, *"Art. 17-radering bryts"* | **Void** (§D) |
+| **Beslut 3 — Motivering**, `:174-180` | *"raw_payload är funktionellt kohesivt med giltig JSONB (generated columns → taxonomi-sök-SPOT ADR 0039 + JsonContains-Art.17)"* | Read **without** the `JsonContains-Art.17` conjunct; the generated-column/SPOT half stands |
+| **Beslut 3 — Trade-off**, `:182-184` | *"skyddad av RDS KMS + sanitizer + 30d-purge + Art. 17-null-out"* | Three of four legs gone (§B). The exclusion is **no longer a documented-and-motivated** one in the EDPB CEF 2025 sense until re-argued (§D OPEN) |
+| **Konsekvenser — Positiva** | *"raw_payload-exklusionen bevarar generated columns, taxonomi-sök-SPOT (ADR 0039/0042) och `JsonContains`-Art.17 orörda"* | Drop the `JsonContains`-Art.17 conjunct — there is nothing left to preserve |
+| **Konsekvenser — Negativa** | *"Medveten, motiverad exklusion (RDS KMS + sanitizer + 30d-purge + Art.17-null-out)"* | Same correction as the Trade-off |
+| **Alternativ övervägda — Beslut 3 (b)** | *"negativ ROI … + JsonContains-ersättning + SPOT-omskrivning …"* | The `JsonContains-ersättning` cost item is **void** — already paid (§D) |
+| **Validering** | *"`JsonContains`-Art.17 (`RecruiterPiiPurger`) verifieras gröna efter implementation"* | **Void** — the mechanism is deleted; there is no green to verify. The generated-column and SPOT non-regression checks stand |
+| **Relaterade beslut — ADR 0032 §8** | *"ADR 0049 Beslut 3 motiverar raw_payload-exklusionen delvis på ADR 0032:s sanitizer-allowlist + 30d-purge"* | Both cited grounds are falsified (§B Layers 1-2). ADR 0032 carries its own dated amendments A2/A3 for the same drift |
+
+#### F. The replacement contract (BOUND, NOT YET SHIPPED)
+
+The Art. 17 recruiter-PII contract is now **ADR 0106** (local per ADR 0072), a two-tier
+design. **Neither tier is shipped yet — do not read this ADR as describing a control we
+have.** That failure mode is the exact defect #842 exists to correct.
+
+- **Tier A (Art. 25, everyone, no request needed, heuristic, disclosed) — PR2, not yet
+  shipped.** Email and phone are stripped from the ad body at ingest as a `JobAd`
+  aggregate invariant (`RecruiterContactRedactor`, deterministic, no LLM per ADR 0071),
+  replaced by a marker pointing to the canonical ad at Arbetsförmedlingen. Detection is
+  imperfect and the privacy policy says so.
+- **Tier B (Art. 17, on request, provable, no detector involved) — PR3, not yet shipped;
+  the launch gate stays closed until it lands.** A valid request removes **the entire ad
+  record** (`JobAdStatus.Erased`, zero migration) and blocks its re-import. It deletes the
+  **carrier**, not the **string**, so `description`, `search_vector`, `extracted_terms`,
+  `extracted_lexemes`, `raw_payload` and the seven derived columns go together — and it
+  covers the recruiter's **name**, which no regex can reach.
+
+Why the contract had to change shape at all, in one line: **Art. 17(1) is textually
+unqualified.** The *"reasonable steps / available technology"* language lives only in Art.
+17(2), which governs informing **other** controllers, not erasure from our own store —
+so there is no instrument that lets us soften a promise about our own copy, and a
+mechanism that reports success while erasing nothing is an independent **Art. 12(3)**
+breach on top of the Art. 17 failure.
+
+#### G. Sources for this amendment
+
+- `docs/research/2026-07-13-842-erasure-evidence-pack.md` — §1 (the vacuous probe, with
+  file:line), §2 (surface inventory), §3 (what the code does and does not do), §5 (the
+  table of falsified doc claims; this ADR is **item 8**), §9 (measurements against the
+  real dev corpus, 2026-07-13).
+- `docs/reviews/2026-07-13-842-erasure-contract-cto.md` — the binding CTO ruling; **V19**
+  mandates this dated in-file amendment, **V3/V5** bind Tier A/Tier B, **V10** confirms
+  #842 takes zero migrations.
+- ADR 0032 amendments **A2** (`:1083-1092`, #845) and **A3** (`:1099-1122`, #842) — the
+  same drift, already recorded at source. ADR 0024 `:467-472` (the Art. 17 cascade
+  registry) carries its own #842 amendment.
+- Code, at HEAD: `JobTechPayloadSanitizer.cs:33-35, :55, :99, :107-108` ·
+  `JobTechSearchResponse.cs:125-143` · `RecruiterPiiPurger.cs:31-52` (deleted in PR1) ·
+  `PurgeStaleRawPayloadsJob.cs:18-20, :93-97` · `JobAd.cs:155-159` ·
+  `PlatsbankenJobSource.cs:199-207`.
+
+---
+
 ### Beslut 4 — Migrering: hybrid lazy encrypt-on-write (primär) + bounded idempotent backfill-job
 
 En lazy `ValueConverter` krypterar vid write och dekrypterar vid read.

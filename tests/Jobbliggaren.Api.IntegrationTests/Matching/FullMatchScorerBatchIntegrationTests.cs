@@ -25,7 +25,8 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// <item>Per-key <see cref="FullMatchScore"/> EQUALS <see cref="IMatchScorer.ScoreFullAsync"/>
 /// for that ad + the same profile — the four embedded Fast dims AND the three new dims
 /// (SkillOverlap / MustHaveCoverage / NiceToHaveCoverage).</item>
-/// <item>Missing / non-existent / soft-deleted ids are SILENTLY OMITTED (no
+/// <item>Missing / non-existent ids are SILENTLY OMITTED (an ARCHIVED ad is NOT missing: it is
+/// scored -- known gap #864). (no
 /// NotFoundException — parity <c>ScoreBatchAsync</c>).</item>
 /// <item>Empty id list → empty dict (no query).</item>
 /// </list>
@@ -107,7 +108,9 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
         return jobAd.Id;
     }
 
-    private async Task SoftDeleteAsync(JobAdId id, CancellationToken ct)
+    // The REAL retraction transition (#821: Archive() is JobAd's only lifecycle method -
+    // there is no soft-delete axis to stamp).
+    private async Task ArchiveAsync(JobAdId id, CancellationToken ct)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -115,7 +118,7 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
 
         var ad = await db.JobAds.FindAsync([id], ct);
         ad.ShouldNotBeNull();
-        db.Entry(ad!).Property(nameof(JobAd.DeletedAt)).CurrentValue = clock.UtcNow;
+        ad!.Archive(clock);
         await db.SaveChangesAsync(ct);
     }
 
@@ -351,7 +354,7 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
     }
 
     // =================================================================
-    // 9. Missing / soft-deleted ids omitted; empty ids → empty dict
+    // 9. Missing ids omitted (an ARCHIVED ad is NOT omitted -- #864); empty ids → empty dict
     // =================================================================
 
     [Fact]
@@ -376,25 +379,43 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
         batch.ShouldNotContainKey(ghost);
     }
 
+    // =================================================================
+    // CHARACTERIZATION TEST (#864) - NOT a specification. It asserts what the code
+    // ACTUALLY DOES today, so the gap cannot be forgotten (Feathers 2004, ch. 13).
+    //
+    // MatchScorer has NO Status gate; its exclusion story was delegated entirely to
+    // JobAd's global soft-delete query filter, which was VACUOUS (DeletedAt never had
+    // a writer) and is now retired (#821). An ARCHIVED ad is scored and tagged in
+    // production, today. The predecessor of this test fabricated DeletedAt via
+    // db.Entry(...) - a state production could never reach - and asserted omission:
+    // green forever, proving nothing (#843 test fiction).
+    //
+    // WHEN #864 IS FIXED, THIS TEST GOES RED. That is the signal to rewrite it as a
+    // specification, not to patch it back to green.
+    // =================================================================
     [Fact]
-    public async Task ScoreFullBatch_WithSoftDeletedAd_OmitsIt()
+    public async Task ScoreFullBatch_WithArchivedAd_StillScoresIt_KnownGap_Issue864()
     {
         var ct = TestContext.Current.CancellationToken;
         var grp = NewConceptId("grp");
         var terms = ExtractedTerms.From([SkillTerm(CSharpConceptId, CSharpDisplay)]);
         var live = await SeedJobAdAsync("Systemutvecklare", grp, null, null, terms, ct);
-        var deleted = await SeedJobAdAsync("Arkitekt", grp, null, null, terms, ct);
-        await SoftDeleteAsync(deleted, ct);
+        var archived = await SeedJobAdAsync("Arkitekt", grp, null, null, terms, ct);
+        await ArchiveAsync(archived, ct);
 
         var profile = FullProfile(new CandidateMatchProfile("Titel", [grp], [], [], []), CSharpConceptId);
 
         var (scope, scorer) = NewScorer();
         using var _ = scope;
 
-        var batch = await scorer.ScoreFullBatchAsync([live, deleted], profile, ct);
+        var batch = await scorer.ScoreFullBatchAsync([live, archived], profile, ct);
 
         batch.ShouldContainKey(live);
-        batch.ShouldNotContainKey(deleted);
+
+        // THE GAP (#864): no Status predicate on the Full batch path either - the archived ad is
+        // scored exactly like the live one. Documents the defect; does not bless it.
+        batch.ShouldContainKey(archived,
+            "MatchScorer has no Status gate (#864) - an archived ad is still fully scored.");
     }
 
     [Fact]

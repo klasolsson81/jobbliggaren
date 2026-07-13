@@ -4,15 +4,42 @@ using System.Text.Json.Nodes;
 namespace Jobbliggaren.Infrastructure.JobSources.Platsbanken;
 
 /// <summary>
-/// Strippar PII (rekryterar-namn, email, telefon, firmatecknare) från JobTech-
-/// payload innan persistering i <c>job_ads.raw_payload</c>. Allowlist-baserad
-/// per Saltzer/Schroeder 1975 (default-deny) — okända keys droppas. Pure
-/// static helper; ingen DI-registrering eftersom inga instance-data.
+/// Drops PII-bearing <b>keys</b> from the JobTech payload before it is persisted to
+/// <c>job_ads.raw_payload</c>. Allowlist-based per Saltzer/Schroeder 1975 (default-deny)
+/// — unknown keys are dropped. Pure static helper; no DI registration (no instance data).
 /// </summary>
 /// <remarks>
-/// ADR 0032 §8-amendment 2026-05-12 + TD-73. Allowlist-keys är härledda från
-/// JobTech jobsearch-/jobstream-schemat (web-verifierat 2026-05-12) och täcker
-/// fält som behövs för debug/replay av match-logik utan att exponera PII.
+/// <para>
+/// ADR 0032 §8-amendment 2026-05-12 + TD-73. The allowlist keys are derived from the
+/// JobTech jobsearch/jobstream schema (web-verified 2026-05-12) and cover the fields
+/// needed to debug/replay match logic.
+/// </para>
+///
+/// <para>
+/// <b>TRUTH-SYNC 2026-07-13 (#842) — read this before trusting the class name.</b>
+/// This class's doc used to claim it "strips PII (recruiter name, email, phone,
+/// signatory)". <b>That was false, and the false claim was load-bearing:</b> ADR 0032 §8
+/// registered this class as one of two GDPR mitigations for inbound recruiter PII, and
+/// ADR 0049 cited it to decline field encryption.
+/// </para>
+///
+/// <para>
+/// <b>It strips the FIELD, not the ADDRESS.</b> This is a <i>key-name</i> filter. It never
+/// examines a value. Every free-text key is <b>deliberately retained</b> —
+/// <c>description</c>, <c>description_text</c>, <c>text</c>, <c>company_information</c>,
+/// <c>needs</c>, <c>requirements</c>, <c>salary_description</c> — and values are
+/// <c>DeepClone()</c>d unexamined. A recruiter's address written into the ad body
+/// ("Skicka CV till anna@acme.se") passes through untouched. Measured on the real corpus:
+/// <b>27 077 of 93 469 ads (29 %) carry an email address in the ad body.</b>
+/// </para>
+///
+/// <para>
+/// <b>PII in free text was never a gap in this design. It IS this design.</b> The control
+/// that will actually remove it is <c>RecruiterContactRedactor</c>, applied as a
+/// <c>JobAd</c> aggregate invariant at ingest (ADR 0106 Tier A, PR2 — not shipped as of
+/// this PR). This allowlist survives as defense-in-depth against structured contact keys,
+/// which is all it ever did. It is not, and never was, a free-text control.
+/// </para>
 /// </remarks>
 public static class JobTechPayloadSanitizer
 {

@@ -91,8 +91,8 @@ public class ListSavedJobAdsQueryHandlerTests
     // "Active") utan att någon svit blev röd.
     //
     // Arkiverings-grenen pinnar dessutom #805-3:s bärande premiss HÄR: en arkiverad
-    // annons joinar FORTFARANDE (arkivering != radering; det globala query-filtret
-    // är DeletedAt == null, och DeletedAt saknar writer, #821). Skulle någon
+    // annons joinar FORTFARANDE (arkivering != radering; JobAd har inget query-filter
+    // och ingen soft-delete-axel alls, #821). Skulle någon
     // åter-koppla "annonsen är borta" till JobAd-nullheten faller
     // ShouldNotBeNull() — samma spärr som Api-integrationssvitens
     // *_WithArchivedJobAd_*-tester ger de tre ansöknings-handlarna.

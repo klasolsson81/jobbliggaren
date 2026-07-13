@@ -24,7 +24,7 @@ public interface IEmployerDisambiguationQuery
     /// <summary>
     /// Distinct employers whose name contains <paramref name="nameQuery"/> (case-insensitive),
     /// grouped by org.nr, ordered by ad count desc, capped at <paramref name="limit"/>. Ads with a
-    /// NULL org.nr are excluded (partial-index predicate); the global soft-delete filter applies.
+    /// NULL org.nr are excluded (partial-index predicate). JobAd has no soft-delete axis (#821).
     /// </summary>
     ValueTask<IReadOnlyList<EmployerAdGroup>> SearchAsync(
         string nameQuery, int limit, CancellationToken cancellationToken);

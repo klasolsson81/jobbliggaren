@@ -21,7 +21,6 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         builder.Property(j => j.PublishedAt).IsRequired();
         builder.Property(j => j.ExpiresAt);
         builder.Property(j => j.CreatedAt).IsRequired();
-        builder.Property(j => j.DeletedAt);
 
         // ADR 0032 §4 — raw_payload som jsonb för debug/replay-artefakter.
         // PII-yta: JobTech-payload kan innehålla rekryterar-PII (namn, email,
@@ -212,8 +211,14 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
                 "jsonb_path_query_array(extracted_terms, '$[*].Lexeme')",
                 stored: true);
 
-        builder.HasQueryFilter(j => j.DeletedAt == null);
-
+        // #821 — NO HasQueryFilter on JobAd, deliberately. Unlike the 13 aggregates that
+        // carry a real soft-delete axis (each with a SoftDelete() writer), JobAd has none:
+        // Status is the sole lifecycle axis and end-user views filter it at the SPOT in
+        // JobAdSearchComposition.ApplyFilter. The old `DeletedAt == null` filter was
+        // VACUOUS (no writer, ever) and every job_ads index is therefore predicate-FREE —
+        // see RetireJobAdDeletedAtAxis. Do not reintroduce a lifecycle-derived index
+        // predicate: F6P4aJobAdTrigramIndexPredicateFix cost ~35-50 s of seq scan when an
+        // index predicate and a query predicate drifted apart.
         builder.Ignore(j => j.DomainEvents);
     }
 }

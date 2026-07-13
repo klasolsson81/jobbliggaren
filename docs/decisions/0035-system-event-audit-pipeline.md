@@ -161,9 +161,11 @@ public void ISystemEventAuditor_should_only_be_referenced_by_system_jobs()
 }
 ```
 
-**Not:** `RedactRecruiterPiiCommandHandler` är INTE konsument av denna port —
-den får sin audit-rad via `IAuditableCommand` + `AuditBehavior` (Mediator-
-pipeline) per ADR 0022. Bara orchestrator-jobben utanför Mediator-pipelinen
+**Not:** `RedactRecruiterPiiCommandHandler` (borttaget 2026-07-13, #842 — det var en
+Art. 17-raderingsväg som strukturellt inte kunde radera något) var INTE konsument av
+denna port — det fick sin audit-rad via `IAuditableCommand` + `AuditBehavior` (Mediator-
+pipeline) per ADR 0022. Principen står kvar och gäller övriga admin-kommandon: bara
+orchestrator-jobben utanför Mediator-pipelinen
 konsumerar `ISystemEventAuditor`.
 
 Konsumentlistan är låst. Ny konsument kräver explicit utökning av denna test — vilket triggar code-review.

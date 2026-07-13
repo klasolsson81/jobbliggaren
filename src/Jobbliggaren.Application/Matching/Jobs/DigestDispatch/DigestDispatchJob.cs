@@ -168,7 +168,9 @@ public sealed partial class DigestDispatchJob(
         // Display items (capped) for the SAME Pending Strong rows, joined to each ad's PUBLIC
         // title/company (no CV data). Read BEFORE the claim (rows still Pending), AsNoTracking,
         // same ordering → the most recent N of `pending`. The inner join honours the JobAd
-        // soft-delete query filter (DeletedAt == null), so a row whose ad was soft-deleted/erased
+        // JOBAD CARRIES NO QUERY FILTER (#821 retired the dead soft-delete axis), so the inner join
+        // drops a row only when the AD ROW ITSELF IS GONE -- an ARCHIVED ad still joins. The old comment
+        // claimed a soft-delete filter did the excluding; it never did. A row whose ad was erased
         // since the match falls out of the body but is still drained below (it was a valid match
         // when detected). No Status==Active predicate here — deliberate parity with the in-app
         // /matchningar surface (GetMyMatchesQueryHandler), so the email shows the SAME set the user
@@ -361,8 +363,9 @@ public sealed partial class DigestDispatchJob(
 
         // Display items — the PUBLIC title/company per ad (never the org.nr — ADR 0087 D8), AsNoTracking,
         // same ordering. Read BEFORE the claim (the join predicate needs the rows still Pending). The
-        // inner join honours the JobAd soft-delete filter (a retracted ad falls out of the body but its
-        // hit is still drained below). Joining (not an id-set filter) sidesteps the strongly-typed-VO
+        // inner join drops a hit whose ad row is GONE (the ad body is omitted but the hit is still
+        // drained below). It is not a lifecycle filter: JobAd has no soft-delete axis (#821), so an
+        // ARCHIVED ad still joins. Joining (not an id-set filter) sidesteps the strongly-typed-VO
         // Contains trap.
         var itemsQuery =
             from h in db.FollowedCompanyAdHits.AsNoTracking()

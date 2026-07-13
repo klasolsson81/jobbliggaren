@@ -18,7 +18,7 @@ namespace Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdRequirements;
 /// <c>must_have</c>-nyckeln. Predikatet behöver Npgsql <c>jsonb ?</c>-operatorn och
 /// får därför INTE byggas inline här (skulle läcka Npgsql till Application,
 /// CLAUDE.md §2.1) — det kommer via <see cref="IJobAdRequirementBackfillFilter"/>
-/// (Infrastructure-impl, paritet <c>IRecruiterPiiPurger</c>). Per-ID-refetch
+/// (Infrastructure-impl). Per-ID-refetch
 /// re-skriver HELA raw_payload → must_have landar + ingest-hooken (UpsertExternalJobAd)
 /// kör full extraktion → Requirement-termer populeras (OCH keyword/skill — denna
 /// körning subsumerar F4-4:s lokala extraction-backfill).

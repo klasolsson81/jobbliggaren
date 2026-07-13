@@ -22,8 +22,8 @@ public interface IJobAdEmployerReader
     /// <c>null</c> value carries no employer org.nr — either the B2 not-yet-re-ingested case, OR (the
     /// common case in practice) its <c>raw_payload</c> has been purged 30 days after publication, which
     /// makes Postgres recompute the STORED generated org.nr column to NULL (#824; root cause #841).
-    /// Archival does NOT remove an ad from this map — the soft-delete filter it composes with is vacuous
-    /// (<c>JobAd.DeletedAt</c> has no writer, #821). An ad is ABSENT only if it does not exist. The value
+    /// Archival does NOT remove an ad from this map — <c>JobAd</c> has no soft-delete axis at all (#821
+    /// retired it) and no query filter. An ad is ABSENT only if it does not exist. The value
     /// is the raw 10-digit org.nr — see the type remarks: server-side only, never surfaced.
     /// </summary>
     Task<IReadOnlyDictionary<Guid, string?>> GetOrganizationNumbersByJobAdIdsAsync(

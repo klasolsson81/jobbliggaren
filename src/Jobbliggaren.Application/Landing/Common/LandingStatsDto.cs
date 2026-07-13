@@ -25,7 +25,8 @@ namespace Jobbliggaren.Application.Landing.Common;
 /// </para>
 /// </summary>
 /// <param name="ActiveCount">
-/// Antal JobAds med Status=Active (soft-delete-filter applicerat), eller <c>null</c> när värdet inte är
+/// Antal JobAds med Status=Active (Status är hela avgränsningen — JobAd har ingen soft-delete-axel,
+/// #821), eller <c>null</c> när värdet inte är
 /// mätt (cache-miss). Aldrig ett uppskattat eller påhittat tal.
 /// </param>
 /// <param name="NewToday">

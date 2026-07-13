@@ -23,7 +23,8 @@ public sealed record JobAdMatchBatchDto(IReadOnlyDictionary<Guid, JobAdMatchEntr
 /// <summary>
 /// One ad's match overlay. Present in <see cref="JobAdMatchBatchDto.Entries"/> ONLY when
 /// the ad earned a positive tag (occupation/SSYK Match — the gate). An ad that does not
-/// qualify, does not exist, or is soft-deleted is simply absent (the FE renders no chip).
+/// qualify, or does not exist, is simply absent (the FE renders no chip). An ARCHIVED ad,
+/// however, IS still tagged — <c>MatchScorer</c> has no status gate (known gap #864).
 /// </summary>
 /// <param name="Grade">The named match grade (the card's <c>.jp-matchchip</c> tag) —
 /// a bounded category, never a number. F4-16 paints the golden rung: a Strong Fast match

@@ -84,8 +84,7 @@ public class CompanyLookupActiveAdCountTests
         string orgNr,
         CancellationToken ct,
         bool expired = false,
-        bool archived = false,
-        bool softDeleted = false)
+        bool archived = false)
     {
         var externalId = $"clac-{Guid.NewGuid():N}";
 
@@ -123,13 +122,6 @@ public class CompanyLookupActiveAdCountTests
             await db.SaveChangesAsync(ct);
         }
 
-        // Soft-delete is ORTHOGONAL to status (status stays 'Active'); only DeletedAt is stamped so
-        // ONLY the global soft-delete query filter excludes it (parity CompanyWatchMatchCountTests).
-        if (softDeleted)
-        {
-            db.Entry(jobAd).Property(nameof(JobAd.DeletedAt)).CurrentValue = clock.UtcNow;
-            await db.SaveChangesAsync(ct);
-        }
     }
 
     // Builds the SUT over a FRESH scoped AppDbContext (separate from the seed scope so Postgres has
@@ -183,18 +175,17 @@ public class CompanyLookupActiveAdCountTests
     }
 
     [Fact]
-    public async Task Handle_ActiveAdCount_ExcludesExpiredArchivedAndSoftDeleted()
+    public async Task Handle_ActiveAdCount_ExcludesExpiredAndArchived()
     {
-        // The status='Active' predicate + the global soft-delete query filter (ADR 0048) exclude
-        // everything but the single live Active ad — proven against real Postgres (InMemory neither
-        // populates the generated column nor applies the value-converted Status shadow the same way).
+        // The status='Active' predicate is the WHOLE exclusion (#821 — JobAd has no soft-delete axis
+        // and no query filter). Proven against real Postgres (InMemory neither populates the generated
+        // column nor applies the value-converted Status shadow the same way).
         var ct = TestContext.Current.CancellationToken;
         var orgNr = NewOrgNr();
 
         await SeedAdAsync(orgNr, ct);                       // Active → counted
         await SeedAdAsync(orgNr, ct, expired: true);        // Expired → excluded (status)
         await SeedAdAsync(orgNr, ct, archived: true);       // Archived → excluded (status)
-        await SeedAdAsync(orgNr, ct, softDeleted: true);    // soft-deleted → excluded (query filter)
 
         var (scope, handler) = NewHandler(orgNr, "Testbolaget AB");
         using var dispose = scope;
@@ -204,6 +195,6 @@ public class CompanyLookupActiveAdCountTests
         result.IsSuccess.ShouldBeTrue();
         result.Value.ActiveAdCount.ShouldBe(1,
             "Endast den Active-annonsen ska räknas — Expired/Archived exkluderas av status='Active', " +
-            "soft-deleted av den globala soft-delete-query-filtren (ADR 0048).");
+            "som ÄR hela exkluderingen (JobAd har ingen soft-delete-axel, #821).");
     }
 }

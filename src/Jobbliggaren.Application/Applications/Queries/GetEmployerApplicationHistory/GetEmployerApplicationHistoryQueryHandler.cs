@@ -24,7 +24,7 @@ namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationHi
 /// the generated column to NULL. So:
 /// <list type="bullet">
 /// <item>an ARCHIVED but recent ad still joins and IS attributed (archival does not hide a row —
-/// <c>JobAd.DeletedAt</c> has no writer anywhere in <c>src/</c> and its query filter is vacuous, #821);</item>
+/// <c>JobAd</c> has no soft-delete axis and no query filter, #821);</item>
 /// <item>an ACTIVE but old ad has a NULL org.nr and is NOT attributed.</item>
 /// </list>
 /// Pinned by <c>GetEmployerApplicationHistoryQueryHandlerIntegrationTests</c> (both directions). The

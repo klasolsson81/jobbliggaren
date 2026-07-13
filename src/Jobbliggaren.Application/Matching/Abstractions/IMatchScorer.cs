@@ -51,10 +51,12 @@ public interface IMatchScorer
     /// for that ad and the same profile (the same Fast dimension helpers run in-memory
     /// over the single batch-loaded row set). NO AI/LLM (ADR 0071).
     /// <para>
-    /// <b>Missing/soft-deleted ads are silently OMITTED</b> from the result (unlike
+    /// <b>Missing ads are silently OMITTED</b> from the result (unlike
     /// <see cref="ScoreAsync"/>, which throws <c>NotFoundException</c> for a single
     /// missing ad) — a batch decoration must not fail a page render because one id is
-    /// stale. The result contains an entry only for each requested ad that exists; the
+    /// stale. "Missing" means the ROW DOES NOT EXIST, and nothing else: an ARCHIVED ad
+    /// is present and IS scored (no status gate — known gap #864). The old wording said
+    /// "missing/soft-deleted", naming an axis that never had a writer and is now retired (#821). The result contains an entry only for each requested ad that exists; the
     /// caller treats "absent from the map" as "no data" (parity the status batch).
     /// Deterministic per key: equal inputs yield an equal score with Ordinal-stable
     /// matched/missing evidence.
@@ -106,9 +108,9 @@ public interface IMatchScorer
     /// concept-coverage helpers run in-memory over the single batch-loaded VO set —
     /// the regression contract). NO AI/LLM (ADR 0071).
     /// <para>
-    /// <b>Missing/soft-deleted ads are silently OMITTED</b> from the result (parity
+    /// <b>Missing ads are silently OMITTED</b> from the result (parity
     /// <see cref="ScoreBatchAsync"/>) — a batch decoration must not fail a page render
-    /// because one id is stale. Each of the three Full dimensions reports
+    /// because one id is stale. An ARCHIVED ad is NOT missing: it is scored (known gap #864). Each of the three Full dimensions reports
     /// <see cref="MatchDimensionVerdict.NotAssessed"/> (never <c>NoMatch</c>) when the
     /// CV side has no skill concept-ids OR the ad has no terms of that kind/source.
     /// Deterministic per key, with Ordinal-stable evidence.

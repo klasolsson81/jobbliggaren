@@ -18,9 +18,9 @@ interface Props {
  * Hämtar parse-artefakten server-side (CV-PII läses ALDRIG i klientbunten) och
  * skickar det tolkade innehållet + konfidensen som props till klient-ön. Parsern
  * gissar aldrig datum (DQ3-3a) — guiden tvingar användaren att fylla i datum innan
- * CV:t kan sparas. Vid lyckad befordran landar server-actionen på hubben /cv (den
- * kanoniska post-promote-granska-redirecten byggs i PR-8.4). Personnummer ytas
- * flag-only via `PersonnummerWarning` ovanför guiden (ADR 0074 Invariant 1).
+ * CV:t kan sparas. Vid lyckad befordran redirectar server-actionen till granskningen
+ * av det nya CV:t (`/cv/{resumeId}/granska`). Personnummer ytas flag-only via
+ * `PersonnummerWarning` ovanför guiden (ADR 0074 Invariant 1).
  */
 export default async function CvCompleteGuidePage({ params }: Props) {
   const user = await getServerSession();

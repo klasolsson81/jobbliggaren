@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   pathToElementId,
   gapFillPathToElementId,
+  guidePathToErrorTarget,
   guidePathToStepAndElementId,
   GUIDE_STEP_DETAILS,
   GUIDE_STEP_EXPERIENCE,
@@ -213,6 +214,66 @@ describe("resume-path-routing > guidePathToStepAndElementId (Slutför-guiden, PR
       ["content.educations.x.degree"], // index ej siffra
     ])("returnerar null för %s", (path) => {
       expect(guidePathToStepAndElementId(path)).toBeNull();
+    });
+  });
+});
+
+describe("resume-path-routing > guidePathToErrorTarget", () => {
+  // Samma Zod-namnrymd, men målet är VAR felet kan åtgärdas. Invarianten (CTO Q3-B):
+  // varje fel måste ytas där det går att rätta — inget får försvinna i en generisk
+  // rad i foten. Därför ett diskriminerat mål: `field` (RHF-kontroll) vs `panel`
+  // (chip-lista, som ÄR fältet). Ett `null` betyder "guidens yta äger inte det här".
+  describe("field-mål: delad namnrymd, content.-prefixet strippas", () => {
+    it.each([
+      ["name", "name"],
+      ["content.personalInfo.fullName", "personalInfo.fullName"],
+      ["content.personalInfo.location", "personalInfo.location"],
+      ["content.summary", "summary"],
+      ["content.experiences.0.company", "experiences.0.company"],
+      ["content.experiences.2.startDate", "experiences.2.startDate"],
+      ["content.educations.1.degree", "educations.1.degree"],
+      ["content.sections.0.heading", "sections.0.heading"],
+      ["content.sections.1.entries.2.title", "sections.1.entries.2.title"],
+    ])("mappar %s → fältet %s", (path, formPath) => {
+      expect(guidePathToErrorTarget(path)).toEqual({ kind: "field", formPath });
+    });
+  });
+
+  describe("sektionspostens lines → body (den enda strukturella avvikelsen)", () => {
+    it.each([
+      // Post-nivå (summerad längd över raderna).
+      ["content.sections.0.entries.1.lines", "sections.0.entries.1.body"],
+      // Rad-nivå: ett issue på en ENSKILD rad hör ändå hemma i textarean som helhet
+      // — formen har ingen per-rad-kontroll att markera.
+      ["content.sections.2.entries.0.lines.3", "sections.2.entries.0.body"],
+    ])("mappar %s → fältet %s", (path, formPath) => {
+      expect(guidePathToErrorTarget(path)).toEqual({ kind: "field", formPath });
+    });
+  });
+
+  describe("panel-mål: chip-listorna har ingen per-post-kontroll", () => {
+    // Regressions-pin. Returnerade de här `null` (som en tidigare version gjorde)
+    // tappades felet TYST: inget fält markerades, och foten påstod ändå "De är
+    // markerade nedan". Ett för långt parsat chip blev då omöjligt att spara OCH
+    // omöjligt att hitta.
+    it.each([
+      ["content.skills.0.name", "skills"],
+      ["content.skills.3.yearsExperience", "skills"],
+      ["content.languages.1.name", "languages"],
+    ])("mappar %s → panelen %s", (path, panel) => {
+      expect(guidePathToErrorTarget(path)).toEqual({ kind: "panel", panel });
+    });
+  });
+
+  describe("utanför guidens yta → null (anroparen måste visa den specifika texten)", () => {
+    it.each([
+      [""],
+      ["garbage"],
+      ["parsedResumeId"],
+      ["personalInfo.fullName"], // saknar content.-prefix
+      ["content.unknownField"],
+    ])("returnerar null för %s", (path) => {
+      expect(guidePathToErrorTarget(path)).toBeNull();
     });
   });
 });

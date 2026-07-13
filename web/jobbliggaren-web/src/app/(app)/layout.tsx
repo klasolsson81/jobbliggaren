@@ -27,7 +27,7 @@ export default async function AppLayout({
   // endpoint som anonyma landing. `<HeaderStats />` i AppShell pollar sedan
   // klient-side var 10:e min (Klas-direktiv 2026-05-24).
   // Backend-fail ⇒ det ärliga icke-svaret (inga tal), aldrig ett påhittat golv (CTO-bind
-  // 2026-07-13, A′). HeaderStats renderar "—" tills en mätt siffra finns.
+  // 2026-07-13, A′). HeaderStats renderar en en-dash (–) tills en mätt siffra finns.
   const initialStats = (await fetchLandingStats()) ?? LANDING_STATS_UNKNOWN_DTO;
   const t = await getTranslations("pages");
 

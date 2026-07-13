@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  * </p>
  * <p>
  * Vid backend-fail (null från `fetchLandingStats`) returneras 503 så
- * klienten kan behålla sitt nuvarande värde utan att rendera Floor (ifall
+ * klienten kan behålla sitt nuvarande värde utan att skriva över klientens senast MÄTTA värde (ifall
  * Floor redan visas vill vi inte trampa över med samma värde + ny render).
  * </p>
  */

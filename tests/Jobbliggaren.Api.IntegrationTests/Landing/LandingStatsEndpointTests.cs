@@ -27,8 +27,17 @@ public class LandingStatsEndpointTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task GET_landing_stats_cache_miss_returns_floor_with_isStale_true()
+    public async Task GET_landing_stats_cache_miss_returns_null_counts_never_a_fabricated_number()
     {
+        // REGRESSION (CTO-bind 2026-07-13, A′). Detta test pinnade tidigare GOLVET:
+        //     json.GetProperty("activeCount").GetInt32().ShouldBeGreaterThan(0);
+        // dvs. det pinnade att wire:n vid cache-miss bar en siffra ingen mätt (40 000), och
+        // landningssidan renderade den som ett faktum för varje anonym besökare. Golvets försvar ("vi
+        // ljuger inte uppåt") höll bara medan korpusen råkade överstiga 40 000 — den var 40 281 när
+        // detta skrevs, en marginal på 0,7 %, och krympande.
+        //
+        // Detta är den ENDA pinnen på kontraktsgränsen där besökaren faktiskt möter talet, så här måste
+        // "vi vet inte" vara JSON null — inte 0, inte ett golv.
         var ct = TestContext.Current.CancellationToken;
 
         // Rensa Redis-nyckeln explicit så vi vet att vi testar cache-miss-banan.
@@ -45,10 +54,17 @@ public class LandingStatsEndpointTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
         json.GetProperty("isStale").GetBoolean().ShouldBeTrue();
-        json.GetProperty("activeCount").GetInt32().ShouldBeGreaterThan(0);
-        json.GetProperty("newToday").GetInt32().ShouldBe(0);
+
+        // Nycklarna MÅSTE finnas med explicit null (inte utelämnas): FE:s zod använder `.nullable()`,
+        // vilket kräver att nyckeln är närvarande.
+        json.GetProperty("activeCount").ValueKind.ShouldBe(JsonValueKind.Null);
+        json.GetProperty("newToday").ValueKind.ShouldBe(JsonValueKind.Null);
         json.TryGetProperty("refreshedAt", out var refreshedAt).ShouldBeTrue();
         refreshedAt.ValueKind.ShouldBe(JsonValueKind.Null);
+
+        // Ett omätt svar får aldrig pinnas i en delad cache: Workern kan fylla cachen sekunden efter,
+        // och en CDN skulle annars servera "vet inte" i 30 s till.
+        response.Headers.CacheControl?.NoStore.ShouldBeTrue();
     }
 
     [Fact]

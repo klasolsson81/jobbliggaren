@@ -281,6 +281,10 @@ describe("HeaderStats – omätta tal visas som streck, aldrig som siffra (CTO-b
 
     expect(screen.getAllByText("–")).toHaveLength(2);
     expect(screen.queryByText(/40\s?000/)).not.toBeInTheDocument();
+    // INGEN siffra får nå skärmen i det omätta läget — inte via formattering, och inte via ICU:s
+    // pluralval. (Etiketten använde tidigare `count: activeCount ?? 0`; lägger någon `#` i strängen
+    // hade raden tyst sagt "0 aktiva annonser" bredvid strecket. Nu finns en count-fri nyckel.)
+    expect(screen.getByRole("group").textContent).not.toMatch(/\d/);
   });
 
   it("renderar en MÄTT nolla som 0, inte som streck", () => {

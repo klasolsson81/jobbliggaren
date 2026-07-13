@@ -37,7 +37,14 @@ public static class LandingEndpoints
                 // strikt mindre än Worker:s 5-min refresh-fönster — frontend
                 // upplever värdena som live. Vid CloudFront/proxy framöver
                 // absorberar de större delen av trafiken så DoS-yta minskar.
-                http.Response.Headers.CacheControl = "public, max-age=30";
+                //
+                // MEN: ett OMÄTT svar får aldrig pinnas i en delad cache (CTO-bind 2026-07-13, A′).
+                // Workern warm-startar cachen vid boot och fyller den på sekunder; en CDN som cachat
+                // "vi vet inte" i 30 s skulle sträcka ut det okända fönstret igen — för alla besökare —
+                // och därmed underminera precis den warm-start samma ändring inför.
+                http.Response.Headers.CacheControl = stats.IsStale
+                    ? "no-store"
+                    : "public, max-age=30";
 
                 return Results.Ok(stats);
             })

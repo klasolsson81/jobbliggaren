@@ -14,7 +14,8 @@
     "newToday": "new today",
     "deltaAriaLabel": "{count} new since the last check",
     "openMenu": "Open menu",
-    "valueDash": "–"
+    "valueDash": "–",
+    "activeCountUnmeasured": "active ads"
   },
   "notifications": {
     "buttonAriaLabel": "Notifications",

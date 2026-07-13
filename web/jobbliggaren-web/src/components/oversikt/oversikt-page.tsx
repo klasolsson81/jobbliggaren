@@ -347,13 +347,13 @@ export function OversiktPage({
 
   const lastSearchName = lastSearch?.label ?? null;
 
-  // design-reviewer M2: vid endpoint-failure ⇒ null (renders som "—"), inte 0 (genuint missvisande).
+  // design-reviewer M2: vid endpoint-failure ⇒ null (renders som en en-dash, –), inte 0 (missvisande).
   // svans-PR2: nu från landing-stats (Worker-precomputed cache, samma siffra som HeaderStats).
   //
   // CTO-bind 2026-07-13 (A′): det gamla golvet (IsStale=true ⇒ activeCount=40 000) räknades tidigare
   // som "ok" här — vi visade hellre en påhittad siffra än ett streck, för att slippa ett tomt fält.
   // Golvet är borta: en omätt count är nu `null` hela vägen från backend, så samma `?? null` ger
-  // "—" och sidan säger sanningen i stället för att fylla hålet med fiktion.
+  // strecket och sidan säger sanningen i stället för att fylla hålet med fiktion.
   const activeJobAdsTotal = landingStats?.activeCount ?? null;
 
   const profileCreatedAt =

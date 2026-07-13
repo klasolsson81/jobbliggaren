@@ -6,7 +6,7 @@ import { AppShell } from "@/components/shell/app-shell";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SkipLink } from "@/components/site/skip-link";
 import { fetchLandingStats } from "@/lib/api/landing";
-import { LANDING_STATS_FLOOR_DTO } from "@/lib/dto/landing";
+import { LANDING_STATS_UNKNOWN_DTO } from "@/lib/dto/landing";
 
 export default async function AppLayout({
   children,
@@ -26,7 +26,9 @@ export default async function AppLayout({
   // ADR 0064 — landing-stats server-fetchas en gång per request, samma
   // endpoint som anonyma landing. `<HeaderStats />` i AppShell pollar sedan
   // klient-side var 10:e min (Klas-direktiv 2026-05-24).
-  const initialStats = (await fetchLandingStats()) ?? LANDING_STATS_FLOOR_DTO;
+  // Backend-fail ⇒ det ärliga icke-svaret (inga tal), aldrig ett påhittat golv (CTO-bind
+  // 2026-07-13, A′). HeaderStats renderar "—" tills en mätt siffra finns.
+  const initialStats = (await fetchLandingStats()) ?? LANDING_STATS_UNKNOWN_DTO;
   const t = await getTranslations("pages");
 
   return (

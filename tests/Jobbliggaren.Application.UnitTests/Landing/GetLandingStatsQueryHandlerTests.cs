@@ -29,8 +29,16 @@ public class GetLandingStatsQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_CacheMiss_ReturnsFloorWithIsStaleTrue()
+    public async Task Handle_CacheMiss_ReturnsUnknown_NeverAFabricatedNumber()
     {
+        // REGRESSION (CTO-bind 2026-07-13, A′): fram till nu returnerade en cache-miss ett hårdkodat
+        // GOLV (ActiveCount: 40 000) med IsStale=true, och landningssidan renderade det som ett faktum.
+        // Golvets försvar ("vi ljuger inte uppåt") höll bara så länge den verkliga korpusen råkade
+        // överstiga 40 000 — den var 41 475 när Klas upptäckte det, en hårsmån. En hårdkodad konstant
+        // kan inte vara "konservativ" om en storhet den inte mäter.
+        //
+        // Testet pinnar att ett omätt tal är NULL, inte en siffra. Skulle någon återinföra ett golv
+        // faller det här.
         var ct = TestContext.Current.CancellationToken;
         var cache = Substitute.For<ILandingStatsCache>();
         cache.GetAsync(ct).Returns((LandingStatsDto?)null);
@@ -38,13 +46,34 @@ public class GetLandingStatsQueryHandlerTests
 
         var result = await handler.Handle(new GetLandingStatsQuery(), ct);
 
+        result.ActiveCount.ShouldBeNull();
+        result.NewToday.ShouldBeNull();
         result.IsStale.ShouldBeTrue();
         result.RefreshedAt.ShouldBeNull();
-        // Floor enligt CTO-dom 2026-05-23: aldrig 0 aktiva (skulle tolkas som
-        // "tjänsten har inga jobb"), aldrig overstate "nya idag" (kan inte
-        // ljuga om data vi inte har).
-        result.ActiveCount.ShouldBeGreaterThan(0);
+        result.ShouldBe(LandingStatsDto.Unknown);
+    }
+
+    [Fact]
+    public async Task Handle_CacheHitWithMeasuredZero_ReturnsZero_NotNull()
+    {
+        // 0 och null är OLIKA svar. En mätt nolla ("inget publicerat än idag" — sant kl. 00:05 UTC)
+        // måste renderas som 0; bara "vi vet inte" är null. Utan den här pinnen kan en välmenande
+        // "förenkling" mappa 0 → null och göra en sann nolla osynlig.
+        var ct = TestContext.Current.CancellationToken;
+        var cache = Substitute.For<ILandingStatsCache>();
+        var measured = new LandingStatsDto(
+            ActiveCount: 41_475,
+            NewToday: 0,
+            IsStale: false,
+            RefreshedAt: DateTimeOffset.UtcNow);
+        cache.GetAsync(ct).Returns(measured);
+        var handler = new GetLandingStatsQueryHandler(cache);
+
+        var result = await handler.Handle(new GetLandingStatsQuery(), ct);
+
         result.NewToday.ShouldBe(0);
+        result.NewToday.ShouldNotBeNull();
+        result.IsStale.ShouldBeFalse();
     }
 
     [Fact]

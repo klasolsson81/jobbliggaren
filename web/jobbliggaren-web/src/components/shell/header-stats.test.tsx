@@ -10,7 +10,7 @@ const INITIAL: LandingStatsDto = {
   refreshedAt: "2026-05-24T03:00:00+00:00",
 };
 
-describe("HeaderStats (ADR 0064 — inloggad live-stats + delta)", () => {
+describe("HeaderStats (ADR 0064 – inloggad live-stats + delta)", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -34,7 +34,7 @@ describe("HeaderStats (ADR 0064 — inloggad live-stats + delta)", () => {
     expect(screen.queryByText(/^\+\d+$/)).not.toBeInTheDocument();
   });
 
-  it("names the live-stats cluster via role=group (not aria-label on a role=generic div) — #609", () => {
+  it("names the live-stats cluster via role=group (not aria-label on a role=generic div) – #609", () => {
     render(<HeaderStats initialStats={INITIAL} />);
     // `aria-label` on a bare `<div>` lands on role=generic (name-from-author
     // prohibited). `role="group"` makes the statsAriaLabel reliably announced.
@@ -73,7 +73,7 @@ describe("HeaderStats (ADR 0064 — inloggad live-stats + delta)", () => {
     expect(screen.getByText("+3")).toBeInTheDocument();
   });
 
-  it("annonserar delta via en alltid-monterad role=status live-region; visuella pillen är aria-hidden — #624", async () => {
+  it("annonserar delta via en alltid-monterad role=status live-region; visuella pillen är aria-hidden – #624", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -109,7 +109,7 @@ describe("HeaderStats (ADR 0064 — inloggad live-stats + delta)", () => {
     expect(screen.getByText("+3")).toHaveAttribute("aria-hidden", "true");
   });
 
-  it("live-region böjer singular korrekt vid exakt 1 ny (ICU-plural) — #624", async () => {
+  it("live-region böjer singular korrekt vid exakt 1 ny (ICU-plural) – #624", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -185,7 +185,7 @@ describe("HeaderStats (ADR 0064 — inloggad live-stats + delta)", () => {
   });
 
   it("ratchar delta korrekt över flera sekventiella polls", async () => {
-    // code-reviewer M3 — verifierar att previousNewToday-ref ratchar mellan
+    // code-reviewer M3 – verifierar att previousNewToday-ref ratchar mellan
     // polls så delta beräknas mot SENASTE sedda värdet, inte initial.
     const fetchSpy = vi
       .fn()
@@ -232,7 +232,7 @@ describe("HeaderStats (ADR 0064 — inloggad live-stats + delta)", () => {
   });
 
   it("pollar EJ när tabben är hidden (visibility-aware)", async () => {
-    // code-reviewer M1 — undvik onödig nätverkslast i bakgrunds-tabbar.
+    // code-reviewer M1 – undvik onödig nätverkslast i bakgrunds-tabbar.
     const fetchSpy = vi.fn();
     global.fetch = fetchSpy;
 
@@ -258,8 +258,44 @@ describe("HeaderStats (ADR 0064 — inloggad live-stats + delta)", () => {
       if (originalGetter) {
         Object.defineProperty(Document.prototype, "visibilityState", originalGetter);
       }
-      // @ts-expect-error — ta bort instans-overriden så andra tester inte påverkas.
+      // @ts-expect-error – ta bort instans-overriden så andra tester inte påverkas.
       delete document.visibilityState;
     }
+  });
+});
+
+describe("HeaderStats – omätta tal visas som streck, aldrig som siffra (CTO-bind 2026-07-13, A′)", () => {
+  it("renderar – i stället för ett tal när counts är null", () => {
+    // REGRESSION: en kall cache gav tidigare det hårdkodade golvet (40 000) via
+    // LANDING_STATS_FLOOR_DTO i (app)/layout.tsx, och raden såg ut som ett mätvärde. Nu: streck.
+    render(
+      <HeaderStats
+        initialStats={{
+          activeCount: null,
+          newToday: null,
+          isStale: true,
+          refreshedAt: null,
+        }}
+      />
+    );
+
+    expect(screen.getAllByText("–")).toHaveLength(2);
+    expect(screen.queryByText(/40\s?000/)).not.toBeInTheDocument();
+  });
+
+  it("renderar en MÄTT nolla som 0, inte som streck", () => {
+    render(
+      <HeaderStats
+        initialStats={{
+          activeCount: 41_475,
+          newToday: 0,
+          isStale: false,
+          refreshedAt: "2026-07-13T06:00:00Z",
+        }}
+      />
+    );
+
+    expect(screen.getByText("0")).toBeInTheDocument();
+    expect(screen.queryByText("–")).not.toBeInTheDocument();
   });
 });

@@ -156,6 +156,16 @@ public sealed class RecurringJobRegistrar(
             job => job.RunAsync(CancellationToken.None),
             scbOptions.Value.SyncCadenceCron);
 
+        // WARM-START (CTO-bind 2026-07-13, A′ punkt 4): trigga landing-stats-refreshen EN gång vid
+        // Worker-boot i stället för att vänta upp till 5 minuter på nästa cron-tick.
+        //
+        // Sedan golvet togs bort svarar landningssidan ärligt "vet inte" (inga tal) medan cachen är
+        // kall — och en kall cache är precis vad en deploy, en Redis-omstart eller en Worker-start
+        // ger. Rätt botemedel mot det glappet är att KRYMPA det, inte att fylla det med en påhittad
+        // siffra. Idempotent (jobbet är en ren cache-write) och billigt (en COUNT), så en extra
+        // körning vid boot kostar ingenting.
+        manager.Trigger(RecurringJobIds.RefreshLandingStats);
+
         return Task.CompletedTask;
     }
 

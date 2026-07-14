@@ -232,6 +232,41 @@ public class ErasureCascadeRegistryTests
     }
 
     /// <summary>
+    /// <b>Anti-vacuity for the sweep itself: one sentinel column per FORM.</b> The unclassified
+    /// check below can only see columns the sweep SURFACES — narrow
+    /// <see cref="IsTextBearingStoreType"/> (drop <c>jsonb</c>, drop the array unwrap) and it
+    /// reports fewer columns, which reads as MORE classified. The sweep silently losing a form is
+    /// exactly how <c>saved_searches.criteria</c> stayed invisible for three rounds, so every form
+    /// pins a column that must be visible.
+    /// </summary>
+    [Fact]
+    public void The_sweep_SEES_a_sentinel_column_of_every_text_bearing_form()
+    {
+        var swept = RecruiterTextColumns().ToHashSet(StringComparer.Ordinal);
+
+        var sentinels = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["job_ads.description"] = "text — the plainest form",
+            ["resumes.name"] = "character varying(n)",
+            ["saved_searches.criteria"] = "jsonb through a VALUE CONVERTER (CLR type SearchCriteria "
+                + "— the fourth blind arm, invisible to every CLR-typed filter for three rounds)",
+            ["recent_job_searches.employer_list"] = "text[] (an array of a text-bearing type)",
+            ["resume_files.content"] = "bytea (the CV file — a document IS text at rest)",
+            ["job_ads.search_vector"] = "tsvector (derived text is still text; it is FTS-searched)",
+            ["resumes.template"] = "varchar through a SmartEnum converter (CLR type CvTemplate)",
+        };
+
+        foreach (var (column, form) in sentinels)
+        {
+            swept.ShouldContain(column,
+                $"the sweep no longer sees {column} ({form}). The unclassified check can only "
+                + "judge what the sweep surfaces — a narrowed store-type predicate makes the "
+                + "registry look MORE complete while covering less, which is the vacuity this "
+                + "whole file exists to end.");
+        }
+    }
+
+    /// <summary>
     /// THE test. A text column anywhere in the model that nobody has decided about breaks the build,
     /// with a message naming the decision that is owed.
     /// </summary>

@@ -6,9 +6,12 @@ namespace Jobbliggaren.Application.KnowledgeBank.Abstractions;
 /// <see cref="IRubricProvider"/>/<see cref="IClicheLexicon"/>/<see cref="IVerbMapper"/>/
 /// <see cref="IFrameProvider"/>/<see cref="ISpellingAllowlist"/>/<see cref="IBranschgruppProvider"/>).
 /// <para>
-/// Consumed by <c>SectionReorderTransform</c> in the improvement engine — the asset and its only
-/// consumer ship in the SAME step, which is what ADR 0098 demanded ("each as a cohesive
-/// data+loader+consumer unit") and what its dead-machinery edict forbids splitting.
+/// Consumed by BOTH engines, and that is the point: <c>SectionReorderTransform</c> (improvement)
+/// PROPOSES a reorder against this order, and <c>B1SectionsRule</c> (review) JUDGES the CV against
+/// the same one — via the shared <c>SectionOrderAnalyzer</c>, so the two can never contradict each
+/// other about the same CV. The asset and its consumers ship in the SAME step, which is what ADR
+/// 0098 demanded ("each as a cohesive data+loader+consumer unit") and what its dead-machinery edict
+/// forbids splitting.
 /// </para>
 /// </summary>
 public interface ICvConventionsProvider

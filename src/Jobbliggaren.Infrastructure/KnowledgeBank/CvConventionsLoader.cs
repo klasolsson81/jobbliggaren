@@ -20,7 +20,7 @@ namespace Jobbliggaren.Infrastructure.KnowledgeBank;
 /// the repo's no-fork mechanism: reference the owner of the vocabulary, never restate it.
 /// </para>
 /// <para>
-/// Both run at HOST BUILD, not mid-request — but only because <c>AddCvConventions()</c> constructs
+/// Both run at HOST BUILD, not mid-request — but only because <c>AddCvLexicon()</c> constructs
 /// the provider eagerly (an INSTANCE registration). See <see cref="CvConventionsProvider"/>.
 /// </para>
 /// </summary>

@@ -64,6 +64,20 @@ public class B1SectionOrderRuleTests
     }
 
     [Fact]
+    public async Task B1_ShouldWarn_WhenTheOutOfOrderSectionIsWrittenInline()
+    {
+        // BLOCKER 2, at the criterion level. "Kompetenser: C#, SQL" IS a section to the segmenter
+        // (#421). An order analyzer that only matched WHOLE lines could not see it — and this CV,
+        // which really does put Kompetenser first, was reported as correctly ordered. The analyzer
+        // now runs the segmenter's own detector, so the two cannot disagree about what a heading is.
+        var b1 = await B1Async(Resume(
+            rawText: "Kompetenser: C#, SQL\n\nArbetslivserfarenhet\nDev 2021–2024\n\nUtbildning\nKTH"));
+
+        b1.Verdict.ShouldBe(CriterionVerdict.Warn,
+            "En inline-skriven sektion är en sektion — den får inte vara osynlig för ordningen.");
+    }
+
+    [Fact]
     public async Task B1_ShouldCiteBothOrders_WhenItWarnsOnTheOrder()
     {
         // A verdict the user cannot act on is an opaque judgement (§5). The evidence names the
@@ -124,16 +138,40 @@ public class B1SectionOrderRuleTests
         b1.Verdict.ShouldNotBe(CriterionVerdict.NotAssessed);
     }
 
-    [Fact]
-    public async Task B1_ShouldPass_WhenNoHeadingsAreRecognised_BecauseZeroSectionsCannotBeOutOfOrder()
+    [Theory]
+    [InlineData("En text helt utan igenkännbara rubriker")]
+    [InlineData("Arbetslivserfarenhet\nBackend-utvecklare 2021–2024")]
+    public async Task B1_ShouldNotClaimTheOrderIsRecommended_WhenFewerThanTwoSectionsWereRecognised(
+        string rawText)
     {
-        // A CV whose raw text carries no recognisable headings (a one-column layout the extractor
-        // flattened, say) yields fewer than two observed sections. That is NOT evidence of a wrong
-        // order — claiming it were would be a fabricated verdict. Presence is judged from the
-        // parsed content, which is intact here, so B1 passes on the half it can see.
+        // THE MIS-REPORT THIS STEP'S OWN FIX COMMITTED, caught by both review gates. A CV whose raw
+        // text carries fewer than two recognisable headings (a one-column layout the extractor
+        // flattened, say) has an order nobody looked at. `Deviates == false` is true — and it means
+        // "we saw nothing", NOT "it is correct".
+        //
+        // The VERDICT is Pass and that is right: presence is judged from the parsed content, which
+        // is intact, and NotAssessed would withdraw a High-weight criterion while claiming we could
+        // not read something we read perfectly well. But the CLAIM must narrow to what was observed
+        // — "sektionerna står i rekommenderad ordning" would be a green light on a dimension never
+        // inspected, which is precisely the defect 8b.4b exists to remove.
+        var b1 = await B1Async(Resume(rawText: rawText));
+
+        b1.Verdict.ShouldBe(CriterionVerdict.Pass, "presence är bedömd och intakt.");
+
+        b1.Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>()
+            .Observation.ShouldNotContain("står i rekommenderad ordning", Case.Sensitive,
+                "B1 får inte påstå ordnings-efterlevnad för ett CV vars rubriker den aldrig läste.");
+    }
+
+    [Fact]
+    public async Task B1_ShouldSayTheOrderCouldNotBeRead_WhenNoHeadingsAreRecognised()
+    {
+        // The positive half of the test above: the evidence must not merely OMIT the claim, it must
+        // say WHY — an honest ceiling stated out loud (§5), not a silence the user has to interpret.
         var b1 = await B1Async(Resume(rawText: "En text helt utan igenkännbara rubriker"));
 
-        b1.Verdict.ShouldBe(CriterionVerdict.Pass);
+        b1.Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>()
+            .Observation.ShouldContain("gick inte att läsa");
     }
 
     // ===============================================================

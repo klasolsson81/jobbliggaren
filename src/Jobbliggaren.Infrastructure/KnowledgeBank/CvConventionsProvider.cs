@@ -9,7 +9,7 @@ namespace Jobbliggaren.Infrastructure.KnowledgeBank;
 /// the cached immutable contract — singleton, parity <see cref="BranschgruppProvider"/>.
 /// <para>
 /// <b>Fail loud at startup, never mid-request — and that is true only because
-/// <c>AddCvConventions()</c> registers this by INSTANCE, not by type.</b> A type registration would
+/// <c>AddCvLexicon()</c> registers this by INSTANCE, not by type.</b> A type registration would
 /// construct it at the first resolve, i.e. inside the first HTTP request that needs it, so a
 /// malformed asset would surface as a 500 cached for the life of the process (and
 /// <c>ValidateOnBuild</c> does not instantiate singletons, so it would not catch it either). If

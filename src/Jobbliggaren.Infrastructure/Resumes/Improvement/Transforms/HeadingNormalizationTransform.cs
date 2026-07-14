@@ -56,6 +56,23 @@ internal sealed class HeadingNormalizationTransform : ICvTransform
                 continue;
             }
 
+            // A COMPOUND heading may lead with an acronym the user capitalised on purpose —
+            // "IT-kompetenser" is a lexicon synonym of `skills`, and NormalizeCase ("first letter up,
+            // the rest down") would propose "It-kompetenser". The engine would be DEGRADING a
+            // correctly written heading. Before 8b.4b the render table did not hold the synonym, so
+            // the line was simply invisible; widening recognition to the lexicon brought the case
+            // transform along with it, over a vocabulary that no longer satisfies its assumption.
+            //
+            // The guard is on FORM, not on a name-list: a hyphen is what makes the canonical
+            // capitalisation unknowable from the text alone. The general answer is a display form per
+            // synonym in the lexicon — knowledge-bank data, a different change-reason, filed
+            // separately. Until then the engine declines to guess, which is the honest failure mode:
+            // a heading it cannot improve is a heading it leaves alone.
+            if (heading.Contains('-', StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             var normalized = NormalizeCase(heading);
             if (string.Equals(heading, normalized, StringComparison.Ordinal))
             {

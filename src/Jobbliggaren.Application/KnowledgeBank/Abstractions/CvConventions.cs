@@ -15,8 +15,11 @@ namespace Jobbliggaren.Application.KnowledgeBank.Abstractions;
 /// RECOMMENDATION only.
 /// </para>
 /// </summary>
-/// <param name="Version">The asset's own version (e.g. "1.0.0") — surfaced so a proposal can be
-/// traced back to the convention that produced it, parity <c>Rubric.Version</c>.</param>
+/// <param name="Version">The asset's own version (e.g. "1.0.0"). Validated fail-loud at load and
+/// carried for provenance; NOT yet stamped on <c>CvReviewResult</c>/<c>CvImprovementResult</c> the
+/// way <c>Rubric.Version</c> is. Said plainly rather than dressed up as "surfaced": a result cannot
+/// currently be traced back to the convention that produced it, and pretending otherwise in a doc
+/// comment is the drift this step spent its length removing.</param>
 /// <param name="SectionOrder">The recommended section order, most-important first. Sections the
 /// order does not name (free sections — "Projekt", "Referenser") follow the named ones, keeping
 /// their observed relative order; that is the sort's stability property, not data.</param>

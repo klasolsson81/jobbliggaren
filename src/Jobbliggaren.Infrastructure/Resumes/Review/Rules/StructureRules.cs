@@ -107,6 +107,24 @@ internal sealed class B1SectionsRule : ICriterionRule
                     + $"{order.ObservedHeadings}. Rekommenderad ordning: {order.RecommendedHeadings}.")));
         }
 
+        // The order could not be READ (fewer than two headings were recognised — a flattened
+        // one-column extraction, say). `Deviates == false` is TRUE here, but it means "we saw
+        // nothing", not "it is correct" — and the two must never be said with the same sentence.
+        //
+        // Both review gates caught this arm missing: the Pass below asserted order conformance on a
+        // CV whose order was never inspected. That is precisely the mis-report this step exists to
+        // delete, committed inside its own fix, one layer down. The VERDICT stays Pass (presence is
+        // assessed from the parsed content and is intact; NotAssessed would withdraw a High-weight
+        // criterion and claim we could not read something we read perfectly well). Only the CLAIM
+        // narrows to what was actually observed.
+        if (!order.OrderObserved)
+        {
+            return CvCriterionVerdict.Assessed("B1", category, CriterionVerdict.Pass,
+                ReviewText.Cite(ReviewText.Structural(
+                    "Kontakt-, erfarenhets- och utbildningssektion finns. Sektionernas inbördes "
+                    + "ordning gick inte att läsa ur CV-texten, eftersom inga rubriker kändes igen.")));
+        }
+
         return CvCriterionVerdict.Assessed("B1", category, CriterionVerdict.Pass,
             ReviewText.Cite(ReviewText.Structural(
                 "Kontakt-, erfarenhets- och utbildningssektion finns, och sektionerna står i "

@@ -983,6 +983,61 @@ public class CvImprovementEngineTests
             + "till 'Arbetslivserfarenhet' (det vore syntes).");
     }
 
+    [Theory]
+    [InlineData("PROJEKT", "Projekt")]
+    [InlineData("LEGITIMATION OCH INTYG", "Legitimation och intyg")]
+    [InlineData("körkort", "Körkort")]
+    public async Task SuggestAsync_ShouldProposeHeadingNormalization_ForAFreeSectionHeading(
+        string written, string expected)
+    {
+        // The OTHER half of the D6 fix, and the guarantee the first mutation round MISSED. 8b.4a's
+        // free sections were never in the render table AT ALL — not even in the wrong case — so
+        // they were invisible to this transform. The fix reads BOTH lexicon tables; deleting the
+        // free-section arm (`&& !_lexicon.FreeSectionIdByHeading.ContainsKey(lexicalKey)`) left the
+        // whole suite green, which means half of what commit 98e4492a claims was unproven.
+        var change = Single(
+            await SuggestAsync(Resume(rawText: $"{written}\nJobbliggaren, 2024")),
+            ProposedChangeKind.HeadingNormalization);
+
+        change.Replacement.ShouldNotBeNull();
+        change.Replacement!.Before.ShouldBe(written);
+        change.Replacement.After.ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData("IT-kompetenser")]
+    [InlineData("IT-KOMPETENSER")]
+    public async Task SuggestAsync_ShouldNotProposeHeadingNormalization_ForACompoundHeadingLeadingWithAnAcronym(
+        string heading)
+    {
+        // A REGRESSION THIS STEP INTRODUCED, and caught by the gates. "it-kompetenser" IS a lexicon
+        // synonym of `skills`, so widening D6's recognition to the lexicon brought it in range of
+        // NormalizeCase ("first letter up, the rest down") — which would propose "It-kompetenser".
+        // The engine would be DEGRADING a heading the user wrote correctly. It diagnoses; it never
+        // makes the CV worse. The canonical capitalisation of a compound is not recoverable from the
+        // text alone, so the engine declines to guess.
+        Of(await SuggestAsync(Resume(rawText: $"{heading}\nC#, PostgreSQL, Kubernetes")),
+            ProposedChangeKind.HeadingNormalization).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldProposeNothing_WhenTheCvIsCleanAndConventionallyOrdered()
+    {
+        // The shared "clean CV" fixture (§0) has rawText with ZERO recognisable headings, so it is
+        // green on BOTH of 8b.4b's new axes by VACUITY — it cannot deviate in order, and it has no
+        // heading to normalise. It is therefore not a regression net for them. This CV is clean AND
+        // carries correctly-cased headings in the convention's order: it is the net that catches an
+        // 8th transform that starts emitting.
+        var clean = Resume(rawText:
+            "Kontakt\nanna@example.se\n\nProfil\nErfaren backend-utvecklare.\n\n"
+            + "Arbetslivserfarenhet\nBackend-utvecklare, Acme AB\n2021–2024\n"
+            + "Ledde teamet om 8 personer och ökade konverteringen med 23 procent.\n\n"
+            + "Utbildning\nKTH, Civilingenjör\n2016–2021");
+
+        Of(await SuggestAsync(clean), ProposedChangeKind.SectionReorder).ShouldBeEmpty();
+        Of(await SuggestAsync(clean), ProposedChangeKind.HeadingNormalization).ShouldBeEmpty();
+    }
+
     // ===============================================================
     // 10. Determinism — same input twice → identical ordered output
     // ===============================================================

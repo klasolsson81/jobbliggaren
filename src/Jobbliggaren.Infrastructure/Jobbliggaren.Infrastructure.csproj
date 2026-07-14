@@ -192,6 +192,10 @@
          (OccupationCodeDeriver / TaxonomyReadModel / TaxonomySnapshotSeeder / LocalTextAnalyzer /
          CvReviewEngine) directly, parity with the integration suites above (no engine mocking). -->
     <InternalsVisibleTo Include="Jobbliggaren.QA.Corpus" />
+    <!-- Fas 4b 8b.4b (ADR 0108): AddCvLexicon()'s composition contract is pinned by counting
+         CvParsingLexiconData descriptors (an internal type). The claim "the lexicon is loaded ONCE,
+         so recognition and resolution provably cannot disagree" was untested until this. -->
+    <InternalsVisibleTo Include="Jobbliggaren.Architecture.Tests" />
   </ItemGroup>
 
 </Project>

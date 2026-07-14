@@ -53,6 +53,40 @@ public class CvConventionsProviderTests
     }
 
     [Fact]
+    public void SectionOrder_ShouldFollowTheRubricsOwnB1Chain_SoTheAssetCannotDriftFromItSilently()
+    {
+        // The asset's whole premise is "the rubric's B1 chain, made machine-readable". Pinning it
+        // against a hand-written list would let the rubric change and the asset stay put — silently,
+        // with every test green. DERIVE the expectation from the rubric prose instead: each ordered
+        // section must appear in B1's atsPassSignal, and in the same relative order.
+        var chain = new RubricProvider().GetRubric().Criteria
+            .Single(c => c.Id == "B1").AtsPassSignal
+            .ShouldNotBeNull("B1 måste bära sin atsPassSignal — det är kedjan assetet kodifierar.");
+
+        // The Swedish terms the chain names, in the asset's own order. (The chain is prose — this
+        // maps each sectionId to the word the rubric uses for it; a rename on either side goes red.)
+        var termBySectionId = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["contact"] = "Kontakt",
+            ["profile"] = "Profil",
+            ["experience"] = "Arbetslivserfarenhet",
+            ["education"] = "Utbildning",
+            ["skills"] = "Kompetenser",
+            ["languages"] = "Språk",
+        };
+
+        var positions = LoadConventions().SectionOrder
+            .Select(e => chain.IndexOf(termBySectionId[e.SectionId], StringComparison.Ordinal))
+            .ToList();
+
+        positions.ShouldAllBe(i => i >= 0,
+            "Varje ordnad sektion måste förekomma i rubrikens B1-kedja.");
+        positions.ShouldBe(positions.Order().ToList(),
+            "Assetets ordning MÅSTE vara rubrikens ordning — annars är premissen "
+            + "'rubrikens kedja gjord maskinläsbar' inte längre sann.");
+    }
+
+    [Fact]
     public void Ctor_ShouldConstruct_WhenTheShippedAssetAgreesWithTheShippedLexicon()
     {
         // The pin, run against the REAL pair — this is the guarantee the host gets at build.

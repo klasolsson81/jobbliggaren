@@ -644,7 +644,16 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddCvLexicon(this IServiceCollection services)
     {
-        if (services.Any(d => d.ServiceType == typeof(Resumes.Parsing.CvParsingLexiconData)))
+        // The sentinel is the LAST thing this method registers, not the first, and the difference is
+        // the guard's whole scope. Keyed on CvParsingLexiconData (the first), a caller who registered
+        // that type on its own — a future test host injecting a synthetic lexicon — would switch this
+        // module OFF and leave ICvConventionsProvider UNREGISTERED. The engines would then fail at
+        // first resolve, and in the Worker (ValidateOnBuild=false, TD-103) not until a Hangfire
+        // invocation. A guard whose sentinel is narrower than the set it guards is not a guard; it is
+        // a claim. (Both review gates flagged it — latent today, since nothing else registers the
+        // lexicon, and a composition test now pins that it stays that way.)
+        if (services.Any(d =>
+                d.ServiceType == typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ICvConventionsProvider)))
         {
             return services;
         }

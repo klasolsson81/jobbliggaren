@@ -146,16 +146,34 @@ public class A8PreambleHonestyTests
     /// block or OCR noise as the user's own writing — i.e. classify it after all, which is the one
     /// thing the carrier exists to refuse.</para>
     /// </summary>
+    // The cliché is DERIVED from the shipped lexicon, never guessed. A first attempt at this test
+    // invented a phrase ("Teamplayer") that is not in cliche-list.v2.json, so A7 could never have
+    // fired on it and the test passed for the wrong reason — it survived the very mutation it exists
+    // to catch. A guard whose trigger is imagined does not guard anything.
+    private const string RealCliche = "Driven lagspelare";
+
+    /// <summary>
+    /// THE guard that keeps Variant A from re-entering through the back door — and the single most
+    /// important assertion in this change.
+    ///
+    /// <para><c>ReviewText.AllProse</c> is the corpus A7 (clichés), A9 (soft skills) and the language
+    /// rules scan. Routing the unclassified preamble into it would have the engine GRADE an address
+    /// block, a tagline or OCR noise as the user's own writing — i.e. classify it after all, which is
+    /// exactly what the carrier exists to refuse.</para>
+    ///
+    /// <para>It comes with a POSITIVE CONTROL: the identical sentence under a "Profil" heading MUST
+    /// trip A7. Without that control, this test would also pass if A7 were simply broken — and it
+    /// would be pinning nothing.</para>
+    /// </summary>
     [Fact]
-    public async Task Preamble_IsNeverGradedAsProse_ByAnyCriterion()
+    public async Task Preamble_IsNeverGradedAsProse_WhileTheSameSentenceUnderAHeadingIs()
     {
-        // A preamble that is pure ATS-cliché. If it reached AllProse, A7 would fire on it.
-        const string clicheInPreamble =
-            """
+        const string clicheAbovveTheFirstHeading =
+            $"""
             Anna Andersson
             anna.andersson@example.com
 
-            Teamplayer med hög arbetsmoral och ett brinnande intresse.
+            {RealCliche} som söker nya utmaningar.
 
             Arbetslivserfarenhet
             Backend-utvecklare — Acme AB
@@ -167,20 +185,53 @@ public class A8PreambleHonestyTests
             2016 - 2021
             """;
 
-        var resume = ResumeFromCvText(clicheInPreamble);
+        const string sameClicheUnderAProfilHeading =
+            $"""
+            Anna Andersson
+            anna.andersson@example.com
 
-        // Precondition: the text IS carried (otherwise this test would pass vacuously).
-        resume.Content.Preamble.ShouldNotBeNull();
-        resume.Content.Preamble.ShouldContain("Teamplayer");
+            Profil
+            {RealCliche} som söker nya utmaningar.
 
-        var result = await Engine().ReviewAsync(
-            CvReviewContext.FromParsed(resume), RenderProfile.Ats, TestContext.Current.CancellationToken);
+            Arbetslivserfarenhet
+            Backend-utvecklare — Acme AB
+            2021 - 2024
+            Ansvarade för betaltjänster och ökade genomströmningen med 30 procent.
 
-        // No criterion may quote the unclassified text back as graded evidence.
-        var everythingSaid = string.Join(
-            " ", result.Verdicts.SelectMany(v => v.Evidence.Select(e => e.ToString())));
+            Utbildning
+            Civilingenjör — KTH
+            2016 - 2021
+            """;
 
-        everythingSaid.ShouldNotContain("Teamplayer");
-        everythingSaid.ShouldNotContain("brinnande intresse");
+        // POSITIVE CONTROL: headed, the sentence IS the user's profile, so A7 SEES it and cites it.
+        //
+        // A single cliché sits under the rubric's passBelowCount, so the VERDICT is Pass either way
+        // — the observable difference is the EVIDENCE: A7 cites the phrase it found, "so the pass is
+        // transparent, never a hidden flag". That citation is therefore the exact signal for "this
+        // text entered the prose corpus", and it is what this test pins. Without this control the
+        // guard below would also pass if A7 were simply broken, and it would be pinning nothing.
+        var headed = ResumeFromCvText(sameClicheUnderAProfilHeading);
+        headed.Content.Profile.ShouldNotBeNull();
+
+        var headedResult = await Engine().ReviewAsync(
+            CvReviewContext.FromParsed(headed), RenderProfile.Ats, TestContext.Current.CancellationToken);
+
+        var headedA7Said = string.Join(
+            " ", headedResult.Verdicts.Single(v => v.CriterionId == "A7").Evidence.Select(e => e.ToString()));
+
+        headedA7Said.ShouldContain(RealCliche);
+
+        // THE GUARD: un-headed, the identical sentence is UNCLASSIFIED. The engine was never told it
+        // is prose the user wrote about herself, so it must not enter the prose corpus and must not
+        // be graded — not by A7, not by A9, not by anything.
+        var unheaded = ResumeFromCvText(clicheAbovveTheFirstHeading);
+        unheaded.Content.Preamble.ShouldNotBeNull();
+        unheaded.Content.Preamble.ShouldContain(RealCliche);
+
+        var unheadedResult = await Engine().ReviewAsync(
+            CvReviewContext.FromParsed(unheaded), RenderProfile.Ats, TestContext.Current.CancellationToken);
+
+        string.Join(" ", unheadedResult.Verdicts.SelectMany(v => v.Evidence.Select(e => e.ToString())))
+            .ShouldNotContain(RealCliche);
     }
 }

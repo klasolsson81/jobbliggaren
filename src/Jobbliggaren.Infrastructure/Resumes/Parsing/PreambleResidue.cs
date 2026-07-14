@@ -79,11 +79,6 @@ internal static class PreambleResidue
     internal const int MaxPreambleChars = 2000;
 
     /// <summary>
-    /// One preamble line after subtraction: what survived, and whether a recogniser CONSUMED anything
-    /// on it. The consumption flag is what makes the contact block findable by POSITION — see
-    /// <see cref="ToText"/>.
-    /// </summary>
-    /// <summary>
     /// One preamble line after subtraction, split at the line's LAST consumed fragment.
     ///
     /// <para><b>The split is the whole point.</b> A rail line can BOTH end the contact block and carry

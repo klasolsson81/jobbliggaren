@@ -47,12 +47,28 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     /// timeout discipline too.
     ///
     /// <para>
-    /// 30 s is the ceiling on how long ONE browse may hold a pooled connection. The bound-legal worst
-    /// case measures ~3,1 s (1000 SNI × 290 kommuner over 1,17M rows), so this is ~10× headroom on a
-    /// warm cache — deliberately not tighter, because a cold cache legitimately costs multiples of the
-    /// measured number and a spurious 500 on a legal criterion would be worse than a slow answer. It is
-    /// a backstop, not the fix: bounding the pool-exhaustion surface properly is PR-3's rate limit plus
-    /// the ORDER BY index (issue #875).
+    /// <b>Re-derived by #875, because the number it used to be justified against is gone.</b> The old
+    /// comment read "~10× headroom over the bound-legal worst case ~3,1 s". Two things were wrong with
+    /// it the moment #875 landed, and one of them was already wrong: the worst case is now <b>26 ms</b>
+    /// (the ORDER BY index turned a full sort of the match set into an ordered walk that stops at
+    /// LIMIT 20), so 30 s is ~1 150× headroom, not 10× — and the 3,1 s it cited was itself measured
+    /// best-of-3 on a vacuumed table. Production's real pre-index worst case, measured p95 with GIN's
+    /// pending list full (what the register looks like right after the nightly sync), was
+    /// <b>7 066 ms</b>.
+    /// </para>
+    ///
+    /// <para>
+    /// So what is 30 s FOR, now? It is not headroom over a known cost — it is a ceiling on how long ONE
+    /// browse may hold a pooled connection when something is wrong that we did not predict: a cold
+    /// cache, stale statistics, a plan regression, a register that has grown past what we measured. A
+    /// browse that takes 30 s is a bug, and the timeout is what stops that bug from becoming an
+    /// app-wide brownout by starving the Npgsql pool. Deliberately not tighter: a spurious 500 on a
+    /// bound-legal criterion would be worse than a slow answer.
+    /// </para>
+    ///
+    /// <para>
+    /// It remains a backstop, not the fix. The pool-exhaustion surface is bounded properly by the
+    /// ORDER BY index (#875, shipped here) plus PR-3's per-user rate limit.
     /// </para>
     /// </summary>
     internal const int CommandTimeoutSeconds = 30;

@@ -62,6 +62,14 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     private const string GinIndexName = "ix_company_register_sni_codes_gin";
     private const string OverlapOperator = "&&";
 
+    /// <summary>
+    /// #875 — the btree that lets the planner walk the ORDER BY in index order and stop at LIMIT 20,
+    /// instead of sorting the whole match set. Its existence is why the Sort-Key pin above had to change
+    /// shape: the old pin justified itself with "there is no index on (company_name,
+    /// organization_number)", and that sentence is now false.
+    /// </summary>
+    private const string NameIndexName = "ix_company_register_company_name_organization_number";
+
     private static readonly DateTimeOffset T0 = new(2026, 7, 13, 10, 0, 0, TimeSpan.Zero);
 
     // Every seeded row sits in this kommun and is Active → both btree predicates have selectivity ≈ 1.0
@@ -92,19 +100,98 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         // differently at OFFSET 0/10/20; "can diverge" is not "does diverge"). That is an asserted
         // non-vacuity, not a demonstrated one.
         //
-        // The Sort Key in the plan cannot be vacuous: there is no index on (company_name,
-        // organization_number), so a Sort node always sits above the bitmap heap scan, and it always
-        // names its key. Drop `, organization_number` from ItemsSql and this fails immediately —
-        // mutation-verified.
-        plan.ShouldContain(
-            "Sort Key: company_name, organization_number",
-            customMessage:
-                "The items query's ORDER BY is no longer TOTAL. company_name is not unique in a real "
-                + "register (duplicate legal names are normal) and Postgres sorts are not stable, so an "
-                + "OFFSET walk over a non-total order silently drops and duplicates rows ACROSS pages. "
-                + $"organization_number is the PK — it is what makes the order total.{Environment.NewLine}"
-                + $"Plan:{Environment.NewLine}{plan}");
+        // TRUTH-SYNC (#875, 2026-07-14). This comment used to justify itself with "there is no index on
+        // (company_name, organization_number), so a Sort node always sits above the bitmap heap scan".
+        // #875 CREATES that index, so the sentence is now FALSE — exactly the load-bearing-comment rot
+        // this suite exists to prevent, and it would have shipped silently.
+        //
+        // The pin survives because it asserts the PROPERTY, not the plan shape: the total order must be
+        // carried by SOMETHING. Two plans can carry it, and both are legitimate:
+        //   (a) an explicit Sort node naming both keys (what a SELECTIVE criterion gets — the planner
+        //       stays on BitmapAnd(GIN, kommun) and sorts the handful of hits), or
+        //   (b) an ordered walk of the new (company_name, organization_number) index, which IS the total
+        //       order — no Sort node needed (what a BROAD criterion gets; see
+        //       BroadCriterion_WalksTheNameIndexInOrder_AndStopsEarly).
+        // Anything else means the OFFSET walk is over a non-total order, and rows silently vanish and
+        // duplicate across pages.
+        //
+        // Still mutation-verified: drop `, organization_number` from ItemsSql and (a) loses its second
+        // key while (b) cannot match the index — both branches fail.
+        var carriesTotalOrder =
+            plan.Contains("Sort Key: company_name, organization_number", StringComparison.Ordinal)
+            || plan.Contains(NameIndexName, StringComparison.Ordinal);
+
+        carriesTotalOrder.ShouldBeTrue(
+            "The items query's ORDER BY is no longer TOTAL. company_name is not unique in a real "
+            + "register (duplicate legal names are normal) and Postgres sorts are not stable, so an "
+            + "OFFSET walk over a non-total order silently drops and duplicates rows ACROSS pages. "
+            + "organization_number is the PK — it is what makes the order total. The plan must carry "
+            + $"that order EITHER as 'Sort Key: company_name, organization_number' OR as an ordered walk "
+            + $"of {NameIndexName}.{Environment.NewLine}Plan:{Environment.NewLine}{plan}");
     }
+
+    [Fact]
+    public async Task BroadCriterion_WalksTheNameIndexInOrder_AndStopsEarly()
+    {
+        // THE guarantee #875 ships, and it needs its own pin — the GIN pin above cannot see it.
+        //
+        // Without ix_company_register_company_name_organization_number, a criterion matching a large
+        // share of the register forces Postgres to SORT the whole match set to answer LIMIT 20. Measured
+        // against 1,17M rows in production's actual post-sync state (GIN's fastupdate pending list full,
+        // which is what the register looks like right after the nightly SCB sync): the bound-legal worst
+        // case took p95 = 7 066 ms against ADR 0045's 300 ms budget — 23x over, and a connection-pool
+        // exhaustion vector for a single authenticated user (security-auditor, #560 PR-2).
+        //
+        // With the index the planner walks it IN ORDER and the LIMIT stops it after 20 rows:
+        //     Limit  (cost=1.15..26.51 rows=20)
+        //       ->  Index Scan using ix_company_register_company_name_organization_number
+        //             Filter: (sni_codes && ... AND status = 'Active' AND sate_kommun_code = ANY ...)
+        // p95 drops to 26 ms. That plan shape IS the fix — so it is what gets pinned, not the latency.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextAsync(ct);
+
+        // A criterion matching MOST of the seeded table — the shape that makes the sort expensive.
+        //
+        // It MUST be the broad one. The selective probe the sibling test uses correctly keeps
+        // BitmapAnd + Sort, so it CANNOT — by construction — notice that this index has fallen out of
+        // the plan. A pin that cannot fail for the reason it exists is not a pin.
+        var broad = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
+
+        var plan = await ExplainSpecAsync(ctx.Db, broad, ct);
+
+        // POSITIVE on the index name — never a negative "no Seq Scan" (dotnet-architect Q1(a): the
+        // negative form passes under mutation because other index paths remain).
+        plan.ShouldContain(
+            NameIndexName,
+            customMessage: BrokenPlanMessage(plan));
+
+        // ...AND the Sort node must be GONE. The index name alone is not enough: a plan could reach the
+        // index and STILL sort on top of it, which would mean the ordered walk is not being used as the
+        // ordering — i.e. the whole point is lost while the name-check stays green.
+        plan.ShouldNotContain(
+            "Sort Key:",
+            customMessage:
+                "The broad criterion's plan still SORTS. Reaching the index is not the guarantee — "
+                + "WALKING it in order and stopping at LIMIT 20 is. A Sort node above the scan means the "
+                + $"whole match set is still being ordered.{Environment.NewLine}{BrokenPlanMessage(plan)}");
+    }
+
+    private static string BrokenPlanMessage(string plan) =>
+        $"A BROAD criterion no longer walks {NameIndexName} in order. It is therefore sorting the "
+        + "entire match set to answer LIMIT 20 — which is what took the bound-legal worst case to "
+        + "7 066 ms p95 against ADR 0045's 300 ms budget (measured against 1,17M rows in the register's "
+        + "post-sync state) before #875 added the index. The 55 MB index is then dead weight, and every "
+        + "other test stays green while it happens."
+        + Environment.NewLine
+        + Environment.NewLine
+        + "MOST LIKELY CAUSE — THE COLLATION. A btree is built WITH a collation. If you changed the "
+        + "collation of `ORDER BY company_name` (e.g. to COLLATE \"sv-SE-x-icu\" so that Å/Ä/Ö sort "
+        + "after Z, which they currently do NOT — issue #884), the index no longer serves that sort and "
+        + "Postgres drops it SILENTLY. Rebuild the index in the SAME migration that changes the sort. "
+        + "Other causes: another column added to the ORDER BY; Max Auto Prepare enabling generic plans "
+        + "that move the cost estimates; a statistics change that makes bitmap+sort look cheaper."
+        + Environment.NewLine
+        + $"Plan:{Environment.NewLine}{plan}";
 
     [Fact]
     public async Task CountQuery_UsesTheSniGinIndex()
@@ -144,12 +231,22 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
                 + $"'{OverlapOperator}'.{Environment.NewLine}Plan:{Environment.NewLine}{plan}");
     }
 
+    /// <summary>EXPLAINs the items query for an arbitrary spec (the broad-criterion pin needs one).</summary>
+    private static Task<string> ExplainSpecAsync(
+        AppDbContext db, CompanyWatchCriteriaSpec spec, CancellationToken ct) =>
+        ExplainAsync(
+            db,
+            (conn, s) => CompanyWatchBrowseQuery.BuildItemsCommand(conn, s, page: 1, pageSize: 20),
+            ct,
+            spec);
+
     private static async Task<string> ExplainAsync(
         AppDbContext db,
         Func<NpgsqlConnection, CompanyWatchCriteriaSpec, NpgsqlCommand> build,
-        CancellationToken ct)
+        CancellationToken ct,
+        CompanyWatchCriteriaSpec? specOverride = null)
     {
-        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni], [SeededKommun]);
+        var spec = specOverride ?? CompanyWatchCriteriaSpec.FromTrusted([ProbeSni], [SeededKommun]);
 
         var connection = (NpgsqlConnection)db.Database.GetDbConnection();
         if (connection.State != System.Data.ConnectionState.Open)

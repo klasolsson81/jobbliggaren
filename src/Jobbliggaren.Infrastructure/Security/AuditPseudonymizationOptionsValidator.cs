@@ -6,8 +6,7 @@ namespace Jobbliggaren.Infrastructure.Security;
 /// Startup validation for <see cref="AuditPseudonymizationOptions"/> (#842). Hard-fails in
 /// <b>every</b> environment, exactly like <see cref="FieldEncryptionOptionsValidator"/>, and for
 /// the same reason: a missing or weak pepper must never be silently tolerated, because the result
-/// <i>looks</i> pseudonymised while being trivially reversible. A control that only appears to
-/// work is the defect class this whole issue exists to close.
+/// <i>looks</i> pseudonymised while being trivially reversible.
 /// </summary>
 internal sealed class AuditPseudonymizationOptionsValidator
     : IValidateOptions<AuditPseudonymizationOptions>

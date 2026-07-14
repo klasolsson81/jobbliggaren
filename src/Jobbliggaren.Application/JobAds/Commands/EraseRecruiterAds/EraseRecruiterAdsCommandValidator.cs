@@ -29,22 +29,14 @@ public sealed class EraseRecruiterAdsCommandValidator : AbstractValidator<EraseR
 
         // ── THE MANDATORY DRY RUN ─────────────────────────────────────────────────────────────
         //
-        // ⚠ This rule was VACUOUS when first written, and the way it was vacuous is the whole
-        // subject of this issue. It read:
+        // ⚠ TWO RuleFor CHAINS, DELIBERATELY. Do NOT merge them back into one.
         //
-        //     RuleFor(c => c.ConfirmedJobAdIds)
-        //         .NotNull().When(c => !c.DryRun)
-        //         .Must(...).When(c => !c.DryRun && c.ConfirmedJobAdIds is not null);
-        //
-        // FluentValidation's `.When()` defaults to ApplyConditionTo.AllValidators — it applies to
-        // EVERY validator defined in the RuleFor chain, not just the one it follows. So the second
-        // When() silently re-scoped the FIRST one, and NotNull() could only run when the value was
-        // NOT null. It could never fire. The mandatory dry run — the single control standing
-        // between an operator and irreversible corpus-wide destruction — was a control that looked
-        // like it worked and never ran. A green test suite agreed with it.
-        //
-        // That is #842's defect class, reproduced inside #842's own fix. It is fixed by giving
-        // each condition its OWN RuleFor, which cannot be re-scoped by a later chain link.
+        // FluentValidation's `.When()` defaults to ApplyConditionTo.AllValidators: it applies to
+        // EVERY validator in the RuleFor chain, not just the one it follows. Chained together, the
+        // second `.When(… ConfirmedJobAdIds is not null)` silently re-scopes the FIRST, so NotNull()
+        // could only run when the value was NOT null — a vacuous rule that can never fire, with a
+        // green test suite agreeing with it. Each condition therefore gets its own RuleFor, which a
+        // later chain link cannot re-scope.
         RuleFor(c => c.ConfirmedJobAdIds)
             .NotNull()
             .When(c => !c.DryRun)

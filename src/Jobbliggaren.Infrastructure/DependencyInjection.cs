@@ -997,19 +997,20 @@ public static class DependencyInjection
             Jobbliggaren.Application.JobAds.Abstractions.IJobAdSearchQuery,
             JobAds.JobAdSearchQuery>();
 
-        // #842 / ADR 0106 Tier B — two-channel (FTS + substring) matching for the Art. 17 erasure
-        // command. Infrastructure for the same reason as IJobAdSearchQuery above: FTS and the
-        // jsonb::text cast are Npgsql concerns, arch-test-forbidden in Application.
+        // #842 / ADR 0106 Tier B — the matching behind the Art. 17 erasure command (the channels are
+        // documented on the port; do not restate them here). Infrastructure for the same reason as
+        // IJobAdSearchQuery above: FTS, the jsonb::text cast and the ARE regex are Npgsql concerns,
+        // arch-test-forbidden in Application.
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Abstractions.IRecruiterErasureMatchQuery,
             JobAds.RecruiterErasureMatchQuery>();
 
-        // #842 — HMAC-SHA256(server pepper). ADR 0090 D5 bound this as the house pseudonymisation
-        // primitive and it was never built; the Art. 17 audit payload is its first consumer.
-        // Singleton: the pepper is read once and the instance is stateless. Fail-closed startup —
-        // a missing/short pepper aborts boot in EVERY environment (mirrors FieldEncryptionOptions),
-        // because an HMAC under a weak or absent key looks protected while being reversible, and a
-        // control that only appears to work is the entire subject of this issue.
+        // #842 — HMAC-SHA256(server pepper) for the Art. 17 audit payload (ADR 0090 D5).
+        // Singleton: the pepper is read once and the instance is stateless.
+        //
+        // Fail-closed startup: a missing or short pepper aborts boot in EVERY environment (mirrors
+        // FieldEncryptionOptions). An HMAC under a weak or absent key looks protected while being
+        // reversible, so a silently-tolerated default would be worse than no pseudonymisation at all.
         services.AddOptions<Security.AuditPseudonymizationOptions>()
             .Bind(configuration.GetSection(Security.AuditPseudonymizationOptions.SectionName))
             .ValidateOnStart();

@@ -47,8 +47,7 @@ public sealed record EraseRecruiterAdsCommand(
     /// Record handler-rejected requests too (e.g. the 409 when the reviewed set has moved).
     /// </summary>
     /// <remarks>
-    /// <b>Scope, stated precisely, because an over-claim here would be the very thing this issue is
-    /// about.</b> <c>AuditBehavior</c> is the INNERMOST pipeline behavior, and
+    /// <b>Scope, precisely.</b> <c>AuditBehavior</c> is the INNERMOST pipeline behavior, and
     /// <c>ValidationBehavior</c> / <c>AdminAuthorizationBehavior</c> both <i>throw</i> — outside it.
     /// So this opt-in records failures the HANDLER returns. It does <b>not</b> record a 400 (bad
     /// input) or a 403 (non-admin). Those are operator-side errors on an internal admin route, not

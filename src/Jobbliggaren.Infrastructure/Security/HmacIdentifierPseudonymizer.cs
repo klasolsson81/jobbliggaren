@@ -6,9 +6,9 @@ using Microsoft.Extensions.Options;
 namespace Jobbliggaren.Infrastructure.Security;
 
 /// <summary>
-/// HMAC-SHA256(server pepper) — the house pseudonymisation primitive bound by ADR 0090 D5 and,
-/// until #842, never built. Used by the Art. 17 erasure command so the accountability record can
-/// name the request without storing the identifier the request asked us to erase.
+/// HMAC-SHA256(server pepper) — the house pseudonymisation primitive (ADR 0090 D5). Used by the
+/// Art. 17 erasure command so the accountability record can name the request without storing the
+/// identifier the request asked us to erase.
 /// </summary>
 /// <remarks>
 /// Singleton: the pepper is read once at construction and the instance is stateless thereafter.

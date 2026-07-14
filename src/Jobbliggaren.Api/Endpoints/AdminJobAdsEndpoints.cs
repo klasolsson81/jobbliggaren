@@ -19,11 +19,9 @@ namespace Jobbliggaren.Api.Endpoints;
 /// kräver operatörsåtgärd via AWS (TD-83).
 ///
 /// <para>
-/// <b>#842 (2026-07-13):</b> the right-to-erasure route for recruiter PII WORKS — see
-/// <see cref="EraseRecruiterAdsCommand"/> (ADR 0106 Tier B). PR1's 501 containment is lifted here.
-/// The old mechanism probed a jsonb key the ingest sanitizer guarantees is absent, erased nothing
-/// on every request, and reported success anyway; the replacement removes the whole ad record and
-/// blocks its re-import, so completeness is provable rather than estimated.
+/// <b>#842:</b> the right-to-erasure route for recruiter PII is
+/// <see cref="EraseRecruiterAdsCommand"/> (ADR 0106 Tier B); PR1's 501 containment is lifted here.
+/// It removes the whole ad record and blocks its re-import.
 /// </para>
 /// </summary>
 public static class AdminJobAdsEndpoints
@@ -50,27 +48,33 @@ public static class AdminJobAdsEndpoints
                     + "kräver operatörsåtgärd via AWS — ingen publik trigger-yta finns.",
                 statusCode: StatusCodes.Status410Gone));
 
-        // GDPR Art. 17 — recruiter-PII erasure (#842, ADR 0106 Tier B). PR1's 501 is lifted:
-        // there is now a path that actually erases.
+        // GDPR Art. 17 — recruiter-PII erasure (#842, ADR 0106 Tier B). PR1's 501 is lifted.
         //
-        // The route is UNCHANGED in address (/redact-recruiter-pii) so ADR 0024's cascade registry
-        // and any older runbook still land somewhere real. Its CONTRACT is new:
+        // The route keeps its address (/redact-recruiter-pii) so ADR 0024's cascade registry and
+        // older runbooks still land somewhere real. The CONTRACT (EraseRecruiterAdsCommand /
+        // EraseRecruiterAdsResponse):
         //
-        //   * dryRun: true                → what WOULD be erased, per surface. Writes nothing.
-        //   * dryRun: false               → requires confirmedJobAdCount, i.e. the number the
-        //                                   operator saw in the dry run. Mismatch ⇒ 409 and nothing
-        //                                   is destroyed. That is what makes the dry run mandatory
-        //                                   in CODE rather than in a runbook sentence.
-        //   * never a bare rowsAffected   → an explicit outcome (NoMatchingDataHeld | DryRun |
-        //                                   AdsErased) plus matched-vs-erased counts per surface.
-        //                                   Art. 12(3) asks what we DID; a lone integer could not
-        //                                   say, and the old one always said 0.
+        //   * dryRun: true   → what WOULD be erased. Writes nothing. `matches` carries the ADS
+        //                      themselves (id, title, company, matchedChannel, matchedExcerpt) plus
+        //                      `matchedRecentSearchTerms` — the operator reviews those, not a count.
+        //   * dryRun: false  → requires `confirmedJobAdIds`: the LIST of ids the operator reviewed
+        //                      in the dry run. NOT a count (a count cannot be reviewed — see
+        //                      EraseRecruiterAdsCommand.ConfirmedJobAdIds). Only confirmed ads are
+        //                      erased; a confirmed id that no longer matches refuses the WHOLE
+        //                      request with 409 and destroys nothing. That is what makes the dry run
+        //                      mandatory in CODE rather than in a runbook sentence.
+        //   * the reply      → an explicit `outcome` (NoMatchInSearchableSurfaces | DryRun |
+        //                      AdsErased | CascadeErasedOnly | NothingErased), per-surface `matched`
+        //                      vs `erased` counts whose GAP is itself a disclosure, `erasedExternalIds`,
+        //                      and `couldNotSearch` — required on EVERY outcome, naming the
+        //                      DEK-encrypted columns we hold and cannot scan. Art. 12(3) asks what we
+        //                      DID, and a bare rowsAffected cannot say.
         //
         // Rejected requests are audited too (IAuditableCommand.AuditFailures) — a refused rights
         // request that leaves no trace is its own Art. 12(3) exposure.
         //
         // Admin auth applies at the group level, and AdminAuthorizationBehavior re-checks it on
-        // IAdminRequest (defense in depth — the one part of this feature that was never broken).
+        // IAdminRequest (defense in depth).
         group.MapPost("/redact-recruiter-pii", async (
             EraseRecruiterAdsRequest request, IMediator mediator, CancellationToken ct) =>
         {
@@ -172,11 +176,8 @@ public static class AdminJobAdsEndpoints
 /// Request-body för POST /api/v1/admin/job-ads/redact-recruiter-pii (GDPR Art. 17, #842).
 /// </summary>
 /// <param name="Identifier">
-/// The recruiter's email, phone number OR name — one free-text field, no type discriminator.
-/// TD-75's premise ("email är primär rekryterar-identifier i JobTech-payloads") was not outdated,
-/// it was falsified: the ingest sanitizer and the wire POCO guarantee the email is never a
-/// structured key in storage, so every identifier is matched over free text either way. TD-75 is
-/// closed as void.
+/// The recruiter's email, phone number OR name — one free-text field, no type discriminator. See
+/// <see cref="EraseRecruiterAdsCommand"/> for why there is no discriminator.
 /// </param>
 /// <param name="DryRun">
 /// True ⇒ report what would be erased and write nothing. <b>Run this first. The API enforces it.</b>
@@ -184,11 +185,10 @@ public static class AdminJobAdsEndpoints
 /// </param>
 /// <param name="ConfirmedJobAdIds">
 /// Required when <paramref name="DryRun"/> is false: the ids of the ads the operator actually
-/// <b>reviewed</b> in the dry run. <b>Not a count.</b> A count cannot be reviewed — a recruiter named
-/// <i>Anna</i> substring-matches <i>Johanna</i> and <i>Marianna</i> across thousands of ads, and an
-/// operator who reads "4127" and retypes "4127" has reviewed nothing while irreversibly destroying
-/// 4 127 ads. Anything he did not confirm is not erased, and any confirmed ad that no longer matches
-/// refuses the whole request with 409 (ingest runs every ten minutes, so the set genuinely moves).
+/// <b>reviewed</b> in the dry run. <b>Not a count</b> — see
+/// <see cref="EraseRecruiterAdsCommand.ConfirmedJobAdIds"/>. Anything he did not confirm is not
+/// erased, and any confirmed ad that no longer matches refuses the whole request with 409 (ingest
+/// runs every ten minutes, so the set genuinely moves).
 /// </param>
 public sealed record EraseRecruiterAdsRequest(
     string Identifier,

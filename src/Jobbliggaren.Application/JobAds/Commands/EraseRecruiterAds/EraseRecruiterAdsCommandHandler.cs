@@ -13,9 +13,9 @@ namespace Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 /// GDPR Art. 17 erasure of recruiter PII (ADR 0106 Tier B, #842).
 /// </summary>
 /// <remarks>
-/// <b>The old mechanism deleted a string it could never find; this one deletes the carrier.</b>
-/// Completeness therefore needs no detector, no recall estimate and no obfuscation argument — and it
-/// reaches the recruiter's NAME, which no regex ever will.
+/// <b>This deletes the carrier, not a detected string</b> — so completeness needs no detector, no
+/// recall estimate and no obfuscation argument, and it reaches the recruiter's NAME, which no regex
+/// ever will.
 /// <para>
 /// Durability is bought by <b>placement</b>: <c>JobAd.UpdateFromSource</c> refuses on <c>Erased</c>,
 /// so the nightly sync and the 10-minute stream cannot write her back. No suppression ledger — a
@@ -41,12 +41,11 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
 
         // ---- Match: every surface the cascade registry says we CAN search -------------------
         //
-        // What is NOT here is as load-bearing as what is. cover_letter / application_notes.content /
-        // follow_ups.note are DEK-encrypted (Form A) and are NOT scanned — a plaintext LIKE against
-        // them compares her name to base64 and returns 0, forever. They are classified
-        // HeldButNotSearchable and DISCLOSED on every reply (CouldNotSearch), never silently
-        // reported as clean. The structural job_ad_id channel below is what reaches the overlap
-        // instead.
+        // What is NOT here is as load-bearing as what is: the DEK-encrypted columns are classified
+        // HeldButNotSearchable and are never scanned (a plaintext LIKE would compare her name to
+        // base64 and return 0, forever). They are DISCLOSED on every reply via CouldNotSearch, and
+        // the structural job_ad_id channel below is what reaches the overlap instead. The full
+        // reasoning is the written ground in ErasureCascadeRegistry.
         var jobAdMatches = await matchQuery.FindJobAdsAsync(identifier, cancellationToken);
         var recentMatches = await matchQuery.FindRecentJobSearchesAsync(identifier, cancellationToken);
         var savedSearchCount = await matchQuery.CountSavedSearchesAsync(identifier, cancellationToken);
@@ -93,14 +92,12 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
                 CouldNotSearch: UnsearchableSurfaces.FromRegistry()));
         }
 
-        // ---- Confirmation gate — BEFORE the nothing-held branch -------------------------------
+        // ---- Confirmation gate — MUST STAY BEFORE the nothing-held branch ----------------------
         //
         // The ORDER is the control, not the gate's existence. With the nothing-held branch first, a
-        // destructive call confirming three ads against a corpus that now matches ZERO was answered
-        // "we hold no data about you" — 200 OK — instead of being refused. That is the stale-view
-        // race the gate exists for, and it is the case where the operator's picture and reality are
-        // furthest apart: he would have relayed "we hold nothing about you" to a named person on the
-        // strength of a discrepancy the system swallowed.
+        // destructive call confirming ads against a corpus that now matches ZERO is answered "we
+        // hold no data about you" instead of being refused — the stale-view race the gate exists
+        // for, in the one case where the operator's picture and reality are furthest apart.
         var currentIds = matchedAdIds.ToHashSet();
         var confirmedIds = command.ConfirmedJobAdIds ?? [];
 

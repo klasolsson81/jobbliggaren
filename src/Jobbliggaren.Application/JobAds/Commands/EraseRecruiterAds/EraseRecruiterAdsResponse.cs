@@ -200,12 +200,11 @@ public sealed record EraseRecruiterAdsResponse(
     /// and the way to guarantee that is to remove the argument someone could get wrong.
     /// </summary>
     /// <remarks>
-    /// Two false statements were reachable while this was a constructor parameter, and both would
-    /// have been sent to a named person: <c>AdsErased</c> with <c>Erased.JobAds == 0</c> (the total
-    /// summed the cascade, so a single deleted cache row produced <i>"vi har tagit bort hela
-    /// annonsen"</i>), and <c>NoMatchingDataHeld</c> over surfaces nobody had searched. The
-    /// invariant is now a theorem rather than a convention: <b>no outcome can name a surface whose
-    /// erased count is zero</b>, because the word is a pure function of the numbers.
+    /// The invariant is a theorem rather than a convention: <b>no outcome can name a surface whose
+    /// erased count is zero</b>, because the word is a pure function of the numbers. As a
+    /// constructor parameter it could be passed <c>AdsErased</c> with <c>Erased.JobAds == 0</c> —
+    /// and the runbook chains that word to <i>"vi har tagit bort hela annonsen"</i>, a false
+    /// statement to a named person.
     /// </remarks>
     public ErasureOutcome Outcome =>
         Matched.Total == 0 ? ErasureOutcome.NoMatchInSearchableSurfaces

@@ -52,9 +52,9 @@ public enum ErasureColumnDisposition
     HeldButNotSearchable,
 
     /// <summary>
-    /// Searched and REPORTED, and deliberately retained on a written legal ground (Art. 17(3)(e)).
-    /// We search it precisely BECAUSE we do not erase it: a ground asserted over a population we
-    /// never counted is a ground asserted over a silence.
+    /// Searched and REPORTED, and deliberately retained on a written legal ground (Art. 17(3)(e) —
+    /// see <see cref="ErasureCascadeRegistry.WrittenGrounds"/>). We search it precisely BECAUSE we
+    /// do not erase it: the ground has to be asserted over a population we actually counted.
     /// </summary>
     MatchedRetained,
 
@@ -73,19 +73,15 @@ public enum ErasureColumnDisposition
     /// </list>
     /// <para>
     /// A LIVE free-text column is NEVER <c>NotRecruiterData</c>, however unlikely her name is to land
-    /// in it. <b>"We judged it unlikely" is not a disposition</b> — it is a ground asserted over a
-    /// population we never counted, which is the defect this issue exists to end. A free-text column
-    /// has exactly two honest homes: we SEARCH it (<see cref="MatchedHumanErases"/> /
-    /// <see cref="MatchedRetained"/>), or we CANNOT search it
-    /// (<see cref="HeldButNotSearchable"/>, and the reply says so out loud).
+    /// in it. <b>"We judged it unlikely" is not a disposition.</b> A free-text column has exactly two
+    /// honest homes: we SEARCH it (<see cref="MatchedHumanErases"/> / <see cref="MatchedRetained"/>),
+    /// or we CANNOT search it (<see cref="HeldButNotSearchable"/>, and the reply says so out loud).
     /// </para>
     /// <para>
-    /// This bucket makes the STRONGEST claim in the registry, and it used to be the only one that
-    /// cost nothing to join — no channel, no count, no written ground.
-    /// <c>company_watch_criteria.label</c> (120 chars, arbitrary user text) landed here for exactly
-    /// that reason, and the guard nodded, because it checked that the column was CLASSIFIED and not
-    /// that the classification was EARNED. Every column here now carries a written ground naming its
-    /// write-path guarantee.
+    /// This bucket makes the STRONGEST claim in the registry, so it is the one that must cost the
+    /// most to join: every column here carries a written ground in
+    /// <see cref="ErasureCascadeRegistry.WrittenGrounds"/> naming its write-path guarantee, and the
+    /// test enforces it.
     /// </para>
     /// </summary>
     NotRecruiterData,
@@ -104,21 +100,16 @@ public enum ErasureColumnDisposition
 /// <c>IAppDbContext</c> that appears in none of the three sets <b>breaks the build</b>.
 /// </summary>
 /// <remarks>
-/// <b>Why this type exists at all.</b> ADR 0024 already had an Art. 17 cascade registry. It listed
+/// <b>Why this type exists, and must not become prose again.</b> ADR 0024's cascade registry listed
 /// <c>raw_payload</c> and nothing else — not <c>job_ads.description</c>, where the address actually
-/// was. It was prose in a document, so it went stale silently, and it is a large part of why #842
-/// survived two releases while an auditor reading that registry would have concluded we were fine.
+/// was. It was prose in a document, so it went stale silently. A registry a reviewer has to remember
+/// to update is not a registry. This one is a type the compiler and a test enforce, and the erasure
+/// command's own response is generated from it — so the thing we <i>tell the data subject</i> and
+/// the thing we <i>actually do</i> are derived from one source.
 /// <para>
-/// A registry a reviewer has to remember to update is not a registry. This one is a type the
-/// compiler and a test enforce, and the erasure command's own response is generated from it — so
-/// the thing we <i>tell the data subject</i> and the thing we <i>actually do</i> are derived from
-/// one source. That is the only structure that survives the next person who adds a table.
-/// </para>
-/// <para>
-/// <b>The count is not the control.</b> When this was written, <c>recent_job_searches</c> held one
-/// row and <c>saved_searches</c> held zero. Keying a control to a row count measured on one
-/// afternoon is exactly the mistake #842 <i>is</i> — the vacuous purger was also correct as long
-/// as nobody looked. The cascade ships on an empty table, and reports 0 truthfully.
+/// <b>The count is not the control.</b> Do not key a classification to how many rows a table
+/// happens to hold: <c>recent_job_searches</c> held one row and <c>saved_searches</c> zero when this
+/// was written. The cascade ships on an empty table and reports 0 truthfully.
 /// </para>
 /// </remarks>
 public static class ErasureCascadeRegistry
@@ -151,14 +142,11 @@ public static class ErasureCascadeRegistry
     /// unclassified text/jsonb column.
     /// </summary>
     /// <remarks>
-    /// <b>Why column granularity, and why the aggregate-level version was a false assurance.</b> The
-    /// first cut of this registry classified <c>DbSet</c>s. It therefore could not have caught either
-    /// of the two real holes in this very PR: <c>job_ads.company_name</c> (an enskild firma's company
-    /// name IS a person's name) and <c>applications.snapshot_company</c> (non-nullable, so populated
-    /// on EVERY application). Both sit inside aggregates the registry had already ticked off as
-    /// classified. <b>A guard one level coarser than its own defect class does not merely miss — it
-    /// reassures.</b> That is the mechanism by which ADR 0024's registry stayed wrong for two
-    /// releases while an auditor reading it concluded we were compliant.
+    /// <b>COLUMN granularity, never <c>DbSet</c> granularity.</b> A per-aggregate registry cannot see
+    /// the two holes that mattered here: <c>job_ads.company_name</c> (an enskild firma's company name
+    /// IS a person's name) and <c>applications.snapshot_company</c> (non-nullable, so populated on
+    /// EVERY application). Both sit inside aggregates a coarser registry would already have ticked
+    /// off as classified.
     /// </remarks>
     public static IReadOnlyDictionary<string, ErasureColumnDisposition> Columns { get; } =
         new Dictionary<string, ErasureColumnDisposition>(StringComparer.Ordinal)
@@ -267,10 +255,10 @@ public static class ErasureCascadeRegistry
     /// </summary>
     /// <remarks>
     /// This is the mechanism that makes <i>"we hold no data matching this identifier"</i>
-    /// <b>unconstructible</b>. That sentence was the old endpoint's answer to every request, and we
-    /// could never truthfully mean it. The outcome word is now
-    /// <c>NoMatchInSearchableSurfaces</c>, and this list rides along with it on every reply, so it
-    /// is structurally impossible to answer a data subject without naming what we did not look at.
+    /// <b>unconstructible</b> — a sentence we could never truthfully mean while these columns exist.
+    /// The strongest available outcome word is <c>NoMatchInSearchableSurfaces</c>, and this list
+    /// rides along with it on every reply, so it is structurally impossible to answer a data subject
+    /// without naming what we did not look at.
     /// </remarks>
     public static IReadOnlyList<string> UnsearchableColumns { get; } =
     [
@@ -289,24 +277,18 @@ public static class ErasureCascadeRegistry
     /// <see cref="ErasureColumnDisposition.NotRecruiterData"/></b>.
     /// </summary>
     /// <remarks>
-    /// <b>Why <c>NotRecruiterData</c> is on that list, and why the key carries the disposition.</b>
-    /// Two defects, one edit.
+    /// <b>Why <c>NotRecruiterData</c> needs a ground.</b> It makes the STRONGEST claim in the
+    /// registry and must not be the cheapest to enter. <c>Erased</c> costs a query;
+    /// <c>MatchedHumanErases</c> costs a channel, a surface and a count; <c>MatchedRetained</c> costs
+    /// a written ground. Left exempt, <c>NotRecruiterData</c> would cost a dictionary entry — the
+    /// verdict with the highest burden of proof would have the lowest cost of entry, and that is
+    /// where the awkward columns go.
     /// <para>
-    /// (1) The grounds test used to exempt <c>NotRecruiterData</c> — the bucket that makes the
-    /// STRONGEST claim in the registry was the ONLY one that could be entered with no evidence at
-    /// all. <c>Erased</c> costs a query; <c>MatchedHumanErases</c> costs a channel, a surface and a
-    /// count; <c>MatchedRetained</c> costs a written ground. <c>NotRecruiterData</c> cost a
-    /// dictionary entry. <b>The verdict with the highest burden of proof had the lowest cost of
-    /// entry, so it is where the awkward columns went.</b> A guard that will accept a free verdict
-    /// will be given free verdicts.
-    /// </para>
-    /// <para>
-    /// (2) Keying by TABLE while dispositions are keyed by COLUMN meant one paragraph stood in for
-    /// several different legal verdicts: <c>applications</c> alone carries four
-    /// (<c>MatchedRetained</c> on the snapshots, <c>MatchedHumanErases</c> on the manual columns,
-    /// <c>HeldButNotSearchable</c> on <c>cover_letter</c>, <c>NotRecruiterData</c> on
-    /// <c>snapshot_source</c>). One vague ground covering four verdicts is precisely how ADR 0024's
-    /// registry rotted.
+    /// <b>Why the key carries the disposition, not just the table.</b> One table holds several
+    /// verdicts — <c>applications</c> alone carries four (<c>MatchedRetained</c> on the snapshots,
+    /// <c>MatchedHumanErases</c> on the manual columns, <c>HeldButNotSearchable</c> on
+    /// <c>cover_letter</c>, <c>NotRecruiterData</c> on <c>snapshot_source</c>). A table-keyed ground
+    /// would be one vague paragraph standing in for four different legal verdicts.
     /// </para>
     /// <para>
     /// <c>Erased</c> and <c>Pseudonymised</c> need no ground: an erasure needs no excuse, and the

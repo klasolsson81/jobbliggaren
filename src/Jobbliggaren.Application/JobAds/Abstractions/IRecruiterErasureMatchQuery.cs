@@ -11,10 +11,9 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// </summary>
 /// <remarks>
 /// <b>Every method here is a channel, and every channel must be able to READ what it reports on.</b>
-/// That is not a platitude: a fourth channel used to <c>LIKE</c> a plaintext name against three
-/// columns the write path guarantees are ciphertext. It returned 0 on every request, forever, and
-/// the reply template turned that 0 into <i>"we hold nothing of yours"</i>. It is deleted. What we
-/// cannot search is now CLASSIFIED as unsearchable
+/// Do not add a method that <c>LIKE</c>s a plaintext identifier against a DEK-encrypted column: it
+/// compares her name to ciphertext, returns 0 on every request forever, and that 0 is then reported
+/// as a search result. What we cannot search is CLASSIFIED as unsearchable
 /// (<see cref="ErasureColumnDisposition.HeldButNotSearchable"/>) and DISCLOSED
 /// (<see cref="UnsearchableSurfaces"/>) — never scanned and quietly reported as clean.
 /// </remarks>
@@ -83,10 +82,10 @@ public interface IRecruiterErasureMatchQuery
     /// <b>Counted and REPORTED, never erased</b> (Art. 17(3)(e) — STOPP-3).
     /// </summary>
     /// <remarks>
-    /// We search it precisely BECAUSE we do not erase it: a legal ground asserted over a population
-    /// we never counted is a ground asserted over a silence. <c>snapshot_company</c> is
-    /// non-nullable, so it is populated on EVERY application — unlike <c>snapshot_description</c>,
-    /// which was measured at zero rows and is the only one the original scope reasoned about.
+    /// We search it precisely BECAUSE we do not erase it — the retention ground has to be asserted
+    /// over a population we counted (see <c>ErasureCascadeRegistry.WrittenGrounds</c>).
+    /// <c>snapshot_company</c> is non-nullable, so it is populated on EVERY application, unlike
+    /// <c>snapshot_description</c>; scanning the description alone would miss the whole surface.
     /// </remarks>
     Task<int> CountApplicationSnapshotsAsync(
         string identifier, CancellationToken cancellationToken);
@@ -97,10 +96,8 @@ public interface IRecruiterErasureMatchQuery
     /// <c>manual_title</c> / <c>manual_url</c>). <b>Counted and REPORTED; a human erases them.</b>
     /// </summary>
     /// <remarks>
-    /// <b>The surface is named for what it actually searches.</b> It used to be called
-    /// <c>UserAuthoredText</c> and it did not search the cover letters — a surface name reported to
-    /// the data subject as a thing we looked at is an outcome word, and an outcome word must not be
-    /// able to lie.
+    /// <b>The surface must be named for what it actually searches</b> — the name is reported to the
+    /// data subject as a thing we looked at, so it must not promise more than the query covers.
     /// <para>
     /// <c>manual_url</c> is a 2000-char pasted string with no validation at the persistence
     /// boundary: it is free text with a max length, and a URL path carries names routinely
@@ -120,10 +117,8 @@ public interface IRecruiterErasureMatchQuery
     /// </summary>
     /// <remarks>
     /// A criterion is a predicate over SNI + kommun codes, so a recruiter's name is an unlikely
-    /// thing to type here. <b>Unlikely is not a disposition.</b> The column was classified
-    /// "structurally cannot hold a recruiter's personal data" while the write path accepted 120
-    /// characters of anything, and we would have been asserting her absence from a column we never
-    /// looked at.
+    /// thing to type here. <b>Unlikely is not a disposition</b> — the write path accepts 120
+    /// characters of anything, so the column is searched rather than assumed empty.
     /// </remarks>
     Task<int> CountCompanyWatchCriteriaAsync(
         string identifier, CancellationToken cancellationToken);

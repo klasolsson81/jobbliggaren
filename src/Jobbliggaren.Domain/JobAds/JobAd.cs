@@ -189,10 +189,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     /// PG18 §5.4); <see cref="Company"/> (an enskild firma's name IS a person's name — see
     /// <see cref="JobAds.Company.Erased"/>); <see cref="Url"/> (a JobTech ad URL is not PII, but a
     /// tombstone that still links to the live ad is not a tombstone); <see cref="RawPayload"/>;
-    /// <see cref="OrganizationNumber"/> — <b>explicitly, and it used to be free.</b> The seven facet
-    /// columns were STORED GENERATED from <c>raw_payload</c>, so nulling the payload nulled the
-    /// org.nr and this method never knew the column existed. #841 materialised them, the coincidence
-    /// ended, and a sole proprietor's org.nr <b>is a personnummer</b> (CLAUDE.md §5). And
+    /// <see cref="OrganizationNumber"/> (explicitly — see the comment at the assignment); and
     /// <see cref="ExtractedTerms"/>, where the recruiter's name survives <i>verbatim</i> as a
     /// Display/MatchedOn surface form (F-B — it is C#-written, so it does NOT self-heal on a
     /// description write; the STORED <c>extracted_lexemes</c> shadow follows it).
@@ -229,13 +226,13 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         Company = Company.Erased;
         RawPayload = null;
 
-        // EXPLICITLY, and #841 is the reason. While organization_number was a STORED GENERATED
-        // column derived from raw_payload, nulling the payload nulled the org.nr for free — and this
-        // method never knew the column existed. #841 materialised it into an ordinary, ingest-written
-        // column that persists indefinitely (JobAdConfiguration: "Any Art. 17 erasure path must now
-        // clear this column EXPLICITLY; it will not vanish on its own"). A sole proprietor's org.nr
-        // IS a personnummer (CLAUDE.md §5). Pinned by the tombstone-shape fitness test, which is
-        // derived from ErasureCascadeRegistry — the claim and the proof cannot drift apart.
+        // EXPLICITLY, and #841 is the reason. organization_number is no longer a STORED GENERATED
+        // column derived from raw_payload (where nulling the payload nulled the org.nr for free) —
+        // #841 materialised it into an ordinary, ingest-written column that persists indefinitely
+        // (JobAdConfiguration: "Any Art. 17 erasure path must now clear this column EXPLICITLY; it
+        // will not vanish on its own"). A sole proprietor's org.nr IS a personnummer (CLAUDE.md §5).
+        // Pinned by the tombstone-shape fitness test, which is derived from ErasureCascadeRegistry —
+        // the claim and the proof cannot drift apart.
         //
         // The six *_concept_id facets stay: they are Arbetsförmedlingen taxonomy codes, classified
         // NotRecruiterData, and a tombstone that keeps its SSYK code discloses nothing about her.
@@ -269,12 +266,11 @@ public sealed class JobAd : AggregateRoot<JobAdId>
 
         // #842 / ADR 0106 D7 — THE RE-IMPORT TOMBSTONE, and the single line that makes Art. 17
         // erasure durable. The nightly snapshot sync (0 2 * * *) and the 10-minute stream both
-        // funnel into UpsertExternalJobAdCommandHandler, which has no unchanged/hash
-        // short-circuit and reassigns Title/Description/Url/RawPayload UNCONDITIONALLY. Without
-        // this refusal, an erased ad that is still listed at Arbetsförmedlingen walks straight
-        // back in within ≤10 minutes — we would send the recruiter an Art. 12(3) confirmation and
-        // then restore her data overnight. That is F-A, and it is the defect that made the old
-        // purger worthless.
+        // funnel into UpsertExternalJobAdCommandHandler, which has no unchanged/hash short-circuit
+        // and reassigns Title/Description/Url/RawPayload UNCONDITIONALLY. Without this refusal, an
+        // erased ad that is still listed at Arbetsförmedlingen walks straight back in within ≤10
+        // minutes — we would send the recruiter an Art. 12(3) confirmation and then restore her
+        // data overnight.
         //
         // It is placed HERE, in the aggregate, and BEFORE ValidateCore — deliberately (CLAUDE.md
         // §2.2). Do NOT "fix" this by adding a status predicate to the handler's reload query:

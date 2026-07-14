@@ -119,7 +119,7 @@ public sealed record ErasureSurfaceCounts(
     int ApplicationSnapshots,
     int ManualAdEntries,
     int CompanyWatchCriteria,
-    int ResumeFileNames,
+    int ResumeMetadata,
     int ApplicationsReferencingMatchedAds)
 {
     public static ErasureSurfaceCounts None { get; } = new(0, 0, 0, 0, 0, 0, 0, 0);
@@ -133,7 +133,7 @@ public sealed record ErasureSurfaceCounts(
     /// </summary>
     public int Total =>
         JobAds + RecentJobSearches + SavedSearches + ApplicationSnapshots
-        + ManualAdEntries + CompanyWatchCriteria + ResumeFileNames
+        + ManualAdEntries + CompanyWatchCriteria + ResumeMetadata
         + ApplicationsReferencingMatchedAds;
 }
 

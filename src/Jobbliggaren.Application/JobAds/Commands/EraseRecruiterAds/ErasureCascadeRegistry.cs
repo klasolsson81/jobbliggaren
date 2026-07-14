@@ -133,7 +133,7 @@ public static class ErasureCascadeRegistry
         "ApplicationSnapshots",
         "ManualAdEntries",
         "CompanyWatchCriteria",
-        "ResumeFileNames",
+        "ResumeMetadata",
         "ApplicationsReferencingMatchedAds",
     };
 
@@ -169,6 +169,26 @@ public static class ErasureCascadeRegistry
 
             // ── recent_job_searches: ERASED (hard-delete of the row) ─────────────────────────
             ["recent_job_searches.q"] = ErasureColumnDisposition.Erased,
+
+            // employer_list holds the EMPLOYER NAMES she filtered on — and an enskild firma's
+            // employer name IS a natural person's name. Exactly the argument that put
+            // job_ads.company_name in scope. It was invisible until the sweep learned to see text[].
+            // The row is hard-deleted either way; the MATCH had to learn to find it here too, or the
+            // column would have been certified Erased while a row naming her survived because her
+            // name was in the employer filter and not in the free-text `q`.
+            ["recent_job_searches.employer_list"] = ErasureColumnDisposition.Erased,
+
+            // The other five list columns are Arbetsförmedlingen taxonomy concept ids.
+            ["recent_job_searches.occupation_group_list"] = ErasureColumnDisposition.NotRecruiterData,
+            ["recent_job_searches.municipality_list"] = ErasureColumnDisposition.NotRecruiterData,
+            ["recent_job_searches.region_list"] = ErasureColumnDisposition.NotRecruiterData,
+            ["recent_job_searches.employment_type_list"] = ErasureColumnDisposition.NotRecruiterData,
+            ["recent_job_searches.worktime_extent_list"] = ErasureColumnDisposition.NotRecruiterData,
+
+            ["company_watch_criteria.sni_codes"] = ErasureColumnDisposition.NotRecruiterData,
+            ["company_watch_criteria.kommun_codes"] = ErasureColumnDisposition.NotRecruiterData,
+            ["company_register.sni_codes"] = ErasureColumnDisposition.NotRecruiterData,
+            ["resumes.reviewed_rubric_version"] = ErasureColumnDisposition.NotRecruiterData,
 
             // ── saved_searches: MATCHED, a HUMAN erases ─────────────────────────────────────
             ["saved_searches.criteria"] = ErasureColumnDisposition.MatchedHumanErases,
@@ -238,14 +258,26 @@ public static class ErasureCascadeRegistry
             ["parsed_resumes.parsed_content_enc"] = ErasureColumnDisposition.HeldButNotSearchable,
             ["resume_files.content"] = ErasureColumnDisposition.HeldButNotSearchable,
 
-            // The FILE NAME is plaintext free text the user typed, and the repo already MASKS
-            // personnummer out of it (#465) — a guard bolted on precisely because users put
-            // arbitrary text into filenames. So it is SEARCHED, in both tables: searching one and
-            // not the identical one a table over would be the same defect restated.
+            // ── CV METADATA: plaintext, user-authored, and SEARCHED ─────────────────────────
+            // The FILE NAME is free text the user typed, and the repo already MASKS personnummer out
+            // of it (#465) — a guard bolted on precisely because users put arbitrary text into
+            // filenames. Both tables, because searching one and not the identical column a table
+            // over would be the same defect restated.
             ["parsed_resumes.source_file_name"] = ErasureColumnDisposition.MatchedHumanErases,
             ["resume_files.file_name"] = ErasureColumnDisposition.MatchedHumanErases,
+
+            // resumes.name is the CV's own name, typed by her via Rename(). It is the SAME datum in
+            // the SAME form as saved_searches.name — which this registry already SEARCHES, on the
+            // ground that "a user who names a saved search 'Anna Karlssons annonser' holds the
+            // recruiter's name in it". A CV named "CV – Skill Rekrytering" is the identical case.
+            // latest_role and top_skills are denormalised projections of her CV content.
+            ["resumes.name"] = ErasureColumnDisposition.MatchedHumanErases,
+            ["resumes.latest_role"] = ErasureColumnDisposition.MatchedHumanErases,
+            ["resumes.top_skills"] = ErasureColumnDisposition.MatchedHumanErases,
+
             ["parsed_resumes.source_content_type"] = ErasureColumnDisposition.NotRecruiterData,
             ["resume_files.content_type"] = ErasureColumnDisposition.NotRecruiterData,
+            ["resumes.language"] = ErasureColumnDisposition.NotRecruiterData,
 
             ["resume_versions.content"] = ErasureColumnDisposition.NotRecruiterData,
             ["resume_versions.content_enc"] = ErasureColumnDisposition.HeldButNotSearchable,
@@ -421,6 +453,28 @@ public static class ErasureCascadeRegistry
                 + "registry whose verdicts disagree about identical data is worth nothing. Searched, "
                 + "reported, erased by a human.",
 
+            ["resumes:MatchedHumanErases"] =
+                "THE GROUND THAT EXCLUDED THIS TABLE WAS WRITTEN AGAINST THE AGGREGATE'S DOCSTRING, "
+                + "NOT AGAINST ITS MAPPING - and that is the fourth time in this issue. Resume.cs "
+                + "says the root 'holds no content', which is true about the CV's BODY and false "
+                + "about the ROW: ResumeConfiguration maps name (varchar 200, free text she types via "
+                + "Rename(), no content validation), latest_role (varchar 500) and top_skills "
+                + "(text[]). "
+                + "resumes.name is the SAME DATUM IN THE SAME FORM as saved_searches.name, which this "
+                + "registry already SEARCHES on the ground that 'a user who names a saved search "
+                + "\"Anna Karlssons annonser\" holds the recruiter's name in it'. A CV named "
+                + "'CV - Skill Rekrytering' is the identical case, and a registry whose verdicts "
+                + "disagree about identical data is worth nothing. latest_role and top_skills are "
+                + "denormalised projections of her CV content, in plaintext. "
+                + "Her right reaches all three (Art. 6(1)(f) -> Art. 21(1)). Searched, reported, "
+                + "erased by a HUMAN with that user in the loop. "
+                + "AN AGGREGATE'S PROSE DESCRIBES WHAT IT IS FOR; THE EF CONFIGURATION DESCRIBES WHAT "
+                + "IT HOLDS. Only the second is a fact about the database.",
+
+            ["resumes:NotRecruiterData"] =
+                "Closed domain: `language` is a ResumeLanguage enum value written through a value "
+                + "converter. No user write path reaches the stored value as free text.",
+
             ["resume_files:NotRecruiterData"] =
                 "Closed domain: content_type is the MIME type from the same validated allowlist as "
                 + "parsed_resumes.source_content_type. No user write path into the value.",
@@ -533,6 +587,18 @@ public static class ErasureCascadeRegistry
                 + "shadow so the EF snapshot matches the physical schema; the column is dropped in a "
                 + "later verified follow-up. This earns NotRecruiterData under shape (2): the write "
                 + "path is gone AND somebody counted.",
+
+            ["recent_job_searches:NotRecruiterData"] =
+                "Closed domain: the five remaining list columns hold Arbetsförmedlingen taxonomy "
+                + "CONCEPT IDS (occupation group, municipality, region, employment type, worktime "
+                + "extent), captured from the search filter's code values, never from free text. The "
+                + "two columns that CAN hold her name - `q` and `employer_list` - are Erased with the "
+                + "row.",
+
+            ["company_watch_criteria:NotRecruiterData"] =
+                "Closed domain: sni_codes and kommun_codes are SCB/SNI industry codes and kommun "
+                + "codes from fixed code lists. The criterion IS its codes; the only free-text column "
+                + "on this table is `label`, which is searched.",
 
             ["taxonomy_concepts:NotRecruiterData"] =
                 "Closed domain: concept ids and labels replicated from Arbetsförmedlingen's taxonomy. "

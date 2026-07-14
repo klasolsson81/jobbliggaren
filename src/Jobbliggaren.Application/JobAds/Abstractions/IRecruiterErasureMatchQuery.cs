@@ -135,7 +135,7 @@ public interface IRecruiterErasureMatchQuery
     /// a control in the same aggregate said otherwise. Both tables are searched, because a registry
     /// whose verdicts disagree about identical data is worth nothing.
     /// </remarks>
-    Task<int> CountResumeFileNamesAsync(
+    Task<int> CountResumeMetadataAsync(
         string identifier, CancellationToken cancellationToken);
 
     /// <summary>

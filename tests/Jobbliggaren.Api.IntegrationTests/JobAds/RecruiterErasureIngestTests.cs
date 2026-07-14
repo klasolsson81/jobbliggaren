@@ -1181,17 +1181,17 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
         var probe = await EraseAsync(RecruiterName, ct, dryRun: true);
 
-        probe.Matched.ResumeFileNames.ShouldBe(1,
+        probe.Matched.ResumeMetadata.ShouldBe(1,
             "parsed_resumes.source_file_name is PLAINTEXT and is scanned. If this is 0 the column is "
             + "classified, reported in the reply, and never actually looked at — a certified-clean "
             + "surface nobody checked, which is the #842 shape exactly.");
 
         var result = await EraseAsync(RecruiterName, ct);
 
-        result.Erased.ResumeFileNames.ShouldBe(0,
+        result.Erased.ResumeMetadata.ShouldBe(0,
             "report-only: a job does not silently rename a user's own uploaded file. A HUMAN erases "
             + "it, with that user in the loop.");
-        result.Matched.ResumeFileNames.ShouldBe(1, "and the gap between matched and erased IS the "
+        result.Matched.ResumeMetadata.ShouldBe(1, "and the gap between matched and erased IS the "
             + "disclosure the reply template carries.");
 
         using var scope = _provider.CreateScope();
@@ -1639,9 +1639,9 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             string identifier, CancellationToken cancellationToken) =>
             inner.CountCompanyWatchCriteriaAsync(identifier, cancellationToken);
 
-        public Task<int> CountResumeFileNamesAsync(
+        public Task<int> CountResumeMetadataAsync(
             string identifier, CancellationToken cancellationToken) =>
-            inner.CountResumeFileNamesAsync(identifier, cancellationToken);
+            inner.CountResumeMetadataAsync(identifier, cancellationToken);
 
         public Task<int> CountApplicationsReferencingAsync(
             IReadOnlyCollection<Guid> matchedJobAdIds, CancellationToken cancellationToken) =>

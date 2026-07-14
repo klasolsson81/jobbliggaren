@@ -1,6 +1,8 @@
 using System.Reflection;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -80,10 +82,18 @@ public class ErasureCascadeRegistryTests
             + "own datum or a closed-domain preference (enum, boolean, timestamp). Not one column "
             + "accepts free text ABOUT A THIRD PARTY, which is the only thing this registry is "
             + "about.",
-        ["resumes"] = "The CV aggregate ROOT: ids, timestamps and a status enum. It holds no "
-            + "content. The CV's actual content lives in resume_versions, parsed_resumes and "
-            + "resume_files — all three of which ARE column-classified, precisely because they were "
-            + "once excluded here and should never have been.",
+        // `resumes` USED TO BE HERE, on the ground "ids, timestamps and a status enum; it holds no
+        // content". That sentence was copied from the AGGREGATE'S DOCSTRING and never checked
+        // against the MAPPING. ResumeConfiguration maps `name` (varchar 200, free text she types via
+        // Rename()), `latest_role` (varchar 500) and `top_skills` (text[]). The docstring was true
+        // about the CV's BODY and false about the row.
+        //
+        // ⇒ It is column-classified now, and `resumes.name` is SEARCHED — it is the same datum, in
+        // the same form, as saved_searches.name, which this registry already searches.
+        //
+        // THE LESSON, and it is the fourth time in this issue: WRITE THE GROUND AGAINST THE
+        // MAPPING, NOT AGAINST THE DOCSTRING. An aggregate's prose describes what it is FOR; the EF
+        // configuration describes what it HOLDS. Only the second one is a fact about the database.
 
         // ── Infrastructure the user cannot write into. ────────────────────────────────────────
         ["user_data_keys"] = "The DEK envelope itself: wrapped key material (bytes) and key ids. "
@@ -165,14 +175,23 @@ public class ErasureCascadeRegistryTests
             {
                 var clr = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
 
-                // Text OR bytes. The byte[] arm is not theoretical: resume_files.sealed_content is
-                // the CV FILE ITSELF, and a sweep that filtered on `string` alone claimed to catch
-                // "text anywhere" while walking straight past it.
+                // THREE shapes hold text, and every one of them was missed once.
                 //
-                // ⚠ Still NOT reached: an owned type mapped .ToJson() presents as a navigation, not a
-                // scalar property. Said out loud rather than left as an assumption a reader would
-                // over-trust — which is how the last two holes happened.
-                if (clr != typeof(string) && clr != typeof(byte[]))
+                //   string   — the obvious one.
+                //   byte[]   — resume_files.content is the CV FILE ITSELF. A sweep filtering on
+                //              `string` alone claimed to catch "text anywhere" and walked past it.
+                //   text[]   — an IEnumerable<string> maps to a Postgres array. resumes.top_skills
+                //              is her CV's skill list, and it was invisible to BOTH earlier filters.
+                //
+                // ⚠ STILL NOT REACHED, and said out loud rather than left as an assumption a reader
+                // would over-trust: an owned type mapped .ToJson() presents as a NAVIGATION, not a
+                // scalar property, so its columns never appear here. Every hole in this sweep so far
+                // has been a shape nobody thought to look for.
+                var isTextArray =
+                    clr != typeof(string)
+                    && typeof(IEnumerable<string>).IsAssignableFrom(clr);
+
+                if (clr != typeof(string) && clr != typeof(byte[]) && !isTextArray)
                     continue;
 
                 columns.Add(ColumnKey(entity, property));
@@ -253,7 +272,15 @@ public class ErasureCascadeRegistryTests
             "parsed_resumes.parsed_content_enc",
         };
 
-        foreach (var column in formA.Concat(formB))
+        // Form C — the sealed binary store. Pinned by name, because its DISPOSITION was otherwise
+        // unguarded: nothing stopped someone flipping it to NotRecruiterData, dropping the CV file
+        // out of the "could not search" list we hand a named data subject, with a green suite.
+        var formC = new[]
+        {
+            "resume_files.content",
+        };
+
+        foreach (var column in formA.Concat(formB).Concat(formC))
         {
             encrypted.ShouldContain(column,
                 $"{column} is DEK-encrypted and the cross-check must SEE it. If this fails, the "
@@ -359,6 +386,24 @@ public class ErasureCascadeRegistryTests
             foreach (var shadow in new[] { "ContentEnc", "ParsedContentEnc" })
             {
                 var property = entity.FindProperty(shadow);
+                if (property is not null)
+                    columns.Add(ColumnKey(entity, property));
+            }
+
+            // Form C — the binary store. THE SAME MANUAL SEAM, and it was PROMISED and not
+            // delivered: the registry's written ground said "this column is enumerated BY HAND
+            // there", and it was not. So flipping resume_files.content to NotRecruiterData would
+            // have dropped it out of CouldNotSearch in silence, with a green suite — the round-3
+            // Blocker again, one form over.
+            //
+            // Form C is sealed via IBinaryFieldSealer/IBinaryFieldOpener and is DELIBERATELY absent
+            // from EncryptedFieldRegistry (its read path is streaming and never engages the
+            // materialisation interceptor), so there is no allowlist to reflect over. Hence the hand
+            // enumeration — and hence saying so, loudly, instead of letting the guard read as if it
+            // covered all three forms.
+            foreach (var sealedProperty in new[] { "SealedContent" })
+            {
+                var property = entity.FindProperty(sealedProperty);
                 if (property is not null)
                     columns.Add(ColumnKey(entity, property));
             }
@@ -501,6 +546,65 @@ public class ErasureCascadeRegistryTests
             + "does not reach Total is a surface we searched, found her on, and then reported "
             + "'NoMatchInSearchableSurfaces' about — because Total drives the outcome word. "
             + "Missing from the sum: " + string.Join(", ", missing));
+    }
+
+    /// <summary>
+    /// The AUDIT PAYLOAD reports every surface too — it is the Art. 5(2) accountability record, and
+    /// a surface missing from it is a surface an auditor cannot check us on.
+    /// </summary>
+    /// <remarks>
+    /// Adding a surface currently requires remembering EIGHT places (registry, counts record, Total,
+    /// port, implementation, handler, audit payload, reply template) and exactly ONE of them breaks
+    /// the build. This closes a second one. The remaining gap is real and is written down rather
+    /// than papered over: the port's channel set and the reply template are still pinned by nothing
+    /// but a human.
+    /// </remarks>
+    [Fact]
+    public void The_audit_payload_reports_every_surface()
+    {
+        var surfaces = typeof(ErasureSurfaceCounts)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.PropertyType == typeof(int) && p.Name != nameof(ErasureSurfaceCounts.Total))
+            .Select(p => p.Name)
+            .ToList();
+
+        surfaces.ShouldNotBeEmpty();
+
+        // Drive the REAL BuildAuditPayload through the REAL command, with a fake pseudonymiser.
+        var counts = new ErasureSurfaceCounts(1, 2, 3, 4, 5, 6, 7, 8);
+        var response = new EraseRecruiterAdsResponse(
+            RequestId: Guid.NewGuid(),
+            DryRun: true,
+            Matched: counts,
+            Erased: ErasureSurfaceCounts.None,
+            Matches: [],
+            MatchedRecentSearchTerms: [],
+            ErasedExternalIds: [],
+            CouldNotSearch: UnsearchableSurfaces.FromRegistry());
+
+        var command = new EraseRecruiterAdsCommand(
+            Guid.NewGuid(), "magnus.fagerberg@example.se", DryRun: true, ConfirmedJobAdIds: null);
+
+        var json = command.BuildAuditPayload(
+            Result.Success(response), new FixedPseudonymizer());
+
+        json.ShouldNotBeNull();
+
+        var missing = surfaces
+            .Where(s => !json.Contains(
+                char.ToLowerInvariant(s[0]) + s[1..], StringComparison.Ordinal))
+            .ToList();
+
+        missing.ShouldBeEmpty(
+            "these surfaces are not in the audit payload. The audit row is the Art. 5(2) "
+            + "accountability record — what an auditor, or the recruiter herself, checks us against. "
+            + "A surface we searched and did not record is a search nobody can verify. Missing: "
+            + string.Join(", ", missing));
+    }
+
+    private sealed class FixedPseudonymizer : IIdentifierPseudonymizer
+    {
+        public string Pseudonymize(string identifier) => "hmac-fixture";
     }
 
     /// <summary>

@@ -966,12 +966,20 @@ public class DigestDispatchJobTests
 
         var erasedAd = await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong,
             "Raderad roll", "Raderat bolag", ct, createdAt: NowClock.UtcNow);
-        var liveAd = await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong,
+        // The control ad is ARCHIVED, not Active — and that is the whole point of the test.
+        // With an ACTIVE control, mutating the guard to `== Active` would keep the suite GREEN: the
+        // erased ad drops out either way. The discriminating case is an ad that is NOT Active and
+        // NOT Erased, because #805-3 and #821 deliberately restored those to this surface. One
+        // character, and this repo has shipped that regression to prod twice.
+        var archivedAd = await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong,
             "Kvar roll", "Kvar bolag", ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
 
-        // Through the PRODUCTION transition, never by writing columns (#843).
+        // Through the PRODUCTION transitions, never by writing columns (#843).
         var ad = await db.JobAds.FirstAsync(j => j.Id == erasedAd, ct);
         ad.Erase(NowClock).IsSuccess.ShouldBeTrue();
+
+        var kept = await db.JobAds.FirstAsync(j => j.Id == archivedAd, ct);
+        kept.Archive(NowClock).IsSuccess.ShouldBeTrue();
         await db.SaveChangesAsync(ct);
 
         MatchNotificationEmail? captured = null;
@@ -986,14 +994,17 @@ public class DigestDispatchJobTests
             "the tombstone's marker '[raderad]' would be EMAILED to the user. This is one of only "
             + "two places in the product where an erased ad leaves the system boundary.");
         captured.Items.Select(i => i.JobTitle).ShouldNotContain(string.Empty);
-        captured.Items.Select(i => i.CompanyName).ShouldContain("Kvar bolag");
+        captured.Items.Select(i => i.CompanyName).ShouldContain("Kvar bolag",
+            "and an ARCHIVED ad must STILL be emailed. The guard is `!= Erased`, never `== Active` — "
+            + "#805-3 and #821 restored archived ads to this surface on purpose, and this assertion "
+            + "is what makes `== Active` a killable mutation instead of a silent regression.");
 
         // And the erased match is still DRAINED: it WAS a valid match when detected, and leaving it
         // Pending would retry it on every digest, forever.
         (await ReloadMatchAsync(db, userId, erasedAd, ct))!.NotificationStatus
             .ShouldBe(NotificationStatus.Sent,
                 "drain-but-do-not-show. Not showing it is not the same as not resolving it.");
-        (await ReloadMatchAsync(db, userId, liveAd, ct))!.NotificationStatus
+        (await ReloadMatchAsync(db, userId, archivedAd, ct))!.NotificationStatus
             .ShouldBe(NotificationStatus.Sent);
     }
 
@@ -1006,12 +1017,18 @@ public class DigestDispatchJobTests
         var watchId = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
 
         var erasedAd = await SeedActiveAdAsync(db, "Raderad roll", "Raderat bolag", ct);
-        var liveAd = await SeedActiveAdAsync(db, "Kvar roll", "Kvar bolag", ct);
+
+        // ARCHIVED, not Active — see the match-digest test above. An Active control cannot kill the
+        // `== Active` mutation.
+        var archivedAd = await SeedActiveAdAsync(db, "Kvar roll", "Kvar bolag", ct);
         await SeedFollowHitAsync(db, userId, erasedAd, watchId, ct, createdAt: NowClock.UtcNow);
-        await SeedFollowHitAsync(db, userId, liveAd, watchId, ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
+        await SeedFollowHitAsync(db, userId, archivedAd, watchId, ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
 
         var ad = await db.JobAds.FirstAsync(j => j.Id == erasedAd, ct);
         ad.Erase(NowClock).IsSuccess.ShouldBeTrue();
+
+        var kept = await db.JobAds.FirstAsync(j => j.Id == archivedAd, ct);
+        kept.Archive(NowClock).IsSuccess.ShouldBeTrue();
         await db.SaveChangesAsync(ct);
 
         FollowedCompanyNotificationEmail? captured = null;
@@ -1025,7 +1042,8 @@ public class DigestDispatchJobTests
         captured.Items.Select(i => i.CompanyName).ShouldNotContain(Company.Erased.Name,
             "the second — and last — place the tombstone can leave the system: the followed-company "
             + "digest email.");
-        captured.Items.Select(i => i.CompanyName).ShouldContain("Kvar bolag");
+        captured.Items.Select(i => i.CompanyName).ShouldContain("Kvar bolag",
+            "an ARCHIVED followed-company ad must STILL be emailed — `!= Erased`, never `== Active`.");
 
         (await ReloadHitAsync(db, userId, erasedAd, ct))!.NotificationStatus
             .ShouldBe(FollowedCompanyAdHitStatus.Sent, "drained, not shown.");

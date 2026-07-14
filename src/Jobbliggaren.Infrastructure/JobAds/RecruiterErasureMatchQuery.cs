@@ -208,11 +208,19 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
         var pattern = WordBoundaryPattern(identifier);
 
         // `~*` = case-insensitive ARE match. `q` is a plain varchar(100), so no cast is needed.
+        //
+        // employer_list is a text[] of the EMPLOYER NAMES she filtered on, and an enskild firma's
+        // employer name IS a natural person's name — the same argument that put job_ads.company_name
+        // in scope. Without this arm the row survives whenever her name is in the employer filter and
+        // not in the free-text `q`, while the registry certifies the column Erased.
         var ids = await db.Database
             .SqlQuery<Guid>($"""
                 SELECT id AS "Value"
                 FROM recent_job_searches
-                WHERE q IS NOT NULL AND q ~* {pattern}
+                WHERE (q IS NOT NULL AND q ~* {pattern})
+                   OR EXISTS (
+                        SELECT 1 FROM unnest(coalesce(employer_list, ARRAY[]::text[])) AS employer
+                        WHERE employer ~* {pattern})
                 """)
             .ToListAsync(cancellationToken);
 
@@ -312,22 +320,34 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
             """, cancellationToken);
     }
 
-    public async Task<int> CountResumeFileNamesAsync(
+    public async Task<int> CountResumeMetadataAsync(
         string identifier, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
         var pattern = LikePattern(identifier);
 
-        // The SAME uploaded file, in two tables. The CV body (raw_text / parsed_content_enc /
-        // sealed_content) is NOT scanned here — it is encrypted, HeldButNotSearchable, and
-        // disclosed. Only the plaintext file NAME is searchable.
+        // The PLAINTEXT metadata around her CV: the two file names (same uploaded file, two tables),
+        // the CV's own name, its headline role, and its skill list.
+        //
+        // The CV BODY is NOT scanned here — raw_text, parsed_content_enc, content_enc and the sealed
+        // file bytes are all encrypted (HeldButNotSearchable) and DISCLOSED, never quietly reported
+        // as clean.
+        //
+        // top_skills is a text[], so it needs `unnest` — a LIKE against the array itself compares
+        // against its literal text form and would match on the punctuation between elements.
         return await CountAsync($"""
             SELECT (
                 (SELECT count(*) FROM parsed_resumes
-                  WHERE lower(coalesce(source_file_name, '')) LIKE {pattern} ESCAPE '')
+                  WHERE lower(coalesce(source_file_name, '')) LIKE {pattern} ESCAPE '\')
               + (SELECT count(*) FROM resume_files
-                  WHERE lower(coalesce(file_name, '')) LIKE {pattern} ESCAPE '')
+                  WHERE lower(coalesce(file_name, '')) LIKE {pattern} ESCAPE '\')
+              + (SELECT count(*) FROM resumes
+                  WHERE lower(coalesce(name, ''))        LIKE {pattern} ESCAPE '\'
+                     OR lower(coalesce(latest_role, '')) LIKE {pattern} ESCAPE '\'
+                     OR EXISTS (
+                          SELECT 1 FROM unnest(coalesce(top_skills, ARRAY[]::text[])) AS skill
+                          WHERE lower(skill) LIKE {pattern} ESCAPE '\'))
             )::int AS "Value"
             """, cancellationToken);
     }

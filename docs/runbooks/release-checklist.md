@@ -64,6 +64,15 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       **Kvittera INTE versionen (steg 2b) utan att först ha byggt om (steg 2a)** — det
       tystar varningen utan att laga indexen, vilket är strikt värre än att inte ha
       kollat alls.
+- [ ] **Om en migration faller på `lock_timeout` — kör om den, det är säkert.** Migrationen
+      som sätter kollationen (#884) tar ACCESS EXCLUSIVE och binder sin väntan till 3 s.
+      Krockar den med en långkörande transaktion får du
+      `canceling statement due to lock timeout` och **hela migrationen rullas tillbaka
+      atomärt** (verifierat mot riktig Postgres med en konkurrerande AccessShareLock:
+      avbrott efter 3001 ms, databasen orörd). Inget delvis applicerat tillstånd kan
+      uppstå. Vänta ut den blockerande transaktionen — typiskt nattsynken — och kör om.
+      Det är felläget guarden **finns** för: ett högljutt deploy-fel i stället för ett
+      tyst läs-avbrott.
 - [ ] **GDPR-konsekvens** för nytt scope bedömd (CLAUDE.md §8 punkt 8) — ny
       PII? loggning? retention? Audit-wire intakt (ADR 0035)?
 - [ ] **Secrets-hygien** — inga nya secrets i klartext; gitignored

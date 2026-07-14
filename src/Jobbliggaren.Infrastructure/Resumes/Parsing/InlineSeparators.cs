@@ -49,6 +49,12 @@ internal static partial class InlineSeparators
     /// (<c>ParseList</c> split, then trimmed each token) — they are one rule in two statements, and
     /// separating them is how the halves drift apart.
     /// </summary>
+    /// <remarks>
+    /// Trims BOTH ends. It used to trim only the leading end while its own documentation said
+    /// "leading/trailing" — and that gap was load-bearing: "Göteborg |" and "· Göteborg ·" normalised
+    /// differently depending on which side asked, which is how a recogniser and its consumer disagreed
+    /// about the same city. The doc was the specification; the code was the bug.
+    /// </remarks>
     internal static string TrimGlue(string item) =>
-        item.Trim().TrimStart('•', '-', '*', '·', '–', '—', '|').Trim();
+        item.Trim().Trim('•', '-', '*', '·', '–', '—', '|').Trim();
 }

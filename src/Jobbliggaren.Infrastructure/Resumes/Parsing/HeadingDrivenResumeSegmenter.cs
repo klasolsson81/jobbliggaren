@@ -585,7 +585,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
             // the open, every time it happens. A count, never the text: this evidence rides the
             // parse_confidence column, which is NOT encrypted.
             if (droppedLineCount > 0)
-                evidence.Add($"{droppedLineCount} line(s) dropped as contact-block material");
+                evidence.Add($"text dropped from {droppedLineCount} line(s) as contact-block material");
 
             return new SectionConfidence(
                 ParsedSectionKind.Profile, SectionConfidenceLevel.NotFound, evidence);

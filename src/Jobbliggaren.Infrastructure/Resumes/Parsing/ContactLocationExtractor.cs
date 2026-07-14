@@ -146,8 +146,8 @@ internal static class ContactLocationExtractor
                 // NOT here, so the kommun was consumed by the subtraction and harvested by nobody:
                 // the city reached no field at all. The two sides must normalise identically, or the
                 // agreement is a claim rather than a fact.
-                if (ContactPatterns.IsBareMunicipality(whole))
-                    return InlineSeparators.TrimGlue(whole);
+                if (ContactPatterns.TryBareMunicipalityLine(whole, out var bare))
+                    return bare;
 
                 continue;
             }

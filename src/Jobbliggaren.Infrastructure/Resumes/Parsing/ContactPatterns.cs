@@ -127,4 +127,51 @@ internal static partial class ContactPatterns
     /// </summary>
     internal static bool IsBareMunicipality(string candidate) =>
         MunicipalityLexicon.IsMunicipality(InlineSeparators.TrimGlue(candidate));
+
+    /// <summary>
+    /// Is this whole LINE nothing but a bare kommun? ("Göteborg", "• Göteborg", "Göteborg,",
+    /// "· Göteborg ·" — all yes; "Göteborg, Sverige" — no, that is two items.)
+    ///
+    /// <para><b>It owns its own FRAGMENTATION, and that is the entire point.</b> Sharing the lookup was
+    /// not enough: the subtraction derived "this line is one item" by splitting on separators and
+    /// counting survivors, while the extractor derived it from the un-split line. **Fragmentation IS a
+    /// normaliser** — so the two sides were still asking different questions, and a trailing comma was
+    /// enough to prove it:</para>
+    ///
+    /// <code>
+    /// "Göteborg,"  subtraction: split → ["Göteborg", ""] → one survivor → CONSUMES it
+    ///              extractor:   no split → "Göteborg," → not a kommun → DECLINES
+    ///              ⇒ the city reached NO FIELD AT ALL.
+    /// </code>
+    ///
+    /// <para>That "• Göteborg" worked was a COINCIDENCE — the bullet glyphs happen to sit in both the
+    /// glue set and the separator set. Remove the coincidence and the defect is still there. So the
+    /// question, the split and the normalisation now live in ONE place, and both call sites pass the
+    /// same argument: the raw line.</para>
+    /// </summary>
+    internal static bool TryBareMunicipalityLine(string line, out string municipality)
+    {
+        municipality = string.Empty;
+
+        string? single = null;
+        foreach (var fragment in InlineSeparators.Split(line))
+        {
+            var candidate = InlineSeparators.TrimGlue(fragment);
+            if (candidate.Length == 0)
+                continue;
+
+            // A second item ⇒ this line is not a BARE kommun ("Göteborg, Sverige"). Both sides must
+            // decline, and they do, because both ask this method.
+            if (single is not null)
+                return false;
+
+            single = candidate;
+        }
+
+        if (single is null || !MunicipalityLexicon.IsMunicipality(single))
+            return false;
+
+        municipality = single;
+        return true;
+    }
 }

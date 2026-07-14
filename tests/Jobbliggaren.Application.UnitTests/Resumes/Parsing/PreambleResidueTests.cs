@@ -556,7 +556,7 @@ public class PreambleResidueTests
         result.Content.Preamble.ShouldBeNull();
 
         var profile = result.Confidence.Sections.First(s => s.Kind == ParsedSectionKind.Profile);
-        profile.Evidence.ShouldContain(e => e.Contains("dropped as contact-block material"));
+        profile.Evidence.ShouldContain(e => e.Contains("as contact-block material"));
 
         // A COUNT — never the text. This evidence rides parse_confidence, which is NOT encrypted.
         string.Join(" ", profile.Evidence).ShouldNotContain("Systemutvecklare");
@@ -744,6 +744,55 @@ public class PreambleResidueTests
         var content = _sut.Segment(cv).Content;
 
         content.Contact.Location.ShouldBe("Göteborg");
+        content.Preamble.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// THE agreement, enumerated over the FORMS rather than the instances — which is the lesson this PR
+    /// paid for seven times over.
+    ///
+    /// <para>The glyph sets do not coincide:</para>
+    /// <list type="table">
+    /// <item><c>-  *  –  —</c> are GLUE but not separators</item>
+    /// <item><c>•  ·  |</c> are BOTH</item>
+    /// <item><c>,  ;</c> are SEPARATORS but not glue</item>
+    /// </list>
+    ///
+    /// <para>Every one of these lines is a bare kommun that a human reads as "Göteborg". The subtraction
+    /// and the extractor must reach the SAME verdict on each — otherwise the city is claimed by one side
+    /// and harvested by neither, and it reaches NO FIELD AT ALL. That "• Göteborg" once worked was a
+    /// COINCIDENCE (the bullet sits in both sets); a trailing comma exposed it.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("Göteborg")]        // plain
+    [InlineData("• Göteborg")]      // glue AND separator
+    [InlineData("- Göteborg")]      // glue only (what a PDF/OCR extractor emits for a bullet)
+    [InlineData("* Göteborg")]      // glue only
+    [InlineData("Göteborg,")]       // separator only, TRAILING — the form that broke the coincidence
+    [InlineData("Göteborg;")]       // separator only, trailing
+    [InlineData("Göteborg |")]      // both, trailing
+    [InlineData("· Göteborg ·")]    // both, on both ends
+    [InlineData(", Göteborg")]      // separator only, leading
+    public void Segment_BareKommunInAnyGlueOrSeparatorForm_ReachesTheLocationField(string cityLine)
+    {
+        var cv =
+            $"""
+            Anna Andersson
+            anna.andersson@example.com
+            {cityLine}
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        var content = _sut.Segment(cv).Content;
+
+        // Claimed by the extractor …
+        content.Contact.Location.ShouldBe("Göteborg");
+
+        // … and therefore consumed by the subtraction, so it is not ALSO sitting in the carrier. The
+        // carrier being null here is what keeps A8's earned Fail alive on a CV with no summary.
         content.Preamble.ShouldBeNull();
     }
 
@@ -997,7 +1046,7 @@ public class PreambleResidueTests
         // The count is not a count of LINES. ToText increments droppedLineCount once for a dropped
         // `Before` and AGAIN for a dropped `After` — so ONE dropped line whose contact span sits in the
         // MIDDLE (surviving text on both sides) reports as TWO. The evidence string then says
-        // "2 line(s) dropped as contact-block material" about a single discarded line.
+        // "text dropped from 2 line(s)" about a single source line.
         //
         // That number rides parse_confidence — an UNENCRYPTED column, read straight out to the API —
         // and it is the only instrument Klas has for deciding whether the residual stays acceptable.
@@ -1021,7 +1070,7 @@ public class PreambleResidueTests
 
         // Line 1 ("070-…") consumes, so line 0 is strictly INSIDE the contact block and is dropped
         // whole — Before ("Anna Andersson") and After ("Trygg i stressade lägen") alike. That is ONE
-        // line. Observed on a844d7ed: "2 line(s) dropped as contact-block material".
-        profile.Evidence.ShouldContain("1 line(s) dropped as contact-block material");
+        // line. Observed on a844d7ed: the count reported 2 for one source line.
+        profile.Evidence.ShouldContain("text dropped from 1 line(s) as contact-block material");
     }
 }

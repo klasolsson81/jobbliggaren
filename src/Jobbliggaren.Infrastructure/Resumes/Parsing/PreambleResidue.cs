@@ -318,20 +318,12 @@ internal static class PreambleResidue
         // a school's). See the IsConsumed municipality arm.
         var isRail = CarriesContactSpan(line);
 
-        // "Is this line ONE item?" must be answered in SURVIVING fragments, never in separator glyphs.
-        // "• Göteborg" splits into ["", " Göteborg"] because the bullet IS a separator — so a
-        // fragments.Count test called it a two-item line, the bare-kommun arm declined, and the line
-        // survived into the carrier. A8 then withdrew an EARNED Fail ("Profiltext saknas helt.") on a CV
-        // that genuinely has no summary, which is the one arm that must never be withdrawn.
-        //
-        // Counting what survives TrimGlue makes "Göteborg", "• Göteborg" and "- Göteborg" all one item —
-        // and leaves "Göteborg, Sverige" as two, where both sides correctly decline.
-        var realFragmentCount = 0;
-        foreach (var (fs, fe, _) in fragments)
-        {
-            if (InlineSeparators.TrimGlue(line[fs..fe]).Length > 0)
-                realFragmentCount++;
-        }
+        // "Is this line a bare kommun?" is asked of the RECOGNISER, which owns the split. Deriving it
+        // here — by counting surviving fragments — was still a second normaliser: the extractor derived
+        // the same fact from the UN-SPLIT line, and a trailing comma was enough to make them disagree
+        // ("Göteborg," → consumed by one side, declined by the other → the city reached no field).
+        // FRAGMENTATION IS A NORMALISER. One question, one owner, one argument: the raw line.
+        var lineIsBareMunicipality = ContactPatterns.TryBareMunicipalityLine(line, out _);
 
         var consumed = new bool[fragments.Count];
         var lastConsumed = -1;
@@ -344,7 +336,7 @@ internal static class PreambleResidue
                 continue;
 
             sawRealFragment = true;
-            consumed[i] = IsConsumed(text, lexicon, isRail, isWholeLine: realFragmentCount == 1);
+            consumed[i] = IsConsumed(text, lexicon, isRail, lineIsBareMunicipality);
             if (consumed[i])
                 lastConsumed = i;
         }
@@ -405,11 +397,12 @@ internal static class PreambleResidue
     /// method owns no vocabulary and no shape (see the class remarks).
     /// </summary>
     private static bool IsConsumed(
-        string fragment, CvParsingLexiconData lexicon, bool lineIsContactRail, bool isWholeLine)
+        string fragment,
+        CvParsingLexiconData lexicon,
+        bool lineIsContactRail,
+        bool lineIsBareMunicipality)
     {
         var candidate = InlineSeparators.TrimGlue(fragment);
-        if (candidate.Length == 0)
-            return true;
 
         // #428: a CV-title banner ("Curriculum Vitae") is document metadata, not content.
         if (lexicon.NameBanners.Contains(CvParsingLexiconLoader.NormalizeHeading(candidate)))
@@ -428,7 +421,7 @@ internal static class PreambleResidue
         // school's — and reading it as the person's home would be a fabrication (ADR 0071). This case
         // is not exotic: a CV whose headings the lexicon does not know detects ZERO headings, and then
         // the "preamble" is the WHOLE DOCUMENT, experience lines included.
-        if (ContactPatterns.IsBareMunicipality(candidate) && (isWholeLine || lineIsContactRail))
+        if (ContactPatterns.IsBareMunicipality(candidate) && (lineIsBareMunicipality || lineIsContactRail))
             return true;
 
         // "Ort: Göteborg" — the lexicon's labelled-value rule, whole.

@@ -470,7 +470,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var response = await EraseAsync(SoleTraderName, ct);
 
         response.Outcome.ShouldBe(ErasureOutcome.AdsErased,
-            "without a company_name channel this is NoMatchingDataHeld — a false 'we hold nothing "
+            "without a company_name channel this is NoMatchInSearchableSurfaces — a false 'we hold nothing "
             + "about you' sent to a named person, for most of the corpus.");
         response.ErasedExternalIds.ShouldContain(SoleTraderExternalId);
 
@@ -580,16 +580,25 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     // ================================================================================
 
     [Fact]
-    public async Task An_identifier_we_hold_nothing_for_reports_NoMatchingDataHeld_and_that_is_now_TRUE()
+    public async Task An_identifier_we_hold_nothing_for_reports_NoMatchInSearchableSurfaces_and_STILL_discloses_what_we_could_not_search()
     {
         var ct = TestContext.Current.CancellationToken;
         await IngestThroughProductionPathAsync(ct);
 
         var response = await EraseAsync("ingen.alls@finnsinte.se", ct, dryRun: true);
 
-        response.Outcome.ShouldBe(ErasureOutcome.NoMatchingDataHeld);
+        response.Outcome.ShouldBe(ErasureOutcome.NoMatchInSearchableSurfaces);
         response.Matched.Total.ShouldBe(0);
         response.Erased.Total.ShouldBe(0);
+
+        // THE POINT. The old word was NoMatchingDataHeld — "we hold no data matching this
+        // identifier" — and we could never truthfully mean it, because the DEK-encrypted columns
+        // were never searched. The word now says only what we can prove, and the reply CANNOT be
+        // sent without naming the surfaces we could not look at, plus a route she can take.
+        response.CouldNotSearch.Columns.ShouldContain("applications.cover_letter");
+        response.CouldNotSearch.Columns.ShouldContain("application_notes.content");
+        response.CouldNotSearch.Columns.ShouldContain("follow_ups.note");
+        response.CouldNotSearch.Escalation.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]

@@ -78,8 +78,9 @@ public class AdminRedactRecruiterPiiTests(ApiFactory factory)
 
     /// <summary>
     /// The route works, and it answers with an OUTCOME rather than a number. Against a corpus that
-    /// holds nothing for this identifier the honest answer is <c>NoMatchingDataHeld</c> — the one
-    /// sentence the old mechanism said on every request and could never actually mean.
+    /// holds nothing for this identifier the honest answer is <c>NoMatchInSearchableSurfaces</c> —
+    /// which is deliberately NOT "we hold no data about you": three DEK-encrypted columns cannot be
+    /// scanned at all, so total absence is a claim we are not entitled to make.
     /// </summary>
     [Fact]
     public async Task Admin_dry_run_returns_an_explicit_outcome_not_a_bare_count()
@@ -92,8 +93,13 @@ public class AdminRedactRecruiterPiiTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        body.GetProperty("outcome").GetString().ShouldBe("NoMatchingDataHeld");
+        body.GetProperty("outcome").GetString().ShouldBe("NoMatchInSearchableSurfaces");
         body.GetProperty("dryRun").GetBoolean().ShouldBeTrue();
+
+        // The disclosure is a REQUIRED member of the wire contract, on every outcome including this
+        // one. If it can be omitted, "we searched everywhere" is back.
+        body.GetProperty("couldNotSearch").GetProperty("columns").GetArrayLength()
+            .ShouldBeGreaterThan(0);
     }
 
     /// <summary>

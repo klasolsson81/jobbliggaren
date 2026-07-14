@@ -176,6 +176,54 @@ public class PreambleResidueTests
             .ShouldBe("Erfaren undersköterska, tio år i yrket, van vid natt.");
     }
 
+    [Fact]
+    public void Segment_ProseLineEndingInASeparator_KeepsThatSeparator()
+    {
+        // A REAL defect this test was written to kill. A trailing comma produces one EMPTY fragment.
+        // While empty fragments counted as "consumed", that flipped the any-consumed flag and sent the
+        // line down the REBUILD path — which returned it WITHOUT the user's own comma:
+        //
+        //     in:  "Erfaren undersköterska, tio år i yrket,"
+        //     out: "Erfaren undersköterska, tio år i yrket"
+        //
+        // The engine handing back text it silently rewrote is exactly what the carrier exists to
+        // refuse (ADR 0109: it DESCRIBES, it does not edit). Empty fragments are neutral: a line whose
+        // only "consumption" is empty glue has consumed nothing, and must come back byte-for-byte.
+        const string cv =
+            """
+            Anna Andersson
+
+            Erfaren undersköterska, tio år i yrket,
+
+            Arbetslivserfarenhet
+            Undersköterska — Vårdcentralen
+            2015 - 2024
+            """;
+
+        _sut.Segment(cv).Content.Preamble
+            .ShouldBe("Erfaren undersköterska, tio år i yrket,");
+    }
+
+    [Fact]
+    public void Segment_PreambleOfOnlySeparators_CarriesNothing()
+    {
+        // A decorative rule line ("| | |", "•••") is glue and nothing else. It must not become a
+        // "preamble" — that would push A8 to NotAssessed on a CV that has no summary at all, turning
+        // the honesty arm into noise.
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+            | | |
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        _sut.Segment(cv).Content.Preamble.ShouldBeNull();
+    }
+
     // ── The label-prefix rule (FORM), and its narrow gate ───────────────────────────
 
     [Fact]

@@ -146,22 +146,40 @@ internal static class PreambleResidue
         fragments.Add((position, line.Length, glue));
 
         var consumed = new bool[fragments.Count];
-        var anyConsumed = false;
-        var allConsumed = true;
+
+        // An EMPTY fragment — produced by a leading, trailing or doubled separator — is dropped, but
+        // it must not be COUNTED as a consumption. Counting it was a real defect: a prose line ending
+        // in a comma ("Erfaren undersköterska, tio år i yrket,") produced one empty trailing fragment,
+        // which flipped anyConsumed and sent the line down the REBUILD path — returning it without the
+        // user's own comma. The engine handing back text it silently rewrote is precisely what this
+        // class exists to refuse. Empty fragments are therefore NEUTRAL: they decide nothing.
+        var anyRealConsumed = false;
+        var allRealConsumed = true;
+        var sawRealFragment = false;
 
         for (var i = 0; i < fragments.Count; i++)
         {
-            consumed[i] = IsConsumed(line[fragments[i].Start..fragments[i].End], lexicon);
-            anyConsumed |= consumed[i];
-            allConsumed &= consumed[i];
+            var text = line[fragments[i].Start..fragments[i].End];
+            consumed[i] = IsConsumed(text, lexicon);
+
+            if (InlineSeparators.TrimGlue(text).Length == 0)
+                continue;
+
+            sawRealFragment = true;
+            anyRealConsumed |= consumed[i];
+            allRealConsumed &= consumed[i];
         }
 
-        // The prose case. Return the line UNTOUCHED — this is the invariant that keeps the engine
-        // from ever handing back text it rewrote.
-        if (!anyConsumed)
+        // Nothing but separators on the line — there is no content to carry.
+        if (!sawRealFragment)
+            return string.Empty;
+
+        // The prose case. Return the line UNTOUCHED, glue and punctuation and all — this is the
+        // invariant that keeps the engine from ever handing back text it rewrote.
+        if (!anyRealConsumed)
             return line;
 
-        if (allConsumed)
+        if (allRealConsumed)
             return string.Empty;
 
         var builder = new StringBuilder();

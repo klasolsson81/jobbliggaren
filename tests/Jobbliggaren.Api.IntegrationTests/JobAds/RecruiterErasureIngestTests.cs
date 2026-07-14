@@ -2,7 +2,9 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 using Jobbliggaren.Application.JobAds.Commands.UpsertExternalJobAd;
+using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.RecentJobSearches;
@@ -22,6 +24,11 @@ using Testcontainers.PostgreSql;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
+using DomainApplication = Jobbliggaren.Domain.Applications.Application;
+
+// `ApplicationId` alone is ambiguous with System.ApplicationId, and `Application` with the
+// Jobbliggaren.Application namespace — the same two aliases AppDbContext itself carries.
+using DomainApplicationId = Jobbliggaren.Domain.Applications.ApplicationId;
 
 namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
@@ -576,6 +583,269 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     }
 
     // ================================================================================
+    // 3c. The word-boundary matcher over `recent_job_searches` — the ONE surface matched by
+    //     regex rather than by LIKE, and therefore the one where a near-miss is invisible.
+    //
+    //     `RecruiterErasureMatchQuery.WordBoundaryPattern` builds
+    //         (?<![[:alnum:]_])<ARE-escaped identifier>(?![[:alnum:]_])
+    //     and matches it with `~*`. Three separate claims live in that one line, and each is
+    //     pinned below by an input that goes RED when the claim is broken. Mutation-verified;
+    //     see each test's remarks.
+    // ================================================================================
+
+    /// <summary>
+    /// <b>Claim 1 — the lookarounds do their boundary duty.</b> A recruiter named <i>Anna</i> must
+    /// match a search for <c>"anna karlsson"</c> and must NOT match <c>"marianna"</c> or
+    /// <c>"johanna"</c>.
+    /// </summary>
+    /// <remarks>
+    /// This is the surface where over-matching is DESTRUCTIVE without ceremony: recent searches are
+    /// hard-deleted on confirmation with no per-id review (the ads get an id-by-id confirmation
+    /// gate; these rows do not). A bare substring match on "anna" would silently delete every
+    /// user's cached search for Johanna, Marianna, Hannah and Annabelle.
+    /// <para>
+    /// <b>Mutation-verified 2026-07-14:</b> drop the lookarounds from
+    /// <c>WordBoundaryPattern</c> (leaving the escaped identifier alone) and this test goes RED on
+    /// the marianna/johanna rows. The sibling test below stays GREEN — the two claims are pinned
+    /// independently, on purpose.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task A_recent_search_matches_her_name_as_a_WHOLE_WORD_and_not_inside_marianna()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        // Seeded through RecentJobSearch.Capture — the aggregate's own factory, which derives
+        // FilterHash from the criteria. No hand-written columns (#843).
+        var seekerId = await SeedRecentSearchesAsync(ct, "anna karlsson", "marianna", "johanna");
+
+        var response = await EraseAsync("anna", ct, dryRun: true);
+
+        // The dry run reports the STRINGS, not a count. A count cannot be reviewed — and these rows
+        // are the ones destroyed WITHOUT an id-by-id confirmation, so seeing them is the only
+        // review the operator gets.
+        response.MatchedRecentSearchTerms.ShouldBe(["anna karlsson"],
+            "the identifier must match as a WHOLE WORD. 'marianna' and 'johanna' contain the "
+            + "letters a-n-n-a and are NOT her. Without the lookarounds we would hard-delete both, "
+            + "and this surface has no confirmation ceremony to catch it.");
+
+        response.Matched.RecentJobSearches.ShouldBe(1);
+
+        // And the terms carry no user ids — the operator identifies nobody in order to review them.
+        response.MatchedRecentSearchTerms.ShouldNotContain(
+            t => t.Contains(seekerId.Value.ToString(), StringComparison.OrdinalIgnoreCase),
+            "ErasureRecentSearchMatch surfaces `q` only. A user id here would leak a THIRD party "
+            + "(the job seeker) into the reply for a recruiter's request.");
+    }
+
+    /// <summary>
+    /// <b>Claim 2 — the identifier is ARE-ESCAPED, and Claim 3 — an identifier that STARTS with a
+    /// non-word character still matches.</b> Both are pinned here because both are properties of
+    /// the pattern's construction rather than of its boundaries.
+    /// </summary>
+    /// <remarks>
+    /// <b>Claim 2 (escaping).</b> <c>magnus@skill.se</c> must match a row containing it verbatim and
+    /// must NOT match <c>magnus@skillXse</c>. That second row is the whole test: an unescaped
+    /// <c>.</c> is ARE's any-character wildcard, so <c>magnus@skill.se</c> would match
+    /// <c>magnus@skillXse</c> — a DIFFERENT person's search term, hard-deleted. Note that a row like
+    /// <c>magnusXskill.se</c> proves nothing at all here (the <c>@</c> is literal either way, so it
+    /// fails to match with or without the escape); the discriminating row must differ from the
+    /// identifier at the <c>.</c> and NOWHERE else.
+    /// <para>
+    /// <b>Claim 3 (the vacuity trap, and it is the reason this whole file exists).</b> The bound
+    /// remedy named Postgres's <c>\m…\M</c>. <c>\m</c> matches only at a position immediately BEFORE
+    /// a word character — so for a phone number, <c>\m\+46701234567\M</c> puts <c>\m</c> in front of
+    /// <c>+</c>, where it can NEVER match. The regex returns zero rows. Silently. On every request.
+    /// Forever. And we would have told a named person we hold nothing of hers while her number sat
+    /// in plaintext in a column we claim to scan. <b>That is #842's exact defect class, and the
+    /// prescribed fix for it would have reintroduced it.</b> The lookaround form closes it, and this
+    /// assertion is the only thing that knows.
+    /// </para>
+    /// <para>
+    /// <b>Mutation-verified 2026-07-14.</b> (a) <c>WordBoundaryPattern</c> → the <c>\m…\M</c> form:
+    /// the <c>+46701234567</c> row goes RED. (b) <c>EscapeAre</c> → identity (no escaping): the
+    /// <c>magnus@skillXse</c> row goes RED. The whole-word sibling above stays GREEN under both.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task The_pattern_ESCAPES_the_identifier_and_still_matches_one_that_starts_with_a_non_word_character()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        await SeedRecentSearchesAsync(
+            ct,
+            "magnus@skill.se",
+            // Differs from the identifier at the '.' and NOWHERE else. An unescaped '.' is ARE's
+            // any-character wildcard and matches the 'X'. This row is the escape's only witness.
+            "magnus@skillXse",
+            "rekryterare +46701234567");
+
+        var byEmail = await EraseAsync("magnus@skill.se", ct, dryRun: true);
+
+        byEmail.MatchedRecentSearchTerms.ShouldBe(["magnus@skill.se"],
+            "the '.' must be ESCAPED, not treated as any-char. If 'magnus@skillXse' is in this "
+            + "list, the matcher just hard-deleted a different person's search term.");
+
+        var byPhone = await EraseAsync("+46701234567", ct, dryRun: true);
+
+        byPhone.MatchedRecentSearchTerms.ShouldBe(["rekryterare +46701234567"],
+            "an identifier that STARTS with a non-word character must still match. With \\m…\\M "
+            + "this list is EMPTY — silently, on every request — and she is told we hold nothing "
+            + "of hers. That is the vacuous matcher #842 is about, rebuilt by its own remedy.");
+
+        byPhone.Matched.RecentJobSearches.ShouldBe(1);
+    }
+
+    // ================================================================================
+    // 3d. The channels that had never returned a row.
+    //
+    //     A channel that has never produced a non-zero count in a test has not been TESTED — it
+    //     has been TYPED. Every count below runs against a POPULATED table, because a query that
+    //     has only ever been run against an empty one is indistinguishable from a query that
+    //     returns nothing. That indistinguishability IS #842.
+    // ================================================================================
+
+    /// <summary>
+    /// <b>The structural channel — the one that needs no text matching at all.</b>
+    /// <c>applications.job_ad_id</c> names every application written TO a matched ad, exactly, with
+    /// no regex, no LIKE and no decryption. It is what the reply offers her INSTEAD of scanning the
+    /// three DEK-encrypted columns we refuse to build a read-everyone capability for.
+    /// </summary>
+    /// <remarks>
+    /// It is a DISCLOSURE, never a deletion list: the applications belong to job seekers, not to the
+    /// recruiter, and erasing them would destroy a third party's data to serve her request. So the
+    /// count is reported and the rows are left standing — <c>Matched &gt; 0</c> while
+    /// <c>Erased == 0</c>, which is the gap the reply template is forced to say out loud.
+    /// </remarks>
+    [Fact]
+    public async Task An_application_REFERENCING_a_matched_ad_is_counted_and_NEVER_erased()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        var applicationId = await SeedApplicationForAdAsync(ExternalId, ct);
+
+        var probe = await EraseAsync(RecruiterEmail, ct, dryRun: true);
+
+        probe.Matched.ApplicationsReferencingMatchedAds.ShouldBe(1,
+            "the structural channel must actually RETURN a row. Until this assertion existed the "
+            + "query had only ever run against an empty applications table — which is not a test, "
+            + "it is a type-check with a database attached.");
+
+        // Her address is in the ad body, so it is in the FROZEN snapshot too. Matched — and NOT
+        // erased: Art. 17(3)(e) (the applicant's own legal-claims record).
+        probe.Matched.ApplicationSnapshots.ShouldBe(1,
+            "snapshot_description is a frozen copy of the ad body, so it holds her address. We "
+            + "search it precisely BECAUSE we do not erase it.");
+
+        var response = await EraseAsync(RecruiterEmail, ct);
+
+        response.Erased.JobAds.ShouldBe(1);
+        response.Matched.ApplicationsReferencingMatchedAds.ShouldBe(1);
+        response.Erased.ApplicationsReferencingMatchedAds.ShouldBe(0,
+            "report-only. The application belongs to a JOB SEEKER; erasing it to serve the "
+            + "recruiter's request would destroy a third party's data.");
+        response.Erased.ApplicationSnapshots.ShouldBe(0, "Art. 17(3)(e).");
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        (await db.Applications.IgnoreQueryFilters().CountAsync(a => a.Id == applicationId, ct))
+            .ShouldBe(1, "the application row must still be there. The ad is a tombstone; the "
+                + "application that points at it is untouched.");
+    }
+
+    /// <summary>
+    /// <b><c>applications.manual_url</c> — newly searched, and it must actually return a row.</b> A
+    /// user who tracks an application manually pastes the link they applied through, and that link
+    /// routinely carries the recruiter's name (<c>linkedin.com/in/magnus-fagerberg</c>). The column
+    /// was classified as holding recruiter free text and was not scanned.
+    /// </summary>
+    /// <remarks>
+    /// Matched, reported, and NOT erased: the manual entry is the USER's own artefact and a human
+    /// settles it with that user in the loop. A mechanism choice, never a refusal of her right.
+    /// </remarks>
+    [Fact]
+    public async Task A_manual_entrys_URL_naming_her_is_MATCHED_and_left_for_a_human()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        var applicationId = await SeedManualApplicationAsync(
+            "https://linkedin.com/in/magnus-fagerberg", ct);
+
+        var probe = await EraseAsync("magnus-fagerberg", ct, dryRun: true);
+
+        probe.Matched.ManualAdEntries.ShouldBe(1,
+            "manual_url is scanned. If this is 0 the column is in the registry, named in the "
+            + "reply, and never actually looked at.");
+
+        var response = await EraseAsync("magnus-fagerberg", ct);
+
+        response.Matched.ManualAdEntries.ShouldBe(1);
+        response.Erased.ManualAdEntries.ShouldBe(0,
+            "the user's own artefact — a human erases it, with that user in the loop.");
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var manual = await db.Applications.IgnoreQueryFilters()
+            .Where(a => a.Id == applicationId)
+            .Select(a => a.ManualPosting!.Url)
+            .SingleAsync(ct);
+
+        manual.ShouldBe("https://linkedin.com/in/magnus-fagerberg",
+            "reported, not destroyed. The gap between Matched and Erased is the disclosure.");
+    }
+
+    /// <summary>
+    /// <b><c>company_watch_criteria.label</c> — newly searched, and it must actually return a
+    /// row.</b> A user who labels a watch <i>"Bevakning Magnus Fagerberg"</i> is holding the
+    /// recruiter's name in a column that shipped in #560 (PR-1) and that no erasure path had ever
+    /// looked at.
+    /// </summary>
+    /// <remarks>
+    /// Same disposition as the manual entry and the saved search: matched, disclosed, and left
+    /// standing. A human nulls the label with the affected USER in the loop — we do not silently
+    /// rewrite one person's saved work to serve another person's request.
+    /// </remarks>
+    [Fact]
+    public async Task A_company_watch_criterions_LABEL_naming_her_is_MATCHED_and_SURVIVES_the_erasure()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        var criterionId = await SeedCompanyWatchCriterionAsync($"Bevakning {RecruiterName}", ct);
+
+        var probe = await EraseAsync(RecruiterName, ct, dryRun: true);
+
+        probe.Matched.CompanyWatchCriteria.ShouldBe(1,
+            "company_watch_criteria.label is scanned. If this is 0 the column is classified, "
+            + "reported in the reply, and never looked at — a certified-clean surface nobody "
+            + "checked, which is the #842 shape exactly.");
+
+        // The destructive run erases the ADS. The criterion must be untouched by it.
+        var response = await EraseAsync(RecruiterName, ct);
+
+        response.Erased.JobAds.ShouldBe(2);
+        response.Matched.CompanyWatchCriteria.ShouldBe(1);
+        response.Erased.CompanyWatchCriteria.ShouldBe(0);
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var label = await db.CompanyWatchCriteria.IgnoreQueryFilters()
+            .Where(c => c.Id == criterionId)
+            .Select(c => c.Label)
+            .SingleAsync(ct);
+
+        label.ShouldBe($"Bevakning {RecruiterName}",
+            "the criterion — and its label — survive. Report-only: a human nulls it.");
+    }
+
+    // ================================================================================
     // 4. Honest answers — the sentences the old mechanism said and could not mean.
     // ================================================================================
 
@@ -621,12 +891,29 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// The mandatory dry run, enforced in code. Confirming a count that no longer matches reality
-    /// is refused — ingest runs every ten minutes, so the match set genuinely moves between looking
-    /// and confirming, and a destructive operation must not run on a stale view.
+    /// The confirmation gate EXISTS: an id the operator confirmed that is not in the current match
+    /// set is refused, and nothing is destroyed.
     /// </summary>
+    /// <remarks>
+    /// <b>This test pins the gate's EXISTENCE. It does NOT pin its POSITION, and it never could —
+    /// which is why the test below it had to be written.</b>
+    /// <para>
+    /// The identifier here is <see cref="RecruiterEmail"/>, which MATCHES an ad, so
+    /// <c>matched.Total == 1</c>. The nothing-held early return is guarded by
+    /// <c>if (matched.Total == 0)</c> — false here. So even with the two blocks in the WRONG order
+    /// (nothing-held first), control simply falls through to the gate and returns the same 409. This
+    /// test is green under BOTH orderings. Mutation-verified 2026-07-14: moving the nothing-held
+    /// block above the gate leaves it green.
+    /// </para>
+    /// <para>
+    /// A control that cannot fail when the thing it guards is broken is not a control. The ordering
+    /// is pinned by
+    /// <see cref="Confirming_ads_when_the_identifier_now_matches_NOTHING_is_REFUSED_not_answered_we_hold_nothing"/>,
+    /// whose input is the only one that discriminates: an identifier that matches ZERO.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public async Task Confirming_a_stale_count_is_REFUSED_and_destroys_nothing()
+    public async Task Confirming_an_id_outside_the_match_set_is_REFUSED_gate_EXISTENCE_only()
     {
         var ct = TestContext.Current.CancellationToken;
         await IngestThroughProductionPathAsync(ct);
@@ -651,6 +938,63 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
         (await ColumnsStillContainingAsync(db, RecruiterEmail, ct))
             .ShouldNotBeEmpty("a refused erasure must destroy nothing.");
+    }
+
+    /// <summary>
+    /// <b>The gate's POSITION — the one input that discriminates.</b> The operator dry-ran, read
+    /// three ads, and confirmed them. Between his reading and his confirming, the corpus moved and
+    /// the identifier now matches NOTHING. He must be REFUSED (409). He must NOT be told
+    /// <c>NoMatchInSearchableSurfaces</c>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Why the sibling test above cannot cover this.</b> The nothing-held early return is guarded
+    /// by <c>if (matched.Total == 0)</c>. Every other test in this file confirms ids against an
+    /// identifier that matches SOMETHING, so that guard is false and control reaches the
+    /// confirmation gate no matter which of the two blocks comes first. The ordering is
+    /// unobservable — until <c>matched.Total == 0</c>. Then, and only then, do the two orderings
+    /// produce different answers:
+    /// <list type="bullet">
+    /// <item><b>Gate first (correct):</b> 409 ConfirmationMismatch — "the ads you reviewed are gone;
+    /// look again". A refusal, recorded, with nothing destroyed.</item>
+    /// <item><b>Nothing-held first (the defect):</b> 200 OK, <c>NoMatchInSearchableSurfaces</c> — and
+    /// the runbook chains that word to a reply telling a NAMED PERSON we hold nothing about her. She
+    /// would be sent a false statement of absence, generated out of a discrepancy the system
+    /// swallowed, at the exact moment the operator's picture and reality are furthest apart.</item>
+    /// </list>
+    /// That is the whole bug class #842 exists to end, reachable inside its own fix. This test is
+    /// the only thing standing on it.
+    /// </remarks>
+    [Fact]
+    public async Task Confirming_ads_when_the_identifier_now_matches_NOTHING_is_REFUSED_not_answered_we_hold_nothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var handler = NewEraseHandler(scope, db);
+
+        var result = await handler.Handle(
+            new EraseRecruiterAdsCommand(
+                RequestId: Guid.NewGuid(),
+
+                // Matches NOTHING — no ad, no recent search, no saved search, nothing. matched.Total
+                // is 0, so the nothing-held branch is ARMED. This is the discriminating input.
+                Identifier: "ingen.alls@finnsinte.se",
+                DryRun: false,
+
+                // ...and yet the operator is confirming ads. His view and reality have diverged
+                // completely. A destructive request built on a view this stale must be REFUSED.
+                ConfirmedJobAdIds: [Guid.NewGuid()]),
+            ct);
+
+        result.IsFailure.ShouldBeTrue(
+            "confirming ads against a corpus that now matches ZERO must be a 409 refusal. If this "
+            + "returns Success, the nothing-held branch runs BEFORE the confirmation gate and we "
+            + "answered 'we hold no data about you' to a request that contradicted itself.");
+
+        result.Error.Kind.ShouldBe(ErrorKind.Conflict);
+        result.Error.Code.ShouldBe("EraseRecruiterAds.ConfirmationMismatch");
     }
 
     // ================================================================================
@@ -683,6 +1027,132 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
         await db.SaveChangesAsync(ct);
         return seeker.Id;
+    }
+
+    /// <summary>
+    /// A job seeker with one <c>recent_job_searches</c> row per <paramref name="queries"/> entry,
+    /// each built by <see cref="RecentJobSearch.Capture"/> — the aggregate's own factory, which is
+    /// what derives <c>FilterHash</c> from the criteria. Not one column is hand-written (#843).
+    /// </summary>
+    private async Task<JobSeekerId> SeedRecentSearchesAsync(
+        CancellationToken ct, params string[] queries)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = new FixedClock();
+
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(ct);
+
+        foreach (var q in queries)
+        {
+            var criteria = SearchCriteria.Create(
+                null, null, null, null, null, null, q, JobAdSortBy.Relevance).Value;
+
+            db.RecentJobSearches.Add(
+                RecentJobSearch.Capture(seeker.Id, criteria, currentCount: 0, now: clock.UtcNow));
+        }
+
+        await db.SaveChangesAsync(ct);
+        return seeker.Id;
+    }
+
+    /// <summary>
+    /// An application written TO an ingested ad, seeded exactly the way
+    /// <c>CreateApplicationFromJobAdCommandHandler</c> does it: project the ad's fields, capture an
+    /// <see cref="AdSnapshot"/>, <see cref="DomainApplication.CreateFromJobAd"/>, then transition to
+    /// Submitted. No hand-written columns, no fabricated snapshot.
+    /// </summary>
+    /// <remarks>
+    /// <c>coverLetter</c> is null on purpose. It is the DEK-encrypted column
+    /// (<c>HeldButNotSearchable</c>), no field-encryption interceptor is registered in this harness,
+    /// and NOTHING in this file may come to depend on one — the erasure path does not scan that
+    /// column and a test that needed it would be testing a surface the feature deliberately refuses.
+    /// </remarks>
+    private async Task<DomainApplicationId> SeedApplicationForAdAsync(string externalId, CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = new FixedClock();
+
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", clock).Value;
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(ct);
+
+        var ad = await db.JobAds.AsNoTracking()
+            .SingleAsync(j => j.External!.ExternalId == externalId, ct);
+
+        var snapshot = AdSnapshot.Capture(
+            ad.Title,
+            ad.Company.Name,
+            municipalityConceptId: null,
+            ad.Url,
+            ad.Source.Value,
+            ad.PublishedAt,
+            ad.ExpiresAt,
+            ad.Description, // the sanitised JobAd.Description — never raw_payload (ADR 0086 D5)
+            clock.UtcNow);
+
+        var application = DomainApplication
+            .CreateFromJobAd(seeker.Id, ad.Id, snapshot, coverLetter: null, clock).Value;
+
+        application.TransitionTo(ApplicationStatus.Submitted, clock).IsSuccess.ShouldBeTrue();
+
+        db.Applications.Add(application);
+        await db.SaveChangesAsync(ct);
+
+        return application.Id;
+    }
+
+    /// <summary>
+    /// A MANUALLY tracked application (no <c>JobAdId</c>), seeded through
+    /// <see cref="ManualPosting.Create"/> + <see cref="DomainApplication.Create"/> — the same two
+    /// factories <c>CreateApplicationCommandHandler</c> calls. The URL is validated by the value
+    /// object (http(s), absolute), so a link the domain would reject cannot be smuggled in here.
+    /// </summary>
+    private async Task<DomainApplicationId> SeedManualApplicationAsync(string url, CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = new FixedClock();
+
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", clock).Value;
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(ct);
+
+        var manual = ManualPosting
+            .Create("Backend-utvecklare", "Skill AB", url, expiresAt: null).Value;
+
+        var application = DomainApplication
+            .Create(seeker.Id, jobAdId: null, coverLetter: null, manual, clock).Value;
+
+        db.Applications.Add(application);
+        await db.SaveChangesAsync(ct);
+
+        return application.Id;
+    }
+
+    /// <summary>
+    /// A criteria-based company watch (#560) whose LABEL names the recruiter. Seeded through
+    /// <see cref="CompanyWatchCriteriaSpec.Create"/> + <see cref="CompanyWatchCriterion.Create"/>;
+    /// the label is normalised and length-checked by the aggregate, exactly as in production.
+    /// </summary>
+    private async Task<CompanyWatchCriterionId> SeedCompanyWatchCriterionAsync(
+        string label, CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = new FixedClock();
+
+        // Both axes are required by the spec (Fork B1): one SNI leaf, one kommun.
+        var spec = CompanyWatchCriteriaSpec.Create(["62010"], ["1480"]).Value;
+        var criterion = CompanyWatchCriterion.Create(Guid.NewGuid(), spec, label, clock).Value;
+
+        db.CompanyWatchCriteria.Add(criterion);
+        await db.SaveChangesAsync(ct);
+
+        return criterion.Id;
     }
 
     private static EraseRecruiterAdsCommandHandler NewEraseHandler(IServiceScope scope, AppDbContext db) =>
@@ -833,6 +1303,263 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         offenders.ShouldBeEmpty(
             "the sole trader's organisation number is her PERSONNUMMER. It survived the erasure in: "
             + string.Join(", ", offenders));
+    }
+
+    // ================================================================================
+    // 6. THE OUTCOME WORD CANNOT LIE.
+    //
+    //    EraseRecruiterAdsResponse.Outcome is DERIVED from the counts — it is not a constructor
+    //    argument anybody can get wrong. The runbook keys its reply template on that one word, so
+    //    it is the single value in the whole response that must not be able to make a false
+    //    statement to a named person. A derivation is only a theorem if something evaluates it on
+    //    the cases that used to lie. These are those cases.
+    // ================================================================================
+
+    /// <summary>
+    /// <b>The sentence that used to be false.</b> A recruiter whose ONLY trace in the system is a
+    /// job seeker's cached search term is a real case — the FTS index makes her reverse-lookupable,
+    /// so her name lands in other people's search history whether or not she is in an ad. Nothing of
+    /// hers is in an ad; a cache row is deleted; the outcome is <c>CascadeErasedOnly</c>.
+    /// </summary>
+    /// <remarks>
+    /// While <c>Outcome</c> was a constructor parameter, this case produced <c>AdsErased</c> with
+    /// <c>Erased.JobAds == 0</c> (the total summed the cascade). The runbook chains <c>AdsErased</c>
+    /// to <i>"vi har tagit bort hela annonsen"</i> — a false statement, generated by the system,
+    /// signed by us, sent to her.
+    /// </remarks>
+    [Fact]
+    public async Task Deleting_only_a_cache_row_reports_CascadeErasedOnly_and_never_AdsErased()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        // A DIFFERENT recruiter. She appears in no ad — her only trace is a user's cached search.
+        await SeedRecentSearchesAsync(ct, "anna karlsson");
+
+        var response = await EraseAsync("Anna Karlsson", ct);
+
+        response.Matched.JobAds.ShouldBe(0, "she is in no ad. If she were, this test would be "
+            + "asserting AdsErased's precondition instead of CascadeErasedOnly's.");
+        response.Erased.JobAds.ShouldBe(0);
+        response.Erased.RecentJobSearches.ShouldBe(1);
+
+        response.Outcome.ShouldBe(ErasureOutcome.CascadeErasedOnly,
+            "AdsErased here would tell her 'vi har tagit bort hela annonsen' when we erased zero "
+            + "ads. The word is a pure function of the counts precisely so it cannot say that.");
+    }
+
+    /// <summary>
+    /// We DO hold matching data and erased NONE of it — the operator reviewed the ads and confirmed
+    /// nothing. <c>NothingErased</c>, which is a different sentence from <c>NoMatchInSearchableSurfaces</c>
+    /// and only one of the two can honestly be sent as a completed erasure.
+    /// </summary>
+    [Fact]
+    public async Task Matching_something_and_confirming_nothing_reports_NothingErased_not_NoMatch()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var handler = NewEraseHandler(scope, db);
+
+        var result = await handler.Handle(
+            new EraseRecruiterAdsCommand(
+                RequestId: Guid.NewGuid(),
+                Identifier: RecruiterEmail,
+                DryRun: false,
+
+                // He reviewed the ad and confirmed NOTHING. An empty list is not a stale view — no
+                // id "vanished" — so the gate passes and the erase loop simply has nothing to do.
+                ConfirmedJobAdIds: []),
+            ct);
+
+        result.IsSuccess.ShouldBeTrue();
+        var response = result.Value;
+
+        response.Matched.JobAds.ShouldBe(1, "we DO hold an ad naming her.");
+        response.Erased.Total.ShouldBe(0);
+
+        response.Outcome.ShouldBe(ErasureOutcome.NothingErased,
+            "'we found nothing' and 'we found things and removed none of them' are different "
+            + "sentences. Only one of them may be sent to a data subject as a completed erasure.");
+    }
+
+    /// <summary>
+    /// The positive pole: ads were actually destroyed ⇒ <c>AdsErased</c>. And the cheap, honest
+    /// sanity net over the counter — every ingested ad carries an external id, so for these ads
+    /// <c>Erased.JobAds</c> must equal <c>ErasedExternalIds.Count</c>. If the counter ever drifts
+    /// from the accountability list, the Art. 12(3) number and the list an auditor checks us against
+    /// disagree.
+    /// </summary>
+    [Fact]
+    public async Task Erasing_ads_reports_AdsErased_and_the_counter_agrees_with_the_external_id_list()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        var response = await EraseAsync(RecruiterName, ct);
+
+        response.Outcome.ShouldBe(ErasureOutcome.AdsErased);
+        response.Erased.JobAds.ShouldBeGreaterThan(0);
+
+        response.Erased.JobAds.ShouldBe(response.ErasedExternalIds.Count,
+            "every ad in this corpus was INGESTED, so every one of them carries an external id. "
+            + "The counter and the accountability list must not be able to disagree.");
+    }
+
+    /// <summary>
+    /// <b><c>Erased.JobAds</c> counts <see cref="JobAd.Erase"/>'s VERDICT — never the ad's
+    /// status.</b> The two look equivalent and are not: <c>Erase()</c> REFUSES <i>because</i> the
+    /// status is already <c>Erased</c>, so a refused ad satisfies
+    /// <c>Count(j =&gt; j.Status == JobAdStatus.Erased)</c> and would be counted as erased BY US —
+    /// the guard undone by the line below it, and the inflated number posted straight into an
+    /// Art. 12(3) reply.
+    /// </summary>
+    /// <remarks>
+    /// <b>The race is real, and nothing here fabricates it.</b> The only thing that erases an ad is
+    /// this command, so the interleaving is TWO erasure requests overlapping — two operators, or one
+    /// operator retrying a request he thinks timed out. <see cref="MatchQueryThatErasesMidFlight"/>
+    /// is a scheduling device, not a state device: it delegates every method to the REAL
+    /// <c>RecruiterErasureMatchQuery</c> and, after the match returns, lets a SECOND, ordinary
+    /// erasure run to completion through <c>JobAd.Erase()</c> + <c>SaveChanges</c> in its own scope.
+    /// The state under test is produced entirely by production code. Nothing is hand-written, no
+    /// column is poked, and no state is constructed that production cannot construct (#843).
+    /// <para>
+    /// <b>Mutation-verified 2026-07-14:</b> replace the loop's verdict-counter with
+    /// <c>jobAds.Count(j =&gt; j.Status == JobAdStatus.Erased)</c> and this test goes RED —
+    /// <c>Erased.JobAds</c> becomes 1 and the outcome flips to <c>AdsErased</c>, i.e. we would have
+    /// reported destroying an ad that this request did not destroy.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task An_ad_erased_by_a_CONCURRENT_request_is_NOT_counted_as_erased_by_this_one()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        // Step 1 — the operator's dry run, through the REAL query. He reads the ad and confirms it.
+        Guid confirmedId;
+        using (var probeScope = _provider.CreateScope())
+        {
+            var probeDb = probeScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var probe = await NewEraseHandler(probeScope, probeDb).Handle(
+                new EraseRecruiterAdsCommand(Guid.NewGuid(), RecruiterEmail, DryRun: true, null), ct);
+
+            confirmedId = probe.Value.Matches.Single().JobAdId;
+        }
+
+        // Step 2 — his destructive call. A SECOND erasure request lands between this one's match and
+        // its tracked re-load, and erases the same ad first. Ordinary production code, own scope.
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var sabotaged = new MatchQueryThatErasesMidFlight(
+            scope.ServiceProvider.GetRequiredService<IRecruiterErasureMatchQuery>(),
+            () => EraseTheAdInAnotherRequestAsync(confirmedId, ct));
+
+        var handler = new EraseRecruiterAdsCommandHandler(
+            db, sabotaged, new FixedClock(),
+            NullLogger<EraseRecruiterAdsCommandHandler>.Instance);
+
+        var result = await handler.Handle(
+            new EraseRecruiterAdsCommand(
+                Guid.NewGuid(), RecruiterEmail, DryRun: false, [confirmedId]),
+            ct);
+
+        await db.SaveChangesAsync(ct);
+
+        result.IsSuccess.ShouldBeTrue();
+        var response = result.Value;
+
+        response.Matched.JobAds.ShouldBe(1,
+            "the match ran BEFORE the concurrent erase — the ad was still live then. If this is 0 "
+            + "the interleaving never happened and the rest of this test proves nothing.");
+
+        response.Erased.JobAds.ShouldBe(0,
+            "THIS request erased nothing — Erase() refused with JobAd.AlreadyErased. Counting the "
+            + "ad's STATUS instead of Erase()'s verdict reports 1, and that 1 goes into an Art. "
+            + "12(3) reply as an ad we destroyed for her.");
+
+        response.ErasedExternalIds.ShouldBeEmpty(
+            "and the accountability list stays empty, in agreement with the counter.");
+
+        response.Outcome.ShouldBe(ErasureOutcome.NothingErased,
+            "we matched an ad and destroyed none of it. AdsErased here would be a false statement "
+            + "about what THIS request did.");
+
+        // The ad IS erased — by the other request. The corpus is right; only OUR count is at issue.
+        using var check = _provider.CreateScope();
+        var after = check.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await ColumnsStillContainingAsync(after, RecruiterEmail, ct)).ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// A second, ordinary Art. 17 erasure of <paramref name="jobAdId"/>, run to completion in its
+    /// own scope through the real aggregate. This is what a concurrent request does.
+    /// </summary>
+    private async Task EraseTheAdInAnotherRequestAsync(Guid jobAdId, CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var id = new JobAdId(jobAdId);
+        var ad = await db.JobAds.SingleAsync(j => j.Id == id, ct);
+
+        ad.Erase(new FixedClock()).IsSuccess.ShouldBeTrue(
+            "the concurrent request must genuinely succeed, or the race under test never occurs.");
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Delegates every channel to the REAL match query, and fires <c>onMatched</c> exactly once,
+    /// after <see cref="FindJobAdsAsync"/> has returned — the window between the handler's match and
+    /// its tracked re-load. A scheduler, not a stub: it invents no data and answers no question
+    /// itself.
+    /// </summary>
+    private sealed class MatchQueryThatErasesMidFlight(
+        IRecruiterErasureMatchQuery inner, Func<Task> onMatched) : IRecruiterErasureMatchQuery
+    {
+        private bool _fired;
+
+        public async Task<IReadOnlyList<ErasureJobAdMatch>> FindJobAdsAsync(
+            string identifier, CancellationToken cancellationToken)
+        {
+            var matches = await inner.FindJobAdsAsync(identifier, cancellationToken);
+
+            if (!_fired)
+            {
+                _fired = true;
+                await onMatched();
+            }
+
+            return matches;
+        }
+
+        public Task<IReadOnlyList<ErasureRecentSearchMatch>> FindRecentJobSearchesAsync(
+            string identifier, CancellationToken cancellationToken) =>
+            inner.FindRecentJobSearchesAsync(identifier, cancellationToken);
+
+        public Task<int> CountSavedSearchesAsync(
+            string identifier, CancellationToken cancellationToken) =>
+            inner.CountSavedSearchesAsync(identifier, cancellationToken);
+
+        public Task<int> CountApplicationSnapshotsAsync(
+            string identifier, CancellationToken cancellationToken) =>
+            inner.CountApplicationSnapshotsAsync(identifier, cancellationToken);
+
+        public Task<int> CountManualAdEntriesAsync(
+            string identifier, CancellationToken cancellationToken) =>
+            inner.CountManualAdEntriesAsync(identifier, cancellationToken);
+
+        public Task<int> CountCompanyWatchCriteriaAsync(
+            string identifier, CancellationToken cancellationToken) =>
+            inner.CountCompanyWatchCriteriaAsync(identifier, cancellationToken);
+
+        public Task<int> CountApplicationsReferencingAsync(
+            IReadOnlyCollection<Guid> matchedJobAdIds, CancellationToken cancellationToken) =>
+            inner.CountApplicationsReferencingAsync(matchedJobAdIds, cancellationToken);
     }
 
     private sealed class FixedClock : IDateTimeProvider

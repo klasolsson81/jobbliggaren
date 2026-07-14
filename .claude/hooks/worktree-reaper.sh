@@ -39,6 +39,11 @@ CUR_TOP="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 CUR_GITDIR="$(git rev-parse --git-dir 2>/dev/null || true)"
 CUR_COMMON="$(git rev-parse --git-common-dir 2>/dev/null || true)"
 
+# The MAIN copy's root. CUR_TOP is the CURRENT worktree, which is exactly the wrong
+# place to rescue files TO when the session is itself running inside a worktree. The
+# common git dir always points at the main copy's .git, so its parent is the main root.
+MAIN_TOP="$(dirname -- "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo /nonexistent/.git)")"
+
 # Only ever rm -rf inside a known worktree root. Bounds the blast radius of the
 # leftover-dir cleanup so a malformed path can never escalate.
 _reap_ok_path() {
@@ -95,6 +100,7 @@ while IFS= read -r line; do
 done < <(git worktree list --porcelain 2>/dev/null)
 
 REAPED_LIST=""; REAPED_N=0
+RESCUED_LIST=""; RESCUED_N=0
 REMOTE_LIST=""; REMOTE_N=0
 SKIPPED_LIST=""; SKIPPED_N=0
 _skip() { SKIPPED_LIST+="  skip: $1 :: $2"$'\n'; SKIPPED_N=$((SKIPPED_N + 1)); }
@@ -144,6 +150,49 @@ for i in "${!WT_PATHS[@]}"; do
   # (remote deletion is always report-only).
   REMOTE_LIST+="    - $B (PR #$_merged)"$'\n'; REMOTE_N=$((REMOTE_N + 1))
 
+  # ── RESCUE BEFORE DESTROY (2026-07-14, #884 hygiene pass) ────────────────────────
+  # Conjunct 6 above is BLIND to the files that matter most. docs/sessions/,
+  # docs/reviews/ and ADRs 0074+ are GITIGNORED (.gitignore:98,123,124-125), so
+  # `git status --porcelain` reports NOTHING for them, the tree looks CLEAN, and
+  # `git worktree remove` — even without --force — removes it and takes them with it.
+  #
+  # MEASURED, not reasoned: a probe worktree holding one ignored docs/reviews/*.md was
+  # removed successfully by the no-force path below, and the file was gone. The comment
+  # further down knew half of this ("the marker is gitignored, so it does not block the
+  # removal") and did not follow the implication: nothing else gitignored blocks it
+  # either. Those files are the ONLY copy — agent reviews, CTO verdicts, session logs
+  # and every ADR from 0074 on live nowhere else in the world. The 2026-07-14 pass had
+  # to rescue 14 of them BY HAND (four CTO reports, six reviews, a session log) from
+  # worktrees that were one `--force` away from gone.
+  #
+  # So: copy them out first, never overwriting a file the main copy already has. If the
+  # rescue cannot complete, SKIP the reap — a destroy that proceeds past a failed
+  # rescue is the same bug wearing a seatbelt.
+  # DRY stays observe-only: it enumerates, it never copies. That the count is non-zero
+  # IS the observation — it is the measure of what a live run would otherwise destroy.
+  _resc_fail=""
+  if [ -z "$MAIN_TOP" ] || [ ! -d "$MAIN_TOP" ]; then
+    _resc_fail=1                                      # cannot locate the main copy → never destroy
+  else
+    for _rel in $(git -C "$W" ls-files --others -- docs/sessions docs/reviews docs/decisions 2>/dev/null || true); do
+      [ -f "$W/$_rel" ] || continue
+      [ -f "$MAIN_TOP/$_rel" ] && continue            # already safe in the main copy — never overwrite
+      if [ "$REAP_MODE" = "live" ]; then
+        mkdir -p "$MAIN_TOP/$(dirname -- "$_rel")" 2>/dev/null || { _resc_fail=1; break; }
+        cp -- "$W/$_rel" "$MAIN_TOP/$_rel" 2>/dev/null || { _resc_fail=1; break; }
+        RESCUED_LIST+="  rescued: $_rel  (from $W)"$'\n'
+      else
+        RESCUED_LIST+="  would rescue: $_rel  (from $W)"$'\n'
+      fi
+      RESCUED_N=$((RESCUED_N + 1))
+    done
+  fi
+  if [ -n "$_resc_fail" ]; then
+    _skip "$W" "rescue of gitignored docs FAILED — refusing to reap"
+    continue
+  fi
+  # ─────────────────────────────────────────────────────────────────────────────────
+
   if [ "$REAP_MODE" = "live" ]; then
     # Bounded, local, recoverable ops only. Order is idempotent / re-runnable.
     # `git worktree remove` runs WITHOUT --force so it still refuses a genuinely dirty
@@ -172,8 +221,8 @@ done
 # phase that gates the live ratchet has a complete audit trail, incl. every skip reason.
 mkdir -p docs/sessions 2>/dev/null || true
 {
-  echo "$(date -Iseconds 2>/dev/null) reaper mode=${REAP_MODE} reaped=${REAPED_N} remote=${REMOTE_N} skipped=${SKIPPED_N}"
-  printf '%s%s' "$REAPED_LIST" "$SKIPPED_LIST"
+  echo "$(date -Iseconds 2>/dev/null) reaper mode=${REAP_MODE} reaped=${REAPED_N} rescued=${RESCUED_N} remote=${REMOTE_N} skipped=${SKIPPED_N}"
+  printf '%s%s%s' "$RESCUED_LIST" "$REAPED_LIST" "$SKIPPED_LIST"
 } >> "$LOG" 2>/dev/null || true
 
 # Only surface to the session (stdout) when there is something actionable, to avoid

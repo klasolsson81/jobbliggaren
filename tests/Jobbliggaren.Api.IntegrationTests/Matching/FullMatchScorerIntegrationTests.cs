@@ -8,6 +8,7 @@ using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Matching;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.TextAnalysis;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -123,7 +124,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
             ConceptId: conceptId,
             Weight: 1);
 
-    // Seeds an Imported JobAd whose raw_payload drives the STORED shadow columns
+    // Seeds an Imported JobAd whose raw_payload drives the facet columns
     // (occupation_group / region / employment) AND, when terms is non-null, sets
     // the extracted_terms VO (which generates the STORED extracted_lexemes GIN
     // column). null terms → extracted_terms stays NULL (never-extracted path).
@@ -153,6 +154,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
+            facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
             clock: clock).Value;
@@ -168,7 +170,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
     }
 
     // occupation_group + employment_type are TOP-LEVEL; region lives under
-    // workplace_address (parity MatchScorerIntegrationTests / JobAdGeneratedColumnsTests).
+    // workplace_address (parity MatchScorerIntegrationTests / JobAdFacetsSurvivePurgeTests).
     private static string BuildRawPayload(
         string externalId,
         string? occupationGroupConceptId,

@@ -27,15 +27,44 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     public ExternalReference? External { get; private set; }
 
     // ADR 0032 §4 — raw JobTech-payload för debug/replay (jsonb i DB).
+    // RETENTION: PurgeStaleRawPayloadsJob nulls this 30 days after published_at
+    // (GDPR Art. 5(1)(c)/(e), ADR 0032 §8). It is the ONLY column on this aggregate
+    // with a TTL — which is why nothing durable may be derived from it in the
+    // database. See SetSourcePayload.
     public string? RawPayload { get; private set; }
+
+    // #841 — the seven SOURCE FACETS. Ordinary columns, written in C# from the ACL's
+    // parse of the payload, ATOMICALLY with RawPayload (SetSourcePayload below).
+    //
+    // Until 2026-07-13 these were Postgres STORED generated columns derived from
+    // raw_payload. Postgres recomputes a stored generated column on every UPDATE of
+    // its base, so the 30-day raw_payload purge silently nulled all seven — and the
+    // 02:00 sync rewrote the payload and resurrected them. Net effect, proven against
+    // real Postgres: filtered search, the per-user matching engine and the
+    // company-watch scan dropped still-ACTIVE ads ~21.5 h out of every 24, every day.
+    // They ARE the "sanitized fields" ADR 0032 §8 promised to keep INDEFINITELY; they
+    // must outlive the payload they were parsed from. That is what this shape buys.
+    public string? SsykConceptId { get; private set; }
+    public string? OccupationGroupConceptId { get; private set; }
+    public string? MunicipalityConceptId { get; private set; }
+    public string? RegionConceptId { get; private set; }
+    public string? EmploymentTypeConceptId { get; private set; }
+    public string? WorktimeExtentConceptId { get; private set; }
+
+    // PII, highest priority (CLAUDE.md §5): a sole proprietor's org.nr IS a personnummer
+    // in plaintext. Never logged, never surfaced un-flagged — consumers mask via
+    // OrganizationNumber.IsPersonnummerShaped at the display boundary (ADR 0087 D8(c)).
+    // Guarded at build time by JobAdPublicSurfaceGuardTests + OrganizationNumberSurfacingGuardTests.
+    public string? OrganizationNumber { get; private set; }
 
     // F4-4 (ADR 0071/0074 Path C) — deterministic keyword/skill extraction
     // (jsonb i DB). NULL = aldrig extraherat (alla rader importerade före F4-4
     // tills backfillen kör); non-null (inkl. tom) = extraherat. Skillnaden bär
     // backfill-idempotensen via den STORED genererade extracted_lexemes-skuggan
-    // (NULL ⟺ extracted_terms NULL). Skrivs aktivt i C# vid ingest + backfill —
-    // EJ en Postgres generated column (NLP+taxonomi-lookup går inte att uttrycka
-    // i SQL, till skillnad mot ssyk_concept_id/search_vector).
+    // (NULL ⟺ extracted_terms NULL). Skrivs aktivt i C# vid ingest + backfill.
+    // (extracted_lexemes IS still a generated column — legitimately: it derives from
+    // extracted_terms, a column with NO TTL. The #841 rule is not "no generated
+    // columns"; it is "nothing durable may be derived from raw_payload".)
     public ExtractedTerms? ExtractedTerms { get; private set; }
 
     // EF Core constructor
@@ -95,11 +124,13 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         string? url,
         ExternalReference external,
         string? rawPayload,
+        JobAdFacets facets,
         DateTimeOffset publishedAt,
         DateTimeOffset? expiresAt,
         IDateTimeProvider clock)
     {
         ArgumentNullException.ThrowIfNull(external);
+        ArgumentNullException.ThrowIfNull(facets);
 
         var validation = ValidateCore(title, description, url, publishedAt, expiresAt);
         if (validation.IsFailure)
@@ -116,8 +147,8 @@ public sealed class JobAd : AggregateRoot<JobAdId>
                               url!, external.Source, publishedAt, expiresAt, now)
         {
             External = external,
-            RawPayload = rawPayload,
         };
+        jobAd.SetSourcePayload(rawPayload, facets);
         jobAd.RaiseDomainEvent(new JobAdImportedDomainEvent(
             id, external.Source.Value, external.ExternalId, title.Trim(), now));
         return Result.Success(jobAd);
@@ -211,8 +242,11 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         string? description,
         string? url,
         string? rawPayload,
+        JobAdFacets facets,
         DateTimeOffset? expiresAt)
     {
+        ArgumentNullException.ThrowIfNull(facets);
+
         if (External is null)
             return Result.Failure(
                 DomainError.Validation("JobAd.NotImported",
@@ -249,9 +283,46 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         Description = description!.Trim();
         Url = url!;
         ExpiresAt = expiresAt;
-        RawPayload = rawPayload;
+        SetSourcePayload(rawPayload, facets);
 
         return Result.Success();
+    }
+
+    /// <summary>
+    /// #841 — THE drift guard, and it is a type-system guarantee rather than a convention.
+    ///
+    /// <para>
+    /// The payload and the seven facets parsed from it are written ATOMICALLY, in one place. They are two
+    /// halves of one fact ("this is what the source said"), and the entire defect this method exists to
+    /// kill was two write paths disagreeing about a derived value. Because <see cref="JobAdFacets"/> is a
+    /// REQUIRED parameter of the only two members that can reach here (<see cref="Import"/> and
+    /// <see cref="UpdateFromSource"/> — one production call site each, both in
+    /// <c>UpsertExternalJobAdCommandHandler</c>), it is not possible to COMPILE a payload write that omits
+    /// the facets. Not merely unlikely: impossible.
+    /// </para>
+    ///
+    /// <para>
+    /// Contrast <see cref="SetExtractedTerms"/>, which is a SEPARATE method the caller has to remember —
+    /// the weakness this deliberately does not copy (tracked as #874).
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The one route around this guard</b> is <c>ExecuteUpdateAsync</c>, which bypasses the aggregate
+    /// entirely. Exactly one such writer of <c>RawPayload</c> exists — <c>PurgeStaleRawPayloadsJob</c>,
+    /// which writes NULL and, after #841, leaves the seven standing. That exclusivity is not a convention
+    /// either: <c>JobAdRawPayloadDerivationGuardTests</c> fails the build if a second one appears.
+    /// </para>
+    /// </summary>
+    private void SetSourcePayload(string rawPayload, JobAdFacets facets)
+    {
+        RawPayload = rawPayload;
+        SsykConceptId = facets.SsykConceptId;
+        OccupationGroupConceptId = facets.OccupationGroupConceptId;
+        MunicipalityConceptId = facets.MunicipalityConceptId;
+        RegionConceptId = facets.RegionConceptId;
+        EmploymentTypeConceptId = facets.EmploymentTypeConceptId;
+        WorktimeExtentConceptId = facets.WorktimeExtentConceptId;
+        OrganizationNumber = facets.OrganizationNumber;
     }
 
     // F4-4 — set the deterministic keyword/skill extraction (ADR 0071/0074).
@@ -259,6 +330,14 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     // and the local backfill. Idempotent: a re-extraction over the same text
     // yields an equal value object. No domain event — extraction is derived
     // state, not a business transition (parity UpdateFromSource).
+    //
+    // KNOWN ASYMMETRY, deliberate and tracked (#874). Unlike the source facets — which
+    // SetSourcePayload writes atomically with the payload they are parsed from, so
+    // omitting them cannot compile — this is a SEPARATE method the caller must remember
+    // to call after UpdateFromSource writes the very Title/Description it derives from.
+    // A future write path could update the text and leave the terms stale. Same failure
+    // class as #841, one notch milder: title/description carry no retention TTL, so the
+    // failure mode is staleness, not destruction — nothing silently zeroes these.
     public void SetExtractedTerms(ExtractedTerms terms)
     {
         ArgumentNullException.ThrowIfNull(terms);

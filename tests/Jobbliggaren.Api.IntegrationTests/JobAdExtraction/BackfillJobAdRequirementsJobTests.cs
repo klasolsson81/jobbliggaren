@@ -7,6 +7,7 @@ using Jobbliggaren.Application.JobAds.Jobs.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -58,19 +59,25 @@ public sealed class BackfillJobAdRequirementsJobTests(ApiFactory factory)
     // The refetched item the substitute source returns: a payload that NOW carries
     // must_have (so the re-write flips the predicate) + Requirements with skill
     // concepts (so the extractor produces Requirement terms).
-    private static JobAdImportItem RefetchedItemWithMustHave(string externalId) => new(
-        ExternalId: externalId,
-        Title: $"Refetched-{externalId}",
-        CompanyName: "Region Stockholm",
-        Description: "Beskrivning av tjänsten.",
-        Url: $"https://example.com/jobs/{externalId}",
-        PublishedAt: new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero),
-        ExpiresAt: new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero),
+    private static JobAdImportItem RefetchedItemWithMustHave(string externalId)
+    {
         // Sanitized payload re-emitting the must_have key (what the new POCO produces).
-        SanitizedRawPayload:
+        var payload =
             "{\"id\":\"" + externalId + "\",\"must_have\":{\"skills\":" +
-            "[{\"concept_id\":\"Rq01_must_aaa\",\"label\":\"C#\",\"weight\":10}]}}",
-        Requirements: [new JobAdRequirement(ExtractedTermSource.MustHave, "Rq01_must_aaa", "C#", 10)]);
+            "[{\"concept_id\":\"Rq01_must_aaa\",\"label\":\"C#\",\"weight\":10}]}}";
+        return new JobAdImportItem(
+            ExternalId: externalId,
+            Title: $"Refetched-{externalId}",
+            CompanyName: "Region Stockholm",
+            Description: "Beskrivning av tjänsten.",
+            Url: $"https://example.com/jobs/{externalId}",
+            PublishedAt: new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero),
+            ExpiresAt: new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero),
+            SanitizedRawPayload: payload,
+            // This payload carries no taxonomy keys — the facets are legitimately empty (#841).
+            Facets: TestFacets.FromPayload(payload),
+            Requirements: [new JobAdRequirement(ExtractedTermSource.MustHave, "Rq01_must_aaa", "C#", 10)]);
+    }
 
     private JobAdRefetchBackfillRunner NewRunner(IJobSource jobSource)
     {
@@ -111,6 +118,7 @@ public sealed class BackfillJobAdRequirementsJobTests(ApiFactory factory)
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
+            facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
             clock: clock).Value;

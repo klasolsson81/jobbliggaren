@@ -8,10 +8,10 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
-
 // Application-typen krockar med Jobbliggaren.Application-namespacet; alias per fil
 // (integrationsprojektet saknar global alias, jfr ReadHandlerManualPostingFallback).
 using DomainApplication = Jobbliggaren.Domain.Applications.Application;
@@ -82,6 +82,7 @@ public class GetActivityReportLocationIntegrationTests
             url: "https://example.com/jobb/1",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
+            facets: TestFacets.FromPayload(rawPayload),
             publishedAt: new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),
             expiresAt: null,
             clock: clock).Value;

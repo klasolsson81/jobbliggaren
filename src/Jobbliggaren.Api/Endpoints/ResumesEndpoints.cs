@@ -29,6 +29,7 @@ using Jobbliggaren.Application.Resumes.Rendering.Queries.RenderResume;
 using Jobbliggaren.Application.Resumes.Rendering.Queries.RenderResumePreview;
 using Jobbliggaren.Application.Resumes.Review.Queries.ReviewParsedResume;
 using Jobbliggaren.Application.Resumes.Review.Queries.ReviewResume;
+using Jobbliggaren.Application.Resumes.Sections.Queries.GetCvSectionSuggestions;
 using Mediator;
 using Microsoft.AspNetCore.Http.Features;
 
@@ -205,6 +206,19 @@ public static class ResumesEndpoints
             Guid id, string? profile, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new SuggestCvImprovementsQuery(id, profile ?? string.Empty), ct);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // Fas 4b 8b.4a (ADR 0107) — occupation-driven section suggestions for the Slutför guide's
+        // "Lägg till sektion" panel. A READ SLICE, deliberately NOT part of /improvements: a
+        // section suggestion is not a diff (no Before, no After, no transform), and the improve
+        // panel would have labelled it "Ändra sektionsordning". Owner-scoped; the suggestions are
+        // offered, never applied (§5 — the engine never rewrites the CV silently).
+        group.MapGet("/parsed/{id:guid}/section-suggestions", async (
+            Guid id, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new GetCvSectionSuggestionsQuery(id), ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);

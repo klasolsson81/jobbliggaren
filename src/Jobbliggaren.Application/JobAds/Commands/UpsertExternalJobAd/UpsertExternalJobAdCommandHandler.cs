@@ -49,7 +49,7 @@ public sealed partial class UpsertExternalJobAdCommandHandler(
 
         var importResult = JobAd.Import(
             item.Title, companyResult.Value, item.Description, item.Url,
-            extRefResult.Value, item.SanitizedRawPayload,
+            extRefResult.Value, item.SanitizedRawPayload, item.Facets,
             item.PublishedAt, item.ExpiresAt, clock);
 
         if (importResult.IsFailure)
@@ -92,9 +92,13 @@ public sealed partial class UpsertExternalJobAdCommandHandler(
             return Result.Success(UpsertOutcome.Skipped);
         }
 
+        // #841 — the Update path re-writes raw_payload, and therefore MUST re-write the seven facets
+        // parsed from it. It cannot forget: JobAd.UpdateFromSource takes the facets as a required
+        // parameter, so omitting them would not compile. (This is the whole reason the fix lives in the
+        // aggregate's signature rather than in a convention here.)
         var updateResult = existing.UpdateFromSource(
             item.Title, item.Description, item.Url,
-            item.SanitizedRawPayload, item.ExpiresAt);
+            item.SanitizedRawPayload, item.Facets, item.ExpiresAt);
 
         if (updateResult.IsFailure)
         {

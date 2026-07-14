@@ -6,6 +6,7 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Jobbliggaren.Worker.Hosting;
 using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.AspNetCore.Identity;
@@ -120,6 +121,7 @@ public class DigestDispatchJobIntegrationTests(WorkerTestFixture fixture)
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: $"{{\"id\":\"{externalId}\"}}",
+            facets: TestFacets.FromPayload($"{{\"id\":\"{externalId}\"}}"),
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(60),
             clock: new FixedClock(Now)).Value;

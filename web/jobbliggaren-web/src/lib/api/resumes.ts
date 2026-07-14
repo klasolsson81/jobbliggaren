@@ -13,10 +13,12 @@ import {
   parsedResumeDetailDtoSchema,
   cvReviewDtoSchema,
   cvImprovementDtoSchema,
+  cvSectionSuggestionsDtoSchema,
   pendingParsedResumeResponseSchema,
   type ParsedResumeDetailDto,
   type CvReviewDto,
   type CvImprovementDto,
+  type CvSectionSuggestionsDto,
   type RenderProfile,
   type PendingParsedResumeSummary,
 } from "@/lib/dto/parsed-resume";
@@ -228,6 +230,39 @@ export async function getParsedResume(
       res,
       parsedResumeDetailDtoSchema,
       `GET /api/v1/resumes/parsed/${id}`,
+      { includeNotFound: true }
+    );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * Yrkesstyrda sektionsförslag för Slutför-guiden (8b.4a, ADR 0107). Egen läs-slice, inte
+ * en del av /improvements: ett sektionsförslag är ingen ProposedChange.
+ *
+ * Läses server-side i RSC:n och skickas som prop till guiden — aldrig via `useEffect`
+ * (CLAUDE.md §4/§5). Förslagen är rådgivande: misslyckas hämtningen renderar guiden sin
+ * generiska panel precis som förut, för en trasig FÖRSLAGS-rad får aldrig blockera det som
+ * faktiskt är uppgiften (att slutföra CV:t). Anroparen behandlar därför allt utom "ok" som
+ * "inga förslag".
+ */
+export async function getCvSectionSuggestions(
+  id: string
+): Promise<ApiResult<CvSectionSuggestionsDto>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+  if (!isValidId(id)) return { kind: "notFound" };
+
+  try {
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/resumes/parsed/${encodeURIComponent(id)}/section-suggestions`
+    );
+    return await responseToResult(
+      res,
+      cvSectionSuggestionsDtoSchema,
+      `GET /api/v1/resumes/parsed/${id}/section-suggestions`,
       { includeNotFound: true }
     );
   } catch {

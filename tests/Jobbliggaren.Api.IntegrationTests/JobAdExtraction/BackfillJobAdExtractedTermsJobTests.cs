@@ -7,6 +7,7 @@ using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Taxonomy;
 using Jobbliggaren.Infrastructure.TextAnalysis;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -128,7 +129,7 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
             var jobAd = JobAd.Import(
                 $"Systemutvecklare nummer {i}", company,
                 "Vi söker en utvecklare med erfarenhet av ekonomi och ledning.",
-                "https://example.com/jobb/" + i, external, "{\"id\":\"x\"}",
+                "https://example.com/jobb/" + i, external, "{\"id\":\"x\"}", TestFacets.FromPayload("{\"id\":\"x\"}"),
                 new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),
                 new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock).Value;
             // Deliberately DO NOT call SetExtractedTerms → extracted_terms stays NULL.
@@ -289,7 +290,7 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
             var external = ExternalReference.Create(JobSource.Platsbanken, Guid.NewGuid().ToString("N")).Value;
             var already = JobAd.Import(
                 "Redan extraherad", company, "Beskrivning", "https://example.com/jobb/done",
-                external, "{\"id\":\"x\"}",
+                external, "{\"id\":\"x\"}", TestFacets.FromPayload("{\"id\":\"x\"}"),
                 new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),
                 new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock).Value;
             already.SetExtractedTerms(ExtractedTerms.Empty); // extracted (non-null)

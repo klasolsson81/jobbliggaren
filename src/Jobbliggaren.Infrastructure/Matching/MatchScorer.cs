@@ -70,7 +70,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     {
         ArgumentNullException.ThrowIfNull(profile);
 
-        // Project only the title + the three STORED shadow columns (no wide row,
+        // Project only the title + the three facet columns (no wide row,
         // no raw_payload). EF.Property reads the shadows (Npgsql-bound — stays in
         // Infrastructure, ADR 0062). AsNoTracking: read-only.
         //
@@ -86,7 +86,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         var ad = await db.JobAds
             .AsNoTracking()
             .Where(j => j.Id == jobAdId)
-            .Select(j => new AdShadowRow(
+            .Select(j => new AdFacetRow(
                 j.Title,
                 EF.Property<string?>(j, OccupationGroupColumn),
                 EF.Property<string?>(j, RegionColumn),
@@ -182,7 +182,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // Fas 4 STEG 6 (F4-6, ADR 0074 row U5b; senior-cto-advisor Decision A=A2 /
     // B=B2 / C=C1 / D=DD-shape-1+DD-verdict-A / E=DE-combine-2(skill-only)+DE-display-1
     // / F=F1) — the FULL match scorer. Built ON TOP of the Fast vertical: it loads
-    // the ad's title + the three STORED shadow columns + the extracted_terms VO in
+    // the ad's title + the three facet columns + the extracted_terms VO in
     // ONE round-trip (CTO C1 — single-ad scoring computes the overlap in-memory on
     // the loaded VO; the extracted_lexemes GIN serves the DEFERRED multi-ad search,
     // not this), builds the embedded Fast MatchScore via the SAME dim-1..4 helpers
@@ -679,17 +679,19 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     private static MatchDimension Vacuous() =>
         new(MatchDimensionVerdict.Vacuous, [], []);
 
-    // The minimal row the scorer needs — title + the three STORED shadow values.
+    // The minimal row the scorer needs — title + the three facet values (#841: ordinary,
+    // C#-written ingest columns since 2026-07-13; they used to be STORED generated columns that
+    // the raw_payload purge silently nulled).
     // A constructor-projected type (EF maps the ctor); shadow values are nullable
     // (NULL ⇒ the ad has no value on that dimension ⇒ NotAssessed).
-    private sealed record AdShadowRow(
+    private sealed record AdFacetRow(
         string Title,
         string? OccupationGroupConceptId,
         string? RegionConceptId,
         string? EmploymentTypeConceptId,
         string? MunicipalityConceptId);
 
-    // The batch row (F4-13) — AdShadowRow plus the JobAdId key, so ScoreBatchAsync can
+    // The batch row (F4-13) — AdFacetRow plus the JobAdId key, so ScoreBatchAsync can
     // key the result dictionary. j.Id materializes via its value converter (parity the
     // single-ad equality filter); shadow values are nullable (NULL ⇒ NotAssessed).
     private sealed record AdBatchShadowRow(

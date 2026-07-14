@@ -14,6 +14,7 @@ import {
   Controller,
   type UseFormReturn,
 } from "react-hook-form";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AlertTriangle, Check, Pencil, Plus, X } from "lucide-react";
@@ -45,6 +46,7 @@ import type {
   ParsedContentDto,
   ParseConfidenceDto,
   ParsedGapSummary,
+  CvSectionSuggestionsDto,
 } from "@/lib/dto/parsed-resume";
 import type { ResumeContentDto } from "@/lib/types/resumes";
 
@@ -99,6 +101,10 @@ interface CvCompleteGuideProps {
   sourceFileName: string;
   content: ParsedContentDto;
   confidence: ParseConfidenceDto;
+  /** Yrkesstyrda sektionsförslag (8b.4a, ADR 0107). `null` = hämtningen misslyckades eller
+   * artefakten saknas → guiden renderar sin generiska panel precis som förut. Förslagen är
+   * rådgivande och får aldrig blockera uppgiften. */
+  sectionSuggestions?: CvSectionSuggestionsDto | null;
 }
 
 /**
@@ -382,6 +388,7 @@ export function CvCompleteGuide({
   sourceFileName,
   content,
   confidence,
+  sectionSuggestions = null,
 }: CvCompleteGuideProps) {
   const router = useRouter();
   const t = useTranslations("validation");
@@ -440,6 +447,32 @@ export function CvCompleteGuide({
   // uppgift ÄR). Driver "kvar"-räkningen på stegen och Spara-sammanställningen.
   const values = watch();
   const gaps = deriveGapSummaryFromForm(values);
+
+  // Sektionsförslag som ännu inte finns i formuläret (8b.4a, ADR 0107). HÄRLEDD ur
+  // live-värdena, aldrig dubbellagrad: servern filtrerade mot det PARSADE innehållet, men
+  // användaren kan lägga till en sektion här och nu — och då ska förslaget försvinna
+  // omedelbart. Ett separat "tillagda"-state hade kunnat divergera från formuläret, och
+  // guiden har redan betalat det priset en gång (#815: varje yta härleds ur EN källa,
+  // annars ljuger de för varandra över tid).
+  //
+  // Jämförelsen är på RUBRIK, inte sectionId, och gränsen är värd att säga rakt ut: FE kan
+  // inte matcha synonymer (lexikonet är backendens). Servern har redan filtrerat bort allt
+  // CV:t bar när sidan laddades, så det den här filtreringen behöver fånga är sektionen
+  // användaren just lade till från ett förslag — vars rubrik är exakt den vi skrev in.
+  //
+  // Kvarvarande, medvetet accepterad avvikelse: skriver hon "Kurser" för hand medan chippet
+  // heter "Kurser och intyg" står chippet kvar, trots att båda är samma sectionId för
+  // servern. Alternativet vore att forka lexikonet till FE — precis den fork PR-1 fanns
+  // till för att omöjliggöra. Hon får ett dubbelförslag i värsta fall; hon får aldrig en
+  // sektion vars text tystnar. Vi väljer det felet.
+  const takenHeadings = new Set(
+    (values.sections ?? []).map((section) =>
+      (section.heading ?? "").trim().toLowerCase()
+    )
+  );
+  const openSuggestions = (sectionSuggestions?.suggestions ?? []).filter(
+    (suggestion) => !takenHeadings.has(suggestion.heading.trim().toLowerCase())
+  );
 
   // Live-validering mot SAMMA schema som submit (och som servern). Ger stegen ett
   // ärligt blockerings-tillstånd: närvaro (gaps) och giltighet (issues) är två
@@ -1108,11 +1141,12 @@ export function CvCompleteGuide({
               </div>
             </div>
 
-            {/* Egna sektioner (generisk panel, CTO Q7(a) — fri rubrik, inga förslag).
-                Proveniensen saknades här medan Erfarenhet/Utbildning bar sin: sedan
-                #849 prefylls PROJEKT/REFERENSER ur filen, och då måste ytan säga att
-                de KOM ur filen — annars ser användarens egna sektioner ut som något
-                guiden hittade på. */}
+            {/* Egna sektioner. Proveniensen saknades här medan Erfarenhet/Utbildning bar
+                sin: sedan #849 prefylls PROJEKT/REFERENSER ur filen, och då måste ytan
+                säga att de KOM ur filen — annars ser användarens egna sektioner ut som
+                något guiden hittade på. Sedan 8b.4a är panelen inte längre "fri rubrik,
+                inga förslag": yrket styr vilka sektioner som föreslås (ADR 0107). Den fria
+                rubriken finns kvar — förslagen LÄGGER TILL, de tar aldrig bort. */}
             <div className="jp-guide__section">
               <div className="jp-guide__section-head">
                 <h3 className="jp-guide__section-title">
@@ -1136,6 +1170,103 @@ export function CvCompleteGuide({
                   />
                 ))}
               </div>
+              {/* Har hon inga öppna förslag kvar renderas prompten UTAN platt-kromet — en
+                  färgad låda med en ensam mening och ingen rubrik är krom utan innehåll. */}
+              {sectionSuggestions &&
+                openSuggestions.length === 0 &&
+                !sectionSuggestions.hasOccupationPreference && (
+                  <p className="jp-sectionsuggest__prompt">
+                    {tr("experience.suggestionsNoOccupation")}{" "}
+                    <Link href="/installningar#matchning" className="jp-nudgelink">
+                      {tr("experience.suggestionsNoOccupationLink")}
+                    </Link>
+                  </p>
+                )}
+              {sectionSuggestions && openSuggestions.length > 0 && (
+                <div className="jp-sectionsuggest">
+                  <div className="jp-sectionsuggest__head">
+                    <h4 className="jp-sectionsuggest__title">
+                      {tr("experience.suggestionsHeading")}
+                    </h4>
+                    {/* Motiveringen kommer från kunskapsbanken, inte från i18n: samma
+                        proveniens-regel som ProposedChange.rationale. Ingen prosa som
+                        motorn hittat på. */}
+                    <span className="jp-sectionsuggest__badge">
+                      {sectionSuggestions.rationale}
+                    </span>
+                  </div>
+                  {/* role="list" explicit: list-style:none tar bort list-semantiken i
+                      Safari/VoiceOver. Huskonventionen (follow-ups-section). */}
+                  <ul className="jp-sectionsuggest__list" role="list">
+                    {openSuggestions.map((suggestion) => (
+                      <li key={suggestion.sectionId}>
+                        <button
+                          type="button"
+                          className="jp-sectionsuggest__chip"
+                          /* Namnet måste säga vad knappen GÖR — "Legitimation och intyg"
+                             ensamt låter som en etikett, inte en åtgärd. Satt som
+                             aria-label i stället för en sr-only-span: chippet är en
+                             flex-container, så ett mellanrums-textnod mellan spannen hade
+                             blivit ett eget anonymt flex-item med egen bredd. Båda de
+                             SYNLIGA strängarna är delsträngar av namnet — WCAG 2.5.3
+                             Label in Name håller, och röststyrning kan säga rubriken. */
+                          aria-label={
+                            suggestion.isStandard
+                              ? tr("experience.addSuggestionRecommended", {
+                                  heading: suggestion.heading,
+                                })
+                              : tr("experience.addSuggestion", {
+                                  heading: suggestion.heading,
+                                })
+                          }
+                          onClick={() => {
+                            // Chippet AVMONTERAS av sitt eget klick (det filtreras bort ur
+                            // openSuggestions), så fokus faller till <body> och tangentbords-/
+                            // skärmläsaranvändaren tappar sin plats utan att få veta att något
+                            // hänt. Flytta fokus till den nya sektionens rubrikfält — samma
+                            // mönster som guiden redan använder för sina stegrubriker (WCAG
+                            // 2.4.3). append() skjuter alltid in sist, så längden FÖRE anropet
+                            // är den nya postens index.
+                            const nextIndex = sections.fields.length;
+                            sections.append({
+                              heading: suggestion.heading,
+                              entries: [{ title: "", body: "" }],
+                            });
+                            queueMicrotask(() =>
+                              document
+                                .getElementById(`guide-section-${nextIndex}-heading`)
+                                ?.focus()
+                            );
+                          }}
+                          disabled={isPending}
+                        >
+                          <Plus size={14} aria-hidden="true" />
+                          <span className="jp-sectionsuggest__chiplabel">
+                            {suggestion.heading}
+                          </span>
+                          {suggestion.isStandard && (
+                            <span className="jp-sectionsuggest__tag">
+                              {tr("experience.suggestionRecommended")}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {/* TVÅ skilda tomma lägen, aldrig hopslagna (ADR 0107). Den här raden visas
+                      BARA när användaren inte angett något yrke alls. Den som HAR angett ett
+                      yrke som landar i Övriga (62 %-majoriteten) får förslagen utan att bli
+                      tillfrågad igen — hon har redan svarat. */}
+                  {!sectionSuggestions.hasOccupationPreference && (
+                    <p className="jp-sectionsuggest__prompt">
+                      {tr("experience.suggestionsNoOccupation")}{" "}
+                      <Link href="/installningar#matchning" className="jp-nudgelink">
+                        {tr("experience.suggestionsNoOccupationLink")}
+                      </Link>
+                    </p>
+                  )}
+                </div>
+              )}
               <div>
                 <Button
                   type="button"

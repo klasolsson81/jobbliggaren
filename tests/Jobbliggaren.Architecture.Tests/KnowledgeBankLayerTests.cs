@@ -90,6 +90,9 @@ public class KnowledgeBankLayerTests
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IFrameProvider),
             // Fas 4b PR-6a (#655): the C7 spelling-allowlist port (parity the other KB ISP ports).
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ISpellingAllowlist),
+            // Fas 4b 8b.4a (ADR 0107): the occupation-field->branschgrupp + section
+            // rule-table port (parity the other KB ISP ports).
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IBranschgruppProvider),
         })
         {
             port.Assembly.ShouldBe(ApplicationAsm,
@@ -110,6 +113,9 @@ public class KnowledgeBankLayerTests
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IFrameProvider),
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ISpellingAllowlist),
+            // Fas 4b 8b.4a (ADR 0107): the occupation-field->branschgrupp + section
+            // rule-table port (parity the other KB ISP ports).
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IBranschgruppProvider),
         })
         {
             port.Assembly.ShouldNotBe(InfrastructureAsm);
@@ -304,6 +310,8 @@ public class KnowledgeBankLayerTests
             "FrameProvider", "FramesLoader",
             // Fas 4b PR-6a (#655): the embedded spelling-allowlist provider for C7.
             "SpellingAllowlistProvider",
+            // Fas 4b 8b.4a (ADR 0107): the branschgrupp asset provider + its loader.
+            "BranschgruppProvider", "BranschgruppLoader",
         })
         {
             names.ShouldContain(expected,
@@ -336,6 +344,8 @@ public class KnowledgeBankLayerTests
             "RubricProvider", "ClicheLexicon", "VerbMapper", "FrameProvider",
             // Fas 4b PR-6a (#655): the spelling-allowlist provider is internal sealed too.
             "SpellingAllowlistProvider",
+            // Fas 4b 8b.4a (ADR 0107): internal sealed too.
+            "BranschgruppProvider",
         })
         {
             var impl = InfrastructureAsm.GetTypes()
@@ -368,5 +378,8 @@ public class KnowledgeBankLayerTests
         typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ISpellingAllowlist)
             .IsAssignableFrom(infra.Single(t => t.Name == "SpellingAllowlistProvider"))
             .ShouldBeTrue("SpellingAllowlistProvider ska implementera ISpellingAllowlist.");
+        typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IBranschgruppProvider)
+            .IsAssignableFrom(infra.Single(t => t.Name == "BranschgruppProvider"))
+            .ShouldBeTrue("BranschgruppProvider ska implementera IBranschgruppProvider.");
     }
 }

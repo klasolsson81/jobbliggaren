@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
-import { getParsedResume } from "@/lib/api/resumes";
+import { getParsedResume, getCvSectionSuggestions } from "@/lib/api/resumes";
 import { assertNever } from "@/lib/dto/_helpers";
 import { CvCompleteGuide } from "@/components/resumes/cv-complete-guide";
 import { PersonnummerWarning } from "@/components/resumes/personnummer-warning";
@@ -67,6 +67,15 @@ export default async function CvCompleteGuidePage({ params }: Props) {
 
   const parsed = result.data;
 
+  // Yrkesstyrda sektionsförslag (8b.4a, ADR 0107). Hämtas server-side, aldrig i en
+  // useEffect. Förslagen är RÅDGIVANDE: går hämtningen fel renderar guiden sin generiska
+  // "Lägg till sektion"-panel precis som förut. En trasig förslagsrad får aldrig blockera
+  // det som faktiskt är uppgiften — att slutföra CV:t. Därför inget felläge här, bara
+  // frånvaro.
+  const suggestionsResult = await getCvSectionSuggestions(parsedId);
+  const sectionSuggestions =
+    suggestionsResult.kind === "ok" ? suggestionsResult.data : null;
+
   return (
     // .jp-container: guiden är en fullskärms-fokusyta men ska ändå cappa sin
     // measure på bred skärm (design-reviewer Major PR-8.3 — app-konventionen,
@@ -87,6 +96,7 @@ export default async function CvCompleteGuidePage({ params }: Props) {
         sourceFileName={parsed.sourceFileName}
         content={parsed.content}
         confidence={parsed.confidence}
+        sectionSuggestions={sectionSuggestions}
       />
     </div>
   );

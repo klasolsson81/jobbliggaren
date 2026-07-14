@@ -447,10 +447,8 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnName("description");
 
                     b.Property<string>("EmploymentTypeConceptId")
-                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("text")
-                        .HasColumnName("employment_type_concept_id")
-                        .HasComputedColumnSql("raw_payload->'employment_type'->>'concept_id'", true);
+                        .HasColumnName("employment_type_concept_id");
 
                     b.Property<DateTimeOffset?>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
@@ -467,22 +465,16 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnName("extracted_terms");
 
                     b.Property<string>("MunicipalityConceptId")
-                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("text")
-                        .HasColumnName("municipality_concept_id")
-                        .HasComputedColumnSql("raw_payload->'workplace_address'->>'municipality_concept_id'", true);
+                        .HasColumnName("municipality_concept_id");
 
                     b.Property<string>("OccupationGroupConceptId")
-                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("text")
-                        .HasColumnName("occupation_group_concept_id")
-                        .HasComputedColumnSql("raw_payload->'occupation_group'->>'concept_id'", true);
+                        .HasColumnName("occupation_group_concept_id");
 
                     b.Property<string>("OrganizationNumber")
-                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("text")
-                        .HasColumnName("organization_number")
-                        .HasComputedColumnSql("raw_payload->'employer'->>'organization_number'", true);
+                        .HasColumnName("organization_number");
 
                     b.Property<DateTimeOffset>("PublishedAt")
                         .HasColumnType("timestamp with time zone")
@@ -493,10 +485,8 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnName("raw_payload");
 
                     b.Property<string>("RegionConceptId")
-                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("text")
-                        .HasColumnName("region_concept_id")
-                        .HasComputedColumnSql("raw_payload->'workplace_address'->>'region_concept_id'", true);
+                        .HasColumnName("region_concept_id");
 
                     b.Property<NpgsqlTsVector>("SearchVector")
                         .ValueGeneratedOnAddOrUpdate()
@@ -511,10 +501,8 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnName("source");
 
                     b.Property<string>("SsykConceptId")
-                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("text")
-                        .HasColumnName("ssyk_concept_id")
-                        .HasComputedColumnSql("raw_payload->'occupation'->>'concept_id'", true);
+                        .HasColumnName("ssyk_concept_id");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -535,10 +523,8 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnName("url");
 
                     b.Property<string>("WorktimeExtentConceptId")
-                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("text")
-                        .HasColumnName("worktime_extent_concept_id")
-                        .HasComputedColumnSql("raw_payload->'working_hours_type'->>'concept_id'", true);
+                        .HasColumnName("worktime_extent_concept_id");
 
                     b.HasKey("Id")
                         .HasName("pk_job_ads");

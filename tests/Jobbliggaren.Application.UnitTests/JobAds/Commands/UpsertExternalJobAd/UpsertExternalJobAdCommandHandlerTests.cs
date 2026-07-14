@@ -3,6 +3,7 @@ using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Commands.UpsertExternalJobAd;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -42,6 +43,7 @@ public class UpsertExternalJobAdCommandHandlerTests
             PublishedAt: Now.AddDays(-1),
             ExpiresAt: Now.AddDays(30),
             SanitizedRawPayload: "{\"id\":\"ext-1\"}",
+            Facets: TestFacets.FromPayload("{\"id\":\"ext-1\"}"),
             // F4-4b — the last positional param. Defaults to empty so the existing
             // upsert tests stay keyword/skill-only.
             Requirements: requirements ?? []);
@@ -403,7 +405,7 @@ public class UpsertExternalJobAdCommandHandlerTests
         var clock = new FakeDateTimeProvider(Now.AddDays(-2));
         var jobAd = JobAd.Import(
             title, company, "Beskrivning", "https://example.com/jobs/seed",
-            external, "{\"id\":\"seed\"}",
+            external, "{\"id\":\"seed\"}", TestFacets.FromPayload("{\"id\":\"seed\"}"),
             Now.AddDays(-1), Now.AddDays(30), clock).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);

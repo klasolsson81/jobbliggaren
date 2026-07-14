@@ -157,6 +157,14 @@ public class TaxonomyAclLayerTests
             // (CTO-dom 2026-06-29 option B; architect B1). Samma ResolveLabelsAsync-
             // mönster som #316. Sorterar "GetAp" mellan "GetAc" och "GetJ".
             nameof(Jobbliggaren.Application.Applications.Queries.GetApplicationById.GetApplicationByIdQueryHandler),
+            // Fas 4b 8b.4a (2026-07-13, ADR 0107) — tionde legitim konsument, READ-SIDE: CV:ts
+            // sektionsförslag slår upp yrkesgrupp→yrkesområde (GetContainingOccupationFieldsAsync,
+            // portens 6:e metod) för att välja branschgrupp. Yrket kommer från den BEKRÄFTADE axeln
+            // (MatchPreferences), inte från CV:ts ogissade förslag — och slicen är en ren läs-väg
+            // (query-handler, ingen skrivning), så read-side-only-invariantet ("ALDRIG i command-/
+            // write-use-cases") består. Samma Application-port-mönster som syskonen.
+            // Sorterar "GetC" mellan "GetAp" och "GetJ".
+            nameof(Jobbliggaren.Application.Resumes.Sections.Queries.GetCvSectionSuggestions.GetCvSectionSuggestionsQueryHandler),
             // F4-16 (2026-06-20) — sjätte legitim konsument: jobbmodalens match-detalj
             // resolvar SSYK/region/anställningsform-membership-evidensens RÅA concept-id
             // till människo-labels (ADR 0043 ACL — ett concept-id når aldrig användaren;

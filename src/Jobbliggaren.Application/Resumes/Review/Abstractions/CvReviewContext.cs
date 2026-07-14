@@ -74,7 +74,8 @@ public sealed record CvReviewContext(
                     .Select(e => new ReviewableEducation(e.Institution, e.Degree))
                     .ToList(),
                 content.Skills,
-                content.Languages),
+                content.Languages,
+                content.Preamble),
             parsed.RawText,
             parsed.Confidence.Sections
                 .Where(s => s.Level != SectionConfidenceLevel.NotFound)
@@ -122,7 +123,11 @@ public sealed record CvReviewContext(
                     .Select(e => new ReviewableEducation(e.Institution, e.Degree))
                     .ToList(),
                 content.Skills.Select(s => s.Name).ToList(),
-                content.Languages.Select(l => l.Name).ToList()),
+                content.Languages.Select(l => l.Name).ToList(),
+                // #844: null BY CONSTRUCTION, not from inability. The linearizer emits every section
+                // under a heading (ADR 0097 §2), so an app-managed CV has no region above its first
+                // one — there is nothing here to be unclassified.
+                Preamble: null),
             linearized.Text,
             MapSectionKinds(linearized.Sections),
             language,

@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-
 namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 
 /// <summary>
@@ -18,18 +16,28 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 ///      may read the whole document.
 ///   2. <b>Postal-code adjacency</b> — "412 58 Göteborg". A Swedish postnummer followed by a place
 ///      name. Also unambiguous, also document-wide. This is a SHAPE, so it lives in C# (parity with
-///      EmailRegex/DatePatterns), not in the lexicon.
-///   3. <b>Bare municipality name</b> — a line that is exactly a known kommun ("Göteborg"), matched
-///      against the versioned taxonomy snapshot (ADR 0043). This rung is <b>scoped to the contact
-///      block and the preamble ONLY</b>, and that scope is the whole point: "Operatör — Verkstaden
-///      AB, Göteborg" states the EMPLOYER's city. Reading it as the person's home would be a
-///      fabrication, and this engine never synthesises what the user did not write.
+///      the e-mail/phone/date patterns), not in the lexicon.
+///   3. <b>Bare municipality name</b> — a known kommun ("Göteborg"), matched against the versioned
+///      taxonomy snapshot (ADR 0043). This rung is <b>scoped to the contact block and the preamble
+///      ONLY</b>, and that scope is the whole point: "Operatör — Verkstaden AB, Göteborg" states the
+///      EMPLOYER's city. Reading it as the person's home would be a fabrication, and this engine
+///      never synthesises what the user did not write.
+///
+/// <para><b>The shapes are not owned here</b> (#844). Rungs 1-2 delegate to
+/// <see cref="ContactPatterns"/>, which <see cref="HeadingDrivenResumeSegmenter"/> and
+/// <see cref="PreambleResidue"/> share. The preamble residue must SUBTRACT precisely what this class
+/// RECOGNISES; a second copy of these shapes would let the two drift, which is the 8b.4b Blocker B1
+/// defect class.</para>
 /// </summary>
-internal static partial class ContactLocationExtractor
+internal static class ContactLocationExtractor
 {
     /// <param name="rawText">The whole CV text (rungs 1-2: a label/postal code is unambiguous).</param>
     /// <param name="contactScope">
-    /// The contact block plus the preamble — the ONLY place a bare city name may be read from.
+    /// The contact block plus the RAW preamble — the ONLY place a bare city name may be read from.
+    /// It must be the RAW preamble, never <see cref="PreambleResidue"/>'s output: the residue
+    /// SUBTRACTS the bare-kommun fragment (it is one of its consumption terms), so feeding the
+    /// residue here would silently kill rung 3 — the city would be claimed by the subtraction and
+    /// harvested by nobody, landing in no field at all.
     /// </param>
     /// <param name="locationLabels">Lowercased label vocabulary from the versioned lexicon.</param>
     internal static string? Extract(
@@ -42,23 +50,13 @@ internal static partial class ContactLocationExtractor
             ?? FromBareMunicipality(contactScope);
     }
 
-    // Rung 1 — "Ort: Göteborg". Split on the FIRST colon; the left side must be a known label and
-    // the right side must be non-empty and short enough to be a place rather than a sentence.
+    // Rung 1 — "Ort: Göteborg". The rule (first colon, known label, value short enough to be a place
+    // rather than a sentence) lives in ContactPatterns, shared with the residue.
     private static string? FromLabel(string rawText, IReadOnlySet<string> locationLabels)
     {
         foreach (var line in rawText.Split('\n'))
         {
-            var trimmed = line.Trim();
-            var colon = trimmed.IndexOf(':');
-            if (colon <= 0)
-                continue;
-
-            var label = trimmed[..colon].Trim().ToLowerInvariant();
-            if (!locationLabels.Contains(label))
-                continue;
-
-            var value = trimmed[(colon + 1)..].Trim();
-            if (value.Length is > 0 and <= MaxLocationLength)
+            if (ContactPatterns.TryLabelledValue(line, locationLabels, out var value))
                 return value;
         }
 
@@ -66,42 +64,42 @@ internal static partial class ContactLocationExtractor
     }
 
     // Rung 2 — "412 58 Göteborg" / "41258 Göteborg". The place name is whatever follows the code
-    // on that line. Capped at MaxLocationLength so a street line cannot smuggle in prose.
+    // on that line, capped so a street line cannot smuggle in prose.
     private static string? FromPostalCode(string rawText)
     {
-        var match = PostalCodeCityRegex().Match(rawText);
+        var match = ContactPatterns.PostalCodeCity().Match(rawText);
         if (!match.Success)
             return null;
 
         var city = match.Groups["city"].Value.Trim();
-        return city.Length is > 0 and <= MaxLocationLength ? city : null;
+        return city.Length is > 0 and <= ContactPatterns.MaxLabelledValueLength ? city : null;
     }
 
-    // Rung 3 — a bare kommun name, and ONLY inside contact scope (see the class remarks: an
-    // employer's city must never become the person's home).
+    /// <summary>
+    /// Rung 3 — a bare kommun name, inside contact scope only (see the class remarks: an employer's
+    /// city must never become the person's home).
+    ///
+    /// <para><b>Fragment-wise, not whole-line</b> (#844). A sidebar/rail CV linearizes its contact
+    /// block onto ONE line — "Anna Andersson | anna@x.se | 070-123 45 67 | Göteborg" — and a
+    /// whole-line kommun test never fires on it, so the city was silently lost on the most common
+    /// two-column layout (a live defect, alongside the name loss the same line caused).</para>
+    ///
+    /// <para>The SCOPE is unchanged and remains the honesty guard — contact block + preamble only.
+    /// Only the GRANULARITY changes: the fragments of a contact-scope line. An employer's city inside
+    /// an experience entry is still out of reach, because that entry is not in contact scope.</para>
+    /// </summary>
     private static string? FromBareMunicipality(IEnumerable<string> contactScope)
     {
         foreach (var line in contactScope)
         {
-            var trimmed = line.Trim();
-            if (MunicipalityLexicon.IsMunicipality(trimmed))
-                return trimmed;
+            foreach (var fragment in InlineSeparators.Split(line))
+            {
+                var candidate = InlineSeparators.TrimGlue(fragment);
+                if (MunicipalityLexicon.IsMunicipality(candidate))
+                    return candidate;
+            }
         }
 
         return null;
     }
-
-    /// <summary>
-    /// A place name, not a sentence. Sweden's longest municipality name is well under this; the cap
-    /// exists so a labelled line carrying prose ("Ort: har bott i Göteborg sedan 2005") cannot be
-    /// stored verbatim as a city.
-    /// </summary>
-    private const int MaxLocationLength = 40;
-
-    // Swedish postnummer: five digits, conventionally written "412 58". The city follows on the
-    // same line and may carry Swedish letters, hyphens and spaces ("Upplands Väsby", "Malmö").
-    [GeneratedRegex(
-        @"\b\d{3}\s?\d{2}\s+(?<city>\p{Lu}[\p{L}\-\s]{1,39})$",
-        RegexOptions.CultureInvariant | RegexOptions.Multiline)]
-    private static partial Regex PostalCodeCityRegex();
 }

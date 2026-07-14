@@ -43,8 +43,8 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.GetNewFollowedCompanyA
 /// </para>
 /// <para>
 /// <b>D8:</b> this query reads NO org.nr — the hit↔watch join is on the opaque
-/// <c>CompanyWatchId</c>, and no company name is resolved (count-only). Nothing to surface, nothing
-/// to guard.
+/// <c>CompanyWatchId</c>, the #864 <c>JobAds</c> join contributes a <c>where</c> only (never a
+/// <c>select</c> — the seal restated inline below), and no company name is resolved (count-only).
 /// </para>
 /// </summary>
 public sealed class GetNewFollowedCompanyAdCountQueryHandler(

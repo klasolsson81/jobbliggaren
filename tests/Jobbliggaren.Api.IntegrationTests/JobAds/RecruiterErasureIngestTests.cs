@@ -7,7 +7,10 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.RecentJobSearches;
+using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Domain.SavedSearches;
 using Jobbliggaren.Infrastructure.JobAds;
 using Jobbliggaren.Infrastructure.JobSources.Platsbanken;
@@ -25,7 +28,6 @@ using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
 using DomainApplication = Jobbliggaren.Domain.Applications.Application;
-
 // `ApplicationId` alone is ambiguous with System.ApplicationId, and `Application` with the
 // Jobbliggaren.Application namespace — the same two aliases AppDbContext itself carries.
 using DomainApplicationId = Jobbliggaren.Domain.Applications.ApplicationId;
@@ -1153,6 +1155,86 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         await db.SaveChangesAsync(ct);
 
         return criterion.Id;
+    }
+
+    /// <summary>
+    /// The uploaded CV's FILE NAME is plaintext free text, and it is SEARCHED. A channel that has
+    /// never returned a row in a test has not been tested — it has been typed.
+    /// </summary>
+    /// <remarks>
+    /// This column sat in <c>NotRecruiterData</c> — <i>"structurally cannot hold a recruiter's
+    /// personal data"</i> — while the SAME AGGREGATE masks personnummer OUT of it (#465), a guard
+    /// bolted on precisely because users put arbitrary text into filenames. The registry's strongest
+    /// claim, contradicted by a control living ten lines away.
+    /// <para>
+    /// It also nearly escaped classification ENTIRELY: <c>parsed_resumes</c> was excluded wholesale
+    /// by a table list, one level above the column registry.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task An_uploaded_CVs_FILE_NAME_naming_her_is_MATCHED_and_left_for_a_human()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        await SeedParsedResumeNamedAfterHerAsync($"Ansokan till {RecruiterName}.pdf", ct);
+
+        var probe = await EraseAsync(RecruiterName, ct, dryRun: true);
+
+        probe.Matched.ResumeFileNames.ShouldBe(1,
+            "parsed_resumes.source_file_name is PLAINTEXT and is scanned. If this is 0 the column is "
+            + "classified, reported in the reply, and never actually looked at — a certified-clean "
+            + "surface nobody checked, which is the #842 shape exactly.");
+
+        var result = await EraseAsync(RecruiterName, ct);
+
+        result.Erased.ResumeFileNames.ShouldBe(0,
+            "report-only: a job does not silently rename a user's own uploaded file. A HUMAN erases "
+            + "it, with that user in the loop.");
+        result.Matched.ResumeFileNames.ShouldBe(1, "and the gap between matched and erased IS the "
+            + "disclosure the reply template carries.");
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var surviving = await db.Database
+            .SqlQuery<int>($"""
+                SELECT count(*)::int AS "Value" FROM parsed_resumes
+                WHERE source_file_name LIKE '%Fagerberg%'
+                """)
+            .ToListAsync(ct);
+
+        surviving[0].ShouldBe(1, "the file name survives the automatic run — reported, not rewritten.");
+    }
+
+    /// <summary>
+    /// Seeded through <c>ParsedResume.Create</c> — the real factory, no hand-written columns (#843).
+    /// </summary>
+    /// <remarks>
+    /// <c>raw_text</c> is Form-A DEK-encrypted in production. This harness registers no encryption
+    /// interceptors, so it lands here as plaintext — <b>and that is fine, because nothing in this
+    /// test reads it.</b> The assertion is about <c>source_file_name</c>, which is plaintext in
+    /// production too. A test that asserted against the CV BODY here would be asserting against a
+    /// state production cannot construct, which is the defect this whole file exists to avoid.
+    /// </remarks>
+    private async Task SeedParsedResumeNamedAfterHerAsync(string fileName, CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var parsed = ParsedResume.Create(
+            JobSeekerId.New(),
+            fileName,
+            "application/pdf",
+            ResumeLanguage.Sv,
+            ParsedResumeContent.Empty,
+            "rå CV-text",
+            ParseConfidence.Failed(ParseFallbackReason.ExtractionFailed),
+            PersonnummerScanOutcome.None,
+            [],
+            new FixedClock()).Value;
+
+        db.ParsedResumes.Add(parsed);
+        await db.SaveChangesAsync(ct);
     }
 
     private static EraseRecruiterAdsCommandHandler NewEraseHandler(IServiceScope scope, AppDbContext db) =>

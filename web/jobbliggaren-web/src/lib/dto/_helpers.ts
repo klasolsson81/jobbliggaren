@@ -156,7 +156,25 @@ export async function responseToResult<T>(
 ): Promise<ApiResult<T>> {
   if (res.status === 401) return { kind: "unauthorized" };
   if (res.status === 403) return { kind: "forbidden" };
-  if (res.status === 404 && options?.includeNotFound) {
+  // 404 = "vi har aldrig haft det har". 410 = "det fanns och ar avsiktligt borta"
+  // (en annons raderad enligt artikel 17, #842). API-kontraktet skiljer dem at,
+  // och det ska det gora.
+  //
+  // Pa SKARMEN ar de dock samma sak: "Annonsen ar borttagen". Vi kollapsar dem
+  // HAR, vid anropet, i stallet for att vidga den delade ApiResult-unionen -- den
+  // konsumeras av var sida i appen, och deras uttommande switchar skulle tvinga
+  // femton orelaterade vyer att hantera en status de aldrig kan fa.
+  //
+  // Att visa samma neutrala text ar dessutom det RATTA: backendens 410-kropp ar
+  // medvetet neutral, eftersom en specifik text plus Arbetsformedlingens publika
+  // "Historiska annonser" later vem som helst harleda att en namngiven person har
+  // utovat sin raderingsratt. Utan den har raden foll 410 igenom till `error` och
+  // renderades som "nagot gick fel, ladda om sidan" -- om en sida som aldrig
+  // kommer tillbaka.
+  if (
+    (res.status === 404 || res.status === 410) &&
+    options?.includeNotFound
+  ) {
     return { kind: "notFound" };
   }
   if (res.status === 429) {

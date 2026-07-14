@@ -198,6 +198,55 @@ for authorization (use policies via `[Authorize(Policy = ...)]`).
   the scope (tracked docs); gitignored session-state docs are updated locally
   (§6.5).
 
+## 6.4 You own the PR until it merges — and you own the cleanup after
+
+A PR is not done when you push it. It is done when it **merges**. Between those
+two moments it is **yours**, and nothing else in the system is watching it.
+
+**Watch your own PRs until they land.** Not just "did it merge" — the two silent
+failure modes:
+
+- **`BEHIND` is the killer.** Automerge does **not** rebase. The moment a sibling
+  PR merges, yours goes `BEHIND` and then sits there — automerge enabled, CI
+  green, and **nothing will ever merge it**. Nobody is told. Fix:
+  `gh pr update-branch <nr>`. *(2026-07-14: #899 went BEHIND within minutes of a
+  sibling landing. A background watch caught it and updated. Without it, it would
+  still be sitting there.)*
+- **Red `ci`.** Rerun once for flakes (`gh run rerun --failed`); if it is real,
+  fix it or STOPP. An abandoned red PR is worse than no PR.
+
+Arm a background watch on your own PR (a poll loop on `mergeStateStatus` + the
+`ci` conclusion that also runs `update-branch` on `BEHIND`) rather than
+remembering to look. Do not babysit **other** sessions' PRs.
+
+**Squash-merge DROPS the closing keyword — close the issue by hand.** `Closes #N`
+in your commit body does not survive the squash, so **the issue stays open**. On
+merge: `gh issue close <N>`, remove the `wip` label, and unassign yourself if you
+are not continuing on it. *(2026-07-14 hygiene pass: #800 and #801 had shipped
+two days earlier and were still open and `wip`; #824's own final PR said
+"PR 4/4". Nine `wip` issues against four running CCs — a `wip` label is a claim,
+and a claim nobody released is indistinguishable from work in progress.)*
+
+**Reap your own worktree and branch once the PR is MERGED** — never before:
+
+1. **RESCUE FIRST.** Gitignored session state (`docs/sessions/`, `docs/reviews/`,
+   ADRs 0074+) exists **only inside that worktree**. `--force` destroys it, with
+   no warning and no recovery. Copy it to the main copy before you remove
+   anything. *(The 2026-07-14 pass rescued 14 such files — four CTO reports, six
+   agent reviews, a session log — one command away from being gone forever.)*
+2. `git worktree remove --force <path>`. On Windows this routinely fails with a
+   file lock → `git worktree unlock <path>` → `rm -rf <path>` → `git worktree
+   prune`.
+3. Delete the branch, **both** ends: `git branch -D <b>` and
+   `git push origin --delete <b>`.
+
+**Only your own, and only what is provably done.** The precondition is
+**PR MERGED ∧ the worktree's lock names a DEAD pid** (`.git/worktrees/<n>/locked`
+carries the owning session's pid; check it with `tasklist`). A lock naming a LIVE
+pid is a running session — touching it is the shared-worktree disaster §6.5
+exists to prevent. *(The same 2026-07-14 pass cleared 44 stale local branches, 44
+stale remote branches and 7 worktrees. It accumulated in nine days.)*
+
 ## 6.5 Parallel sessions (autonomous multi-session flow)
 
 Several Claude Code sessions (2–4, Max x20) run concurrently in isolated git

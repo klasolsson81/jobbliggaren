@@ -63,13 +63,21 @@ Per CLAUDE.md §9.5 — list what to verify and why, or state explicitly:
 
 ### 4. Expected end state
 
-Concrete and verifiable. Includes the PR deliverable (ADR 0065).
+Concrete and verifiable. Includes the PR deliverable (ADR 0065) **and the close-out**
+— a PR that merges but leaves its issue open and its worktree behind is not done
+(CLAUDE.md §6.4).
 
 ```
 ## Expected end state
 - {Deliverable verified}
 - PR open against `main`, `ci` green, automerge label set, agent reports inline
 - Docs-sync committed in the same PR
+- **PR watched to MERGE, not just to push** — `BEHIND` (automerge does NOT rebase;
+  the PR sits forever, silently) → `gh pr update-branch`; red `ci` → rerun once,
+  then fix or STOPP
+- **Close-out after merge:** `gh issue close <N>` (squash DROPS `Closes #N`),
+  remove `wip`, unassign; rescue gitignored docs OUT of the worktree, then reap
+  the worktree + delete the branch both ends
 - {Task-specific Klas-STOPP flags, only if any — e.g. spec-edit, deploy}
 ```
 

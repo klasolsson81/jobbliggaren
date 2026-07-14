@@ -26,9 +26,13 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// <item>Per-key <see cref="FullMatchScore"/> EQUALS <see cref="IMatchScorer.ScoreFullAsync"/>
 /// for that ad + the same profile — the four embedded Fast dims AND the three new dims
 /// (SkillOverlap / MustHaveCoverage / NiceToHaveCoverage).</item>
-/// <item>Missing / non-existent ids are SILENTLY OMITTED (an ARCHIVED ad is NOT missing: it is
-/// scored -- known gap #864). (no
-/// NotFoundException — parity <c>ScoreBatchAsync</c>).</item>
+/// <item>Missing / non-existent ids are SILENTLY OMITTED (no NotFoundException — parity
+/// <c>ScoreBatchAsync</c>).</item>
+/// <item><b>An ARCHIVED ad IS "missing" to this family</b> (#864, CTO D2 S-split): the batch
+/// composes <c>.Where(j =&gt; j.Status == JobAdStatus.Active)</c> onto the <c>FromSql</c>, so an
+/// archived ad is omitted exactly like a non-existent id. This is the batch the client-supplied-id
+/// endpoint feeds — the surface where the gap was reachable. <see cref="IMatchScorer.ScoreFullAsync"/>
+/// (SINGLE) deliberately does NOT gate: the detail page still explains an archived ad (#805-3).</item>
 /// <item>Empty id list → empty dict (no query).</item>
 /// </list>
 /// </para>

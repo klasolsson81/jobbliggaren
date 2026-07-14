@@ -428,9 +428,17 @@ public class MatchCountOracleTests(ApiFactory factory)
     // broader than its reach. That is the #841 disease sitting inside the guard that exists to
     // prevent divergence.
     //
-    // It is TWO-SIDED and behavioural, not a source-string scan:
-    //   - delete the batch gate in MatchScorer → the C# side includes the archived ad → RED.
-    //   - delete ApplyFilter's Status gate     → the SQL side includes it → RED.
+    // It is TWO-SIDED and behavioural, not a source-string scan. All THREE independently deletable
+    // gates are bound (the C# engine has two batch methods, not one):
+    //   - delete ScoreBatchAsync's gate     → the C# Fast side includes the archived ad → RED.
+    //   - delete ScoreFullBatchAsync's gate → the C# Full side includes it → RED.
+    //   - delete ApplyFilter's Status gate  → the SQL side includes it → RED.
+    //
+    // THE COUNTERFACTUAL IS ASSERTED, NOT ASSUMED. Absence only evidences a gate if the row would
+    // otherwise have been in the set. The UNGATED single method (ScoreAsync, the other half of the
+    // S-split) supplies that: it says the archived ad WOULD grade Strong. Without it, a retuned
+    // grade ladder could drop the archived ad from the band for an unrelated reason and this oracle
+    // would go green while an engine had lost its gate.
     //
     // ASYMMETRIC SEED (2 live + 1 archived), and it is load-bearing here, not a habit: with 1 live
     // + 1 archived, an INVERTED C# gate (`== Archived`) returns exactly ONE graded ad — the
@@ -474,11 +482,34 @@ public class MatchCountOracleTests(ApiFactory factory)
         MatchGradeCalculator.Grade(scores[live1]).ShouldBe(MatchGrade.Strong);
         MatchGradeCalculator.Grade(scores[live2]).ShouldBe(MatchGrade.Strong);
 
+        // THE COUNTERFACTUAL — asserted, not assumed. "The archived ad is absent" is only evidence
+        // of a GATE if the ad would OTHERWISE have been in the set. Nothing above says that: it
+        // rests on the seed helper, and the day the grade ladder is retuned the archived ad could
+        // fall out of the headline band for an unrelated reason — at which point this oracle would
+        // read 2 == 2 and go GREEN while the SQL engine had lost its gate entirely.
+        // The S-split supplies its own oracle here: ScoreAsync is the SINGLE method, deliberately
+        // UNGATED (#864 D2), so it says what the archived ad WOULD grade. It grades Strong — so its
+        // absence from the batch is the gate's doing, and nothing else's.
+        var archivedIfItHadStayedActive = await scorer.ScoreAsync(archived, profile.Fast, ct);
+        MatchGradeCalculator.Grade(archivedIfItHadStayedActive).ShouldBe(MatchGrade.Strong,
+            "Den arkiverade annonsen SKULLE ha graderat Strong (den ogrindade single-metoden säger " +
+            "det) — annars mäter detta orakel inte grinden utan seedens råkade gradfall.");
+
         // THE C# SIDE OF THE INVARIANT: the archived ad is MISSING to the batch scorer (#864).
         // Asserted as ABSENCE — never `scores[archived]`, which now throws KeyNotFoundException.
         scores.ShouldNotContainKey(archived,
             "MatchScorer.ScoreBatchAsync grindar på Status == Active (#864) — en arkiverad annons " +
             "är FRÅNVARANDE ur C#-motorns resultat, precis som ett id som inte finns.");
+
+        // The C# engine has TWO batch methods with TWO independently deletable gates. Binding only
+        // the Fast one would leave this oracle's "both engines" claim wider than its reach — and
+        // ScoreFullBatchAsync is the one with production callers. Bind it too.
+        var fullScores = await scorer.ScoreFullBatchAsync([live1, live2, archived], profile, ct);
+        fullScores.ShouldContainKey(live1);
+        fullScores.ShouldContainKey(live2);
+        fullScores.ShouldNotContainKey(archived,
+            "ScoreFullBatchAsync grindar på Status == Active (#864) — samma kontrakt som Fast-batchen. " +
+            "Utan denna rad kunde Full-batchens grind raderas med orakelet GRÖNT.");
 
         var csharpHeadlineCount = scores.Count(kv =>
             MatchGradeCalculator.Grade(kv.Value) is { } g && headline.Contains(g));

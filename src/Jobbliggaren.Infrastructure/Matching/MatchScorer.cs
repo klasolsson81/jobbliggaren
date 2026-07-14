@@ -75,14 +75,18 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // Infrastructure, ADR 0062). AsNoTracking: read-only.
         //
         // NO STATUS GATE HERE, DELIBERATELY (#864 S-split, CTO D2/D3). The SINGLE methods serve
-        // any status the product still RENDERS — today {Active, Archived}. The ad IS the request:
-        // GET /api/v1/jobads/{id} serves an archived ad 200 (#805-3), so this scorer must too, or
-        // two endpoints would disagree about whether one row exists. A gate here would throw
-        // NotFoundException below → GetJobAdMatchDetail 404s → job-ad-match.ts:85-92 swallows the
-        // 404 and the match section vanishes with no symptom. Pinned by the detail-path spec
-        // (JobAdMatchDetailEndpointTests — archived → 200 + the SAME grade as its live twin;
-        // archiving changes none of the four inputs this scorer reads). The BATCH methods DO gate
-        // (see ScoreBatchAsync) — the asymmetry is the contract, not an oversight.
+        // any status the product still RENDERS — today {Active, Archived}. The ad IS the request,
+        // not one row of a list: GET /api/v1/jobads/{id} serves an archived ad 200 (#805-3), so a
+        // scorer on that page must too, or two endpoints would disagree about whether one row
+        // exists. A gate here throws NotFoundException below; the grade is TRUE either way, because
+        // archiving changes none of the four inputs read. The BATCH methods DO gate (see
+        // ScoreBatchAsync) — the asymmetry is the contract, not an oversight.
+        //
+        // PINNED BY: ScoreAsync_ScoresAnArchivedAd_TheSingleFamilyDoesNotGate (this method has ZERO
+        // production callers — the detail endpoint runs ScoreFullAsync — so no endpoint test can
+        // detect a gate added here; it needs a scorer-level spec of its own, and now has one).
+        // NOT COVERED (parity ScoreFullAsync): an `Erased` ad (#842/#878) must stop being served
+        // here once /jobads/{id} answers 410 Gone. That status does not exist on this base.
         var ad = await db.JobAds
             .AsNoTracking()
             .Where(j => j.Id == jobAdId)
@@ -147,7 +151,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // MatchCountOracleTests binds the two engines to agree; before this gate they did not.
         // ALLOW-LIST (`== Active`), never `!= Archived` (CTO D4): a deny-list silently admits every
         // status added later — e.g. the `Erased` tombstone (#842/#878), whose `[raderad]` company
-        // name would then be EMAILED. It is also the form all 13 sibling sites already write.
+        // name would then be EMAILED. It is also the form every sibling read path already writes.
         // The SINGLE methods deliberately do NOT gate (see ScoreAsync) — batch omits, single throws.
         var rows = await db.JobAds
             .FromSql($"SELECT * FROM job_ads WHERE id = ANY({ids})")
@@ -307,11 +311,16 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // THE STATUS GATE (#864 S-split, CTO D2/D4) — parity ScoreBatchAsync, and this is the batch
         // the client-supplied-id endpoint (POST /me/job-ad-match-tags) feeds, i.e. where the gap was
         // actually reachable. "Missing" = the row does not exist OR it is not Active; allow-list, not
-        // `!= Archived` (D4). BackgroundMatchingJob also calls this path and gates Status == Active
-        // itself (:145) — that gate MASKED the gap there (no UserJobAdMatch row was ever persisted for
-        // an archived ad) and is now redundant belt-and-suspenders, in the safe direction. Do NOT
-        // "simplify" it away: it is the job's own invariant on its own candidate set, and this gate is
-        // blind to the ids the job never asks about (CTO 5th-surface R2, same posture).
+        // `!= Archived` (D4).
+        //
+        // BackgroundMatchingJob:145 gates Status == Active on its own candidate query, and that gate
+        // MASKED the gap there (no UserJobAdMatch row was ever persisted for an archived ad). It is
+        // now FULLY SUBSUMED by this one — every id the job scores comes from that gated query, so
+        // deleting :145 changes no persisted outcome: this gate omits the archived rows anyway. Its
+        // mutation SURVIVES, and that is recorded rather than papered over. Keep it regardless: it is
+        // the job's own definition of its candidate set, and it stops archived rows being LOADED and
+        // projected in the first place (ADR 0045). This is NOT the 5th-surface R2 posture — there the
+        // source gate reached arms the port could not see; here it does not.
         var rows = await db.JobAds
             .FromSql($"SELECT * FROM job_ads WHERE id = ANY({ids})")
             .AsNoTracking()

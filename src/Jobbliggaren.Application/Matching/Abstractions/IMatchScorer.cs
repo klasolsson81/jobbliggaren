@@ -38,13 +38,18 @@ public interface IMatchScorer
     /// yield an equal score, with Ordinal-stable matched/missing evidence.
     /// <para>
     /// <b>Lifecycle (#864, the SINGLE half of the split):</b> this method scores ANY ad
-    /// the row of which exists — including an <c>Archived</c> one. The ad IS the request
-    /// here (the detail page the user navigated to deliberately), and the product still
-    /// renders it (<c>GET /api/v1/jobads/{id}</c> answers 200 for an archived ad, #805-3);
+    /// whose row exists — including an <c>Archived</c> one. A single call means "the ad IS
+    /// the request", not "one row of a list the product chose to show", and the product
+    /// still renders an archived ad (<c>GET /api/v1/jobads/{id}</c> answers 200, #805-3);
     /// the grade is TRUE either way, because archiving changes none of the inputs scored.
     /// The BATCH methods gate on <c>Active</c> — see <see cref="ScoreBatchAsync"/>. That
     /// asymmetry is deliberate and is the same one this port already publishes for
     /// existence (batch omits a missing id, single throws).
+    /// </para>
+    /// <para>
+    /// This method has NO production caller today (the match-detail page runs
+    /// <see cref="ScoreFullAsync"/>); it is the Fast half of the contract, pinned at the
+    /// scorer level. Do not infer from its non-gating that some endpoint depends on it.
     /// </para>
     /// </summary>
     ValueTask<MatchScore> ScoreAsync(

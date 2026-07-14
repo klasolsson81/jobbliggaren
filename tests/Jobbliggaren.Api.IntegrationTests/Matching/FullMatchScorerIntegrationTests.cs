@@ -1175,6 +1175,74 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
     // Raw overlap probe — the FUNCTION form jsonb_exists_any(target, text[]) is
     // EXACTLY equivalent to the `?|` operator the GIN index serves, avoiding
     // Npgsql's `?`→positional-parameter escaping (parity
+    // =================================================================
+    // #864 (CTO D2/D3, the SINGLE half of the S-split) — ScoreFullAsync does NOT gate on status.
+    //
+    // This is the scorer-level half of the guard whose wire-level half lives in
+    // JobAdMatchDetailEndpointTests (archived → 200 + a grade). Both exist because the "obvious"
+    // completion of #864 — add the batch predicate to all four methods — fails SILENTLY at the
+    // surface: ScoreFullAsync would throw NotFoundException, the endpoint would 404, and
+    // job-ad-match.ts:85-92 swallows a 404 (`if (!res.ok) return null`), so the match section
+    // would simply vanish from the modal with nothing looking broken. Pinning it here as well
+    // states the contract where the contract lives, not only where the symptom would appear.
+    //
+    // The grade is TRUE either way: archiving changes none of the inputs the scorer reads. On a
+    // detail page the user navigated to deliberately, it is an EXPLANATION ("here is why this was
+    // a fit") — which is exactly what #805-3 preserved archived ads for.
+    // =================================================================
+    [Fact]
+    public async Task ScoreFullAsync_ScoresAnArchivedAd_TheSingleFamilyDoesNotGate()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Run-unique ids (the Api collection shares one database — a fixed id could collide with a
+        // sibling test's seed and make this spec read another test's ads).
+        var grp = $"grp-arch-{Guid.NewGuid():N}"[..16];
+        var reg = $"reg-arch-{Guid.NewGuid():N}"[..16];
+        var terms = ExtractedTerms.From([SkillTerm(CSharpConceptId, CSharpDisplay)]);
+
+        // Identical facets + identical terms; the ONLY difference is the lifecycle status.
+        var live = await SeedJobAdAsync("Systemutvecklare", grp, reg, null, terms, ct);
+        var archived = await SeedJobAdAsync("Systemutvecklare", grp, reg, null, terms, ct);
+        await ArchiveAsync(archived, ct);
+
+        var profile = new FullCandidateMatchProfile(
+            new CandidateMatchProfile("Systemutvecklare", [grp], [reg], [], []),
+            CvSkillConceptIds: [CSharpConceptId]);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+
+        // NON-VACUITY: the live twin genuinely scores a Match on both a Fast and a Full dimension.
+        var liveScore = await scorer.ScoreFullAsync(live, profile, ct);
+        liveScore.Score.Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        liveScore.Score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+
+        // THE SPECIFICATION: the archived ad is fully scored, not thrown away. A gate here throws
+        // NotFoundException — this spec is the detector for that mutation at the scorer level.
+        var archivedScore = await scorer.ScoreFullAsync(archived, profile, ct);
+
+        // Scored IDENTICALLY, dimension for dimension.
+        archivedScore.Score.Fast.SsykOverlap.Verdict.ShouldBe(liveScore.Score.Fast.SsykOverlap.Verdict);
+        archivedScore.Score.Fast.RegionFit.Verdict.ShouldBe(liveScore.Score.Fast.RegionFit.Verdict);
+        archivedScore.Score.SkillOverlap.Verdict.ShouldBe(liveScore.Score.SkillOverlap.Verdict);
+        archivedScore.Score.SkillOverlap.Matched.ShouldBe(liveScore.Score.SkillOverlap.Matched);
+    }
+
+    // The REAL retraction transition (#821: Archive() is JobAd's only lifecycle method; #843
+    // forbids fabricating a state production cannot reach). The Result is asserted — a silently
+    // failed Archive() would leave the ad Active and make the spec above vacuous.
+    private async Task ArchiveAsync(JobAdId id, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var ad = await db.JobAds.FindAsync([id], ct);
+        ad.ShouldNotBeNull();
+        ad!.Archive(clock).IsSuccess.ShouldBeTrue("Archive() ska lyckas — annars är specen vakuös.");
+        await db.SaveChangesAsync(ct);
+    }
+
     // JobAdExtractedTermsPersistenceTests.OverlapMatchExistsAsync). Parameterized.
     private static async Task<bool> OverlapMatchExistsAsync(
         NpgsqlConnection conn, Guid id, string[] lexemes, CancellationToken ct)

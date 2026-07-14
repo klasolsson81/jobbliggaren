@@ -21,10 +21,13 @@ namespace Jobbliggaren.Application.Matching.Queries.GetJobAdMatchBatch;
 /// below the gate).
 /// </para>
 /// <para>
-/// <b>KNOWN GAP (#864):</b> an ARCHIVED ad is NOT absent - it is scored and tagged like any other.
-/// <c>MatchScorer</c> carries no <c>Status</c> predicate; it delegated that exclusion to JobAd's
-/// soft-delete query filter, which never had a writer and is now retired (#821). Pinned as a
-/// characterization test, not blessed.
+/// <b>Lifecycle (#864):</b> an ARCHIVED ad IS absent - <see cref="IMatchScorer.ScoreFullBatchAsync"/>
+/// gates on <c>Status == Active</c>, so "missing" means the row does not exist OR the ad is not
+/// Active, and both are omitted identically. This handler's id list is CLIENT-SUPPLIED, which is
+/// what made it the reachable surface for the gap; a caller can no longer obtain a grade for an ad
+/// the product may no longer present by asking for its id. Pinned by
+/// <c>MatchTagBatchEndpointsTests.POST_match_tags_omits_both_non_existent_ids_and_archived_ads</c>.
+/// The DETAIL path deliberately still grades an archived ad (#805-3) - it runs the SINGLE method.
 /// </para>
 /// </summary>
 public sealed class GetJobAdMatchBatchQueryHandler(

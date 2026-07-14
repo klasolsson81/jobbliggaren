@@ -3,6 +3,7 @@ using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes.Parsing;
+using Jobbliggaren.Infrastructure.Resumes.Sections;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Review;
 
@@ -29,7 +30,13 @@ internal sealed record CriterionEvaluationContext(
     // with no ctor deps — parity with how Analyzer/Cliches/Verbs reach the rules).
     ISpellChecker SpellChecker,
     SpellingAllowlist Allowlist,
-    IReadOnlyList<DatedExperience> DatedExperiences)
+    IReadOnlyList<DatedExperience> DatedExperiences,
+    // Fas 4b 8b.4b (ADR 0108): B1's ORDER half. Computed once per review by CvReviewEngine from
+    // the linear text + the lexicon + cv-conventions, and reaching the rule through the context —
+    // the same route Analyzer/Cliches/Verbs, SpellChecker/Allowlist and Layout already take (rules
+    // are new()'d with no ctor deps). It is the SAME SectionOrderAnalyzer the improvement engine's
+    // SectionReorderTransform proposes against, so the judge and the proposer cannot disagree.
+    SectionOrderAssessment SectionOrder)
 {
     /// <summary>The source-agnostic structured content view (CV-PII, decrypted upstream).</summary>
     public ReviewableCv Content => Review.Content;

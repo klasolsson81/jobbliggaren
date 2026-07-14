@@ -32,7 +32,8 @@ public class C7SpellingRuleTests
             .RequiredThreshold(RubricThresholdKeys.WarnFromMisspellingCount);
 
     private static CvReviewEngine EngineWith(ISpellChecker checker) =>
-        new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(), checker, RealAllowlist());
+        new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(), checker, RealAllowlist(),
+            RealCvConventionsProvider(), RealParsingLexicon());
 
     // A stub that deems EVERY word correct except the named tokens (matched by NFC-identity for the
     // ASCII test vocabulary). C7 only ever hands it a lowercase-initial, non-allowlisted, checkable token.

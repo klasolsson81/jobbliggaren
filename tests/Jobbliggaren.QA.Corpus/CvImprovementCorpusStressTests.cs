@@ -4,6 +4,7 @@ using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.KnowledgeBank;
 using Jobbliggaren.Infrastructure.Resumes.Improvement;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.TextAnalysis;
 using Jobbliggaren.QA.Corpus.Generation;
 using Jobbliggaren.QA.Corpus.Harness;
@@ -49,9 +50,17 @@ public class CvImprovementCorpusStressTests
         new("Lärare", "synthetic"),
     ];
 
-    private static CvImprovementEngine NewEngine() =>
-        new(new ClicheLexicon(), new VerbMapper(), new RubricProvider(),
-            new LocalTextAnalyzer(new SnowballStemmer()));
+    // Fas 4b 8b.4b — the REAL committed lexicon + conventions asset, cross-asset-pinned in the
+    // provider's ctor (so the corpus stresses the same pair the host boots with).
+    private static CvImprovementEngine NewEngine()
+    {
+        var lexiconData = CvParsingLexiconLoader.Load();
+        var conventions = new CvConventionsProvider(new CvParsingLexiconProvider(lexiconData));
+        return new CvImprovementEngine(
+            new ClicheLexicon(), new VerbMapper(), new RubricProvider(),
+            new LocalTextAnalyzer(new SnowballStemmer()),
+            conventions, lexiconData);
+    }
 
     private static IReadOnlyList<GeneratedCvCase> Corpus() =>
         new CorpusGenerator().GenerateCvCorpus(SyntheticGroundTruth);

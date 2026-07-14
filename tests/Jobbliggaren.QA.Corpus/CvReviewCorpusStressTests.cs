@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Infrastructure.KnowledgeBank;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Review;
 using Jobbliggaren.Infrastructure.TextAnalysis;
 using Jobbliggaren.QA.Corpus.Generation;
@@ -41,13 +42,19 @@ public class CvReviewCorpusStressTests(ITestOutputHelper output)
         new("Lärare", "synthetic"),
     ];
 
+    // Fas 4b 8b.4b (ADR 0108): the REAL lexicon + conventions asset (cross-asset-pinned in the
+    // provider's ctor), so the corpus stresses B1's order half against the shipped pair.
+    private static readonly Lazy<CvParsingLexiconData> LazyLexicon = new(CvParsingLexiconLoader.Load);
+
     private static CvReviewEngine NewEngine() =>
         new(new RubricProvider(), new ClicheLexicon(), new VerbMapper(),
             new LocalTextAnalyzer(new SnowballStemmer()),
             // Fas 4b PR-6a (#655): the REAL Hunspell checker + REAL committed allowlist so C7
             // is exercised end-to-end against the shipped DSSO/en_US dictionaries (more faithful
             // than a stub, parity the real knowledge bank + Snowball analyzer above).
-            new HunspellSpellChecker(), new SpellingAllowlistProvider());
+            new HunspellSpellChecker(), new SpellingAllowlistProvider(),
+            new CvConventionsProvider(new CvParsingLexiconProvider(LazyLexicon.Value)),
+            LazyLexicon.Value);
 
     private static IReadOnlyList<GeneratedCvCase> Corpus() =>
         new CorpusGenerator().GenerateCvCorpus(SyntheticGroundTruth);

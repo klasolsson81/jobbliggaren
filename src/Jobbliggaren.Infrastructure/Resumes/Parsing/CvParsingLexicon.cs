@@ -158,18 +158,34 @@ internal static partial class CvParsingLexiconLoader
         return WhitespaceRegex().Replace(trimmed.ToLowerInvariant(), " ");
     }
 
-    private static ParsedSectionKind MapSection(string key) => key.ToLowerInvariant() switch
+    private static ParsedSectionKind MapSection(string key) =>
+        TryMapTypedSectionId(key, out var kind)
+            ? kind
+            : throw new InvalidOperationException(
+                $"CV-parsing lexicon: unknown typed-heading key '{key}'. A skipped key would make every " +
+                "heading under it silently stop being recognised.");
+
+    /// <summary>
+    /// The TYPED section id-space, in ONE home. The six typed ids are keys of this lexicon's
+    /// <c>headings</c> block and members of <see cref="ParsedSectionKind"/>; both this loader and
+    /// <c>CvConventionsLoader</c> (8b.4b) must agree on what "experience" denotes, and a second
+    /// switch in the other file would be a fork of exactly the kind ADR 0107 §3 forbids for the
+    /// free-section ids. Deliberately NOT <c>Enum.TryParse</c>: that also accepts "0" and "3", so a
+    /// numeric typo in an asset would resolve to a real section instead of failing loud.
+    /// </summary>
+    internal static bool TryMapTypedSectionId(string key, out ParsedSectionKind kind)
     {
-        "contact" => ParsedSectionKind.Contact,
-        "profile" => ParsedSectionKind.Profile,
-        "experience" => ParsedSectionKind.Experience,
-        "education" => ParsedSectionKind.Education,
-        "skills" => ParsedSectionKind.Skills,
-        "languages" => ParsedSectionKind.Languages,
-        _ => throw new InvalidOperationException(
-            $"CV-parsing lexicon: unknown typed-heading key '{key}'. A skipped key would make every " +
-            "heading under it silently stop being recognised."),
-    };
+        switch (key.ToLowerInvariant())
+        {
+            case "contact": kind = ParsedSectionKind.Contact; return true;
+            case "profile": kind = ParsedSectionKind.Profile; return true;
+            case "experience": kind = ParsedSectionKind.Experience; return true;
+            case "education": kind = ParsedSectionKind.Education; return true;
+            case "skills": kind = ParsedSectionKind.Skills; return true;
+            case "languages": kind = ParsedSectionKind.Languages; return true;
+            default: kind = default; return false;
+        }
+    }
 
     private static FrozenSet<string> ToHintSet(Dictionary<string, string[]> hints, string key) =>
         hints.TryGetValue(key, out var words)

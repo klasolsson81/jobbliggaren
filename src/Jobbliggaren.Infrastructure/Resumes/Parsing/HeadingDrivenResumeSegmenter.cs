@@ -40,7 +40,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         ArgumentNullException.ThrowIfNull(rawText);
 
         var lines = SplitLines(rawText);
-        var headings = DetectHeadings(lines);
+        var headings = CvHeadingDetector.Detect(lines, _lexicon);
         var (blocks, freeSections) = BuildSectionBlocks(lines, headings);
         var preamble = PreambleLines(lines, headings);
         var language = DetectLanguage(rawText);
@@ -97,121 +97,10 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     /// user as content, so casing and wording are preserved — "PROJEKT" is not "projekt". The
     /// normalised <c>Matched</c> form remains structural evidence only.
     /// </param>
-    private readonly record struct HeadingHit(
-        int Line,
-        ParsedSectionKind? Kind,
-        string Matched,
-        string Heading,
-        string? InlineContent = null);
-
-    private List<HeadingHit> DetectHeadings(string[] lines)
-    {
-        var headings = new List<HeadingHit>();
-        for (var i = 0; i < lines.Length; i++)
-        {
-            // Whole-line heading ("Kompetenser" / "Kompetenser:" — NormalizeHeading strips a
-            // trailing colon). Position-independent: a bare heading token is a heading anywhere.
-            if (TryMatchHeading(lines[i], out var kind, out var matched))
-            {
-                headings.Add(new HeadingHit(i, kind, matched, HeadingTextOf(lines[i])));
-                continue;
-            }
-
-            // #421 (#252-class): a heading may carry its content inline on the same line after a
-            // colon ("Kompetenser: C#, PostgreSQL, Docker"). NormalizeHeading strips only a
-            // TRAILING colon, so the inline form would otherwise register no heading and silently
-            // drop the whole section (CLAUDE.md §5). Split on the FIRST colon only; when the left
-            // part is a known heading and real content follows, register the heading with that
-            // remainder as its first content line.
-            //
-            // Gate the inline split to a SECTION BOUNDARY (senior-cto-advisor 2026-07-01): a prose
-            // line whose first word happens to be a heading token ("Erfarenhet: över 10 år inom
-            // IT.", "Språk: flytande svenska") must NOT hijack and truncate the section it sits in
-            // into a phantom section — the mirror risk of the silent-drop fix. Content shape cannot
-            // distinguish the wanted inline "Profil: <prose>" from unwanted prose, so we gate on
-            // document POSITION with the one robust single-pass invariant: a line starts a section
-            // only if it is the document's first line or is preceded by a blank line. Prose sitting
-            // directly under a heading is therefore that heading's content, never a new section
-            // (adjacency without a blank line is a deliberate, safe miss). Every other colon line
-            // (URLs, times, "Ansvarig för: …" prose) is left untouched.
-            var atSectionBoundary = i == 0 || lines[i - 1].Trim().Length == 0;
-
-            var colon = lines[i].IndexOf(':');
-            if (atSectionBoundary && colon > 0)
-            {
-                var inlineContent = lines[i][(colon + 1)..].Trim();
-                // #815: the inline split is restricted to TYPED headings. A free heading may only
-                // be recognised as a whole line.
-                //
-                // Why: every entry in Erfarenhet/Utbildning is separated by a blank line, so an
-                // entry's FIRST line always satisfies the boundary gate above. A label-shaped free
-                // token would then hijack it — "Kurs: Databaser 7,5 hp" inside an education entry
-                // would TERMINATE Utbildning and degrade the remaining entries into free-section
-                // text. That is the engine inventing structure the user did not write, which is the
-                // one thing it must never do (ADR 0071). The typed vocabulary is small, curated and
-                // already lives with this gate (2026-07-01 bind); the free vocabulary is open and
-                // label-shaped, so it does not get the same privilege.
-                //
-                // Cost, accepted: "Projekt: A, B" written inline is not recognised as a section.
-                // Its content stays in the section above — visible, editable, lossless. That is the
-                // honest failure mode, and it is strictly better than a fabricated section boundary.
-                if (inlineContent.Length > 0
-                    && TryMatchHeading(lines[i][..colon], out var inlineKind, out var inlineMatched)
-                    && inlineKind is not null)
-                {
-                    headings.Add(new HeadingHit(
-                        i, inlineKind, inlineMatched, HeadingTextOf(lines[i][..colon]), inlineContent));
-                }
-            }
-        }
-
-        return headings;
-    }
-
-    // True when the line normalises to a known section heading, out-ing the matched (normalised,
-    // structural-evidence-only) form. Single-sources the HeadingMap lookup for both whole-line
-    // detection and inline "heading: content" splitting (#421).
-    private bool TryMatchHeading(string line, out ParsedSectionKind? kind, out string matched)
-    {
-        matched = NormalizeHeading(line);
-        if (matched.Length == 0)
-        {
-            kind = null;
-            return false;
-        }
-
-        if (_lexicon.HeadingMap.TryGetValue(matched, out var typed))
-        {
-            kind = typed;
-            return true;
-        }
-
-        // #815: a FREE heading ("Projekt", "Referenser") is still a heading. It terminates the
-        // preceding section — which is the whole fix, since before this a section ran until the
-        // next TYPED heading and swallowed everything in between. Kind stays null; the body lands
-        // in ParsedResumeContent.Sections under this heading, verbatim.
-        //
-        // 8b.4a: the lexicon now returns the canonical sectionId rather than a bare bool. The
-        // SEGMENTER deliberately discards it — a free section's identity is CONTENT here, and
-        // ParsedSection.Heading must stay the user's own line. The id exists for the RECOMMENDATION
-        // side (ICvParsingLexicon), which needs to ask "does this CV already have that section?".
-        // Membership is unchanged: the flattened synonym union is identical to v3.
-        if (_lexicon.FreeSectionIdByHeading.ContainsKey(matched))
-        {
-            kind = null;
-            return true;
-        }
-
-        kind = null;
-        return false;
-    }
-
-    /// <summary>
-    /// The heading line as the USER wrote it — trimmed, trailing colon/period removed, nothing
-    /// else touched. Free sections show this back to the user, so "PROJEKT" must not come back as
-    /// "projekt" (that is the normalised form, which is structural evidence only).
-    /// </summary>
-    private static string HeadingTextOf(string line) => line.Trim().TrimEnd(':', '.', ' ', '\t');
+    // Heading DETECTION (whole-line + the boundary-gated inline form, #421) lives in
+    // CvHeadingDetector (8b.4b): the order analyzer must observe EXACTLY the headings this
+    // segmenter segmented on, or it silently reports an order the document does not have. Sharing
+    // the normaliser was not enough — the drift was in the detection rule.
 
     // THE normalizer lives with the lexicon it normalizes (8b.4a). Every heading the lexicon
     // STORES and every heading line a CV PRESENTS goes through this one function — including the
@@ -232,7 +121,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     /// stay two sections.</para>
     /// </summary>
     private static (Dictionary<ParsedSectionKind, string> Typed, List<ParsedSection> Free)
-        BuildSectionBlocks(string[] lines, List<HeadingHit> headings)
+        BuildSectionBlocks(string[] lines, List<DetectedHeading> headings)
     {
         var blocks = new Dictionary<ParsedSectionKind, string>();
         var free = new List<ParsedSection>();
@@ -311,7 +200,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
 
     private static List<string> PreambleLines(
         string[] lines,
-        List<HeadingHit> headings)
+        List<DetectedHeading> headings)
     {
         var firstHeading = headings.Count > 0 ? headings[0].Line : lines.Length;
         return lines.Take(firstHeading).ToList();
@@ -647,7 +536,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     }
 
     private static SectionConfidence ProfileConfidence(
-        List<HeadingHit> headings, string? profileText)
+        List<DetectedHeading> headings, string? profileText)
     {
         var heading = MatchedHeading(headings, ParsedSectionKind.Profile);
         if (heading is null)
@@ -665,7 +554,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
 
     private static SectionConfidence ListSectionConfidence(
         ParsedSectionKind kind,
-        List<HeadingHit> headings,
+        List<DetectedHeading> headings,
         int count)
     {
         var heading = MatchedHeading(headings, kind);
@@ -682,7 +571,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     }
 
     private static string? MatchedHeading(
-        List<HeadingHit> headings,
+        List<DetectedHeading> headings,
         ParsedSectionKind kind)
     {
         foreach (var heading in headings)

@@ -29,8 +29,15 @@ internal sealed class ScbCompanyRegisterEntryConfiguration
             .HasMaxLength(10)
             .ValueGeneratedNever();
 
+        // #884 — Swedish natural-language text. Å/Ä/Ö are three distinct letters that sort AFTER Z;
+        // the cluster default (en_US.utf8) folds them into A and O, putting "Åkesson AB" between
+        // "Ahlberg" and "Bok". The collation belongs on the COLUMN, not on the query or the index:
+        // it is a property of what this text IS, and putting it here is what lets every reader — the
+        // browse ORDER BY today, anything added tomorrow — be correct without knowing it had to be.
+        // See AppDbContext.SwedishCollation and ADR 0107 for the scope rule (text yes, identifiers no).
         builder.Property(c => c.Name)
             .HasColumnName("company_name")
+            .UseCollation(AppDbContext.SwedishCollation)
             .IsRequired();
 
         builder.Property(c => c.SeatMunicipalityCode)
@@ -38,8 +45,20 @@ internal sealed class ScbCompanyRegisterEntryConfiguration
             .HasMaxLength(4)
             .IsRequired();
 
+        // #884 — also Swedish natural-language text (Åre, Älvdalen, Örnsköldsvik, Östersund). NOTHING
+        // sorts this column today: ix_company_register_sate_kommun_code indexes the CODE, not the name,
+        // and no query orders by it. It is collated anyway, and that is a deliberate answer to a YAGNI
+        // objection, not an oversight. YAGNI governs CAPABILITY; a collation is this column's declared
+        // TYPE. Declaring text that holds Örnsköldsvik as en_US.utf8 is a false type declaration TODAY,
+        // whether or not a query has yet asked the question that exposes it. And a table where
+        // company_name is `swedish` while the neighbouring column of Swedish names is not would, by its
+        // very shape, assert that someone weighed this column and decided against it. Nobody did. A
+        // schema that implies a decision no one made is a vacuous guarantee in structural form — the
+        // repo has paid for that shape three times (#805-3, #842, and #875's own dead EXPLAIN pin).
+        // Marginal cost is one AlterColumn line: no index covers it, so nothing is rebuilt.
         builder.Property(c => c.SeatMunicipalityName)
-            .HasColumnName("sate_kommun_name");
+            .HasColumnName("sate_kommun_name")
+            .UseCollation(AppDbContext.SwedishCollation);
 
         // text[] for the ≤5 SNI codes (Npgsql auto-maps List<string>). Value comparer per the
         // RecentJobSearch text[] precedent so EF snapshots the collection correctly. The GIN index
@@ -131,15 +150,26 @@ internal sealed class ScbCompanyRegisterEntryConfiguration
         // fetch-cost saving that was not what the campaign measured — the win here is the Index Scan +
         // LIMIT early-stop replacing the Sort, not avoiding heap fetches.
         //
-        // Deliberately WITHOUT an explicit UseCollation(...): the index inherits company_name's column
-        // collation, which is EXACTLY what "ORDER BY company_name" sorts by — matching by construction.
-        // The database's current collation (en_US.utf8) sorts Swedish Å/Ä/Ö among A/O instead of after Z,
-        // which is wrong and tracked separately (#884). If/when that fix lands it changes the column's
-        // collation, and THIS INDEX MUST THEN BE REBUILT: an index built under one collation does not
-        // serve a sort requested under another, and it does not error — it falls out of the plan SILENTLY
-        // (repo precedent: #805-3, #842 — a predicate/collation mismatch never errors, it just stops being
-        // used). This comment is the tripwire for whoever ships #884: grep for this index name in that
-        // migration's review.
+        // Deliberately WITHOUT an explicit UseCollation(...) ON THE INDEX: it inherits company_name's
+        // COLUMN collation (`swedish`, ICU sv-SE, pinned by #884 above), which is exactly what
+        // "ORDER BY company_name" sorts under — they match by construction, not by two places agreeing.
+        //
+        // CORRECTION (#884, 2026-07-14). This comment used to say that #884 would change the column's
+        // collation and "THIS INDEX MUST THEN BE REBUILT" — that a stale index would fall out of the
+        // plan silently. MEASURED, AND FALSE: `ALTER TABLE ... ALTER COLUMN ... TYPE text COLLATE ...`
+        // rebuilds every dependent index automatically and atomically (1,17M rows: table relfilenode
+        // unchanged — no rewrite — while the name index's changed, and it came back indisvalid=t under
+        // the new collation). No manual step ever existed, so there was nothing to forget. The warning
+        // was real but aimed at the road we did NOT take: it describes what happens if you put COLLATE
+        // in the QUERY (or an explicit, divergent one on the index) instead of on the column. Keeping a
+        // false warning is not harmless — it is the mirror image of a guard that claims a protection it
+        // never had, and it teaches the next reader to discount the warnings that ARE true.
+        //
+        // The live danger, restated correctly: DO NOT write COLLATE in ItemsSql. The column carries it.
+        // A sort requested under a collation the index was not built under is not an error — Postgres
+        // just silently Sorts the whole match set (7 066 ms, #875). The guard against that is not this
+        // comment; it is CompanyWatchBrowseQueryPlanTests.BroadCriterion_WalksTheNameIndexInOrder_
+        // AndStopsEarly, which goes red the moment the two diverge. Do not delete that test.
         builder.HasIndex(c => new { c.Name, c.OrganizationNumber })
             .HasDatabaseName("ix_company_register_company_name_organization_number");
     }

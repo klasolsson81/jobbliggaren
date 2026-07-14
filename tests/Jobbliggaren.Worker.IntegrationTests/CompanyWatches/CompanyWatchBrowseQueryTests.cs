@@ -167,6 +167,52 @@ public class CompanyWatchBrowseQueryTests(WorkerTestFixture fixture)
     }
 
     [Fact]
+    public async Task Browse_SortsSwedish_SoAringAumlOuml_ComeAfterZ_NotAmongAAndO()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await FreshContextAsync(ct);
+
+        // #884. Å, Ä and Ö are three DISTINCT LETTERS in Swedish, and they come after Z in that order.
+        // Under the cluster's en_US.utf8 default they fold into A and O. Both orders below are MEASURED
+        // on postgres:18.3 against this exact seed, not derived:
+        //
+        //   en_US.utf8:  Ahlberg  Åkesson  Älvsborg  Ärlig  Bok  Cederlund  Ödegaard  Öhman  Svensson  Zebra
+        //   sv-SE (ICU): Ahlberg  Bok  Cederlund  Svensson  Zebra  Åkesson  Älvsborg  Ärlig  Ödegaard  Öhman
+        //
+        // "Åkesson AB" lands between Ahlberg and Bok; "Öhman AB" lands ahead of Svensson. In a Swedish
+        // civic service that is simply wrong, and it is the LIVE browse list users page through.
+        //
+        // The Å/Ä/Ö names are INTERLEAVED with Latin-alphabet ones ON PURPOSE: a seed of only Å/Ä/Ö
+        // names sorts identically under both collations, so it would pass while proving nothing. What is
+        // asserted is the ORDER of the mixed set — and the two orders diverge at position 2, so this
+        // test cannot be green under the wrong collation. It fails today and passes after the migration;
+        // that transition is the acceptance criterion of this PR.
+        //
+        // Å/Ä/Ö only — no V/W pair. Swedish collation has historically treated V and W as one letter and
+        // CLDR tailoring there has moved; that is not the invariant #884 pins, and seeding it would make
+        // this test fail for a reason it is not about.
+        await SeedAsync(ctx.Db, ct,
+            Entry(OrgNr(1), "Öhman AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(2), "Ahlberg AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(3), "Ärlig AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(4), "Zebra AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(5), "Åkesson AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(6), "Cederlund AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(7), "Ödegaard AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(8), "Svensson AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(9), "Älvsborg AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(10), "Bok AB", KommunStockholm, [SniIt]));
+
+        var page = await BrowseAsync(ctx.Db, Spec([SniIt], [KommunStockholm]), ct);
+
+        // Asserts the ORDER, not the string "swedish" anywhere: a name-based guard would pass against a
+        // collation that is merely CALLED Swedish. Only the ordering can tell the truth about that.
+        page.Items.Select(i => i.Name).ShouldBe([
+            "Ahlberg AB", "Bok AB", "Cederlund AB", "Svensson AB", "Zebra AB",
+            "Åkesson AB", "Älvsborg AB", "Ärlig AB", "Ödegaard AB", "Öhman AB"]);
+    }
+
+    [Fact]
     public async Task Browse_PagesAreTotallyOrdered_NoRowLostOrDuplicated_AndTotalCountIsStable()
     {
         var ct = TestContext.Current.CancellationToken;

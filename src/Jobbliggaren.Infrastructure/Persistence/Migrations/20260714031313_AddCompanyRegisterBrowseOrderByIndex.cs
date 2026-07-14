@@ -41,17 +41,35 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// </para>
     ///
     /// <para>
-    /// <b>Collation — inherited, not pinned, and that is deliberate.</b> No
-    /// <c>UseCollation(...)</c> is set on <c>company_name</c> or on this index: the index therefore
-    /// inherits the column's default collation, which is EXACTLY the collation
-    /// <c>ORDER BY company_name</c> sorts under — matching by construction, not by two places
-    /// agreeing. The database currently collates under <c>en_US.utf8</c>, which sorts Swedish
-    /// Å/Ä/Ö among A/O instead of after Z (tracked separately, #884). <b>If/when #884 changes
-    /// company_name's collation (e.g. to <c>sv-SE-x-icu</c>), THIS INDEX MUST BE REBUILT</b> — an
-    /// index built under one collation does not serve an ORDER BY requested under another, and
-    /// Postgres does not error when that happens, it just silently stops using the index (repo
-    /// precedent for vacuous-by-mismatch: #805-3, #842). This paragraph is the tripwire for whoever
-    /// ships #884.
+    /// <b>Collation — inherited from the column, which is now explicitly Swedish (#884).</b> No
+    /// <c>UseCollation(...)</c> is set on this index: it inherits <c>company_name</c>'s COLUMN
+    /// collation, which is EXACTLY the collation <c>ORDER BY company_name</c> sorts under — matching
+    /// by construction, not by two places agreeing. That property is unchanged by #884, and in fact
+    /// strengthened: the column now carries an explicit ICU <c>sv-SE</c> collation, so the sort order
+    /// no longer depends on how the target cluster happened to be <c>initdb</c>'d.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>CORRECTION (#884, 2026-07-14) — the paragraph that stood here was false.</b> It said that
+    /// #884 would change the column's collation and that <b>THIS INDEX MUST THEN BE REBUILT</b>, or it
+    /// would silently fall out of the plan. <b>Measured, and disproved:</b> <c>ALTER TABLE ... ALTER
+    /// COLUMN ... TYPE text COLLATE "swedish"</c> rebuilds every dependent index automatically and
+    /// atomically (1,17M rows: the table's <c>relfilenode</c> is unchanged — no rewrite — while this
+    /// index's changed, and it returns <c>indisvalid = t</c> under the new collation). There was never
+    /// a manual step to forget. The warning was aimed at the road #884 did NOT take: it describes what
+    /// happens if the collation is put in the QUERY, or set explicitly and divergently on the index,
+    /// instead of on the column. It is left corrected rather than deleted because a false warning is
+    /// the mirror image of a guard that claims a protection it never had — both are untrue statements
+    /// living in the codebase, and the false one teaches the next reader to discount the true ones.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The live danger, stated correctly:</b> do not write <c>COLLATE</c> into
+    /// <c>CompanyWatchBrowseQuery.ItemsSql</c> — the column carries it. A sort requested under a
+    /// collation this index was not built under does not error; Postgres silently Sorts the whole
+    /// match set (back to 7 066 ms). The guard is not this comment: it is
+    /// <c>CompanyWatchBrowseQueryPlanTests.BroadCriterion_WalksTheNameIndexInOrder_AndStopsEarly</c>,
+    /// which goes red the moment the two diverge.
     /// </para>
     ///
     /// <para>

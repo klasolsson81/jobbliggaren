@@ -167,6 +167,113 @@ public class CompanyWatchBrowseQueryTests(WorkerTestFixture fixture)
     }
 
     [Fact]
+    public async Task Browse_SortsSwedish_SoAringAumlOuml_ComeAfterZ_NotAmongAAndO()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await FreshContextAsync(ct);
+
+        // #884. Å, Ä and Ö are three DISTINCT LETTERS in Swedish, and they come after Z in that order.
+        // Under the cluster's en_US.utf8 default they fold into A and O. Both orders below are MEASURED
+        // on postgres:18.3 against this exact seed, not derived:
+        //
+        //   en_US.utf8:  Ahlberg  Åkesson  Älvsborg  Ärlig  Bok  Cederlund  Ödegaard  Öhman  Svensson  Zebra
+        //   sv-SE (ICU): Ahlberg  Bok  Cederlund  Svensson  Zebra  Åkesson  Älvsborg  Ärlig  Ödegaard  Öhman
+        //
+        // "Åkesson AB" lands between Ahlberg and Bok; "Öhman AB" lands ahead of Svensson. In a Swedish
+        // civic service that is simply wrong, and it is the LIVE browse list users page through.
+        //
+        // The Å/Ä/Ö names are INTERLEAVED with Latin-alphabet ones ON PURPOSE: a seed of only Å/Ä/Ö
+        // names sorts identically under both collations, so it would pass while proving nothing. What is
+        // asserted is the ORDER of the mixed set — and the two orders diverge at position 2, so this
+        // test cannot be green under the wrong collation. It fails today and passes after the migration;
+        // that transition is the acceptance criterion of this PR.
+        //
+        // Å/Ä/Ö only — no V/W pair. Swedish collation has historically treated V and W as one letter and
+        // CLDR tailoring there has moved; that is not the invariant #884 pins, and seeding it would make
+        // this test fail for a reason it is not about.
+        await SeedAsync(ctx.Db, ct,
+            Entry(OrgNr(1), "Öhman AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(2), "Ahlberg AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(3), "Ärlig AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(4), "Zebra AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(5), "Åkesson AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(6), "Cederlund AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(7), "Ödegaard AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(8), "Svensson AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(9), "Älvsborg AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(10), "Bok AB", KommunStockholm, [SniIt]));
+
+        var page = await BrowseAsync(ctx.Db, Spec([SniIt], [KommunStockholm]), ct);
+
+        // Asserts the ORDER, not the string "swedish" anywhere: a name-based guard would pass against a
+        // collation that is merely CALLED Swedish. Only the ordering can tell the truth about that.
+        page.Items.Select(i => i.Name).ShouldBe([
+            "Ahlberg AB", "Bok AB", "Cederlund AB", "Svensson AB", "Zebra AB",
+            "Åkesson AB", "Älvsborg AB", "Ärlig AB", "Ödegaard AB", "Öhman AB"]);
+    }
+
+    [Fact]
+    public async Task EverySwedishTextColumn_CarriesTheSameIcuSwedishCollation_NotJustTheSortedOne()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await FreshContextAsync(ct);
+
+        // #884. Browse_SortsSwedish_... guards company_name, because company_name is SORTED and a wrong
+        // collation shows up as a wrong order. sate_kommun_name (Åre, Älvdalen, Örnsköldsvik) is NOT
+        // sorted by anything today — so nothing above can see it, and deleting its .UseCollation(...)
+        // leaves every test in this repo green. An unguarded collation defended by an ADR section and a
+        // code comment is precisely the shape this PR exists to delete: a guarantee asserted in prose
+        // and enforced nowhere (#805-3, #842). So it is enforced HERE.
+        //
+        // Shape-based, never name-based: this asserts the collation's PROVIDER and LOCALE, never the
+        // string "swedish". A name assertion would pass against a collation that is merely CALLED
+        // Swedish while collating as en_US — which is the exact class of lie the guard exists to catch.
+        // It also asserts the two columns share ONE collation OID: two collations with the same locale
+        // are not interchangeable to the planner, and a divergence between them is invisible everywhere
+        // else.
+        const string Sql = """
+            SELECT a.attname,
+                   c.collprovider::text AS provider,
+                   c.colllocale        AS locale,
+                   c.oid::text         AS collation_oid
+            FROM pg_attribute a
+            JOIN pg_collation c ON c.oid = a.attcollation
+            WHERE a.attrelid = 'company_register'::regclass
+              AND a.attname IN ('company_name', 'sate_kommun_name')
+            ORDER BY a.attname;
+            """;
+
+        var rows = new List<(string Column, string Provider, string? Locale, string Oid)>();
+        var conn = ctx.Db.Database.GetDbConnection();
+        await ctx.Db.Database.OpenConnectionAsync(ct);
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = Sql;
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                rows.Add((reader.GetString(0), reader.GetString(1),
+                          reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3)));
+        }
+
+        // A column with no explicit collation does not join pg_collation to a real row at all — it
+        // carries the database default. So a missing row IS the failure, and it is the FIRST thing
+        // asserted: drop .UseCollation(...) from either column and this line is what goes red.
+        rows.Select(r => r.Column).ShouldBe(["company_name", "sate_kommun_name"]);
+
+        foreach (var row in rows)
+        {
+            row.Provider.ShouldBe("i", $"{row.Column} is not collated by ICU.");
+            row.Locale.ShouldBe("sv-SE", $"{row.Column} is not collated as Swedish.");
+        }
+
+        rows.Select(r => r.Oid).Distinct().Count().ShouldBe(
+            1,
+            "company_name and sate_kommun_name carry DIFFERENT collation objects. Two collations with "
+            + "the same locale are not interchangeable to the planner, and nothing else in this repo "
+            + "can see the difference.");
+    }
+
+    [Fact]
     public async Task Browse_PagesAreTotallyOrdered_NoRowLostOrDuplicated_AndTotalCountIsStable()
     {
         var ct = TestContext.Current.CancellationToken;

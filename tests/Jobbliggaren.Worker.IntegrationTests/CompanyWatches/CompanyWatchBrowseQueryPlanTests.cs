@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -23,6 +24,24 @@ namespace Jobbliggaren.Worker.IntegrationTests.CompanyWatches;
 /// vacuous-guarantee class this codebase has already shipped twice (the never-written
 /// <c>JobAd.DeletedAt</c> filter, #805-3; the Art. 17 erasure that could erase nothing, #842). This
 /// test is what makes the index a fact rather than an intention.
+/// </para>
+///
+/// <para>
+/// <b><see cref="BroadCriterion_WalksTheNameIndexInOrder_AndStopsEarly"/> has TWO jobs, and the second
+/// is invisible (#884, 2026-07-14).</b> It pins the plan SHAPE — an ordered walk that LIMIT stops early
+/// rather than a full Sort. It is ALSO the only test anywhere in the repo that can see a COLLATION
+/// MISMATCH between <c>company_name</c>'s column collation (<c>swedish</c>, ICU sv-SE, pinned by #884)
+/// and the collation the INDEX was built under. Mutation-measured, not asserted:
+/// <code>
+/// mutation                                          OrdersByATotalKey  Browse_SortsSwedish  THIS TEST
+/// COLLATE "en_US.utf8" written into ItemsSql        RED                RED                  RED
+/// a divergent COLLATE on the INDEX (column intact)  green              green                RED  (alone)
+/// </code>
+/// The second row is the whole reason this test cannot be deleted, and it is NOT the case the earlier
+/// draft of this paragraph named. An index-side divergence changes neither the SQL text, nor the rows
+/// returned, nor their order — the browse stays perfectly correct. It simply Sorts the entire match set
+/// to produce twenty rows (7 066 ms against ADR 0045's 300 ms budget), and every other test in the repo
+/// stays green while it does. <b>Do not delete this as "just a perf pin".</b>
 /// </para>
 ///
 /// <para>
@@ -236,13 +255,27 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
                 + $"plan_cache_mode = force_generic_plan before accepting it.{Environment.NewLine}"
                 + $"Plan:{Environment.NewLine}{plan}");
 
-        // ...and pin WHY that is bad news rather than good: the generic plan sorts.
-        plan.ShouldContain(
-            "Sort Key: company_name, organization_number",
-            customMessage:
-                "The GENERIC plan no longer sorts, and no longer walks the name index either — so it is "
-                + "doing something this test has never seen. Look at it before you trust it."
-                + $"{Environment.NewLine}Plan:{Environment.NewLine}{plan}");
+        // ...and pin WHY that is bad news rather than good: the generic plan SORTS.
+        //
+        // Matched as a SHAPE, not as a literal string — and that is a correction, not a preference.
+        // This assertion used to demand the exact text "Sort Key: company_name, organization_number".
+        // It broke the moment #884 pinned an ICU collation on the column, because EXPLAIN then renders
+        // "Sort Key: company_name COLLATE swedish, organization_number". NOTHING about the plan had
+        // changed — it still sorts, it still ignores the name index, the whole conclusion still holds.
+        // Only Postgres's RENDERING moved. Worse, the failure message the old assertion printed said
+        // "The GENERIC plan no longer sorts", which was simply false, and would have sent the next
+        // reader hunting a behaviour change that never happened. A guard that goes red on cosmetics
+        // while the thing it guards is intact is a guard that gets deleted by the person it wakes at
+        // 2am — so it is now anchored to what it actually means: there is a Sort node, and it is
+        // sorting on company_name.
+        // Two tokens, in order, with the middle left open so a COLLATE annotation can sit between them.
+        // `Sort Key:.*company_name` alone would also match "Sort Key: organization_number, company_name"
+        // — a different sort key entirely, and one this test would then wave through.
+        Regex.IsMatch(plan, @"Sort Key: company_name\b[^\r\n]*, organization_number\b").ShouldBeTrue(
+            "The GENERIC plan neither walks " + NameIndexName + " NOR sorts on company_name — so it is "
+            + "doing something this test has never seen, and the Max Auto Prepare warning in "
+            + "docs/PERFORMANCE_AUDIT.md rests on it. Look at the plan before you trust it."
+            + $"{Environment.NewLine}Plan:{Environment.NewLine}{plan}");
     }
 
     /// <summary>
@@ -340,10 +373,18 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         + "other test stays green while it happens."
         + Environment.NewLine
         + Environment.NewLine
-        + "MOST LIKELY CAUSE — THE COLLATION. A btree is built WITH a collation. If you changed the "
-        + "collation of `ORDER BY company_name` (e.g. to COLLATE \"sv-SE-x-icu\" so that Å/Ä/Ö sort "
-        + "after Z, which they currently do NOT — issue #884), the index no longer serves that sort and "
-        + "Postgres drops it SILENTLY. Rebuild the index in the SAME migration that changes the sort. "
+        + "MOST LIKELY CAUSE — THE COLLATION. A btree is built WITH a collation, and this one is built "
+        + "with the COLUMN's: `swedish` (ICU sv-SE), pinned on company_name by #884. The index serves "
+        + "ORDER BY company_name precisely because that sort INHERITS the same collation. Write an "
+        + "explicit COLLATE into the ORDER BY and it stops inheriting: the sort is then requested under "
+        + "whatever you named, the index was not built under that, and Postgres does not error — it "
+        + "silently Sorts the whole match set. Note the trap precisely: COLLATE \"swedish\" is HARMLESS "
+        + "(same collation OID; Postgres strips the redundant CollateExpr and the plan is unchanged). "
+        + "The one that kills it is a DIFFERENT collation object — including one with the SAME LOCALE, "
+        + "e.g. the built-in `sv-SE-x-icu`, which sorts identically and yet is a different OID the "
+        + "planner will not match against this index. So the rule is not 'name the right collation', it "
+        + "is: DO NOT WRITE COLLATE IN THIS QUERY AT ALL. The column carries it — that is the whole "
+        + "point of putting it there. "
         + "Other causes: another column added to the ORDER BY; Max Auto Prepare enabling generic plans "
         + "that move the cost estimates; a statistics change that makes bitmap+sort look cheaper."
         + Environment.NewLine

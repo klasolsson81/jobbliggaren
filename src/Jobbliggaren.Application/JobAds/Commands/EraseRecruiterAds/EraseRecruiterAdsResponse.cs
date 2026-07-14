@@ -74,6 +74,15 @@ public enum ErasureMatchChannel
     /// channels that were added because they were missing. The operator opens the ad.
     /// </summary>
     FullTextOrRawPayload,
+
+    /// <summary>
+    /// Exact match on <c>job_ads.organization_number</c> — the identifier was an org.nr, and for
+    /// an <i>enskild firma</i> that org.nr IS her personnummer (#842 CTO ruling 2026-07-14).
+    /// <c>MatchedExcerpt</c> is the normalised org.nr that matched, suffixed
+    /// <c>(personnummer-format)</c> when it is personnummer-shaped — a personnummer is never
+    /// surfaced un-flagged, even in the operator's review payload (ADR 0087 D8(c)).
+    /// </summary>
+    OrganizationNumber,
 }
 
 /// <summary>
@@ -89,11 +98,21 @@ public sealed record ErasureJobAdMatch(
     string MatchedExcerpt);
 
 /// <summary>
-/// One recent-search row the identifier matched, as a whole word. <c>Q</c> is the user's search
-/// term; there is deliberately NO user id — the operator reviews the STRINGS that will be deleted,
-/// and needs to identify nobody to do it.
+/// One recent-search row the identifier matched — and WHY. <c>Q</c> is the user's free-text term
+/// when the word-boundary channel hit; <c>MatchedEmployerOrgNr</c> is the normalised org.nr when
+/// the employer-filter channel hit. At least one is always present. There is deliberately NO user
+/// id — the operator reviews the STRINGS that will be deleted, and needs to identify nobody to do
+/// it.
 /// </summary>
-public sealed record ErasureRecentSearchMatch(Guid Id, string Q);
+/// <remarks>
+/// <c>Q</c> is nullable because an employer-only search (<c>q = NULL</c>, the domain's own
+/// canonical form) is a real matched row. Round 5's non-nullable <c>Q</c> made that row
+/// UNREPRESENTABLE, so <c>.Where(r =&gt; r.Q is not null)</c> was the only way to compile — and
+/// precisely there the match died: found by the SQL, discarded by the projection, never deleted,
+/// never counted, while the registry certified the column erased. The type forced the bug; the
+/// type now forbids it: a match must carry its evidence, whichever channel produced it.
+/// </remarks>
+public sealed record ErasureRecentSearchMatch(Guid Id, string? Q, string? MatchedEmployerOrgNr);
 
 /// <summary>
 /// Per-surface counts, whose member names are pinned against

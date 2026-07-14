@@ -103,6 +103,21 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
         return sb.ToString();
     }
 
+    /// <summary>
+    /// The identifier as a normalised org.nr, when it IS one — the Domain VO owns the written
+    /// forms (<c>556012-5790</c> → <c>5560125790</c>). Null means "not org.nr-shaped": the caller
+    /// falls back to the free-text channels, never to a guess.
+    /// </summary>
+    /// <remarks>
+    /// #842 CTO ruling (2026-07-14): org.nr/personnummer is a first-class Art. 17 identifier — an
+    /// enskild firma's org.nr IS her personnummer, and it is a STRUCTURED key with a dedicated
+    /// column. Round 5 bolted it into the free-text regex arm, which is exactly what produced the
+    /// vacuous matcher: a name never matches a ten-digit string, and the hyphenated written form
+    /// never matched the stored one. Structured keys get exact matching against their columns.
+    /// </remarks>
+    private static string? NormalizedOrgNr(string identifier) =>
+        Domain.CompanyWatches.OrganizationNumber.TryFromWrittenForm(identifier)?.Value;
+
     public async Task<IReadOnlyList<ErasureJobAdMatch>> FindJobAdsAsync(
         string identifier, CancellationToken cancellationToken)
     {
@@ -111,10 +126,18 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
         var needle = identifier.Trim();
         var pattern = LikePattern(identifier);
         var erased = Domain.JobAds.JobAdStatus.Erased.Value;
+        var orgNr = NormalizedOrgNr(identifier);
 
         // The matching itself is raw SQL (it has to be — see the class remarks), and it yields IDs.
         // EF's Database.SqlQuery<T> supports SCALAR results only, so the ads themselves are then
         // projected through EF.
+        //
+        // The organization_number arm is exact-match on the NORMALISED org.nr. `{orgNr}` is NULL
+        // for a non-org.nr identifier, and `column = NULL` is never true — the arm switches itself
+        // off. It exists because raw_payload is NULLed at 30 days (PurgeStaleRawPayloadsJob), after
+        // which the materialised organization_number column (#841) is the ONLY place a sole
+        // trader's org.nr survives in the row — the same 30-day logic that forced the company_name
+        // channel (see the port).
         var ids = await db.Database
             .SqlQuery<Guid>($"""
                 SELECT id AS "Value"
@@ -126,6 +149,7 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
                      OR lower(description)  LIKE {pattern} ESCAPE '\'
                      OR lower(company_name) LIKE {pattern} ESCAPE '\'
                      OR (raw_payload IS NOT NULL AND lower(raw_payload::text) LIKE {pattern} ESCAPE '\')
+                     OR organization_number = {orgNr}
                   )
                 """)
             .ToListAsync(cancellationToken);
@@ -147,6 +171,7 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
                 j.Title,
                 j.Description,
                 Company = j.Company.Name,
+                j.OrganizationNumber,
             })
             .ToListAsync(cancellationToken);
 
@@ -154,11 +179,24 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
         [
             .. rows.Select(r =>
             {
-                var (channel, excerpt) = Evidence(r.Title, r.Description, r.Company, needle);
+                var (channel, excerpt) = orgNr is not null && r.OrganizationNumber == orgNr
+                    ? (ErasureMatchChannel.OrganizationNumber, OrgNrEvidence(orgNr))
+                    : Evidence(r.Title, r.Description, r.Company, needle);
                 return new ErasureJobAdMatch(r.Id, r.ExternalId, r.Title, r.Company, channel, excerpt);
             }),
         ];
     }
+
+    /// <summary>
+    /// The reviewable evidence for an org.nr hit: the subject's own supplied identifier, in the
+    /// normalised form that matched — flagged when it is personnummer-shaped (ADR 0087 D8(c): a
+    /// personnummer is never surfaced un-flagged, even to the admin operator, even when the
+    /// subject herself supplied it). Review payload only; never logged.
+    /// </summary>
+    private static string OrgNrEvidence(string orgNr) =>
+        Domain.CompanyWatches.OrganizationNumber.FromTrusted(orgNr).IsPersonnummerShaped()
+            ? $"{orgNr} (personnummer-format)"
+            : orgNr;
 
     /// <summary>
     /// The reviewer's evidence: WHICH channel hit, and the text around it.
@@ -206,27 +244,43 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
         var pattern = WordBoundaryPattern(identifier);
+        var orgNr = NormalizedOrgNr(identifier);
 
         // `~*` = case-insensitive ARE match. `q` is a plain varchar(100), so no cast is needed.
         //
-        // employer_list is a text[] of the EMPLOYER NAMES she filtered on, and an enskild firma's
-        // employer name IS a natural person's name — the same argument that put job_ads.company_name
-        // in scope. Without this arm the row survives whenever her name is in the employer filter and
-        // not in the free-text `q`, while the registry certifies the column Erased.
+        // employer_list holds 10-DIGIT ORG.NR (write path: ValidateEmployerList →
+        // OrganizationNumber.Create) — a sole trader's org.nr IS her personnummer, so an org.nr
+        // Art. 17 request must reach the rows that filter on her. The arm is EXACT match on the
+        // normalised identifier: `{orgNr}` is NULL for a non-org.nr identifier and `NULL = ANY`
+        // is never true, so the arm switches itself off. (Round 5 ran the word-boundary REGEX
+        // over this column on the ground that it held employer NAMES — a name never matches a
+        // ten-digit string, and the zero was certified as a search result.)
         var ids = await db.Database
             .SqlQuery<Guid>($"""
                 SELECT id AS "Value"
                 FROM recent_job_searches
                 WHERE (q IS NOT NULL AND q ~* {pattern})
-                   OR EXISTS (
-                        SELECT 1 FROM unnest(coalesce(employer_list, ARRAY[]::text[])) AS employer
-                        WHERE employer ~* {pattern})
+                   OR {orgNr} = ANY(coalesce(employer_list, ARRAY[]::text[]))
                 """)
             .ToListAsync(cancellationToken);
 
         if (ids.Count == 0)
             return [];
 
+        // Which of the matched rows matched on the EMPLOYER channel — per-row evidence for the
+        // operator ("a count cannot be reviewed", least of all on a hard-deleted row). A row can
+        // match on both channels; the q evidence then rides along too.
+        var employerMatched = orgNr is null
+            ? []
+            : await db.Database
+                .SqlQuery<Guid>($"""
+                    SELECT id AS "Value"
+                    FROM recent_job_searches
+                    WHERE {orgNr} = ANY(coalesce(employer_list, ARRAY[]::text[]))
+                    """)
+                .ToListAsync(cancellationToken);
+
+        var employerSet = employerMatched.ToHashSet();
         var typedIds = ids.Select(id => new RecentJobSearchId(id)).ToList();
 
         var rows = await db.RecentJobSearches
@@ -235,11 +289,16 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
             .Select(r => new { Id = r.Id.Value, r.Q })
             .ToListAsync(cancellationToken);
 
+        // EVERY SQL-matched row is returned — the deletion runs on these ids. Round 5 filtered
+        // `.Where(r => r.Q is not null)` here, which threw away the employer-only match (q = NULL
+        // is the domain's canonical employer-only form) AFTER the SQL had found it: never deleted,
+        // never counted, certified erased.
         return
         [
-            .. rows
-                .Where(r => r.Q is not null)
-                .Select(r => new ErasureRecentSearchMatch(r.Id, r.Q!)),
+            .. rows.Select(r => new ErasureRecentSearchMatch(
+                r.Id,
+                r.Q,
+                employerSet.Contains(r.Id) ? orgNr : null)),
         ];
     }
 
@@ -275,12 +334,19 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
         // snapshot_description (measured at 0 rows), which is the one the original scope reasoned
         // about. We search it precisely because we do NOT erase it (Art. 17(3)(e) — see the
         // registry's written ground).
+        //
+        // snapshot_url is the frozen ad URL, and a URL path carries names routinely — the
+        // identical argument that put manual_url in scope. It was classified MatchedRetained
+        // ("searched and reported") for one whole round while this query never touched it
+        // (round-5 B5-2); the registry's channel list now claims it, and the single-column
+        // integration test holds this line here.
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM applications
             WHERE lower(coalesce(snapshot_company, ''))     LIKE {pattern} ESCAPE '\'
                OR lower(coalesce(snapshot_title, ''))       LIKE {pattern} ESCAPE '\'
                OR lower(coalesce(snapshot_description, '')) LIKE {pattern} ESCAPE '\'
+               OR lower(coalesce(snapshot_url, ''))         LIKE {pattern} ESCAPE '\'
             """, cancellationToken);
     }
 

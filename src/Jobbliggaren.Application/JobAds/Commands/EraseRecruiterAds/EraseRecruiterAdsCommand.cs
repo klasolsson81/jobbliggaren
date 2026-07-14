@@ -17,9 +17,15 @@ namespace Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 /// id to hang it on.
 /// </param>
 /// <param name="Identifier">
-/// Free text: an email, a phone number, or a NAME. One channel, no discriminator — TD-75's premise
-/// was not outdated, it was falsified (the email is never a structured key in storage), so every
-/// identifier is matched over free text either way. TD-75 is closed as void. See ADR 0106 D8.
+/// Free text: an email, a phone number, a NAME — or an <b>organisationsnummer/personnummer</b>
+/// (#842 CTO ruling 2026-07-14: an enskild firma's org.nr IS her personnummer, and Art. 12(2)
+/// forbids refusing the one exact key she has). One input, no discriminator — TD-75's premise was
+/// not outdated, it was falsified (the email is never a structured key in storage), so a textual
+/// identifier is matched over free text either way. An org.nr-SHAPED identifier is additionally
+/// normalised in Domain (<c>OrganizationNumber.TryFromWrittenForm</c>: <c>556012-5790</c> →
+/// <c>5560125790</c>) and matched EXACTLY against the columns that hold org.nr — a structured key
+/// bolted into the free-text matcher was round 5's vacuous arm. TD-75 is closed as void. See
+/// ADR 0106 D8.
 /// </param>
 /// <param name="DryRun">True ⇒ report what would be erased and write nothing.</param>
 /// <param name="ConfirmedJobAdIds">

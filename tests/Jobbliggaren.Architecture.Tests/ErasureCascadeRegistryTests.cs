@@ -96,10 +96,12 @@ public class ErasureCascadeRegistryTests
         // configuration describes what it HOLDS. Only the second one is a fact about the database.
 
         // ── Infrastructure the user cannot write into. ────────────────────────────────────────
+        // (`sessions` USED TO BE HERE — an entry for a table that DOES NOT EXIST in the model. A
+        // wholesale exclusion pre-granted to an undesigned table is a ground that by definition
+        // cannot be re-derived; round-5 security M4. Removed. If a sessions table is ever built,
+        // its author classifies it then, against the mapping that actually exists.)
         ["user_data_keys"] = "The DEK envelope itself: wrapped key material (bytes) and key ids. "
             + "There is no text column, and the write path is the key provider, not any user.",
-        ["sessions"] = "Session plumbing: ids, timestamps and a revocation flag, all minted by the "
-            + "auth stack. No free text, no user write path into a value.",
         ["taxonomy_snapshot_meta"] = "Sync bookkeeping for the Arbetsförmedlingen taxonomy import: "
             + "a version string and timestamps, minted by the sync job. No user, and no free text, "
             + "can reach it.",
@@ -112,9 +114,12 @@ public class ErasureCascadeRegistryTests
             + "notification-status enum, matched-term concept ids and timestamps. The matched terms "
             + "are taxonomy/skill ids from a closed vocabulary, never free text. The ad's text is "
             + "classified under job_ads.",
-        ["company_watches"] = "A FOLLOW ROW: (user_id, organisation number) plus enums and "
-            + "timestamps. The user-authored LABEL lives on company_watch_criteria, which IS "
-            + "column-classified and IS searched. Nothing free-text remains here.",
+        ["company_watches"] = "A FOLLOW ROW: (user_id, organisation number) plus enums, "
+            + "timestamps, and the `filter` jsonb — a WatchFilterSpec whose every string is a "
+            + "concept-id validated against ConceptIdPattern (^[A-Za-z0-9_-]{1,32}) plus one bool "
+            + "(OnlyMatched); no free text can enter it. The user-authored LABEL lives on "
+            + "company_watch_criteria, which IS column-classified and IS searched. Nothing "
+            + "free-text remains here.",
         ["followed_company_ad_hits"] = "A LINK ROW: (user_id, job_ad_id, company_watch_id) plus a "
             + "status enum and timestamps. It records THAT a followed company posted an ad. The "
             + "ad's text is classified under job_ads.",
@@ -160,6 +165,41 @@ public class ErasureCascadeRegistryTests
     private static string ColumnKey(IEntityType entity, IProperty property) =>
         $"{entity.GetTableName()}.{property.GetColumnName()}";
 
+    /// <summary>
+    /// True when a Postgres store type can carry text. <b>The sweep enumerates FORMS, not
+    /// instances</b> (round-5 security M1): the STORE type is the mapping's own word for what a
+    /// column can hold, and it is invariant under every CLR-side disguise.
+    /// </summary>
+    /// <remarks>
+    /// Every earlier version of this filter was CLR-typed, and every hole it had was a CLR shape
+    /// nobody thought of while the column stayed text: <c>string</c> was the first cut,
+    /// <c>byte[]</c> (the CV file) was missed once, <c>IEnumerable&lt;string&gt;</c> → <c>text[]</c>
+    /// (top_skills, employer_list) was missed once, and a <c>HasConversion</c> property (CLR type
+    /// <c>SearchCriteria</c>, column <c>jsonb</c> — the user's free-text <c>q</c> inside
+    /// <c>saved_searches.criteria</c>) was invisible for three rounds. Deriving from
+    /// <c>GetColumnType()</c> kills the whole class: a value converter, an array mapping, a
+    /// SmartEnum, a tsvector — they all land on a store type, and the store type cannot lie about
+    /// whether Postgres will hold text in it.
+    /// </remarks>
+    private static bool IsTextBearingStoreType(string storeType)
+    {
+        var t = storeType.Trim().ToLowerInvariant();
+
+        // Arrays of a text-bearing type bear text ("text[]", "character varying(400)[]").
+        while (t.EndsWith("[]", StringComparison.Ordinal))
+            t = t[..^2];
+
+        // Strip the length facet ("character varying(200)" → "character varying").
+        var paren = t.IndexOf('(');
+        if (paren > 0)
+            t = t[..paren].TrimEnd();
+
+        return t is "text" or "citext" or "json" or "jsonb" or "xml"
+            or "character varying" or "varchar" or "character" or "char"
+            or "bytea"      // a document IS text at rest — resume_files.content taught us that
+            or "tsvector";  // derived text is still text — job_ads.search_vector is FTS-searched
+    }
+
     private static List<string> RecruiterTextColumns()
     {
         using var context = ModelOnlyContext();
@@ -173,29 +213,19 @@ public class ErasureCascadeRegistryTests
 
             foreach (var property in entity.GetProperties())
             {
-                var clr = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
-
-                // THREE shapes hold text, and every one of them was missed once.
-                //
-                //   string   — the obvious one.
-                //   byte[]   — resume_files.content is the CV FILE ITSELF. A sweep filtering on
-                //              `string` alone claimed to catch "text anywhere" and walked past it.
-                //   text[]   — an IEnumerable<string> maps to a Postgres array. resumes.top_skills
-                //              is her CV's skill list, and it was invisible to BOTH earlier filters.
-                //
-                // ⚠ STILL NOT REACHED, and said out loud rather than left as an assumption a reader
-                // would over-trust: an owned type mapped .ToJson() presents as a NAVIGATION, not a
-                // scalar property, so its columns never appear here. Every hole in this sweep so far
-                // has been a shape nobody thought to look for.
-                var isTextArray =
-                    clr != typeof(string)
-                    && typeof(IEnumerable<string>).IsAssignableFrom(clr);
-
-                if (clr != typeof(string) && clr != typeof(byte[]) && !isTextArray)
+                if (!IsTextBearingStoreType(property.GetColumnType()))
                     continue;
 
                 columns.Add(ColumnKey(entity, property));
             }
+
+            // The .ToJson() seam, CLOSED (it was ⚠-disclosed for two rounds): an owned aggregate
+            // mapped to a JSON container column presents as a NAVIGATION, so its columns never
+            // appear among the scalar properties above — but the container column itself is
+            // text-bearing jsonb, and the model knows its name.
+            var container = entity.GetContainerColumnName();
+            if (container is not null)
+                columns.Add($"{table}.{container}");
         }
 
         return columns;
@@ -470,6 +500,190 @@ public class ErasureCascadeRegistryTests
 
             ErasureCascadeRegistry.WrittenGrounds[key].Length.ShouldBeGreaterThan(60,
                 $"{key}'s ground is too thin to be a ground.");
+        }
+    }
+
+    /// <summary>
+    /// The ground requirement is per COLUMN, not per table (round-5 security M2). A new column
+    /// gliding into an already-grounded <c>(table, disposition)</c> bucket used to cost NOTHING —
+    /// the cost inversion this file exists to close, one level down. The <c>text[]</c> sweep
+    /// exploited it the same day it landed: <c>resumes.reviewed_rubric_version</c> and
+    /// <c>company_register.sni_codes</c> both entered the strongest bucket under grounds that
+    /// never mentioned them.
+    /// </summary>
+    /// <remarks>
+    /// The ground IS the re-derivation — that is the file's whole thesis — so a column that its
+    /// own ground does not name has not been re-derived. Requiring the bare column name in the
+    /// ground text is deliberately crude: it cannot prove the sentence ABOUT the column is true,
+    /// but it makes silently inheriting a bucket impossible, and the reviewer reads the sentence.
+    /// </remarks>
+    [Fact]
+    public void Every_grounded_columns_ground_actually_names_the_column()
+    {
+        var unnamed = new List<string>();
+
+        foreach (var (key, disposition) in ErasureCascadeRegistry.Columns)
+        {
+            if (!GroundedDispositions.Contains(disposition))
+                continue;
+
+            var parts = key.Split('.');
+            var groundKey = $"{parts[0]}:{disposition}";
+
+            if (!ErasureCascadeRegistry.WrittenGrounds.TryGetValue(groundKey, out var ground))
+                continue; // the missing-ground case is Every_disposition_that_owes_a_ground_has_one's
+
+            if (!ground.Contains(parts[1], StringComparison.OrdinalIgnoreCase))
+                unnamed.Add($"{key} — absent from the {groundKey} ground");
+        }
+
+        unnamed.ShouldBeEmpty(
+            "a column whose own ground never names it has inherited a verdict, not earned one. "
+            + "Extend the ground with the column's OWN write-path sentence:\n  "
+            + string.Join("\n  ", unnamed));
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════════════
+    // THE CHANNEL PIN (round 6) — the registry DRIVES the port. Round 5's two Blockers were
+    // both instances of the same unpinned seam: a column classified as searched that no port
+    // method searched (snapshot_url), and a port arm whose column the registry misdescribed
+    // (employer_list). These tests make the seam a build break.
+    // ════════════════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Every column the registry claims is SEARCHED belongs to exactly ONE channel. This is the
+    /// test that makes round-5 B5-2 (<c>applications.snapshot_url</c> — classified
+    /// <c>MatchedRetained</c>, "searched and reported", never queried) unshippable: a searched
+    /// classification with no channel breaks the build, and the channel's own single-column
+    /// integration test breaks it if the SQL does not follow.
+    /// </summary>
+    [Fact]
+    public void Every_searched_column_belongs_to_exactly_one_channel()
+    {
+        var channelColumns = ErasureCascadeRegistry.Channels
+            .SelectMany(c => c.Columns.Select(col => (c.Surface, Column: col)))
+            .ToList();
+
+        // No column is claimed by two channels — a double claim would double-report her.
+        channelColumns.GroupBy(x => x.Column, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList()
+            .ShouldBeEmpty("a column may be claimed by exactly one channel.");
+
+        var claimed = channelColumns.Select(x => x.Column).ToHashSet(StringComparer.Ordinal);
+
+        var unclaimed = ErasureCascadeRegistry.Columns
+            .Where(kv => SearchedDispositions.Contains(kv.Value) && !claimed.Contains(kv.Key))
+            .Select(kv => $"{kv.Key} ({kv.Value})")
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        unclaimed.ShouldBeEmpty(
+            "these columns are classified as SEARCHED (MatchedHumanErases/MatchedRetained) and "
+            + "belong to NO channel — i.e. the registry certifies a search no port method runs. "
+            + "That is the round-2 Blocker, the round-5 Blocker, and the shape of five review "
+            + "rounds. Add the column to its surface's ErasureChannel AND to the port method's "
+            + "SQL, then seed the single-column match test:\n  "
+            + string.Join("\n  ", unclaimed));
+    }
+
+    /// <summary>
+    /// Every channel names a REAL port method and a REAL reported surface, and every channel
+    /// column is a classified registry column. A channel pointing at a renamed method — or a
+    /// surface the response never reports — would be the vacuous control rebuilt one level up.
+    /// </summary>
+    [Fact]
+    public void Every_channel_names_a_real_port_method_and_a_reported_surface()
+    {
+        ErasureCascadeRegistry.Channels.ShouldNotBeEmpty();
+
+        var surfaces = new List<string>();
+
+        foreach (var channel in ErasureCascadeRegistry.Channels)
+        {
+            typeof(Jobbliggaren.Application.JobAds.Abstractions.IRecruiterErasureMatchQuery)
+                .GetMethod(channel.PortMethod)
+                .ShouldNotBeNull(
+                    $"channel {channel.Surface} names port method '{channel.PortMethod}', which "
+                    + "does not exist on IRecruiterErasureMatchQuery. The registry is driving a "
+                    + "port that is not there.");
+
+            foreach (var column in channel.Columns)
+            {
+                ErasureCascadeRegistry.Columns.ShouldContainKey(column,
+                    $"channel {channel.Surface} claims to search '{column}', which is not a "
+                    + "classified registry column. A channel may only claim columns the registry "
+                    + "has ruled on.");
+            }
+
+            surfaces.Add(channel.Surface);
+        }
+
+        surfaces.ToHashSet(StringComparer.Ordinal).ShouldBe(
+            ErasureCascadeRegistry.ReportedSurfaces, ignoreOrder: true,
+            "the channel set and the reported surfaces must be the SAME set — a surface with no "
+            + "channel is a count derived from no search, and a channel with no surface is a "
+            + "search whose result never reaches her.");
+
+        surfaces.Count.ShouldBe(surfaces.Distinct(StringComparer.Ordinal).Count(),
+            "one channel per surface — two channels reporting into one count would double it.");
+    }
+
+    /// <summary>
+    /// Every <c>Erased</c> column is EITHER searched by a channel OR carries a written derivation
+    /// ground in <see cref="ErasureCascadeRegistry.ErasedWithoutSearchChannel"/>. No third state.
+    /// </summary>
+    /// <remarks>
+    /// This is round-5 security m2 made exhaustive — the Minor that predicted round 5's Blocker
+    /// one round in advance (<i>"a third table entering the Erased bucket still slips through
+    /// silently"</i> — one did, and it was the Blocker). An <c>Erased</c> column dies with its
+    /// carrier only if the MATCH can find the carrier, so a column with no channel of its own owes
+    /// a written argument for why no row can carry her identifier in that column ALONE. It also
+    /// closes the code-reviewer's predicted round-6 opener (<c>job_ads.url</c> /
+    /// <c>organization_number</c>): org.nr became a channel column; url carries the argument.
+    /// </remarks>
+    [Fact]
+    public void Every_Erased_column_is_channel_searched_or_carries_a_derivation_ground()
+    {
+        var channelClaimed = ErasureCascadeRegistry.Channels
+            .SelectMany(c => c.Columns)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var erased = ErasureCascadeRegistry.Columns
+            .Where(kv => kv.Value == ErasureColumnDisposition.Erased)
+            .Select(kv => kv.Key)
+            .ToHashSet(StringComparer.Ordinal);
+
+        erased.ShouldNotBeEmpty("no Erased columns — this test is itself vacuous.");
+
+        var unaccounted = erased
+            .Where(c => !channelClaimed.Contains(c)
+                && !ErasureCascadeRegistry.ErasedWithoutSearchChannel.ContainsKey(c))
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        unaccounted.ShouldBeEmpty(
+            "an Erased column must be reachable: either a channel searches it, or "
+            + "ErasedWithoutSearchChannel carries the written derivation for why a row cannot "
+            + "hold her identifier in this column alone. 'It is erased anyway' certified round 5's "
+            + "Blocker. Unaccounted:\n  " + string.Join("\n  ", unaccounted));
+
+        // The inverse: no stale derivation entries for columns that are not Erased (or that a
+        // channel now searches — the ground would then be dead prose shadowing a live claim).
+        var stale = ErasureCascadeRegistry.ErasedWithoutSearchChannel.Keys
+            .Where(c => !erased.Contains(c) || channelClaimed.Contains(c))
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        stale.ShouldBeEmpty(
+            "ErasedWithoutSearchChannel entries must be exactly the Erased columns no channel "
+            + "claims. Stale:\n  " + string.Join("\n  ", stale));
+
+        foreach (var (column, ground) in ErasureCascadeRegistry.ErasedWithoutSearchChannel)
+        {
+            ground.Length.ShouldBeGreaterThan(60,
+                $"{column}'s derivation ground is too thin to be a derivation.");
         }
     }
 

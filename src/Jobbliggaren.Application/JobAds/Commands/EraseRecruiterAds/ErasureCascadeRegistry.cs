@@ -95,9 +95,22 @@ public enum ErasureColumnDisposition
 }
 
 /// <summary>
+/// One search channel of the Art. 17 match — the registry-side declaration that DRIVES the port
+/// (#842 round 6). <paramref name="Surface"/> is the ONE name (a member of
+/// <see cref="ErasureCascadeRegistry.ReportedSurfaces"/> and of <c>ErasureSurfaceCounts</c>);
+/// <paramref name="Columns"/> are the <c>table.column</c> keys the channel's SQL claims to search;
+/// <paramref name="PortMethod"/> is the <c>IRecruiterErasureMatchQuery</c> method that runs it.
+/// </summary>
+public sealed record ErasureChannel(
+    string Surface,
+    IReadOnlyList<string> Columns,
+    string PortMethod);
+
+/// <summary>
 /// The Art. 17 cascade registry for recruiter PII (#842) — every persisted surface, classified,
 /// with a written reason. <c>ErasureCascadeRegistryTests</c> pins it: a new <c>DbSet</c> on
-/// <c>IAppDbContext</c> that appears in none of the three sets <b>breaks the build</b>.
+/// <c>IAppDbContext</c> that appears in neither of the two sets (<see cref="Columns"/>, the
+/// wholesale-exclusion list in the tests) <b>breaks the build</b>.
 /// </summary>
 /// <remarks>
 /// <b>Why this type exists, and must not become prose again.</b> ADR 0024's cascade registry listed
@@ -121,9 +134,9 @@ public static class ErasureCascadeRegistry
     /// does not report would be something we erased (or knowingly kept) without telling her.
     /// </summary>
     /// <remarks>
-    /// <c>Application</c> is absent deliberately: <c>snapshot_description</c> lives inside the
-    /// applicant's own aggregate and is disclosed in the reply template and the DPIA (STOPP-3), not
-    /// as a per-surface count of ads.
+    /// The applicant's frozen ad snapshot IS one of these counts (<c>ApplicationSnapshots</c> —
+    /// <c>snapshot_company/_title/_description/_url</c>, searched and retained under Art. 17(3)(e)).
+    /// An earlier remark here claimed the opposite; the registry's own channel list is the truth.
     /// </remarks>
     public static IReadOnlySet<string> ReportedSurfaces { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -136,6 +149,138 @@ public static class ErasureCascadeRegistry
         "ResumeMetadata",
         "ApplicationsReferencingMatchedAds",
     };
+
+    /// <summary>
+    /// <b>The registry DRIVES the port (round 5, both reviewers).</b> One channel per reported
+    /// surface: the surface's ONE name, the columns its port method's SQL claims to search, and
+    /// the port method that runs the search. Adding a searched column is now ONE edit here —
+    /// <c>ErasureCascadeRegistryTests</c> breaks the build until the column belongs to a channel,
+    /// the channel names a real port method, and the channel set equals
+    /// <see cref="ReportedSurfaces"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>What this pin CANNOT reach, said out loud:</b> no reflection can prove that a port
+    /// method's SQL body actually touches the columns its channel claims. The claim is pinned
+    /// here; the QUERY is pinned by <c>RecruiterErasureIngestTests</c>, which seeds one row per
+    /// channel column whose identifier lives in THAT COLUMN ALONE and requires a non-zero match.
+    /// Five rounds of this issue were the gap between those two pins.
+    /// <para>
+    /// <c>ApplicationsReferencingMatchedAds</c> has an empty column list deliberately: it is the
+    /// structural FK channel (<c>applications.job_ad_id</c>), not a text search — there is no text
+    /// column for it to claim.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<ErasureChannel> Channels { get; } =
+    [
+        new("JobAds",
+            [
+                "job_ads.title",
+                "job_ads.description",
+                "job_ads.company_name",
+                "job_ads.raw_payload",
+                "job_ads.search_vector",
+                "job_ads.organization_number",
+            ],
+            nameof(Abstractions.IRecruiterErasureMatchQuery.FindJobAdsAsync)),
+
+        new("RecentJobSearches",
+            [
+                "recent_job_searches.q",
+                "recent_job_searches.employer_list",
+            ],
+            nameof(Abstractions.IRecruiterErasureMatchQuery.FindRecentJobSearchesAsync)),
+
+        new("SavedSearches",
+            [
+                "saved_searches.criteria",
+                "saved_searches.name",
+            ],
+            nameof(Abstractions.IRecruiterErasureMatchQuery.CountSavedSearchesAsync)),
+
+        new("ApplicationSnapshots",
+            [
+                "applications.snapshot_company",
+                "applications.snapshot_title",
+                "applications.snapshot_description",
+                "applications.snapshot_url",
+            ],
+            nameof(Abstractions.IRecruiterErasureMatchQuery.CountApplicationSnapshotsAsync)),
+
+        new("ManualAdEntries",
+            [
+                "applications.manual_company",
+                "applications.manual_title",
+                "applications.manual_url",
+            ],
+            nameof(Abstractions.IRecruiterErasureMatchQuery.CountManualAdEntriesAsync)),
+
+        new("CompanyWatchCriteria",
+            [
+                "company_watch_criteria.label",
+            ],
+            nameof(Abstractions.IRecruiterErasureMatchQuery.CountCompanyWatchCriteriaAsync)),
+
+        new("ResumeMetadata",
+            [
+                "parsed_resumes.source_file_name",
+                "resume_files.file_name",
+                "resumes.name",
+                "resumes.latest_role",
+                "resumes.top_skills",
+            ],
+            nameof(Abstractions.IRecruiterErasureMatchQuery.CountResumeMetadataAsync)),
+
+        new("ApplicationsReferencingMatchedAds",
+            [],
+            nameof(Abstractions.IRecruiterErasureMatchQuery.CountApplicationsReferencingAsync)),
+    ];
+
+    /// <summary>
+    /// The <see cref="ErasureColumnDisposition.Erased"/> columns that have NO search channel of
+    /// their own, each with the written derivation that makes that safe — keyed
+    /// <c>table.column</c>. <c>ErasureCascadeRegistryTests</c> requires every Erased column to be
+    /// EITHER in a channel's column list OR here: there is no third state, so the next column that
+    /// enters the Erased bucket cannot slip through silently (round-5 security m2 — the Minor that
+    /// predicted round 5's Blocker one round in advance).
+    /// </summary>
+    /// <remarks>
+    /// An <c>Erased</c> column dies with its carrier when the MATCH finds the carrier — so a
+    /// column here is safe only if a row whose SOLE occurrence of her identifier is this column
+    /// cannot exist, and the ground must say WHY against the write path. "It is erased anyway" is
+    /// not a ground; that was round 5's Blocker.
+    /// </remarks>
+    public static IReadOnlyDictionary<string, string> ErasedWithoutSearchChannel { get; } =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["job_ads.url"] =
+                "DERIVATION: erased with the record; matched via the ad's searched channels. The "
+                + "write path is JobAd.Import/UpdateFromSource taking webpage_url from the ingest "
+                + "funnel, and the Platsbanken form is id-shaped "
+                + "(arbetsformedlingen.se/platsbanken/annonser/<id>) — it cannot carry a name. The "
+                + "RESIDUAL is an upstream form change that embeds free text in the URL; it is "
+                + "accepted and recorded here (ADR 0106 D9) rather than certified away: a row whose "
+                + "ONLY carrier of her name is the URL would be missed by a name request. The "
+                + "structured org.nr identifier does not reach URLs either — an org.nr in a URL is "
+                + "not a written form the identifier normaliser admits.",
+
+            ["job_ads.extracted_terms"] =
+                "DERIVATION: extracted_terms is C#-written FROM title + description "
+                + "(JobAdKeywordExtractor — Display/MatchedOn are surface forms recovered from the "
+                + "ad's own text, or taxonomy labels). A lexeme cannot carry text absent from its "
+                + "source, and both sources are searched channels. Erased explicitly by Erase() "
+                + "(ExtractedTerms.Empty) because it does NOT self-heal on a description write.",
+
+            ["job_ads.extracted_lexemes"] =
+                "DERIVATION: the STORED shadow of extracted_terms — same source text, same "
+                + "argument, one storage form over. Follows extracted_terms to [] on Erase().",
+
+            ["recent_job_searches.filter_hash"] =
+                "DERIVATION: filter_hash is derived from the criteria (q + employer_list + the "
+                + "closed-domain concept-id lists) by RecentJobSearch.Capture and 'får aldrig "
+                + "divergera' from them. Both free-text carriers in the derivation (q, "
+                + "employer_list) are searched channels; a hash is one-way and cannot be searched "
+                + "for an identifier. The row is hard-deleted when either carrier matches.",
+        };
 
     /// <summary>
     /// Every persisted COLUMN that can hold recruiter free text, keyed <c>table.column</c>.
@@ -170,13 +315,22 @@ public static class ErasureCascadeRegistry
             // ── recent_job_searches: ERASED (hard-delete of the row) ─────────────────────────
             ["recent_job_searches.q"] = ErasureColumnDisposition.Erased,
 
-            // employer_list holds the EMPLOYER NAMES she filtered on — and an enskild firma's
-            // employer name IS a natural person's name. Exactly the argument that put
-            // job_ads.company_name in scope. It was invisible until the sweep learned to see text[].
-            // The row is hard-deleted either way; the MATCH had to learn to find it here too, or the
-            // column would have been certified Erased while a row naming her survived because her
-            // name was in the employer filter and not in the free-text `q`.
+            // employer_list holds 10-DIGIT ORG.NR — the write path is ValidateEmployerList →
+            // OrganizationNumber.Create (^\d{10}\z); an employer NAME cannot be written here.
+            // (Round 5 classified it on the column's NAME — "employer sounds like names" — the
+            // fifth ground in this issue written against something other than the mapping.)
+            // A sole trader's org.nr IS her personnummer — the identical datum this registry
+            // tombstones in job_ads.organization_number — so her right reaches it (Art. 4(1),
+            // 6(1)(f) → 21(1)), and the CTO ruling (2026-07-14-842-pr2-employer-list-cto.md)
+            // makes org.nr a first-class Art. 17 identifier form: normalised in Domain
+            // (OrganizationNumber.TryFromWrittenForm) and matched EXACTLY against this column.
+            // The row is hard-deleted when matched — by the SQL-returned ids, never a filtered
+            // projection (round 5's second defect: `.Where(r => r.Q is not null)` threw away the
+            // employer-only match, the canonical q = NULL form, after the SQL had found it).
             ["recent_job_searches.employer_list"] = ErasureColumnDisposition.Erased,
+
+            // Derived from the criteria; hard-deleted with the row (see ErasedWithoutSearchChannel).
+            ["recent_job_searches.filter_hash"] = ErasureColumnDisposition.Erased,
 
             // The other five list columns are Arbetsförmedlingen taxonomy concept ids.
             ["recent_job_searches.occupation_group_list"] = ErasureColumnDisposition.NotRecruiterData,
@@ -193,7 +347,6 @@ public static class ErasureCascadeRegistry
             // ── saved_searches: MATCHED, a HUMAN erases ─────────────────────────────────────
             ["saved_searches.criteria"] = ErasureColumnDisposition.MatchedHumanErases,
             ["saved_searches.name"] = ErasureColumnDisposition.MatchedHumanErases,
-            ["recent_job_searches.filter_hash"] = ErasureColumnDisposition.Erased,
 
             // ── user-authored, PLAINTEXT: searched, a HUMAN erases ───────────────────────────
             // What a user typed for an application she tracks outside Platsbanken. manual_url is a
@@ -225,6 +378,15 @@ public static class ErasureCascadeRegistry
             ["applications.snapshot_url"] = ErasureColumnDisposition.MatchedRetained,
             ["applications.snapshot_source"] = ErasureColumnDisposition.NotRecruiterData,
             ["applications.snapshot_municipality_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["applications.status"] = ErasureColumnDisposition.NotRecruiterData,
+
+            // ── application_status_changes: the status timeline (append-only enum pairs) ────
+            ["application_status_changes.from_status"] = ErasureColumnDisposition.NotRecruiterData,
+            ["application_status_changes.to_status"] = ErasureColumnDisposition.NotRecruiterData,
+
+            // ── follow_ups: the enum plumbing around the encrypted note ──────────────────────
+            ["follow_ups.channel"] = ErasureColumnDisposition.NotRecruiterData,
+            ["follow_ups.outcome"] = ErasureColumnDisposition.NotRecruiterData,
 
             // ── audit_log: the accountability record ────────────────────────────────────────
             ["audit_log.payload"] = ErasureColumnDisposition.Pseudonymised,
@@ -239,6 +401,7 @@ public static class ErasureCascadeRegistry
             ["company_register.sate_kommun_code"] = ErasureColumnDisposition.NotRecruiterData,
             ["company_register.sate_kommun_name"] = ErasureColumnDisposition.NotRecruiterData,
             ["company_register.scb_status_raw"] = ErasureColumnDisposition.NotRecruiterData,
+            ["company_register.status"] = ErasureColumnDisposition.NotRecruiterData,
 
             // ── resume_versions: one retired plaintext column, one Form-B ciphertext column ──
             // content: the write path is GONE (Form-B cutover, ADR 0049 Beslut 5 steg 3) and the
@@ -279,7 +442,28 @@ public static class ErasureCascadeRegistry
             ["resume_files.content_type"] = ErasureColumnDisposition.NotRecruiterData,
             ["resumes.language"] = ErasureColumnDisposition.NotRecruiterData,
 
+            // ── parsed_resumes: the converter-mapped jsonb metadata the FORM sweep exposed ──
+            // Each write path is re-derived in the written ground. The scan outcome NEVER stores
+            // the personnummer itself; the proposals carry TAXONOMY labels, never the CV's words;
+            // the confidence evidence is fixed literals or heading-lexicon keys.
+            ["parsed_resumes.status"] = ErasureColumnDisposition.NotRecruiterData,
+            ["parsed_resumes.parse_confidence"] = ErasureColumnDisposition.NotRecruiterData,
+            ["parsed_resumes.personnummer_scan"] = ErasureColumnDisposition.NotRecruiterData,
+            ["parsed_resumes.layout_metrics"] = ErasureColumnDisposition.NotRecruiterData,
+            ["parsed_resumes.gap_summary"] = ErasureColumnDisposition.NotRecruiterData,
+            ["parsed_resumes.occupation_proposals"] = ErasureColumnDisposition.NotRecruiterData,
+            ["parsed_resumes.skill_proposals"] = ErasureColumnDisposition.NotRecruiterData,
+
+            // ── resumes: the SmartEnum template options + origin (stored by Name) ────────────
+            ["resumes.origin"] = ErasureColumnDisposition.NotRecruiterData,
+            ["resumes.template"] = ErasureColumnDisposition.NotRecruiterData,
+            ["resumes.template_accent"] = ErasureColumnDisposition.NotRecruiterData,
+            ["resumes.template_font"] = ErasureColumnDisposition.NotRecruiterData,
+            ["resumes.template_density"] = ErasureColumnDisposition.NotRecruiterData,
+            ["resumes.template_photo_shape"] = ErasureColumnDisposition.NotRecruiterData,
+
             ["resume_versions.content"] = ErasureColumnDisposition.NotRecruiterData,
+            ["resume_versions.kind"] = ErasureColumnDisposition.NotRecruiterData,
             ["resume_versions.content_enc"] = ErasureColumnDisposition.HeldButNotSearchable,
 
             // ── ids, concept codes, hashes: CLOSED DOMAINS, no user write path ──────────────
@@ -294,11 +478,14 @@ public static class ErasureCascadeRegistry
             ["resume_finding_statuses.criterion_id"] = ErasureColumnDisposition.NotRecruiterData,
             ["resume_finding_statuses.rubric_version"] = ErasureColumnDisposition.NotRecruiterData,
             ["resume_finding_statuses.target_fingerprint"] = ErasureColumnDisposition.NotRecruiterData,
+            ["resume_finding_statuses.status"] = ErasureColumnDisposition.NotRecruiterData,
             ["taxonomy_concepts.concept_id"] = ErasureColumnDisposition.NotRecruiterData,
             ["taxonomy_concepts.label"] = ErasureColumnDisposition.NotRecruiterData,
             ["taxonomy_concepts.parent_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["taxonomy_concepts.kind"] = ErasureColumnDisposition.NotRecruiterData,
             ["taxonomy_relations.source_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
             ["taxonomy_relations.related_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["taxonomy_relations.kind"] = ErasureColumnDisposition.NotRecruiterData,
         };
 
     /// <summary>
@@ -442,9 +629,21 @@ public static class ErasureCascadeRegistry
                 + "REPORT it; a HUMAN erases it, with that user in the loop.",
 
             ["parsed_resumes:NotRecruiterData"] =
-                "Closed domain: source_content_type is the upload's MIME type, drawn from a validated "
-                + "allowlist at the ingest boundary. She cannot author into it - she can only choose "
-                + "a file whose type we accept. Checkable by reading the write path.",
+                "Closed domains, each re-derived against its write path. source_content_type is "
+                + "the upload's MIME type from a validated allowlist. status is the "
+                + "ParsedResumeStatus SmartEnum stored by name. layout_metrics is numbers plus a "
+                + "geometry-status enum (CvLayoutMetrics: page count, file size, margin). "
+                + "gap_summary is nine booleans (ParsedGapSummary). personnummer_scan is bools, a "
+                + "count and a kind enum - the scan outcome NEVER stores the personnummer itself "
+                + "(#426). occupation_proposals holds taxonomy concept-ids, taxonomy labels and an "
+                + "integer year count - MatchedOn is the LEXICON's occupation-name label "
+                + "(OccupationCodeDeriver writes entry.OccupationNameLabel), never the CV's own "
+                + "title. skill_proposals holds taxonomy concept-ids and canonical labels "
+                + "(SkillTaxonomyIndex resolution; unresolvable names DROP, they are not stored). "
+                + "parse_confidence's Evidence strings are fixed literals or heading-lexicon keys "
+                + "- TryMatchHeading only matches when the normalised line IS a lexicon entry, so "
+                + "the CV's own wording cannot enter. The CV's actual text lives in raw_text / "
+                + "parsed_content_enc (HeldButNotSearchable) and source_file_name (searched).",
 
             ["resume_files:MatchedHumanErases"] =
                 "THE SAME UPLOADED FILE, ONE TABLE OVER. file_name is the identical datum as "
@@ -472,8 +671,14 @@ public static class ErasureCascadeRegistry
                 + "IT HOLDS. Only the second is a fact about the database.",
 
             ["resumes:NotRecruiterData"] =
-                "Closed domain: `language` is a ResumeLanguage enum value written through a value "
-                + "converter. No user write path reaches the stored value as free text.",
+                "Closed domains: `language` is a ResumeLanguage enum value written through a value "
+                + "converter; `origin` is the ResumeSourceOrigin enum stored by name, set by "
+                + "construction and immutable (ADR 0096); reviewed_rubric_version is a versioned "
+                + "rubric token minted by the review engine from the knowledge bank; and template / "
+                + "template_accent / template_font / template_density / template_photo_shape are "
+                + "CvTemplateOptions SmartEnums persisted by Name through FromName converters - a "
+                + "value outside the fixed set cannot even materialise. No user write path reaches "
+                + "any stored value as free text.",
 
             ["resume_files:NotRecruiterData"] =
                 "Closed domain: content_type is the MIME type from the same validated allowlist as "
@@ -521,10 +726,16 @@ public static class ErasureCascadeRegistry
                 + "body, not weaker: a Swedish jobseeker must file an AKTIVITETSRAPPORT to "
                 + "Arbetsförmedlingen naming the employer she applied to. The company name is the "
                 + "SPINE of her own legal record; the ad body is its colour. That is why "
-                + "AdSnapshot.WithoutDescription() can drop the body and could never drop the "
-                + "company. We SEARCH it and REPORT it precisely because we do not erase it: a legal "
-                + "ground asserted over a population we never counted is a ground asserted over a "
-                + "silence, and that is how the last registry stayed wrong. STOPP-3 - Klas affirms.",
+                + "AdSnapshot.WithoutDescription() can drop the body (snapshot_description) and "
+                + "could never drop the company. snapshot_title is the title she applied under - "
+                + "same frozen record, same ground. snapshot_url is the frozen ad URL, and a URL "
+                + "path carries names routinely (linkedin.com/in/<name>) - the IDENTICAL argument "
+                + "that put applications.manual_url in scope, and a registry whose verdicts "
+                + "disagree about identical data is worth nothing; it went unsearched for exactly "
+                + "one round after that sentence was written (round-5 B5-2). We SEARCH all four and "
+                + "REPORT them precisely because we do not erase them: a legal ground asserted over "
+                + "a population we never counted is a ground asserted over a silence, and that is "
+                + "how the last registry stayed wrong. STOPP-3 - Klas affirms.",
 
             ["applications:MatchedHumanErases"] =
                 "MANUALLY ENTERED ad details - the user typed or pasted them for an application she "
@@ -545,18 +756,37 @@ public static class ErasureCascadeRegistry
                 + "person, the structural job_ad_id channel covers the letters written TO her ads, "
                 + "and the residual is disclosed with a targeted-escalation route.",
 
-            // ── NotRecruiterData: the receipts. Each names the WRITE-PATH guarantee. ─────────
+            // ── NotRecruiterData: the receipts. Each names the WRITE-PATH guarantee, and it
+            // names EVERY COLUMN in its bucket — a column its own ground never mentions has
+            // inherited a verdict, not earned one (round-5 M2; the test enforces it). ──────────
             ["applications:NotRecruiterData"] =
-                "Closed domain: snapshot_source is the JobSource enum's value and "
-                + "snapshot_municipality_concept_id is an Arbetsförmedlingen taxonomy concept id. "
-                + "Both are frozen from the AD at apply time, from a fixed set. No user write path "
-                + "reaches either, and no free text can land in them.",
+                "Closed domain: snapshot_source is the JobSource enum's value, "
+                + "snapshot_municipality_concept_id is an Arbetsförmedlingen taxonomy concept id, "
+                + "and status is the ApplicationStatus SmartEnum stored by name, minted only by "
+                + "TransitionTo from the fixed status vocabulary. The snapshots are frozen from the "
+                + "AD at apply time, from a fixed set. No user write path reaches any of them, and "
+                + "no free text can land in them.",
+
+            ["application_status_changes:NotRecruiterData"] =
+                "Closed domain: from_status and to_status are the ApplicationStatus SmartEnum "
+                + "stored by name (StatusChangeConfiguration), written only by "
+                + "Application.TransitionTo from the fixed status vocabulary. The timeline row "
+                + "carries no other text column and no user-authored value.",
+
+            ["follow_ups:NotRecruiterData"] =
+                "Closed domain: channel and outcome are SmartEnums stored by name from fixed "
+                + "vocabularies (FollowUpConfiguration value converters). The one free-text column "
+                + "on this table is `note`, which is Form-A encrypted and classified "
+                + "HeldButNotSearchable — see that ground.",
 
             ["job_ads:NotRecruiterData"] =
                 "Closed domain: external_id / external_source / source are the ingest tuple, status "
-                + "is a JobAdStatus value converter over a fixed set of four strings, and the six "
-                + "*_concept_id columns are Arbetsförmedlingen taxonomy codes. The only write path "
-                + "is the ingest funnel, which cannot author free text into any of them.",
+                + "is a JobAdStatus value converter over a fixed set of four strings, and "
+                + "ssyk_concept_id / region_concept_id / municipality_concept_id / "
+                + "occupation_group_concept_id / employment_type_concept_id / "
+                + "worktime_extent_concept_id are Arbetsförmedlingen taxonomy codes. The only "
+                + "write path is the ingest funnel, which cannot author free text into any of "
+                + "them.",
 
             ["audit_log:NotRecruiterData"] =
                 "Closed domain: event_type and aggregate_type are constants minted by the command "
@@ -566,8 +796,10 @@ public static class ErasureCascadeRegistry
 
             ["company_register:NotRecruiterData"] =
                 "Closed domain: sate_kommun_code / sate_kommun_name / scb_status_raw are SCB "
-                + "register fields drawn from a fixed code list. The write path is the SCB import; "
-                + "no user, and no free text, reaches them.",
+                + "register fields drawn from a fixed code list, sni_codes is the SCB/SNI "
+                + "industry-code array (codes only, GIN-indexed for browse), and status is the "
+                + "register-lifecycle enum stored by name (HasConversion<string>, max 20). The "
+                + "write path is the SCB import; no user, and no free text, reaches them.",
 
             ["job_ad_snapshot_misses:NotRecruiterData"] =
                 "Closed domain: external_id + source are the ingest tuple of an ad that went missing "
@@ -575,8 +807,9 @@ public static class ErasureCascadeRegistry
 
             ["resume_finding_statuses:NotRecruiterData"] =
                 "Closed domain: criterion_id and rubric_version are versioned rubric identifiers "
-                + "from the knowledge bank, and target_fingerprint is a hash. All three are minted "
-                + "by the CV engine from a fixed vocabulary - no user write path, no free text.",
+                + "from the knowledge bank, target_fingerprint is a hash, and status is the "
+                + "ReviewFindingStatus SmartEnum stored by name. All four are minted by the CV "
+                + "engine from a fixed vocabulary - no user write path, no free text.",
 
             ["resume_versions:NotRecruiterData"] =
                 "RETIRED WRITE PATH, POPULATION COUNTED AT ZERO. The legacy plaintext `content` jsonb "
@@ -586,14 +819,16 @@ public static class ErasureCascadeRegistry
                 + "migration nulled the column. The mapping is retained only as an inert read-only "
                 + "shadow so the EF snapshot matches the physical schema; the column is dropped in a "
                 + "later verified follow-up. This earns NotRecruiterData under shape (2): the write "
-                + "path is gone AND somebody counted.",
+                + "path is gone AND somebody counted. `kind` is closed-domain under shape (1): the "
+                + "ResumeVersionKind SmartEnum stored by name - the version-lineage vocabulary, no "
+                + "user write path.",
 
             ["recent_job_searches:NotRecruiterData"] =
-                "Closed domain: the five remaining list columns hold Arbetsförmedlingen taxonomy "
-                + "CONCEPT IDS (occupation group, municipality, region, employment type, worktime "
-                + "extent), captured from the search filter's code values, never from free text. The "
-                + "two columns that CAN hold her name - `q` and `employer_list` - are Erased with the "
-                + "row.",
+                "Closed domain: occupation_group_list / municipality_list / region_list / "
+                + "employment_type_list / worktime_extent_list hold Arbetsförmedlingen taxonomy "
+                + "CONCEPT IDS, captured from the search filter's code values, never from free "
+                + "text. The two columns that CAN hold her identifier - `q` and `employer_list` - "
+                + "are Erased with the row and searched by the RecentJobSearches channel.",
 
             ["company_watch_criteria:NotRecruiterData"] =
                 "Closed domain: sni_codes and kommun_codes are SCB/SNI industry codes and kommun "
@@ -601,12 +836,14 @@ public static class ErasureCascadeRegistry
                 + "on this table is `label`, which is searched.",
 
             ["taxonomy_concepts:NotRecruiterData"] =
-                "Closed domain: concept ids and labels replicated from Arbetsförmedlingen's taxonomy. "
-                + "The write path is the taxonomy sync - no user, and no free text, can reach these "
-                + "columns.",
+                "Closed domain: concept_id / parent_concept_id are taxonomy identifiers, label is "
+                + "the taxonomy's own display label, and kind is the concept-type enum stored by "
+                + "name - all replicated from Arbetsförmedlingen's taxonomy. The write path is the "
+                + "taxonomy sync - no user, and no free text, can reach these columns.",
 
             ["taxonomy_relations:NotRecruiterData"] =
-                "Closed domain: source/related concept ids from the same taxonomy sync as "
-                + "taxonomy_concepts. Ids only.",
+                "Closed domain: source_concept_id / related_concept_id are taxonomy identifiers "
+                + "and kind is the relation-type enum stored by name, from the same taxonomy sync "
+                + "as taxonomy_concepts. Ids and enum names only.",
         };
 }

@@ -25,7 +25,7 @@ public interface IRecruiterErasureMatchQuery
     /// a count cannot be reviewed.
     /// </summary>
     /// <remarks>
-    /// <b>THREE channels, and each exists because the other two miss something.</b>
+    /// <b>FOUR channels, and each exists because the others miss something.</b>
     /// <list type="number">
     /// <item><b>FTS</b> — <c>search_vector @@ websearch_to_tsquery(…)</c>. Her name is a lexeme, so
     /// this reaches forms the substring channel cannot (<i>"Fagerberg, Magnus"</i> vs the query
@@ -40,6 +40,13 @@ public interface IRecruiterErasureMatchQuery
     /// only). <c>PurgeStaleRawPayloadsJob</c> NULLs <c>raw_payload</c> after 30 days, so without
     /// this channel every ad older than a month would report no match while her name sat in
     /// plaintext in a column we scan.</item>
+    /// <item><b>Exact match on <c>organization_number</c></b> — when the identifier IS an org.nr
+    /// (normalised in Domain: <c>OrganizationNumber.TryFromWrittenForm</c>), it is matched exactly
+    /// against the materialised column (#841). Forced by the SAME 30-day logic as channel 3: after
+    /// the <c>raw_payload</c> purge, this column is the ONLY place a sole trader's org.nr — which
+    /// IS her personnummer — survives in the row. Without it, an org.nr request would be answered
+    /// <i>"no ads"</i> about every ad older than a month while we held her personnummer in a column
+    /// we never looked at (#842 CTO ruling 2026-07-14).</item>
     /// </list>
     /// <para>
     /// The union <b>over-matches, deliberately</b>. A false positive costs the operator a second
@@ -52,8 +59,9 @@ public interface IRecruiterErasureMatchQuery
 
     /// <summary>
     /// Recent-search rows whose <c>q</c> contains <paramref name="identifier"/> <b>as a whole
-    /// word</b>. Returns the rows (id + the term), because they are HARD-DELETED and the operator
-    /// must see what will go.
+    /// word</b>, OR whose <c>employer_list</c> contains it as an <b>exact normalised org.nr</b>.
+    /// Returns the rows with their match evidence (the term, or the matched org.nr), because they
+    /// are HARD-DELETED and the operator must see what will go.
     /// </summary>
     /// <remarks>
     /// <b>The looseness of a match must be inversely proportional to the strength of its review
@@ -62,7 +70,12 @@ public interface IRecruiterErasureMatchQuery
     /// (they are an auto-captured cache, cap 20 per seeker, self-rebuilding on the next search), so
     /// the same looseness would be an unreviewed deletion of another user's row: erasing
     /// <c>anna</c> would take <c>marianna</c>, <c>johanna</c> and <c>susanna</c> with it. Hence the
-    /// word boundary here and the naked substring there.
+    /// word boundary on <c>q</c> — and EXACT equality on <c>employer_list</c>, whose write path
+    /// admits only 10-digit org.nr (<c>ValidateEmployerList</c> → <c>OrganizationNumber.Create</c>):
+    /// a structured key gets structured matching, never a regex over prose (round 5's vacuous arm).
+    /// An employer-only search has <c>q = NULL</c> — the domain's canonical form — and its row is
+    /// returned and deleted like any other; round 5 threw exactly that row away after the SQL had
+    /// found it.
     /// </remarks>
     Task<IReadOnlyList<ErasureRecentSearchMatch>> FindRecentJobSearchesAsync(
         string identifier, CancellationToken cancellationToken);
@@ -78,7 +91,7 @@ public interface IRecruiterErasureMatchQuery
 
     /// <summary>
     /// How many applicants' frozen ad snapshots (<c>snapshot_company</c> / <c>snapshot_title</c> /
-    /// <c>snapshot_description</c>) hold <paramref name="identifier"/>.
+    /// <c>snapshot_description</c> / <c>snapshot_url</c>) hold <paramref name="identifier"/>.
     /// <b>Counted and REPORTED, never erased</b> (Art. 17(3)(e) — STOPP-3).
     /// </summary>
     /// <remarks>
@@ -86,6 +99,9 @@ public interface IRecruiterErasureMatchQuery
     /// over a population we counted (see <c>ErasureCascadeRegistry.WrittenGrounds</c>).
     /// <c>snapshot_company</c> is non-nullable, so it is populated on EVERY application, unlike
     /// <c>snapshot_description</c>; scanning the description alone would miss the whole surface.
+    /// <c>snapshot_url</c> is in the set because a URL path carries names routinely — the identical
+    /// argument as <c>manual_url</c>; it was classified as searched and NOT searched for one round
+    /// (round-5 B5-2), which is why the channel list in the registry now drives this method.
     /// </remarks>
     Task<int> CountApplicationSnapshotsAsync(
         string identifier, CancellationToken cancellationToken);
@@ -124,16 +140,24 @@ public interface IRecruiterErasureMatchQuery
         string identifier, CancellationToken cancellationToken);
 
     /// <summary>
-    /// How many uploaded CV files carry <paramref name="identifier"/> in their FILE NAME
+    /// How many CVs carry <paramref name="identifier"/> in their PLAINTEXT metadata — <b>five
+    /// columns across three tables</b>: the two file names
     /// (<c>parsed_resumes.source_file_name</c> + <c>resume_files.file_name</c> — the same uploaded
-    /// file, two tables). <b>Counted and REPORTED; a human erases it.</b>
+    /// file, two tables), the CV's own <c>resumes.name</c> (typed via <c>Rename()</c>), and the
+    /// denormalised projections <c>resumes.latest_role</c> + <c>resumes.top_skills</c>.
+    /// <b>Counted and REPORTED; a human erases it.</b>
     /// </summary>
     /// <remarks>
     /// A filename is plaintext free text the user typed, and the repo already MASKS personnummer out
     /// of it (#465) — a guard bolted on precisely because users put arbitrary text into filenames.
     /// The column was classified <i>"structurally cannot hold a recruiter's personal data"</i> while
-    /// a control in the same aggregate said otherwise. Both tables are searched, because a registry
-    /// whose verdicts disagree about identical data is worth nothing.
+    /// a control in the same aggregate said otherwise. Both file-name tables are searched, because a
+    /// registry whose verdicts disagree about identical data is worth nothing — and the three
+    /// <c>resumes</c> columns are searched on the same ground that already searches
+    /// <c>saved_searches.name</c> (the identical datum, one aggregate over). The CV BODY is not
+    /// here: it is DEK-encrypted (<c>HeldButNotSearchable</c>) and disclosed, never quietly
+    /// reported as clean. This doc is what the runbook's disclosure is written from — under-describe
+    /// the channel and the reply under-describes what we searched (round-5 Minor 11 → B5-3.4).
     /// </remarks>
     Task<int> CountResumeMetadataAsync(
         string identifier, CancellationToken cancellationToken);

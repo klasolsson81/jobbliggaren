@@ -52,7 +52,7 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
         var snapshotCount = await matchQuery.CountApplicationSnapshotsAsync(identifier, cancellationToken);
         var manualCount = await matchQuery.CountManualAdEntriesAsync(identifier, cancellationToken);
         var watchCriteriaCount = await matchQuery.CountCompanyWatchCriteriaAsync(identifier, cancellationToken);
-        var resumeFileNameCount = await matchQuery.CountResumeMetadataAsync(identifier, cancellationToken);
+        var resumeMetadataCount = await matchQuery.CountResumeMetadataAsync(identifier, cancellationToken);
 
         var matchedAdIds = jobAdMatches.Select(m => m.JobAdId).ToList();
         var referencingCount = await matchQuery.CountApplicationsReferencingAsync(
@@ -65,16 +65,21 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
             ApplicationSnapshots: snapshotCount,
             ManualAdEntries: manualCount,
             CompanyWatchCriteria: watchCriteriaCount,
-            ResumeMetadata: resumeFileNameCount,
+            ResumeMetadata: resumeMetadataCount,
             ApplicationsReferencingMatchedAds: referencingCount);
 
-        // The distinct terms, no user ids. These rows are hard-deleted with no per-id confirmation
-        // ceremony, so the operator must at least SEE what will go — a count cannot be reviewed.
+        // The distinct match evidence, no user ids. These rows are hard-deleted with no per-id
+        // confirmation ceremony, so the operator must at least SEE what will go — a count cannot
+        // be reviewed. A q-matched row shows the term; an employer-only row (q = NULL) shows the
+        // matched org.nr, flagged when personnummer-shaped (ADR 0087 D8(c) — never surfaced
+        // un-flagged, even to the operator, even when the subject herself supplied it).
         var recentTerms = recentMatches
-            .Select(m => m.Q)
+            .Select(m => m.Q ?? EmployerFilterEvidence(m.MatchedEmployerOrgNr!))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        var couldNotSearch = UnsearchableSurfaces.FromRegistry();
 
         // ---- Dry run: report what would go, write nothing -----------------------------------
         if (command.DryRun)
@@ -91,7 +96,7 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
                 Matches: jobAdMatches,
                 MatchedRecentSearchTerms: recentTerms,
                 ErasedExternalIds: [],
-                CouldNotSearch: UnsearchableSurfaces.FromRegistry()));
+                CouldNotSearch: couldNotSearch));
         }
 
         // ---- Confirmation gate — MUST STAY BEFORE the nothing-held branch ----------------------
@@ -128,7 +133,7 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
                 Matches: [],
                 MatchedRecentSearchTerms: [],
                 ErasedExternalIds: [],
-                CouldNotSearch: UnsearchableSurfaces.FromRegistry()));
+                CouldNotSearch: couldNotSearch));
         }
 
         // ---- Erase ---------------------------------------------------------------------------
@@ -216,8 +221,19 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
             Matches: [],
             MatchedRecentSearchTerms: recentTerms,
             ErasedExternalIds: erasedExternalIds,
-            CouldNotSearch: UnsearchableSurfaces.FromRegistry()));
+            CouldNotSearch: couldNotSearch));
     }
+
+    /// <summary>
+    /// The operator-facing evidence line for an employer-only recent-search match: the org.nr
+    /// that matched, flagged when personnummer-shaped (ADR 0087 D8(c) — a personnummer is never
+    /// surfaced un-flagged, even when the subject herself supplied it as her identifier). This
+    /// string goes to the REVIEW payload only; no log line carries it.
+    /// </summary>
+    private static string EmployerFilterEvidence(string orgNr) =>
+        Domain.CompanyWatches.OrganizationNumber.FromTrusted(orgNr).IsPersonnummerShaped()
+            ? $"arbetsgivarfilter: {orgNr} (personnummer-format)"
+            : $"arbetsgivarfilter: {orgNr}";
 
     // Every log line carries the RequestId and counts — NEVER the identifier. An Art. 17 request is
     // itself about a person, and the one thing we must not do while erasing her address is copy it

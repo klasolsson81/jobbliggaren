@@ -725,6 +725,12 @@ public class PreambleResidueTests
         preamble.ShouldNotBeNull();
         preamble.Length.ShouldBeLessThanOrEqualTo(PreambleResidue.MaxPreambleChars);
         preamble.Split('\n').ShouldAllBe(carried => carried == line);
+
+        // AND the cap must be FILLED, not merely respected. Without a lower bound, "keep only the FIRST
+        // line" — which throws away 96% of the carried text — satisfies every assertion above: each
+        // carried line == line, one line, comfortably under the cap, not null. A truncation test in a PR
+        // whose entire subject is silent content loss must be able to detect TOTAL content loss.
+        preamble.Length.ShouldBeGreaterThan(PreambleResidue.MaxPreambleChars - line.Length - 1);
     }
 
     [Fact]
@@ -734,12 +740,18 @@ public class PreambleResidueTests
         // lines.Take(lines.Length)), which would duplicate the entire CV into the encrypted JSON
         // shadow. Truncation here is a REAL content loss — RawText is not exposed in the DTO — so the
         // bound exists to refuse to allocate for a pathological document, not because it is lossless.
-        var giant = string.Join('\n', Enumerable.Repeat("Lorem ipsum dolor sit amet consectetur.", 200));
+        const string line = "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod.";
+        var giant = string.Join('\n', Enumerable.Repeat(line, 200));
 
         var preamble = _sut.Segment(giant).Content.Preamble;
 
         preamble.ShouldNotBeNull();
+        preamble.ShouldStartWith(line);
         preamble.Length.ShouldBeLessThanOrEqualTo(PreambleResidue.MaxPreambleChars);
+
+        // The cap must be FILLED, not merely respected — see the sibling test. "Not null and under the
+        // cap" is satisfied by the empty string and by a single surviving line.
+        preamble.Length.ShouldBeGreaterThan(PreambleResidue.MaxPreambleChars - line.Length - 1);
     }
 
     // ── Back-compat: the artifact is an encrypted JSON shadow (ADR 0095 D-D) ───────

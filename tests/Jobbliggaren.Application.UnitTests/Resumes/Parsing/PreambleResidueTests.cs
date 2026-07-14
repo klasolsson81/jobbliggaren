@@ -462,6 +462,36 @@ public class PreambleResidueTests
         content.Preamble.ShouldContain(stampedReference);
     }
 
+    [Fact]
+    public void Segment_JobTitleAboveTheName_CarriesNeither_AndA8sFailStaysEarned()
+    {
+        // THE case that killed the name-guess design, and the reason the drop is positional.
+        //
+        // A very common layout puts the job title ABOVE the name. DetectName — which is not a
+        // recogniser but the heuristic "first substantial line under 60 chars" — picks the TITLE. The
+        // first design then deleted the title and CARRIED THE NAME: the carrier ends up holding the one
+        // thing it must never hold, and the guide would offer the user her own name back as a candidate
+        // summary.
+        //
+        // Position does what identity cannot: BOTH lines precede the e-mail, so both are inside the
+        // contact block, both are dropped, and the carrier is empty — which is TRUE, because this CV
+        // has no summary. A8's Fail is therefore earned, not guessed.
+        const string cv =
+            """
+            Systemutvecklare
+            Anna Andersson
+            anna.andersson@example.com
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        var content = _sut.Segment(cv).Content;
+
+        content.Preamble.ShouldBeNull();
+    }
+
     // ── The accepted residual, made visible ────────────────────────────────────────
 
     [Fact]

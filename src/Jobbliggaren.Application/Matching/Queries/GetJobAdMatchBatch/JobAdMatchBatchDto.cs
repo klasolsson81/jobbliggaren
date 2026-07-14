@@ -23,8 +23,10 @@ public sealed record JobAdMatchBatchDto(IReadOnlyDictionary<Guid, JobAdMatchEntr
 /// <summary>
 /// One ad's match overlay. Present in <see cref="JobAdMatchBatchDto.Entries"/> ONLY when
 /// the ad earned a positive tag (occupation/SSYK Match — the gate). An ad that does not
-/// qualify, or does not exist, is simply absent (the FE renders no chip). An ARCHIVED ad,
-/// however, IS still tagged — <c>MatchScorer</c> has no status gate (known gap #864).
+/// qualify, does not exist, or is ARCHIVED is simply absent (the FE renders no chip): the batch
+/// scorer gates on <c>Status == Active</c>, so a non-Active ad is "missing" exactly like a
+/// non-existent one (#864). The DETAIL modal is the deliberate exception — it runs the SINGLE
+/// scorer method and still explains why an archived ad was a fit (#805-3).
 /// </summary>
 /// <param name="Grade">The named match grade (the card's <c>.jp-matchchip</c> tag) —
 /// a bounded category, never a number. F4-16 paints the golden rung: a Strong Fast match

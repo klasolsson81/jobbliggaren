@@ -74,15 +74,19 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // no raw_payload). EF.Property reads the shadows (Npgsql-bound — stays in
         // Infrastructure, ADR 0062). AsNoTracking: read-only.
         //
-        // KNOWN GAP (#864) — THERE IS NO STATUS GATE HERE. This comment used to claim the
-        // global soft-delete filter (DeletedAt == null) excluded retracted ads. It never did:
-        // JobAd.DeletedAt had no writer, so the filter was vacuous, and #821 retired it. The
-        // consequence is real and lives today: an ARCHIVED ad resolves and is scored. The
-        // sibling paths DO gate (PerUserJobAdSearchQuery:307/:368) — this one does not.
-        // Adding `.Where(j => j.Status == Active)` here is NOT the fix: ScoreAsync throws
-        // NotFoundException below, so a gate here would make GetJobAdMatchDetail 404 archived
-        // ads, straight against #805-3. Whose job the gate is (scorer / handler / endpoint) is
-        // the open design question — see #864. Pinned by characterization tests.
+        // NO STATUS GATE HERE, DELIBERATELY (#864 S-split, CTO D2/D3). The SINGLE methods serve
+        // any status the product still RENDERS — today {Active, Archived}. The ad IS the request,
+        // not one row of a list: GET /api/v1/jobads/{id} serves an archived ad 200 (#805-3), so a
+        // scorer on that page must too, or two endpoints would disagree about whether one row
+        // exists. A gate here throws NotFoundException below; the grade is TRUE either way, because
+        // archiving changes none of the four inputs read. The BATCH methods DO gate (see
+        // ScoreBatchAsync) — the asymmetry is the contract, not an oversight.
+        //
+        // PINNED BY: ScoreAsync_ScoresAnArchivedAd_TheSingleFamilyDoesNotGate (this method has ZERO
+        // production callers — the detail endpoint runs ScoreFullAsync — so no endpoint test can
+        // detect a gate added here; it needs a scorer-level spec of its own, and now has one).
+        // NOT COVERED (parity ScoreFullAsync): an `Erased` ad (#842/#878) must stop being served
+        // here once /jobads/{id} answers 410 Gone. That status does not exist on this base.
         var ad = await db.JobAds
             .AsNoTracking()
             .Where(j => j.Id == jobAdId)
@@ -139,13 +143,20 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // (stays in Infrastructure, ADR 0062). The Testcontainers integration test is the
         // oracle (InMemory hides the translation — same memory).
         //
-        // KNOWN GAP (#864) — NO STATUS GATE, same as ScoreAsync. The old comment here claimed
-        // "soft-deleted ads are absent ⇒ no tag"; that filter was vacuous and is retired (#821).
-        // An ARCHIVED ad is loaded and tagged. This is the batch feeding the client-supplied-id
-        // endpoint, so it is where the gap is actually exposed. Pinned by a characterization test.
+        // THE STATUS GATE (#864 S-split, CTO D2/D4). "Missing" on the BATCH family means: the row
+        // does not exist OR it is not Active. A batch is a DECORATION OF A LIST — a list the
+        // product has already decided it may present — so an ad the product may no longer present
+        // must not carry a grade in it. That is the same rule the C# scorer's SQL twin has always
+        // held (JobAdSearchComposition.ApplyFilter, PerUserJobAdSearchQuery:308/:370), and
+        // MatchCountOracleTests binds the two engines to agree; before this gate they did not.
+        // ALLOW-LIST (`== Active`), never `!= Archived` (CTO D4): a deny-list silently admits every
+        // status added later — e.g. the `Erased` tombstone (#842/#878), whose `[raderad]` company
+        // name would then be EMAILED. It is also the form every sibling read path already writes.
+        // The SINGLE methods deliberately do NOT gate (see ScoreAsync) — batch omits, single throws.
         var rows = await db.JobAds
             .FromSql($"SELECT * FROM job_ads WHERE id = ANY({ids})")
             .AsNoTracking()
+            .Where(j => j.Status == JobAdStatus.Active)
             .Select(j => new AdBatchShadowRow(
                 j.Id,
                 j.Title,
@@ -199,6 +210,13 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // must_have is the binding requirement signal but it is just its own dimension's
     // verdict — there is no opaque total it could gate (Goodhart guard, CTO D0).
     // NotFoundException if the ad does not exist (parity ScoreAsync).
+    // NO STATUS GATE, DELIBERATELY (#864 S-split, CTO D2/D3) — this is the engine behind the
+    // match-detail page (GET /api/v1/me/job-ad-match-tags/{id}), which must still explain WHY an
+    // archived ad was a fit (#805-3). Parity ScoreAsync; the BATCH family gates. NOT covered: an
+    // `Erased` ad (#842/#878) — once /jobads/{id} answers 410 Gone, this path must stop serving it
+    // too, or it confirms the row's existence after the page said Gone. JobAdStatus.Erased does not
+    // exist on this base (it would not compile), so it is filed against the #842/#878 lane, not
+    // built here — and #864 does not claim to cover it.
     // #300 PR-4 (ADR 0084 §F4): returns a FullScoredMatch — the score PLUS SsykIsRelated (the ad
     // matched only via a RELATED occupation group). Lit by the live ?includeRelated toggle (off
     // by default, #300); with it off the related set is empty, so SsykIsRelated is false.
@@ -290,15 +308,23 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // contains). The extracted_terms VO materializes via its jsonb ValueConverter
         // exactly as in ScoreFullAsync's .Select. Testcontainers is the oracle.
         //
-        // KNOWN GAP (#864) — NO STATUS GATE HERE EITHER, and this is the third of three. The old comment
-        // claimed the global soft-delete filter composed so that "soft-deleted ads are absent ⇒ no
-        // entry"; that filter never had a writer and is retired (#821). An ARCHIVED ad is fully scored.
-        // BackgroundMatchingJob calls this path but gates Status == Active itself (:145), which MASKS the
-        // gap there — no UserJobAdMatch row is ever persisted for an archived ad. The exposure is the
-        // read-only client-supplied-id surface. Pinned by a characterization test.
+        // THE STATUS GATE (#864 S-split, CTO D2/D4) — parity ScoreBatchAsync, and this is the batch
+        // the client-supplied-id endpoint (POST /me/job-ad-match-tags) feeds, i.e. where the gap was
+        // actually reachable. "Missing" = the row does not exist OR it is not Active; allow-list, not
+        // `!= Archived` (D4).
+        //
+        // BackgroundMatchingJob:145 gates Status == Active on its own candidate query, and that gate
+        // MASKED the gap there (no UserJobAdMatch row was ever persisted for an archived ad). It is
+        // now FULLY SUBSUMED by this one — every id the job scores comes from that gated query, so
+        // deleting :145 changes no persisted outcome: this gate omits the archived rows anyway. Its
+        // mutation SURVIVES, and that is recorded rather than papered over. Keep it regardless: it is
+        // the job's own definition of its candidate set, and it stops archived rows being LOADED and
+        // projected in the first place (ADR 0045). This is NOT the 5th-surface R2 posture — there the
+        // source gate reached arms the port could not see; here it does not.
         var rows = await db.JobAds
             .FromSql($"SELECT * FROM job_ads WHERE id = ANY({ids})")
             .AsNoTracking()
+            .Where(j => j.Status == JobAdStatus.Active)
             .Select(j => new AdFullBatchRow(
                 j.Id,
                 j.Title,

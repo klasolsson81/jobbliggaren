@@ -9,6 +9,7 @@ using Jobbliggaren.Infrastructure.Matching;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.TextAnalysis;
 using Jobbliggaren.TestSupport;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -1381,6 +1382,82 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
             "(ADR 0084 §5).");
         score.SsykOverlap.Matched.ShouldBe([adGroup]);
         score.SsykOverlap.Missing.ShouldBeEmpty();
+    }
+
+    // =================================================================
+    // #864 (CTO D2, the SINGLE half of the S-split) — ScoreAsync does NOT gate on status.
+    //
+    // WHY THIS SPEC EXISTS AT THE SCORER LEVEL, and it is not ceremony. ScoreAsync has ZERO
+    // production callers (the match-detail page runs ScoreFullAsync). So NO endpoint test can
+    // detect a Status gate added here: someone "completing" #864 by adding the batch predicate to
+    // all four methods would find the whole suite green, and the port's contract sentence would
+    // have become a lie with nothing to catch it. The deliberate NON-gate is a contract, and a
+    // contract nobody can violate noisily is not a contract. This is that detector.
+    //
+    // (Its Full twin — the one an endpoint DOES reach — is pinned twice: here at the scorer level
+    // in FullMatchScorerIntegrationTests, and on the wire in JobAdMatchDetailEndpointTests.)
+    // =================================================================
+    [Fact]
+    public async Task ScoreAsync_ScoresAnArchivedAd_TheSingleFamilyDoesNotGate()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var grp = NewConceptId("grp");
+        var reg = NewConceptId("reg");
+
+        // Identical facets; the ONLY difference is the lifecycle status.
+        var live = await SeedJobAdAsync("Systemutvecklare", grp, reg, null, ct);
+        var archived = await SeedJobAdAsync("Systemutvecklare", grp, reg, null, ct);
+        await ArchiveAsync(archived, ct);
+
+        var profile = new CandidateMatchProfile("Systemutvecklare", [grp], [reg], [], []);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+
+        // NON-VACUITY: the live twin scores, and genuinely Matches — so an all-NotAssessed result
+        // could never make the equality below pass trivially.
+        var liveScore = await scorer.ScoreAsync(live, profile, ct);
+        liveScore.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+
+        // THE SPECIFICATION: the archived ad is scored, NOT thrown away. A gate here would throw
+        // NotFoundException — which is what makes this spec the detector for that mutation.
+        var archivedScore = await scorer.ScoreAsync(archived, profile, ct);
+
+        // And it scores IDENTICALLY: archiving changes none of the four inputs the scorer reads.
+        AssertSameDimension(liveScore.SsykOverlap, archivedScore.SsykOverlap);
+        AssertSameDimension(liveScore.TitleSimilarity, archivedScore.TitleSimilarity);
+        AssertSameDimension(liveScore.RegionFit, archivedScore.RegionFit);
+        AssertSameDimension(liveScore.EmploymentFit, archivedScore.EmploymentFit);
+    }
+
+    // The REAL retraction transition (#821: Archive() is JobAd's only lifecycle method — there is
+    // no soft-delete axis to fabricate, and #843 forbids inventing one).
+    //
+    // THE READ-BACK IS LOAD-BEARING HERE, not belt-and-suspenders. The spec above is an INCLUSION
+    // spec (it expects the archived ad to BE scored, identically to its live twin), and an inclusion
+    // spec CANNOT detect its own broken seed: a silently-failed Archive() leaves the ad Active, an
+    // Active ad scores identically to its live twin, and the test passes GREEN — having quietly
+    // degraded into "an active ad is scored", which many other tests in this file already assert.
+    // The detector would detect nothing, precisely on the path it exists to protect (a Status gate
+    // added to ScoreAsync only throws for an ad that is genuinely NOT Active). Exclusion specs
+    // fail-safe; this one does not. So the seed's premise is ASSERTED, never assumed.
+    private async Task ArchiveAsync(JobAdId id, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var ad = await db.JobAds.FindAsync([id], ct);
+        ad.ShouldNotBeNull();
+        ad!.Archive(clock).IsSuccess.ShouldBeTrue("Archive() ska lyckas — annars är specen vakuös.");
+        await db.SaveChangesAsync(ct);
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stored = await verifyDb.JobAds.AsNoTracking().FirstAsync(j => j.Id == id, ct);
+        stored.Status.ShouldBe(JobAdStatus.Archived,
+            "Annonsen MÅSTE vara arkiverad i databasen — annars degraderar specen tyst till " +
+            "\"en aktiv annons scoras\" och detekterar ingenting.");
     }
 
     private static void AssertSameDimension(MatchDimension a, MatchDimension b)

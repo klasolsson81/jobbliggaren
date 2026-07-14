@@ -31,8 +31,15 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// modal DTO's grade + per-dimension verdict + matched/missing STRINGS round-trip as
 /// camelCase JSON with enums by NAME (<c>[JsonStringEnumConverter]</c>). The unit
 /// handler/scorer/grade tests already cover the logic exhaustively (FullMatchScorer-,
-/// MatchGradeCalculator-, GetJobAdMatchDetailQueryHandler-suites); these ~4 high-value tests
+/// MatchGradeCalculator-, GetJobAdMatchDetailQueryHandler-suites); these high-value tests
 /// prove the wire + DEK + owner-scope. NO AI/LLM (ADR 0071/0076).
+/// <para>
+/// <b>Lifecycle (#864, CTO D3):</b> this suite also carries the SINGLE half of the S-split —
+/// an ARCHIVED ad answers <b>200 with a grade</b> here, while the BATCH family omits it
+/// (<see cref="MatchScorerBatchIntegrationTests"/>). That spec is the guard for #805-3: it is
+/// the detector for the INVERSE mutation (adding the batch gate to <c>ScoreFullAsync</c>),
+/// whose 404 the frontend swallows silently.
+/// </para>
 /// <para>
 /// Seeding reuses the proven fixtures: the preference→shadow-column path
 /// (<see cref="MatchTagBatchEndpointsTests"/>), the primary-CV-with-skills + DEK-warm path
@@ -137,6 +144,30 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
         return jobAd.Id.Value;
+    }
+
+    // The REAL retraction transition (#821: Archive() is JobAd's only lifecycle method — there is
+    // no soft-delete axis to fabricate, and #843 forbids inventing one). The transition's Result is
+    // asserted: a silently-failed Archive() would leave the ad Active and make the archived-ad spec
+    // below VACUOUS — it would pass by seeding the wrong thing.
+    private async Task ArchiveAsync(Guid id, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var jobAdId = new JobAdId(id);
+        var ad = await db.JobAds.FindAsync([jobAdId], ct);
+        ad.ShouldNotBeNull();
+        ad!.Archive(clock).IsSuccess.ShouldBeTrue("Archive() ska lyckas — annars är specen vakuös.");
+        await db.SaveChangesAsync(ct);
+
+        // Read back through a fresh context: the ad IS Archived in the database, not merely in a
+        // tracked in-memory graph.
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stored = await verifyDb.JobAds.AsNoTracking().FirstAsync(j => j.Id == jobAdId, ct);
+        stored.Status.ShouldBe(JobAdStatus.Archived);
     }
 
     private static string BuildRawPayload(
@@ -459,7 +490,80 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
     }
 
     // =================================================================
-    // 5. Anonymous (no auth) → 401 (.RequireAuthorization()). Low-value but cheap.
+    // 5. #864 (CTO D3) — an ARCHIVED ad still gets 200 + a GRADE on the detail path.
+    //
+    // THE LOAD-BEARING GUARD FOR #805-3, and the detector for the mutation nobody runs: the
+    // INVERSE one. #864 gates the BATCH scorer family on Status == Active. The "obvious"
+    // completion of that fix — add the same .Where to ScoreFullAsync — would make this endpoint
+    // throw NotFoundException → 404. And the FE SWALLOWS a 404 (job-ad-match.ts:85-92 is
+    // `if (!res.ok) return null;` + `catch { return null; }`): the match section would simply
+    // vanish from the modal. A regression with NO symptom. This spec is what makes that noisy.
+    //
+    // Why 200 + a grade is the TRUE answer, not a tolerated leftover (CTO D3):
+    //   - GET /api/v1/jobads/{id} serves an archived ad 200 (#805-3, deliberately). Two endpoints
+    //     must not disagree about whether one row EXISTS.
+    //   - NotFoundException means "the row is absent" everywhere else in this codebase; overloading
+    //     it with "exists but archived" corrupts a shared idiom (CLAUDE.md §3 → 404).
+    //   - The grade is TRUE: archiving changes none of the four inputs the scorer reads. On a
+    //     detail page the user navigated to deliberately — beside a pill that already reads
+    //     "Arkiverad" — the grade is an EXPLANATION ("here is why this was a fit"), not a
+    //     recommendation. Explanation is exactly what #805-3 preserved these ads for.
+    //
+    // The assertion is a TWIN COMPARISON: two ads with identical facets, one archived. Both 200,
+    // and the archived one's grade EQUALS its live twin's — which states the contract exactly
+    // ("archiving changes nothing the scorer reads") and is immune to the grade ladder being
+    // retuned later. NON-VACUITY: the live twin's grade is asserted non-null FIRST, so "the grades
+    // are equal" can never pass by both being null.
+    // =================================================================
+
+    [Fact]
+    public async Task GET_match_detail_returns_200_and_the_same_grade_for_an_archived_ad_as_its_live_twin()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var grp = NewConceptId("grp");
+        var reg = NewConceptId("reg");
+        var emp = NewConceptId("emp");
+        await SetPreferencesAsync([grp], [reg], [emp], ct);
+
+        // Identical facets → identical scoring inputs. The ONLY difference is the lifecycle status.
+        var liveAd = await SeedJobAdAsync("Systemutvecklare", grp, reg, emp, terms: null, ct);
+        var archivedAd = await SeedJobAdAsync("Systemutvecklare", grp, reg, emp, terms: null, ct);
+        await ArchiveAsync(archivedAd, ct);
+
+        // NON-VACUITY: the live twin genuinely scores a grade through this endpoint.
+        var liveResponse = await GetDetailAsync(liveAd, ct);
+        liveResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var liveDto = await liveResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+        var liveGrade = liveDto.GetProperty("grade").GetString();
+        liveGrade.ShouldNotBeNull(
+            "Den LEVANDE tvillingen ska få en riktig grad — annars är likhets-assertionen nedan vakuös.");
+
+        // THE SPECIFICATION: the archived ad is NOT 404. It is 200, with a body, with a grade.
+        var archivedResponse = await GetDetailAsync(archivedAd, ct);
+        archivedResponse.StatusCode.ShouldBe(HttpStatusCode.OK,
+            "En arkiverad annons ska ge 200 på detalj-vägen (#805-3 / CTO D3) — ScoreFullAsync " +
+            "grindar INTE på status. Ett 404 här sväljs tyst av FE:n och match-sektionen försvinner " +
+            "utan symptom.");
+
+        var archivedRaw = await archivedResponse.Content.ReadAsStringAsync(ct);
+        archivedRaw.ShouldNotBe("null", "200 ska ha en icke-null body — modalen renderar uppdelningen.");
+        var archivedDto = await archivedResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+
+        // The grade is the SAME as the live twin's: archiving changes none of the scored inputs.
+        archivedDto.GetProperty("grade").GetString().ShouldBe(liveGrade,
+            "Arkivering ändrar ingen av de dimensioner scorern läser — graden ska vara IDENTISK " +
+            "med den levande tvillingens. Graden är en FÖRKLARING här, inte en rekommendation.");
+
+        // And the per-dimension breakdown is genuinely scored, not an empty husk.
+        DimVerdict(archivedDto, "ssykOverlap").ShouldBe(Wire(MatchDimensionVerdict.Match));
+        DimVerdict(archivedDto, "regionFit").ShouldBe(Wire(MatchDimensionVerdict.Match));
+        DimVerdict(archivedDto, "employmentFit").ShouldBe(Wire(MatchDimensionVerdict.Match));
+    }
+
+    // =================================================================
+    // 6. Anonymous (no auth) → 401 (.RequireAuthorization()). Low-value but cheap.
     // =================================================================
 
     [Fact]

@@ -253,25 +253,21 @@ public class MatchTagBatchEndpointsTests(ApiFactory factory)
     }
 
     // =================================================================
-    // A soft-deleted ad id + a non-existent id are OMITTED (no throw)
-    // =================================================================
-
-    // =================================================================
-    // CHARACTERIZATION TEST (#864) - NOT a specification. It asserts what the code
-    // ACTUALLY DOES today, so the gap cannot be forgotten (Feathers 2004, ch. 13).
+    // SPECIFICATION (#864) - a non-existent id AND an archived ad are both OMITTED (no throw)
     //
-    // MatchScorer has NO Status gate; its exclusion story was delegated entirely to
-    // JobAd's global soft-delete query filter, which was VACUOUS (DeletedAt never had
-    // a writer) and is now retired (#821). An ARCHIVED ad is scored and tagged in
-    // production, today. The predecessor of this test fabricated DeletedAt via
-    // db.Entry(...) - a state production could never reach - and asserted omission:
-    // green forever, proving nothing (#843 test fiction).
+    // This was a CHARACTERIZATION test (Feathers 2004, ch. 13) asserting that an archived ad WAS
+    // tagged here, with the note: "when #864 lands, this flips to ShouldBeFalse." #864 landed
+    // (CTO D2, S-split); it has flipped. This endpoint is where the gap was EXPOSED - the id list
+    // is client-supplied, so a caller could ask for, and receive, a real match grade for an ad the
+    // product may no longer present. The port now defines "missing" as: the row does not exist OR
+    // the ad is not Active. Both are silently omitted - one stale id must never fail a page render.
     //
-    // WHEN #864 IS FIXED, THIS TEST GOES RED. That is the signal to rewrite it as a
-    // specification, not to patch it back to green.
+    // ASYMMETRIC SEED (2 live + 1 archived + 1 ghost): with a single live ad, EntriesCount reads 1
+    // under BOTH the correct gate and an INVERTED one (`== Archived`) - blind to polarity. With two,
+    // the states separate: correct → 2, gate deleted → 3, gate inverted → 1.
     // =================================================================
     [Fact]
-    public async Task POST_match_tags_omits_non_existent_ids_but_still_tags_archived_KnownGap_Issue864()
+    public async Task POST_match_tags_omits_both_non_existent_ids_and_archived_ads()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
@@ -280,25 +276,30 @@ public class MatchTagBatchEndpointsTests(ApiFactory factory)
         await SetPreferencesAsync([grp], [], [], ct);
 
         var liveAd = await SeedJobAdAsync("Systemutvecklare", grp, null, null, ct);
+        var liveAd2 = await SeedJobAdAsync("Backendutvecklare", grp, null, null, ct);
         var archivedAd = await SeedJobAdAsync("Arkitekt", grp, null, null, ct);
         await ArchiveAsync(archivedAd, ct);
         var ghost = Guid.NewGuid(); // never seeded
 
-        var dto = await PostMatchTagsAsync([liveAd, archivedAd, ghost], ct);
+        var dto = await PostMatchTagsAsync([liveAd, liveAd2, archivedAd, ghost], ct);
 
         // REAL, unchanged coverage: a non-existent id is silently absent (no 404, no faked tag).
         TryGetEntry(dto, ghost, out _).ShouldBeFalse();
 
+        // NON-VACUITY FIRST (#841): the ACTIVE ads ARE tagged, with a real grade. Without this,
+        // "the archived one is absent" would pass trivially the day the endpoint tags nothing.
         TryGetEntry(dto, liveAd, out var liveEntry).ShouldBeTrue();
         liveEntry.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Basic));
+        TryGetEntry(dto, liveAd2, out var liveEntry2).ShouldBeTrue();
+        liveEntry2.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Basic));
 
-        // THE GAP (#864), and this endpoint is where it is EXPOSED: the id list is client-supplied,
-        // so a caller can ask for - and receive - a real match grade for an archived ad. The scorer
-        // has no Status gate, so it obliges.
-        TryGetEntry(dto, archivedAd, out var archivedEntry).ShouldBeTrue(
-            "the batch endpoint takes client-supplied ids and MatchScorer has no Status gate (#864), " +
-            "so an archived ad is still tagged. When #864 lands, this flips to ShouldBeFalse.");
-        archivedEntry.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Basic));
+        // THE SPECIFICATION: the archived ad is omitted exactly like the ghost. A client cannot
+        // obtain a match grade for an ad the product may no longer present, by asking for its id.
+        TryGetEntry(dto, archivedAd, out _).ShouldBeFalse(
+            "the batch scorer gates on Status == Active (#864): an archived ad is MISSING to the " +
+            "batch family, so this endpoint omits it exactly like a non-existent id.");
+
+        // Polarity: 2, not 1 (inverted gate) and not 3 (gate deleted).
         EntriesCount(dto).ShouldBe(2);
     }
 

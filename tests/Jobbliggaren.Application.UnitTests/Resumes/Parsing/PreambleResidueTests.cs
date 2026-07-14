@@ -490,6 +490,38 @@ public class PreambleResidueTests
         var content = _sut.Segment(cv).Content;
 
         content.Preamble.ShouldBeNull();
+
+        // And say the ugly part out loud: DetectName STILL picks the title on this layout. That is a
+        // pre-existing defect in the heuristic ("first substantial line under 60 chars"), untouched by
+        // #844 — but a test named for this layout must not quietly imply the layout is handled. It is
+        // handled for the CARRIER, not for the NAME. Filed separately; no content is lost either way,
+        // and the user corrects it in the guide (ADR 0040 propose-and-approve).
+        content.Contact.FullName.ShouldBe("Systemutvecklare");
+    }
+
+    [Fact]
+    public void Segment_SurnameFirstName_IsTruncatedByTheFragmentSplit_KnownTradeOff()
+    {
+        // An HONEST regression, pinned rather than hidden. NameCandidates yields FRAGMENTS (it must:
+        // handing DetectName the rebuilt segment fabricated "Anna Andersson | linkedin.com/in/anna" as a
+        // name). The comma is a separator, so "Andersson, Anna" splits, and DetectName takes the first
+        // name-like fragment: "Andersson".
+        //
+        // The trade is deliberate and it favours the common case: the SAME split is what makes
+        // "Anna Andersson, Undersköterska" resolve to "Anna Andersson" instead of carrying the job title
+        // into the name field. Nothing is LOST — the guide shows the name and the user corrects it
+        // (ADR 0040). Pinned so the next person meets it as a decision, not as a surprise.
+        const string cv =
+            """
+            Andersson, Anna
+            anna.andersson@example.com
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        _sut.Segment(cv).Content.Contact.FullName.ShouldBe("Andersson");
     }
 
     // ── The accepted residual, made visible ────────────────────────────────────────
@@ -659,6 +691,84 @@ public class PreambleResidueTests
             """;
 
         _sut.Segment(cv).Content.Contact.Location.ShouldBe("Göteborg");
+    }
+
+    // ── A rule with two normalisers IS two rules ───────────────────────────────────
+    //
+    // Five separate defects in this PR had ONE root: the subtraction and the extractor asked the same
+    // question with different normalisation. Every time the agreement was ASSERTED in a comment instead
+    // of DERIVED from the form, it broke. Normalisation now travels INSIDE the recogniser
+    // (ContactPatterns.TryLabelledValue / IsBareMunicipality), so a call site cannot forget it.
+
+    [Fact]
+    public void Segment_HyphenBulletedLabel_TheCityReachesTheLocationField()
+    {
+        // "- Ort: Göteborg" — an ASCII hyphen is what a PDF/OCR extractor most often emits for a sidebar
+        // bullet. The subtraction trimmed the glue, read the label "ort" and CONSUMED the line; the
+        // extractor did NOT trim, read the label "- ort", matched nothing, and returned null. The city
+        // was claimed by one side and harvested by neither: it reached NO FIELD AT ALL.
+        const string cv =
+            """
+            Anna Andersson
+            anna.andersson@example.com
+            - Ort: Göteborg
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        _sut.Segment(cv).Content.Contact.Location.ShouldBe("Göteborg");
+    }
+
+    [Fact]
+    public void Segment_BulletedKommun_IsContactMaterial_SoA8sEarnedFailSurvives()
+    {
+        // "• Göteborg" — the bullet IS a separator, so a fragments.Count test called this a TWO-item
+        // line, the bare-kommun arm declined to consume it, and the line survived into the carrier.
+        // Preamble then went non-null on a CV with NO summary at all, and A8 WITHDREW an earned Fail —
+        // the one arm the rule says must never be withdrawn ("a regression dressed as honesty").
+        //
+        // "Is this line one item?" is a question about SURVIVING fragments, never about separator glyphs.
+        const string cv =
+            """
+            Anna Andersson
+            anna.andersson@example.com
+            • Göteborg
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        var content = _sut.Segment(cv).Content;
+
+        content.Contact.Location.ShouldBe("Göteborg");
+        content.Preamble.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Segment_CityFollowedByCountry_IsClaimedByNeitherSide()
+    {
+        // The other side of the same predicate: "Göteborg, Sverige" is genuinely TWO items, so it is not
+        // a bare kommun. Both sides must decline — the subtraction must not eat it, and the extractor
+        // must not claim it. Honest-absent, and carried, rather than confidently-wrong.
+        const string cv =
+            """
+            Anna Andersson
+
+            Göteborg, Sverige
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        var content = _sut.Segment(cv).Content;
+
+        content.Contact.Location.ShouldBeNull();
+        content.Preamble.ShouldNotBeNull();
+        content.Preamble.ShouldContain("Göteborg, Sverige");
     }
 
     // ── The confidence block is NOT a PII channel ──────────────────────────────────

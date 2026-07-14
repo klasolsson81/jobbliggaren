@@ -81,13 +81,25 @@ internal static partial class ContactPatterns
     /// The LABELLED-value rule: split on the FIRST colon; the left side must be a known label
     /// (versioned lexicon vocabulary, lowercased) and the right side must be non-empty and short
     /// enough to be a value rather than a sentence.
+    ///
+    /// <para><b>The glue is stripped HERE, inside the recogniser — not at the call sites.</b> That is
+    /// the whole point, and it was learned the hard way: this rule had two call sites, one of which
+    /// trimmed the leading glue and one of which did not. On "- Ort: Göteborg" (an ASCII hyphen is
+    /// exactly what a PDF/OCR extractor emits for a sidebar bullet) the subtraction trimmed, read the
+    /// label "ort", and CONSUMED the line — while the extractor did not trim, read the label "- ort",
+    /// matched nothing, and returned null. The city was claimed by one side and harvested by neither:
+    /// it reached NO FIELD AT ALL.
+    ///
+    /// A rule with two normalisers IS two rules. Normalisation therefore travels WITH the recogniser,
+    /// exactly as <see cref="IsPhoneShaped"/> travels with <see cref="Phone"/> — so a call site cannot
+    /// forget it, because it never gets the chance to.</para>
     /// </summary>
     internal static bool TryLabelledValue(
         string line, IReadOnlySet<string> labels, out string value)
     {
         value = string.Empty;
 
-        var trimmed = line.Trim();
+        var trimmed = InlineSeparators.TrimGlue(line);
         var colon = trimmed.IndexOf(':', StringComparison.Ordinal);
         if (colon <= 0)
             return false;
@@ -103,4 +115,16 @@ internal static partial class ContactPatterns
         value = candidate;
         return true;
     }
+
+    /// <summary>
+    /// Is this a BARE kommun ("Göteborg", "• Göteborg", "- Göteborg")? The taxonomy lookup (ADR 0043)
+    /// with its normalisation attached, for the same reason as <see cref="TryLabelledValue"/>: the
+    /// subtraction and <see cref="ContactLocationExtractor"/>'s rung 3 must ask the question in exactly
+    /// the same way, or a city ends up consumed by one and harvested by neither.
+    ///
+    /// <para>Every call site goes through THIS method. Calling <c>MunicipalityLexicon.IsMunicipality</c>
+    /// directly on un-normalised text is how the two sides drifted apart in the first place.</para>
+    /// </summary>
+    internal static bool IsBareMunicipality(string candidate) =>
+        MunicipalityLexicon.IsMunicipality(InlineSeparators.TrimGlue(candidate));
 }

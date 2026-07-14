@@ -318,6 +318,21 @@ internal static class PreambleResidue
         // a school's). See the IsConsumed municipality arm.
         var isRail = CarriesContactSpan(line);
 
+        // "Is this line ONE item?" must be answered in SURVIVING fragments, never in separator glyphs.
+        // "• Göteborg" splits into ["", " Göteborg"] because the bullet IS a separator — so a
+        // fragments.Count test called it a two-item line, the bare-kommun arm declined, and the line
+        // survived into the carrier. A8 then withdrew an EARNED Fail ("Profiltext saknas helt.") on a CV
+        // that genuinely has no summary, which is the one arm that must never be withdrawn.
+        //
+        // Counting what survives TrimGlue makes "Göteborg", "• Göteborg" and "- Göteborg" all one item —
+        // and leaves "Göteborg, Sverige" as two, where both sides correctly decline.
+        var realFragmentCount = 0;
+        foreach (var (fs, fe, _) in fragments)
+        {
+            if (InlineSeparators.TrimGlue(line[fs..fe]).Length > 0)
+                realFragmentCount++;
+        }
+
         var consumed = new bool[fragments.Count];
         var lastConsumed = -1;
         var sawRealFragment = false;
@@ -329,7 +344,7 @@ internal static class PreambleResidue
                 continue;
 
             sawRealFragment = true;
-            consumed[i] = IsConsumed(text, lexicon, isRail, isWholeLine: fragments.Count == 1);
+            consumed[i] = IsConsumed(text, lexicon, isRail, isWholeLine: realFragmentCount == 1);
             if (consumed[i])
                 lastConsumed = i;
         }
@@ -413,7 +428,7 @@ internal static class PreambleResidue
         // school's — and reading it as the person's home would be a fabrication (ADR 0071). This case
         // is not exotic: a CV whose headings the lexicon does not know detects ZERO headings, and then
         // the "preamble" is the WHOLE DOCUMENT, experience lines included.
-        if (MunicipalityLexicon.IsMunicipality(candidate) && (isWholeLine || lineIsContactRail))
+        if (ContactPatterns.IsBareMunicipality(candidate) && (isWholeLine || lineIsContactRail))
             return true;
 
         // "Ort: Göteborg" — the lexicon's labelled-value rule, whole.

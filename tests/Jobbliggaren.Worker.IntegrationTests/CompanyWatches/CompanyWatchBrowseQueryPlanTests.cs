@@ -28,13 +28,20 @@ namespace Jobbliggaren.Worker.IntegrationTests.CompanyWatches;
 ///
 /// <para>
 /// <b><see cref="BroadCriterion_WalksTheNameIndexInOrder_AndStopsEarly"/> has TWO jobs, and the second
-/// one is invisible (#884, 2026-07-14).</b> It pins the plan SHAPE — an ordered walk that LIMIT stops
-/// early, not a full Sort. But it is also the ONLY guard on the COLLATION MATCH between
-/// <c>company_name</c>'s column collation (<c>swedish</c>, ICU sv-SE) and the collation
-/// <c>ItemsSql</c>'s <c>ORDER BY</c> sorts under. Those match today because the ORDER BY names no
-/// collation and therefore inherits the column's. Write an explicit <c>COLLATE</c> into that query and
-/// they diverge: Postgres does not error, it silently stops using the index and Sorts the whole match
-/// set. Nothing else in the suite can see that. <b>Do not delete this test as "just a perf pin".</b>
+/// is invisible (#884, 2026-07-14).</b> It pins the plan SHAPE — an ordered walk that LIMIT stops early
+/// rather than a full Sort. It is ALSO the only test anywhere in the repo that can see a COLLATION
+/// MISMATCH between <c>company_name</c>'s column collation (<c>swedish</c>, ICU sv-SE, pinned by #884)
+/// and the collation the INDEX was built under. Mutation-measured, not asserted:
+/// <code>
+/// mutation                                          OrdersByATotalKey  Browse_SortsSwedish  THIS TEST
+/// COLLATE "en_US.utf8" written into ItemsSql        RED                RED                  RED
+/// a divergent COLLATE on the INDEX (column intact)  green              green                RED  (alone)
+/// </code>
+/// The second row is the whole reason this test cannot be deleted, and it is NOT the case the earlier
+/// draft of this paragraph named. An index-side divergence changes neither the SQL text, nor the rows
+/// returned, nor their order — the browse stays perfectly correct. It simply Sorts the entire match set
+/// to produce twenty rows (7 066 ms against ADR 0045's 300 ms budget), and every other test in the repo
+/// stays green while it does. <b>Do not delete this as "just a perf pin".</b>
 /// </para>
 ///
 /// <para>
@@ -261,7 +268,10 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         // while the thing it guards is intact is a guard that gets deleted by the person it wakes at
         // 2am — so it is now anchored to what it actually means: there is a Sort node, and it is
         // sorting on company_name.
-        Regex.IsMatch(plan, @"Sort Key:[^\r\n]*\bcompany_name\b").ShouldBeTrue(
+        // Two tokens, in order, with the middle left open so a COLLATE annotation can sit between them.
+        // `Sort Key:.*company_name` alone would also match "Sort Key: organization_number, company_name"
+        // — a different sort key entirely, and one this test would then wave through.
+        Regex.IsMatch(plan, @"Sort Key: company_name\b[^\r\n]*, organization_number\b").ShouldBeTrue(
             "The GENERIC plan neither walks " + NameIndexName + " NOR sorts on company_name — so it is "
             + "doing something this test has never seen, and the Max Auto Prepare warning in "
             + "docs/PERFORMANCE_AUDIT.md rests on it. Look at the plan before you trust it."

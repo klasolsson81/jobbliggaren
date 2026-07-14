@@ -56,9 +56,19 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// itself, so a migration that collides with a long-running transaction fails LOUDLY at deploy
     /// instead of silently queueing every reader behind it. (While an ACCESS EXCLUSIVE request waits,
     /// every new reader queues behind it — run this during the nightly sync without the timeout and the
-    /// browse endpoint goes dark for the SYNC's duration, not the ALTER's.) <c>SET LOCAL</c> is
-    /// transaction-scoped and self-reverting, and EF runs the migration in a transaction.
-    /// <c>statement_timeout</c> is deliberately NOT set — it would kill a legitimate rebuild.
+    /// browse endpoint goes dark for the SYNC's duration, not the ALTER's.) <c>statement_timeout</c> is
+    /// deliberately NOT set — it would kill a legitimate rebuild.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The lock guard has one precondition, and it is worth naming because the guard fails SILENTLY
+    /// without it.</b> <c>SET LOCAL</c> is transaction-scoped, and the repo's deploy path satisfies that
+    /// — <c>Jobbliggaren.Migrate</c> calls <c>Database.MigrateAsync()</c>, and EF wraps each migration in
+    /// a transaction. But applied OUTSIDE a transaction block (e.g. a raw
+    /// <c>migrations script --idempotent</c> piped into psql without a wrapping BEGIN), <c>SET LOCAL</c>
+    /// emits only a WARNING ("SET LOCAL can only be used in transaction blocks") and does nothing: the
+    /// ACCESS EXCLUSIVE wait becomes unbounded again, and the structural guard degrades to zero without
+    /// erroring. If this migration is ever applied by hand, wrap it in <c>BEGIN; ... COMMIT;</c>.
     /// </para>
     ///
     /// <para>

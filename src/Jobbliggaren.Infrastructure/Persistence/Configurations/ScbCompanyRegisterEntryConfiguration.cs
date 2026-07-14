@@ -29,15 +29,14 @@ internal sealed class ScbCompanyRegisterEntryConfiguration
             .HasMaxLength(10)
             .ValueGeneratedNever();
 
-        // #884 — Swedish natural-language text. Å/Ä/Ö are three distinct letters that sort AFTER Z;
-        // the cluster default (en_US.utf8) folds them into A and O, putting "Åkesson AB" between
-        // "Ahlberg" and "Bok". The collation belongs on the COLUMN, not on the query or the index:
-        // it is a property of what this text IS, and putting it here is what lets every reader — the
-        // browse ORDER BY today, anything added tomorrow — be correct without knowing it had to be.
-        // See AppDbContext.SwedishCollation and ADR 0109 for the scope rule (text yes, identifiers no).
+        // #884 — Swedish natural-language text. Å/Ä/Ö sort AFTER Z; the cluster default (en_US.utf8)
+        // folds them into A and O, putting "Åkesson AB" between "Ahlberg" and "Bok" in the live browse
+        // list. On the COLUMN, never on the query or the index: it is a property of what this text IS,
+        // and putting it here is what lets every reader be correct without knowing it had to be.
+        // Rationale, measurements, scope rule: ADR 0109.
         builder.Property(c => c.Name)
             .HasColumnName("company_name")
-            .UseCollation(AppDbContext.SwedishCollation)
+            .UseCollation(Collations.Swedish)
             .IsRequired();
 
         builder.Property(c => c.SeatMunicipalityCode)
@@ -45,20 +44,14 @@ internal sealed class ScbCompanyRegisterEntryConfiguration
             .HasMaxLength(4)
             .IsRequired();
 
-        // #884 — also Swedish natural-language text (Åre, Älvdalen, Örnsköldsvik, Östersund). NOTHING
-        // sorts this column today: ix_company_register_sate_kommun_code indexes the CODE, not the name,
-        // and no query orders by it. It is collated anyway, and that is a deliberate answer to a YAGNI
-        // objection, not an oversight. YAGNI governs CAPABILITY; a collation is this column's declared
-        // TYPE. Declaring text that holds Örnsköldsvik as en_US.utf8 is a false type declaration TODAY,
-        // whether or not a query has yet asked the question that exposes it. And a table where
-        // company_name is `swedish` while the neighbouring column of Swedish names is not would, by its
-        // very shape, assert that someone weighed this column and decided against it. Nobody did. A
-        // schema that implies a decision no one made is a vacuous guarantee in structural form — the
-        // repo has paid for that shape three times (#805-3, #842, and #875's own dead EXPLAIN pin).
-        // Marginal cost is one AlterColumn line: no index covers it, so nothing is rebuilt.
+        // #884 — also Swedish natural-language text (Åre, Älvdalen, Örnsköldsvik, Östersund). Nothing
+        // sorts it today, and it is collated anyway: YAGNI governs capability, but a collation is this
+        // column's declared TYPE, and declaring text that holds Örnsköldsvik as en_US.utf8 is a false
+        // type declaration NOW — not a speculative future need. Marginal cost is one AlterColumn: no
+        // index covers this column, so nothing is rebuilt. ADR 0109 §2.
         builder.Property(c => c.SeatMunicipalityName)
             .HasColumnName("sate_kommun_name")
-            .UseCollation(AppDbContext.SwedishCollation);
+            .UseCollation(Collations.Swedish);
 
         // text[] for the ≤5 SNI codes (Npgsql auto-maps List<string>). Value comparer per the
         // RecentJobSearch text[] precedent so EF snapshots the collection correctly. The GIN index

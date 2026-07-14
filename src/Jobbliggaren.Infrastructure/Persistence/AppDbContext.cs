@@ -40,42 +40,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public void Detach(object entity) => Entry(entity).State = EntityState.Detached;
 
-    /// <summary>
-    /// #884 — the collation Swedish natural-language text columns are declared with. Å, Ä and Ö are
-    /// three distinct letters that sort AFTER Z; the cluster's default (<c>en_US.utf8</c>) folds them
-    /// into A and O, which put "Åkesson AB" between "Ahlberg" and "Bok".
-    ///
-    /// <para>
-    /// ICU, not libc, and that is not a preference: the <c>postgres:18.3</c> image ships exactly five
-    /// libc collations (C, C.utf8, POSIX, en_US, en_US.utf8) and <c>locale -a</c> confirms no Swedish
-    /// locale is generated. A libc route would need <c>locale-gen sv_SE.UTF-8</c> baked into every
-    /// image that ever runs a migration — dev compose, Testcontainers, CI, prod — making the schema's
-    /// correctness depend on the OS rather than on the database. ICU ships 871 collations here,
-    /// including a deterministic <c>sv-SE</c>. Deterministic (the default) is required, not incidental:
-    /// under a non-deterministic collation equality stops being byte equality, which would change
-    /// <c>=</c> semantics on the column.
-    /// </para>
-    ///
-    /// <para>
-    /// EF-modelled rather than raw <c>CREATE COLLATION</c> so it lives in the model snapshot: an
-    /// unmodelled collation object is invisible to the differ, and the next <c>migrations add</c>
-    /// would happily emit a <c>DROP COLLATION</c> for it.
-    /// </para>
-    ///
-    /// <para>
-    /// Which columns carry it is a <b>rule, not a list</b> (ADR 0109): Swedish natural-language text
-    /// (<c>company_name</c>, <c>sate_kommun_name</c>) gets it, because there the collation is
-    /// CORRECTNESS. Machine identifiers (<c>organization_number</c>, <c>sni_codes</c>,
-    /// <c>sate_kommun_code</c>) do not: under any deterministic collation, equality on an identifier
-    /// is byte equality, so there is no defect to fix.
-    /// </para>
-    /// </summary>
-    internal const string SwedishCollation = "swedish";
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // #884 / ADR 0109 — EF-modelled rather than raw CREATE COLLATION, so it lives in the model
+        // snapshot: an unmodelled collation object is invisible to the differ, and the next
+        // `migrations add` would happily emit a DROP COLLATION for it. HasCollation is a model-level
+        // API, so it has to live here and not in an IEntityTypeConfiguration.
         modelBuilder.HasCollation(
-            SwedishCollation, locale: "sv-SE", provider: "icu", deterministic: true);
+            Collations.Swedish, locale: "sv-SE", provider: "icu", deterministic: true);
 
         modelBuilder.ApplyConfigurationsFromAssembly(
             typeof(AppDbContext).Assembly,

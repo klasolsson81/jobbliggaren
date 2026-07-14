@@ -242,6 +242,37 @@ public class PreambleResidueTests
             .ShouldBe("Min styrka: att leda team genom förändring.");
     }
 
+    [Fact]
+    public void Segment_ColonTerminatedLineWithNoContact_IsKept_NotSilentlyDeleted()
+    {
+        // The case the consumed-span gate ACTUALLY protects, and the one a weaker test missed: a
+        // line that ENDS in a colon but holds no contact span at all — a heading the user wrote that
+        // the lexicon does not know ("Mina styrkor:"). Without the gate, the label rule would see a
+        // colon-terminated remainder, call the whole line glue, and DELETE it: the engine silently
+        // discarding a line the user typed, which is #844's own defect in miniature.
+        //
+        // The gate is what makes "we only strip a label when a contact span proved the fragment was
+        // contact material" true rather than merely intended.
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Mina styrkor:
+            Noggrann och trygg i stressade lägen.
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        var preamble = _sut.Segment(cv).Content.Preamble;
+
+        preamble.ShouldNotBeNull();
+        preamble.ShouldContain("Mina styrkor:");
+        preamble.ShouldContain("Noggrann och trygg");
+    }
+
     // ── Banners, and the honest-Fail case ──────────────────────────────────────────
 
     [Fact]

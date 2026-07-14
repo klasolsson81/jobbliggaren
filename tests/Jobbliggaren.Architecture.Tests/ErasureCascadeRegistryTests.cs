@@ -802,11 +802,15 @@ public class ErasureCascadeRegistryTests
     /// a surface missing from it is a surface an auditor cannot check us on.
     /// </summary>
     /// <remarks>
-    /// Adding a surface currently requires remembering EIGHT places (registry, counts record, Total,
-    /// port, implementation, handler, audit payload, reply template) and exactly ONE of them breaks
-    /// the build. This closes a second one. The remaining gap is real and is written down rather
-    /// than papered over: the port's channel set and the reply template are still pinned by nothing
-    /// but a human.
+    /// Adding a surface once required remembering EIGHT places (registry, counts record, Total,
+    /// port, implementation, handler, audit payload, reply template) with exactly ONE build break.
+    /// This closed the second; round 6 closed the port's CHANNEL SET too
+    /// (<see cref="Every_searched_column_belongs_to_exactly_one_channel"/> +
+    /// <see cref="Every_channel_names_a_real_port_method_and_a_reported_surface"/>, this file). What
+    /// remains outside the build's reach, said out loud: the SQL BODY behind each channel claim
+    /// (pinned by the per-column single-column tests in <c>RecruiterErasureIngestTests</c>, which
+    /// is an integration pin, not a compile break) and the reply template (prose an operator sends;
+    /// derived from the types in the runbook, held by review).
     /// </remarks>
     [Fact]
     public void The_audit_payload_reports_every_surface()

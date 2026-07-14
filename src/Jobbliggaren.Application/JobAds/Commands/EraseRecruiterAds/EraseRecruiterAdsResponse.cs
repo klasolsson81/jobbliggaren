@@ -101,9 +101,9 @@ public sealed record ErasureJobAdMatch(
 /// <summary>
 /// One recent-search row the identifier matched — and WHY. <c>Q</c> is the user's free-text term
 /// when the word-boundary channel hit; <c>MatchedEmployerOrgNr</c> is the normalised org.nr when
-/// the employer-filter channel hit. At least one is always present. There is deliberately NO user
-/// id — the operator reviews the STRINGS that will be deleted, and needs to identify nobody to do
-/// it.
+/// the employer-filter channel hit. At least one is always present — the constructor enforces it.
+/// There is deliberately NO user id — the operator reviews the STRINGS that will be deleted, and
+/// needs to identify nobody to do it.
 /// </summary>
 /// <remarks>
 /// <c>Q</c> is nullable because an employer-only search (<c>q = NULL</c>, the domain's own
@@ -111,9 +111,34 @@ public sealed record ErasureJobAdMatch(
 /// UNREPRESENTABLE, so <c>.Where(r =&gt; r.Q is not null)</c> was the only way to compile — and
 /// precisely there the match died: found by the SQL, discarded by the projection, never deleted,
 /// never counted, while the registry certified the column erased. The type forced the bug; the
-/// type now forbids it: a match must carry its evidence, whichever channel produced it.
+/// type now forbids it in BOTH directions: a match must carry its evidence, whichever channel
+/// produced it, and a match carrying NO evidence cannot be constructed (round-6 M6-2 — two
+/// nullables invite the both-null state the query can never produce; the guard makes the
+/// invariant a fact about the type instead of a <c>!</c> in a handler).
 /// </remarks>
-public sealed record ErasureRecentSearchMatch(Guid Id, string? Q, string? MatchedEmployerOrgNr);
+public sealed record ErasureRecentSearchMatch
+{
+    public Guid Id { get; }
+
+    public string? Q { get; }
+
+    public string? MatchedEmployerOrgNr { get; }
+
+    public ErasureRecentSearchMatch(Guid id, string? q, string? matchedEmployerOrgNr)
+    {
+        if (q is null && matchedEmployerOrgNr is null)
+        {
+            throw new ArgumentException(
+                "A recent-search match must carry its evidence: q or the matched org.nr. A row "
+                + "with neither matched on nothing and must not exist.",
+                nameof(q));
+        }
+
+        Id = id;
+        Q = q;
+        MatchedEmployerOrgNr = matchedEmployerOrgNr;
+    }
+}
 
 /// <summary>
 /// Per-surface counts, whose member names are pinned against
@@ -221,10 +246,13 @@ public sealed record UnsearchableSurfaces
 /// </param>
 /// <param name="Matches">The ads themselves — <b>what the operator reviews</b>. Populated on a dry run.</param>
 /// <param name="MatchedRecentSearchTerms">
-/// The distinct <c>q</c> strings that matched, WITHOUT user ids. These rows are hard-deleted with no
-/// per-id confirmation ceremony (they are an auto-captured, self-rebuilding cache — cap 20, evict
-/// oldest), so the operator must at least SEE what will go. <b>A count cannot be reviewed</b> — this
-/// PR's own doctrine, applied to the one surface where it had been forgotten.
+/// The distinct match EVIDENCE, one line per matched row's reason, WITHOUT user ids: the <c>q</c>
+/// term for a word-boundary hit, or <c>arbetsgivarfilter: &lt;org.nr&gt;</c> for an employer-only
+/// hit (suffixed <c>(personnummer-format)</c> when the org.nr is personnummer-shaped — ADR 0087
+/// D8(c), never surfaced un-flagged). These rows are hard-deleted with no per-id confirmation
+/// ceremony (they are an auto-captured, self-rebuilding cache — cap 20, evict oldest), so the
+/// operator must at least SEE what will go, and WHY it matched. <b>A count cannot be reviewed</b> —
+/// this PR's own doctrine, applied to the one surface where it had been forgotten.
 /// </param>
 /// <param name="ErasedExternalIds">
 /// Arbetsförmedlingen's ids for the erased ads. Not personal data, and the accountability spine

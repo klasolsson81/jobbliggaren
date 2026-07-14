@@ -72,7 +72,9 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
         // confirmation ceremony, so the operator must at least SEE what will go — a count cannot
         // be reviewed. A q-matched row shows the term; an employer-only row (q = NULL) shows the
         // matched org.nr, flagged when personnummer-shaped (ADR 0087 D8(c) — never surfaced
-        // un-flagged, even to the operator, even when the subject herself supplied it).
+        // un-flagged, even to the operator, even when the subject herself supplied it). The `!` is
+        // backed by ErasureRecentSearchMatch's constructor, which rejects the both-null state — a
+        // match must carry its evidence (round-6 M6-2).
         var recentTerms = recentMatches
             .Select(m => m.Q ?? EmployerFilterEvidence(m.MatchedEmployerOrgNr!))
             .Distinct(StringComparer.OrdinalIgnoreCase)

@@ -58,7 +58,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // RAW preamble here would also leak the name into the carrier, which is the thing the
         // carrier must not contain.
         var residue = PreambleResidue.Subtract(preamble, _lexicon);
-        var fullName = DetectName(residue, blocks);
+        var fullName = DetectName(PreambleResidue.NameCandidates(residue), blocks);
 
         // #815: Location was `null` here, hardcoded — city extraction did not exist, so every CV
         // ever imported reported "ort saknas" even when the CV stated the city plainly. The bare-
@@ -79,7 +79,12 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // would be the engine inventing a section the user did not write (ADR 0071). It is carried
         // so the user can decide (ADR 0074) — and so A8 can stop reporting "Profiltext saknas helt."
         // about a summary she did write.
-        var preambleText = PreambleResidue.ToText(residue, fullName);
+        // The contact block is subtracted by POSITION, not by DetectName's answer (CTO bind, Round 3).
+        // A person's name is not recogniser-claimable and never will be, so a recogniser-only
+        // subtraction cannot empty the residue — and the first design papered over that by deleting the
+        // line DetectName GUESSED was the name. That guess deleted a job title on one common layout and
+        // the first line of the user's summary on another. Position can do what identity cannot.
+        var preambleText = PreambleResidue.ToText(residue, out var droppedLineCount);
 
         var profileText = SectionText(blocks, ParsedSectionKind.Profile);
         var experiences = ParseExperiences(blocks);
@@ -94,7 +99,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         var sections = new List<SectionConfidence>
         {
             ContactConfidence(contact),
-            ProfileConfidence(headings, profileText, preambleText),
+            ProfileConfidence(headings, profileText, preambleText, droppedLineCount),
             ListSectionConfidence(ParsedSectionKind.Experience, headings, experiences.Count),
             ListSectionConfidence(ParsedSectionKind.Education, headings, educations.Count),
             ListSectionConfidence(ParsedSectionKind.Skills, headings, skills.Count),
@@ -561,17 +566,26 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     /// evidence cites STRUCTURE, never CV content — the confidence block is not a PII channel.</para>
     /// </summary>
     private static SectionConfidence ProfileConfidence(
-        List<DetectedHeading> headings, string? profileText, string? preambleText)
+        List<DetectedHeading> headings, string? profileText, string? preambleText, int droppedLineCount)
     {
         var heading = MatchedHeading(headings, ParsedSectionKind.Profile);
         if (heading is null)
         {
             var evidence = new List<string> { "no heading detected" };
+
             if (preambleText is { Length: > 0 })
             {
                 var lineCount = preambleText.Split('\n').Length;
                 evidence.Add($"{lineCount} unclassified line(s) carried from above the first heading");
             }
+
+            // The contact-block drop is the one place this engine deliberately discards a line the user
+            // wrote (a tagline wedged between the name and the e-mail would land here). It is rare and
+            // it is bounded, but it must be MEASURED rather than argued about — so it is counted, in
+            // the open, every time it happens. A count, never the text: this evidence rides the
+            // parse_confidence column, which is NOT encrypted.
+            if (droppedLineCount > 0)
+                evidence.Add($"{droppedLineCount} line(s) dropped as contact-block material");
 
             return new SectionConfidence(
                 ParsedSectionKind.Profile, SectionConfidenceLevel.NotFound, evidence);
@@ -621,18 +635,6 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
 
     private static string[] SplitLines(string text) =>
         text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
-
-    private static int CountDigits(string text)
-    {
-        var count = 0;
-        foreach (var c in text)
-        {
-            if (char.IsAsciiDigit(c))
-                count++;
-        }
-
-        return count;
-    }
 
     private static string? NullIfEmpty(string value) => value.Length == 0 ? null : value;
 

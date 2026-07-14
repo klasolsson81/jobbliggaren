@@ -335,11 +335,11 @@ internal sealed class A8ProfileRule : ICriterionRule
             //
             // Structural reason only: no quote, no CV text. The preamble is the most personnummer-
             // dense region of a CV, and a verdict's reason string is not a PII channel.
-            if (context.Content.Preamble is { Length: > 0 })
+            if (!string.IsNullOrWhiteSpace(context.Content.Preamble))
             {
                 return CvCriterionVerdict.NotAssessed("A8", category,
-                    "Det finns text ovanför den första rubriken som inte kunde klassificeras. "
-                    + "Om profiltext saknas går inte att avgöra.");
+                    context.Criterion.NotAssessedReason
+                    ?? "Det går inte att avgöra om profiltext saknas.");
             }
 
             // The preamble was fully accounted for (name, e-mail, phone, ort) or empty — the absence

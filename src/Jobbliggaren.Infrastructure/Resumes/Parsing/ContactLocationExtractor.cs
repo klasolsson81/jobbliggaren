@@ -79,19 +79,39 @@ internal static class ContactLocationExtractor
     /// Rung 3 — a bare kommun name, inside contact scope only (see the class remarks: an employer's
     /// city must never become the person's home).
     ///
-    /// <para><b>Fragment-wise, not whole-line</b> (#844). A sidebar/rail CV linearizes its contact
-    /// block onto ONE line — "Anna Andersson | anna@x.se | 070-123 45 67 | Göteborg" — and a
-    /// whole-line kommun test never fires on it, so the city was silently lost on the most common
-    /// two-column layout (a live defect, alongside the name loss the same line caused).</para>
+    /// <para><b>Fragment-wise, but ONLY on a line that carries a contact span</b> (#844). A
+    /// sidebar/rail CV linearizes its contact block onto ONE line — "Anna Andersson | anna@x.se |
+    /// 070-123 45 67 | Göteborg" — and a whole-line kommun test never fires on it, so the city was
+    /// silently lost on the most common two-column layout (a live defect, alongside the name loss the
+    /// same line caused).
     ///
-    /// <para>The SCOPE is unchanged and remains the honesty guard — contact block + preamble only.
-    /// Only the GRANULARITY changes: the fragments of a contact-scope line. An employer's city inside
-    /// an experience entry is still out of reach, because that entry is not in contact scope.</para>
+    /// <b>The contact-span condition is a correctness gate, not an optimisation.</b> Contact scope is
+    /// "the preamble + the Contact block" — but when a CV uses headings the lexicon does not know, ZERO
+    /// headings are detected and <c>PreambleLines</c> returns the WHOLE DOCUMENT. Splitting every line
+    /// of it would read "Undersköterska — Vårdcentralen, Göteborg" and make the EMPLOYER's city the
+    /// person's home — the exact fabrication this class was written to refuse (ADR 0071), and one that
+    /// would silently reach every CV with a personal heading vocabulary. Requiring an e-mail / phone /
+    /// postal-code span on the line means we only fragment a line that has ALREADY identified itself
+    /// as a contact rail. An experience entry never has.</para>
+    ///
+    /// <para>A line with NO contact span keeps the original whole-line rule — so a plain "Göteborg" on
+    /// its own line in the contact block still resolves, exactly as before.</para>
     /// </summary>
     private static string? FromBareMunicipality(IEnumerable<string> contactScope)
     {
         foreach (var line in contactScope)
         {
+            var whole = line.Trim();
+
+            if (!PreambleResidue.CarriesContactSpan(whole))
+            {
+                // No contact span ⇒ this is not a rail. Whole-line rule only (pre-#844 behaviour).
+                if (MunicipalityLexicon.IsMunicipality(whole))
+                    return whole;
+
+                continue;
+            }
+
             foreach (var fragment in InlineSeparators.Split(line))
             {
                 var candidate = InlineSeparators.TrimGlue(fragment);

@@ -141,6 +141,7 @@ public class PreambleResidueTests
         const string cv =
             """
             Anna Andersson
+            anna.andersson@example.com
 
             Kontakta mig gärna på anna@example.com om du vill veta mer om mina projekt.
 
@@ -164,6 +165,7 @@ public class PreambleResidueTests
         const string cv =
             """
             Anna Andersson
+            anna.andersson@example.com
 
             Erfaren undersköterska, tio år i yrket, van vid natt.
 
@@ -192,6 +194,7 @@ public class PreambleResidueTests
         const string cv =
             """
             Anna Andersson
+            anna.andersson@example.com
 
             Erfaren undersköterska, tio år i yrket,
 
@@ -255,6 +258,7 @@ public class PreambleResidueTests
         const string cv =
             """
             Anna Andersson
+            anna.andersson@example.com
 
             Portfolio: se anna@example.com för exempel på mitt arbete.
 
@@ -278,6 +282,7 @@ public class PreambleResidueTests
         const string cv =
             """
             Anna Andersson
+            anna.andersson@example.com
 
             Min styrka: att leda team genom förändring.
 
@@ -387,7 +392,238 @@ public class PreambleResidueTests
         content.Preamble.ShouldBeNull();
     }
 
+    // ── The subtraction leaves the user's own text, not its debris ─────────────────
+
+    [Fact]
+    public void Segment_LineWhoseFIRSTItemIsConsumed_CarriesNoOrphanedGlue()
+    {
+        // The rail tests all consume the TAIL of a line and keep the head ("Anna Andersson | …").
+        // Consume the HEAD instead and the glue reconstruction runs the other way: the surviving
+        // fragment is preceded by a separator whose left-hand item no longer exists.
+        //
+        // That separator must NOT be emitted. It is not the user's text — it is a fragment of the
+        // field we just removed, and Trim() cannot save us here (it strips whitespace, not "|"). A
+        // carrier that opens with an orphaned pipe is the engine handing back debris from its own
+        // subtraction, and the guide would offer her that debris as candidate summary text.
+        // The consumed item leads the line — an e-mail, which is unambiguously contact material on any
+        // line (a bare kommun is not: see Segment_CityOnANonContactLine_ReachesSOMEField_NeverVanishes).
+        const string cv =
+            """
+            Anna Andersson
+            anna.andersson@example.com | Erfaren undersköterska med tio års erfarenhet av natt.
+
+            Arbetslivserfarenhet
+            Undersköterska — Vårdcentralen
+            2015 - 2024
+            """;
+
+        var preamble = _sut.Segment(cv).Content.Preamble;
+
+        preamble.ShouldBe("Erfaren undersköterska med tio års erfarenhet av natt.");
+    }
+
+    [Fact]
+    public void Segment_DigitRunTheSegmenterRefusesToCallAPhone_IsKept_NotSubtracted()
+    {
+        // THE sharing contract, stated as an observable: the residue subtracts EXACTLY what the
+        // extractors recognise — no more. A pattern travels with its guard, so the residue's phone
+        // arm re-applies IsPhoneShaped; drop that guard and the subtraction starts eating spans the
+        // segmenter itself refuses to call a phone.
+        //
+        // This run is 20 digits — past E.164's 15 — so IsPhoneShaped rejects it and the segmenter
+        // reports NO phone. If the residue ate it anyway, the line would reach no field at all: not
+        // Phone (refused), not the carrier (subtracted). Text the user typed, silently gone — which
+        // is #844's own defect, re-created inside #844's own fix.
+        // The reference sits BELOW the contact block on purpose. Wedged BETWEEN the name and the
+        // e-mail it would be inside the contact block and dropped by the position rule — a bound,
+        // measured trade-off (see Segment_TaglineWedgedInsideTheContactBlock_IsDropped_AndCounted),
+        // and a different guarantee from the one under test here. This test is about the SHARING
+        // contract, so it puts the run where the position rule is not the variable.
+        const string stampedReference = "0000 1234 5678 9012 3456";
+        const string cv =
+            $"""
+            Anna Andersson
+            anna.andersson@example.com
+
+            {stampedReference}
+
+            Arbetslivserfarenhet
+            Undersköterska — Vårdcentralen
+            2015 - 2024
+            """;
+
+        var content = _sut.Segment(cv).Content;
+
+        // The extractor's own verdict: this is not a phone.
+        content.Contact.Phone.ShouldBeNull();
+
+        // Therefore the subtraction may not claim it either.
+        content.Preamble.ShouldNotBeNull();
+        content.Preamble.ShouldContain(stampedReference);
+    }
+
+    // ── The accepted residual, made visible ────────────────────────────────────────
+
+    [Fact]
+    public void Segment_TaglineWedgedInsideTheContactBlock_IsDropped_AndCounted()
+    {
+        // THE COST OF THE POSITION RULE, pinned in the open rather than left as a footnote.
+        //
+        // The contact block runs to the last line a recogniser consumed anything on. A tagline wedged
+        // BETWEEN the name and the e-mail is therefore inside it, and it is DROPPED. That is a real
+        // discard of text the user wrote — the only one this engine makes — and it was accepted
+        // deliberately: the alternative (drop by name-guess) deleted a job title on one common layout
+        // and the first line of the user's summary on another, which is #844's own bug.
+        //
+        // It is bounded and it is COUNTED. A count is not an apology — it is what turns "rare, we
+        // think" into a number we can read off production and act on. If this ever goes red because the
+        // drop got wider, that is exactly the alarm it exists to raise.
+        const string cv =
+            """
+            Anna Andersson
+            Systemutvecklare med fokus på betalningar
+            anna.andersson@example.com
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Preamble.ShouldBeNull();
+
+        var profile = result.Confidence.Sections.First(s => s.Kind == ParsedSectionKind.Profile);
+        profile.Evidence.ShouldContain(e => e.Contains("dropped as contact-block material"));
+
+        // A COUNT — never the text. This evidence rides parse_confidence, which is NOT encrypted.
+        string.Join(" ", profile.Evidence).ShouldNotContain("Systemutvecklare");
+    }
+
+    [Fact]
+    public void Segment_RailLineCarryingBOTHContactAndSummary_KeepsTheSummary()
+    {
+        // #844's own bug, on #844's own motivating layout. A rail line can BOTH end the contact block
+        // and carry the user's summary. A LINE-granular position rule drops that summary and A8 goes
+        // straight back to "Profiltext saknas helt." — the exact false Fail this whole change exists to
+        // kill, re-created inside its own fix. The contact block therefore ends at the last consumed
+        // FRAGMENT, and text after it on the same line survives.
+        const string cv =
+            """
+            Anna Andersson | anna.andersson@example.com | Göteborg | Erfaren undersköterska med tio år i yrket
+
+            Arbetslivserfarenhet
+            Undersköterska — Vårdcentralen
+            2015 - 2024
+            """;
+
+        var content = _sut.Segment(cv).Content;
+
+        content.Preamble.ShouldBe("Erfaren undersköterska med tio år i yrket");
+
+        // And the contact fields are still harvested from the same line — the name is not fabricated
+        // out of the rebuilt remainder.
+        content.Contact.FullName.ShouldBe("Anna Andersson");
+        content.Contact.Email.ShouldBe("anna.andersson@example.com");
+        content.Contact.Location.ShouldBe("Göteborg");
+    }
+
+    [Fact]
+    public void Segment_CityOnANonContactLine_ReachesSOMEField_NeverVanishes()
+    {
+        // THE CONTRACT, as an observable: the subtraction and the extractor must AGREE about what is
+        // contact material. When they disagree, a city is CLAIMED BY THE SUBTRACTION AND HARVESTED BY
+        // NOBODY — absent from Location, absent from the carrier, present in NO FIELD AT ALL. That is
+        // the silent loss this entire change exists to end, and it would have been introduced by the
+        // very gate written to prevent the employer's-city fabrication. One rule, two call sites.
+        //
+        // "Göteborg | Erfaren undersköterska…" carries no contact span, so the city is NOT read as her
+        // home (honest-absent — we cannot know). It must therefore survive in the carrier, verbatim.
+        const string cv =
+            """
+            Göteborg | Erfaren undersköterska med tio års erfarenhet av natt
+
+            Arbetslivserfarenhet
+            Undersköterska — Vårdcentralen
+            2015 - 2024
+            """;
+
+        var content = _sut.Segment(cv).Content;
+
+        // Not asserted as her home — the line never identified itself as contact material.
+        content.Contact.Location.ShouldBeNull();
+
+        // But NOT thrown away either. It is carried, whole.
+        content.Preamble.ShouldNotBeNull();
+        content.Preamble.ShouldContain("Göteborg");
+        content.Preamble.ShouldContain("Erfaren undersköterska");
+    }
+
+    // ── The confidence block is NOT a PII channel ──────────────────────────────────
+
+    [Fact]
+    public void Segment_UnheadedSummary_ProfileEvidenceCitesACount_NeverTheCarriedText()
+    {
+        // #844 made the preamble an INPUT to ProfileConfidence for the first time — and
+        // ParseConfidence is the one place in this aggregate that is NOT encrypted:
+        // ParsedResumeConfiguration stores it as "Non-PII metadata — plain jsonb"
+        // (parse_confidence), and GetParsedResumeMapper hands the evidence strings straight out
+        // through SectionConfidenceDto to the API.
+        //
+        // So a single interpolated string here would write CV prose — from the most
+        // personnummer-dense region of the document — into a plaintext column and an HTTP
+        // response, past the encryption pipeline that exists precisely to stop that (ADR 0074
+        // Invariant 3, CLAUDE.md §5). The COUNT is the entire firewall. Nothing else is stopping it.
+        var result = _sut.Segment(UnheadedSummaryCv);
+        var profile = result.Confidence.Sections.Single(s => s.Kind == ParsedSectionKind.Profile);
+
+        // Positive control: there really IS carried text, so the assertions below are not vacuous.
+        result.Content.Preamble.ShouldNotBeNull();
+        result.Content.Preamble.ShouldContain("betalbranschen");
+
+        // The level is literally true and stays NotFound — no heading was detected. Stretching it to
+        // Degraded would corrupt that level's meaning ("heading matched, empty block").
+        profile.Level.ShouldBe(SectionConfidenceLevel.NotFound);
+
+        // The signal the user needs: SOMETHING was carried. Without it she is left believing her
+        // summary simply was not there.
+        profile.Evidence.ShouldContain(e => e.Contains("unclassified", StringComparison.Ordinal));
+
+        // The firewall: not one word of her CV, anywhere in the confidence block.
+        var allEvidence = string.Join(
+            " ", result.Confidence.Sections.SelectMany(s => s.Evidence));
+
+        allEvidence.ShouldNotContain("betalbranschen");
+        allEvidence.ShouldNotContain("driftsäkra");
+        allEvidence.ShouldNotContain("Anna Andersson");
+        allEvidence.ShouldNotContain("anna.andersson@example.com");
+    }
+
     // ── The pathological bound ─────────────────────────────────────────────────────
+
+    [Fact]
+    public void Segment_HeadinglessCv_TruncatesOnALineBoundary_NeverMidSentence()
+    {
+        // The cap is a REAL content loss (RawText is not exposed in ParsedResumeDetailDto), so what
+        // survives it must at least be text the user recognises as her own. A hard cut at char 2000
+        // ends mid-word, and the guide would then offer her a half-sentence as candidate summary
+        // text — the engine handing back a string she never wrote.
+        //
+        // The existing cap test asserts only length <= MaxPreambleChars, which a hard cut satisfies
+        // perfectly. The line-boundary rule is what makes the truncation honest, and it needs its
+        // own pin.
+        //
+        // The line is deliberately over IsNameLike's 60-char limit, so no line is claimed as the
+        // name and every carried line must be a WHOLE source line.
+        const string line = "Erfaren undersköterska med tio års erfarenhet av natt och trygg vård.";
+        var giant = string.Join('\n', Enumerable.Repeat(line, 200));
+
+        var preamble = _sut.Segment(giant).Content.Preamble;
+
+        preamble.ShouldNotBeNull();
+        preamble.Length.ShouldBeLessThanOrEqualTo(PreambleResidue.MaxPreambleChars);
+        preamble.Split('\n').ShouldAllBe(carried => carried == line);
+    }
 
     [Fact]
     public void Segment_HeadinglessCv_CarriesAtMostTheCap()

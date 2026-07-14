@@ -23,7 +23,8 @@ public class E2WhitespaceRuleTests
 {
     private static CvReviewEngine Engine() =>
         new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
-            AllCorrectSpellChecker(), RealAllowlist());
+            AllCorrectSpellChecker(), RealAllowlist(),
+            RealCvConventionsProvider(), RealParsingLexicon());
 
     private static async Task<CvCriterionVerdict> E2Async(CvLayoutMetrics? layout)
     {

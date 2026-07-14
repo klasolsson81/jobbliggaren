@@ -28,7 +28,8 @@ public class RubricThresholdBindingTests
 {
     private static CvReviewEngine EngineWith(IRubricProvider provider) =>
         new(provider, RealClicheLexicon(), RealVerbMapper(), Analyzer(),
-            AllCorrectSpellChecker(), RealAllowlist());
+            AllCorrectSpellChecker(), RealAllowlist(),
+            RealCvConventionsProvider(), RealParsingLexicon());
 
     // The REAL rubric with ONE criterion's Thresholds replaced — nothing else changes, so only the
     // mutated key can move a verdict (parity FakeRubricProviderWithNullReasonOnA5, CvReviewEngineTests).

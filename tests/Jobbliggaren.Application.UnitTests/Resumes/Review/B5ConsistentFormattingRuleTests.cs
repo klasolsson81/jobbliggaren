@@ -27,7 +27,8 @@ public class B5ConsistentFormattingRuleTests
 
     private static CvReviewEngine Engine() =>
         new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
-            AllCorrectSpellChecker(), RealAllowlist());
+            AllCorrectSpellChecker(), RealAllowlist(),
+            RealCvConventionsProvider(), RealParsingLexicon());
 
     private static async Task<CvCriterionVerdict> B5Async(CvReviewContext context) =>
         Verdict(

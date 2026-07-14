@@ -22,7 +22,8 @@ public class D9FileSizeRuleTests
 {
     private static CvReviewEngine Engine() =>
         new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
-            AllCorrectSpellChecker(), RealAllowlist());
+            AllCorrectSpellChecker(), RealAllowlist(),
+            RealCvConventionsProvider(), RealParsingLexicon());
 
     private static async Task<CvCriterionVerdict> D9Async(CvLayoutMetrics? layout)
     {

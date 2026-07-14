@@ -47,6 +47,19 @@ internal static class CvReviewFixtures
     internal static IVerbMapper RealVerbMapper() => new VerbMapper();
     internal static Rubric RealRubric() => RealRubricProvider().GetRubric();
 
+    // Fas 4b 8b.4b (ADR 0108) — B1 assesses the section ORDER, so the review engine reads the
+    // parsing lexicon (heading recognition) and cv-conventions (the recommended order). Real
+    // committed assets, loaded ONCE: the conventions provider runs its cross-asset pin against the
+    // lexicon in its ctor, so every engine these fixtures build has proven the shipped pair agrees.
+    private static readonly Lazy<CvParsingLexiconData> LazyParsingLexicon =
+        new(CvParsingLexiconLoader.Load);
+
+    private static readonly Lazy<ICvConventionsProvider> LazyConventionsProvider =
+        new(() => new CvConventionsProvider(new CvParsingLexiconProvider(RealParsingLexicon())));
+
+    internal static CvParsingLexiconData RealParsingLexicon() => LazyParsingLexicon.Value;
+    internal static ICvConventionsProvider RealCvConventionsProvider() => LazyConventionsProvider.Value;
+
     // ── A deterministic ITextAnalyzer stub (lowercase + whitespace split) ─
     // Not PG/Snowball parity — the engine's NLP-tier rules are exercised against a
     // predictable lexeme stream so the RULE behaviour (not the stemmer) is under test.

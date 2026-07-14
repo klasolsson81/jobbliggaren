@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
+using Jobbliggaren.Infrastructure.Resumes.Sections;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 
@@ -11,7 +12,34 @@ namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 // assessed GEOMETRY-FREE from Fas 4b PR-6 (mixed bullet markers in the linearized text) —
 // Warn or NotAssessed, never Pass (the font/heading half still needs PDF geometry, deferred).
 
-/// <summary>B1 Sektioner och ordning (High) — the core sections are present.</summary>
+/// <summary>
+/// B1 Sektioner och ordning (High) — BOTH halves of the criterion's own name: the core sections are
+/// present, AND they are in the order Swedish ATS systems read (Fas 4b 8b.4b, ADR 0108).
+///
+/// <para><b>The order half never existed until 8b.4b, and its absence was a mis-report.</b> B1's
+/// <c>atsPassSignal</c> has carried the order chain since rubric v2.1.0 ("Kontakt → (Profil) →
+/// Arbetslivserfarenhet → …") and <b>no code had ever read it</b>. The rule checked PRESENCE only
+/// and returned <c>Pass</c> — so a CV with a chaotic section order was handed a green
+/// "Sektioner och ordning · Godkänt" on the very dimension the criterion's <c>atsFailSignal</c>
+/// calls out. The evidence sentence was true; the verdict it was attached to was not.</para>
+///
+/// <para><b>Why not NotAssessed.</b> That was the first fix attempted, and it is its own
+/// mis-report: every authored <c>notAssessedReason</c> in the asset means "we could not read this
+/// from a text-based interpretation of your CV", which is FALSE for a CV whose sections we read
+/// perfectly well — and <c>CvReviewEngine</c> counts <c>Verdict != NotAssessed</c> as the assessed
+/// set, so every well-formed CV would silently lose a High-weight criterion. A criterion that CAN
+/// assess, must assess (senior-cto-advisor bind Round 2, 2026-07-14). B5 is not a precedent for it:
+/// B5's assessable half can only ever produce a NEGATIVE, while B1's produces a genuine positive.</para>
+///
+/// <para>The order comes from <see cref="SectionOrderAnalyzer"/> via the context — the same
+/// computation <c>SectionReorderTransform</c> proposes against, so the judge and the proposer cannot
+/// disagree about the same CV.</para>
+///
+/// <para><b>Warn on deviation, never Fail.</b> The rubric's fail signal is "kreativ ordning som
+/// <i>döljer kärninfo</i>" — a STRONGER claim than "deviates", and "döljer" is a knowledge-bank
+/// semantic with real correctness risk (a wrong definition would Fail good CVs). Under-claiming a
+/// measured fact is safe; over-claiming is the §5 sin. The Fail refinement is its own issue.</para>
+/// </summary>
 internal sealed class B1SectionsRule : ICriterionRule
 {
     public string CriterionId => "B1";
@@ -50,11 +78,57 @@ internal sealed class B1SectionsRule : ICriterionRule
                 ReviewText.Cite(ReviewText.Structural($"Saknar kärnsektion(er): {string.Join(", ", missing)}.")));
         }
 
-        return missing.Count > 0
-            ? CvCriterionVerdict.Assessed("B1", category, CriterionVerdict.Warn,
-                ReviewText.Cite(ReviewText.Structural($"Saknar sektion(er): {string.Join(", ", missing)}.")))
-            : CvCriterionVerdict.Assessed("B1", category, CriterionVerdict.Pass,
-                ReviewText.Cite(ReviewText.Structural("Kontakt-, erfarenhets- och utbildningssektion finns.")));
+        if (missing.Count > 0)
+        {
+            return CvCriterionVerdict.Assessed("B1", category, CriterionVerdict.Warn,
+                ReviewText.Cite(ReviewText.Structural($"Saknar sektion(er): {string.Join(", ", missing)}.")));
+        }
+
+        // Canonical arm: the content is app-managed and the linearizer emits the sections in
+        // canonical order BY CONSTRUCTION (ADR 0097 §2). The answer is known — a genuine, evidenced
+        // Pass, never a hedge (the D1FileFormatRule idiom, same discipline: hiding a known answer
+        // would misreport).
+        if (context.Source == CvReviewSourceKind.Canonical)
+        {
+            return CvCriterionVerdict.Assessed("B1", category, CriterionVerdict.Pass,
+                ReviewText.Cite(ReviewText.Structural(
+                    "App-hanterat innehåll: kärnsektionerna finns och skrivs ut i standardordning.")));
+        }
+
+        // The ORDER half — the reason this criterion is named "Sektioner och ordning". Warn, and
+        // cite BOTH orders in the user's own headings so the verdict is never an opaque judgement
+        // (§5: every verdict cites what grounds it).
+        var order = context.SectionOrder;
+        if (order.Deviates)
+        {
+            return CvCriterionVerdict.Assessed("B1", category, CriterionVerdict.Warn,
+                ReviewText.Cite(ReviewText.Structural(
+                    $"Kärnsektionerna finns, men ordningen avviker. Nuvarande ordning: "
+                    + $"{order.ObservedHeadings}. Rekommenderad ordning: {order.RecommendedHeadings}.")));
+        }
+
+        // The order could not be READ (fewer than two headings were recognised — a flattened
+        // one-column extraction, say). `Deviates == false` is TRUE here, but it means "we saw
+        // nothing", not "it is correct" — and the two must never be said with the same sentence.
+        //
+        // Both review gates caught this arm missing: the Pass below asserted order conformance on a
+        // CV whose order was never inspected. That is precisely the mis-report this step exists to
+        // delete, committed inside its own fix, one layer down. The VERDICT stays Pass (presence is
+        // assessed from the parsed content and is intact; NotAssessed would withdraw a High-weight
+        // criterion and claim we could not read something we read perfectly well). Only the CLAIM
+        // narrows to what was actually observed.
+        if (!order.OrderObserved)
+        {
+            return CvCriterionVerdict.Assessed("B1", category, CriterionVerdict.Pass,
+                ReviewText.Cite(ReviewText.Structural(
+                    "Kontakt-, erfarenhets- och utbildningssektion finns. Sektionernas inbördes "
+                    + "ordning gick inte att läsa ur CV-texten, eftersom inga rubriker kändes igen.")));
+        }
+
+        return CvCriterionVerdict.Assessed("B1", category, CriterionVerdict.Pass,
+            ReviewText.Cite(ReviewText.Structural(
+                "Kontakt-, erfarenhets- och utbildningssektion finns, och sektionerna står i "
+                + "rekommenderad ordning.")));
     }
 }
 

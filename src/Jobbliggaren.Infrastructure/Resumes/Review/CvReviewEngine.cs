@@ -6,6 +6,7 @@ using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Review.Rules;
+using Jobbliggaren.Infrastructure.Resumes.Sections;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Review;
 
@@ -50,6 +51,8 @@ internal sealed class CvReviewEngine : ICvReviewEngine
     private readonly ITextAnalyzer _analyzer;
     private readonly ISpellChecker _spellChecker;
     private readonly ISpellingAllowlist _spellingAllowlist;
+    private readonly CvConventions _conventions;
+    private readonly CvParsingLexiconData _parsingLexicon;
     private readonly FrozenDictionary<string, ICriterionRule> _rules;
 
     public CvReviewEngine(
@@ -58,7 +61,9 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         IVerbMapper verbMapper,
         ITextAnalyzer analyzer,
         ISpellChecker spellChecker,
-        ISpellingAllowlist spellingAllowlist)
+        ISpellingAllowlist spellingAllowlist,
+        ICvConventionsProvider conventionsProvider,
+        CvParsingLexiconData parsingLexicon)
     {
         _rubricProvider = rubricProvider ?? throw new ArgumentNullException(nameof(rubricProvider));
         _clicheLexicon = clicheLexicon ?? throw new ArgumentNullException(nameof(clicheLexicon));
@@ -66,6 +71,9 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         _analyzer = analyzer ?? throw new ArgumentNullException(nameof(analyzer));
         _spellChecker = spellChecker ?? throw new ArgumentNullException(nameof(spellChecker));
         _spellingAllowlist = spellingAllowlist ?? throw new ArgumentNullException(nameof(spellingAllowlist));
+        ArgumentNullException.ThrowIfNull(conventionsProvider);
+        _conventions = conventionsProvider.GetConventions();
+        _parsingLexicon = parsingLexicon ?? throw new ArgumentNullException(nameof(parsingLexicon));
         _rules = BuildRules().ToFrozenDictionary(rule => rule.CriterionId, StringComparer.Ordinal);
     }
 
@@ -81,6 +89,13 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         var language = context.Language == ResumeLanguage.En ? TextLanguage.English : TextLanguage.Swedish;
         var datedExperiences = BuildDatedExperiences(context);
 
+        // Fas 4b 8b.4b (ADR 0108) — B1's ORDER half, computed ONCE per review (not per criterion)
+        // from the linear citation substrate. The SAME analyzer the improvement engine's
+        // SectionReorderTransform proposes against: one definition of "the order deviates", so the
+        // criterion that JUDGES and the transform that PROPOSES cannot contradict each other.
+        var sectionOrder = SectionOrderAnalyzer.Analyze(
+            context.LinearText, _parsingLexicon, _conventions);
+
         var inProfile = rubric.Criteria.Where(c => InProfile(c.Profile, profile)).ToList();
 
         var scored = new List<CvCriterionVerdict>(inProfile.Count);
@@ -88,7 +103,7 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         {
             var evaluation = new CriterionEvaluationContext(
                 context, criterion, profile, language, cliches, verbs, _analyzer,
-                _spellChecker, allowlist, datedExperiences);
+                _spellChecker, allowlist, datedExperiences, sectionOrder);
             scored.Add(Evaluate(evaluation));
         }
 

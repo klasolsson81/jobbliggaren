@@ -136,7 +136,8 @@ public class ReviewTextSpanTests
 
         var engine = new CvReviewEngine(
             RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
-            AllCorrectSpellChecker(), RealAllowlist());
+            AllCorrectSpellChecker(), RealAllowlist(),
+            RealCvConventionsProvider(), RealParsingLexicon());
 
         var result = await engine.ReviewAsync(CvReviewContext.FromParsed(resume), RenderProfile.Ats, TestContext.Current.CancellationToken);
 

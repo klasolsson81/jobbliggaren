@@ -24,7 +24,8 @@ public class B2PageCountRuleTests
 {
     private static CvReviewEngine Engine() =>
         new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
-            AllCorrectSpellChecker(), RealAllowlist());
+            AllCorrectSpellChecker(), RealAllowlist(),
+            RealCvConventionsProvider(), RealParsingLexicon());
 
     private static async Task<CvCriterionVerdict> B2Async(CvLayoutMetrics? layout)
     {

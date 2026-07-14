@@ -5,9 +5,15 @@ namespace Jobbliggaren.Infrastructure.Resumes.Rendering;
 /// <summary>
 /// The CV renderer's localised STRUCTURAL labels (Fas 4 STEG 10, F4-10) — Swedish + English
 /// section headings (BUILD §8.3 "svensk och engelsk output"). Only the labels are localised;
-/// the user's CV content is rendered verbatim (translating it would be synthesis, §5). The same
-/// canonical-heading set is the single source for the F4-10 heading-normalisation transform
-/// (so "standard heading" is defined once, not hardcoded per consumer).
+/// the user's CV content is rendered verbatim (translating it would be synthesis, §5).
+///
+/// <para><b>EXPORT labels only — never a recognition oracle (8b.4b).</b> This table used to double
+/// as the membership set for the heading-normalisation transform, which made it a second source of
+/// truth for "what is a standard heading" alongside the parsing lexicon — and the two disagreed
+/// (the lexicon knows "ERFARENHET"; this table does not). Recognition is owned by
+/// <c>cv-parsing-lexicon</c> (ADR 0107 §3) and the transform reads it directly. Do not reintroduce
+/// a caller outside the renderer: a rendering table used as a recognition oracle is a
+/// separation-of-concerns violation, and it silently under-recognised for two releases.</para>
 /// </summary>
 internal static class CvRenderStrings
 {
@@ -15,8 +21,7 @@ internal static class CvRenderStrings
     /// The localised section heading labels for one output language, plus the non-heading
     /// <c>Ongoing</c> token (TD-112 / #202) — the word that closes an open-ended
     /// period (EndDate == null) when rendering a promoted Resume's structured dates, e.g.
-    /// "2021–pågående". It is deliberately NOT a section heading, so it is excluded from
-    /// <see cref="SectionHeadings"/> (the membership set for heading normalisation).
+    /// "2021–pågående". It is deliberately NOT a section heading.
     /// </summary>
     internal sealed record Labels(
         string Contact,
@@ -60,19 +65,4 @@ internal static class CvRenderStrings
         };
     }
 
-    /// <summary>The canonical section headings for a language — the membership set the
-    /// heading-normalisation transform recognises as "a standard heading".</summary>
-    public static IReadOnlyList<string> SectionHeadings(ResumeLanguage language)
-    {
-        var labels = For(language);
-        return
-        [
-            labels.Contact,
-            labels.Profile,
-            labels.Experience,
-            labels.Education,
-            labels.Skills,
-            labels.Languages,
-        ];
-    }
 }

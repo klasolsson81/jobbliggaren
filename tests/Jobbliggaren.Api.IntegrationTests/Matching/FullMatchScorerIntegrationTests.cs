@@ -1151,30 +1151,6 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         result.Score.Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
     }
 
-    // ---------------------------------------------------------------
-    // Helpers.
-    // ---------------------------------------------------------------
-
-    private static void AssertSameDimension(MatchDimension a, MatchDimension b)
-    {
-        b.Verdict.ShouldBe(a.Verdict);
-        b.Matched.ShouldBe(a.Matched);   // sequence-equal (order included)
-        b.Missing.ShouldBe(a.Missing);
-    }
-
-    // Reads the live connection string from the DbContext the factory configured
-    // (so the raw Npgsql probe hits the same Testcontainers Postgres).
-    private string GetConnectionString()
-    {
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        return db.Database.GetConnectionString()
-            ?? throw new InvalidOperationException("AppDbContext har ingen connection string.");
-    }
-
-    // Raw overlap probe — the FUNCTION form jsonb_exists_any(target, text[]) is
-    // EXACTLY equivalent to the `?|` operator the GIN index serves, avoiding
-    // Npgsql's `?`→positional-parameter escaping (parity
     // =================================================================
     // #864 (CTO D2/D3, the SINGLE half of the S-split) — ScoreFullAsync does NOT gate on status.
     //
@@ -1228,9 +1204,28 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         archivedScore.Score.SkillOverlap.Matched.ShouldBe(liveScore.Score.SkillOverlap.Matched);
     }
 
-    // The REAL retraction transition (#821: Archive() is JobAd's only lifecycle method; #843
-    // forbids fabricating a state production cannot reach). The Result is asserted — a silently
-    // failed Archive() would leave the ad Active and make the spec above vacuous.
+    // ---------------------------------------------------------------
+    // Helpers.
+    // ---------------------------------------------------------------
+
+    private static void AssertSameDimension(MatchDimension a, MatchDimension b)
+    {
+        b.Verdict.ShouldBe(a.Verdict);
+        b.Matched.ShouldBe(a.Matched);   // sequence-equal (order included)
+        b.Missing.ShouldBe(a.Missing);
+    }
+
+    // The REAL retraction transition (#821: Archive() is JobAd's only lifecycle method; #843 forbids
+    // fabricating a state production cannot reach).
+    //
+    // THE READ-BACK IS LOAD-BEARING HERE, not belt-and-suspenders. The spec above is an INCLUSION
+    // spec (it expects the archived ad to BE scored, identically to its live twin), and an inclusion
+    // spec CANNOT detect its own broken seed: a silently-failed Archive() leaves the ad Active, an
+    // Active ad scores identically to its live twin, and the test passes GREEN — having degraded
+    // into "an active ad is scored", which forty other tests in this file already assert. The
+    // detector would detect nothing, precisely on the path it was written to protect (a Status gate
+    // added to ScoreFullAsync only throws for an ad that is genuinely NOT Active). The exclusion
+    // specs elsewhere fail-safe; this one does not. So the seed's premise is asserted, not assumed.
     private async Task ArchiveAsync(JobAdId id, CancellationToken ct)
     {
         using var scope = _factory.Services.CreateScope();
@@ -1241,8 +1236,28 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         ad.ShouldNotBeNull();
         ad!.Archive(clock).IsSuccess.ShouldBeTrue("Archive() ska lyckas — annars är specen vakuös.");
         await db.SaveChangesAsync(ct);
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stored = await verifyDb.JobAds.AsNoTracking().FirstAsync(j => j.Id == id, ct);
+        stored.Status.ShouldBe(JobAdStatus.Archived,
+            "Annonsen MÅSTE vara arkiverad i databasen — annars degraderar specen tyst till " +
+            "\"en aktiv annons scoras\" och detekterar ingenting.");
     }
 
+    // Reads the live connection string from the DbContext the factory configured
+    // (so the raw Npgsql probe hits the same Testcontainers Postgres).
+    private string GetConnectionString()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return db.Database.GetConnectionString()
+            ?? throw new InvalidOperationException("AppDbContext har ingen connection string.");
+    }
+
+    // Raw overlap probe — the FUNCTION form jsonb_exists_any(target, text[]) is
+    // EXACTLY equivalent to the `?|` operator the GIN index serves, avoiding
+    // Npgsql's `?`→positional-parameter escaping (parity
     // JobAdExtractedTermsPersistenceTests.OverlapMatchExistsAsync). Parameterized.
     private static async Task<bool> OverlapMatchExistsAsync(
         NpgsqlConnection conn, Guid id, string[] lexemes, CancellationToken ct)

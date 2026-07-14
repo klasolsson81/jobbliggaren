@@ -9,6 +9,7 @@ using Jobbliggaren.Infrastructure.Matching;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.TextAnalysis;
 using Jobbliggaren.TestSupport;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -1430,8 +1431,16 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
     }
 
     // The REAL retraction transition (#821: Archive() is JobAd's only lifecycle method — there is
-    // no soft-delete axis to fabricate, and #843 forbids inventing one). The Result is asserted:
-    // a silently-failed Archive() would leave the ad Active and make the spec above vacuous.
+    // no soft-delete axis to fabricate, and #843 forbids inventing one).
+    //
+    // THE READ-BACK IS LOAD-BEARING HERE, not belt-and-suspenders. The spec above is an INCLUSION
+    // spec (it expects the archived ad to BE scored, identically to its live twin), and an inclusion
+    // spec CANNOT detect its own broken seed: a silently-failed Archive() leaves the ad Active, an
+    // Active ad scores identically to its live twin, and the test passes GREEN — having quietly
+    // degraded into "an active ad is scored", which many other tests in this file already assert.
+    // The detector would detect nothing, precisely on the path it exists to protect (a Status gate
+    // added to ScoreAsync only throws for an ad that is genuinely NOT Active). Exclusion specs
+    // fail-safe; this one does not. So the seed's premise is ASSERTED, never assumed.
     private async Task ArchiveAsync(JobAdId id, CancellationToken ct)
     {
         using var scope = _factory.Services.CreateScope();
@@ -1442,6 +1451,13 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         ad.ShouldNotBeNull();
         ad!.Archive(clock).IsSuccess.ShouldBeTrue("Archive() ska lyckas — annars är specen vakuös.");
         await db.SaveChangesAsync(ct);
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stored = await verifyDb.JobAds.AsNoTracking().FirstAsync(j => j.Id == id, ct);
+        stored.Status.ShouldBe(JobAdStatus.Archived,
+            "Annonsen MÅSTE vara arkiverad i databasen — annars degraderar specen tyst till " +
+            "\"en aktiv annons scoras\" och detekterar ingenting.");
     }
 
     private static void AssertSameDimension(MatchDimension a, MatchDimension b)

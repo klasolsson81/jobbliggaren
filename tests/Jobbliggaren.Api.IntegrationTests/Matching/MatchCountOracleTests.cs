@@ -37,14 +37,23 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// was silent on the very axis where the two engines diverged: the SQL twin has always filtered
 /// <c>Status == Active</c>; the C# scorer carried no gate at all. Test 4 closes that — it seeds an
 /// ARCHIVED ad (via the real <c>JobAd.Archive</c> transition, never a fabricated column) and pins
-/// that BOTH engines exclude it. It is two-sided: deleting either engine's gate turns it red.
+/// that BOTH engines exclude it. It binds all THREE independently deletable gates: delete
+/// <c>ScoreBatchAsync</c>'s, <c>ScoreFullBatchAsync</c>'s, or <c>ApplyFilter</c>'s, and it goes red.
+/// </para>
+/// <para>
+/// <b>It DOES reach one SINGLE scorer method, on purpose.</b> Test 4 calls the UNGATED
+/// <c>ScoreAsync</c> to establish the COUNTERFACTUAL — that the archived ad WOULD have graded into
+/// the band had it stayed Active — because absence only evidences a gate if the row would otherwise
+/// have been in the set. So a <c>Status</c> gate added to <c>ScoreAsync</c> ALSO turns this oracle
+/// red, and that is correct: the single family's deliberate non-gating is part of the contract
+/// (#864 D2/D3, the detail page still explains an archived ad — #805-3). <b>If you are here because
+/// you gated <c>ScoreAsync</c> and this went red, the gate is the defect — not this assertion.</b>
 /// </para>
 /// <para>
 /// <b>What this oracle does NOT reach</b> (its claim is an enumeration, not a vague "matching is
 /// coherent"): the persisted-notification surfaces — <c>/matchningar</c>, the two digest emails and
 /// the Översikt badges — do not run through either engine here; they are gated and specced
-/// separately (PR-A, #864). Nor does it reach the SINGLE scorer methods, which deliberately DO
-/// score archived ads (the detail page, #805-3).
+/// separately (PR-A, #864).
 /// </para>
 /// </summary>
 [Collection("Api")]

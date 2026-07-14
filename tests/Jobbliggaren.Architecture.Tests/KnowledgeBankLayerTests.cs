@@ -1,4 +1,7 @@
 using System.Reflection;
+using Jobbliggaren.Infrastructure;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
+using Microsoft.Extensions.DependencyInjection;
 using NetArchTest.Rules;
 using Shouldly;
 
@@ -72,6 +75,10 @@ public class KnowledgeBankLayerTests
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.FrameSlot),
             // Fas 4b PR-6a (#655): the versioned spelling-allowlist value the C7 criterion reads.
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.SpellingAllowlist),
+            // Fas 4b 8b.4b (ADR 0108): the Swedish-ATS section-order convention the B1 transform
+            // proposes against.
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.CvConventions),
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.CvSectionOrderEntry),
         })
         {
             t.Assembly.ShouldBe(ApplicationAsm,
@@ -93,6 +100,8 @@ public class KnowledgeBankLayerTests
             // Fas 4b 8b.4a (ADR 0107): the occupation-field->branschgrupp + section
             // rule-table port (parity the other KB ISP ports).
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IBranschgruppProvider),
+            // Fas 4b 8b.4b (ADR 0108): the Swedish-ATS conventions port (section order).
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ICvConventionsProvider),
         })
         {
             port.Assembly.ShouldBe(ApplicationAsm,
@@ -116,6 +125,8 @@ public class KnowledgeBankLayerTests
             // Fas 4b 8b.4a (ADR 0107): the occupation-field->branschgrupp + section
             // rule-table port (parity the other KB ISP ports).
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IBranschgruppProvider),
+            // Fas 4b 8b.4b (ADR 0108): the Swedish-ATS conventions port (section order).
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ICvConventionsProvider),
         })
         {
             port.Assembly.ShouldNotBe(InfrastructureAsm);
@@ -312,6 +323,8 @@ public class KnowledgeBankLayerTests
             "SpellingAllowlistProvider",
             // Fas 4b 8b.4a (ADR 0107): the branschgrupp asset provider + its loader.
             "BranschgruppProvider", "BranschgruppLoader",
+            // Fas 4b 8b.4b (ADR 0108): the cv-conventions asset provider + its loader.
+            "CvConventionsProvider", "CvConventionsLoader",
         })
         {
             names.ShouldContain(expected,
@@ -346,6 +359,8 @@ public class KnowledgeBankLayerTests
             "SpellingAllowlistProvider",
             // Fas 4b 8b.4a (ADR 0107): internal sealed too.
             "BranschgruppProvider",
+            // Fas 4b 8b.4b (ADR 0108): internal sealed too.
+            "CvConventionsProvider",
         })
         {
             var impl = InfrastructureAsm.GetTypes()
@@ -381,5 +396,81 @@ public class KnowledgeBankLayerTests
         typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IBranschgruppProvider)
             .IsAssignableFrom(infra.Single(t => t.Name == "BranschgruppProvider"))
             .ShouldBeTrue("BranschgruppProvider ska implementera IBranschgruppProvider.");
+        typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ICvConventionsProvider)
+            .IsAssignableFrom(infra.Single(t => t.Name == "CvConventionsProvider"))
+            .ShouldBeTrue("CvConventionsProvider ska implementera ICvConventionsProvider.");
+    }
+
+    // ===============================================================
+    // Fas 4b 8b.4b (ADR 0108) — AddCvLexicon()'s composition contract.
+    //
+    // The module's doc-comment makes two strong claims: the lexicon is loaded ONCE (so recognition
+    // and resolution provably cannot disagree), and the asset providers are registered by INSTANCE
+    // (so a malformed asset fails at HOST BUILD, not inside a user's request). Both were UNTESTED —
+    // deleting the idempotence guard, or switching the providers back to type registration, left the
+    // whole suite green. A guarantee without a test is not a guarantee; it is a sentence.
+    // ===============================================================
+
+    [Fact]
+    public void AddCvLexicon_ShouldRegisterExactlyOneLexicon_WhenEveryConsumingModuleAsksForIt()
+    {
+        // Three modules need the lexicon and every host calls a different subset. TWO instances
+        // would mean the segmenter and the asset providers could hold different data and drift
+        // apart, silently — the exact thing 8b.4a's single-instance registration bought.
+        var services = new ServiceCollection();
+        services.AddCvParsing();
+        services.AddCvReview();
+        services.AddCvImprovement();
+
+        services.Count(d => d.ServiceType == typeof(CvParsingLexiconData)).ShouldBe(1,
+            "Två lexikon-instanser = RECOGNITION och RESOLUTION kan drifta isär, tyst.");
+    }
+
+    [Theory]
+    [InlineData("review")]
+    [InlineData("improvement")]
+    public void EachEngineModule_ShouldRegisterTheWholeLexiconGraph_Alone(string module)
+    {
+        // The Worker registers AddCvReview()/AddCvImprovement() WITHOUT AddCvParsing()
+        // (WorkerTestFixture), and it runs ValidateOnBuild=false (TD-103) — so a module that does
+        // not own its own dependency fails first at a Hangfire invocation, not at boot.
+        var services = new ServiceCollection();
+        if (module == "review")
+        {
+            services.AddCvReview();
+        }
+        else
+        {
+            services.AddCvImprovement();
+        }
+
+        services.ShouldContain(d => d.ServiceType == typeof(CvParsingLexiconData));
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(Jobbliggaren.Application.Resumes.Abstractions.ICvParsingLexicon));
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ICvConventionsProvider));
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IBranschgruppProvider));
+    }
+
+    [Fact]
+    public void AddCvLexicon_ShouldRegisterTheAssetProvidersByInstance_SoAMalformedAssetFailsAtHostBuild()
+    {
+        // AddSingleton<IPort, Impl>() constructs Impl at the first RESOLVE — i.e. inside the first
+        // request that needs it — and ValidateOnBuild does not instantiate singletons. Both
+        // providers run a full cross-asset pin in their ctor, so a TYPE registration would turn a
+        // broken asset into a 500 cached for the life of the process. The INSTANCE registration IS
+        // the fail-loud guarantee, and this is the only thing stopping 8b.4a's architect-Major from
+        // crawling back in.
+        var services = new ServiceCollection().AddCvLexicon();
+
+        services.Single(d =>
+                d.ServiceType == typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ICvConventionsProvider))
+            .ImplementationInstance.ShouldNotBeNull(
+                "En typregistrering är LAT — 'fail loud at startup' vore då en lögn.");
+
+        services.Single(d =>
+                d.ServiceType == typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IBranschgruppProvider))
+            .ImplementationInstance.ShouldNotBeNull();
     }
 }

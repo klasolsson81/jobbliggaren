@@ -42,7 +42,8 @@ public class CvReviewEngineTests
 {
     private static CvReviewEngine NewEngine() =>
         new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
-            AllCorrectSpellChecker(), RealAllowlist());
+            AllCorrectSpellChecker(), RealAllowlist(),
+            RealCvConventionsProvider(), RealParsingLexicon());
 
     private static async Task<CvReviewResult> ReviewAsync(
         ParsedResume resume, RenderProfile profile = RenderProfile.Ats) =>
@@ -1390,7 +1391,9 @@ public class CvReviewEngineTests
             RealVerbMapper(),
             Analyzer(),
             AllCorrectSpellChecker(),
-            RealAllowlist());
+            RealAllowlist(),
+            RealCvConventionsProvider(),
+            RealParsingLexicon());
 
         var result = await engine.ReviewAsync(
             CvReviewContext.FromParsed(Resume()), RenderProfile.Ats, TestContext.Current.CancellationToken);

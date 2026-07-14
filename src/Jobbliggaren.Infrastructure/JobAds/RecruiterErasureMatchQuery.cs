@@ -31,9 +31,16 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
     private const string TextSearchConfig = JobAdSearchComposition.TextSearchConfig;
 
     // LIKE metacharacters. `_` is legal and common in email local parts (anna_k@acme.se) and would
-    // otherwise be a single-character wildcard; `%` would match the whole corpus. ESCAPE '\' is
-    // stated explicitly rather than relying on the backslash default.
+    // otherwise be a single-character wildcard; `%` would match the whole corpus.
     private const char LikeEscape = '\\';
+
+    // The ESCAPE clause every LIKE in this class carries — DERIVED from LikeEscape and bound as a
+    // parameter (Postgres accepts any text expression after ESCAPE), so the pattern builder and
+    // the clause are one definition. Round 4 hand-typed the literal on 18 lines and lost the
+    // backslash on two of them: `ESCAPE ''` disables escaping silently, `\_` then matches a
+    // literal backslash, and the identifier `anna_k@acme.se` stops matching its own row — the
+    // regression the metacharacter integration test now holds red.
+    private static readonly string LikeEscapeSql = LikeEscape.ToString();
 
     private static string LikePattern(string identifier)
     {
@@ -145,10 +152,10 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
                 WHERE status <> {erased}
                   AND (
                         search_vector @@ websearch_to_tsquery({TextSearchConfig}::regconfig, {needle})
-                     OR lower(title)        LIKE {pattern} ESCAPE '\'
-                     OR lower(description)  LIKE {pattern} ESCAPE '\'
-                     OR lower(company_name) LIKE {pattern} ESCAPE '\'
-                     OR (raw_payload IS NOT NULL AND lower(raw_payload::text) LIKE {pattern} ESCAPE '\')
+                     OR lower(title)        LIKE {pattern} ESCAPE {LikeEscapeSql}
+                     OR lower(description)  LIKE {pattern} ESCAPE {LikeEscapeSql}
+                     OR lower(company_name) LIKE {pattern} ESCAPE {LikeEscapeSql}
+                     OR (raw_payload IS NOT NULL AND lower(raw_payload::text) LIKE {pattern} ESCAPE {LikeEscapeSql})
                      OR organization_number = {orgNr}
                   )
                 """)
@@ -318,8 +325,8 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM saved_searches
-            WHERE lower(criteria::text)          LIKE {pattern} ESCAPE '\'
-               OR lower(coalesce(name, ''))      LIKE {pattern} ESCAPE '\'
+            WHERE lower(criteria::text)          LIKE {pattern} ESCAPE {LikeEscapeSql}
+               OR lower(coalesce(name, ''))      LIKE {pattern} ESCAPE {LikeEscapeSql}
             """, cancellationToken);
     }
 
@@ -343,10 +350,10 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM applications
-            WHERE lower(coalesce(snapshot_company, ''))     LIKE {pattern} ESCAPE '\'
-               OR lower(coalesce(snapshot_title, ''))       LIKE {pattern} ESCAPE '\'
-               OR lower(coalesce(snapshot_description, '')) LIKE {pattern} ESCAPE '\'
-               OR lower(coalesce(snapshot_url, ''))         LIKE {pattern} ESCAPE '\'
+            WHERE lower(coalesce(snapshot_company, ''))     LIKE {pattern} ESCAPE {LikeEscapeSql}
+               OR lower(coalesce(snapshot_title, ''))       LIKE {pattern} ESCAPE {LikeEscapeSql}
+               OR lower(coalesce(snapshot_description, '')) LIKE {pattern} ESCAPE {LikeEscapeSql}
+               OR lower(coalesce(snapshot_url, ''))         LIKE {pattern} ESCAPE {LikeEscapeSql}
             """, cancellationToken);
     }
 
@@ -363,9 +370,9 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM applications
-            WHERE lower(coalesce(manual_company, '')) LIKE {pattern} ESCAPE '\'
-               OR lower(coalesce(manual_title, ''))   LIKE {pattern} ESCAPE '\'
-               OR lower(coalesce(manual_url, ''))     LIKE {pattern} ESCAPE '\'
+            WHERE lower(coalesce(manual_company, '')) LIKE {pattern} ESCAPE {LikeEscapeSql}
+               OR lower(coalesce(manual_title, ''))   LIKE {pattern} ESCAPE {LikeEscapeSql}
+               OR lower(coalesce(manual_url, ''))     LIKE {pattern} ESCAPE {LikeEscapeSql}
             """, cancellationToken);
     }
 
@@ -382,7 +389,7 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM company_watch_criteria
-            WHERE lower(coalesce(label, '')) LIKE {pattern} ESCAPE '\'
+            WHERE lower(coalesce(label, '')) LIKE {pattern} ESCAPE {LikeEscapeSql}
             """, cancellationToken);
     }
 
@@ -405,15 +412,15 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
         return await CountAsync($"""
             SELECT (
                 (SELECT count(*) FROM parsed_resumes
-                  WHERE lower(coalesce(source_file_name, '')) LIKE {pattern} ESCAPE '\')
+                  WHERE lower(coalesce(source_file_name, '')) LIKE {pattern} ESCAPE {LikeEscapeSql})
               + (SELECT count(*) FROM resume_files
-                  WHERE lower(coalesce(file_name, '')) LIKE {pattern} ESCAPE '\')
+                  WHERE lower(coalesce(file_name, '')) LIKE {pattern} ESCAPE {LikeEscapeSql})
               + (SELECT count(*) FROM resumes
-                  WHERE lower(coalesce(name, ''))        LIKE {pattern} ESCAPE '\'
-                     OR lower(coalesce(latest_role, '')) LIKE {pattern} ESCAPE '\'
+                  WHERE lower(coalesce(name, ''))        LIKE {pattern} ESCAPE {LikeEscapeSql}
+                     OR lower(coalesce(latest_role, '')) LIKE {pattern} ESCAPE {LikeEscapeSql}
                      OR EXISTS (
                           SELECT 1 FROM unnest(coalesce(top_skills, ARRAY[]::text[])) AS skill
-                          WHERE lower(skill) LIKE {pattern} ESCAPE '\'))
+                          WHERE lower(skill) LIKE {pattern} ESCAPE {LikeEscapeSql}))
             )::int AS "Value"
             """, cancellationToken);
     }

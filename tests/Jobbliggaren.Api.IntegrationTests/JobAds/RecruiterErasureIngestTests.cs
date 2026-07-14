@@ -10,6 +10,7 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.RecentJobSearches;
 using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Files;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Domain.SavedSearches;
 using Jobbliggaren.Infrastructure.JobAds;
@@ -92,6 +93,21 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     private const string ReversedNameQuery = "Magnus Fagerberg";
     private const string ReversedNameExternalId = "erasure-e2e-3";
 
+    // AD 4 — the TITLE-only carrier (round 6, per-channel-column pins). Her name is in the
+    // HEADLINE and in no other free-text field, so the row is reachable only through the title
+    // (and its search_vector derivation — the STORED vector is built FROM the title, so the two
+    // cannot be separated by any seed; the pin is column-level reachability, not arm isolation).
+    private const string TitleOnlyName = "Sylvia Nordgren";
+    private const string TitleOnlyExternalId = "erasure-e2e-4";
+
+    // AD 5 — the RAW_PAYLOAD-only carrier. The identifier lives in workplace_address.municipality
+    // — a free-text NAME field JobTech controls, allowlisted by the sanitizer, and projected ONLY
+    // as municipality_concept_id (a code). So the string survives in raw_payload alone: not in
+    // title, not in description, not in company_name, and search_vector never sees it. Delete the
+    // raw_payload arm and exactly this test goes red — the arm had no single-column pin before.
+    private const string RawPayloadOnlyToken = "Vikströmshamn";
+    private const string RawPayloadOnlyExternalId = "erasure-e2e-5";
+
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
     private WireMockServer _jobTech = default!;
     private ServiceProvider _provider = default!;
@@ -171,6 +187,21 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
           "employer": { "name": "{{SoleTraderName}}", "organization_number": "5509281234" },
           "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/{{SoleTraderExternalId}}",
           "publication_date": "2026-07-02T10:00:00Z"
+        },{
+          "id": "{{TitleOnlyExternalId}}",
+          "headline": "Rekryteringsansvarig {{TitleOnlyName}}",
+          "description": { "text": "Vi söker en kock till vår restaurang i Luleå." },
+          "employer": { "name": "Storköket AB", "organization_number": "5566778899" },
+          "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/{{TitleOnlyExternalId}}",
+          "publication_date": "2026-07-04T10:00:00Z"
+        },{
+          "id": "{{RawPayloadOnlyExternalId}}",
+          "headline": "Diskare",
+          "description": { "text": "Diskplockning och enklare beredning i storkök." },
+          "employer": { "name": "Kommunala Köket AB", "organization_number": "5560001111" },
+          "workplace_address": { "municipality": "{{RawPayloadOnlyToken}}" },
+          "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/{{RawPayloadOnlyExternalId}}",
+          "publication_date": "2026-07-05T10:00:00Z"
         }]
         """;
 
@@ -1646,6 +1677,410 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         public Task<int> CountApplicationsReferencingAsync(
             IReadOnlyCollection<Guid> matchedJobAdIds, CancellationToken cancellationToken) =>
             inner.CountApplicationsReferencingAsync(matchedJobAdIds, cancellationToken);
+    }
+
+    // ================================================================================
+    // 7. THE CHANNEL PINS (round 6) — one row per channel column, matching on THAT
+    //    COLUMN ALONE.
+    //
+    //    ErasureCascadeRegistryTests pins the CLAIM (searched column ⇒ channel ⇒ port
+    //    method). No reflection can prove the SQL body touches the columns the channel
+    //    claims — round 5's B5-2 (snapshot_url: classified "searched and reported",
+    //    never queried, seven guards green) lived exactly in that gap. These tests pin
+    //    the QUERY: each seeds a row whose identifier lives in ONE claimed column and
+    //    requires a non-zero match. Delete a column from its SQL and exactly one of
+    //    these goes red.
+    // ================================================================================
+
+    /// <summary>
+    /// <b>Round 5's Blocker (B5-1), killed on both of its defects at once.</b> An org.nr
+    /// identifier — in the HYPHENATED written form a person actually uses — reaches (a) the
+    /// employer-only recent search (<c>q = NULL</c>, the domain's canonical form; round 5's
+    /// projection threw exactly this row away after the SQL had found it) and (b) the sole
+    /// trader's ad AFTER the raw_payload purge, where <c>organization_number</c> is the ONLY
+    /// column still carrying her org.nr — which IS her personnummer.
+    /// </summary>
+    /// <remarks>
+    /// Round 5's arm ran the word-boundary REGEX for a name over a column of ten-digit strings:
+    /// zero rows, structurally, forever, and the zero was certified as a search result. The CTO
+    /// ruling (2026-07-14) made org.nr a first-class Art. 17 identifier instead: normalised in
+    /// Domain, matched EXACTLY. Delete either exact-match arm and this test goes red — the suite
+    /// could not say that about the old arm, because every seed sent <c>employer: null</c>.
+    /// </remarks>
+    [Fact]
+    public async Task An_org_nr_identifier_reaches_the_employer_only_search_AND_the_purged_ad()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        // Her org.nr in a user's employer FILTER, with q = NULL — a valid, canonical search.
+        using (var seed = _provider.CreateScope())
+        {
+            var db = seed.ServiceProvider.GetRequiredService<AppDbContext>();
+            var clock = new FixedClock();
+            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+            db.JobSeekers.Add(seeker);
+            await db.SaveChangesAsync(ct);
+
+            var employerOnly = SearchCriteria.Create(
+                null, null, null, null, null,
+                employer: ["5509281234"], q: null, JobAdSortBy.PublishedAtDesc).Value;
+
+            db.RecentJobSearches.Add(
+                RecentJobSearch.Capture(seeker.Id, employerOnly, currentCount: 0, now: clock.UtcNow));
+            await db.SaveChangesAsync(ct);
+        }
+
+        // The purge: after 30 days her org.nr survives ONLY in organization_number (#841
+        // materialised it; raw_payload is NULL for most of the corpus).
+        using (var purge = _provider.CreateScope())
+        {
+            var db = purge.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Database.ExecuteSqlRawAsync("UPDATE job_ads SET raw_payload = NULL;", ct);
+        }
+
+        // The WRITTEN form, hyphen and all — round 5's arm would never have matched it against
+        // the stored "5509281234" even where it could match at all.
+        var probe = await EraseAsync("550928-1234", ct, dryRun: true);
+
+        probe.Matched.RecentJobSearches.ShouldBe(1,
+            "the employer-only row (q = NULL) must be MATCHED. If this is 0, either the exact "
+            + "employer_list arm is gone or the projection is discarding the q-less row again — "
+            + "round 5's certified-but-never-deleted defect, both halves.");
+
+        probe.MatchedRecentSearchTerms.ShouldContain("arbetsgivarfilter: 5509281234 (personnummer-format)",
+            "the operator reviews WHY a hard-deleted row matched. A q-less row must show the "
+            + "matched org.nr — flagged, because this ten-digit value is personnummer-shaped "
+            + "(ADR 0087 D8(c): never surfaced un-flagged, even to the operator).");
+
+        probe.Matched.JobAds.ShouldBe(1,
+            "her ad must be found via organization_number — raw_payload is NULL, and her org.nr "
+            + "appears in no other searchable column. This is the >30-day corpus, i.e. MOST ads.");
+
+        var adMatch = probe.Matches.Single();
+        adMatch.MatchedChannel.ShouldBe(ErasureMatchChannel.OrganizationNumber);
+        adMatch.MatchedExcerpt.ShouldBe("5509281234 (personnummer-format)",
+            "the evidence is the normalised org.nr that matched, flagged as personnummer-shaped.");
+
+        // The destructive run: the ad is erased AND the employer-only row is hard-deleted.
+        var result = await EraseAsync("550928-1234", ct);
+
+        result.Erased.RecentJobSearches.ShouldBe(1,
+            "found by SQL must mean DELETED — round 5 matched the row and then deleted a filtered "
+            + "projection that no longer contained it.");
+        result.ErasedExternalIds.ShouldContain(SoleTraderExternalId);
+
+        using var check = _provider.CreateScope();
+        var after = check.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var surviving = await after.Database
+            .SqlQuery<int>($"""
+                SELECT count(*)::int AS "Value" FROM recent_job_searches
+                WHERE '5509281234' = ANY(coalesce(employer_list, ARRAY[]::text[]))
+                """)
+            .ToListAsync(ct);
+        surviving[0].ShouldBe(0, "her personnummer-shaped org.nr must not survive in any "
+            + "user's employer filter after an erasure we certified as executed.");
+
+        (await ColumnsStillContainingAsync(after, "5509281234", ct)).ShouldBeEmpty(
+            "and the tombstoned ad row holds it nowhere either.");
+    }
+
+    /// <summary>
+    /// Every snapshot column matches on that column ALONE — <c>snapshot_url</c> included, which is
+    /// round 5's B5-2: classified <c>MatchedRetained</c> ("searched and reported") while the query
+    /// touched three of four columns, with seven guards green. Remove any column from
+    /// <c>CountApplicationSnapshotsAsync</c>'s SQL and exactly one arm of this test goes red.
+    /// </summary>
+    [Fact]
+    public async Task Every_snapshot_column_is_matched_on_that_column_ALONE()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        await SeedSnapshotApplicationAsync(
+            company: "Cornelia Vinterqvist Rekrytering", title: "Kock",
+            description: "Neutral annonstext.", url: "https://example.se/annons/1", ct);
+        await SeedSnapshotApplicationAsync(
+            company: "Neutral AB", title: "Rekryterare Ebba Lindelöf",
+            description: "Neutral annonstext.", url: "https://example.se/annons/2", ct);
+        await SeedSnapshotApplicationAsync(
+            company: "Neutral AB", title: "Kock",
+            description: "Kontakta Gustav Palmcrantz för frågor.", url: "https://example.se/annons/3", ct);
+        await SeedSnapshotApplicationAsync(
+            company: "Neutral AB", title: "Kock",
+            description: "Neutral annonstext.", url: "https://example.se/rekryterare/johanna-silfverberg", ct);
+
+        (await EraseAsync("Cornelia Vinterqvist", ct, dryRun: true)).Matched.ApplicationSnapshots
+            .ShouldBe(1, "snapshot_company alone must carry the match.");
+        (await EraseAsync("Ebba Lindelöf", ct, dryRun: true)).Matched.ApplicationSnapshots
+            .ShouldBe(1, "snapshot_title alone must carry the match.");
+        (await EraseAsync("Gustav Palmcrantz", ct, dryRun: true)).Matched.ApplicationSnapshots
+            .ShouldBe(1, "snapshot_description alone must carry the match.");
+        (await EraseAsync("johanna-silfverberg", ct, dryRun: true)).Matched.ApplicationSnapshots
+            .ShouldBe(1, "snapshot_url alone must carry the match — the column that was 'searched "
+                + "and reported' for one whole round while no SQL touched it (B5-2). A name in a "
+                + "URL path is the manual_url argument, verbatim.");
+    }
+
+    /// <summary>
+    /// The manual columns' remaining two single-column pins (<c>manual_url</c> has its own test).
+    /// </summary>
+    [Fact]
+    public async Task Every_manual_column_is_matched_on_that_column_ALONE()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        await SeedManualApplicationWithDetailsAsync(
+            title: "Backend-utvecklare", company: "Ferdinand Åkerlund Rekrytering",
+            url: "https://example.se/jobb/4", ct);
+        await SeedManualApplicationWithDetailsAsync(
+            title: "Assistent till Beatrice Ulvaeus", company: "Neutral AB",
+            url: "https://example.se/jobb/5", ct);
+
+        (await EraseAsync("Ferdinand Åkerlund", ct, dryRun: true)).Matched.ManualAdEntries
+            .ShouldBe(1, "manual_company alone must carry the match.");
+        (await EraseAsync("Beatrice Ulvaeus", ct, dryRun: true)).Matched.ManualAdEntries
+            .ShouldBe(1, "manual_title alone must carry the match.");
+    }
+
+    /// <summary>
+    /// A saved search whose NAME names her — criteria neutral — is matched on the name alone.
+    /// (The criteria channel has its own seed in the recent/saved-search test above.)
+    /// </summary>
+    [Fact]
+    public async Task A_saved_search_NAME_naming_her_is_matched_on_the_name_ALONE()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        using (var seed = _provider.CreateScope())
+        {
+            var db = seed.ServiceProvider.GetRequiredService<AppDbContext>();
+            var clock = new FixedClock();
+            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+            db.JobSeekers.Add(seeker);
+            await db.SaveChangesAsync(ct);
+
+            var neutralCriteria = SearchCriteria.Create(
+                null, null, null, null, null, null, "sjuksköterska", JobAdSortBy.Relevance).Value;
+
+            db.SavedSearches.Add(SavedSearch.Create(
+                seeker.Id, "Petra Sandelins annonser", neutralCriteria,
+                notificationEnabled: false, clock).Value);
+            await db.SaveChangesAsync(ct);
+        }
+
+        (await EraseAsync("Petra Sandelin", ct, dryRun: true)).Matched.SavedSearches
+            .ShouldBe(1, "saved_searches.name alone must carry the match — a user who names a "
+                + "saved search after the recruiter holds her name in it.");
+    }
+
+    /// <summary>
+    /// The ResumeMetadata channel claims FIVE columns across three tables. One row per column,
+    /// each matching on that column alone. (<c>parsed_resumes.source_file_name</c> also has its
+    /// own end-to-end test above; it is pinned here too so this test IS the channel's claim.)
+    /// </summary>
+    [Fact]
+    public async Task Resume_metadata_is_matched_on_each_of_the_FIVE_columns_ALONE()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        var clock = new FixedClock();
+
+        using (var seed = _provider.CreateScope())
+        {
+            var db = seed.ServiceProvider.GetRequiredService<AppDbContext>();
+            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+            db.JobSeekers.Add(seeker);
+            await db.SaveChangesAsync(ct);
+
+            // parsed_resumes.source_file_name — the uploaded file's name.
+            db.ParsedResumes.Add(ParsedResume.Create(
+                seeker.Id, "CV till Leopold Anckarström.pdf", "application/pdf",
+                ResumeLanguage.Sv, ParsedResumeContent.Empty, "rå CV-text",
+                ParseConfidence.Failed(ParseFallbackReason.ExtractionFailed),
+                PersonnummerScanOutcome.None, [], clock).Value);
+
+            // resume_files.file_name — the same uploaded file, the sealed-original table. The
+            // sealed bytes are opaque to every channel (Form C, HeldButNotSearchable), so the
+            // placeholder content asserts nothing production could not construct (#843).
+            db.ResumeFiles.Add(ResumeFile.CaptureOriginal(
+                seeker.Id, ParsedResumeId.New(), [1, 2, 3], "application/pdf",
+                "Ansokan Gunnel Bäckström.pdf", byteSize: 3, pnrFlagged: false, clock).Value);
+
+            // resumes.name — the CV's own name, typed via Rename()/Create.
+            db.Resumes.Add(Resume.Create(
+                seeker.Id, "Ansökningar till Fabian Cederlöf", "Test Person", clock).Value);
+
+            // resumes.latest_role — the denormalised projection of the LATEST experience's role.
+            db.Resumes.Add(Resume.CreateFromParsed(
+                seeker.Id, "CV",
+                new ResumeContent(
+                    new PersonalInfo("Test Person", null, null, null),
+                    experiences:
+                    [
+                        new Experience("Neutral AB", "Underkonsult åt Malin Öqvist",
+                            new DateOnly(2024, 1, 1), null, null),
+                    ]),
+                ParsedResumeId.New(), clock).Value);
+
+            // resumes.top_skills — the denormalised skill-name projection.
+            db.Resumes.Add(Resume.CreateFromParsed(
+                seeker.Id, "CV",
+                new ResumeContent(
+                    new PersonalInfo("Test Person", null, null, null),
+                    skills: [new Skill("Rekryteringssystemet Tindra Ekwall", null)]),
+                ParsedResumeId.New(), clock).Value);
+
+            await db.SaveChangesAsync(ct);
+        }
+
+        (await EraseAsync("Leopold Anckarström", ct, dryRun: true)).Matched.ResumeMetadata
+            .ShouldBe(1, "parsed_resumes.source_file_name alone must carry the match.");
+        (await EraseAsync("Gunnel Bäckström", ct, dryRun: true)).Matched.ResumeMetadata
+            .ShouldBe(1, "resume_files.file_name alone must carry the match — the same uploaded "
+                + "file, one table over; searching one and not the other is the registry "
+                + "disagreeing with itself about identical data.");
+        (await EraseAsync("Fabian Cederlöf", ct, dryRun: true)).Matched.ResumeMetadata
+            .ShouldBe(1, "resumes.name alone must carry the match.");
+        (await EraseAsync("Malin Öqvist", ct, dryRun: true)).Matched.ResumeMetadata
+            .ShouldBe(1, "resumes.latest_role alone must carry the match.");
+        (await EraseAsync("Tindra Ekwall", ct, dryRun: true)).Matched.ResumeMetadata
+            .ShouldBe(1, "resumes.top_skills alone must carry the match (unnest — a LIKE against "
+                + "the array's literal text form would match punctuation between elements).");
+    }
+
+    /// <summary>
+    /// An ad whose TITLE alone names her is found. (The STORED <c>search_vector</c> is derived
+    /// from the title, so title and FTS cannot be separated by any seed — this pins column-level
+    /// reachability, which is what the channel claims.)
+    /// </summary>
+    [Fact]
+    public async Task An_ad_whose_TITLE_alone_names_her_is_found()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        var probe = await EraseAsync(TitleOnlyName, ct, dryRun: true);
+
+        probe.Matched.JobAds.ShouldBe(1, "her name is in the HEADLINE and nowhere else.");
+        probe.Matches.Single().Title.ShouldContain(TitleOnlyName);
+    }
+
+    /// <summary>
+    /// An ad where the identifier survives ONLY in <c>raw_payload</c> — here
+    /// <c>workplace_address.municipality</c>, a free-text NAME field JobTech controls, allowlisted
+    /// by the sanitizer and projected only as a concept-id code. Before this test, deleting the
+    /// raw_payload arm left the whole suite green: every other seed's payload text also existed in
+    /// a projected column.
+    /// </summary>
+    [Fact]
+    public async Task A_raw_payload_ONLY_carrier_is_found()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        var probe = await EraseAsync(RawPayloadOnlyToken, ct, dryRun: true);
+
+        probe.Matched.JobAds.ShouldBe(1,
+            "the token lives in raw_payload alone (a municipality NAME; only its concept-id is "
+            + "projected). If this is 0, the raw_payload arm is gone — and it is the ONLY channel "
+            + "that reaches allowlisted-but-unprojected payload fields for the <30-day window.");
+
+        var match = probe.Matches.Single();
+        match.MatchedChannel.ShouldBe(ErasureMatchChannel.FullTextOrRawPayload);
+        match.MatchedExcerpt.ShouldBe(string.Empty,
+            "no literal substring exists in title/description/company to window — an excerpt "
+            + "from an unrelated body would be evidence of nothing.");
+    }
+
+    /// <summary>
+    /// <b>The <c>ESCAPE</c> regression, held red (round-5 security M3).</b> An identifier with a
+    /// LIKE metacharacter (<c>_</c> — legal and common in email local parts) matches EXACTLY its
+    /// own row. The clause is now derived from ONE constant (<c>LikeEscapeSql</c>); mutate it to
+    /// <c>''</c> and the escaped <c>\_</c> becomes a literal backslash-underscore that matches
+    /// NOTHING (this asserts 1, red) — un-escape the pattern instead and <c>_</c> becomes a
+    /// single-char wildcard that ALSO matches the decoy (2, red). Round 4 shipped the first
+    /// mutation on 2 of 18 hand-typed lines with a green suite.
+    /// </summary>
+    [Fact]
+    public async Task A_LIKE_metacharacter_identifier_matches_EXACTLY_its_own_row()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        await SeedManualApplicationWithDetailsAsync(
+            title: "Backend-utvecklare", company: "Kontakt anna_k@acme.se",
+            url: "https://example.se/jobb/6", ct);
+        // The decoy: identical except the metacharacter position holds another character. An
+        // unescaped `_` wildcard matches both rows; a broken escape matches neither.
+        await SeedManualApplicationWithDetailsAsync(
+            title: "Backend-utvecklare", company: "Kontakt annaxk@acme.se",
+            url: "https://example.se/jobb/7", ct);
+
+        (await EraseAsync("anna_k@acme.se", ct, dryRun: true)).Matched.ManualAdEntries
+            .ShouldBe(1, "`_` must be escaped: ESCAPE '' makes this 0 (literal backslash), an "
+                + "unescaped pattern makes it 2 (wildcard eats the decoy). Only a working escape "
+                + "makes it exactly 1.");
+    }
+
+    /// <summary>
+    /// An application whose frozen <see cref="AdSnapshot"/> carries the given field values —
+    /// captured through the real factory, exactly as apply-time does from an ad that held those
+    /// values (#843: a name in an ad's title/company/description/url at apply time is a state
+    /// production constructs daily).
+    /// </summary>
+    private async Task SeedSnapshotApplicationAsync(
+        string company, string title, string description, string url, CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = new FixedClock();
+
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", clock).Value;
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(ct);
+
+        var ad = await db.JobAds.AsNoTracking()
+            .SingleAsync(j => j.External!.ExternalId == ExternalId, ct);
+
+        var snapshot = AdSnapshot.Capture(
+            title, company, municipalityConceptId: null, url, ad.Source.Value,
+            ad.PublishedAt, ad.ExpiresAt, description, clock.UtcNow);
+
+        var application = DomainApplication
+            .CreateFromJobAd(seeker.Id, ad.Id, snapshot, coverLetter: null, clock).Value;
+        application.TransitionTo(ApplicationStatus.Submitted, clock).IsSuccess.ShouldBeTrue();
+
+        db.Applications.Add(application);
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// A manually tracked application with caller-chosen <c>manual_title</c>/<c>manual_company</c>
+    /// — the same factories as <see cref="SeedManualApplicationAsync"/>, opened up for the
+    /// per-column pins.
+    /// </summary>
+    private async Task SeedManualApplicationWithDetailsAsync(
+        string title, string company, string url, CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = new FixedClock();
+
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", clock).Value;
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(ct);
+
+        var manual = ManualPosting.Create(title, company, url, expiresAt: null).Value;
+        var application = DomainApplication
+            .Create(seeker.Id, jobAdId: null, coverLetter: null, manual, clock).Value;
+
+        db.Applications.Add(application);
+        await db.SaveChangesAsync(ct);
     }
 
     private sealed class FixedClock : IDateTimeProvider

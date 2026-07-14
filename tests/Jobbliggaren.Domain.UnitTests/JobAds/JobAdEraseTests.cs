@@ -1,6 +1,7 @@
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobAds.Events;
+using Jobbliggaren.TestSupport;
 using Shouldly;
 
 namespace Jobbliggaren.Domain.UnitTests.JobAds;
@@ -12,6 +13,10 @@ public class JobAdEraseTests
 {
     private static readonly FakeClock Clock = new();
 
+    // An enskild firma's organisation number IS a personnummer (CLAUDE.md 5). Seeded through the
+    // real factory so the tombstone tests below assert against the state ingest actually produces.
+    private const string SoleTraderOrgNr = "5509281234";
+
     private static JobAd ImportedAd(string description = "Kontakta Anna Karlsson, anna@acme.se.") =>
         JobAd.Import(
             title: "Backend-utvecklare",
@@ -20,6 +25,7 @@ public class JobAdEraseTests
             url: "https://arbetsformedlingen.se/platsbanken/annonser/1",
             external: ExternalReference.Create(JobSource.Platsbanken, "ext-1").Value,
             rawPayload: """{"id":"ext-1","employer":{"name":"Acme AB"}}""",
+            facets: TestFacets.From(organizationNumber: SoleTraderOrgNr),
             publishedAt: Clock.UtcNow,
             expiresAt: null,
             clock: Clock).Value;
@@ -63,6 +69,34 @@ public class JobAdEraseTests
     /// Empty is also simply true: re-running the extractor over the erased (empty) text yields
     /// exactly zero terms, so the state is what the funnel would produce.
     /// </summary>
+    /// <summary>
+    /// <b>The erasure of this column used to be FREE, and then it was not.</b>
+    /// </summary>
+    /// <remarks>
+    /// <c>organization_number</c> was a STORED GENERATED column derived from <c>raw_payload</c>, so
+    /// nulling the payload nulled the org.nr and <see cref="JobAd.Erase"/> never knew the column
+    /// existed. #841 materialised it into an ordinary, ingest-written column that persists
+    /// indefinitely — and the erasure silently stopped erasing it, while the cascade registry
+    /// certified it destroyed and the Art. 12(3) reply told a named data subject so.
+    /// <para>
+    /// For an <i>enskild firma</i> that number IS a personnummer (CLAUDE.md §5, the highest-priority
+    /// guard in the product). <b>A control that works by accident is not a control.</b>
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Erase_nulls_the_organisation_number_because_a_sole_traders_org_nr_IS_a_personnummer()
+    {
+        var ad = ImportedAd();
+        ad.OrganizationNumber.ShouldBe(SoleTraderOrgNr,
+            "the precondition: ingest DOES store it, so the assertion below is not vacuous.");
+
+        ad.Erase(Clock);
+
+        ad.OrganizationNumber.ShouldBeNull(
+            "an Art. 17 erasure that leaves a personnummer in the row, while telling her it was "
+            + "destroyed, is the defect this whole issue exists to end.");
+    }
+
     [Fact]
     public void Erase_sets_ExtractedTerms_to_Empty_not_null_so_the_backfill_skips_the_tombstone()
     {
@@ -129,6 +163,7 @@ public class JobAdEraseTests
             description: "Kontakta Anna Karlsson, anna@acme.se.",
             url: "https://arbetsformedlingen.se/platsbanken/annonser/1",
             rawPayload: """{"id":"ext-1","employer":{"name":"Acme AB"}}""",
+            facets: TestFacets.From(organizationNumber: SoleTraderOrgNr),
             expiresAt: null);
 
         result.IsFailure.ShouldBeTrue(

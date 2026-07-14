@@ -719,6 +719,122 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         return result.Value;
     }
 
+    // ================================================================================
+    // 5. The tombstone's SHAPE — the fitness function over Erase() itself.
+    // ================================================================================
+
+    /// <summary>
+    /// What an erased ad must look like, column by column. <b>The KEYS are cross-checked against
+    /// <see cref="ErasureCascadeRegistry"/>: a <c>job_ads</c> column classified <c>Erased</c> with no
+    /// entry here BREAKS THE BUILD, and an entry here for a column no longer classified <c>Erased</c>
+    /// breaks it too.</b> The claim and the proof cannot drift apart.
+    /// </summary>
+    /// <remarks>
+    /// Values are compared as <c>::text</c>, so <c>null</c> below means SQL NULL.
+    /// </remarks>
+    private static readonly Dictionary<string, string?> ErasedTombstoneShape = new(StringComparer.Ordinal)
+    {
+        ["title"] = string.Empty,
+        ["description"] = string.Empty,
+        ["url"] = string.Empty,
+        ["company_name"] = "[raderad]",
+        ["raw_payload"] = null,
+
+        // THE ONE THIS TEST WAS WRITTEN FOR. A sole trader's organisation number IS her
+        // personnummer (CLAUDE.md §5 — the highest-priority guard in the product).
+        ["organization_number"] = null,
+
+        // ExtractedTerms.Empty, not null: null means "never extracted" and would re-queue the
+        // tombstone into BackfillJobAdExtractedTermsJob. The STORED extracted_lexemes shadow follows.
+        ["extracted_terms"] = "[]",
+        ["extracted_lexemes"] = "[]",
+
+        // STORED generated from title + description, which are now empty.
+        ["search_vector"] = string.Empty,
+    };
+
+    /// <summary>
+    /// <b>Erase() had no column-level test. It had been TYPED.</b> This is the fitness function that
+    /// makes the tombstone's shape a property of the system rather than a coincidence.
+    /// </summary>
+    /// <remarks>
+    /// <b>Why this exists, and it is not hypothetical.</b> Until #841, <c>organization_number</c> was
+    /// a STORED GENERATED column derived from <c>raw_payload</c>. <c>Erase()</c> nulls
+    /// <c>raw_payload</c>, so Postgres nulled the org.nr for free — and the cascade registry
+    /// certified the column <c>Erased</c> on the strength of that. <b>Erase() did not know the column
+    /// existed.</b>
+    /// <para>
+    /// #841 materialised it into an ordinary, ingest-written column, and left the instruction in a
+    /// comment in <c>JobAdConfiguration</c>: <i>"Any Art. 17 erasure path must now clear this column
+    /// EXPLICITLY; it will not vanish on its own."</i> Nothing enforced it. Two lanes crossed, and an
+    /// Art. 17 erasure silently stopped erasing a personnummer while the registry said it had and the
+    /// reply template told a named data subject so.
+    /// </para>
+    /// <para>
+    /// <b>A comment is not a control.</b> A control that works by accident is not a control either —
+    /// it is a coincidence you have not yet been billed for. This test is the bill.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task The_tombstone_is_EMPTY_in_every_column_the_registry_certifies_as_erased()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        // The list is DERIVED from the registry, so the claim and the proof cannot drift.
+        var certifiedErased = ErasureCascadeRegistry.Columns
+            .Where(kv => kv.Value == ErasureColumnDisposition.Erased)
+            .Select(kv => kv.Key)
+            .Where(k => k.StartsWith("job_ads.", StringComparison.Ordinal))
+            .Select(k => k["job_ads.".Length..])
+            .ToHashSet(StringComparer.Ordinal);
+
+        certifiedErased.ShouldContain("organization_number",
+            "if this column ever leaves the Erased bucket, an enskild firma's PERSONNUMMER survives "
+            + "an Art. 17 erasure. It does not leave the bucket.");
+
+        certifiedErased.ShouldBe(ErasedTombstoneShape.Keys.ToHashSet(StringComparer.Ordinal),
+            ignoreOrder: true,
+            "the registry certifies a set of job_ads columns as destroyed by the erasure, and this "
+            + "test asserts a shape for each. They must be the SAME set.\n"
+            + "  certified Erased by the registry: "
+            + string.Join(", ", certifiedErased.Order(StringComparer.Ordinal)) + "\n"
+            + "  asserted by ErasedTombstoneShape:  "
+            + string.Join(", ", ErasedTombstoneShape.Keys.Order(StringComparer.Ordinal)) + "\n\n"
+            + "Added a column to the Erased bucket? Say what erased LOOKS LIKE for it. Certifying a "
+            + "column as destroyed without asserting it is how a personnummer survived an erasure "
+            + "the reply template said had happened.");
+
+        // The sole trader: her company name IS her name, and her org.nr IS a personnummer.
+        await EraseAsync(SoleTraderName, ct);
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        foreach (var (column, expected) in ErasedTombstoneShape.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+        {
+            // The column name comes from the registry (never user input) and is quoted; the id is a
+            // bound parameter. ::text normalises jsonb / tsvector / varchar to one comparable form.
+            var sql = $"SELECT \"{column}\"::text AS \"Value\" FROM job_ads "
+                + "WHERE external_id = {0}";
+
+            var actual = (await db.Database
+                    .SqlQueryRaw<string?>(sql, SoleTraderExternalId)
+                    .ToListAsync(ct))
+                .Single();
+
+            actual.ShouldBe(expected,
+                $"job_ads.{column} is certified Erased by ErasureCascadeRegistry, and the Art. 12(3) "
+                + $"reply tells the data subject it was destroyed. It holds: {actual ?? "NULL"}");
+        }
+
+        // And the belt: her personnummer-shaped org.nr is not anywhere else in the row either.
+        var offenders = await ColumnsStillContainingAsync(db, "5509281234", ct);
+        offenders.ShouldBeEmpty(
+            "the sole trader's organisation number is her PERSONNUMMER. It survived the erasure in: "
+            + string.Join(", ", offenders));
+    }
+
     private sealed class FixedClock : IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = new(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);

@@ -68,6 +68,10 @@ public sealed class OccupationCodeDeriverGroupLabelTiebreakTests
         public ValueTask<IReadOnlyList<string>> GetContainingRegionsAsync(
             IReadOnlyList<string> municipalityConceptIds, CancellationToken cancellationToken) =>
             throw new NotSupportedException("OccupationCodeDeriver only reads GetTreeAsync.");
+
+        public ValueTask<IReadOnlyList<string>> GetContainingOccupationFieldsAsync(
+            IReadOnlyList<string> occupationGroupConceptIds, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("OccupationCodeDeriver only reads GetTreeAsync.");
     }
 
     // Field A lists the group with the Ordinal-MAX label first + the occupation; Field B

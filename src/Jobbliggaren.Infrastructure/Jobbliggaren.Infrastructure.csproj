@@ -134,6 +134,14 @@
     <EmbeddedResource Include="KnowledgeBank\frames.v1.json">
       <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.frames.v1.json</LogicalName>
     </EmbeddedResource>
+    <!-- Fas 4b 8b.4a (Asset A) — the versioned occupation-field→branschgrupp map + per-branschgrupp
+         section rule-table (design handoff §7). Keyed on JobTech occupation-field concept-ids; all
+         21 fields listed explicitly so the completeness test can pin the set against the taxonomy
+         snapshot in both directions. Cross-asset-validated against the parsing lexicon at load
+         (BranschgruppProvider) — the asset RECOMMENDS, the lexicon RECOGNISES. NO AI/LLM. -->
+    <EmbeddedResource Include="KnowledgeBank\ssyk-branschgrupp.v1.json">
+      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.ssyk-branschgrupp.v1.json</LogicalName>
+    </EmbeddedResource>
     <!-- Fas 4 STEG 8 (F4-8, ADR 0071/0074) — the versioned CV-segmentation lexicon
          (Swedish + English section headings + language-detection function words).
          OWN-authored from common CV conventions (no third-party data) — versioned data,

@@ -70,6 +70,12 @@ public class GetActivityReportQueryHandlerTests
         public ValueTask<IReadOnlyList<string>> GetContainingRegionsAsync(
             IReadOnlyList<string> municipalityConceptIds, CancellationToken cancellationToken)
             => ValueTask.FromResult<IReadOnlyList<string>>([]);
+
+        // Fas 4b 8b.4a — the activity-report handler never resolves an occupation FIELD
+        // either; inert no-op (empty result, never throws), parity the sibling above.
+        public ValueTask<IReadOnlyList<string>> GetContainingOccupationFieldsAsync(
+            IReadOnlyList<string> occupationGroupConceptIds, CancellationToken cancellationToken)
+            => ValueTask.FromResult<IReadOnlyList<string>>([]);
     }
 
     private GetActivityReportQueryHandler CreateHandler(

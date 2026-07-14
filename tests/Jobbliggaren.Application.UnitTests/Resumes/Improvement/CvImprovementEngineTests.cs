@@ -27,28 +27,32 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Improvement;
 ///
 /// The internal sealed <see cref="CvImprovementEngine"/> is constructed directly
 /// (Infrastructure exposes internals to this assembly, parity CvReviewEngineTests). The
-/// engine takes (IClicheLexicon, IVerbMapper, IRubricProvider, ITextAnalyzer) — NO AppDbContext,
-/// NO ILogger (architect-bound surface).
+/// engine takes (IClicheLexicon, IVerbMapper, IRubricProvider, ITextAnalyzer,
+/// ICvConventionsProvider, CvParsingLexiconData) — NO AppDbContext, NO ILogger (architect-bound
+/// surface). The last two arrived with Fas 4b 8b.4b: the section-order asset the B1 transform
+/// proposes against, and the lexicon the D6 + B1 transforms RECOGNISE headings through.
 ///
-/// Coverage map (each success + each failure/edge case per CLAUDE.md §7) — all 9
-/// <see cref="ProposedChangeKind"/> members:
+/// Coverage map (each success + each failure/edge case per CLAUDE.md §7) — all 10
+/// <see cref="ProposedChangeKind"/> members (FrameRewrite is minted outside the engine, by
+/// <c>ProposedChange.FromFrame</c> on the preview path):
 ///   - per transform: a CV that TRIGGERS it → the emitted ProposedChange (Kind, evidence
 ///     channel, Before==quote, After==exact KB value, Provenance arm + Key, rationale source);
 ///   - per transform: a CV that does NOT trigger it → zero changes (honest, no fabricated edit);
-///   - PhotoStrip + SectionReorder → ALWAYS zero changes in v1 (signal absent / no
-///     rubric-recommended-order source — honest "not assessed v1", never fabricated);
+///   - PhotoStrip → ALWAYS zero changes in v1 (the signal is absent from a text-only parse —
+///     an honest "not assessed v1", never fabricated);
+///   - SectionReorder → LIVE from 8b.4b (§9). It was inert while no machine-readable recommended
+///     order existed and hardcoding one in C# was forbidden (§5); cv-conventions.v1.json is that
+///     source. The test that pinned its silence was replaced, not deleted quietly — see §9;
 ///   - determinism (same input twice → identical ordered output);
 ///   - version stamping + profile echo;
 ///   - language dispatch (Swedish + English both wired for WeakVerb);
 ///   - review null vs supplied → CriterionId null vs populated.
-///
-/// RED until ICvImprovementEngine + the result/change types ship in Application and
-/// CvImprovementEngine ships internal sealed in Jobbliggaren.Infrastructure.Resumes.Improvement.
 /// </summary>
 public class CvImprovementEngineTests
 {
     private static CvImprovementEngine NewEngine() =>
-        new(RealClicheLexicon(), RealVerbMapper(), RealRubricProvider(), Analyzer());
+        new(RealClicheLexicon(), RealVerbMapper(), RealRubricProvider(), Analyzer(),
+            RealCvConventionsProvider(), RealParsingLexicon());
 
     private static async Task<CvImprovementResult> SuggestAsync(
         ParsedResume resume,
@@ -112,7 +116,8 @@ public class CvImprovementEngineTests
 
     private static async Task<CvImprovementResult> SuggestWithAsync(
         IClicheLexicon lexicon, ParsedResume resume, CvReviewResult? review = null) =>
-        await new CvImprovementEngine(lexicon, RealVerbMapper(), RealRubricProvider(), Analyzer())
+        await new CvImprovementEngine(lexicon, RealVerbMapper(), RealRubricProvider(), Analyzer(),
+                RealCvConventionsProvider(), RealParsingLexicon())
             .SuggestAsync(resume, review, RenderProfile.Ats, TestContext.Current.CancellationToken);
 
     [Fact]
@@ -852,20 +857,130 @@ public class CvImprovementEngineTests
     }
 
     // ===============================================================
-    // 9. SectionReorder — ALWAYS zero in v1 (no rubric-recommended-order source)
+    // 9. SectionReorder — LIVE from Fas 4b 8b.4b (cv-conventions.v1.json)
+    //
+    // These tests REPLACE `SuggestAsync_ShouldNeverProposeSectionReorder_
+    // BecauseNoRecommendedOrderSourceExistsInV1`. That test was not deleted as tidying: it
+    // asserted a PREMISE ("no machine-readable recommended order exists"), and 8b.4b makes the
+    // premise false by shipping exactly that data source. Its own name said what would end it.
+    // A test that pins the ABSENCE of a feature must die when the feature arrives — the honest
+    // move is to replace it with tests that pin the behaviour it was standing in for, which is
+    // what follows. (The old fixture — Utbildning before Arbetslivserfarenhet — is reused
+    // verbatim in the first test below, now asserting the proposal it used to forbid.)
     // ===============================================================
 
     [Fact]
-    public async Task SuggestAsync_ShouldNeverProposeSectionReorder_BecauseNoRecommendedOrderSourceExistsInV1()
+    public async Task SuggestAsync_ShouldProposeSectionReorder_WhenEducationPrecedesExperience()
     {
-        // There is no machine-readable rubric-recommended section order in the knowledge bank
-        // (no hardcoded order in C# — CLAUDE.md §5). SectionReorder must yield ZERO changes
-        // until such a data source exists (no fabricated reorder).
+        // The convention (cv-conventions.v1.json) orders experience BEFORE education. This is the
+        // exact fixture the old "never proposes" test used.
         var oddOrder = Resume(
             rawText: "Utbildning\nKTH 2016–2021\nArbetslivserfarenhet\nBackend-utvecklare 2021–2024");
 
-        Of(await SuggestAsync(oddOrder), ProposedChangeKind.SectionReorder).ShouldBeEmpty(
-            "SectionReorder saknar rubrik-rekommenderad-ordningskälla i v1 — ingen fabricerad omsortering.");
+        var change = Single(await SuggestAsync(oddOrder), ProposedChangeKind.SectionReorder);
+
+        change.Kind.ShouldBe(ProposedChangeKind.SectionReorder);
+        change.TargetId.ShouldBe("sectionorder:0", "en CV har EN sektionsordning.");
+        change.Operation.ShouldNotBeNull();
+        change.Operation!.Kind.ShouldBe(StructuralTransformKind.ReorderSection);
+        change.Operation.Target.ShouldBe("sektionsordning");
+        change.Provenance.ShouldBeOfType<StructuralTransformProvenance>()
+            .Transform.ShouldBe(StructuralTransformKind.ReorderSection);
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldCiteBothOrders_WhenProposingASectionReorder()
+    {
+        // A reorder the user cannot read is an opaque verdict (§5: never an opaque number). The
+        // evidence names the OBSERVED order and the RECOMMENDED order, in the user's OWN headings
+        // — the engine invents no vocabulary.
+        var oddOrder = Resume(
+            rawText: "Utbildning\nKTH 2016–2021\nArbetslivserfarenhet\nBackend-utvecklare 2021–2024");
+
+        var change = Single(await SuggestAsync(oddOrder), ProposedChangeKind.SectionReorder);
+
+        var evidence = change.Evidence.ShouldBeOfType<StructuralEvidence>(
+            "En omordning har inget textspann att citera — den är en strukturell observation.");
+
+        evidence.Observation.ShouldBe(
+            "Nuvarande ordning: Utbildning, Arbetslivserfarenhet. "
+            + "Rekommenderad ordning: Arbetslivserfarenhet, Utbildning.");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldCarryNoCvContent_WhenProposingASectionReorder()
+    {
+        // The payload is deliberately replacement-free (CTO Q2, 2026-07-14): the granule of a
+        // reorder is the SECTION, not the character. A Before/After would put two full copies of
+        // the CV on the wire to express an ordering.
+        var oddOrder = Resume(
+            rawText: "Utbildning\nKTH 2016–2021\nArbetslivserfarenhet\nBackend-utvecklare 2021–2024");
+
+        var change = Single(await SuggestAsync(oddOrder), ProposedChangeKind.SectionReorder);
+
+        change.Replacement.ShouldBeNull(
+            "En omordning skriver ingen text — ingen Before/After, alltså inget CV-innehåll i payloaden.");
+
+        var observation = change.Evidence.ShouldBeOfType<StructuralEvidence>().Observation;
+        observation.ShouldNotContain("KTH", Case.Sensitive, "Evidensen bär rubriker, aldrig CV-innehåll.");
+        observation.ShouldNotContain("Backend-utvecklare", Case.Sensitive);
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldNotProposeSectionReorder_WhenTheCvAlreadyFollowsTheConvention()
+    {
+        // A proposal that fires on an ALREADY-CORRECT CV is a vacuous proposal.
+        var inOrder = Resume(
+            rawText: "Arbetslivserfarenhet\nBackend-utvecklare 2021–2024\nUtbildning\nKTH 2016–2021");
+
+        Of(await SuggestAsync(inOrder), ProposedChangeKind.SectionReorder).ShouldBeEmpty(
+            "Ordningen följer redan konventionen — det finns ingenting att föreslå.");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldNotProposeSectionReorder_WhenFewerThanTwoSectionsAreRecognised()
+    {
+        // One section cannot BE out of order. Proposing against a CV whose structure we cannot see
+        // would be a verdict without evidence (ADR 0074 Invariant 2).
+        var oneSection = Resume(rawText: "Arbetslivserfarenhet\nBackend-utvecklare 2021–2024");
+
+        Of(await SuggestAsync(oneSection), ProposedChangeKind.SectionReorder).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldSortFreeSectionsAfterTheNamedOnes_KeepingTheirObservedRelativeOrder()
+    {
+        // The rubric's trailing "→ Övrigt" is the STABILITY of the sort, not a data field: sections
+        // the convention does not name follow the named ones and keep the user's own relative order
+        // among themselves. Here: Projekt and Referenser are both free, and Projekt was written
+        // first, so it must still come first after the sort.
+        var resume = Resume(
+            rawText: "Projekt\nJobbliggaren\nReferenser\nLämnas på begäran\nArbetslivserfarenhet\nDev 2021–2024");
+
+        var change = Single(await SuggestAsync(resume), ProposedChangeKind.SectionReorder);
+
+        change.Evidence.ShouldBeOfType<StructuralEvidence>().Observation.ShouldBe(
+            "Nuvarande ordning: Projekt, Referenser, Arbetslivserfarenhet. "
+            + "Rekommenderad ordning: Arbetslivserfarenhet, Projekt, Referenser.");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldProposeHeadingNormalization_ForALexiconSynonymTheRenderTableNeverKnew()
+    {
+        // The D6 FORK (fixed in 8b.4b). "ERFARENHET" is a lexicon synonym of `experience`, so the
+        // D6 RULE always saw it — but the D6 TRANSFORM recognised headings through the RENDERER's
+        // label table, which holds only "Arbetslivserfarenhet". Its case was therefore never
+        // normalised. One criterion, two tables, and they disagreed. The transform now reads the
+        // lexicon, which is the owner of recognition (ADR 0107 §3).
+        var resume = Resume(rawText: "ERFARENHET\nBackend-utvecklare, Acme AB, 2021–2024");
+
+        var change = Single(await SuggestAsync(resume), ProposedChangeKind.HeadingNormalization);
+
+        change.Replacement.ShouldNotBeNull();
+        change.Replacement!.Before.ShouldBe("ERFARENHET");
+        change.Replacement.After.ShouldBe("Erfarenhet",
+            "En REN versaliseringstransform av användarens egna ord — aldrig en synonym-remap "
+            + "till 'Arbetslivserfarenhet' (det vore syntes).");
     }
 
     // ===============================================================

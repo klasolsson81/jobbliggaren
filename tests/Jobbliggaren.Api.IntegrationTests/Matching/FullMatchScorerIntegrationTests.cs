@@ -1151,6 +1151,59 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         result.Score.Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
     }
 
+    // =================================================================
+    // #864 (CTO D2/D3, the SINGLE half of the S-split) — ScoreFullAsync does NOT gate on status.
+    //
+    // This is the scorer-level half of the guard whose wire-level half lives in
+    // JobAdMatchDetailEndpointTests (archived → 200 + a grade). Both exist because the "obvious"
+    // completion of #864 — add the batch predicate to all four methods — fails SILENTLY at the
+    // surface: ScoreFullAsync would throw NotFoundException, the endpoint would 404, and
+    // job-ad-match.ts:85-92 swallows a 404 (`if (!res.ok) return null`), so the match section
+    // would simply vanish from the modal with nothing looking broken. Pinning it here as well
+    // states the contract where the contract lives, not only where the symptom would appear.
+    //
+    // The grade is TRUE either way: archiving changes none of the inputs the scorer reads. On a
+    // detail page the user navigated to deliberately, it is an EXPLANATION ("here is why this was
+    // a fit") — which is exactly what #805-3 preserved archived ads for.
+    // =================================================================
+    [Fact]
+    public async Task ScoreFullAsync_ScoresAnArchivedAd_TheSingleFamilyDoesNotGate()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Run-unique ids (the Api collection shares one database — a fixed id could collide with a
+        // sibling test's seed and make this spec read another test's ads).
+        var grp = $"grp-arch-{Guid.NewGuid():N}"[..16];
+        var reg = $"reg-arch-{Guid.NewGuid():N}"[..16];
+        var terms = ExtractedTerms.From([SkillTerm(CSharpConceptId, CSharpDisplay)]);
+
+        // Identical facets + identical terms; the ONLY difference is the lifecycle status.
+        var live = await SeedJobAdAsync("Systemutvecklare", grp, reg, null, terms, ct);
+        var archived = await SeedJobAdAsync("Systemutvecklare", grp, reg, null, terms, ct);
+        await ArchiveAsync(archived, ct);
+
+        var profile = new FullCandidateMatchProfile(
+            new CandidateMatchProfile("Systemutvecklare", [grp], [reg], [], []),
+            CvSkillConceptIds: [CSharpConceptId]);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+
+        // NON-VACUITY: the live twin genuinely scores a Match on both a Fast and a Full dimension.
+        var liveScore = await scorer.ScoreFullAsync(live, profile, ct);
+        liveScore.Score.Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        liveScore.Score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+
+        // THE SPECIFICATION: the archived ad is fully scored, not thrown away. A gate here throws
+        // NotFoundException — this spec is the detector for that mutation at the scorer level.
+        var archivedScore = await scorer.ScoreFullAsync(archived, profile, ct);
+
+        // Scored IDENTICALLY, dimension for dimension.
+        archivedScore.Score.Fast.SsykOverlap.Verdict.ShouldBe(liveScore.Score.Fast.SsykOverlap.Verdict);
+        archivedScore.Score.Fast.RegionFit.Verdict.ShouldBe(liveScore.Score.Fast.RegionFit.Verdict);
+        archivedScore.Score.SkillOverlap.Verdict.ShouldBe(liveScore.Score.SkillOverlap.Verdict);
+        archivedScore.Score.SkillOverlap.Matched.ShouldBe(liveScore.Score.SkillOverlap.Matched);
+    }
+
     // ---------------------------------------------------------------
     // Helpers.
     // ---------------------------------------------------------------
@@ -1160,6 +1213,36 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         b.Verdict.ShouldBe(a.Verdict);
         b.Matched.ShouldBe(a.Matched);   // sequence-equal (order included)
         b.Missing.ShouldBe(a.Missing);
+    }
+
+    // The REAL retraction transition (#821: Archive() is JobAd's only lifecycle method; #843 forbids
+    // fabricating a state production cannot reach).
+    //
+    // THE READ-BACK IS LOAD-BEARING HERE, not belt-and-suspenders. The spec above is an INCLUSION
+    // spec (it expects the archived ad to BE scored, identically to its live twin), and an inclusion
+    // spec CANNOT detect its own broken seed: a silently-failed Archive() leaves the ad Active, an
+    // Active ad scores identically to its live twin, and the test passes GREEN — having degraded
+    // into "an active ad is scored", which forty other tests in this file already assert. The
+    // detector would detect nothing, precisely on the path it was written to protect (a Status gate
+    // added to ScoreFullAsync only throws for an ad that is genuinely NOT Active). The exclusion
+    // specs elsewhere fail-safe; this one does not. So the seed's premise is asserted, not assumed.
+    private async Task ArchiveAsync(JobAdId id, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var ad = await db.JobAds.FindAsync([id], ct);
+        ad.ShouldNotBeNull();
+        ad!.Archive(clock).IsSuccess.ShouldBeTrue("Archive() ska lyckas — annars är specen vakuös.");
+        await db.SaveChangesAsync(ct);
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stored = await verifyDb.JobAds.AsNoTracking().FirstAsync(j => j.Id == id, ct);
+        stored.Status.ShouldBe(JobAdStatus.Archived,
+            "Annonsen MÅSTE vara arkiverad i databasen — annars degraderar specen tyst till " +
+            "\"en aktiv annons scoras\" och detekterar ingenting.");
     }
 
     // Reads the live connection string from the DbContext the factory configured

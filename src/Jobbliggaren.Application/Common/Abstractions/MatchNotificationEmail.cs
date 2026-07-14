@@ -33,8 +33,14 @@ public sealed record MatchNotificationItem(
 /// inställningslänken byggs template-side ur <c>EmailOptions.BaseUrl</c>.
 /// </para>
 /// <para>
-/// <see cref="TotalCount"/> är det ärliga totalantalet i fönstret (kan vara större än
-/// <see cref="Items"/> när en digest cap:as) så mallen kan säga "och N till".
+/// <see cref="TotalCount"/> är antalet matchningar som KUNDE ha visats (kan vara större än
+/// <see cref="Items"/> när en digest cap:as) så mallen kan säga "och N till". <b>#864 — läs
+/// detta innan du kopplar om fältet:</b> det är antalet PRESENTERBARA matchningar (annonsen är
+/// <c>Active</c>), ALDRIG antalet claimade rader. De två skiljer sig: avsändaren dränerar även
+/// matchningar vars annons hunnit arkiveras (de var giltiga när de upptäcktes och måste dräneras,
+/// annars återkommer de varje körning), men de kan aldrig listas i brödtexten. Räknar man dem
+/// säger mejlet "och 3 till" om tre annonser mottagaren aldrig får se — ett tal som lovar mer än
+/// mängden kan leverera.
 /// <see cref="Cadence"/> är meningsfull endast för <see cref="MatchNotificationKind.Digest"/>.
 /// </para>
 /// </summary>

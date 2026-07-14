@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Domain.JobAds;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,10 +8,29 @@ namespace Jobbliggaren.Application.Matching.Queries.GetMyMatches;
 /// <summary>
 /// ADR 0080 Vag 4 PR-5 — lists the authenticated user's background matches (most recent first,
 /// capped) joined to each ad's PUBLIC details (title/company/url — no CV content). Owner-scoped;
-/// no authenticated user → empty. The soft-delete query filter on <c>UserJobAdMatch</c> excludes
-/// erased rows; the inner join to <c>JobAds</c> naturally drops a match whose ad is gone (a stale
-/// link is never surfaced). <c>IsNew</c> is computed against the last-seen watermark as it stands
-/// AT FETCH (opening the view advances it separately via MarkMatchesSeen). NO AI/LLM.
+/// no authenticated user → empty. <c>IsNew</c> is computed against the last-seen watermark as it
+/// stands AT FETCH (opening the view advances it separately via MarkMatchesSeen). NO AI/LLM.
+/// <para>
+/// <b>What excludes an erased row — and what does NOT.</b> This comment used to say "the soft-delete
+/// query filter on <c>UserJobAdMatch</c> excludes erased rows". The filter is registered
+/// (<c>UserJobAdMatchConfiguration</c>) but <b><c>UserJobAdMatch.SoftDelete()</c> has ZERO callers in
+/// <c>src/</c></b> (#868; <c>StrandedMatchReaperJob</c> says so in as many words) — so it excludes
+/// nothing, and that sentence promised a control that has never once fired. It is the same
+/// sentence-shape, about the same column name, that produced #864: an exclusion delegated to a filter
+/// with no writer. The exclusion here is the <c>Status</c> predicate below and nothing else.
+/// </para>
+/// <para>
+/// <b>Lifecycle (#864):</b> the join carries an explicit <c>Status == Active</c> predicate. The
+/// previous version of this comment claimed the inner join "naturally drops a match whose ad is
+/// gone" — that was FALSE. <c>BackgroundMatchingJob</c> only proves the ad was Active AT SCAN
+/// TIME, and archiving is every ad's normal end of life (<c>ExpireJobAdsJob</c>), so a match
+/// detected three weeks ago was listed today with its grade and a live link to an ad nobody can
+/// apply to. In a LIST a grade is a recommendation, and that recommendation was false. (The
+/// DETAIL page still shows the grade for an archived ad, deliberately — there it is an
+/// explanation, beside a pill that already reads "Arkiverad" (#805-3).) The predicate is an
+/// ALLOW-list, not <c>!= Archived</c>: a deny-list silently admits every status added later,
+/// and <c>Erased</c> (#842) is a tombstone whose company reads "[raderad]".
+/// </para>
 /// <para>
 /// Deliberately status-AGNOSTIC: this surface does NOT filter on <c>NotificationStatus</c> —
 /// a match is shown regardless of whether its notification is Pending/Queued/Sent/Failed, because
@@ -49,6 +69,7 @@ public sealed class GetMyMatchesQueryHandler(
                 from m in db.UserJobAdMatches.AsNoTracking()
                 where m.UserId == userId
                 join j in db.JobAds.AsNoTracking() on m.JobAdId equals j.Id
+                where j.Status == JobAdStatus.Active
                 orderby m.CreatedAt descending, m.Id
                 select new
                 {

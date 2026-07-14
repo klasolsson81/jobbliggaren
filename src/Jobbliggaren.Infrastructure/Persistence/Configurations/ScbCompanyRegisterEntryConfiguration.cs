@@ -106,5 +106,41 @@ internal sealed class ScbCompanyRegisterEntryConfiguration
         // synced_at — the vanish-sweep scans "rows not touched this run" by synced_at < runStartedAt.
         builder.HasIndex(c => c.SyncedAt)
             .HasDatabaseName("ix_company_register_synced_at");
+
+        // #875 (senior-cto-advisor bind 2026-07-14) — company_name, organization_number: the ORDER BY
+        // CompanyWatchBrowseQuery.ItemsSql issues (paginated, LIMIT/OFFSET). Without this index a BROAD
+        // criterion (one that matches most of the 1,17M-row register) forces Postgres to materialize and
+        // Sort() the whole match set to answer LIMIT 20 — measured p95 = 7 066 ms against ADR 0045's
+        // 300 ms budget (bound-legal worst case, 1000 SNI x 290 kommuner, production's actual post-sync
+        // state — GIN's fastupdate pending list full). With the index the planner walks it IN ORDER and
+        // LIMIT stops the walk after 20 rows: p95 drops to 26 ms. The SELECTIVE case (few SNI x few
+        // kommun) is untouched — it stays on BitmapAnd(GIN, kommun btree) -> Sort over the handful of
+        // hits, which was already fast (32 ms -> 36 ms).
+        //
+        // organization_number is the PK, appended so the sort key is TOTAL: company_name is not unique in
+        // a real register (duplicate legal names are normal) and Postgres sorts are not stable, so a
+        // non-total ORDER BY + OFFSET can silently drop or duplicate rows ACROSS pages.
+        //
+        // Plain, not partial, not covering — a stated choice, not a default. Not partial: there is no
+        // WHERE clause this index could usefully carry — company_register has no deleted_at axis, and the
+        // status/kommun/SNI predicates are already served by the three indexes above; a partial predicate
+        // here would only need to be IMPLIED by every query meant to use it, a footgun (see
+        // AddCompanyWatchCriteriaAndRegisterSniGin's user_id index note) this index does not need to take
+        // on for zero benefit. Not covering: the query also reads sate_kommun_code / sate_kommun_name /
+        // sni_codes via the heap fetch, and INCLUDE-ing them would materially grow this index for a
+        // fetch-cost saving that was not what the campaign measured — the win here is the Index Scan +
+        // LIMIT early-stop replacing the Sort, not avoiding heap fetches.
+        //
+        // Deliberately WITHOUT an explicit UseCollation(...): the index inherits company_name's column
+        // collation, which is EXACTLY what "ORDER BY company_name" sorts by — matching by construction.
+        // The database's current collation (en_US.utf8) sorts Swedish Å/Ä/Ö among A/O instead of after Z,
+        // which is wrong and tracked separately (#884). If/when that fix lands it changes the column's
+        // collation, and THIS INDEX MUST THEN BE REBUILT: an index built under one collation does not
+        // serve a sort requested under another, and it does not error — it falls out of the plan SILENTLY
+        // (repo precedent: #805-3, #842 — a predicate/collation mismatch never errors, it just stops being
+        // used). This comment is the tripwire for whoever ships #884: grep for this index name in that
+        // migration's review.
+        builder.HasIndex(c => new { c.Name, c.OrganizationNumber })
+            .HasDatabaseName("ix_company_register_company_name_organization_number");
     }
 }

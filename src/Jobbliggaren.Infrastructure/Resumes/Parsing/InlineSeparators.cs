@@ -50,11 +50,35 @@ internal static partial class InlineSeparators
     /// separating them is how the halves drift apart.
     /// </summary>
     /// <remarks>
-    /// Trims BOTH ends. It used to trim only the leading end while its own documentation said
+    /// <para>Trims BOTH ends. It used to trim only the leading end while its own documentation said
     /// "leading/trailing" — and that gap was load-bearing: "Göteborg |" and "· Göteborg ·" normalised
     /// differently depending on which side asked, which is how a recogniser and its consumer disagreed
-    /// about the same city. The doc was the specification; the code was the bug.
+    /// about the same city. The doc was the specification; the code was the bug.</para>
+    ///
+    /// <para><b>And it is a FIXPOINT — normalising twice must equal normalising once.</b>
+    /// <c>string.Trim(char[])</c> removes one CONTIGUOUS run and stops at the first character outside
+    /// the set, so a single pass leaves "* - Göteborg" as "- Göteborg" (the space halts it) while a
+    /// double pass yields "Göteborg". Any two call sites that normalise a different NUMBER of times
+    /// then disagree — which is the same fork one layer down, and this defect class has already bitten
+    /// five times in one change.
+    ///
+    /// Idempotence retires the PROPERTY rather than the instance: it no longer matters how many times,
+    /// or in what order, a call site normalises. That is a stronger guarantee than any convention about
+    /// who calls what, because it cannot be forgotten.</para>
     /// </remarks>
-    internal static string TrimGlue(string item) =>
-        item.Trim().Trim('•', '-', '*', '·', '–', '—', '|').Trim();
+    internal static string TrimGlue(string item)
+    {
+        var previous = item;
+        var current = item.Trim().Trim(GlueGlyphs).Trim();
+
+        while (current.Length != previous.Length)
+        {
+            previous = current;
+            current = current.Trim().Trim(GlueGlyphs).Trim();
+        }
+
+        return current;
+    }
+
+    private static readonly char[] GlueGlyphs = ['•', '-', '*', '·', '–', '—', '|'];
 }

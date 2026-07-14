@@ -186,9 +186,24 @@ internal static class PreambleResidue
     /// document POSITION (2026-07-01 bind).</para>
     ///
     /// <para><b>Accepted residual:</b> prose sitting BETWEEN contact lines (a tagline wedged between the
-    /// name and the e-mail) is inside the contact block and is dropped. It is rare, genuinely ambiguous,
-    /// and bounded by a rule a human can check by eye — and <paramref name="droppedLineCount"/> reports
-    /// it as a COUNT so it is measured rather than argued about.</para>
+    /// name and the e-mail) is inside the contact block and is dropped. On a CV WITH headings that is
+    /// rare, genuinely ambiguous, and bounded by a rule a human can check by eye — and
+    /// <paramref name="droppedLineCount"/> reports it as a COUNT so it is measured rather than argued
+    /// about.</para>
+    ///
+    /// <para><b>On a HEADINGLESS CV that bound is much weaker, and this doc will not pretend otherwise.</b>
+    /// The preamble is then the WHOLE document, so a contact line sitting BELOW the summary — a
+    /// "Referenser: anna@x.se" footer, a bare e-mail line at the end — drags the contact block across
+    /// the entire CV and the summary is dropped with it. A8 would then say "Profiltext saknas helt." on
+    /// exactly the population #844 exists to serve.
+    ///
+    /// It is not a regression (before #844 the prose was dropped unconditionally, on every CV), it does
+    /// not touch <c>FullName</c> or <c>Location</c> (which read per-line residue and the RAW preamble
+    /// respectively), and every dropped line is COUNTED. But the honest description of the bound is
+    /// "the last recognised contact line anywhere in scope", not "the top of the CV" — and on a
+    /// headingless document those are not the same place. Bounding it (stop the block at the first line
+    /// that recognises nothing) is a real design choice with its own failure mode, so it is filed rather
+    /// than guessed at here.</para>
     /// </summary>
     /// <param name="droppedLineCount">
     /// How many lines with surviving text were dropped as contact-block material. Structural evidence

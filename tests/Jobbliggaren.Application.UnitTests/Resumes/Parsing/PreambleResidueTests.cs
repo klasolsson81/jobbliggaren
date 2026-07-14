@@ -773,6 +773,8 @@ public class PreambleResidueTests
     [InlineData("Göteborg |")]      // both, trailing
     [InlineData("· Göteborg ·")]    // both, on both ends
     [InlineData(", Göteborg")]      // separator only, leading
+    [InlineData("* - Göteborg")]    // TWO glue runs split by a space — only equal under an IDEMPOTENT trim
+    [InlineData("- - Göteborg")]    // same, same glyph
     public void Segment_BareKommunInAnyGlueOrSeparatorForm_ReachesTheLocationField(string cityLine)
     {
         var cv =

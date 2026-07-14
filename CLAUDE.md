@@ -267,16 +267,23 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   deny-listed and 422s). *(2026-07-14 hygiene pass, all measured: 44 dead local
   + 44 dead remote branches; #800/#801 shipped and still `wip` two days on;
   9 `wip` claims against 4 running CCs.)*
-- **Never hand-reap a worktree.** A PR usually merges **after** its session has
-  ended, so "clean up when it merges" is not a same-session action — ADR 0094
-  settled this, and the reap is owned by the SessionStart reaper, which touches
-  only close-stamped, PR-merged, clean trees. **Liveness is the boolean the
-  owner sets** (`.jbl-worktree.json` → `closed_at`), never an inference the
-  sweeper makes (ADR 0094 rejected age/pid liveness proxies outright: doubt
-  resolves to skip, never to "probably fine"). Your duty is the opposite of
-  reaping: **end the session terminally so the close-stamp lands**, and **land
-  your `current-work.md` / `steg-tracker.md` / `tech-debt.md` edits in the main
-  copy before you stop** — the reaper's rescue saves gitignored files the main
+- **Never reap a worktree you did not create — and never one whose PR has not
+  merged.** The general case belongs to the SessionStart reaper: a PR usually
+  merges *after* its session has ended, so "clean up when it merges" is not a
+  same-session action (ADR 0094). But that reaper only ever touches trees
+  carrying a close-stamped marker, and a tree made with a raw `git worktree add`
+  has none — measured 2026-07-14: **0 markers across 13 worktrees, 1121
+  "no-marker" skips, one reap in the hook's entire history**. So it will not
+  collect yours. The tree **you** made this session, whose PR **you** watched
+  merge, you may remove yourself (rescue its gitignored docs first). Anyone
+  else's: never, for any reason.
+  **Liveness is the boolean the OWNER sets** (`.jbl-worktree.json` → `closed_at`),
+  never an inference *you* make about someone else — ADR 0094 rejected age/pid
+  liveness proxies outright: doubt resolves to skip, never to "probably fine".
+  "I created it" is knowledge; "its lock looks stale" is a guess that yanks a
+  live tree.
+  And **land your `current-work.md` / `steg-tracker.md` / `tech-debt.md` edits in
+  the main copy before you stop** — the rescue saves gitignored files the main
   copy does *not* have; it cannot save your edits to ones it already does.
 
 ## 7. Testing

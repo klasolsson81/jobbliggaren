@@ -27,10 +27,10 @@ public enum ErasureColumnDisposition
     MatchedHumanErases,
 
     /// <summary>
-    /// We HOLD it and we CANNOT search it. The column is encrypted at rest under a PER-USER DEK
-    /// envelope (ADR 0049 C3 / ADR 0066, Form A), so a plaintext <c>LIKE</c> compares her name
-    /// against base64 ciphertext and matches nothing — not "nothing today", but structurally, on
-    /// every request, forever.
+    /// We HOLD it and we CANNOT search it. The column is encrypted at rest under PER-USER keys —
+    /// Form A in-place text, Form B encrypted VO shadows, or Form C sealed binary (ADR 0049
+    /// C3/C4 / ADR 0066) — so a plaintext <c>LIKE</c> compares her name against ciphertext and
+    /// matches nothing — not "nothing today", but structurally, on every request, forever.
     /// </summary>
     /// <remarks>
     /// Reading these would mean decrypting EVERY user's private texts to serve ONE third party's

@@ -17,8 +17,12 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 /// <summary>
-/// #842 — every read path that must NOT surface an erased ad, driven through the REAL handlers on
-/// REAL Postgres.
+/// #842 — read paths that must NOT surface an erased ad, driven through the REAL handlers on REAL
+/// Postgres. <b>THREE of the five guarded paths live here</b> (matches, saved ads, the
+/// save-command); the two DIGEST paths are guarded in <c>DigestDispatchJobTests</c>, which has the
+/// Worker harness this file does not. An earlier header claimed "every read path" while covering
+/// three of five (round-3 Minor 7, carried two rounds) — the split is now written down instead of
+/// implied.
 /// </summary>
 /// <remarks>
 /// <b>An erased ad is a TOMBSTONE ROW, not a missing one.</b> <c>JobAd.Erase()</c> blanks the record

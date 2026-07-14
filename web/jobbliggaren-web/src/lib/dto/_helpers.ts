@@ -141,8 +141,9 @@ export function parseRetryAfter(headerValue: string | null): number {
  * - 200/2xx + valid shape → `{ kind: "ok", data }`
  * - 401 → `{ kind: "unauthorized" }`
  * - 403 → `{ kind: "forbidden" }`
- * - 404 + `includeNotFound: true` → `{ kind: "notFound" }`
- *   (list-endpoints ska låta 404 bli `error` — `notFound` saknar semantik där)
+ * - 404 eller 410 + `includeNotFound: true` → `{ kind: "notFound" }`
+ *   (list-endpoints ska låta 404/410 bli `error` — `notFound` saknar semantik där;
+ *   410 = Art. 17-raderad annons, kollapsad hit medvetet — se kommentaren nedan)
  * - Övriga !res.ok / network / JSON-fel / shape-mismatch → `{ kind: "error" }`
  *
  * Strukturerad fel-logging görs av underliggande `parseResponse` —
@@ -156,21 +157,21 @@ export async function responseToResult<T>(
 ): Promise<ApiResult<T>> {
   if (res.status === 401) return { kind: "unauthorized" };
   if (res.status === 403) return { kind: "forbidden" };
-  // 404 = "vi har aldrig haft det har". 410 = "det fanns och ar avsiktligt borta"
-  // (en annons raderad enligt artikel 17, #842). API-kontraktet skiljer dem at,
-  // och det ska det gora.
+  // 404 = "we never had this". 410 = "it existed and is deliberately gone" (an ad
+  // erased under Article 17, #842). The API contract distinguishes them, and it
+  // should.
   //
-  // Pa SKARMEN ar de dock samma sak: "Annonsen ar borttagen". Vi kollapsar dem
-  // HAR, vid anropet, i stallet for att vidga den delade ApiResult-unionen -- den
-  // konsumeras av var sida i appen, och deras uttommande switchar skulle tvinga
-  // femton orelaterade vyer att hantera en status de aldrig kan fa.
+  // On SCREEN they are the same thing: "Annonsen är borttagen". We collapse them
+  // HERE, at the call site, instead of widening the shared ApiResult union — it is
+  // consumed by every page in the app, and their exhaustive switches would force
+  // fifteen unrelated views to handle a status they can never receive.
   //
-  // Att visa samma neutrala text ar dessutom det RATTA: backendens 410-kropp ar
-  // medvetet neutral, eftersom en specifik text plus Arbetsformedlingens publika
-  // "Historiska annonser" later vem som helst harleda att en namngiven person har
-  // utovat sin raderingsratt. Utan den har raden foll 410 igenom till `error` och
-  // renderades som "nagot gick fel, ladda om sidan" -- om en sida som aldrig
-  // kommer tillbaka.
+  // Showing the same neutral text is also the RIGHT thing: the backend's 410 body
+  // is deliberately neutral, because a specific text plus Arbetsförmedlingen's
+  // public "Historiska annonser" would let anyone infer that a named person has
+  // exercised her right to erasure. Without this line, 410 fell through to `error`
+  // and rendered as "något gick fel, ladda om sidan" — about a page that is never
+  // coming back.
   if (
     (res.status === 404 || res.status === 410) &&
     options?.includeNotFound

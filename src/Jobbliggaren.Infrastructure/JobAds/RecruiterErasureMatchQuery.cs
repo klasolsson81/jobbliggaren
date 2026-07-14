@@ -99,12 +99,18 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
     {
         var sb = new StringBuilder(value.Length * 2);
 
-        foreach (var c in value)
+        // Runes, not chars (round-3 security m1, discharged round 6): enumerating UTF-16 code
+        // units puts a backslash BETWEEN the halves of a surrogate pair — the broken half-pair
+        // round-trips to U+FFFD and the destructive query silently matches nothing. Enumerating
+        // scalar values keeps a non-BMP character (an emoji in a company name) intact. Rune's
+        // IsLetterOrDigit is the same Unicode classification char used for the BMP, so å/ä/ö
+        // behave exactly as before.
+        foreach (var rune in value.EnumerateRunes())
         {
-            if (!char.IsLetterOrDigit(c))
+            if (!Rune.IsLetterOrDigit(rune))
                 sb.Append('\\');
 
-            sb.Append(c);
+            sb.Append(rune.ToString());
         }
 
         return sb.ToString();

@@ -18,8 +18,9 @@ public enum ErasureOutcome
     /// Nothing matched in the surfaces we are ABLE to search.
     /// </summary>
     /// <remarks>
-    /// <b>It does not say "we hold no data about you", and it must not be allowed to.</b> Three
-    /// columns are DEK-encrypted under a per-user envelope and cannot be scanned at all
+    /// <b>It does not say "we hold no data about you", and it must not be allowed to.</b> Seven
+    /// columns are encrypted under per-user keys (Forms A, B and C — the notes, the cover
+    /// letters, and the CV in all three of its stored shapes) and cannot be scanned at all
     /// (<see cref="ErasureColumnDisposition.HeldButNotSearchable"/>), so a claim of total absence
     /// is one we cannot verify — and therefore one we must not be able to type.
     /// <see cref="EraseRecruiterAdsResponse.CouldNotSearch"/> ships with every reply, including
@@ -161,29 +162,51 @@ public sealed record ErasureSurfaceCounts(
 /// <see cref="ErasureCascadeRegistry.UnsearchableColumns"/>, so it cannot drift from the
 /// classification the build enforces.
 /// </summary>
-public sealed record UnsearchableSurfaces(
-    IReadOnlyList<string> Columns,
-    string Reason,
-    string Escalation)
+/// <remarks>
+/// Non-positional with a private constructor, deliberately: the earlier positional record's doc
+/// said <i>"it can neither be forgotten nor faked"</i> while
+/// <c>new UnsearchableSurfaces([], "", "")</c> compiled (round-3 Minor 1, carried three rounds).
+/// Now <see cref="FromRegistry"/> IS the only construction route, and the claim is a fact about
+/// the type instead of a sentence about it.
+/// </remarks>
+public sealed record UnsearchableSurfaces
 {
+    public IReadOnlyList<string> Columns { get; }
+
+    public string Reason { get; }
+
+    public string Escalation { get; }
+
+    private UnsearchableSurfaces(IReadOnlyList<string> columns, string reason, string escalation)
+    {
+        Columns = columns;
+        Reason = reason;
+        Escalation = escalation;
+    }
+
     /// <summary>The only construction route. Derived, so it can neither be forgotten nor faked.</summary>
     public static UnsearchableSurfaces FromRegistry() => new(
-        Columns: ErasureCascadeRegistry.UnsearchableColumns,
+        columns: ErasureCascadeRegistry.UnsearchableColumns,
 
-        Reason:
-            "Encrypted at rest under a per-user DEK envelope (ADR 0049 C3 / 0066, Form A). Scanning "
-            + "them would mean decrypting every user's private texts to serve one third party's "
-            + "request — building a read-everyone's-content capability permanently (Art. 25(2)/32), "
-            + "with no lawful basis toward those other data subjects (Art. 6). We refuse the "
-            + "MECHANISM, not the person.",
+        // SEVEN columns across all three encryption forms — not "three notes columns" (that text
+        // survived two rounds after the list outgrew it, on a member handed to a data subject).
+        reason:
+            "Encrypted at rest under a per-user key envelope (ADR 0049 C3/C4 / 0066 — Form A "
+            + "in-place text: the application notes, follow-up notes, cover letters and the raw CV "
+            + "text; Form B encrypted shadows: the structured CV content; Form C sealed binary: "
+            + "the uploaded CV FILE itself). Scanning them would mean decrypting every user's "
+            + "private texts and documents to serve one third party's request — building a "
+            + "read-everyone's-content capability permanently (Art. 25(2)/32), with no lawful "
+            + "basis toward those other data subjects (Art. 6). We refuse the MECHANISM, not the "
+            + "person.",
 
-        Escalation:
+        escalation:
             "applications.job_ad_id already names every application written TO a matched ad, "
             + "exactly and without decryption — that is where the overlap lives, and it is reported "
             + "as ApplicationsReferencingMatchedAds. For the residual: if she knows she appears in a "
-            + "specific application, a TARGETED decryption of that one identified user's record is "
-            + "proportionate and buildable, and a human does it. The reply must offer her that "
-            + "route.");
+            + "specific application or a specific CV, a TARGETED decryption of that one identified "
+            + "user's record is proportionate and buildable, and a human does it. The reply must "
+            + "offer her that route.");
 }
 
 /// <summary>

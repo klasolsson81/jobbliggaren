@@ -47,9 +47,15 @@ while all DEK-free routes looked healthy):
 # Values come from the MAIN checkout's gitignored files — never echo them.
 PW=$(grep -E '^POSTGRES_PASSWORD_DEV=' C:/DOTNET-UTB/JobbPilot/.env | head -1 | cut -d= -f2- | tr -d '\r')
 MK=$(sed -n 's/.*"LocalMasterKeyBase64"\s*:\s*"\([^"]*\)".*/\1/p' C:/DOTNET-UTB/JobbPilot/src/Jobbliggaren.Api/appsettings.Local.json)
+PEPPER=$(sed -n 's/.*"PepperBase64"\s*:\s*"\([^"]*\)".*/\1/p' C:/DOTNET-UTB/JobbPilot/src/Jobbliggaren.Api/appsettings.Local.json)
 export ConnectionStrings__Postgres="Host=localhost;Port=5435;Database=jobbliggaren;Username=jobbliggaren;Password=$PW"
 export FieldEncryption__Provider=Local
 export FieldEncryption__LocalMasterKeyBase64="$MK"   # required for BOTH Api and Worker
+# #842: the Art. 17 audit-pseudonymisation pepper is ValidateOnStart()-fail-closed —
+# the Api DIES AT BOOT without it (deliberately: an HMAC under an absent key looks
+# protected while being reversible). Same rule as the master key: it must be the MAIN
+# copy's value, or existing identifierHmac audit rows stop being correlatable.
+export AuditPseudonymization__PepperBase64="$PEPPER"
 ```
 
 The dev `appsettings` Postgres string uses a `${...}` placeholder the launch

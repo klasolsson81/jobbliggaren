@@ -33,8 +33,13 @@ public sealed record FollowedCompanyAdItem(
 /// <para>
 /// A company-follow notification is always a DIGEST (there is no direct/Top concept for follows), so
 /// this contract has no Kind discriminator. <see cref="Cadence"/> drives the "daglig/veckovis"
-/// phrasing; <see cref="TotalCount"/> is the honest window total (≥ <see cref="Items"/>.Count when
-/// the display is capped) so the template can render "och N till".
+/// phrasing; <see cref="TotalCount"/> is the number of hits that COULD have been shown
+/// (≥ <see cref="Items"/>.Count when the display is capped) so the template can render "och N till".
+/// <b>#864 — read this before re-wiring the field:</b> it counts PRESENTABLE hits (the ad is
+/// <c>Active</c>), NEVER the claimed set. The dispatcher also drains hits whose ad has since been
+/// archived (they were valid when detected, and an undrained hit re-processes on every run), but the
+/// body can never list them. Counting them makes the email say "och 3 till" about three ads the
+/// recipient will never see — a count that promises more than its set can deliver.
 /// <para>
 /// <b><see cref="FilterSummary"/> (bevakning-reconcile RF-13=13B, 2026-07-12):</b> an OPTIONAL
 /// per-email disclosure of the per-watch filters that shaped this digest (null = no filter → no

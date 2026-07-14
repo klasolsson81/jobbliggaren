@@ -8,9 +8,17 @@ namespace Jobbliggaren.Application.Matching.Queries.GetMyMatches;
 /// <summary>
 /// ADR 0080 Vag 4 PR-5 — lists the authenticated user's background matches (most recent first,
 /// capped) joined to each ad's PUBLIC details (title/company/url — no CV content). Owner-scoped;
-/// no authenticated user → empty. The soft-delete query filter on <c>UserJobAdMatch</c> excludes
-/// erased rows. <c>IsNew</c> is computed against the last-seen watermark as it stands AT FETCH
-/// (opening the view advances it separately via MarkMatchesSeen). NO AI/LLM.
+/// no authenticated user → empty. <c>IsNew</c> is computed against the last-seen watermark as it
+/// stands AT FETCH (opening the view advances it separately via MarkMatchesSeen). NO AI/LLM.
+/// <para>
+/// <b>What excludes an erased row — and what does NOT.</b> This comment used to say "the soft-delete
+/// query filter on <c>UserJobAdMatch</c> excludes erased rows". The filter is registered
+/// (<c>UserJobAdMatchConfiguration</c>) but <b><c>UserJobAdMatch.SoftDelete()</c> has ZERO callers in
+/// <c>src/</c></b> (#868; <c>StrandedMatchReaperJob</c> says so in as many words) — so it excludes
+/// nothing, and that sentence promised a control that has never once fired. It is the same
+/// sentence-shape, about the same column name, that produced #864: an exclusion delegated to a filter
+/// with no writer. The exclusion here is the <c>Status</c> predicate below and nothing else.
+/// </para>
 /// <para>
 /// <b>Lifecycle (#864):</b> the join carries an explicit <c>Status == Active</c> predicate. The
 /// previous version of this comment claimed the inner join "naturally drops a match whose ad is

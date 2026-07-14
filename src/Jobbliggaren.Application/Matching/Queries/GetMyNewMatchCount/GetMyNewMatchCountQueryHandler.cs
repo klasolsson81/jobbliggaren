@@ -75,7 +75,7 @@ public sealed class GetMyNewMatchCountQueryHandler(
         // (MyMatchesSurfaceTests) is the oracle that proves this one translates.
         var count = await (
                 from m in matches
-                join j in db.JobAds on m.JobAdId equals j.Id
+                join j in db.JobAds.AsNoTracking() on m.JobAdId equals j.Id
                 where j.Status == JobAdStatus.Active
                 select m.Id)
             .CountAsync(cancellationToken);

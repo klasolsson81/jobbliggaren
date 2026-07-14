@@ -1128,6 +1128,108 @@ public class DigestDispatchJobTests
             "bevaknings-mejlet 'och 3 till' om tre annonser mottagaren aldrig får se");
     }
 
+    // ═══ #864 — THE PARTITION. `pending` = claim ⊎ stayPending ⊎ drain, disjoint and exhaustive.
+    //
+    //     claim       =  presentable ∧  gradePasses   → claimed, emailed, Sent
+    //     stayPending =  presentable ∧ ¬gradePasses   → untouched (8C: the profile may change)
+    //     drain       = ¬presentable                  → drained unconditionally, never shown
+    //
+    // ONE spec, not three, and the reason is the CTO's: three separate tests cannot see a FOURTH class
+    // appearing later; a totality assertion can.
+    //
+    // How this test came to exist is the point of it. code-reviewer found that my two follow specs both
+    // ran `onlyMatched: false`, so both took the unfiltered arm — my mutation log's "both TotalCounts →
+    // red" had measured ONE branch and claimed two. Writing the missing spec, I stubbed
+    // `FilterToMatchingAsync` to RETURN the archived ids — a state production cannot reach, since that
+    // port carries its own `Status == Active` gate (PerUserJobAdSearchQuery:370). That is #843 test
+    // fiction, and #864's OWN AC 4 forbids it, and I wrote it inside the fix for it.
+    //
+    // Killing the fiction is what exposed the real bug: with the port behaving as it actually does, an
+    // archived hit under an OnlyMatched watch fell out of `effective` → was never claimed → never
+    // drained → stayed Pending FOREVER, re-graded on every run. Nothing reaped it (StrandedMatchReaperJob
+    // reaps QUEUED rows; a row never claimed is never queued). Unbounded, monotonically growing, and
+    // invisible for two releases.
+    //
+    // So the stub below returns ONLY active ids — what the real port returns. The fiction was the
+    // defect; removing it is the deliverable.
+    [Fact]
+    public async Task RunAsync_Follow_PendingHitsPartitionIntoClaimStayPendingAndDrain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var watchId = await SeedWatchAsync(db, userId, onlyMatched: true, ct); // → the grade-filter path
+
+        // claim: 2 ACTIVE ads that clear ≥Good.
+        var claimAds = new List<JobAdId>();
+        for (var i = 0; i < 2; i++)
+            claimAds.Add(await SeedActiveAdAsync(db, $"Aktiv {i}", "Bolag", ct));
+
+        // drain: 2 ads archived AFTER the hit was recorded (the only way production reaches this).
+        var archivedAds = new List<JobAdId>();
+        for (var i = 0; i < 2; i++)
+            archivedAds.Add(await SeedActiveAdAsync(db, $"Arkiverad {i}", "Bolag", ct));
+
+        // stayPending: 1 ACTIVE ad below the ≥Good floor.
+        var gradedOut = await SeedActiveAdAsync(db, "Bortfiltrerad", "Bolag", ct);
+
+        var minute = 0;
+        foreach (var adId in claimAds.Concat(archivedAds).Append(gradedOut))
+            await SeedFollowHitAsync(db, userId, adId, watchId, ct,
+                createdAt: NowClock.UtcNow.AddMinutes(-minute++));
+
+        foreach (var adId in archivedAds)
+            await ArchiveAdAsync(db, adId, ct);
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+
+        // The port returns ONLY the active, ≥Good ads — exactly what the real one does. It is ALSO
+        // gated on Status == Active, so it could never return an archived id even if one were fed to it.
+        IReadOnlyCollection<JobAdId>? gradedIds = null;
+        _perUserSearch.FilterToMatchingAsync(
+                Arg.Any<FullCandidateMatchProfile>(),
+                Arg.Do<IReadOnlyCollection<JobAdId>>(ids => gradedIds = ids),
+                Arg.Any<CancellationToken>())
+            .Returns(claimAds.ToHashSet());
+
+        FollowedCompanyNotificationEmail? captured = null;
+        await _emailSender.SendFollowedCompanyNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Do<FollowedCompanyNotificationEmail>(c => captured = c),
+            Arg.Any<FollowedCompanyNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+
+        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+
+        // A dead ad is never even offered to the grade port: its absence from the result must never be
+        // readable as "below ≥Good". That conflation is what hid the leak.
+        gradedIds.ShouldNotBeNull();
+        gradedIds.ShouldNotContain(archivedAds[0]);
+        gradedIds.ShouldNotContain(archivedAds[1]);
+
+        // ── NON-VACUITY FIRST: the claim class IS emitted. Without this, "nothing stayed Pending" and
+        // "the archived ones drained" would both pass the day the whole query returns nothing.
+        captured.ShouldNotBeNull();
+        captured.Items.Count.ShouldBe(2);
+        captured.Items.ShouldAllBe(i => i.JobTitle.StartsWith("Aktiv"));
+        captured.TotalCount.ShouldBe(2, "TotalCount = claim-klassen, aldrig claim ∪ drain");
+
+        // ── TOTALITY: every pending row landed in exactly one arm.
+        foreach (var adId in claimAds)
+            (await ReloadHitAsync(db, userId, adId, ct))!.NotificationStatus
+                .ShouldBe(FollowedCompanyAdHitStatus.Sent, "claim: presenterbar + klarar graden → mejlas, dräneras");
+
+        foreach (var adId in archivedAds)
+            (await ReloadHitAsync(db, userId, adId, ct))!.NotificationStatus
+                .ShouldBe(FollowedCompanyAdHitStatus.Sent,
+                    "drain: LIVSCYKEL är ett DRÄNERINGS-skäl. Ingenting av-arkiverar en annons, så att " +
+                    "lämna den Pending är inte uppskov — det är en läcka som ingen reaper tar");
+
+        (await ReloadHitAsync(db, userId, gradedOut, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Pending,
+                "stayPending: GRAD är ett FILTER-OUT-skäl. Profilen kan ändras, så hiten måste kunna " +
+                "åter-ytas retroaktivt (8C) — livscykel-fixen får inte konsumera den");
+    }
+
     // Archives an ad through the DOMAIN transition production uses (JobAd.Archive), never by fabricating
     // column state — #843 / #864 AC 4. The old soft-delete tests forged DeletedAt via
     // db.Entry(...).CurrentValue, a state production could not reach; they were green forever and proved

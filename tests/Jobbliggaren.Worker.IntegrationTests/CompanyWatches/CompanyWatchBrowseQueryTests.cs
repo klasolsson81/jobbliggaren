@@ -213,6 +213,67 @@ public class CompanyWatchBrowseQueryTests(WorkerTestFixture fixture)
     }
 
     [Fact]
+    public async Task EverySwedishTextColumn_CarriesTheSameIcuSwedishCollation_NotJustTheSortedOne()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await FreshContextAsync(ct);
+
+        // #884. Browse_SortsSwedish_... guards company_name, because company_name is SORTED and a wrong
+        // collation shows up as a wrong order. sate_kommun_name (Åre, Älvdalen, Örnsköldsvik) is NOT
+        // sorted by anything today — so nothing above can see it, and deleting its .UseCollation(...)
+        // leaves every test in this repo green. An unguarded collation defended by an ADR section and a
+        // code comment is precisely the shape this PR exists to delete: a guarantee asserted in prose
+        // and enforced nowhere (#805-3, #842). So it is enforced HERE.
+        //
+        // Shape-based, never name-based: this asserts the collation's PROVIDER and LOCALE, never the
+        // string "swedish". A name assertion would pass against a collation that is merely CALLED
+        // Swedish while collating as en_US — which is the exact class of lie the guard exists to catch.
+        // It also asserts the two columns share ONE collation OID: two collations with the same locale
+        // are not interchangeable to the planner, and a divergence between them is invisible everywhere
+        // else.
+        const string Sql = """
+            SELECT a.attname,
+                   c.collprovider::text AS provider,
+                   c.colllocale        AS locale,
+                   c.oid::text         AS collation_oid
+            FROM pg_attribute a
+            JOIN pg_collation c ON c.oid = a.attcollation
+            WHERE a.attrelid = 'company_register'::regclass
+              AND a.attname IN ('company_name', 'sate_kommun_name')
+            ORDER BY a.attname;
+            """;
+
+        var rows = new List<(string Column, string Provider, string? Locale, string Oid)>();
+        var conn = ctx.Db.Database.GetDbConnection();
+        await ctx.Db.Database.OpenConnectionAsync(ct);
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = Sql;
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                rows.Add((reader.GetString(0), reader.GetString(1),
+                          reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3)));
+        }
+
+        // A column with no explicit collation does not join pg_collation to a real row at all — it
+        // carries the database default. So a missing row IS the failure, and it is the FIRST thing
+        // asserted: drop .UseCollation(...) from either column and this line is what goes red.
+        rows.Select(r => r.Column).ShouldBe(["company_name", "sate_kommun_name"]);
+
+        foreach (var row in rows)
+        {
+            row.Provider.ShouldBe("i", $"{row.Column} is not collated by ICU.");
+            row.Locale.ShouldBe("sv-SE", $"{row.Column} is not collated as Swedish.");
+        }
+
+        rows.Select(r => r.Oid).Distinct().Count().ShouldBe(
+            1,
+            "company_name and sate_kommun_name carry DIFFERENT collation objects. Two collations with "
+            + "the same locale are not interchangeable to the planner, and nothing else in this repo "
+            + "can see the difference.");
+    }
+
+    [Fact]
     public async Task Browse_PagesAreTotallyOrdered_NoRowLostOrDuplicated_AndTotalCountIsStable()
     {
         var ct = TestContext.Current.CancellationToken;

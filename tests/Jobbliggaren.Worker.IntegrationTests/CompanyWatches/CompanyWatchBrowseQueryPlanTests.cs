@@ -46,11 +46,23 @@ namespace Jobbliggaren.Worker.IntegrationTests.CompanyWatches;
 /// </para>
 ///
 /// <para>
-/// <b>What this proves, precisely: index ELIGIBILITY, not production's plan choice.</b>
-/// <c>enable_seqscan = off</c> is a test-only instrument. Production must NOT set it: the bound-legal
-/// worst case (1000 SNI codes × 290 kommuner) genuinely matches most of the register, and a sequential
-/// scan IS the right plan there. What the pin guarantees is that the predicate the port emits is a
-/// shape the GIN index CAN serve — which is exactly what the naive LINQ form silently is not.
+/// <b>What the GIN pins prove, precisely: index ELIGIBILITY, not production's plan choice.</b>
+/// <c>enable_seqscan = off</c> is a test-only instrument, and on PostgreSQL 17+ (this repo runs 18.3)
+/// it is an effective PROHIBITION, not a cost penalty — the planner counts <c>disabled_nodes</c> and
+/// prefers any path with fewer of them regardless of cost. Production must NOT set it. What those pins
+/// guarantee is that the predicate the port emits is a shape the GIN index CAN serve — which is exactly
+/// what the naive LINQ form silently is not.
+/// </para>
+///
+/// <para>
+/// <b>The #875 pins claim something different, and are instrumented differently.</b>
+/// <see cref="BroadCriterion_WalksTheNameIndexInOrder_AndStopsEarly"/> claims a plan CHOICE, so it runs
+/// with the planner's FULL search space — no GUC — because a choice made inside a prohibition is not
+/// production's choice (code-reviewer, 2026-07-14).
+/// <see cref="ItemsQuery_OrdersByATotalKey"/> claims a property of the SQL and asserts it on the SQL,
+/// because the total order stopped being observable in the plan the moment the name index existed.
+/// <see cref="GenericPlan_DoesNotUseTheNameIndex_SoMaxAutoPrepareWouldKillIt"/> is the only instrument
+/// here that can see what happens when Postgres plans this statement WITHOUT the parameter values.
 /// </para>
 /// </summary>
 [Collection("Worker")]
@@ -92,42 +104,42 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
             ct);
 
         AssertServedByGin(plan, "items");
+    }
 
-        // The ORDER BY must be TOTAL, and this is the deterministic way to pin it (code-reviewer Major,
-        // 2026-07-13). The sibling suite's page-boundary test seeds duplicate company_names and asserts
-        // that no row is lost or duplicated across pages — but whether a MISSING tiebreak would actually
-        // make that test fail is PLAN-DEPENDENT (it relies on top-N heapsort ordering the ties
-        // differently at OFFSET 0/10/20; "can diverge" is not "does diverge"). That is an asserted
-        // non-vacuity, not a demonstrated one.
+    [Fact]
+    public void ItemsQuery_OrdersByATotalKey()
+    {
+        // The ORDER BY must be TOTAL: company_name is not unique in a real register (duplicate legal
+        // names are normal) and Postgres sorts are not stable, so an OFFSET walk over a non-total order
+        // silently drops and duplicates rows ACROSS pages. organization_number is the PK — it is what
+        // makes the order total.
         //
-        // TRUTH-SYNC (#875, 2026-07-14). This comment used to justify itself with "there is no index on
-        // (company_name, organization_number), so a Sort node always sits above the bitmap heap scan".
-        // #875 CREATES that index, so the sentence is now FALSE — exactly the load-bearing-comment rot
-        // this suite exists to prevent, and it would have shipped silently.
+        // THIS IS PINNED ON THE SQL, NOT ON THE PLAN — and #875 is why (both review gates, 2026-07-14).
+        // Before this PR the plan could carry the proof: with no index on (company_name,
+        // organization_number) a Sort node was FORCED, and a Sort node NAMES its key. #875 creates that
+        // index, and now:
+        //   - an Index Scan can serve the ORDER BY with no Sort node at all, and
+        //   - EXPLAIN does NOT print which columns an Index Scan orders on — not even under VERBOSE.
+        // The total order therefore stopped being OBSERVABLE through the plan. The plan-based assertion
+        // that used to guard it survived its own mutation only because the selective probe (2 hits of
+        // 2000) makes the planner not CHOOSE the name index — a cost-model coincidence bound to
+        // ProbeMatches = 2. Raise that to ~400 and the mutation would have begun passing silently: a
+        // structural guarantee decayed into a disciplinary one, which is the exact defect class this
+        // suite exists to catch.
         //
-        // The pin survives because it asserts the PROPERTY, not the plan shape: the total order must be
-        // carried by SOMETHING. Two plans can carry it, and both are legitimate:
-        //   (a) an explicit Sort node naming both keys (what a SELECTIVE criterion gets — the planner
-        //       stays on BitmapAnd(GIN, kommun) and sorts the handful of hits), or
-        //   (b) an ordered walk of the new (company_name, organization_number) index, which IS the total
-        //       order — no Sort node needed (what a BROAD criterion gets; see
-        //       BroadCriterion_WalksTheNameIndexInOrder_AndStopsEarly).
-        // Anything else means the OFFSET walk is over a non-total order, and rows silently vanish and
-        // duplicate across pages.
-        //
-        // Still mutation-verified: drop `, organization_number` from ItemsSql and (a) loses its second
-        // key while (b) cannot match the index — both branches fail.
-        var carriesTotalOrder =
-            plan.Contains("Sort Key: company_name, organization_number", StringComparison.Ordinal)
-            || plan.Contains(NameIndexName, StringComparison.Ordinal);
+        // The order is a STATIC property of ItemsSql. Assert it there: immune to plan choice, collation,
+        // statistics and Postgres version — and RED BY CONSTRUCTION under the mutation, forever.
+        using var conn = new NpgsqlConnection();
+        using var cmd = CompanyWatchBrowseQuery.BuildItemsCommand(
+            conn, CompanyWatchCriteriaSpec.FromTrusted([ProbeSni], [SeededKommun]), page: 1, pageSize: 20);
 
-        carriesTotalOrder.ShouldBeTrue(
-            "The items query's ORDER BY is no longer TOTAL. company_name is not unique in a real "
-            + "register (duplicate legal names are normal) and Postgres sorts are not stable, so an "
-            + "OFFSET walk over a non-total order silently drops and duplicates rows ACROSS pages. "
-            + "organization_number is the PK — it is what makes the order total. The plan must carry "
-            + $"that order EITHER as 'Sort Key: company_name, organization_number' OR as an ordered walk "
-            + $"of {NameIndexName}.{Environment.NewLine}Plan:{Environment.NewLine}{plan}");
+        cmd.CommandText.ShouldContain(
+            "ORDER BY company_name, organization_number",
+            customMessage:
+                "The items query's ORDER BY is no longer TOTAL. Postgres sorts are not stable and "
+                + "company_name is not unique in a real register, so an OFFSET walk over a non-total "
+                + "order silently drops and duplicates rows across pages. Keep organization_number (the "
+                + "PK) as the tiebreak.");
     }
 
     [Fact]
@@ -150,14 +162,17 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextAsync(ct);
 
-        // A criterion matching MOST of the seeded table — the shape that makes the sort expensive.
+        // A criterion matching EVERY seeded row (each carries ProbeSni or FillerSni) — the shape that
+        // makes the sort expensive, and deliberately the most favourable one for an early stop.
         //
         // It MUST be the broad one. The selective probe the sibling test uses correctly keeps
         // BitmapAnd + Sort, so it CANNOT — by construction — notice that this index has fallen out of
         // the plan. A pin that cannot fail for the reason it exists is not a pin.
         var broad = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
 
-        var plan = await ExplainSpecAsync(ctx.Db, broad, ct);
+        // NO enable_seqscan = off. This test claims a plan CHOICE, so it must let the planner have the
+        // whole search space production has — including the Seq Scan -> Sort plan that took 7 066 ms.
+        var plan = await ExplainSpecAsync(ctx.Db, broad, disableSeqScan: false, ct);
 
         // POSITIVE on the index name — never a negative "no Seq Scan" (dotnet-architect Q1(a): the
         // negative form passes under mutation because other index paths remain).
@@ -174,6 +189,147 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
                 "The broad criterion's plan still SORTS. Reaching the index is not the guarantee — "
                 + "WALKING it in order and stopping at LIMIT 20 is. A Sort node above the scan means the "
                 + $"whole match set is still being ordered.{Environment.NewLine}{BrokenPlanMessage(plan)}");
+    }
+
+    [Fact]
+    public async Task GenericPlan_DoesNotUseTheNameIndex_SoMaxAutoPrepareWouldKillIt()
+    {
+        // THE MINE, MADE VISIBLE. This is the only instrument in the repo that can see it, and it exists
+        // because dotnet-architect refused to accept "plain btree is immune" as written (#875, 2026-07-14).
+        //
+        // ItemsSql is a CONSTANT. A selective criterion and a broad one send the SAME statement text and
+        // differ only in the @sni/@kommun VALUES. Today Npgsql sends UNNAMED statements, so Postgres
+        // custom-plans every execution with the actual values — and it picks TWO DIFFERENT PLANS:
+        //     selective -> BitmapAnd(GIN, kommun) -> Sort        (correct: a handful of hits)
+        //     broad     -> ordered walk of the name index        (correct: stop at LIMIT 20)
+        //
+        // docs/PERFORMANCE_AUDIT.md recommends enabling `Max Auto Prepare` in the Hetzner connection
+        // strings. That makes the statement NAMED -> one plan-cache entry -> Postgres promotes it to a
+        // GENERIC plan after a few executions. A generic plan is planned with NO parameter values, so it
+        // must pick ONE plan for every criterion.
+        //
+        // MEASURED, not reasoned: it picks BitmapAnd + Sort. Which means the day Max Auto Prepare lands,
+        // the broad and worst cases stop using this index entirely and fall back to sorting the whole
+        // match set — 7 066 ms p95 against a 300 ms budget — and the 55 MB index becomes dead weight.
+        // Every other test in this suite stays green, because they all EXPLAIN unnamed statements.
+        //
+        // This test pins TODAY'S generic plan. It is a characterisation pin: if it ever changes, someone
+        // has changed something that moves the planner's cost model, and they need to know what it costs.
+        // SEEDED AT PRODUCTION'S PLANNER REGIME, not the suite's 2 000-row one — and I only know that
+        // matters because I got it wrong first. The generic plan's choice is SCALE-DEPENDENT: at 2 000
+        // rows it DOES walk the name index; at 200 000 it drops it for BitmapAnd + Sort. A pin seeded at
+        // 2 000 would have characterised an artefact of the test's own smallness and told the next person
+        // the exact opposite of the truth.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await LargeSeededContextAsync(ct);
+
+        var plan = await ExplainGenericPlanAsync(ctx.Db, ct);
+
+        plan.ShouldNotContain(
+            NameIndexName,
+            customMessage:
+                "The GENERIC plan now uses " + NameIndexName + ". That is a CHANGE, and it needs a "
+                + "decision, not a green test. A generic plan serves EVERY criterion, so an ordered walk "
+                + "of the name index would be applied to SELECTIVE criteria too — which is the exact "
+                + "ORDER BY + LIMIT cliff (walk thousands of index entries per hit) that made this index "
+                + "look dangerous in the first place. Re-measure the selective case under "
+                + $"plan_cache_mode = force_generic_plan before accepting it.{Environment.NewLine}"
+                + $"Plan:{Environment.NewLine}{plan}");
+
+        // ...and pin WHY that is bad news rather than good: the generic plan sorts.
+        plan.ShouldContain(
+            "Sort Key: company_name, organization_number",
+            customMessage:
+                "The GENERIC plan no longer sorts, and no longer walks the name index either — so it is "
+                + "doing something this test has never seen. Look at it before you trust it."
+                + $"{Environment.NewLine}Plan:{Environment.NewLine}{plan}");
+    }
+
+    /// <summary>
+    /// 200 000 rows — enough that the planner behaves the way it does against the 1,17M-row register.
+    /// The suite's 2 000-row helper cannot reproduce that regime (see the generic-plan pin), and this
+    /// seeds a PLANNER regime rather than a semantic fixture, so it bulk-inserts instead of upserting.
+    /// Names are deterministically shuffled so <c>company_name</c> is not correlated with insertion
+    /// order — a correlated column makes the planner price this index's heap fetches as sequential, i.e.
+    /// flatters exactly the plan under test.
+    /// </summary>
+    private async Task<ScopedContext> LargeSeededContextAsync(CancellationToken ct)
+    {
+        var scope = _fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Database.SetCommandTimeout(300);
+
+        await db.Database.ExecuteSqlRawAsync("TRUNCATE company_register;", ct);
+
+        var seed =
+            "INSERT INTO company_register ("
+            + "organization_number, company_name, sate_kommun_code, sate_kommun_name, "
+            + "sni_codes, reklamsparr, scb_status_raw, status, synced_at, created_at) "
+            + "SELECT lpad(i::text, 10, '0'), "
+            + "'Företag ' || ((i * 7919) % 200000) || ' AB', "
+            + "'" + SeededKommun + "', 'Stockholm', "
+            + "ARRAY[CASE WHEN i % 1000 = 0 THEN '" + ProbeSni + "' ELSE '" + FillerSni + "' END], "
+            + "false, '1', 'Active', now(), now() "
+            + "FROM generate_series(0, 199999) AS i;";
+        await db.Database.ExecuteSqlRawAsync(seed, ct);
+        await db.Database.ExecuteSqlRawAsync("VACUUM (ANALYZE) company_register;", ct);
+
+        return new ScopedContext(scope, db);
+    }
+
+    /// <summary>
+    /// EXPLAINs the items query under <c>plan_cache_mode = force_generic_plan</c> — i.e. what Postgres
+    /// would settle on once <c>Max Auto Prepare</c> makes the statement named and cached. PREPARE takes
+    /// <c>$n</c> placeholders, so production's command text is mechanically re-parameterised; the SQL
+    /// BODY is production's, straight off <see cref="CompanyWatchBrowseQuery.BuildItemsCommand"/>.
+    /// </summary>
+    private static async Task<string> ExplainGenericPlanAsync(AppDbContext db, CancellationToken ct)
+    {
+        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
+
+        var connection = (NpgsqlConnection)db.Database.GetDbConnection();
+        if (connection.State != System.Data.ConnectionState.Open)
+            await connection.OpenAsync(ct);
+
+        await using var tx = await connection.BeginTransactionAsync(ct);
+
+        string sql;
+        await using (var template = CompanyWatchBrowseQuery.BuildItemsCommand(connection, spec, 1, 20))
+        {
+            sql = template.CommandText
+                .Replace("@status", "$1", StringComparison.Ordinal)
+                .Replace("@kommun", "$2", StringComparison.Ordinal)
+                .Replace("@sni", "$3", StringComparison.Ordinal)
+                .Replace("@limit", "$4", StringComparison.Ordinal)
+                .Replace("@offset", "$5", StringComparison.Ordinal)
+                .TrimEnd(';', '\n', '\r', ' ');
+        }
+
+        await using (var prep = connection.CreateCommand())
+        {
+            prep.Transaction = tx;
+            prep.CommandText =
+                "PREPARE browse_generic(text, text[], text[], int, int) AS " + sql + ";"
+                + " SET LOCAL plan_cache_mode = force_generic_plan;";
+            await prep.ExecuteNonQueryAsync(ct);
+        }
+
+        var kommun = "ARRAY['" + SeededKommun + "']::text[]";
+        var sni = $"ARRAY['{ProbeSni}','{FillerSni}']::text[]";
+
+        var lines = new List<string>();
+        await using (var cmd = connection.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            // The literals only satisfy EXECUTE's arity — a generic plan is built without them.
+            cmd.CommandText = $"EXPLAIN EXECUTE browse_generic('Active', {kommun}, {sni}, 20, 0);";
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                lines.Add(reader.GetString(0));
+        }
+
+        await tx.RollbackAsync(ct);
+        return string.Join(Environment.NewLine, lines);
     }
 
     private static string BrokenPlanMessage(string plan) =>
@@ -233,18 +389,20 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
 
     /// <summary>EXPLAINs the items query for an arbitrary spec (the broad-criterion pin needs one).</summary>
     private static Task<string> ExplainSpecAsync(
-        AppDbContext db, CompanyWatchCriteriaSpec spec, CancellationToken ct) =>
+        AppDbContext db, CompanyWatchCriteriaSpec spec, bool disableSeqScan, CancellationToken ct) =>
         ExplainAsync(
             db,
             (conn, s) => CompanyWatchBrowseQuery.BuildItemsCommand(conn, s, page: 1, pageSize: 20),
             ct,
-            spec);
+            spec,
+            disableSeqScan);
 
     private static async Task<string> ExplainAsync(
         AppDbContext db,
         Func<NpgsqlConnection, CompanyWatchCriteriaSpec, NpgsqlCommand> build,
         CancellationToken ct,
-        CompanyWatchCriteriaSpec? specOverride = null)
+        CompanyWatchCriteriaSpec? specOverride = null,
+        bool disableSeqScan = true)
     {
         var spec = specOverride ?? CompanyWatchCriteriaSpec.FromTrusted([ProbeSni], [SeededKommun]);
 
@@ -256,12 +414,20 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         // sibling test on this shared connection.
         await using var tx = await connection.BeginTransactionAsync(ct);
 
-        // On a 2000-row table a sequential scan is genuinely the cheapest plan, so without this the
-        // planner would pick one no matter how usable the index is — and the pin would be untestable.
-        // Penalising seq scan (it is a cost penalty, not a prohibition) forces the planner to reveal
-        // WHICH index path it can reach the predicate through, if any.
-        await using (var guc = connection.CreateCommand())
+        // For the SELECTIVE probe on a 2000-row table a sequential scan is genuinely the cheapest plan,
+        // so without this the planner would pick one no matter how usable the GIN index is — and the
+        // eligibility pin would be untestable.
+        //
+        // TRUTH-SYNC (#875, 2026-07-14): this used to say "it is a cost penalty, not a prohibition".
+        // FALSE on PostgreSQL 17+, which this repo runs (18.3). The enable_* GUCs no longer add a cost;
+        // the planner counts `disabled_nodes` and prefers ANY path with fewer of them REGARDLESS of cost.
+        // enable_seqscan = off is therefore an effective PROHIBITION as soon as an alternative exists.
+        // That is fine for the GIN pins — they claim index ELIGIBILITY, and the docblock says so — but it
+        // is exactly why the broad pin must NOT use it: that one claims a plan CHOICE, and a choice made
+        // inside a prohibition is not production's choice (code-reviewer, #875).
+        if (disableSeqScan)
         {
+            await using var guc = connection.CreateCommand();
             guc.Transaction = tx;
             guc.CommandText = "SET LOCAL enable_seqscan = off;";
             await guc.ExecuteNonQueryAsync(ct);
@@ -300,7 +466,12 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
             .Select(i => new ScbCompanyRegisterEntry
             {
                 OrganizationNumber = $"55{i:D8}",
-                Name = $"Företag {i:D4} AB",
+                // Decorrelated from org.nr order (code-reviewer, #875): a bulk insert in ascending i gives
+                // company_name a correlation of ~1.0, which makes the planner price this index's heap
+                // fetches as SEQUENTIAL — pricing the very plan we pin at its floor. The real register is
+                // upserted in SCB file order (org.nr), so its correlation is ~0. A cheap deterministic
+                // shuffle removes the flattery.
+                Name = $"Företag {(i * 7919) % SeededRows:D4} AB",
                 SeatMunicipalityCode = SeededKommun,
                 SeatMunicipalityName = "Stockholm",
                 SniCodes = [i < ProbeMatches ? ProbeSni : FillerSni],

@@ -52,9 +52,15 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     /// it the moment #875 landed, and one of them was already wrong: the worst case is now <b>26 ms</b>
     /// (the ORDER BY index turned a full sort of the match set into an ordered walk that stops at
     /// LIMIT 20), so 30 s is ~1 150× headroom, not 10× — and the 3,1 s it cited was itself measured
-    /// best-of-3 on a vacuumed table. Production's real pre-index worst case, measured p95 with GIN's
-    /// pending list full (what the register looks like right after the nightly sync), was
-    /// <b>7 066 ms</b>.
+    /// best-of-3 on a vacuumed table. Production's real pre-index worst case, measured p95 in the
+    /// register's post-sync state (which is what a user browses the morning after the nightly SCB sync),
+    /// was <b>7 066 ms</b>.
+    /// </para>
+    ///
+    /// <para>
+    /// Both numbers are a FULL <see cref="BrowseAsync"/> call — the capped count AND the items query,
+    /// which is what the endpoint costs and therefore what ADR 0045's budget governs. They are not the
+    /// items query in isolation.
     /// </para>
     ///
     /// <para>
@@ -116,9 +122,19 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     /// FALSE. The cap makes <c>TotalPages &lt;= MaxPage</c> true by construction.
     ///
     /// <para>
-    /// It is also, incidentally, what keeps the count off the worst case's 3 147 ms exact
-    /// <c>count(*)</c> over 1,17M rows (measured: ~78 ms capped). That is a welcome side effect and
-    /// NOT the reason — a cap justified by latency is a cap someone removes the day an index lands.
+    /// It is also, incidentally, what keeps the count off an exact <c>count(*)</c> over 1,17M rows. That
+    /// is a welcome side effect and NOT the reason — a cap justified by latency is a cap someone removes
+    /// the day an index lands.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The numbers this paragraph used to cite (3 147 ms exact / ~78 ms capped) have been withdrawn</b>
+    /// (code-reviewer, #875). They came from the same best-of-3, vacuumed-table series that #875's own
+    /// re-derivation of <see cref="CommandTimeoutSeconds"/> discredits — a PR cannot retract a number in
+    /// one docblock and leave it authoritative in the next. The count query's post-sync p95 is UNMEASURED:
+    /// 3 147 ms is a FLOOR, not a worst case (the register's post-sync state made the ITEMS query 2,1x
+    /// slower, and the count goes through the same GIN path). Repo precedent for saying so out loud:
+    /// #824 — "the application count is a FLOOR, and the copy now says so." Measure it before quoting it.
     /// </para>
     ///
     /// <para>

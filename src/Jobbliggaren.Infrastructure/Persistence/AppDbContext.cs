@@ -63,7 +63,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     /// </para>
     ///
     /// <para>
-    /// Which columns carry it is a <b>rule, not a list</b> (ADR 0107): Swedish natural-language text
+    /// Which columns carry it is a <b>rule, not a list</b> (ADR 0109): Swedish natural-language text
     /// (<c>company_name</c>, <c>sate_kommun_name</c>) gets it, because there the collation is
     /// CORRECTNESS. Machine identifiers (<c>organization_number</c>, <c>sni_codes</c>,
     /// <c>sate_kommun_code</c>) do not: under any deterministic collation, equality on an identifier

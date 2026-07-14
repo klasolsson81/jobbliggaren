@@ -41,6 +41,29 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 - [ ] **Migrations** — om EF Core-migration ingår: verifiera schema-mode-
       dispatch (ADR 0033) och DB-roll-separation (ADR 0034); Identity-schema-
       ändring → manuell procedur (TD-72).
+- [ ] **Kollations-version — ENDAST vid Postgres-image-bump eller major-uppgradering**
+      (#884, ADR 0109). Ett btree-index på text är byggt **med** en kollation. Ändras
+      kollationens *definition* under det — en ny ICU-version i basimagen, en ny glibc,
+      en major-uppgradering — sorterar indexet efter en ordning som inte längre gäller.
+      Postgres **kraschar inte** på det: frågorna blir bara tyst fel (rader hittas inte,
+      `ORDER BY` ljuger). Detta gäller `en_US.utf8` **redan idag** (collversion 2.41);
+      #884 skapade inte exponeringen, det är första gången repot **namnger** den.
+      **Efter varje Postgres-image- eller major-bump, före tag:**
+      ```sql
+      -- 1. Har någon kollation drivit? (tom output = inget att göra)
+      SELECT collname, collversion, pg_collation_actual_version(oid) AS faktisk
+      FROM pg_collation
+      WHERE collversion IS NOT NULL
+        AND collversion IS DISTINCT FROM pg_collation_actual_version(oid);
+
+      -- 2. Om någon rad kom tillbaka: bygg om berörda index och kvittera versionen.
+      REINDEX DATABASE CONCURRENTLY jobbliggaren;   -- eller de berörda indexen
+      ALTER COLLATION public.swedish REFRESH VERSION;
+      ALTER DATABASE jobbliggaren REFRESH COLLATION VERSION;  -- för DB-defaulten
+      ```
+      **Kvittera INTE versionen (steg 2b) utan att först ha byggt om (steg 2a)** — det
+      tystar varningen utan att laga indexen, vilket är strikt värre än att inte ha
+      kollat alls.
 - [ ] **GDPR-konsekvens** för nytt scope bedömd (CLAUDE.md §8 punkt 8) — ny
       PII? loggning? retention? Audit-wire intakt (ADR 0035)?
 - [ ] **Secrets-hygien** — inga nya secrets i klartext; gitignored

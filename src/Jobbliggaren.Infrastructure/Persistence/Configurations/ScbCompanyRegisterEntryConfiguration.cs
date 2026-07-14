@@ -34,7 +34,7 @@ internal sealed class ScbCompanyRegisterEntryConfiguration
         // "Ahlberg" and "Bok". The collation belongs on the COLUMN, not on the query or the index:
         // it is a property of what this text IS, and putting it here is what lets every reader — the
         // browse ORDER BY today, anything added tomorrow — be correct without knowing it had to be.
-        // See AppDbContext.SwedishCollation and ADR 0107 for the scope rule (text yes, identifiers no).
+        // See AppDbContext.SwedishCollation and ADR 0109 for the scope rule (text yes, identifiers no).
         builder.Property(c => c.Name)
             .HasColumnName("company_name")
             .UseCollation(AppDbContext.SwedishCollation)

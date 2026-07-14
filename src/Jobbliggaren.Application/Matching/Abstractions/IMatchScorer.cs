@@ -36,6 +36,16 @@ public interface IMatchScorer
     /// reports <see cref="MatchDimensionVerdict.NotAssessed"/> (never
     /// <see cref="MatchDimensionVerdict.NoMatch"/>). Deterministic: equal inputs
     /// yield an equal score, with Ordinal-stable matched/missing evidence.
+    /// <para>
+    /// <b>Lifecycle (#864, the SINGLE half of the split):</b> this method scores ANY ad
+    /// the row of which exists — including an <c>Archived</c> one. The ad IS the request
+    /// here (the detail page the user navigated to deliberately), and the product still
+    /// renders it (<c>GET /api/v1/jobads/{id}</c> answers 200 for an archived ad, #805-3);
+    /// the grade is TRUE either way, because archiving changes none of the inputs scored.
+    /// The BATCH methods gate on <c>Active</c> — see <see cref="ScoreBatchAsync"/>. That
+    /// asymmetry is deliberate and is the same one this port already publishes for
+    /// existence (batch omits a missing id, single throws).
+    /// </para>
     /// </summary>
     ValueTask<MatchScore> ScoreAsync(
         JobAdId jobAdId, CandidateMatchProfile profile, CancellationToken cancellationToken);
@@ -54,10 +64,15 @@ public interface IMatchScorer
     /// <b>Missing ads are silently OMITTED</b> from the result (unlike
     /// <see cref="ScoreAsync"/>, which throws <c>NotFoundException</c> for a single
     /// missing ad) — a batch decoration must not fail a page render because one id is
-    /// stale. "Missing" means the ROW DOES NOT EXIST, and nothing else: an ARCHIVED ad
-    /// is present and IS scored (no status gate — known gap #864). The old wording said
-    /// "missing/soft-deleted", naming an axis that never had a writer and is now retired (#821). The result contains an entry only for each requested ad that exists; the
-    /// caller treats "absent from the map" as "no data" (parity the status batch).
+    /// stale. <b>"Missing" = the row does not exist OR the ad is not <c>Active</c></b>
+    /// (#864): an ARCHIVED ad is omitted exactly like a non-existent one. A batch is a
+    /// decoration of a LIST, and an ad the product may no longer present must not carry a
+    /// grade in one — the same rule this scorer's SQL twin has always held
+    /// (<c>JobAdSearchComposition.ApplyFilter</c>), pinned to it by
+    /// <c>MatchCountOracleTests</c>. The gate is an ALLOW-LIST (<c>== Active</c>), so a
+    /// status added later is excluded by construction, not by a name we remembered to deny.
+    /// The result contains an entry only for each requested ad that exists AND is Active;
+    /// the caller treats "absent from the map" as "no data" (parity the status batch).
     /// Deterministic per key: equal inputs yield an equal score with Ordinal-stable
     /// matched/missing evidence.
     /// </para>
@@ -75,7 +90,13 @@ public interface IMatchScorer
     /// the same port (Pa); <see cref="ScoreAsync"/> is unchanged.
     /// <para>
     /// Throws <see cref="Common.Exceptions.NotFoundException"/> if the ad does not
-    /// exist (parity <see cref="ScoreAsync"/>). The embedded
+    /// exist (parity <see cref="ScoreAsync"/>) — and, parity <see cref="ScoreAsync"/>, it
+    /// does NOT gate on status: an ARCHIVED ad is scored, because this is the engine behind
+    /// the match-detail page, which exists to explain why an ad the user can still open
+    /// (#805-3) was a fit. NOT covered: an <c>Erased</c> ad (#842/#878) — the day
+    /// <c>GET /api/v1/jobads/{id}</c> answers 410 Gone, this path must stop serving it, or it
+    /// confirms a row's existence after the page said Gone. That status does not exist on this
+    /// base; it is the #842/#878 lane's, and #864 does not claim to cover it. The embedded
     /// <see cref="FullMatchScore.Fast"/> equals what <see cref="ScoreAsync"/> would
     /// return for the same ad and <c>profile.Fast</c>. Each of the three new
     /// dimensions reports <see cref="MatchDimensionVerdict.NotAssessed"/> (never
@@ -110,7 +131,12 @@ public interface IMatchScorer
     /// <para>
     /// <b>Missing ads are silently OMITTED</b> from the result (parity
     /// <see cref="ScoreBatchAsync"/>) — a batch decoration must not fail a page render
-    /// because one id is stale. An ARCHIVED ad is NOT missing: it is scored (known gap #864). Each of the three Full dimensions reports
+    /// because one id is stale. <b>"Missing" = the row does not exist OR the ad is not
+    /// <c>Active</c></b> (#864): an ARCHIVED ad is omitted exactly like a non-existent one,
+    /// on the same allow-list (<c>== Active</c>) and for the same reason as
+    /// <see cref="ScoreBatchAsync"/>. This is the batch the client-supplied-id endpoint
+    /// (<c>POST /me/job-ad-match-tags</c>) feeds, so it is where the gap was reachable.
+    /// Each of the three Full dimensions reports
     /// <see cref="MatchDimensionVerdict.NotAssessed"/> (never <c>NoMatch</c>) when the
     /// CV side has no skill concept-ids OR the ad has no terms of that kind/source.
     /// Deterministic per key, with Ordinal-stable evidence.

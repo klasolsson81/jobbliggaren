@@ -9,6 +9,7 @@ using Jobbliggaren.Infrastructure.Matching;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.TextAnalysis;
 using Jobbliggaren.TestSupport;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -30,6 +31,20 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// translation; memory <c>ef_strongly_typed_vo_contains</c>). Seeding mirrors the sibling
 /// <see cref="MatchSortGradeFilterOracleTests"/> (kept self-contained per the scaffold brief
 /// so the count oracle never shares mutable state with the grade-filter oracle).
+/// </para>
+/// <para>
+/// <b>The lifecycle axis (#864, CTO G1).</b> Until #864 this oracle seeded ONLY Active ads, so it
+/// was silent on the very axis where the two engines diverged: the SQL twin has always filtered
+/// <c>Status == Active</c>; the C# scorer carried no gate at all. Test 4 closes that — it seeds an
+/// ARCHIVED ad (via the real <c>JobAd.Archive</c> transition, never a fabricated column) and pins
+/// that BOTH engines exclude it. It is two-sided: deleting either engine's gate turns it red.
+/// </para>
+/// <para>
+/// <b>What this oracle does NOT reach</b> (its claim is an enumeration, not a vague "matching is
+/// coherent"): the persisted-notification surfaces — <c>/matchningar</c>, the two digest emails and
+/// the Översikt badges — do not run through either engine here; they are gated and specced
+/// separately (PR-A, #864). Nor does it reach the SINGLE scorer methods, which deliberately DO
+/// score archived ads (the detail page, #805-3).
 /// </para>
 /// </summary>
 [Collection("Api")]
@@ -229,6 +244,28 @@ public class MatchCountOracleTests(ApiFactory factory)
     private Task<JobAdId> SeedUntaggedSsykNullAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
         SeedJobAdAsync(run, null, PrefRegion, PrefEmployment, publishedAt, ct);
 
+    // #864 — the REAL retraction transition (Archive() is JobAd's only lifecycle method since #821;
+    // there is no soft-delete axis, and #843 forbids fabricating one via db.Entry/raw UPDATE). The
+    // Result is asserted and the status is read back through a FRESH context: a silently-failed
+    // Archive() would leave the ad Active and make the lifecycle oracle below vacuously green — it
+    // would "prove" agreement by seeding the wrong thing.
+    private async Task ArchiveAsync(JobAdId id, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var ad = await db.JobAds.FindAsync([id], ct);
+        ad.ShouldNotBeNull();
+        ad!.Archive(clock).IsSuccess.ShouldBeTrue("Archive() ska lyckas — annars är orakelet vakuöst.");
+        await db.SaveChangesAsync(ct);
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stored = await verifyDb.JobAds.AsNoTracking().FirstAsync(j => j.Id == id, ct);
+        stored.Status.ShouldBe(JobAdStatus.Archived);
+    }
+
     // ===============================================================
     // 1. THE LOAD-BEARING COHERENCE INVARIANT — count == list TotalCount for the SAME
     //    profile + grade-set. For [Good,Strong], [Strong], and a singleton, the standalone
@@ -380,7 +417,101 @@ public class MatchCountOracleTests(ApiFactory factory)
     }
 
     // ===============================================================
-    // 4. PR-4 (#300, ADR 0084 fråga D) — the count is LIST-ONLY: a Related-grade ad does NOT
+    // 4. #864 (CTO G1 / D6-B5) — THE LIFECYCLE AXIS THE COHERENCE ORACLE WAS BLIND TO.
+    //
+    // THIS IS A REPAIR, NOT A NEW GUARD. This class's own docstring calls it "det bärande
+    // koherens-orakelet": it exists to pin that the SQL grade engine (CountPerUserAsync →
+    // JobAdSearchComposition.ApplyFilter) and the C# grade engine (MatchScorer.ScoreBatchAsync)
+    // never disagree. But EVERY ad in its seed was Active — so it was SILENT on the one axis where
+    // the two engines actually HAD diverged: the SQL twin has always filtered Status == Active;
+    // the C# scorer carried no gate at all (#864). The load-bearing coherence oracle's claim was
+    // broader than its reach. That is the #841 disease sitting inside the guard that exists to
+    // prevent divergence.
+    //
+    // It is TWO-SIDED and behavioural, not a source-string scan:
+    //   - delete the batch gate in MatchScorer → the C# side includes the archived ad → RED.
+    //   - delete ApplyFilter's Status gate     → the SQL side includes it → RED.
+    //
+    // ASYMMETRIC SEED (2 live + 1 archived), and it is load-bearing here, not a habit: with 1 live
+    // + 1 archived, an INVERTED C# gate (`== Archived`) returns exactly ONE graded ad — the
+    // archived one — and the "expected == count" agreement would read 1 == 1 and pass GREEN while
+    // the two engines were grading DISJOINT SETS. With 2 live + 1 archived: correct → 2 == 2;
+    // inverted → 1 ≠ 2 (RED); gate deleted → 3 ≠ 2 (RED).
+    //
+    // ABSENCE IS ASSERTED, NEVER INDEXED (the architect's warning): with the gate in place,
+    // scores[archivedId] THROWS KeyNotFoundException. A blind index would turn this oracle into an
+    // exception instead of a verdict.
+    // ===============================================================
+
+    [Fact]
+    public async Task Count_AndCsharpScorer_AgreeThatAnArchivedAdIsNotAMatch()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // 2 live Strong + 1 archived Strong. All three would grade Strong on the inputs the scorer
+        // reads — archiving changes none of them. Only the lifecycle status differs.
+        var live1 = await SeedStrongAsync(run, t.AddDays(20), ct);
+        var live2 = await SeedStrongAsync(run, t.AddDays(19), ct);
+        var archived = await SeedStrongAsync(run, t.AddDays(18), ct);
+        await ArchiveAsync(archived, ct);
+
+        var profile = Profile();
+        var filter = FilterFor(run);
+        var headline = new[] { MatchGrade.Good, MatchGrade.Strong };
+
+        // ---- The C# engine (MatchScorer.ScoreBatchAsync — the scorer-side SSOT) ----
+        var (scoreScope, scorer) = NewScorer();
+        using var scoreDispose = scoreScope;
+        var scores = await scorer.ScoreBatchAsync([live1, live2, archived], profile.Fast, ct);
+
+        // NON-VACUITY FIRST (#841): the two ACTIVE ads ARE scored, and they genuinely land in the
+        // headline band. Without this, "the archived one is absent" would pass trivially the day
+        // the batch query returns nothing at all.
+        scores.ShouldContainKey(live1);
+        scores.ShouldContainKey(live2);
+        MatchGradeCalculator.Grade(scores[live1]).ShouldBe(MatchGrade.Strong);
+        MatchGradeCalculator.Grade(scores[live2]).ShouldBe(MatchGrade.Strong);
+
+        // THE C# SIDE OF THE INVARIANT: the archived ad is MISSING to the batch scorer (#864).
+        // Asserted as ABSENCE — never `scores[archived]`, which now throws KeyNotFoundException.
+        scores.ShouldNotContainKey(archived,
+            "MatchScorer.ScoreBatchAsync grindar på Status == Active (#864) — en arkiverad annons " +
+            "är FRÅNVARANDE ur C#-motorns resultat, precis som ett id som inte finns.");
+
+        var csharpHeadlineCount = scores.Count(kv =>
+            MatchGradeCalculator.Grade(kv.Value) is { } g && headline.Contains(g));
+
+        // ---- The SQL engine (CountPerUserAsync — ApplyFilter's own Status == Active) ----
+        var (queryScope, query) = NewPerUserQuery();
+        using var queryDispose = queryScope;
+        var sqlCount = await query.CountPerUserAsync(filter, profile, headline, ct);
+
+        // ---- THE COHERENCE INVARIANT, now stated on the lifecycle axis ----
+        // Both engines must count exactly the two ACTIVE Strong ads. This is the assertion the
+        // asymmetric seed protects: 1 live + 1 archived would read 1 == 1 even with the C# gate
+        // INVERTED, i.e. with the two engines grading disjoint sets.
+        csharpHeadlineCount.ShouldBe(2,
+            "C#-motorn ska gradera exakt de TVÅ aktiva annonserna i headline-bandet — inte 3 " +
+            "(grinden raderad) och inte 1 (grinden inverterad).");
+        sqlCount.ShouldBe(csharpHeadlineCount,
+            "SQL-motorn (ApplyFilter: Status == Active) och C#-motorn (MatchScorer: Status == " +
+            "Active, #864) MÅSTE vara eniga om att en ARKIVERAD annons inte är en matchning. " +
+            "Divergens här är exakt det detta orakel finns för att fånga — och exakt det den var " +
+            "BLIND för så länge varenda annons i seeden var Active.");
+
+        // And the coherence the class already pins (count == list TotalCount) still holds with an
+        // archived ad in the corpus — the archived ad is absent from the list path too.
+        var page = await query.SearchPerUserAsync(
+            filter, profile, headline, sort: JobAdSortBy.PublishedAtDesc,
+            orderByMatchRank: false, status: JobAdStatusFilter.None, seekerId: default, page: 1, pageSize: 1, ct);
+        sqlCount.ShouldBe(page.TotalCount,
+            "Count == list-vägens TotalCount ska hålla även när korpusen innehåller en arkiverad annons.");
+    }
+
+    // ===============================================================
+    // 5. PR-4 (#300, ADR 0084 fråga D) — the count is LIST-ONLY: a Related-grade ad does NOT
     //    contribute to the headline count {Good, Strong}. A Related ad is filterable on /jobb (the
     //    {Related} band counts it) but the notification headline never includes Related — pinning
     //    that broadening the gate did not silently inflate the live-notis number.

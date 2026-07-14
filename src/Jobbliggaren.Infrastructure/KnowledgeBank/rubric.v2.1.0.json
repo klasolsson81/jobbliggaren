@@ -161,6 +161,7 @@
       "atsFailSignal": "Saknas helt ELLER >100 ord ELLER ren adjektivlista ELLER \"Objective: To obtain...\"",
       "visualPassSignal": "Samma",
       "visualFailSignal": "Samma",
+      "notAssessedReason": "CV:t har text ovanför den första rubriken som inte kunde klassificeras. Därför går det inte att avgöra om profiltext saknas.",
       "thresholds": {
         "maxWords": 100
       }

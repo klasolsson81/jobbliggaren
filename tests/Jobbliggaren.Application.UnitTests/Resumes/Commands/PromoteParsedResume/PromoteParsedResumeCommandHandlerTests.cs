@@ -99,12 +99,18 @@ public class PromoteParsedResumeCommandHandlerTests
     private static PromoteParsedResumeCommand Command(Guid parsedResumeId, ResumeContentDto? content = null) =>
         new(parsedResumeId, "Mitt importerade CV", content ?? CleanContent());
 
+    // #844: unclassified text the segmenter carried down from above the first heading. The engine
+    // refused to call it a profile; only the user may. Seeded here so the promotion guard below is
+    // not vacuous.
+    private const string UnclassifiedPreamble = "Driven utvecklare som trivs nära produktionen.";
+
     private static ParsedResume BuildPendingReview(JobSeekerId owner, PersonnummerScanOutcome? pnr = null)
     {
         var content = new ParsedResumeContent(
             new ParsedContact("Anna Andersson", "anna@example.com", "070-1234567", "Stockholm"),
             profile: "Erfaren backend-utvecklare.",
-            experience: [new ParsedExperience("Backend-utvecklare", "Beta AB", "2021–", "raw entry")]);
+            experience: [new ParsedExperience("Backend-utvecklare", "Beta AB", "2021–", "raw entry")],
+            preamble: UnclassifiedPreamble);
 
         return ParsedResume.Create(
             owner, "anna-cv.pdf", "application/pdf", ResumeLanguage.Sv,
@@ -126,6 +132,46 @@ public class PromoteParsedResumeCommandHandlerTests
         db.ParsedResumes.Add(parsed);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return (parsed, seeker);
+    }
+
+    // ===============================================================
+    // #844 — the carrier is NEVER silently promoted
+    // ===============================================================
+
+    /// <summary>
+    /// The unclassified preamble (#844) is text the engine explicitly refused to call a profile.
+    /// Promotion writes the USER-APPROVED payload — never the artifact — so a parsed CV carrying a
+    /// preamble but whose approved content has no summary must promote with <c>Summary == null</c>.
+    ///
+    /// <para>If this ever goes red, the engine has started classifying: the residue would have become
+    /// the user's Profil without her ever saying it was one, which is precisely the auto-classify
+    /// this design refused (ADR 0071 / ADR 0074 propose-and-approve). The carrier's whole safety
+    /// rests on the user being the one who decides.</para>
+    /// </summary>
+    [Fact]
+    public async Task Handle_ParsedCarriesUnclassifiedPreamble_PromotesWithNullSummary_NeverAdoptsIt()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var (parsed, _) = await SeedOwnedAsync(db, _userId);
+
+        // Precondition: the artifact really is carrying unclassified text.
+        parsed.Content.Preamble.ShouldBe(UnclassifiedPreamble);
+
+        // The approved payload leaves the summary empty — the user did NOT adopt the preamble.
+        var approved = new ResumeContentDto(
+            new PersonalInfoDto("Anna Andersson", "anna@example.com", "070-1234567", "Stockholm"),
+            Experiences: [],
+            Educations: [],
+            Skills: [],
+            Summary: null);
+
+        var result = await CreateSut(db).Handle(
+            Command(parsed.Id.Value, approved), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+
+        var resume = db.Resumes.Local.ShouldHaveSingleItem();
+        resume.MasterVersion.Content.Summary.ShouldBeNull();
     }
 
     // ===============================================================

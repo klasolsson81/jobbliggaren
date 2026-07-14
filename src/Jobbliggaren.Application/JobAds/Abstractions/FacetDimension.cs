@@ -3,7 +3,7 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// <summary>
 /// Facetterbar sök-dimension för <see cref="IJobAdSearchQuery.FacetCountsAsync"/>
 /// (ADR 0067 Beslut 4 — Platsbanken sök-paritet Fas D1). Varje medlem mappar
-/// 1:1 mot en filtrerbar STORED shadow-column i <c>JobAdSearchQuery</c> och mot
+/// 1:1 mot en filtrerbar facett-kolumn i <c>JobAdSearchQuery</c> och mot
 /// en lista i <see cref="JobAdFilterCriteria"/>.
 /// <para>
 /// <b>ADR 0067 Beslut 6 (Fas B2, 2026-06-12):</b> Anställningsform/omfattning

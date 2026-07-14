@@ -36,7 +36,12 @@ public sealed class BackfillJobAdKlass2Job(
     {
         var opts = options.Value;
         return runner.RunAsync(
-            nullColumnPredicate: j => EF.Property<string?>(j, "EmploymentTypeConceptId") == null,
+            // #841 — the predicate is now compile-checked (the column is an ordinary property, not a
+            // shadow one), and its MEANING has changed: it no longer says "raw_payload lacks the
+            // employment_type key" but "ingest never wrote this facet". That is the right question, and
+            // it makes this job the repair tool for ads whose facets the purge had already nulled —
+            // re-ingesting through UpsertExternalJobAd writes all seven in C#.
+            nullColumnPredicate: j => j.EmploymentTypeConceptId == null,
             options: new BackfillRunnerOptions(
                 opts.PerItemDelayMs, opts.MaxItemsPerRun, opts.ProgressLogEvery),
             auditJobType: "backfill-klass2",

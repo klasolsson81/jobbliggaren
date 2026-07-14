@@ -6,6 +6,7 @@ using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Taxonomy;
 using Jobbliggaren.Infrastructure.TextAnalysis;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -83,6 +84,7 @@ public sealed class JobAdRequirementsIngestTests : IAsyncLifetime
             PublishedAt: new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero),
             ExpiresAt: new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero),
             SanitizedRawPayload: "{\"id\":\"" + externalId + "\"}",
+            Facets: TestFacets.FromPayload("{\"id\":\"" + externalId + "\"}"),
             Requirements: Requirements);
 
     private static UpsertExternalJobAdCommandHandler NewHandler(IAppDbContext db)

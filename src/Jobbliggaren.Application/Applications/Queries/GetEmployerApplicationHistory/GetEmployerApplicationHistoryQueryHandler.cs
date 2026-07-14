@@ -11,26 +11,34 @@ namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationHi
 /// signed-in user's OWN application history
 /// grouped by employer org.nr. Owner-scoped on <c>JobSeekerId</c> (resolved from <c>ICurrentUser</c>,
 /// never the wire — M2 / IDOR). JOINs applications to public <c>job_ads</c> to read the employer
-/// org.nr (STORED shadow column <c>"OrganizationNumber"</c>, ADR 0087 D1) and the company name at
+/// org.nr (facet column <c>"OrganizationNumber"</c>, ADR 0087 D1) and the company name at
 /// READ (ADR 0087 D2 — never a denormalised snapshot). Only submitted applications
 /// (<c>AppliedAt != null</c>) are history; drafts are intent (Art. 6(1)(b) purpose, ADR 0090 D1).
 ///
 /// <para>
-/// <b>Attribution is governed by the ad's AGE — not by archival, and not by soft delete (#824).</b>
-/// The org.nr shadow column is a STORED generated column derived from <c>raw_payload</c>
-/// (<c>HasComputedColumnSql("raw_payload->'employer'->>'organization_number'")</c>, ADR 0087 D1), and
-/// <c>PurgeStaleRawPayloadsJob</c> nulls <c>raw_payload</c> once an ad is older than
-/// <c>RawPayloadRetentionDays</c> (30) from <c>PublishedAt</c> — at which point Postgres RECOMPUTES
-/// the generated column to NULL. So:
-/// <list type="bullet">
-/// <item>an ARCHIVED but recent ad still joins and IS attributed (archival does not hide a row —
-/// <c>JobAd</c> has no soft-delete axis and no query filter, #821);</item>
-/// <item>an ACTIVE but old ad has a NULL org.nr and is NOT attributed.</item>
-/// </list>
-/// Pinned by <c>GetEmployerApplicationHistoryQueryHandlerIntegrationTests</c> (both directions). The
-/// value additionally <b>thrashes daily</b> until #841 lands: the 02:00 full-backfill sync rewrites
-/// <c>raw_payload</c> and the 04:30 purge nulls it again, so an old-but-still-listed ad resolves its
-/// org.nr for ~2.5h/day and not for the other ~21.5h.
+/// <b>Attribution no longer degrades with the ad's age (#841, 2026-07-13).</b> It used to. The org.nr
+/// column was a STORED generated column derived from <c>raw_payload</c>, and
+/// <c>PurgeStaleRawPayloadsJob</c> nulls <c>raw_payload</c> 30 days after <c>PublishedAt</c> — at which
+/// point Postgres RECOMPUTED the generated column to NULL. So an ACTIVE but old ad simply lost its
+/// employer, and the value <b>thrashed daily</b>: the 02:00 sync rewrote the payload and resurrected the
+/// org.nr, the 04:30 purge destroyed it again, giving ~2.5h of attribution and ~21.5h of none. The same
+/// application was attributed at 03:00 and orphaned at 05:00 — the Art. 5(1)(d) accuracy Blocker in #824.
+/// </para>
+///
+/// <para>
+/// Since #841 the org.nr is an ORDINARY column, written in C# at the ingest funnel
+/// (<c>JobAd.SetSourcePayload</c>) and no longer derived from the payload it once depended on. It
+/// survives the purge, so attribution is now <b>stable and age-independent</b>: an ARCHIVED ad joins and
+/// is attributed (archival hides nothing — <c>JobAd</c> has no soft-delete axis, #821), and an old ACTIVE
+/// ad keeps its employer. Pinned by <c>GetEmployerApplicationHistoryQueryHandlerIntegrationTests</c> and
+/// by <c>JobAdFacetsSurvivePurgeTests</c>.
+/// </para>
+///
+/// <para>
+/// <b>One residual, and it is permanent:</b> an ad that had already been purged AND had left the JobTech
+/// feed before #841 shipped has no payload to re-derive from and cannot be re-fetched (404). Its org.nr is
+/// gone for good — it was gone before this fix too. That is exactly why #824's honest-degradation mandate
+/// survives the schema fix: the two are complementary, not alternatives.
 /// </para>
 ///
 /// <para>
@@ -49,7 +57,8 @@ namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationHi
 /// <b>org.nr surfacing (FORK C1 / D8(c)).</b> The raw org.nr is read SERVER-SIDE only, to GROUP BY;
 /// a personnummer-shaped value is masked to null + flagged before it leaves the handler, and is never
 /// logged (<c>OrganizationNumberSurfacingGuardTests</c> covers this source). The org.nr predicate uses
-/// the <c>EF.Property&lt;string?&gt;</c> shadow column — NEVER a strongly-typed VO in <c>Contains</c>
+/// the <c>EF.Property&lt;string?&gt;</c> accessor (a legacy of the shadow-property era; the site rewrite
+/// is #873) — NEVER a strongly-typed VO in <c>Contains</c>
 /// (the VO-in-<c>Contains</c> → 500 translation trap).
 /// </para>
 /// </summary>
@@ -77,11 +86,11 @@ public sealed class GetEmployerApplicationHistoryQueryHandler(
         // GroupJoin + SelectMany(DefaultIfEmpty) mirrors GetApplicationsQueryHandler's proven-
         // translatable LEFT JOIN over the nullable-struct FK (ADR 0048). NOTE: for a JobAd-LINKED
         // application, the ad row is NOT what goes missing -- archiving an ad does not hide it (#821).
-        // What goes missing is the org.nr VALUE, once the purge nulls raw_payload and Postgres
-        // recomputes the generated column to NULL (see the type remarks + #824). j IS still null for a
-        // manually-logged application (JobAdId == null) -- that case is real and separately tested; it
-        // is simply not the archived-ad case the old docs conflated it with.
-        // OrgNr is the STORED "OrganizationNumber" shadow column read SERVER-SIDE to group
+        // The org.nr VALUE used to go missing: the purge nulled raw_payload and Postgres recomputed the
+        // generated column to NULL. Since #841 it does not -- the column is C#-written at ingest and
+        // survives the purge. What CAN still be null: a manually-logged application (JobAdId == null),
+        // and the permanent residue of ads purged AND delisted before #841 shipped (#824).
+        // OrgNr is the "OrganizationNumber" column read SERVER-SIDE to group
         // on; Status is a value-converted SmartEnum projected WHOLE (its .Name is
         // read in memory, never in the expression tree). Bounded to one user's own submitted
         // applications (no pagination v1, parity ListCompanyWatches). Unlike a curated company-watch
@@ -108,7 +117,7 @@ public sealed class GetEmployerApplicationHistoryQueryHandler(
 
         // Group by employer org.nr in memory (the set is one user's bounded history). Mask + flag a
         // personnummer-shaped org.nr (FORK C1 / D8(c)) via FromTrusted — the value came from the
-        // already-validated STORED column (parity DisambiguateEmployersQueryHandler); the raw value
+        // already-validated column (parity DisambiguateEmployersQueryHandler); the raw value
         // never leaves this handler un-flagged.
         return rows
             .GroupBy(r => r.OrgNr!)

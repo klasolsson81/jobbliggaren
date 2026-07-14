@@ -15,7 +15,7 @@ namespace Jobbliggaren.Api.IntegrationTests.SavedSearches;
 // jsonb-transform mot riktig Postgres (Testcontainers) — InMemory fångar
 // varken jsonb-operatorer, COLLATE "C"-sortering eller text[]-mappningen
 // (jfr feedback_ef_strongly_typed_vo_contains_translation + B1/B2-mönstret
-// i JobAdGeneratedColumnsTests).
+// i JobAdFacetsSurvivePurgeTests).
 //
 // Mekanik: fixture-DB:n är redan migrerad (ApiFactory kör MigrateAsync på
 // färsk/tom DB). Transformen testas genom att (1) seeda legacy-jsonb-rader
@@ -279,7 +279,7 @@ public class C2ReverseLookupMigrationTests(ApiFactory factory)
     // ── Hjälpare ─────────────────────────────────────────────────────────────
 
     // Läs-DTO för information_schema (EF mappar property-namn → snake_case-
-    // kolumner via modellens namnkonvention, jfr JobAdGeneratedColumnsTests).
+    // kolumner via modellens namnkonvention, jfr JobAdFacetsSurvivePurgeTests).
     private sealed record ColumnRow(string ColumnName, string IsNullable, string DataType);
 
     private static async Task SeedLegacyRowAsync(

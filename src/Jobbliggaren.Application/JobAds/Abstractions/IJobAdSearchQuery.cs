@@ -52,7 +52,7 @@ public interface IJobAdSearchQuery
     /// en användare som redan valt en yrkesgrupp ska ändå se hur många annonser
     /// varje *annan* yrkesgrupp skulle ge). Mekanik: <c>ApplyCriteria</c> körs
     /// med den facetterade DIMENSIONENS listor tömda (SPOT bevarad — ingen
-    /// andra filter-väg), följt av GROUP BY på dimensionens STORED shadow-column.
+    /// andra filter-väg), följt av GROUP BY på dimensionens facett-kolumn.
     /// <b>Ort-facetterna (Municipality/Region) exkluderar HELA ort-dimensionen</b>
     /// (båda listorna) — län ⊃ kommun är EN dimension i två granulariteter
     /// (geo-union, CTO VAL 4 E2b 2026-06-11 / ADR 0067 impl-notat E2b).

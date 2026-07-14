@@ -1061,6 +1061,21 @@ truth; the code conformance work is tracked in #841/#842/#845 and is **not** don
 
 ### A1 — "indefinitively för sanitized fields" is false. Seven of them self-destruct after 30 days.
 
+> ✅ **FIXED BY #841 (2026-07-13, PR — `MaterialiseJobAdSourceFacets`).** The seven are no longer
+> derived in the database. They are ordinary columns written in C# at the single ingest funnel
+> (`JobAd.SetSourcePayload`, atomically with the payload they are parsed from), so they OUTLIVE
+> `raw_payload` and §8's stated retention model is true for the first time. The rule is now
+> executable rather than aspirational: `JobAdRawPayloadDerivationGuardTests` fails the build if any
+> durable column is derived from `raw_payload` again (`search_vector` and `extracted_lexemes` remain
+> legitimate — their base columns carry no TTL), and `JobAdFacetsSurvivePurgeTests` runs the purge
+> against real Postgres and asserts all seven survive it.
+>
+> **Two things this amendment did NOT fix, and they are not it:** (1) an ad purged AND delisted
+> before #841 shipped has no payload to re-derive from and cannot be re-fetched — its facets are
+> permanently gone, which is why #824's honest-degradation mandate survives the schema fix; (2) the
+> retention of `organization_number` is now INDEFINITE, which is the written policy but changes the
+> Art. 17 obligation — see ADR 0087 D8(a) amendment 2026-07-13.
+
 §8 states the retention model as *"30 dagar för `raw_payload`, **indefinitively för sanitized fields**"*
 and reasons that total null-out is safe because only *debug value* is at stake (CTO-rond 2026-05-13,
 punkt 8).

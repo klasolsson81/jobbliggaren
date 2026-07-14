@@ -9,9 +9,9 @@ using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.SavedJobAds;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
-
 // Application-typen krockar med Jobbliggaren.Application-namespacet — alias per fil
 // (paritet GetApplicationsQueryHandlerIntegrationTests).
 using DomainApplication = Jobbliggaren.Domain.Applications.Application;
@@ -100,6 +100,7 @@ public class ListJobAdsStatusFilterOracleTests(ApiFactory factory)
                 url: $"https://example.com/jobs/{externalId}",
                 external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
                 rawPayload: rawPayload,
+                facets: TestFacets.FromPayload(rawPayload),
                 publishedAt: publishedAt,
                 expiresAt: clock.UtcNow.AddDays(30),
                 clock: clock).Value;
@@ -443,6 +444,7 @@ public class ListJobAdsStatusFilterOracleTests(ApiFactory factory)
                 url: $"https://example.com/jobs/{externalId}",
                 external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
                 rawPayload: rawPayload,
+                facets: TestFacets.FromPayload(rawPayload),
                 publishedAt: publishedAt,
                 expiresAt: clock.UtcNow.AddDays(30),
                 clock: clock).Value;

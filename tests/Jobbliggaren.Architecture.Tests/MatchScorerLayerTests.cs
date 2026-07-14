@@ -13,7 +13,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <c>Matching/Abstractions/</c>, beside <c>JobAds/Abstractions/</c>); the impl
 /// <c>MatchScorer</c> is <c>internal sealed</c> in Infrastructure
 /// (<c>Jobbliggaren.Infrastructure.Matching</c>). The scorer reads the JobAd title
-/// + the STORED shadow columns (EF.Property) and consumes the local NLP tier
+/// + the facet columns (EF.Property) and consumes the local NLP tier
 /// (Snowball via <c>ITextAnalyzer</c>) for dim-2, but Application/Domain MUST NOT
 /// gain any NLP/Npgsql/EF dependency through the port — the port surface stays
 /// BCL + Domain-ids only (exactly like <c>IOccupationCodeDeriver</c> /

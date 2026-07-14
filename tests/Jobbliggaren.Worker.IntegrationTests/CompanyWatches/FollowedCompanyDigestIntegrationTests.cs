@@ -4,6 +4,7 @@ using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Jobbliggaren.Worker.Hosting;
 using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.AspNetCore.Identity;
@@ -394,13 +395,16 @@ public class FollowedCompanyDigestIntegrationTests(WorkerTestFixture fixture)
             "D8", System.Globalization.CultureInfo.InvariantCulture);
 
         var externalId = $"fd-{Guid.NewGuid():N}";
+        var rawPayload =
+            $"{{\"id\":\"{externalId}\",\"employer\":{{\"name\":\"Acme AB\",\"organization_number\":\"{orgNr}\"}}}}";
         var jobAd = JobAd.Import(
             title: "Backend-utvecklare",
             company: Company.Create("Acme AB").Value,
             description: "beskrivning",
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
-            rawPayload: $"{{\"id\":\"{externalId}\",\"employer\":{{\"name\":\"Acme AB\",\"organization_number\":\"{orgNr}\"}}}}",
+            rawPayload: rawPayload,
+            facets: TestFacets.FromPayload(rawPayload),
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(60),
             clock: clock).Value;

@@ -8,6 +8,7 @@ using Jobbliggaren.Application.JobAds.Jobs.SyncPlatsbanken;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.TestSupport;
 using Mediator;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -41,6 +42,7 @@ public class SyncPlatsbankenStreamJobTests
         PublishedAt: Now.AddDays(-1),
         ExpiresAt: Now.AddDays(30),
         SanitizedRawPayload: "{\"id\":\"ext-1\"}",
+        Facets: TestFacets.FromPayload("{\"id\":\"ext-1\"}"),
         Requirements: []);
 
     private static SyncPlatsbankenStreamJob CreateJob(

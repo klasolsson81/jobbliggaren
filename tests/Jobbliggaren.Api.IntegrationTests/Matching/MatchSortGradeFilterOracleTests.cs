@@ -9,6 +9,7 @@ using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Matching;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.TextAnalysis;
+using Jobbliggaren.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -31,7 +32,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// NULL/Match distinction AND the <c>= ANY</c> / <c>int[].Contains(&lt;CASE&gt;)</c>
 /// translation of <c>RankInSet</c>; memory <c>ef_strongly_typed_vo_contains</c>). Seeding
 /// mirrors <see cref="MatchSortOracleTests"/> / <see cref="MatchScorerIntegrationTests"/>
-/// for the raw_payload → STORED shadow column path; the helpers are copied (kept
+/// for the raw_payload → facet column path; the helpers are copied (kept
 /// self-contained per the scaffold brief) so this oracle never shares mutable state with
 /// the sort oracle.
 /// </para>
@@ -144,7 +145,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         Q: null);
 
     // ---------------------------------------------------------------
-    // Seeding — raw_payload drives the STORED shadow columns (parity
+    // Seeding — raw_payload drives the facet columns (parity
     // MatchSortOracleTests.SeedJobAdAsync). null group/region/employment → key omitted →
     // that shadow column is NULL (the NotAssessed-by-NULL path). publishedAt is explicit so
     // the decoupling test (#4) can make recency-order differ from grade-order.
@@ -175,6 +176,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
+            facets: TestFacets.FromPayload(rawPayload),
             publishedAt: publishedAt,
             expiresAt: clock.UtcNow.AddDays(30),
             clock: clock).Value;
@@ -786,6 +788,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
+            facets: TestFacets.FromPayload(rawPayload),
             publishedAt: publishedAt,
             expiresAt: clock.UtcNow.AddDays(30),
             clock: clock).Value;

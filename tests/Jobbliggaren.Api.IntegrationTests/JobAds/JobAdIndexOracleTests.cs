@@ -62,6 +62,86 @@ public class JobAdIndexOracleTests(ApiFactory factory)
         { "ix_job_ads_title_lower_prefix", "USING btree (lower((title)::text) text_pattern_ops)" }, // suggest
     };
 
+    /// <summary>
+    /// #841 — the SEVEN facet indexes. #821 deliberately left these alone (its Q4 named them "#841's
+    /// territory"), and #841 must prove it did not destroy them.
+    ///
+    /// <para>
+    /// The danger here is the same one, one table over, and sharper. The scaffolded migration for #841
+    /// emits <c>ALTER TABLE job_ads DROP COLUMN x; ALTER TABLE job_ads ADD x text;</c> for each of these
+    /// seven columns — and <c>DROP COLUMN</c> takes every dependent index with it, silently. EF's model
+    /// snapshot does not know these seven indexes exist (all raw <c>migrationBuilder.Sql</c>), so nothing
+    /// in the build would have said a word. The hand-written migration uses
+    /// <c>ALTER COLUMN … DROP EXPRESSION</c> precisely because it touches neither the values nor the
+    /// indexes; this is the test that holds it to that.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>These seven KEEP their <c>WHERE … IS NOT NULL</c> predicate, and that is not a contradiction of
+    /// #821 Q2.</b> That bind bans <i>lifecycle-derived</i> predicates (<c>status = 'Active'</c>) — an
+    /// implicit coupling between storage and a query detail that this repo has already paid ~35-50 s for.
+    /// An <c>IS NOT NULL</c> predicate is NULL-SPARSITY: it is provably implied by the <c>IN (...)</c>
+    /// filters that use these indexes (a NULL column can never be in a list of concept ids), it cannot
+    /// drift as read paths change, and it keeps the index off the many ads that carry no facet at all.
+    /// Which is why they are asserted in their own theory, and NOT by
+    /// <see cref="JobAdIndex_CarriesNoPredicate"/>.
+    /// </para>
+    /// </summary>
+    public static readonly TheoryData<string, string> FacetIndexes = new()
+    {
+        { "ix_job_ads_ssyk_concept_id", "USING btree (ssyk_concept_id)" },
+        { "ix_job_ads_region_concept_id", "USING btree (region_concept_id)" },
+        { "ix_job_ads_occupation_group_concept_id", "USING btree (occupation_group_concept_id)" },
+        { "ix_job_ads_municipality_concept_id", "USING btree (municipality_concept_id)" },
+        { "ix_job_ads_employment_type_concept_id", "USING btree (employment_type_concept_id)" },
+        { "ix_job_ads_worktime_extent_concept_id", "USING btree (worktime_extent_concept_id)" },
+        { "ix_job_ads_organization_number", "USING btree (organization_number)" },
+    };
+
+    [Theory]
+    [MemberData(nameof(FacetIndexes))]
+    public async Task FacetIndex_SurvivesTheMaterialisation(string indexName, string expectedDefinition)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var def = await ReadIndexDefAsync(indexName, ct);
+
+        def.ShouldNotBeNull(
+            $"{indexName} is MISSING from job_ads. #841 converted its column from a STORED generated " +
+            "column to an ordinary one. If that was done with DROP COLUMN + ADD COLUMN (which is what " +
+            "`dotnet ef migrations add` emits — verified) rather than ALTER COLUMN ... DROP EXPRESSION, " +
+            "Postgres dropped this index silently and EF could not rebuild what its snapshot never knew " +
+            "about. Facet-filtered search and the matching engine would seq-scan job_ads. See #841.");
+
+        def!.ShouldContain(expectedDefinition, Case.Insensitive,
+            $"{indexName} exists but has the WRONG shape. #841 must not change the access method or the " +
+            $"indexed expression — only the column's generated-ness. Actual:\n{def}");
+    }
+
+    [Theory]
+    [MemberData(nameof(FacetIndexes))]
+    public async Task FacetIndex_KeepsItsNullSparsityPredicate(string indexName, string expectedDefinition)
+    {
+        _ = expectedDefinition;
+        var ct = TestContext.Current.CancellationToken;
+        var def = await ReadIndexDefAsync(indexName, ct);
+        def.ShouldNotBeNull();
+
+        // The counterpart to JobAdIndex_CarriesNoPredicate, and the reason the two sets are separate.
+        // #821 Q2 banned LIFECYCLE-derived predicates on job_ads indexes. It explicitly preserved these
+        // seven: "those are null-sparsity predicates, provably implied by the IN (...) filters that use
+        // them. They are #841's territory. Do not touch them."
+        //
+        // Losing the predicate here would not be a correctness bug, but it would silently bloat seven
+        // indexes with every facet-less ad (every manually created ad, and every ad whose source omitted
+        // that key) — so it is pinned, and the asymmetry with the other five is stated out loud rather
+        // than left for someone to "harmonise" later.
+        def!.ShouldContain("WHERE ", Case.Insensitive,
+            $"{indexName} has LOST its `WHERE ... IS NOT NULL` predicate. That predicate is null-sparsity " +
+            "(not lifecycle-derived), it is provably implied by every IN (...) query that uses this " +
+            "index, and #821 Q2 explicitly preserved it. Do not harmonise these seven with the five " +
+            "predicate-free indexes above — the two carry different kinds of predicate.");
+    }
+
     [Theory]
     [MemberData(nameof(RebuiltIndexes))]
     public async Task JobAdIndex_SurvivesTheDeletedAtRetirement(string indexName, string expectedDefinition)

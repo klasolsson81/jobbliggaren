@@ -72,6 +72,10 @@ public class KnowledgeBankLayerTests
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.FrameSlot),
             // Fas 4b PR-6a (#655): the versioned spelling-allowlist value the C7 criterion reads.
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.SpellingAllowlist),
+            // Fas 4b 8b.4b (ADR 0108): the Swedish-ATS section-order convention the B1 transform
+            // proposes against.
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.CvConventions),
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.CvSectionOrderEntry),
         })
         {
             t.Assembly.ShouldBe(ApplicationAsm,
@@ -93,6 +97,8 @@ public class KnowledgeBankLayerTests
             // Fas 4b 8b.4a (ADR 0107): the occupation-field->branschgrupp + section
             // rule-table port (parity the other KB ISP ports).
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IBranschgruppProvider),
+            // Fas 4b 8b.4b (ADR 0108): the Swedish-ATS conventions port (section order).
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ICvConventionsProvider),
         })
         {
             port.Assembly.ShouldBe(ApplicationAsm,
@@ -116,6 +122,8 @@ public class KnowledgeBankLayerTests
             // Fas 4b 8b.4a (ADR 0107): the occupation-field->branschgrupp + section
             // rule-table port (parity the other KB ISP ports).
             typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IBranschgruppProvider),
+            // Fas 4b 8b.4b (ADR 0108): the Swedish-ATS conventions port (section order).
+            typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ICvConventionsProvider),
         })
         {
             port.Assembly.ShouldNotBe(InfrastructureAsm);
@@ -312,6 +320,8 @@ public class KnowledgeBankLayerTests
             "SpellingAllowlistProvider",
             // Fas 4b 8b.4a (ADR 0107): the branschgrupp asset provider + its loader.
             "BranschgruppProvider", "BranschgruppLoader",
+            // Fas 4b 8b.4b (ADR 0108): the cv-conventions asset provider + its loader.
+            "CvConventionsProvider", "CvConventionsLoader",
         })
         {
             names.ShouldContain(expected,
@@ -346,6 +356,8 @@ public class KnowledgeBankLayerTests
             "SpellingAllowlistProvider",
             // Fas 4b 8b.4a (ADR 0107): internal sealed too.
             "BranschgruppProvider",
+            // Fas 4b 8b.4b (ADR 0108): internal sealed too.
+            "CvConventionsProvider",
         })
         {
             var impl = InfrastructureAsm.GetTypes()
@@ -381,5 +393,8 @@ public class KnowledgeBankLayerTests
         typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IBranschgruppProvider)
             .IsAssignableFrom(infra.Single(t => t.Name == "BranschgruppProvider"))
             .ShouldBeTrue("BranschgruppProvider ska implementera IBranschgruppProvider.");
+        typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ICvConventionsProvider)
+            .IsAssignableFrom(infra.Single(t => t.Name == "CvConventionsProvider"))
+            .ShouldBeTrue("CvConventionsProvider ska implementera ICvConventionsProvider.");
     }
 }

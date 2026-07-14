@@ -142,6 +142,15 @@
     <EmbeddedResource Include="KnowledgeBank\ssyk-branschgrupp.v1.json">
       <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.ssyk-branschgrupp.v1.json</LogicalName>
     </EmbeddedResource>
+    <!-- Fas 4b 8b.4b (Asset B, ADR 0108) — the Swedish-ATS SECTION-ORDER convention: the rubric's
+         B1 atsPassSignal chain made machine-readable, so SectionReorderTransform can propose
+         against data instead of an order hardcoded in C# (CLAUDE.md §5). Scoped by ADR 0108 to
+         RECOMMENDATION only — recognition stays in cv-parsing-lexicon (ADR 0107 §3), thresholds
+         stay in the rubric. Cross-asset-validated against the parsing lexicon at load
+         (CvConventionsProvider). NO AI/LLM. -->
+    <EmbeddedResource Include="KnowledgeBank\cv-conventions.v1.json">
+      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.cv-conventions.v1.json</LogicalName>
+    </EmbeddedResource>
     <!-- Fas 4 STEG 8 (F4-8, ADR 0071/0074) — the versioned CV-segmentation lexicon
          (Swedish + English section headings + language-detection function words).
          OWN-authored from common CV conventions (no third-party data) — versioned data,

@@ -12,7 +12,7 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     ///
     /// <para>
     /// <b>The reasoning, the measurements, the scope rule (natural-language text yes, machine
-    /// identifiers no) and what this does NOT guard against all live in ADR 0109.</b> They are not
+    /// identifiers no) and what this does NOT guard against all live in ADR 0110.</b> They are not
     /// repeated here. An earlier draft of this comment carried them verbatim alongside three other
     /// copies — and a fact kept in four places is a fact that will shortly be true in three of them,
     /// which is the very failure this PR exists to undo. What follows is only what a reader OF THIS

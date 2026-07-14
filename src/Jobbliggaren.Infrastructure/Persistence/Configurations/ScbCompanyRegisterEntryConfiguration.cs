@@ -33,7 +33,7 @@ internal sealed class ScbCompanyRegisterEntryConfiguration
         // folds them into A and O, putting "Åkesson AB" between "Ahlberg" and "Bok" in the live browse
         // list. On the COLUMN, never on the query or the index: it is a property of what this text IS,
         // and putting it here is what lets every reader be correct without knowing it had to be.
-        // Rationale, measurements, scope rule: ADR 0109.
+        // Rationale, measurements, scope rule: ADR 0110.
         builder.Property(c => c.Name)
             .HasColumnName("company_name")
             .UseCollation(Collations.Swedish)
@@ -48,7 +48,7 @@ internal sealed class ScbCompanyRegisterEntryConfiguration
         // sorts it today, and it is collated anyway: YAGNI governs capability, but a collation is this
         // column's declared TYPE, and declaring text that holds Örnsköldsvik as en_US.utf8 is a false
         // type declaration NOW — not a speculative future need. Marginal cost is one AlterColumn: no
-        // index covers this column, so nothing is rebuilt. ADR 0109 §2.
+        // index covers this column, so nothing is rebuilt. ADR 0110 §2.
         builder.Property(c => c.SeatMunicipalityName)
             .HasColumnName("sate_kommun_name")
             .UseCollation(Collations.Swedish);

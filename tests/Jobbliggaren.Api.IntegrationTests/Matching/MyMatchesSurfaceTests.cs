@@ -279,12 +279,20 @@ public sealed class MyMatchesSurfaceTests(ApiFactory factory)
         {
             await SeedSeekerAsync(db, userId, lastSeen: null, ct); // null watermark → every match is new
 
+            // ASYMMETRIC seed (2 live + 1 archived), deliberately. The LIST asserts row identity, so it
+            // pins gate polarity by itself — but the BADGE is a count-only DTO that cannot say WHICH
+            // rows it counted, and with a 1+1 seed an INVERTED badge gate (== Archived) also reads
+            // exactly 1, agreeing with the list by coincidence. 2+1 separates every badge state:
+            // gate correct → 2, deleted → 3, inverted → 1.
             var liveAd = await SeedJobAdAsync(
                 db, ClockAt(T0), "Aktiv-annons", "Live AB", "https://example.com/live", ct);
+            var secondLiveAd = await SeedJobAdAsync(
+                db, ClockAt(T0), "Aktiv-annons-2", "Live Två AB", "https://example.com/live-2", ct);
             var archivedAd = await SeedJobAdAsync(
                 db, ClockAt(T0), "Arkiverad-annons", "Gone AB", "https://example.com/gone", ct);
 
             await SeedMatchAsync(db, userId, liveAd, NotifiableMatchGrade.Strong, T0.AddDays(3), ct);
+            await SeedMatchAsync(db, userId, secondLiveAd, NotifiableMatchGrade.Good, T0.AddDays(1), ct);
             await SeedMatchAsync(db, userId, archivedAd, NotifiableMatchGrade.Top, T0.AddDays(2), ct);
 
             // Archive through the DOMAIN transition production uses (ExpireJobAdsJob writes exactly this
@@ -295,30 +303,31 @@ public sealed class MyMatchesSurfaceTests(ApiFactory factory)
             ad.Archive(ClockAt(T0.AddDays(4))).IsSuccess.ShouldBeTrue();
             await db.SaveChangesAsync(ct);
 
-            // BOTH match rows are physically present. The gate — not the data — decides visibility.
+            // ALL THREE match rows are physically present. The gate — not the data — decides visibility.
             var rawMatchCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
                 .CountAsync(db.UserJobAdMatches.Where(m => m.UserId == userId), ct);
-            rawMatchCount.ShouldBe(2, "båda match-raderna finns kvar — grinden, inte datan, avgör synlighet");
+            rawMatchCount.ShouldBe(3, "alla tre match-raderna finns kvar — grinden, inte datan, avgör synlighet");
 
             var list = await new GetMyMatchesQueryHandler(db, UserWith(userId))
                 .Handle(new GetMyMatchesQuery(), ct);
             var badge = await new GetMyNewMatchCountQueryHandler(db, UserWith(userId))
                 .Handle(new GetMyNewMatchCountQuery(), ct);
 
-            // NON-VACUITY FIRST: the ACTIVE match must still surface. Without this, "the archived one is
-            // absent" would pass on a join that returns nothing at all — the exact way an exclusion test
-            // can be green and worthless.
-            list.Count.ShouldBe(1);
-            list[0].JobAdId.ShouldBe(liveAd.Value);
-            list[0].Title.ShouldBe("Aktiv-annons");
+            // NON-VACUITY FIRST: the ACTIVE matches must still surface, by IDENTITY. Without this, "the
+            // archived one is absent" would pass on a join that returns nothing at all — the exact way
+            // an exclusion test can be green and worthless.
+            list.Count.ShouldBe(2);
+            list.ShouldContain(m => m.JobAdId == liveAd.Value && m.Title == "Aktiv-annons");
+            list.ShouldContain(m => m.JobAdId == secondLiveAd.Value && m.Title == "Aktiv-annons-2");
             list.ShouldNotContain(m => m.JobAdId == archivedAd.Value,
                 "en arkiverad annons får inte listas med en grad och en levande länk — i en LISTA är " +
                 "graden en rekommendation, och den är falsk för en annons du inte kan söka");
 
-            // THE COHERENCE CLAIM: the badge counts what the list shows. 1, never 2.
-            badge.Count.ShouldBe(1,
+            // THE COHERENCE CLAIM: the badge counts what the list shows. 2, never 3 — and never 1,
+            // which is what an INVERTED badge gate would read.
+            badge.Count.ShouldBe(2,
                 "badgen måste räkna samma presenterbara mängd som listan visar — annars säger Översikten " +
-                "'2 nya matchningar' över en vy som renderar 1 rad");
+                "'3 nya matchningar' över en vy som renderar 2 rader");
         }
     }
 

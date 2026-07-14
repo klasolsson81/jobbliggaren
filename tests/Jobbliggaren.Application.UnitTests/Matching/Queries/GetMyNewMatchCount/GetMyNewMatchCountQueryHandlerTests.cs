@@ -304,15 +304,21 @@ public class GetMyNewMatchCountQueryHandlerTests
 
         SeedSeeker(db, userId, lastSeen: null); // never opened → every match is new
 
-        // Two matches: one to an Active ad, one to an ad archived AFTER the match was detected —
+        // Three matches: TWO to Active ads, one to an ad archived AFTER the match was detected —
         // the ONLY way this state arises in production, since BackgroundMatchingJob gates
         // Status == Active before it scores. Archiving via the domain transition ExpireJobAdsJob
         // performs; never a fabricated column value (#843 / #864 AC 4).
+        //
+        // The seed is ASYMMETRIC (2 live + 1 archived), deliberately: a count-only DTO cannot say
+        // WHICH rows it counted, so a 1+1 seed passes under the INVERTED gate too (== Archived also
+        // counts exactly 1). 2+1 separates every state: gate correct → 2, deleted → 3, inverted → 1.
         var liveAdId = SeedActiveAd(db);
+        var secondLiveAdId = SeedActiveAd(db);
         var archivedAdId = SeedActiveAd(db);
         _clock.UtcNow.Returns(T0.AddDays(1));
         db.UserJobAdMatches.AddRange(
             UserJobAdMatch.Create(userId, liveAdId, NotifiableMatchGrade.Good, ["csharp"], _clock).Value,
+            UserJobAdMatch.Create(userId, secondLiveAdId, NotifiableMatchGrade.Good, ["dotnet"], _clock).Value,
             UserJobAdMatch.Create(userId, archivedAdId, NotifiableMatchGrade.Strong, ["sql"], _clock).Value);
         _clock.UtcNow.Returns(T0);
         await db.SaveChangesAsync(ct);
@@ -324,12 +330,12 @@ public class GetMyNewMatchCountQueryHandlerTests
         var result = await new GetMyNewMatchCountQueryHandler(db, UserWith(userId))
             .Handle(new GetMyNewMatchCountQuery(), ct);
 
-        // 1, not 2. NON-VACUOUS BY CONSTRUCTION: the count must still find the ACTIVE match, so a
-        // gate that excluded everything would fail this assertion too — "the archived one is not
-        // counted" cannot pass by counting nothing.
-        result.Count.ShouldBe(1,
+        // 2, not 3 (gate deleted) and not 1 (gate inverted). NON-VACUOUS BY CONSTRUCTION: the count
+        // must still find the ACTIVE matches, so a gate that excluded everything would fail this
+        // assertion too — "the archived one is not counted" cannot pass by counting nothing.
+        result.Count.ShouldBe(2,
             "badgen får inte räkna en matchning vars annons är arkiverad — den räknar samma " +
-            "presenterbara mängd som /matchningar visar (annars: '2 nya' över en vy med 1 rad)");
+            "presenterbara mängd som /matchningar visar (annars: '3 nya' över en vy med 2 rader)");
     }
 
     // =================================================================

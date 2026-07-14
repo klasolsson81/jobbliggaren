@@ -13,6 +13,8 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.GetNewFollowedCompanyA
 /// only the current user's hits + watermark + active watches). No authenticated user / no active
 /// follows → honest 0. The soft-delete query filters on <c>FollowedCompanyAdHit</c> and
 /// <c>CompanyWatch</c> exclude erased hits and unfollowed watches automatically. NO AI/LLM.
+/// <b>Lifecycle-gated (#864):</b> counts only hits whose ad is still <c>Active</c> — the same
+/// presentable set its destination (/foretag, <c>ListCompanyWatchesQueryHandler</c>) shows.
 ///
 /// <para>
 /// <b>Status-AGNOSTIC (parity <c>GetMyNewMatchCountQueryHandler</c>):</b> counts a hit regardless of
@@ -86,13 +88,45 @@ public sealed class GetNewFollowedCompanyAdCountQueryHandler(
         // New hits since the watermark, restricted to the user's ACTIVE watches by an equijoin on the
         // (opaque) CompanyWatchId — NOT an org.nr read (D8). The global soft-delete filters on both
         // sides exclude deleted hits + unfollowed watches. Joining (not an id-set Contains) also
-        // sidesteps the strongly-typed-VO Contains translation trap. STATUS-AGNOSTIC (no
-        // NotificationStatus / SeenAt predicate).
+        // sidesteps the strongly-typed-VO Contains translation trap. STATUS-AGNOSTIC with respect to
+        // NOTIFICATION delivery (no NotificationStatus / SeenAt predicate) — that is a different axis
+        // from the ad's LIFECYCLE, gated below.
+        //
+        // LIFECYCLE (#864) — the join to JobAds with `Status == Active` is why this rail is honest.
+        // Before it, this handler joined JobAds NOT AT ALL: it counted hit rows, so an ARCHIVED ad was
+        // counted. Its own destination is gated (ListCompanyWatchesQueryHandler:100), so the rail said
+        // "3 nya annonser från företag du bevakar", the user clicked, and /foretag showed zero — a count
+        // that promises more than its set can deliver. CompanyWatchScanJob's Active gate (:156) only
+        // proves the ad was live when the HIT WAS RECORDED; archiving is every ad's normal end of life.
+        // Structurally the same defect as the match badge (GetMyNewMatchCountQueryHandler), which also
+        // joined nothing — the two rails sit on the same page.
+        //
+        // D8 SEAL, RESTATED because it must not rot: the JobAds join reads `j.Status` and PROJECTS
+        // NOTHING from JobAds. The count-only DTO is unchanged, so the rail still reads ZERO org.nr —
+        // the strongest D8 property in the bevakning lane (ADR 0087 D8). A future edit that projects an
+        // ad column here breaks that seal; the seal is the reason the join contributes a `where`, never
+        // a `select`.
+        //
+        // ALLOW-list (`== Active`), never `!= Archived`: the two are indistinguishable on every row that
+        // exists today (Expired has no writer, #886), but a deny-list admits every status added later —
+        // and Erased (#842) is an Art. 17 tombstone. Gating at the SOURCE serves both branches: the
+        // common path COUNTs this query directly, and the grade path materialises it. The grade path
+        // also happens to be gated downstream (FilterToMatchingAsync → PerUserJobAdSearchQuery:370) —
+        // that accident is now redundant, and redundancy is the right posture for a control nobody meant
+        // to rely on.
+        //
+        // Query syntax + `j.Status == JobAdStatus.Active` is the ONE translation form this repo has
+        // proven against Npgsql (the match badge writes it identically; the comparison crosses a
+        // SmartEnum HasConversion, and a form that dies at runtime is invisible under InMemory).
+        // Testcontainers (FollowedCompanyAdRailTests) is the oracle that proves this one translates
+        // AND counts the presentable set — the role MyMatchesSurfaceTests plays for the match rail.
         var newHitsBase =
             from h in db.FollowedCompanyAdHits
             where h.UserId == userId && (lastSeen == null || h.CreatedAt > lastSeen)
             join w in db.CompanyWatches on h.CompanyWatchId equals w.Id
             where w.UserId == userId
+            join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
+            where j.Status == JobAdStatus.Active
             select new { h.JobAdId, h.CompanyWatchId };
 
         if (gradeWatchIds.Count == 0)

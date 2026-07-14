@@ -181,20 +181,43 @@ for i in "${!WT_PATHS[@]}"; do
   if [ -z "$MAIN_TOP" ] || [ ! -d "$MAIN_TOP" ]; then
     _resc_fail="cannot locate the main copy"
   else
-    _wi_specs="$(grep -vE '^[[:space:]]*(#|$)' "$MAIN_TOP/.worktreeinclude" 2>/dev/null | tr '
-' ' ')"
-    if [ -z "$_wi_specs" ]; then
-      _resc_fail=".worktreeinclude unreadable/empty"
+    # The pathspec is an ARRAY, never a string. .worktreeinclude carries GLOBS
+    # (docs/decisions/00[789][0-9]-*.md), and an UNQUOTED string is pathname-expanded by
+    # BASH against the CWD — the MAIN COPY — before git ever sees it. Git would then be
+    # handed the main copy's ADR filenames as the pathspec, the worktree's own ADR would
+    # never be enumerated, never rescued, and reaped. Measured, not theorised.
+    declare -a _wi=()
+    _wi_n=0
+    while IFS= read -r _line || [ -n "$_line" ]; do
+      _line="${_line#"${_line%%[![:space:]]*}"}"        # ltrim
+      _line="${_line%"${_line##*[![:space:]]}"}"        # rtrim
+      case "$_line" in ''|'#'*) continue ;; esac
+      _wi+=("$_line"); _wi_n=$((_wi_n + 1))
+    done < "$MAIN_TOP/.worktreeinclude" 2>/dev/null
+    if [ "$_wi_n" -eq 0 ]; then
+      _resc_fail=".worktreeinclude unreadable/empty"    # cannot rescue -> must not destroy
     else
-      for _rel in $(git -C "$W" ls-files --others -- $_wi_specs 2>/dev/null || true); do
-        [ -f "$W/$_rel" ] || continue
+      # NUL-delimited. `ls-files` WITHOUT -z C-quotes any path holding a space or a
+      # non-ASCII byte (core.quotePath defaults to true), and an unquoted $(...) then
+      # word-splits it — so "Skogsägarna AB.md" and "cto report.md" were enumerated,
+      # silently failed to copy, and the reap proceeded anyway. In a Swedish repo whose
+      # docs/ already holds "Reklamfilm LinkedIn.mp4", that is not hypothetical.
+      # -z + read -d '' removes the whole class. Process substitution (not a pipeline)
+      # keeps the loop in THIS shell, so _resc_fail survives it.
+      while IFS= read -r -d '' _rel; do
+        if [ ! -f "$W/$_rel" ]; then
+          # Enumerated but unreadable. That is an ANOMALY, and an anomaly must never read
+          # as "nothing to do" — the old `|| continue` here is what let 2 of 6 files be
+          # dropped while the reap went ahead. Doubt resolves to skip.
+          _resc_fail="enumerated but unreadable: $_rel"; break
+        fi
         if [ -f "$MAIN_TOP/$_rel" ]; then
           if ! cmp -s -- "$W/$_rel" "$MAIN_TOP/$_rel" 2>/dev/null; then
-            _resc_conflict="$_rel"; break                 # case (b) — refuse
+            _resc_conflict="$_rel"; break                # case (b) — refuse, see above
           fi
-          continue                                        # identical -> nothing to save
+          continue                                       # identical -> nothing to save
         fi
-        if [ "$REAP_MODE" = "live" ]; then                # case (a)
+        if [ "$REAP_MODE" = "live" ]; then               # case (a)
           mkdir -p "$MAIN_TOP/$(dirname -- "$_rel")" 2>/dev/null || { _resc_fail="mkdir $_rel"; break; }
           cp -- "$W/$_rel" "$MAIN_TOP/$_rel" 2>/dev/null || { _resc_fail="cp $_rel"; break; }
           RESCUED_LIST+="  rescued: $_rel  (from $W)"$'
@@ -204,7 +227,7 @@ for i in "${!WT_PATHS[@]}"; do
 '
         fi
         RESCUED_N=$((RESCUED_N + 1))
-      done
+      done < <(git -C "$W" ls-files -z --others -- "${_wi[@]}" 2>/dev/null)
     fi
   fi
   if [ -n "$_resc_conflict" ]; then

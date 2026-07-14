@@ -167,21 +167,22 @@ public sealed partial class DigestDispatchJob(
 
         // Display items (capped) for the SAME Pending Strong rows, joined to each ad's PUBLIC
         // title/company (no CV data). Read BEFORE the claim (rows still Pending), AsNoTracking,
-        // same ordering → the most recent N of `pending`. The inner join honours the JobAd
-        // JOBAD CARRIES NO QUERY FILTER (#821 retired the dead soft-delete axis), so the inner join
-        // drops a row only when the AD ROW ITSELF IS GONE -- an ARCHIVED ad still joins. The old comment
-        // claimed a soft-delete filter did the excluding; it never did. A row whose ad was erased
-        // since the match falls out of the body but is still drained below (it was a valid match
-        // when detected). No Status==Active predicate here — deliberate parity with the in-app
-        // /matchningar surface (GetMyMatchesQueryHandler), so the email shows the SAME set the user
-        // sees in-app. Joining (not filtering by an id set) also sidesteps the strongly-typed-VO
-        // Contains translation trap.
+        // same ordering → the most recent N of `pending`.
+        //
+        // #842 — an ERASED ad is a TOMBSTONE ROW, not a missing one: it joins fine and projects
+        // Title = "" and Company = "[raderad]". Without the predicate below, that marker is EMAILED.
+        // The row is still DRAINED below (it was a valid match when detected, and leaving it Pending
+        // would retry it every digest forever) — the empty-displayRows branch already handles that.
+        // `!= Erased`, never `== Active`: an Expired/Archived ad must still appear, in parity with
+        // the in-app /matchningar surface (#805-3, #821). Joining (not filtering by an id set) also
+        // sidesteps the strongly-typed-VO Contains translation trap.
         var displayRows = await (
                 from m in db.UserJobAdMatches.AsNoTracking()
                 where m.UserId == userId
                       && m.Grade == NotifiableMatchGrade.Strong
                       && m.NotificationStatus == NotificationStatus.Pending
                 join j in db.JobAds.AsNoTracking() on m.JobAdId equals j.Id
+                where j.Status != JobAdStatus.Erased
                 orderby m.CreatedAt descending, m.Id
                 select new { j.Title, Company = j.Company.Name })
             .Take(_options.MaxItemsPerDigest)
@@ -362,17 +363,19 @@ public sealed partial class DigestDispatchJob(
             filterByWatchId, onlyMatchedAssessable: assessableProfile is not null);
 
         // Display items — the PUBLIC title/company per ad (never the org.nr — ADR 0087 D8), AsNoTracking,
-        // same ordering. Read BEFORE the claim (the join predicate needs the rows still Pending). The
-        // inner join drops a hit whose ad row is GONE (the ad body is omitted but the hit is still
-        // drained below). It is not a lifecycle filter: JobAd has no soft-delete axis (#821), so an
-        // ARCHIVED ad still joins. Joining (not an id-set filter) sidesteps the strongly-typed-VO
-        // Contains trap.
+        // same ordering. Read BEFORE the claim (the join predicate needs the rows still Pending).
+        //
+        // #842 — same tombstone guard as the match digest above, for the same reason: an erased ad
+        // JOINS (it is a row, not a hole) and would email Title = "" + Company = "[raderad]". The hit
+        // is still drained below. `!= Erased`, not `== Active` — an ARCHIVED ad must still appear
+        // (#821). Joining (not an id-set filter) sidesteps the strongly-typed-VO Contains trap.
         var itemsQuery =
             from h in db.FollowedCompanyAdHits.AsNoTracking()
             where h.UserId == userId
                   && h.NotificationStatus == FollowedCompanyAdHitStatus.Pending
                   && h.SeenAt == null
             join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
+            where j.Status != JobAdStatus.Erased
             orderby h.CreatedAt descending, h.Id
             select new { h.JobAdId, j.Title, Company = j.Company.Name };
 

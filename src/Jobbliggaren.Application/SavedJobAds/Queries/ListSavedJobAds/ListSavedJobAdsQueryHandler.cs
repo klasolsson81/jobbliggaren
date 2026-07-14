@@ -49,15 +49,13 @@ public sealed class ListSavedJobAdsQueryHandler(IAppDbContext db, ICurrentUser c
                 r.s.CreatedAt,
                 // #842 — an ERASED ad is projected as null, i.e. exactly like a missing one, so it
                 // reuses the orphan row ("Annonsen är borttagen") that already exists below.
+                // Without it, the tombstone renders as a normal card: empty title, company
+                // "[raderad]".
                 //
-                // This is the read path the erasure spec MISSED, and the miss is instructive: the
-                // spec claimed "every other read path already filters Status == Active, so a fourth
-                // status is excluded for free." That was true of search, matching, watches, suggest
-                // and landing stats — and FALSE here, because #805-3 deliberately REMOVED the filter
-                // so a saved ad that has been archived still renders. Without this guard an erased ad
-                // renders as a normal card with an empty title and the company "[raderad]" — the
-                // tombstone's own marker, on screen, to a user. A claim that a control covers "every
-                // path" is worth exactly the enumeration behind it.
+                // `!= Erased`, NOT `== Active`: #805-3 deliberately REMOVED the Active filter here so
+                // a saved ad that has since been ARCHIVED still renders. Re-adding it would re-kill
+                // that fix. (The gated/ungated read paths are tabled in ADR 0106 §D9, not enumerated
+                // in a comment.)
                 r.j != null && r.j.Status != JobAdStatus.Erased
                     ? new JobAdSummaryDto(
                         r.j.Id.Value,

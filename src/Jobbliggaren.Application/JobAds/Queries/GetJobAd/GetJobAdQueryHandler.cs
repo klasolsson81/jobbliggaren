@@ -11,11 +11,12 @@ namespace Jobbliggaren.Application.JobAds.Queries.GetJobAd;
 /// (ADR 0106 Tier B, #842) and <see cref="ErrorKind.NotFound"/> (404) for an id we never held.
 /// </summary>
 /// <remarks>
-/// This is the ONE read path that needed a guard. Every other consumer of <c>job_ads</c> already
-/// scopes on <c>Status == Active</c> — search, per-user matching, company watches, suggest,
-/// landing stats, miss-tracking — so a fourth status is excluded from all of them for free, with
-/// no new predicate anywhere. This handler selects by id with no status predicate, so it is the
-/// only leak, and after #821 there is no query filter to hide behind.
+/// This handler selects by id with no status predicate, so the guard is explicit.
+/// <b>Which read paths are gated on <c>Status != Erased</c> is a TABLE in ADR 0106 §D9 — it is not a
+/// claim in this comment.</b> The claim that used to stand here ("every other consumer already
+/// scopes on Active, so a fourth status is excluded for free") was false in three places, two of
+/// which EMAILED the tombstone, and it was written twice as the reason not to guard anything else.
+/// <b>Comments that enumerate, drift. A table with an issue number per unfixed row does not.</b>
 /// <para>
 /// <b>410, not 404, and the distinction is the whole point.</b> 404 says "we never had this",
 /// which is false — and manufacturing a false statement to the person holding the link is the

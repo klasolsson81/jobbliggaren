@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Domain.JobAds;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,10 +8,8 @@ namespace Jobbliggaren.Application.Matching.Queries.GetMyMatches;
 /// <summary>
 /// ADR 0080 Vag 4 PR-5 — lists the authenticated user's background matches (most recent first,
 /// capped) joined to each ad's PUBLIC details (title/company/url — no CV content). Owner-scoped;
-/// no authenticated user → empty. The soft-delete query filter on <c>UserJobAdMatch</c> excludes
-/// erased rows; the inner join to <c>JobAds</c> naturally drops a match whose ad is gone (a stale
-/// link is never surfaced). <c>IsNew</c> is computed against the last-seen watermark as it stands
-/// AT FETCH (opening the view advances it separately via MarkMatchesSeen). NO AI/LLM.
+/// no authenticated user → empty. <c>IsNew</c> is computed against the last-seen watermark as it
+/// stands AT FETCH (opening the view advances it separately via MarkMatchesSeen). NO AI/LLM.
 /// <para>
 /// Deliberately status-AGNOSTIC: this surface does NOT filter on <c>NotificationStatus</c> —
 /// a match is shown regardless of whether its notification is Pending/Queued/Sent/Failed, because
@@ -49,6 +48,12 @@ public sealed class GetMyMatchesQueryHandler(
                 from m in db.UserJobAdMatches.AsNoTracking()
                 where m.UserId == userId
                 join j in db.JobAds.AsNoTracking() on m.JobAdId equals j.Id
+                // #842 — an ERASED ad is a TOMBSTONE ROW, not a missing one. It joins fine and
+                // projects Title = "" and Company = "[raderad]" — the tombstone's own marker,
+                // straight onto the user's screen. `!= Erased`, never `== Active`: #805-3 and #821
+                // deliberately removed the Active filter so an archived match still renders, and one
+                // character would re-kill both.
+                where j.Status != JobAdStatus.Erased
                 orderby m.CreatedAt descending, m.Id
                 select new
                 {

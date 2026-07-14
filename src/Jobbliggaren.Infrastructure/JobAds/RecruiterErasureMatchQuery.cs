@@ -312,6 +312,26 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
             """, cancellationToken);
     }
 
+    public async Task<int> CountResumeFileNamesAsync(
+        string identifier, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        var pattern = LikePattern(identifier);
+
+        // The SAME uploaded file, in two tables. The CV body (raw_text / parsed_content_enc /
+        // sealed_content) is NOT scanned here — it is encrypted, HeldButNotSearchable, and
+        // disclosed. Only the plaintext file NAME is searchable.
+        return await CountAsync($"""
+            SELECT (
+                (SELECT count(*) FROM parsed_resumes
+                  WHERE lower(coalesce(source_file_name, '')) LIKE {pattern} ESCAPE '')
+              + (SELECT count(*) FROM resume_files
+                  WHERE lower(coalesce(file_name, '')) LIKE {pattern} ESCAPE '')
+            )::int AS "Value"
+            """, cancellationToken);
+    }
+
     public async Task<int> CountApplicationsReferencingAsync(
         IReadOnlyCollection<Guid> matchedJobAdIds, CancellationToken cancellationToken)
     {

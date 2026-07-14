@@ -119,13 +119,22 @@ public sealed record ErasureSurfaceCounts(
     int ApplicationSnapshots,
     int ManualAdEntries,
     int CompanyWatchCriteria,
+    int ResumeFileNames,
     int ApplicationsReferencingMatchedAds)
 {
-    public static ErasureSurfaceCounts None { get; } = new(0, 0, 0, 0, 0, 0, 0);
+    public static ErasureSurfaceCounts None { get; } = new(0, 0, 0, 0, 0, 0, 0, 0);
 
+    /// <summary>
+    /// The sum of every surface. <b>Hand-written, and load-bearing twice</b> — it decides
+    /// <c>NoMatchInSearchableSurfaces</c> and it feeds <see cref="EraseRecruiterAdsResponse.Outcome"/>.
+    /// Add a surface and forget this line, and we tell a data subject we found nothing on a surface
+    /// we searched and found her on. <c>ErasureCascadeRegistryTests</c> pins it against the reflected
+    /// member set: the sum must include EVERY int property.
+    /// </summary>
     public int Total =>
         JobAds + RecentJobSearches + SavedSearches + ApplicationSnapshots
-        + ManualAdEntries + CompanyWatchCriteria + ApplicationsReferencingMatchedAds;
+        + ManualAdEntries + CompanyWatchCriteria + ResumeFileNames
+        + ApplicationsReferencingMatchedAds;
 }
 
 /// <summary>

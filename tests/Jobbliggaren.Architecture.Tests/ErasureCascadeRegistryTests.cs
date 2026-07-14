@@ -25,12 +25,89 @@ public class ErasureCascadeRegistryTests
     /// identity/session/taxonomy plumbing, join rows, concept ids. Excluded wholesale so the
     /// registry names the surfaces that matter instead of drowning in AspNetUserTokens.
     /// </summary>
-    private static readonly HashSet<string> NonRecruiterTables = new(StringComparer.Ordinal)
+    /// <remarks>
+    /// ⚠ <b>THIS LIST IS A CLAIM, AND IT WAS FALSE.</b> <c>parsed_resumes</c> and
+    /// <c>resume_files</c> sat here — the tables holding the RAW CV TEXT and the CV FILE — under a
+    /// docstring saying their columns "structurally cannot hold recruiter free text". They swallowed
+    /// three DEK-encrypted columns and two plaintext filenames whole, one level ABOVE the registry,
+    /// where the column-level guard could not see them.
+    /// <para>
+    /// <b>A wholesale exclusion is the cheapest possible false verdict in the entire system.</b>
+    /// <c>NotRecruiterData</c> costs a line per column; this costs ONE STRING and an entire table
+    /// disappears — every column in it, present and future. Strongest claim, lowest price. That is
+    /// the same inversion the registry's own dispositions had, one level up, and it is why the list
+    /// is now a <b>Dictionary with a written ground per table</b>, pinned by a test.
+    /// </para>
+    /// <para>
+    /// <b>ADMISSION RULE:</b> a table may be excluded wholesale ONLY if every column is closed-domain,
+    /// or is that data subject's OWN datum whose write path cannot receive a third party's free text.
+    /// <b>A table with even one arbitrary-free-text column may never be on this list.</b> That rule
+    /// is what would have caught <c>parsed_resumes</c>, and writing the ground IS the re-derivation:
+    /// you cannot write "every column here is closed-domain" about a table without noticing when it
+    /// is not.
+    /// </para>
+    /// <para>
+    /// And <see cref="Every_DEK_encrypted_column_carries_EXACTLY_ONE_disposition_HeldButNotSearchable"/>
+    /// deliberately does <b>NOT</b> honour this list at all — an encrypted column must be classified
+    /// wherever it lives. That guard is strictly stricter than this sweep.
+    /// </para>
+    /// </remarks>
+    private static readonly Dictionary<string, string> NonRecruiterTables = new(StringComparer.Ordinal)
     {
-        "asp_net_users", "asp_net_roles", "asp_net_user_roles", "asp_net_user_claims",
-        "asp_net_user_logins", "asp_net_user_tokens", "asp_net_role_claims",
-        "job_seekers", "resumes", "parsed_resumes", "resume_files", "resume_sections",
-        "user_data_keys", "sessions", "taxonomy_snapshot_meta",
+        // ── ASP.NET Identity: closed domains we mint, plus the USER'S OWN contact fields. ─────
+        ["asp_net_users"] = "ASP.NET Identity. Every column is either a closed domain we mint "
+            + "(normalised names, password hash, security stamp, concurrency stamp, lockout flags) "
+            + "or the USER'S OWN email/phone. No write path lets a THIRD PARTY'S free text land in "
+            + "any of them.",
+        ["asp_net_roles"] = "Identity plumbing: role names drawn from a fixed set WE mint in code "
+            + "(AuthorizationPolicies). No user write path reaches this table at all, so no free "
+            + "text can enter it.",
+        ["asp_net_user_roles"] = "Identity JOIN TABLE: two foreign keys and nothing else. There is "
+            + "no column that could hold text of any kind, let alone a recruiter's.",
+        ["asp_net_user_claims"] = "Identity claims: type/value pairs minted by our own code when a "
+            + "role or policy is assigned. The user cannot author a claim, so no free text enters.",
+        ["asp_net_user_logins"] = "Identity external-login keys: the provider's name and the "
+            + "provider's opaque key. Both are minted by the OAuth provider, not by any user of "
+            + "ours, and neither is free text.",
+        ["asp_net_user_tokens"] = "Identity tokens: opaque values minted by the token provider "
+            + "(2FA, password reset). No user write path, no free text.",
+        ["asp_net_role_claims"] = "Identity claims attached to roles: minted by our own "
+            + "authorisation code from a fixed vocabulary. No user write path.",
+
+        // ── The seeker's OWN data, with no third-party free-text column. ──────────────────────
+        ["job_seekers"] = "The SEEKER'S OWN profile and preferences: her display name, her "
+            + "notification consent, her digest cadence, her watermarks. Every column is either her "
+            + "own datum or a closed-domain preference (enum, boolean, timestamp). Not one column "
+            + "accepts free text ABOUT A THIRD PARTY, which is the only thing this registry is "
+            + "about.",
+        ["resumes"] = "The CV aggregate ROOT: ids, timestamps and a status enum. It holds no "
+            + "content. The CV's actual content lives in resume_versions, parsed_resumes and "
+            + "resume_files — all three of which ARE column-classified, precisely because they were "
+            + "once excluded here and should never have been.",
+
+        // ── Infrastructure the user cannot write into. ────────────────────────────────────────
+        ["user_data_keys"] = "The DEK envelope itself: wrapped key material (bytes) and key ids. "
+            + "There is no text column, and the write path is the key provider, not any user.",
+        ["sessions"] = "Session plumbing: ids, timestamps and a revocation flag, all minted by the "
+            + "auth stack. No free text, no user write path into a value.",
+        ["taxonomy_snapshot_meta"] = "Sync bookkeeping for the Arbetsförmedlingen taxonomy import: "
+            + "a version string and timestamps, minted by the sync job. No user, and no free text, "
+            + "can reach it.",
+
+        // ── Pure link tables: ids, enums and timestamps. No text column exists. ───────────────
+        ["saved_job_ads"] = "A LINK ROW: (job_seeker_id, job_ad_id, created_at). It records THAT she "
+            + "bookmarked an ad, never anything about it. There is no text column to hold a "
+            + "recruiter's name, and the ad's own text is classified under job_ads.",
+        ["user_job_ad_matches"] = "A LINK ROW: (user_id, job_ad_id) plus a grade enum, a "
+            + "notification-status enum, matched-term concept ids and timestamps. The matched terms "
+            + "are taxonomy/skill ids from a closed vocabulary, never free text. The ad's text is "
+            + "classified under job_ads.",
+        ["company_watches"] = "A FOLLOW ROW: (user_id, organisation number) plus enums and "
+            + "timestamps. The user-authored LABEL lives on company_watch_criteria, which IS "
+            + "column-classified and IS searched. Nothing free-text remains here.",
+        ["followed_company_ad_hits"] = "A LINK ROW: (user_id, job_ad_id, company_watch_id) plus a "
+            + "status enum and timestamps. It records THAT a followed company posted an ad. The "
+            + "ad's text is classified under job_ads.",
     };
 
     /// <summary>
@@ -81,15 +158,21 @@ public class ErasureCascadeRegistryTests
         foreach (var entity in context.Model.GetEntityTypes())
         {
             var table = entity.GetTableName();
-            if (table is null || NonRecruiterTables.Contains(table))
+            if (table is null || NonRecruiterTables.ContainsKey(table))
                 continue;
 
             foreach (var property in entity.GetProperties())
             {
                 var clr = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
 
-                // Only free-text-capable columns can hold a recruiter's name or address.
-                if (clr != typeof(string))
+                // Text OR bytes. The byte[] arm is not theoretical: resume_files.sealed_content is
+                // the CV FILE ITSELF, and a sweep that filtered on `string` alone claimed to catch
+                // "text anywhere" while walking straight past it.
+                //
+                // ⚠ Still NOT reached: an owned type mapped .ToJson() presents as a navigation, not a
+                // scalar property. Said out loud rather than left as an assumption a reader would
+                // over-trust — which is how the last two holes happened.
+                if (clr != typeof(string) && clr != typeof(byte[]))
                     continue;
 
                 columns.Add(ColumnKey(entity, property));
@@ -148,42 +231,77 @@ public class ErasureCascadeRegistryTests
     /// </para>
     /// </remarks>
     [Fact]
-    public void A_DEK_encrypted_column_can_never_be_classified_as_searched()
+    public void Every_DEK_encrypted_column_carries_EXACTLY_ONE_disposition_HeldButNotSearchable()
     {
         var encrypted = EncryptedColumns();
 
-        encrypted.Count.ShouldBeGreaterThanOrEqualTo(4,
-            "reflection over EncryptedFieldRegistry found (almost) nothing — the guard is VACUOUS. It "
-            + "must resolve the encryption allowlist, or fail. Found: "
-            + string.Join(", ", encrypted.Order()));
-
-        foreach (var known in new[]
-                 {
-                     "applications.cover_letter",
-                     "application_notes.content",
-                     "follow_ups.note",
-                 })
+        // ── Anti-vacuity, per FORM. ──────────────────────────────────────────────────────────
+        // A single floor over the union is not enough: Form A alone (4 columns) satisfies
+        // `Count >= 4`, so the Form-B arm could go silently empty and the guard would still pass.
+        // Each arm is pinned by a column that must be in it.
+        var formA = new[]
         {
-            encrypted.ShouldContain(known,
-                $"{known} is Form-A encrypted and the cross-check must see it. If this fails, the "
-                + "EF-model → column-name mapping has drifted and the guard is reaching PAST the very "
-                + "columns that produced the Blocker.");
+            "applications.cover_letter",
+            "application_notes.content",
+            "follow_ups.note",
+            "parsed_resumes.raw_text",
+        };
+
+        var formB = new[]
+        {
+            "resume_versions.content_enc",
+            "parsed_resumes.parsed_content_enc",
+        };
+
+        foreach (var column in formA.Concat(formB))
+        {
+            encrypted.ShouldContain(column,
+                $"{column} is DEK-encrypted and the cross-check must SEE it. If this fails, the "
+                + "reflection or the EF-model → column-name mapping has drifted, and the guard is "
+                + "reaching past the very columns it exists to catch. Resolved: "
+                + string.Join(", ", encrypted.Order(StringComparer.Ordinal)));
         }
 
-        var claimedSearched = encrypted
-            .Where(c => ErasureCascadeRegistry.Columns.TryGetValue(c, out var d)
-                        && SearchedDispositions.Contains(d))
-            .Order()
-            .ToList();
+        // ── THE PREDICATE. Absence must FAIL, not be filtered away. ──────────────────────────
+        //
+        // The first cut of this test read:
+        //
+        //     encrypted.Where(c => Columns.TryGetValue(c, out var d) && Searched.Contains(d))
+        //             .ShouldBeEmpty();
+        //
+        // TryGetValue returns FALSE for a column that is not in the registry at all — so it was
+        // filtered out and the assertion passed over it. AN ENCRYPTED COLUMN THAT WAS ENTIRELY
+        // ABSENT PASSED THE GUARD AGAINST ENCRYPTED COLUMNS. Two did: parsed_resumes.raw_text and
+        // parsed_resumes.parsed_content_enc, swallowed one level up by NonRecruiterTables — a list
+        // whose own doc calls its tables "structurally incapable of holding recruiter free text",
+        // about the table holding the raw CV text.
+        //
+        // Emptiness was guarded. INCOMPLETENESS was not. That is the same inversion this whole
+        // registry exists to end, reproduced inside the guard written to end it.
+        var wrong = new List<string>();
 
-        claimedSearched.ShouldBeEmpty(
-            "these columns are DEK-encrypted at rest (per-user envelope, ADR 0049 C3 / 0066) and are "
-            + "classified as SEARCHED. A plaintext LIKE against them compares a name to base64 and "
-            + "matches NOTHING — not 'nothing today', but structurally, forever. The reply template "
-            + "then turns that zero into 'we hold no data about you', to a named data subject.\n\n"
-            + "The only honest disposition for an encrypted column is HeldButNotSearchable: we hold "
-            + "it, we cannot read it, and every reply says so (UnsearchableSurfaces).\n\n"
-            + "Wrongly classified as searched:\n  " + string.Join("\n  ", claimedSearched));
+        foreach (var column in encrypted.Order(StringComparer.Ordinal))
+        {
+            if (!ErasureCascadeRegistry.Columns.TryGetValue(column, out var disposition))
+            {
+                wrong.Add($"{column} — ABSENT from the registry entirely");
+                continue;
+            }
+
+            if (disposition != ErasureColumnDisposition.HeldButNotSearchable)
+                wrong.Add($"{column} — classified {disposition}");
+        }
+
+        wrong.ShouldBeEmpty(
+            "every DEK-encrypted column carries EXACTLY ONE disposition: HeldButNotSearchable.\n\n"
+            + "NOT SEARCHED — a plaintext LIKE against ciphertext compares a name to base64 and "
+            + "matches NOTHING, structurally, forever, and the reply turns that zero into 'we hold no "
+            + "data about you', to a named data subject.\n"
+            + "NOT NotRecruiterData — that word claims we hold nothing of hers. We DO hold it. We "
+            + "simply cannot read it.\n"
+            + "NOT ABSENT — an unclassified encrypted column never reaches CouldNotSearch, so the "
+            + "list we hand her presents itself as complete and is not. Art. 5(1)(d), 5(2), 12(3).\n\n"
+            + "Offenders:\n  " + string.Join("\n  ", wrong));
     }
 
     /// <summary>
@@ -342,21 +460,123 @@ public class ErasureCascadeRegistryTests
     }
 
     /// <summary>
-    /// Every aggregate the application can reach must still be classified at the DbSet level too —
-    /// the coarse check is kept because a whole NEW table with no text columns (ids only) would
-    /// otherwise slip past the column check silently.
+    /// <c>Total</c> is a HAND-WRITTEN sum, and it is load-bearing twice: it decides
+    /// <c>NoMatchInSearchableSurfaces</c> and it feeds the derived <c>Outcome</c>.
     /// </summary>
+    /// <remarks>
+    /// The outcome word cannot lie <b>only because the counts are right</b>. Add a surface, forget
+    /// the sum, and <c>Total</c> silently under-reports: we would answer <i>"we found nothing"</i> to
+    /// a data subject we searched for and FOUND, on the very surface just added. The property is
+    /// excluded from the reported-surface reflection by name, so nothing else pins it. This does.
+    /// </remarks>
     [Fact]
-    public void Every_persisted_aggregate_is_accounted_for()
+    public void Total_sums_EVERY_reported_surface_and_not_a_subset()
     {
-        var dbSets = typeof(IAppDbContext)
+        var surfaces = typeof(ErasureSurfaceCounts)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.PropertyType == typeof(int) && p.Name != nameof(ErasureSurfaceCounts.Total))
+            .ToList();
+
+        surfaces.ShouldNotBeEmpty("reflection found no surfaces — this test is itself vacuous.");
+
+        // One surface at a time: set it to 1, everything else 0, and require Total == 1. A surface
+        // missing from the sum contributes 0 and is named in the failure.
+        var missing = new List<string>();
+
+        foreach (var surface in surfaces)
+        {
+            var args = surfaces
+                .Select(p => (object)(p.Name == surface.Name ? 1 : 0))
+                .ToArray();
+
+            var counts = (ErasureSurfaceCounts)Activator.CreateInstance(
+                typeof(ErasureSurfaceCounts), args)!;
+
+            if (counts.Total != 1)
+                missing.Add(surface.Name);
+        }
+
+        missing.ShouldBeEmpty(
+            "these surfaces are NOT in ErasureSurfaceCounts.Total's hand-written sum. A surface that "
+            + "does not reach Total is a surface we searched, found her on, and then reported "
+            + "'NoMatchInSearchableSurfaces' about — because Total drives the outcome word. "
+            + "Missing from the sum: " + string.Join(", ", missing));
+    }
+
+    /// <summary>
+    /// Every table excluded WHOLESALE from the column sweep carries a written ground naming its
+    /// write-path guarantee.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is the cheapest false verdict in the system, and it produced a Blocker.</b>
+    /// <c>NotRecruiterData</c> costs a line per column; a wholesale exclusion costs ONE STRING and an
+    /// entire table vanishes — every column in it, present and future. <c>parsed_resumes</c> and
+    /// <c>resume_files</c> sat on that list, and with them went the raw CV text, the CV file, and two
+    /// plaintext filenames.
+    /// <para>
+    /// The ground IS the re-derivation: you cannot write <i>"every column here is closed-domain"</i>
+    /// about a table without noticing when it is not.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_wholesale_excluded_table_carries_a_written_ground()
+    {
+        NonRecruiterTables.ShouldNotBeEmpty();
+
+        foreach (var (table, ground) in NonRecruiterTables)
+        {
+            ground.Length.ShouldBeGreaterThan(60,
+                $"{table} is excluded WHOLESALE — every column in it, present and future, disappears "
+                + "from the Art. 17 registry on the strength of this one sentence. It may be excluded "
+                + "ONLY if every column is closed-domain, or is that data subject's own datum whose "
+                + "write path cannot receive a third party's free text. A table with even one "
+                + "arbitrary-free-text column may never be here. Name the write-path guarantee.");
+        }
+    }
+
+    /// <summary>
+    /// Every aggregate reachable from <c>IAppDbContext</c> has at least one column in the registry,
+    /// or is wholesale-excluded WITH a ground. There is no third option.
+    /// </summary>
+    /// <remarks>
+    /// The previous version of this test reflected the DbSets and asserted only
+    /// <c>ShouldNotBeEmpty()</c> — it compared them against nothing. It could not fail for the reason
+    /// it existed. <b>A test that cannot fail is not a test; it is a comment with a green tick.</b>
+    /// </remarks>
+    [Fact]
+    public void Every_persisted_aggregate_is_classified_or_excluded_with_a_ground()
+    {
+        using var context = ModelOnlyContext();
+
+        var dbSetTypes = typeof(IAppDbContext)
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Select(p => p.PropertyType)
             .Where(t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(DbSet<>))
-            .Select(t => t.GetGenericArguments()[0].Name)
+            .Select(t => t.GetGenericArguments()[0])
             .ToList();
 
-        dbSets.ShouldNotBeEmpty("reflection over IAppDbContext must find the DbSets, or this test "
-            + "is itself vacuous — the failure mode it exists to prevent.");
+        dbSetTypes.ShouldNotBeEmpty("reflection over IAppDbContext must find the DbSets.");
+
+        var classifiedTables = ErasureCascadeRegistry.Columns.Keys
+            .Select(k => k.Split('.')[0])
+            .ToHashSet(StringComparer.Ordinal);
+
+        var unaccounted = new List<string>();
+
+        foreach (var clr in dbSetTypes)
+        {
+            var table = context.Model.FindEntityType(clr)?.GetTableName();
+            if (table is null)
+                continue;
+
+            if (!classifiedTables.Contains(table) && !NonRecruiterTables.ContainsKey(table))
+                unaccounted.Add(table);
+        }
+
+        unaccounted.ShouldBeEmpty(
+            "an aggregate the application can reach is in NEITHER the column registry NOR the "
+            + "wholesale-exclusion list. A whole new table with ids only would otherwise slip past "
+            + "the column sweep in silence. "
+            + "Unaccounted: " + string.Join(", ", unaccounted));
     }
 }

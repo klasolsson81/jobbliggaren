@@ -124,6 +124,21 @@ public interface IRecruiterErasureMatchQuery
         string identifier, CancellationToken cancellationToken);
 
     /// <summary>
+    /// How many uploaded CV files carry <paramref name="identifier"/> in their FILE NAME
+    /// (<c>parsed_resumes.source_file_name</c> + <c>resume_files.file_name</c> — the same uploaded
+    /// file, two tables). <b>Counted and REPORTED; a human erases it.</b>
+    /// </summary>
+    /// <remarks>
+    /// A filename is plaintext free text the user typed, and the repo already MASKS personnummer out
+    /// of it (#465) — a guard bolted on precisely because users put arbitrary text into filenames.
+    /// The column was classified <i>"structurally cannot hold a recruiter's personal data"</i> while
+    /// a control in the same aggregate said otherwise. Both tables are searched, because a registry
+    /// whose verdicts disagree about identical data is worth nothing.
+    /// </remarks>
+    Task<int> CountResumeFileNamesAsync(
+        string identifier, CancellationToken cancellationToken);
+
+    /// <summary>
     /// How many applications REFERENCE one of <paramref name="matchedJobAdIds"/> via
     /// <c>applications.job_ad_id</c>. <b>The structural channel — exact, and with zero
     /// decryption.</b>

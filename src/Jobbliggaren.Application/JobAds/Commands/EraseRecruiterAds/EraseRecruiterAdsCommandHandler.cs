@@ -52,6 +52,7 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
         var snapshotCount = await matchQuery.CountApplicationSnapshotsAsync(identifier, cancellationToken);
         var manualCount = await matchQuery.CountManualAdEntriesAsync(identifier, cancellationToken);
         var watchCriteriaCount = await matchQuery.CountCompanyWatchCriteriaAsync(identifier, cancellationToken);
+        var resumeFileNameCount = await matchQuery.CountResumeFileNamesAsync(identifier, cancellationToken);
 
         var matchedAdIds = jobAdMatches.Select(m => m.JobAdId).ToList();
         var referencingCount = await matchQuery.CountApplicationsReferencingAsync(
@@ -64,6 +65,7 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
             ApplicationSnapshots: snapshotCount,
             ManualAdEntries: manualCount,
             CompanyWatchCriteria: watchCriteriaCount,
+            ResumeFileNames: resumeFileNameCount,
             ApplicationsReferencingMatchedAds: referencingCount);
 
         // The distinct terms, no user ids. These rows are hard-deleted with no per-id confirmation
@@ -199,6 +201,7 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
             ApplicationSnapshots: 0,
             ManualAdEntries: 0,
             CompanyWatchCriteria: 0,
+            ResumeFileNames: 0,
             ApplicationsReferencingMatchedAds: 0);
 
         LogErased(logger, command.RequestId, erased.JobAds, erased.RecentJobSearches,

@@ -1557,6 +1557,10 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             string identifier, CancellationToken cancellationToken) =>
             inner.CountCompanyWatchCriteriaAsync(identifier, cancellationToken);
 
+        public Task<int> CountResumeFileNamesAsync(
+            string identifier, CancellationToken cancellationToken) =>
+            inner.CountResumeFileNamesAsync(identifier, cancellationToken);
+
         public Task<int> CountApplicationsReferencingAsync(
             IReadOnlyCollection<Guid> matchedJobAdIds, CancellationToken cancellationToken) =>
             inner.CountApplicationsReferencingAsync(matchedJobAdIds, cancellationToken);

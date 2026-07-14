@@ -133,6 +133,7 @@ public static class ErasureCascadeRegistry
         "ApplicationSnapshots",
         "ManualAdEntries",
         "CompanyWatchCriteria",
+        "ResumeFileNames",
         "ApplicationsReferencingMatchedAds",
     };
 
@@ -226,6 +227,26 @@ public static class ErasureCascadeRegistry
             // content_enc: Form B — the VO is JSON-serialised and DEK-encrypted into this shadow. We
             // HOLD user content here and cannot read it. It is NOT NotRecruiterData: that word would
             // claim we hold nothing of hers, when the truth is we cannot look.
+            // ── parsed_resumes + resume_files: the CV, and the columns that nearly escaped ───
+            // raw_text (Form A) and parsed_content_enc (Form B) are DEK-encrypted under the owning
+            // user's key and hold the SAME content as resume_versions.content_enc — which this
+            // registry already calls HeldButNotSearchable because "a CV can name a recruiter she
+            // wrote to". Both tables were excluded WHOLESALE, one level above this registry, by a
+            // list claiming its tables are "structurally incapable of holding recruiter free text".
+            // About the tables holding the raw CV text and the CV file.
+            ["parsed_resumes.raw_text"] = ErasureColumnDisposition.HeldButNotSearchable,
+            ["parsed_resumes.parsed_content_enc"] = ErasureColumnDisposition.HeldButNotSearchable,
+            ["resume_files.content"] = ErasureColumnDisposition.HeldButNotSearchable,
+
+            // The FILE NAME is plaintext free text the user typed, and the repo already MASKS
+            // personnummer out of it (#465) — a guard bolted on precisely because users put
+            // arbitrary text into filenames. So it is SEARCHED, in both tables: searching one and
+            // not the identical one a table over would be the same defect restated.
+            ["parsed_resumes.source_file_name"] = ErasureColumnDisposition.MatchedHumanErases,
+            ["resume_files.file_name"] = ErasureColumnDisposition.MatchedHumanErases,
+            ["parsed_resumes.source_content_type"] = ErasureColumnDisposition.NotRecruiterData,
+            ["resume_files.content_type"] = ErasureColumnDisposition.NotRecruiterData,
+
             ["resume_versions.content"] = ErasureColumnDisposition.NotRecruiterData,
             ["resume_versions.content_enc"] = ErasureColumnDisposition.HeldButNotSearchable,
 
@@ -360,6 +381,61 @@ public static class ErasureCascadeRegistry
                 + "corpus-wide decrypt-and-scan, not her request. The structural job_ad_id channel "
                 + "covers the follow-ups attached to a matched ad; the reply discloses the "
                 + "residual and gives her the targeted-escalation route.",
+
+            ["parsed_resumes:HeldButNotSearchable"] =
+                "THE SAME CV, THE OTHER COPY - and it nearly escaped the registry entirely. raw_text "
+                + "is the normalised raw CV text (Form A, encrypted in place); parsed_content_enc is "
+                + "the structured parse (Form B, JSON-serialised into an encrypted shadow). Both are "
+                + "sealed under the OWNING USER'S DEK, exactly like resume_versions.content_enc, and "
+                + "they hold the same thing: her CV. A CV can name a recruiter she wrote to. We HOLD "
+                + "it and we CANNOT read it. "
+                + "HOW IT NEARLY GOT AWAY: the table was excluded WHOLESALE by a test-side list of "
+                + "tables 'structurally incapable of holding recruiter free text' - a claim made "
+                + "about the table that holds the raw CV text. And the encrypted-column cross-check "
+                + "could not catch it, because it filtered on columns PRESENT in this dictionary: an "
+                + "encrypted column that was entirely ABSENT passed the guard against encrypted "
+                + "columns. Emptiness was guarded; INCOMPLETENESS was not. Same refusal, same ground, "
+                + "same escalation route as the Form-A columns on applications.",
+
+            ["parsed_resumes:MatchedHumanErases"] =
+                "USER-AUTHORED PLAINTEXT: source_file_name is the name of the file she uploaded - 400 "
+                + "chars, no content validation beyond length. "
+                + "AND THE REPO ALREADY KNEW: ParsedResume.Create MASKS personnummer-shaped spans OUT "
+                + "of this exact column (#465, Art. 5(1)(c)/25 minimisation) - a guard bolted on "
+                + "precisely BECAUSE users put arbitrary text into a filename. Classifying it "
+                + "'structurally cannot hold a recruiter's personal data' contradicted a control "
+                + "living in the same aggregate. 'Ansokan_Magnus_Fagerberg.pdf' is not exotic. Her "
+                + "right reaches it (Art. 6(1)(f) -> Art. 21(1)); it is PLAINTEXT, so "
+                + "HeldButNotSearchable would be a lie in the other direction. We SEARCH it and "
+                + "REPORT it; a HUMAN erases it, with that user in the loop.",
+
+            ["parsed_resumes:NotRecruiterData"] =
+                "Closed domain: source_content_type is the upload's MIME type, drawn from a validated "
+                + "allowlist at the ingest boundary. She cannot author into it - she can only choose "
+                + "a file whose type we accept. Checkable by reading the write path.",
+
+            ["resume_files:MatchedHumanErases"] =
+                "THE SAME UPLOADED FILE, ONE TABLE OVER. file_name is the identical datum as "
+                + "parsed_resumes.source_file_name and carries the identical risk. Searching one and "
+                + "not the other would be this issue's own defect restated inside its own fix: a "
+                + "registry whose verdicts disagree about identical data is worth nothing. Searched, "
+                + "reported, erased by a human.",
+
+            ["resume_files:NotRecruiterData"] =
+                "Closed domain: content_type is the MIME type from the same validated allowlist as "
+                + "parsed_resumes.source_content_type. No user write path into the value.",
+
+            ["resume_files:HeldButNotSearchable"] =
+                "resume_files.content (the domain property is SealedContent) is THE CV FILE ITSELF - the bytes the raw_text we cannot read was "
+                + "extracted from. Form C (IBinaryFieldSealer/IBinaryFieldOpener): sealed at rest "
+                + "under the owning user's key, and deliberately OUTSIDE EncryptedFieldRegistry "
+                + "because its read path is streaming and never engages the materialisation "
+                + "interceptor. We HOLD it and we CANNOT search it - and a PDF is not text-searchable "
+                + "in SQL even in plaintext, so this is doubly true. NOTE FOR THE NEXT PERSON: Form C "
+                + "has no allowlist for the architecture cross-check to read, so this column is "
+                + "enumerated BY HAND there. Add a Form-C column and you must add it there too - the "
+                + "enumeration is manual because the codebase gives us no other handle, and saying so "
+                + "beats a guard that reads as if it covered all three forms.",
 
             ["resume_versions:HeldButNotSearchable"] =
                 "content_enc is Form B (ADR 0049 C4 #1c): the ResumeVersion.Content VO is "

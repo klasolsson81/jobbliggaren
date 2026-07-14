@@ -167,25 +167,47 @@ public sealed partial class DigestDispatchJob(
 
         // Display items (capped) for the SAME Pending Strong rows, joined to each ad's PUBLIC
         // title/company (no CV data). Read BEFORE the claim (rows still Pending), AsNoTracking,
-        // same ordering → the most recent N of `pending`. The inner join honours the JobAd
-        // JOBAD CARRIES NO QUERY FILTER (#821 retired the dead soft-delete axis), so the inner join
-        // drops a row only when the AD ROW ITSELF IS GONE -- an ARCHIVED ad still joins. The old comment
-        // claimed a soft-delete filter did the excluding; it never did. A row whose ad was erased
-        // since the match falls out of the body but is still drained below (it was a valid match
-        // when detected). No Status==Active predicate here — deliberate parity with the in-app
-        // /matchningar surface (GetMyMatchesQueryHandler), so the email shows the SAME set the user
-        // sees in-app. Joining (not filtering by an id set) also sidesteps the strongly-typed-VO
-        // Contains translation trap.
-        var displayRows = await (
-                from m in db.UserJobAdMatches.AsNoTracking()
-                where m.UserId == userId
-                      && m.Grade == NotifiableMatchGrade.Strong
-                      && m.NotificationStatus == NotificationStatus.Pending
-                join j in db.JobAds.AsNoTracking() on m.JobAdId equals j.Id
-                orderby m.CreatedAt descending, m.Id
-                select new { j.Title, Company = j.Company.Name })
+        // same ordering → the most recent N of the PRESENTABLE window.
+        //
+        // LIFECYCLE (#864) — `j.Status == JobAdStatus.Active` is an EXPLICIT predicate here. JobAd
+        // carries no query filter (#821 retired the dead soft-delete axis), so an ARCHIVED ad still
+        // JOINS; the old comment claimed the join dropped "an ad that is gone" and called the absence
+        // of a Status predicate "deliberate parity with /matchningar". Both were false: an archived ad
+        // is not gone, archiving is every ad's normal end of life (ExpireJobAdsJob), and the parity was
+        // parity with a defect. BackgroundMatchingJob's gate only proves the ad was Active AT SCAN
+        // TIME — weeks before this digest runs. Un-gated, this job EMAILED "Stark match" for ads
+        // nobody can apply to. The parity with /matchningar survives, but it is now a GATED parity
+        // (GetMyMatchesQueryHandler carries the same predicate). ALLOW-list, not `!= Archived`: a
+        // deny-list admits every status added later, and Erased (#842) is a tombstone whose company
+        // reads "[raderad]" — pushing that into an inbox would broadcast the very erasure it exists
+        // to conceal.
+        //
+        // The gate is on the DISPLAY set only. `pending` above is the CLAIM/DRAIN set and stays
+        // UNGATED ON PURPOSE: an archived row was a valid match when detected, so it must still be
+        // drained (Pending → Queued → Sent) or it re-processes on every digest run, forever.
+        // Joining (not filtering by an id set) sidesteps the strongly-typed-VO Contains trap.
+        var presentable =
+            from m in db.UserJobAdMatches.AsNoTracking()
+            where m.UserId == userId
+                  && m.Grade == NotifiableMatchGrade.Strong
+                  && m.NotificationStatus == NotificationStatus.Pending
+            join j in db.JobAds.AsNoTracking() on m.JobAdId equals j.Id
+            where j.Status == JobAdStatus.Active
+            orderby m.CreatedAt descending, m.Id
+            select new { j.Title, Company = j.Company.Name };
+
+        var displayRows = await presentable
             .Take(_options.MaxItemsPerDigest)
             .ToListAsync(ct);
+
+        // The "och N till" remainder is rendered from TotalCount - Items.Count, so TotalCount must
+        // count what the user COULD have been shown — the PRESENTABLE window, not `pending`. Counting
+        // `pending` (the drain set) would promise archived ads the body can never list: "och 3 till"
+        // about three ads that do not exist for this user. A count that promises more than its set can
+        // deliver is the #560 PR-2 defect, and it would arrive here inside the fix for #864 — in an
+        // outbound email, under a field the DTO's own docstring calls the honest total. Separate count
+        // query (CLAUDE.md §3.6), same predicate, read BEFORE the claim while the rows are still Pending.
+        var presentableTotal = await presentable.CountAsync(ct);
 
         // Claim ALL pending Strong rows (Pending → Queued) and commit BEFORE the send — the
         // idempotency spine. MarkQueued's Result is structurally Success (the rows were loaded
@@ -205,9 +227,9 @@ public sealed partial class DigestDispatchJob(
 
         if (displayRows.Count == 0)
         {
-            // Every matched ad was retracted since detection — nothing to show. Drain (mark Sent)
-            // so the empty window doesn't re-process every run; send nothing (an empty digest is
-            // noise, not a notification).
+            // Nothing PRESENTABLE — every matched ad's row is gone, or (since #864) every one of them
+            // is archived. Drain the whole claimed window (mark Sent) so it doesn't re-process every
+            // run; send nothing (an empty digest is noise, not a notification).
             DrainSent(pending);
             await db.SaveChangesAsync(ct);
             LogEmptyDrained(logger, pending.Count, userId);
@@ -215,14 +237,15 @@ public sealed partial class DigestDispatchJob(
         }
 
         // Strong is the only grade in this batch (the query filters it) → "Stark match" for every
-        // item. The honest TotalCount is the full window (pending.Count); the body lists the cap
-        // and renders "och N till" for the remainder.
+        // item. TotalCount is the PRESENTABLE window (#864), not `pending.Count`: the body lists the
+        // cap and renders "och N till" for the remainder, so the total must count only ads the body
+        // could have listed.
         var items = displayRows
             .Select(r => new MatchNotificationItem(
                 r.Title, r.Company, NotifiableMatchGrade.Strong.ToSwedishLabel()))
             .ToList();
         var content = new MatchNotificationEmail(
-            MatchNotificationKind.Digest, cadence, items, pending.Count);
+            MatchNotificationKind.Digest, cadence, items, presentableTotal);
 
         // Idempotency key (#187): key the CONTENT of the claimed Strong set (a content hash of the
         // claimed match ids), NOT a wall-clock window — so two same-period runs that claimed
@@ -362,36 +385,57 @@ public sealed partial class DigestDispatchJob(
             filterByWatchId, onlyMatchedAssessable: assessableProfile is not null);
 
         // Display items — the PUBLIC title/company per ad (never the org.nr — ADR 0087 D8), AsNoTracking,
-        // same ordering. Read BEFORE the claim (the join predicate needs the rows still Pending). The
-        // inner join drops a hit whose ad row is GONE (the ad body is omitted but the hit is still
-        // drained below). It is not a lifecycle filter: JobAd has no soft-delete axis (#821), so an
-        // ARCHIVED ad still joins. Joining (not an id-set filter) sidesteps the strongly-typed-VO
-        // Contains trap.
+        // same ordering. Read BEFORE the claim (the join predicate needs the rows still Pending).
+        //
+        // LIFECYCLE (#864) — `j.Status == JobAdStatus.Active` is an EXPLICIT predicate here. The old
+        // comment said the join "drops a hit whose ad row is GONE" and then conceded it "is not a
+        // lifecycle filter". It was right about the mechanism and wrong about the consequence: an
+        // ARCHIVED ad is not gone, it joins, and this job EMAILED it. Archiving is every ad's normal
+        // end of life, and CompanyWatchScanJob's own Active gate (:156) only proves the ad was Active
+        // when the hit was RECORDED — weeks before this digest runs. ALLOW-list, not `!= Archived`
+        // (see the match digest above; Erased tombstones must never reach an inbox).
+        //
+        // The gate is on the DISPLAY set only. `effective` is the CLAIM/DRAIN set and stays UNGATED:
+        // an archived hit was a valid hit when detected and must still drain, or it re-processes every
+        // run, forever. Joining (not an id-set filter) sidesteps the strongly-typed-VO Contains trap.
         var itemsQuery =
             from h in db.FollowedCompanyAdHits.AsNoTracking()
             where h.UserId == userId
                   && h.NotificationStatus == FollowedCompanyAdHitStatus.Pending
                   && h.SeenAt == null
             join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
+            where j.Status == JobAdStatus.Active
             orderby h.CreatedAt descending, h.Id
             select new { h.JobAdId, j.Title, Company = j.Company.Name };
 
+        // TotalCount renders as "och N till" (TotalCount - Items.Count), so it must count the
+        // PRESENTABLE hits — never `effective.Count` (the drain set), which would promise archived ads
+        // the body can never list (#864; the #560 PR-2 count-that-overpromises defect, in an email).
         List<FollowedCompanyAdItem> items;
+        int presentableTotal;
         if (effective.Count == pending.Count)
         {
-            // Unfiltered (the common path) — keep the server-side cap so the
-            // fetch stays bounded (no unpaginated read).
+            // Unfiltered (the common path) — keep the server-side cap so the fetch stays bounded
+            // (no unpaginated read); the total is a separate COUNT over the same gated predicate
+            // (CLAUDE.md §3.6), still BEFORE the claim.
             items = (await itemsQuery.Take(_options.MaxItemsPerDigest).ToListAsync(ct))
                 .Select(r => new FollowedCompanyAdItem(r.Title, r.Company))
                 .ToList();
+            presentableTotal = await itemsQuery.CountAsync(ct);
         }
         else
         {
             // The grade filter pruned the set — SQL cannot express "∈ effective", so fetch the
-            // (per-user bounded) window and intersect in-memory, preserving order, then cap.
+            // (per-user bounded) window and intersect in-memory, preserving order. The intersection
+            // IS the presentable set, so its size is the total — no extra query, and the cap is
+            // applied AFTER the count (capping first would floor the total at MaxItemsPerDigest and
+            // silently delete the "och N till" remainder).
             var effectiveAdIds = effective.Select(h => h.JobAdId).ToHashSet();
-            items = (await itemsQuery.ToListAsync(ct))
+            var presentableRows = (await itemsQuery.ToListAsync(ct))
                 .Where(r => effectiveAdIds.Contains(r.JobAdId))
+                .ToList();
+            presentableTotal = presentableRows.Count;
+            items = presentableRows
                 .Take(_options.MaxItemsPerDigest)
                 .Select(r => new FollowedCompanyAdItem(r.Title, r.Company))
                 .ToList();
@@ -422,7 +466,8 @@ public sealed partial class DigestDispatchJob(
             return false;
         }
 
-        var content = new FollowedCompanyNotificationEmail(cadence, items, effective.Count, filterSummary);
+        var content = new FollowedCompanyNotificationEmail(
+            cadence, items, presentableTotal, filterSummary);
 
         // Idempotency key: CONTENT fingerprint of the CLAIMED hit set (namespaced follow/v1/…), NOT a
         // wall-clock window — two same-period runs that claimed different sets get different keys.

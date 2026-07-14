@@ -26,11 +26,18 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// InMemory hides and ONLY a relational provider honours:
 /// <list type="bullet">
 /// <item>the handler-managed JOIN <c>UserJobAdMatch.JobAdId equals JobAd.Id</c> across the
-/// strongly-typed <see cref="JobAdId"/>/<c>uuid</c> converter (an inner join — a match whose
-/// ad is soft-deleted/absent is DROPPED, no FK);</item>
+/// strongly-typed <see cref="JobAdId"/>/<c>uuid</c> converter (an inner join — a match whose ad
+/// ROW IS ABSENT is DROPPED, no FK);</item>
+/// <item>the LIFECYCLE gate <c>j.Status == JobAdStatus.Active</c> on BOTH halves (#864) — it
+/// crosses the SmartEnum <c>HasConversion</c>, and a comparison that does not translate is
+/// invisible under InMemory;</item>
 /// <item>the <c>CreatedAt &gt; LastSeenMatchesAt</c> watermark comparison + the
 /// <c>IsNew</c> in-memory projection over the relational fetch;</item>
-/// <item>the soft-delete <c>HasQueryFilter(DeletedAt == null)</c> on BOTH aggregates;</item>
+/// <item>the soft-delete <c>HasQueryFilter(DeletedAt == null)</c> on <c>UserJobAdMatch</c>.
+/// (This list used to say "on BOTH aggregates". FALSE since #821 — <c>JobAd</c> carries NO query
+/// filter; its <c>DeletedAt</c> axis never had a writer and was retired. That false sentence is
+/// precisely why nobody noticed that an ARCHIVED ad joins: the suite believed a filter was
+/// excluding it, seeded only Active ads, and so could never observe otherwise.)</item>
 /// <item>the watermark ROUND-TRIP (MarkMatchesSeen persists → the new-count drops to 0).</item>
 /// </list>
 /// Handler-level tests resolve the REAL handler from DI with a substituted
@@ -215,9 +222,14 @@ public sealed class MyMatchesSurfaceTests(ApiFactory factory)
 
             // A match to a live ad, and a match to a JobAdId that was NEVER inserted (a dangling
             // reference — UserJobAdMatch holds the JobAdId by IDENTITY, no FK, ADR 0058/0059).
-            // The handler's INNER join to JobAds (which itself carries
-            // HasQueryFilter(DeletedAt == null)) drops the dangling match — a stale link is
-            // never surfaced, even though the match row physically exists.
+            // The handler's INNER join to JobAds drops the dangling match — a stale link is never
+            // surfaced, even though the match row physically exists.
+            //
+            // The previous version of this comment credited the drop to JobAd's
+            // HasQueryFilter(DeletedAt == null). #821 retired that filter (it never had a writer).
+            // The inner join drops a match only when the AD ROW ITSELF IS ABSENT — which is why an
+            // ARCHIVED ad, whose row is very much present, sailed straight through it until #864.
+            // That gate is now an explicit Status predicate, pinned below.
             await SeedMatchAsync(db, userId, liveAd, NotifiableMatchGrade.Strong, T0.AddDays(3), ct);
             await SeedMatchAsync(db, userId, JobAdId.New(), NotifiableMatchGrade.Top, T0.AddDays(1), ct);
 
@@ -235,6 +247,78 @@ public sealed class MyMatchesSurfaceTests(ApiFactory factory)
             result.Count.ShouldBe(1);
             result[0].JobAdId.ShouldBe(liveAd.Value);
             result[0].Title.ShouldBe("Levande-annons");
+        }
+    }
+
+    // ===============================================================
+    // #864 — the lifecycle axis, on BOTH halves of the surface at once.
+    //
+    // This suite is the divergence oracle for the pair (list + badge). It seeded only ACTIVE ads, so
+    // it was silent on the one axis where the two halves could disagree — the same blindness #864
+    // found in MatchCountOracleTests. Its own docstring credited the exclusion to a soft-delete query
+    // filter that #821 retired. The guard's claim was broader than its reach, and the hole it left
+    // open was live in production: /matchningar listed archived ads with a grade and a working link.
+    //
+    // The badge is the sharper half. It joined NOTHING — it counted match rows. Gating the list alone
+    // would have rendered "3 nya matchningar" above a view showing zero rows: a count that promises
+    // more than its set can deliver, manufactured BY the fix. So the assertion is deliberately made on
+    // BOTH halves in ONE test: they must agree, and they must agree on the presentable set.
+    //
+    // Real Postgres, not InMemory: `j.Status == JobAdStatus.Active` crosses the SmartEnum
+    // HasConversion, and a translation that dies at runtime is invisible under InMemory (the trap that
+    // killed the strongly-typed-VO Contains form). This test IS the translation proof.
+    // ===============================================================
+
+    [Fact]
+    public async Task MyMatchesSurface_ExcludesArchivedAd_FromBothTheListAndTheBadge()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var (db, _, scope) = NewScope();
+        using (scope)
+        {
+            await SeedSeekerAsync(db, userId, lastSeen: null, ct); // null watermark → every match is new
+
+            var liveAd = await SeedJobAdAsync(
+                db, ClockAt(T0), "Aktiv-annons", "Live AB", "https://example.com/live", ct);
+            var archivedAd = await SeedJobAdAsync(
+                db, ClockAt(T0), "Arkiverad-annons", "Gone AB", "https://example.com/gone", ct);
+
+            await SeedMatchAsync(db, userId, liveAd, NotifiableMatchGrade.Strong, T0.AddDays(3), ct);
+            await SeedMatchAsync(db, userId, archivedAd, NotifiableMatchGrade.Top, T0.AddDays(2), ct);
+
+            // Archive through the DOMAIN transition production uses (ExpireJobAdsJob writes exactly this
+            // status). No fabricated column state — that fiction (#843) is what let the old exclusion
+            // tests stay green while proving nothing, and it is forbidden by #864's AC 4.
+            var ad = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                .FirstAsync(db.JobAds, j => j.Id == archivedAd, ct);
+            ad.Archive(ClockAt(T0.AddDays(4))).IsSuccess.ShouldBeTrue();
+            await db.SaveChangesAsync(ct);
+
+            // BOTH match rows are physically present. The gate — not the data — decides visibility.
+            var rawMatchCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                .CountAsync(db.UserJobAdMatches.Where(m => m.UserId == userId), ct);
+            rawMatchCount.ShouldBe(2, "båda match-raderna finns kvar — grinden, inte datan, avgör synlighet");
+
+            var list = await new GetMyMatchesQueryHandler(db, UserWith(userId))
+                .Handle(new GetMyMatchesQuery(), ct);
+            var badge = await new GetMyNewMatchCountQueryHandler(db, UserWith(userId))
+                .Handle(new GetMyNewMatchCountQuery(), ct);
+
+            // NON-VACUITY FIRST: the ACTIVE match must still surface. Without this, "the archived one is
+            // absent" would pass on a join that returns nothing at all — the exact way an exclusion test
+            // can be green and worthless.
+            list.Count.ShouldBe(1);
+            list[0].JobAdId.ShouldBe(liveAd.Value);
+            list[0].Title.ShouldBe("Aktiv-annons");
+            list.ShouldNotContain(m => m.JobAdId == archivedAd.Value,
+                "en arkiverad annons får inte listas med en grad och en levande länk — i en LISTA är " +
+                "graden en rekommendation, och den är falsk för en annons du inte kan söka");
+
+            // THE COHERENCE CLAIM: the badge counts what the list shows. 1, never 2.
+            badge.Count.ShouldBe(1,
+                "badgen måste räkna samma presenterbara mängd som listan visar — annars säger Översikten " +
+                "'2 nya matchningar' över en vy som renderar 1 rad");
         }
     }
 

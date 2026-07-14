@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Domain.JobAds;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,8 +16,16 @@ namespace Jobbliggaren.Application.Matching.Queries.GetMyNewMatchCount;
 /// (TD-114). Do NOT add a status filter: a real (e.g. email-Failed) match must still count.
 /// </para>
 /// <para>
+/// <b>Lifecycle-gated (#864):</b> counts only matches whose ad is <c>Active</c> — the same predicate
+/// <see cref="GetMyMatches.GetMyMatchesQueryHandler"/> carries. Before #864 this query joined
+/// NOTHING, so the badge counted matches for ARCHIVED ads. The two surfaces MUST share this
+/// predicate: a gated list under an un-gated badge renders "3 nya matchningar" over zero rows.
+/// </para>
+/// <para>
 /// Deliberately UNCAPPED contract (#273): this is the TRUE total of new matches — it MAY exceed
-/// the 50-row cap of <see cref="GetMyMatches.GetMyMatchesQueryHandler"/>. The two surfaces answer
+/// the 50-row cap of <see cref="GetMyMatches.GetMyMatchesQueryHandler"/>. The lifecycle gate does
+/// NOT clamp that (the cap divergence is bounded and its remainder is reachable via the /jobb
+/// grade-filter; a lifecycle divergence is reachable from no surface). The two surfaces answer
 /// different questions: this count is the new-match cardinality (the Översikt "Nya matchningar"-
 /// badge); <c>/matchningar</c> is a bounded recent-VIEW. The remainder beyond 50 is reachable via
 /// the <c>/jobb</c> grade-filter. Do NOT clamp this to the list cap — the count would then
@@ -48,7 +57,28 @@ public sealed class GetMyNewMatchCountQueryHandler(
         if (lastSeen is { } seen)
             matches = matches.Where(m => m.CreatedAt > seen);
 
-        var count = await matches.CountAsync(cancellationToken);
+        // LIFECYCLE (#864) — count only matches whose ad the product may still present. Before this,
+        // the badge counted rows and joined NOTHING, so it counted matches for ARCHIVED ads. That is
+        // the same defect as the list (GetMyMatchesQueryHandler) but sharper: this number is rendered
+        // as a bare integer on Översikten, and gating the list WITHOUT gating the badge would produce
+        // "3 nya matchningar" over a view that renders zero rows — a count that promises more than its
+        // set can deliver, manufactured by the fix for #864 rather than by the bug.
+        //
+        // This does NOT clamp the #273 contract. The count may still legitimately EXCEED the list's
+        // 50-row cap: that divergence is bounded, documented, and the remainder is reachable via the
+        // /jobb grade-filter. A lifecycle divergence is neither — those ads are reachable from no
+        // surface at all. Only the second kind is removed.
+        // Query syntax + `j.Status == JobAdStatus.Active` is the ONE translation form this repo has
+        // proven against Npgsql (13 sibling sites; GetMyMatchesQueryHandler writes it identically).
+        // Projecting the value-converted Status and comparing it afterwards is not the same thing —
+        // that is the shape that dies at runtime and is invisible under InMemory. Testcontainers
+        // (MyMatchesSurfaceTests) is the oracle that proves this one translates.
+        var count = await (
+                from m in matches
+                join j in db.JobAds.AsNoTracking() on m.JobAdId equals j.Id
+                where j.Status == JobAdStatus.Active
+                select m.Id)
+            .CountAsync(cancellationToken);
         return new MyNewMatchCountDto(count);
     }
 }

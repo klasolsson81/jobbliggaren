@@ -8,6 +8,7 @@ using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.KnowledgeBank;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 
 namespace Jobbliggaren.Application.UnitTests.Resumes.Improvement;
 
@@ -56,6 +57,21 @@ internal static class CvImprovementFixtures
     internal static Rubric RealRubric() => RealRubricProvider().GetRubric();
     internal static ClicheList RealClicheList() => RealClicheLexicon().GetClicheList();
     internal static VerbMapping RealVerbMapping() => RealVerbMapper().GetVerbMapping();
+
+    // Fas 4b 8b.4b — the parsing lexicon (heading RECOGNITION, D6 + B1 transforms) and the
+    // conventions asset (section-order RECOMMENDATION, B1 transform). Real committed assets, loaded
+    // ONCE: the conventions provider runs its cross-asset pin against the lexicon in its ctor, so
+    // every engine these fixtures build has proven the shipped pair agrees — the same guarantee the
+    // host gets at build (ADR 0108).
+    private static readonly Lazy<CvParsingLexiconData> LazyParsingLexicon =
+        new(CvParsingLexiconLoader.Load);
+
+    private static readonly Lazy<ICvConventionsProvider> LazyConventionsProvider =
+        new(() => new CvConventionsProvider(new CvParsingLexiconProvider(RealParsingLexicon())));
+
+    internal static CvParsingLexiconData RealParsingLexicon() => LazyParsingLexicon.Value;
+    internal static ICvConventionsProvider RealCvConventionsProvider() => LazyConventionsProvider.Value;
+    internal static CvConventions RealCvConventions() => RealCvConventionsProvider().GetConventions();
 
     // ── A deterministic ITextAnalyzer stub (lowercase + whitespace split) ─
     // Parity CvReviewFixtures.WhitespaceTextAnalyzer — the engine's NLP-tier transform

@@ -1,0 +1,24 @@
+{
+  "//": "Fas 4b 8b.4b (Asset B, ADR 0098 §D3 as corrected by ADR 0108) — the Swedish-ATS section",
+  "//order": "convention. NOT a formatting grab-bag: date-format policy lives in the rubric",
+  "//owners": "(thresholds), heading/contact RECOGNITION lives in cv-parsing-lexicon (ADR 0107 §3),",
+  "//form": "and regex/sort FORM lives in C#. fontAllowlist enters here only in the change that",
+  "//font": "gives rubric criterion D3 a reader — never before it. NO AI/LLM.",
+
+  "conventionsVersion": "1.0.0",
+
+  "//sectionOrder": "The rubric's B1 atsPassSignal made machine-readable: 'Kontakt -> (Profil) ->",
+  "//sectionOrder2": "Arbetslivserfarenhet -> Utbildning -> Kompetenser -> Sprak -> Ovrigt'. The ids are",
+  "//sectionOrder3": "the section identities the lexicon and ParsedSectionKind already own — this asset",
+  "//sectionOrder4": "mints none of its own. The trailing 'Ovrigt' is NOT a field: it is the stability",
+  "//sectionOrder5": "property of the sort (unnamed sections follow, keeping their observed relative",
+  "//sectionOrder6": "order), and an algorithm belongs in C#, not in a boolean nobody can vary.",
+  "sectionOrder": [
+    "contact",
+    "profile",
+    "experience",
+    "education",
+    "skills",
+    "languages"
+  ]
+}

@@ -49,7 +49,9 @@ public class CvImprovementEvidenceRedactionTests
     private const string Mask = "******-****";
 
     private static CvImprovementEngine NewEngine() =>
-        new(RealClicheLexicon(), RealVerbMapper(), RealRubricProvider(), Analyzer());
+        new(RealClicheLexicon(), RealVerbMapper(), RealRubricProvider(), Analyzer(),
+            CvImprovementFixtures.RealCvConventionsProvider(),
+            CvImprovementFixtures.RealParsingLexicon());
 
     // The engine is null-tolerant on the F4-9 review (CTO Q2): run with review: null so the gates
     // exercise the engine's own rule logic (a review only enriches CriterionId, never the text).

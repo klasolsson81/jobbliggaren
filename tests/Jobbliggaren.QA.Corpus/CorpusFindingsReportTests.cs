@@ -4,6 +4,7 @@ using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.SavedSearches;
 using Jobbliggaren.Infrastructure.KnowledgeBank;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Review;
 using Jobbliggaren.Infrastructure.Taxonomy;
 using Jobbliggaren.Infrastructure.TextAnalysis;
@@ -102,11 +103,15 @@ public sealed class CorpusFindingsReportTests : IAsyncLifetime
         }
 
         // ── Reviewer pass: verdict distribution + non-B4 pnr-echo finding ───
+        // Fas 4b 8b.4b (ADR 0108): the REAL lexicon + conventions asset, cross-asset-pinned in the
+        // provider's ctor, so the corpus exercises B1's order half against the shipped pair.
+        var corpusLexicon = CvParsingLexiconLoader.Load();
         var engine = new CvReviewEngine(new RubricProvider(), new ClicheLexicon(), new VerbMapper(),
             new LocalTextAnalyzer(new SnowballStemmer()),
             // Fas 4b PR-6a (#655): REAL Hunspell + REAL allowlist so the reported verdict
             // distribution includes a faithful C7 (spelling) column end-to-end.
-            new HunspellSpellChecker(), new SpellingAllowlistProvider());
+            new HunspellSpellChecker(), new SpellingAllowlistProvider(),
+            new CvConventionsProvider(new CvParsingLexiconProvider(corpusLexicon)), corpusLexicon);
         var verdictStats = new Dictionary<string, int[]>(StringComparer.Ordinal); // [pass, warn, fail, notassessed]
         var reviewerCrashes = 0;
         var fakePnrCases = 0;

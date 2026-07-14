@@ -42,7 +42,10 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// <para>
 /// <b>Each test makes its guard FIRE.</b> A guard that has never once fired in a test has not been
 /// tested; it has been typed. Both branches are asserted: the erased ad is excluded AND a
-/// non-erased one (deliberately ARCHIVED, not Active — #805-3/#821 restored those) still comes back.
+/// non-erased control still comes back. On the SAVED-ADS surfaces the control is deliberately
+/// ARCHIVED (#805-3/#821 restored archived ads there, and `== Active` would re-kill them); on the
+/// MATCH LIST it is ACTIVE, because #864 (2026-07-14) made that surface an allow-list — a listed
+/// grade is a recommendation — and its own tests own the archived-exclusion claims.
 /// </para>
 /// </remarks>
 [Collection("Api")]
@@ -112,7 +115,7 @@ public sealed class ErasedAdReadPathTests(ApiFactory factory)
     // ────────────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task GetMyMatches_drops_an_erased_ad_and_KEEPS_an_archived_one()
+    public async Task GetMyMatches_drops_an_erased_ad_and_KEEPS_an_active_one()
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
@@ -121,14 +124,21 @@ public sealed class ErasedAdReadPathTests(ApiFactory factory)
         using (scope)
         {
             var erased = await SeedAdAsync(db, "Raderad roll", "Raderat bolag", erase: true, ct);
-            var archived = await SeedAdAsync(db, "Arkiverad roll", "Arkiverat bolag", erase: false, ct,
-                archive: true);
+            // ACTIVE control, as of #864 (merged 2026-07-14): the match LIST is an ALLOW-list
+            // (`Status == Active`) — a grade in a list is a recommendation, and #864 stopped it
+            // being made for archived ads. An earlier version of this test used an ARCHIVED
+            // control and asserted it came back; that was true under the round-2..5 `!= Erased`
+            // deny-list, which #864's allow-list deliberately superseded (its comment names the
+            // erased tombstone as the reason a deny-list is wrong). The erased-exclusion claim —
+            // this file's own concern — is unchanged and asserted below; the archived-exclusion
+            // claims belong to #864's own tests on main.
+            var active = await SeedAdAsync(db, "Aktiv roll", "Aktivt bolag", erase: false, ct);
 
             db.JobSeekers.Add(JobSeeker.Register(userId, "Erased Read Path", ClockAt(T0)).Value);
             db.UserJobAdMatches.Add(
                 UserJobAdMatch.Create(userId, erased.Id, NotifiableMatchGrade.Strong, ["csharp"], ClockAt(T0)).Value);
             db.UserJobAdMatches.Add(
-                UserJobAdMatch.Create(userId, archived.Id, NotifiableMatchGrade.Strong, ["csharp"], ClockAt(T0)).Value);
+                UserJobAdMatch.Create(userId, active.Id, NotifiableMatchGrade.Strong, ["csharp"], ClockAt(T0)).Value);
             await db.SaveChangesAsync(ct);
 
             // The REAL handler. Re-implementing the filter in the test would prove only that the
@@ -140,9 +150,9 @@ public sealed class ErasedAdReadPathTests(ApiFactory factory)
                 "an erased ad joins fine — it is a row, not a hole — and would render an empty title "
                 + "with the company '[raderad]' on the user's screen.");
 
-            matches.Select(m => m.JobAdId).ShouldContain(archived.Id.Value,
-                "and the guard must be `!= Erased`, NOT `== Active`: #805-3 and #821 deliberately "
-                + "restored archived ads to this surface. One character re-kills both.");
+            matches.Select(m => m.JobAdId).ShouldContain(active.Id.Value,
+                "the control: the query returns rows at all, so the exclusion above is a guard "
+                + "firing, not an empty result set agreeing with anything.");
         }
     }
 

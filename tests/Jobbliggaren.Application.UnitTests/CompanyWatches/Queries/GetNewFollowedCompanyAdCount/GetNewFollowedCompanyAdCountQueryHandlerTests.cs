@@ -9,6 +9,7 @@ using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using NSubstitute;
 using Shouldly;
 
@@ -20,8 +21,9 @@ namespace Jobbliggaren.Application.UnitTests.CompanyWatches.Queries.GetNewFollow
 /// the BRANCH logic — the READ-TIME GRADE FILTER (8C), the profile-less INERT fork, the
 /// no-OnlyMatched common path, and owner-scope — while the Testcontainers sibling
 /// (<c>FollowedCompanyAdRailTests</c>) is the real-DB oracle for the value-converted hit↔watch JOIN
-/// translation + the watermark boundary (InMemory can drift on DateTimeOffset comparison, so the
-/// watermark tests all use a NULL watermark = every hit new).
+/// translation, the #864 lifecycle gate's translation (the <c>JobAds</c> join + SmartEnum
+/// <c>Status</c> comparison), and the watermark boundary (InMemory can drift on DateTimeOffset
+/// comparison, so the watermark tests all use a NULL watermark = every hit new).
 /// <list type="bullet">
 /// <item>no authenticated user / no active follows → honest 0 (grade ports never touched);</item>
 /// <item>no OnlyMatched watch (the common path) → all hits count, <c>FilterToMatchingAsync</c> is
@@ -78,11 +80,40 @@ public class GetNewFollowedCompanyAdCountQueryHandlerTests
         return watch.Id;
     }
 
+    // Seeds an ACTIVE JobAd and a hit pointing at it.
+    //
+    // #864 — this used to be a bare `JobAdId.New()` with NO JobAd row ever inserted, so the whole suite
+    // proved a count over ads that DO NOT EXIST. That was invisible while the handler joined nothing —
+    // and "the handler joins nothing" IS the defect: the rail counted hit rows while its destination
+    // (/foretag, ListCompanyWatchesQueryHandler:100) has always been Status == Active gated, so the badge
+    // could promise ads the page would never show. The rail is now lifecycle-gated, so a hit's ad must be
+    // real. Every test's own axis (watermark / owner-scope / OnlyMatched / inert-filter) is untouched.
     private JobAdId SeedHit(AppDbContext db, Guid userId, CompanyWatchId watchId)
     {
-        var adId = JobAdId.New();
+        var adId = SeedActiveAd(db);
         db.FollowedCompanyAdHits.Add(FollowedCompanyAdHit.Create(userId, adId, watchId, _clock).Value);
         return adId;
+    }
+
+    private JobAdId SeedActiveAd(AppDbContext db)
+    {
+        var externalId = $"ext-{Guid.NewGuid():N}";
+        var payload = $"{{\"id\":\"{externalId}\"}}";
+        var import = JobAd.Import(
+            title: "Roll",
+            company: Company.Create("Bolag AB").Value,
+            description: "beskrivning",
+            url: $"https://example.com/jobs/{externalId}",
+            external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
+            rawPayload: payload,
+            facets: TestFacets.FromPayload(payload),
+            publishedAt: T0,
+            expiresAt: T0.AddDays(60),
+            clock: _clock);
+        import.IsSuccess.ShouldBeTrue($"seed: JobAd.Import måste lyckas ({import.Error?.Code})");
+        db.JobAds.Add(import.Value);
+        db.SaveChanges();
+        return import.Value.Id;
     }
 
     private async Task<int> CountAsync(AppDbContext db, Guid userId)
@@ -90,6 +121,90 @@ public class GetNewFollowedCompanyAdCountQueryHandlerTests
         var result = await Sut(db, UserWith(userId)).Handle(
             new GetNewFollowedCompanyAdCountQuery(), TestContext.Current.CancellationToken);
         return result.Count;
+    }
+
+    // ═══ #864 — the rail counts what /foretag can SHOW.
+    //
+    // This handler joined JobAds NOT AT ALL: it counted hit rows. Its destination has always been
+    // Status == Active gated (ListCompanyWatchesQueryHandler:100), so the badge said "3 nya annonser
+    // från företag du bevakar", the user clicked, and /foretag showed zero — a count that promises more
+    // than its set can deliver. CompanyWatchScanJob's own Active gate (:156) only proves the ad was live
+    // when the HIT was recorded; archiving is every ad's normal end of life.
+    //
+    // Both branches are covered: the common path COUNTs the gated query in SQL, the grade path
+    // materialises it. A single gate at the source serves both.
+    //
+    // SEEDS ARE ASYMMETRIC (more live than archived), deliberately. A count-only DTO cannot say WHICH
+    // rows it counted, so a 1-live+1-archived seed passes under the INVERTED gate too (== Archived also
+    // counts exactly 1). Asymmetry separates every state: gate correct / gate deleted / gate inverted
+    // all read different counts.
+    [Fact]
+    public async Task Handle_CommonPath_DoesNotCountHit_WhenItsAdIsArchived()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        using var db = TestAppDbContextFactory.Create();
+
+        SeedSeeker(db, userId);
+        var watch = SeedWatch(db, userId, onlyMatched: false); // → common path, pure SQL COUNT
+        SeedHit(db, userId, watch);
+        SeedHit(db, userId, watch);
+        var archivedAdId = SeedHit(db, userId, watch);
+        await db.SaveChangesAsync(ct);
+
+        // Archived through the domain transition production performs (ExpireJobAdsJob) — never a
+        // fabricated column value (#843 / #864 AC 4).
+        db.JobAds.Single(j => j.Id == archivedAdId).Archive(_clock).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(ct);
+
+        // 2, not 3 (gate deleted) and not 1 (gate inverted). NON-VACUOUS BY CONSTRUCTION: the live
+        // hits must still be counted, so a gate that excluded everything would fail this too.
+        (await CountAsync(db, userId)).ShouldBe(2,
+            "rälen får inte räkna en annons /foretag inte visar — badgen och destinationen måste " +
+            "räkna samma presenterbara mängd, annars säger den '3 nya' och sidan visar 2");
+    }
+
+    [Fact]
+    public async Task Handle_GradePath_DoesNotCountHit_WhenItsAdIsArchived()
+    {
+        // MIXED watches, and the archived-on-a-PLAIN-watch hit is the load-bearing seed: the port
+        // substitute below models the REAL FilterToMatchingAsync (itself Status == Active gated,
+        // PerUserJobAdSearchQuery:370), so an archived hit under an OnlyMatched watch is dropped by
+        // the port-model whether or not the handler's own gate exists — it cannot observe a deleted
+        // gate. The plain watch's archived hit bypasses the port entirely, so it CAN. Without it,
+        // "delete the gate" would stay green here — the transitive-gate blindness that hid the
+        // digest drain leak (#864 review round), designed out of the spec instead of into it.
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        using var db = TestAppDbContextFactory.Create();
+
+        SeedSeeker(db, userId);
+        var plainWatch = SeedWatch(db, userId, onlyMatched: false);
+        var gradedWatch = SeedWatch(db, userId, onlyMatched: true); // → the grade path materialises
+        SeedHit(db, userId, plainWatch);                            // live, plain → counts
+        var archivedPlainAdId = SeedHit(db, userId, plainWatch);    // archived, plain → the delete-detector
+        var liveGradedAdId = SeedHit(db, userId, gradedWatch);      // live, ≥Good → counts
+        var archivedGradedAdId = SeedHit(db, userId, gradedWatch);  // archived, graded → gate excludes at source
+        await db.SaveChangesAsync(ct);
+
+        db.JobAds.Single(j => j.Id == archivedPlainAdId).Archive(_clock).IsSuccess.ShouldBeTrue();
+        db.JobAds.Single(j => j.Id == archivedGradedAdId).Archive(_clock).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(ct);
+
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>()).Returns(AssessableProfile());
+        // Models the real port faithfully: Active-gated, so it can never return an archived id
+        // (#843 / AC 4 — no state production cannot reach). With the handler's own gate in place it
+        // is never even OFFERED one — the source gate runs first; that redundancy is deliberate.
+        _perUserSearch.FilterToMatchingAsync(
+                Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new HashSet<JobAdId> { liveGradedAdId });
+
+        // 2 = live-plain + live-graded. Gate deleted → 3 (the plain archived hit sneaks in). Gate
+        // inverted → 1 (only the plain archived hit; the graded one dies in the port-model).
+        (await CountAsync(db, userId)).ShouldBe(2,
+            "samma grind måste bita på grad-vägen — den materialiserar samma query, och en arkiverad " +
+            "annons under en vanlig bevakning får inte smyga in via den ogrindade armen");
     }
 
     [Fact]

@@ -940,6 +940,308 @@ public class DigestDispatchJobTests
             "är aktiv, annars saknar ett filtrerat mejl sin disclosure");
     }
 
+    // ═══════════════════════ #864 — an ARCHIVED ad must never be emailed
+    //
+    // The scan gates Status == Active (BackgroundMatchingJob:145, CompanyWatchScanJob:156), so a match
+    // is only ever RECORDED for a live ad. But that gate proves the ad was Active AT SCAN TIME — and
+    // this digest runs days or weeks later. Archiving is every ad's normal end of life
+    // (ExpireJobAdsJob). Before #864 neither display join carried a Status predicate, so the digest
+    // EMAILED "Stark match" for ads nobody can apply to, with a live link.
+    //
+    // The ad is archived through the DOMAIN METHOD JobAd.Archive — the same transition production
+    // performs. No fabricated state, no db.Entry(...).CurrentValue (#843 / this issue's AC 4): the very
+    // fiction that let the old soft-delete tests stay green while proving nothing.
+    //
+    // EVERY test below asserts the ACTIVE ad IS emitted as well. Absence alone is worthless: it passes
+    // trivially the day someone breaks the join and the query returns nothing at all.
+
+    [Fact]
+    public async Task RunAsync_ArchivedAdMatch_IsNotEmailed_ButIsStillDrained()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+
+        var liveAd = await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong, "Aktiv roll", "Bolag A", ct,
+            createdAt: NowClock.UtcNow);
+        var archivedAd = await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong, "Arkiverad roll", "Bolag B", ct,
+            createdAt: NowClock.UtcNow.AddMinutes(-1));
+        await ArchiveAdAsync(db, archivedAd, ct);
+
+        MatchNotificationEmail? captured = null;
+        await _emailSender.SendMatchNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Do<MatchNotificationEmail>(c => captured = c),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+
+        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+
+        captured.ShouldNotBeNull();
+
+        // NON-VACUITY: the live ad IS emailed. Without this line "the archived ad is absent" would pass
+        // on a query that returns nothing.
+        captured.Items.ShouldContain(i => i.JobTitle == "Aktiv roll",
+            "den aktiva annonsen MÅSTE mejlas — annars bevisar frånvaron av den arkiverade ingenting");
+        captured.Items.ShouldNotContain(i => i.JobTitle == "Arkiverad roll",
+            "en arkiverad annons får aldrig mejlas som 'Stark match' — den går inte att söka");
+        captured.Items.Count.ShouldBe(1);
+        captured.TotalCount.ShouldBe(1, "TotalCount räknar det presenterbara fönstret, inte claim-mängden");
+
+        // DRAINED, not left Pending: the archived row was a valid match when detected, so it must still
+        // transition Pending → Sent. A gate on the CLAIM set instead of the DISPLAY set would leave it
+        // Pending and re-process it on every digest run, forever.
+        (await ReloadMatchAsync(db, userId, archivedAd, ct))!.NotificationStatus
+            .ShouldBe(NotificationStatus.Sent,
+                "den arkiverade matchen får inte mejlas MEN måste dräneras — annars om-processas den varje körning");
+        (await ReloadMatchAsync(db, userId, liveAd, ct))!.NotificationStatus
+            .ShouldBe(NotificationStatus.Sent);
+    }
+
+    [Fact]
+    public async Task RunAsync_TotalCount_CountsPresentableMatchesOnly_NotArchivedOnes()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+
+        // 2 active + 3 archived Pending Strong matches.
+        await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong, "Aktiv 1", "Bolag", ct,
+            createdAt: NowClock.UtcNow);
+        await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong, "Aktiv 2", "Bolag", ct,
+            createdAt: NowClock.UtcNow.AddMinutes(-1));
+        for (var i = 0; i < 3; i++)
+        {
+            var archived = await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong,
+                $"Arkiverad {i}", "Bolag", ct, createdAt: NowClock.UtcNow.AddMinutes(-10 - i));
+            await ArchiveAdAsync(db, archived, ct);
+        }
+
+        MatchNotificationEmail? captured = null;
+        await _emailSender.SendMatchNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Do<MatchNotificationEmail>(c => captured = c),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+
+        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+
+        captured.ShouldNotBeNull();
+        captured.Items.Count.ShouldBe(2);
+
+        // THE POINT. The template renders "och N till" as TotalCount - Items.Count. Wire TotalCount to
+        // the CLAIM set (pending.Count == 5) and the email says "och 3 till" about three ads the body can
+        // never list and the user can never open — a count that promises more than its set can deliver
+        // (#560 PR-2's defect, in an outbound email). The claimed rows are still all drained; they are
+        // simply not COUNTED as presentable.
+        captured.TotalCount.ShouldBe(2,
+            "TotalCount = presenterbara matchningar (2), ALDRIG claim-mängden (5) — annars säger mejlet " +
+            "'och 3 till' om tre annonser som inte finns för mottagaren");
+        (captured.TotalCount - captured.Items.Count).ShouldBe(0, "det ska inte finnas någon 'och N till'-rest");
+    }
+
+    [Fact]
+    public async Task RunAsync_AllMatchedAdsArchived_DrainsAllRowsSent_AndDoesNotEmail()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+
+        var archivedAd = await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong, "Arkiverad", "Bolag", ct);
+        await ArchiveAdAsync(db, archivedAd, ct);
+
+        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+
+        // Nothing presentable → no email at all. An empty digest is noise, not a notification. (Parity
+        // RunAsync_AllMatchedAdsRetracted_* — an archived ad now reaches the SAME drain branch as an ad
+        // whose row is gone, which is why that branch's comment names both.)
+        await _emailSender.DidNotReceiveWithAnyArgs().SendMatchNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+
+        (await ReloadMatchAsync(db, userId, archivedAd, ct))!.NotificationStatus
+            .ShouldBe(NotificationStatus.Sent,
+                "det tomma fönstret måste dräneras, annars om-processas det varje körning");
+    }
+
+    [Fact]
+    public async Task RunAsync_Follow_ArchivedAdHit_IsNotEmailed_ButIsStillDrained()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var watchId = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+
+        var liveAd = await SeedActiveAdAsync(db, "Aktiv roll", "Bolag A", ct);
+        var archivedAd = await SeedActiveAdAsync(db, "Arkiverad roll", "Bolag B", ct);
+        await SeedFollowHitAsync(db, userId, liveAd, watchId, ct, createdAt: NowClock.UtcNow);
+        await SeedFollowHitAsync(db, userId, archivedAd, watchId, ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
+        await ArchiveAdAsync(db, archivedAd, ct);
+
+        FollowedCompanyNotificationEmail? captured = null;
+        await _emailSender.SendFollowedCompanyNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Do<FollowedCompanyNotificationEmail>(c => captured = c),
+            Arg.Any<FollowedCompanyNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+
+        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+
+        captured.ShouldNotBeNull();
+        captured.Items.ShouldContain(i => i.JobTitle == "Aktiv roll",
+            "den aktiva annonsen MÅSTE mejlas — annars bevisar frånvaron av den arkiverade ingenting");
+        captured.Items.ShouldNotContain(i => i.JobTitle == "Arkiverad roll",
+            "en arkiverad annons från ett bevakat företag får aldrig mejlas");
+        captured.Items.Count.ShouldBe(1);
+        captured.TotalCount.ShouldBe(1);
+
+        (await ReloadHitAsync(db, userId, archivedAd, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent,
+                "den arkiverade träffen får inte mejlas MEN måste dräneras");
+        (await ReloadHitAsync(db, userId, liveAd, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent);
+    }
+
+    [Fact]
+    public async Task RunAsync_Follow_TotalCount_CountsPresentableHitsOnly_NotArchivedOnes()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var watchId = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+
+        var liveAd = await SeedActiveAdAsync(db, "Aktiv", "Bolag", ct);
+        await SeedFollowHitAsync(db, userId, liveAd, watchId, ct, createdAt: NowClock.UtcNow);
+        for (var i = 0; i < 3; i++)
+        {
+            var archived = await SeedActiveAdAsync(db, $"Arkiverad {i}", "Bolag", ct);
+            await SeedFollowHitAsync(db, userId, archived, watchId, ct,
+                createdAt: NowClock.UtcNow.AddMinutes(-10 - i));
+            await ArchiveAdAsync(db, archived, ct);
+        }
+
+        FollowedCompanyNotificationEmail? captured = null;
+        await _emailSender.SendFollowedCompanyNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Do<FollowedCompanyNotificationEmail>(c => captured = c),
+            Arg.Any<FollowedCompanyNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+
+        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+
+        captured.ShouldNotBeNull();
+        captured.Items.Count.ShouldBe(1);
+        captured.TotalCount.ShouldBe(1,
+            "TotalCount = presenterbara träffar (1), ALDRIG den claimade mängden (4) — annars säger " +
+            "bevaknings-mejlet 'och 3 till' om tre annonser mottagaren aldrig får se");
+    }
+
+    // ═══ #864 — THE PARTITION. `pending` = claim ⊎ stayPending ⊎ drain, disjoint and exhaustive.
+    //
+    //     claim       =  presentable ∧  gradePasses   → claimed, emailed, Sent
+    //     stayPending =  presentable ∧ ¬gradePasses   → untouched (8C: the profile may change)
+    //     drain       = ¬presentable                  → drained unconditionally, never shown
+    //
+    // ONE spec, not three, and the reason is the CTO's: three separate tests cannot see a FOURTH class
+    // appearing later; a totality assertion can.
+    //
+    // How this test came to exist is the point of it. code-reviewer found that my two follow specs both
+    // ran `onlyMatched: false`, so both took the unfiltered arm — my mutation log's "both TotalCounts →
+    // red" had measured ONE branch and claimed two. Writing the missing spec, I stubbed
+    // `FilterToMatchingAsync` to RETURN the archived ids — a state production cannot reach, since that
+    // port carries its own `Status == Active` gate (PerUserJobAdSearchQuery:370). That is #843 test
+    // fiction, and #864's OWN AC 4 forbids it, and I wrote it inside the fix for it.
+    //
+    // Killing the fiction is what exposed the real bug: with the port behaving as it actually does, an
+    // archived hit under an OnlyMatched watch fell out of `effective` → was never claimed → never
+    // drained → stayed Pending FOREVER, re-graded on every run. Nothing reaped it (StrandedMatchReaperJob
+    // reaps QUEUED rows; a row never claimed is never queued). Unbounded, monotonically growing, and
+    // invisible for two releases.
+    //
+    // So the stub below returns ONLY active ids — what the real port returns. The fiction was the
+    // defect; removing it is the deliverable.
+    [Fact]
+    public async Task RunAsync_Follow_PendingHitsPartitionIntoClaimStayPendingAndDrain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var watchId = await SeedWatchAsync(db, userId, onlyMatched: true, ct); // → the grade-filter path
+
+        // claim: 2 ACTIVE ads that clear ≥Good.
+        var claimAds = new List<JobAdId>();
+        for (var i = 0; i < 2; i++)
+            claimAds.Add(await SeedActiveAdAsync(db, $"Aktiv {i}", "Bolag", ct));
+
+        // drain: 2 ads archived AFTER the hit was recorded (the only way production reaches this).
+        var archivedAds = new List<JobAdId>();
+        for (var i = 0; i < 2; i++)
+            archivedAds.Add(await SeedActiveAdAsync(db, $"Arkiverad {i}", "Bolag", ct));
+
+        // stayPending: 1 ACTIVE ad below the ≥Good floor.
+        var gradedOut = await SeedActiveAdAsync(db, "Bortfiltrerad", "Bolag", ct);
+
+        var minute = 0;
+        foreach (var adId in claimAds.Concat(archivedAds).Append(gradedOut))
+            await SeedFollowHitAsync(db, userId, adId, watchId, ct,
+                createdAt: NowClock.UtcNow.AddMinutes(-minute++));
+
+        foreach (var adId in archivedAds)
+            await ArchiveAdAsync(db, adId, ct);
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+
+        // The port returns ONLY the active, ≥Good ads — exactly what the real one does. It is ALSO
+        // gated on Status == Active, so it could never return an archived id even if one were fed to it.
+        IReadOnlyCollection<JobAdId>? gradedIds = null;
+        _perUserSearch.FilterToMatchingAsync(
+                Arg.Any<FullCandidateMatchProfile>(),
+                Arg.Do<IReadOnlyCollection<JobAdId>>(ids => gradedIds = ids),
+                Arg.Any<CancellationToken>())
+            .Returns(claimAds.ToHashSet());
+
+        FollowedCompanyNotificationEmail? captured = null;
+        await _emailSender.SendFollowedCompanyNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Do<FollowedCompanyNotificationEmail>(c => captured = c),
+            Arg.Any<FollowedCompanyNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+
+        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+
+        // A dead ad is never even offered to the grade port: its absence from the result must never be
+        // readable as "below ≥Good". That conflation is what hid the leak.
+        gradedIds.ShouldNotBeNull();
+        gradedIds.ShouldNotContain(archivedAds[0]);
+        gradedIds.ShouldNotContain(archivedAds[1]);
+
+        // ── NON-VACUITY FIRST: the claim class IS emitted. Without this, "nothing stayed Pending" and
+        // "the archived ones drained" would both pass the day the whole query returns nothing.
+        captured.ShouldNotBeNull();
+        captured.Items.Count.ShouldBe(2);
+        captured.Items.ShouldAllBe(i => i.JobTitle.StartsWith("Aktiv"));
+        captured.TotalCount.ShouldBe(2, "TotalCount = claim-klassen, aldrig claim ∪ drain");
+
+        // ── TOTALITY: every pending row landed in exactly one arm.
+        foreach (var adId in claimAds)
+            (await ReloadHitAsync(db, userId, adId, ct))!.NotificationStatus
+                .ShouldBe(FollowedCompanyAdHitStatus.Sent, "claim: presenterbar + klarar graden → mejlas, dräneras");
+
+        foreach (var adId in archivedAds)
+            (await ReloadHitAsync(db, userId, adId, ct))!.NotificationStatus
+                .ShouldBe(FollowedCompanyAdHitStatus.Sent,
+                    "drain: LIVSCYKEL är ett DRÄNERINGS-skäl. Ingenting av-arkiverar en annons, så att " +
+                    "lämna den Pending är inte uppskov — det är en läcka som ingen reaper tar");
+
+        (await ReloadHitAsync(db, userId, gradedOut, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Pending,
+                "stayPending: GRAD är ett FILTER-OUT-skäl. Profilen kan ändras, så hiten måste kunna " +
+                "åter-ytas retroaktivt (8C) — livscykel-fixen får inte konsumera den");
+    }
+
+    // Archives an ad through the DOMAIN transition production uses (JobAd.Archive), never by fabricating
+    // column state — #843 / #864 AC 4. The old soft-delete tests forged DeletedAt via
+    // db.Entry(...).CurrentValue, a state production could not reach; they were green forever and proved
+    // nothing, which is exactly why #864 survived to be shipped.
+    private static async Task ArchiveAdAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, JobAdId adId, CancellationToken ct)
+    {
+        var ad = await db.JobAds.FirstAsync(j => j.Id == adId, ct);
+        ad.Archive(NowClock).IsSuccess.ShouldBeTrue("seed: annonsen ska gå att arkivera");
+        await db.SaveChangesAsync(ct);
+    }
+
     // A one-off clock for stamping a match's CreatedAt at a chosen instant.
     // ═══════════════════════════════════════════════════════════════════════════════════════
     // #842 — THE TOMBSTONE MUST NOT BE EMAILED.
@@ -947,14 +1249,17 @@ public class DigestDispatchJobTests
     // An erased ad is a ROW, not a hole: JobAd.Erase() blanks it and leaves it in the table, so
     // an unguarded join projects Title = "" and Company = "[raderad]" — the tombstone's own marker
     // — straight into an outbound email. These two joins are the ONLY places in the product where
-    // that marker LEAVES THE SYSTEM BOUNDARY, and until these tests existed you could delete
-    // either `where j.Status != JobAdStatus.Erased` line and the whole suite stayed green.
+    // that marker LEAVES THE SYSTEM BOUNDARY, and until these tests existed you could delete the
+    // display window's Status predicate and the whole suite stayed green. (The predicate was
+    // `!= Erased` in #842 rounds 2..5; #864 superseded it with the `== Active` allow-list, whose
+    // archived-exclusion claims its own tests in this file carry. These two carry the ERASED
+    // claim — remove the predicate entirely and they go red.)
     //
     // EF InMemory is the right level HERE and it is not a shortcut: what these tests pin is
     // BEHAVIOUR (the guard exists, the email omits the ad, the row is still drained). The SQL
     // TRANSLATION of the identical expression is pinned separately, on real Postgres, by
     // ErasedAdReadPathTests — because InMemory honours record equality in LINQ-to-objects and
-    // would pass whether or not Npgsql can translate `!= Erased`.
+    // would pass whether or not Npgsql can translate the status predicate.
     // ═══════════════════════════════════════════════════════════════════════════════════════
 
     [Fact]
@@ -966,20 +1271,19 @@ public class DigestDispatchJobTests
 
         var erasedAd = await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong,
             "Raderad roll", "Raderat bolag", ct, createdAt: NowClock.UtcNow);
-        // The control ad is ARCHIVED, not Active — and that is the whole point of the test.
-        // With an ACTIVE control, mutating the guard to `== Active` would keep the suite GREEN: the
-        // erased ad drops out either way. The discriminating case is an ad that is NOT Active and
-        // NOT Erased, because #805-3 and #821 deliberately restored those to this surface. One
-        // character, and this repo has shipped that regression to prod twice.
-        var archivedAd = await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong,
+        // ACTIVE control, as of #864 (merged 2026-07-14). Rounds 2..5 of #842 used an ARCHIVED
+        // control here — under the then-guard `!= Erased` it was the only control that could kill
+        // an `== Active` mutation. #864 then made `== Active` the PRODUCT TRUTH for the display
+        // window (a digest item is a recommendation; archived ads stopped being emailed), and its
+        // own tests in this file own the archived-exclusion claims. What THIS test still owns is
+        // the erasure claim: the tombstone never leaves the system, whatever the predicate — and
+        // the control proves the email renders rows at all.
+        var keptAd = await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong,
             "Kvar roll", "Kvar bolag", ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
 
         // Through the PRODUCTION transitions, never by writing columns (#843).
         var ad = await db.JobAds.FirstAsync(j => j.Id == erasedAd, ct);
         ad.Erase(NowClock).IsSuccess.ShouldBeTrue();
-
-        var kept = await db.JobAds.FirstAsync(j => j.Id == archivedAd, ct);
-        kept.Archive(NowClock).IsSuccess.ShouldBeTrue();
         await db.SaveChangesAsync(ct);
 
         MatchNotificationEmail? captured = null;
@@ -995,16 +1299,15 @@ public class DigestDispatchJobTests
             + "two places in the product where an erased ad leaves the system boundary.");
         captured.Items.Select(i => i.JobTitle).ShouldNotContain(string.Empty);
         captured.Items.Select(i => i.CompanyName).ShouldContain("Kvar bolag",
-            "and an ARCHIVED ad must STILL be emailed. The guard is `!= Erased`, never `== Active` — "
-            + "#805-3 and #821 restored archived ads to this surface on purpose, and this assertion "
-            + "is what makes `== Active` a killable mutation instead of a silent regression.");
+            "the control: the email renders rows at all, so the exclusion above is the guard "
+            + "firing, not an empty digest agreeing with anything.");
 
         // And the erased match is still DRAINED: it WAS a valid match when detected, and leaving it
         // Pending would retry it on every digest, forever.
         (await ReloadMatchAsync(db, userId, erasedAd, ct))!.NotificationStatus
             .ShouldBe(NotificationStatus.Sent,
                 "drain-but-do-not-show. Not showing it is not the same as not resolving it.");
-        (await ReloadMatchAsync(db, userId, archivedAd, ct))!.NotificationStatus
+        (await ReloadMatchAsync(db, userId, keptAd, ct))!.NotificationStatus
             .ShouldBe(NotificationStatus.Sent);
     }
 
@@ -1018,17 +1321,15 @@ public class DigestDispatchJobTests
 
         var erasedAd = await SeedActiveAdAsync(db, "Raderad roll", "Raderat bolag", ct);
 
-        // ARCHIVED, not Active — see the match-digest test above. An Active control cannot kill the
-        // `== Active` mutation.
-        var archivedAd = await SeedActiveAdAsync(db, "Kvar roll", "Kvar bolag", ct);
+        // ACTIVE control, as of #864 — see the match-digest test above: the display window is an
+        // allow-list now, #864's tests own the archived-exclusion, and this test owns the erasure
+        // claim plus the drain.
+        var keptAd = await SeedActiveAdAsync(db, "Kvar roll", "Kvar bolag", ct);
         await SeedFollowHitAsync(db, userId, erasedAd, watchId, ct, createdAt: NowClock.UtcNow);
-        await SeedFollowHitAsync(db, userId, archivedAd, watchId, ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
+        await SeedFollowHitAsync(db, userId, keptAd, watchId, ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
 
         var ad = await db.JobAds.FirstAsync(j => j.Id == erasedAd, ct);
         ad.Erase(NowClock).IsSuccess.ShouldBeTrue();
-
-        var kept = await db.JobAds.FirstAsync(j => j.Id == archivedAd, ct);
-        kept.Archive(NowClock).IsSuccess.ShouldBeTrue();
         await db.SaveChangesAsync(ct);
 
         FollowedCompanyNotificationEmail? captured = null;
@@ -1043,7 +1344,8 @@ public class DigestDispatchJobTests
             "the second — and last — place the tombstone can leave the system: the followed-company "
             + "digest email.");
         captured.Items.Select(i => i.CompanyName).ShouldContain("Kvar bolag",
-            "an ARCHIVED followed-company ad must STILL be emailed — `!= Erased`, never `== Active`.");
+            "the control: the email renders rows at all, so the exclusion above is the guard "
+            + "firing, not an empty digest agreeing with anything.");
 
         (await ReloadHitAsync(db, userId, erasedAd, ct))!.NotificationStatus
             .ShouldBe(FollowedCompanyAdHitStatus.Sent, "drained, not shown.");

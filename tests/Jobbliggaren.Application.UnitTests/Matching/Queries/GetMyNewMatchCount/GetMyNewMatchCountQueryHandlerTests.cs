@@ -6,6 +6,7 @@ using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using NSubstitute;
 using Shouldly;
 
@@ -20,7 +21,10 @@ namespace Jobbliggaren.Application.UnitTests.Matching.Queries.GetMyNewMatchCount
 /// <item>null watermark (<c>LastSeenMatchesAt</c>) → EVERY match counts (never opened the view);</item>
 /// <item>a set watermark → only <c>CreatedAt &gt; watermark</c> counts;</item>
 /// <item>owner-scoped — another user's matches are never counted;</item>
-/// <item>soft-deleted matches are excluded by the global query filter.</item>
+/// <item>soft-deleted matches are excluded by the global query filter;</item>
+/// <item>#864 — a match whose ad is NOT <c>Active</c> is not counted. The badge must count the
+/// same presentable set the list shows, or Översikten renders "3 nya matchningar" above a view
+/// with zero rows.</item>
 /// </list>
 /// NOTE on the watermark boundary: the join + watermark ROUND-TRIP against a relational
 /// provider is pinned by the Testcontainers sibling (MyMatchesSurfaceTests) — InMemory can
@@ -49,11 +53,41 @@ public class GetMyNewMatchCountQueryHandlerTests
         return currentUser;
     }
 
+    // Seeds an ACTIVE JobAd row and returns its id.
+    //
+    // #864 — this helper did not exist, and that was the defect in the suite. Every seed below used a
+    // bare JobAdId.New() and NEVER inserted the ad, so the whole suite proved a count over matches
+    // whose ads DO NOT EXIST. That was invisible while the handler joined nothing; but its paired
+    // surface — GetMyMatches — has always INNER JOINED JobAds, so the badge and the list already
+    // disagreed on exactly this seed. A suite that cannot represent the production state cannot
+    // observe an incoherence with the surface it is paired against. The count is now lifecycle-gated
+    // (#864), so the ad must be real; each test's own axis (watermark / owner-scope / soft-delete /
+    // notification-status / uncapped) is untouched.
+    private JobAdId SeedActiveAd(AppDbContext db)
+    {
+        var externalId = $"ext-{Guid.NewGuid():N}";
+        var payload = $"{{\"id\":\"{externalId}\"}}";
+        var jobAd = JobAd.Import(
+            title: "Roll",
+            company: Company.Create("Bolag AB").Value,
+            description: "beskrivning",
+            url: $"https://example.com/jobs/{externalId}",
+            external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
+            rawPayload: payload,
+            facets: TestFacets.FromPayload(payload),
+            publishedAt: T0,
+            expiresAt: T0.AddDays(60),
+            clock: _clock).Value;
+        db.JobAds.Add(jobAd);
+        return jobAd.Id;
+    }
+
     private void SeedMatch(AppDbContext db, Guid userId, DateTimeOffset createdAt)
     {
+        var adId = SeedActiveAd(db);
         _clock.UtcNow.Returns(createdAt);
         var match = UserJobAdMatch.Create(
-            userId, JobAdId.New(), NotifiableMatchGrade.Good, ["csharp"], _clock).Value;
+            userId, adId, NotifiableMatchGrade.Good, ["csharp"], _clock).Value;
         db.UserJobAdMatches.Add(match);
         _clock.UtcNow.Returns(T0);
     }
@@ -237,11 +271,13 @@ public class GetMyNewMatchCountQueryHandlerTests
         // one counts. InMemory honours the HasQueryFilter(DeletedAt == null) registered on
         // the model, so this branch is observable here (the real-DB filter is re-proven by
         // the persistence sibling).
+        var liveAdId = SeedActiveAd(db);
+        var deletedAdId = SeedActiveAd(db);
         _clock.UtcNow.Returns(T0.AddDays(1));
         var live = UserJobAdMatch.Create(
-            userId, JobAdId.New(), NotifiableMatchGrade.Good, ["csharp"], _clock).Value;
+            userId, liveAdId, NotifiableMatchGrade.Good, ["csharp"], _clock).Value;
         var deleted = UserJobAdMatch.Create(
-            userId, JobAdId.New(), NotifiableMatchGrade.Strong, ["sql"], _clock).Value;
+            userId, deletedAdId, NotifiableMatchGrade.Strong, ["sql"], _clock).Value;
         deleted.SoftDelete(_clock);
         _clock.UtcNow.Returns(T0);
 
@@ -253,6 +289,53 @@ public class GetMyNewMatchCountQueryHandlerTests
         var result = await sut.Handle(new GetMyNewMatchCountQuery(), ct);
 
         result.Count.ShouldBe(1);
+    }
+
+    // =================================================================
+    // #864 — the badge does not count a match whose ad has been archived.
+    // =================================================================
+
+    [Fact]
+    public async Task Handle_ShouldNotCountMatch_WhenItsJobAdIsArchived()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        using var db = TestAppDbContextFactory.Create();
+
+        SeedSeeker(db, userId, lastSeen: null); // never opened → every match is new
+
+        // Three matches: TWO to Active ads, one to an ad archived AFTER the match was detected —
+        // the ONLY way this state arises in production, since BackgroundMatchingJob gates
+        // Status == Active before it scores. Archiving via the domain transition ExpireJobAdsJob
+        // performs; never a fabricated column value (#843 / #864 AC 4).
+        //
+        // The seed is ASYMMETRIC (2 live + 1 archived), deliberately: a count-only DTO cannot say
+        // WHICH rows it counted, so a 1+1 seed passes under the INVERTED gate too (== Archived also
+        // counts exactly 1). 2+1 separates every state: gate correct → 2, deleted → 3, inverted → 1.
+        var liveAdId = SeedActiveAd(db);
+        var secondLiveAdId = SeedActiveAd(db);
+        var archivedAdId = SeedActiveAd(db);
+        _clock.UtcNow.Returns(T0.AddDays(1));
+        db.UserJobAdMatches.AddRange(
+            UserJobAdMatch.Create(userId, liveAdId, NotifiableMatchGrade.Good, ["csharp"], _clock).Value,
+            UserJobAdMatch.Create(userId, secondLiveAdId, NotifiableMatchGrade.Good, ["dotnet"], _clock).Value,
+            UserJobAdMatch.Create(userId, archivedAdId, NotifiableMatchGrade.Strong, ["sql"], _clock).Value);
+        _clock.UtcNow.Returns(T0);
+        await db.SaveChangesAsync(ct);
+
+        var archivedAd = db.JobAds.Single(j => j.Id == archivedAdId);
+        archivedAd.Archive(_clock).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(ct);
+
+        var result = await new GetMyNewMatchCountQueryHandler(db, UserWith(userId))
+            .Handle(new GetMyNewMatchCountQuery(), ct);
+
+        // 2, not 3 (gate deleted) and not 1 (gate inverted). NON-VACUOUS BY CONSTRUCTION: the count
+        // must still find the ACTIVE matches, so a gate that excluded everything would fail this
+        // assertion too — "the archived one is not counted" cannot pass by counting nothing.
+        result.Count.ShouldBe(2,
+            "badgen får inte räkna en matchning vars annons är arkiverad — den räknar samma " +
+            "presenterbara mängd som /matchningar visar (annars: '3 nya' över en vy med 2 rader)");
     }
 
     // =================================================================
@@ -271,9 +354,10 @@ public class GetMyNewMatchCountQueryHandlerTests
 
         SeedSeeker(db, userId, lastSeen: null); // never opened → every match is new
 
+        var failedAdId = SeedActiveAd(db);
         _clock.UtcNow.Returns(T0.AddDays(1));
         var failed = UserJobAdMatch.Create(
-            userId, JobAdId.New(), NotifiableMatchGrade.Top, ["csharp"], _clock).Value;
+            userId, failedAdId, NotifiableMatchGrade.Top, ["csharp"], _clock).Value;
         failed.MarkQueued();
         failed.MarkFailed();
         _clock.UtcNow.Returns(T0);

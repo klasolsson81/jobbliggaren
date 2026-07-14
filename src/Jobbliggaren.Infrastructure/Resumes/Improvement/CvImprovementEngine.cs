@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Improvement.Transforms;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Improvement;
 
@@ -31,13 +32,18 @@ internal sealed class CvImprovementEngine : ICvImprovementEngine
         IClicheLexicon clicheLexicon,
         IVerbMapper verbMapper,
         IRubricProvider rubricProvider,
-        ITextAnalyzer analyzer)
+        ITextAnalyzer analyzer,
+        ICvConventionsProvider conventionsProvider,
+        CvParsingLexiconData parsingLexicon)
     {
         _clicheLexicon = clicheLexicon ?? throw new ArgumentNullException(nameof(clicheLexicon));
         _verbMapper = verbMapper ?? throw new ArgumentNullException(nameof(verbMapper));
         _rubricProvider = rubricProvider ?? throw new ArgumentNullException(nameof(rubricProvider));
         _analyzer = analyzer ?? throw new ArgumentNullException(nameof(analyzer));
-        _transforms = BuildTransforms();
+        ArgumentNullException.ThrowIfNull(conventionsProvider);
+        ArgumentNullException.ThrowIfNull(parsingLexicon);
+
+        _transforms = BuildTransforms(conventionsProvider.GetConventions(), parsingLexicon);
     }
 
     public ValueTask<CvImprovementResult> SuggestAsync(
@@ -81,16 +87,21 @@ internal sealed class CvImprovementEngine : ICvImprovementEngine
 
     // Fixed iteration order ⇒ deterministic, stable TargetIds across runs (a rule engine is
     // deterministic; the future approve step addresses changes by their stable TargetId).
-    private static IReadOnlyList<ICvTransform> BuildTransforms() =>
+    //
+    // The conventions + the parsing lexicon are resolved ONCE here, not per request: both are
+    // immutable values loaded at host build, and the transforms that hold them are stateless.
+    private static IReadOnlyList<ICvTransform> BuildTransforms(
+        CvConventions conventions,
+        CvParsingLexiconData parsingLexicon) =>
     [
         new ClicheTransform(),
         new WeakVerbTransform(),
         new DateNormalizationTransform(),
-        new HeadingNormalizationTransform(),
+        new HeadingNormalizationTransform(parsingLexicon),
         new GpaStripTransform(),
         new PersonnummerStripTransform(),
         new AtsSanitizationTransform(),
-        new SectionReorderTransform(),
+        new SectionReorderTransform(conventions, parsingLexicon),
         new PhotoStripTransform(),
     ];
 

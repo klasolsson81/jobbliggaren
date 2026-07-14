@@ -71,6 +71,58 @@ public class DigestDispatchJobIntegrationTests(WorkerTestFixture fixture)
             "en consenting Weekly-users Strong-match ska digesteras och markeras Sent");
     }
 
+    /// <summary>
+    /// #864 — the TRANSLATION oracle for the digest's lifecycle gate. The display joins now carry
+    /// <c>where j.Status == JobAdStatus.Active</c> and the total comes from a separate
+    /// <c>CountAsync</c> over that same gated query. Both cross the <c>JobAdStatus</c> SmartEnum
+    /// <c>HasConversion</c>, and EF-InMemory (where the email-content specs live) evaluates that
+    /// comparison in LINQ-to-objects — so a shape that does NOT translate to SQL would be green there
+    /// and throw in production. Only a relational provider can tell us. This test is that provider.
+    /// <para>
+    /// It also pins the DRAIN half against real Postgres: the archived match is excluded from the
+    /// email but MUST still transition Pending → Sent. The gate is on the DISPLAY set, never on the
+    /// CLAIM set — gate the claim and an archived row stays Pending and is re-processed on every
+    /// digest run, forever. The email CONTENT (items, TotalCount) is asserted in
+    /// <c>DigestDispatchJobTests</c>, where the sender is observable; this fixture uses
+    /// ConsoleEmailSender.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task RunWeeklyAsync_ArchivedAdMatch_IsExcludedFromDisplay_ButStillDrained()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var (userId, _) = await SeedConsentingWeeklyUserAsync(ct);
+        var liveAdId = await SeedActiveAdAsync("Aktiv roll", "Live AB", ct);
+        var archivedAdId = await SeedActiveAdAsync("Arkiverad roll", "Gone AB", ct);
+        await SeedStrongPendingMatchAsync(userId, liveAdId, ct);
+        await SeedStrongPendingMatchAsync(userId, archivedAdId, ct);
+        await ArchiveAdAsync(archivedAdId, ct);
+
+        // If the gated join or the count query failed to translate, this throws (it does not throw
+        // under InMemory — that is the whole point of running it here).
+        await Should.NotThrowAsync(async () =>
+        {
+            using var scope = _fixture.Services.CreateScope();
+            var worker = scope.ServiceProvider.GetRequiredService<DigestDispatchWorker>();
+            await worker.RunWeeklyAsync(ct);
+        });
+
+        // NON-VACUITY: the ACTIVE match drains — so the run really did dispatch a digest, rather than
+        // taking the "nothing presentable" early-return that would make the next assertion hollow.
+        var live = await GetMatchAsync(userId, liveAdId, ct);
+        live.ShouldNotBeNull();
+        live.NotificationStatus.ShouldBe(NotificationStatus.Sent,
+            "den aktiva matchen ska digesteras och markeras Sent");
+
+        // The archived match is NOT emailed (content-asserted in the unit suite) but IS drained.
+        var archived = await GetMatchAsync(userId, archivedAdId, ct);
+        archived.ShouldNotBeNull();
+        archived.NotificationStatus.ShouldBe(NotificationStatus.Sent,
+            "den arkiverade matchen måste dräneras — grinden sitter på VISNINGS-mängden, inte på " +
+            "claim-mängden; annars ligger raden kvar Pending och om-processas varje körning");
+    }
+
     [Fact]
     public async Task RunDailyAsync_ResolvesFromDI_AndDoesNotThrow_WhenNoDueUsers()
     {
@@ -137,6 +189,17 @@ public class DigestDispatchJobIntegrationTests(WorkerTestFixture fixture)
         var match = UserJobAdMatch.Create(
             userId, jobAdId, NotifiableMatchGrade.Strong, [], new FixedClock(Now)).Value;
         db.UserJobAdMatches.Add(match);
+        await db.SaveChangesAsync(ct);
+    }
+
+    // Archives via the DOMAIN transition production performs (ExpireJobAdsJob writes this same status).
+    // Never a fabricated column value — that fiction (#843) is exactly what kept #864 alive.
+    private async Task ArchiveAdAsync(JobAdId jobAdId, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var ad = await db.JobAds.FirstAsync(j => j.Id == jobAdId, ct);
+        ad.Archive(new FixedClock(Now)).IsSuccess.ShouldBeTrue("seed: annonsen ska gå att arkivera");
         await db.SaveChangesAsync(ct);
     }
 

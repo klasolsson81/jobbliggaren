@@ -607,43 +607,70 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.ICvLayoutAnalyzer,
             Resumes.Parsing.PdfPigCvLayoutAnalyzer>();
-        // Fas 4b 8b.4a — the lexicon is loaded ONCE, HERE, and registered as a value. Two
-        // consequences worth stating: (1) a broken asset throws during host build, not inside a
-        // user's CV import (the static-ctor form it replaced would have surfaced as a
-        // TypeInitializationException → HTTP 500, cached for the life of the process); (2) the
-        // segmenter and the recommendation port receive the SAME instance, so RECOGNITION ("is this
-        // a heading?") and RESOLUTION ("WHICH canonical section is it?") cannot disagree.
-        var lexiconData = Resumes.Parsing.CvParsingLexiconLoader.Load();
-        services.AddSingleton(lexiconData);
+        services.AddCvLexicon();
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.IResumeSegmenter,
             Resumes.Parsing.HeadingDrivenResumeSegmenter>();
+        return services;
+    }
 
-        // INSTANCE registrations, not type registrations, and the difference is the whole point.
-        // A type registration (AddSingleton<IPort, Impl>()) constructs Impl at the FIRST RESOLVE —
-        // i.e. inside the first HTTP request that needs it — and ValidateOnBuild does not
-        // instantiate singletons, so it would not catch a broken asset either. Both of these types
-        // validate in their constructors (the branschgrupp provider runs the full cross-asset pin
-        // against the lexicon), so registering them by TYPE would mean a malformed asset surfaces
-        // as a 500 inside a user's CV import, cached for the life of the process.
-        //
-        // That is not a hypothetical: it is exactly the defect PR-1 of this step fixed, where the
-        // lexicon's static ctor loaded on first parse and threw a TypeInitializationException
-        // mid-request. Constructing here makes "fail loud at startup, never mid-request" TRUE
-        // rather than merely claimed — the host refuses to build.
+    /// <summary>
+    /// Fas 4b 8b.4a/8b.4b — the CV-parsing lexicon and the two knowledge-bank assets that are
+    /// cross-validated against it (branschgrupp, cv-conventions). Its own module, and
+    /// <b>IDEMPOTENT</b>, for one reason: <see cref="AddCvParsing"/> needs the lexicon for the
+    /// segmenter and <see cref="AddCvImprovement"/> needs it for the D6 + B1 transforms — and the
+    /// Worker registers the improvement engine <i>without</i> the parsing module
+    /// (<c>WorkerTestFixture</c>). Registering the lexicon in only one of them would leave an
+    /// unresolvable singleton in the other, and the Worker runs <c>ValidateOnBuild=false</c>
+    /// (TD-103), so that gap would surface first at Hangfire-invocation, not at boot. <b>A module
+    /// that owns its own dependency cannot rot that way.</b>
+    ///
+    /// <para>The idempotence guard is not a micro-optimisation: loading the asset twice would
+    /// produce TWO <c>CvParsingLexiconData</c> instances, and 8b.4a's guarantee is that the
+    /// segmenter and every asset provider hold the SAME one, so that RECOGNITION ("is this a
+    /// heading?") and RESOLUTION ("WHICH canonical section is it?") provably cannot disagree.</para>
+    ///
+    /// <para><b>INSTANCE registrations, not type registrations, and the difference is the whole
+    /// point.</b> A type registration (<c>AddSingleton&lt;IPort, Impl&gt;()</c>) constructs Impl at
+    /// the FIRST RESOLVE — i.e. inside the first HTTP request that needs it — and
+    /// <c>ValidateOnBuild</c> does not instantiate singletons, so it would not catch a broken asset
+    /// either. All three of these types validate in their constructors (both providers run a full
+    /// cross-asset pin against the lexicon), so registering them by TYPE would mean a malformed
+    /// asset surfaces as a 500 inside a user's CV import, cached for the life of the process. That
+    /// is not hypothetical: it is exactly the defect 8b.4a PR-1 fixed, where the lexicon's static
+    /// ctor loaded on first parse and threw a <c>TypeInitializationException</c> mid-request.
+    /// Constructing here makes "fail loud at startup, never mid-request" TRUE rather than merely
+    /// claimed — the host refuses to build.</para>
+    /// </summary>
+    public static IServiceCollection AddCvLexicon(this IServiceCollection services)
+    {
+        // The sentinel is the LAST thing this method registers, not the first, and the difference is
+        // the guard's whole scope. Keyed on CvParsingLexiconData (the first), a caller who registered
+        // that type on its own — a future test host injecting a synthetic lexicon — would switch this
+        // module OFF and leave ICvConventionsProvider UNREGISTERED. The engines would then fail at
+        // first resolve, and in the Worker (ValidateOnBuild=false, TD-103) not until a Hangfire
+        // invocation. A guard whose sentinel is narrower than the set it guards is not a guard; it is
+        // a claim. (Both review gates flagged it — latent today, since nothing else registers the
+        // lexicon, and a composition test now pins that it stays that way.)
+        if (services.Any(d =>
+                d.ServiceType == typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.ICvConventionsProvider)))
+        {
+            return services;
+        }
+
+        var lexiconData = Resumes.Parsing.CvParsingLexiconLoader.Load();
+        services.AddSingleton(lexiconData);
+
         var lexicon = new Resumes.Parsing.CvParsingLexiconProvider(lexiconData);
         services.AddSingleton<Jobbliggaren.Application.Resumes.Abstractions.ICvParsingLexicon>(lexicon);
 
-        // Fas 4b 8b.4a — the branschgrupp asset (Asset A). It is a KNOWLEDGE-BANK provider and its
-        // five siblings live in AddCvReview(), but it is registered HERE, deliberately: its hard
-        // dependency is ICvParsingLexicon (the cross-asset pin — it refuses to construct if it names
-        // a section the lexicon does not own). Registering it beside the five would leave an
-        // unresolvable singleton in a module the WORKER registers without AddCvParsing() — and the
-        // Worker runs ValidateOnBuild=false (TD-103), so that gap would surface first at
-        // Hangfire-invocation, not at boot. A module that owns its own dependency cannot rot that
-        // way. Consumed by the GetCvSectionSuggestions read-slice (ADR 0107) — never by the engine.
+        // Asset A (8b.4a) — consumed by the GetCvSectionSuggestions read-slice (ADR 0107), never by
+        // the engine. Asset B (8b.4b) — consumed by SectionReorderTransform IN the engine (ADR 0108).
+        // Both refuse to construct if they name a section the lexicon does not own.
         services.AddSingleton<Jobbliggaren.Application.KnowledgeBank.Abstractions.IBranschgruppProvider>(
             new KnowledgeBank.BranschgruppProvider(lexicon));
+        services.AddSingleton<Jobbliggaren.Application.KnowledgeBank.Abstractions.ICvConventionsProvider>(
+            new KnowledgeBank.CvConventionsProvider(lexicon));
         return services;
     }
 
@@ -659,6 +686,13 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddCvReview(this IServiceCollection services)
     {
+        // Fas 4b 8b.4b (ADR 0108) — B1 now assesses the section ORDER, so the review engine reads
+        // the parsing lexicon (heading recognition) and cv-conventions (the recommended order),
+        // exactly as the improvement engine does. AddCvLexicon() is idempotent, so a host that also
+        // calls AddCvParsing()/AddCvImprovement() still gets exactly ONE lexicon instance — and the
+        // Worker, which registers this module without AddCvParsing(), is no longer left with an
+        // unresolvable singleton. A module that owns its own dependency cannot rot that way.
+        services.AddCvLexicon();
         services.AddSingleton<
             Jobbliggaren.Application.KnowledgeBank.Abstractions.IRubricProvider,
             Jobbliggaren.Infrastructure.KnowledgeBank.RubricProvider>();
@@ -729,6 +763,11 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddCvImprovement(this IServiceCollection services)
     {
+        // Fas 4b 8b.4b — the engine's D6 transform recognises headings through the parsing lexicon
+        // and its B1 transform orders them against cv-conventions, so this module now OWNS that
+        // dependency instead of assuming a sibling registered it. AddCvLexicon() is idempotent, so
+        // a host that also calls AddCvParsing() still gets exactly ONE lexicon instance.
+        services.AddCvLexicon();
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Improvement.Abstractions.ICvImprovementEngine,
             Jobbliggaren.Infrastructure.Resumes.Improvement.CvImprovementEngine>();

@@ -37,7 +37,8 @@ public class CvReviewEvidenceRedactionTests
 
     private static CvReviewEngine NewEngine() =>
         new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
-            AllCorrectSpellChecker(), RealAllowlist());
+            AllCorrectSpellChecker(), RealAllowlist(),
+            RealCvConventionsProvider(), RealParsingLexicon());
 
     private static async Task<CvReviewResult> ReviewAsync(ParsedResume resume, RenderProfile profile) =>
         await NewEngine().ReviewAsync(CvReviewContext.FromParsed(resume), profile, TestContext.Current.CancellationToken);

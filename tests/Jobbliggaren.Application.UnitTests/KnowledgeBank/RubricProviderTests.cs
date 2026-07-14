@@ -234,9 +234,15 @@ public class RubricProviderTests
         // a rule (B5ConsistentFormattingRule) but its rule CONDITIONALLY returns NotAssessed
         // (single/no marker) reading criterion.NotAssessedReason — so B5 is deliberately KEPT
         // OUT of this set, staying required to carry its authored reason (which it does).
+        // #844: A8 LEFT this set. Its rule now CONDITIONALLY returns NotAssessed (when the CV carries
+        // unclassified text above its first heading, the absence of a profile is not observed and the
+        // claim cannot be grounded) — which makes A8 exactly B5. Keeping it in the exemption would ship
+        // a guard whose sentinel is narrower than the set it guards, and that is not a guard, it is a
+        // claim: the check would stay green while A8 fell back on a code default instead of the
+        // asset's authored civic copy.
         string[] ruleCriteria =
         [
-            "A1", "A2", "A4", "A6", "A7", "A8", "A9", "A10",
+            "A1", "A2", "A4", "A6", "A7", "A9", "A10",
             "B1", "B3", "B4", "B6", "B7", "B8",
             "C2", "C3", "C4", "C6", "C7",
             "D1", "D6",

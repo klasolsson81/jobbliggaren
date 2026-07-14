@@ -321,6 +321,30 @@ internal sealed class A8ProfileRule : ICriterionRule
 
         if (string.IsNullOrWhiteSpace(profile))
         {
+            // #844: this Fail used to be UNCONDITIONAL, and it was a lie for every CV that opened
+            // with a summary the author never gave a heading. That prose was dropped from the parse
+            // artifact entirely, so A8 — which reads the STRUCTURED content, never RawText — told
+            // its author, as a hard Fail with structural evidence, that her summary "saknas helt".
+            //
+            // When the segmenter carried unclassified text down from above the first heading, the
+            // absence is NOT observed and the claim cannot be grounded. Withdraw it. We do NOT
+            // upgrade to Pass or Warn: either would classify the residue (Pass says it IS a profile;
+            // Warn grades her on a missing HEADING, which is B1/D6's subject, not A8's) and the
+            // engine never decides what un-headed text is — the user does, in the guide (ADR 0074).
+            // Reduced precision is marked "not assessed", never mis-reported (CLAUDE.md §5).
+            //
+            // Structural reason only: no quote, no CV text. The preamble is the most personnummer-
+            // dense region of a CV, and a verdict's reason string is not a PII channel.
+            if (!string.IsNullOrWhiteSpace(context.Content.Preamble))
+            {
+                return CvCriterionVerdict.NotAssessed("A8", category,
+                    context.Criterion.NotAssessedReason
+                    ?? "Det går inte att avgöra om profiltext saknas.");
+            }
+
+            // The preamble was fully accounted for (name, e-mail, phone, ort) or empty — the absence
+            // IS observed, and the Fail is earned. This is the arm that must survive: withdrawing it
+            // too would delete a working signal, which is a regression dressed as honesty.
             return CvCriterionVerdict.Assessed("A8", category, CriterionVerdict.Fail,
                 ReviewText.Cite(ReviewText.Structural("Profiltext saknas helt.")));
         }

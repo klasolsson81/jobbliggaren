@@ -58,7 +58,13 @@ received that false confirmation. That is luck, not design.
 1. **Verify identity first.** The requester must demonstrate control of the
    address or number in question (a request from the same address, or a written
    request). A name-only request needs a different, controller-level judgement —
-   escalate.
+   escalate. **An organisationsnummer/personnummer request is served** (CTO
+   ruling 2026-07-14, `docs/reviews/2026-07-14-842-pr2-employer-list-cto.md`):
+   an enskild firma's org.nr IS the owner's personnummer, Art. 4(1) counts
+   identification numbers as personal data, and Art. 12(2) forbids refusing the
+   one exact key she has. Identity for an org.nr request means demonstrating she
+   is the registered holder (Bolagsverket extract or equivalent) — escalate to
+   Klas if unclear.
 2. **Record the request and the date it was received.** Art. 12(3) starts a
    **one-month clock** for informing the data subject of the action taken — or of
    the reasons for taking none, plus her right to lodge a complaint with IMY and
@@ -91,11 +97,19 @@ Admin session required. The route is `POST /api/v1/admin/job-ads/redact-recruite
 **One free-text identifier. There is no type discriminator, and that is
 deliberate** — TD-75's premise ("email är primär rekryterar-identifier") was not
 stale, it was **falsified**: the email is never a structured key in storage, so
-every identifier is matched over free text either way. **TD-75 is closed as
+a textual identifier is matched over free text either way. **TD-75 is closed as
 void.** Run the dry run once per identifier you hold: her address, her number,
-**and her name**.
+her name — **and, for an enskild firma, her organisationsnummer**.
 
-The ads are matched on **three channels**, and each exists because the other two
+**An org.nr-shaped identifier is normalised and matched EXACTLY** (CTO ruling
+2026-07-14): `556012-5790`, `5560125790` and the century-prefixed personnummer
+form `19560125-7901` all normalise to the stored 10-digit form
+(`OrganizationNumber.TryFromWrittenForm`) and run as exact equality against
+`job_ads.organization_number` and `recent_job_searches.employer_list` — a
+structured key gets structured matching, never a regex over prose. Anything not
+org.nr-shaped falls back to the free-text channels; nothing is guessed.
+
+The ads are matched on **four channels**, and each exists because the others
 miss something:
 
 1. **Full-text search** (`search_vector @@ websearch_to_tsquery`) — the exposure a
@@ -111,13 +125,22 @@ miss something:
    NULLed 30 days after publication (so channel 2 loses it for most of the corpus).
    Without channel 3, every ad older than a month would report no match while her
    name sat in plaintext in a column we scan.
+4. **Exact match on `organization_number`** — when the identifier is an org.nr.
+   Forced by the same 30-day logic as channel 3: after the `raw_payload` purge,
+   the materialised `organization_number` column (#841) is the ONLY place a sole
+   trader's org.nr — which is her personnummer — survives in the row.
 
 The **cascade surfaces** are matched separately and reported per surface:
-`recent_job_searches.q` (word boundary — see below), `saved_searches.criteria` +
-`saved_searches.name`, `applications.snapshot_*` (retained, Art. 17(3)(e)),
-`applications.manual_company` / `manual_title` / `manual_url`,
-`company_watch_criteria.label`, and — structurally, by foreign key —
-`applications.job_ad_id`.
+`recent_job_searches.q` (word boundary — see below) + `employer_list` (exact
+org.nr), `saved_searches.criteria` + `saved_searches.name`,
+`applications.snapshot_company` / `snapshot_title` / `snapshot_description` /
+`snapshot_url` (retained, Art. 17(3)(e)), `applications.manual_company` /
+`manual_title` / `manual_url`, `company_watch_criteria.label`, the CV's
+plaintext metadata (`parsed_resumes.source_file_name`, `resume_files.file_name`,
+`resumes.name` / `latest_role` / `top_skills` — reported as `resumeMetadata`),
+and — structurally, by foreign key — `applications.job_ad_id`. The full
+column-by-column map is `ErasureCascadeRegistry.Channels`; this list is written
+FROM it, and the build breaks if a searched column has no channel.
 
 The union **over-matches on purpose**: a false positive costs you a second look,
 a false negative costs a false confirmation to a named person.
@@ -129,15 +152,19 @@ a false negative costs a false confirmation to a named person.
 > another user's search for `marianna`. You still see every matched string in the
 > dry run before anything goes.
 
-> ⛔ **THREE COLUMNS ARE NOT SEARCHED, AND YOU MUST SAY SO.**
-> `applications.cover_letter`, `application_notes.content` and `follow_ups.note`
-> are encrypted at rest under a **separate key per user**. We cannot scan them
-> without decrypting every user's private texts, and **we will not do that** — it
-> would build a read-everyone's-content capability permanently, with no lawful
-> basis toward those other users. The response carries this in `couldNotSearch`,
-> on **every** outcome. **We refuse the mechanism, not the person:** the reply
-> offers her the escalation route, and `applicationsReferencingMatchedAds` already
-> tells her how many applications were written to the ads we erased.
+> ⛔ **SEVEN COLUMNS ARE NOT SEARCHED, AND YOU MUST SAY SO.**
+> `applications.cover_letter`, `application_notes.content`, `follow_ups.note`,
+> `parsed_resumes.raw_text`, `parsed_resumes.parsed_content_enc`,
+> `resume_versions.content_enc` and `resume_files.content` — the notes, the cover
+> letters, **and the CV in all three of its stored shapes, the uploaded file
+> included** — are encrypted at rest under a **separate key per user**. We cannot
+> scan them without decrypting every user's private texts and documents, and **we
+> will not do that** — it would build a read-everyone's-content capability
+> permanently, with no lawful basis toward those other users. The response carries
+> this in `couldNotSearch`, on **every** outcome. **We refuse the mechanism, not
+> the person:** the reply offers her the escalation route, and
+> `applicationsReferencingMatchedAds` already tells her how many applications were
+> written to the ads we erased.
 
 > ⚠ **What matching does NOT do: it does not de-obfuscate.** Searching
 > `anna@acme.se` will not find an ad that reads `anna(at)acme.se` — the substring
@@ -149,27 +176,47 @@ a false negative costs a false confirmation to a named person.
 > not. Crediting the wrong mechanism for a control's coverage is the same defect
 > class this whole issue is about, so it is corrected here rather than quietly.)
 
-The response:
+The response — the shape below is written FROM `EraseRecruiterAdsResponse` and
+its `ErasureOutcome`; if they disagree, the TYPE is right and this document is
+stale:
 
 ```jsonc
 {
   "requestId": "…",              // correlates with the audit_log row
-  "outcome": "DryRun",           // NoMatchingDataHeld | DryRun | AdsErased | NothingErased
+  // The five outcome words, DERIVED from the counts (the type forbids passing one):
+  //   NoMatchInSearchableSurfaces | DryRun | AdsErased | CascadeErasedOnly | NothingErased
+  // ("NoMatchingDataHeld" does not exist — it was abolished because "we hold no
+  //  data" is the claim we can never verify. Template C is keyed on
+  //  NoMatchInSearchableSurfaces.)
+  "outcome": "DryRun",
   "dryRun": true,
-  "matched": {
+  "matched": {                   // EIGHT surfaces — one per ErasureChannel
     "jobAds": 3, "recentJobSearches": 1, "savedSearches": 2,
-    "applicationSnapshots": 4, "manualAdEntries": 1, "companyWatchCriteria": 0
+    "applicationSnapshots": 4, "manualAdEntries": 1, "companyWatchCriteria": 0,
+    "resumeMetadata": 1, "applicationsReferencingMatchedAds": 2
   },
   "erased": { "jobAds": 0, "recentJobSearches": 0, "savedSearches": 0,
-              "applicationSnapshots": 0, "manualAdEntries": 0, "companyWatchCriteria": 0 },
-  "couldNotSearch": {
-    "reason": "Application notes and follow-up notes are encrypted under a per-user DEK. We can only erase them with that user's explicit involvement.",
-    "columns": ["applications.cover_letter", "application_notes.content", "follow_ups.note"]
+              "applicationSnapshots": 0, "manualAdEntries": 0, "companyWatchCriteria": 0,
+              "resumeMetadata": 0, "applicationsReferencingMatchedAds": 0 },
+  "couldNotSearch": {            // ALWAYS present, on every outcome
+    "reason": "Encrypted at rest under a per-user key envelope (… Form A in-place text: the application notes, follow-up notes, cover letters and the raw CV text; Form B encrypted shadows: the structured CV content; Form C sealed binary: the uploaded CV FILE itself) …",
+    "columns": [
+      "application_notes.content", "applications.cover_letter", "follow_ups.note",
+      "parsed_resumes.parsed_content_enc", "parsed_resumes.raw_text",
+      "resume_files.content", "resume_versions.content_enc"
+    ]
   },
   "matches": [                   // ← THE ADS. This is what you review.
     { "jobAdId": "…", "externalId": "…", "title": "Backend-utvecklare",
+      "matchedChannel": "Description",
       "matchedExcerpt": "…kontakta ansvarig rekryterare Magnus Fagerberg på…" }
+    // An org.nr request shows matchedChannel: "OrganizationNumber" and the
+    // normalised org.nr as the excerpt — suffixed "(personnummer-format)" when
+    // personnummer-shaped. That is HER OWN submitted identifier echoed back.
   ],
+  // The hard-deleted rows' evidence: the q term, or "arbetsgivarfilter: <org.nr>"
+  // for an employer-only search (q = null) — flagged when personnummer-shaped.
+  "matchedRecentSearchTerms": ["magnus fagerberg"],
   "erasedExternalIds": []
 }
 ```
@@ -274,23 +321,48 @@ claim to have erased what we have not erased. That is #842, applied to ourselves
 | Surface | Erased? | Why |
 |---|---|---|
 | `job_ads` (the ad, all of it) | ✅ **Yes** | Whole-record removal. Provable. |
-| `recent_job_searches` (saved search history) | ✅ **Yes**, hard-deleted | If a user searched the recruiter's name, that name is sitting in her search history. Auto-capture rows have no audit-trail dignity, the cap-20 list rebuilds on her next search, so the user loses nothing. |
+| `recent_job_searches` (saved search history) | ✅ **Yes**, hard-deleted | If a user searched the recruiter's name — or filtered on her org.nr in the employer filter (`employer_list`; an employer-only search has `q = NULL` and is matched exactly on the normalised org.nr) — that identifier is sitting in her search history. Auto-capture rows have no audit-trail dignity, the cap-20 list rebuilds on her next search, so the user loses nothing. |
 | `saved_searches.criteria` (user's saved filters) | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month** | **HER RIGHT APPLIES. Do not tell her otherwise.** One row carries two data subjects under two bases: the user's own criteria rest on Art. 6(1)(b) (our contract with *her*), but **the recruiter's name sitting inside those criteria does not** — 6(1)(b) requires the data subject to be a **party** to the contract, and the recruiter is party to nothing. That processing rests on **Art. 6(1)(f)**, which **Art. 21(1) reaches**. So her objection fires and Art. 17(1)(c) is available. We do not attempt the "compelling legitimate grounds" override: keeping her name in another user's filter is a convenience, and a saved search is recreatable in seconds. **We owe her erasure and we honour it in full** — we simply do not AUTOMATE it, because `SoftDelete()` would leave `criteria` in the row (it hides, it does not erase) and stripping the term is not always constructible. **A human does it, with the affected user in the loop. That is a mechanism choice, never a refusal.** |
 | `applications.manual_company`, `manual_title`, `manual_url` (manually tracked applications) | ⚠️ **Not automatically — a HUMAN erases it** | A user may have pasted or typed a recruiter's name/contact into these fields when tracking an application she found outside Platsbanken. That is the recruiter's personal data, and her right reaches it (6(1)(f) → Art. 21(1)) — but a system does not silently rewrite a person's private record of her own job hunt. Reported; a human handles it with that user. *(URL can carry a name: `linkedin.com/in/magnus-fagerberg`, company contact page, etc.)* |
 | `company_watch_criteria.label` (nickname for a watch predicate) | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month** | A user might name a watch *"IT jobb med Magnus"*. Unlike `saved_searches`, the label is **optional and nullable** — the criterion is its codes (industry + municipality), and the label is just a UI nickname. **`UpdateLabel(null)` is always constructible and lossless.** We report the count; a human nulls the label with zero complexity. Same mechanism as `saved_searches`: report, human decides. *(This column was found by enforcing the cascade registry at the EF model level; it is why the guard breaks the build.)*  |
-| `applications.cover_letter`, `application_notes.content`, `follow_ups.note` | ⚠️ **NOT SEARCHED** — disclosed in response | A user may well have written *"Ringde Magnus Fagerberg"* in her own note. That is the recruiter's personal data, and her right reaches it (6(1)(f) → Art. 21(1)). **But we cannot search it.** These columns are encrypted at rest under a per-user DEK envelope (Form A, per-user keys). A `LIKE` search would require decryption of every row under every user's key — feasible for a handful of Art. 17 requests per year but not feasible via a background job. **We hold it, we cannot scan it, and we say so explicitly in the reply.** Erase via a human, if the subject and affected user both consent. |
-| `applications.snapshot_company` + `snapshot_description` | ❌ **No** | The applicant's frozen record of an ad she applied to (ADR 0086 exists precisely so it outlives the ad). **And the ground is STRONGER for the company name than for the body:** a Swedish jobseeker must file an *aktivitetsrapport* to Arbetsförmedlingen **naming the employer**. The company name is the **spine** of her own legal record; the ad body is its colour. Ground: Art. 17(3)(e). **Klas's to affirm — STOPP-3, still open.** We **search and report** it precisely because we do not erase it: *a legal ground asserted over a population we never counted is a ground asserted over a silence.* |
+| `applications.cover_letter`, `application_notes.content`, `follow_ups.note`, `parsed_resumes.raw_text` / `parsed_content_enc`, `resume_versions.content_enc`, `resume_files.content` (**the CV, all three stored shapes**) | ⚠️ **NOT SEARCHED** — disclosed in response | A user may well have written *"Ringde Magnus Fagerberg"* in her own note — or named the recruiter she wrote to in her CV. That is the recruiter's personal data, and her right reaches it (6(1)(f) → Art. 21(1)). **But we cannot search it.** These seven columns are encrypted at rest under per-user keys (Forms A, B and C — the uploaded CV file included). A `LIKE` search would require decryption of every row under every user's key — feasible for a handful of Art. 17 requests per year but not feasible via a background job. **We hold it, we cannot scan it, and we say so explicitly in the reply.** Erase via a human, if the subject and affected user both consent. |
+| `applications.snapshot_company` / `snapshot_title` / `snapshot_description` / `snapshot_url` | ❌ **No** | The applicant's frozen record of an ad she applied to (ADR 0086 exists precisely so it outlives the ad). **And the ground is STRONGER for the company name than for the body:** a Swedish jobseeker must file an *aktivitetsrapport* to Arbetsförmedlingen **naming the employer**. The company name is the **spine** of her own legal record; the ad body is its colour. Ground: Art. 17(3)(e). **Klas's to affirm — STOPP-3, still open.** We **search and report** all four — `snapshot_url` included, a URL path carries names — precisely because we do not erase them: *a legal ground asserted over a population we never counted is a ground asserted over a silence.* |
+| CV metadata: `parsed_resumes.source_file_name`, `resume_files.file_name`, `resumes.name` / `latest_role` / `top_skills` (`resumeMetadata`) | ⚠️ **Not automatically — a HUMAN erases it, with the CV's owner in the loop** | The PLAINTEXT text around a user's CV: the uploaded file's name (twice — two tables, same file), the CV's own name (typed via rename), and the denormalised role/skill projections. "Ansokan_Magnus_Fagerberg.pdf" is not exotic — the repo already masks personnummer out of file names (#465) precisely because users type arbitrary text there. Searched and reported; a job does not silently rename a user's own files. The CV BODY is `couldNotSearch`, not this row. |
 | Backups / WAL / PITR | ⚠️ **Unstated** | An `UPDATE` does not remove the old row version from disk until `VACUUM`, and copies remain in WAL and backups. **Do not make any statement to the data subject about backups.** The retention window is not yet decided (**STOPP-4**). Do not invent one. |
 
-**If `matched.savedSearches > 0` or `matched.companyWatchCriteria > 0` or `matched.manualAdEntries > 0`, the reply must disclose it.** Template B2.
+**If `matched.savedSearches > 0`, `matched.companyWatchCriteria > 0`,
+`matched.manualAdEntries > 0` OR `matched.resumeMetadata > 0`, the reply must
+disclose it — template B2. If `matched.applicationSnapshots > 0`, the reply must
+disclose the Art. 17(3)(e) retention — template B3.** A matched surface the reply
+never mentions is a search whose result never reached her; the gate lists every
+human-handled surface, and `resumeMetadata` was dropped on the floor here for one
+round (round-5 B5-3.4).
 
 ---
 
-## 4. Reply templates (drafts for Klas — he approves and sends)
+## 4. Reply templates (Klas-approved 2026-07-14 — he sends)
 
 Swedish, "du", no exclamation marks, no emoji, no em-dash (CLAUDE.md §10).
 **Never claim more than was actually done.** Do not add sentences about backups
-(STOPP-4).
+(STOPP-4). **The templates are keyed on the five REAL `ErasureOutcome` members**
+— `NoMatchInSearchableSurfaces | DryRun | AdsErased | CascadeErasedOnly |
+NothingErased` — and the surface list they describe is
+`ErasureCascadeRegistry.Channels`. `DryRun` has no template: nothing was done,
+so there is nothing to tell her yet. An earlier version of this section keyed
+template C on `NoMatchingDataHeld`, an outcome word the code had abolished, and
+claimed we searched the notes — columns we structurally cannot read. **A reply
+that asserts a search that never ran is the finding that opened #842; these
+templates are derived from the types so that cannot recur.**
+
+**MANDATORY CLOSING — appended to EVERY reply** (`couldNotSearch` ships on every
+outcome, so every reply names what we could not look at):
+
+> Det finns uppgifter vi inte kan söka igenom: användarnas personliga brev, egna
+> anteckningar och uppladdade CV-filer är krypterade med en separat nyckel för
+> varje användare, och vi kan inte läsa dem. Om du vet att dina uppgifter
+> förekommer i en specifik ansökan eller ett specifikt CV, hör av dig, så
+> hanterar vi det tillsammans med den berörda användaren. Du har rätt att lämna
+> klagomål till Integritetsskyddsmyndigheten och att vända dig till domstol.
 
 **A. Acknowledgement, on receipt.**
 
@@ -298,7 +370,7 @@ Swedish, "du", no exclamation marks, no emoji, no em-dash (CLAUDE.md §10).
 > vilken åtgärd vi har vidtagit inom en månad från det att begäran kom in. Du når
 > oss under tiden på <kontaktadress>.
 
-**B1. Completion — `AdsErased`, and nothing was matched that we did not erase.**
+**B1. Completion — `AdsErased`.**
 
 > Vi har tagit bort hela annonsen ur våra system, och vi hindrar att den hämtas in
 > igen. Annonstexten, sökindexet och de uppgifter vi har härlett ur annonsen är
@@ -307,21 +379,15 @@ Swedish, "du", no exclamation marks, no emoji, no em-dash (CLAUDE.md §10).
 > vända dig till Arbetsförmedlingen eller till arbetsgivaren som publicerade
 > annonsen.
 
-**B1-disclosure. If `couldNotSearch.columns` is present, append to B1:**
+**B2. Addition — any human-handled surface matched
+(`matched.savedSearches > 0` OR `matched.manualAdEntries > 0` OR
+`matched.companyWatchCriteria > 0` OR `matched.resumeMetadata > 0`).** Append:
 
-> Vi sökte också i användarnas egna anteckningar om dina uppgifter. De
-> anteckningarna är krypterade separat för varje användare (vi kan inte läsa dem
-> utan deras lösenord). Om en användare hittar din information där kan vi radera
-> den tillsammans med henne.
-
-**B2. Completion — `AdsErased`, but `matched.savedSearches > 0` OR
-`matched.manualAdEntries > 0` OR `matched.companyWatchCriteria > 0`.** Use B1 and add:
-
-> Vi har också hittat ditt namn eller din kontakt i en sparad sökning, en sparad
-> bevakningskriterie, eller en anteckning som en användare själv har skrivit. Den
-> rätten gäller även där, och vi tar bort uppgifterna. Det görs manuellt, tillsammans
-> med den användare det gäller, och vi hör av oss när det är klart. Det sker inom en
-> månad från det att din begäran kom in.
+> Dina uppgifter förekommer också i innehåll som användare själva har skrivit,
+> till exempel en sparad sökning, en egen anteckning om en ansökan eller ett CV:s
+> namn eller filnamn. Din rätt till radering gäller även där. De uppgifterna tas
+> bort manuellt, tillsammans med den användare det gäller, inom en månad från det
+> att din begäran kom in. Vi hör av oss när det är klart.
 
 **Do NOT write that her objection does not cover it.** It does. Art. 6(1)(b)
 requires the data subject to be a *party* to the contract, and she is not a party
@@ -331,13 +397,40 @@ false statement to a data subject about her own rights (Art. 12(4)), which is th
 exact class of thing this whole issue exists to stop us doing. **"Our code cannot
 do it" is not a legal ground. It never was.**
 
-**C. `NoMatchingDataHeld`.** This sentence is now **true** when we say it.
+**B3. Addition — `matched.applicationSnapshots > 0` (Art. 17(3)(e) retention).**
+Append:
 
-> Vi sökte igenom annonserna, anteckningarna och användarnas sparade sökningar och
-> bevakningar. Vi hittade inga uppgifter som matchar det du har uppgett. Om du vet
-> att du förekommer i någon av dessa system, till exempel som en länk i en sparad
-> annons eller en anteckning, hör av dig så tar vi hand om det manuellt. Du har rätt
-> att lämna klagomål till Integritetsskyddsmyndigheten och att vända dig till domstol.
+> Ett antal användare har en sparad kopia av en annons de har sökt. Kopian är en
+> del av deras eget underlag inför till exempel aktivitetsrapportering till
+> Arbetsförmedlingen, och den behåller vi med stöd av artikel 17.3 e i
+> dataskyddsförordningen. Du har rätt att invända mot den bedömningen hos oss,
+> hos Integritetsskyddsmyndigheten eller i domstol.
+
+**C. `NoMatchInSearchableSurfaces`.** Says what we searched — and never claims
+we searched what we cannot read (the mandatory closing carries that half):
+
+> Vi har sökt igenom annonserna, användarnas senaste och sparade sökningar,
+> bevakningar, egna annonsuppgifter och CV-uppgifter som inte är krypterade. Vi
+> hittade inga uppgifter som matchar det du har uppgett.
+
+**D. `CascadeErasedOnly`** — no ad matched, but cascade rows (today: recent
+searches) were erased. *"Vi har tagit bort hela annonsen" would be a false
+statement here; this outcome word exists so it cannot be sent.*
+
+> Ingen annons matchade det du har uppgett, men dina uppgifter förekom i
+> användares sökhistorik. De posterna har vi tagit bort.
+
+(+ B2/B3 if their gates fire, + the mandatory closing.)
+
+**E. `NothingErased`** — we matched data and destroyed none of it (the operator
+confirmed none of the reviewed ads, or everything matched lives on
+human-handled surfaces). Pick the sentence that is true for the case at hand:
+
+> Vi har hittat uppgifter som matchar det du har uppgett. Inget av det har
+> tagits bort automatiskt. [Granskningen visade att träffarna inte avser dig. /
+> Allt som matchade ligger i innehåll som hanteras manuellt tillsammans med
+> berörda användare.] Vi återkommer med besked inom en månad från det att din
+> begäran kom in.
 
 ---
 
@@ -354,6 +447,9 @@ do it" is not a legal ground. It never was.**
   #842** (it had never existed).
 - **Issue #842** — this defect. **#843** (the test-fiction rule), **#845**,
   **#821**/**#841**.
+- `docs/reviews/2026-07-14-842-pr2-employer-list-cto.md` — the CTO ruling that
+  made org.nr/personnummer a first-class Art. 17 identifier (local, gitignored
+  per ADR 0072).
 - `docs/research/2026-07-13-842-erasure-evidence-pack.md` — the proven facts and
   the measurements quoted above (local, gitignored per ADR 0072).
 - `docs/runbooks/gdpr-processing-register.md` — Art. 30 register.

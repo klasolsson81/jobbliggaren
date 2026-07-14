@@ -137,16 +137,33 @@ internal static class PreambleResidue
         ArgumentNullException.ThrowIfNull(residue);
 
         var candidates = new List<string>(residue.Count * 2);
+
         foreach (var line in residue)
         {
-            if (line.Before.Trim().Length > 0)
-                candidates.Add(line.Before);
-
-            if (line.After.Trim().Length > 0)
-                candidates.Add(line.After);
+            // Re-split each surviving segment into its FRAGMENTS. Before/After are REBUILT strings —
+            // several surviving fragments re-joined with their original glue — and handing one of those
+            // to DetectName fabricates a name: on
+            // "Anna Andersson | linkedin.com/in/anna | anna@x.se | Göteborg" the survivors rebuild as
+            // "Anna Andersson | linkedin.com/in/anna", and DetectName dutifully reports THAT as her
+            // full name. Kept apart, the first name-like fragment is simply "Anna Andersson".
+            AddFragments(candidates, line.Before);
+            AddFragments(candidates, line.After);
         }
 
         return candidates;
+    }
+
+    private static void AddFragments(List<string> candidates, string segment)
+    {
+        if (segment.Trim().Length == 0)
+            return;
+
+        foreach (var fragment in InlineSeparators.Split(segment))
+        {
+            var candidate = InlineSeparators.TrimGlue(fragment);
+            if (candidate.Length > 0)
+                candidates.Add(candidate);
+        }
     }
 
     /// <summary>
@@ -206,24 +223,38 @@ internal static class PreambleResidue
             // Text preceding this line's last consumed fragment is inside the contact block whenever
             // the block has not yet ended. On the block's LAST line it is still inside it — that is the
             // rail's name ("Anna Andersson | anna@x.se | …").
+            // Count per LINE, not per segment. A line can have surviving text both BEFORE and AFTER its
+            // last consumed fragment, and counting each would report two dropped lines from one source
+            // line. The count is the instrument that justifies the drop being acceptable at all, and an
+            // alarm that over-reports is a broken alarm.
+            var droppedThisLine = false;
+
             if (before.Trim().Length > 0)
             {
                 if (i <= lastConsumedLine)
-                    droppedLineCount++;
+                    droppedThisLine = true;
                 else
                     kept.Add(before);
             }
 
             if (after.Trim().Length == 0)
+            {
+                if (droppedThisLine)
+                    droppedLineCount++;
+
                 continue;
+            }
 
             // Text FOLLOWING this line's last consumed fragment has already left the contact block —
             // even on the block's last line. This is what carries "Göteborg | Erfaren undersköterska…",
             // and dropping it would resurrect #844 on the rail layout the issue is actually about.
             if (i < lastConsumedLine)
-                droppedLineCount++;
+                droppedThisLine = true;
             else
                 kept.Add(after);
+
+            if (droppedThisLine)
+                droppedLineCount++;
         }
 
         var text = string.Join('\n', kept).Trim();

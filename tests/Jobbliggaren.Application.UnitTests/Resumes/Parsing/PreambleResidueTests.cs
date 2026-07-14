@@ -589,6 +589,78 @@ public class PreambleResidueTests
         content.Preamble.ShouldContain("Erfaren undersköterska");
     }
 
+    // ── The subtraction and the extractor must AGREE — on ALL four arms ────────────
+    //
+    // The design claims "one rule, two call sites". It was true for the kommun arm and FALSE for the
+    // other two: IsConsumed evaluated every arm FRAGMENT-wise while the extractor read labels and
+    // postal codes LINE-wise. Sharing the PATTERN does not share the evaluation SCOPE — and the scope
+    // is where they drift. Each test below is a city that reached NO FIELD AT ALL, or an e-mail that
+    // reached the Ort field.
+
+    [Fact]
+    public void Segment_PostalCodeMidRail_ReachesTheLocationField_NotOblivion()
+    {
+        // PostalCodeCity is $-anchored, so on a rail line the city group cannot cross the "|" and a
+        // whole-line read NEVER matches. The residue, evaluating per fragment, matched and CONSUMED it.
+        // Result: Location null, Preamble null — the address existed in no field at all, and whether it
+        // survived depended on where the user happened to put the city on her rail.
+        const string cv =
+            """
+            Anna Andersson | 412 58 Göteborg | anna.andersson@example.com
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        var content = _sut.Segment(cv).Content;
+
+        content.Contact.Location.ShouldBe("Göteborg");
+        content.Contact.Email.ShouldBe("anna.andersson@example.com");
+        content.Contact.FullName.ShouldBe("Anna Andersson");
+    }
+
+    [Fact]
+    public void Segment_LabelledCityMidRail_DoesNotSwallowTheEmailIntoTheOrtField()
+    {
+        // TryLabelledValue splits on the FIRST colon of whatever it is handed. Handed the whole rail
+        // line, "Ort: Göteborg | anna@x.se" yields the value "Göteborg | anna@x.se" — under the 40-char
+        // cap, so it was stored VERBATIM as the person's Ort. Her e-mail address, in the city field.
+        // (A live defect that predates #844; the fragment-wise read fixes it.)
+        const string cv =
+            """
+            Ort: Göteborg | anna.andersson@example.com
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        var location = _sut.Segment(cv).Content.Contact.Location;
+
+        location.ShouldNotBeNull();
+        location.ShouldBe("Göteborg");
+        location.ShouldNotContain("@");
+    }
+
+    [Fact]
+    public void Segment_LabelNotFirstOnTheRail_StillResolves()
+    {
+        // The other direction of the same defect: line-wise, the label parsed as "anna | ort", which
+        // matches no known label — so the extractor found nothing while the subtraction consumed the
+        // fragment anyway. Claimed by the subtraction, harvested by nobody.
+        const string cv =
+            """
+            Anna Andersson | Ort: Göteborg | anna.andersson@example.com
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        _sut.Segment(cv).Content.Contact.Location.ShouldBe("Göteborg");
+    }
+
     // ── The confidence block is NOT a PII channel ──────────────────────────────────
 
     [Fact]
@@ -694,5 +766,140 @@ public class PreambleResidueTests
         content.ShouldNotBeNull();
         content.Preamble.ShouldBeNull();
         content.Profile.ShouldBe("Erfaren utvecklare.");
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════════════
+    // RE-REVIEW (test-writer, Round 4) — THREE guarantees the suite does NOT pin.
+    // All three are RED against a844d7ed. They need no mutation: they fail on the
+    // UNMUTATED code, which is the strongest evidence a test can carry.
+    // ══════════════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void Segment_RailWithLinkedInBeforeTheLastContactField_DoesNotFabricateAName()
+    {
+        // NameCandidates' own docstring states the guarantee this test breaks:
+        //
+        //   "Handing it the rebuilt line fabricates a name: on 'Anna Andersson | anna@x.se | 070-… |
+        //    Göteborg | linkedin.com/in/anna' the surviving text is two separate items, and joined back
+        //    together they become the 'name' "Anna Andersson | linkedin.com/in/anna". Kept apart, the
+        //    first name-like fragment is simply 'Anna Andersson'."
+        //
+        // The items are NOT kept apart. `Before` is itself a REBUILD — Rebuild(0, lastConsumed) joins
+        // EVERY surviving fragment in the before-range back together with the original glue. The fix
+        // only holds because the docstring's example happens to place LinkedIn AFTER the last consumed
+        // fragment, which lands it in `After`.
+        //
+        // Move LinkedIn one slot left — before the phone and the city, which is at least as common a
+        // rail ordering — and it falls INSIDE the before-range. `Before` rebuilds to exactly the
+        // fabricated string the docstring promises is now impossible, IsNameLike accepts it (no "@",
+        // no phone shape, under 60 chars), and it is written to ParsedContact.FullName.
+        //
+        // The engine inventing a name the user never wrote is ADR 0071's one absolute prohibition, and
+        // FullName is not an internal — it reaches the guide and B3's verdicts.
+        //
+        // ROOT CAUSE: NameCandidates must yield the surviving fragments ATOMICALLY. Two rebuilt joins
+        // are not fragments; they are two smaller rebuilt lines, and a rebuilt line is what fabricates.
+        const string cv =
+            """
+            Anna Andersson | anna.andersson@example.com | linkedin.com/in/anna | 070-123 45 67 | Göteborg
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        var contact = _sut.Segment(cv).Content.Contact;
+
+        // Observed on a844d7ed: "Anna Andersson | linkedin.com/in/anna"
+        contact.FullName.ShouldBe("Anna Andersson");
+    }
+
+    [Fact]
+    public void Segment_BulletedKommunInTheContactBlock_ReachesSOMEField_NeverVanishes()
+    {
+        // THE MUNICIPALITY AGREEMENT, BROKEN — the same defect the rung-3 gate was written to close,
+        // surviving on a bulleted line. The subtraction and the extractor still DISAGREE, because the
+        // "one rule, two call sites" is applied through TWO DIFFERENT NORMALIZERS:
+        //
+        //   PreambleResidue.IsConsumed →  IsMunicipality(InlineSeparators.TrimGlue(fragment))
+        //   ContactLocationExtractor    →  IsMunicipality(line.Trim())          ← no TrimGlue
+        //
+        // TrimGlue strips a leading '-', '*', '–', '—' (and the separator glyphs). MunicipalityLexicon
+        // only .Trim()s whitespace. So on "- Göteborg":
+        //
+        //   subtraction: fragments.Count == 1 (the ASCII hyphen is NOT in the separator pattern
+        //                [\n,;•·|]) ⇒ isWholeLine ⇒ TrimGlue ⇒ "Göteborg" ⇒ CONSUMED.
+        //   rung 3:      CarriesContactSpan("- Göteborg") is false ⇒ whole-line rule ⇒
+        //                IsMunicipality("- Göteborg") ⇒ FALSE ⇒ not harvested.
+        //
+        // Observed on a844d7ed: Location = null AND Preamble = null. The city is CLAIMED BY THE
+        // SUBTRACTION AND HARVESTED BY NOBODY — present in NO FIELD AT ALL. That is verbatim the
+        // silent loss Segment_CityOnANonContactLine_ReachesSOMEField_NeverVanishes exists to forbid;
+        // that test simply never exercised a line the two normalizers read differently.
+        //
+        // It compounds: the line is also flagged Consumed, so it EXTENDS the contact block and any
+        // prose above it is dropped as contact-block material.
+        //
+        // Not exotic — a hyphen is what a PDF/OCR extractor most often emits for a sidebar bullet
+        // (the glyphs that survive as '•' or '·' ARE separators and are handled; '-' is not).
+        //
+        // ROOT CAUSE: rung 3's whole-line arm must normalize with the same TrimGlue the subtraction
+        // uses. Two call sites of one rule, two different notions of "the whole line".
+        const string cv =
+            """
+            Anna Andersson
+            anna.andersson@example.com
+            - Göteborg
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        var content = _sut.Segment(cv).Content;
+
+        // The contract: the city reaches SOME field. It is contact material (a bare kommun on its own
+        // line — the bullet is decoration), so Location is the field it should reach.
+        content.Contact.Location.ShouldBe("Göteborg");
+    }
+
+    [Fact]
+    public void Segment_OneLineDroppedWithTextOnBOTHSidesOfTheContact_IsCountedONCE()
+    {
+        // THE INSTRUMENT LIES — and it lies in the alarming direction, on the exact layout #844 is about.
+        //
+        // The position rule's accepted residual is justified, in the code's own words, by the fact that
+        // it is MEASURED: "It is bounded and it is COUNTED. A count is not an apology — it is what turns
+        // 'rare, we think' into a number we can read off production and act on."
+        //
+        // The count is not a count of LINES. ToText increments droppedLineCount once for a dropped
+        // `Before` and AGAIN for a dropped `After` — so ONE dropped line whose contact span sits in the
+        // MIDDLE (surviving text on both sides) reports as TWO. The evidence string then says
+        // "2 line(s) dropped as contact-block material" about a single discarded line.
+        //
+        // That number rides parse_confidence — an UNENCRYPTED column, read straight out to the API —
+        // and it is the only instrument Klas has for deciding whether the residual stays acceptable.
+        // An instrument that doubles its reading on the rail layout the whole issue is about is exactly
+        // the "the guard/instrument reports its own defect" class this repo keeps paying for.
+        //
+        // ROOT CAUSE: droppedLineCount counts dropped SEGMENTS. Count the line once — e.g. a local
+        // `dropped` flag per line, incremented at most once.
+        const string cv =
+            """
+            Anna Andersson | anna.andersson@example.com | Trygg i stressade lägen
+            070-123 45 67
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        var result = _sut.Segment(cv);
+        var profile = result.Confidence.Sections.First(s => s.Kind == ParsedSectionKind.Profile);
+
+        // Line 1 ("070-…") consumes, so line 0 is strictly INSIDE the contact block and is dropped
+        // whole — Before ("Anna Andersson") and After ("Trygg i stressade lägen") alike. That is ONE
+        // line. Observed on a844d7ed: "2 line(s) dropped as contact-block material".
+        profile.Evidence.ShouldContain("1 line(s) dropped as contact-block material");
     }
 }

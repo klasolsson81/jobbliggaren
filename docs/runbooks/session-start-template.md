@@ -63,13 +63,17 @@ Per CLAUDE.md §9.5 — list what to verify and why, or state explicitly:
 
 ### 4. Expected end state
 
-Concrete and verifiable. Includes the PR deliverable (ADR 0065).
+Concrete and verifiable. Includes the PR deliverable (ADR 0065) and the close-out — a
+PR that merges but leaves its issue open is not done (CLAUDE.md §6.5).
 
 ```
 ## Expected end state
 - {Deliverable verified}
 - PR open against `main`, `ci` green, automerge label set, agent reports inline
 - Docs-sync committed in the same PR
+- Close-out: PR watched to MERGE (`BEHIND` → `gh pr update-branch`; automerge does
+  NOT rebase); issue closed + `wip` dropped (squash drops `Closes #N`) — playbook §8.1.
+  Worktree/branch reap belongs to the SessionStart reaper (ADR 0094), never to you
 - {Task-specific Klas-STOPP flags, only if any — e.g. spec-edit, deploy}
 ```
 

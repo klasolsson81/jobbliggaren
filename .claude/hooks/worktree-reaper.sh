@@ -39,6 +39,11 @@ CUR_TOP="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 CUR_GITDIR="$(git rev-parse --git-dir 2>/dev/null || true)"
 CUR_COMMON="$(git rev-parse --git-common-dir 2>/dev/null || true)"
 
+# The MAIN copy's root. CUR_TOP is the CURRENT worktree, which is exactly the wrong
+# place to rescue files TO when the session is itself running inside a worktree. The
+# common git dir always points at the main copy's .git, so its parent is the main root.
+MAIN_TOP="$(dirname -- "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo /nonexistent/.git)")"
+
 # Only ever rm -rf inside a known worktree root. Bounds the blast radius of the
 # leftover-dir cleanup so a malformed path can never escalate.
 _reap_ok_path() {
@@ -95,6 +100,7 @@ while IFS= read -r line; do
 done < <(git worktree list --porcelain 2>/dev/null)
 
 REAPED_LIST=""; REAPED_N=0
+RESCUED_LIST=""; RESCUED_N=0
 REMOTE_LIST=""; REMOTE_N=0
 SKIPPED_LIST=""; SKIPPED_N=0
 _skip() { SKIPPED_LIST+="  skip: $1 :: $2"$'\n'; SKIPPED_N=$((SKIPPED_N + 1)); }
@@ -144,11 +150,103 @@ for i in "${!WT_PATHS[@]}"; do
   # (remote deletion is always report-only).
   REMOTE_LIST+="    - $B (PR #$_merged)"$'\n'; REMOTE_N=$((REMOTE_N + 1))
 
+  # ── RESCUE BEFORE DESTROY (#673, 2026-07-14) ─────────────────────────────────────
+  # Conjunct 6 is BLIND to the files that matter most. Everything in .worktreeinclude
+  # is GITIGNORED, so `git status --porcelain` reports NOTHING for it, the tree looks
+  # CLEAN, and `git worktree remove` — even WITHOUT --force — removes it and takes the
+  # files with it. Measured: a probe worktree holding one gitignored docs/reviews/*.md
+  # passed conjunct 6, was removed by the no-force path, and the file was gone. The
+  # comment below knew half of this ("the marker is gitignored, so it does not block the
+  # removal") and did not follow the implication: nothing else gitignored blocks it
+  # either. Those files are the ONLY copy — agent reviews, CTO verdicts, session logs and
+  # every ADR from 0074 on live nowhere else.
+  #
+  # The pathspec is DERIVED from .worktreeinclude, never re-typed here: that file is the
+  # SSOT for "gitignored local docs a worktree carries" (§6.5), and a second hand-kept
+  # list is a second thing to keep true.
+  #
+  # Two cases, and the second is the one a naive rescue gets wrong:
+  #   (a) the main copy does NOT have the file  -> copy it out. (New session logs,
+  #       reviews, ADRs.)
+  #   (b) the main copy HAS it, and the worktree's copy DIFFERS -> that is an EDIT to a
+  #       file sync-worktree-docs.ps1 seeded (current-work.md, steg-tracker.md,
+  #       tech-debt.md — the three §1.5 REQUIRES every session to touch). Copying over
+  #       the main copy would clobber a peer lane's block; skipping it silently would
+  #       destroy this session's. So: REFUSE TO REAP and say which file. Doubt resolves
+  #       to skip, never to "probably fine" (ADR 0094, Saltzer & Schroeder 1975).
+  # If the rescue cannot complete at all, skip too. A destroy that proceeds past a failed
+  # rescue is the same bug wearing a seatbelt.
+  _resc_fail=""
+  _resc_conflict=""
+  if [ -z "$MAIN_TOP" ] || [ ! -d "$MAIN_TOP" ]; then
+    _resc_fail="cannot locate the main copy"
+  else
+    # The pathspec is an ARRAY, never a string. .worktreeinclude carries GLOBS
+    # (docs/decisions/00[789][0-9]-*.md), and an UNQUOTED string is pathname-expanded by
+    # BASH against the CWD — the MAIN COPY — before git ever sees it. Git would then be
+    # handed the main copy's ADR filenames as the pathspec, the worktree's own ADR would
+    # never be enumerated, never rescued, and reaped. Measured, not theorised.
+    declare -a _wi=()
+    _wi_n=0
+    while IFS= read -r _line || [ -n "$_line" ]; do
+      _line="${_line#"${_line%%[![:space:]]*}"}"        # ltrim
+      _line="${_line%"${_line##*[![:space:]]}"}"        # rtrim
+      case "$_line" in ''|'#'*) continue ;; esac
+      _wi+=("$_line"); _wi_n=$((_wi_n + 1))
+    done < "$MAIN_TOP/.worktreeinclude" 2>/dev/null
+    if [ "$_wi_n" -eq 0 ]; then
+      _resc_fail=".worktreeinclude unreadable/empty"    # cannot rescue -> must not destroy
+    else
+      # NUL-delimited. `ls-files` WITHOUT -z C-quotes any path holding a space or a
+      # non-ASCII byte (core.quotePath defaults to true), and an unquoted $(...) then
+      # word-splits it — so "Skogsägarna AB.md" and "cto report.md" were enumerated,
+      # silently failed to copy, and the reap proceeded anyway. In a Swedish repo whose
+      # docs/ already holds "Reklamfilm LinkedIn.mp4", that is not hypothetical.
+      # -z + read -d '' removes the whole class. Process substitution (not a pipeline)
+      # keeps the loop in THIS shell, so _resc_fail survives it.
+      while IFS= read -r -d '' _rel; do
+        if [ ! -f "$W/$_rel" ]; then
+          # Enumerated but unreadable. That is an ANOMALY, and an anomaly must never read
+          # as "nothing to do" — the old `|| continue` here is what let 2 of 6 files be
+          # dropped while the reap went ahead. Doubt resolves to skip.
+          _resc_fail="enumerated but unreadable: $_rel"; break
+        fi
+        if [ -f "$MAIN_TOP/$_rel" ]; then
+          if ! cmp -s -- "$W/$_rel" "$MAIN_TOP/$_rel" 2>/dev/null; then
+            _resc_conflict="$_rel"; break                # case (b) — refuse, see above
+          fi
+          continue                                       # identical -> nothing to save
+        fi
+        if [ "$REAP_MODE" = "live" ]; then               # case (a)
+          mkdir -p "$MAIN_TOP/$(dirname -- "$_rel")" 2>/dev/null || { _resc_fail="mkdir $_rel"; break; }
+          cp -- "$W/$_rel" "$MAIN_TOP/$_rel" 2>/dev/null || { _resc_fail="cp $_rel"; break; }
+          RESCUED_LIST+="  rescued: $_rel  (from $W)"$'
+'
+        else
+          RESCUED_LIST+="  would rescue: $_rel  (from $W)"$'
+'
+        fi
+        RESCUED_N=$((RESCUED_N + 1))
+      done < <(git -C "$W" ls-files -z --others -- "${_wi[@]}" 2>/dev/null)
+    fi
+  fi
+  if [ -n "$_resc_conflict" ]; then
+    _skip "$W" "UNLANDED EDIT: $_resc_conflict differs from the main copy — land it there, then reap"
+    continue
+  fi
+  if [ -n "$_resc_fail" ]; then
+    _skip "$W" "rescue FAILED ($_resc_fail) — refusing to reap"
+    continue
+  fi
+  # ─────────────────────────────────────────────────────────────────────────────────
+
   if [ "$REAP_MODE" = "live" ]; then
     # Bounded, local, recoverable ops only. Order is idempotent / re-runnable.
     # `git worktree remove` runs WITHOUT --force so it still refuses a genuinely dirty
-    # tree; the marker is gitignored (every marked worktree was created after the ignore
-    # merged), so it does not block the removal. We deliberately do NOT delete the marker
+    # tree — but ONLY as git counts dirt: the marker is gitignored, so it does not block
+    # the removal, and NEITHER DOES ANYTHING ELSE GITIGNORED. That is not a footnote, it
+    # is the whole reason the RESCUE block above has to exist and has to run first.
+    # We deliberately do NOT delete the marker
     # first: on a Windows-lock double-failure the marker must survive so the next run
     # re-evaluates the leftover instead of skipping it forever as "no-marker".
     if ! git worktree remove -- "$W" 2>/dev/null; then
@@ -167,25 +265,87 @@ for i in "${!WT_PATHS[@]}"; do
   fi
 done
 
+# --- (3) READ-ONLY hygiene reports (#900, 2026-07-14) --------------------------------
+# These report. They never mutate anything — so they run in BOTH modes and sit INSIDE
+# Klas's dry ratchet, and they start paying immediately.
+#
+# They exist because the loop above structurally cannot see three of the four failures
+# the 2026-07-14 hygiene pass measured, and because the alternative — "remember to check"
+# — is not a fix for a failure mode whose mechanism IS forgetting:
+#
+#   * 44 dead local + 44 dead remote branches. The reaper iterates `git worktree list`;
+#     a branch whose worktree is already gone is INVISIBLE to it. That is exactly why 44
+#     accumulated. Key on the BRANCH.
+#   * #899 went BEHIND minutes after a sibling merged. Automerge does not rebase, so it
+#     would have sat there with green ci forever. An in-session watch cannot catch this:
+#     ADR 0094 established that a PR usually merges AFTER its session has ended.
+#   * #800/#801 shipped and kept their `wip` claim for two days. Nine `wip` claims against
+#     four running CCs.
+#
+# Fail-safe and quiet: no gh, no network, no auth -> emit nothing. Never a false alarm.
+HYGIENE=""
+if command -v gh >/dev/null 2>&1; then
+  # (a) branches whose PR is merged — keyed on the branch, so worktree-less strays show up.
+  _dead_local=""
+  while IFS= read -r _b; do
+    [ -z "$_b" ] || [ "$_b" = "main" ] && continue
+    _m="$(gh pr list --head "$_b" --state merged --json number --jq '.[0].number' 2>/dev/null || true)"
+    case "$_m" in ''|*[!0-9]*) continue ;; esac
+    _dead_local="${_dead_local}      - $_b (PR #$_m)"$'\n'
+  done < <(git branch --format='%(refname:short)' 2>/dev/null)
+  [ -n "$_dead_local" ] && HYGIENE="${HYGIENE}    dead local branches (PR merged — 'git branch -D', and 'git push origin --delete'):"$'\n'"${_dead_local}"
+
+  # (b) your own open PRs that are not merely waiting on green CI. BEHIND is the silent
+  #     one: automerge will never rebase it, and nothing tells you.
+  _stuck="$(gh pr list --author '@me' --state open --json number,title,mergeStateStatus \
+              --jq '.[] | select(.mergeStateStatus=="BEHIND" or .mergeStateStatus=="DIRTY") | "      - #\(.number) \(.mergeStateStatus) — \(.title[0:52])"' 2>/dev/null || true)"
+  [ -n "$_stuck" ] && HYGIENE="${HYGIENE}    stuck PRs (BEHIND -> 'gh pr update-branch <n>'; DIRTY -> resolve on the branch):"$'\n'"${_stuck}"$'\n'
+
+  # (c) claims nobody released: a `wip` issue you hold whose linked PR already merged.
+  _stale=""
+  while IFS= read -r _n; do
+    [ -z "$_n" ] && continue
+    _has_open="$(gh pr list --state open --search "#$_n in:body" --json number --jq 'length' 2>/dev/null || echo 0)"
+    [ "$_has_open" != "0" ] && continue
+    _m="$(gh pr list --state merged --search "#$_n in:body" --json number --jq 'length' 2>/dev/null || echo 0)"
+    [ "$_m" = "0" ] && continue
+    _stale="${_stale}      - #$_n"$'\n'
+  done < <(gh issue list --state open --label wip --assignee '@me' --json number --jq '.[].number' 2>/dev/null || true)
+  [ -n "$_stale" ] && HYGIENE="${HYGIENE}    stale claims (wip + merged PR, no open PR — verify, then 'gh issue close' + drop wip):"$'\n'"${_stale}"
+fi
+
 # --- report ------------------------------------------------------------------------
 # Always append to the gitignored log (even an all-skip run) so the dry-run observation
 # phase that gates the live ratchet has a complete audit trail, incl. every skip reason.
 mkdir -p docs/sessions 2>/dev/null || true
 {
-  echo "$(date -Iseconds 2>/dev/null) reaper mode=${REAP_MODE} reaped=${REAPED_N} remote=${REMOTE_N} skipped=${SKIPPED_N}"
-  printf '%s%s' "$REAPED_LIST" "$SKIPPED_LIST"
+  echo "$(date -Iseconds 2>/dev/null) reaper mode=${REAP_MODE} reaped=${REAPED_N} rescued=${RESCUED_N} remote=${REMOTE_N} skipped=${SKIPPED_N}"
+  printf '%s%s%s' "$RESCUED_LIST" "$REAPED_LIST" "$SKIPPED_LIST"
 } >> "$LOG" 2>/dev/null || true
 
 # Only surface to the session (stdout) when there is something actionable, to avoid
 # noise on the common all-skip start.
-if [ "$REAPED_N" -gt 0 ] || [ "$REMOTE_N" -gt 0 ]; then
+if [ "$REAPED_N" -gt 0 ] || [ "$REMOTE_N" -gt 0 ] || [ "$RESCUED_N" -gt 0 ] || [ -n "$HYGIENE" ] || [ "$SKIPPED_N" -gt 0 ]; then
   echo ""
   echo "== Worktree-reaper (${REAP_MODE}) =="
   [ "$REAP_MODE" = "dry" ] && echo "  (observe-only — sätt JBL_WORKTREE_REAP=live för att faktiskt städa)"
+  [ "$RESCUED_N" -gt 0 ] && printf '%s' "$RESCUED_LIST"
   [ "$REAPED_N" -gt 0 ] && printf '%s' "$REAPED_LIST"
   if [ "$REMOTE_N" -gt 0 ]; then
     echo "  remote-grenar att städa manuellt (git push origin --delete, aldrig automatiskt):"
     printf '%s' "$REMOTE_LIST"
+  fi
+  # A skip carrying UNLANDED EDIT is not noise — it means a worktree holds session state
+  # (current-work.md / steg-tracker.md / tech-debt.md) that exists nowhere else. Surface it.
+  _unlanded="$(printf '%s' "$SKIPPED_LIST" | grep -F 'UNLANDED EDIT' || true)"
+  if [ -n "$_unlanded" ]; then
+    echo "  ⚠ EJ LANDAD SESSION-STATE (rivs inte förrän den landat i huvudkopian):"
+    printf '%s
+' "$_unlanded"
+  fi
+  if [ -n "$HYGIENE" ]; then
+    echo "  hygien (read-only — CLAUDE.md §6.5):"
+    printf '%s' "$HYGIENE"
   fi
 fi
 

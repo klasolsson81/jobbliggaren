@@ -1,0 +1,33 @@
+{
+  "//": "TEMPLATE — copy to appsettings.Local.json (gitignored) and fill in. The API AND Worker",
+  "//1": "fail-fast on startup (Options ValidateOnStart in Infrastructure DI): a missing key throws",
+  "//2": "OptionsValidationException naming exactly which one. This file lists every key that is",
+  "//3": "required for the local stack to boot, so you do not discover them one crash at a time.",
+  "//4": "Secrets here are STABLE and SHARED: the same FieldEncryption key and AuditPseudonymization",
+  "//5": "pepper must be used by the API and the Worker, and must not change against a dev DB that",
+  "//6": "already holds data encrypted/pseudonymized under them (see runbook local-dev-setup.md §7).",
+
+  "FieldEncryption": {
+    "//": "PII field encryption (ADR 0066, AES-256-GCM). Local for dev; Kms only in ops. Without",
+    "//1": "Provider=Local a worktree launch defaults to Kms and 500s trying to reach AWS (#802).",
+    "//2": "Do NOT regenerate LocalMasterKeyBase64 against a dev DB with existing encrypted PII —",
+    "//3": "data encrypted under the old key becomes unreadable.",
+    "Provider": "Local",
+    "LocalMasterKeyBase64": "GENERATE ONCE: openssl rand -base64 32"
+  },
+
+  "AuditPseudonymization": {
+    "//": "Art. 17 erasure audit-trail pseudonymization pepper (ADR 0090 D5, #842). Required since",
+    "//1": "2026-07-14; the API refuses to start without it.",
+    "PepperBase64": "GENERATE ONCE: openssl rand -base64 32"
+  },
+
+  "Email": {
+    "//": "Dev default is Console (ConsoleEmailSender — mail is written to the log, no key needed).",
+    "//1": "Set Provider=Resend + a real ApiKey only to exercise the live e-mail path (ADR 0080).",
+    "Provider": "Console",
+    "ApiKey": "",
+    "FromAddress": "no-reply@localhost",
+    "FromName": "Jobbliggaren (dev)"
+  }
+}

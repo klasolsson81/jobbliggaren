@@ -262,10 +262,13 @@ public static class JobAdsEndpoints
         })
         .RequireRateLimiting(RateLimitingExtensions.TaxonomyReadPolicy);
 
+        // #842 — 404 (never held) and 410 (erased under Art. 17) are different answers, and the
+        // central DomainError→status mapper already knows both (ErrorKind.NotFound / .Gone).
+        // No endpoint-local status matching (CLAUDE.md §3).
         group.MapGet("/{id:guid}", async (Guid id, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new GetJobAdQuery(id), ct);
-            return result is null ? Results.NotFound() : Results.Ok(result);
+            return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemResult();
         })
         .RequireRateLimiting(RateLimitingExtensions.ListReadPolicy);
 

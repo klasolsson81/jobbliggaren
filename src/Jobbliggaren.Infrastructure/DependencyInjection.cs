@@ -1036,6 +1036,30 @@ public static class DependencyInjection
             Jobbliggaren.Application.JobAds.Abstractions.IJobAdSearchQuery,
             JobAds.JobAdSearchQuery>();
 
+        // #842 / ADR 0106 Tier B — the matching behind the Art. 17 erasure command (the channels are
+        // documented on the port; do not restate them here). Infrastructure for the same reason as
+        // IJobAdSearchQuery above: FTS, the jsonb::text cast and the ARE regex are Npgsql concerns,
+        // arch-test-forbidden in Application.
+        services.AddScoped<
+            Jobbliggaren.Application.JobAds.Abstractions.IRecruiterErasureMatchQuery,
+            JobAds.RecruiterErasureMatchQuery>();
+
+        // #842 — HMAC-SHA256(server pepper) for the Art. 17 audit payload (ADR 0090 D5).
+        // Singleton: the pepper is read once and the instance is stateless.
+        //
+        // Fail-closed startup: a missing or short pepper aborts boot in EVERY environment (mirrors
+        // FieldEncryptionOptions). An HMAC under a weak or absent key looks protected while being
+        // reversible, so a silently-tolerated default would be worse than no pseudonymisation at all.
+        services.AddOptions<Security.AuditPseudonymizationOptions>()
+            .Bind(configuration.GetSection(Security.AuditPseudonymizationOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<
+            Microsoft.Extensions.Options.IValidateOptions<Security.AuditPseudonymizationOptions>,
+            Security.AuditPseudonymizationOptionsValidator>();
+        services.AddSingleton<
+            Jobbliggaren.Application.Common.Security.IIdentifierPseudonymizer,
+            Security.HmacIdentifierPseudonymizer>();
+
         // F4-14 (ADR 0076 Decision 4/5) — IPerUserJobAdSearchQuery: den
         // per-användar-match-sorten ("Sortera efter matchning"). SEPARAT port från
         // IJobAdSearchQuery (som förblir match-ren/cachebar) men delar filter-SPOT:en

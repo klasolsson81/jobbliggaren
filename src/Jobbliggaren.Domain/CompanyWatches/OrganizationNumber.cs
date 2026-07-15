@@ -67,6 +67,54 @@ public sealed record OrganizationNumber
     public static OrganizationNumber FromTrusted(string value) => new(value);
 
     /// <summary>
+    /// Interprets a free-form identifier as an org.nr, if it is one, normalising the WRITTEN
+    /// forms a person actually uses to the stored 10-digit form (#842 CTO ruling 2026-07-14:
+    /// org.nr/personnummer is a first-class Art. 17 identifier — an enskild firma's org.nr IS
+    /// her personnummer, and every stored copy is 10 digits, no hyphen). Returns
+    /// <see langword="null"/> for anything that is not org.nr-shaped, so the caller falls back
+    /// to free-text matching — never to a guess.
+    /// </summary>
+    /// <remarks>
+    /// Accepted written forms, each normalised through <see cref="Create"/> (the format stays
+    /// single-sourced — this method only undoes PRESENTATION, it never widens the format):
+    /// <list type="bullet">
+    /// <item><c>5560125790</c> — the stored form.</item>
+    /// <item><c>556012-5790</c> — the canonical hyphenated form, shared by org.nr and
+    /// personnummer (<c>YYMMDD-NNNN</c>). Round 5's arm missed exactly this: the hyphenated
+    /// request never matched the stored form, silently.</item>
+    /// <item><c>195601257901</c> / <c>19560125-7901</c> — the century-prefixed personnummer
+    /// form; the stored org.nr never carries the century, so it is stripped.</item>
+    /// </list>
+    /// The <c>+</c> century separator (persons over 100) is deliberately not handled: an
+    /// unrecognised form falls back to free-text matching and the operator sees zero rows on
+    /// the mandatory dry run — an honest miss, not a silent one.
+    /// </remarks>
+    public static OrganizationNumber? TryFromWrittenForm(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var digits = value.Trim();
+
+        // One hyphen, immediately before the last four digits — the only written position.
+        var hyphen = digits.LastIndexOf('-');
+        if (hyphen >= 0 && hyphen == digits.Length - 5)
+            digits = digits.Remove(hyphen, 1);
+
+        // The century prefix of a 12-digit personnummer; the stored form is always 10.
+        if (digits.Length == 12
+            && digits.All(char.IsAsciiDigit)
+            && (digits.StartsWith("19", StringComparison.Ordinal)
+                || digits.StartsWith("20", StringComparison.Ordinal)))
+        {
+            digits = digits[2..];
+        }
+
+        var result = Create(digits);
+        return result.IsSuccess ? result.Value : null;
+    }
+
+    /// <summary>
     /// True when this 10-digit value is shaped like a Swedish personnummer (i.e. a potential
     /// enskild-firma org.nr that equals the owner's national identity number) and MUST be
     /// flagged/masked at any surfacing/log boundary (ADR 0087 D8(c)).

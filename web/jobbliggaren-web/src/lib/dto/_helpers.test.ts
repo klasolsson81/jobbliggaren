@@ -223,6 +223,28 @@ describe("responseToResult", () => {
     if (result.kind === "ok") expect(result.data).toEqual({ id: "abc" });
   });
 
+  // ── 410 Gone — en annons raderad enligt artikel 17 (#842) ────────────────────
+  //
+  // Utan `|| res.status === 410` foll den igenom till `!res.ok` och blev
+  // `{ kind: "error" }`, vilket renderas som "nagot gick fel, ladda om sidan" --
+  // om en sida som ALDRIG kommer tillbaka. Fixen hade noll tester; det har testet
+  // doedar den muteringen.
+  it("returns { kind: 'notFound' } on 410 Gone when includeNotFound is set", async () => {
+    const res = mkResponse(null, 410);
+    const result = await responseToResult(res, schema, "test", {
+      includeNotFound: true,
+    });
+    expect(result).toEqual({ kind: "notFound" });
+  });
+
+  // 410 utan includeNotFound beter sig som 404 utan den: ett generiskt fel. Vi
+  // vidgar inte kontraktet for anropsstallen som inte har bett om det.
+  it("returns { kind: 'error' } on 410 when includeNotFound is NOT set", async () => {
+    const res = mkResponse(null, 410);
+    const result = await responseToResult(res, schema, "test");
+    expect(result).toEqual({ kind: "error" });
+  });
+
   it("returns { kind: 'unauthorized' } on 401", async () => {
     const res = mkResponse(null, 401);
     const result = await responseToResult(res, schema, "test");

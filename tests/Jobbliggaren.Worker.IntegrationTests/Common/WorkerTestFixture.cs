@@ -36,6 +36,11 @@ public sealed class WorkerTestFixture : IAsyncLifetime
     internal static readonly string TestMasterKeyBase64 =
         Convert.ToBase64String(Enumerable.Range(0, 32).Select(i => (byte)i).ToArray());
 
+    // #842 — deterministic 32-byte test pepper, distinct from the master key so a test can
+    // never pass by accidentally peppering with the encryption key. Runtime-generated, no literal.
+    internal static readonly string TestAuditPepperBase64 =
+        Convert.ToBase64String([.. Enumerable.Range(100, 32).Select(i => (byte)i)]);
+
     /// <summary>
     /// ADR 0066 — räknande <see cref="Application.Common.Security.IDataKeyProvider"/>-
     /// dekoratör runt den riktiga <c>LocalDataKeyProvider</c> som hela
@@ -62,6 +67,14 @@ public sealed class WorkerTestFixture : IAsyncLifetime
                 // nedan). Provider="Local" är default men sätts explicit här.
                 ["FieldEncryption:Provider"] = "Local",
                 ["FieldEncryption:LocalMasterKeyBase64"] = TestMasterKeyBase64,
+
+                // #842 — AddPersistence now also registers AuditPseudonymizationOptions with
+                // .ValidateOnStart(), fail-closed in ALL environments. No Worker test sends a
+                // Mediator message today, so AuditBehavior (which injects the pseudonymiser) is
+                // never constructed and the gap is invisible — until the first Worker test that
+                // does, which would explode with an OptionsValidationException pointing nowhere
+                // near this fixture. Set it now, not after the confusing failure.
+                ["AuditPseudonymization:PepperBase64"] = TestAuditPepperBase64,
             })
             .Build();
 

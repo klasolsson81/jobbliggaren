@@ -87,6 +87,22 @@ curl -I http://localhost:5341
 
 Öppna http://localhost:5341 i webbläsaren för Seq-dashboarden.
 
+### 2.4 App-config (krävs innan .NET-stacken startar)
+
+Docker-tjänsterna ovan räcker inte — API:t och Worker:n fail-fast-validerar flera options
+vid start. Kopiera config-mallen och fyll i:
+
+```bash
+cp src/Jobbliggaren.Api/appsettings.Local.json.example src/Jobbliggaren.Api/appsettings.Local.json
+# generera de två nycklarna och klistra in dem i filen:
+openssl rand -base64 32   # → FieldEncryption:LocalMasterKeyBase64
+openssl rand -base64 32   # → AuditPseudonymization:PepperBase64
+```
+
+`appsettings.Local.json` är gitignored — committa aldrig. Mallen (`.example`) är spårad och är
+källan till sanning för *vilka* lokala nycklar som krävs; hamnar en ny obligatorisk option i
+`ValidateOnStart` ska den läggas till i mallen samtidigt. Att starta .NET-stacken: §7.
+
 ---
 
 ## 3. Test-profilen
@@ -234,6 +250,24 @@ Alla tre startas av CC som bakgrundsprocesser.
    sidan svarar 200 men **login misslyckas** och landing visar **fallback-siffror**
    (t.ex. "40 000" / "0" i stället för verkliga ~42 700 / 105). Detta såg ut som
    "servern är nere" 2026-06-13.
+4. **Obligatorisk lokal config saknas → `OptionsValidationException` vid start.**
+   API:t OCH Worker:n fail-fast-validerar flera options (`ValidateOnStart` i
+   Infrastructure-DI). En saknad nyckel kraschar starten och NAMNGER exakt vilken.
+   `appsettings.Local.json` (gitignored, i `src/Jobbliggaren.Api/`) måste innehålla
+   `FieldEncryption` + `AuditPseudonymization` (+ `Email`). **Kopiera
+   `appsettings.Local.json.example` → `appsettings.Local.json` och generera nycklarna**
+   (`openssl rand -base64 32`). `AuditPseudonymization:PepperBase64` tillkom 2026-07-14
+   (ADR 0090 D5, #842) och är den senast tillkomna — en dev-DB som konfigurerades före
+   dess saknar den. Utan `FieldEncryption:Provider=Local` defaultar en worktree-start
+   dessutom till Kms och 500:ar mot AWS (#802).
+5. **Worker läser `DOTNET_ENVIRONMENT`, INTE `ASPNETCORE_ENVIRONMENT`.** Worker:n är en
+   generic host (`Host.CreateApplicationBuilder`), inte en web-host. Sätter du bara
+   `ASPNETCORE_ENVIRONMENT` kör Worker:n i **Production** och laddar fel appsettings.
+   Och Worker:n har **ingen egen** `appsettings.Local.json` men validerar samma
+   Infrastructure-options som API:t → den behöver `FieldEncryption`- och
+   `AuditPseudonymization`-secrets via env, **lästa ur API:ts `appsettings.Local.json`
+   så de MATCHAR** (olika nycklar ⇒ API och Worker kan inte läsa varandras
+   krypterade/pseudonymiserade data).
 
 ### Portar (matchar `docker-compose.yml`)
 
@@ -247,18 +281,33 @@ Alla tre startas av CC som bakgrundsprocesser.
 ### Start / omstart (Git Bash, från repo-roten)
 
 ```bash
-# Förkrav: docker compose up -d (Postgres/Redis/Seq uppe — §2).
+# Förkrav: docker compose up -d (Postgres/Redis/Seq uppe — §2)
+#          + src/Jobbliggaren.Api/appsettings.Local.json ifylld (fälla 4 + .example-mallen).
 PW=$(grep -E '^POSTGRES_PASSWORD_DEV=' .env | cut -d= -f2-)
 export ConnectionStrings__Postgres="Host=localhost;Port=5435;Database=jobbliggaren;Username=jobbliggaren;Password=$PW"
 export ConnectionStrings__Redis="localhost:6379"
 export ASPNETCORE_ENVIRONMENT=Development
+export DOTNET_ENVIRONMENT=Development                 # Worker är generic host (fälla 5)
 
-# API + Worker (.NET) — starta var och en som bakgrundsprocess (CC: Bash run_in_background).
-dotnet run --project src/Jobbliggaren.Api --launch-profile http   # → http://localhost:5049
-dotnet run --project src/Jobbliggaren.Worker                      # Hangfire, ingen HTTP-yta
+# 0. SCHEMA: efter en sync till origin/main kan det finnas nya migrationer. Kör dem mot dev-DB:n
+#    FÖRE start, annars kör appen mot ett stale schema (42P01 / fel resultat). Single-owner:
+#    bara stack-ägaren rör dev-DB:ns schema (§6.5 — migration = farligaste hotspoten).
+dotnet ef database update --project src/Jobbliggaren.Infrastructure --startup-project src/Jobbliggaren.Api --context AppDbContext
+dotnet ef database update --project src/Jobbliggaren.Infrastructure --startup-project src/Jobbliggaren.Api --context Jobbliggaren.Infrastructure.Identity.AppIdentityDbContext
 
-# FE (Next dev) — MÅSTE ha BACKEND_URL, annars login/stats-fel (fälla 3):
-cd web/jobbliggaren-web && BACKEND_URL=http://localhost:5049 pnpm dev   # → http://localhost:3000
+# 1. Bygg EN gång → båda .NET-processerna kör --no-build (eliminerar build-racet API↔Worker).
+dotnet build Jobbliggaren.sln -c Debug
+
+# 2. Worker-secrets via env, lästa ur API:ts Local.json så de MATCHAR (fälla 5). API:t läser
+#    sin egen Local.json och behöver dem inte — men global export skadar inte (samma värden).
+export FieldEncryption__Provider=Local
+export FieldEncryption__LocalMasterKeyBase64=$(python -c "import json;print(json.load(open('src/Jobbliggaren.Api/appsettings.Local.json'))['FieldEncryption']['LocalMasterKeyBase64'])")
+export AuditPseudonymization__PepperBase64=$(python -c "import json;print(json.load(open('src/Jobbliggaren.Api/appsettings.Local.json'))['AuditPseudonymization']['PepperBase64'])")
+
+# 3. API FÖRST (bakgrund) → invänta /api/ready=200 → sedan Worker + FE (bakgrund).
+dotnet run --project src/Jobbliggaren.Api --launch-profile http --no-build   # → http://localhost:5049
+dotnet run --project src/Jobbliggaren.Worker --no-build                      # Hangfire, ingen HTTP-yta
+cd web/jobbliggaren-web && BACKEND_URL=http://localhost:5049 pnpm dev        # → http://localhost:3000 (fälla 3)
 ```
 
 Hänger en gammal instans på porten: `netstat -ano | grep ':5049.*LISTENING'` →
@@ -270,10 +319,20 @@ PID + `rm -rf .next` + omstart (kodbugg uteslöts om `pnpm build` är grön; mem
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5049/api/ready  # → 200 (+ /api/live)
-curl -s http://localhost:5049/api/v1/landing/stats                        # → {"activeCount":...,"newToday":...}
-curl -s http://localhost:3000/ | grep -oE 'stat__num">[^<]*'              # → riktiga siffror, EJ "40 000"/"0"
+curl -s http://localhost:5049/api/v1/landing/stats                        # → {"activeCount":...,"newToday":...,"isStale":false}
+curl -s http://localhost:3000/ | grep -oE 'jp-head__stat-num[^>]*>[^<]*'  # → riktiga siffror (tusental = NBSP), EJ "40 000"/"0"
 tail -3 /c/tmp/worker-dev.log                                             # → "...Job: klart — ..."
+
+# Jobbannonser LIVE: Worker:ns sync-platsbanken-stream (cron */10) håller dem färska mot JobTech.
+docker exec jobbliggaren-postgres-dev psql -U jobbliggaren -d jobbliggaren -tAc \
+  "SELECT field||'='||value FROM hangfire.hash WHERE key='recurring-job:sync-platsbanken-stream' AND field IN ('Cron','LastExecution');"
+docker exec jobbliggaren-postgres-dev psql -U jobbliggaren -d jobbliggaren -tAc \
+  "SELECT count(*) FILTER (WHERE status='Active')||' aktiva / '||count(*)||' totalt' FROM job_ads;"
 ```
+
+> **`jp-head__stat-num`, inte `stat__num`** (klassen bytte namn) — och tusenavskiljaren är en
+> NBSP, så en literal `grep '40 382'` missar den. Att siffran är närvarande + `isStale:false` +
+> `BACKEND_URL` satt = FE:t renderar verklig data, inte fallback.
 
 ### EJ i stacken
 

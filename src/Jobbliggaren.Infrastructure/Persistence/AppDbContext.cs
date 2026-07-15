@@ -42,6 +42,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // #884 / ADR 0110 — EF-modelled rather than raw CREATE COLLATION, so it lives in the model
+        // snapshot: an unmodelled collation object is invisible to the differ, and the next
+        // `migrations add` would happily emit a DROP COLLATION for it. HasCollation is a model-level
+        // API, so it has to live here and not in an IEntityTypeConfiguration.
+        modelBuilder.HasCollation(
+            Collations.Swedish, locale: "sv-SE", provider: "icu", deterministic: true);
+
         modelBuilder.ApplyConfigurationsFromAssembly(
             typeof(AppDbContext).Assembly,
             t => t.Namespace?.StartsWith(

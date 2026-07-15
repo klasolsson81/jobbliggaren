@@ -26,9 +26,13 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// <item>Per-key <see cref="FullMatchScore"/> EQUALS <see cref="IMatchScorer.ScoreFullAsync"/>
 /// for that ad + the same profile — the four embedded Fast dims AND the three new dims
 /// (SkillOverlap / MustHaveCoverage / NiceToHaveCoverage).</item>
-/// <item>Missing / non-existent ids are SILENTLY OMITTED (an ARCHIVED ad is NOT missing: it is
-/// scored -- known gap #864). (no
-/// NotFoundException — parity <c>ScoreBatchAsync</c>).</item>
+/// <item>Missing / non-existent ids are SILENTLY OMITTED (no NotFoundException — parity
+/// <c>ScoreBatchAsync</c>).</item>
+/// <item><b>An ARCHIVED ad IS "missing" to this family</b> (#864, CTO D2 S-split): the batch
+/// composes <c>.Where(j =&gt; j.Status == JobAdStatus.Active)</c> onto the <c>FromSql</c>, so an
+/// archived ad is omitted exactly like a non-existent id. This is the batch the client-supplied-id
+/// endpoint feeds — the surface where the gap was reachable. <see cref="IMatchScorer.ScoreFullAsync"/>
+/// (SINGLE) deliberately does NOT gate: the detail page still explains an archived ad (#805-3).</item>
 /// <item>Empty id list → empty dict (no query).</item>
 /// </list>
 /// </para>
@@ -356,7 +360,8 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
     }
 
     // =================================================================
-    // 9. Missing ids omitted (an ARCHIVED ad is NOT omitted -- #864); empty ids → empty dict
+    // 9. Missing ids omitted -- and an ARCHIVED ad IS "missing" to this family (#864);
+    //    empty ids → empty dict
     // =================================================================
 
     [Fact]
@@ -382,26 +387,29 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
     }
 
     // =================================================================
-    // CHARACTERIZATION TEST (#864) - NOT a specification. It asserts what the code
-    // ACTUALLY DOES today, so the gap cannot be forgotten (Feathers 2004, ch. 13).
+    // SPECIFICATION (#864) - an ARCHIVED ad is MISSING to the batch family.
     //
-    // MatchScorer has NO Status gate; its exclusion story was delegated entirely to
-    // JobAd's global soft-delete query filter, which was VACUOUS (DeletedAt never had
-    // a writer) and is now retired (#821). An ARCHIVED ad is scored and tagged in
-    // production, today. The predecessor of this test fabricated DeletedAt via
-    // db.Entry(...) - a state production could never reach - and asserted omission:
-    // green forever, proving nothing (#843 test fiction).
+    // This was a CHARACTERIZATION test (Feathers 2004, ch. 13) asserting the opposite - that an
+    // archived ad WAS fully scored - and it said: "when #864 is fixed, this goes RED; rewrite it
+    // as a specification." #864 landed (CTO D2, S-split). This is that specification.
     //
-    // WHEN #864 IS FIXED, THIS TEST GOES RED. That is the signal to rewrite it as a
-    // specification, not to patch it back to green.
+    // The contract: on the BATCH family "missing" = the row does not exist OR the ad is not
+    // Active. This is the batch the client-supplied-id endpoint (POST /me/job-ad-match-tags)
+    // feeds - the surface where the gap was actually reachable. The SINGLE family deliberately
+    // still scores archived ads (the detail page, #805-3).
+    //
+    // ASYMMETRIC SEED (2 live + 1 archived): a 1+1 seed's cardinality reads 1 under BOTH the
+    // correct gate and an INVERTED one (`== Archived`) - blind to polarity. With 2+1: correct
+    // → 2, deleted → 3, inverted → 1.
     // =================================================================
     [Fact]
-    public async Task ScoreFullBatch_WithArchivedAd_StillScoresIt_KnownGap_Issue864()
+    public async Task ScoreFullBatch_OmitsArchivedAd_ScoringOnlyTheActiveOnes()
     {
         var ct = TestContext.Current.CancellationToken;
         var grp = NewConceptId("grp");
         var terms = ExtractedTerms.From([SkillTerm(CSharpConceptId, CSharpDisplay)]);
-        var live = await SeedJobAdAsync("Systemutvecklare", grp, null, null, terms, ct);
+        var live1 = await SeedJobAdAsync("Systemutvecklare", grp, null, null, terms, ct);
+        var live2 = await SeedJobAdAsync("Backendutvecklare", grp, null, null, terms, ct);
         var archived = await SeedJobAdAsync("Arkitekt", grp, null, null, terms, ct);
         await ArchiveAsync(archived, ct);
 
@@ -410,14 +418,20 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
         var (scope, scorer) = NewScorer();
         using var _ = scope;
 
-        var batch = await scorer.ScoreFullBatchAsync([live, archived], profile, ct);
+        var batch = await scorer.ScoreFullBatchAsync([live1, live2, archived], profile, ct);
 
-        batch.ShouldContainKey(live);
+        // NON-VACUITY FIRST (#841): the ACTIVE ads ARE fully scored - otherwise "the archived one
+        // is absent" passes trivially the day the query returns nothing at all.
+        batch.ShouldContainKey(live1);
+        batch.ShouldContainKey(live2);
 
-        // THE GAP (#864): no Status predicate on the Full batch path either - the archived ad is
-        // scored exactly like the live one. Documents the defect; does not bless it.
-        batch.ShouldContainKey(archived,
-            "MatchScorer has no Status gate (#864) - an archived ad is still fully scored.");
+        // THE SPECIFICATION: the archived ad is omitted exactly like a non-existent id.
+        batch.ShouldNotContainKey(archived,
+            "ScoreFullBatchAsync gates on Status == Active (#864): an archived ad is MISSING to " +
+            "the batch family, omitted exactly like a non-existent id.");
+
+        // Polarity: 2, not 1 (inverted gate) and not 3 (gate deleted).
+        batch.Count.ShouldBe(2);
     }
 
     [Fact]

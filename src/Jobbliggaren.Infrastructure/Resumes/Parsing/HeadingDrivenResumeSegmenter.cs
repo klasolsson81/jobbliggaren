@@ -47,16 +47,44 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
 
         var email = FirstEmail(rawText);
         var phone = FirstPhone(rawText);
-        var fullName = DetectName(preamble, blocks);
+
+        // #844: the residue runs BEFORE DetectName, and DetectName reads the RESIDUE.
+        //
+        // A sidebar/rail CV linearizes its contact block onto ONE line ("Anna Andersson |
+        // anna@x.se | 070-123 45 67 | Göteborg"). IsNameLike rejects any line matching EmailRegex,
+        // so that raw line was rejected wholesale and the NAME WAS LOST — a live defect on the most
+        // common two-column layout. After subtraction the surviving fragment is just "Anna
+        // Andersson", and the name is found. The ordering is therefore not a preference: reading the
+        // RAW preamble here would also leak the name into the carrier, which is the thing the
+        // carrier must not contain.
+        var residue = PreambleResidue.Subtract(preamble, _lexicon);
+        var fullName = DetectName(PreambleResidue.NameCandidates(residue), blocks);
 
         // #815: Location was `null` here, hardcoded — city extraction did not exist, so every CV
         // ever imported reported "ort saknas" even when the CV stated the city plainly. The bare-
         // city rung reads ONLY contact scope (contact block + preamble): an employer's city inside
         // an experience entry must never become the person's home (see ContactLocationExtractor).
+        //
+        // NOTE the RAW preamble, deliberately — NOT the residue. The residue SUBTRACTS the bare
+        // kommun (it is one of its consumption terms), so feeding it here would leave the city
+        // claimed by the subtraction and harvested by nobody.
         var contactScope = ContactScopeLines(preamble, blocks);
         var location = ContactLocationExtractor.Extract(rawText, contactScope, _lexicon.LocationLabels);
 
         var contact = new ParsedContact(fullName, email, phone, location);
+
+        // #844: the carrier. Text the CV wrote above its first heading that no contact extractor
+        // claimed — verbatim and UNCLASSIFIED. The engine does not call it a profile: shape cannot
+        // tell a heading-less summary from a tagline, an address block or OCR noise, and guessing
+        // would be the engine inventing a section the user did not write (ADR 0071). It is carried
+        // so the user can decide (ADR 0074) — and so A8 can stop reporting "Profiltext saknas helt."
+        // about a summary she did write.
+        // The contact block is subtracted by POSITION, not by DetectName's answer (CTO bind, Round 3).
+        // A person's name is not recogniser-claimable and never will be, so a recogniser-only
+        // subtraction cannot empty the residue — and the first design papered over that by deleting the
+        // line DetectName GUESSED was the name. That guess deleted a job title on one common layout and
+        // the first line of the user's summary on another. Position can do what identity cannot.
+        var preambleText = PreambleResidue.ToText(residue, out var droppedLineCount);
 
         var profileText = SectionText(blocks, ParsedSectionKind.Profile);
         var experiences = ParseExperiences(blocks);
@@ -65,12 +93,13 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         var languages = ParseList(blocks, ParsedSectionKind.Languages, MaxLanguages);
 
         var content = new ParsedResumeContent(
-            contact, profileText, experiences, educations, skills, languages, freeSections);
+            contact, profileText, experiences, educations, skills, languages, freeSections,
+            preambleText);
 
         var sections = new List<SectionConfidence>
         {
             ContactConfidence(contact),
-            ProfileConfidence(headings, profileText),
+            ProfileConfidence(headings, profileText, preambleText, droppedLineCount),
             ListSectionConfidence(ParsedSectionKind.Experience, headings, experiences.Count),
             ListSectionConfidence(ParsedSectionKind.Education, headings, educations.Count),
             ListSectionConfidence(ParsedSectionKind.Skills, headings, skills.Count),
@@ -270,19 +299,10 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         return match.Success ? match.Value : null;
     }
 
-    /// <summary>
-    /// The shortest and longest digit count a phone number may carry. The floor rejects short
-    /// digit runs; the ceiling is E.164's maximum, and it matters: without it a long numeric run
-    /// (an ID, a reference number) starting with 0 would be accepted as a phone.
-    /// </summary>
-    private const int MinPhoneDigits = 7;
-    private const int MaxPhoneDigits = 15;
-
-    private static bool IsPhoneShaped(string candidate)
-    {
-        var digits = CountDigits(candidate);
-        return digits is >= MinPhoneDigits and <= MaxPhoneDigits;
-    }
+    // #844: the digit-count guard moved to ContactPatterns WITH its pattern. A pattern and its guard
+    // are one recogniser; sharing only the regex would let PreambleResidue subtract things this
+    // segmenter does not call a phone.
+    private static bool IsPhoneShaped(string candidate) => ContactPatterns.IsPhoneShaped(candidate);
 
     private static string? FirstPhone(string text)
     {
@@ -535,13 +555,41 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         return new SectionConfidence(ParsedSectionKind.Contact, level, evidence);
     }
 
+    /// <summary>
+    /// #844: when no Profil heading was detected, the level stays <c>NotFound</c> — that is literally
+    /// true, and stretching it to <c>Degraded</c> would corrupt that level's meaning ("heading
+    /// matched, empty block"). What changes is the EVIDENCE: if unclassified text was carried from
+    /// above the first heading, say so, because "no heading detected" alone let the user believe her
+    /// summary was simply not there.
+    ///
+    /// <para>The evidence is a COUNT, never the text. <c>ParseConfidence</c>'s contract is that its
+    /// evidence cites STRUCTURE, never CV content — the confidence block is not a PII channel.</para>
+    /// </summary>
     private static SectionConfidence ProfileConfidence(
-        List<DetectedHeading> headings, string? profileText)
+        List<DetectedHeading> headings, string? profileText, string? preambleText, int droppedLineCount)
     {
         var heading = MatchedHeading(headings, ParsedSectionKind.Profile);
         if (heading is null)
+        {
+            var evidence = new List<string> { "no heading detected" };
+
+            if (preambleText is { Length: > 0 })
+            {
+                var lineCount = preambleText.Split('\n').Length;
+                evidence.Add($"{lineCount} unclassified line(s) carried from above the first heading");
+            }
+
+            // The contact-block drop is the one place this engine deliberately discards a line the user
+            // wrote (a tagline wedged between the name and the e-mail would land here). It is rare and
+            // it is bounded, but it must be MEASURED rather than argued about — so it is counted, in
+            // the open, every time it happens. A count, never the text: this evidence rides the
+            // parse_confidence column, which is NOT encrypted.
+            if (droppedLineCount > 0)
+                evidence.Add($"text dropped from {droppedLineCount} line(s) as contact-block material");
+
             return new SectionConfidence(
-                ParsedSectionKind.Profile, SectionConfidenceLevel.NotFound, ["no heading detected"]);
+                ParsedSectionKind.Profile, SectionConfidenceLevel.NotFound, evidence);
+        }
 
         return profileText is { Length: > 0 }
             ? new SectionConfidence(
@@ -588,18 +636,6 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     private static string[] SplitLines(string text) =>
         text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
 
-    private static int CountDigits(string text)
-    {
-        var count = 0;
-        foreach (var c in text)
-        {
-            if (char.IsAsciiDigit(c))
-                count++;
-        }
-
-        return count;
-    }
-
     private static string? NullIfEmpty(string value) => value.Length == 0 ? null : value;
 
     /// <summary>
@@ -619,40 +655,19 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         return scope;
     }
 
-    [GeneratedRegex(@"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", RegexOptions.CultureInvariant)]
-    private static partial Regex EmailRegex();
+    // #487 / #844: the shared-form aliases. The date shapes moved to DatePatterns (so the review
+    // engine masks the SAME dates this segmenter extracts); the CONTACT shapes and the inline-glue
+    // glyphs moved to ContactPatterns / InlineSeparators (so PreambleResidue SUBTRACTS exactly what
+    // this segmenter and ContactLocationExtractor RECOGNISE). One knowledge piece, one owner — a
+    // second copy is how a recognition rule grows two homes that disagree (8b.4b, Blocker B1).
+    // Local aliases keep every existing call site unchanged.
+    private static Regex EmailRegex() => ContactPatterns.Email();
 
-    // #815: the previous pattern was @"\+?\d[\d\s()\-]{5,}\d" — "any digit run with separators",
-    // not a phone shape. "2021 - 2024" satisfied it (eight digits), and since FirstPhone takes the
-    // FIRST match in document order, a sidebar CV (whose contact block linearizes AFTER the body)
-    // handed the user an experience DATE RANGE where their mobile number should be. It also only
-    // knew the ASCII hyphen, so "070–123 45 67" (en-dash, what Word and Canva autocorrect produce)
-    // matched from the second group onward and silently dropped the 070 prefix.
-    //
-    // A phone number is anchored: it starts with "+" (international) or a "0" trunk prefix. A year
-    // never does. That single anchor is what separates a phone from a date, a postal code
-    // ("412 58"), and an org number ("556677-8899"). Separators accept the en-dash and the
-    // non-breaking hyphen alongside the ASCII one. The digit COUNT is validated in code (7..15,
-    // E.164's ceiling) rather than in the pattern, so the rule stays readable.
-    // The dash class covers the Unicode dash family (hyphen through horizontal bar),
-    // written as escapes so no literal glyph ever enters the source.
-    [GeneratedRegex(@"(?:\+|\b0)[\d\s()\-\u2010-\u2015]{5,}\d", RegexOptions.CultureInvariant)]
-    private static partial Regex PhoneRegex();
+    private static Regex PhoneRegex() => ContactPatterns.Phone();
 
-    // #487: the date-range / bare-year patterns moved to the shared DatePatterns helper
-    // (Infrastructure/Resumes/Parsing) so the review engine masks the SAME date shapes this
-    // segmenter extracts — one owner, no drift (DRY, CLAUDE.md §9.1). Local aliases keep the
-    // existing call sites (StripTrailingPeriod / ExtractPeriod) unchanged.
     private static Regex DateRangeRegex() => DatePatterns.DateRange();
 
     private static Regex YearRegex() => DatePatterns.Year();
 
-    // #252: list/keyword sections also separate skills by middot, bullet or pipe
-    // ("X · Y · Z", "A • B", "A | B") — not only newline/comma/semicolon. Splitting these
-    // lets each skill resolve independently (parity ParseList's per-token TrimStart of the
-    // same glyphs). Space is deliberately NOT a separator (it would shred multi-word skills
-    // like "ASP.NET Core" / "Clean Architecture"; a space-run still resolves via lexeme-bag
-    // containment in SkillTaxonomyIndex.MatchForms).
-    [GeneratedRegex(@"[\n,;•·|]", RegexOptions.CultureInvariant)]
-    private static partial Regex ListSeparatorRegex();
+    private static Regex ListSeparatorRegex() => InlineSeparators.Pattern();
 }

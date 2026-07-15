@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Applications.Queries;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Domain.JobAds;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -46,7 +47,16 @@ public sealed class ListSavedJobAdsQueryHandler(IAppDbContext db, ICurrentUser c
                 r.s.Id.Value,
                 r.s.JobAdId.Value,
                 r.s.CreatedAt,
-                r.j != null
+                // #842 — an ERASED ad is projected as null, i.e. exactly like a missing one, so it
+                // reuses the orphan row ("Annonsen är borttagen") that already exists below.
+                // Without it, the tombstone renders as a normal card: empty title, company
+                // "[raderad]".
+                //
+                // `!= Erased`, NOT `== Active`: #805-3 deliberately REMOVED the Active filter here so
+                // a saved ad that has since been ARCHIVED still renders. Re-adding it would re-kill
+                // that fix. (The gated/ungated read paths are tabled in ADR 0106 §D9, not enumerated
+                // in a comment.)
+                r.j != null && r.j.Status != JobAdStatus.Erased
                     ? new JobAdSummaryDto(
                         r.j.Id.Value,
                         r.j.Title,

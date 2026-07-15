@@ -39,9 +39,12 @@ public sealed class SaveJobAdCommandHandler(
 
         var jobAdId = new JobAdId(command.JobAdId);
 
+        // #842 — a TOMBSTONE cannot be bookmarked. Reachable from a stale list, an open tab or a
+        // bookmarked URL. Without this, the read side (ListSavedJobAds) renders the new row as the
+        // "Annonsen är borttagen" orphan — a guard apologising for a write we could simply refuse.
         var jobAdExists = await db.JobAds
             .AsNoTracking()
-            .AnyAsync(j => j.Id == jobAdId, cancellationToken);
+            .AnyAsync(j => j.Id == jobAdId && j.Status != JobAdStatus.Erased, cancellationToken);
 
         if (!jobAdExists)
             return Result.Failure(DomainError.NotFound("JobAd", command.JobAdId));

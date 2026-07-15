@@ -157,6 +157,18 @@ public class OrganizationNumberSurfacingGuardTests
         typeof(Jobbliggaren.Application.Companies.Abstractions.CompanyRegistryEntry),
         // #560 PR-2: the browse port's row type — the handler masks it into CompanyBrowseDto.
         typeof(Jobbliggaren.Application.CompanyWatches.Abstractions.CompanyBrowseResult),
+        // #842 round 6: the Art. 17 match port's recent-search row. MatchedEmployerOrgNr is the
+        // NORMALISED org.nr the erasure REQUESTER herself submitted as her identifier, echoed with
+        // the matched row so the operator can review a hard-delete ("a count cannot be reviewed").
+        // It never reaches a Mediator response (the walker below enforces that): the response
+        // carries only the evidence STRINGS the handler derives, and those are flagged through
+        // OrganizationNumber.IsPersonnummerShaped before they surface (EmployerFilterEvidence /
+        // OrgNrEvidence — "(personnummer-format)"). Flag-not-mask is deliberate there: the value is
+        // the operator's own request input coming back, not a disclosure — masking would hide the
+        // string from the person who typed it. This classification makes
+        // IRecruiterErasureMatchQuery a derived carrier-producing port, so the Api project can
+        // never inject it around the handler's evidence derivation.
+        typeof(Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds.ErasureRecentSearchMatch),
     ];
 
     [Fact]

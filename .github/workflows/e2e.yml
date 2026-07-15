@@ -126,6 +126,13 @@ jobs:
       - name: Generate field-encryption master key (Local DEK provider)
         run: echo "FieldEncryption__LocalMasterKeyBase64=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
 
+      # #842 — the Art. 17 audit pepper. AuditPseudonymizationOptionsValidator is fail-closed in
+      # EVERY environment (an HMAC under an absent key looks protected while being trivially
+      # reversible), so without this the API refuses to boot, every E2E spec fails, and `ci`
+      # stays GREEN because this job is observe-only. Same class of silent break as #802.
+      - name: Generate Art. 17 audit pepper
+        run: echo "AuditPseudonymization__PepperBase64=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
       - name: Generate throwaway JWT keys
         run: |
           openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/jwt-private.pem

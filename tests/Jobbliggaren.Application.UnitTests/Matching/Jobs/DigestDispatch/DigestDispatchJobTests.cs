@@ -1243,6 +1243,114 @@ public class DigestDispatchJobTests
     }
 
     // A one-off clock for stamping a match's CreatedAt at a chosen instant.
+    // ═══════════════════════════════════════════════════════════════════════════════════════
+    // #842 — THE TOMBSTONE MUST NOT BE EMAILED.
+    //
+    // An erased ad is a ROW, not a hole: JobAd.Erase() blanks it and leaves it in the table, so
+    // an unguarded join projects Title = "" and Company = "[raderad]" — the tombstone's own marker
+    // — straight into an outbound email. These two joins are the ONLY places in the product where
+    // that marker LEAVES THE SYSTEM BOUNDARY, and until these tests existed you could delete the
+    // display window's Status predicate and the whole suite stayed green. (The predicate was
+    // `!= Erased` in #842 rounds 2..5; #864 superseded it with the `== Active` allow-list, whose
+    // archived-exclusion claims its own tests in this file carry. These two carry the ERASED
+    // claim — remove the predicate entirely and they go red.)
+    //
+    // EF InMemory is the right level HERE and it is not a shortcut: what these tests pin is
+    // BEHAVIOUR (the guard exists, the email omits the ad, the row is still drained). The SQL
+    // TRANSLATION of the identical expression is pinned separately, on real Postgres, by
+    // ErasedAdReadPathTests — because InMemory honours record equality in LINQ-to-objects and
+    // would pass whether or not Npgsql can translate the status predicate.
+    // ═══════════════════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task RunAsync_ErasedAd_IsNOT_emailed_in_the_match_digest_and_the_row_is_still_drained()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+
+        var erasedAd = await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong,
+            "Raderad roll", "Raderat bolag", ct, createdAt: NowClock.UtcNow);
+        // ACTIVE control, as of #864 (merged 2026-07-14). Rounds 2..5 of #842 used an ARCHIVED
+        // control here — under the then-guard `!= Erased` it was the only control that could kill
+        // an `== Active` mutation. #864 then made `== Active` the PRODUCT TRUTH for the display
+        // window (a digest item is a recommendation; archived ads stopped being emailed), and its
+        // own tests in this file own the archived-exclusion claims. What THIS test still owns is
+        // the erasure claim: the tombstone never leaves the system, whatever the predicate — and
+        // the control proves the email renders rows at all.
+        var keptAd = await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong,
+            "Kvar roll", "Kvar bolag", ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
+
+        // Through the PRODUCTION transitions, never by writing columns (#843).
+        var ad = await db.JobAds.FirstAsync(j => j.Id == erasedAd, ct);
+        ad.Erase(NowClock).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(ct);
+
+        MatchNotificationEmail? captured = null;
+        await _emailSender.SendMatchNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Do<MatchNotificationEmail>(c => captured = c),
+            Arg.Any<MatchNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+
+        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+
+        captured.ShouldNotBeNull();
+        captured.Items.Select(i => i.CompanyName).ShouldNotContain(Company.Erased.Name,
+            "the tombstone's marker '[raderad]' would be EMAILED to the user. This is one of only "
+            + "two places in the product where an erased ad leaves the system boundary.");
+        captured.Items.Select(i => i.JobTitle).ShouldNotContain(string.Empty);
+        captured.Items.Select(i => i.CompanyName).ShouldContain("Kvar bolag",
+            "the control: the email renders rows at all, so the exclusion above is the guard "
+            + "firing, not an empty digest agreeing with anything.");
+
+        // And the erased match is still DRAINED: it WAS a valid match when detected, and leaving it
+        // Pending would retry it on every digest, forever.
+        (await ReloadMatchAsync(db, userId, erasedAd, ct))!.NotificationStatus
+            .ShouldBe(NotificationStatus.Sent,
+                "drain-but-do-not-show. Not showing it is not the same as not resolving it.");
+        (await ReloadMatchAsync(db, userId, keptAd, ct))!.NotificationStatus
+            .ShouldBe(NotificationStatus.Sent);
+    }
+
+    [Fact]
+    public async Task RunAsync_ErasedAd_IsNOT_emailed_in_the_followed_company_digest_and_the_hit_is_drained()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+        var watchId = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+
+        var erasedAd = await SeedActiveAdAsync(db, "Raderad roll", "Raderat bolag", ct);
+
+        // ACTIVE control, as of #864 — see the match-digest test above: the display window is an
+        // allow-list now, #864's tests own the archived-exclusion, and this test owns the erasure
+        // claim plus the drain.
+        var keptAd = await SeedActiveAdAsync(db, "Kvar roll", "Kvar bolag", ct);
+        await SeedFollowHitAsync(db, userId, erasedAd, watchId, ct, createdAt: NowClock.UtcNow);
+        await SeedFollowHitAsync(db, userId, keptAd, watchId, ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
+
+        var ad = await db.JobAds.FirstAsync(j => j.Id == erasedAd, ct);
+        ad.Erase(NowClock).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(ct);
+
+        FollowedCompanyNotificationEmail? captured = null;
+        await _emailSender.SendFollowedCompanyNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Do<FollowedCompanyNotificationEmail>(c => captured = c),
+            Arg.Any<FollowedCompanyNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+
+        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+
+        captured.ShouldNotBeNull();
+        captured.Items.Select(i => i.CompanyName).ShouldNotContain(Company.Erased.Name,
+            "the second — and last — place the tombstone can leave the system: the followed-company "
+            + "digest email.");
+        captured.Items.Select(i => i.CompanyName).ShouldContain("Kvar bolag",
+            "the control: the email renders rows at all, so the exclusion above is the guard "
+            + "firing, not an empty digest agreeing with anything.");
+
+        (await ReloadHitAsync(db, userId, erasedAd, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent, "drained, not shown.");
+    }
+
     private sealed class ClockAt(DateTimeOffset utcNow) : Jobbliggaren.Domain.Common.IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = utcNow;

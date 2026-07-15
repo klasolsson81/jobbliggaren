@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Domain.Auditing;
 using Jobbliggaren.Domain.Common;
 using Mediator;
@@ -17,7 +18,8 @@ public sealed class AuditBehavior<TMessage, TResponse>(
     ICurrentUser currentUser,
     IDateTimeProvider clock,
     ICorrelationIdProvider correlationIdProvider,
-    IRequestContextProvider requestContextProvider)
+    IRequestContextProvider requestContextProvider,
+    IIdentifierPseudonymizer pseudonymizer)
     : IPipelineBehavior<TMessage, TResponse>
     where TMessage : IMessage
 {
@@ -33,9 +35,19 @@ public sealed class AuditBehavior<TMessage, TResponse>(
             return response;
 
         // Skip audit på Result.Failure — Fas 1 auditerar bara success per ADR 0022.
-        // Failed-attempts-audit retro-fittas i Fas 6 (impersonation/admin-actions).
-        if (response is Result result && result.IsFailure)
+        //
+        // #842 EXCEPTION (opt-in, default off): a command may set AuditFailures to have its
+        // REJECTED requests recorded too. A rejected GDPR rights request that leaves no trace is
+        // an Art. 12(3) exposure — we owe the data subject the reasons we did not act and her
+        // right to complain, and we cannot produce either from a row we never wrote. Blast radius
+        // is exactly the commands that opt in (OCP; the default interface member means no existing
+        // command changes). An opting-in command's ExtractAggregateId is then also called on a
+        // FAILED response and must not read Result.Value.
+        if (response is Result result && result.IsFailure
+            && message is not IAuditableCommand { AuditFailures: true })
+        {
             return response;
+        }
 
         // Batch marker (#630 PR 9): one row per mutated aggregate, sharing one
         // OccurredAt instant (one command is one moment) and the request's
@@ -46,13 +58,21 @@ public sealed class AuditBehavior<TMessage, TResponse>(
         {
             var batchOccurredAt = clock.UtcNow;
             foreach (var id in batchAuditable.ExtractAggregateIds(response))
-                db.AuditLogEntries.Add(CreateEntry(batchAuditable, id, batchOccurredAt));
+                db.AuditLogEntries.Add(CreateEntry(batchAuditable, id, batchOccurredAt, payload: null));
             return response;
         }
 
         var auditable = (IAuditableCommand<TResponse>)message;
         var aggregateId = auditable.ExtractAggregateId(response);
-        db.AuditLogEntries.Add(CreateEntry(auditable, aggregateId, clock.UtcNow));
+
+        // #842 — opt-in jsonb payload. The pseudonymiser is handed to the command rather than the
+        // command reaching for it, so the ONLY route from an identifier into audit_log goes
+        // through HMAC (CLAUDE.md §5 — never log/persist an identifier in plaintext).
+        var payload = message is IAuditPayloadCommand<TResponse> payloadCommand
+            ? payloadCommand.BuildAuditPayload(response, pseudonymizer)
+            : null;
+
+        db.AuditLogEntries.Add(CreateEntry(auditable, aggregateId, clock.UtcNow, payload));
 
         // SaveChanges sker i UnitOfWorkBehavior:s post-action — audit-raden och
         // handler-mutationen persisteras atomiskt i samma transaction.
@@ -62,7 +82,7 @@ public sealed class AuditBehavior<TMessage, TResponse>(
     // TODO(Fas 6): impersonatedBy fylls när admin-impersonation införs.
     // Kräver ICurrentImpersonationContext-port. Tills dess: alltid null.
     private AuditLogEntry CreateEntry(
-        IAuditableCommand auditable, Guid aggregateId, DateTimeOffset occurredAt) =>
+        IAuditableCommand auditable, Guid aggregateId, DateTimeOffset occurredAt, string? payload) =>
         AuditLogEntry.Create(
             occurredAt: occurredAt,
             correlationId: correlationIdProvider.Current,
@@ -71,5 +91,6 @@ public sealed class AuditBehavior<TMessage, TResponse>(
             aggregateType: auditable.AggregateType,
             aggregateId: aggregateId,
             ipAddress: requestContextProvider.IpAddress,
-            userAgent: requestContextProvider.UserAgent);
+            userAgent: requestContextProvider.UserAgent,
+            payload: payload);
 }

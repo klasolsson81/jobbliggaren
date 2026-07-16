@@ -99,8 +99,7 @@
     "detail": {
       "loadErrorTitle": "Could not load CV",
       "errorBody": "A technical error occurred. Try reloading the page or go back to the CV list.",
-      "updatedAt": "Last updated",
-      "customizeTemplate": "Customize template"
+      "updatedAt": "Last updated"
     },
     "review": {
       "title": "Review imported CV",

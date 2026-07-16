@@ -29,6 +29,12 @@ internal sealed partial class C2ToneRule : ICriterionRule
         var category = context.Criterion.Category;
         var prose = ReviewText.AllProse(context);
 
+        // CV-pivot 2026-07-16: no prose, no tone to affirm (see ReviewText.NoProseReason).
+        if (string.IsNullOrWhiteSpace(prose))
+        {
+            return CvCriterionVerdict.NotAssessed("C2", category, ReviewText.NoProseReason("tonen"));
+        }
+
         var exclamations = prose.Count(c => c == '!');
         var shouting = ShoutingRegex().Match(prose);
 
@@ -82,6 +88,12 @@ internal sealed partial class C3ActiveVoiceRule : ICriterionRule
     {
         var category = context.Criterion.Category;
         var prose = ReviewText.AllProse(context);
+
+        // CV-pivot 2026-07-16: zero passives in zero text is not active language (NoProseReason).
+        if (string.IsNullOrWhiteSpace(prose))
+        {
+            return CvCriterionVerdict.NotAssessed("C3", category, ReviewText.NoProseReason("språket"));
+        }
 
         // #489 ratio reconcile: score passives-per-sentence against the rubric's ">30 %", not an
         // absolute count (pre-fix "count >= 2" could never reach the rubric's ratio-based Fail, and
@@ -148,6 +160,12 @@ internal sealed partial class C4PerspectiveRule : ICriterionRule
         var category = context.Criterion.Category;
         var prose = ReviewText.AllProse(context);
 
+        // CV-pivot 2026-07-16: no prose, no perspective to be consistent about (NoProseReason).
+        if (string.IsNullOrWhiteSpace(prose))
+        {
+            return CvCriterionVerdict.NotAssessed("C4", category, ReviewText.NoProseReason("perspektivet"));
+        }
+
         var match = ThirdPersonRegex().Match(prose);
         if (match.Success)
         {
@@ -185,6 +203,12 @@ internal sealed partial class C6AbbreviationsRule : ICriterionRule
     {
         var category = context.Criterion.Category;
         var prose = ReviewText.AllProse(context);
+
+        // CV-pivot 2026-07-16: an empty corpus has no acronym usage to judge (NoProseReason).
+        if (string.IsNullOrWhiteSpace(prose))
+        {
+            return CvCriterionVerdict.NotAssessed("C6", category, ReviewText.NoProseReason("förkortningarna"));
+        }
 
         var acronyms = AcronymRegex().Matches(prose)
             .Select(m => m.Value)
@@ -241,6 +265,12 @@ internal sealed partial class C7SpellingRule : ICriterionRule
     {
         var category = context.Criterion.Category;
         var prose = ReviewText.AllProse(context);
+
+        // CV-pivot 2026-07-16: "no misspellings" in no text is not a spelling check (NoProseReason).
+        if (string.IsNullOrWhiteSpace(prose))
+        {
+            return CvCriterionVerdict.NotAssessed("C7", category, ReviewText.NoProseReason("stavningen"));
+        }
 
         var misspelled = FindMisspelled(context, prose);
 

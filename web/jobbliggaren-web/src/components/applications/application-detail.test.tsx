@@ -237,8 +237,8 @@ describe("ApplicationDetail", () => {
     expect(
       // m5 (code-reviewer) + M2 (design-reviewer): copy:n sade tidigare att
       // annonsen "finns inte längre" — men panelen renderas för VARJE icke-Active
-      // status, inklusive Expired, där en utgången annons oftast finns kvar hos
-      // källan. Vi påstår nu bara det vi vet: den är inte längre aktiv.
+      // status, och en arkiverad annons kan mycket väl finnas kvar hos källan.
+      // Vi påstår nu bara det vi vet: den är inte längre aktiv.
       screen.getByText(/Annonsen är inte längre aktiv/)
     ).toBeInTheDocument();
     // Bevarad metadata (ort i panelen).
@@ -302,14 +302,17 @@ describe("ApplicationDetail", () => {
 
   // ── #805-3 (Beslut B): "Visa annonsen" — utlänk till källan ────────────
 
-  it("(e) UTGÅNGEN annons (Expired) behandlas som borta — ingen länk", () => {
-    // Domänen har TRE statusvärden (Active | Expired | Archived). Liveness
-    // hävdas bara på positivt "Active" (default-deny); den naiva inversen
-    // (!== "Archived" ⇒ live) hade skeppat en död länk här.
+  it("(e) RADERAD annons (Erased) behandlas som borta — ingen länk", () => {
+    // Domänen har TRE statusvärden (Active | Archived | Erased — det
+    // writerlösa Expired retirerades i #886), och Art. 17-tombstonens status
+    // når den här ytan på riktigt (lös z.string()-typning, ingen Erased-mask
+    // på ansöknings-läsvägen). Liveness hävdas bara på positivt "Active"
+    // (default-deny); den naiva inversen (!== "Archived" ⇒ live) hade skeppat
+    // en länk till en RADERAD annons här.
     render(
       <ApplicationDetail
         application={makeDetail({
-          jobAd: { ...makeDetail().jobAd!, status: "Expired" },
+          jobAd: { ...makeDetail().jobAd!, status: "Erased" },
           preservedAd: makeSnapshot(),
         })}
       />

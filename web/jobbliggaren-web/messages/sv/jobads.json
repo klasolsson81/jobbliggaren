@@ -141,7 +141,6 @@
   "enums": {
     "status": {
       "Active": "Aktiv",
-      "Expired": "Utgången",
       "Archived": "Arkiverad"
     },
     "source": {

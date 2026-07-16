@@ -44,10 +44,11 @@ export const jobAdSummaryDtoSchema = z.object({
   source: z.string(),
   publishedAt: z.string().nullable(),
   expiresAt: z.string().nullable(),
-  // #805-3: källannonsens livscykel-status ("Active" | "Expired" | "Archived"),
-  // projicerad ur JobAd.Status. Detta är den ENDA sanningsenliga live/borta-
-  // signalen på ansöknings-läsvägen — jobAd == null betyder "ingen annonsrad
-  // alls" (manuell eller enbart brev), ALDRIG "annonsen är borta" (#821).
+  // #805-3: källannonsens livscykel-status ("Active" | "Archived" | "Erased" —
+  // Art. 17-tombstonen joinar också hit; det writerlösa "Expired" retirerades
+  // i #886), projicerad ur JobAd.Status. Detta är den ENDA sanningsenliga
+  // live/borta-signalen på ansöknings-läsvägen — jobAd == null betyder "ingen
+  // annonsrad alls" (manuell eller enbart brev), ALDRIG "annonsen är borta" (#821).
   //
   // null ⟺ ManualPosting: ingen JobAd-rad ⇒ ingen arkivering ⇒ ingen livs-utsaga.
   // Lös z.string() (INTE jobAdStatusSchema-enum:en): filen typar medvetet även

@@ -107,9 +107,10 @@ public sealed class GetNewFollowedCompanyAdCountQueryHandler(
         // ad column here breaks that seal; the seal is the reason the join contributes a `where`, never
         // a `select`.
         //
-        // ALLOW-list (`== Active`), never `!= Archived`: the two are indistinguishable on every row that
-        // exists today (Expired has no writer, #886), but a deny-list admits every status added later —
-        // and Erased (#842) is an Art. 17 tombstone. Gating at the SOURCE serves both branches: the
+        // ALLOW-list (`== Active`), never `!= Archived`: a deny-list admits every status added later —
+        // and Erased (#842) is an Art. 17 tombstone a `!= Archived` would count. (The writerless
+        // Expired that once made the two predicates indistinguishable by test was retired by #886.)
+        // Gating at the SOURCE serves both branches: the
         // common path COUNTs this query directly, and the grade path materialises it. The grade path
         // also happens to be gated downstream (FilterToMatchingAsync → PerUserJobAdSearchQuery:370) —
         // that accident is now redundant, and redundancy is the right posture for a control nobody meant

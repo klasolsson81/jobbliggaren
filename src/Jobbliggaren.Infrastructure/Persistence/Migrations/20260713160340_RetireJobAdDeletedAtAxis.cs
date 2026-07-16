@@ -15,9 +15,10 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
         // `HasQueryFilter(j => j.DeletedAt == null)` was VACUOUSLY TRUE for every row and had
         // never excluded anything. It was not harmless, though: the Applications read path
         // delegated "the ad is gone" to it, so PreservedAdPanel (ADR 0086/#315) never rendered
-        // in production for two releases (#805-3). Status (Active | Expired | Archived) is the
-        // sole lifecycle axis; end-user views filter it at the SPOT in
-        // JobAdSearchComposition.ApplyFilter (ADR 0032-amendment 2026-05-23).
+        // in production for two releases (#805-3). Status is the sole lifecycle axis (the
+        // writerless Expired member this comment once named was itself retired by #886);
+        // end-user views filter it at the SPOT in JobAdSearchComposition.ApplyFilter
+        // (ADR 0032-amendment 2026-05-23).
         //
         // THIS MIGRATION IS HAND-WRITTEN. The scaffolded version emits DropColumn("deleted_at")
         // and NOTHING ELSE — verified by running it. Trusting it would have been a silent

@@ -109,7 +109,7 @@ public class FilterToMatchingTests(ApiFactory factory)
         CancellationToken ct,
         ExtractedTerms? terms = null,
         bool archived = false,
-        bool expired = false)
+        bool erased = false)
     {
         var externalId = $"f2m-{Guid.NewGuid():N}";
 
@@ -139,17 +139,18 @@ public class FilterToMatchingTests(ApiFactory factory)
         if (archived)
             jobAd.Archive(clock);
 
+        // Erased: a real domain transition (#842 Art. 17 tombstone, status='Erased'). This witness
+        // replaced the #886-retired fabricated Expired stamp (`db.Entry(...).CurrentValue = ...` on a
+        // state no writer could produce — the #843 fiction class). It is the row that DISTINGUISHES
+        // `== Active` from `!= Archived`: the six *_concept_id facets survive Erase(), so the row
+        // still grades ≥Good on the shared GradeRankExpression (facet columns only) and its exclusion
+        // is attributable to the status gate alone — flip PerUserJobAdSearchQuery's gate to
+        // `!= Archived` and this witness goes red on a REACHABLE row.
+        if (erased)
+            jobAd.Erase(clock).IsSuccess.ShouldBeTrue("Erase-seeden får inte tyst misslyckas");
+
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
-
-        // JobAd has no domain Expire transition; stamp the value-converted Status shadow via EF direct
-        // so the status='Active' gate excludes it.
-        if (expired)
-        {
-            db.Entry(jobAd).Property(nameof(JobAd.Status)).CurrentValue = JobAdStatus.Expired;
-            await db.SaveChangesAsync(ct);
-        }
-
 
         return jobAd.Id;
     }
@@ -282,8 +283,11 @@ public class FilterToMatchingTests(ApiFactory factory)
     }
 
     // =========================================================================================
-    // 2. Non-Active ads are excluded even at a Good grade (an expired/archived/soft-deleted ad is
-    //    not "matchande") — the status='Active' gate, which is the whole exclusion (#821).
+    // 2. Non-Active ads are excluded even at a Good grade (an archived/erased ad is not
+    //    "matchande") — the status='Active' gate, which is the whole exclusion (#821). The Erased
+    //    witness (real Art. 17 transition, #842) is also the ALLOW-LIST pin: it is the reachable
+    //    row on which `== Active` and `!= Archived` disagree, so the #864-class deny-list
+    //    mutation dies HERE, on a real state — never on a fabricated one (#886/#843).
     // =========================================================================================
 
     [Fact]
@@ -292,17 +296,18 @@ public class FilterToMatchingTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var orgNr = NewOrgNr();
         var activeGood = await SeedGoodAsync(orgNr, ct);
-        var expiredGood = await SeedAdAsync(orgNr, PrefGroup, PrefRegion, employmentTypeConceptId: null, ct, expired: true);
+        var erasedGood = await SeedAdAsync(orgNr, PrefGroup, PrefRegion, employmentTypeConceptId: null, ct, erased: true);
         var archivedGood = await SeedAdAsync(orgNr, PrefGroup, PrefRegion, employmentTypeConceptId: null, ct, archived: true);
 
         var (queryScope, query) = NewPerUserQuery();
         using var queryDispose = queryScope;
         var matching = await query.FilterToMatchingAsync(
-            Profile(), [activeGood, expiredGood, archivedGood], ct);
+            Profile(), [activeGood, erasedGood, archivedGood], ct);
 
         matching.ShouldBe(new[] { activeGood }, ignoreOrder: true,
-            "en utgången/arkiverad annons är inte 'matchande' även med Good-grad — bara den Active " +
-            "annonsen returneras (status='Active'-grinden ÄR hela exkluderingen, #821).");
+            "en raderad/arkiverad annons är inte 'matchande' även med Good-grad-facetter — bara den " +
+            "Active annonsen returneras (status='Active'-grinden ÄR hela exkluderingen, #821; " +
+            "Erased-vittnet är raden där `== Active` och `!= Archived` skiljer sig åt).");
     }
 
     // =========================================================================================

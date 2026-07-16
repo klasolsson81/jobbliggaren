@@ -128,16 +128,10 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
       />
 
       {/* CTA-söm mot F2: spara-flödet (komplettera + promote). Förbättra-CTA:n
-          (F4-10) ligger som sekundär knapp FÖRE den primära spara-knappen —
-          den är display-only vägledning, inte en del av spara-flödet. */}
+          (F4-10) togs bort med åtgärda-lagrets deferral (CV-pivot 2026-07-16,
+          ADR 0112) — forbattra-rutten 404:ar nu, granskningen är läs-bar. */}
       <div className="jp-cv-cta">
         <div className="jp-cv-cta__actions">
-          <Link
-            href={`/cv/granska/${parsedId}/forbattra?profile=${profile}`}
-            className="jp-btn jp-btn--secondary"
-          >
-            {t("cv.review.showImprovements")}
-          </Link>
           <Link
             href={`/cv/granska/${parsedId}/komplettera`}
             className="jp-btn jp-btn--primary"

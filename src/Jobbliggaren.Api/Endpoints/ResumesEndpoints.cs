@@ -1,6 +1,5 @@
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.JobSeekers.Commands.SetPrimaryResume;
-using Jobbliggaren.Application.Resumes.Commands.ApplyCvImprovements;
 using Jobbliggaren.Application.Resumes.Commands.CreateResume;
 using Jobbliggaren.Application.Resumes.Commands.DeleteResume;
 using Jobbliggaren.Application.Resumes.Commands.DeleteResumeVersion;
@@ -11,8 +10,6 @@ using Jobbliggaren.Application.Resumes.Commands.RenameResume;
 using Jobbliggaren.Application.Resumes.Commands.SetFindingStatus;
 using Jobbliggaren.Application.Resumes.Commands.SetResumeLanguage;
 using Jobbliggaren.Application.Resumes.Commands.UpdateMasterContent;
-using Jobbliggaren.Application.Resumes.Improvement.Queries.PreviewCvImprovement;
-using Jobbliggaren.Application.Resumes.Improvement.Queries.SuggestCvImprovements;
 using Jobbliggaren.Application.Resumes.Queries;
 using Jobbliggaren.Application.Resumes.Queries.DownloadResumeFile;
 using Jobbliggaren.Application.Resumes.Queries.GetLatestPendingParsedResume;
@@ -197,21 +194,19 @@ public static class ResumesEndpoints
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 
-        // Deterministic propose-and-approve CV improvements (F4-10): the diffs are never
-        // auto-applied (§5) — the FE proposes them and the user approves. Owner-scoped.
-        group.MapGet("/parsed/{id:guid}/improvements", async (
-            Guid id, string? profile, IMediator mediator, CancellationToken ct) =>
-        {
-            var result = await mediator.Send(new SuggestCvImprovementsQuery(id, profile ?? string.Empty), ct);
-            return result is null ? Results.NotFound() : Results.Ok(result);
-        }).RequireAuthorization()
-          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+        // GET /parsed/{id}/improvements (the propose-half of propose-and-approve, F4-10) was
+        // REMOVED with the åtgärda-lager's deferral (CV-pivot 2026-07-16, ADR 0112 amending
+        // ADR 0093, CTO-bind D8 Opt C): without the builder, an applied improvement re-renders
+        // away the user's original design, so the whole affordance defers. The MOTOR
+        // (CvImprovementEngine + frames + the three handlers) is mothballed in-tree,
+        // revert-ready — the pnr-guard subject-set (#650) keeps protecting it.
 
         // Fas 4b 8b.4a (ADR 0107) — occupation-driven section suggestions for the Slutför guide's
-        // "Lägg till sektion" panel. A READ SLICE, deliberately NOT part of /improvements: a
-        // section suggestion is not a diff (no Before, no After, no transform), and the improve
-        // panel would have labelled it "Ändra sektionsordning". Owner-scoped; the suggestions are
-        // offered, never applied (§5 — the engine never rewrites the CV silently).
+        // "Lägg till sektion" panel. A READ SLICE, deliberately NOT part of the (now retired,
+        // ADR 0112) /improvements surface: a section suggestion is not a diff (no Before, no
+        // After, no transform), and the improve panel would have labelled it "Ändra
+        // sektionsordning". Owner-scoped; the suggestions are offered, never applied (§5 — the
+        // engine never rewrites the CV silently).
         group.MapGet("/parsed/{id:guid}/section-suggestions", async (
             Guid id, IMediator mediator, CancellationToken ct) =>
         {
@@ -418,36 +413,13 @@ public static class ResumesEndpoints
                 : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
-        // EFTER-preview of one frame application (Fas 4b PR-7, #656; handoff §6.2 — the
-        // preview is ALWAYS shown before "Åtgärda direkt" activates). A READ that composes
-        // the real post-apply text server-side (never client text, ADR 0074) and MINTS the
-        // finding fingerprint the apply call echoes back. POST because the slot inputs are
-        // a structured payload — semantically still a query, nothing persists.
-        group.MapPost("/{id:guid}/improvements/preview", async (
-            Guid id, PreviewImprovementBody body, IMediator mediator, CancellationToken ct) =>
-        {
-            var result = await mediator.Send(
-                new PreviewCvImprovementQuery(id, body.CriterionId, body.FrameId, body.SlotInputs), ct);
-            return result.IsSuccess
-                ? Results.Ok(result.Value)
-                : result.Error.ToProblemResult();
-        }).RequireAuthorization()
-          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
-
-        // The apply-half of propose-and-approve (Fas 4b PR-7, #656; ADR 0093 §D2): ids +
-        // frame inputs ONLY — the server recomputes the review, verifies the echoed
-        // fingerprint (mismatch → 409 "CV changed, re-review"), composes via FromFrame,
-        // personnummer-guards the composed content, and writes ONCE through
-        // Resume.UpdateMasterContent. Owner-scoped, audited, write-rate-limited.
-        group.MapPost("/{id:guid}/improvements/apply", async (
-            Guid id, ApplyImprovementsBody body, IMediator mediator, CancellationToken ct) =>
-        {
-            var result = await mediator.Send(new ApplyCvImprovementsCommand(id, body.Changes), ct);
-            return result.IsSuccess
-                ? Results.NoContent()
-                : result.Error.ToProblemResult();
-        }).RequireAuthorization()
-          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+        // POST /{id}/improvements/preview (the EFTER-preview, Fas 4b PR-7 #656) and
+        // POST /{id}/improvements/apply (the apply-half of propose-and-approve, ADR 0093 §D2)
+        // were REMOVED with the åtgärda-lager's deferral (CV-pivot 2026-07-16, ADR 0112,
+        // CTO-bind D8 Opt C) — the apply-half was an authenticated WRITE with zero reachable
+        // FE consumers. The handlers (Preview/Apply + their fingerprint-echo and
+        // personnummer-guard) are mothballed in-tree, revert-ready, still covered by the
+        // guard's architecture subject-set (#650) and the Worker-encryption tests.
     }
 
     private sealed record CreateResumeBody(string Name, string FullName);
@@ -455,7 +427,4 @@ public static class ResumesEndpoints
     private sealed record SetLanguageBody(string Language);
     private sealed record SetFindingStatusBody(string Status);
     private sealed record PromoteParsedResumeBody(string Name, ResumeContentDto Content);
-    private sealed record PreviewImprovementBody(
-        string CriterionId, string FrameId, IReadOnlyDictionary<string, string> SlotInputs);
-    private sealed record ApplyImprovementsBody(IReadOnlyList<FrameApplyInput> Changes);
 }

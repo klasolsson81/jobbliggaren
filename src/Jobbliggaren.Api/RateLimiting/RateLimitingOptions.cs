@@ -296,8 +296,9 @@ public sealed class RateLimitingOptions
     /// Egen policy (ej MeListRead-återanvändning) — least common mechanism (Saltzer/Schroeder) +
     /// bulkhead (Nygard): render kör synkron PDF-generering + dubbel DEK-decrypt (Form A raw_text
     /// + Form B parsed_content_enc) per anrop — en CPU+krypto-tung resursprofil en storleksordning
-    /// över de lätta in-memory-läsningarna /review och /improvements (som korrekt stannar på
-    /// MeListRead). Delad budget hade låtit 40 PDF-genereringar/min/användare svälta samma
+    /// över den lätta in-memory-läsningen /review (som korrekt stannar på MeListRead;
+    /// /improvements retirerades med åtgärda-lagrets deferral, ADR 0112). Delad budget hade
+    /// låtit 40 PDF-genereringar/min/användare svälta samma
     /// MeListRead-budget som gatar /oversikt + /resumes. 8/min täcker iterativ förhandsgranska-
     /// justera-cykel med marginal och kapar script-flod; sitter medvetet mellan ResumeImport
     /// (5/min, tyngre sällan-op) och MeWrite (30/min, lätt mutation). senior-cto-advisor

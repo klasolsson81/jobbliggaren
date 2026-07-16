@@ -255,6 +255,55 @@ public class CvReviewCorpusStressTests(ITestOutputHelper output)
         output.WriteLine($"C7 clean-CV Warn-rate (real Hunspell): {cleanC7Warns}/{cleanC7Total}.");
     }
 
+    // ===============================================================
+    // GATE (CV-pivot 2026-07-16) — the whole-CV prose rules never affirm an EMPTY corpus.
+    // The empty/weak stratum has no profile and no experience text, so ReviewText.AllProse is
+    // empty — pre-fix, seven rules (A7/A9/C2/C3/C4/C6/C7) each returned an affirmative Pass
+    // over it ("Inga klyschor funna", "Övervägande aktivt språk", …): a claimed PRESENCE of
+    // quality never observed (ADR 0109's defect class inverted). This pins the withdrawal as a
+    // verdict-DISTRIBUTION property across the generated corpus, not just the unit repro.
+    // ===============================================================
+
+    private static readonly string[] ProseCriteria = ["A7", "A9", "C2", "C3", "C4", "C6", "C7"];
+
+    [Fact]
+    public async Task ProseCriteria_OnEmptyProseCases_AreNeverAffirmed_BothProfiles()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var engine = NewEngine();
+
+        // Filter on the ACTUAL guarded condition (no profile text, no experience text — the
+        // inputs ReviewText.AllProse joins), not on the stratum label: a future weak-signal
+        // variant that gains a line of profile prose must fall out of this gate instead of
+        // turning it into a false FAIL (the gate asserts the guard's contract, not the
+        // generator's labeling).
+        var emptyProseCases = Corpus()
+            .Where(c => string.IsNullOrWhiteSpace(c.Cv.Content.Profile)
+                && c.Cv.Content.Experience.All(e => string.IsNullOrWhiteSpace(e.RawText)))
+            .ToList();
+        emptyProseCases.ShouldNotBeEmpty(
+            "the corpus must carry at least one empty-prose CV (the EmptyOrWeakSignal stratum).");
+
+        foreach (var c in emptyProseCases)
+        {
+            foreach (var profile in new[] { RenderProfile.Ats, RenderProfile.Visual })
+            {
+                var result = await engine.ReviewAsync(CvReviewContext.FromParsed(c.Cv), profile, ct);
+
+                foreach (var id in ProseCriteria)
+                {
+                    // Fail-loud on absence: all seven are profile=Båda, so a missing verdict is
+                    // itself a regression — never a silently skipped assert.
+                    var verdict = result.Verdicts.SingleOrDefault(v => v.CriterionId == id);
+                    verdict.ShouldNotBeNull(
+                        $"{c.Label}/{profile}: {id} saknas helt i verdikts-listan.");
+                    verdict!.Verdict.ShouldBe(CriterionVerdict.NotAssessed,
+                        $"{c.Label}/{profile}: {id} bedömde en tom proskorpus — vakuöst utfall.");
+                }
+            }
+        }
+    }
+
     private static IEnumerable<string> EvidenceStrings(CvCriterionVerdict v)
     {
         foreach (var e in v.Evidence)

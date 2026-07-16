@@ -191,7 +191,8 @@
       "appliedNotice": "You have marked this ad as applied. See it in",
       "appliedNoticeLink": "My applications",
       "previousApplications": "You have at least {count, plural, one {# previous application} other {# previous applications}} to this employer. The compilation may be incomplete.",
-      "previousApplicationsLink": "View application history"
+      "previousApplicationsLink": "View application history",
+      "recruiterNoticeLink": "Are you a contact person in the ad? Read how we process contact details."
     },
     "match": {
       "heading": "Match against your profile",

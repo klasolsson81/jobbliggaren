@@ -21,6 +21,7 @@ const MARKETING_PATHS = [
   "/kontakt",
   "/for-utvecklare",
   "/integritet",
+  "/kontaktperson-i-annons",
   "/cookies",
   "/villkor",
   "/tillganglighet",

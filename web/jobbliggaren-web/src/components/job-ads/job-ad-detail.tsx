@@ -195,6 +195,14 @@ export function JobAdDetail({
           <div id="jp-modal-desc" className="jp-modal__description">
             {formatAdDescription(jobAd.description)}
           </div>
+          {/* #842 Tier A (ADR 0106) — Art. 14(5)(b): the public recruiter notice
+              must be reachable from the ad detail; the link is the condition of
+              the disproportionate-effort exemption, not decoration. */}
+          <p className="jp-muted mt-3">
+            <Link href="/kontaktperson-i-annons">
+              {tUi("detail.recruiterNoticeLink")}
+            </Link>
+          </p>
         </div>
       </div>
 

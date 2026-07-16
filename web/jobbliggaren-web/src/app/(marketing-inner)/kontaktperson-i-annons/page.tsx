@@ -5,8 +5,8 @@ import { getTranslations } from "next-intl/server";
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("content-legal");
   return {
-    title: t("privacy.meta.title"),
-    description: t("privacy.meta.description"),
+    title: t("recruiterNotice.meta.title"),
+    description: t("recruiterNotice.meta.description"),
   };
 }
 
@@ -17,32 +17,38 @@ type Section = {
 };
 
 /**
- * Publik innehållssida: Integritetspolicy (#263). Statisk RSC, ingen
- * klient-interaktivitet. Återbrukar (marketing-inner)-mönstret (delad
- * SiteHeader/SiteFooter via layouten; eget `<main id="main">` som skip-mål per
- * #284). Innehållet drivs ur `content-legal`-katalogen (sv = källa, en speglad,
- * paritetstestad). Civic-utility: en h1, hög-kontrast text (ingen grå brödtext),
- * ingen em-dash, inget utropstecken.
+ * Publik innehållssida: Art. 14(5)(b)-notis till kontaktpersoner i annonser
+ * (#842 Tier A, ADR 0106). Vi håller ~tiotusentals rekryterares kontaktuppgifter
+ * hämtade från Arbetsförmedlingen, inte från dem själva — informationsplikten
+ * fullgörs genom att göra informationen offentligt tillgänglig (Art. 14(5)(b);
+ * ett massutskick vore en ny behandling av just de uppgifter vi minimerar).
+ * Notisen är villkoret för undantaget, inte dekoration. Länkas från
+ * annonsdetaljen och integritetspolicyn. Samma statiska RSC-mönster som
+ * /integritet (#263): innehåll ur `content-legal`, en h1, hög-kontrast text.
  */
-export default async function IntegritetPage() {
+export default async function KontaktpersonIAnnonsPage() {
   const t = await getTranslations("content-legal");
-  const sections = t.raw("privacy.sections") as Section[];
+  const sections = t.raw("recruiterNotice.sections") as Section[];
 
   return (
     <main id="main" tabIndex={-1} className="focus:outline-none">
-      <section className="jp-pagehero" aria-labelledby="integritet-heading">
+      <section className="jp-pagehero" aria-labelledby="kontaktperson-heading">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <h1 id="integritet-heading" className="jp-pagehero__title">
-              {t("privacy.title")}
+            <h1 id="kontaktperson-heading" className="jp-pagehero__title">
+              {t("recruiterNotice.title")}
             </h1>
           </div>
         </div>
       </section>
 
       <div className="mx-auto w-full max-w-2xl px-6 py-12">
-        <p className="text-body-sm text-text-secondary">{t("privacy.updated")}</p>
-        <p className="mt-4 text-body text-text-primary">{t("privacy.intro")}</p>
+        <p className="text-body-sm text-text-secondary">
+          {t("recruiterNotice.updated")}
+        </p>
+        <p className="mt-4 text-body text-text-primary">
+          {t("recruiterNotice.intro")}
+        </p>
 
         <div className="mt-10 flex flex-col gap-8">
           {sections.map((section) => (
@@ -71,22 +77,12 @@ export default async function IntegritetPage() {
 
         <div className="mt-12">
           <h2 className="text-body-lg font-semibold text-text-primary">
-            {t("privacy.relatedHeading")}
+            {t("recruiterNotice.relatedHeading")}
           </h2>
           <ul className="mt-3 flex flex-col gap-2 text-body">
             <li>
-              <Link href="/villkor" className="underline">
-                {t("privacy.relatedTerms")}
-              </Link>
-            </li>
-            <li>
-              <Link href="/cookies" className="underline">
-                {t("privacy.relatedCookies")}
-              </Link>
-            </li>
-            <li>
-              <Link href="/kontaktperson-i-annons" className="underline">
-                {t("privacy.relatedRecruiterNotice")}
+              <Link href="/integritet" className="underline">
+                {t("recruiterNotice.relatedPrivacy")}
               </Link>
             </li>
           </ul>

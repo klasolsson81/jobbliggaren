@@ -111,13 +111,19 @@ public static partial class RecruiterContactRedactor
 
         var s = digits.ToString();
         if (s.StartsWith("0046", StringComparison.Ordinal))
-            return "0" + s[4..];
+            return CollapseTrunkZero("0" + s[4..]);
         // A national 0-form number never begins with 4 (area codes start with 0), so a 46-prefixed
         // run of full length is unambiguously the country form — with or without its '+'.
         if (s.StartsWith("46", StringComparison.Ordinal) && s.Length >= 10)
-            return "0" + s[2..];
+            return CollapseTrunkZero("0" + s[2..]);
         return s;
     }
+
+    // "+46 (0)8 123 456 78" carries the parenthesized trunk zero INSIDE the country form — folding
+    // 46→0 then yields "00812345678". No national number starts 00 (the international 00-prefix is
+    // folded before this runs), so a leading double zero is always that duplicated trunk zero.
+    private static string CollapseTrunkZero(string folded) =>
+        folded.StartsWith("00", StringComparison.Ordinal) ? folded[1..] : folded;
 
     private static string ReplaceMatches(
         string text, MatchCollection matches, ContactKind kind, ref List<ContactSpan>? found)

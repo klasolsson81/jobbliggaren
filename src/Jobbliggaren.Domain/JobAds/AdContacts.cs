@@ -56,13 +56,17 @@ public sealed class AdContacts : IEquatable<AdContacts>
         ArgumentNullException.ThrowIfNull(declared);
         ArgumentNullException.ThrowIfNull(detectedSpans);
 
-        // Declared first: deterministic order, then value-level dedup among themselves.
+        // Declared first: information-richest first so a SUBSET duplicate meets its superset's
+        // values already seen and drops (processing the subset first would keep both — the
+        // superset still "adds" a value), then the value key for determinism.
         var declaredKept = new List<AdContact>();
         var seenEmails = new HashSet<string>(StringComparer.Ordinal);
         var seenPhones = new HashSet<string>(StringComparer.Ordinal);
         var seenNameOnly = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var contact in declared.OfType<AdContact>().OrderBy(SortKey, StringComparer.Ordinal))
+        foreach (var contact in declared.OfType<AdContact>()
+                     .OrderByDescending(Richness)
+                     .ThenBy(SortKey, StringComparer.Ordinal))
         {
             var email = contact.NormalizedEmail;
             var phone = contact.NormalizedPhone;
@@ -135,6 +139,15 @@ public sealed class AdContacts : IEquatable<AdContacts>
 
     private static string SortKey(AdContact c)
         => $"{c.NormalizedEmail}{c.NormalizedPhone}{c.Name?.ToLowerInvariant()}{c.Role?.ToLowerInvariant()}";
+
+    // Dedup processing priority: how many reachable values a contact carries. A SUBSET duplicate
+    // must be processed AFTER its superset to be dropped; name/role break ties so the named
+    // variant of an otherwise-equal pair survives.
+    private static int Richness(AdContact c)
+        => (c.NormalizedEmail is null ? 0 : 4)
+           + (c.NormalizedPhone is null ? 0 : 4)
+           + (c.Name is null ? 0 : 2)
+           + (c.Role is null ? 0 : 1);
 
     public bool Equals(AdContacts? other)
         => other is not null && Contacts.SequenceEqual(other.Contacts);

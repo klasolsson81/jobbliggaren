@@ -102,7 +102,7 @@ public static class JobTechPayloadSanitizer
     /// </summary>
     // #842 Tier A — output encoding, NOT a filter change (the allowlist above is untouched,
     // re-bind R1(e)). ToJsonString()'s default encoder \uXXXX-escapes every non-ASCII character,
-    // so the C# STRING the aggregate scrubs carried "Håkan" and "070 123…" where the
+    // so the C# STRING the aggregate scrubs carried "Håkan" and "070<NBSP>123…" where the
     // detector's regex sees letters and separators — an NBSP-separated phone or an åäö email
     // survived the scrub in the payload copy while jsonb stored it DECODED and fully readable.
     // (Postgres decodes escapes on the text→jsonb cast, so the DB semantics are identical either

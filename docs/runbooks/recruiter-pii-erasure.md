@@ -326,6 +326,7 @@ claim to have erased what we have not erased. That is #842, applied to ourselves
 | `applications.manual_company`, `manual_title`, `manual_url` (manually tracked applications) | ⚠️ **Not automatically — a HUMAN erases it** | A user may have pasted or typed a recruiter's name/contact into these fields when tracking an application she found outside Platsbanken. That is the recruiter's personal data, and her right reaches it (6(1)(f) → Art. 21(1)) — but a system does not silently rewrite a person's private record of her own job hunt. Reported; a human handles it with that user. *(URL can carry a name: `linkedin.com/in/magnus-fagerberg`, company contact page, etc.)* |
 | `company_watch_criteria.label` (nickname for a watch predicate) | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month** | A user might name a watch *"IT jobb med Magnus"*. Unlike `saved_searches`, the label is **optional and nullable** — the criterion is its codes (industry + municipality), and the label is just a UI nickname. **`UpdateLabel(null)` is always constructible and lossless.** We report the count; a human nulls the label with zero complexity. Same mechanism as `saved_searches`: report, human decides. *(This column was found by enforcing the cascade registry at the EF model level; it is why the guard breaks the build.)*  |
 | `applications.cover_letter`, `application_notes.content`, `follow_ups.note`, `parsed_resumes.raw_text` / `parsed_content_enc`, `resume_versions.content_enc`, `resume_files.content` (**the CV, all three stored shapes**) | ⚠️ **NOT SEARCHED** — disclosed in response | A user may well have written *"Ringde Magnus Fagerberg"* in her own note — or named the recruiter she wrote to in her CV. That is the recruiter's personal data, and her right reaches it (6(1)(f) → Art. 21(1)). **But we cannot search it.** These seven columns are encrypted at rest under per-user keys (Forms A, B and C — the uploaded CV file included). A `LIKE` search would require decryption of every row under every user's key — feasible for a handful of Art. 17 requests per year but not feasible via a background job. **We hold it, we cannot scan it, and we say so explicitly in the reply.** Erase via a human, if the subject and affected user both consent. |
+| `applications.snapshot_contacts` (the frozen recruiter contact block, #842 Tier A) | ✅ **Yes**, surgically | ITS OWN surface (`ApplicationSnapshotContacts`), never folded into the body columns below — one surface, one disposition, one honest Matched−Erased meaning (T2 CTO 2026-07-16). The contact block is HER data whose follow-up purpose is spent at the erasure request; 17(3)(e) retains the applicant's aktivitetsrapport spine, not the recruiter's phone number. `Application.EraseAdSnapshotContacts()` removes ONLY the contacts and leaves the applicant's record intact — durable by construction, the funnel never rewrites a snapshot. |
 | `applications.snapshot_company` / `snapshot_title` / `snapshot_description` / `snapshot_url` | ❌ **No** | The applicant's frozen record of an ad she applied to (ADR 0086 exists precisely so it outlives the ad). **And the ground is STRONGER for the company name than for the body:** a Swedish jobseeker must file an *aktivitetsrapport* to Arbetsförmedlingen **naming the employer**. The company name is the **spine** of her own legal record; the ad body is its colour. Ground: Art. 17(3)(e). **Klas's to affirm — STOPP-3, still open.** We **search and report** all four — `snapshot_url` included, a URL path carries names — precisely because we do not erase them: *a legal ground asserted over a population we never counted is a ground asserted over a silence.* |
 | CV metadata: `parsed_resumes.source_file_name`, `resume_files.file_name`, `resumes.name` / `latest_role` / `top_skills` (`resumeMetadata`) | ⚠️ **Not automatically — a HUMAN erases it, with the CV's owner in the loop** | The PLAINTEXT text around a user's CV: the uploaded file's name (twice — two tables, same file), the CV's own name (typed via rename), and the denormalised role/skill projections. "Ansokan_Magnus_Fagerberg.pdf" is not exotic — the repo already masks personnummer out of file names (#465) precisely because users type arbitrary text there. Searched and reported; a job does not silently rename a user's own files. The CV BODY is `couldNotSearch`, not this row. |
 | Backups / WAL / PITR | ⚠️ **Unstated** | An `UPDATE` does not remove the old row version from disk until `VACUUM`, and copies remain in WAL and backups. **Do not make any statement to the data subject about backups.** The retention window is not yet decided (**STOPP-4**). Do not invent one. |
@@ -406,6 +407,14 @@ Append:
 > dataskyddsförordningen. Du har rätt att invända mot den bedömningen hos oss,
 > hos Integritetsskyddsmyndigheten eller i domstol.
 
+**B4. Addition — `erased.applicationSnapshotContacts > 0` (#842 Tier A; substance
+bound by T2 CTO 2026-07-16, wording rides Klas).** Append:
+
+> Ett antal användare hade annonsens kontaktuppgifter sparade i sin egen kopia av
+> annonsen. De kontaktuppgifterna är borttagna ur kopiorna. Själva annonstexten i
+> användarnas kopior behåller vi med stöd av artikel 17.3 e i
+> dataskyddsförordningen, som en del av deras eget underlag.
+
 **C. `NoMatchInSearchableSurfaces`.** Says what we searched — and never claims
 we searched what we cannot read (the mandatory closing carries that half):
 
@@ -413,12 +422,21 @@ we searched what we cannot read (the mandatory closing carries that half):
 > bevakningar, egna annonsuppgifter och CV-uppgifter som inte är krypterade. Vi
 > hittade inga uppgifter som matchar det du har uppgett.
 
-**D. `CascadeErasedOnly`** — no ad matched, but cascade rows (today: recent
-searches) were erased. *"Vi har tagit bort hela annonsen" would be a false
-statement here; this outcome word exists so it cannot be sent.*
+**D. `CascadeErasedOnly`** — no ad matched, but cascade rows were erased. *"Vi
+har tagit bort hela annonsen" would be a false statement here; this outcome word
+exists so it cannot be sent.* **Each sentence is GATED on its own counter (T2
+CTO 2026-07-16): a contacts-only clear must not claim search-history deletion,
+and vice versa.**
 
-> Ingen annons matchade det du har uppgett, men dina uppgifter förekom i
-> användares sökhistorik. De posterna har vi tagit bort.
+Base:
+
+> Ingen annons matchade det du har uppgett.
+
+If `erased.recentJobSearches > 0`, append:
+
+> Dina uppgifter förekom i användares sökhistorik. De posterna har vi tagit bort.
+
+If `erased.applicationSnapshotContacts > 0`, append B4.
 
 (+ B2/B3 if their gates fire, + the mandatory closing.)
 

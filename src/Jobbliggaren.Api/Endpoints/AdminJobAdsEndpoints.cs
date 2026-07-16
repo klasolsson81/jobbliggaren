@@ -6,6 +6,7 @@ using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdExtractedTerms;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdKlass2;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdRequirements;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdSsyk;
+using Jobbliggaren.Application.JobAds.Jobs.BackfillRecruiterContactScrub;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
@@ -150,6 +151,26 @@ public static class AdminJobAdsEndpoints
                 value: new BackfillExtractionResponse(JobId: jobId));
         });
 
+        // #842 Tier A (ADR 0106, re-bind R7/D10) — engångs-backfill av rekryterar-
+        // kontakt-skrubben över det lagrade beståndet (~93k annonser importerade före
+        // aggregat-invarianten). LOKAL re-projektion (ingen JobTech-fetch): den avlistade
+        // svansen nås ALDRIG av nattsynken och är jobbets egentliga uppdrag; listade
+        // annonser skrubbas omedelbart i stället för "inom 24h". dryRun default TRUE —
+        // KÖRNINGEN ÄR KLAS-GRINDAD (STOPP-5): skrubben re-deriverar extracted_terms →
+        // matchgrader skiftar korpus-brett; Klas ser dry-run-deltat FÖRE destruktiv
+        // körning. Samma fire-and-forget-mönster som backfill-extraction; idempotent
+        // via probe-först (skrubbad text är en fixpunkt). Engångs-operation, INTE i
+        // RecurringJobRegistrar.
+        group.MapPost("/backfill-contact-scrub",
+            (IBackgroundJobClient backgroundJobs, bool dryRun = true) =>
+        {
+            var jobId = backgroundJobs.Enqueue<BackfillRecruiterContactScrubJob>(
+                j => j.RunAsync(dryRun, CancellationToken.None));
+            return Results.Accepted(
+                uri: null,
+                value: new BackfillContactScrubResponse(JobId: jobId, DryRun: dryRun));
+        });
+
         // Fas 4 STEG 4b (F4-4b, ADR 0071/0074/0075) — engångs-re-ingest av
         // arbetsgivar-kraven (must_have/nice_to_have-skills → Requirement-termer) för
         // JobAds vars raw_payload saknar must_have (alla rader importerade före F4-4b:s
@@ -214,6 +235,9 @@ public sealed record BackfillKlass2Response(string JobId);
 /// JobId = Hangfire-jobb-id (inspekteras via Hangfire-storage / Worker-loggen).
 /// </summary>
 public sealed record BackfillExtractionResponse(string JobId);
+
+/// <summary>#842 Tier A — the enqueue receipt; DryRun echoes the gate the caller chose.</summary>
+public sealed record BackfillContactScrubResponse(string JobId, bool DryRun);
 
 /// <summary>
 /// Response-body för POST /api/v1/admin/job-ads/backfill-requirements (F4-4b).

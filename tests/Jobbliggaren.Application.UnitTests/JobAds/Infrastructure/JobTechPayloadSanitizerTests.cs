@@ -61,7 +61,7 @@ public class JobTechPayloadSanitizerTests
 
         // #842 Tier A — the output is READABLE text, never \uXXXX-escaped. This is load-bearing,
         // not cosmetic: the aggregate's contact scrub runs over this exact C# string, and an
-        // escaped "Håkan tel 070 123…" hides the phone from the detector while jsonb
+        // escaped "Håkan tel 070<NBSP>123…" hides the phone from the detector while jsonb
         // stores it decoded and fully readable. The escaped form must be provably ABSENT.
         sanitized.ShouldContain("Vi söker en utvecklare.");
         sanitized.ShouldNotContain("\\u00F6", customMessage:

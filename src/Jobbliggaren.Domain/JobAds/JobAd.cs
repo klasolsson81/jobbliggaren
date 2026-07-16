@@ -279,6 +279,38 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     }
 
     /// <summary>
+    /// #842 Tier A — the ONE-OFF backfill's entry point (re-bind R7/D10, STOPP-5-gated
+    /// execution): re-apply the contact scrub to this ad's STORED text. Returns false (no
+    /// mutation at all) when the detector finds nothing — the probe-first shape is what keeps the
+    /// backfill from churning ~66k contact-free rows into null→Empty writes the nightly sync
+    /// will make anyway. Existing DECLARED contacts are preserved through the re-merge (an
+    /// idempotent re-run must not drop what a fresh fetch declared); a de-listed/archived ad
+    /// keeps Contacts = null (the write-gate). Refuses manual ads (user-authored text, §5) —
+    /// the tombstone is a no-op, not an error.
+    /// </summary>
+    public Result<bool> ApplyContactScrubBackfill()
+    {
+        if (External is null)
+            return Result.Failure<bool>(
+                DomainError.Validation("JobAd.BackfillManualAd",
+                    "Manuellt skapade annonser skrubbas aldrig."));
+
+        if (Status == JobAdStatus.Erased)
+            return Result.Success(false);
+
+        var detections =
+            RecruiterContactRedactor.Redact(Title).Found.Count
+            + RecruiterContactRedactor.Redact(Description).Found.Count
+            + RecruiterContactRedactor.Redact(RawPayload).Found.Count;
+        if (detections == 0)
+            return Result.Success(false);
+
+        ApplyContactRedaction(
+            Contacts?.Contacts.Where(c => c.Origin == AdContactOrigin.Declared).ToList() ?? []);
+        return Result.Success(true);
+    }
+
+    /// <summary>
     /// #842 Tier A — the erasure command's belt-to-retention's-braces sweep (b1 §4.4): clear a
     /// NON-Active ad's contacts. Retention (Archive/the bulk writers) should already have left
     /// nothing here, so this normally touches zero rows — but a backstop that exists only in a

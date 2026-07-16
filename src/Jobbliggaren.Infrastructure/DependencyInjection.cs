@@ -508,6 +508,17 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdExtractedTerms.BackfillJobAdExtractedTermsJob>();
 
+        // #842 Tier A — the one-off contact-scrub backfill (local re-projection, parity the
+        // extraction backfill above). Execution is Klas-gated (STOPP-5); the admin endpoint
+        // defaults to dryRun. DI in the same commit as the job (feedback_di_with_handlers).
+        services.AddOptions<Jobbliggaren.Application.JobAds.Jobs.BackfillRecruiterContactScrub.BackfillRecruiterContactScrubOptions>()
+            .Bind(configuration.GetSection(
+                Jobbliggaren.Application.JobAds.Jobs.BackfillRecruiterContactScrub.BackfillRecruiterContactScrubOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<
+            Jobbliggaren.Application.JobAds.Jobs.BackfillRecruiterContactScrub.BackfillRecruiterContactScrubJob>();
+
         // Fas 4 STEG 4b (F4-4b) — requirements re-ingest backfill (must_have/
         // nice_to_have-skills → Requirement-termer). Tunn wrapper kring
         // JobAdRefetchBackfillRunner (paritet Klass2). Predikatet behöver Npgsql

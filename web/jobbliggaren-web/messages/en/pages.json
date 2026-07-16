@@ -4,7 +4,13 @@
     "rateLimitedBody": "You have made too many requests in a short time. Try again in {seconds, plural, one {# second} other {# seconds}}.",
     "errorBodyReload": "A technical error occurred. Try reloading the page in a moment.",
     "errorBodyRetry": "A technical error occurred. Try again in a moment.",
-    "back": "Back"
+    "back": "Back",
+    "notFound": {
+      "title": "The page does not exist",
+      "body": "The address may be misspelled, or the page has been removed.",
+      "toOverview": "To the overview",
+      "toStart": "To the start page"
+    }
   },
   "layout": {
     "skipToContent": "Skip to main content"

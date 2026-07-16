@@ -4,7 +4,13 @@
     "rateLimitedBody": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
     "errorBodyReload": "Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.",
     "errorBodyRetry": "Ett tekniskt fel uppstod. Försök igen om en stund.",
-    "back": "Tillbaka"
+    "back": "Tillbaka",
+    "notFound": {
+      "title": "Sidan finns inte",
+      "body": "Adressen kan vara felstavad eller så har sidan tagits bort.",
+      "toOverview": "Till översikten",
+      "toStart": "Till startsidan"
+    }
   },
   "layout": {
     "skipToContent": "Hoppa till huvudinnehåll"

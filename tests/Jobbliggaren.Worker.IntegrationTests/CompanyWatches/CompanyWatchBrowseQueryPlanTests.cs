@@ -405,6 +405,25 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         AssertServedByGin(plan, "count");
     }
 
+    [Fact]
+    public async Task MagnitudeQuery_UsesTheSniGinIndex()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextAsync(ct);
+
+        // #560 PR-3 (Fork G3) — the magnitude command reuses CountSql VERBATIM (only the bound cap
+        // differs), so today this pin is the count pin by transitivity. It exists SEPARATELY
+        // because that reuse is one refactor away from being false: give the magnitude its own SQL
+        // text and, without this pin, its plan is free to regress into a full scan while the count
+        // pin stays green — every headline and every picker preview then walks 1,17M rows.
+        var plan = await ExplainAsync(
+            ctx.Db,
+            (conn, spec) => CompanyWatchBrowseQuery.BuildMagnitudeCommand(conn, spec, ceiling: 10_000),
+            ct);
+
+        AssertServedByGin(plan, "magnitude");
+    }
+
     private static void AssertServedByGin(string plan, string which)
     {
         // POSITIVE on the index name. If this ever fails, the message names the index that is missing

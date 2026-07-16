@@ -3,12 +3,24 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getCompanyWatches, markFollowedAdsSeen } from "@/lib/api/company-follows";
+import { getCompanyWatchCriteria, getCriterionReference } from "@/lib/api/company-criteria";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { getApplicationHistory } from "@/lib/api/application-history";
 import { assertNever, type ApiResult } from "@/lib/dto/_helpers";
+import type { CriterionReference } from "@/lib/dto/company-criteria";
 import { CompanyLookup } from "@/components/company-follows/company-lookup";
 import { CompanyWatchList } from "@/components/company-follows/company-watch-list";
+import { CriteriaSection } from "@/components/company-criteria/criteria-section";
 import { ApplicationHistoryList } from "@/components/application-history/application-history-list";
+
+// A degraded reference load must not fail the whole page (parity with the F4b taxonomy degradation):
+// an empty tree makes the picker show civil "unavailable" notices and disables creating.
+const EMPTY_CRITERION_REFERENCE: CriterionReference = {
+  sniVersion: "",
+  kommunVersion: "",
+  sni: [],
+  lan: [],
+};
 
 type PagesTranslator = Awaited<ReturnType<typeof getTranslations<"pages">>>;
 
@@ -47,14 +59,26 @@ export default async function ForetagPage() {
   // on failure the picker degrades civilly to an empty region list rather than failing the page.
   // NOTE: markFollowedAdsSeen stays LAST. It is awaited for its side effect and its result is never
   // destructured, so anything placed after it would silently bind to the wrong promise.
-  const [watchResult, historyResult, taxonomyResult] = await Promise.all([
+  const [
+    watchResult,
+    historyResult,
+    taxonomyResult,
+    criteriaResult,
+    referenceResult,
+  ] = await Promise.all([
     getCompanyWatches(),
     getApplicationHistory(),
     getTaxonomyTree(),
+    // #560 PR-3 — the "Smarta bevakningar" section: the user's criteria + the SCB reference tree the
+    // create/edit picker renders (per-deploy static, cached). Both ride the same parallel batch.
+    getCompanyWatchCriteria(),
+    getCriterionReference(),
     markFollowedAdsSeen(),
   ]);
 
   const regions = taxonomyResult.kind === "ok" ? taxonomyResult.data.regions : [];
+  const criterionReference =
+    referenceResult.kind === "ok" ? referenceResult.data : EMPTY_CRITERION_REFERENCE;
 
   // #454 (ADR 0088, F1(a) — CTO-bind + Klas 2026-07-02): registry-uppslags-sektionen är
   // FEATURE-DARK i prod tills den riktiga SCB-adaptern aktiveras (en sökruta som alltid svarar
@@ -85,6 +109,18 @@ export default async function ForetagPage() {
           {renderSection(watchResult, t, t("foretag.loadErrorTitle"), (data) => (
             <CompanyWatchList items={data} regions={regions} />
           ))}
+        </section>
+
+        <section id="smarta-bevakningar" className="jp-section scroll-mt-6">
+          <h2 className="jp-section__title">{t("foretag.criteria.heading")}</h2>
+          {renderSection(
+            criteriaResult,
+            t,
+            t("foretag.criteria.loadErrorTitle"),
+            (data) => (
+              <CriteriaSection items={data} reference={criterionReference} />
+            )
+          )}
         </section>
 
         <section id="ansokningshistorik" className="jp-section scroll-mt-6">

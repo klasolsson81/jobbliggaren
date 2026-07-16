@@ -1,0 +1,4708 @@
+{
+ "//": "SNI 2025 (Standard for svensk naringsgrensindelning). Source: SCB, sni-2025-struktur.xlsx (CC0), fetched 2026-07-16. 22 sections (avdelning A-U), 87 divisions (huvudgrupp, 2-digit), 835 leaves (detaljgrupp, 5-digit, stored WITHOUT the dot: '01.110' -> '01110' - matches company_register.sni_codes).",
+ "sniVersion": "2025.v1",
+ "sections": [
+  {
+   "code": "A",
+   "name": "JORDBRUK, SKOGSBRUK OCH FISKE"
+  },
+  {
+   "code": "B",
+   "name": "UTVINNING AV MINERAL"
+  },
+  {
+   "code": "C",
+   "name": "TILLVERKNING"
+  },
+  {
+   "code": "D",
+   "name": "FÖRSÖRJNING AV EL, GAS, VÄRME OCH KYLA"
+  },
+  {
+   "code": "E",
+   "name": "VATTENFÖRSÖRJNING; AVLOPPSRENING, AVFALLSHANTERING OCH SANERING"
+  },
+  {
+   "code": "F",
+   "name": "BYGGVERKSAMHET"
+  },
+  {
+   "code": "G",
+   "name": "HANDEL"
+  },
+  {
+   "code": "H",
+   "name": "TRANSPORT OCH MAGASINERING"
+  },
+  {
+   "code": "I",
+   "name": "HOTELL- OCH RESTAURANGVERKSAMHET"
+  },
+  {
+   "code": "J",
+   "name": "FÖRLAGSVERKSAMHET, RADIO- OCH TV-SÄNDNING SAMT PRODUKTION OCH DISTRIBUTION AV MEDIEINNEHÅLL"
+  },
+  {
+   "code": "K",
+   "name": "TELEKOMMUNIKATION, DATAPROGRAMMERING, DATAKONSULTVERKSAMHET, DATAINFRASTRUKTUR OCH ANNAN INFORMATIONSVERKSAMHET"
+  },
+  {
+   "code": "L",
+   "name": "FINANSIELL VERKSAMHET OCH FÖRSÄKRINGSVERKSAMHET"
+  },
+  {
+   "code": "M",
+   "name": "FASTIGHETSVERKSAMHET"
+  },
+  {
+   "code": "N",
+   "name": "VERKSAMHET INOM JURIDIK, EKONOMI, VETENSKAP OCH TEKNIK"
+  },
+  {
+   "code": "O",
+   "name": "UTHYRNING, FASTIGHETSSERVICE, RESETJÄNSTER OCH ANNAN STÖDVERKSAMHET"
+  },
+  {
+   "code": "P",
+   "name": "OFFENTLIG FÖRVALTNING OCH FÖRSVAR; OBLIGATORISK SOCIALFÖRSÄKRING"
+  },
+  {
+   "code": "Q",
+   "name": "UTBILDNING"
+  },
+  {
+   "code": "R",
+   "name": "VÅRD OCH OMSORG; SOCIAL VERKSAMHET"
+  },
+  {
+   "code": "S",
+   "name": "KULTUR, IDROTT OCH FRITID"
+  },
+  {
+   "code": "T",
+   "name": "ANNAN SERVICEVERKSAMHET"
+  },
+  {
+   "code": "U",
+   "name": "FÖRVÄRVSARBETE I HUSHÅLL OCH HUSHÅLLENS PRODUKTION AV DIVERSE VAROR OCH TJÄNSTER FÖR EGET BRUK"
+  },
+  {
+   "code": "V",
+   "name": "VERKSAMHET VID INTERNATIONELLA ORGANISATIONER, UTLÄNDSKA AMBASSADER O.D."
+  }
+ ],
+ "divisions": [
+  {
+   "code": "01",
+   "section": "A",
+   "name": "Jordbruk och jakt samt stödverksamhet i anslutning härtill"
+  },
+  {
+   "code": "02",
+   "section": "A",
+   "name": "Skogsbruk"
+  },
+  {
+   "code": "03",
+   "section": "A",
+   "name": "Fiske och vattenbruk"
+  },
+  {
+   "code": "05",
+   "section": "B",
+   "name": "Kolutvinning"
+  },
+  {
+   "code": "06",
+   "section": "B",
+   "name": "Utvinning av råpetroleum och naturgas"
+  },
+  {
+   "code": "07",
+   "section": "B",
+   "name": "Utvinning av metallmalmer"
+  },
+  {
+   "code": "08",
+   "section": "B",
+   "name": "Annan utvinning av mineral"
+  },
+  {
+   "code": "09",
+   "section": "B",
+   "name": "Stödverksamhet avseende utvinning"
+  },
+  {
+   "code": "10",
+   "section": "C",
+   "name": "Livsmedelsframställning"
+  },
+  {
+   "code": "11",
+   "section": "C",
+   "name": "Framställning av drycker"
+  },
+  {
+   "code": "12",
+   "section": "C",
+   "name": "Tobaksvarutillverkning"
+  },
+  {
+   "code": "13",
+   "section": "C",
+   "name": "Textilvarutillverkning"
+  },
+  {
+   "code": "14",
+   "section": "C",
+   "name": "Tillverkning av kläder"
+  },
+  {
+   "code": "15",
+   "section": "C",
+   "name": "Tillverkning av läder- och skinnvaror och liknande varor av andra material"
+  },
+  {
+   "code": "16",
+   "section": "C",
+   "name": "Tillverkning av trä och varor av trä och kork, utom möbler: tillverkning av varor av halm, rotting o.d."
+  },
+  {
+   "code": "17",
+   "section": "C",
+   "name": "Pappers- och pappersvarutillverkning"
+  },
+  {
+   "code": "18",
+   "section": "C",
+   "name": "Grafisk produktion och reproduktion av inspelningar"
+  },
+  {
+   "code": "19",
+   "section": "C",
+   "name": "Tillverkning av stenkolsprodukter och raffinerade petroleumprodukter"
+  },
+  {
+   "code": "20",
+   "section": "C",
+   "name": "Tillverkning av kemikalier och kemiska produkter"
+  },
+  {
+   "code": "21",
+   "section": "C",
+   "name": "Tillverkning av farmaceutiska basprodukter och läkemedel"
+  },
+  {
+   "code": "22",
+   "section": "C",
+   "name": "Tillverkning av gummi- och plastvaror"
+  },
+  {
+   "code": "23",
+   "section": "C",
+   "name": "Tillverkning av andra icke-metalliska mineraliska produkter"
+  },
+  {
+   "code": "24",
+   "section": "C",
+   "name": "Stål- och metallframställning"
+  },
+  {
+   "code": "25",
+   "section": "C",
+   "name": "Tillverkning av metallvaror utom maskiner och apparater"
+  },
+  {
+   "code": "26",
+   "section": "C",
+   "name": "Tillverkning av datorer, elektronikvaror och optik"
+  },
+  {
+   "code": "27",
+   "section": "C",
+   "name": "Tillverkning av elapparatur"
+  },
+  {
+   "code": "28",
+   "section": "C",
+   "name": "Tillverkning av övriga maskiner"
+  },
+  {
+   "code": "29",
+   "section": "C",
+   "name": "Tillverkning av motorfordon, släpfordon och påhängsvagnar"
+  },
+  {
+   "code": "30",
+   "section": "C",
+   "name": "Tillverkning av andra transportmedel"
+  },
+  {
+   "code": "31",
+   "section": "C",
+   "name": "Tillverkning av möbler"
+  },
+  {
+   "code": "32",
+   "section": "C",
+   "name": "Annan tillverkning"
+  },
+  {
+   "code": "33",
+   "section": "C",
+   "name": "Reparation, underhåll och installation av maskiner och utrustning"
+  },
+  {
+   "code": "35",
+   "section": "D",
+   "name": "El-, gas- och ångförsörjning samt luftkonditionering"
+  },
+  {
+   "code": "36",
+   "section": "E",
+   "name": "Vattenförsörjning"
+  },
+  {
+   "code": "37",
+   "section": "E",
+   "name": "Avloppsrening"
+  },
+  {
+   "code": "38",
+   "section": "E",
+   "name": "Insamling av avfall, återvinning och bortskaffande"
+  },
+  {
+   "code": "39",
+   "section": "E",
+   "name": "Sanering, efterbehandling av jord och vatten samt annan verksamhet för föroreningsbekämpning"
+  },
+  {
+   "code": "41",
+   "section": "F",
+   "name": "Byggande av bostadshus och andra byggnader"
+  },
+  {
+   "code": "42",
+   "section": "F",
+   "name": "Anläggningsarbeten"
+  },
+  {
+   "code": "43",
+   "section": "F",
+   "name": "Specialiserad bygg- och anläggningsverksamhet"
+  },
+  {
+   "code": "46",
+   "section": "G",
+   "name": "Parti- och provisionshandel"
+  },
+  {
+   "code": "47",
+   "section": "G",
+   "name": "Detaljhandel"
+  },
+  {
+   "code": "49",
+   "section": "H",
+   "name": "Landtransport; transport i rörsystem"
+  },
+  {
+   "code": "50",
+   "section": "H",
+   "name": "Sjötransport"
+  },
+  {
+   "code": "51",
+   "section": "H",
+   "name": "Lufttransport"
+  },
+  {
+   "code": "52",
+   "section": "H",
+   "name": "Magasinering, varulagring och stödverksamhet avseende transport"
+  },
+  {
+   "code": "53",
+   "section": "H",
+   "name": "Post- och kurirverksamhet"
+  },
+  {
+   "code": "55",
+   "section": "I",
+   "name": "Hotell- och logiverksamhet"
+  },
+  {
+   "code": "56",
+   "section": "I",
+   "name": "Restaurang-, catering- och barverksamhet"
+  },
+  {
+   "code": "58",
+   "section": "J",
+   "name": "Förlagsverksamhet"
+  },
+  {
+   "code": "59",
+   "section": "J",
+   "name": "Film-, video- och tv-programverksamhet, ljudinspelning och musikutgivning"
+  },
+  {
+   "code": "60",
+   "section": "J",
+   "name": "Planering, radio- och tv-sändning, nyhetsbyråer och annan distribution av medieinnehåll"
+  },
+  {
+   "code": "61",
+   "section": "K",
+   "name": "Telekommunikation"
+  },
+  {
+   "code": "62",
+   "section": "K",
+   "name": "Dataprogrammering, datakonsultverksamhet o.d."
+  },
+  {
+   "code": "63",
+   "section": "K",
+   "name": "Datainfrastruktur, databehandling, hosting och annan informationsverksamhet"
+  },
+  {
+   "code": "64",
+   "section": "L",
+   "name": "Finansiell verksamhet utom försäkrings- och pensionsfondsverksamhet"
+  },
+  {
+   "code": "65",
+   "section": "L",
+   "name": "Försäkrings-, återförsäkrings- och pensionsfondsverksamhet utom obligatorisk socialförsäkring"
+  },
+  {
+   "code": "66",
+   "section": "L",
+   "name": "Stödverksamhet avseende finansiella tjänster och försäkringsverksamhet"
+  },
+  {
+   "code": "68",
+   "section": "M",
+   "name": "Fastighetsverksamhet"
+  },
+  {
+   "code": "69",
+   "section": "N",
+   "name": "Juridisk och ekonomisk konsultverksamhet"
+  },
+  {
+   "code": "70",
+   "section": "N",
+   "name": "Verksamheter som utövas av huvudkontor samt konsultverksamhet avseende företag"
+  },
+  {
+   "code": "71",
+   "section": "N",
+   "name": "Arkitekt- och teknisk konsultverksamhet; teknisk provning och analys"
+  },
+  {
+   "code": "72",
+   "section": "N",
+   "name": "Vetenskaplig forskning och utveckling"
+  },
+  {
+   "code": "73",
+   "section": "N",
+   "name": "Reklamverksamhet, marknadsundersökningar och PR"
+  },
+  {
+   "code": "74",
+   "section": "N",
+   "name": "Annan verksamhet inom juridik, ekonomi, vetenskap och teknik"
+  },
+  {
+   "code": "75",
+   "section": "N",
+   "name": "Veterinärverksamhet"
+  },
+  {
+   "code": "77",
+   "section": "O",
+   "name": "Uthyrning och leasing"
+  },
+  {
+   "code": "78",
+   "section": "O",
+   "name": "Arbetsförmedling, bemanning och annan personalrelaterad verksamhet"
+  },
+  {
+   "code": "79",
+   "section": "O",
+   "name": "Resebyrå- och researrangörsverksamhet samt annan boknings- och reserelaterad verksamhet"
+  },
+  {
+   "code": "80",
+   "section": "O",
+   "name": "Säkerhets- och bevakningsverksamhet"
+  },
+  {
+   "code": "81",
+   "section": "O",
+   "name": "Fastighetsrelaterad stödverksamhet samt skötsel och underhåll av grönytor"
+  },
+  {
+   "code": "82",
+   "section": "O",
+   "name": "Kontorstjänster och annan stödverksamhet till företag"
+  },
+  {
+   "code": "84",
+   "section": "P",
+   "name": "Offentlig förvaltning och försvar; obligatorisk socialförsäkring"
+  },
+  {
+   "code": "85",
+   "section": "Q",
+   "name": "Utbildning"
+  },
+  {
+   "code": "86",
+   "section": "R",
+   "name": "Hälso- och sjukvård"
+  },
+  {
+   "code": "87",
+   "section": "R",
+   "name": "Vård och omsorg med boende"
+  },
+  {
+   "code": "88",
+   "section": "R",
+   "name": "Öppna sociala insatser"
+  },
+  {
+   "code": "90",
+   "section": "S",
+   "name": "Konstnärligt skapande och scenkonst"
+  },
+  {
+   "code": "91",
+   "section": "S",
+   "name": "Biblioteks-, arkiv- och museiverksamhet m.m."
+  },
+  {
+   "code": "92",
+   "section": "S",
+   "name": "Spel- och vadhållningsverksamhet"
+  },
+  {
+   "code": "93",
+   "section": "S",
+   "name": "Sport-, fritids- och nöjesverksamhet"
+  },
+  {
+   "code": "94",
+   "section": "T",
+   "name": "Intressebevakning; religiös verksamhet"
+  },
+  {
+   "code": "95",
+   "section": "T",
+   "name": "Reparation och underhåll av datorer, hushållsartiklar och varor för personligt bruk samt motorfordon och motorcyklar"
+  },
+  {
+   "code": "96",
+   "section": "T",
+   "name": "Konsumenttjänster"
+  },
+  {
+   "code": "97",
+   "section": "U",
+   "name": "Förvärvsarbete i hushåll"
+  },
+  {
+   "code": "98",
+   "section": "U",
+   "name": "Hushållens produktion av diverse varor och tjänster för eget bruk"
+  },
+  {
+   "code": "99",
+   "section": "V",
+   "name": "Verksamhet vid internationella organisationer, utländska ambassader o.d."
+  }
+ ],
+ "leaves": [
+  {
+   "code": "01110",
+   "division": "01",
+   "name": "Odling av spannmål (utom ris), baljväxter och oljeväxter"
+  },
+  {
+   "code": "01120",
+   "division": "01",
+   "name": "Odling av ris"
+  },
+  {
+   "code": "01131",
+   "division": "01",
+   "name": "Potatisodling"
+  },
+  {
+   "code": "01132",
+   "division": "01",
+   "name": "Sockerbetsodling"
+  },
+  {
+   "code": "01133",
+   "division": "01",
+   "name": "Odling av grönsaker (köksväxter) på friland"
+  },
+  {
+   "code": "01134",
+   "division": "01",
+   "name": "Odling av grönsaker (köksväxter) i växthus"
+  },
+  {
+   "code": "01135",
+   "division": "01",
+   "name": "Svampodling m.m."
+  },
+  {
+   "code": "01140",
+   "division": "01",
+   "name": "Odling av sockerrör"
+  },
+  {
+   "code": "01150",
+   "division": "01",
+   "name": "Odling av tobak"
+  },
+  {
+   "code": "01160",
+   "division": "01",
+   "name": "Odling av fiberväxter"
+  },
+  {
+   "code": "01191",
+   "division": "01",
+   "name": "Odling av prydnadsväxter i växthus"
+  },
+  {
+   "code": "01199",
+   "division": "01",
+   "name": "Odling av övriga ett- och tvååriga växter"
+  },
+  {
+   "code": "01210",
+   "division": "01",
+   "name": "Odling av druvor"
+  },
+  {
+   "code": "01220",
+   "division": "01",
+   "name": "Odling av tropiska och subtropiska frukter"
+  },
+  {
+   "code": "01230",
+   "division": "01",
+   "name": "Odling av citrusfrukter"
+  },
+  {
+   "code": "01240",
+   "division": "01",
+   "name": "Odling av kärnfrukter och stenfrukter"
+  },
+  {
+   "code": "01250",
+   "division": "01",
+   "name": "Odling av andra frukter, bär samt nötter"
+  },
+  {
+   "code": "01260",
+   "division": "01",
+   "name": "Odling av oljehaltiga frukter"
+  },
+  {
+   "code": "01270",
+   "division": "01",
+   "name": "Odling av växter för dryckesframställning"
+  },
+  {
+   "code": "01280",
+   "division": "01",
+   "name": "Odling av kryddväxter, drog- och medicinalväxter"
+  },
+  {
+   "code": "01290",
+   "division": "01",
+   "name": "Odling av andra fleråriga växter"
+  },
+  {
+   "code": "01301",
+   "division": "01",
+   "name": "Odling av plantskoleväxter i växthus"
+  },
+  {
+   "code": "01302",
+   "division": "01",
+   "name": "Odling av plantskoleväxter m.m. på friland"
+  },
+  {
+   "code": "01410",
+   "division": "01",
+   "name": "Mjölkproduktion och uppfödning av nötkreatur av mjölkras"
+  },
+  {
+   "code": "01420",
+   "division": "01",
+   "name": "Uppfödning av andra nötkreatur och bufflar"
+  },
+  {
+   "code": "01430",
+   "division": "01",
+   "name": "Uppfödning av hästar och andra hästdjur"
+  },
+  {
+   "code": "01440",
+   "division": "01",
+   "name": "Uppfödning av kameler och kameldjur"
+  },
+  {
+   "code": "01450",
+   "division": "01",
+   "name": "Uppfödning av får och getter"
+  },
+  {
+   "code": "01461",
+   "division": "01",
+   "name": "Uppfödning av smågrisar"
+  },
+  {
+   "code": "01462",
+   "division": "01",
+   "name": "Uppfödning av slaktsvin"
+  },
+  {
+   "code": "01471",
+   "division": "01",
+   "name": "Äggproduktion (för försäljning)"
+  },
+  {
+   "code": "01472",
+   "division": "01",
+   "name": "Uppfödning av fjäderfä, ej äggproduktion"
+  },
+  {
+   "code": "01481",
+   "division": "01",
+   "name": "Renskötsel"
+  },
+  {
+   "code": "01482",
+   "division": "01",
+   "name": "Uppfödning av sällskapsdjur"
+  },
+  {
+   "code": "01489",
+   "division": "01",
+   "name": "Övrig uppfödning av andra djur"
+  },
+  {
+   "code": "01500",
+   "division": "01",
+   "name": "Blandat jordbruk"
+  },
+  {
+   "code": "01610",
+   "division": "01",
+   "name": "Stödverksamhet avseende växtodling"
+  },
+  {
+   "code": "01620",
+   "division": "01",
+   "name": "Stödverksamhet avseende husdjursskötsel"
+  },
+  {
+   "code": "01630",
+   "division": "01",
+   "name": "Bearbetning av skördade växter och utsäde"
+  },
+  {
+   "code": "01700",
+   "division": "01",
+   "name": "Jakt och stödverksamhet i anslutning härtill"
+  },
+  {
+   "code": "02101",
+   "division": "02",
+   "name": "Skogsförvaltning"
+  },
+  {
+   "code": "02102",
+   "division": "02",
+   "name": "Skogsskötsel"
+  },
+  {
+   "code": "02109",
+   "division": "02",
+   "name": "Övrig skoglig verksamhet"
+  },
+  {
+   "code": "02200",
+   "division": "02",
+   "name": "Drivning"
+  },
+  {
+   "code": "02300",
+   "division": "02",
+   "name": "Insamling av annat vilt växande skogsmaterial än trä"
+  },
+  {
+   "code": "02400",
+   "division": "02",
+   "name": "Stödverksamhet avseende skogsbruk"
+  },
+  {
+   "code": "03111",
+   "division": "03",
+   "name": "Trålfiske i saltvatten"
+  },
+  {
+   "code": "03119",
+   "division": "03",
+   "name": "Övrigt saltvattensfiske"
+  },
+  {
+   "code": "03120",
+   "division": "03",
+   "name": "Sötvattensfiske"
+  },
+  {
+   "code": "03210",
+   "division": "03",
+   "name": "Vattenbruk i saltvatten"
+  },
+  {
+   "code": "03220",
+   "division": "03",
+   "name": "Vattenbruk i sötvatten"
+  },
+  {
+   "code": "03300",
+   "division": "03",
+   "name": "Stödverksamhet avseende fiske och vattenbruk"
+  },
+  {
+   "code": "05100",
+   "division": "05",
+   "name": "Stenkolsutvinning"
+  },
+  {
+   "code": "05200",
+   "division": "05",
+   "name": "Brunkolsutvinning"
+  },
+  {
+   "code": "06100",
+   "division": "06",
+   "name": "Utvinning av råpetroleum"
+  },
+  {
+   "code": "06200",
+   "division": "06",
+   "name": "Utvinning av naturgas"
+  },
+  {
+   "code": "07100",
+   "division": "07",
+   "name": "Järnmalmsutvinning"
+  },
+  {
+   "code": "07210",
+   "division": "07",
+   "name": "Utvinning av uran- och toriummalm"
+  },
+  {
+   "code": "07290",
+   "division": "07",
+   "name": "Utvinning av annan malm"
+  },
+  {
+   "code": "08110",
+   "division": "08",
+   "name": "Brytning av natursten, kalk- och gipssten, skiffer eller annan sten"
+  },
+  {
+   "code": "08120",
+   "division": "08",
+   "name": "Utvinning av sand, grus och berg samt utvinning av lera och kaolin"
+  },
+  {
+   "code": "08910",
+   "division": "08",
+   "name": "Utvinning av kemiska mineral"
+  },
+  {
+   "code": "08920",
+   "division": "08",
+   "name": "Torvutvinning"
+  },
+  {
+   "code": "08930",
+   "division": "08",
+   "name": "Saltutvinning"
+  },
+  {
+   "code": "08990",
+   "division": "08",
+   "name": "Diverse övrig utvinning av mineral"
+  },
+  {
+   "code": "09100",
+   "division": "09",
+   "name": "Stödverksamhet avseende råpetroleum- och naturgasutvinning"
+  },
+  {
+   "code": "09900",
+   "division": "09",
+   "name": "Stödverksamhet avseende annan utvinning"
+  },
+  {
+   "code": "10111",
+   "division": "10",
+   "name": "Kreatursslakt"
+  },
+  {
+   "code": "10112",
+   "division": "10",
+   "name": "Styckning av kött"
+  },
+  {
+   "code": "10120",
+   "division": "10",
+   "name": "Beredning och hållbarhetsbehandling av fjäderfäkött"
+  },
+  {
+   "code": "10130",
+   "division": "10",
+   "name": "Charkuteri- och annan köttvarutillverkning"
+  },
+  {
+   "code": "10200",
+   "division": "10",
+   "name": "Beredning och hållbarhetsbehandling av fisk samt skal- och blötdjur"
+  },
+  {
+   "code": "10310",
+   "division": "10",
+   "name": "Beredning och hållbarhetsbehandling av potatis"
+  },
+  {
+   "code": "10320",
+   "division": "10",
+   "name": "Juice- och safttillverkning"
+  },
+  {
+   "code": "10390",
+   "division": "10",
+   "name": "Annan beredning och hållbarhetsbehandling av frukt, bär och grönsaker"
+  },
+  {
+   "code": "10410",
+   "division": "10",
+   "name": "Framställning av vegetabiliska och animaliska oljor och fetter"
+  },
+  {
+   "code": "10420",
+   "division": "10",
+   "name": "Matfettstillverkning"
+  },
+  {
+   "code": "10511",
+   "division": "10",
+   "name": "Osttillverkning"
+  },
+  {
+   "code": "10519",
+   "division": "10",
+   "name": "Annan mejerivarutillverkning"
+  },
+  {
+   "code": "10520",
+   "division": "10",
+   "name": "Tillverkning av glassvaror"
+  },
+  {
+   "code": "10611",
+   "division": "10",
+   "name": "Mjöltillverkning"
+  },
+  {
+   "code": "10612",
+   "division": "10",
+   "name": "Tillverkning av frukostflingor, mixer och andra livsmedelsberedningar av kvarnprodukter"
+  },
+  {
+   "code": "10620",
+   "division": "10",
+   "name": "Stärkelsetillverkning"
+  },
+  {
+   "code": "10710",
+   "division": "10",
+   "name": "Tillverkning av mjukt matbröd och färska bakverk"
+  },
+  {
+   "code": "10721",
+   "division": "10",
+   "name": "Knäckebrödstillverkning"
+  },
+  {
+   "code": "10722",
+   "division": "10",
+   "name": "Tillverkning av kex och konserverade bakverk"
+  },
+  {
+   "code": "10730",
+   "division": "10",
+   "name": "Tillverkning av mjölprodukter"
+  },
+  {
+   "code": "10810",
+   "division": "10",
+   "name": "Sockertillverkning"
+  },
+  {
+   "code": "10820",
+   "division": "10",
+   "name": "Tillverkning av kakao, choklad- och sockerkonfektyrer"
+  },
+  {
+   "code": "10830",
+   "division": "10",
+   "name": "Framställning av te och kaffe"
+  },
+  {
+   "code": "10840",
+   "division": "10",
+   "name": "Tillverkning av kryddor och andra smaksättare"
+  },
+  {
+   "code": "10850",
+   "division": "10",
+   "name": "Tillverkning av lagad mat och färdigrätter"
+  },
+  {
+   "code": "10860",
+   "division": "10",
+   "name": "Tillverkning av homogeniserade livsmedelsberedningar inklusive dietmat"
+  },
+  {
+   "code": "10890",
+   "division": "10",
+   "name": "Framställning av diverse övriga livsmedel"
+  },
+  {
+   "code": "10910",
+   "division": "10",
+   "name": "Framställning av beredda fodermedel"
+  },
+  {
+   "code": "10920",
+   "division": "10",
+   "name": "Framställning av mat till sällskapsdjur"
+  },
+  {
+   "code": "11010",
+   "division": "11",
+   "name": "Destillering, rening och tillblandning av spritdrycker"
+  },
+  {
+   "code": "11020",
+   "division": "11",
+   "name": "Framställning av vin från druvor"
+  },
+  {
+   "code": "11030",
+   "division": "11",
+   "name": "Framställning av cider och andra jästa drycker av frukt"
+  },
+  {
+   "code": "11040",
+   "division": "11",
+   "name": "Framställning av andra icke-destillerade jästa drycker"
+  },
+  {
+   "code": "11050",
+   "division": "11",
+   "name": "Framställning av öl"
+  },
+  {
+   "code": "11060",
+   "division": "11",
+   "name": "Framställning av malt"
+  },
+  {
+   "code": "11070",
+   "division": "11",
+   "name": "Framställning av läskedrycker, mineralvatten och annat vatten på flaska"
+  },
+  {
+   "code": "12000",
+   "division": "12",
+   "name": "Tobaksvarutillverkning"
+  },
+  {
+   "code": "13100",
+   "division": "13",
+   "name": "Garntillverkning"
+  },
+  {
+   "code": "13200",
+   "division": "13",
+   "name": "Vävnadstillverkning"
+  },
+  {
+   "code": "13300",
+   "division": "13",
+   "name": "Blekning, färgning och annan textilberedning"
+  },
+  {
+   "code": "13910",
+   "division": "13",
+   "name": "Tillverkning av trikåväv"
+  },
+  {
+   "code": "13920",
+   "division": "13",
+   "name": "Tillverkning av hushållstextilier och andra sydda inredningsartiklar"
+  },
+  {
+   "code": "13930",
+   "division": "13",
+   "name": "Tillverkning av mattor"
+  },
+  {
+   "code": "13940",
+   "division": "13",
+   "name": "Tågvirkes- och bindgarnstillverkning"
+  },
+  {
+   "code": "13950",
+   "division": "13",
+   "name": "Tillverkning av bondad duk och varor av bondad duk"
+  },
+  {
+   "code": "13960",
+   "division": "13",
+   "name": "Tillverkning av andra tekniska textilier och industritextilier"
+  },
+  {
+   "code": "13990",
+   "division": "13",
+   "name": "Övrig textilietillverkning"
+  },
+  {
+   "code": "14100",
+   "division": "14",
+   "name": "Tillverkning av trikåvaror"
+  },
+  {
+   "code": "14210",
+   "division": "14",
+   "name": "Tillverkning av gång- och ytterkläder"
+  },
+  {
+   "code": "14220",
+   "division": "14",
+   "name": "Tillverkning av underkläder, skjortor och blusar"
+  },
+  {
+   "code": "14230",
+   "division": "14",
+   "name": "Tillverkning av arbets-, skydds- och överdragskläder"
+  },
+  {
+   "code": "14240",
+   "division": "14",
+   "name": "Tillverkning av läder- och skinnkläder samt pälsvaror"
+  },
+  {
+   "code": "14290",
+   "division": "14",
+   "name": "Tillverkning av diverse övriga beklädnadsvaror och tillbehör"
+  },
+  {
+   "code": "15110",
+   "division": "15",
+   "name": "Garvning och annan beredning av läder-, skinn- och pälsvaror"
+  },
+  {
+   "code": "15120",
+   "division": "15",
+   "name": "Tillverkning av reseffekter, handväskor, sadel- och seldon oavsett material"
+  },
+  {
+   "code": "15200",
+   "division": "15",
+   "name": "Tillverkning av skodon"
+  },
+  {
+   "code": "16111",
+   "division": "16",
+   "name": "Sågning av trä"
+  },
+  {
+   "code": "16112",
+   "division": "16",
+   "name": "Hyvling av trä"
+  },
+  {
+   "code": "16120",
+   "division": "16",
+   "name": "Bearbetning och slutbehandling av trä"
+  },
+  {
+   "code": "16210",
+   "division": "16",
+   "name": "Tillverkning av fanér och träbaserade skivor"
+  },
+  {
+   "code": "16220",
+   "division": "16",
+   "name": "Tillverkning av sammansatta parkettgolv"
+  },
+  {
+   "code": "16231",
+   "division": "16",
+   "name": "Tillverkning av monteringsfärdiga trähus"
+  },
+  {
+   "code": "16239",
+   "division": "16",
+   "name": "Tillverkning av övriga byggnads- och inredningssnickerier"
+  },
+  {
+   "code": "16240",
+   "division": "16",
+   "name": "Träförpackningstillverkning"
+  },
+  {
+   "code": "16250",
+   "division": "16",
+   "name": "Tillverkning av dörrar och fönster av trä"
+  },
+  {
+   "code": "16260",
+   "division": "16",
+   "name": "Tillverkning av fasta bränslen av vegetabilisk biomassa"
+  },
+  {
+   "code": "16270",
+   "division": "16",
+   "name": "Slutbehandling av varor av trä"
+  },
+  {
+   "code": "16281",
+   "division": "16",
+   "name": "Övrig trävarutillverkning"
+  },
+  {
+   "code": "16282",
+   "division": "16",
+   "name": "Tillverkning av varor av kork, halm, rotting o.d."
+  },
+  {
+   "code": "17110",
+   "division": "17",
+   "name": "Massatillverkning"
+  },
+  {
+   "code": "17121",
+   "division": "17",
+   "name": "Tillverkning av tidnings- och journalpapper samt tryckpapper"
+  },
+  {
+   "code": "17122",
+   "division": "17",
+   "name": "Tillverkning av kraftpapper och kraftpapp"
+  },
+  {
+   "code": "17129",
+   "division": "17",
+   "name": "Övrig tillverkning av papper och papp"
+  },
+  {
+   "code": "17211",
+   "division": "17",
+   "name": "Tillverkning av wellpapp och wellpappförpackningar"
+  },
+  {
+   "code": "17219",
+   "division": "17",
+   "name": "Övrig tillverkning av pappers- och pappförpackningar"
+  },
+  {
+   "code": "17220",
+   "division": "17",
+   "name": "Tillverkning av hushålls- och hygienartiklar av papper"
+  },
+  {
+   "code": "17230",
+   "division": "17",
+   "name": "Tillverkning av skrivpapper, kuvert o.d."
+  },
+  {
+   "code": "17240",
+   "division": "17",
+   "name": "Tapettillverkning"
+  },
+  {
+   "code": "17250",
+   "division": "17",
+   "name": "Tillverkning av andra pappers- och pappvaror"
+  },
+  {
+   "code": "18110",
+   "division": "18",
+   "name": "Tryckning av dagstidningar"
+  },
+  {
+   "code": "18121",
+   "division": "18",
+   "name": "Tryckning av tidskrifter"
+  },
+  {
+   "code": "18122",
+   "division": "18",
+   "name": "Tryckning av böcker och övriga trycksaker"
+  },
+  {
+   "code": "18130",
+   "division": "18",
+   "name": "Grafiska tjänster före tryckning (prepress/premedia)"
+  },
+  {
+   "code": "18140",
+   "division": "18",
+   "name": "Bokbindning och annan verksamhet avseende tryckning"
+  },
+  {
+   "code": "18200",
+   "division": "18",
+   "name": "Reproduktion av inspelningar"
+  },
+  {
+   "code": "19100",
+   "division": "19",
+   "name": "Tillverkning av stenkolsprodukter"
+  },
+  {
+   "code": "19200",
+   "division": "19",
+   "name": "Tillverkning av raffinerade petroleumprodukter och fossila bränsleprodukter"
+  },
+  {
+   "code": "20110",
+   "division": "20",
+   "name": "Industrigasframställning"
+  },
+  {
+   "code": "20120",
+   "division": "20",
+   "name": "Tillverkning av färgämnen"
+  },
+  {
+   "code": "20130",
+   "division": "20",
+   "name": "Tillverkning av andra oorganiska baskemikalier"
+  },
+  {
+   "code": "20140",
+   "division": "20",
+   "name": "Tillverkning av andra organiska baskemikalier"
+  },
+  {
+   "code": "20150",
+   "division": "20",
+   "name": "Tillverkning av gödselmedel och kväveprodukter"
+  },
+  {
+   "code": "20160",
+   "division": "20",
+   "name": "Basplastframställning"
+  },
+  {
+   "code": "20170",
+   "division": "20",
+   "name": "Tillverkning av syntetiskt basgummi"
+  },
+  {
+   "code": "20200",
+   "division": "20",
+   "name": "Tillverkning av bekämpningsmedel, desinfektionsmedel och andra lantbrukskemiska produkter"
+  },
+  {
+   "code": "20300",
+   "division": "20",
+   "name": "Tillverkning av färg, lack, tryckfärg m.m."
+  },
+  {
+   "code": "20410",
+   "division": "20",
+   "name": "Tillverkning av tvål, såpa, tvättmedel och polermedel"
+  },
+  {
+   "code": "20420",
+   "division": "20",
+   "name": "Tillverkning av parfym och toalettartiklar"
+  },
+  {
+   "code": "20510",
+   "division": "20",
+   "name": "Tillverkning av flytande biobränslen"
+  },
+  {
+   "code": "20591",
+   "division": "20",
+   "name": "Sprängämnestillverkning"
+  },
+  {
+   "code": "20592",
+   "division": "20",
+   "name": "Tillverkning av lim"
+  },
+  {
+   "code": "20593",
+   "division": "20",
+   "name": "Tillverkning av eteriska oljor"
+  },
+  {
+   "code": "20599",
+   "division": "20",
+   "name": "Tillverkning av övriga kemiska produkter"
+  },
+  {
+   "code": "20600",
+   "division": "20",
+   "name": "Konstfibertillverkning"
+  },
+  {
+   "code": "21100",
+   "division": "21",
+   "name": "Tillverkning av farmaceutiska basprodukter"
+  },
+  {
+   "code": "21200",
+   "division": "21",
+   "name": "Tillverkning av läkemedel"
+  },
+  {
+   "code": "22110",
+   "division": "22",
+   "name": "Tillverkning och regummering av däck, tillverkning av slangar"
+  },
+  {
+   "code": "22120",
+   "division": "22",
+   "name": "Annan gummivarutillverkning"
+  },
+  {
+   "code": "22210",
+   "division": "22",
+   "name": "Tillverkning av plasthalvfabrikat"
+  },
+  {
+   "code": "22220",
+   "division": "22",
+   "name": "Plastförpackningstillverkning"
+  },
+  {
+   "code": "22230",
+   "division": "22",
+   "name": "Tillverkning av dörrar och fönster av plast"
+  },
+  {
+   "code": "22240",
+   "division": "22",
+   "name": "Byggplastvarutillverkning"
+  },
+  {
+   "code": "22250",
+   "division": "22",
+   "name": "Bearbetning och slutbehandling av plastvaror"
+  },
+  {
+   "code": "22260",
+   "division": "22",
+   "name": "Annan plastvarutillverkning"
+  },
+  {
+   "code": "23110",
+   "division": "23",
+   "name": "Tillverkning av planglas"
+  },
+  {
+   "code": "23120",
+   "division": "23",
+   "name": "Bearbetning av planglas"
+  },
+  {
+   "code": "23130",
+   "division": "23",
+   "name": "Tillverkning av buteljer, glasförpackningar och husgeråd av glas"
+  },
+  {
+   "code": "23140",
+   "division": "23",
+   "name": "Tillverkning av glasfiber"
+  },
+  {
+   "code": "23150",
+   "division": "23",
+   "name": "Tillverkning av andra glasvaror inklusive tekniska glasvaror"
+  },
+  {
+   "code": "23200",
+   "division": "23",
+   "name": "Tillverkning av eldfasta produkter"
+  },
+  {
+   "code": "23310",
+   "division": "23",
+   "name": "Tillverkning av keramiska golv- och väggplattor"
+  },
+  {
+   "code": "23320",
+   "division": "23",
+   "name": "Tillverkning av murtegel, takpannor och andra byggvaror av tegel"
+  },
+  {
+   "code": "23410",
+   "division": "23",
+   "name": "Tillverkning av keramiska hushålls- och prydnadsartiklar"
+  },
+  {
+   "code": "23420",
+   "division": "23",
+   "name": "Tillverkning av keramiska sanitetsartiklar"
+  },
+  {
+   "code": "23430",
+   "division": "23",
+   "name": "Tillverkning av keramiska isolatorer o.d."
+  },
+  {
+   "code": "23440",
+   "division": "23",
+   "name": "Tillverkning av andra tekniska keramiska produkter"
+  },
+  {
+   "code": "23450",
+   "division": "23",
+   "name": "Tillverkning av andra keramiska produkter"
+  },
+  {
+   "code": "23510",
+   "division": "23",
+   "name": "Tillverkning av cement"
+  },
+  {
+   "code": "23520",
+   "division": "23",
+   "name": "Tillverkning av kalk och gips"
+  },
+  {
+   "code": "23610",
+   "division": "23",
+   "name": "Tillverkning av betongvaror för byggändamål"
+  },
+  {
+   "code": "23620",
+   "division": "23",
+   "name": "Tillverkning av gipsvaror för byggändamål"
+  },
+  {
+   "code": "23630",
+   "division": "23",
+   "name": "Tillverkning av fabriksblandad betong"
+  },
+  {
+   "code": "23640",
+   "division": "23",
+   "name": "Tillverkning av murbruk"
+  },
+  {
+   "code": "23650",
+   "division": "23",
+   "name": "Tillverkning av fibercementvaror"
+  },
+  {
+   "code": "23660",
+   "division": "23",
+   "name": "Tillverkning av andra varor av betong, cement och gips"
+  },
+  {
+   "code": "23701",
+   "division": "23",
+   "name": "Huggning, formning och slutlig bearbetning av sten för byggnadsändamål"
+  },
+  {
+   "code": "23709",
+   "division": "23",
+   "name": "Huggning, formning och slutlig bearbetning av sten för prydnadsändamål"
+  },
+  {
+   "code": "23910",
+   "division": "23",
+   "name": "Tillverkning av slipmedel"
+  },
+  {
+   "code": "23991",
+   "division": "23",
+   "name": "Tillverkning av varor av sten- och mineralull"
+  },
+  {
+   "code": "23999",
+   "division": "23",
+   "name": "Diverse övrig tillverkning av icke-metalliska mineraliska produkter"
+  },
+  {
+   "code": "24100",
+   "division": "24",
+   "name": "Framställning av järn och stål samt ferrolegeringar"
+  },
+  {
+   "code": "24200",
+   "division": "24",
+   "name": "Tillverkning av rör, ledningar, ihåliga profiler och tillbehör av stål"
+  },
+  {
+   "code": "24310",
+   "division": "24",
+   "name": "Tillverkning av kalldragen stålstång"
+  },
+  {
+   "code": "24320",
+   "division": "24",
+   "name": "Tillverkning av kallvalsade stålband"
+  },
+  {
+   "code": "24330",
+   "division": "24",
+   "name": "Tillverkning av andra kallformade produkter av stål"
+  },
+  {
+   "code": "24340",
+   "division": "24",
+   "name": "Tillverkning av kalldragen ståltråd"
+  },
+  {
+   "code": "24410",
+   "division": "24",
+   "name": "Framställning av ädla metaller"
+  },
+  {
+   "code": "24420",
+   "division": "24",
+   "name": "Framställning av aluminium"
+  },
+  {
+   "code": "24430",
+   "division": "24",
+   "name": "Framställning av bly, zink och tenn"
+  },
+  {
+   "code": "24440",
+   "division": "24",
+   "name": "Framställning av koppar"
+  },
+  {
+   "code": "24450",
+   "division": "24",
+   "name": "Framställning av andra metaller"
+  },
+  {
+   "code": "24460",
+   "division": "24",
+   "name": "Tillverkning av kärnbränsle"
+  },
+  {
+   "code": "24510",
+   "division": "24",
+   "name": "Gjutning av järn"
+  },
+  {
+   "code": "24520",
+   "division": "24",
+   "name": "Gjutning av stål"
+  },
+  {
+   "code": "24530",
+   "division": "24",
+   "name": "Gjutning av lättmetall"
+  },
+  {
+   "code": "24540",
+   "division": "24",
+   "name": "Gjutning av andra metaller"
+  },
+  {
+   "code": "25110",
+   "division": "25",
+   "name": "Tillverkning av metallstommar och delar därav"
+  },
+  {
+   "code": "25120",
+   "division": "25",
+   "name": "Tillverkning av dörrar och fönster av metall"
+  },
+  {
+   "code": "25210",
+   "division": "25",
+   "name": "Tillverkning av radiatorer, ånggeneratorer och pannor för centraluppvärmning"
+  },
+  {
+   "code": "25220",
+   "division": "25",
+   "name": "Tillverkning av andra cisterner, tankar, kar och andra behållare av metall"
+  },
+  {
+   "code": "25300",
+   "division": "25",
+   "name": "Tillverkning av vapen och ammunition"
+  },
+  {
+   "code": "25400",
+   "division": "25",
+   "name": "Smidning och formning av metall och pulvermetallurgi"
+  },
+  {
+   "code": "25510",
+   "division": "25",
+   "name": "Beläggning och överdragning av metall"
+  },
+  {
+   "code": "25520",
+   "division": "25",
+   "name": "Värmebehandling av metall"
+  },
+  {
+   "code": "25530",
+   "division": "25",
+   "name": "Metallegoarbeten"
+  },
+  {
+   "code": "25610",
+   "division": "25",
+   "name": "Tillverkning av bestick"
+  },
+  {
+   "code": "25620",
+   "division": "25",
+   "name": "Tillverkning av lås och gångjärn"
+  },
+  {
+   "code": "25630",
+   "division": "25",
+   "name": "Tillverkning av verktyg och redskap"
+  },
+  {
+   "code": "25910",
+   "division": "25",
+   "name": "Tillverkning av stålfat o.d. behållare"
+  },
+  {
+   "code": "25920",
+   "division": "25",
+   "name": "Tillverkning av lättmetallförpackningar"
+  },
+  {
+   "code": "25930",
+   "division": "25",
+   "name": "Tillverkning av metalltrådvaror, kedjor och fjädrar"
+  },
+  {
+   "code": "25940",
+   "division": "25",
+   "name": "Tillverkning av nitar och skruvar"
+  },
+  {
+   "code": "25991",
+   "division": "25",
+   "name": "Tillverkning av diskbänkar, sanitetsgods m.m. av metall för byggändamål"
+  },
+  {
+   "code": "25999",
+   "division": "25",
+   "name": "Annan övrig metallvarutillverkning"
+  },
+  {
+   "code": "26110",
+   "division": "26",
+   "name": "Tillverkning av elektroniska komponenter"
+  },
+  {
+   "code": "26120",
+   "division": "26",
+   "name": "Tillverkning av kretskort"
+  },
+  {
+   "code": "26200",
+   "division": "26",
+   "name": "Tillverkning av datorer och kringutrustning"
+  },
+  {
+   "code": "26300",
+   "division": "26",
+   "name": "Tillverkning av kommunikationsutrustning"
+  },
+  {
+   "code": "26400",
+   "division": "26",
+   "name": "Tillverkning av hemelektronik"
+  },
+  {
+   "code": "26510",
+   "division": "26",
+   "name": "Tillverkning av instrument och apparater för mätning, provning och navigering"
+  },
+  {
+   "code": "26520",
+   "division": "26",
+   "name": "Urtillverkning"
+  },
+  {
+   "code": "26600",
+   "division": "26",
+   "name": "Tillverkning av strålningsutrustning samt elektromedicinsk och elektroterapeutisk utrustning"
+  },
+  {
+   "code": "26700",
+   "division": "26",
+   "name": "Tillverkning av optiska instrument, magnetiska och optiska medier samt fotoutrustning"
+  },
+  {
+   "code": "27110",
+   "division": "27",
+   "name": "Tillverkning av elmotorer, generatorer och transformatorer"
+  },
+  {
+   "code": "27120",
+   "division": "27",
+   "name": "Tillverkning av eldistributions- och elkontrollapparater"
+  },
+  {
+   "code": "27200",
+   "division": "27",
+   "name": "Batteri- och ackumulatortillverkning"
+  },
+  {
+   "code": "27310",
+   "division": "27",
+   "name": "Tillverkning av optiska fiberkablar"
+  },
+  {
+   "code": "27320",
+   "division": "27",
+   "name": "Tillverkning av andra elektroniska och elektriska ledningar och kablar"
+  },
+  {
+   "code": "27330",
+   "division": "27",
+   "name": "Tillverkning av kabeltillbehör"
+  },
+  {
+   "code": "27400",
+   "division": "27",
+   "name": "Tillverkning av belysningsarmatur"
+  },
+  {
+   "code": "27510",
+   "division": "27",
+   "name": "Tillverkning av elektriska hushållsmaskiner och hushållsapparater"
+  },
+  {
+   "code": "27520",
+   "division": "27",
+   "name": "Tillverkning av icke-elektriska hushållsmaskiner och hushållsapparater"
+  },
+  {
+   "code": "27900",
+   "division": "27",
+   "name": "Tillverkning av annan elapparatur"
+  },
+  {
+   "code": "28110",
+   "division": "28",
+   "name": "Tillverkning av motorer och turbiner utom för luftfartyg och fordon"
+  },
+  {
+   "code": "28120",
+   "division": "28",
+   "name": "Tillverkning av fluidteknisk utrustning"
+  },
+  {
+   "code": "28130",
+   "division": "28",
+   "name": "Tillverkning av andra pumpar och kompressorer"
+  },
+  {
+   "code": "28140",
+   "division": "28",
+   "name": "Tillverkning av andra kranar och ventiler"
+  },
+  {
+   "code": "28150",
+   "division": "28",
+   "name": "Tillverkning av lager, kugghjul och andra delar för kraftöverföring"
+  },
+  {
+   "code": "28210",
+   "division": "28",
+   "name": "Tillverkning av ugnar och monterad värmeutrustning för bostadsuppvärmning"
+  },
+  {
+   "code": "28220",
+   "division": "28",
+   "name": "Tillverkning av lyft- och godshanteringsanordningar"
+  },
+  {
+   "code": "28230",
+   "division": "28",
+   "name": "Tillverkning av kontorsmaskiner och kontorsutrustning, utom datorer och kringutrustning"
+  },
+  {
+   "code": "28240",
+   "division": "28",
+   "name": "Tillverkning av motordrivna handverktyg"
+  },
+  {
+   "code": "28250",
+   "division": "28",
+   "name": "Tillverkning av luftkonditionering, utom för hushåll"
+  },
+  {
+   "code": "28290",
+   "division": "28",
+   "name": "Tillverkning av diverse övriga maskiner för allmänt ändamål"
+  },
+  {
+   "code": "28300",
+   "division": "28",
+   "name": "Tillverkning av jord- och skogsbruksmaskiner"
+  },
+  {
+   "code": "28410",
+   "division": "28",
+   "name": "Tillverkning av maskiner för metallbearbetning och verktygsmaskiner för bearbetning av metall"
+  },
+  {
+   "code": "28420",
+   "division": "28",
+   "name": "Tillverkning av andra verktygsmaskiner"
+  },
+  {
+   "code": "28910",
+   "division": "28",
+   "name": "Tillverkning av maskiner för metallurgi"
+  },
+  {
+   "code": "28920",
+   "division": "28",
+   "name": "Tillverkning av gruv-, bergbrytnings- och byggmaskiner"
+  },
+  {
+   "code": "28930",
+   "division": "28",
+   "name": "Tillverkning av maskiner för framställning av livsmedel, drycker och tobaksvaror"
+  },
+  {
+   "code": "28940",
+   "division": "28",
+   "name": "Tillverkning av maskiner för produktion av textil-, beklädnads- och lädervaror"
+  },
+  {
+   "code": "28950",
+   "division": "28",
+   "name": "Tillverkning av maskiner för produktion av massa, papper och papp"
+  },
+  {
+   "code": "28960",
+   "division": "28",
+   "name": "Tillverkning av maskiner för gummi och plast"
+  },
+  {
+   "code": "28970",
+   "division": "28",
+   "name": "Tillverkning av maskiner för additiv tillverkning"
+  },
+  {
+   "code": "28990",
+   "division": "28",
+   "name": "Tillverkning av diverse övriga specialmaskiner"
+  },
+  {
+   "code": "29101",
+   "division": "29",
+   "name": "Tillverkning av personbilar och andra lätta motorfordon"
+  },
+  {
+   "code": "29102",
+   "division": "29",
+   "name": "Tillverkning av lastbilar och andra tunga motorfordon"
+  },
+  {
+   "code": "29200",
+   "division": "29",
+   "name": "Tillverkning av karosserier för motorfordon; tillverkning av släpfordon och påhängsvagnar"
+  },
+  {
+   "code": "29310",
+   "division": "29",
+   "name": "Tillverkning av elektrisk och elektronisk utrustning för motorfordon"
+  },
+  {
+   "code": "29320",
+   "division": "29",
+   "name": "Tillverkning av andra delar och tillbehör till motorfordon"
+  },
+  {
+   "code": "30110",
+   "division": "30",
+   "name": "Byggande av civila fartyg och flytande materiel"
+  },
+  {
+   "code": "30120",
+   "division": "30",
+   "name": "Byggande av fritidsbåtar"
+  },
+  {
+   "code": "30130",
+   "division": "30",
+   "name": "Byggande av militära skepp och fartyg"
+  },
+  {
+   "code": "30200",
+   "division": "30",
+   "name": "Tillverkning av rälsfordon"
+  },
+  {
+   "code": "30310",
+   "division": "30",
+   "name": "Tillverkning av civila luftfartyg, rymdfarkoster o.d."
+  },
+  {
+   "code": "30320",
+   "division": "30",
+   "name": "Tillverkning av militära luftfartyg, rymdfarkoster o.d."
+  },
+  {
+   "code": "30400",
+   "division": "30",
+   "name": "Tillverkning av militära stridsfordon"
+  },
+  {
+   "code": "30910",
+   "division": "30",
+   "name": "Tillverkning av motorcyklar"
+  },
+  {
+   "code": "30920",
+   "division": "30",
+   "name": "Tillverkning av cyklar, rullstolar o.d."
+  },
+  {
+   "code": "30990",
+   "division": "30",
+   "name": "Diverse övrig transportmedelstillverkning"
+  },
+  {
+   "code": "31001",
+   "division": "31",
+   "name": "Tillverkning av kontors- och butiksmöbler"
+  },
+  {
+   "code": "31002",
+   "division": "31",
+   "name": "Tillverkning av kontors- och butiksinredningar"
+  },
+  {
+   "code": "31003",
+   "division": "31",
+   "name": "Tillverkning av köksmöbler"
+  },
+  {
+   "code": "31004",
+   "division": "31",
+   "name": "Tillverkning av köksinredningar"
+  },
+  {
+   "code": "31009",
+   "division": "31",
+   "name": "Tillverkning av andra möbler och madrasser"
+  },
+  {
+   "code": "32110",
+   "division": "32",
+   "name": "Prägling av mynt"
+  },
+  {
+   "code": "32120",
+   "division": "32",
+   "name": "Tillverkning av smycken, guld- och silversmedsvaror"
+  },
+  {
+   "code": "32130",
+   "division": "32",
+   "name": "Tillverkning av bijouterier o.d."
+  },
+  {
+   "code": "32200",
+   "division": "32",
+   "name": "Tillverkning av musikinstrument"
+  },
+  {
+   "code": "32300",
+   "division": "32",
+   "name": "Tillverkning av sportartiklar"
+  },
+  {
+   "code": "32400",
+   "division": "32",
+   "name": "Tillverkning av spel och leksaker"
+  },
+  {
+   "code": "32501",
+   "division": "32",
+   "name": "Tillverkning av medicinska och dentala instrument och tillbehör"
+  },
+  {
+   "code": "32502",
+   "division": "32",
+   "name": "Tillverkning av tandproteser"
+  },
+  {
+   "code": "32910",
+   "division": "32",
+   "name": "Tillverkning av borstbinderiarbeten"
+  },
+  {
+   "code": "32990",
+   "division": "32",
+   "name": "Diverse övrig tillverkning"
+  },
+  {
+   "code": "33110",
+   "division": "33",
+   "name": "Reparation och underhåll av metallvaror"
+  },
+  {
+   "code": "33120",
+   "division": "33",
+   "name": "Reparation och underhåll av maskiner"
+  },
+  {
+   "code": "33130",
+   "division": "33",
+   "name": "Reparation och underhåll av elektronisk och optisk utrustning"
+  },
+  {
+   "code": "33140",
+   "division": "33",
+   "name": "Reparation och underhåll av elapparatur"
+  },
+  {
+   "code": "33150",
+   "division": "33",
+   "name": "Reparation och underhåll av civila fartyg och båtar"
+  },
+  {
+   "code": "33160",
+   "division": "33",
+   "name": "Reparation och underhåll av civila luftfartyg och rymdfarkoster"
+  },
+  {
+   "code": "33170",
+   "division": "33",
+   "name": "Reparation och underhåll av andra civila transportmedel"
+  },
+  {
+   "code": "33180",
+   "division": "33",
+   "name": "Reparation och underhåll av militära stridsfordon, skepp, båtar, luftfartyg och rymdfarkoster"
+  },
+  {
+   "code": "33190",
+   "division": "33",
+   "name": "Reparation och underhåll av annan utrustning"
+  },
+  {
+   "code": "33200",
+   "division": "33",
+   "name": "Installation av industrimaskiner och -utrustning"
+  },
+  {
+   "code": "35110",
+   "division": "35",
+   "name": "Generering av elektricitet från icke-förnybara energikällor"
+  },
+  {
+   "code": "35120",
+   "division": "35",
+   "name": "Generering av elektricitet från förnybara energikällor"
+  },
+  {
+   "code": "35130",
+   "division": "35",
+   "name": "Överföring av elektricitet"
+  },
+  {
+   "code": "35140",
+   "division": "35",
+   "name": "Distribution av elektricitet"
+  },
+  {
+   "code": "35150",
+   "division": "35",
+   "name": "Handel med elektricitet"
+  },
+  {
+   "code": "35160",
+   "division": "35",
+   "name": "Lagring av elektricitet"
+  },
+  {
+   "code": "35210",
+   "division": "35",
+   "name": "Framställning av gas"
+  },
+  {
+   "code": "35220",
+   "division": "35",
+   "name": "Distribution av gasformiga bränslen via rörnät"
+  },
+  {
+   "code": "35230",
+   "division": "35",
+   "name": "Handel med gas via rörnät"
+  },
+  {
+   "code": "35240",
+   "division": "35",
+   "name": "Lagring av gas som en del i nätförsörjningstjänster"
+  },
+  {
+   "code": "35300",
+   "division": "35",
+   "name": "Försörjning av värme och kyla"
+  },
+  {
+   "code": "35400",
+   "division": "35",
+   "name": "Mäklare och agenter för el och naturgas"
+  },
+  {
+   "code": "36000",
+   "division": "36",
+   "name": "Vattenförsörjning"
+  },
+  {
+   "code": "37000",
+   "division": "37",
+   "name": "Avloppsrening"
+  },
+  {
+   "code": "38110",
+   "division": "38",
+   "name": "Insamling av icke-farligt avfall"
+  },
+  {
+   "code": "38120",
+   "division": "38",
+   "name": "Insamling av farligt avfall"
+  },
+  {
+   "code": "38211",
+   "division": "38",
+   "name": "Demontering av uttjänta fordon"
+  },
+  {
+   "code": "38212",
+   "division": "38",
+   "name": "Demontering av elektrisk och elektronisk utrustning"
+  },
+  {
+   "code": "38213",
+   "division": "38",
+   "name": "Demontering av övrig kasserad utrustning"
+  },
+  {
+   "code": "38214",
+   "division": "38",
+   "name": "Återvinning av källsorterat material"
+  },
+  {
+   "code": "38215",
+   "division": "38",
+   "name": "Återvinning av farligt avfall"
+  },
+  {
+   "code": "38220",
+   "division": "38",
+   "name": "Energiåtervinning"
+  },
+  {
+   "code": "38230",
+   "division": "38",
+   "name": "Annan återvinning av avfall"
+  },
+  {
+   "code": "38310",
+   "division": "38",
+   "name": "Förbränning utan energiåtervinning"
+  },
+  {
+   "code": "38321",
+   "division": "38",
+   "name": "Deponering eller slutförvaring av icke-farligt avfall"
+  },
+  {
+   "code": "38322",
+   "division": "38",
+   "name": "Deponering eller slutförvaring av farligt avfall"
+  },
+  {
+   "code": "38330",
+   "division": "38",
+   "name": "Annat bortskaffande av avfall"
+  },
+  {
+   "code": "39000",
+   "division": "39",
+   "name": "Sanering, efterbehandling av jord och vatten samt annan verksamhet för föroreningsbekämpning"
+  },
+  {
+   "code": "41000",
+   "division": "41",
+   "name": "Byggande av bostadshus och andra byggnader"
+  },
+  {
+   "code": "42110",
+   "division": "42",
+   "name": "Anläggning av vägar och motorvägar"
+  },
+  {
+   "code": "42120",
+   "division": "42",
+   "name": "Anläggning av järnvägar och tunnelbanor"
+  },
+  {
+   "code": "42130",
+   "division": "42",
+   "name": "Anläggning av broar och tunnlar"
+  },
+  {
+   "code": "42210",
+   "division": "42",
+   "name": "Allmännyttiga anläggningsarbeten för värme, vatten och avlopp"
+  },
+  {
+   "code": "42221",
+   "division": "42",
+   "name": "Anläggningsarbeten för el"
+  },
+  {
+   "code": "42222",
+   "division": "42",
+   "name": "Anläggningsarbeten för telekommunikation"
+  },
+  {
+   "code": "42910",
+   "division": "42",
+   "name": "Vattenbyggnad"
+  },
+  {
+   "code": "42990",
+   "division": "42",
+   "name": "Diverse övriga anläggningsarbeten"
+  },
+  {
+   "code": "43110",
+   "division": "43",
+   "name": "Rivning av hus och byggnader"
+  },
+  {
+   "code": "43120",
+   "division": "43",
+   "name": "Mark- och grundarbeten"
+  },
+  {
+   "code": "43130",
+   "division": "43",
+   "name": "Markundersökning"
+  },
+  {
+   "code": "43210",
+   "division": "43",
+   "name": "Elinstallationer"
+  },
+  {
+   "code": "43221",
+   "division": "43",
+   "name": "Värme- och sanitetsarbeten"
+  },
+  {
+   "code": "43222",
+   "division": "43",
+   "name": "Ventilationsarbeten"
+  },
+  {
+   "code": "43223",
+   "division": "43",
+   "name": "Kyl- och frysinstallationsarbeten"
+  },
+  {
+   "code": "43229",
+   "division": "43",
+   "name": "Övriga VVS-arbeten"
+  },
+  {
+   "code": "43230",
+   "division": "43",
+   "name": "Installation av isolering"
+  },
+  {
+   "code": "43240",
+   "division": "43",
+   "name": "Andra bygginstallationer"
+  },
+  {
+   "code": "43310",
+   "division": "43",
+   "name": "Puts-, fasad- och stuckatörsarbeten"
+  },
+  {
+   "code": "43320",
+   "division": "43",
+   "name": "Byggnadssnickeriarbeten"
+  },
+  {
+   "code": "43330",
+   "division": "43",
+   "name": "Golv- och väggbeläggningsarbeten"
+  },
+  {
+   "code": "43341",
+   "division": "43",
+   "name": "Måleriarbeten"
+  },
+  {
+   "code": "43342",
+   "division": "43",
+   "name": "Glasmästeriarbeten"
+  },
+  {
+   "code": "43350",
+   "division": "43",
+   "name": "Annan slutbehandling av byggnader"
+  },
+  {
+   "code": "43411",
+   "division": "43",
+   "name": "Takarbeten av plåt"
+  },
+  {
+   "code": "43412",
+   "division": "43",
+   "name": "Takarbeten av andra material än plåt"
+  },
+  {
+   "code": "43420",
+   "division": "43",
+   "name": "Annan specialiserad bygg- och anläggningsverksamhet i samband med byggande av hus"
+  },
+  {
+   "code": "43500",
+   "division": "43",
+   "name": "Specialiserad bygg- och anläggningsverksamhet i samband med anläggningsarbeten"
+  },
+  {
+   "code": "43600",
+   "division": "43",
+   "name": "Förmedling avseende specialiserad bygg- och anläggningsverksamhet"
+  },
+  {
+   "code": "43910",
+   "division": "43",
+   "name": "Murarbeten"
+  },
+  {
+   "code": "43991",
+   "division": "43",
+   "name": "Uthyrning av bygg- och anläggningsmaskiner med förare"
+  },
+  {
+   "code": "43999",
+   "division": "43",
+   "name": "Annan övrig specialiserad bygg- och anläggningsverksamhet"
+  },
+  {
+   "code": "46110",
+   "division": "46",
+   "name": "Provisionshandel med jordbruksråvaror, levande djur, textilråvaror och textilhalvfabrikat"
+  },
+  {
+   "code": "46120",
+   "division": "46",
+   "name": "Provisionshandel med bränsle, malm, metaller och industrikemikalier"
+  },
+  {
+   "code": "46130",
+   "division": "46",
+   "name": "Provisionshandel med virke och byggmaterial"
+  },
+  {
+   "code": "46141",
+   "division": "46",
+   "name": "Provisionshandel med maskiner, industriell utrustning, fartyg och luftfartyg utom kontorsutrustning och datorer"
+  },
+  {
+   "code": "46142",
+   "division": "46",
+   "name": "Provisionshandel med kontorsutrustning och datorer"
+  },
+  {
+   "code": "46150",
+   "division": "46",
+   "name": "Provisionshandel med möbler, hushålls- och järnhandelsvaror"
+  },
+  {
+   "code": "46160",
+   "division": "46",
+   "name": "Provisionshandel med textilier, kläder, pälsvaror, skodon och lädervaror"
+  },
+  {
+   "code": "46170",
+   "division": "46",
+   "name": "Provisionshandel med livsmedel, drycker och tobak"
+  },
+  {
+   "code": "46181",
+   "division": "46",
+   "name": "Provisionshandel med motorfordon, och reservdelar och tillbehör till motorfordon"
+  },
+  {
+   "code": "46189",
+   "division": "46",
+   "name": "Provisionshandel med annat specialsortiment utom motorfordon"
+  },
+  {
+   "code": "46190",
+   "division": "46",
+   "name": "Icke-specialiserad provisionshandel"
+  },
+  {
+   "code": "46210",
+   "division": "46",
+   "name": "Partihandel med spannmål, råtobak, utsäde och djurfoder"
+  },
+  {
+   "code": "46220",
+   "division": "46",
+   "name": "Partihandel med blommor och växter"
+  },
+  {
+   "code": "46230",
+   "division": "46",
+   "name": "Partihandel med levande djur"
+  },
+  {
+   "code": "46240",
+   "division": "46",
+   "name": "Partihandel med hudar, skinn och läder"
+  },
+  {
+   "code": "46310",
+   "division": "46",
+   "name": "Partihandel med frukt och grönsaker"
+  },
+  {
+   "code": "46321",
+   "division": "46",
+   "name": "Partihandel med kött och köttvaror"
+  },
+  {
+   "code": "46322",
+   "division": "46",
+   "name": "Partihandel med fisk- och fiskprodukter"
+  },
+  {
+   "code": "46330",
+   "division": "46",
+   "name": "Partihandel med mejeriprodukter, ägg, matolja och matfett"
+  },
+  {
+   "code": "46340",
+   "division": "46",
+   "name": "Partihandel med drycker"
+  },
+  {
+   "code": "46350",
+   "division": "46",
+   "name": "Partihandel med tobak"
+  },
+  {
+   "code": "46360",
+   "division": "46",
+   "name": "Partihandel med socker, choklad- och sockerkonfektyrer"
+  },
+  {
+   "code": "46370",
+   "division": "46",
+   "name": "Partihandel med kaffe, te, kakao och kryddor"
+  },
+  {
+   "code": "46380",
+   "division": "46",
+   "name": "Partihandel med andra livsmedel"
+  },
+  {
+   "code": "46390",
+   "division": "46",
+   "name": "Icke-specialiserad partihandel med livsmedel, drycker och tobak"
+  },
+  {
+   "code": "46410",
+   "division": "46",
+   "name": "Partihandel med textilier"
+  },
+  {
+   "code": "46420",
+   "division": "46",
+   "name": "Partihandel med kläder och skodon"
+  },
+  {
+   "code": "46431",
+   "division": "46",
+   "name": "Partihandel med elektriska hushållsmaskiner och -apparater"
+  },
+  {
+   "code": "46432",
+   "division": "46",
+   "name": "Partihandel med ljud- och bildanläggningar samt videoutrustning"
+  },
+  {
+   "code": "46433",
+   "division": "46",
+   "name": "Partihandel med elartiklar"
+  },
+  {
+   "code": "46434",
+   "division": "46",
+   "name": "Partihandel med fotografiska och optiska produkter"
+  },
+  {
+   "code": "46440",
+   "division": "46",
+   "name": "Partihandel med glas och porslin samt rengöringsmedel"
+  },
+  {
+   "code": "46450",
+   "division": "46",
+   "name": "Partihandel med parfym och kosmetika"
+  },
+  {
+   "code": "46460",
+   "division": "46",
+   "name": "Partihandel med medicinsk utrustning och apoteksvaror"
+  },
+  {
+   "code": "46471",
+   "division": "46",
+   "name": "Partihandel med möbler, mattor och belysningsartiklar"
+  },
+  {
+   "code": "46472",
+   "division": "46",
+   "name": "Partihandel med kontorsmöbler"
+  },
+  {
+   "code": "46480",
+   "division": "46",
+   "name": "Partihandel med ur och guldsmedsvaror"
+  },
+  {
+   "code": "46491",
+   "division": "46",
+   "name": "Partihandel med sport- och fritidsartiklar"
+  },
+  {
+   "code": "46492",
+   "division": "46",
+   "name": "Partihandel med kontorsförbrukningsvaror"
+  },
+  {
+   "code": "46499",
+   "division": "46",
+   "name": "Partihandel med övriga hushållsvaror"
+  },
+  {
+   "code": "46501",
+   "division": "46",
+   "name": "Partihandel med datorer och kringutrustning samt programvara; samt annan kontorsutrustning"
+  },
+  {
+   "code": "46502",
+   "division": "46",
+   "name": "Partihandel med elektronikkomponenter"
+  },
+  {
+   "code": "46503",
+   "division": "46",
+   "name": "Partihandel med telekommunikationsutrustning"
+  },
+  {
+   "code": "46610",
+   "division": "46",
+   "name": "Partihandel med jordbruksmaskiner och jordbruksutrustning"
+  },
+  {
+   "code": "46620",
+   "division": "46",
+   "name": "Partihandel med verktygsmaskiner"
+  },
+  {
+   "code": "46630",
+   "division": "46",
+   "name": "Partihandel med gruv-, bygg- och anläggningsmaskiner"
+  },
+  {
+   "code": "46641",
+   "division": "46",
+   "name": "Partihandel med mät- och precisionsinstrument"
+  },
+  {
+   "code": "46642",
+   "division": "46",
+   "name": "Partihandel med datoriserad materialhanteringsutrustning"
+  },
+  {
+   "code": "46649",
+   "division": "46",
+   "name": "Partihandel med diverse andra maskiner och diverse annan utrustning"
+  },
+  {
+   "code": "46711",
+   "division": "46",
+   "name": "Partihandel med personbilar och lätta motorfordon"
+  },
+  {
+   "code": "46712",
+   "division": "46",
+   "name": "Partihandel med lastbilar, bussar och specialfordon"
+  },
+  {
+   "code": "46713",
+   "division": "46",
+   "name": "Partihandel med husvagnar, husbilar, släpfordon och påhängsvagnar"
+  },
+  {
+   "code": "46720",
+   "division": "46",
+   "name": "Partihandel med reservdelar och tillbehör till motorfordon"
+  },
+  {
+   "code": "46730",
+   "division": "46",
+   "name": "Partihandel med motorcyklar, reservdelar och tillbehör till motorcyklar"
+  },
+  {
+   "code": "46810",
+   "division": "46",
+   "name": "Partihandel med bränslen"
+  },
+  {
+   "code": "46820",
+   "division": "46",
+   "name": "Partihandel med metaller och metallmalmer"
+  },
+  {
+   "code": "46831",
+   "division": "46",
+   "name": "Partihandel med virke och andra byggmaterial"
+  },
+  {
+   "code": "46832",
+   "division": "46",
+   "name": "Partihandel med sanitetsgods"
+  },
+  {
+   "code": "46841",
+   "division": "46",
+   "name": "Partihandel med järnhandelsvaror"
+  },
+  {
+   "code": "46842",
+   "division": "46",
+   "name": "Partihandel med VVS-varor"
+  },
+  {
+   "code": "46850",
+   "division": "46",
+   "name": "Partihandel med kemiska produkter"
+  },
+  {
+   "code": "46860",
+   "division": "46",
+   "name": "Partihandel med andra insatsvaror"
+  },
+  {
+   "code": "46871",
+   "division": "46",
+   "name": "Partihandel med uttjänta fordon"
+  },
+  {
+   "code": "46872",
+   "division": "46",
+   "name": "Partihandel med metallavfall och metallskrot"
+  },
+  {
+   "code": "46873",
+   "division": "46",
+   "name": "Partihandel med avfall och skrot av icke-metall"
+  },
+  {
+   "code": "46890",
+   "division": "46",
+   "name": "Diverse övrig specialiserad partihandel"
+  },
+  {
+   "code": "46900",
+   "division": "46",
+   "name": "Icke-specialiserad partihandel"
+  },
+  {
+   "code": "47111",
+   "division": "47",
+   "name": "Varuhus- och stormarknadshandel, mest livsmedel, drycker och tobak"
+  },
+  {
+   "code": "47112",
+   "division": "47",
+   "name": "Livsmedelshandel med brett sortiment, ej varuhus eller stormarknad"
+  },
+  {
+   "code": "47113",
+   "division": "47",
+   "name": "Detaljhandel via internet eller postorder med brett sortiment, mest livsmedel, drycker och tobak"
+  },
+  {
+   "code": "47121",
+   "division": "47",
+   "name": "Annan varuhus- eller stormarknadshandel"
+  },
+  {
+   "code": "47122",
+   "division": "47",
+   "name": "Övrig detaljhandel med brett sortiment"
+  },
+  {
+   "code": "47123",
+   "division": "47",
+   "name": "Detaljhandel via internet eller postorder med brett sortiment"
+  },
+  {
+   "code": "47210",
+   "division": "47",
+   "name": "Detaljhandel med frukt och grönsaker"
+  },
+  {
+   "code": "47220",
+   "division": "47",
+   "name": "Detaljhandel med kött och charkuterier"
+  },
+  {
+   "code": "47230",
+   "division": "47",
+   "name": "Detaljhandel med fisk, skal- och blötdjur"
+  },
+  {
+   "code": "47241",
+   "division": "47",
+   "name": "Detaljhandel med bröd och konditorivaror"
+  },
+  {
+   "code": "47242",
+   "division": "47",
+   "name": "Detaljhandel med konfektyrer"
+  },
+  {
+   "code": "47250",
+   "division": "47",
+   "name": "Detaljhandel med drycker"
+  },
+  {
+   "code": "47260",
+   "division": "47",
+   "name": "Detaljhandel med tobaksvaror"
+  },
+  {
+   "code": "47271",
+   "division": "47",
+   "name": "Detaljhandel med hälsokost"
+  },
+  {
+   "code": "47272",
+   "division": "47",
+   "name": "Detaljhandel med andra livsmedel utom hälsokost"
+  },
+  {
+   "code": "47300",
+   "division": "47",
+   "name": "Detaljhandel med drivmedel"
+  },
+  {
+   "code": "47401",
+   "division": "47",
+   "name": "Detaljhandel med datorer, programvara, data- och tv-spel"
+  },
+  {
+   "code": "47402",
+   "division": "47",
+   "name": "Detaljhandel med telekommunikationsutrustning"
+  },
+  {
+   "code": "47403",
+   "division": "47",
+   "name": "Detaljhandel med ljud- och bildanläggningar samt videoutrustning"
+  },
+  {
+   "code": "47404",
+   "division": "47",
+   "name": "Detaljhandel via internet eller postorder med informations- och kommunikationsutrustning"
+  },
+  {
+   "code": "47510",
+   "division": "47",
+   "name": "Detaljhandel med textilier"
+  },
+  {
+   "code": "47521",
+   "division": "47",
+   "name": "Detaljhandel med virke och byggvaror"
+  },
+  {
+   "code": "47522",
+   "division": "47",
+   "name": "Detaljhandel med järn- och VVS-varor"
+  },
+  {
+   "code": "47523",
+   "division": "47",
+   "name": "Detaljhandel med färger, fernissor och lacker"
+  },
+  {
+   "code": "47531",
+   "division": "47",
+   "name": "Detaljhandel med mattor och annan vägg- och golvbeklädnad"
+  },
+  {
+   "code": "47532",
+   "division": "47",
+   "name": "Detaljhandel med inredningstextilier"
+  },
+  {
+   "code": "47533",
+   "division": "47",
+   "name": "Detaljhandel via internet eller postorder med mattor och inredningstextilier"
+  },
+  {
+   "code": "47541",
+   "division": "47",
+   "name": "Detaljhandel med elektriska hushållsmaskiner och hushållsapparater, utom via internet eller postorder"
+  },
+  {
+   "code": "47542",
+   "division": "47",
+   "name": "Detaljhandel via internet eller postorder med elektriska hushållsmaskiner och hushållsapparater"
+  },
+  {
+   "code": "47551",
+   "division": "47",
+   "name": "Detaljhandel med möbler"
+  },
+  {
+   "code": "47552",
+   "division": "47",
+   "name": "Detaljhandel med belysningsartiklar, bordsartiklar och hushållsartiklar utom möbler"
+  },
+  {
+   "code": "47553",
+   "division": "47",
+   "name": "Detaljhandel via internet eller postorder med möbler, belysningsartiklar, bordsartiklar och hushållsartiklar"
+  },
+  {
+   "code": "47611",
+   "division": "47",
+   "name": "Detaljhandel med böcker, utom via internet eller postorder"
+  },
+  {
+   "code": "47612",
+   "division": "47",
+   "name": "Detaljhandel via internet eller postorder med böcker"
+  },
+  {
+   "code": "47621",
+   "division": "47",
+   "name": "Detaljhandel med tidningar"
+  },
+  {
+   "code": "47622",
+   "division": "47",
+   "name": "Detaljhandel med kontorsförbrukningsvaror"
+  },
+  {
+   "code": "47631",
+   "division": "47",
+   "name": "Detaljhandel med sport- och fritidsartiklar utom cyklar och båtar"
+  },
+  {
+   "code": "47632",
+   "division": "47",
+   "name": "Detaljhandel med cyklar"
+  },
+  {
+   "code": "47633",
+   "division": "47",
+   "name": "Detaljhandel med båtar"
+  },
+  {
+   "code": "47634",
+   "division": "47",
+   "name": "Detaljhandel via internet eller postorder med sport- och fritidsartiklar"
+  },
+  {
+   "code": "47641",
+   "division": "47",
+   "name": "Detaljhandel med spel och leksaker, utom via internet eller postorder"
+  },
+  {
+   "code": "47642",
+   "division": "47",
+   "name": "Detaljhandel via internet eller postorder med spel- och leksaker"
+  },
+  {
+   "code": "47691",
+   "division": "47",
+   "name": "Detaljhandel med musikinstrument och noter"
+  },
+  {
+   "code": "47692",
+   "division": "47",
+   "name": "Detaljhandel med konst samt galleriverksamhet"
+  },
+  {
+   "code": "47693",
+   "division": "47",
+   "name": "Detaljhandel med media för musik och bild"
+  },
+  {
+   "code": "47694",
+   "division": "47",
+   "name": "Detaljhandel via internet eller postorder med övriga kultur- och fritidsartiklar"
+  },
+  {
+   "code": "47699",
+   "division": "47",
+   "name": "Detaljhandel med andra övriga kultur- och fritidsartiklar"
+  },
+  {
+   "code": "47711",
+   "division": "47",
+   "name": "Detaljhandel med kläder, utom via internet eller postorder"
+  },
+  {
+   "code": "47712",
+   "division": "47",
+   "name": "Detaljhandel via internet eller postorder med kläder"
+  },
+  {
+   "code": "47721",
+   "division": "47",
+   "name": "Detaljhandel med skodon"
+  },
+  {
+   "code": "47722",
+   "division": "47",
+   "name": "Detaljhandel med väskor, reseffekter och lädervaror"
+  },
+  {
+   "code": "47723",
+   "division": "47",
+   "name": "Detaljhandel via internet eller postorder med skodon och lädervaror"
+  },
+  {
+   "code": "47731",
+   "division": "47",
+   "name": "Detaljhandel med apoteksvaror, utom via internet eller postorder"
+  },
+  {
+   "code": "47732",
+   "division": "47",
+   "name": "Detaljhandel via internet eller postorder med apoteksvaror"
+  },
+  {
+   "code": "47741",
+   "division": "47",
+   "name": "Detaljhandel med medicinska och ortopediska artiklar, utom glasögon och andra optiska artiklar"
+  },
+  {
+   "code": "47742",
+   "division": "47",
+   "name": "Detaljhandel med glasögon och andra optiska artiklar utom fotoutrustning"
+  },
+  {
+   "code": "47751",
+   "division": "47",
+   "name": "Detaljhandel med kosmetika och hygienartiklar, utom via internet eller postorder"
+  },
+  {
+   "code": "47752",
+   "division": "47",
+   "name": "Detaljhandel via internet eller postorder med kosmetika och hygienartiklar"
+  },
+  {
+   "code": "47761",
+   "division": "47",
+   "name": "Detaljhandel med blommor och andra växter, frön och gödselmedel"
+  },
+  {
+   "code": "47762",
+   "division": "47",
+   "name": "Detaljhandel med små sällskapsdjur"
+  },
+  {
+   "code": "47771",
+   "division": "47",
+   "name": "Detaljhandel med ur, guldsmedsvaror och smycken, utom via internet eller postorder"
+  },
+  {
+   "code": "47772",
+   "division": "47",
+   "name": "Detaljhandel via internet eller postorder med ur, guldsmedsvaror och smycken"
+  },
+  {
+   "code": "47781",
+   "division": "47",
+   "name": "Detaljhandel med andra optiska artiklar utom fotoutrustning"
+  },
+  {
+   "code": "47782",
+   "division": "47",
+   "name": "Detaljhandel med fotoutrustning"
+  },
+  {
+   "code": "47789",
+   "division": "47",
+   "name": "Övrig specialiserad detaljhandel"
+  },
+  {
+   "code": "47791",
+   "division": "47",
+   "name": "Detaljhandel med antikviteter och begagnade böcker"
+  },
+  {
+   "code": "47792",
+   "division": "47",
+   "name": "Detaljhandel med övriga begagnade varor"
+  },
+  {
+   "code": "47811",
+   "division": "47",
+   "name": "Detaljhandel med personbilar och lätta motorfordon"
+  },
+  {
+   "code": "47812",
+   "division": "47",
+   "name": "Detaljhandel med lastbilar, bussar och specialfordon"
+  },
+  {
+   "code": "47813",
+   "division": "47",
+   "name": "Detaljhandel med husvagnar, husbilar, släpfordon och påhängsvagnar"
+  },
+  {
+   "code": "47820",
+   "division": "47",
+   "name": "Detaljhandel med reservdelar och tillbehör till motorfordon"
+  },
+  {
+   "code": "47830",
+   "division": "47",
+   "name": "Detaljhandel med motorcyklar, reservdelar och tillbehör till motorcyklar"
+  },
+  {
+   "code": "47910",
+   "division": "47",
+   "name": "Förmedling avseende icke-specialiserad detaljhandel"
+  },
+  {
+   "code": "47920",
+   "division": "47",
+   "name": "Förmedling avseende specialiserad detaljhandel"
+  },
+  {
+   "code": "49110",
+   "division": "49",
+   "name": "Tung järnvägstransport, passagerartrafik"
+  },
+  {
+   "code": "49120",
+   "division": "49",
+   "name": "Annan järnvägstransport, passagerartrafik"
+  },
+  {
+   "code": "49200",
+   "division": "49",
+   "name": "Järnvägstransport, godstrafik"
+  },
+  {
+   "code": "49310",
+   "division": "49",
+   "name": "Reguljär vägtransport, passagerartrafik"
+  },
+  {
+   "code": "49320",
+   "division": "49",
+   "name": "Icke-reguljär vägtransport, passagerartrafik"
+  },
+  {
+   "code": "49330",
+   "division": "49",
+   "name": "Passagerartrafik på beställning, fordon med förare"
+  },
+  {
+   "code": "49340",
+   "division": "49",
+   "name": "Kabinbanor och skidliftar, passagerartrafik"
+  },
+  {
+   "code": "49390",
+   "division": "49",
+   "name": "Diverse övrig landtransport av passagerare"
+  },
+  {
+   "code": "49410",
+   "division": "49",
+   "name": "Vägtransport, godstrafik"
+  },
+  {
+   "code": "49420",
+   "division": "49",
+   "name": "Flyttjänster"
+  },
+  {
+   "code": "49500",
+   "division": "49",
+   "name": "Transport i rörsystem"
+  },
+  {
+   "code": "50101",
+   "division": "50",
+   "name": "Reguljär sjötrafik över hav och kust av passagerare"
+  },
+  {
+   "code": "50102",
+   "division": "50",
+   "name": "Icke reguljär sjötrafik över hav och kust av passagerare"
+  },
+  {
+   "code": "50201",
+   "division": "50",
+   "name": "Reguljär sjötrafik över hav och kust av gods"
+  },
+  {
+   "code": "50202",
+   "division": "50",
+   "name": "Icke reguljär sjötrafik över hav och kust av gods"
+  },
+  {
+   "code": "50301",
+   "division": "50",
+   "name": "Reguljär sjötrafik på inre vattenvägar av passagerare"
+  },
+  {
+   "code": "50302",
+   "division": "50",
+   "name": "Icke reguljär sjötrafik på inre vattenvägar av passagerare"
+  },
+  {
+   "code": "50401",
+   "division": "50",
+   "name": "Reguljär sjötrafik på inre vattenvägar av gods"
+  },
+  {
+   "code": "50402",
+   "division": "50",
+   "name": "Icke reguljär sjötrafik på inre vattenvägar av gods"
+  },
+  {
+   "code": "51101",
+   "division": "51",
+   "name": "Reguljär lufttransport av passagerare"
+  },
+  {
+   "code": "51102",
+   "division": "51",
+   "name": "Icke reguljär lufttransport av passagerare"
+  },
+  {
+   "code": "51211",
+   "division": "51",
+   "name": "Reguljär lufttransport av gods"
+  },
+  {
+   "code": "51212",
+   "division": "51",
+   "name": "Icke reguljär lufttransport av gods"
+  },
+  {
+   "code": "51220",
+   "division": "51",
+   "name": "Rymdfart"
+  },
+  {
+   "code": "52100",
+   "division": "52",
+   "name": "Magasinering och varulagring"
+  },
+  {
+   "code": "52211",
+   "division": "52",
+   "name": "Bärgning avseende landtransport"
+  },
+  {
+   "code": "52219",
+   "division": "52",
+   "name": "Övrig stödverksamhet avseende landtransport"
+  },
+  {
+   "code": "52220",
+   "division": "52",
+   "name": "Stödverksamhet avseende sjötransport"
+  },
+  {
+   "code": "52230",
+   "division": "52",
+   "name": "Stödverksamhet avseende lufttransport"
+  },
+  {
+   "code": "52241",
+   "division": "52",
+   "name": "Hamngodshantering"
+  },
+  {
+   "code": "52249",
+   "division": "52",
+   "name": "Övrig godshantering"
+  },
+  {
+   "code": "52250",
+   "division": "52",
+   "name": "Logistikverksamhet"
+  },
+  {
+   "code": "52260",
+   "division": "52",
+   "name": "Annan stödverksamhet avseende transport"
+  },
+  {
+   "code": "52310",
+   "division": "52",
+   "name": "Förmedling avseende godstransport"
+  },
+  {
+   "code": "52320",
+   "division": "52",
+   "name": "Förmedling avseende passagerartransport"
+  },
+  {
+   "code": "53100",
+   "division": "53",
+   "name": "Postbefordran via nationella posten"
+  },
+  {
+   "code": "53201",
+   "division": "53",
+   "name": "Annan postbefordran och tidningsdistribution"
+  },
+  {
+   "code": "53202",
+   "division": "53",
+   "name": "Bud- och kurirverksamhet"
+  },
+  {
+   "code": "53300",
+   "division": "53",
+   "name": "Förmedling avseende postbefordran samt kurirverksamhet"
+  },
+  {
+   "code": "55101",
+   "division": "55",
+   "name": "Hotellverksamhet med restaurangrörelse"
+  },
+  {
+   "code": "55102",
+   "division": "55",
+   "name": "Drift av konferensanläggningar med boende"
+  },
+  {
+   "code": "55103",
+   "division": "55",
+   "name": "Hotellverksamhet utan restaurangrörelse"
+  },
+  {
+   "code": "55201",
+   "division": "55",
+   "name": "Vandrarhemsverksamhet"
+  },
+  {
+   "code": "55202",
+   "division": "55",
+   "name": "Stug- och rumsuthyrning"
+  },
+  {
+   "code": "55300",
+   "division": "55",
+   "name": "Campingplatsverksamhet"
+  },
+  {
+   "code": "55400",
+   "division": "55",
+   "name": "Förmedling avseende hotell- och logiverksamhet"
+  },
+  {
+   "code": "55900",
+   "division": "55",
+   "name": "Annan logiverksamhet"
+  },
+  {
+   "code": "56110",
+   "division": "56",
+   "name": "Restaurangverksamhet"
+  },
+  {
+   "code": "56120",
+   "division": "56",
+   "name": "Mobil restaurangverksamhet"
+  },
+  {
+   "code": "56210",
+   "division": "56",
+   "name": "Cateringverksamhet vid enskilda evenemang"
+  },
+  {
+   "code": "56221",
+   "division": "56",
+   "name": "Drift av personalmatsalar"
+  },
+  {
+   "code": "56222",
+   "division": "56",
+   "name": "Centralköksverksamhet för sjukhus, skolor, omsorgs- och andra institutioner"
+  },
+  {
+   "code": "56229",
+   "division": "56",
+   "name": "Övrig centralköks- och cateringverksamhet"
+  },
+  {
+   "code": "56300",
+   "division": "56",
+   "name": "Barverksamhet"
+  },
+  {
+   "code": "56400",
+   "division": "56",
+   "name": "Förmedling avseende restaurang-, catering- och barverksamhet"
+  },
+  {
+   "code": "58110",
+   "division": "58",
+   "name": "Utgivning av böcker"
+  },
+  {
+   "code": "58121",
+   "division": "58",
+   "name": "Dagstidningsutgivning"
+  },
+  {
+   "code": "58122",
+   "division": "58",
+   "name": "Annonstidningsutgivning"
+  },
+  {
+   "code": "58130",
+   "division": "58",
+   "name": "Utgivning av tidskrifter"
+  },
+  {
+   "code": "58190",
+   "division": "58",
+   "name": "Annan förlagsverksamhet, utom utgivning av programvara"
+  },
+  {
+   "code": "58210",
+   "division": "58",
+   "name": "Utgivning av datorspel"
+  },
+  {
+   "code": "58290",
+   "division": "58",
+   "name": "Utgivning av annan programvara"
+  },
+  {
+   "code": "59110",
+   "division": "59",
+   "name": "Produktion av film, video och tv-program"
+  },
+  {
+   "code": "59120",
+   "division": "59",
+   "name": "Efterproduktion av film, video och tv-program"
+  },
+  {
+   "code": "59130",
+   "division": "59",
+   "name": "Film- och videodistribution"
+  },
+  {
+   "code": "59140",
+   "division": "59",
+   "name": "Filmvisning"
+  },
+  {
+   "code": "59200",
+   "division": "59",
+   "name": "Ljudinspelning och musikutgivning"
+  },
+  {
+   "code": "60100",
+   "division": "60",
+   "name": "Radiosändning och distribution av ljudinspelningar"
+  },
+  {
+   "code": "60200",
+   "division": "60",
+   "name": "Planering och sändning av tv-program samt distribution av video"
+  },
+  {
+   "code": "60310",
+   "division": "60",
+   "name": "Nyhetsförmedling"
+  },
+  {
+   "code": "60390",
+   "division": "60",
+   "name": "Annan distribution av medieinnehåll"
+  },
+  {
+   "code": "61100",
+   "division": "61",
+   "name": "Trådbunden och trådlös telekommunikation samt telekommunikation via satellit"
+  },
+  {
+   "code": "61200",
+   "division": "61",
+   "name": "Återförsäljning och förmedling avseende telekommunikation"
+  },
+  {
+   "code": "61900",
+   "division": "61",
+   "name": "Annan telekommunikation"
+  },
+  {
+   "code": "62100",
+   "division": "62",
+   "name": "Dataprogrammering"
+  },
+  {
+   "code": "62201",
+   "division": "62",
+   "name": "Datakonsultverksamhet"
+  },
+  {
+   "code": "62202",
+   "division": "62",
+   "name": "Datordrifttjänster"
+  },
+  {
+   "code": "62900",
+   "division": "62",
+   "name": "Annan it- och dataverksamhet"
+  },
+  {
+   "code": "63100",
+   "division": "63",
+   "name": "Datainfrastruktur, databehandling, hosting o.d."
+  },
+  {
+   "code": "63910",
+   "division": "63",
+   "name": "Webbportaler"
+  },
+  {
+   "code": "63920",
+   "division": "63",
+   "name": "Övrig informationsverksamhet"
+  },
+  {
+   "code": "64110",
+   "division": "64",
+   "name": "Centralbanksverksamhet"
+  },
+  {
+   "code": "64190",
+   "division": "64",
+   "name": "Annan monetär finansförmedling"
+  },
+  {
+   "code": "64211",
+   "division": "64",
+   "name": "Holdingverksamhet i finansiella koncerner"
+  },
+  {
+   "code": "64212",
+   "division": "64",
+   "name": "Holdingverksamhet i icke-finansiella koncerner"
+  },
+  {
+   "code": "64220",
+   "division": "64",
+   "name": "Conduitverksamhet"
+  },
+  {
+   "code": "64310",
+   "division": "64",
+   "name": "Penningmarknadsfonder och andra fonder än penningmarknadsfonder"
+  },
+  {
+   "code": "64320",
+   "division": "64",
+   "name": "Stiftelser, dödsbon och brevlådeföretag"
+  },
+  {
+   "code": "64910",
+   "division": "64",
+   "name": "Finansiell leasing"
+  },
+  {
+   "code": "64920",
+   "division": "64",
+   "name": "Annan kreditgivning"
+  },
+  {
+   "code": "64991",
+   "division": "64",
+   "name": "Investmentverksamhet"
+  },
+  {
+   "code": "64992",
+   "division": "64",
+   "name": "Riskkapitalbolagsverksamhet"
+  },
+  {
+   "code": "64993",
+   "division": "64",
+   "name": "Handel med och förvaltning av värdepapper, för egen räkning"
+  },
+  {
+   "code": "64994",
+   "division": "64",
+   "name": "Förvaltning av och handel med värdepapper, för en begränsad och sluten krets av ägare"
+  },
+  {
+   "code": "64999",
+   "division": "64",
+   "name": "Diverse övrig finansförmedling"
+  },
+  {
+   "code": "65111",
+   "division": "65",
+   "name": "Fondanknuten livförsäkring"
+  },
+  {
+   "code": "65119",
+   "division": "65",
+   "name": "Övrig livförsäkring"
+  },
+  {
+   "code": "65120",
+   "division": "65",
+   "name": "Skadeförsäkring"
+  },
+  {
+   "code": "65200",
+   "division": "65",
+   "name": "Återförsäkring"
+  },
+  {
+   "code": "65300",
+   "division": "65",
+   "name": "Pensionsfondsverksamhet"
+  },
+  {
+   "code": "66110",
+   "division": "66",
+   "name": "Administration avseende finansiella marknader"
+  },
+  {
+   "code": "66120",
+   "division": "66",
+   "name": "Verksamhet utförd av värdepappers- och varumäklare"
+  },
+  {
+   "code": "66190",
+   "division": "66",
+   "name": "Annan stödverksamhet avseende finansiella tjänster utom försäkrings- och pensionsfondsverksamhet"
+  },
+  {
+   "code": "66210",
+   "division": "66",
+   "name": "Risk- och skadebedömning"
+  },
+  {
+   "code": "66220",
+   "division": "66",
+   "name": "Verksamhet utförd av försäkringsombud och försäkringsmäklare"
+  },
+  {
+   "code": "66290",
+   "division": "66",
+   "name": "Övrig stödverksamhet avseende försäkrings- och pensionsfondsverksamhet"
+  },
+  {
+   "code": "66301",
+   "division": "66",
+   "name": "Förvaltning av investeringsfonder"
+  },
+  {
+   "code": "66309",
+   "division": "66",
+   "name": "Annan fondförvaltning"
+  },
+  {
+   "code": "68110",
+   "division": "68",
+   "name": "Handel med egna fastigheter"
+  },
+  {
+   "code": "68120",
+   "division": "68",
+   "name": "Utformning av byggprojekt"
+  },
+  {
+   "code": "68201",
+   "division": "68",
+   "name": "Uthyrning och förvaltning av egna eller arrenderade bostäder"
+  },
+  {
+   "code": "68202",
+   "division": "68",
+   "name": "Uthyrning och förvaltning av egna eller arrenderade industrilokaler"
+  },
+  {
+   "code": "68203",
+   "division": "68",
+   "name": "Uthyrning och förvaltning av egna eller arrenderade, andra lokaler"
+  },
+  {
+   "code": "68204",
+   "division": "68",
+   "name": "Förvaltning i bostadsrättsföreningar"
+  },
+  {
+   "code": "68209",
+   "division": "68",
+   "name": "Övrig förvaltning av egna eller arrenderade fastigheter"
+  },
+  {
+   "code": "68310",
+   "division": "68",
+   "name": "Förmedling avseende fastighetsverksamhet"
+  },
+  {
+   "code": "68320",
+   "division": "68",
+   "name": "Annan fastighetsförmedling och fastighetsförvaltning på uppdrag"
+  },
+  {
+   "code": "69101",
+   "division": "69",
+   "name": "Advokatbyråverksamhet"
+  },
+  {
+   "code": "69102",
+   "division": "69",
+   "name": "Juridiska byråers verksamhet m.m."
+  },
+  {
+   "code": "69201",
+   "division": "69",
+   "name": "Redovisning och bokföring; skatterådgivning"
+  },
+  {
+   "code": "69202",
+   "division": "69",
+   "name": "Revision"
+  },
+  {
+   "code": "70100",
+   "division": "70",
+   "name": "Verksamheter som utövas av huvudkontor"
+  },
+  {
+   "code": "70200",
+   "division": "70",
+   "name": "Konsultverksamhet avseende företags organisation"
+  },
+  {
+   "code": "71110",
+   "division": "71",
+   "name": "Arkitektverksamhet"
+  },
+  {
+   "code": "71121",
+   "division": "71",
+   "name": "Teknisk konsultverksamhet inom bygg- och anläggningsteknik"
+  },
+  {
+   "code": "71122",
+   "division": "71",
+   "name": "Teknisk konsultverksamhet inom industriteknik"
+  },
+  {
+   "code": "71123",
+   "division": "71",
+   "name": "Teknisk konsultverksamhet inom elteknik"
+  },
+  {
+   "code": "71124",
+   "division": "71",
+   "name": "Teknisk konsultverksamhet inom energi-, miljö- och VVS-teknik"
+  },
+  {
+   "code": "71129",
+   "division": "71",
+   "name": "Övrig teknisk konsultverksamhet"
+  },
+  {
+   "code": "71200",
+   "division": "71",
+   "name": "Teknisk provning och analys"
+  },
+  {
+   "code": "72101",
+   "division": "72",
+   "name": "Bioteknisk forskning och utveckling"
+  },
+  {
+   "code": "72109",
+   "division": "72",
+   "name": "Annan naturvetenskaplig och teknisk forskning och utveckling"
+  },
+  {
+   "code": "72200",
+   "division": "72",
+   "name": "Samhällsvetenskaplig och humanistisk forskning och utveckling"
+  },
+  {
+   "code": "73111",
+   "division": "73",
+   "name": "Reklambyråverksamhet"
+  },
+  {
+   "code": "73112",
+   "division": "73",
+   "name": "Direktreklamverksamhet"
+  },
+  {
+   "code": "73119",
+   "division": "73",
+   "name": "Övrig reklamverksamhet"
+  },
+  {
+   "code": "73120",
+   "division": "73",
+   "name": "Mediebyråverksamhet och annonsförsäljning"
+  },
+  {
+   "code": "73200",
+   "division": "73",
+   "name": "Marknads- och opinionsundersökning"
+  },
+  {
+   "code": "73300",
+   "division": "73",
+   "name": "PR och kommunikation"
+  },
+  {
+   "code": "74110",
+   "division": "74",
+   "name": "Industridesign och modedesign"
+  },
+  {
+   "code": "74120",
+   "division": "74",
+   "name": "Grafisk design och visuell kommunikation"
+  },
+  {
+   "code": "74130",
+   "division": "74",
+   "name": "Inredningsdesign"
+  },
+  {
+   "code": "74140",
+   "division": "74",
+   "name": "Annan specialiserad designverksamhet"
+  },
+  {
+   "code": "74200",
+   "division": "74",
+   "name": "Fotoverksamhet"
+  },
+  {
+   "code": "74300",
+   "division": "74",
+   "name": "Översättning och tolkning"
+  },
+  {
+   "code": "74910",
+   "division": "74",
+   "name": "Patentförmedling samt marknadsföring av patent"
+  },
+  {
+   "code": "74990",
+   "division": "74",
+   "name": "All övrig verksamhet inom juridik, ekonomi, vetenskap och teknik"
+  },
+  {
+   "code": "75000",
+   "division": "75",
+   "name": "Veterinärverksamhet"
+  },
+  {
+   "code": "77110",
+   "division": "77",
+   "name": "Uthyrning och leasing av personbilar och lätta motorfordon"
+  },
+  {
+   "code": "77120",
+   "division": "77",
+   "name": "Uthyrning och leasing av lastbilar och andra tunga motorfordon"
+  },
+  {
+   "code": "77210",
+   "division": "77",
+   "name": "Uthyrning och leasing av fritids- och sportutrustning"
+  },
+  {
+   "code": "77220",
+   "division": "77",
+   "name": "Uthyrning och leasing av andra hushållsartiklar och varor för personligt bruk"
+  },
+  {
+   "code": "77310",
+   "division": "77",
+   "name": "Uthyrning och leasing av jordbruksmaskiner och jordbruksredskap"
+  },
+  {
+   "code": "77320",
+   "division": "77",
+   "name": "Uthyrning och leasing av bygg- och anläggningsmaskiner"
+  },
+  {
+   "code": "77330",
+   "division": "77",
+   "name": "Uthyrning och leasing av kontorsmaskiner, kontorsutrustning och datorer"
+  },
+  {
+   "code": "77340",
+   "division": "77",
+   "name": "Uthyrning och leasing av fartyg och båtar"
+  },
+  {
+   "code": "77350",
+   "division": "77",
+   "name": "Uthyrning och leasing av flygplan"
+  },
+  {
+   "code": "77390",
+   "division": "77",
+   "name": "Uthyrning och leasing av diverse övrig utrustning samt diverse övriga maskiner och materiella tillgångar"
+  },
+  {
+   "code": "77400",
+   "division": "77",
+   "name": "Leasing av immateriell egendom och liknande produkter, med undantag för upphovsrättsskyddade verk"
+  },
+  {
+   "code": "77510",
+   "division": "77",
+   "name": "Förmedling avseende uthyrning och leasing av personbilar, husbilar och släpfordon"
+  },
+  {
+   "code": "77520",
+   "division": "77",
+   "name": "Förmedling avseende uthyrning och leasing av andra materiella tillgångar och icke-finansiella immateriella tillgångar"
+  },
+  {
+   "code": "78100",
+   "division": "78",
+   "name": "Arbetsförmedling och rekrytering"
+  },
+  {
+   "code": "78201",
+   "division": "78",
+   "name": "Personaluthyrning"
+  },
+  {
+   "code": "78202",
+   "division": "78",
+   "name": "Övrigt tillhandahållande av personalfunktioner"
+  },
+  {
+   "code": "79110",
+   "division": "79",
+   "name": "Resebyråverksamhet"
+  },
+  {
+   "code": "79120",
+   "division": "79",
+   "name": "Researrangemang"
+  },
+  {
+   "code": "79900",
+   "division": "79",
+   "name": "Turist- och bokningsverksamhet"
+  },
+  {
+   "code": "80010",
+   "division": "80",
+   "name": "Bevakningsverksamhet och privat säkerhetsverksamhet"
+  },
+  {
+   "code": "80090",
+   "division": "80",
+   "name": "Övrig säkerhetsverksamhet"
+  },
+  {
+   "code": "81100",
+   "division": "81",
+   "name": "Fastighetsrelaterad stödverksamhet"
+  },
+  {
+   "code": "81210",
+   "division": "81",
+   "name": "Lokalvård"
+  },
+  {
+   "code": "81221",
+   "division": "81",
+   "name": "Rengöring av byggnader"
+  },
+  {
+   "code": "81222",
+   "division": "81",
+   "name": "Skorstensfejarverksamhet"
+  },
+  {
+   "code": "81230",
+   "division": "81",
+   "name": "Annan rengöring"
+  },
+  {
+   "code": "81300",
+   "division": "81",
+   "name": "Skötsel och underhåll av grönytor"
+  },
+  {
+   "code": "82100",
+   "division": "82",
+   "name": "Kontorstjänster"
+  },
+  {
+   "code": "82200",
+   "division": "82",
+   "name": "Callcenterverksamhet"
+  },
+  {
+   "code": "82300",
+   "division": "82",
+   "name": "Arrangemang av kongresser och mässor"
+  },
+  {
+   "code": "82400",
+   "division": "82",
+   "name": "Förmedling avseende övrig stödverksamhet till företag"
+  },
+  {
+   "code": "82910",
+   "division": "82",
+   "name": "Inkassoföretags och kreditupplysningsföretags verksamhet"
+  },
+  {
+   "code": "82920",
+   "division": "82",
+   "name": "Förpackningsverksamhet"
+  },
+  {
+   "code": "82990",
+   "division": "82",
+   "name": "Diverse övrig stödverksamhet till företag"
+  },
+  {
+   "code": "84110",
+   "division": "84",
+   "name": "Övergripande offentlig förvaltning"
+  },
+  {
+   "code": "84121",
+   "division": "84",
+   "name": "Offentlig förvaltning av grundskole- och gymnasieskoleutbildning"
+  },
+  {
+   "code": "84122",
+   "division": "84",
+   "name": "Offentlig förvaltning av universitets- och högskoleutbildning samt forskning"
+  },
+  {
+   "code": "84123",
+   "division": "84",
+   "name": "Offentlig förvaltning av hälso- och sjukvård"
+  },
+  {
+   "code": "84124",
+   "division": "84",
+   "name": "Offentlig förvaltning av omsorg och socialtjänst"
+  },
+  {
+   "code": "84125",
+   "division": "84",
+   "name": "Offentlig förvaltning av program för kultur, miljö, boende m.m."
+  },
+  {
+   "code": "84130",
+   "division": "84",
+   "name": "Offentlig förvaltning av näringslivsprogram"
+  },
+  {
+   "code": "84210",
+   "division": "84",
+   "name": "Utrikesförvaltning"
+  },
+  {
+   "code": "84221",
+   "division": "84",
+   "name": "Militärt försvar; gemensam verksamhet för totalförsvaret"
+  },
+  {
+   "code": "84222",
+   "division": "84",
+   "name": "Civilt försvar och frivilligförsvar"
+  },
+  {
+   "code": "84231",
+   "division": "84",
+   "name": "Åklagar- och domstolsverksamhet"
+  },
+  {
+   "code": "84232",
+   "division": "84",
+   "name": "Kriminalvård"
+  },
+  {
+   "code": "84240",
+   "division": "84",
+   "name": "Polisverksamhet"
+  },
+  {
+   "code": "84250",
+   "division": "84",
+   "name": "Brand- och räddningsverksamhet"
+  },
+  {
+   "code": "84300",
+   "division": "84",
+   "name": "Obligatorisk socialförsäkring"
+  },
+  {
+   "code": "85100",
+   "division": "85",
+   "name": "Förskoleutbildning"
+  },
+  {
+   "code": "85201",
+   "division": "85",
+   "name": "Grundskoleutbildning och förskoleklass"
+  },
+  {
+   "code": "85202",
+   "division": "85",
+   "name": "Utbildning inom anpassad grundskola"
+  },
+  {
+   "code": "85311",
+   "division": "85",
+   "name": "Studieförberedande gymnasial utbildning utom kommunal vuxenutbildning"
+  },
+  {
+   "code": "85312",
+   "division": "85",
+   "name": "Kommunal vuxenutbildning o.d."
+  },
+  {
+   "code": "85321",
+   "division": "85",
+   "name": "Gymnasial yrkesutbildning"
+  },
+  {
+   "code": "85322",
+   "division": "85",
+   "name": "Utbildning inom anpassad gymnasieskola"
+  },
+  {
+   "code": "85323",
+   "division": "85",
+   "name": "Annan gymnasial utbildning"
+  },
+  {
+   "code": "85324",
+   "division": "85",
+   "name": "Yrkesförarutbildning m.m."
+  },
+  {
+   "code": "85330",
+   "division": "85",
+   "name": "Eftergymnasial utbildning vid annat än universitet eller högskola"
+  },
+  {
+   "code": "85400",
+   "division": "85",
+   "name": "Universitets- eller högskoleutbildning"
+  },
+  {
+   "code": "85510",
+   "division": "85",
+   "name": "Sport- och fritidsutbildning"
+  },
+  {
+   "code": "85521",
+   "division": "85",
+   "name": "Kommunala kulturskolans utbildning"
+  },
+  {
+   "code": "85522",
+   "division": "85",
+   "name": "Övrig musik-, dans- och kulturell utbildning"
+  },
+  {
+   "code": "85530",
+   "division": "85",
+   "name": "Trafikskoleverksamhet"
+  },
+  {
+   "code": "85591",
+   "division": "85",
+   "name": "Arbetsmarknadsutbildning"
+  },
+  {
+   "code": "85592",
+   "division": "85",
+   "name": "Folkhögskoleutbildning"
+  },
+  {
+   "code": "85593",
+   "division": "85",
+   "name": "Studieförbundens och frivilligorganisationernas utbildning"
+  },
+  {
+   "code": "85594",
+   "division": "85",
+   "name": "Personalutbildning"
+  },
+  {
+   "code": "85599",
+   "division": "85",
+   "name": "Annan övrig utbildning"
+  },
+  {
+   "code": "85610",
+   "division": "85",
+   "name": "Förmedling avseende kurser och övrig undervisning"
+  },
+  {
+   "code": "85690",
+   "division": "85",
+   "name": "Övrig stödverksamhet för utbildningsväsendet"
+  },
+  {
+   "code": "86101",
+   "division": "86",
+   "name": "Sluten primärvård"
+  },
+  {
+   "code": "86102",
+   "division": "86",
+   "name": "Specialiserad sluten somatisk hälso- och sjukvård på sjukhus"
+  },
+  {
+   "code": "86103",
+   "division": "86",
+   "name": "Specialiserad sluten psykiatrisk hälso- och sjukvård på sjukhus"
+  },
+  {
+   "code": "86211",
+   "division": "86",
+   "name": "Primärvårdsmottagningar med läkare m.m."
+  },
+  {
+   "code": "86212",
+   "division": "86",
+   "name": "Annan allmän öppen hälso- och sjukvård, ej primärvård"
+  },
+  {
+   "code": "86221",
+   "division": "86",
+   "name": "Specialistläkarverksamhet inom öppenvård, på sjukhus"
+  },
+  {
+   "code": "86222",
+   "division": "86",
+   "name": "Specialistläkarverksamhet inom öppenvård, ej på sjukhus"
+  },
+  {
+   "code": "86230",
+   "division": "86",
+   "name": "Tandläkarverksamhet"
+  },
+  {
+   "code": "86910",
+   "division": "86",
+   "name": "Medicinsk laboratorieverksamhet och bilddiagnostik"
+  },
+  {
+   "code": "86920",
+   "division": "86",
+   "name": "Ambulanstransporter och ambulanssjukvård"
+  },
+  {
+   "code": "86930",
+   "division": "86",
+   "name": "Psykologi- och psykoterapiverksamhet, utom läkare"
+  },
+  {
+   "code": "86940",
+   "division": "86",
+   "name": "Sjuksköterske- och barnmorskeverksamhet"
+  },
+  {
+   "code": "86950",
+   "division": "86",
+   "name": "Fysioterapeutisk verksamhet"
+  },
+  {
+   "code": "86960",
+   "division": "86",
+   "name": "Traditionell, komplementär och alternativ medicin"
+  },
+  {
+   "code": "86970",
+   "division": "86",
+   "name": "Förmedling avseende sjukvård, tandvård och annan hälso- och sjukvård"
+  },
+  {
+   "code": "86991",
+   "division": "86",
+   "name": "Tandhygienistverksamhet"
+  },
+  {
+   "code": "86999",
+   "division": "86",
+   "name": "Annan övrig hälso- och sjukvård"
+  },
+  {
+   "code": "87100",
+   "division": "87",
+   "name": "Boende med sjuksköterskevård"
+  },
+  {
+   "code": "87201",
+   "division": "87",
+   "name": "Boende med särskild service för personer med psykisk funktionsnedsättning"
+  },
+  {
+   "code": "87202",
+   "division": "87",
+   "name": "Boende med särskild service för barn och ungdomar med missbruksproblem"
+  },
+  {
+   "code": "87203",
+   "division": "87",
+   "name": "Boende med särskild service för vuxna med missbruksproblem"
+  },
+  {
+   "code": "87301",
+   "division": "87",
+   "name": "Vård och omsorg i särskilda boendeformer för äldre personer"
+  },
+  {
+   "code": "87302",
+   "division": "87",
+   "name": "Vård och omsorg i särskilda boendeformer för personer med fysisk funktionsnedsättning"
+  },
+  {
+   "code": "87910",
+   "division": "87",
+   "name": "Förmedling avseende vård och omsorg med boende"
+  },
+  {
+   "code": "87991",
+   "division": "87",
+   "name": "Heldygnsvård med boende för barn och ungdomar med sociala problem"
+  },
+  {
+   "code": "87992",
+   "division": "87",
+   "name": "Omsorg och sociala insatser i övriga boendeformer för vuxna"
+  },
+  {
+   "code": "88101",
+   "division": "88",
+   "name": "Öppna sociala insatser för äldre personer"
+  },
+  {
+   "code": "88102",
+   "division": "88",
+   "name": "Öppna sociala insatser för personer med funktionsnedsättning"
+  },
+  {
+   "code": "88910",
+   "division": "88",
+   "name": "Dagbarnvård"
+  },
+  {
+   "code": "88991",
+   "division": "88",
+   "name": "Öppna sociala insatser för barn och ungdomar med sociala problem"
+  },
+  {
+   "code": "88992",
+   "division": "88",
+   "name": "Öppna sociala insatser för vuxna med missbruksproblem"
+  },
+  {
+   "code": "88993",
+   "division": "88",
+   "name": "Övriga öppna sociala insatser för vuxna"
+  },
+  {
+   "code": "88994",
+   "division": "88",
+   "name": "Humanitära insatser"
+  },
+  {
+   "code": "88995",
+   "division": "88",
+   "name": "Drift av flyktingförläggning"
+  },
+  {
+   "code": "90110",
+   "division": "90",
+   "name": "Litterärt skapande och musikkomposition"
+  },
+  {
+   "code": "90120",
+   "division": "90",
+   "name": "Bildkonst"
+  },
+  {
+   "code": "90130",
+   "division": "90",
+   "name": "Annat konstnärligt skapande"
+  },
+  {
+   "code": "90200",
+   "division": "90",
+   "name": "Scenkonst"
+  },
+  {
+   "code": "90310",
+   "division": "90",
+   "name": "Drift av teatrar, konserthus o.d."
+  },
+  {
+   "code": "90390",
+   "division": "90",
+   "name": "Annan stödverksamhet avseende konstnärligt skapande och scenkonst"
+  },
+  {
+   "code": "91110",
+   "division": "91",
+   "name": "Biblioteksverksamhet"
+  },
+  {
+   "code": "91120",
+   "division": "91",
+   "name": "Arkivverksamhet"
+  },
+  {
+   "code": "91210",
+   "division": "91",
+   "name": "Museiverksamhet och museisamlingar"
+  },
+  {
+   "code": "91220",
+   "division": "91",
+   "name": "Vård av historiska minnesmärken och monument"
+  },
+  {
+   "code": "91300",
+   "division": "91",
+   "name": "Bevarande, restaurering och annan stödverksamhet avseende kulturarv"
+  },
+  {
+   "code": "91410",
+   "division": "91",
+   "name": "Drift av botaniska trädgårdar och djurparker"
+  },
+  {
+   "code": "91420",
+   "division": "91",
+   "name": "Drift av naturreservat"
+  },
+  {
+   "code": "92000",
+   "division": "92",
+   "name": "Spel- och vadhållningsverksamhet"
+  },
+  {
+   "code": "93111",
+   "division": "93",
+   "name": "Drift av skidsportanläggningar"
+  },
+  {
+   "code": "93112",
+   "division": "93",
+   "name": "Drift av golfbanor"
+  },
+  {
+   "code": "93113",
+   "division": "93",
+   "name": "Drift av motorbanor"
+  },
+  {
+   "code": "93114",
+   "division": "93",
+   "name": "Drift av trav- och galoppbanor"
+  },
+  {
+   "code": "93119",
+   "division": "93",
+   "name": "Drift av sporthallar, idrottsplatser och andra sportanläggningar"
+  },
+  {
+   "code": "93120",
+   "division": "93",
+   "name": "Sportklubbars och idrottsföreningars verksamhet"
+  },
+  {
+   "code": "93130",
+   "division": "93",
+   "name": "Drift av gymanläggningar"
+  },
+  {
+   "code": "93191",
+   "division": "93",
+   "name": "Tävling med hästar"
+  },
+  {
+   "code": "93199",
+   "division": "93",
+   "name": "Annan sportverksamhet"
+  },
+  {
+   "code": "93210",
+   "division": "93",
+   "name": "Nöjes- och temaparksverksamhet"
+  },
+  {
+   "code": "93290",
+   "division": "93",
+   "name": "Övrig fritids- och nöjesverksamhet"
+  },
+  {
+   "code": "94111",
+   "division": "94",
+   "name": "Intressebevakning inom branschorganisationer"
+  },
+  {
+   "code": "94112",
+   "division": "94",
+   "name": "Intressebevakning inom arbetsgivarorganisationer"
+  },
+  {
+   "code": "94120",
+   "division": "94",
+   "name": "Intressebevakning inom yrkesorganisationer"
+  },
+  {
+   "code": "94200",
+   "division": "94",
+   "name": "Intressebevakning inom arbetstagarorganisationer"
+  },
+  {
+   "code": "94910",
+   "division": "94",
+   "name": "Verksamhet i religiösa samfund"
+  },
+  {
+   "code": "94920",
+   "division": "94",
+   "name": "Verksamhet i politiska organisationer"
+  },
+  {
+   "code": "94990",
+   "division": "94",
+   "name": "Verksamhet i diverse övriga intresseorganisationer"
+  },
+  {
+   "code": "95101",
+   "division": "95",
+   "name": "Reparation av datorer och kringutrustning"
+  },
+  {
+   "code": "95102",
+   "division": "95",
+   "name": "Reparation av kommunikationsutrustning"
+  },
+  {
+   "code": "95210",
+   "division": "95",
+   "name": "Reparation och underhåll av hemelektronik"
+  },
+  {
+   "code": "95220",
+   "division": "95",
+   "name": "Reparation och underhåll av hushållsapparater samt av utrustning för hem och trädgård"
+  },
+  {
+   "code": "95230",
+   "division": "95",
+   "name": "Reparation och underhåll av skodon och lädervaror"
+  },
+  {
+   "code": "95240",
+   "division": "95",
+   "name": "Reparation och underhåll av möbler och heminredning"
+  },
+  {
+   "code": "95250",
+   "division": "95",
+   "name": "Reparation och underhåll av ur och guldsmedsvaror"
+  },
+  {
+   "code": "95290",
+   "division": "95",
+   "name": "Reparation och underhåll av övriga hushållsartiklar och varor för personligt bruk"
+  },
+  {
+   "code": "95311",
+   "division": "95",
+   "name": "Allmän service och reparation av motorfordon utom motorcyklar"
+  },
+  {
+   "code": "95312",
+   "division": "95",
+   "name": "Plåt-, lack- och glasreparationer på motorfordon utom motorcyklar"
+  },
+  {
+   "code": "95313",
+   "division": "95",
+   "name": "Däckservice"
+  },
+  {
+   "code": "95320",
+   "division": "95",
+   "name": "Reparation och underhåll av motorcyklar"
+  },
+  {
+   "code": "95400",
+   "division": "95",
+   "name": "Förmedling avseende reparation och underhåll av datorer, hushållsartiklar och varor för personligt bruk samt motorfordon och motorcyklar"
+  },
+  {
+   "code": "96101",
+   "division": "96",
+   "name": "Industri- och institutionstvätt"
+  },
+  {
+   "code": "96102",
+   "division": "96",
+   "name": "Konsumenttvätt"
+  },
+  {
+   "code": "96210",
+   "division": "96",
+   "name": "Frisörer och barberare"
+  },
+  {
+   "code": "96220",
+   "division": "96",
+   "name": "Skönhetsvård och andra skönhetsbehandlingar"
+  },
+  {
+   "code": "96230",
+   "division": "96",
+   "name": "Dagspa, bastu och ångbastu"
+  },
+  {
+   "code": "96300",
+   "division": "96",
+   "name": "Begravningsverksamhet"
+  },
+  {
+   "code": "96400",
+   "division": "96",
+   "name": "Förmedling avseende konsumenttjänster"
+  },
+  {
+   "code": "96910",
+   "division": "96",
+   "name": "Tillhandahållande av konsumenttjänster i hemmet"
+  },
+  {
+   "code": "96990",
+   "division": "96",
+   "name": "Diverse övriga konsumenttjänster"
+  },
+  {
+   "code": "97000",
+   "division": "97",
+   "name": "Förvärvsarbete i hushåll"
+  },
+  {
+   "code": "98100",
+   "division": "98",
+   "name": "Hushållens produktion av diverse varor för eget bruk"
+  },
+  {
+   "code": "98200",
+   "division": "98",
+   "name": "Hushållens produktion av diverse tjänster för eget bruk"
+  },
+  {
+   "code": "99000",
+   "division": "99",
+   "name": "Verksamhet vid internationella organisationer, utländska ambassader o.d."
+  }
+ ]
+}

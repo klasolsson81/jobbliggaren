@@ -47,13 +47,15 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 /// </para>
 ///
 /// <para>
-/// <b>Open condition for PR-3 (security-auditor C-D8, 2026-07-13):</b> retaining the payload is the
-/// right answer to "should SoftDelete gut the row" — but it does NOT by itself settle Art. 5(1)(e).
-/// A soft-deleted criterion keeps the user's full job-hunt predicate indefinitely, and there is no
-/// purge sweep. PR-3 must decide the delete semantics explicitly (hard delete on user delete — the
-/// #782 precedent — OR a defined retention window plus a sweep), and decide at the same time whether
-/// <see cref="MaxPerUser"/> counts soft-deleted rows (a query-filtered count would let a user
-/// accumulate unbounded deleted criteria, each carrying a full predicate).
+/// <b>C-D8 VERDICT (senior-cto-advisor Fork G1, 2026-07-16): user delete is HARD.</b>
+/// <c>DeleteCompanyWatchCriterionCommandHandler</c> removes the row via tracked <c>Remove</c> (the
+/// #782/ADR 0104 template) — the payload IS the user's personal data, no sweeper exists, and a
+/// deleted criterion has no undo value, so Art. 5(1)(e) is satisfied by construction. This settles
+/// the C-D8 open condition (security-auditor 2026-07-13) and makes the <see cref="MaxPerUser"/>
+/// count question moot: soft-deleted rows cannot accumulate because nothing creates them. The
+/// soft-delete apparatus below (<see cref="SoftDelete"/>, <see cref="DeletedAt"/>, the query
+/// filter) is retained ONLY until a follow-up schema-cleanup migration removes it — see the method
+/// summary; it must not be wired into any production path.
 /// </para>
 ///
 /// <para>
@@ -191,10 +193,14 @@ public sealed class CompanyWatchCriterion : AggregateRoot<CompanyWatchCriterionI
     }
 
     /// <summary>
-    /// Soft-deletes the criterion. Idempotent — a no-op on an already-deleted one. Deliberately
-    /// KEEPS the criteria payload (see the class summary): the row's data is erased for real by the
-    /// Art. 17 account cascade, not by gutting a still-persisted row into an invariant-breaking
-    /// state.
+    /// <b>NO PRODUCTION CALLER, BY VERDICT — scheduled for demolition.</b> User delete is HARD
+    /// (C-D8 / CTO Fork G1, 2026-07-16; see the class summary): the delete handler calls
+    /// <c>Remove</c>, never this method. This method, <see cref="DeletedAt"/>, the EF query filter
+    /// and the physical <c>deleted_at</c> column are retained solely because their removal is a
+    /// MIGRATION that does not belong in PR-3 (no-migration mandate; the drop is a direct follow-up
+    /// PR with a hand-written migration). Do not wire this into any path — a live-looking delete
+    /// mechanism that production never runs is the #868 decoy class. An architecture guard pins
+    /// that no production code calls it.
     /// </summary>
     public void SoftDelete(IDateTimeProvider clock)
     {

@@ -208,8 +208,12 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
             .Where(a => snapshotAppIds.Contains(a.Id))
             .ToListAsync(cancellationToken);
 
+        var erasedSnapshotContactsCount = 0;
         foreach (var application in applications)
-            application.EraseAdSnapshotContacts();
+        {
+            if (application.EraseAdSnapshotContacts())
+                erasedSnapshotContactsCount++;
+        }
 
         // Belt to retention's braces (b1 §4.4): a matched NON-Active ad the operator did not
         // confirm for whole-record erasure should hold no contacts (retention cleared them at
@@ -243,7 +247,7 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
         var erased = new ErasureSurfaceCounts(
             JobAds: erasedJobAdCount,
             RecentJobSearches: recentSearches.Count,
-            ApplicationSnapshotContacts: applications.Count,
+            ApplicationSnapshotContacts: erasedSnapshotContactsCount,
 
             // Zero, and NOT because we forgot. Every one of these is matched, reported, and left
             // standing on a written ground the registry carries (ErasureCascadeRegistry.

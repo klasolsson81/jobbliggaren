@@ -196,7 +196,18 @@ public sealed class Application : AggregateRoot<ApplicationId>
     /// per-surface count set and IS the accountability unit — an event here would have no
     /// consumer).
     /// </summary>
-    public void EraseAdSnapshotContacts() => AdSnapshot = AdSnapshot?.WithoutContacts();
+    public bool EraseAdSnapshotContacts()
+    {
+        // Returns the VERDICT (did this call clear anything?), because the erasure command's
+        // Erased counter must count what happened, never what was attempted — a count of loaded
+        // rows reports success for an arm that was deleted outright (mutation M8, 2026-07-16,
+        // survived on exactly that counter before this signature).
+        if (AdSnapshot?.Contacts is null)
+            return false;
+
+        AdSnapshot = AdSnapshot.WithoutContacts();
+        return true;
+    }
 
     /// <summary>
     /// Move the application to <paramref name="target"/>. ADR 0092 D3: transitions

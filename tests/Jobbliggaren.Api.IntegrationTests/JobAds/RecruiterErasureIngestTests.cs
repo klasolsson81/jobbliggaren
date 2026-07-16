@@ -804,6 +804,17 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         (await db.Applications.IgnoreQueryFilters().CountAsync(a => a.Id == applicationId, ct))
             .ShouldBe(1, "the application row must still be there. The ad is a tombstone; the "
                 + "application that points at it is untouched.");
+
+        // The DB row, not only the counter: a counter can report an arm that was deleted
+        // outright (mutation M8 survived on exactly that before the verdict-counting fix).
+        var frozen = await db.Applications.IgnoreQueryFilters().AsNoTracking()
+            .Where(a => a.Id == applicationId)
+            .Select(a => new { Contacts = a.AdSnapshot!.Contacts, a.AdSnapshot!.Description })
+            .SingleAsync(ct);
+        frozen.Contacts.ShouldBeNull(
+            "the surgical arm must have CLEARED the frozen contact block in the database.");
+        frozen.Description.ShouldNotBeNull(
+            "and the applicant's own record must stand — surgical, never whole-record.");
     }
 
     /// <summary>

@@ -366,6 +366,7 @@ app.MapSavedSearchesEndpoints();
 app.MapRecentSearchesEndpoints();
 app.MapSavedJobAdsEndpoints();
 app.MapCompanyWatchesEndpoints();
+app.MapCompanyWatchCriteriaEndpoints();
 app.MapCompaniesEndpoints();
 app.MapMeJobAdStatusEndpoints();
 app.MapMeJobAdMatchEndpoints();

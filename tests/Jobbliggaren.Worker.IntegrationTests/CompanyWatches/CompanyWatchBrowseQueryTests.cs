@@ -421,6 +421,105 @@ public class CompanyWatchBrowseQueryTests(WorkerTestFixture fixture)
         page.TotalPages.ShouldBeLessThanOrEqualTo(CompanyBrowseCriteria.MaxPage);
     }
 
+    [Fact]
+    public async Task Magnitude_CountsExactly_BelowTheCeiling_AndSharesTheBrowsePredicate()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await FreshContextAsync(ct);
+
+        // Three matching + one wrong-kommun + one wrong-SNI + one deregistered: the magnitude must
+        // count through the SAME three-clause predicate as the page query (status AND kommun AND
+        // sni) — a drift on any clause changes 3 into something else.
+        await SeedAsync(ctx.Db, ct,
+            Entry(OrgNr(1), "Match 1 AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(2), "Match 2 AB", KommunStockholm, [SniIt, SniConsulting]),
+            Entry(OrgNr(3), "Match 3 AB", KommunStockholm, [SniIt]),
+            Entry(OrgNr(4), "Wrong Kommun AB", KommunGoteborg, [SniIt]),
+            Entry(OrgNr(5), "Wrong Sni AB", KommunStockholm, [SniBakery]),
+            Entry(OrgNr(6), "Dead AB", KommunStockholm, [SniIt],
+                status: CompanyRegisterStatus.Deregistered));
+
+        var magnitude = await new CompanyWatchBrowseQuery(ctx.Db).CountMatchingCompaniesAsync(
+            Spec([SniIt], [KommunStockholm]), ceiling: 10_000, ct);
+
+        magnitude.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task Magnitude_SaturatesAtTheCallersCeiling()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await FreshContextAsync(ct);
+
+        var entries = Enumerable.Range(0, 7)
+            .Select(i => Entry(OrgNr(i), $"Företag {i}", KommunStockholm, [SniIt]))
+            .ToArray();
+        await SeedAsync(ctx.Db, ct, entries);
+
+        var magnitude = await new CompanyWatchBrowseQuery(ctx.Db).CountMatchingCompaniesAsync(
+            Spec([SniIt], [KommunStockholm]), ceiling: 5, ct);
+
+        // min(true count, ceiling): the caller reads "== ceiling" as SATURATED and renders "5+".
+        magnitude.ShouldBe(5);
+    }
+
+    [Fact]
+    public async Task Magnitude_AndPaginationCount_AreTwoDifferentCeilings()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await FreshContextAsync(ct);
+
+        // THE Fork G3 pin. Seed past the pagination surface's servable ceiling (pageSize 2 →
+        // MaxPage × 2 = 200 rows servable; 215 match). The PAGER's TotalCount saturates at 200 —
+        // it answers "how many rows can I serve". The MAGNITUDE, asked with a higher product
+        // ceiling, answers "how many companies match": 215, exact. Fold the two into one number
+        // and one of the two answers becomes a lie — that is why the port has two methods with
+        // two caps instead of one count read two ways.
+        const int PageSize = 2;
+        var servable = CompanyBrowseCriteria.MaxServableRows(PageSize);
+        var total = servable + 15;
+        var entries = Enumerable.Range(0, total)
+            .Select(i => Entry(OrgNr(i), $"Företag {i}", KommunStockholm, [SniIt]))
+            .ToArray();
+        await SeedAsync(ctx.Db, ct, entries);
+
+        var spec = Spec([SniIt], [KommunStockholm]);
+        var query = new CompanyWatchBrowseQuery(ctx.Db);
+
+        var page = await query.BrowseAsync(new CompanyBrowseCriteria(spec, 1, PageSize), ct);
+        var magnitude = await query.CountMatchingCompaniesAsync(spec, ceiling: 10_000, ct);
+
+        page.TotalCount.ShouldBe(servable);
+        magnitude.ShouldBe(total);
+    }
+
+    [Fact]
+    public async Task Magnitude_WithAnEmptyAxis_ThrowsInsteadOfSilentlyCountingZero()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await FreshContextAsync(ct);
+
+        await SeedAsync(ctx.Db, ct, Entry(OrgNr(1), "Acme AB", KommunStockholm, [SniIt]));
+
+        // The magnitude runs through the same BindPredicate as the page query, so a corrupt spec
+        // fails LOUD here too — a silent zero would render "0 företag matchar" over a live watch.
+        var corrupt = CompanyWatchCriteriaSpec.FromTrusted([], [KommunStockholm]);
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await new CompanyWatchBrowseQuery(ctx.Db)
+                .CountMatchingCompaniesAsync(corrupt, ceiling: 10, ct));
+    }
+
+    [Fact]
+    public async Task Magnitude_RejectsANonPositiveCeiling()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await FreshContextAsync(ct);
+
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
+            await new CompanyWatchBrowseQuery(ctx.Db)
+                .CountMatchingCompaniesAsync(Spec([SniIt], [KommunStockholm]), ceiling: 0, ct));
+    }
+
     private static string OrgNr(int i) => $"55600{i:D5}";
 
     private static CompanyWatchCriteriaSpec Spec(string[] sni, string[] kommun) =>

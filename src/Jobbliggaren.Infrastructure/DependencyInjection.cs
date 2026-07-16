@@ -1104,6 +1104,17 @@ public static class DependencyInjection
             Jobbliggaren.Application.CompanyWatches.Abstractions.ICompanyWatchBrowseQuery,
             CompanyRegister.CompanyWatchBrowseQuery>();
 
+        // #560 PR-3 (CTO Fork G2) — the SCB reference data (SNI 2025 + län/kommun) behind
+        // ICriterionReferenceProvider: ONE authority for the Application existence-validator and the
+        // FE picker tree. INSTANCE registration, deliberately: the loaders run HERE, at host build,
+        // so a malformed embedded asset fails the host loudly instead of 500-ing the first create
+        // (AddSingleton<IPort, Impl>() is lazy — the BranschgruppProvider precedent). Immutable +
+        // thread-safe, so a singleton instance is correct.
+        services.AddSingleton<Jobbliggaren.Application.CompanyWatches.Abstractions.ICriterionReferenceProvider>(
+            new CompanyRegister.Reference.CriterionReferenceProvider(
+                CompanyRegister.Reference.CriterionReferenceLoader.LoadSni(),
+                CompanyRegister.Reference.CriterionReferenceLoader.LoadKommuner()));
+
         // STEG 6 Approach B (2026-05-24) — fritext→SSYK-expansion för
         // recall-lift på terms som "systemutvecklare". IOptions-binding från
         // appsettings.json SearchSynonyms-sektion. DI i samma commit som

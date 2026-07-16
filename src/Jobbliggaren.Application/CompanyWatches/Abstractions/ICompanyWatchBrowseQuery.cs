@@ -32,10 +32,13 @@ namespace Jobbliggaren.Application.CompanyWatches.Abstractions;
 /// </para>
 ///
 /// <para>
-/// <b>One method, deliberately.</b> No public <c>CountAsync</c> beside <see cref="BrowseAsync"/>:
-/// <see cref="PagedResult{T}"/> already carries <c>TotalCount</c>, and a second public entry point is
-/// exactly the surface on which a count predicate can silently drift from the page predicate. A
-/// count-only caller passes <c>PageSize: 1</c> and reads <c>TotalCount</c>.
+/// <b>Two methods, one predicate authority (CTO Fork G3, 2026-07-16).</b> This port once carried a
+/// single method precisely because "a second public entry point is exactly the surface on which a
+/// count predicate can silently drift from the page predicate". The magnitude count
+/// (<see cref="CountMatchingCompaniesAsync"/>) is that second method — added HERE and not as its
+/// own port so both methods share the implementation's single <c>FROM/WHERE</c> constant and
+/// parameter-binding routine. Co-locating the predicate is the drift defense; a separate port would
+/// re-create the very risk the one-method rule existed to prevent.
 /// </para>
 /// </summary>
 public interface ICompanyWatchBrowseQuery
@@ -65,6 +68,29 @@ public interface ICompanyWatchBrowseQuery
     /// </summary>
     ValueTask<PagedResult<CompanyBrowseResult>> BrowseAsync(
         CompanyBrowseCriteria criteria, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The MAGNITUDE count (CTO Fork G3, 2026-07-16): "roughly how many companies match this
+    /// predicate" — the number a headline or the picker's live preview may honestly render, capped
+    /// at <paramref name="ceiling"/> (a PRODUCT ceiling, Klas 2026-07-16: 10 000 — carried by
+    /// <c>CriterionMatchMagnitudeDto.Ceiling</c>, never hardcoded at call sites). Returns
+    /// <c>min(true count, ceiling)</c>; a return value equal to <paramref name="ceiling"/> means
+    /// SATURATED and the copy must say "10 000+", never the bare number.
+    ///
+    /// <para>
+    /// <b>This is a DIFFERENT question from <see cref="PagedResult{T}.TotalCount"/></b> — that one
+    /// is a pagination quantity saturating at <see cref="CompanyBrowseCriteria.MaxServableRows"/>
+    /// (a correctness cap: <c>TotalPages ≤ MaxPage</c> by construction) and must never be rendered
+    /// as a magnitude. Two questions, two ceilings, one shared predicate (see the interface doc).
+    /// </para>
+    ///
+    /// <para>
+    /// Takes the Domain VO (not a criterion id) for the same reason <see cref="BrowseAsync"/> does:
+    /// the picker's live preview counts an UNSAVED criterion.
+    /// </para>
+    /// </summary>
+    ValueTask<int> CountMatchingCompaniesAsync(
+        CompanyWatchCriteriaSpec criteria, int ceiling, CancellationToken cancellationToken);
 }
 
 /// <summary>

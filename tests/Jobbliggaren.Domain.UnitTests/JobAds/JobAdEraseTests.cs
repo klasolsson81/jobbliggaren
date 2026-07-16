@@ -202,6 +202,21 @@ public class JobAdEraseTests
         JobAdStatus.Erased.Value.Length.ShouldBeLessThanOrEqualTo(20);
     }
 
+    [Fact]
+    public void FromValue_FailsLoud_OnTheRetiredExpiredValue()
+    {
+        // #886 / ADR 0111 — the BE twin of the FE zod regression lock. "Expired" was declared,
+        // rendered and unreachable for the product's entire history; FromValue retiring its case is
+        // what makes a resurrected (or hand-written) 'Expired' row surface as a Validation failure
+        // at the EF value converter instead of silently masquerading as a live state. Without this
+        // test the failure arm is an untested guarantee: re-adding the case would flip the FE lock
+        // red but nothing on the backend, where the value actually enters from the database.
+        var result = JobAdStatus.FromValue("Expired");
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("JobAdStatus.Invalid");
+    }
+
     private sealed class FakeClock : IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = new(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);

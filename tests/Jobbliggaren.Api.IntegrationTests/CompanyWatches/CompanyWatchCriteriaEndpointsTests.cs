@@ -221,6 +221,61 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
         missingAxis.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task Patch_blank_label_clears_it_and_an_absent_label_is_left_untouched()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var id = await CreateAsync(ct, label: "IT i Stockholm");
+
+        // Present-but-BLANK label ("" — exactly what the FE sends from an emptied field) CLEARS it.
+        // The three-state contract's clear-branch is proven ONLY at the wire here: the handler unit
+        // test constructs the command directly, so nothing else proves that JSON "" binds to a
+        // PRESENT-blank (→ clear) rather than an ABSENT (→ untouched) Label.
+        var cleared = await _client.PatchAsJsonAsync($"{Endpoint}/{id}", new { label = "" }, ct);
+        cleared.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        LabelOf(await _client.GetFromJsonAsync<JsonElement>(Endpoint, ct), id).ShouldBeNull();
+
+        // A PATCH that OMITS label (only criteria present) leaves the now-null label untouched — the
+        // absent-vs-blank distinction must survive JSON binding, or "no change" silently becomes
+        // "clear" (and vice versa). Criteria unchanged in value; the assertion is about the label.
+        var criteriaOnly = await _client.PatchAsJsonAsync(
+            $"{Endpoint}/{id}",
+            new { criteria = new { sniCodes = SniItArray, municipalityCodes = KommunStockholmArray } },
+            ct);
+        criteriaOnly.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        LabelOf(await _client.GetFromJsonAsync<JsonElement>(Endpoint, ct), id).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Reference_serves_the_full_tree_when_the_IfNoneMatch_ETag_is_stale()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        // The counterfactual the happy-path 304 test cannot supply: the 304 fast-path must fire ONLY
+        // on an EXACT ETag match. A stale/wrong ETag (the shape a picker cached before the dataset
+        // version changed) must get the FULL 200 body — a loose or inverted comparison would answer
+        // "not modified" for data that IS different, and the picker would render a stale tree.
+        var request = new HttpRequestMessage(HttpMethod.Get, $"{Endpoint}/reference");
+        request.Headers.IfNoneMatch.Add(new EntityTagHeaderValue("\"stale-and-wrong\"", isWeak: true));
+        var response = await _client.SendAsync(request, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await response.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("sni").GetArrayLength().ShouldBe(22);
+    }
+
+    // Reads a criterion's label from the list response, tolerant of both null-serialized and
+    // null-ignored JSON configs (a cleared label may arrive as `label: null` or be omitted entirely).
+    private static string? LabelOf(JsonElement list, string id)
+    {
+        var item = list.EnumerateArray().Single(c => c.GetProperty("id").GetString() == id);
+        return item.TryGetProperty("label", out var label) && label.ValueKind != JsonValueKind.Null
+            ? label.GetString()
+            : null;
+    }
+
     /// <summary>
     /// Seeds Active register companies matching the test criterion, through the production upsert
     /// path. The Api collection shares one Postgres — rows accumulate, so tests assert against

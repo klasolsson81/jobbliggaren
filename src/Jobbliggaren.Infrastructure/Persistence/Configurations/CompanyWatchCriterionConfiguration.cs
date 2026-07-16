@@ -98,8 +98,12 @@ public sealed class CompanyWatchCriterionConfiguration : IEntityTypeConfiguratio
         builder.Property(c => c.UpdatedAt).IsRequired();
         builder.Property(c => c.DeletedAt);
 
-        // Soft-delete: deleted criteria hidden from normal queries; the Art. 17 cascade
-        // IgnoreQueryFilters to erase them on account hard-delete.
+        // VESTIGIAL under the C-D8/G1 verdict (2026-07-16): user delete is HARD, so nothing ever
+        // sets DeletedAt and this filter never excludes a row. It is retained — together with the
+        // column and the aggregate's SoftDelete — only until the follow-up schema-cleanup
+        // migration removes all three in one change-reason. Do not describe it as the exclusion
+        // mechanism; the Art. 17 cascade still runs IgnoreQueryFilters (harmless against a
+        // vacuous filter, load-bearing the day this comment is stale).
         builder.HasQueryFilter(c => c.DeletedAt == null);
 
         builder.Ignore(c => c.DomainEvents);

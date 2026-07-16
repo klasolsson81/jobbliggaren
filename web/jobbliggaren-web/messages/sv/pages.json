@@ -287,6 +287,7 @@
         "labelHint": "Ge bevakningen ett eget namn. Annars visas branscher och kommuner. Högst 120 tecken.",
         "previewIncomplete": "Välj minst en bransch och en kommun för att se hur många företag som matchar.",
         "previewLoading": "Räknar företag…",
+        "previewUnavailable": "Antalet företag kan inte visas just nu. Du kan ändå spara bevakningen.",
         "previewChosen": "Ditt urval matchar {count} företag.",
         "save": "Spara bevakning",
         "saving": "Sparar…",

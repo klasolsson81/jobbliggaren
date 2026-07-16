@@ -165,7 +165,10 @@ function parsePageParam(raw: string | string[] | undefined): number {
 function ErrorShell({ title, body }: { title: string; body: string }) {
   return (
     <div className="jp-container jp-page">
-      <div className="rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">
+      {/* role="alert" — parity with /foretag's renderSection error notice (design-review Minor 2). */}
+      <div
+        role="alert"
+        className="rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">
         <p className="text-body font-medium">{title}</p>
         <p className="mt-1 text-body-sm">{body}</p>
       </div>

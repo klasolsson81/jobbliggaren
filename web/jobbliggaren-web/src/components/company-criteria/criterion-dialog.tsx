@@ -123,16 +123,22 @@ export function CriterionDialog({
 
   // Live preview — only polls while the dialog is open AND both axes are chosen (the endpoint 400s a
   // missing axis; the hook enforces that too).
-  const { preview } = useCriterionPreviewCount(
+  const { preview, loading: previewLoading } = useCriterionPreviewCount(
     { sniCodes, municipalityCodes: kommunCodes },
     open,
   );
 
+  // Four states, honestly told apart (design-review Minor 1, 2026-07-16): axes incomplete →
+  // instruction; result → the count; in flight → loading; failed/degraded (preview null, nothing
+  // in flight) → an explicit "unavailable" line. Falling back to the loading string on failure
+  // would show "Räknar företag…" forever — a promise the UI cannot keep.
   const previewLine = !bothChosen
     ? t("previewIncomplete")
     : preview
       ? t("previewChosen", { count: formatMagnitude(format, preview) })
-      : t("previewLoading");
+      : previewLoading
+        ? t("previewLoading")
+        : t("previewUnavailable");
 
   function handleSave() {
     setSaveError(null);

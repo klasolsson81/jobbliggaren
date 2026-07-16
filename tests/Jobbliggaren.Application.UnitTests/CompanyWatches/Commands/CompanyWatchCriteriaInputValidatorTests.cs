@@ -163,4 +163,32 @@ public class CompanyWatchCriteriaInputValidatorTests
         result.Errors.ShouldHaveSingleItem().ErrorCode
             .ShouldBe("CompanyWatchCriterion.UnknownSniCodes");
     }
+
+    [Theory]
+    // "digitZero" is the codepoint of the script's decimal '0'. The look-alike code "62100" is built
+    // by codepoint arithmetic (no exotic glyph is ever written literally in source — literal Unicode
+    // corrupts across tooling, the MEMORY lesson). FF10 = FULLWIDTH ZERO, 0660 = ARABIC-INDIC ZERO;
+    // both scripts' digits satisfy \d (\p{Nd}) yet are NOT ASCII [0-9].
+    [InlineData(0xFF10)]
+    [InlineData(0x0660)]
+    public void Validate_UnicodeLookalikeOfAKnownCode_IsUnknown_NotSilentlyAccepted(int digitZero)
+    {
+        // The validator-layer counterpart to the Domain's ASCII-explicit [0-9] guard
+        // (CompanyWatchCriteriaSpec — the PR-1-probe fix). A code built from Unicode decimal digits
+        // that WOULD satisfy \d but not [0-9] is a DIFFERENT string from the ASCII "62100" the
+        // catalog knows. The existence walk is a StringComparer.Ordinal set lookup, so the look-alike
+        // is "unknown" and the request is rejected — never trimmed/folded into the ASCII code and
+        // silently stored, which would then match NOTHING in the ASCII-only SCB register (the
+        // product's cardinal sin). "62100" IS a known ASCII leaf in this fixture, so the rejection is
+        // for being Unicode, not for being absent.
+        var lookalike = new string(
+            "62100".Select(ascii => (char)(digitZero + (ascii - '0'))).ToArray());
+
+        var result = ValidatorFor().Validate(
+            new CompanyWatchCriteriaInput([lookalike], ["0180"]));
+
+        result.IsValid.ShouldBeFalse();
+        result.Errors.ShouldHaveSingleItem().ErrorCode
+            .ShouldBe("CompanyWatchCriterion.UnknownSniCodes");
+    }
 }

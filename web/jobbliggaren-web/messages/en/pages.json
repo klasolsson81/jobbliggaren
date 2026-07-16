@@ -287,6 +287,7 @@
         "labelHint": "Give the watch a name of your own. Otherwise industries and municipalities are shown. Up to 120 characters.",
         "previewIncomplete": "Choose at least one industry and one municipality to see how many companies match.",
         "previewLoading": "Counting companies…",
+        "previewUnavailable": "The company count is not available right now. You can still save the watch.",
         "previewChosen": "Your selection matches {count} companies.",
         "save": "Save watch",
         "saving": "Saving…",

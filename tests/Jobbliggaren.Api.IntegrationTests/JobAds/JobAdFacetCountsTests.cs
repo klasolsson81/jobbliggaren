@@ -45,6 +45,7 @@ public class JobAdFacetCountsTests(ApiFactory factory)
         string? region,
         CancellationToken ct,
         bool archived = false,
+        bool erased = false,
         string? employmentType = null,
         string? worktimeExtent = null)
     {
@@ -99,6 +100,10 @@ public class JobAdFacetCountsTests(ApiFactory factory)
 
         if (archived)
             jobAd.Archive(clock).IsSuccess.ShouldBeTrue();
+
+        // Real Art. 17 transition (#842) — never a fabricated column stamp (#843 / #864 AC 4).
+        if (erased)
+            jobAd.Erase(clock).IsSuccess.ShouldBeTrue();
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
@@ -222,6 +227,34 @@ public class JobAdFacetCountsTests(ApiFactory factory)
 
         // Endast den aktiva annonsen räknas (1, ej 2).
         counts[grp].ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task FacetCountsAsync_ShouldExcludeErasedJobAds_WhenCounting()
+    {
+        // #864-uppföljning (B4): Erased är raden där allow-listen (== Active) och en deny-list
+        // (!= Archived) skiljer sig — tombstonen (#842) behåller sina facett-kolumner (Erase()
+        // rör dem inte), så utan status-grinden RÄKNAS den. Arkiverad-syskonet ovan kan inte
+        // se den mutationen (Archived exkluderas av båda formerna).
+        //
+        // ASYMMETRISK seed (2 aktiva + 1 raderad): korrekt grind → 2, deny-list/raderad grind →
+        // 3, inverterad (== Archived) → nyckeln saknas helt. Alla mutant-tillstånd separerar.
+        var ct = TestContext.Current.CancellationToken;
+        var grp = $"grp{Guid.NewGuid():N}"[..16];
+
+        await SeedAsync("Active-1", grp, null, null, ct);
+        await SeedAsync("Active-2", grp, null, null, ct);
+        await SeedAsync("Erased", grp, null, null, ct, erased: true);
+
+        using var scope = _factory.Services.CreateScope();
+        var sut = CreateSut(scope);
+
+        var counts = await sut.FacetCountsAsync(
+            Criteria(), FacetDimension.OccupationGroup, ct);
+
+        counts[grp].ShouldBe(2,
+            "en raderad annons (Art. 17-tombstone) får ALDRIG räknas i en publik facett — " +
+            "2 aktiva, inte 3 (deny-list) och inte 0/frånvarande nyckel (inverterad grind).");
     }
 
     [Fact]

@@ -340,13 +340,13 @@ export async function getResumeReview(
 }
 
 /**
- * Hämtar de deterministiska CV-förbättringsförslagen (F4-10, propose-and-approve):
- * före→efter-diffar + strukturella operationer med citerad evidens + proveniens,
- * ägar-scopat. Display-only i v1 — det finns inget apply-endpoint; en regelmotor
- * skriver aldrig om tyst (CLAUDE.md §5). Evidensen är REDAN personnummer-redigerad
- * vid motorns choke point — server-only, ingen ofiltrerad fritext når klienten.
- * `profile` är `Ats`|`Visual` (backend-validatorn är case-sensitive); searchParam:n
- * på förbättra-vyn bär det exakta värdet.
+ * MOTHBALLED (CV-pivot 2026-07-16, ADR 0112): backend-endpointen GET
+ * /parsed/{id}/improvements retirerades med åtgärda-lagrets deferral och
+ * förbättra-vyn är en 404-stub — funktionen har ingen live-konsument och
+ * ligger kvar orphaned-in-tree, revert-ready (D1-precedenten). Historik:
+ * hämtade de deterministiska CV-förbättringsförslagen (F4-10,
+ * propose-and-approve) — före→efter-diffar med citerad evidens, ägar-scopat,
+ * personnummer-redigerat vid motorns choke point.
  */
 export async function getCvImprovements(
   id: string,

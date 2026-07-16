@@ -399,9 +399,19 @@ public static class DependencyInjection
         // independently of the job-source HTTP wiring). See AddCvReview.
         services.AddCvReview();
 
-        // Fas 4 STEG 10 — the deterministic CV-build/improve engine (propose-and-approve diffs;
-        // consumes the knowledge bank + ITextAnalyzer, both already registered above). See
-        // AddCvImprovement. NO AI/LLM.
+        // The improve module (åtgärda-lager) is DEFERRED, not removed (CV-pivot 2026-07-16,
+        // ADR 0112, CTO-bind D8 Opt C + mechanism rebind PR-4). Its three endpoints are gone,
+        // so nothing can SEND SuggestCvImprovements/Preview/Apply — no endpoint, no Hangfire
+        // job, no other in-tree sender. But it stays registered here ON PURPOSE:
+        // Mediator.SourceGenerator's AddMediator scans the whole Application assembly and
+        // registers the three mothballed handlers regardless; their ctor graph needs
+        // IFrameProvider + ICvImprovementEngine, and this Api host runs Development
+        // ValidateOnBuild=true, which resolves that graph at host build. Drop this call and
+        // host boot throws (measured: 4/4 GetParsedResumeEndpointTests fail on ApiFactory
+        // boot). The registration is INERT — lazy singletons the container never constructs,
+        // because no command path reaches them. Do NOT copy the Worker's ValidateOnBuild=false
+        // (TD-103, a known gap, not a pattern). The module/engine/frames stay revert-ready;
+        // #650 pnr-guard + Worker-encryption tests keep guarding the mothballed motor.
         services.AddCvImprovement();
 
         // Fas 4 STEG 10 — the deterministic CV renderer (QuestPDF ATS-plain + visual from the
@@ -702,9 +712,9 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper,
             Jobbliggaren.Infrastructure.KnowledgeBank.VerbMapper>();
-        services.AddSingleton<
-            Jobbliggaren.Application.KnowledgeBank.Abstractions.IFrameProvider,
-            Jobbliggaren.Infrastructure.KnowledgeBank.FrameProvider>();
+        // IFrameProvider moved to AddCvImprovement (CV-pivot 2026-07-16, ADR 0112): the review
+        // engine never consumed it — its only consumers are the improve layer's Preview/Apply
+        // handlers, so the registration follows its consumers into the mothballed module (SRP).
         // Fas 4b PR-6 (ADR 0093 §D4): the C7 spelling criterion's proper-noun/tech-term
         // allowlist — versioned KB DATA (§5), loaded + validated once at construction.
         services.AddSingleton<
@@ -768,6 +778,12 @@ public static class DependencyInjection
         // dependency instead of assuming a sibling registered it. AddCvLexicon() is idempotent, so
         // a host that also calls AddCvParsing() still gets exactly ONE lexicon instance.
         services.AddCvLexicon();
+        // IFrameProvider lives HERE, not in AddCvReview (CV-pivot 2026-07-16, ADR 0112, SRP):
+        // its only consumers are the improve layer's Preview/Apply handlers
+        // (frameProvider.GetFrameCatalog()) — the review engine never takes it.
+        services.AddSingleton<
+            Jobbliggaren.Application.KnowledgeBank.Abstractions.IFrameProvider,
+            Jobbliggaren.Infrastructure.KnowledgeBank.FrameProvider>();
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Improvement.Abstractions.ICvImprovementEngine,
             Jobbliggaren.Infrastructure.Resumes.Improvement.CvImprovementEngine>();

@@ -524,8 +524,8 @@ public static partial class RateLimitingExtensions
             // Partition: UserId (claim "sub"). Dedikerad CV-render-policy (ej MeListRead-
             // återanvändning) — least common mechanism (Saltzer/Schroeder) + bulkhead (Nygard):
             // QuestPDF-generering + dubbel DEK-decrypt är CPU+krypto-tungt och delar inte budget
-            // med de lätta in-memory /review + /improvements (40 renders/min hade kunnat svälta
-            // MeListRead som gatar /oversikt + /resumes). Auth-gated → anonym fångas av
+            // med den lätta in-memory /review (/improvements retirerad, ADR 0112; 40 renders/min
+            // hade kunnat svälta MeListRead som gatar /oversikt + /resumes). Auth-gated → anonym fångas av
             // RequireAuthorization (NoLimiter bypass). senior-cto-advisor 2026-06-16 (B2),
             // riktvärde 8/min; security-auditor verifierar (BLOCKING). Parametrar IOptions (§5.1).
             options.AddPolicy(ResumeRenderPolicy, ctx =>

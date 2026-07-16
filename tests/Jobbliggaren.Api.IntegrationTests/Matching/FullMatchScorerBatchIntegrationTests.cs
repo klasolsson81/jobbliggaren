@@ -128,6 +128,20 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
         await db.SaveChangesAsync(ct);
     }
 
+    // The REAL Art. 17 erasure transition (#842) — the tombstone keeps its facet columns, so the
+    // erased ad still matches the profile the scorer reads; never a fabricated stamp (#843/AC 4).
+    private async Task EraseAsync(JobAdId id, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var ad = await db.JobAds.FindAsync([id], ct);
+        ad.ShouldNotBeNull();
+        ad!.Erase(clock).IsSuccess.ShouldBeTrue("Erase-seeden får inte tyst misslyckas");
+        await db.SaveChangesAsync(ct);
+    }
+
     private static string BuildRawPayload(
         string externalId,
         string? occupationGroupConceptId,
@@ -431,6 +445,46 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
             "the batch family, omitted exactly like a non-existent id.");
 
         // Polarity: 2, not 1 (inverted gate) and not 3 (gate deleted).
+        batch.Count.ShouldBe(2);
+    }
+
+    // =================================================================
+    // SPECIFICATION (#864 follow-up, B4) - an ERASED ad is MISSING to the Full batch too: the
+    // allow-list pin. The archived spec above cannot see `== Active` → `!= Archived` (Archived
+    // is excluded by both forms); the Erased tombstone (#842, real transition, facets survive)
+    // is the reachable row where they disagree - #886 unlocked this kill. ScoreFullBatchAsync is
+    // the batch with production callers (the tag endpoint), so a deny-list here would grade the
+    // tombstone for real clients. ASYMMETRIC SEED: correct → 2 · deny-list/deleted → 3 ·
+    // inverted → 0.
+    // =================================================================
+    [Fact]
+    public async Task ScoreFullBatch_OmitsErasedAd_TheAllowListPin()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var grp = NewConceptId("grp");
+        var terms = ExtractedTerms.From([SkillTerm(CSharpConceptId, CSharpDisplay)]);
+        var live1 = await SeedJobAdAsync("Systemutvecklare", grp, null, null, terms, ct);
+        var live2 = await SeedJobAdAsync("Backendutvecklare", grp, null, null, terms, ct);
+        var erased = await SeedJobAdAsync("Raderad", grp, null, null, terms, ct);
+        await EraseAsync(erased, ct);
+
+        var profile = FullProfile(new CandidateMatchProfile("Titel", [grp], [], [], []), CSharpConceptId);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+
+        var batch = await scorer.ScoreFullBatchAsync([live1, live2, erased], profile, ct);
+
+        // NON-VACUITY FIRST (#841): the ACTIVE ads ARE fully scored.
+        batch.ShouldContainKey(live1);
+        batch.ShouldContainKey(live2);
+
+        batch.ShouldNotContainKey(erased,
+            "ScoreFullBatchAsync grindar ALLOW-LIST (== Active, #864 D4): en raderad annons " +
+            "(Art. 17-tombstone) är MISSING - en deny-list (!= Archived) hade graderat tombstonen " +
+            "för endpointens riktiga klienter.");
+
+        // Polarity: 2, not 3 (deny-list/deleted) and not 0 (inverted).
         batch.Count.ShouldBe(2);
     }
 

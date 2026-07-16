@@ -104,6 +104,20 @@ public class MatchScorerBatchIntegrationTests(ApiFactory factory)
         await db.SaveChangesAsync(ct);
     }
 
+    // The REAL Art. 17 erasure transition (#842) — the tombstone keeps its facet columns, so the
+    // erased ad still matches the profile the scorer reads; never a fabricated stamp (#843/AC 4).
+    private async Task EraseAsync(JobAdId id, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var ad = await db.JobAds.FindAsync([id], ct);
+        ad.ShouldNotBeNull();
+        ad!.Erase(clock).IsSuccess.ShouldBeTrue("Erase-seeden får inte tyst misslyckas");
+        await db.SaveChangesAsync(ct);
+    }
+
     private static string BuildRawPayload(
         string externalId,
         string? occupationGroupConceptId,
@@ -339,6 +353,51 @@ public class MatchScorerBatchIntegrationTests(ApiFactory factory)
             "batch family, omitted exactly like a non-existent id.");
 
         // Polarity: 2, not 1 (inverted gate) and not 3 (gate deleted).
+        batch.Count.ShouldBe(2);
+    }
+
+    // =================================================================
+    // SPECIFICATION (#864 follow-up, B4) — an ERASED ad is MISSING to the batch family, and it is
+    // the row that pins the ALLOW-LIST as an allow-list.
+    //
+    // The archived spec above cannot see the deny-list mutation `== Active` → `!= Archived`
+    // (Archived is excluded by both forms) — #864 recorded that survivor, and #886 unlocked its
+    // kill by retiring Expired and leaving Erased (#842, a real Art. 17 transition) as the
+    // reachable row where the two forms disagree. The gate's own comment names the harm: a
+    // deny-list would grade the tombstone, and its '[raderad]' company name would be EMAILED.
+    // Erase() keeps the facet columns, so the erased ad still matches the profile — its omission
+    // is the status gate's doing alone.
+    //
+    // ASYMMETRIC SEED (2 live + 1 erased): correct → 2 · deny-list OR gate deleted → 3 (the
+    // tombstone graded) · inverted (== Archived) → 0. Every mutant state separates.
+    // =================================================================
+    [Fact]
+    public async Task ScoreBatchAsync_OmitsErasedAd_TheAllowListPin()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var grp = NewConceptId("grp");
+        var live1 = await SeedJobAdAsync("Systemutvecklare", grp, null, null, ct);
+        var live2 = await SeedJobAdAsync("Backendutvecklare", grp, null, null, ct);
+        var erased = await SeedJobAdAsync("Raderad", grp, null, null, ct);
+        await EraseAsync(erased, ct);
+
+        var profile = new CandidateMatchProfile("Titel", [grp], [], [], []);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+
+        var batch = await scorer.ScoreBatchAsync([live1, live2, erased], profile, ct);
+
+        // NON-VACUITY FIRST (#841): the ACTIVE ads ARE scored.
+        batch.ShouldContainKey(live1);
+        batch.ShouldContainKey(live2);
+
+        batch.ShouldNotContainKey(erased,
+            "ScoreBatchAsync grindar ALLOW-LIST (== Active, #864 D4): en raderad annons " +
+            "(Art. 17-tombstone, #842) är MISSING — en deny-list (!= Archived) hade graderat " +
+            "tombstonen och mejlat '[raderad]' som match.");
+
+        // Polarity: 2, not 3 (deny-list/deleted) and not 0 (inverted).
         batch.Count.ShouldBe(2);
     }
 

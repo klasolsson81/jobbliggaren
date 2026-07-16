@@ -62,6 +62,11 @@ internal static class JobAdSearchComposition
         IOccupationSynonymExpander synonymExpander)
     {
         // ADR 0032-amendment 2026-05-23 — slutanvändar-vyer ser bara Active.
+        // ALLOW-LIST (`== Active`), never `!= Archived` (#864 D4): a deny-list silently admits
+        // every status added later — the `Erased` Art. 17 tombstone (#842) first, whose empty
+        // title and "[raderad]" company name would render in the public /jobb list. Every carrier
+        // of this SPOT inherits that choice. Pinned by JobAdSearchLifecycleOracleTests (a real
+        // Erased seed — the row where the two forms disagree, reachable since #886).
         source = source.Where(j => j.Status == JobAdStatus.Active);
 
         if (criteria.OccupationGroup.Count > 0)

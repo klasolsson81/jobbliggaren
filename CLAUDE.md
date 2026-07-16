@@ -397,6 +397,18 @@ This is the merge-blocking class referenced by the §6/§6.5 automerge exception
 (alongside an unresolved agent Blocker/Major); everything else rides the
 autonomous flow.
 
+**Scope clarification (Klas-direktiv 2026-07-16):** the security clause gates
+on the two conditions it names — missing tests or an unresolved
+security-auditor finding — not on the subject matter alone. A security-critical
+change **with** tests and a security-auditor **APPROVE (0 Blocker / 0 Major)**
+rides the normal automerge flow (§6); Klas reviews the diff post-merge and
+verifies FE surfaces live (the FAS-DEFERRAL pattern). The earlier practice of
+holding tested, auditor-approved security PRs for a manual pre-merge
+("§12-gated — Klas mergar") is retired: a gate that is always pressed through
+adds latency, not review. Migration-bearing PRs are untouched by this
+clarification — whether they ride automerge stays a per-case call (EF
+migrations remain the most dangerous hotspot, §6.5).
+
 ## 13. Update process
 
 This file changes when a new anti-pattern, standard, or CC boundary is needed.

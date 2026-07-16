@@ -206,7 +206,7 @@ public sealed record SearchCriteria
     }
 
     // #311 PR-2b C1: per-element org.nr-format-validering + cap. DRY:ar org.nr-formatet
-    // (^\d{10}\z) via OrganizationNumber.Create i stället för att re-literala regexen (CTO-bind
+    // (^[0-9]{10}\z, #865) via OrganizationNumber.Create i stället för att re-literala regexen (CTO-bind
     // D3 constraint 1: DRY:a format-konstanten). OrganizationNumber-VO:t är den kanoniska källan
     // (samma format som ListJobAdsQueryValidator, PR-2). Vi kastar bort VO:t — bara giltigheten
     // behövs här; SearchCriteria persisterar org.nr som råa strängar (paritet övriga list-dims).

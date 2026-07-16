@@ -316,7 +316,7 @@ public static class ErasureCascadeRegistry
             ["recent_job_searches.q"] = ErasureColumnDisposition.Erased,
 
             // employer_list holds 10-DIGIT ORG.NR — the write path is ValidateEmployerList →
-            // OrganizationNumber.Create (^\d{10}\z); an employer NAME cannot be written here.
+            // OrganizationNumber.Create (^[0-9]{10}\z); an employer NAME cannot be written here.
             // (Round 5 classified it on the column's NAME — "employer sounds like names" — the
             // fifth ground in this issue written against something other than the mapping.)
             // A sole trader's org.nr IS her personnummer — the identical datum this registry

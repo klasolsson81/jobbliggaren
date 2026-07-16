@@ -361,6 +361,23 @@ public class ListJobAdsQueryValidatorTests
         result.IsValid.ShouldBeFalse();
     }
 
+    [Theory]
+    // #865 — validatorn re-literaliserar org.nr-mönstret, så den behöver sin EGEN Unicode-pin:
+    // fullwidth (U+FF10) / arabisk-indiska (U+0660) siffror satisfierar \d (=\p{Nd}) men inte
+    // ASCII [0-9]. Look-alike byggd med kodpunkts-aritmetik (aldrig glyf-literaler i källan).
+    [InlineData(0xFF10)]
+    [InlineData(0x0660)]
+    public void Validate_Employer_UnicodeDigitLookalike_Fails(int digitZero)
+    {
+        var lookalike = new string("5592804784"
+            .Select(c => (char)(digitZero + (c - '0')))
+            .ToArray());
+
+        var result = _validator.Validate(new ListJobAdsQuery(Employer: [lookalike]));
+        result.IsValid.ShouldBeFalse(
+            $"'{lookalike}' (U+{digitZero:X4}-siffror) måste avvisas — \\d hade släppt igenom den.");
+    }
+
     [Fact]
     public void Validate_Employer_Null_Passes()
     {

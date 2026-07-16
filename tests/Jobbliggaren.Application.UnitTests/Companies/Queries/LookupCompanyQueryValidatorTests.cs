@@ -30,4 +30,20 @@ public class LookupCompanyQueryValidatorTests
     {
         _validator.Validate(new LookupCompanyQuery(orgNr)).IsValid.ShouldBeFalse();
     }
+
+    [Theory]
+    // #865 — this validator re-literalises the org.nr pattern, so it needs its OWN Unicode pin:
+    // fixing OrganizationNumber alone leaves this copy on \d (=\p{Nd}), silently accepting
+    // fullwidth (U+FF10) / Arabic-Indic (U+0660) digits. Look-alike built by codepoint arithmetic.
+    [InlineData(0xFF10)]
+    [InlineData(0x0660)]
+    public void Validate_UnicodeDigitLookalike_Fails(int digitZero)
+    {
+        var lookalike = new string("5592804784"
+            .Select(c => (char)(digitZero + (c - '0')))
+            .ToArray());
+
+        _validator.Validate(new LookupCompanyQuery(lookalike)).IsValid.ShouldBeFalse(
+            $"'{lookalike}' (U+{digitZero:X4}-siffror) måste avvisas — \\d hade släppt igenom den.");
+    }
 }

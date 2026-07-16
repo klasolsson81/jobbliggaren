@@ -32,10 +32,19 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 /// </summary>
 public sealed record OrganizationNumber
 {
-    // A Swedish org.nr is exactly 10 digits, no hyphen (live-verified JobStream form, e.g.
+    // A Swedish org.nr is exactly 10 ASCII digits, no hyphen (live-verified JobStream form, e.g.
     // 5592804784). \z (not $) against newline-injection — parity with ListJobAdsQueryValidator
     // (PR-2) and SearchCriteria.ConceptIdPattern. Default-deny (Saltzer/Schroeder 1975).
-    private static readonly Regex Pattern = new(@"^\d{10}\z", RegexOptions.Compiled);
+    //
+    // [0-9], NOT \d (#865). In .NET `\d` means `\p{Nd}` — the WHOLE Unicode decimal-digit
+    // category — so an "org.nr" in Arabic-Indic (٥٥٩٢٨٠٤٧٨٤) or fullwidth (５５９２８０４７８４)
+    // digits would pass this guard, be stored plaintext in company_watches, and then never
+    // equality-match the ASCII job_ads.organization_number in CompanyWatchScanJob: the watch
+    // silently matches NOTHING forever, the product's cardinal sin. Same fix and same reasoning
+    // as CompanyWatchCriteriaSpec (#560 PR-1, test-writer probe). Note the guard is a
+    // default-deny VALIDATOR — PersonnummerScanner deliberately keeps `\d` because a DETECTOR
+    // is fail-safe in the wide direction.
+    private static readonly Regex Pattern = new(@"^[0-9]{10}\z", RegexOptions.Compiled);
 
     /// <summary>The verbatim 10-digit org.nr. Never null on a validly-constructed instance.</summary>
     public string Value { get; }

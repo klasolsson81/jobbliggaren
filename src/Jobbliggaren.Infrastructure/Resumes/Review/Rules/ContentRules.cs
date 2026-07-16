@@ -275,6 +275,12 @@ internal sealed class A7ClicheRule : ICriterionRule
         var category = context.Criterion.Category;
         var prose = ReviewText.AllProse(context);
 
+        // CV-pivot 2026-07-16: an empty corpus is not a cliché-free corpus (see NoProseReason).
+        if (string.IsNullOrWhiteSpace(prose))
+        {
+            return CvCriterionVerdict.NotAssessed("A7", category, ReviewText.NoProseReason("klyschorna"));
+        }
+
         // A7 owns only the kind==Cliche entries (empty buzzword phrases); the soft-skill
         // adjectives are A9's domain, so one phrase never draws two verdicts (#490). Matched on a
         // WORD BOUNDARY over the raw prose, so "Social" hits "social kompetens" but never
@@ -405,6 +411,13 @@ internal sealed class A9SoftSkillsRule : ICriterionRule
     {
         var category = context.Criterion.Category;
         var prose = ReviewText.AllProse(context);
+
+        // CV-pivot 2026-07-16: an empty corpus backs no soft-skill claim either way (NoProseReason).
+        if (string.IsNullOrWhiteSpace(prose))
+        {
+            return CvCriterionVerdict.NotAssessed(
+                "A9", category, ReviewText.NoProseReason("personlighetsadjektiven"));
+        }
 
         // A9's curated sub-list is the kind==SoftSkill entries only (bare personality adjectives) —
         // a cliché-kind phrase belongs to A7, so one phrase never draws two verdicts (#490). Matched

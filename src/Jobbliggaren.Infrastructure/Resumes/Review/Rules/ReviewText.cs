@@ -135,6 +135,25 @@ internal static class ReviewText
         return sb.ToString();
     }
 
+    /// <summary>
+    /// The honest NotAssessed reason the whole-CV prose rules (A7/A9/C2/C3/C4/C6/C7) carry when
+    /// <see cref="AllProse"/> is empty — no profile text and no experience text to scan. Zero
+    /// hits in zero text is not an observation: an affirmative Pass over an empty corpus claims
+    /// a PRESENCE of quality never observed, which is ADR 0109's defect class inverted (A8
+    /// claimed an ABSENCE it had not observed). The verdicts are withdrawn, never upgraded to
+    /// Warn/Fail — the missing CONTENT is A10/B1's subject, and grading emptiness as a language
+    /// defect would misreport what was measured. The unclassified <c>Preamble</c> stays out of
+    /// the corpus BY DESIGN (ADR 0109) and never rescues these rules.
+    /// <para>Deliberately hardcoded C# prose, NOT the rubric asset's <c>NotAssessedReason</c>:
+    /// that field is the criterion's single GENERIC reason slot, which would be false for this
+    /// specific branch — a BRANCH-specific reason is bespoke C# by house precedent
+    /// (<see cref="NoBulletsReason"/>, A4's unparseable-period reasons, E2's PR-6b reason).
+    /// Civic Swedish (§10). <paramref name="aspect"/> is the criterion's assessed aspect in
+    /// definite form ("tonen"/"stavningen"/…).</para>
+    /// </summary>
+    public static string NoProseReason(string aspect) =>
+        $"CV:t saknar profil- och erfarenhetstext, så {aspect} kan inte bedömas.";
+
     public static bool ContainsDigit(string text) => text.Any(char.IsDigit);
 
     /// <summary>True if <paramref name="text"/> carries a digit that is NOT part of an

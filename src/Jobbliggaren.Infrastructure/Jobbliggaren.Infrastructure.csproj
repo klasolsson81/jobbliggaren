@@ -87,6 +87,20 @@
     <EmbeddedResource Include="Taxonomy\jobad-skill-taxonomy.v30.json">
       <LogicalName>Jobbliggaren.Infrastructure.Taxonomy.jobad-skill-taxonomy.v30.json</LogicalName>
     </EmbeddedResource>
+    <!-- #560 PR-3 (CTO Fork G2, 2026-07-16) — versioned SCB reference data for the criterion
+         picker + Application existence-validator: the SNI 2025 hierarchy (22 sections A–V — V is
+         new in SNI 2025 / 87 divisions / 835 five-digit leaves, dot stripped: "01.110" → "01110"
+         so leaves match company_register.sni_codes) and the 2026-01-01 län/kommun list (21/290, four-digit SCB
+         codes with load-bearing leading zeros — the SCB namespace, NEVER JobTech concept-ids,
+         RF-4/ADR 0105). Source: SCB open data (CC0) — sni-2025-struktur.xlsx +
+         knkopplingar_2026.xlsx, fetched 2026-07-16. ONE authority for both the FE picker tree
+         and the BE existence check (CriterionReferenceLoader), the KnowledgeBank mold. -->
+    <EmbeddedResource Include="CompanyRegister\Reference\sni-2025.v1.json">
+      <LogicalName>Jobbliggaren.Infrastructure.CompanyRegister.Reference.sni-2025.v1.json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="CompanyRegister\Reference\scb-kommuner-2026.v1.json">
+      <LogicalName>Jobbliggaren.Infrastructure.CompanyRegister.Reference.scb-kommuner-2026.v1.json</LogicalName>
+    </EmbeddedResource>
     <!-- ADR 0067 Fas C2 — FRUSEN migration-ägd reverse-lookup-resurs
          (occupation-name → ssyk-level-4). Läses ENDAST av C2-migrationen;
          regenereras aldrig (CTO-dom (c) 2026-06-09, migrations-immutabilitet). -->

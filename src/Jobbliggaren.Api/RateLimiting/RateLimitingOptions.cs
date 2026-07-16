@@ -213,6 +213,40 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
+    /// GET /api/v1/me/company-watch-criteria/{id}/companies (#560 PR-3, CTO Fork G4) — the
+    /// criteria browse over the 1.17M-row company register: by measurement the HEAVIEST read in
+    /// the house (25–163 ms typical per call, items + capped count + magnitude). Dedicated policy,
+    /// never folded into MeListRead — a browse scan-burst must not consume the budget /oversikt's
+    /// ~7-call fan-out lives on, and a limit tuned for light /me-reads would let the heavy browse
+    /// through too freely (least common mechanism / bulkhead — the doctrine every policy in this
+    /// file applies). Partitionerad per UserId, anonym → NoLimiter (RequireAuthorization-gated).
+    /// TokenBucket (#875 gate condition 3 — populates Retry-After; SlidingWindow does not),
+    /// QueueLimit=0. 15/min = CTO riktvärde 2026-07-16 (a human pages a result list; only a
+    /// scraper needs more) — <b>security-auditor BLOCKING verifierar talet</b>.
+    /// </summary>
+    public PolicyOptions CompanyBrowse { get; init; } = new()
+    {
+        PermitLimit = 15,
+        WindowSeconds = 60,
+    };
+
+    /// <summary>
+    /// POST /api/v1/me/company-watch-criteria/preview-count (#560 PR-3, CTO Fork G3) — the
+    /// criterion picker's live magnitude preview ("ditt urval matchar N företag"), the
+    /// FacetCounts/MatchCountPreview FAMILY: same client-debounced burst profile (~1 req/400 ms),
+    /// same numbers (30/10s symmetry). EGEN bucket, inte återanvänd MatchCountPreview — det är en
+    /// annan dialog på en annan sida, och delad budget hade låtit den ena preview-ytan svälta den
+    /// andra (bulkhead; samma skäl MatchCountPreview inte återanvände FacetCounts). Partitionerad
+    /// per UserId, anonym → NoLimiter. TokenBucket, QueueLimit=0.
+    /// security-auditor BLOCKING verifierar talet.
+    /// </summary>
+    public PolicyOptions CriterionCountPreview { get; init; } = new()
+    {
+        PermitLimit = 30,
+        WindowSeconds = 10,
+    };
+
+    /// <summary>
     /// Användarägda /me/*-mutationer (saved-job-ads POST/DELETE, recent-searches
     /// DELETE) (Pre-4 STEG 5, TD-87) — partitionerat per UserId (claim "sub"),
     /// anonym → NoLimiter (alla RequireAuthorization-gated). Egen policy (ej

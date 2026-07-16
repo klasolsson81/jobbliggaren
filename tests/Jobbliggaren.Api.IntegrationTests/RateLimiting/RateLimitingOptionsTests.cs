@@ -106,6 +106,29 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_CompanyBrowse_Is15Per60s()
+    {
+        // #560 PR-3 (CTO Fork G4, riktvärde 2026-07-16) — the heaviest read in the house (1.17M-row
+        // register browse) gets the tightest per-user read budget so a scan-burst can't starve the
+        // /oversikt fan-out. Pinning the number so a silent widening surfaces in review.
+        var sut = new RateLimitingOptions();
+
+        sut.CompanyBrowse.PermitLimit.ShouldBe(15);
+        sut.CompanyBrowse.WindowSeconds.ShouldBe(60);
+    }
+
+    [Fact]
+    public void Defaults_CriterionCountPreview_Is30Per10s()
+    {
+        // #560 PR-3 (CTO Fork G3) — the picker's live magnitude preview, FacetCounts/
+        // MatchCountPreview debounce-burst family (30/10s symmetry).
+        var sut = new RateLimitingOptions();
+
+        sut.CriterionCountPreview.PermitLimit.ShouldBe(30);
+        sut.CriterionCountPreview.WindowSeconds.ShouldBe(10);
+    }
+
+    [Fact]
     public void SectionName_IsRateLimiting()
     {
         RateLimitingOptions.SectionName.ShouldBe("RateLimiting");

@@ -185,6 +185,27 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     }
 
     /// <summary>
+    /// The MAGNITUDE count (CTO Fork G3): <c>min(true count, ceiling)</c> over the SAME
+    /// <see cref="FromWhere"/> + <see cref="BindPredicate"/> as the page query — the whole reason
+    /// the method lives on this port (predicate drift defense; see the interface doc). The SQL text
+    /// is <see cref="CountSql"/> itself: the pagination count and the magnitude count are the same
+    /// QUESTION at different ceilings, so they share one statement and differ only in the bound
+    /// <c>@count_cap</c>.
+    /// </summary>
+    public async ValueTask<int> CountMatchingCompaniesAsync(
+        CompanyWatchCriteriaSpec criteria, int ceiling, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(criteria);
+        ArgumentOutOfRangeException.ThrowIfLessThan(ceiling, 1);
+
+        var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var cmd = BuildMagnitudeCommand(connection, criteria, ceiling);
+        var scalar = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(scalar, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
     /// The page query, exactly as production emits it. <c>internal</c> so
     /// <c>CompanyWatchBrowseQueryPlanTests</c> can EXPLAIN THIS command rather than a hand-typed
     /// lookalike — the caller prefixes <c>"EXPLAIN "</c> onto <see cref="NpgsqlCommand.CommandText"/>,
@@ -214,6 +235,22 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
         // ("how many rows can this surface ever serve"), so they are single-sourced.
         cmd.Parameters.AddWithValue(
             "@count_cap", NpgsqlDbType.Integer, CompanyBrowseCriteria.MaxServableRows(pageSize));
+        return cmd;
+    }
+
+    /// <summary>
+    /// The magnitude query, exactly as production emits it (the EXPLAIN pin covers this command
+    /// too). SAME statement as <see cref="BuildCountCommand"/> — only the cap differs: here it is
+    /// the caller's PRODUCT ceiling, not the derived pagination cap.
+    /// </summary>
+    internal static NpgsqlCommand BuildMagnitudeCommand(
+        NpgsqlConnection connection, CompanyWatchCriteriaSpec spec, int ceiling)
+    {
+        var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        cmd.CommandText = CountSql;
+        BindPredicate(cmd, spec);
+        cmd.Parameters.AddWithValue("@count_cap", NpgsqlDbType.Integer, ceiling);
         return cmd;
     }
 

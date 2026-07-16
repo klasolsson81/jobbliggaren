@@ -31,6 +31,8 @@ public static partial class RateLimitingExtensions
     public const string JobAdStatusBatchPolicy = "job-ad-status-batch";
     public const string JobAdMatchBatchPolicy = "job-ad-match-batch";
     public const string MeWritePolicy = "me-write";
+    public const string CompanyBrowsePolicy = "company-watch-browse";
+    public const string CriterionCountPreviewPolicy = "criterion-count-preview";
     public const string FollowSeenMarkPolicy = "follow-seen-mark";
     public const string CompanyLookupPolicy = "company-lookup";
     public const string ResumeImportPolicy = "resume-import";
@@ -307,6 +309,55 @@ public static partial class RateLimitingExtensions
                         TokensPerPeriod = Math.Max(1, rateLimitOpts.MeListRead.PermitLimit / rateLimitOpts.MeListRead.SegmentsPerWindow),
                         ReplenishmentPeriod = TimeSpan.FromSeconds(
                             rateLimitOpts.MeListRead.WindowSeconds / (double)rateLimitOpts.MeListRead.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). #560 PR-3 (CTO Fork G4) — dedikerad bucket för
+            // register-browsen, husets tyngsta läsning (1,17M rader; 25–163 ms/anrop). Aldrig
+            // fold-in i MeListRead (bulkhead — en scan-burst får inte svälta /oversikts ~7-anrops-
+            // fan-out). TokenBucket (#875 villkor 3: populerar Retry-After; SlidingWindow gör
+            // inte det), QueueLimit=0 (kö = memory-DoS). Auth-gated → anonym fångas av
+            // RequireAuthorization (NoLimiter bypass). Parametrar IOptions-bundna (§5.1).
+            // security-auditor BLOCKING verifierar tal (CTO-riktvärde 15/min).
+            options.AddPolicy(CompanyBrowsePolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-company-watch-browse");
+
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.CompanyBrowse.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.CompanyBrowse.PermitLimit / rateLimitOpts.CompanyBrowse.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.CompanyBrowse.WindowSeconds / (double)rateLimitOpts.CompanyBrowse.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). #560 PR-3 (CTO Fork G3) — kriterie-pickerns live
+            // magnitud-preview, FacetCounts/MatchCountPreview-FAMILJEN (samma debounce-burst-
+            // profil, samma tal 30/10s) men EGEN bucket: annan dialog på annan sida, och delad
+            // budget hade låtit den ena preview-ytan svälta den andra (bulkhead — samma skäl
+            // MatchCountPreview inte återanvände FacetCounts). TokenBucket, QueueLimit=0.
+            // Auth-gated → anonym NoLimiter-bypass. security-auditor BLOCKING verifierar tal.
+            options.AddPolicy(CriterionCountPreviewPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-criterion-count-preview");
+
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.CriterionCountPreview.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.CriterionCountPreview.PermitLimit / rateLimitOpts.CriterionCountPreview.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.CriterionCountPreview.WindowSeconds / (double)rateLimitOpts.CriterionCountPreview.SegmentsPerWindow),
                         QueueLimit = 0,
                         AutoReplenishment = true,
                     });

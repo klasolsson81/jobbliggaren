@@ -8,11 +8,6 @@ describe("JobAdStatusBadge", () => {
     expect(screen.getByText("Aktiv")).toBeInTheDocument();
   });
 
-  it("renders Expired label", () => {
-    render(<JobAdStatusBadge status="Expired" />);
-    expect(screen.getByText("Utgången")).toBeInTheDocument();
-  });
-
   it("renders Archived label", () => {
     render(<JobAdStatusBadge status="Archived" />);
     expect(screen.getByText("Arkiverad")).toBeInTheDocument();

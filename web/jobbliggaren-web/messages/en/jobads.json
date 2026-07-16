@@ -141,7 +141,6 @@
   "enums": {
     "status": {
       "Active": "Active",
-      "Expired": "Expired",
       "Archived": "Archived"
     },
     "source": {

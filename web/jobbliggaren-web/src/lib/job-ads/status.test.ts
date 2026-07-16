@@ -19,9 +19,8 @@ const t = createTranslator({
 });
 
 describe("jobAdStatusLabel", () => {
-  it("has labels for Active, Expired, Archived (cross-ref backend SmartEnum)", () => {
+  it("has labels for Active, Archived (cross-ref backend SmartEnum; Expired retired by #886)", () => {
     expect(jobAdStatusLabel(t, "Active")).toBe("Aktiv");
-    expect(jobAdStatusLabel(t, "Expired")).toBe("Utgången");
     expect(jobAdStatusLabel(t, "Archived")).toBe("Arkiverad");
   });
 });
@@ -29,8 +28,14 @@ describe("jobAdStatusLabel", () => {
 describe("JOB_AD_STATUS_BADGE_VARIANT", () => {
   it("maps statuses to civic-utility variants (no AI-cliché colors)", () => {
     expect(JOB_AD_STATUS_BADGE_VARIANT.Active).toBe("Success");
-    expect(JOB_AD_STATUS_BADGE_VARIANT.Expired).toBe("Warning");
     expect(JOB_AD_STATUS_BADGE_VARIANT.Archived).toBe("Neutral");
+  });
+
+  it("does not resurrect the retired Expired status (#886)", () => {
+    // Regression lock: Expired was declared, rendered and UNREACHABLE for the
+    // product's entire history. The Record<JobAdStatus, …> type already blocks
+    // it at compile time; this locks the runtime shape too.
+    expect("Expired" in JOB_AD_STATUS_BADGE_VARIANT).toBe(false);
   });
 });
 

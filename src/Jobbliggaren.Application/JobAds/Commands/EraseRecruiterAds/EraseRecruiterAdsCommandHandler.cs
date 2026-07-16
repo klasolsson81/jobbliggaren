@@ -204,7 +204,14 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
         var snapshotAppIds = snapshotContactIds
             .Select(id => new Domain.Applications.ApplicationId(id))
             .ToList();
+        // IgnoreQueryFilters IS the fix for code-review B1 (2026-07-16): the SEARCH is raw SQL and
+        // sees soft-deleted applications; a filtered load here would find her contacts, REPORT
+        // them matched, and never erase them — "found by SQL, dropped by the filter, never
+        // erased", the defect class this issue exists to end. SoftDelete() hides the row from the
+        // product; it does not erase her data from it, and an Art. 17 erasure must reach the same
+        // physical set the search reported.
         var applications = await db.Applications
+            .IgnoreQueryFilters()
             .Where(a => snapshotAppIds.Contains(a.Id))
             .ToListAsync(cancellationToken);
 

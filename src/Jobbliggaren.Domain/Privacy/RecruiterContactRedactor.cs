@@ -246,14 +246,14 @@ public static partial class RecruiterContactRedactor
     private static partial Regex EmailRegex();
 
     // Swedish phone candidates: anchored on a leading 0 or +46 (the anchor IS the false-positive
-    // control — salaries, postal codes and dates never start there), then 6–12 further digits with
+    // control — salaries, postal codes and dates never start there). The lookbehind refuses an anchor GLUED to a letter, digit or hyphen: a hex id (Facets-0123456...) or a product code (SKU-A0123456) is an identifier, never a phone; a real Swedish phone form is preceded by whitespace, spaced punctuation or line start. (Found live: a GUID-hex test title anchored, was scrubbed at ingest, and the test's title lookup found nothing.) Then 6–12 further digits with
     // optional separators: space, tab, NBSP (via the \u00A0 REGEX escape — a literal invisible
     // character in source is banned), hyphen, parens (the +46 (0)8 form). NOT in the class,
     // deliberately: dots and slashes (version strings, dates) and newlines (a candidate must not
     // eat across a line break into the next list item). The digit-count gate above enforces the
     // 7–11 envelope on the normalized form.
     [GeneratedRegex(
-        @"(?<!\d)(?:\+46|0)(?:[ \t\u00A0()\-]*\d){6,12}(?!\d)",
+        @"(?<![\p{L}\p{Nd}\-])(?:\+46|0)(?:[ \t\u00A0()\-]*\d){6,12}(?!\d)",
         RegexOptions.CultureInvariant)]
     private static partial Regex PhoneRegex();
 }

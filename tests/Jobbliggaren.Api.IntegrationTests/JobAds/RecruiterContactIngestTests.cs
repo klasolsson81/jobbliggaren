@@ -382,6 +382,22 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
 
         var applicationId = await SeedApplicationCapturingContactsAsync(SnapshotSrcExternalId, ct);
 
+        // Code-review B1 counterfactual (2026-07-16): a SOFT-DELETED application still carries the
+        // frozen contact — SoftDelete() hides the row from the product, it does not erase her data
+        // from it. The raw-SQL search sees it, so the surgical arm MUST reach it too
+        // (IgnoreQueryFilters on the erase load); a filtered load reports the match and erases
+        // nothing, which is the exact defect class this issue exists to end.
+        var softDeletedApplicationId =
+            await SeedApplicationCapturingContactsAsync(SnapshotSrcExternalId, ct);
+        using (var soft = _provider.CreateScope())
+        {
+            var softDb = soft.ServiceProvider.GetRequiredService<AppDbContext>();
+            var toDelete = await softDb.Applications
+                .SingleAsync(a => a.Id == softDeletedApplicationId, ct);
+            toDelete.SoftDelete(new FixedClock());
+            await softDb.SaveChangesAsync(ct);
+        }
+
         // Step 1 — erase the AD whole-record by its TITLE name (orthogonal to the frozen contact),
         // so nothing of the recruiter Sixten is touched by it: the ad tombstones, the frozen
         // snapshot_contacts (Sixten) stays.
@@ -391,24 +407,26 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
         {
             var db = mid.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            (await SnapshotContactsMatchCountAsync(db, SnapshotContactEmail, ct)).ShouldBe(1,
-                "counterfactual: the frozen contact must STILL be in snapshot_contacts after the "
-                + "whole-record ad erase — otherwise step 3 proves nothing.");
+            (await SnapshotContactsMatchCountAsync(db, SnapshotContactEmail, ct)).ShouldBe(2,
+                "counterfactual: BOTH frozen contacts (live + soft-deleted application) must "
+                + "still be in snapshot_contacts after the whole-record ad erase — otherwise "
+                + "step 3 proves nothing.");
             (await ColumnsStillContainingAsync(db, SnapshotContactEmail, ct)).ShouldBeEmpty(
                 "and it is gone from the tombstoned ad row — the snapshot is now its sole carrier.");
         }
 
         // Step 3 — a NEW request by the frozen contact's email matches ONLY snapshot_contacts.
         var probe = await EraseAsync(SnapshotContactEmail, ct, dryRun: true);
-        probe.Matched.ApplicationSnapshotContacts.ShouldBe(1,
+        probe.Matched.ApplicationSnapshotContacts.ShouldBe(2,
             "the frozen contact is reachable only through its own surface (Ground 1, T2): the ad no "
             + "longer matches, so without this channel a false Art. 12(3) confirmation is sent.");
         probe.Matched.JobAds.ShouldBe(0, "the carrier ad is a tombstone.");
 
         var response = await EraseAsync(SnapshotContactEmail, ct);
-        response.Erased.ApplicationSnapshotContacts.ShouldBe(1,
-            "the surgical arm (Application.EraseAdSnapshotContacts) clears exactly the requester's "
-            + "own frozen contact block.");
+        response.Erased.ApplicationSnapshotContacts.ShouldBe(2,
+            "the surgical arm (Application.EraseAdSnapshotContacts) clears the requester's frozen "
+            + "contact block in EVERY physical row the search reported — the soft-deleted "
+            + "application included (B1: found by SQL, dropped by the filter, never erased).");
 
         using var check = _provider.CreateScope();
         var checkDb = check.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -430,6 +448,14 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
             .ToListAsync(ct)).Single();
 
         snapContacts.ShouldBeNull("snapshot_contacts is cleared.");
+
+        var softDeletedContacts = (await checkDb.Database.SqlQueryRaw<string?>(
+            "SELECT snapshot_contacts::text AS \"Value\" FROM applications WHERE id = {0}",
+            softDeletedApplicationId.Value)
+            .ToListAsync(ct)).Single();
+        softDeletedContacts.ShouldBeNull(
+            "the SOFT-DELETED application's frozen contact block is cleared too — soft delete "
+            + "hides, it does not erase, and the erasure reaches what the search reported.");
         snapTitle.ShouldBe($"Rekryterare {SnapshotTitleName}", "snapshot_title is retained (17(3)(e)).");
         snapCompany.ShouldBe("Bemanning Nord AB", "snapshot_company is retained.");
         snapDescription.ShouldNotBeNullOrEmpty("snapshot_description is retained.");

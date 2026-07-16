@@ -101,6 +101,8 @@ public class RecruiterContactRedactorTests
     [InlineData("Postnummer 123 45 Stockholm.")] // no anchor
     [InlineData("Publicerad 2026-07-16 kl 07:30.")] // dates and times never anchor into 7+ digits
     [InlineData("Org.nr 556012-5790.")] // an org.nr cannot anchor (never starts with 0)
+    [InlineData("Referens Facets-0123456789 i ansökan.")] // hyphen-glued hex/ref id — an identifier, never a phone
+    [InlineData("Artikelnummer A0123456 i sortimentet.")] // letter-glued product code
     public void Redact_leaves_non_phone_digit_runs_alone(string text)
     {
         var result = RecruiterContactRedactor.Redact(text);

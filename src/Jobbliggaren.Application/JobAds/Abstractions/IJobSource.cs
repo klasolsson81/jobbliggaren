@@ -146,6 +146,8 @@ public sealed record JobAdImportItem(
     /// Only the fields that identify the item for debugging survive. Found by <c>security-auditor</c>.
     /// </para>
     /// </summary>
+    // Title is PRE-SCRUB here (the ACL runs before the aggregate invariant), and a title can
+    // carry a contact — only the id survives (code-review Minor 1, 2026-07-16).
     public override string ToString() =>
-        $"JobAdImportItem(ExternalId={ExternalId}, Title={Title}, redacted)";
+        $"JobAdImportItem(ExternalId={ExternalId}, redacted)";
 }

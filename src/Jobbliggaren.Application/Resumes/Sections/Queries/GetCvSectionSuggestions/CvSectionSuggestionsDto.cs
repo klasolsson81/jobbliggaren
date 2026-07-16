@@ -5,7 +5,7 @@ namespace Jobbliggaren.Application.Resumes.Sections.Queries.GetCvSectionSuggesti
 /// </summary>
 /// <param name="Branschgrupp">The resolved branschgrupp slug (<c>it</c>/<c>vard</c>/<c>skola</c>/
 /// <c>ovriga</c>). The FE keys its i18n on this stable id — the payload carries no UI label
-/// (parity <c>CvTemplateCatalogDto</c>).</param>
+/// (stable-id-over-label, the closed non-PII catalog idiom).</param>
 /// <param name="HasOccupationPreference">
 /// Whether the user has stated ANY occupation in her match preferences.
 /// <para>

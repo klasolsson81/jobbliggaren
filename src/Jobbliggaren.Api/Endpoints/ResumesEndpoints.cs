@@ -1,7 +1,6 @@
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.JobSeekers.Commands.SetPrimaryResume;
 using Jobbliggaren.Application.Resumes.Commands.ApplyCvImprovements;
-using Jobbliggaren.Application.Resumes.Commands.ChangeTemplateOptions;
 using Jobbliggaren.Application.Resumes.Commands.CreateResume;
 using Jobbliggaren.Application.Resumes.Commands.DeleteResume;
 using Jobbliggaren.Application.Resumes.Commands.DeleteResumeVersion;
@@ -23,10 +22,8 @@ using Jobbliggaren.Application.Resumes.Queries.GetParsedResumeSkills;
 using Jobbliggaren.Application.Resumes.Queries.GetResumeAtsText;
 using Jobbliggaren.Application.Resumes.Queries.GetResumeById;
 using Jobbliggaren.Application.Resumes.Queries.GetResumes;
-using Jobbliggaren.Application.Resumes.Rendering.Queries.GetCvTemplateCatalog;
 using Jobbliggaren.Application.Resumes.Rendering.Queries.RenderCv;
 using Jobbliggaren.Application.Resumes.Rendering.Queries.RenderResume;
-using Jobbliggaren.Application.Resumes.Rendering.Queries.RenderResumePreview;
 using Jobbliggaren.Application.Resumes.Review.Queries.ReviewParsedResume;
 using Jobbliggaren.Application.Resumes.Review.Queries.ReviewResume;
 using Jobbliggaren.Application.Resumes.Sections.Queries.GetCvSectionSuggestions;
@@ -252,40 +249,13 @@ public static class ResumesEndpoints
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.ResumeRenderPolicy);
 
-        // Ephemeral live-preview of a promoted Resume with UNSAVED template options (Fas 4b PR-8b
-        // 8b.3, CTO-bind Q1 Variant B) — the mallbyggare's "Uppdatera förhandsvisning". The four
-        // visual options (?template=&accent=&font=&density=) travel with the request and are composed
-        // over the persisted photo; NOTHING is persisted (preview == export via the shared renderer).
-        // Visual-only by construction (the Ats profile ignores the template). Owner-scoped, IDOR →
-        // 404, raw PDF body, never cached. Same heavy DEK + QuestPDF cost as /render → same bucket.
-        // A dedicated surface, not a mode flag on the canonical /render (CCP/ISP — separate change
-        // reasons). Bad option names fail-loud to 400 in the validator; the handler degrades to 404.
-        group.MapGet("/{id:guid}/render/preview", async (
-            Guid id, string? template, string? accent, string? font, string? density,
-            IMediator mediator, CancellationToken ct) =>
-        {
-            var result = await mediator.Send(new RenderResumePreviewQuery(
-                id, template ?? string.Empty, accent ?? string.Empty,
-                font ?? string.Empty, density ?? string.Empty), ct);
-            return result is null
-                ? Results.NotFound()
-                : Results.File(result.PdfBytes, result.ContentType, $"cv-{result.Profile.ToLowerInvariant()}.pdf");
-        }).RequireAuthorization()
-          .RequireRateLimiting(RateLimitingExtensions.ResumeRenderPolicy);
-
-        // The closed, non-PII catalog of CV template options the mallbyggare's pickers consume (Fas
-        // 4b PR-8b 8b.3, CTO-bind Q2) — template/accent/font/density member names + the two facts the
-        // FE must NOT re-derive: per-template AtsSafe (Domain rule, P5) and accent hex swatches (the
-        // WCAG-guarded palette). Static reference data, identical for every user → NOT owner-scoped,
-        // no DEK; auth-gated passthrough. "template-catalog" cannot collide with "/{id:guid}" (the
-        // guid route-constraint excludes a non-guid segment). Cacheable (changes only on deploy).
-        group.MapGet("/template-catalog", async (HttpContext http, IMediator mediator, CancellationToken ct) =>
-        {
-            var result = await mediator.Send(new GetCvTemplateCatalogQuery(), ct);
-            http.Response.Headers.CacheControl = "private, max-age=3600";
-            return Results.Ok(result);
-        }).RequireAuthorization()
-          .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+        // The mallbyggare's two read surfaces — the ephemeral live-preview
+        // (GET /{id}/render/preview, never-persist, 8b.3 CTO-bind Q1 Variant B) and the closed
+        // template-options catalog (GET /template-catalog, 8b.3 Q2) — were REMOVED with the
+        // builder's deferral (CV-pivot 2026-07-16, ADR 0112 amending ADR 0093): an unreachable
+        // authenticated endpoint is attack surface with no product value. The canonical
+        // /{id}/render above still renders the PERSISTED options — the substrate
+        // (CvTemplateOptions, CvPalette, the six template columns) is load-bearing and stays.
 
         // Deterministic CV review of a PROMOTED/app-built canonical Resume (Fas 4b PR-4,
         // #653, ADR 0093 §D8) — the same rubric engine as the parsed review above, via the
@@ -415,22 +385,11 @@ public static class ResumesEndpoints
                 : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
-        // Replace the CV's visual template options — template, accent, font pair, density
-        // (Fas 4b PR-8b 8b.2, ADR 0096). The write-half of the CvTemplateOptions lifecycle;
-        // the builder UI (8b.3) is the first consumer. Owner-scoped, writes non-PII plain
-        // columns (nyckelfri — no DEK, not a review input), 204 on success. The photo config
-        // is intentionally NOT on this contract (DPIA-gated to PR-10) — the handler preserves
-        // the persisted photo members. Write-rate-limited.
-        group.MapPut("/{id:guid}/template-options", async (
-            Guid id, ChangeTemplateOptionsBody body, IMediator mediator, CancellationToken ct) =>
-        {
-            var result = await mediator.Send(new ChangeTemplateOptionsCommand(
-                id, body.Template, body.AccentColor, body.FontPair, body.Density), ct);
-            return result.IsSuccess
-                ? Results.NoContent()
-                : result.Error.ToProblemResult();
-        }).RequireAuthorization()
-          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+        // PUT /{id}/template-options (the CvTemplateOptions write-half, 8b.2) was REMOVED with
+        // the builder's deferral (CV-pivot 2026-07-16, ADR 0112): its only consumer was the
+        // mallbyggare, and an unreachable authenticated WRITE endpoint is the worst kind of
+        // dormant attack surface. Resume.ChangeTemplateOptions (Domain) stays — persisted
+        // options still drive every /{id}/render.
 
         group.MapPut("/{id:guid}/set-as-primary", async (
             Guid id, IMediator mediator, CancellationToken ct) =>
@@ -494,8 +453,6 @@ public static class ResumesEndpoints
     private sealed record CreateResumeBody(string Name, string FullName);
     private sealed record RenameResumeBody(string Name);
     private sealed record SetLanguageBody(string Language);
-    private sealed record ChangeTemplateOptionsBody(
-        string Template, string AccentColor, string FontPair, string Density);
     private sealed record SetFindingStatusBody(string Status);
     private sealed record PromoteParsedResumeBody(string Name, ResumeContentDto Content);
     private sealed record PreviewImprovementBody(

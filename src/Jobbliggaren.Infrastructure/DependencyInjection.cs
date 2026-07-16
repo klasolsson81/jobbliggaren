@@ -788,13 +788,10 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Rendering.Abstractions.ICvRenderer,
             Jobbliggaren.Infrastructure.Resumes.Rendering.CvRenderer>();
-        // The template-catalog's ONLY Infrastructure-resident egress (Fas 4b PR-8b 8b.3): the
-        // curated accent hexes live private in CvPalette; this port exposes them (name→hex) so the
-        // Application catalog handler composes them with the Domain-sourced names + atsSafe without
-        // importing Infrastructure. Stateless singleton (parity CvRenderer).
-        services.AddSingleton<
-            Jobbliggaren.Application.Resumes.Rendering.Abstractions.ICvAccentSwatchProvider,
-            Jobbliggaren.Infrastructure.Resumes.Rendering.CvAccentSwatchProvider>();
+        // ICvAccentSwatchProvider + CvAccentSwatchProvider (the template-catalog's hex egress,
+        // 8b.3) were removed WITH their single consumer, the catalog handler (CV-pivot
+        // 2026-07-16, ADR 0112) — a one-consumer port dies with its consumer in the same
+        // commit. CvPalette itself stays: the composer renders every persisted CV through it.
         return services;
     }
 

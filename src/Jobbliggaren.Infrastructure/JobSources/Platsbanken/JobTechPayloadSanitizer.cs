@@ -107,7 +107,10 @@ public static class JobTechPayloadSanitizer
     // survived the scrub in the payload copy while jsonb stored it DECODED and fully readable.
     // (Postgres decodes escapes on the text→jsonb cast, so the DB semantics are identical either
     // way; only the pre-storage string the invariant runs over changes.) Relaxed escaping makes
-    // the string the scrub sees equal the text the database stores. "Unsafe" = do not embed in
+    // åäö readable to the scrub — but NOT NBSP: every stock JavaScriptEncoder still escapes
+    // U+00A0 (measured 2026-07-16), which is why the redactor's DetectionShadow also reads the
+    // six-character literal escape form. Two layers, one recogniser: this encoder narrows the
+    // escaped surface; the shadow owns whatever escaping remains. "Unsafe" = do not embed in
     // HTML; this value goes into a jsonb column.
     private static readonly JsonSerializerOptions RelaxedEscaping = new()
     {

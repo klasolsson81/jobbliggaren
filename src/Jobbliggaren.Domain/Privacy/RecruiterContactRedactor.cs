@@ -66,13 +66,73 @@ public static partial class RecruiterContactRedactor
 
         List<ContactSpan>? found = null;
 
-        var afterEmails = ReplaceMatches(text, EmailRegex().Matches(text), ContactKind.Email, ref found);
+        // Detection runs over a LENGTH-PRESERVING shadow of the text (NBSP forms normalized to
+        // spaces — see DetectionShadow); replacement happens in the ORIGINAL at the same offsets.
+        var emailShadow = DetectionShadow(text);
+        var afterEmails = ReplaceMatches(
+            text, EmailRegex().Matches(emailShadow), ContactKind.Email, ref found);
+
+        // Fresh shadow after the email pass — the inserted markers shifted every offset.
+        var phoneShadow = DetectionShadow(afterEmails);
         var afterPhones = ReplaceMatches(
-            afterEmails, PhoneRegex().Matches(afterEmails), ContactKind.Phone, ref found);
+            afterEmails, PhoneRegex().Matches(phoneShadow), ContactKind.Phone, ref found);
 
         return found is null
             ? new ContactRedactionResult(text, [])
             : new ContactRedactionResult(afterPhones, found);
+    }
+
+    /// <summary>
+    /// The recogniser's canonical VIEW of the text (#844: the recogniser owns the question, the
+    /// split and the normalization — including how whitespace forms are read). Length-preserving,
+    /// so a match's offsets map 1:1 back to the original: a real NBSP (U+00A0) becomes one space,
+    /// and the six-character LITERAL escape sequence (backslash, u, 0, 0, a-or-A, 0) becomes six
+    /// spaces. The second form is how a JSON-escaped payload spells NBSP — every stock
+    /// <c>JavaScriptEncoder</c> (including <c>UnsafeRelaxedJsonEscaping</c> — measured 2026-07-16)
+    /// escapes U+00A0, so an NBSP-separated phone inside <c>raw_payload</c> reads as digits
+    /// separated by escape sequences. Without the shadow, that phone was scrubbed from
+    /// <c>description</c> but SURVIVED in the payload copy (found by test-writer's assertion (g)).
+    /// Spans carry the SHADOW slice as <see cref="ContactSpan.Raw"/> — the escape's own zeroes
+    /// must never leak into the digit normalization.
+    /// </summary>
+    /// <remarks>
+    /// Accepted over-read, fail-safe direction: JSON text spelling a REAL backslash before
+    /// <c>u00a0</c> (a doubled backslash in the document, i.e. a literal backslash plus the five
+    /// characters u00a0 in the decoded value) is read as the NBSP form too. Over-normalizing a
+    /// separator can only widen detection — over-redaction of PII-adjacent text is the bound
+    /// posture (ADR 0106 D5).
+    /// </remarks>
+    private static string DetectionShadow(string text)
+    {
+        const char Nbsp = (char)0x00A0;
+
+        char[]? chars = null;
+        for (var i = 0; i < text.Length; i++)
+        {
+            var c = text[i];
+            if (c == Nbsp)
+            {
+                chars ??= text.ToCharArray();
+                chars[i] = ' ';
+                continue;
+            }
+
+            if (c == '\\'
+                && i + 5 < text.Length
+                && text[i + 1] == 'u'
+                && text[i + 2] == '0'
+                && text[i + 3] == '0'
+                && (text[i + 4] == 'a' || text[i + 4] == 'A')
+                && text[i + 5] == '0')
+            {
+                chars ??= text.ToCharArray();
+                for (var k = 0; k < 6; k++)
+                    chars[i + k] = ' ';
+                i += 5;
+            }
+        }
+
+        return chars is null ? text : new string(chars);
     }
 
     /// <summary>
@@ -125,11 +185,17 @@ public static partial class RecruiterContactRedactor
     private static string CollapseTrunkZero(string folded) =>
         folded.StartsWith("00", StringComparison.Ordinal) ? folded[1..] : folded;
 
+    // Matches come from the SHADOW (the recogniser's canonical view); replacement slices the
+    // ORIGINAL at the same offsets (the shadow is length-preserving, so they align). Spans carry
+    // the shadow slice — the escape form's own zeroes must never reach the digit normalization.
     private static string ReplaceMatches(
-        string text, MatchCollection matches, ContactKind kind, ref List<ContactSpan>? found)
+        string original,
+        MatchCollection matches,
+        ContactKind kind,
+        ref List<ContactSpan>? found)
     {
         if (matches.Count == 0)
-            return text;
+            return original;
 
         StringBuilder? buffer = null;
         var consumedThrough = 0;
@@ -148,15 +214,15 @@ public static partial class RecruiterContactRedactor
             found ??= [];
             found.Add(new ContactSpan(match.Value, normalized, kind));
 
-            buffer ??= new StringBuilder(text.Length);
-            buffer.Append(text, consumedThrough, match.Index - consumedThrough).Append(Marker);
+            buffer ??= new StringBuilder(original.Length);
+            buffer.Append(original, consumedThrough, match.Index - consumedThrough).Append(Marker);
             consumedThrough = match.Index + match.Length;
         }
 
         if (buffer is null)
-            return text;
+            return original;
 
-        buffer.Append(text, consumedThrough, text.Length - consumedThrough);
+        buffer.Append(original, consumedThrough, original.Length - consumedThrough);
         return buffer.ToString();
     }
 

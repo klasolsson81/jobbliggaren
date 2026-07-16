@@ -279,17 +279,16 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
         ad.Description.Contains(BodyPhoneNbsp, StringComparison.Ordinal).ShouldBeFalse(
             "the NBSP-separated phone must be scrubbed from the description body.");
 
-        // KNOWN GAP (reported to dotnet-architect - see the test-writer report): the NBSP phone
-        // STILL survives in raw_payload. JobTechPayloadSanitizer.SanitizeForStorage uses
-        // UnsafeRelaxedJsonEscaping, which leaves the letters LITERAL (so the email scrub works)
-        // but STILL ESCAPES U+00A0 to \u00A0 - so the string the aggregate scrubs carries
-        // 073\u00A0042..., which the phone regex NBSP separator (a real NBSP char) cannot match.
-        // The relaxed-escaping fix is therefore INCOMPLETE for NBSP, contradicting the sanitizer
-        // comment. Bounded: the phone is gone from description/search_vector/extracted_terms and
-        // migrated to contacts, raw_payload has a 30-day TTL, and the erasure matcher still scans
-        // raw_payload - a minimisation residual, not a reverse-lookup exposure. When fixed, add:
-        //   (await ColumnValueAsync(db, FunnelExternalId, "raw_payload", ct))!
-        //       .Contains(BodyPhoneNbsp, StringComparison.Ordinal).ShouldBeFalse();
+        // GAP CLOSED (2026-07-16, same session): the redactor's DetectionShadow now reads the
+        // six-character LITERAL escape form of NBSP too (every stock JavaScriptEncoder still
+        // escapes U+00A0 - measured), so the payload copy is scrubbed as well. These assertions
+        // are the flip lines the KNOWN GAP marker promised: no fragment of the NBSP phone may
+        // survive in raw_payload in any spelling.
+        var payloadAfterScrub = (await ColumnValueAsync(db, FunnelExternalId, "raw_payload", ct))!;
+        payloadAfterScrub.Contains(BodyPhoneNbsp, StringComparison.Ordinal).ShouldBeFalse(
+            "the NBSP-separated phone must not survive in raw_payload (real-character form).");
+        payloadAfterScrub.Contains("073", StringComparison.Ordinal).ShouldBeFalse(
+            "no digit fragment of the NBSP phone may survive the payload scrub in any spelling.");
 
         // (d) the carrier holds the DECLARED entry (name preserved, Origin=Declared) and the two
         // uncovered body hits as ExtractedFromBody (name null — no NER).

@@ -123,6 +123,28 @@ public class RecruiterContactRedactorTests
     }
 
     [Fact]
+    public void Redact_reaches_a_phone_separated_by_LITERAL_nbsp_escape_sequences()
+    {
+        // A JSON-escaped payload spells NBSP as the six characters backslash-u-0-0-a-0 (every
+        // stock JavaScriptEncoder escapes U+00A0 — measured 2026-07-16). Without the detection
+        // shadow this phone was scrubbed from description but SURVIVED in raw_payload — the gap
+        // test-writer's funnel assertion (g) caught. The escape is built from char arithmetic so
+        // no tool layer can decode it prematurely.
+        var esc = new string((char)0x5C, 1) + "u00a0";
+        var payload = "{\"text\":\"Ring 073" + esc + "042" + esc + "11" + esc + "22 idag.\"}";
+
+        var result = RecruiterContactRedactor.Redact(payload);
+
+        var span = result.Found.ShouldHaveSingleItem();
+        span.Kind.ShouldBe(ContactKind.Phone);
+        // Raw is the SHADOW slice: the escape's own zeroes must never pollute the digits.
+        span.Normalized.ShouldBe("0730421122");
+        result.Scrubbed.ShouldNotContain("0421122");
+        result.Scrubbed.ShouldNotContain(esc);
+        Should.NotThrow(() => JsonDocument.Parse(result.Scrubbed));
+    }
+
+    [Fact]
     public void An_email_with_a_digit_local_part_is_not_double_detected_as_a_phone()
     {
         var result = RecruiterContactRedactor.Redact("Svar till 0701234567@acme.se senast fredag.");

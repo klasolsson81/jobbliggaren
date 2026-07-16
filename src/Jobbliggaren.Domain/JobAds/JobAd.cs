@@ -15,10 +15,11 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     public DateTimeOffset? ExpiresAt { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 
-    // #821 — JobAd has NO soft-delete axis. Status (Active | Expired | Archived) is the
-    // SOLE lifecycle axis: Archive() is the only lifecycle transition, and non-Active ads
-    // are excluded from end-user views by JobAdSearchComposition.ApplyFilter (a SPOT
-    // Status == Active predicate, ADR 0032-amendment 2026-05-23) — never by a query filter.
+    // #821 — JobAd has NO soft-delete axis. Status (Active | Archived | Erased — #886 retired
+    // the writerless Expired) is the SOLE lifecycle axis: Archive() and Erase() are the only
+    // lifecycle transitions, and non-Active ads are excluded from end-user views by
+    // JobAdSearchComposition.ApplyFilter (a SPOT Status == Active predicate,
+    // ADR 0032-amendment 2026-05-23) — never by a query filter.
     // The retired DeletedAt column + its vacuous HasQueryFilter had no writer for two
     // releases and caused a real defect: the Applications read path delegated "the ad is
     // gone" to it, so PreservedAdPanel (ADR 0086) never rendered in production (#805-3).

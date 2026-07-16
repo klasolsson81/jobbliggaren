@@ -84,7 +84,6 @@ public class CompanyLookupActiveAdCountTests
     private async Task SeedAdAsync(
         string orgNr,
         CancellationToken ct,
-        bool expired = false,
         bool archived = false)
     {
         var externalId = $"clac-{Guid.NewGuid():N}";
@@ -115,15 +114,6 @@ public class CompanyLookupActiveAdCountTests
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
-
-        // JobAd has no domain Expire transition; stamp the value-converted Status shadow via EF direct
-        // (parity CompanyWatchMatchCountTests) so status='Active' excludes it.
-        if (expired)
-        {
-            db.Entry(jobAd).Property(nameof(JobAd.Status)).CurrentValue = JobAdStatus.Expired;
-            await db.SaveChangesAsync(ct);
-        }
-
     }
 
     // Builds the SUT over a FRESH scoped AppDbContext (separate from the seed scope so Postgres has
@@ -177,16 +167,22 @@ public class CompanyLookupActiveAdCountTests
     }
 
     [Fact]
-    public async Task Handle_ActiveAdCount_ExcludesExpiredAndArchived()
+    public async Task Handle_ActiveAdCount_ExcludesArchived()
     {
         // The status='Active' predicate is the WHOLE exclusion (#821 — JobAd has no soft-delete axis
         // and no query filter). Proven against real Postgres (InMemory neither populates the generated
         // column nor applies the value-converted Status shadow the same way).
+        //
+        // Archived is the ONLY non-Active witness here, deliberately (#886 CTO-bind): this count is
+        // KEYED on organization_number, and Erase() nulls that column — an Erased row would exit via
+        // the org.nr key, not the status gate, so it cannot witness the gate. And the fabricated
+        // Expired stamp this test used to carry pinned the predicate against a row no writer could
+        // produce (#843 fiction class) — the `== Active` vs `!= Archived` distinction has no
+        // reachable consequence for an org.nr-keyed count, so no test may claim to pin it here.
         var ct = TestContext.Current.CancellationToken;
         var orgNr = NewOrgNr();
 
         await SeedAdAsync(orgNr, ct);                       // Active → counted
-        await SeedAdAsync(orgNr, ct, expired: true);        // Expired → excluded (status)
         await SeedAdAsync(orgNr, ct, archived: true);       // Archived → excluded (status)
 
         var (scope, handler) = NewHandler(orgNr, "Testbolaget AB");
@@ -196,7 +192,7 @@ public class CompanyLookupActiveAdCountTests
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.ActiveAdCount.ShouldBe(1,
-            "Endast den Active-annonsen ska räknas — Expired/Archived exkluderas av status='Active', " +
+            "Endast den Active-annonsen ska räknas — Archived exkluderas av status='Active', " +
             "som ÄR hela exkluderingen (JobAd har ingen soft-delete-axel, #821).");
     }
 }

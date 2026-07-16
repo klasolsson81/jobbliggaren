@@ -17,9 +17,9 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
     // #311 D6 (ADR 0087) — org.nr är INTE en JobTech concept-id: ett svenskt
     // organisationsnummer är exakt 10 siffror (live-verifierad form i JobStream,
     // t.ex. 5592804784; lagras verbatim i organization_number-kolumnen, ingen
-    // bindestrecks-normalisering). Strikt \d{10}\z (\z, ej $, mot newline-injektion,
+    // bindestrecks-normalisering). Strikt [0-9]{10}\z (ASCII, ej \d=\p{Nd} — #865; \z, ej $, mot newline-injektion,
     // paritet ConceptIdPattern). Default-deny defense-in-depth (Saltzer/Schroeder).
-    private const string OrganizationNumberPattern = @"^\d{10}\z";
+    private const string OrganizationNumberPattern = @"^[0-9]{10}\z";
 
     public ListJobAdsQueryValidator()
     {

@@ -4,7 +4,7 @@ namespace Jobbliggaren.Application.Companies.Queries.LookupCompany;
 
 /// <summary>
 /// Pre-handler FORMAT gate for <see cref="LookupCompanyQuery"/>: exactly 10 digits (mirror
-/// <c>OrganizationNumber.Create</c> / <c>FollowCompanyCommandValidator</c> — `^\d{10}\z`, `\z` not
+/// <c>OrganizationNumber.Create</c> / <c>FollowCompanyCommandValidator</c> — `^[0-9]{10}\z`, `\z` not
 /// `$` against newline injection). The personnummer-shape POLICY deliberately does NOT live here
 /// (ADR 0088 D4): policy belongs in the handler next to the masking/refusal semantics so the
 /// refuse-copy and the D8(c) flag stay in one place, and a future #456-sanctioned posture flip is a
@@ -17,7 +17,7 @@ public sealed class LookupCompanyQueryValidator : AbstractValidator<LookupCompan
     {
         RuleFor(q => q.OrganizationNumber)
             .Must(v => v is not null && System.Text.RegularExpressions.Regex.IsMatch(
-                v, @"^\d{10}\z"))
+                v, @"^[0-9]{10}\z"))
             .WithMessage("Organisationsnummer måste vara exakt 10 siffror.");
     }
 }

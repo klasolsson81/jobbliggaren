@@ -51,6 +51,27 @@ public class OrganizationNumberTests
         result.Error.Code.ShouldBe("OrganizationNumber.Invalid");
     }
 
+    [Theory]
+    // digitZero = the script's decimal '0' codepoint; the look-alike of 5592804784 is built by
+    // codepoint arithmetic (a literal exotic glyph corrupts across tooling — house lesson).
+    // FF10 = FULLWIDTH ZERO, 0660 = ARABIC-INDIC ZERO. Both satisfy \d (\p{Nd}) yet are not
+    // ASCII [0-9] — before #865 they PASSED, got stored plaintext, and could never equality-
+    // match the ASCII register/job_ads values: a watch that silently matches nothing forever.
+    [InlineData(0xFF10)]
+    [InlineData(0x0660)]
+    public void Create_WithUnicodeDigitLookalike_FailsInvalid_NotSilentlyAccepted(int digitZero)
+    {
+        var lookalike = new string("5592804784"
+            .Select(c => (char)(digitZero + (c - '0')))
+            .ToArray());
+
+        var result = OrganizationNumber.Create(lookalike);
+
+        result.IsFailure.ShouldBeTrue(
+            $"'{lookalike}' (U+{digitZero:X4}-siffror) måste avvisas — \\d hade släppt igenom den.");
+        result.Error.Code.ShouldBe("OrganizationNumber.Invalid");
+    }
+
     // ---------------------------------------------------------------
     // IsPersonnummerShaped — D8(c) surfacing guard (conservative, non-primary)
     // ---------------------------------------------------------------

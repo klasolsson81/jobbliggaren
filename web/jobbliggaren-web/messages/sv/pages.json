@@ -99,8 +99,7 @@
     "detail": {
       "loadErrorTitle": "Kunde inte ladda CV",
       "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till CV-listan.",
-      "updatedAt": "Senast uppdaterad",
-      "customizeTemplate": "Anpassa mall"
+      "updatedAt": "Senast uppdaterad"
     },
     "review": {
       "title": "Granska importerat CV",

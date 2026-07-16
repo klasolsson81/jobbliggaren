@@ -90,7 +90,7 @@ export default async function CvDetailPage({ params }: Props) {
     // jp-container jp-page: CV-familjens breddcontainer (#812). Utan den renderas sidan
     // edge-to-edge — på en ultrawide (3440px) sträcks fälten till 1000+ px och innehållet
     // klistras mot skärmkanterna. Klasserna sätter bara boxmodell (max-width/marginal/
-    // padding), så de kombineras direkt med flex-roten. Samma wrap som /cv/[id]/mall.
+    // padding), så de kombineras direkt med flex-roten. Samma wrap som /cv/[id]/granska.
     <div className="jp-container jp-page flex flex-col gap-6">
       <Link
         href="/cv"
@@ -109,9 +109,6 @@ export default async function CvDetailPage({ params }: Props) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button asChild variant="outline">
-            <Link href={`/cv/${id}/mall`}>{t("cv.detail.customizeTemplate")}</Link>
-          </Button>
           <RenameResumeForm resumeId={id} currentName={resume.name} />
           <DeleteResumeDialog resumeId={id} resumeName={resume.name} />
         </div>

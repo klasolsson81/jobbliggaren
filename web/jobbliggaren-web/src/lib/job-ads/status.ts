@@ -8,11 +8,12 @@ export type BadgeVariant =
   | "Danger"
   | "Neutral";
 
-// Active/Expired/Archived speglar backend SmartEnum exakt — synk krävs vid
-// status-tillägg (memory `project_crossref_badge_status`).
+// Active/Archived speglar backend SmartEnum exakt — synk krävs vid
+// status-tillägg (memory `project_crossref_badge_status`). Expired
+// retirerades i #886; `Record<JobAdStatus, …>` är lockstep-vakten som
+// tvingar den här mappen att följa enum:en åt båda hållen (tsc-fel).
 export const JOB_AD_STATUS_BADGE_VARIANT: Record<JobAdStatus, BadgeVariant> = {
   Active: "Success",
-  Expired: "Warning",
   Archived: "Neutral",
 };
 

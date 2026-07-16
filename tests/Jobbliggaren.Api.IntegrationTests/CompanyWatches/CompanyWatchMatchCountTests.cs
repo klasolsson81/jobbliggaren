@@ -33,7 +33,7 @@ namespace Jobbliggaren.Api.IntegrationTests.CompanyWatches;
 /// cheap SQL count is EXACT, not an approximation — Top's SQL-incomputability (G3-OPT-A) is
 /// irrelevant to a ≥Good COUNT.</item>
 /// <item><b>THE DIRECT INTEGRATION TEST</b> — the per-org.nr dict is correct over a mix of
-/// matching/non-matching/Expired/Archived/soft-deleted ads across two employers (the seeding
+/// matching/non-matching/Archived/soft-deleted ads across two employers (the seeding
 /// recipe mirrors #447 <see cref="CompanyWatchesTests"/> + the grade shadows of
 /// <see cref="Matching.MatchCountOracleTests"/>).</item>
 /// </list>
@@ -104,8 +104,7 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
         string? employmentTypeConceptId,
         CancellationToken ct,
         ExtractedTerms? terms = null,
-        bool archived = false,
-        bool expired = false)
+        bool archived = false)
     {
         var externalId = $"cwm-{Guid.NewGuid():N}";
 
@@ -132,22 +131,16 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
             jobAd.SetExtractedTerms(terms);
 
         // Archived: a real domain transition (status='Archived') — excluded by the status='Active'
-        // predicate (parity #447's archived case).
+        // predicate (parity #447's archived case). Archived is the ONLY non-Active witness this
+        // class carries, deliberately (#886 CTO-bind): the count is KEYED on organization_number
+        // and Erase() nulls that column, so an Erased row exits via the org.nr key rather than the
+        // status gate and cannot witness it — and the fabricated Expired stamp that used to sit
+        // here pinned the predicate against a row no writer could produce (#843 fiction class).
         if (archived)
             jobAd.Archive(clock);
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
-
-        // JobAd has NO domain Expire transition and Import always stamps status='Active'; stamp the
-        // value-converted Status shadow via EF direct (parity #447's DeletedAt stamp) so the
-        // status='Active' predicate excludes it.
-        if (expired)
-        {
-            db.Entry(jobAd).Property(nameof(JobAd.Status)).CurrentValue = JobAdStatus.Expired;
-            await db.SaveChangesAsync(ct);
-        }
-
 
         return jobAd.Id;
     }
@@ -288,25 +281,24 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
 
     // =========================================================================================
     // 2. DIRECT INTEGRATION — the per-org.nr dict is correct over a mix of matching / Basic /
-    //    untagged / Expired / Archived ads across TWO employers. Proves the status='Active'
+    //    untagged / Archived ads across TWO employers. Proves the status='Active'
     //    exclusion (the whole exclusion — JobAd has no soft-delete axis, #821) and the org.nr GROUP key.
     // =========================================================================================
 
     [Fact]
-    public async Task CountPerUserByEmployer_CountsMatchingActiveAds_ExcludesExpiredAndArchived()
+    public async Task CountPerUserByEmployer_CountsMatchingActiveAds_ExcludesArchived()
     {
         var ct = TestContext.Current.CancellationToken;
         var orgA = NewOrgNr();
         var orgB = NewOrgNr();
 
         // orgA: 2 matching Active (Strong + Good = ≥Good) + 1 Basic (below) + 1 untagged (below)
-        //       + 1 Expired-matching + 1 Archived-matching (both excluded by status)
+        //       + 1 Archived-matching (excluded by status)
         //       → the ≥Good Active count must be exactly 2.
         await SeedStrongAsync(orgA, ct);
         await SeedGoodAsync(orgA, ct);
         await SeedBasicNeutralAsync(orgA, ct);
         await SeedUntaggedAsync(orgA, ct);
-        await SeedAdAsync(orgA, PrefGroup, PrefRegion, PrefEmployment, ct, expired: true);
         await SeedAdAsync(orgA, PrefGroup, PrefRegion, PrefEmployment, ct, archived: true);
 
         // orgB: 1 matching Active (Strong = ≥Good) → count 1. Proves per-org.nr GROUP keying (orgA's
@@ -321,7 +313,7 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
 
         dict.GetValueOrDefault(orgA).ShouldBe(2,
             "orgA ska räkna exakt 2 ≥Good Active-annonser (Strong + Good) — Basic/untagged under " +
-            "tröskeln, Expired/Archived exkluderade av status='Active', soft-deleted exkluderad av " +
+            "tröskeln, Archived exkluderad av status='Active', soft-deleted exkluderad av " +
             "den globala soft-delete-query-filtren (ADR 0048).");
         dict.GetValueOrDefault(orgB).ShouldBe(1,
             "orgB ska räkna exakt 1 ≥Good Active-annons — orgA:s annonser ska aldrig blöda in " +
@@ -331,7 +323,7 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
     [Fact]
     public async Task CountPerUserByEmployer_OmitsEmployersWithZeroMatches()
     {
-        // An employer with only Basic/untagged/Expired ads is ABSENT from the dict (the caller
+        // An employer with only Basic/untagged ads is ABSENT from the dict (the caller
         // defaults it to 0 — a null-vs-0 distinction the handler owns).
         var ct = TestContext.Current.CancellationToken;
         var orgWithMatch = NewOrgNr();

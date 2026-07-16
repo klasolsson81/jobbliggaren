@@ -84,12 +84,11 @@ interface JobAdDetailProps {
   previousApplicationCount?: number;
 }
 
-// Active/Expired/Archived → .jp-pill-variant. Speglar
-// JOB_AD_STATUS_BADGE_VARIANT-semantiken (Active=success, Expired=warning,
-// Archived=neutral) men mot v3 .jp-pill-systemet (HANDOVER §5.7).
+// Active/Archived → .jp-pill-variant. Speglar
+// JOB_AD_STATUS_BADGE_VARIANT-semantiken (Active=success, Archived=neutral)
+// men mot v3 .jp-pill-systemet (HANDOVER §5.7). Expired retirerades i #886.
 const STATUS_PILL_CLASS: Record<JobAdStatus, string> = {
   Active: "jp-pill jp-pill--success",
-  Expired: "jp-pill jp-pill--warning",
   Archived: "jp-pill jp-pill--neutral",
 };
 

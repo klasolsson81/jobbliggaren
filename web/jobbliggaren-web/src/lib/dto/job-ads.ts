@@ -4,7 +4,12 @@ import { pagedResult } from "./_helpers";
 // JobAdStatus speglar backend `JobAdStatus` SmartEnum
 // (`Jobbliggaren.Domain.JobAds.JobAdStatus`). Synk med backend krävs vid
 // status-värdes-tillägg per memory `project_crossref_badge_status`.
-export const jobAdStatusSchema = z.enum(["Active", "Expired", "Archived"]);
+// "Expired" retirerades i #886 (deklarerad + renderad utan writer i hela
+// produktens historia). "Erased" (#842) är MEDVETET utelämnad: ytorna som
+// parsar detta schema 410:ar (annons-detaljen) eller maskerar (`!= Erased`,
+// sparade-listan) raderade annonser — att deklarera ett värde ytan aldrig
+// kan ta emot vore samma fiktion i omvänd riktning.
+export const jobAdStatusSchema = z.enum(["Active", "Archived"]);
 export type JobAdStatus = z.infer<typeof jobAdStatusSchema>;
 
 // JobSource speglar backend `JobSource` SmartEnum. `Manual`/`Platsbanken`

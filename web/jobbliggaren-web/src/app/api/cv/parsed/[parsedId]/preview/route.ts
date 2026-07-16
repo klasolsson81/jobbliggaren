@@ -26,7 +26,8 @@ import { renderProfileSchema } from "@/lib/dto/parsed-resume";
  * `isValidId(parsedId)`-allowlisten är path-injektions-/SSRF-barriären (samma
  * fail-safe-default som `getResumeById` — backend nås aldrig vid ogiltigt id).
  * `profile` normaliseras till `Ats` vid saknat/ogiltigt värde (paritet med
- * granska/forbattra-sidornas `safeParse`-default); backend är den auktoritativa
+ * granska-sidans `safeParse`-default; forbattra-sidan retirerades med
+ * åtgärda-lagrets deferral, ADR 0112); backend är den auktoritativa
  * validatorn oavsett.
  */
 
@@ -52,7 +53,7 @@ export async function GET(
   }
 
   // Normalisering, inte tyst korruption: saknad/ogiltig profil faller till "Ats"
-  // (samma default som granska/forbattra-sidorna). Backend är auktoritativ.
+  // (samma default som granska-sidan). Backend är auktoritativ.
   const profileResult = renderProfileSchema.safeParse(
     request.nextUrl.searchParams.get("profile")
   );

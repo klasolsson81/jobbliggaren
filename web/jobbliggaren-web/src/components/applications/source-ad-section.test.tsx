@@ -116,12 +116,15 @@ describe("SourceAdSection (#805-3, Beslut B)", () => {
     expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
   });
 
-  it("UTGÅNGEN (Expired) → behandlas som borta (default-deny, inte den naiva inversen !== Archived)", () => {
-    // Domänen har TRE statusvärden. Hade guarden kodats som "allt utom Archived
-    // är live" hade den skeppat en död länk exakt här.
+  it("RADERAD (Erased) → behandlas som borta (default-deny, inte den naiva inversen !== Archived)", () => {
+    // Domänen har TRE statusvärden (Active | Archived | Erased — det writerlösa
+    // Expired retirerades i #886), och Art. 17-tombstonens status når den här
+    // ytan på riktigt (lös z.string()-typning, ingen Erased-mask på
+    // ansöknings-läsvägen). Hade guarden kodats som "allt utom Archived är
+    // live" hade den skeppat en länk till en RADERAD annons exakt här.
     render(
       <SourceAdSection
-        jobAd={makeJobAd({ status: "Expired" })}
+        jobAd={makeJobAd({ status: "Erased" })}
         preservedAd={snapshot}
       />
     );

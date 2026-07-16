@@ -24,14 +24,22 @@ const baseJobAd = {
 };
 
 describe("jobAdStatusSchema", () => {
-  it("accepts Active, Expired, Archived", () => {
-    for (const s of ["Active", "Expired", "Archived"]) {
+  it("accepts Active, Archived", () => {
+    for (const s of ["Active", "Archived"]) {
       expect(jobAdStatusSchema.safeParse(s).success).toBe(true);
     }
   });
 
   it("rejects unknown status", () => {
     expect(jobAdStatusSchema.safeParse("Pending").success).toBe(false);
+  });
+
+  it("rejects the retired Expired status (#886 regression lock)", () => {
+    // Expired was declared, shipped to this schema and rendered for the
+    // product's entire history without a single writer. Re-adding it to the
+    // enum without a backend writer would resurrect the fiction — this lock
+    // makes that a red test instead of a silent drift.
+    expect(jobAdStatusSchema.safeParse("Expired").success).toBe(false);
   });
 });
 

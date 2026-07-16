@@ -21,7 +21,7 @@ interface SourceAdSectionProps {
  * | Tillstånd | Villkor | Rendering |
  * |---|---|---|
  * | **Live** | JobAd-rad + `status === "Active"` | "Visa annonsen" → källans URL, ny flik |
- * | **Borta** | JobAd-rad + status ≠ Active (`Archived`/`Expired`/okänt) | INGEN länk. Bevarad kopia (ADR 0086) om den finns, annars en lugn not |
+ * | **Borta** | JobAd-rad + status ≠ Active (`Archived`/`Erased`/okänt) | INGEN länk. Bevarad kopia (ADR 0086) om den finns, annars en lugn not |
  * | **Manuell** | Ingen JobAd-rad (`jobAdId == null`) | Länk om användaren sparade en URL. Ingen livs-utsaga åt något håll |
  * | **Ingen annons** | `jobAd == null` | Inget alls (ansökan är enbart personligt brev) |
  *
@@ -38,10 +38,12 @@ interface SourceAdSectionProps {
  * ## Default-deny på liveness
  *
  * Live hävdas ENDAST på positivt `"Active"`. Domänen har tre statusvärden
- * (`Active` | `Expired` | `Archived`), så den naiva inversen (`!== "Archived"` ⇒
- * live) skulle skeppa en död länk för `Expired` — precis vad Beslut B förbjuder.
- * Ett okänt framtida värde faller också ut som "inte live". Vi hävdar aldrig att
- * en annons lever utan bevis.
+ * (`Active` | `Archived` | `Erased` — det writerlösa `Expired` retirerades i
+ * #886), och den här ytan läser lös `z.string()`, så den naiva inversen
+ * (`!== "Archived"` ⇒ live) skulle skeppa en LÄNK TILL EN ART. 17-RADERAD
+ * annons för `Erased` — precis vad Beslut B förbjuder. Ett okänt framtida
+ * värde faller också ut som "inte live". Vi hävdar aldrig att en annons lever
+ * utan bevis.
  *
  * Manuell posting särskiljs på `jobAdId == null` (strukturell sanning) snarare än
  * på `status == null`, så en deploy-skewad respons utan `status`-fältet degraderar

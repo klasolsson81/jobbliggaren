@@ -107,6 +107,25 @@ public interface IRecruiterErasureMatchQuery
         string identifier, CancellationToken cancellationToken);
 
     /// <summary>
+    /// The applications whose frozen <c>snapshot_contacts</c> (#842 Tier A) hold
+    /// <paramref name="identifier"/> — returned as IDS, because this surface is ERASED surgically
+    /// (<c>Application.EraseAdSnapshotContacts</c>) and an erase needs its targets, not a count.
+    /// </summary>
+    /// <remarks>
+    /// <b>Its own surface, deliberately (T2 CTO 2026-07-16)</b> — NOT folded into
+    /// <c>ApplicationSnapshots</c>: one surface = one disposition = one honest Matched−Erased
+    /// meaning. The four body columns are retained under Art. 17(3)(e) (the applicant's
+    /// aktivitetsrapport spine); the contact block is HER data whose follow-up purpose is spent at
+    /// the erasure request, and it goes. Folding them would force the Art. 12(3) reply to either
+    /// over-claim ("erased from applicants' records" — false for the body) or under-claim
+    /// ("retained" — false for the contacts). Also a completeness channel: an ARCHIVED ad's frozen
+    /// contact is unreachable via the ad match + FK route, so it must be independently searched.
+    /// The funnel never rewrites a snapshot, so the erase here is durable by construction.
+    /// </remarks>
+    Task<IReadOnlyList<Guid>> FindApplicationSnapshotContactsAsync(
+        string identifier, CancellationToken cancellationToken);
+
+    /// <summary>
     /// How many applications hold <paramref name="identifier"/> in the PLAINTEXT columns a user
     /// typed or pasted for an application she tracks herself (<c>manual_company</c> /
     /// <c>manual_title</c> / <c>manual_url</c>). <b>Counted and REPORTED; a human erases them.</b>

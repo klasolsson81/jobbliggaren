@@ -98,6 +98,17 @@ public class JobAdPublicSurfaceGuardTests
         ["ExtractedTerms"] = "derived from Title/Description (no TTL) + ACL requirements. C#-written at " +
                              "ingest. Structurally decoupled from UpdateFromSource — a known, tracked " +
                              "asymmetry (#874), milder than #841: staleness, not destruction.",
+
+        // --- the OTHER PII one (#842 Tier A) ---
+        ["Contacts"] = "PII, HIGHEST PRIORITY: the recruiter's name/role/email/phone, structured " +
+                       "(ADR 0106 re-bind R1). NOT derived from raw_payload as stored — the sanitizer " +
+                       "default-denies application_contacts out of the payload; the ACL maps it " +
+                       "separately and SetSourcePayload writes it atomically with payload+facets. " +
+                       "Written ONLY while Active (b1 §4.1); cleared by Archive(), both bulk archival " +
+                       "writers and Erase() — fitness rule: no non-Active ad holds a contact. Never " +
+                       "logged (AdContact/AdContacts.ToString are redacted), never FTS-indexed " +
+                       "(search_vector = title+description only), never on the LIST DTO " +
+                       "(JobAdDto is structurally contact-incapable — re-bind R2/ISP).",
     };
 
     /// <summary>
@@ -277,7 +288,7 @@ public class JobAdPublicSurfaceGuardTests
             ExpiresAt: null,
             SanitizedRawPayload: "{\"employer\":{\"organization_number\":\"5592804784\"}}",
             Facets: facets,
-            Requirements: []);
+            Requirements: [], DeclaredContacts: []);
 
         var itemText = item.ToString();
 

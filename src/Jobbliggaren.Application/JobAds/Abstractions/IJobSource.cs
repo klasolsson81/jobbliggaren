@@ -101,10 +101,21 @@ public sealed record JobAdRemoval(
 /// </para>
 ///
 /// <para>
-/// <b>PII:</b> <c>Facets.OrganizationNumber</c> can be a sole proprietor's personnummer (ADR 0087 D8).
-/// This record must never be structured-logged. <c>JobAdPublicSurfaceGuardTests</c> bans <c>{@…}</c>
+/// #842 Tier A — <see cref="DeclaredContacts"/> is the advertiser's structured
+/// <c>application_contacts</c> block, mapped by the ACL to Domain <see cref="AdContact"/>s
+/// (<c>Origin = Declared</c>). It travels with the payload for the same reason the facets do: the
+/// aggregate's <c>SetSourcePayload</c> writes payload, facets and contacts ATOMICALLY (a required
+/// parameter — an ingest write that drops the contacts does not compile). Empty list = the source
+/// declared nobody.
+/// </para>
+///
+/// <para>
+/// <b>PII:</b> <c>Facets.OrganizationNumber</c> can be a sole proprietor's personnummer (ADR 0087 D8),
+/// and <c>DeclaredContacts</c> carries recruiter name/email/phone (#842). This record must never be
+/// structured-logged. <c>JobAdPublicSurfaceGuardTests</c> bans <c>{@…}</c>
 /// destructuring anywhere in <c>src/</c>, and <see cref="ToString"/> below is redacted so that even a
-/// plain <c>{Item}</c> placeholder cannot print the org.nr. (An earlier draft cited
+/// plain <c>{Item}</c> placeholder cannot print the org.nr or a contact (<c>AdContact</c>'s own
+/// <c>ToString</c> is redacted too — defense in depth). (An earlier draft cited
 /// <c>OrganizationNumberSurfacingGuardTests</c> here. False: that class token-scans an allowlist of
 /// paths, and a destructured record carries none of its tokens.)
 /// </para>
@@ -119,7 +130,8 @@ public sealed record JobAdImportItem(
     DateTimeOffset? ExpiresAt,
     string SanitizedRawPayload,
     JobAdFacets Facets,
-    IReadOnlyList<JobAdRequirement> Requirements)
+    IReadOnlyList<JobAdRequirement> Requirements,
+    IReadOnlyList<AdContact> DeclaredContacts)
 {
     /// <summary>
     /// REDACTED on purpose — see <see cref="JobAdFacets.ToString"/> for the full reasoning. A record's

@@ -76,7 +76,7 @@ public sealed class BackfillJobAdRequirementsJobTests(ApiFactory factory)
             SanitizedRawPayload: payload,
             // This payload carries no taxonomy keys — the facets are legitimately empty (#841).
             Facets: TestFacets.FromPayload(payload),
-            Requirements: [new JobAdRequirement(ExtractedTermSource.MustHave, "Rq01_must_aaa", "C#", 10)]);
+            Requirements: [new JobAdRequirement(ExtractedTermSource.MustHave, "Rq01_must_aaa", "C#", 10)], DeclaredContacts: []);
     }
 
     private JobAdRefetchBackfillRunner NewRunner(IJobSource jobSource)
@@ -121,7 +121,7 @@ public sealed class BackfillJobAdRequirementsJobTests(ApiFactory factory)
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock).Value;
+            clock: clock, declaredContacts: []).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
     }

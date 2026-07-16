@@ -53,9 +53,23 @@ public sealed record AdSnapshot
 
     /// <summary>The full ad body, copied from the sanitised
     /// <c>JobAd.Description</c> (NEVER <c>raw_payload</c>). Nullable: dropped by
-    /// <see cref="WithoutDescription"/> on a terminal transition (retention /
+    /// <see cref="WithoutAdBody"/> on a terminal transition (retention /
     /// GDPR data-minimisation, ADR 0086 D3).</summary>
     public string? Description { get; }
+
+    /// <summary>
+    /// The recruiter contacts frozen at apply-time (#842 Tier A, CTO re-bind R1(d)) — the
+    /// follow-up person for THIS application. Copied from the post-scrub
+    /// <c>JobAd.Contacts</c>; null when the ad held none at capture (including an ad already
+    /// archived at apply-time, whose contacts retention had cleared — b1's accepted
+    /// consequence). The funnel never rewrites a snapshot, so an erasure here is durable by
+    /// construction — this column is the erasure command's surgical arm
+    /// (<see cref="Application.EraseAdSnapshotContacts"/>), the proportionate remedy that removes
+    /// the recruiter's contact WITHOUT destroying the applicant's own record. Dropped together
+    /// with the body on a terminal transition (<see cref="WithoutAdBody"/> — the follow-up
+    /// purpose is spent).
+    /// </summary>
+    public JobAds.AdContacts? Contacts { get; }
 
     /// <summary>When the snapshot was taken (apply-time). Distinct from
     /// <c>Application.CreatedAt</c> in intent; they coincide today because the
@@ -71,6 +85,7 @@ public sealed record AdSnapshot
         DateTimeOffset publishedAt,
         DateTimeOffset? expiresAt,
         string? description,
+        JobAds.AdContacts? contacts,
         DateTimeOffset capturedAt)
     {
         Title = title;
@@ -81,6 +96,7 @@ public sealed record AdSnapshot
         PublishedAt = publishedAt;
         ExpiresAt = expiresAt;
         Description = description;
+        Contacts = contacts;
         CapturedAt = capturedAt;
     }
 
@@ -90,7 +106,9 @@ public sealed record AdSnapshot
     /// user-input <see cref="ManualPosting.Create"/>.
     /// <paramref name="municipalityConceptId"/> is the JobAd's raw municipality
     /// concept-id (or null); <paramref name="description"/> is the sanitised
-    /// <c>JobAd.Description</c>.
+    /// <c>JobAd.Description</c>; <paramref name="contacts"/> is the post-scrub
+    /// <c>JobAd.Contacts</c> (#842 Tier A — the snapshot cannot capture what the
+    /// aggregate does not hold).
     /// </summary>
     public static AdSnapshot Capture(
         string title,
@@ -101,22 +119,41 @@ public sealed record AdSnapshot
         DateTimeOffset publishedAt,
         DateTimeOffset? expiresAt,
         string? description,
+        JobAds.AdContacts? contacts,
         DateTimeOffset capturedAt) =>
-        new(title, company, municipalityConceptId, url, source, publishedAt, expiresAt, description, capturedAt);
+        new(title, company, municipalityConceptId, url, source, publishedAt, expiresAt,
+            description, contacts, capturedAt);
 
     /// <summary>
-    /// Retention / GDPR data-minimisation (ADR 0086 D3, GDPR Art. 5(1)(c)):
-    /// returns a copy with the bulky <see cref="Description"/> dropped, keeping
-    /// the minimal stats/identity metadata
-    /// (title/company/municipality/url/dates/capturedAt). Idempotent — an
-    /// already-minimised snapshot returns itself unchanged. Invoked by
+    /// Retention / GDPR data-minimisation (ADR 0086 D3 + #842 Tier A re-bind R4(b)): returns a
+    /// copy with the ad BODY dropped — the bulky <see cref="Description"/> AND the recruiter
+    /// <see cref="Contacts"/> — keeping the minimal stats/identity metadata
+    /// (title/company/municipality/url/dates/capturedAt). The follow-up purpose ends when the
+    /// application reaches a terminal status; there is nobody left to contact, so the contact
+    /// block goes with the body: the SAME rule, on the SAME method, that already dropped the
+    /// body ("zero new machinery" — the retention rule for this data class was already written).
+    /// Idempotent — an already-minimised snapshot returns itself unchanged. Invoked by
     /// <see cref="Application.TransitionTo"/> on a terminal transition
-    /// (Accepted/Rejected/Withdrawn) only.
+    /// (Accepted/Rejected/Withdrawn) only. (Renamed from <c>WithoutDescription()</c>, whose name
+    /// stopped describing what it drops.)
     /// </summary>
-    public AdSnapshot WithoutDescription() =>
-        Description is null
+    public AdSnapshot WithoutAdBody() =>
+        Description is null && Contacts is null
             ? this
             : new AdSnapshot(
                 Title, Company, MunicipalityConceptId, Url, Source, PublishedAt, ExpiresAt,
-                description: null, CapturedAt);
+                description: null, contacts: null, CapturedAt);
+
+    /// <summary>
+    /// #842 Tier A surgical erasure (b1 §4.4, T2 CTO 2026-07-16): a copy with ONLY the recruiter
+    /// contacts removed — the applicant's own record (title/company/body/url) is untouched. The
+    /// proportionality win the whole re-bind was for: we erase HER data without destroying the
+    /// applicant's evidence. Idempotent.
+    /// </summary>
+    public AdSnapshot WithoutContacts() =>
+        Contacts is null
+            ? this
+            : new AdSnapshot(
+                Title, Company, MunicipalityConceptId, Url, Source, PublishedAt, ExpiresAt,
+                Description, contacts: null, CapturedAt);
 }

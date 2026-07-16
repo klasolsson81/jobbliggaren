@@ -176,7 +176,7 @@ public class DigestDispatchJobIntegrationTests(WorkerTestFixture fixture)
             facets: TestFacets.FromPayload($"{{\"id\":\"{externalId}\"}}"),
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(60),
-            clock: new FixedClock(Now)).Value;
+            clock: new FixedClock(Now), declaredContacts: []).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
         return jobAd.Id;

@@ -130,6 +130,7 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
                 $"Systemutvecklare nummer {i}", company,
                 "Vi söker en utvecklare med erfarenhet av ekonomi och ledning.",
                 "https://example.com/jobb/" + i, external, "{\"id\":\"x\"}", TestFacets.FromPayload("{\"id\":\"x\"}"),
+                [],
                 new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),
                 new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock).Value;
             // Deliberately DO NOT call SetExtractedTerms → extracted_terms stays NULL.
@@ -291,6 +292,7 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
             var already = JobAd.Import(
                 "Redan extraherad", company, "Beskrivning", "https://example.com/jobb/done",
                 external, "{\"id\":\"x\"}", TestFacets.FromPayload("{\"id\":\"x\"}"),
+                [],
                 new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),
                 new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock).Value;
             already.SetExtractedTerms(ExtractedTerms.Empty); // extracted (non-null)

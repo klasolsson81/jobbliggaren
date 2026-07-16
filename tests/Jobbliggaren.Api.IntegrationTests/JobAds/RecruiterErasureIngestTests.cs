@@ -1125,6 +1125,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             ad.PublishedAt,
             ad.ExpiresAt,
             ad.Description, // the sanitised JobAd.Description — never raw_payload (ADR 0086 D5)
+            contacts: null,
             clock.UtcNow);
 
         var application = DomainApplication
@@ -1658,6 +1659,10 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             string identifier, CancellationToken cancellationToken) =>
             inner.CountSavedSearchesAsync(identifier, cancellationToken);
 
+        public Task<IReadOnlyList<Guid>> FindApplicationSnapshotContactsAsync(
+            string identifier, CancellationToken cancellationToken) =>
+            inner.FindApplicationSnapshotContactsAsync(identifier, cancellationToken);
+
         public Task<int> CountApplicationSnapshotsAsync(
             string identifier, CancellationToken cancellationToken) =>
             inner.CountApplicationSnapshotsAsync(identifier, cancellationToken);
@@ -2049,7 +2054,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
         var snapshot = AdSnapshot.Capture(
             title, company, municipalityConceptId: null, url, ad.Source.Value,
-            ad.PublishedAt, ad.ExpiresAt, description, clock.UtcNow);
+            ad.PublishedAt, ad.ExpiresAt, description, contacts: null, clock.UtcNow);
 
         var application = DomainApplication
             .CreateFromJobAd(seeker.Id, ad.Id, snapshot, coverLetter: null, clock).Value;

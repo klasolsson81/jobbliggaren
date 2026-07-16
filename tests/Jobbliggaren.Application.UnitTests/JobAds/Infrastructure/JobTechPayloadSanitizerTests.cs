@@ -58,7 +58,15 @@ public class JobTechPayloadSanitizerTests
         var sanitized = JobTechPayloadSanitizer.SanitizeForStorage(rawJson);
 
         sanitized.ShouldContain("\"headline\":\"Backend Developer\"");
-        sanitized.ShouldContain("Vi s\\u00F6ker en utvecklare.");
+
+        // #842 Tier A — the output is READABLE text, never \uXXXX-escaped. This is load-bearing,
+        // not cosmetic: the aggregate's contact scrub runs over this exact C# string, and an
+        // escaped "Håkan tel 070 123…" hides the phone from the detector while jsonb
+        // stores it decoded and fully readable. The escaped form must be provably ABSENT.
+        sanitized.ShouldContain("Vi söker en utvecklare.");
+        sanitized.ShouldNotContain("\\u00F6", customMessage:
+            "Non-ASCII must not be \\uXXXX-escaped — the Tier A scrub reads this string as text.");
+
         sanitized.ShouldContain("\"municipality\":\"Stockholm\"");
         sanitized.ShouldContain("\"country_code\":\"SE\"");
         sanitized.ShouldContain("\"concept_id\":\"abc123\"");

@@ -50,6 +50,7 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
         var recentMatches = await matchQuery.FindRecentJobSearchesAsync(identifier, cancellationToken);
         var savedSearchCount = await matchQuery.CountSavedSearchesAsync(identifier, cancellationToken);
         var snapshotCount = await matchQuery.CountApplicationSnapshotsAsync(identifier, cancellationToken);
+        var snapshotContactIds = await matchQuery.FindApplicationSnapshotContactsAsync(identifier, cancellationToken);
         var manualCount = await matchQuery.CountManualAdEntriesAsync(identifier, cancellationToken);
         var watchCriteriaCount = await matchQuery.CountCompanyWatchCriteriaAsync(identifier, cancellationToken);
         var resumeMetadataCount = await matchQuery.CountResumeMetadataAsync(identifier, cancellationToken);
@@ -63,6 +64,7 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
             RecentJobSearches: recentMatches.Count,
             SavedSearches: savedSearchCount,
             ApplicationSnapshots: snapshotCount,
+            ApplicationSnapshotContacts: snapshotContactIds.Count,
             ManualAdEntries: manualCount,
             CompanyWatchCriteria: watchCriteriaCount,
             ResumeMetadata: resumeMetadataCount,
@@ -193,9 +195,55 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
 
         db.RecentJobSearches.RemoveRange(recentSearches);
 
+        // #842 Tier A — the SURGICAL arm (b1 §4.4, T2 CTO 2026-07-16): remove the recruiter's
+        // frozen contact block from every matched application snapshot, leaving the applicant's
+        // own record intact. Durable by construction (the funnel never writes a snapshot). Through
+        // the aggregate and the change tracker, so it lands in the same UnitOfWork SaveChanges as
+        // the ad erasure and the audit row. No per-id confirmation ceremony: unlike the ad erase,
+        // nothing of any USER'S is destroyed — this removes exactly the requester's own data.
+        var snapshotAppIds = snapshotContactIds
+            .Select(id => new Domain.Applications.ApplicationId(id))
+            .ToList();
+        var applications = await db.Applications
+            .Where(a => snapshotAppIds.Contains(a.Id))
+            .ToListAsync(cancellationToken);
+
+        foreach (var application in applications)
+            application.EraseAdSnapshotContacts();
+
+        // Belt to retention's braces (b1 §4.4): a matched NON-Active ad the operator did not
+        // confirm for whole-record erasure should hold no contacts (retention cleared them at
+        // archival) — sweep any straggler. Active ads are refused by the aggregate: a surgical
+        // clear the nightly sync rewrites within ten minutes is the B1 defect, and their remedy
+        // is the confirmed whole-record erase above.
+        var confirmedSet = confirmedIds.ToHashSet();
+        var unconfirmedIds = matchedAdIds
+            .Where(id => !confirmedSet.Contains(id))
+            .Select(id => new JobAdId(id))
+            .ToList();
+        var backstopSweptCount = 0;
+        if (unconfirmedIds.Count > 0)
+        {
+            var stragglers = await db.JobAds
+                .Where(j => unconfirmedIds.Contains(j.Id)
+                            && j.Status != JobAdStatus.Active
+                            && j.Contacts != null)
+                .ToListAsync(cancellationToken);
+
+            foreach (var straggler in stragglers)
+            {
+                if (straggler.ClearContactsRetentionBackstop().IsSuccess)
+                    backstopSweptCount++;
+            }
+        }
+
+        if (backstopSweptCount > 0)
+            LogContactsBackstopSwept(logger, command.RequestId, backstopSweptCount);
+
         var erased = new ErasureSurfaceCounts(
             JobAds: erasedJobAdCount,
             RecentJobSearches: recentSearches.Count,
+            ApplicationSnapshotContacts: applications.Count,
 
             // Zero, and NOT because we forgot. Every one of these is matched, reported, and left
             // standing on a written ground the registry carries (ErasureCascadeRegistry.
@@ -270,4 +318,11 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
             + "human handles those, and the reply discloses them.")]
     private static partial void LogErased(ILogger logger, Guid requestId, int jobAds,
         int recentSearches, int savedSearches, int snapshots, int referencing);
+
+    [LoggerMessage(EventId = 8435, Level = LogLevel.Warning,
+        Message = "Art. 17 erasure {RequestId}: retention backstop cleared contacts on "
+            + "{Stragglers} non-Active ads — retention should have left ZERO here; investigate "
+            + "which archival writer missed the clear (#842 Tier A fitness rule).")]
+    private static partial void LogContactsBackstopSwept(
+        ILogger logger, Guid requestId, int stragglers);
 }

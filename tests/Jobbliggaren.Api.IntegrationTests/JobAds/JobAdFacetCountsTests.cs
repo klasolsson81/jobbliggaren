@@ -95,7 +95,7 @@ public class JobAdFacetCountsTests(ApiFactory factory)
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock).Value;
+            clock: clock, declaredContacts: []).Value;
 
         if (archived)
             jobAd.Archive(clock).IsSuccess.ShouldBeTrue();

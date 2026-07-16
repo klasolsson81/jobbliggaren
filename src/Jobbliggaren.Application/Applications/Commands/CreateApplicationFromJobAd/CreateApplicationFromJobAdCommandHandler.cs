@@ -79,7 +79,8 @@ public sealed class CreateApplicationFromJobAdCommandHandler(
                 j.Source.Value,
                 j.PublishedAt,
                 j.ExpiresAt,
-                EF.Property<string?>(j, "MunicipalityConceptId")))
+                EF.Property<string?>(j, "MunicipalityConceptId"),
+                j.Contacts))
             .FirstOrDefaultAsync(cancellationToken);
 
         if (jobAdData is null)
@@ -94,6 +95,11 @@ public sealed class CreateApplicationFromJobAdCommandHandler(
             jobAdData.PublishedAt,
             jobAdData.ExpiresAt,
             jobAdData.Description, // sanitised JobAd.Description — NEVER raw_payload (ADR 0086 D5)
+                                   // #842 Tier A: post-scrub contacts, frozen for the applicant's follow-up (re-bind
+                                   // R1(d)/R2 — the purpose lands exactly here). Applying to an already-archived ad
+                                   // freezes null: retention cleared the ad's contacts and the snapshot cannot capture
+                                   // what the aggregate no longer holds (b1's accepted consequence).
+            jobAdData.Contacts,
             clock.UtcNow);
 
         var result = DomainApplication.CreateFromJobAd(
@@ -124,5 +130,11 @@ public sealed class CreateApplicationFromJobAdCommandHandler(
         string Source,
         DateTimeOffset PublishedAt,
         DateTimeOffset? ExpiresAt,
-        string? MunicipalityConceptId);
+        string? MunicipalityConceptId,
+        Domain.JobAds.AdContacts? Contacts)
+    {
+        // PII (#842): Contacts carries recruiter name/email/phone. A record's default ToString
+        // prints every member — redacted for the same reason as JobAdImportItem's.
+        public override string ToString() => $"JobAdSnapshotSource(Title={Title}, redacted)";
+    }
 }

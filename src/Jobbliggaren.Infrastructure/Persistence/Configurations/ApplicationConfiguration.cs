@@ -4,6 +4,7 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Jobbliggaren.Infrastructure.Persistence.Configurations;
 
@@ -103,6 +104,18 @@ public sealed class ApplicationConfiguration : IEntityTypeConfiguration<DomainAp
                 .HasColumnName("snapshot_expires_at");
             snap.Property(s => s.Description)
                 .HasColumnName("snapshot_description");
+            // #842 Tier A — the frozen recruiter contacts (nullable jsonb, same ValueConverter
+            // as job_ads.contacts). The funnel never writes a snapshot, so the erasure command's
+            // surgical arm (Application.EraseAdSnapshotContacts) is durable by construction here.
+            // Unindexed (T1). NOTE for the OwnsOne all-null sentinel below: capturedAt is
+            // non-null on every real snapshot, so a contacts-only value can never make an
+            // otherwise-absent snapshot look present.
+            snap.Property(s => s.Contacts)
+                .HasColumnName("snapshot_contacts")
+                .HasColumnType("jsonb")
+                .HasConversion(
+                    (ValueConverter)AdContactsConversion.Converter,
+                    AdContactsConversion.Comparer);
             snap.Property(s => s.CapturedAt)
                 .HasColumnName("snapshot_captured_at");
         });

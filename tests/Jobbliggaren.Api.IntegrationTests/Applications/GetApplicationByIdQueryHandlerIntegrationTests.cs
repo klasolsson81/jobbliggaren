@@ -406,7 +406,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
             "Backend-utvecklare", Company.Create("Klarna").Value, "En beskrivning.",
             "https://example.com/jobb/1",
             ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
-            rawPayload, TestFacets.FromPayload(rawPayload), clock.UtcNow, null, clock).Value;
+            rawPayload, TestFacets.FromPayload(rawPayload), [], clock.UtcNow, null, clock).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(CancellationToken.None);
 

@@ -103,7 +103,7 @@ public class ListJobAdsStatusFilterOracleTests(ApiFactory factory)
                 facets: TestFacets.FromPayload(rawPayload),
                 publishedAt: publishedAt,
                 expiresAt: clock.UtcNow.AddDays(30),
-                clock: clock).Value;
+                clock: clock, declaredContacts: []).Value;
 
             db.JobAds.Add(jobAd);
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -447,7 +447,7 @@ public class ListJobAdsStatusFilterOracleTests(ApiFactory factory)
                 facets: TestFacets.FromPayload(rawPayload),
                 publishedAt: publishedAt,
                 expiresAt: clock.UtcNow.AddDays(30),
-                clock: clock).Value;
+                clock: clock, declaredContacts: []).Value;
 
             db.JobAds.Add(jobAd);
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);

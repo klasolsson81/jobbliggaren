@@ -84,6 +84,15 @@ public enum ErasureMatchChannel
     /// surfaced un-flagged, even in the operator's review payload (ADR 0087 D8(c)).
     /// </summary>
     OrganizationNumber,
+
+    /// <summary>
+    /// Literal hit in the structured <c>job_ads.contacts</c> field (#842 Tier A). Post-scrub this
+    /// is the ONLY carrier of a detected email/phone on the ad, so it is the load-bearing Tier-A
+    /// channel — riding <see cref="FullTextOrRawPayload"/> would hide a reviewable hit behind an
+    /// empty excerpt (T8 CTO 2026-07-16). <c>MatchedExcerpt</c> is the matched contact's own
+    /// fields — exactly the data under review, shown to the admin operator only.
+    /// </summary>
+    ContactsMatch,
 }
 
 /// <summary>
@@ -162,12 +171,13 @@ public sealed record ErasureSurfaceCounts(
     int RecentJobSearches,
     int SavedSearches,
     int ApplicationSnapshots,
+    int ApplicationSnapshotContacts,
     int ManualAdEntries,
     int CompanyWatchCriteria,
     int ResumeMetadata,
     int ApplicationsReferencingMatchedAds)
 {
-    public static ErasureSurfaceCounts None { get; } = new(0, 0, 0, 0, 0, 0, 0, 0);
+    public static ErasureSurfaceCounts None { get; } = new(0, 0, 0, 0, 0, 0, 0, 0, 0);
 
     /// <summary>
     /// The sum of every surface. <b>Hand-written, and load-bearing twice</b> — it decides
@@ -178,7 +188,7 @@ public sealed record ErasureSurfaceCounts(
     /// </summary>
     public int Total =>
         JobAds + RecentJobSearches + SavedSearches + ApplicationSnapshots
-        + ManualAdEntries + CompanyWatchCriteria + ResumeMetadata
+        + ApplicationSnapshotContacts + ManualAdEntries + CompanyWatchCriteria + ResumeMetadata
         + ApplicationsReferencingMatchedAds;
 }
 

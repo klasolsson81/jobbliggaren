@@ -67,7 +67,7 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-publishedDaysAgo),
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock).Value;
+            clock: clock, declaredContacts: []).Value;
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);

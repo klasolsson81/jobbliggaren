@@ -196,13 +196,15 @@ internal sealed partial class PlatsbankenJobSource(
         if (string.IsNullOrWhiteSpace(hit.Id) || hit.PublicationDate is null)
             return null;
 
-        // SECURITY-NOTE — the Maj-1 note that stood here (ad is public ⇒ plaintext body is fine;
-        // redaction deferred to a Trigger-TD) is FALSIFIED. See ADR 0106 / #842.
-        //
-        // NOTHING HERE SCRUBS THE AD BODY. The description and url below are stored verbatim, and
-        // the body is full-text indexed into search_vector. Until Tier A lands (ADR 0106 — promote
-        // the contact into a typed, un-indexed, erasable field, then scrub the body), the Art. 17
-        // remedy for anything in this body is whole-record erasure: EraseRecruiterAdsCommand.
+        // SECURITY-NOTE (#842 Tier A, ADR 0106) — NOTHING HERE SCRUBS THE AD BODY, deliberately.
+        // The scrub is a JobAd AGGREGATE INVARIANT (JobAd.Import/UpdateFromSource →
+        // ApplyContactRedaction): placement inside the funnel is what makes it durable (F-A — the
+        // nightly sync re-applies it on every rewrite) and complete (F-B — the extractor reads the
+        // aggregate's post-scrub text). An ACL-side scrub would be a second normalizer the next
+        // write path forgets. What the ACL DOES own is the wire shape: the declared
+        // application_contacts are mapped to Domain AdContacts below and travel with the payload.
+        // The recruiter's NAME in free text remains, is FTS-searchable, and is Tier B's population
+        // (whole-record erasure) — that residual is disclosed, not hidden (D12).
         var headline = hit.Headline?.Trim();
         var description = hit.Description?.Text?.Trim();
         // sec-Min-1: filtrera bort mailto:-länkar (application_details.url-fallback
@@ -248,7 +250,37 @@ internal sealed partial class PlatsbankenJobSource(
             ExpiresAt: expiresAt,
             SanitizedRawPayload: sanitized,
             Facets: MapFacets(hit),
-            Requirements: MapRequirements(hit));
+            Requirements: MapRequirements(hit),
+            DeclaredContacts: MapContacts(hit));
+    }
+
+    // #842 Tier A (re-bind R1(a)) — ACL translation of the declared contact persons. The wire's
+    // role information lives in two keys: contact_type (a type code, usually null in live data)
+    // and description (free text like "Rekryterare" — the form advertisers actually fill in);
+    // contact_type wins when both exist, because it is the structured one. All-null entries are
+    // wire junk and drop via AdContact.TryCreate (blank-is-absence, the JobAdFacets lesson).
+    // Name is the ADVERTISER'S declaration here — never an inference (Origin = Declared; the
+    // detector-promoted contacts are born in the aggregate with Origin = ExtractedFromBody and
+    // Name = null).
+    private static List<AdContact> MapContacts(JobTechHit hit)
+    {
+        if (hit.ApplicationContacts is not { Count: > 0 } wireContacts)
+            return [];
+
+        var contacts = new List<AdContact>(wireContacts.Count);
+        foreach (var wire in wireContacts)
+        {
+            var contact = AdContact.TryCreate(
+                wire.Name,
+                role: string.IsNullOrWhiteSpace(wire.ContactType) ? wire.Description : wire.ContactType,
+                wire.Email,
+                wire.Telephone,
+                AdContactOrigin.Declared);
+            if (contact is not null)
+                contacts.Add(contact);
+        }
+
+        return contacts;
     }
 
     // #841 — ACL translation of the seven source facets. Until 2026-07-13 these were derived by POSTGRES,

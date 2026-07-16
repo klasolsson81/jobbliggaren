@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -99,6 +100,20 @@ public static class JobTechPayloadSanitizer
     /// keys (rekursivt). Vid parse-fel returneras en tom JSON-object "{}" så
     /// nedströms-konsumenter alltid får giltigt jsonb-värde.
     /// </summary>
+    // #842 Tier A — output encoding, NOT a filter change (the allowlist above is untouched,
+    // re-bind R1(e)). ToJsonString()'s default encoder \uXXXX-escapes every non-ASCII character,
+    // so the C# STRING the aggregate scrubs carried "Håkan" and "070 123…" where the
+    // detector's regex sees letters and separators — an NBSP-separated phone or an åäö email
+    // survived the scrub in the payload copy while jsonb stored it DECODED and fully readable.
+    // (Postgres decodes escapes on the text→jsonb cast, so the DB semantics are identical either
+    // way; only the pre-storage string the invariant runs over changes.) Relaxed escaping makes
+    // the string the scrub sees equal the text the database stores. "Unsafe" = do not embed in
+    // HTML; this value goes into a jsonb column.
+    private static readonly JsonSerializerOptions RelaxedEscaping = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
     public static string SanitizeForStorage(string rawJson)
     {
         if (string.IsNullOrWhiteSpace(rawJson))
@@ -111,7 +126,7 @@ public static class JobTechPayloadSanitizer
                 return "{}";
 
             var sanitized = Sanitize(node);
-            return sanitized?.ToJsonString() ?? "{}";
+            return sanitized?.ToJsonString(RelaxedEscaping) ?? "{}";
         }
         catch (JsonException)
         {

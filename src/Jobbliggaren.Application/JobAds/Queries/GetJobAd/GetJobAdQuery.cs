@@ -8,4 +8,4 @@ namespace Jobbliggaren.Application.JobAds.Queries.GetJobAd;
 /// "erased" are different answers and only one of them is true (#842 — 404 vs 410; see
 /// <see cref="GetJobAdQueryHandler"/>).
 /// </summary>
-public sealed record GetJobAdQuery(Guid Id) : IQuery<Result<JobAdDto>>;
+public sealed record GetJobAdQuery(Guid Id) : IQuery<Result<JobAdDetailDto>>;

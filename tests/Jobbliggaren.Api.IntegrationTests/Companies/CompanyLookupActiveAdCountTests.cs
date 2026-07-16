@@ -106,7 +106,7 @@ public class CompanyLookupActiveAdCountTests
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock).Value;
+            clock: clock, declaredContacts: []).Value;
 
         // Archived: a real domain transition (status='Archived') — excluded by status='Active'.
         if (archived)

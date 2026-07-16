@@ -1,5 +1,6 @@
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds.Events;
+using Jobbliggaren.Domain.Privacy;
 
 namespace Jobbliggaren.Domain.JobAds;
 
@@ -57,6 +58,18 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     // OrganizationNumber.IsPersonnummerShaped at the display boundary (ADR 0087 D8(c)).
     // Guarded at build time by JobAdPublicSurfaceGuardTests + OrganizationNumberSurfacingGuardTests.
     public string? OrganizationNumber { get; private set; }
+
+    // #842 Tier A (ADR 0106, CTO re-bind R1 + b1 §4) — the recruiter contacts, in the bounded,
+    // un-indexed, retention-bounded, surgically erasable carrier. PII, highest priority
+    // (CLAUDE.md §5): never logged, never on a list DTO (the list DTO is structurally incapable
+    // of carrying it — re-bind R2/ISP). Written ONLY inside SetSourcePayload and ONLY while the
+    // ad is Active (b1 §4.1: Import always constructs Active, so the gate bites in
+    // UpdateFromSource — an archived-but-still-listed ad's nightly rewrite scrubs the body but
+    // can never repopulate the contacts retention already cleared). NULL = never populated
+    // (pre-Tier-A rows) or retention-cleared (non-Active); AdContacts.Empty = the funnel ran and
+    // found nothing. Cleared by Archive(), the two bulk archival writers (ExpireJobAdsJob,
+    // JobAdSnapshotMissTracker — fitness-tested: no non-Active ad holds a contact) and Erase().
+    public AdContacts? Contacts { get; private set; }
 
     // F4-4 (ADR 0071/0074 Path C) — deterministic keyword/skill extraction
     // (jsonb i DB). NULL = aldrig extraherat (alla rader importerade före F4-4
@@ -126,12 +139,14 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         ExternalReference external,
         string? rawPayload,
         JobAdFacets facets,
+        IReadOnlyList<AdContact> declaredContacts,
         DateTimeOffset publishedAt,
         DateTimeOffset? expiresAt,
         IDateTimeProvider clock)
     {
         ArgumentNullException.ThrowIfNull(external);
         ArgumentNullException.ThrowIfNull(facets);
+        ArgumentNullException.ThrowIfNull(declaredContacts);
 
         var validation = ValidateCore(title, description, url, publishedAt, expiresAt);
         if (validation.IsFailure)
@@ -149,9 +164,9 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         {
             External = external,
         };
-        jobAd.SetSourcePayload(rawPayload, facets);
+        jobAd.SetSourcePayload(rawPayload, facets, declaredContacts);
         jobAd.RaiseDomainEvent(new JobAdImportedDomainEvent(
-            id, external.Source.Value, external.ExternalId, title.Trim(), now));
+            id, external.Source.Value, external.ExternalId, jobAd.Title, now));
         return Result.Success(jobAd);
     }
 
@@ -170,6 +185,16 @@ public sealed class JobAd : AggregateRoot<JobAdId>
                 DomainError.Validation("JobAd.AlreadyArchived", "Annonsen är redan arkiverad."));
 
         Status = JobAdStatus.Archived;
+
+        // #842 Tier A retention (re-bind R4 + b1 §4.2): the contact's purpose on the ad is
+        // "enable apply, and enable capture-at-apply" — it ends the moment the ad stops being
+        // applicable. Tighter than any day-count: "as long as you can still apply". The TWO BULK
+        // archival writers (ExpireJobAdsJob, JobAdSnapshotMissTracker) bypass the aggregate and
+        // clear the column themselves; the shared rule is pinned by the retention fitness test
+        // (no non-Active ad holds a contact), because three writers on one invariant is a rule
+        // that needs a test, not a convention.
+        Contacts = null;
+
         RaiseDomainEvent(new JobAdArchivedDomainEvent(Id, clock.UtcNow));
         return Result.Success();
     }
@@ -239,10 +264,37 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         // NotRecruiterData, and a tombstone that keeps its SSYK code discloses nothing about her.
         OrganizationNumber = null;
 
+        // #842 Tier A: the structured contact carrier dies with the record — it IS the
+        // recruiter's name/email/phone, the most direct PII on the row. Retention normally
+        // clears it at archival, but Erase() can run against a still-Active ad, so the tombstone
+        // clears it explicitly. Pinned by the registry-derived tombstone-shape test
+        // (job_ads.contacts is classified Erased in ErasureCascadeRegistry).
+        Contacts = null;
+
         ExtractedTerms = ExtractedTerms.Empty;
         Status = JobAdStatus.Erased;
 
         RaiseDomainEvent(new JobAdErasedDomainEvent(Id, External?.ExternalId, clock.UtcNow));
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// #842 Tier A — the erasure command's belt-to-retention's-braces sweep (b1 §4.4): clear a
+    /// NON-Active ad's contacts. Retention (Archive/the bulk writers) should already have left
+    /// nothing here, so this normally touches zero rows — but a backstop that exists only in a
+    /// fitness test is a convention, and this repo has shipped "a rule nobody enforced" three
+    /// times. Refuses on an Active ad BY TYPE: a surgical contact clear is never the remedy for a
+    /// live ad (the funnel would rewrite it within ten minutes and we would have confirmed an
+    /// erasure the nightly sync undoes — the B1 defect). The live-ad remedy is Erase().
+    /// </summary>
+    public Result ClearContactsRetentionBackstop()
+    {
+        if (Status == JobAdStatus.Active)
+            return Result.Failure(
+                DomainError.Validation("JobAd.ContactsBackstopActiveAd",
+                    "Kontakter på en aktiv annons rensas inte kirurgiskt — radera hela annonsen."));
+
+        Contacts = null;
         return Result.Success();
     }
 
@@ -256,9 +308,11 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         string? url,
         string? rawPayload,
         JobAdFacets facets,
+        IReadOnlyList<AdContact> declaredContacts,
         DateTimeOffset? expiresAt)
     {
         ArgumentNullException.ThrowIfNull(facets);
+        ArgumentNullException.ThrowIfNull(declaredContacts);
 
         if (External is null)
             return Result.Failure(
@@ -295,7 +349,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         Description = description!.Trim();
         Url = url!;
         ExpiresAt = expiresAt;
-        SetSourcePayload(rawPayload, facets);
+        SetSourcePayload(rawPayload, facets, declaredContacts);
 
         return Result.Success();
     }
@@ -325,7 +379,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     /// either: <c>JobAdRawPayloadDerivationGuardTests</c> fails the build if a second one appears.
     /// </para>
     /// </summary>
-    private void SetSourcePayload(string rawPayload, JobAdFacets facets)
+    private void SetSourcePayload(string rawPayload, JobAdFacets facets, IReadOnlyList<AdContact> declaredContacts)
     {
         RawPayload = rawPayload;
         SsykConceptId = facets.SsykConceptId;
@@ -335,6 +389,65 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         EmploymentTypeConceptId = facets.EmploymentTypeConceptId;
         WorktimeExtentConceptId = facets.WorktimeExtentConceptId;
         OrganizationNumber = facets.OrganizationNumber;
+
+        ApplyContactRedaction(declaredContacts);
+    }
+
+    /// <summary>
+    /// #842 Tier A (ADR 0106 D4, CTO re-bind R1) — THE aggregate invariant: an imported ad never
+    /// holds a detected recruiter email/phone in its body text. Promote → merge → scrub, in that
+    /// order: the declared <c>application_contacts</c> win, every uncovered detector hit is
+    /// promoted (<c>Origin = ExtractedFromBody</c>, never a guessed name), and the body keeps only
+    /// the marker.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Placement IS the durability argument (F-A).</b> The nightly snapshot and the 10-minute
+    /// stream both funnel through <see cref="UpdateFromSource"/>, which reaches here
+    /// unconditionally — so the scrub is re-applied on every rewrite, with no ledger, no
+    /// tombstone column and no suppression flag. And because <c>ApplyExtraction</c> in the upsert
+    /// handler reads the AGGREGATE's post-scrub <c>Title</c>/<c>Description</c>,
+    /// <c>extracted_terms</c> derives from clean text on both the Add and Update paths (F-B), and
+    /// the STORED <c>search_vector</c>/<c>extracted_lexemes</c> follow.
+    /// </para>
+    /// <para>
+    /// <b>The body is scrubbed in EVERY status; <see cref="Contacts"/> is populated ONLY while
+    /// Active</b> (b1 §4.1). The bulk archival writers run outside the aggregate, so an
+    /// archived-but-still-listed ad is rewritten nightly (F2+F5) — the gate here is what makes the
+    /// retention rule ("no non-Active ad holds a contact") durable by placement instead of a
+    /// convention the funnel violates every night. <c>Status</c> is monotone (F8), so the gate is
+    /// permanently correct.
+    /// </para>
+    /// <para>
+    /// <b>The manual path (<see cref="Create"/>) is NOT scrubbed, deliberately.</b> A manually
+    /// tracked ad's text is the USER'S authored record, and a rule engine never rewrites user
+    /// content silently (CLAUDE.md §5). The invariant is scoped to imported ads — this method is
+    /// reachable only via <see cref="Import"/>/<see cref="UpdateFromSource"/>, whose required
+    /// <paramref name="declaredContacts"/> parameter makes an ingest write that skips the scrub
+    /// uncompilable (the <see cref="SetSourcePayload"/> atomicity argument, third rider).
+    /// </para>
+    /// <para>
+    /// <b>Title clamp:</b> <c>ValidateCore</c> caps the title at 300 BEFORE the marker lands, so a
+    /// title whose contact span is shorter than the marker can overflow the varchar(300) column
+    /// and fail the save with a 22001 long after validation said yes. Truncating the marker's tail
+    /// is the lesser harm — the contact is still gone, which is the invariant.
+    /// </para>
+    /// </remarks>
+    private void ApplyContactRedaction(IReadOnlyList<AdContact> declaredContacts)
+    {
+        var title = RecruiterContactRedactor.Redact(Title);
+        var description = RecruiterContactRedactor.Redact(Description);
+        var payload = RecruiterContactRedactor.Redact(RawPayload);
+
+        Title = title.Scrubbed.Length <= 300 ? title.Scrubbed : title.Scrubbed[..300];
+        Description = description.Scrubbed;
+        RawPayload = payload.Scrubbed;
+
+        Contacts = Status == JobAdStatus.Active
+            ? AdContacts.From(
+                declaredContacts,
+                [.. title.Found, .. description.Found, .. payload.Found])
+            : null;
     }
 
     // F4-4 — set the deterministic keyword/skill extraction (ADR 0071/0074).

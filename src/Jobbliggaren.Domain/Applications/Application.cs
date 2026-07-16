@@ -188,6 +188,17 @@ public sealed class Application : AggregateRoot<ApplicationId>
     }
 
     /// <summary>
+    /// #842 Tier A — the surgical Art. 17 arm (b1 §4.4; T2 CTO 2026-07-16): remove the
+    /// recruiter's frozen contact block from this application's snapshot, leaving the applicant's
+    /// own record (title/company/body/url) intact. Durable by construction — the ingest funnel
+    /// never writes a snapshot, so nothing can restore what this removes. Idempotent; no domain
+    /// event (T2(iv): the erasure command's <c>audit_log.payload</c> carries the whole
+    /// per-surface count set and IS the accountability unit — an event here would have no
+    /// consumer).
+    /// </summary>
+    public void EraseAdSnapshotContacts() => AdSnapshot = AdSnapshot?.WithoutContacts();
+
+    /// <summary>
     /// Move the application to <paramref name="target"/>. ADR 0092 D3: transitions
     /// are FREE — any of the ten statuses is a valid target (forward, backward, or
     /// to Ghosted). The removed state-machine grind is replaced by an undo-toast +
@@ -234,18 +245,20 @@ public sealed class Application : AggregateRoot<ApplicationId>
             AppliedAt = now;
 
         // Retention / GDPR data-minimisation (issue #315, ADR 0086 D3, GDPR Art.
-        // 5(1)(c)): on the user's TERMINAL transition (Accepted/Rejected/
-        // Withdrawn) only, drop the bulky preserved ad body, keeping the minimal
-        // stats/identity metadata (title/employer/location/dates). NEVER cleared
-        // because the source ad disappeared — that is exactly when it is needed.
-        // Idempotent, mirroring the AppliedAt stamp above. Ghosted is not
+        // 5(1)(c); #842 Tier A re-bind R4(b)): on the user's TERMINAL transition
+        // (Accepted/Rejected/Withdrawn) only, drop the preserved ad BODY — the
+        // bulky description AND the recruiter contact block (the follow-up
+        // purpose is spent; there is nobody left to contact) — keeping the
+        // minimal stats/identity metadata (title/employer/location/dates). NEVER
+        // cleared because the source ad disappeared — that is exactly when it is
+        // needed. Idempotent, mirroring the AppliedAt stamp above. Ghosted is not
         // terminal (reactivatable), so the body is never minimised there.
-        // Minimisation is monotonic: WithoutDescription only ever strips, never
+        // Minimisation is monotonic: WithoutAdBody only ever strips, never
         // restores, and runs solely on a terminal TARGET — so a free reopen out of
         // a terminal (ADR 0092 D3, e.g. Accepted→Submitted) can never regress an
-        // already-dropped description.
+        // already-dropped body.
         if (IsTerminal(target))
-            AdSnapshot = AdSnapshot?.WithoutDescription();
+            AdSnapshot = AdSnapshot?.WithoutAdBody();
 
         // ADR 0092 D4: record the transition on the append-only timeline in the
         // same aggregate mutation (one UnitOfWork), so the timeline can never

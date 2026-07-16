@@ -49,7 +49,14 @@ public sealed partial class ExpireJobAdsJob(
                         && j.ExpiresAt != null
                         && j.ExpiresAt < startedAt)
             .ExecuteUpdateAsync(
-                s => s.SetProperty(j => j.Status, _ => archivedStatus),
+                // #842 Tier A retention (re-bind R4, b1 §4.2): the bulk path bypasses the
+                // aggregate, so the contact clear Archive() performs must be repeated HERE — one
+                // of the THREE archival writers the fitness test ("no non-Active ad holds a
+                // contact") binds together. The typed null cast is what makes the
+                // converter-mapped jsonb SetProperty translate.
+                s => s
+                    .SetProperty(j => j.Status, _ => archivedStatus)
+                    .SetProperty(j => j.Contacts, _ => (AdContacts?)null),
                 cancellationToken).ConfigureAwait(false);
 
         var completedAt = clock.UtcNow;

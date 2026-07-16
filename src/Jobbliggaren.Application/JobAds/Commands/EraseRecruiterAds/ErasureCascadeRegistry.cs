@@ -144,6 +144,7 @@ public static class ErasureCascadeRegistry
         "RecentJobSearches",
         "SavedSearches",
         "ApplicationSnapshots",
+        "ApplicationSnapshotContacts",
         "ManualAdEntries",
         "CompanyWatchCriteria",
         "ResumeMetadata",
@@ -180,6 +181,10 @@ public static class ErasureCascadeRegistry
                 "job_ads.raw_payload",
                 "job_ads.search_vector",
                 "job_ads.organization_number",
+                // #842 Tier A — LOAD-BEARING: post-scrub, a detected email/phone lives ONLY here.
+                // Without this column in the channel, the erasure command is vacuous for exactly
+                // the data Tier A just moved (architect Q8(a)).
+                "job_ads.contacts",
             ],
             nameof(Abstractions.IRecruiterErasureMatchQuery.FindJobAdsAsync)),
 
@@ -205,6 +210,16 @@ public static class ErasureCascadeRegistry
                 "applications.snapshot_url",
             ],
             nameof(Abstractions.IRecruiterErasureMatchQuery.CountApplicationSnapshotsAsync)),
+
+        // #842 Tier A — its OWN surface, never folded into ApplicationSnapshots (T2 CTO
+        // 2026-07-16): one surface = one disposition = one honest Matched−Erased meaning. The four
+        // body columns above are retained (17(3)(e)); the frozen contact block is ERASED
+        // surgically. A mixed surface would force the reply to over- or under-claim.
+        new("ApplicationSnapshotContacts",
+            [
+                "applications.snapshot_contacts",
+            ],
+            nameof(Abstractions.IRecruiterErasureMatchQuery.FindApplicationSnapshotContactsAsync)),
 
         new("ManualAdEntries",
             [
@@ -307,6 +322,19 @@ public static class ErasureCascadeRegistry
             ["job_ads.extracted_lexemes"] = ErasureColumnDisposition.Erased,
             ["job_ads.search_vector"] = ErasureColumnDisposition.Erased,
             ["job_ads.organization_number"] = ErasureColumnDisposition.Erased,
+
+            // #842 Tier A — the structured contact carrier. Erase() clears it explicitly (the
+            // tombstone-shape test derives the requirement from this very entry); retention
+            // (Archive + the two bulk archival writers) clears it the moment the ad leaves Active.
+            ["job_ads.contacts"] = ErasureColumnDisposition.Erased,
+
+            // #842 Tier A — the frozen contact block on the applicant's snapshot. ERASED — but
+            // SURGICALLY (Application.EraseAdSnapshotContacts), never with the applicant's record:
+            // the body columns below stay MatchedRetained under 17(3)(e) (the aktivitetsrapport
+            // spine is HER legal record; the recruiter's contact block is not, and its follow-up
+            // purpose is spent at the erasure request — T2 CTO 2026-07-16). The funnel never
+            // rewrites a snapshot, so the erase is durable by construction.
+            ["applications.snapshot_contacts"] = ErasureColumnDisposition.Erased,
             ["job_ads.external_id"] = ErasureColumnDisposition.NotRecruiterData,
             ["job_ads.external_source"] = ErasureColumnDisposition.NotRecruiterData,
             ["job_ads.source"] = ErasureColumnDisposition.NotRecruiterData,

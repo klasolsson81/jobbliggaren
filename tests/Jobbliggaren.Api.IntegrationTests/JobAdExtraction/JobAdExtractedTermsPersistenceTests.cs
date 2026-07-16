@@ -82,6 +82,7 @@ public sealed class JobAdExtractedTermsPersistenceTests : IAsyncLifetime
         return JobAd.Import(
             title, company, description, "https://example.com/jobb/1",
             external, "{\"id\":\"x\"}", TestFacets.FromPayload("{\"id\":\"x\"}"),
+            [],
             new DateTimeOffset(2026, 5, 1, 0, 0, 0, TimeSpan.Zero),
             new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock).Value;
     }

@@ -28,7 +28,7 @@ public class ApplicationCreateFromJobAdTests
             publishedAt: new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),
             expiresAt: new DateTimeOffset(2026, 5, 1, 0, 0, 0, TimeSpan.Zero),
             description: "En beskrivning.",
-            capturedAt: Clock.UtcNow);
+            capturedAt: Clock.UtcNow, contacts: null);
 
     // ---------------------------------------------------------------
     // Success — Draft, JobAdId + AdSnapshot satta, ManualPosting null

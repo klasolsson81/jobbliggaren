@@ -399,15 +399,19 @@ autonomous flow.
 
 **Scope clarification (Klas-direktiv 2026-07-16):** the security clause gates
 on the two conditions it names — missing tests or an unresolved
-security-auditor finding — not on the subject matter alone. A security-critical
-change **with** tests and a security-auditor **APPROVE (0 Blocker / 0 Major)**
-rides the normal automerge flow (§6); Klas reviews the diff post-merge and
-verifies FE surfaces live (the FAS-DEFERRAL pattern). The earlier practice of
-holding tested, auditor-approved security PRs for a manual pre-merge
-("§12-gated — Klas mergar") is retired: a gate that is always pressed through
-adds latency, not review. Migration-bearing PRs are untouched by this
-clarification — whether they ride automerge stays a per-case call (EF
-migrations remain the most dangerous hotspot, §6.5).
+security-auditor **Blocker/Major** — not on the subject matter alone. A
+security-critical change **with** tests and a security-auditor **APPROVE
+(0 Blocker / 0 Major, issued against the final diff)** rides the normal
+automerge flow (§6); Klas reviews the diff post-merge and verifies FE surfaces
+live (the FAS-DEFERRAL pattern). The earlier practice of holding tested,
+auditor-approved security PRs for a manual pre-merge ("§12-gated — Klas
+mergar") is retired: a gate that is always pressed through adds latency, not
+review. This clarification touches only the security clause — the other §12
+classes (§5 anti-patterns, Clean Architecture boundaries, non-BUILD.md
+libraries, design tokens) remain fully STOPP-blocking, and every applicable
+class must clear independently. Migration-bearing PRs are likewise untouched —
+whether they ride automerge stays a per-case call (EF migrations remain the
+most dangerous hotspot, §6.5).
 
 ## 13. Update process
 

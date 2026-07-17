@@ -9,11 +9,12 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.Resumes;
 
 // Fas 4 STEG B / B2 — HTTP wiring for the F4-9/F4-10 analysis ports over the import→analyze
-// round-trip: review (CvReviewDto), improvements (CvImprovementDto), render (PDF bytes). Proves
-// the auth gate, the fail-loud ?profile= validation, the owner-scoped IDOR, and — for render —
-// that the PDF is returned as a raw application/pdf body, not JSON. The deep engine/renderer
-// logic + the pnr-redaction + encryption are already covered by F4-9/F4-10 + the Worker tests;
-// this covers the endpoint surface (incl. the review transmit boundary).
+// round-trip: review (CvReviewDto) and render (PDF bytes). Proves the auth gate, the fail-loud
+// ?profile= validation, the owner-scoped IDOR, and — for render — that the PDF is returned as a
+// raw application/pdf body, not JSON. The improvements half was removed with the åtgärda-lager's
+// deferral (CV-pivot 2026-07-16, ADR 0112). The deep engine/renderer logic + the pnr-redaction +
+// encryption are already covered by F4-9/F4-10 + the Worker tests; this covers the endpoint
+// surface (incl. the review transmit boundary).
 [Collection("Api")]
 public class ParsedResumeAnalysisEndpointTests(ApiFactory factory)
 {
@@ -142,19 +143,9 @@ public class ParsedResumeAnalysisEndpointTests(ApiFactory factory)
         throw new InvalidOperationException($"Kriteriet {criterionId} saknas i granskningens verdicts.");
     }
 
-    [Fact]
-    public async Task Import_then_GET_improvements_returns_200_with_changes_array()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await AuthenticateAsync(ct);
-        var id = await ImportAsync(_client, ct);
-
-        var get = await _client.GetAsync($"/api/v1/resumes/parsed/{id}/improvements?profile=Ats", ct);
-
-        get.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var json = await get.Content.ReadFromJsonAsync<JsonElement>(ct);
-        json.GetProperty("changes").ValueKind.ShouldBe(JsonValueKind.Array);
-    }
+    // GET /parsed/{id}/improvements tests were REMOVED with the åtgärda-lager's deferral
+    // (CV-pivot 2026-07-16, ADR 0112, CTO-bind D8 Opt C) — the endpoint is gone. The
+    // handler/engine unit tests stay: they guard the mothballed motor.
 
     [Fact]
     public async Task Import_then_GET_render_returns_200_pdf_bytes_not_json()
@@ -174,16 +165,6 @@ public class ParsedResumeAnalysisEndpointTests(ApiFactory factory)
     }
 
     // ---- IDOR ----
-
-    [Fact]
-    public async Task GET_improvements_invalid_profile_returns_400()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await AuthenticateAsync(ct);
-        var id = await ImportAsync(_client, ct);
-        var response = await _client.GetAsync($"/api/v1/resumes/parsed/{id}/improvements?profile=Klingon", ct);
-        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-    }
 
     [Fact]
     public async Task GET_review_belonging_to_other_user_returns_404()

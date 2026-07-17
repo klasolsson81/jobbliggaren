@@ -88,10 +88,10 @@ public sealed class ListCompanyWatchesQueryHandler(
 
         // #447 — active-ad count per followed employer. Same org.nr set, PUBLIC job_ads, but keyed on
         // status='Active' — which is the WHOLE exclusion (JobAd has no soft-delete axis and no query
-        // filter, #821). Repo-wide translation form j.Status == JobAdStatus.Active, value-converted
-        // to `status = 'Active'`). GROUP BY the STORED organization_number shadow column server-side;
-        // the global soft-delete filter already excludes retracted ads (ADR 0048 — IgnoreQueryFilters
-        // / manual deleted_at forbidden). Bounded to the handful of watched org.nrs. Only Postgres
+        // filter, #821; there is no ADR 0048 soft-delete filter here to credit — #864 B4 truth-sync).
+        // Repo-wide translation form j.Status == JobAdStatus.Active, value-converted
+        // to `status = 'Active'`). GROUP BY the STORED organization_number shadow column server-side.
+        // Bounded to the handful of watched org.nrs. Only Postgres
         // computes the generated column + translates this GROUP BY, so the count is proven by the
         // Testcontainers integration test (InMemory hides both).
         var activeAdCountByOrgNr = (await db.JobAds

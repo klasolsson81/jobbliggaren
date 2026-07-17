@@ -43,6 +43,16 @@ public sealed partial class ExpireJobAdsJob(
         // SetProperty på SmartEnum-converter fungerar med statisk readonly-värde.
         // JobAd har inget query-filter (#821 retirerade den döda soft-delete-axeln):
         // Status == Active i Where-satsen nedan ÄR hela avgränsningen, explicit.
+        //
+        // ALLOW-LIST (`== Active`), never `!= Archived` — and on THIS writer the deny-list is
+        // worse than a leak: Erase() does not touch ExpiresAt, so a `!= Archived` selection
+        // re-stamps an expired Erased tombstone (#842) to Archived, bypassing the aggregate's
+        // Archive() guard (ExecuteUpdate never loads the aggregate) — and UpdateFromSource's
+        // re-import refusal keys on Status == Erased, so the erased ad walks back in on the next
+        // nightly sync. DELIBERATELY UNWITNESSED here (CTO 2026-07-16, B7): this suite is
+        // substitute-based and cannot execute ExecuteUpdate's SQL; the real-SUT lifecycle test
+        // belongs to the writer-durability follow-up PR (with JobAdSnapshotMissTracker's), a
+        // different change-reason than the read-gate witnesses.
         var archivedStatus = JobAdStatus.Archived;
         var rowsAffected = await db.JobAds
             .Where(j => j.Status == JobAdStatus.Active

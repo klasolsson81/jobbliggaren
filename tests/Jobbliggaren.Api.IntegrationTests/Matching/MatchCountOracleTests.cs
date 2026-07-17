@@ -36,9 +36,12 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// <b>The lifecycle axis (#864, CTO G1).</b> Until #864 this oracle seeded ONLY Active ads, so it
 /// was silent on the very axis where the two engines diverged: the SQL twin has always filtered
 /// <c>Status == Active</c>; the C# scorer carried no gate at all. Test 4 closes that — it seeds an
-/// ARCHIVED ad (via the real <c>JobAd.Archive</c> transition, never a fabricated column) and pins
-/// that BOTH engines exclude it. It binds all THREE independently deletable gates: delete
-/// <c>ScoreBatchAsync</c>'s, <c>ScoreFullBatchAsync</c>'s, or <c>ApplyFilter</c>'s, and it goes red.
+/// ARCHIVED ad (via the real <c>JobAd.Archive</c> transition, never a fabricated column) and an
+/// ERASED ad (the real Art. 17 transition, #842 — the #864-B4 deny-list axis, unlocked by #886)
+/// and pins that BOTH engines exclude BOTH. It binds all THREE independently deletable gates —
+/// delete <c>ScoreBatchAsync</c>'s, <c>ScoreFullBatchAsync</c>'s, or <c>ApplyFilter</c>'s, and it
+/// goes red — and on each gate the erased row additionally kills the flip <c>== Active</c> →
+/// <c>!= Archived</c>, which the archived row alone cannot see.
 /// </para>
 /// <para>
 /// <b>It DOES reach one SINGLE scorer method, on purpose.</b> Test 4 calls the UNGATED
@@ -275,6 +278,31 @@ public class MatchCountOracleTests(ApiFactory factory)
         stored.Status.ShouldBe(JobAdStatus.Archived);
     }
 
+    // #864 follow-up (B4) — the REAL Art. 17 erasure transition (#842). Same fail-loud discipline
+    // as ArchiveAsync: Result asserted, status AND the surviving facet read back through a fresh
+    // context. The facet read-back is the attribution: Erase() keeps the *_concept_id columns, so
+    // the erased row still sits in the run's filter band and its absence below is the status
+    // gate's doing alone — a facet that did NOT survive would make the erased leg vacuous.
+    private async Task EraseAsync(JobAdId id, string run, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var ad = await db.JobAds.FindAsync([id], ct);
+        ad.ShouldNotBeNull();
+        ad!.Erase(clock).IsSuccess.ShouldBeTrue("Erase() ska lyckas — annars är orakelet vakuöst.");
+        await db.SaveChangesAsync(ct);
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stored = await verifyDb.JobAds.AsNoTracking().FirstAsync(j => j.Id == id, ct);
+        stored.Status.ShouldBe(JobAdStatus.Erased);
+        stored.WorktimeExtentConceptId.ShouldBe(run,
+            "run-facetten ska ÖVERLEVA Erase() — annars lämnar tombstonen frågan via " +
+            "worktime-filtret och vittnar inte om status-grinden.");
+    }
+
     // ===============================================================
     // 1. THE LOAD-BEARING COHERENCE INVARIANT — count == list TotalCount for the SAME
     //    profile + grade-set. For [Good,Strong], [Strong], and a singleton, the standalone
@@ -449,11 +477,18 @@ public class MatchCountOracleTests(ApiFactory factory)
     // grade ladder could drop the archived ad from the band for an unrelated reason and this oracle
     // would go green while an engine had lost its gate.
     //
-    // ASYMMETRIC SEED (2 live + 1 archived), and it is load-bearing here, not a habit: with 1 live
-    // + 1 archived, an INVERTED C# gate (`== Archived`) returns exactly ONE graded ad — the
-    // archived one — and the "expected == count" agreement would read 1 == 1 and pass GREEN while
-    // the two engines were grading DISJOINT SETS. With 2 live + 1 archived: correct → 2 == 2;
-    // inverted → 1 ≠ 2 (RED); gate deleted → 3 ≠ 2 (RED).
+    // ASYMMETRIC SEED (2 live + 1 archived + 1 erased), and it is load-bearing here, not a habit:
+    // with 1 live + 1 archived, an INVERTED C# gate (`== Archived`) returns exactly ONE graded ad —
+    // the archived one — and the "expected == count" agreement would read 1 == 1 and pass GREEN
+    // while the two engines were grading DISJOINT SETS. With this seed every mutant state
+    // separates at every gate: correct → 2 == 2; gate deleted → 4; deny-list (`!= Archived`) → 3;
+    // inverted → 1.
+    //
+    // THE ERASED ROW IS THE DENY-LIST AXIS (#864 follow-up, B4): the archived row binds gate
+    // DELETION but is blind to the flip `== Active` → `!= Archived` (excluded by both forms).
+    // #864 recorded that survivor; #886 retired Expired and left Erased (#842, real transition,
+    // facets survive) as the reachable row where the forms disagree — on ALL THREE gates this
+    // oracle binds. A deny-list on any engine grades the tombstone; here that divergence is RED.
     //
     // ABSENCE IS ASSERTED, NEVER INDEXED (the architect's warning): with the gate in place,
     // scores[archivedId] THROWS KeyNotFoundException. A blind index would turn this oracle into an
@@ -461,18 +496,21 @@ public class MatchCountOracleTests(ApiFactory factory)
     // ===============================================================
 
     [Fact]
-    public async Task Count_AndCsharpScorer_AgreeThatAnArchivedAdIsNotAMatch()
+    public async Task Count_AndCsharpScorer_AgreeThatArchivedAndErasedAdsAreNotMatches()
     {
         var ct = TestContext.Current.CancellationToken;
         var run = NewRunWorktimeExtent();
         var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
-        // 2 live Strong + 1 archived Strong. All three would grade Strong on the inputs the scorer
-        // reads — archiving changes none of them. Only the lifecycle status differs.
+        // 2 live Strong + 1 archived Strong + 1 erased Strong. All four would grade Strong on the
+        // inputs the scorer reads — archiving changes none of them, and Erase() keeps the facet
+        // columns. Only the lifecycle status differs.
         var live1 = await SeedStrongAsync(run, t.AddDays(20), ct);
         var live2 = await SeedStrongAsync(run, t.AddDays(19), ct);
         var archived = await SeedStrongAsync(run, t.AddDays(18), ct);
         await ArchiveAsync(archived, ct);
+        var erased = await SeedStrongAsync(run, t.AddDays(17), ct);
+        await EraseAsync(erased, run, ct);
 
         var profile = Profile();
         var filter = FilterFor(run);
@@ -481,7 +519,7 @@ public class MatchCountOracleTests(ApiFactory factory)
         // ---- The C# engine (MatchScorer.ScoreBatchAsync — the scorer-side SSOT) ----
         var (scoreScope, scorer) = NewScorer();
         using var scoreDispose = scoreScope;
-        var scores = await scorer.ScoreBatchAsync([live1, live2, archived], profile.Fast, ct);
+        var scores = await scorer.ScoreBatchAsync([live1, live2, archived, erased], profile.Fast, ct);
 
         // NON-VACUITY FIRST (#841): the two ACTIVE ads ARE scored, and they genuinely land in the
         // headline band. Without this, "the archived one is absent" would pass trivially the day
@@ -504,21 +542,39 @@ public class MatchCountOracleTests(ApiFactory factory)
             "Den arkiverade annonsen SKULLE ha graderat Strong (den ogrindade single-metoden säger " +
             "det) — annars mäter detta orakel inte grinden utan seedens råkade gradfall.");
 
+        // The SAME counterfactual for the erased row — and it carries more: it proves the facets
+        // SURVIVED Erase() all the way into the scorer's read (a tombstone that lost its facets
+        // would grade untagged here, and the erased leg would be measuring seed decay, not gates).
+        var erasedIfItHadStayedActive = await scorer.ScoreAsync(erased, profile.Fast, ct);
+        MatchGradeCalculator.Grade(erasedIfItHadStayedActive).ShouldBe(MatchGrade.Strong,
+            "Den raderade annonsen SKULLE ha graderat Strong (facetterna överlever Erase(), #842) " +
+            "— annars vittnar erased-benet om seed-förfall, inte om grindarna.");
+
         // THE C# SIDE OF THE INVARIANT: the archived ad is MISSING to the batch scorer (#864).
         // Asserted as ABSENCE — never `scores[archived]`, which now throws KeyNotFoundException.
         scores.ShouldNotContainKey(archived,
             "MatchScorer.ScoreBatchAsync grindar på Status == Active (#864) — en arkiverad annons " +
             "är FRÅNVARANDE ur C#-motorns resultat, precis som ett id som inte finns.");
 
+        // THE DENY-LIST AXIS (#864 B4 → killed here): the ERASED tombstone is missing too. The
+        // archived assert above stays green under `!= Archived`; this one goes RED — it is the
+        // allow-list pin on the Fast engine.
+        scores.ShouldNotContainKey(erased,
+            "MatchScorer.ScoreBatchAsync grindar ALLOW-LIST (== Active, #864 D4) — en deny-list " +
+            "(!= Archived) hade graderat Art. 17-tombstonen (#842).");
+
         // The C# engine has TWO batch methods with TWO independently deletable gates. Binding only
         // the Fast one would leave this oracle's "both engines" claim wider than its reach — and
         // ScoreFullBatchAsync is the one with production callers. Bind it too.
-        var fullScores = await scorer.ScoreFullBatchAsync([live1, live2, archived], profile, ct);
+        var fullScores = await scorer.ScoreFullBatchAsync([live1, live2, archived, erased], profile, ct);
         fullScores.ShouldContainKey(live1);
         fullScores.ShouldContainKey(live2);
         fullScores.ShouldNotContainKey(archived,
             "ScoreFullBatchAsync grindar på Status == Active (#864) — samma kontrakt som Fast-batchen. " +
             "Utan denna rad kunde Full-batchens grind raderas med orakelet GRÖNT.");
+        fullScores.ShouldNotContainKey(erased,
+            "Full-batchens allow-list-pin: en deny-list (!= Archived) hade graderat tombstonen — " +
+            "utan denna rad kunde Full-grindens flip överleva med orakelet GRÖNT.");
 
         var csharpHeadlineCount = scores.Count(kv =>
             MatchGradeCalculator.Grade(kv.Value) is { } g && headline.Contains(g));
@@ -533,13 +589,14 @@ public class MatchCountOracleTests(ApiFactory factory)
         // asymmetric seed protects: 1 live + 1 archived would read 1 == 1 even with the C# gate
         // INVERTED, i.e. with the two engines grading disjoint sets.
         csharpHeadlineCount.ShouldBe(2,
-            "C#-motorn ska gradera exakt de TVÅ aktiva annonserna i headline-bandet — inte 3 " +
-            "(grinden raderad) och inte 1 (grinden inverterad).");
+            "C#-motorn ska gradera exakt de TVÅ aktiva annonserna i headline-bandet — inte 4 " +
+            "(grinden raderad), inte 3 (deny-list: tombstonen graderad) och inte 1 (grinden " +
+            "inverterad).");
         sqlCount.ShouldBe(csharpHeadlineCount,
             "SQL-motorn (ApplyFilter: Status == Active) och C#-motorn (MatchScorer: Status == " +
-            "Active, #864) MÅSTE vara eniga om att en ARKIVERAD annons inte är en matchning. " +
-            "Divergens här är exakt det detta orakel finns för att fånga — och exakt det den var " +
-            "BLIND för så länge varenda annons i seeden var Active.");
+            "Active, #864) MÅSTE vara eniga om att en ARKIVERAD eller RADERAD annons inte är en " +
+            "matchning. Divergens här är exakt det detta orakel finns för att fånga — och exakt " +
+            "det den var BLIND för så länge varenda annons i seeden var Active.");
 
         // And the coherence the class already pins (count == list TotalCount) still holds with an
         // archived ad in the corpus — the archived ad is absent from the list path too.
@@ -547,7 +604,8 @@ public class MatchCountOracleTests(ApiFactory factory)
             filter, profile, headline, sort: JobAdSortBy.PublishedAtDesc,
             orderByMatchRank: false, status: JobAdStatusFilter.None, seekerId: default, page: 1, pageSize: 1, ct);
         sqlCount.ShouldBe(page.TotalCount,
-            "Count == list-vägens TotalCount ska hålla även när korpusen innehåller en arkiverad annons.");
+            "Count == list-vägens TotalCount ska hålla även när korpusen innehåller en arkiverad " +
+            "och en raderad annons.");
     }
 
     // ===============================================================

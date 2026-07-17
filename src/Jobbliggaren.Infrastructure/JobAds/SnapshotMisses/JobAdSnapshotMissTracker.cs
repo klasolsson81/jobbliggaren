@@ -118,6 +118,15 @@ internal sealed partial class JobAdSnapshotMissTracker(
         // den explicit. SetProperty på SmartEnum-converter fungerar med statisk
         // readonly-värde JobAdStatus.Archived.
         //
+        // ALLOW-LIST (`== Active`), never `!= Archived` — an erased ad (#842) is by definition
+        // missing from the snapshot, so a deny-list here selects the tombstone and re-stamps it
+        // Archived, bypassing the aggregate's Archive() guard (ExecuteUpdate never loads the
+        // aggregate) and unkeying UpdateFromSource's re-import refusal (`Status == Erased`) —
+        // the erased ad walks back in on the next sync. DELIBERATELY UNWITNESSED here (CTO
+        // 2026-07-16, B8g): no test runs this tracker's real SQL today; the real-SUT lifecycle
+        // test belongs to the writer-durability follow-up PR (with ExpireJobAdsJob's), a
+        // different change-reason than the read-gate witnesses.
+        //
         // Domain-event-bortfall accepterat (CTO 2026-05-23 Q3=B, D8.a — inga
         // subscribers på JobAdArchivedDomainEvent). Aggregerad audit-rad via
         // ISystemEventAuditor skrivs av caller.

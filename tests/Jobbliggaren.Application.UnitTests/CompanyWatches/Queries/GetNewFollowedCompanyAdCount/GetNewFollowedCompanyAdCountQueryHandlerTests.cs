@@ -164,6 +164,40 @@ public class GetNewFollowedCompanyAdCountQueryHandlerTests
             "räkna samma presenterbara mängd, annars säger den '3 nya' och sidan visar 2");
     }
 
+    // #864 follow-up (B4) — the ERASED hit is the ALLOW-LIST pin the archived test cannot be:
+    // under the flip `== Active` → `!= Archived` the archived ad stays excluded (green), while
+    // the Erased tombstone (#842, real Art. 17 transition — reachable since #886) passes the
+    // deny-list and the badge would count an ad NO surface can show. Erase() nulls the ad's
+    // org.nr but the HIT row (user, ad-id, watch) is untouched — the erased ad stays reachable
+    // through the rail's ad-id join, which is exactly why the rail's own gate must hold.
+    //
+    // ASYMMETRIC seed (2 live + 1 erased): gate correct → 2, deny-list/deleted → 3, inverted → 0.
+    [Fact]
+    public async Task Handle_CommonPath_DoesNotCountHit_WhenItsAdIsErased()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        using var db = TestAppDbContextFactory.Create();
+
+        SeedSeeker(db, userId);
+        var watch = SeedWatch(db, userId, onlyMatched: false); // → common path, pure SQL COUNT
+        SeedHit(db, userId, watch);
+        SeedHit(db, userId, watch);
+        var erasedAdId = SeedHit(db, userId, watch);
+        await db.SaveChangesAsync(ct);
+
+        // Erased through the domain transition production performs (EraseRecruiterAdsCommand's
+        // path) — never a fabricated column value (#843 / #864 AC 4). Fail-loud on the seed.
+        db.JobAds.Single(j => j.Id == erasedAdId).Erase(_clock).IsSuccess.ShouldBeTrue(
+            "Erase-seeden får inte tyst misslyckas — en Active rad kvar gör testet vakuöst");
+        await db.SaveChangesAsync(ct);
+
+        // 2, not 3 (deny-list/gate deleted: the tombstone counted) and not 0 (gate inverted).
+        (await CountAsync(db, userId)).ShouldBe(2,
+            "rälen får ALDRIG räkna en Art. 17-tombstone — en deny-list (!= Archived) hade lovat " +
+            "en annons ingen yta kan visa (tom titel, företag '[raderad]')");
+    }
+
     [Fact]
     public async Task Handle_GradePath_DoesNotCountHit_WhenItsAdIsArchived()
     {

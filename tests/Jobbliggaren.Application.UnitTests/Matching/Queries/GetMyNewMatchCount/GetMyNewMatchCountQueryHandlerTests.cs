@@ -339,6 +339,54 @@ public class GetMyNewMatchCountQueryHandlerTests
     }
 
     // =================================================================
+    // #864 follow-up (B4) — the badge does not count a match whose ad has been ERASED, and the
+    // erased row is what pins the gate as an ALLOW-LIST: the archived test above stays green
+    // under the flip `== Active` → `!= Archived` (Archived is excluded by both forms), while the
+    // Erased tombstone (#842, real Art. 17 transition — the state #886 made reachable) passes a
+    // deny-list and would be COUNTED. Its list twin (GetMyMatches) already excludes erased ads
+    // (ErasedAdReadPathTests), so a deny-list here re-opens exactly the badge-vs-list
+    // incoherence this suite's own header forbids.
+    //
+    // ASYMMETRIC seed (2 live + 1 erased): gate correct → 2, deny-list/deleted → 3, inverted → 0.
+    // =================================================================
+
+    [Fact]
+    public async Task Handle_ShouldNotCountMatch_WhenItsJobAdIsErased()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        using var db = TestAppDbContextFactory.Create();
+
+        SeedSeeker(db, userId, lastSeen: null); // never opened → every match is new
+
+        // The match is created while the ad is live — the real sequence: the match was detected,
+        // the recruiter's Art. 17 erasure lands afterwards. Erased through the domain transition
+        // (EraseRecruiterAdsCommandHandler's path); never a fabricated column value (#843 / AC 4).
+        var liveAdId = SeedActiveAd(db);
+        var secondLiveAdId = SeedActiveAd(db);
+        var erasedAdId = SeedActiveAd(db);
+        _clock.UtcNow.Returns(T0.AddDays(1));
+        db.UserJobAdMatches.AddRange(
+            UserJobAdMatch.Create(userId, liveAdId, NotifiableMatchGrade.Good, ["csharp"], _clock).Value,
+            UserJobAdMatch.Create(userId, secondLiveAdId, NotifiableMatchGrade.Good, ["dotnet"], _clock).Value,
+            UserJobAdMatch.Create(userId, erasedAdId, NotifiableMatchGrade.Strong, ["sql"], _clock).Value);
+        _clock.UtcNow.Returns(T0);
+        await db.SaveChangesAsync(ct);
+
+        db.JobAds.Single(j => j.Id == erasedAdId).Erase(_clock).IsSuccess.ShouldBeTrue(
+            "Erase-seeden får inte tyst misslyckas — en Active rad kvar gör testet vakuöst");
+        await db.SaveChangesAsync(ct);
+
+        var result = await new GetMyNewMatchCountQueryHandler(db, UserWith(userId))
+            .Handle(new GetMyNewMatchCountQuery(), ct);
+
+        // 2, not 3 (deny-list/gate deleted: the tombstone counted) and not 0 (gate inverted).
+        result.Count.ShouldBe(2,
+            "badgen får ALDRIG räkna en Art. 17-tombstone — en deny-list (!= Archived) hade sagt " +
+            "'3 nya matchningar' och listan visat 2 (GetMyMatches allow-listar == Active, #864)");
+    }
+
+    // =================================================================
     // TD-114 — status-agnostic: a Failed (stranded-notification) match still counts.
     // =================================================================
 

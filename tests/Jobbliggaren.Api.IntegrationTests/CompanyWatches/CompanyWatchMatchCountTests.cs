@@ -33,9 +33,10 @@ namespace Jobbliggaren.Api.IntegrationTests.CompanyWatches;
 /// cheap SQL count is EXACT, not an approximation — Top's SQL-incomputability (G3-OPT-A) is
 /// irrelevant to a ≥Good COUNT.</item>
 /// <item><b>THE DIRECT INTEGRATION TEST</b> — the per-org.nr dict is correct over a mix of
-/// matching/non-matching/Archived/soft-deleted ads across two employers (the seeding
+/// matching/non-matching/Archived ads across two employers (the seeding
 /// recipe mirrors #447 <see cref="CompanyWatchesTests"/> + the grade shadows of
-/// <see cref="Matching.MatchCountOracleTests"/>).</item>
+/// <see cref="Matching.MatchCountOracleTests"/>). No soft-deleted row exists in the seed and
+/// none can: JobAd has no soft-delete axis (#821) — the status gate is the whole exclusion.</item>
 /// </list>
 /// </para>
 /// Seeding combines BOTH the org.nr (nested <c>employer.organization_number</c>) AND the grade
@@ -313,8 +314,8 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
 
         dict.GetValueOrDefault(orgA).ShouldBe(2,
             "orgA ska räkna exakt 2 ≥Good Active-annonser (Strong + Good) — Basic/untagged under " +
-            "tröskeln, Archived exkluderad av status='Active', soft-deleted exkluderad av " +
-            "den globala soft-delete-query-filtren (ADR 0048).");
+            "tröskeln, Archived exkluderad av status='Active' (hela exkluderingen: JobAd har " +
+            "ingen soft-delete-axel och inget query-filter, #821).");
         dict.GetValueOrDefault(orgB).ShouldBe(1,
             "orgB ska räkna exakt 1 ≥Good Active-annons — orgA:s annonser ska aldrig blöda in " +
             "(per-org.nr GROUP BY).");

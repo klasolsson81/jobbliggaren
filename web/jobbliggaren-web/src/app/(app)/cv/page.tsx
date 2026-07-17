@@ -10,12 +10,6 @@ import { formatTime } from "@/lib/i18n/format";
 import { ResumeCard } from "@/components/resumes/resume-card";
 import { DiscardDraftButton } from "@/components/resumes/discard-draft-button";
 import { StatusPill } from "@/components/ui/status-pill";
-import { countCompletedTasks, TOTAL_GAP_TASKS } from "@/lib/resumes/gap-tasks";
-
-/** Stabil id för åtgärdskortets mätar-etikett → progressbarens tillgängliga namn
- * (aria-labelledby). Endast ett åtgärdskort renderas per sida (senaste pending),
- * så en konstant id är säker (ingen dubblett). */
-const PENDING_METER_LABEL_ID = "cv-pending-meter-label";
 
 /**
  * /cv-listvyn (F6 P3a, HANDOVER §7.4 + målbild 09-cv-light.png).
@@ -55,27 +49,14 @@ export default async function CvListPage() {
   const pendingCv = pendingResult.kind === "ok" ? pendingResult.data : null;
 
   // Åtgärdskortets härledda värden (Fas 4b PR-8.3). Källrad: filnamn + "Importerad
-  // {relativ dag} {tid}". Mätaren "X av Y uppgifter klara" renderas ENDAST när
-  // gaps finns (icke-null) — ett ärligt "inte beräknat" (§5), aldrig en gissning.
+  // {relativ dag} {tid}". Uppgiftsmätaren ("X av Y uppgifter klara") togs bort med
+  // Slutför-guidens retirement (CV-pivot 5c, R4): uppgifterna var guidens steg,
+  // och en mätare mot en åtgärd som inte längre finns i appen vore oärlig (§5).
   const pendingImportedWhen = pendingCv
     ? `${formatDaysAgo(tPendingRel, pendingCv.uploadedAt)} ${formatTime(
         fmt,
         new Date(pendingCv.uploadedAt),
       )}`
-    : null;
-  // Mätaren delar uppgiftsdefinitionen med Slutför-guiden (CTO-bind Q5) via
-  // `gap-tasks.ts` — de får aldrig vara oense om vad en uppgift är. Räkningen
-  // hämtas därför ur `countCompletedTasks`/`TOTAL_GAP_TASKS`, inte inline.
-  const pendingGaps = pendingCv?.gaps ?? null;
-  const pendingMeter = pendingGaps
-    ? (() => {
-        const done = countCompletedTasks(pendingGaps);
-        return {
-          done,
-          total: TOTAL_GAP_TASKS,
-          pct: Math.round((done / TOTAL_GAP_TASKS) * 100),
-        };
-      })()
     : null;
 
   switch (result.kind) {
@@ -158,43 +139,14 @@ export default async function CvListPage() {
               <p className="jp-cvaction__heading">{t("cv.pending.heading")}</p>
               <p className="jp-cvaction__body">{t("cv.pending.body")}</p>
             </div>
-            {pendingMeter !== null && (
-              <div className="jp-cvaction__meter">
-                <span
-                  id={PENDING_METER_LABEL_ID}
-                  className="jp-cvaction__meter-label"
-                >
-                  {t("cv.pending.meter", {
-                    done: pendingMeter.done,
-                    total: pendingMeter.total,
-                  })}
-                </span>
-                <div
-                  className="jp-cvaction__meter-track"
-                  role="progressbar"
-                  aria-valuenow={pendingMeter.done}
-                  aria-valuemin={0}
-                  aria-valuemax={pendingMeter.total}
-                  aria-labelledby={PENDING_METER_LABEL_ID}
-                >
-                  <div
-                    className="jp-cvaction__meter-fill"
-                    style={{ width: `${pendingMeter.pct}%` }}
-                  />
-                </div>
-              </div>
-            )}
             <div className="jp-cvaction__actions">
               <Link
-                href={`/cv/slutfor/${pendingCv.id}`}
+                href={`/cv/granska/${pendingCv.id}`}
                 className="jp-btn jp-btn--primary"
               >
                 <FileText size={16} aria-hidden="true" />
                 <span>{t("cv.pending.cta")}</span>
               </Link>
-              <span className="jp-cvaction__estimate">
-                {t("cv.pending.timeEstimate")}
-              </span>
               <DiscardDraftButton parsedId={pendingCv.id} />
             </div>
           </div>

@@ -342,13 +342,13 @@ export async function promoteParsedResumeAction(
 }
 
 /**
- * Guide-ingången (`/cv/slutfor/[parsedId]`, Fas 4b PR-8.3): samma one-shot
- * promote som sid-ingången (delar `promoteParsedResumeCore`, DRY) men landar på
- * den kanoniska granska-vyn `/cv/[id]/granska` (Fas 4b PR-8.4, CTO-bind Q4 +
- * handoff §3 "granskning körs efter Spara") — guiden slutar i granskningen där
- * användaren ser vad som kan åtgärdas, i stället för på hubben. `revalidatePath`
- * på `/cv` ser till att det nya CV-kortet (med granska-badge) syns när användaren
- * går tillbaka. NEXT_REDIRECT är en framgångssignal som får propagera.
+ * Guide-ingången (`/cv/slutfor/[parsedId]`, Fas 4b PR-8.3) — CALLER-LESS sedan
+ * CV-pivot 5c (R4): Slutför-guiden är retirerad (rutten 404:ar; se
+ * slutfor/page.tsx) och `CvCompleteGuide` är mothballad i trädet, revert-ready.
+ * Actionen följer komponenten (samma deferred-posture) och behåller sin
+ * ursprungliga semantik: samma one-shot promote som sid-ingången (delar
+ * `promoteParsedResumeCore`, DRY) men landar på den kanoniska granska-vyn
+ * `/cv/[id]/granska`. NEXT_REDIRECT är en framgångssignal som får propagera.
  */
 export async function promoteParsedResumeFromGuideAction(
   parsedResumeId: string,

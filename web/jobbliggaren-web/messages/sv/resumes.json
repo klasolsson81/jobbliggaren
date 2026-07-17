@@ -59,7 +59,7 @@
   "consent": {
     "title": "Filen innehåller ett personnummer",
     "finding": "Vi hittade {count, plural, one {ett personnummer} other {# personnummer}} i filen du laddade upp. Ett personnummer behöver inte finnas i ett CV och bör tas bort innan du använder innehållet.",
-    "storeExplainer": "Vill du spara originalfilen ändå? Den lagras krypterat och bara du kan öppna den. Att spara filen gör den inte till ditt CV. För att använda innehållet behöver du först ta bort personnumret i granskningen.",
+    "storeExplainer": "Vill du spara originalfilen ändå? Den lagras krypterat och bara du kan öppna den. Att spara filen gör den inte till ditt CV. För att använda innehållet behöver du först ta bort personnumret ur filen och ladda upp den igen.",
     "save": "Spara filen ändå",
     "decline": "Spara inte filen",
     "saving": "Sparar filen…",

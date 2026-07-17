@@ -59,7 +59,7 @@
   "consent": {
     "title": "The file contains a personal identity number",
     "finding": "We found {count, plural, one {a personal identity number} other {# personal identity numbers}} in the file you uploaded. A personal identity number does not need to be in a CV and should be removed before you use the contents.",
-    "storeExplainer": "Do you want to save the original file anyway? It is stored encrypted and only you can open it. Saving the file does not make it your CV. To use the contents you first need to remove the personal identity number in the review.",
+    "storeExplainer": "Do you want to save the original file anyway? It is stored encrypted and only you can open it. Saving the file does not make it your CV. To use the contents you first need to remove the personal identity number from the file and upload it again.",
     "save": "Save the file anyway",
     "decline": "Do not save the file",
     "saving": "Saving the file…",

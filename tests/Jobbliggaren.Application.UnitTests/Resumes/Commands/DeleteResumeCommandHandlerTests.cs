@@ -198,6 +198,7 @@ public class DeleteResumeCommandHandlerTests
 
         var file = ResumeFile.CaptureOriginal(
             seeker.Id, parsedId, SealedBytes, "application/pdf", "cv.pdf", SealedBytes.Length, false,
+            pnrConsentAt: null, pnrConsentDialogVersion: null,
             FakeDateTimeProvider.Default).Value;
         db.ResumeFiles.Add(file);
         await db.SaveChangesAsync(CancellationToken.None);
@@ -234,7 +235,8 @@ public class DeleteResumeCommandHandlerTests
         // survive, because a null source link never triggers the cascade.
         var file = ResumeFile.CaptureOriginal(
             seeker.Id, new ParsedResumeId(Guid.NewGuid()), SealedBytes, "application/pdf", "cv.pdf",
-            SealedBytes.Length, false, FakeDateTimeProvider.Default).Value;
+            SealedBytes.Length, false,
+            pnrConsentAt: null, pnrConsentDialogVersion: null, FakeDateTimeProvider.Default).Value;
         db.ResumeFiles.Add(file);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -288,6 +290,7 @@ public class DeleteResumeCommandHandlerTests
 
         var otherFile = ResumeFile.CaptureOriginal(
             otherSeeker.Id, parsedId, SealedBytes, "application/pdf", "cv.pdf", SealedBytes.Length, false,
+            pnrConsentAt: null, pnrConsentDialogVersion: null,
             FakeDateTimeProvider.Default).Value;
         db.ResumeFiles.Add(otherFile);
 
@@ -324,7 +327,8 @@ public class DeleteResumeCommandHandlerTests
         // parity), so this cross-owner row must NOT be erased.
         var foreignOwnerFile = ResumeFile.CaptureOriginal(
             new JobSeekerId(Guid.NewGuid()), parsedId, SealedBytes, "application/pdf", "cv.pdf",
-            SealedBytes.Length, false, FakeDateTimeProvider.Default).Value;
+            SealedBytes.Length, false,
+            pnrConsentAt: null, pnrConsentDialogVersion: null, FakeDateTimeProvider.Default).Value;
         db.ResumeFiles.Add(foreignOwnerFile);
         await db.SaveChangesAsync(CancellationToken.None);
 

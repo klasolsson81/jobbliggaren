@@ -67,11 +67,21 @@ public sealed class ResumeFileConfiguration : IEntityTypeConfiguration<ResumeFil
             .HasColumnName("byte_size")
             .IsRequired();
 
-        // M-F5 metadata — always false in PR-9a (flagged originals are not captured). Never public.
+        // M-F5 metadata — true only for a consent-backed capture since CV-pivot 5b (the
+        // aggregate's biconditional refuses a flagged row without the evidence). Never public.
         builder.Property(f => f.PnrFlagged)
             .HasColumnName("pnr_flagged")
             .HasDefaultValue(false)
             .IsRequired();
+
+        // Art. 7(1) consent evidence (5b security-bind B1) — nullable, non-null iff pnr_flagged.
+        // Every pre-5b row is non-flagged, so null is the correct backfill-free default.
+        builder.Property(f => f.PnrConsentAt)
+            .HasColumnName("pnr_consent_at");
+
+        builder.Property(f => f.PnrConsentDialogVersion)
+            .HasColumnName("pnr_consent_dialog_version")
+            .HasMaxLength(32);
 
         builder.Property(f => f.CreatedAt)
             .HasColumnName("created_at")

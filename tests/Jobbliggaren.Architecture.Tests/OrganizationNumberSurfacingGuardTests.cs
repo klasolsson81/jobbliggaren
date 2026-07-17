@@ -4,7 +4,9 @@ using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationHistory;
 using Jobbliggaren.Application.CompanyWatches.Queries;
+using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Application.JobAds.Queries.DisambiguateEmployers;
+using Jobbliggaren.Application.JobAds.Queries.GetJobAd;
 using Shouldly;
 
 namespace Jobbliggaren.Architecture.Tests;
@@ -219,6 +221,33 @@ public class OrganizationNumberSurfacingGuardTests
             "+ bool-flagga) innan den blir ett svar. Ett rått org.nr på tråden kan vara ett " +
             "personnummer (enskild firma, ADR 0087 D8 / §5). Överträdelser: " +
             string.Join(", ", offenders));
+    }
+
+    /// <summary>
+    /// Non-vacuity pin for the SHARED enumeration seam (CTO F4 (i)/(iii), 2026-07-17). Both
+    /// response-graph guards — this file's org.nr carrier scan and the L4b domain-contact lock in
+    /// <c>RecruiterContactFtsLockTests</c> — are absence assertions over
+    /// <see cref="OrgNrSurfaceScan.MediatorResponses"/>. If that enumeration silently matched
+    /// nothing (a broken predicate, an over-eager type filter), BOTH guards would pass vacuously.
+    /// One known pair anchors them counterfactually: <c>GetJobAdQuery</c> is enumerated, and its
+    /// response graph reaches <c>JobAdDetailDto</c> through the <c>Result&lt;&gt;</c> wrapper.
+    /// </summary>
+    [Fact]
+    public void Mediator_response_enumeration_is_not_vacuous()
+    {
+        var known = OrgNrSurfaceScan.MediatorResponses(typeof(JobAdDetailDto).Assembly)
+            .Where(p => p.Request == typeof(GetJobAdQuery))
+            .ToList();
+
+        known.ShouldNotBeEmpty(
+            "MediatorResponses no longer enumerates GetJobAdQuery — the shared seam both "
+            + "response-graph guards run on is broken, and every absence assertion built on it is "
+            + "passing vacuously.");
+
+        known.ShouldContain(
+            p => OrgNrSurfaceScan.ReachableTypes(p.Response).Contains(typeof(JobAdDetailDto)),
+            "GetJobAdQuery's response graph must reach JobAdDetailDto (through Result<>) — "
+            + "otherwise the walker no longer pierces the wrapper both guards depend on.");
     }
 
     [Fact]
@@ -603,18 +632,13 @@ internal static class OrgNrSurfaceScan
         var safe = maskedOrExempt.ToHashSet();
         var offenders = new List<string>();
 
-        foreach (var request in applicationAssembly.GetTypes()
-                     .Where(t => t is { IsClass: true, IsAbstract: false } || (t.IsValueType && !t.IsEnum)))
+        foreach (var (request, response) in MediatorResponses(applicationAssembly))
         {
-            foreach (var iface in request.GetInterfaces().Where(IsMediatorRequest))
+            foreach (var reached in ReachableTypes(response)
+                         .Where(HasOrgNrMember)
+                         .Where(t => !safe.Contains(t)))
             {
-                var response = iface.GetGenericArguments()[0];
-                foreach (var reached in ReachableTypes(response)
-                             .Where(HasOrgNrMember)
-                             .Where(t => !safe.Contains(t)))
-                {
-                    offenders.Add($"{request.Name} -> {reached.Name}");
-                }
+                offenders.Add($"{request.Name} -> {reached.Name}");
             }
         }
 
@@ -678,6 +702,32 @@ internal static class OrgNrSurfaceScan
                 .Concat(i.GetInterfaces().SelectMany(b => b.GetMethods()))
                 .Any(m => ReachableTypes(m.ReturnType).Any(carriers.Contains)))
             .ToList();
+    }
+
+    /// <summary>
+    /// Every (request, response) pair the Mediator boundary exposes in <paramref name="assembly"/> —
+    /// THE single enumeration both response-graph guards run on (this file's org.nr carrier scan and
+    /// <c>RecruiterContactFtsLockTests</c>' L4b domain-contact lock). Before 2026-07-17 each guard
+    /// carried its own copy of this loop and predicate; one rule with two normalisers IS two rules,
+    /// and a predicate widened in one copy would have silently blinded the other (CTO F4/A).
+    ///
+    /// <para>
+    /// DELIBERATE, CURRENTLY-VACUOUS BOUNDARY: only <c>IQuery&lt;&gt;</c>/<c>ICommand&lt;&gt;</c> are
+    /// matched — the Application assembly has zero <c>IStreamQuery&lt;&gt;</c>/
+    /// <c>IStreamCommand&lt;&gt;</c> requests today, and widening coverage is a separate decision
+    /// that must not ride a behaviour-preserving refactor (it would silently expand the org.nr
+    /// guard's scope). The day streaming arrives, add the stream forms HERE and both guards widen
+    /// together — that single point of extension is this method's reason to exist.
+    /// </para>
+    /// </summary>
+    internal static IEnumerable<(Type Request, Type Response)> MediatorResponses(Assembly assembly)
+    {
+        foreach (var request in assembly.GetTypes()
+                     .Where(t => t is { IsClass: true, IsAbstract: false } || (t.IsValueType && !t.IsEnum)))
+        {
+            foreach (var iface in request.GetInterfaces().Where(IsMediatorRequest))
+                yield return (request, iface.GetGenericArguments()[0]);
+        }
     }
 
     private static bool IsMediatorRequest(Type iface) =>

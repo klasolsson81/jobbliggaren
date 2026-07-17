@@ -1,6 +1,7 @@
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { getServerSession } from "@/lib/auth/session";
+import { getServerSession, getSessionId } from "@/lib/auth/session";
 import { getMyMatches, markMatchesSeen } from "@/lib/api/me-matches";
 import { assertNever } from "@/lib/dto/_helpers";
 import { MatchList } from "@/components/matches/match-list";
@@ -14,10 +15,12 @@ type PagesTranslator = Awaited<ReturnType<typeof getTranslations<"pages">>>;
  * MARK-SEEN ON OPEN (Klas-val: "views the matches surface", INTE varje page
  * load): vyn hämtar matchningarna FÖRST (så `isNew` speglar vattenmärket FÖRE
  * besöket) och avancerar SEDAN last-seen-vattenmärket via `markMatchesSeen()`.
- * Det anropet är icke-kritiskt och fire-and-forget: ett fel får aldrig blockera
- * renderingen (counten på Översikt nollställs då bara inte denna gång). `isNew`-
- * markeringen i listan och Översikts-counten delar samma vattenmärke ⇒
- * koherenta (samma fönster), per ADR 0080.
+ * Det anropet är icke-kritiskt och genuint fire-and-forget: det schemaläggs med
+ * `after()` (#741) så writet körs EFTER att svaret skickats — det ligger inte på
+ * render-vägen och kan aldrig fördröja paint eller blockera renderingen (counten
+ * på Översikt nollställs då bara inte denna gång). `isNew`-markeringen i listan
+ * och Översikts-counten delar samma vattenmärke ⇒ koherenta (samma fönster), per
+ * ADR 0080.
  */
 export const dynamic = "force-dynamic";
 
@@ -30,17 +33,22 @@ export default async function MatchningarPage() {
   // Hämta matchningarna (med pre-besök-`isNew`) FÖRE vattenmärket avanceras.
   const result = await getMyMatches();
 
-  // Avancera vattenmärket (mark-seen). Icke-blockerande: vi väntar in svaret för
-  // determinism men IGNORERAR utfallet — `markMatchesSeen` degraderar civilt och
+  // Avancera vattenmärket (mark-seen) EFTER svaret, av render-vägen (#741). Körs
+  // först när list-hämtningen lyckats (annars vore det ohederligt att "se"
+  // matchningar vi inte kunde visa). `markMatchesSeen` degraderar civilt och
   // kastar aldrig, så ett fel (rate-limit/nätverk) lämnar bara counten orörd.
-  // En unauthorized HÄR driver ingen redirect (vyn renderas redan; nästa besök
-  // korrigerar). Körs först när list-hämtningen lyckats (annars vore det
-  // ohederligt att "se" matchningar vi inte kunde visa).
   if (result.kind === "ok") {
     // #477 Low: mark seen only THROUGH the newest match we actually rendered (the list is
     // newest-first), so a match created between this fetch and the mark-seen POST stays flagged
     // "nya". Empty list → undefined → backend falls back to now (nothing newer to preserve).
-    await markMatchesSeen(result.data[0]?.createdAt);
+    const seenThrough = result.data[0]?.createdAt;
+    // Read the session HERE (during render) and pass it in: an `after()` callback in a
+    // Server Component cannot read cookies. No session (anon) → schedule no write. The user
+    // is already authed (guest redirected above), so this is present in practice.
+    const sessionId = await getSessionId();
+    if (sessionId) {
+      after(() => markMatchesSeen(seenThrough, sessionId));
+    }
   }
 
   return (

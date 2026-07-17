@@ -504,6 +504,36 @@ describe("markFollowedCompanyAdSeen (#453) - cross-channel dedup (fire-and-forge
     global.fetch = vi.fn().mockRejectedValue(new Error("boom"));
     expect(await markFollowedCompanyAdSeen(VALID_ID)).toEqual({ kind: "error" });
   });
+
+  it("passed session is used and getSessionId is NOT called (after()-safe path, #741)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(emptyResponse(204));
+    global.fetch = fetchMock;
+
+    expect(await markFollowedCompanyAdSeen(VALID_ID, "sess-after")).toEqual({
+      kind: "ok",
+      data: undefined,
+    });
+    // The render path read the session; the helper does NOT re-read cookies (which
+    // would be forbidden inside `after()` in a Server Component).
+    expect(getSessionIdMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/ad-hits/"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer sess-after" }),
+      })
+    );
+  });
+
+  it("passed session = null -> unauthorized without a backend round-trip (anon-skip preserved)", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    expect(await markFollowedCompanyAdSeen(VALID_ID, null)).toEqual({
+      kind: "unauthorized",
+    });
+    expect(getSessionIdMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("getNewFollowedCompanyAdCount (Bevakning F2 #801) — Översikt rail count", () => {

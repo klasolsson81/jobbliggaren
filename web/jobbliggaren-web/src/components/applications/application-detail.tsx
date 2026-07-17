@@ -146,7 +146,7 @@ export function ApplicationDetail({
                 ut. Panelen i kroppen (SourceAdSection) bär detaljerna. */}
             {adRemoved && (
               <p className="jp-modal__company">
-                <span className="jp-tag">{tUi("adRemoved.tag")}</span>
+                <span className="jp-tag jp-tag--neutral">{tUi("adRemoved.tag")}</span>
               </p>
             )}
           </div>

@@ -193,7 +193,7 @@ function ApplicationCard({ row }: { row: ActivityReportRow }) {
             kopians identitet och får inte se levande ut. */}
         {row.adRemoved ? (
           <p className="mt-1">
-            <span className="jp-tag">{t("card.adRemoved")}</span>
+            <span className="jp-tag jp-tag--neutral">{t("card.adRemoved")}</span>
           </p>
         ) : null}
       </div>

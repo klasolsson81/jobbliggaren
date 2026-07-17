@@ -146,7 +146,7 @@ export function ApplicationRow({
 
         <div className="jp-app__metaline">
           {adRemoved && (
-            <span className="jp-tag">{tUi("adRemoved.tag")}</span>
+            <span className="jp-tag jp-tag--neutral">{tUi("adRemoved.tag")}</span>
           )}
           {urgencyLabel != null && urgency != null && (
             <span className="jp-tag" data-urgency={urgency.variant}>

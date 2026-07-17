@@ -115,7 +115,7 @@ export function ApplicationsTableRow({
           </>
         )}
         {adRemoved && (
-          <span className="jp-tag">{tUi("adRemoved.tag")}</span>
+          <span className="jp-tag jp-tag--neutral">{tUi("adRemoved.tag")}</span>
         )}
       </td>
 

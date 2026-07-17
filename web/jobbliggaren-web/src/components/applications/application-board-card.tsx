@@ -135,7 +135,7 @@ export function ApplicationBoardCard({
         )}
         {adRemoved && (
           <div className="jp-board-card__subline">
-            <span className="jp-tag">{tUi("adRemoved.tag")}</span>
+            <span className="jp-tag jp-tag--neutral">{tUi("adRemoved.tag")}</span>
           </div>
         )}
       </div>

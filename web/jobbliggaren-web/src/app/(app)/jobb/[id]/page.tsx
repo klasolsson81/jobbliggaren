@@ -1,6 +1,7 @@
+import { after } from "next/server";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { getServerSession } from "@/lib/auth/session";
+import { getServerSession, getSessionId } from "@/lib/auth/session";
 import { getJobAd } from "@/lib/api/job-ads";
 import { isJobAdSaved } from "@/lib/api/saved-job-ads";
 import { hasAppliedJobAd } from "@/lib/api/job-ad-status";
@@ -59,13 +60,19 @@ export default async function JobbDetailPage({
           // #593 (#446-uppföljning) — the caller's prior-application count for THIS ad's employer, so the
           // detail view can link to /foretag#ansokningshistorik. Positive-only; anon/error → empty.
           getEmployerApplicationCounts([id]),
-          // #453 (cross-channel dedup) — opening the ad in-app marks any Pending follow-hit for it seen,
-          // so the follow-digest suppresses the redundant email. Fire-and-forget in the fan-out (parallel,
-          // no hot-path latency; never throws; SeenAt is not rendered so no read-your-write ordering).
-          markFollowedCompanyAdSeen(id),
         ]);
       // Positive-only map: an absent key means zero (the detail view renders no history line).
       const previousApplicationCount = employerCounts.countsByJobAdId[id];
+      // #453 (cross-channel dedup) — opening the ad in-app marks any Pending follow-hit for it seen so the
+      // follow-digest suppresses the redundant email. Moved OFF the detail fan-out (#741): scheduled with
+      // `after()` so the write runs after the response is sent instead of adding its POST round-trip to the
+      // Promise.all the page awaits before painting. Never throws; SeenAt is not rendered (no read-your-write
+      // ordering). The user is authed here (guest redirected above), and the session is read during render and
+      // passed in — an `after()` callback in a Server Component cannot read cookies.
+      const sessionId = await getSessionId();
+      if (sessionId) {
+        after(() => markFollowedCompanyAdSeen(id, sessionId));
+      }
       // Spår 3 PR-D — taxonomin behövs BARA när det finns en match (annars
       // byggs ingen granularitets-karta). En inloggad användare utan match
       // ska inte betala för round-trippen (cleanup-pass: gate guest-prefetch).

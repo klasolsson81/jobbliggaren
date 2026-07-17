@@ -51,11 +51,18 @@ export async function getJobsWatermark(): Promise<ApiResult<JobsWatermark>> {
  * Idempotent och icke-kritisk: ett fel får ALDRIG blockera sid-renderingen
  * (watermarken flyttas då bara inte fram denna gång) — degraderar civilt likt
  * `markMatchesSeen`/`saveJobAd`. 204 → ok; allt annat → fel-kind.
+ *
+ * `session` = a pre-resolved sessionId. Omitted (default) → read here via
+ * `getSessionId()` (cookies), as before. Passed in when the call is deferred off
+ * the render path with `after()`: an `after()` callback in a Server Component
+ * CANNOT read cookies (Next docs), so the caller reads the session DURING render
+ * and passes it in (#741).
  */
 export async function markJobsSeen(
   seenThrough?: string,
+  session?: string | null,
 ): Promise<ApiResult<void>> {
-  const sessionId = await getSessionId();
+  const sessionId = session === undefined ? await getSessionId() : session;
   if (!sessionId) return { kind: "unauthorized" };
 
   try {

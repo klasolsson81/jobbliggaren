@@ -216,4 +216,35 @@ describe("markMatchesSeen (ADR 0080 Vag 4 PR-5)", () => {
     const result = await markMatchesSeen();
     expect(result).toEqual({ kind: "error" });
   });
+
+  it("passad session används och getSessionId anropas INTE (after()-säker väg, #741)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    global.fetch = fetchMock;
+
+    const result = await markMatchesSeen("2026-06-24T09:00:00Z", "sess-after");
+
+    expect(result).toEqual({ kind: "ok", data: undefined });
+    // Render-vägen läste sessionen; helpern läser INTE cookies igen (skulle vara
+    // förbjudet i `after()` i en Server Component).
+    expect(getSessionIdMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://test-backend/api/v1/me/matches/seen",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer sess-after" }),
+      })
+    );
+  });
+
+  it("passad session = null → unauthorized utan backend-rundtur (anon-skip bevarad)", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    const result = await markMatchesSeen(undefined, null);
+
+    expect(result).toEqual({ kind: "unauthorized" });
+    expect(getSessionIdMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

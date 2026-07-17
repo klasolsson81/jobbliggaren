@@ -193,9 +193,17 @@ export async function getCompanyWatchStatus(jobAdId: string): Promise<CompanyFol
  * outcome and this never throws (a rate-limit / network error just leaves the hit un-stamped → the
  * digest may still send, which is the safe direction). Owner-scoped server-side (the UserId comes from
  * the session, never the wire — IDOR-safe). `POST /api/v1/me/company-watches/ad-hits/{jobAdId}/seen`.
+ *
+ * `session` = a pre-resolved sessionId. Omitted (default) → read here via `getSessionId()` (cookies),
+ * as before. Passed in when the call is deferred off the render path with `after()`: an `after()`
+ * callback in a Server Component CANNOT read cookies (Next docs), so the caller reads the session
+ * DURING render and passes it in (#741).
  */
-export async function markFollowedCompanyAdSeen(jobAdId: string): Promise<ApiResult<void>> {
-  const sessionId = await getSessionId();
+export async function markFollowedCompanyAdSeen(
+  jobAdId: string,
+  session?: string | null,
+): Promise<ApiResult<void>> {
+  const sessionId = session === undefined ? await getSessionId() : session;
   if (!sessionId) return { kind: "unauthorized" };
   // Allowlist-guard: reject a non-GUID before it reaches the backend URL (path-injection barrier).
   if (!isValidId(jobAdId)) return { kind: "notFound" };

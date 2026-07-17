@@ -8,9 +8,19 @@ import MatchningarPage from "./page";
 
 const redirect = vi.fn();
 const getServerSession = vi.fn();
+const getSessionId = vi.fn<() => Promise<string | null>>();
 const getMyMatches = vi.fn<() => Promise<ApiResult<MatchListData>>>();
 const markMatchesSeen =
-  vi.fn<(seenThrough?: string) => Promise<ApiResult<void>>>();
+  vi.fn<(seenThrough?: string, session?: string | null) => Promise<ApiResult<void>>>();
+
+// #741 — the mark-seen write is scheduled with `after()` (runs after the response is
+// sent). Invoke the callback synchronously so the test still observes the scheduled
+// write and pins its arguments (the render-path/off-render-path split is structural).
+vi.mock("next/server", () => ({
+  after: (cb: () => unknown) => {
+    void cb();
+  },
+}));
 
 // The async server page resolves copy via `getTranslations("pages")`. next-intl's
 // server entry is unavailable in jsdom → mock to a real translator over the
@@ -26,11 +36,13 @@ vi.mock("next-intl/server", () => ({
 
 vi.mock("@/lib/auth/session", () => ({
   getServerSession: () => getServerSession(),
+  getSessionId: () => getSessionId(),
 }));
 
 vi.mock("@/lib/api/me-matches", () => ({
   getMyMatches: () => getMyMatches(),
-  markMatchesSeen: (seenThrough?: string) => markMatchesSeen(seenThrough),
+  markMatchesSeen: (seenThrough?: string, session?: string | null) =>
+    markMatchesSeen(seenThrough, session),
 }));
 
 // Real `redirect()` throws NEXT_REDIRECT to halt the render — mirror that so the
@@ -62,9 +74,11 @@ describe("/matchningar page (ADR 0080 Vag 4 PR-5)", () => {
   beforeEach(() => {
     redirect.mockReset();
     getServerSession.mockReset();
+    getSessionId.mockReset();
     getMyMatches.mockReset();
     markMatchesSeen.mockReset();
     getServerSession.mockResolvedValue({ email: "a@b.se", roles: [] });
+    getSessionId.mockResolvedValue("sess-1");
     markMatchesSeen.mockResolvedValue({ kind: "ok", data: undefined });
   });
 
@@ -89,7 +103,9 @@ describe("/matchningar page (ADR 0080 Vag 4 PR-5)", () => {
     expect(markMatchesSeen).toHaveBeenCalledTimes(1);
     // #477 Low: sidan skickar seen-through-fönstret (nyaste visade matchningens createdAt),
     // inte klock-nu — pinnar FE-kopplingen mot en regress tillbaka till markMatchesSeen().
-    expect(markMatchesSeen).toHaveBeenCalledWith(item.createdAt);
+    // #741: sessionen läses under render och passas in (2:a arg) — `after()` i en Server
+    // Component kan inte läsa cookies.
+    expect(markMatchesSeen).toHaveBeenCalledWith(item.createdAt, "sess-1");
   });
 
   it("tom lista → nollstate-copy OCH mark-seen körs ändå (vyn öppnades)", async () => {
@@ -99,7 +115,19 @@ describe("/matchningar page (ADR 0080 Vag 4 PR-5)", () => {
     expect(screen.getByText("Du har inga matchningar än")).toBeInTheDocument();
     expect(markMatchesSeen).toHaveBeenCalledTimes(1);
     // Tom lista → inget fönster → undefined (backend faller tillbaka på nu).
-    expect(markMatchesSeen).toHaveBeenCalledWith(undefined);
+    expect(markMatchesSeen).toHaveBeenCalledWith(undefined, "sess-1");
+  });
+
+  it("lista ok men session-cookie borta under render → inget mark-write (defensiv after()-grind)", async () => {
+    // Guesten redirectas redan av getServerSession; detta täcker kant-fallet att
+    // session-cookien försvinner mellan auth-grinden och getSessionId() — då
+    // schemaläggs inget write (annars vore anropet i `after()` unauthorized-brus).
+    getMyMatches.mockResolvedValue({ kind: "ok", data: [item] });
+    getSessionId.mockResolvedValue(null);
+    await renderPage();
+
+    expect(screen.getByText("Systemutvecklare")).toBeInTheDocument();
+    expect(markMatchesSeen).not.toHaveBeenCalled();
   });
 
   it("fel-hämtning → fel-copy OCH mark-seen körs INTE (ohederligt att 'se' ovisat)", async () => {

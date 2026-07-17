@@ -66,11 +66,18 @@ export async function getMyMatches(): Promise<ApiResult<MatchList>> {
  * Idempotent och icke-kritisk: ett fel får ALDRIG blockera vy-renderingen
  * (counten nollställs då bara inte denna gång) — degraderar civilt likt
  * `saveJobAd`/`unsaveJobAd`-mönstret. 204 → ok; allt annat → fel-kind.
+ *
+ * `session` = a pre-resolved sessionId. Omitted (default) → read here via
+ * `getSessionId()` (cookies), as before. Passed in when the call is deferred off
+ * the render path with `after()`: an `after()` callback in a Server Component
+ * CANNOT read cookies (Next docs — request APIs are render-lifecycle-bound), so
+ * the caller reads the session DURING render and passes it in (#741).
  */
 export async function markMatchesSeen(
   seenThrough?: string,
+  session?: string | null,
 ): Promise<ApiResult<void>> {
-  const sessionId = await getSessionId();
+  const sessionId = session === undefined ? await getSessionId() : session;
   if (!sessionId) return { kind: "unauthorized" };
 
   try {

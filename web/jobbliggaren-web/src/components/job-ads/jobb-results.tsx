@@ -1,5 +1,7 @@
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { getSessionId } from "@/lib/auth/session";
 import { getJobAds } from "@/lib/api/job-ads";
 import { getJobAdStatusBatch } from "@/lib/api/job-ad-status";
 import { getJobAdMatchTags } from "@/lib/api/job-ad-match";
@@ -381,8 +383,16 @@ export async function JobbResults({
       // lämnar bara watermarken orörd denna gång. Gatas på en lyckad watermark-
       // LÄSNING: utan en koherent baseline avancerar vi inte (annars kan en
       // transient läs-miss tyst nolla NY). Speglar /matchningar (mark-seen on open).
+      // Skjuts av render-vägen med `after()` (#741): writet körs EFTER svaret så
+      // skeleton→innehåll-bytet inte betalar en POST-RTT. Sessionen läses UNDER
+      // render och passas in — en `after()`-callback i en Server Component kan inte
+      // läsa cookies; anon (ingen session) → inget write.
       if (watermarkResult.kind === "ok") {
-        await markJobsSeen(maxCreatedAt(result.data.items));
+        const seenThrough = maxCreatedAt(result.data.items);
+        const sessionId = await getSessionId();
+        if (sessionId) {
+          after(() => markJobsSeen(seenThrough, sessionId));
+        }
       }
 
       return (

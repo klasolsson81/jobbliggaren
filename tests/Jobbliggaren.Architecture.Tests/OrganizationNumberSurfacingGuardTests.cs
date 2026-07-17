@@ -859,16 +859,20 @@ internal static class OrgNrSurfaceScan
     ///
     /// <para>
     /// <b>What "complete" can and cannot mean here.</b> This list covers the spellings the repo actually
-    /// uses and §1's English-identifier rule permits — <c>OrgNr</c> and <c>OrgNumber</c> included (the
-    /// reviewer's actual concern); <c>Organization</c> and <c>Personnummer</c> alone excluded. But NO
-    /// name detector can be complete: a member called <c>EmployerKey</c> holding a raw org.nr would slip
-    /// it, and no token list fixes that. What carries the guarantee is the STRUCTURAL half beside it —
-    /// a member TYPED <see cref="OrganizationNumber"/> is caught whatever it is called. The name half is
-    /// a heuristic and is scoped as one; the type half is the invariant.
+    /// uses and §1's English-identifier rule permits — <c>OrgNr</c>, <c>OrgNumber</c> and the snake_case
+    /// <c>organization_number</c> included (the last added by #883: <c>ScbCompanyRegisterStore.BatchRow</c>
+    /// carries a member literally named <c>organization_number</c> because <c>jsonb_to_recordset</c>
+    /// matches recordset columns by property NAME — it cannot be renamed to PascalCase without breaking
+    /// the SQL projection, so the detector must recognise the spelling instead);
+    /// <c>Organization</c> and <c>Personnummer</c> alone excluded. But NO name detector can be complete:
+    /// a member called <c>EmployerKey</c> holding a raw org.nr would slip it, and no token list fixes
+    /// that. What carries the guarantee is the STRUCTURAL half beside it — a member TYPED
+    /// <see cref="OrganizationNumber"/> is caught whatever it is called. The name half is a heuristic and
+    /// is scoped as one; the type half is the invariant.
     /// </para>
     /// </summary>
     private static readonly string[] OrgNrMemberNameTokens =
-        ["organizationnumber", "orgnr", "org_nr", "orgnumber"];
+        ["organizationnumber", "organization_number", "orgnr", "org_nr", "orgnumber"];
 
     private static bool IsOrgNrProperty(PropertyInfo p)
     {

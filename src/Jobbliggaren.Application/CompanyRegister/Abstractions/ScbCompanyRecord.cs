@@ -39,4 +39,16 @@ public sealed record ScbCompanyRecord(
     string? SeatMunicipalityName,
     IReadOnlyList<string> SniCodes,
     bool HasAdvertisingBlock,
-    string RawStatusCode);
+    string RawStatusCode)
+{
+    /// <summary>
+    /// REDACTED (#883). A record's compiler-generated <c>ToString()</c> prints every public member,
+    /// so a plain <c>{X}</c> MEL placeholder would write <see cref="OrganizationNumber"/> into the log
+    /// — and a sole proprietor's org.nr IS a personnummer, in plaintext (ADR 0087 D8(c); CLAUDE.md §5,
+    /// highest priority). Overriding makes the leak structurally impossible rather than guard-dependent
+    /// (parity <c>JobAdFacets</c> / <c>JobAdImportItem</c>, pinned by <c>OrgNrRecordLoggingGuardTests</c>).
+    /// <see cref="Name"/> is a legal-entity name (ADR 0091 excludes sole traders), safe to keep for
+    /// debugging.
+    /// </summary>
+    public override string ToString() => $"ScbCompanyRecord({Name}, org.nr redacted)";
+}

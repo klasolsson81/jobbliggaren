@@ -163,6 +163,88 @@ public class JobAdContactRedactionTests
         archived.Contacts.ShouldBeNull();
     }
 
+    // ---- the asymmetric promote gate (ADR 0106 amendment 2026-07-17, CTO Verdict 3) ---------
+    //
+    // Scrub for safety, promote for truth: the RawPayload surface is scrubbed recall-biased
+    // (unchanged), but a PHONE span found there is never promoted — a quoted id/reference
+    // number starting 0 + 6-12 digits is phone-shaped to the detector, and promoting it
+    // invents a user-visible "derived contact" that never existed (a precision failure the
+    // over-redaction posture never priced). Emails cannot be id-shaped by accident, so the
+    // payload's email spans keep promoting. Title/Description are the ad's VISIBLE text — a
+    // phone there still promotes, which is why the gate costs almost nothing: those surfaces
+    // are payload-derived, so a real recruiter phone reaches the user through them.
+
+    [Fact]
+    public void A_phone_shaped_payload_id_is_scrubbed_but_never_promoted()
+    {
+        // The counterfactual pair in one witness: detection-YES (the id is scrubbed — the
+        // recall posture is intact and the oracle is alive) + promotion-NO (no phantom).
+        var ad = Import(
+            description: "Vi söker en utvecklare.",
+            title: "Backend-utvecklare",
+            rawPayload: """{"id":"0123456789","description":{"text":"Vi söker en utvecklare."}}""");
+
+        ad.RawPayload!.ShouldNotContain("0123456789",
+            customMessage: "detection must still fire — the scrub is recall-biased and unchanged");
+        ad.RawPayload!.ShouldContain(RecruiterContactRedactor.Marker);
+
+        ad.Contacts.ShouldNotBeNull();
+        ad.Contacts.Contacts.ShouldBeEmpty(
+            "a phone-shaped payload id must never become a user-visible derived contact");
+    }
+
+    [Fact]
+    public void A_phone_living_only_in_a_payload_field_is_scrubbed_and_not_promoted()
+    {
+        // The PRICED recall cost, pinned so it is a decision and not an accident: a real phone
+        // in a payload-only field (never mirrored into Title/Description) is scrubbed for
+        // safety but not surfaced as a contact — an inference from text the user cannot see
+        // fails the "promote for truth" bar (CTO Verdict 3, V1).
+        var ad = Import(
+            description: "Vi söker en utvecklare.",
+            title: "Backend-utvecklare",
+            rawPayload: """{"id":"ext-1","application_details":{"via":"Ring 070-123 45 67"}}""");
+
+        ad.RawPayload!.ShouldNotContain("070-123 45 67");
+        ad.Contacts!.Contacts.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void An_email_living_only_in_the_payload_still_promotes()
+    {
+        // The gate is PHONE-ONLY: an email cannot be id-shaped by accident (it needs an @ and
+        // a domain), so the payload's email spans keep their promote path.
+        var ad = Import(
+            description: "Vi söker en utvecklare.",
+            title: "Backend-utvecklare",
+            rawPayload: """{"id":"ext-1","application_details":{"email":"jobb@acme.se"}}""");
+
+        ad.RawPayload!.ShouldNotContain("jobb@acme.se");
+        var only = ad.Contacts!.Contacts.ShouldHaveSingleItem();
+        only.Origin.ShouldBe(AdContactOrigin.ExtractedFromBody);
+        only.Email.ShouldBe("jobb@acme.se");
+    }
+
+    [Fact]
+    public void A_declared_phone_survives_beside_a_phone_shaped_payload_id()
+    {
+        // The declared path is untouched by the gate: the advertiser's own declaration
+        // promotes as always, and the phantom does not ride in beside it.
+        var declared = AdContact.TryCreate(
+            "Anna Karlsson", "Rekryterare", email: null, "070-123 45 67",
+            AdContactOrigin.Declared)!;
+
+        var ad = Import(
+            description: "Vi söker en utvecklare.",
+            title: "Backend-utvecklare",
+            rawPayload: """{"id":"0123456789","description":{"text":"Vi söker en utvecklare."}}""",
+            declaredContacts: [declared]);
+
+        var only = ad.Contacts!.Contacts.ShouldHaveSingleItem();
+        only.Origin.ShouldBe(AdContactOrigin.Declared);
+        only.Phone.ShouldBe("070-123 45 67");
+    }
+
     [Fact]
     public void The_manual_path_is_never_scrubbed()
     {

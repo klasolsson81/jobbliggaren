@@ -475,10 +475,21 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         Description = description.Scrubbed;
         RawPayload = payload.Scrubbed;
 
+        // The asymmetric promote gate (ADR 0106 amendment 2026-07-17): scrub for safety,
+        // promote for truth. A PHONE span found on the RawPayload surface is scrubbed but never
+        // promoted — a quoted id/reference number starting 0 + 6–12 digits is phone-shaped to
+        // the detector, and promoting it would surface a fabricated "derived contact" to the
+        // user (a precision failure on the promote step; the over-redaction posture priced only
+        // the scrub). Emails cannot be id-shaped by accident, so the payload's email spans keep
+        // promoting; Title/Description are the ad's visible text and keep both kinds.
         Contacts = Status == JobAdStatus.Active
             ? AdContacts.From(
                 declaredContacts,
-                [.. title.Found, .. description.Found, .. payload.Found])
+                [
+                    .. title.Found,
+                    .. description.Found,
+                    .. payload.Found.Where(s => s.Kind == ContactKind.Email),
+                ])
             : null;
     }
 

@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
@@ -95,14 +102,17 @@ export function ApplicationsTable({ rows, now }: ApplicationsTableProps) {
     if (selectAllRef.current) selectAllRef.current.indeterminate = someSelected;
   }, [someSelected]);
 
-  const toggleRow = (id: string) => {
+  // useCallback: en stabil referens är förutsättningen för att memo(ApplicationsTableRow)
+  // ska kunna skippa oberörda rader vid en checkbox-toggle (perf-audit d1). Funktionell
+  // setState → tom deps-lista, referensen är konstant över öns livstid.
+  const toggleRow = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
   const toggleAll = () => {
     setSelectedIds((prev) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import {
   applicationStatusLabel,
@@ -29,7 +29,11 @@ interface StepRailProps {
  * Antalen läses direkt ur `groups[].count` (backend-sanning, redan på plats) —
  * ingen ny hämtning. Railen gäller Lista-vyn; i Tavla-vyn (PR 8) döljs den.
  */
-export function StepRail({ groups, statusFilter, onToggle }: StepRailProps) {
+export const StepRail = memo(function StepRail({
+  groups,
+  statusFilter,
+  onToggle,
+}: StepRailProps) {
   const tEnum = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
 
@@ -86,4 +90,4 @@ export function StepRail({ groups, statusFilter, onToggle }: StepRailProps) {
       </div>
     </div>
   );
-}
+});

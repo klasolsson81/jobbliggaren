@@ -437,4 +437,34 @@ public class PromoteParsedResumeCommandHandlerTests
         await _reconciler.DidNotReceive().ReconcileAsync(
             Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>());
     }
+
+    // ===============================================================
+    // Reconciler-throw atomicity witness (CTO bind 2026-07-17, ADR 0093 §D5(b)
+    // amendment): the reconciler completes or THROWS — the throw must propagate out of
+    // Handle unswallowed, so UnitOfWorkBehavior's unconditional save never runs and the
+    // tracked promote + soft-delete + Resume add are discarded TOGETHER. "Nothing
+    // persists" is proven at the store (tracked-but-unsaved mutations are invisible to
+    // an AsNoTracking read).
+    // ===============================================================
+
+    [Fact]
+    public async Task Handle_WhenReconcilerThrows_ExceptionPropagates_AndNothingPersists()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var (parsed, _) = await SeedOwnedAsync(db, _userId);
+        _reconciler.ReconcileAsync(Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromException(new InvalidOperationException("boom")));
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => CreateSut(db).Handle(
+                Command(parsed.Id.Value), TestContext.Current.CancellationToken).AsTask());
+
+        // Store-level: no Resume row; the artifact is still PendingReview and not
+        // soft-deleted — the whole unit rolls back, never a half-promoted artifact.
+        (await db.Resumes.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        var stored = await db.ParsedResumes.AsNoTracking()
+            .SingleAsync(r => r.Id == parsed.Id, TestContext.Current.CancellationToken);
+        stored.Status.ShouldBe(ParsedResumeStatus.PendingReview);
+        stored.DeletedAt.ShouldBeNull();
+    }
 }

@@ -397,4 +397,30 @@ public class ApplyCvImprovementsCommandHandlerTests
             Arg.Is<IReadOnlyCollection<string>>(c => c != null && c.Count == 1 && c.Contains("A2")),
             Arg.Any<CancellationToken>());
     }
+
+    // Reconciler-throw atomicity witness (CTO bind 2026-07-17, ADR 0093 §D5(b)
+    // amendment): the reconciler completes or THROWS. The applied content is already
+    // tracked when the reconciler runs, so the witness pins the PROPAGATION — no
+    // try/catch may swallow the throw. Discarding the tracked mutation is the
+    // pipeline's structural guarantee: UnitOfWorkBehavior's unconditional save never
+    // runs on a throw, so the unsaved apply dies with the scope.
+    [Fact]
+    public async Task Handle_WhenReconcilerThrows_ExceptionPropagates_NoSwallow()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var resume = await SeedResumeAsync(db, _userId, WeakContent());
+        var preA2 = Fail("A2", FrameFixtures.WeakLine);
+        StubOneReview(ResultWith(preA2));
+        _reconciler.ReconcileAsync(Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromException(new InvalidOperationException("boom")));
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => CreateSut(db).Handle(
+                new ApplyCvImprovementsCommand(resume.Id.Value, [LeddeChange(Fp(preA2))]),
+                CancellationToken.None).AsTask());
+
+        // Non-vacuity: the apply DID precede the reconcile — the tracker holds it, and
+        // only the never-run save decides whether it persists.
+        resume.MasterVersion.Content.Summary.ShouldBe(FrameFixtures.LeddeAfter);
+    }
 }

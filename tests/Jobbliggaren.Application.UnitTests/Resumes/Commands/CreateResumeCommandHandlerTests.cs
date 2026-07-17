@@ -176,4 +176,26 @@ public class CreateResumeCommandHandlerTests
             Arg.Is<IReadOnlyCollection<string>>(x => x == null),
             Arg.Any<CancellationToken>());
     }
+
+    // Reconciler-throw atomicity witness (CTO bind 2026-07-17, ADR 0093 §D5(b)
+    // amendment): the reconciler completes or THROWS — the throw must propagate out of
+    // Handle unswallowed, so UnitOfWorkBehavior's unconditional save never runs and the
+    // tracked Resume add is discarded with the unit. "Nothing persists" is proven at the
+    // store: an Added-but-unsaved entity is invisible to queries.
+    [Fact]
+    public async Task Handle_WhenReconcilerThrows_ExceptionPropagates_AndNoResumePersists()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db, _userId);
+        _reconciler.ReconcileAsync(Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromException(new InvalidOperationException("boom")));
+
+        var handler = new CreateResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, _reconciler);
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => handler.Handle(new CreateResumeCommand("Mitt CV", "Klas Olsson"), CancellationToken.None).AsTask());
+
+        (await db.Resumes.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse(
+            "a reconciler throw must keep the created Resume from ever reaching the store");
+    }
 }

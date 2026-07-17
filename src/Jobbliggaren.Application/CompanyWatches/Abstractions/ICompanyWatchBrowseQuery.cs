@@ -195,4 +195,15 @@ public sealed record CompanyBrowseResult(
     // Never parse it to int: 180 matches nothing in sate_kommun_code.
     string SeatMunicipalityCode,
     string? SeatMunicipalityName,
-    IReadOnlyList<string> SniCodes);
+    IReadOnlyList<string> SniCodes)
+{
+    /// <summary>
+    /// REDACTED (#883). The compiler-generated <c>ToString()</c> prints every member; this row carries
+    /// the RAW <see cref="OrganizationNumber"/> (a possible sole-prop personnummer, ADR 0087 D8(c);
+    /// CLAUDE.md §5) that must not leave the Application boundary un-masked — and a plain <c>{X}</c> MEL
+    /// placeholder is exactly such an exit. Overriding makes "never logged" structural
+    /// (<c>OrgNrRecordLoggingGuardTests</c>). <see cref="Name"/> is a legal-entity name (ADR 0091), kept
+    /// for debugging.
+    /// </summary>
+    public override string ToString() => $"CompanyBrowseResult({Name}, org.nr redacted)";
+}

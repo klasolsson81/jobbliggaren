@@ -48,4 +48,16 @@ public sealed record CompanyLookupDto(
         ActiveAdCount: 0,
         MatchingAdCount: null,
         CompanyWatchId: null);
+
+    /// <summary>
+    /// REDACTED (#883). The DTO masks its org.nr at the SURFACING boundary, but a record's
+    /// compiler-generated <c>ToString()</c> prints every member, so a plain <c>{X}</c> MEL placeholder
+    /// would still write <see cref="OrganizationNumber"/> into a log — masking at surfacing does nothing
+    /// for <c>ToString()</c>. Defense-in-depth at the log boundary too: redact here so no future path
+    /// can log a raw value regardless of handler correctness (a sole prop's org.nr IS a personnummer,
+    /// ADR 0087 D8(c); CLAUDE.md §5). Keeps <see cref="Status"/> + <see cref="CompanyName"/> for
+    /// debugging; pinned by <c>OrgNrRecordLoggingGuardTests</c>.
+    /// </summary>
+    public override string ToString() =>
+        $"CompanyLookupDto(Status={Status}, CompanyName={CompanyName}, org.nr redacted)";
 }

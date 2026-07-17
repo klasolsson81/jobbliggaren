@@ -147,6 +147,16 @@ public sealed record ErasureRecentSearchMatch
         Q = q;
         MatchedEmployerOrgNr = matchedEmployerOrgNr;
     }
+
+    /// <summary>
+    /// REDACTED (#883). The compiler-generated <c>ToString()</c> prints every member, so a plain
+    /// <c>{X}</c> MEL placeholder would write both <see cref="MatchedEmployerOrgNr"/> (the requester's
+    /// own org.nr — a possible personnummer, ADR 0087 D8(c); CLAUDE.md §5) and the free-text
+    /// <see cref="Q"/> into a log. The flag-not-mask decision for <see cref="MatchedEmployerOrgNr"/> is a
+    /// SURFACING decision (the operator's review screen) and does NOT transfer to logging — a log is not
+    /// that screen. Only <see cref="Id"/> survives here; pinned by <c>OrgNrRecordLoggingGuardTests</c>.
+    /// </summary>
+    public override string ToString() => $"ErasureRecentSearchMatch(Id={Id}, redacted)";
 }
 
 /// <summary>

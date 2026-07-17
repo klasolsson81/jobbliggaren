@@ -22,7 +22,16 @@ namespace Jobbliggaren.Api.Endpoints;
 public static class CompaniesEndpoints
 {
     /// <summary>Lookup request — the org.nr travels in the body per D8(c) (never path/query).</summary>
-    public sealed record CompanyLookupRequest(string OrganizationNumber);
+    public sealed record CompanyLookupRequest(string OrganizationNumber)
+    {
+        /// <summary>
+        /// REDACTED (#883). The org.nr is client-supplied and IS the entire payload; a record's
+        /// compiler-generated <c>ToString()</c> would write it into a log for a plain <c>{X}</c> MEL
+        /// placeholder, and it can be a sole-prop personnummer (ADR 0087 D8(c); CLAUDE.md §5). Only the
+        /// type name is safe to keep; pinned by <c>OrgNrRecordLoggingGuardTests</c>.
+        /// </summary>
+        public override string ToString() => "CompanyLookupRequest(org.nr redacted)";
+    }
 
     public static void MapCompaniesEndpoints(this IEndpointRouteBuilder app)
     {

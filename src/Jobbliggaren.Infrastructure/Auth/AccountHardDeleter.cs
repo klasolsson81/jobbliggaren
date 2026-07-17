@@ -216,7 +216,8 @@ public sealed partial class AccountHardDeleter(
         //
         // NO IgnoreQueryFilters, and that is enforced, not merely intended: the aggregate declares no
         // query filter (delete is HARD — C-D8/G1), so the call would be a no-op asserting a filter
-        // that does not exist. Parity: RecentJobSearches / SavedJobAds below. The iff-invariant
+        // that does not exist. It joins the other three unfiltered arms — RecentJobSearches and
+        // SavedJobAds above, ResumeFiles below — which likewise omit it. The iff-invariant
         // (filtered ⇔ call present) is machine-checked for every arm by
         // AccountHardDeleteCascadeFitnessTests — which is what actually closes the "a filter added
         // tomorrow silently narrows this read" hazard, for all eleven aggregates rather than this one.

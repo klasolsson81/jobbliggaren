@@ -375,6 +375,45 @@ public class AccountHardDeleteCascadeFitnessTests
     }
 
     [Fact]
+    public void Unexamined_pin_flags_an_arm_whose_read_is_split_across_statements()
+    {
+        // Self-proving negative for the anti-vacuity pin itself (code-reviewer Major 1, runda 2).
+        // The pin was the ONLY detector in this file without one, and the mutation battery does not
+        // reach it either: M1/M2/M3b all leave the reads VISIBLE, so the pin stays green through all
+        // three. An inverted `!`, an Any/All slip or a regex typo would therefore make it return an
+        // empty list forever — green forever — and the claim it exists to support ("all eleven arms
+        // are actually examined") would quietly revert to prose. The fix for an untested guarantee is
+        // itself a guarantee.
+        //
+        // The blind spot it detects, reproduced exactly: a read split across two statements. The
+        // pin shares the iff-rule's own statement-scoped sight DELIBERATELY — a pin that could see
+        // MORE than the rule it guards would call this arm "examined" while the rule silently skipped
+        // it. Sharing the blind spot is the mechanism, not a defect.
+        const string syntheticMethod = """
+            public async Task HardDeleteAccountAsync(Guid jobSeekerId, CancellationToken ct)
+            {
+                var visible = await db.Applications
+                    .IgnoreQueryFilters()
+                    .Where(a => a.JobSeekerId == jsId)
+                    .ToListAsync(ct);
+                db.Applications.RemoveRange(visible);
+
+                var query = db.CompanyWatches.IgnoreQueryFilters().Where(w => w.UserId == userId);
+                var split = await query.ToListAsync(ct);
+                db.CompanyWatches.RemoveRange(split);
+            }
+            """;
+
+        var code = HardDeleteCascadeScan.ExtractMethodCode(syntheticMethod, "HardDeleteAccountAsync");
+
+        HardDeleteCascadeScan.FindDbSetsWithoutQueryExecutingStatement(
+                code, ["Applications", "CompanyWatches"])
+            .ShouldBe(["CompanyWatches"],
+                "en arm vars läsning är UPPDELAD över satser granskas aldrig av iff-regeln — pinnen " +
+                "måste rapportera den, annars är 'alla elva granskas' bara prosa igen");
+    }
+
+    [Fact]
     public void Cascade_scan_is_not_satisfied_by_a_delete_verb_that_only_appears_in_a_comment()
     {
         // Self-proving negative for the SINGLE normalisation point (senior-cto-advisor, 2026-07-17).
@@ -674,9 +713,15 @@ internal static class HardDeleteCascadeScan
                 // form still lets one shrink the Art. 17 read, while a Contains(".IgnoreQueryFilters(")
                 // check reports "call present" and the guard goes green with PII surviving. Nothing
                 // uses named filters today (all 12 HasQueryFilter calls are single-lambda, measured),
-                // so this is unreachable now and cheap to make unreachable-by-construction. A
-                // selective call reads as NO call here → the guard goes red → a human decides, which
-                // is the correct fail-closed answer to a form this rule was never designed for.
+                // so this is unreachable now and cheap to make unreachable-by-construction.
+                //
+                // A selective call reads as NO call here. Be precise about what that buys, because
+                // it is asymmetric (code-reviewer Minor 4): on a FILTERED aggregate it forces the
+                // guard RED — the load-bearing direction, correctly closed, a human decides. On an
+                // UNFILTERED one it reads as "no call, none needed" and passes QUIETLY, so a
+                // selective-form decoy would slip the anti-decoy direction. That residual is
+                // unreachable while no named filters exist, and closing it needs a rule for a form
+                // this guard was never designed for — which is a decision, not a regex tweak.
                 var hasCall = Regex.IsMatch(statement, @"\.IgnoreQueryFilters\(\s*\)");
                 var mustHaveCall = filteredDbSetNames.Contains(name);
 

@@ -52,8 +52,6 @@ public class ApplyCvImprovementsCommandHandlerTests
             FrameFixtures.SentenceLedde(), FrameFixtures.MeasureAntalPerPeriod()));
         _verbMapper.GetVerbMapping().Returns(
             FrameFixtures.VerbMappingWith("ledde", "skickade", "levererade"));
-        _reconciler.ReconcileAsync(Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Result>(Result.Success()));
     }
 
     private ApplyCvImprovementsCommandHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>

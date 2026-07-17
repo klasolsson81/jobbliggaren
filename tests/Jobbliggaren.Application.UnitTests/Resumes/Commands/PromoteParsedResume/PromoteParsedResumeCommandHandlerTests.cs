@@ -5,7 +5,6 @@ using Jobbliggaren.Application.Resumes.Commands.PromoteParsedResume;
 using Jobbliggaren.Application.Resumes.Queries;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
-using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
@@ -49,8 +48,6 @@ public class PromoteParsedResumeCommandHandlerTests
     public PromoteParsedResumeCommandHandlerTests()
     {
         _currentUser.UserId.Returns(_userId);
-        _reconciler.ReconcileAsync(Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Result>(Result.Success()));
     }
 
     private PromoteParsedResumeCommandHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>

@@ -57,10 +57,11 @@ public sealed class CreateResumeCommandHandler(
 
         // Fas 4b PR-8 (CTO-bind Q1): every canonical content write reconciles the
         // DEK-free ledger in-transaction, so a template-created CV's hub badge is live
-        // from creation (never engine-on-list-path, ADR 0045).
-        var reconciled = await reconciler.ReconcileAsync(result.Value, null, cancellationToken);
-        if (reconciled.IsFailure)
-            return Result.Failure<Guid>(reconciled.Error);
+        // from creation (never engine-on-list-path, ADR 0045). The reconciler completes
+        // or THROWS (CTO bind 2026-07-17): a throw propagates past this handler, the
+        // unconditional UnitOfWork save never runs, and the tracked Resume add is
+        // discarded with it — full rollback, never a half-written unit.
+        await reconciler.ReconcileAsync(result.Value, null, cancellationToken);
 
         return Result.Success(result.Value.Id.Value);
     }

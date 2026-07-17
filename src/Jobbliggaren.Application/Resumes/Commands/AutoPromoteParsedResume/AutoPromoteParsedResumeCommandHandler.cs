@@ -143,10 +143,13 @@ public sealed class AutoPromoteParsedResumeCommandHandler(
         db.Resumes.Add(resume);
 
         // Seed the DEK-free finding-status ledger in the SAME transaction (ADR 0093
-        // §D5(b) — the arch tripwire requires every CreateFromParsed caller to reconcile).
-        var reconciled = await reconciler.ReconcileAsync(resume, null, cancellationToken);
-        if (reconciled.IsFailure)
-            return Result.Failure<AutoPromoteOutcome>(reconciled.Error);
+        // §D5(b) — the arch tripwire requires every CreateFromParsed caller to
+        // reconcile). The reconciler completes or THROWS (CTO bind 2026-07-17): a throw
+        // propagates past this handler, the unconditional UnitOfWork save never runs,
+        // and resume + promote + audit roll back TOGETHER — which is what resolves the
+        // 5a security escalation (a promoted CV can never persist without its Art. 22
+        // audit row), so the audit-add-after-reconcile ordering below is safe as-is.
+        await reconciler.ReconcileAsync(resume, null, cancellationToken);
 
         // Art. 22 audit — Promoted branch ONLY (a LeftPending created nothing to audit;
         // a row for it would misreport, §5). Same providers and same transaction as the

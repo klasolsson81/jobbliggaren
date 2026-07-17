@@ -3,7 +3,6 @@ using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Resumes.Commands.CreateResume;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
-using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
 using Microsoft.EntityFrameworkCore;
@@ -26,8 +25,6 @@ public class CreateResumeCommandHandlerTests
     public CreateResumeCommandHandlerTests()
     {
         _currentUser.UserId.Returns(_userId);
-        _reconciler.ReconcileAsync(Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Result>(Result.Success()));
     }
 
     private static async Task<JobSeeker> SeedJobSeekerAsync(

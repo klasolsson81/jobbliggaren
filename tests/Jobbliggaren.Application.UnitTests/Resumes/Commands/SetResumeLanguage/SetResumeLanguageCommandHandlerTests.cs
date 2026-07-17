@@ -4,7 +4,6 @@ using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Resumes.Commands.SetResumeLanguage;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
-using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
 using NSubstitute;
@@ -26,8 +25,6 @@ public class SetResumeLanguageCommandHandlerTests
     public SetResumeLanguageCommandHandlerTests()
     {
         _currentUser.UserId.Returns(_userId);
-        _reconciler.ReconcileAsync(Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Result>(Result.Success()));
     }
 
     private static async Task<Resume> SeedResumeAsync(

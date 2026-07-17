@@ -58,9 +58,6 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         _correlationId.Current.Returns(_correlation);
         _requestContext.IpAddress.Returns("203.0.113.7");
         _requestContext.UserAgent.Returns("test-agent");
-        _reconciler.ReconcileAsync(
-                Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Result>(Result.Success()));
     }
 
     private AutoPromoteParsedResumeCommandHandler CreateSut(

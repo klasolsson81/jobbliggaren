@@ -87,6 +87,17 @@ public class OrganizationNumberSurfacingGuardTests
         // scan is what makes "the browse never logs an org.nr" a build gate rather than a discipline.
         "src/Jobbliggaren.Application/CompanyWatches/Queries/BrowseCompanies/BrowseCompaniesQueryHandler.cs",
         "src/Jobbliggaren.Infrastructure/CompanyRegister/CompanyWatchBrowseQuery.cs",
+        // #883 F8 (security-auditor follow-up) — the Art. 17 recruiter-erasure read-paths both hold a
+        // raw org.nr in scope and were missing from this list: RecruiterErasureMatchQuery runs the
+        // raw-SQL match (the normalised org.nr the requester submitted + the ads' org.nr) and
+        // EraseRecruiterAdsCommandHandler derives the evidence from it. The org.nr is the requester's
+        // own identifier — a possible sole-prop personnummer (ADR 0087 D8(c); §5) — and both surfaces
+        // log counts/GUIDs only today; this scan makes "the erasure path never logs an org.nr" a build
+        // gate rather than a discipline. It is also the compensating control the #883 CTO bind (D2)
+        // leaned on to keep the OrganizationNumber VO's raw ToString() out of scope — so the list must
+        // actually cover the VO's callers.
+        "src/Jobbliggaren.Infrastructure/JobAds/RecruiterErasureMatchQuery.cs",
+        "src/Jobbliggaren.Application/JobAds/Commands/EraseRecruiterAds/EraseRecruiterAdsCommandHandler.cs",
     ];
 
     /// <summary>

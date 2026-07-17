@@ -1,6 +1,6 @@
-using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text;
 using Jobbliggaren.Api.Endpoints;
 using Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationHistory;
 using Jobbliggaren.Application.Companies.Abstractions;
@@ -44,101 +44,220 @@ namespace Jobbliggaren.Architecture.Tests;
 /// DRY), different boundary. Fail-safe default (Saltzer &amp; Schroeder 1975), parity with the sibling
 /// fail-closed partitions in this project.
 /// </para>
+///
+/// <para>
+/// <b>Both halves are fail-closed</b> — the structural half (a MISSING override fails the build) AND
+/// the behavioral half (a LYING override that redacts nothing is caught): the set of behavioral cases
+/// is itself enumerated against the scan (see
+/// <see cref="Every_redacted_org_nr_record_has_a_behavioral_case_or_is_covered_elsewhere"/>), so a new
+/// override without a behavioral case fails too. A hand-maintained coverage list is the exact
+/// fail-open the sibling guard was re-architected away from (test-writer, #883).
+/// </para>
 /// </summary>
 public class OrgNrRecordLoggingGuardTests
 {
+    /// <summary>The live-verified JobStream org.nr form, shared across the sibling guards.</summary>
+    private const string Sentinel = "5592804784";
+
+    /// <summary>A fixed, all-letter GUID so a kept-<c>Id</c> field never coincidentally contains the
+    /// numeric <see cref="Sentinel"/> (no false failure, and none possible).</summary>
+    private static readonly Guid KnownId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+
+    private static readonly Assembly InfrastructureAssembly =
+        typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly;
+
     /// <summary>
     /// The product assemblies whose records can reach a logger. Domain + Application + Infrastructure
     /// + Api + Worker. <c>Jobbliggaren.Migrate</c> is excluded on purpose — it holds only EF-generated
     /// <c>Migration</c> subclasses, never a domain record, so scanning it adds false-positive surface
-    /// for zero coverage.
+    /// for zero coverage. This list is load-bearing (dropping an entry silently narrows coverage), so
+    /// <see cref="The_scan_covers_all_five_owned_assemblies_including_the_snake_case_spelling"/> pins
+    /// all five by name.
     /// </summary>
     private static readonly Assembly[] OwnedAssemblies =
     [
-        typeof(JobAd).Assembly,                                 // Jobbliggaren.Domain
-        typeof(CompanyWatchDto).Assembly,                       // Jobbliggaren.Application
-        typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly, // Jobbliggaren.Infrastructure
-        typeof(CompaniesEndpoints).Assembly,                    // Jobbliggaren.Api
+        typeof(JobAd).Assembly,                 // Jobbliggaren.Domain
+        typeof(CompanyWatchDto).Assembly,       // Jobbliggaren.Application
+        InfrastructureAssembly,                 // Jobbliggaren.Infrastructure
+        typeof(CompaniesEndpoints).Assembly,    // Jobbliggaren.Api
+        // Worker has no org.nr-bearing record to anchor a type-reach assertion on; it is scanned
+        // fail-closed so a future one is caught, and the by-name pin keeps it in the list.
         typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly, // Jobbliggaren.Worker
     ];
 
+    private static readonly Type BatchRowType = ResolveNestedType(
+        "Jobbliggaren.Infrastructure.CompanyRegister.ScbCompanyRegisterStore", "BatchRow");
+
+    private static readonly Type EmployerOrgNrRowType = ResolveNestedType(
+        "Jobbliggaren.Infrastructure.JobAds.JobAdEmployerReader", "EmployerOrgNrRow");
+
     /// <summary>
-    /// Records with an org.nr member that are EXEMPT from the redacted-<c>ToString()</c> rule, each
-    /// with an explicit reason. EMPTY today — every inventoried leaking record gets an override, so
-    /// nothing needs the escape hatch. A record belongs here ONLY if printing its org.nr via
-    /// <c>ToString()</c> is provably safe (never for a value that can be a sole-prop personnummer).
-    /// The primary mechanism is not this list — it is "overrode <c>ToString()</c> ⇒ passes
-    /// automatically" (make it a property of the type). This mirrors the empty
+    /// Records with an org.nr member that are EXEMPT from the redacted-<c>ToString()</c> rule
+    /// (structural half), each with an explicit reason. EMPTY today — every inventoried leaking record
+    /// gets an override. The primary mechanism is not this list — it is "overrode <c>ToString()</c> ⇒
+    /// passes automatically" (make it a property of the type). Mirrors the empty
     /// <c>OrganizationNumberSurfacingGuardTests.ExemptOrgNrDtos</c>.
     /// </summary>
     private static readonly HashSet<Type> ExemptFromRedactedToString = [];
 
+    /// <summary>
+    /// org.nr-bearing records whose redaction is proven BEHAVIORALLY somewhere other than
+    /// <see cref="Redacted_records_do_not_print_their_organisation_number_and_keep_an_id"/> — each
+    /// with a reason. The fail-closed behavioral enumeration
+    /// (<see cref="Every_redacted_org_nr_record_has_a_behavioral_case_or_is_covered_elsewhere"/>)
+    /// accepts a type here instead of a local case.
+    /// </summary>
+    private static readonly IReadOnlyList<(Type Type, string Reason)> BehaviorallyCoveredElsewhere =
+    [
+        (typeof(JobAdFacets),
+            "#841 — behaviorally covered by JobAdPublicSurfaceGuardTests." +
+            "The_PII_bearing_records_do_not_print_their_contents_in_ToString (which also asserts the " +
+            "#842 free-text / raw-payload redaction, so it is not pure duplication)."),
+        (BatchRowType,
+            "Private SCB projection row (jsonb_to_recordset). Its org.nr is legal-entity-only — the " +
+            "SCB ingest excludes sole traders (ADR 0091) — so it is not a personnummer, unlike " +
+            "EmployerOrgNrRow. Structural coverage (a redacting override is enforced) suffices."),
+    ];
+
     [Fact]
     public void Every_org_nr_bearing_record_overrides_ToString_to_redact()
     {
-        // FAIL-CLOSED. Any record (class or struct) in a product assembly whose member is org.nr-shaped
-        // AND whose ToString() is still the compiler-generated one leaks the org.nr through MEL's
-        // default {X} rendering. It must override ToString() (redacting the org.nr, keeping an
-        // identifying field) or be explicitly exempt with a reason.
-        var leaking = OwnedAssemblies
-            .SelectMany(SafeGetTypes)
-            .Where(OrgNrSurfaceScan.HasOrgNrMember)
-            .Where(HasCompilerGeneratedToString)
+        // FAIL-CLOSED (the MISSING-override half). Any record (class or struct) in a product assembly
+        // whose member is org.nr-shaped AND whose ToString() still prints its members leaks the org.nr
+        // through MEL's default {X} rendering. It must override ToString() (redacting the org.nr,
+        // keeping an identifying field) or be explicitly exempt with a reason.
+        var leaking = OrgNrBearingRecords()
+            .Where(RecordToStringPrintsItsMembers)
             .Where(t => !ExemptFromRedactedToString.Contains(t))
             .OrderBy(t => t.FullName, StringComparer.Ordinal)
             .ToList();
 
         leaking.ShouldBeEmpty(
-            "These records hold an organisation number but still have the compiler-generated " +
-            "ToString(), which prints every public member. MEL renders a plain {X} placeholder " +
-            "through ToString(), so `logger.LogWarning(\"failed {X}\", record)` — with NO @ and NO " +
-            "org.nr token — writes the org.nr into the log, and a sole proprietor's org.nr IS a " +
-            "personnummer in plaintext (ADR 0087 D8(c); CLAUDE.md §5, highest priority).\n\n" +
+            "These records hold an organisation number but their ToString() still prints every public " +
+            "member. MEL renders a plain {X} placeholder through ToString(), so " +
+            "`logger.LogWarning(\"failed {X}\", record)` — with NO @ and NO org.nr token — writes the " +
+            "org.nr into the log, and a sole proprietor's org.nr IS a personnummer in plaintext " +
+            "(ADR 0087 D8(c); CLAUDE.md §5, highest priority).\n\n" +
             "Override ToString() to redact the org.nr and keep ONE identifying field (parity " +
             "JobAdFacets / JobAdImportItem, #841). Offenders: " +
             string.Join(", ", leaking.Select(t => t.FullName)));
     }
 
     [Fact]
-    public void The_scan_covers_all_owned_assemblies_including_the_snake_case_spelling()
+    public void The_scan_covers_all_five_owned_assemblies_including_the_snake_case_spelling()
     {
-        // Non-vacuity + coverage pin. A silently-empty or single-assembly scan is the exact failure
-        // mode #883 exists to fight, so pin that the enumeration actually reaches:
-        //   - Application, PascalCase member  -> ScbCompanyRecord
-        //   - Api                             -> CompaniesEndpoints.CompanyLookupRequest
-        //   - Infrastructure, snake_case member -> BatchRow (organization_number, load-bearing for
+        // Non-vacuity + coverage pin. OwnedAssemblies is load-bearing — dropping an entry silently
+        // narrows coverage with a green suite, the exact failure mode #883 exists to fight. Pin all
+        // five by name, then pin that the scan actually REACHES a record in the layers that have one:
+        //   - Domain, PascalCase          -> JobAdFacets
+        //   - Application, PascalCase      -> ScbCompanyRecord
+        //   - Api                          -> CompaniesEndpoints.CompanyLookupRequest
+        //   - Infrastructure, snake_case   -> BatchRow (organization_number, load-bearing for
         //     jsonb_to_recordset — it cannot be renamed, so the shared detector must recognise the
-        //     spelling; this asserts it does and that Infra is scanned at all).
-        var scanned = OwnedAssemblies
-            .SelectMany(SafeGetTypes)
-            .Where(OrgNrSurfaceScan.HasOrgNrMember)
-            .ToHashSet();
+        //     spelling; this proves it does and that Infra is scanned at all).
+        // Worker is pinned by name only: it has no org.nr record to anchor on today, and the fail-closed
+        // scan catches a future one.
+        OwnedAssemblies.Select(a => a.GetName().Name).OrderBy(n => n, StringComparer.Ordinal).ToList()
+            .ShouldBe(
+            [
+                "Jobbliggaren.Api",
+                "Jobbliggaren.Application",
+                "Jobbliggaren.Domain",
+                "Jobbliggaren.Infrastructure",
+                "Jobbliggaren.Worker",
+            ], "OwnedAssemblies must scan exactly the five product assemblies (Migrate excluded)");
 
-        scanned.ShouldContain(typeof(ScbCompanyRecord),
-            "the scan must reach an Application org.nr record");
+        var scanned = OrgNrBearingRecords().ToHashSet();
 
-        scanned.Any(t => t.Name == "CompanyLookupRequest"
-                         && t.Namespace == "Jobbliggaren.Api.Endpoints")
-            .ShouldBeTrue("the scan must reach the Api assembly (CompanyLookupRequest)");
-
-        scanned.Any(t => t.Name == "BatchRow"
-                         && t.Assembly == typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly)
-            .ShouldBeTrue(
-                "the scan must reach the Infrastructure BatchRow via its snake_case " +
-                "organization_number member — proving both that Infra is scanned and that the shared " +
-                "OrgNrSurfaceScan detector recognises the snake_case spelling BatchRow is forced to use.");
+        scanned.ShouldContain(typeof(JobAdFacets), "the scan must reach the Domain assembly");
+        scanned.ShouldContain(typeof(ScbCompanyRecord), "the scan must reach an Application org.nr record");
+        scanned.ShouldContain(typeof(CompaniesEndpoints.CompanyLookupRequest),
+            "the scan must reach the Api assembly");
+        scanned.ShouldContain(BatchRowType,
+            "the scan must reach the Infrastructure BatchRow via its snake_case organization_number " +
+            "member — proving both that Infra is scanned and that the shared OrgNrSurfaceScan detector " +
+            "recognises the snake_case spelling BatchRow is forced to use.");
     }
 
     [Fact]
-    public void Leak_detector_flags_a_record_without_a_redacting_ToString()
+    public void Every_redacted_org_nr_record_has_a_behavioral_case_or_is_covered_elsewhere()
+    {
+        // FAIL-CLOSED (the LYING-override half, test-writer MAJOR #883). The structural guard catches a
+        // MISSING override; a LYING one — `ToString() => $"...{OrganizationNumber}"` — passes it. Only a
+        // behavioral case catches that, and a HAND-MAINTAINED list of behavioral cases is fail-OPEN: a
+        // new override with no case ships silently. That is the exact "coverage inherited from whoever
+        // remembered to fill the list" pattern the sibling OrganizationNumberSurfacingGuardTests was
+        // re-architected away from. So enumerate: every org.nr-bearing RECORD with a redacting override
+        // must be behaviorally proven — either a local case or a documented BehaviorallyCoveredElsewhere.
+        var behaviorallyTested = BehavioralCases().Select(c => c.Type).ToHashSet();
+        var coveredElsewhere = BehaviorallyCoveredElsewhere.Select(e => e.Type).ToHashSet();
+
+        var uncovered = OrgNrBearingRecords()
+            .Where(IsRecord)
+            .Where(t => !RecordToStringPrintsItsMembers(t)) // has a redacting override
+            .Where(t => !behaviorallyTested.Contains(t) && !coveredElsewhere.Contains(t))
+            .OrderBy(t => t.FullName, StringComparer.Ordinal)
+            .ToList();
+
+        uncovered.ShouldBeEmpty(
+            "These org.nr-bearing records have a redacting ToString() override but NO behavioral proof " +
+            "that the override actually redacts. The structural guard is blind to a LYING override " +
+            "(`ToString() => $\"...{OrganizationNumber}\"` passes it). A hand-maintained case list is " +
+            "fail-OPEN — the pattern the sibling guard was re-architected away from. Add a behavioral " +
+            "case in BehavioralCases(), or document it in BehaviorallyCoveredElsewhere with a reason. " +
+            "Uncovered: " + string.Join(", ", uncovered.Select(t => t.FullName)));
+    }
+
+    [Fact]
+    public void Redacted_records_do_not_print_their_organisation_number_and_keep_an_id()
+    {
+        // BEHAVIORAL proof (CTO bind #883 D6). Construct each redacted record with the sentinel org.nr
+        // and assert ToString() (a) does NOT print it and (b) DOES keep an identifying, non-PII field —
+        // losing the id is what pressures a future dev to re-log the whole object and re-open the leak
+        // (F4). Every override is hand-written and can individually lie, so this covers every accessible
+        // redacted type explicitly, not a representative sample.
+        foreach (var (type, rendered, keptField) in BehavioralCases())
+        {
+            rendered.Contains(Sentinel, StringComparison.Ordinal).ShouldBeFalse(
+                $"{type.Name}.ToString() printed the organisation number — MEL would render it into a " +
+                $"log for a plain {{X}} placeholder. Redact the org.nr in the override. Rendered: {rendered}");
+
+            rendered.Contains(keptField, StringComparison.Ordinal).ShouldBeTrue(
+                $"{type.Name}.ToString() must keep an identifying, non-PII field ('{keptField}') for " +
+                $"debugging — otherwise the 'fix' for lost debuggability is to log the whole object " +
+                $"again. Rendered: {rendered}");
+        }
+    }
+
+    [Fact]
+    public void Leak_detector_flags_a_flat_record_without_a_redacting_ToString()
     {
         // Self-proving negative (mirrors OrganizationNumberSurfacingGuardTests.UnmaskedSampleDto). A
         // synthetic org.nr record in the TEST assembly with the default ToString() must be caught by
-        // both halves of the detector — otherwise the guard above could pass vacuously.
+        // both halves of the detector — otherwise the structural guard could pass vacuously.
         OrgNrSurfaceScan.HasOrgNrMember(typeof(LeakingSampleRecord)).ShouldBeTrue(
             "the detector must see the org.nr member");
-        HasCompilerGeneratedToString(typeof(LeakingSampleRecord)).ShouldBeTrue(
+        RecordToStringPrintsItsMembers(typeof(LeakingSampleRecord)).ShouldBeTrue(
             "a record that does not override ToString() keeps the compiler-generated, member-printing one");
+    }
+
+    [Fact]
+    public void Leak_detector_flags_a_derived_record_that_only_overrides_PrintMembers()
+    {
+        // Self-proving negative for the INHERITANCE case (code-reviewer + test-writer, #883). For a
+        // `record Derived : Base`, the compiler synthesises ToString() on the BASE and only a
+        // [CompilerGenerated] PrintMembers override on Derived. So Derived.ToString().DeclaringType is
+        // Base, not Derived — a `DeclaringType == type` detector would MISS it, though `derived.ToString()`
+        // prints Derived's members (incl. the org.nr) via that PrintMembers override. Ground the claim
+        // first, then require the detector to catch it.
+        new LeakingDerivedOrgNrRecord(KnownId, Sentinel).ToString()
+            .Contains(Sentinel, StringComparison.Ordinal).ShouldBeTrue(
+                "ground truth: a derived record prints its own members through the inherited ToString");
+
+        OrgNrSurfaceScan.HasOrgNrMember(typeof(LeakingDerivedOrgNrRecord)).ShouldBeTrue();
+        RecordToStringPrintsItsMembers(typeof(LeakingDerivedOrgNrRecord)).ShouldBeTrue(
+            "the detector must catch a derived record whose ToString is synthesised on the base and " +
+            "whose PrintMembers override is on the derived — DeclaringType==type would miss it");
     }
 
     [Fact]
@@ -147,63 +266,22 @@ public class OrgNrRecordLoggingGuardTests
         // ...and it must NOT fire on a record that DID override ToString(), or every override would be
         // pointless and people would route around a guard that never goes green.
         OrgNrSurfaceScan.HasOrgNrMember(typeof(RedactedSampleRecord)).ShouldBeTrue();
-        HasCompilerGeneratedToString(typeof(RedactedSampleRecord)).ShouldBeFalse(
+        RecordToStringPrintsItsMembers(typeof(RedactedSampleRecord)).ShouldBeFalse(
             "a hand-written ToString() override is not [CompilerGenerated]");
     }
 
     [Fact]
-    public void Redacted_records_do_not_print_their_organisation_number()
+    public void Leak_detector_passes_a_record_that_redacts_via_a_PrintMembers_override()
     {
-        // BEHAVIORAL proof (CTO bind #883 D6). The structural guard catches a MISSING override but is
-        // blind to a LYING one — someone writes `ToString() => $"...{OrganizationNumber}"` and passes
-        // structurally. Only constructing each type with a sentinel org.nr and asserting ToString()
-        // redacts it closes that. Sentinel = 5592804784 (the live-verified JobStream form used across
-        // the sibling guards). Every override is hand-written and can individually lie, so this covers
-        // every accessible redacted type explicitly — not a representative sample.
-        //
-        // The two PRIVATE Infrastructure projection records (BatchRow, EmployerOrgNrRow) cannot be
-        // constructed from this assembly; they are covered by the structural guard only, which is
-        // sufficient for a lying override there (they are internal projection rows a developer is
-        // vanishingly unlikely to hand-write a leaking override for).
-        const string sentinel = "5592804784";
-
-        var cases = new (string Type, string Rendered)[]
-        {
-            (nameof(ScbCompanyRecord), new ScbCompanyRecord(
-                sentinel, "Region Stockholm", "0180", null, [], false, "1").ToString()),
-            (nameof(CompanyRegistryEntry), new CompanyRegistryEntry(sentinel, "Region Stockholm").ToString()),
-            (nameof(CompanyBrowseResult), new CompanyBrowseResult(
-                sentinel, "Region Stockholm", "0180", null, []).ToString()),
-            (nameof(EmployerAdGroup), new EmployerAdGroup(sentinel, "Region Stockholm", 3).ToString()),
-            (nameof(ErasureRecentSearchMatch), new ErasureRecentSearchMatch(
-                Guid.NewGuid(), null, sentinel).ToString()),
-            (nameof(CompanyLookupDto), new CompanyLookupDto(
-                "found", sentinel, false, "Region Stockholm", 2, 1, null).ToString()),
-            (nameof(EmployerDisambiguationDto), new EmployerDisambiguationDto(
-                sentinel, false, "Region Stockholm", 3).ToString()),
-            (nameof(EmployerApplicationHistoryDto), new EmployerApplicationHistoryDto(
-                sentinel, false, "Region Stockholm", 2, []).ToString()),
-            (nameof(CompanyBrowseDto), new CompanyBrowseDto(
-                sentinel, false, "Region Stockholm", "0180", null, []).ToString()),
-            (nameof(CompanyWatchDto), new CompanyWatchDto(
-                Guid.NewGuid(), sentinel, false, "Region Stockholm", default, 2, 1, null).ToString()),
-            (nameof(LookupCompanyQuery), new LookupCompanyQuery(sentinel).ToString()),
-            (nameof(FollowCompanyCommand), new FollowCompanyCommand(sentinel).ToString()),
-            ("CompanyLookupRequest", new CompaniesEndpoints.CompanyLookupRequest(sentinel).ToString()),
-        };
-
-        foreach (var (type, rendered) in cases)
-        {
-            rendered.Contains(sentinel, StringComparison.Ordinal).ShouldBeFalse(
-                $"{type}.ToString() printed the organisation number — MEL would render it into a log " +
-                $"for a plain {{X}} placeholder. Redact the org.nr in the override. Rendered: {rendered}");
-        }
-
-        // ...and the overrides must still identify the object, or someone "fixes" the lost
-        // debuggability by logging the whole object again.
-        new ScbCompanyRecord(sentinel, "Region Stockholm", "0180", null, [], false, "1")
-            .ToString().Contains("Region Stockholm", StringComparison.Ordinal).ShouldBeTrue(
-                "the override must keep an identifying, non-PII field (parity JobAdImportItem's ExternalId)");
+        // The precise complement to the inheritance fix: redaction may live in a hand-written
+        // PrintMembers override (ToString stays compiler-generated but prints what PrintMembers emits).
+        // The detector checks the EFFECTIVE PrintMembers, so it must NOT false-positive here — a record
+        // that genuinely redacts is not a leak (resolves code-reviewer nit 3).
+        new PrintMembersRedactedRecord(KnownId, Sentinel).ToString()
+            .Contains(Sentinel, StringComparison.Ordinal).ShouldBeFalse(
+                "ground truth: a PrintMembers override that redacts does not print the org.nr");
+        RecordToStringPrintsItsMembers(typeof(PrintMembersRedactedRecord)).ShouldBeFalse(
+            "the detector must not flag a record that redacts via a hand-written PrintMembers override");
     }
 
     [Fact]
@@ -224,15 +302,35 @@ public class OrgNrRecordLoggingGuardTests
         OrganizationNumber.FromTrusted("5592804784").ToString().ShouldBe("5592804784");
     }
 
+    // ----- helpers -------------------------------------------------------------------------------
+
     /// <summary>
-    /// True when <paramref name="type"/> declares its OWN parameterless <c>ToString()</c> and it is
-    /// <c>[CompilerGenerated]</c> — i.e. a record (class or struct) that did NOT override
-    /// <c>ToString()</c>, so the compiler-synthesised, every-member-printing one is in force. A plain
-    /// class inherits <c>object.ToString()</c> (declared on <c>object</c>, not the type → not a leak);
-    /// a hand-written override is not <c>[CompilerGenerated]</c> → not a leak. This is exactly the
-    /// leaking condition, without needing a separate "is it a record" probe.
+    /// Every org.nr-bearing type across the product assemblies, with compiler-generated types
+    /// (closures, async state machines, anonymous types) excluded — parity with
+    /// <c>OrgNrSurfaceScan.OrgNrSurfacingTypes</c>, so the two guards agree on what a candidate is.
     /// </summary>
-    private static bool HasCompilerGeneratedToString(Type type)
+    private static IEnumerable<Type> OrgNrBearingRecords() =>
+        OwnedAssemblies
+            .SelectMany(SafeGetTypes)
+            .Where(t => !t.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false))
+            .Where(OrgNrSurfaceScan.HasOrgNrMember);
+
+    /// <summary>
+    /// True when calling <c>ToString()</c> on <paramref name="type"/> prints its members unredacted —
+    /// the leaking condition. INHERITANCE-CORRECT (code-reviewer + test-writer, #883):
+    /// <list type="bullet">
+    ///   <item>If the EFFECTIVE (most-derived) <c>ToString()</c> is hand-written (not
+    ///     <c>[CompilerGenerated]</c>), the author controls the output → not a member-printing leak.
+    ///     This covers a type that overrides <c>ToString()</c>, and a derived record whose base does.</item>
+    ///   <item>Otherwise <c>ToString()</c> is the record-synthesised one, which prints members via the
+    ///     virtual <c>PrintMembers</c>. Members are emitted iff the EFFECTIVE <c>PrintMembers</c> is
+    ///     itself <c>[CompilerGenerated]</c> — a hand-written <c>PrintMembers</c> override redacts.</item>
+    /// </list>
+    /// A plain class inherits <c>object.ToString()</c> (not <c>[CompilerGenerated]</c>) → not a leak.
+    /// This subsumes the old <c>DeclaringType == type</c> form, which missed a derived record whose
+    /// <c>ToString</c> is synthesised on the base.
+    /// </summary>
+    private static bool RecordToStringPrintsItsMembers(Type type)
     {
         var toString = type.GetMethod(
             nameof(ToString),
@@ -241,9 +339,90 @@ public class OrgNrRecordLoggingGuardTests
             types: Type.EmptyTypes,
             modifiers: null);
 
-        return toString is not null
-            && toString.DeclaringType == type
-            && toString.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false);
+        if (toString is null || !toString.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false))
+            return false;
+
+        var printMembers = type.GetMethod(
+            "PrintMembers",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            binder: null,
+            types: [typeof(StringBuilder)],
+            modifiers: null);
+
+        // A [CompilerGenerated] ToString with no PrintMembers is not a shape C# emits; treat it as
+        // leaking (fail-closed) rather than reason about it.
+        return printMembers is null
+            || printMembers.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false);
+    }
+
+    /// <summary>True for a C# record (class or struct): the compiler always synthesises a
+    /// <c>PrintMembers(StringBuilder)</c>. A plain class/struct has none. Used to require behavioral
+    /// coverage only for records (a plain class's member-free <c>object.ToString()</c> cannot leak).</summary>
+    private static bool IsRecord(Type type) =>
+        type.GetMethod(
+            "PrintMembers",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            binder: null,
+            types: [typeof(StringBuilder)],
+            modifiers: null) is not null;
+
+    /// <summary>
+    /// Every accessible redacted org.nr record, constructed with the sentinel org.nr, plus its rendered
+    /// <c>ToString()</c> and the non-PII field its override must keep. The one private Infrastructure
+    /// projection record with a personnummer-capable org.nr — <c>EmployerOrgNrRow</c> — is reflection-
+    /// constructed here (F3): it is the only private record whose value can be a raw personnummer, so it
+    /// gets a real behavioral case, not just structural coverage. (The other private one, <c>BatchRow</c>,
+    /// is legal-entity-only and covered structurally via <see cref="BehaviorallyCoveredElsewhere"/>.)
+    /// </summary>
+    private static List<(Type Type, string Rendered, string KeptField)> BehavioralCases()
+    {
+        var cases = new List<(Type Type, string Rendered, string KeptField)>
+        {
+            (typeof(ScbCompanyRecord),
+                new ScbCompanyRecord(Sentinel, "Region Stockholm", "0180", null, [], false, "1").ToString(),
+                "Region Stockholm"),
+            (typeof(CompanyRegistryEntry),
+                new CompanyRegistryEntry(Sentinel, "Region Stockholm").ToString(), "Region Stockholm"),
+            (typeof(CompanyBrowseResult),
+                new CompanyBrowseResult(Sentinel, "Region Stockholm", "0180", null, []).ToString(),
+                "Region Stockholm"),
+            (typeof(EmployerAdGroup),
+                new EmployerAdGroup(Sentinel, "Region Stockholm", 3).ToString(), "Region Stockholm"),
+            (typeof(ErasureRecentSearchMatch),
+                new ErasureRecentSearchMatch(KnownId, null, Sentinel).ToString(), KnownId.ToString()),
+            (typeof(CompanyLookupDto),
+                new CompanyLookupDto("found", Sentinel, false, "Region Stockholm", 2, 1, null).ToString(),
+                "Region Stockholm"),
+            (typeof(EmployerDisambiguationDto),
+                new EmployerDisambiguationDto(Sentinel, false, "Region Stockholm", 3).ToString(),
+                "Region Stockholm"),
+            (typeof(EmployerApplicationHistoryDto),
+                new EmployerApplicationHistoryDto(Sentinel, false, "Region Stockholm", 2, []).ToString(),
+                "Region Stockholm"),
+            (typeof(CompanyBrowseDto),
+                new CompanyBrowseDto(Sentinel, false, "Region Stockholm", "0180", null, []).ToString(),
+                "Region Stockholm"),
+            (typeof(CompanyWatchDto),
+                new CompanyWatchDto(KnownId, Sentinel, false, "Region Stockholm", default, 2, 1, null).ToString(),
+                "Region Stockholm"),
+            (typeof(LookupCompanyQuery), new LookupCompanyQuery(Sentinel).ToString(), "LookupCompanyQuery"),
+            (typeof(FollowCompanyCommand), new FollowCompanyCommand(Sentinel).ToString(), "FollowCompanyCommand"),
+            (typeof(CompaniesEndpoints.CompanyLookupRequest),
+                new CompaniesEndpoints.CompanyLookupRequest(Sentinel).ToString(), "CompanyLookupRequest"),
+        };
+
+        // F3 — the private, personnummer-capable Infrastructure projection record. Reflection reaches it
+        // exactly as the scan does (Assembly.GetTypes returns private nested types); JobAdId is public.
+        var id = new JobAdId(KnownId);
+        var row = Activator.CreateInstance(
+            EmployerOrgNrRowType,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            binder: null,
+            args: [id, Sentinel],
+            culture: null)!;
+        cases.Add((EmployerOrgNrRowType, row.ToString()!, KnownId.ToString()));
+
+        return cases;
     }
 
     private static IEnumerable<Type> SafeGetTypes(Assembly assembly)
@@ -262,12 +441,36 @@ public class OrgNrRecordLoggingGuardTests
         }
     }
 
-    // Synthetic org.nr records for the self-proving negatives. In the TEST assembly, so they never
-    // reach the real product-assembly scan above.
+    private static Type ResolveNestedType(string outerFullName, string nestedName)
+    {
+        var outer = InfrastructureAssembly.GetType(outerFullName, throwOnError: true)!;
+        return outer.GetNestedType(nestedName, BindingFlags.Public | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException(
+                $"{outerFullName}+{nestedName} not found — a moved/renamed private projection record " +
+                "makes this guard's coverage silently vacuous. Update the name.");
+    }
+
+    // ----- synthetic records for the self-proving negatives (TEST assembly only, never scanned) ----
+
     private sealed record LeakingSampleRecord(Guid Id, string OrganizationNumber);
 
     private sealed record RedactedSampleRecord(Guid Id, string OrganizationNumber)
     {
         public override string ToString() => $"RedactedSampleRecord(Id={Id}, org.nr redacted)";
+    }
+
+    private abstract record LeakingBaseRecord(Guid Id);
+
+    private sealed record LeakingDerivedOrgNrRecord(Guid Id, string OrganizationNumber)
+        : LeakingBaseRecord(Id);
+
+    private sealed record PrintMembersRedactedRecord(Guid Id, string OrganizationNumber)
+    {
+        // A sealed record's synthesised PrintMembers is private, so the redacting override is too.
+        private bool PrintMembers(StringBuilder builder)
+        {
+            builder.Append("Id = ").Append(Id.ToString()).Append(", org.nr redacted");
+            return true;
+        }
     }
 }

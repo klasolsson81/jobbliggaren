@@ -15,6 +15,14 @@ export type ActivityReportRow = {
   location: string | null;
   source: string | null; // "Platsbanken" | "LinkedIn" | "Manual" | null
   url: string | null;
+  /**
+   * #892 (CTO R1): true when the source ad is an Art. 17 tombstone. The row
+   * then shows the applicant's preserved snapshot identity (or "Saknas"
+   * without one) and must carry the removed-ad marker — restored identity
+   * without a death signal would let a dead ad look alive. Derived
+   * structurally from the wire's adStatus, never by matching a literal.
+   */
+  adRemoved: boolean;
 };
 
 export type MonthOption = { value: string; label: string };
@@ -179,6 +187,13 @@ function ApplicationCard({ row }: { row: ActivityReportRow }) {
         {subtitle ? (
           <p className="mt-0.5 text-body-sm leading-5 wrap-break-word text-text-primary">
             {subtitle}
+          </p>
+        ) : null}
+        {/* #892 (CTO R1): borttagen-markören — raden visar den bevarade
+            kopians identitet och får inte se levande ut. */}
+        {row.adRemoved ? (
+          <p className="mt-1">
+            <span className="jp-tag">{t("card.adRemoved")}</span>
           </p>
         ) : null}
       </div>

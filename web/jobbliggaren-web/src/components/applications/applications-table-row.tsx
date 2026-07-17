@@ -11,6 +11,7 @@ import {
 import { daysInStatus } from "@/lib/applications/urgency";
 import { latestEventLabelKey, latestEventOf } from "@/lib/applications/latest-event";
 import { formatDate } from "@/lib/i18n/format";
+import { adIdentityOf } from "./ad-identity";
 import { useApplicationActions } from "./application-actions";
 import { useRowActions } from "./use-row-actions";
 import { StatusMenu } from "./status-menu";
@@ -51,11 +52,11 @@ export function ApplicationsTableRow({
   const pending = pendingIds.has(application.id);
   const contextId = useId();
 
-  const hasIdentity = jobAd != null;
-  const title = hasIdentity
-    ? jobAd.title
-    : tUi("row.fallbackTitle", { shortId: application.id.slice(0, 8) });
-  const roleForLabel = hasIdentity ? jobAd.title : application.id.slice(0, 8);
+  // #892: strukturell identitet + borttagen-markör (lockstep med List-raden).
+  const { adRemoved, title: adTitle, company: adCompany } = adIdentityOf(jobAd);
+  const title =
+    adTitle ?? tUi("row.fallbackTitle", { shortId: application.id.slice(0, 8) });
+  const roleForLabel = adTitle ?? application.id.slice(0, 8);
 
   const days = daysInStatus(application.lastStatusChangeAt, now);
   const waiting = isWaitingSignal(application.attentionSignal);
@@ -98,19 +99,23 @@ export function ApplicationsTableRow({
           // modifierat klick (ny flik) når fullsidan via href.
           // Länknamnet = rolltiteln; företaget bärs som beskrivning via
           // aria-describedby (WCAG 2.4.6 — ren rolltitel i rubrikrotorn).
-          aria-describedby={hasIdentity ? contextId : undefined}
+          aria-describedby={adCompany != null ? contextId : undefined}
         >
           {title}
         </Link>
-        {hasIdentity && (
+        {adCompany != null && (
           <>
             <span id={contextId} className="sr-only">
-              {jobAd.company}
+              {adCompany}
+              {adRemoved ? `, ${tUi("adRemoved.tag")}` : null}
             </span>
             <span className="jp-apptable__company" aria-hidden="true">
-              {jobAd.company}
+              {adCompany}
             </span>
           </>
+        )}
+        {adRemoved && (
+          <span className="jp-tag">{tUi("adRemoved.tag")}</span>
         )}
       </td>
 

@@ -11,6 +11,7 @@ import {
 import { daysInStatus, urgencyTagFor } from "@/lib/applications/urgency";
 import { latestEventLabelKey, latestEventOf } from "@/lib/applications/latest-event";
 import { formatDate } from "@/lib/i18n/format";
+import { adIdentityOf } from "./ad-identity";
 import { useApplicationActions } from "./application-actions";
 import { useRowActions } from "./use-row-actions";
 import { useUrgencyLabel } from "./use-urgency-label";
@@ -81,10 +82,13 @@ export function ApplicationRow({
   const pending = pendingIds.has(application.id);
   const contextId = useId();
 
-  const hasIdentity = jobAd != null;
-  const title = hasIdentity
-    ? jobAd.title
-    : tUi("row.fallbackTitle", { shortId: application.id.slice(0, 8) });
+  // #892: strukturell identitet — en raderad annons bär bevarad snapshot-
+  // identitet (eller TOM identitet utan snapshot) + status "Erased"; markören
+  // nedan är andra halvan av fixen (identitet utan dödssignal ser levande ut).
+  const { adRemoved, title: adTitle, company: adCompany } = adIdentityOf(jobAd);
+  const hasIdentity = adTitle != null;
+  const title =
+    adTitle ?? tUi("row.fallbackTitle", { shortId: application.id.slice(0, 8) });
 
   const days = daysInStatus(application.lastStatusChangeAt, now);
   // "I steget"-varningen keyar på attention-signalen (firande väntesignal ≠
@@ -131,13 +135,19 @@ export function ApplicationRow({
           </Link>
         </h3>
         <span id={contextId} className="sr-only">
-          {hasIdentity
-            ? `${jobAd.company}, ${applicationStatusLabel(t, status)}`
+          {adCompany != null
+            ? `${adCompany}, ${applicationStatusLabel(t, status)}`
             : applicationStatusLabel(t, status)}
+          {adRemoved ? `, ${tUi("adRemoved.tag")}` : null}
         </span>
-        {hasIdentity && <div className="jp-app__company">{jobAd.company}</div>}
+        {adCompany != null && (
+          <div className="jp-app__company">{adCompany}</div>
+        )}
 
         <div className="jp-app__metaline">
+          {adRemoved && (
+            <span className="jp-tag">{tUi("adRemoved.tag")}</span>
+          )}
           {urgencyLabel != null && urgency != null && (
             <span className="jp-tag" data-urgency={urgency.variant}>
               {urgencyLabel}

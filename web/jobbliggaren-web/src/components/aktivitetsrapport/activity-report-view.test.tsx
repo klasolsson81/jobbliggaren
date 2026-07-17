@@ -30,9 +30,40 @@ function row(overrides: Partial<ActivityReportRow> = {}): ActivityReportRow {
     location: "Stockholm",
     source: "Platsbanken",
     url: "https://example.se/ad/1",
+    adRemoved: false,
     ...overrides,
   };
 }
+
+// #892 (CTO R1): en raderad annons rad visar den bevarade snapshot-identiteten
+// och MÅSTE bära borttagen-markören — utan dödssignal ser raden levande ut.
+describe("removed-ad marker (#892)", () => {
+  it("renderar markören när adRemoved är true", () => {
+    render(
+      <ActivityReportView
+        rows={[row({ adRemoved: true })]}
+        selectedMonth="2026-05"
+        monthLabel="maj 2026"
+        monthOptions={monthOptions}
+        afUrl="https://arbetsformedlingen.se"
+      />,
+    );
+    expect(screen.getByText("Annonsen är borttagen")).toBeInTheDocument();
+  });
+
+  it("renderar INGEN markör för en levande annons", () => {
+    render(
+      <ActivityReportView
+        rows={[row()]}
+        selectedMonth="2026-05"
+        monthLabel="maj 2026"
+        monthOptions={monthOptions}
+        afUrl="https://arbetsformedlingen.se"
+      />,
+    );
+    expect(screen.queryByText("Annonsen är borttagen")).toBeNull();
+  });
+});
 
 function renderView(rows: ActivityReportRow[]) {
   return render(

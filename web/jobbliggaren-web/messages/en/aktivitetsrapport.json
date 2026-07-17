@@ -25,7 +25,8 @@
     "text": "No applications to report for {month}. When you mark an application as applied it appears in the month you applied."
   },
   "card": {
-    "titleFallback": "Job application"
+    "titleFallback": "Job application",
+    "adRemoved": "The ad has been removed"
   },
   "fields": {
     "employer": "Employer",

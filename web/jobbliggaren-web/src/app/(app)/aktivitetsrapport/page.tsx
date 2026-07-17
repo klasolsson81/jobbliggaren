@@ -94,6 +94,9 @@ export default async function AktivitetsrapportPage({
     location: item.location ?? null,
     source: item.source ?? null,
     url: item.url ?? null,
+    // #892: strukturell borttagen-signal (aldrig literal-match — "[raderad]"
+    // når inte wiren; CTO R5).
+    adRemoved: item.adStatus === "Erased",
   }));
 
   return (

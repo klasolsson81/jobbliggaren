@@ -18,7 +18,9 @@ import type { AdContactDto } from "@/lib/dto/job-ads";
  * label IS its accessible name). Derived entries always have `name === null` (the
  * backend never guesses a name), so the entry LEADS with its email/phone value
  * itself, with the provenance tag inline beside that lead so value and marker are
- * read together.
+ * read together. The lead link carries an sr-only kind prefix ("E-post:" /
+ * "Telefon:") so its accessible name is labelled exactly like the dt/dd rows —
+ * one labelling model for the whole block (design m3 → CTO F3, 2026-07-17).
  *
  * Renders nothing when `contacts` is empty — the caller need not gate (both
  * surfaces pass [] when the ad holds none). Null fields are omitted (no
@@ -100,6 +102,15 @@ export function RecruiterContactBlock({ contacts }: RecruiterContactBlockProps) 
                       href={leadMethod.href}
                       className="text-body font-semibold underline underline-offset-2"
                     >
+                      {/* The lead is the only method without a visible kind
+                          label (the value IS the headline, R1(b)); the sr-only
+                          prefix gives the link the same labelled accessible
+                          name as the dt/dd rows below — one labelling model
+                          for the whole block (design m3 → CTO F3, 2026-07-17). */}
+                      <span className="sr-only">
+                        {leadMethod.kind === "email" ? t("email") : t("phone")}
+                        {":"}
+                      </span>{" "}
                       {leadMethod.value}
                     </a>
                   ) : null}

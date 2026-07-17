@@ -71,26 +71,26 @@ public class RecruiterContactFtsLockTests
     /// this stronger lock took its place: <see cref="JobAdContactDto"/> is the single sanctioned
     /// crossing type (§2.3 — no domain object past the Application boundary; CTO 2026-07-17), so
     /// <see cref="AdContact"/>/<see cref="AdContacts"/> in ANY response graph — today's DTOs or a
-    /// future one — is a build break, not a review catch. Mirrors
-    /// <c>OrgNrSurfaceScan.FindRawCarriersInResponses</c> (the walker is reused outright).
+    /// future one — is a build break, not a review catch. Runs on the SAME enumeration seam as
+    /// <c>OrgNrSurfaceScan.FindRawCarriersInResponses</c> (<c>MediatorResponses</c> + the reused
+    /// walker — CTO F4/A, 2026-07-17); only the offender predicate is this lock's own.
     /// </summary>
     [Fact]
     public void L4b_no_mediator_response_reaches_a_domain_contact_type()
     {
         var offenders = new List<string>();
 
-        foreach (var request in typeof(JobAdDetailDto).Assembly.GetTypes()
-                     .Where(t => t is { IsClass: true, IsAbstract: false }
-                                 || (t.IsValueType && !t.IsEnum)))
+        // Shared enumeration seam (CTO F4/A, 2026-07-17): the SAME (request, response) walk the
+        // org.nr carrier scan runs on — a predicate widened for one guard can no longer silently
+        // miss the other. Non-vacuity of the enumeration itself is pinned once, on the seam
+        // (Mediator_response_enumeration_is_not_vacuous in OrganizationNumberSurfacingGuardTests).
+        foreach (var (request, response) in
+                 OrgNrSurfaceScan.MediatorResponses(typeof(JobAdDetailDto).Assembly))
         {
-            foreach (var iface in request.GetInterfaces().Where(IsMediatorRequest))
+            foreach (var reached in OrgNrSurfaceScan.ReachableTypes(response)
+                         .Where(t => t == typeof(AdContact) || t == typeof(AdContacts)))
             {
-                var response = iface.GetGenericArguments()[0];
-                foreach (var reached in OrgNrSurfaceScan.ReachableTypes(response)
-                             .Where(t => t == typeof(AdContact) || t == typeof(AdContacts)))
-                {
-                    offenders.Add($"{request.Name} -> {reached.Name}");
-                }
+                offenders.Add($"{request.Name} -> {reached.Name}");
             }
         }
 
@@ -146,11 +146,6 @@ public class RecruiterContactFtsLockTests
         // fields individually.
         text.ShouldContain("IsDerived");
     }
-
-    private static bool IsMediatorRequest(Type iface) =>
-        iface.IsGenericType
-        && (iface.GetGenericTypeDefinition() == typeof(Mediator.IQuery<>)
-            || iface.GetGenericTypeDefinition() == typeof(Mediator.ICommand<>));
 
     // A synthetic response shape carrying the DOMAIN collection — what a lazy handler returning
     // the aggregate's VO straight out would produce. Lives in the TEST assembly, so it never

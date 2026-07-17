@@ -154,26 +154,9 @@ public class StrandedMatchReaperJobTests
             .NotificationStatus.ShouldBe(NotificationStatus.Failed);
     }
 
-    [Fact]
-    public async Task RunAsync_SoftDeletedStrandedQueuedRow_IsNotReaped()
-    {
-        // The reaper rides the default query filter (DeletedAt == null); a Queued row soft-deleted
-        // by JobAd-expiry / the Art.17 cascade must stay excluded — we never reap an already-removed
-        // match (StrandedMatchReaperJob doc). GDPR soft-delete interaction; EF-InMemory honours the
-        // query filter.
-        var ct = TestContext.Current.CancellationToken;
-        await using var db = TestAppDbContextFactory.Create();
-        var deleted = Seed(db, Now.AddHours(-50), NotificationStatus.Queued);
-        deleted.SoftDelete(NowClock);
-        await db.SaveChangesAsync(ct);
-
-        await CreateJob(db).RunAsync(ct);
-
-        var reloaded = await db.UserJobAdMatches.IgnoreQueryFilters()
-            .SingleAsync(m => m.Id == deleted.Id, ct);
-        reloaded.NotificationStatus.ShouldBe(NotificationStatus.Queued); // untouched
-        reloaded.DeletedAt.ShouldNotBeNull();
-    }
+    // RunAsync_SoftDeletedStrandedQueuedRow_IsNotReaped retired by #868: the soft-delete axis it
+    // fabricated no longer exists (writerless decoy, removed with the column). The reaper now reads all
+    // Queued+aged rows unfiltered; the live reap/skip behaviour is covered by the tests above and below.
 
     [Fact]
     public async Task RunAsync_AlreadyFailedRow_IsLeftUntouchedBySecondRun()
@@ -264,24 +247,8 @@ public class StrandedMatchReaperJobTests
             .NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Sent);
     }
 
-    [Fact]
-    public async Task RunAsync_SoftDeletedStrandedQueuedFollowHit_IsNotReaped()
-    {
-        // Parity the match arm: the follow query rides the default soft-delete filter (DeletedAt == null),
-        // so a Queued hit removed by JobAd-expiry / the Art.17 cascade stays excluded.
-        var ct = TestContext.Current.CancellationToken;
-        await using var db = TestAppDbContextFactory.Create();
-        var deleted = SeedFollowHit(db, Now.AddHours(-50), FollowedCompanyAdHitStatus.Queued);
-        deleted.SoftDelete(NowClock);
-        await db.SaveChangesAsync(ct);
-
-        await CreateJob(db).RunAsync(ct);
-
-        var reloaded = await db.FollowedCompanyAdHits.IgnoreQueryFilters()
-            .SingleAsync(h => h.Id == deleted.Id, ct);
-        reloaded.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Queued); // untouched
-        reloaded.DeletedAt.ShouldNotBeNull();
-    }
+    // RunAsync_SoftDeletedStrandedQueuedFollowHit_IsNotReaped retired by #868 (parity the match arm):
+    // the follow-hit soft-delete axis it fabricated no longer exists.
 
     [Fact]
     public async Task RunAsync_ReapsBothRails_StrandedMatchAndFollowHit_InOneAtomicSave()

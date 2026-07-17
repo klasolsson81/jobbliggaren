@@ -117,12 +117,12 @@ public sealed partial class StrandedMatchReaperJob(
     private async Task<int> ReapStrandedMatchesAsync(DateTimeOffset cutoff, CancellationToken ct)
     {
         // Tracking is deliberate (write path — the rows are mutated + saved), NOT a §3.6
-        // AsNoTracking read. Queued rows are not soft-deleted (DeletedAt null) so the default
-        // query filter includes them. (#868: the old claim that a Queued row is "soft-deleted by
-        // JobAd-expiry / the Art. 17 cascade" is FALSE on both counts -- JobAd expiry sets Status on the
-        // AD and never touches a match row, and Art. 17 HARD-deletes these rows (AccountHardDeleter:228).
-        // UserJobAdMatch.SoftDelete() has zero callers in src/.) A Queued row erased by the Art.17
-        // cascade is correctly excluded — we never reap an already-removed match. NOT paginated:
+        // AsNoTracking read. #868 retired UserJobAdMatch's writerless soft-delete axis (no DeletedAt,
+        // no query filter, no SoftDelete()), so this read is unfiltered by construction. The old claim
+        // that a Queued row could be "soft-deleted by JobAd-expiry / the Art. 17 cascade" was FALSE on
+        // both counts: JobAd expiry sets Status on the AD and never touches a match row, and Art. 17
+        // HARD-deletes these rows (AccountHardDeleter). A row already removed by the Art. 17 cascade is
+        // simply gone — we never reap it. NOT paginated:
         // the stranded set is bounded by design (a row is legitimately Queued only within a
         // sub-day dispatch window, and only FAILED sends strand) — a Take/chunk is deferred to
         // the day a fitness signal flags the transaction size (ADR 0045; CTO 2026-06-25).
@@ -153,9 +153,9 @@ public sealed partial class StrandedMatchReaperJob(
 
     // #453 (audit #26) — company-follow rail. Same strand mechanism, different aggregate
     // (FollowedCompanyAdHit has no grade). Extending this job (not a parallel job) is DRY: the
-    // threshold / Queued→Failed / atomic save / 04:45 schedule are one shared mechanism. The follow
-    // query filter is inert here: FollowedCompanyAdHit.SoftDelete() has ZERO callers in src/ (#868), and
-    // the Art. 17 cascade HARD-deletes these rows (AccountHardDeleter:230). Nothing is excluded. Bounded by
+    // threshold / Queued→Failed / atomic save / 04:45 schedule are one shared mechanism. #868 retired
+    // this aggregate's writerless soft-delete axis too, so the read is unfiltered by construction; the
+    // Art. 17 cascade HARD-deletes these rows (AccountHardDeleter). Nothing is excluded. Bounded by
     // the same sub-day-dispatch-window design; org.nr is never read here (PII-free — id + age only).
     private async Task<int> ReapStrandedFollowHitsAsync(DateTimeOffset cutoff, CancellationToken ct)
     {

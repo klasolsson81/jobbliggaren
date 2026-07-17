@@ -28,8 +28,8 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 /// </para>
 /// <para>
 /// <b>No domain events (deliberate, mirrors <c>UserJobAdMatch</c>):</b> the company-follow scan is a
-/// batch concern and the Art. 17 cascade is handler-driven by UserId — there is no reactive consumer
-/// of a hit/soft-delete event in v1.
+/// batch concern and the Art. 17 cascade is handler-driven by UserId (<c>AccountHardDeleter</c>
+/// hard-deletes these rows) — there is no reactive consumer of a hit event in v1.
 /// </para>
 /// </summary>
 public sealed class FollowedCompanyAdHit : AggregateRoot<FollowedCompanyAdHitId>
@@ -41,7 +41,6 @@ public sealed class FollowedCompanyAdHit : AggregateRoot<FollowedCompanyAdHitId>
 
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? SentAt { get; private set; }
-    public DateTimeOffset? DeletedAt { get; private set; }
 
     /// <summary>
     /// #453 (cross-channel dedup) — when the user opened this ad in-app (any surface: the ad-detail
@@ -178,17 +177,5 @@ public sealed class FollowedCompanyAdHit : AggregateRoot<FollowedCompanyAdHitId>
 
         NotificationStatus = FollowedCompanyAdHitStatus.Failed;
         return Result.Success();
-    }
-
-    /// <summary>
-    /// Soft-deletes the hit. Joins the Art. 17 hard-delete cascade by UserId
-    /// (<c>AccountHardDeleter</c> RemoveRanges these rows), and the handler-managed cascade when the
-    /// JobAd expires. Idempotent. Raises no domain event (mirrors <c>UserJobAdMatch</c> — batch
-    /// concern, handler-driven cascade, no reactive consumer).
-    /// </summary>
-    public void SoftDelete(IDateTimeProvider clock)
-    {
-        if (DeletedAt.HasValue) return;
-        DeletedAt = clock.UtcNow;
     }
 }

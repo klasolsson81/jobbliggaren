@@ -17,9 +17,9 @@ namespace Jobbliggaren.Api.IntegrationTests.Persistence;
 // proof InMemory CANNOT give (repo lesson denormalized_projection_plaintext_dek_free / the
 // exp-per-occ jsonb-round-trip Blocker): InMemory hides the strongly-typed id converter,
 // the JobAdId-as-uuid converter, the Grade/NotificationStatus HasConversion<string>() enum-
-// NAME columns, the matched_skill_concept_ids jsonb backing-field converter, the
-// UNIQUE(user_id, job_ad_id) constraint, AND the HasQueryFilter(DeletedAt == null) — every
-// one of those is only honoured by the relational provider.
+// NAME columns, the matched_skill_concept_ids jsonb backing-field converter, and the
+// UNIQUE(user_id, job_ad_id) constraint — every one of those is only honoured by the
+// relational provider. (#868 retired the soft-delete axis: no DeletedAt column, no query filter.)
 //
 // Each test uses fresh random UserId/JobAdId so rows do not collide across the shared
 // [Collection("Api")] table.
@@ -88,7 +88,6 @@ public sealed class UserJobAdMatchPersistenceTests(ApiFactory factory)
                 reloaded.MatchedSkillConceptIds.ShouldBe(["csharp", "sql", "postgresql"]);
                 reloaded.CreatedAt.ShouldBe(createdAt, TimestampTolerance);
                 reloaded.SentAt.ShouldBeNull();
-                reloaded.DeletedAt.ShouldBeNull();
             }
         }
     }
@@ -217,45 +216,56 @@ public sealed class UserJobAdMatchPersistenceTests(ApiFactory factory)
     }
 
     // ---------------------------------------------------------------
-    // 4. Soft-delete query filter — HasQueryFilter(DeletedAt == null)
+    // 4. Schema pins (#868) — the deleted_at axis is physically gone, and the drop took no index
     // ---------------------------------------------------------------
 
     [Fact]
-    public async Task UserJobAdMatch_SoftDeleted_ExcludedByQueryFilter_VisibleViaIgnoreQueryFilters()
+    public async Task DeletedAtColumn_IsPhysicallyGone_FromTheMatchesTable()
     {
+        // #868 retired the writerless soft-delete axis (migration RetireMatchAndHitDeletedAtAxis).
+        // This pin guards the SNAPSHOT → PHYSICAL DATABASE link, the one thing model==snapshot cannot:
+        // EF's PendingModelChangesWarning fires on model ≠ snapshot, but a hand-written Up() that
+        // updates the snapshot while dropping the wrong thing (or nothing) satisfies EF completely —
+        // only a read of information_schema after the migration has run closes that gap. No "the filter
+        // is gone, so ordinary reads see every row" test lives here, deliberately (the #915 lesson): a
+        // freshly seeded row passes any filter that does not exclude fresh rows, so no seed-and-read
+        // shape can prove "no filter exists". That property is guarded at build time by the EF model —
+        // re-adding HasQueryFilter flips this aggregate into AccountHardDeleteCascadeFitnessTests'
+        // filtered set, which then demands the matching IgnoreQueryFilters in the Art. 17 cascade.
         var ct = TestContext.Current.CancellationToken;
-        var userId = Guid.NewGuid();
-        var jobAdId = JobAdId.New();
-        UserJobAdMatchId matchId;
-
-        var (db, clock, scope) = NewScope();
+        var (db, _, scope) = NewScope();
         using (scope)
         {
-            var match = UserJobAdMatch.Create(
-                userId, jobAdId, NotifiableMatchGrade.Strong, ["csharp"], clock).Value;
-            matchId = match.Id;
-            db.UserJobAdMatches.Add(match);
-            await db.SaveChangesAsync(ct);
+            (await ColumnExistsAsync(db, "deleted_at", ct)).ShouldBeFalse(
+                "deleted_at ska vara fysiskt borta ur user_job_ad_matches — en writerless decoy (#868)");
 
-            match.SoftDelete(clock);
-            await db.SaveChangesAsync(ct);
+            // Self-proving positive: the same probe finds a column that IS there, so the assertion
+            // above cannot pass vacuously (a typo'd table / changed information_schema shape).
+            (await ColumnExistsAsync(db, "grade", ct)).ShouldBeTrue(
+                "kontroll-probe: helpern måste kunna SE en kolumn som finns, annars bevisar raden inget");
         }
+    }
 
-        var (readDb, _, readScope) = NewScope();
-        using (readScope)
+    [Theory]
+    [InlineData("ux_user_job_ad_matches_user_jobad")]
+    [InlineData("ix_user_job_ad_matches_user_created_at")]
+    [InlineData("ix_user_job_ad_matches_user_status")]
+    [InlineData("ix_user_job_ad_matches_user_id")]
+    public async Task Index_SurvivesTheDeletedAtDrop_AndIsNotPartial(string indexName)
+    {
+        // DROP COLUMN silently drops every index whose predicate names the column, and the EF model
+        // snapshot is blind to it (#821's hard-won lesson). None of these four names deleted_at — all
+        // are plain B-trees — so the drop must take none of them; ix_..._user_id in particular serves
+        // the Art. 17 erasure sweep. Non-partial is structural now: with the column gone there is no
+        // predicate left to make one partial. The assertion stays as the tripwire against re-adding one.
+        var ct = TestContext.Current.CancellationToken;
+        var (db, _, scope) = NewScope();
+        using (scope)
         {
-            // Normal query — excluded by the global query filter.
-            var normal = await readDb.UserJobAdMatches
-                .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.Id == matchId, ct);
-            normal.ShouldBeNull();
-
-            // IgnoreQueryFilters — still retrievable (admin/audit), DeletedAt stamped.
-            var ignoringFilters = await readDb.UserJobAdMatches
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .SingleAsync(m => m.Id == matchId, ct);
-            ignoringFilters.DeletedAt.ShouldNotBeNull();
+            var indexDef = await IndexDefAsync(db, indexName, ct);
+            indexDef.ShouldNotBeNull($"{indexName} måste finnas i schemat efter deleted_at-droppen");
+            indexDef!.ShouldNotContain("WHERE",
+                customMessage: $"{indexName} får INTE vara partiellt — det finns inget deleted_at-predikat kvar");
         }
     }
 
@@ -315,5 +325,35 @@ public sealed class UserJobAdMatchPersistenceTests(ApiFactory factory)
             reloaded.LastSeenMatchesAt.ShouldNotBeNull();
             reloaded.LastSeenMatchesAt!.Value.ShouldBe(seenAt, TimestampTolerance);
         }
+    }
+
+    // Physical column existence, straight from the catalog. Column name PARAMETERISED (a value in the
+    // WHERE clause, never an identifier spliced into SQL). Precedent: CompanyWatchCriterionPersistenceTests.
+    private static async Task<bool> ColumnExistsAsync(AppDbContext db, string column, CancellationToken ct)
+    {
+        var rows = await db.Database
+            .SqlQueryRaw<int>(
+                """
+                SELECT count(*)::int AS "Value"
+                FROM information_schema.columns
+                WHERE table_name = 'user_job_ad_matches' AND column_name = {0}
+                """,
+                column)
+            .ToListAsync(ct);
+        return rows.ShouldHaveSingleItem() > 0;
+    }
+
+    private static async Task<string?> IndexDefAsync(AppDbContext db, string indexName, CancellationToken ct)
+    {
+        var rows = await db.Database
+            .SqlQueryRaw<string>(
+                """
+                SELECT indexdef AS "Value"
+                FROM pg_indexes
+                WHERE schemaname = 'public' AND indexname = {0}
+                """,
+                indexName)
+            .ToListAsync(ct);
+        return rows.SingleOrDefault();
     }
 }

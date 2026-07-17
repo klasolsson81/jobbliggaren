@@ -258,38 +258,9 @@ public class GetMyNewMatchCountQueryHandlerTests
     // Soft-deleted matches excluded by the global query filter.
     // =================================================================
 
-    [Fact]
-    public async Task Handle_ShouldExcludeSoftDeletedMatches_WhenWatermarkIsNull()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var userId = Guid.NewGuid();
-        using var db = TestAppDbContextFactory.Create();
-
-        SeedSeeker(db, userId, lastSeen: null);
-
-        // One live, one soft-deleted (Art.17 erasure / expired-ad cascade) — only the live
-        // one counts. InMemory honours the HasQueryFilter(DeletedAt == null) registered on
-        // the model, so this branch is observable here (the real-DB filter is re-proven by
-        // the persistence sibling).
-        var liveAdId = SeedActiveAd(db);
-        var deletedAdId = SeedActiveAd(db);
-        _clock.UtcNow.Returns(T0.AddDays(1));
-        var live = UserJobAdMatch.Create(
-            userId, liveAdId, NotifiableMatchGrade.Good, ["csharp"], _clock).Value;
-        var deleted = UserJobAdMatch.Create(
-            userId, deletedAdId, NotifiableMatchGrade.Strong, ["sql"], _clock).Value;
-        deleted.SoftDelete(_clock);
-        _clock.UtcNow.Returns(T0);
-
-        db.UserJobAdMatches.AddRange(live, deleted);
-        await db.SaveChangesAsync(ct);
-
-        var sut = new GetMyNewMatchCountQueryHandler(db, UserWith(userId));
-
-        var result = await sut.Handle(new GetMyNewMatchCountQuery(), ct);
-
-        result.Count.ShouldBe(1);
-    }
+    // Handle_ShouldExcludeSoftDeletedMatches_WhenWatermarkIsNull retired by #868: the soft-delete axis
+    // it fabricated is gone (writerless decoy, removed with the column). The count reads all the user's
+    // matches joined to Active ads; the #864 archived-ad exclusion below is the live lifecycle gate.
 
     // =================================================================
     // #864 — the badge does not count a match whose ad has been archived.

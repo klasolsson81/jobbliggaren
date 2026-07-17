@@ -183,10 +183,11 @@ public sealed partial class AccountHardDeleter(
         // (keyed by UserId, ADR 0058/0059 soft-reference) → måste raderas explicit i Art.
         // 17-cascaden, annars orphan:as background-match-rader vid hard-delete. Wirat redan i
         // PR-1 (defense-in-depth) trots att skrivvägen (Worker-scan) landar i PR-3 —
-        // utfästelsen i ADR 0080 ska aldrig kunna tappas. IgnoreQueryFilters tar även
-        // soft-deletade match-rader.
+        // utfästelsen i ADR 0080 ska aldrig kunna tappas. NO IgnoreQueryFilters: the aggregate
+        // declares no query filter (#868 retired the writerless soft-delete axis), so the call
+        // would be a no-op asserting a filter that no longer exists. The iff-invariant
+        // (filtered ⇔ call present) is machine-checked by AccountHardDeleteCascadeFitnessTests.
         var userJobAdMatches = await db.UserJobAdMatches
-            .IgnoreQueryFilters()
             .Where(m => m.UserId == userId)
             .ToListAsync(cancellationToken);
 
@@ -202,10 +203,10 @@ public sealed partial class AccountHardDeleter(
         // ADR 0087 D5 (#311 PR-4) — FollowedCompanyAdHit is an FK-less by-UserId aggregate (ADR
         // 0058/0059 soft-reference; it records WHICH followed-employer ad a user was notified about —
         // user-owned personal data). Like UserJobAdMatch/CompanyWatch it must be deleted EXPLICITLY in
-        // the Art. 17 cascade or its rows orphan on hard-delete. IgnoreQueryFilters also takes
-        // soft-deleted rows.
+        // the Art. 17 cascade or its rows orphan on hard-delete. NO IgnoreQueryFilters: the aggregate
+        // declares no query filter (#868 retired the writerless soft-delete axis), so the call would be
+        // a no-op asserting a filter that no longer exists (iff-checked, as above).
         var followedCompanyAdHits = await db.FollowedCompanyAdHits
-            .IgnoreQueryFilters()
             .Where(h => h.UserId == userId)
             .ToListAsync(cancellationToken);
 
@@ -216,11 +217,12 @@ public sealed partial class AccountHardDeleter(
         //
         // NO IgnoreQueryFilters, and that is enforced, not merely intended: the aggregate declares no
         // query filter (delete is HARD — C-D8/G1), so the call would be a no-op asserting a filter
-        // that does not exist. It joins the other three unfiltered arms — RecentJobSearches and
-        // SavedJobAds above, ResumeFiles below — which likewise omit it. The iff-invariant
-        // (filtered ⇔ call present) is machine-checked for every arm by
-        // AccountHardDeleteCascadeFitnessTests — which is what actually closes the "a filter added
-        // tomorrow silently narrows this read" hazard, for all eleven aggregates rather than this one.
+        // that does not exist. It joins the other unfiltered arms — RecentJobSearches, SavedJobAds,
+        // UserJobAdMatches and FollowedCompanyAdHits above (the last two unfiltered since #868), and
+        // ResumeFiles below — which likewise omit it. The iff-invariant (filtered ⇔ call present) is
+        // machine-checked for every arm by AccountHardDeleteCascadeFitnessTests — which is what
+        // actually closes the "a filter added tomorrow silently narrows this read" hazard, for all
+        // eleven aggregates rather than this one.
         var companyWatchCriteria = await db.CompanyWatchCriteria
             .Where(c => c.UserId == userId)
             .ToListAsync(cancellationToken);

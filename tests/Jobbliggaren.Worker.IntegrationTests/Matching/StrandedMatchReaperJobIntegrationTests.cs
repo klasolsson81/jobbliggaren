@@ -120,25 +120,9 @@ public class StrandedMatchReaperJobIntegrationTests(WorkerTestFixture fixture)
         reloaded.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Queued);
     }
 
-    [Fact]
-    public async Task RunAsync_ExcludesSoftDeletedQueuedFollowHit_AgainstRealPostgres()
-    {
-        // The follow query rides the global soft-delete filter (DeletedAt == null): a Queued hit removed
-        // by JobAd-expiry / the Art.17 cascade must stay excluded (never reaped).
-        var ct = TestContext.Current.CancellationToken;
-        var (userId, jobAdId, watchId) = await SeedQueuedFollowHitAsync(LongAgo, ct, softDeleted: true);
-
-        using (var scope = _fixture.Services.CreateScope())
-        {
-            var worker = scope.ServiceProvider.GetRequiredService<StrandedMatchReaperWorker>();
-            await worker.RunAsync(ct);
-        }
-
-        var reloaded = await GetFollowHitAsync(userId, jobAdId, watchId, ct, ignoreFilters: true);
-        reloaded.ShouldNotBeNull();
-        reloaded.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Queued, "a soft-deleted hit is not reaped");
-        reloaded.DeletedAt.ShouldNotBeNull();
-    }
+    // RunAsync_ExcludesSoftDeletedQueuedFollowHit_AgainstRealPostgres retired by #868: the soft-delete
+    // axis it fabricated no longer exists (writerless decoy, removed with the column). The reaper reads
+    // all Queued+aged hits unfiltered; the live reap/leave behaviour is covered by the tests above/below.
 
     [Fact]
     public async Task RunAsync_ReapsBothRails_InSingleRun_AgainstRealPostgres()
@@ -179,7 +163,7 @@ public class StrandedMatchReaperJobIntegrationTests(WorkerTestFixture fixture)
     // Seeds a Queued FollowedCompanyAdHit created at <paramref name="createdAt"/> for a fresh user.
     // No FK on job_ad_id / company_watch_id (ADR 0058/0059), so fresh ids suffice - no ad/watch seeding.
     private async Task<(Guid UserId, JobAdId JobAdId, CompanyWatchId WatchId)> SeedQueuedFollowHitAsync(
-        DateTimeOffset createdAt, CancellationToken ct, bool softDeleted = false)
+        DateTimeOffset createdAt, CancellationToken ct)
     {
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -187,22 +171,17 @@ public class StrandedMatchReaperJobIntegrationTests(WorkerTestFixture fixture)
         var userId = Guid.NewGuid();
         var hit = FollowedCompanyAdHit.Create(userId, JobAdId.New(), CompanyWatchId.New(), clock).Value;
         hit.MarkQueued().IsSuccess.ShouldBeTrue();
-        if (softDeleted)
-            hit.SoftDelete(clock);
         db.FollowedCompanyAdHits.Add(hit);
         await db.SaveChangesAsync(ct);
         return (userId, hit.JobAdId, hit.CompanyWatchId);
     }
 
     private async Task<FollowedCompanyAdHit?> GetFollowHitAsync(
-        Guid userId, JobAdId jobAdId, CompanyWatchId watchId, CancellationToken ct, bool ignoreFilters = false)
+        Guid userId, JobAdId jobAdId, CompanyWatchId watchId, CancellationToken ct)
     {
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var query = db.FollowedCompanyAdHits.AsNoTracking();
-        if (ignoreFilters)
-            query = query.IgnoreQueryFilters();
-        return await query.FirstOrDefaultAsync(
+        return await db.FollowedCompanyAdHits.AsNoTracking().FirstOrDefaultAsync(
             h => h.UserId == userId && h.JobAdId == jobAdId && h.CompanyWatchId == watchId, ct);
     }
 

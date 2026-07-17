@@ -11,13 +11,12 @@ namespace Jobbliggaren.Application.Matching.Queries.GetMyMatches;
 /// no authenticated user → empty. <c>IsNew</c> is computed against the last-seen watermark as it
 /// stands AT FETCH (opening the view advances it separately via MarkMatchesSeen). NO AI/LLM.
 /// <para>
-/// <b>What excludes an erased row — and what does NOT.</b> This comment used to say "the soft-delete
-/// query filter on <c>UserJobAdMatch</c> excludes erased rows". The filter is registered
-/// (<c>UserJobAdMatchConfiguration</c>) but <b><c>UserJobAdMatch.SoftDelete()</c> has ZERO callers in
-/// <c>src/</c></b> (#868; <c>StrandedMatchReaperJob</c> says so in as many words) — so it excludes
-/// nothing, and that sentence promised a control that has never once fired. It is the same
-/// sentence-shape, about the same column name, that produced #864: an exclusion delegated to a filter
-/// with no writer. The exclusion here is the <c>Status</c> predicate below and nothing else.
+/// <b>What excludes an erased row — and what does NOT.</b> An earlier version of this comment said "the
+/// soft-delete query filter on <c>UserJobAdMatch</c> excludes erased rows". That filter had a
+/// registration but no writer — <c>SoftDelete()</c> had ZERO callers — so it excluded nothing: the same
+/// no-writer-filter defect that produced #864, an exclusion delegated to a filter that never fired.
+/// #868 has since retired the whole axis (no <c>deleted_at</c> column, no query filter, no
+/// <c>SoftDelete()</c>). The exclusion here is the <c>Status</c> predicate below and nothing else.
 /// </para>
 /// <para>
 /// <b>Lifecycle (#864):</b> the join carries an explicit <c>Status == Active</c> predicate. The

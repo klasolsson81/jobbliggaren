@@ -29,7 +29,9 @@ namespace Jobbliggaren.Infrastructure.Persistence.Configurations;
 /// <b>No grade, no score, no jsonb.</b> A company-follow hit is not scored — the aggregate carries
 /// no <c>Grade</c> and no numeric field (ADR 0071/0076 — no new Goodhart surface). The notification
 /// body's public title/company come from a handler-managed join to <c>job_ads</c>, never
-/// denormalised here. Soft-delete via <c>deleted_at</c> + global query filter; no DEK column.
+/// denormalised here. No DEK column and no soft-delete axis: Art. 17 erasure is a HARD delete
+/// (<c>AccountHardDeleter</c> RemoveRange); the writerless <c>deleted_at</c> + query filter were
+/// retired (#868, parity <c>UserJobAdMatchConfiguration</c>).
 /// </para>
 /// </summary>
 public sealed class FollowedCompanyAdHitConfiguration : IEntityTypeConfiguration<FollowedCompanyAdHit>
@@ -66,7 +68,6 @@ public sealed class FollowedCompanyAdHitConfiguration : IEntityTypeConfiguration
 
         builder.Property(h => h.CreatedAt).IsRequired();
         builder.Property(h => h.SentAt);
-        builder.Property(h => h.DeletedAt);
 
         // #453 (cross-channel dedup) — nullable "seen in-app" stamp. NO dedicated index: the dispatch
         // hot path already scopes to a tiny per-user set via ix_followed_company_ad_hits_user_status
@@ -84,11 +85,8 @@ public sealed class FollowedCompanyAdHitConfiguration : IEntityTypeConfiguration
             .HasDatabaseName("ux_followed_company_ad_hits_user_jobad_watch");
 
         // Dispatch query (DigestDispatchJob: WHERE user_id = ? AND notification_status = 'Pending').
-        // A FULL B-tree, NOT a `WHERE deleted_at IS NULL` partial index (in contrast to CompanyWatch's
-        // ux_company_watches_user_orgnr_active): a soft-deleted hit is semantically never Pending
-        // (SoftDelete stamps deleted_at regardless of status), so a partial filter would buy nothing
-        // here — there is no resurrect/ON-CONFLICT need that would require soft-deleted rows to remain
-        // index-visible (db-migration-writer 2026-07-01).
+        // A plain full B-tree — the aggregate carries no soft-delete axis (#868), so the
+        // `WHERE deleted_at IS NULL` partial-index question that CompanyWatch weighs does not arise here.
         builder.HasIndex(h => new { h.UserId, h.NotificationStatus })
             .HasDatabaseName("ix_followed_company_ad_hits_user_status");
 
@@ -96,9 +94,6 @@ public sealed class FollowedCompanyAdHitConfiguration : IEntityTypeConfiguration
         // per-user grouping.
         builder.HasIndex(h => h.UserId)
             .HasDatabaseName("ix_followed_company_ad_hits_user_id");
-
-        // Soft-delete: deleted rows hidden from normal queries (retained for audit).
-        builder.HasQueryFilter(h => h.DeletedAt == null);
 
         builder.Ignore(h => h.DomainEvents);
     }

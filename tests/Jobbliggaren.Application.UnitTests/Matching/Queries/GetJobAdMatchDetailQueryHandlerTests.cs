@@ -5,7 +5,11 @@ using Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
+using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 using Shouldly;
 
@@ -201,10 +205,16 @@ public class GetJobAdMatchDetailQueryHandlerTests
             => throw new NotSupportedException("GetContainingOccupationFieldsAsync ska inte anropas av modal-handlern.");
     }
 
+    // #885 — the handler now reads the ad's STATUS before scoring (the 410 gate). The default
+    // context is EMPTY, which is deliberate: an id with no row reads status null → not Erased →
+    // falls through to the (fake) scorer, so every pre-#885 test keeps its exact altitude and
+    // asserts what it always asserted. The lifecycle tests below pass a SEEDED context.
     private GetJobAdMatchDetailQueryHandler CreateHandler(
         FakeProfileBuilder builder, FakeScorer scorer,
-        ICurrentUser? user = null, ITaxonomyReadModel? taxonomy = null) =>
-        new(builder, scorer, taxonomy ?? new FakeTaxonomy(), user ?? _currentUser);
+        ICurrentUser? user = null, ITaxonomyReadModel? taxonomy = null,
+        IAppDbContext? db = null) =>
+        new(db ?? TestAppDbContextFactory.Create(), builder, scorer,
+            taxonomy ?? new FakeTaxonomy(), user ?? _currentUser);
 
     // =================================================================
     // Anonymous → null, builder + scorer never called (the modal is auth-gated)
@@ -220,7 +230,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
         var scorer = new FakeScorer(StrongScore());
         var sut = CreateHandler(builder, scorer, anon);
 
-        var result = await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid()), ct);
+        var result = (await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid()), ct)).Value;
 
         result.ShouldBeNull();
         builder.CvSkillsCallCount.ShouldBe(0);
@@ -250,7 +260,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
         var scorer = new FakeScorer(score);
         var sut = CreateHandler(builder, scorer);
 
-        var result = await sut.Handle(new GetJobAdMatchDetailQuery(jobAdId), ct);
+        var result = (await sut.Handle(new GetJobAdMatchDetailQuery(jobAdId), ct)).Value;
 
         result.ShouldNotBeNull();
         // PR-B1 requirement-aware Top: must-have Match (gate OPEN) + both secondaries
@@ -310,7 +320,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
         var scorer = new FakeScorer(score);
         var sut = CreateHandler(builder, scorer, taxonomy: new FakeTaxonomy(map));
 
-        var result = await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid()), ct);
+        var result = (await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid()), ct)).Value;
 
         result.ShouldNotBeNull();
         // Membership dims: concept-ids resolved to human labels (matched AND missing).
@@ -347,7 +357,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
         var scorer = new FakeScorer(score);
         var sut = CreateHandler(builder, scorer);
 
-        var result = await sut.Handle(new GetJobAdMatchDetailQuery(jobAdId), ct);
+        var result = (await sut.Handle(new GetJobAdMatchDetailQuery(jobAdId), ct)).Value;
 
         result.ShouldNotBeNull();
         // Requirement-aware: must-have NoMatch caps below Strong → Good (both secondaries
@@ -386,7 +396,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
         var scorer = new FakeScorer(score);
         var sut = CreateHandler(builder, scorer);
 
-        var result = await sut.Handle(new GetJobAdMatchDetailQuery(jobAdId), ct);
+        var result = (await sut.Handle(new GetJobAdMatchDetailQuery(jobAdId), ct)).Value;
 
         // DTO IS returned (not null) with an honest null grade + per-dimension rows.
         result.ShouldNotBeNull();
@@ -414,6 +424,126 @@ public class GetJobAdMatchDetailQueryHandlerTests
 
         await Should.ThrowAsync<NotFoundException>(
             async () => await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid()), ct));
+    }
+
+    // =================================================================
+    // #885 — the lifecycle gate. An ERASED ad is 410 Gone (agreeing with GET /api/v1/job-ads/{id}
+    // about the same row); an ARCHIVED ad is still 200 + a grade (#805-3 — the counterfactual
+    // that makes the Erased assertion attributable to the STATUS, not to the seed).
+    //
+    // The erased ad is seeded through the DOMAIN TRANSITION (JobAd.Erase()), never by
+    // hand-stamping Status (#843): Erase() also empties ExtractedTerms and Title, so a fabricated
+    // tombstone would be a row that cannot exist. Both ads are built by the SAME helper and differ
+    // ONLY in which transition ran — so the pair isolates one variable.
+    // =================================================================
+
+    private static async Task<JobAd> SeedAdAsync(
+        AppDbContext db, Func<JobAd, Result> transition, CancellationToken ct)
+    {
+        var clock = FakeDateTimeProvider.Default;
+        var ad = JobAd.Create(
+            "Systemutvecklare", Company.Create("Testbolaget AB").Value, "Vi söker en utvecklare.",
+            "https://example.test/jobb/1", JobSource.Platsbanken,
+            clock.UtcNow, clock.UtcNow.AddDays(30), clock).Value;
+
+        // The transition runs through the AGGREGATE, and its verdict is asserted: a refused
+        // transition would otherwise leave an Active ad wearing the test's name (#843 — never
+        // fabricate the state you mean to test).
+        transition(ad).IsSuccess.ShouldBeTrue();
+
+        db.JobAds.Add(ad);
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+        return ad;
+    }
+
+
+    [Fact]
+    public async Task Handle_ShouldReturnGone_WhenAdIsErased()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var ad = await SeedAdAsync(db, a => a.Erase(FakeDateTimeProvider.Default), ct);
+
+        // Fail-loud read-back through a FRESH view of the store, BEFORE the SUT runs: if the
+        // seed did not actually erase, the witness must die here rather than pass for the
+        // wrong reason (#864's broken-seed lesson).
+        var seeded = await db.JobAds.AsNoTracking()
+            .FirstAsync(j => j.Id == ad.Id, ct);
+        seeded.Status.ShouldBe(JobAdStatus.Erased);
+        seeded.Title.ShouldBeEmpty();
+
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-x"));
+        var scorer = new FakeScorer(StrongScore());
+        var sut = CreateHandler(builder, scorer, db: db);
+
+        var result = await sut.Handle(new GetJobAdMatchDetailQuery(ad.Id.Value), ct);
+
+        result.IsSuccess.ShouldBeFalse();
+        result.Error.Kind.ShouldBe(ErrorKind.Gone);
+        // The neutral body — byte-identical to what GET /api/v1/job-ads/{id} emits for this ad.
+        // The two-endpoint comparison test (Api.IntegrationTests) is what PINS that identity;
+        // this asserts the kind the mapper turns into 410.
+        result.Error.Message.ShouldBe("Annonsen är inte längre tillgänglig.");
+
+        // The tombstone never reached the engine: Erase() KEEPS the *_concept_id facets, so a
+        // scorer call here would have produced a real, labelled grade.
+        scorer.ScoreFullCallCount.ShouldBe(0);
+        builder.CvSkillsCallCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldStillScore_WhenAdIsArchived()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var ad = await SeedAdAsync(db, a => a.Archive(FakeDateTimeProvider.Default), ct);
+
+        var seeded = await db.JobAds.AsNoTracking()
+            .FirstAsync(j => j.Id == ad.Id, ct);
+        seeded.Status.ShouldBe(JobAdStatus.Archived);
+
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-x"));
+        var scorer = new FakeScorer(StrongScore());
+        var sut = CreateHandler(builder, scorer, db: db);
+
+        var result = await sut.Handle(new GetJobAdMatchDetailQuery(ad.Id.Value), ct);
+
+        // #805-3 / #864 D2: the detail path still explains WHY an archived ad was a fit. This is
+        // the pin that stops #885's gate from over-reaching into the behaviour #864 built.
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldNotBeNull();
+        scorer.ScoreFullCallCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldPropagateNotFound_WhenAdIsErasedBetweenTheStatusCheckAndTheScorerRead()
+    {
+        // THE TOCTOU, named (CTO G2 ground 3). The handler's gate PASSES (the row is Archived when it
+        // reads it); the scorer's own gate then sees the row erased and reports it absent. The race
+        // must degrade to 404 — never to a grade. This is the assertion behind MatchScorer.cs's
+        // written claim; without it that sentence is prose claiming a pin that does not exist (the
+        // #864 disease this PR exists to end). It differs from
+        // Handle_ShouldPropagateNotFoundException_WhenAdDoesNotExist in the one way that matters:
+        // the row EXISTS and CLEARS the first gate, so the second gate is what answers.
+        //
+        // No real interleaving is built: the CTO said "do not build a transaction for a millisecond
+        // window", and the same discipline applies to its oracle. The scorer's refusal is the
+        // observable behaviour, and a fake that refuses reproduces it deterministically.
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var ad = await SeedAdAsync(db, a => a.Archive(FakeDateTimeProvider.Default), ct);
+
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-x"));
+        var scorer = new FakeScorer(new NotFoundException("JobAd hittades inte."));
+        var sut = CreateHandler(builder, scorer, db: db);
+
+        await Should.ThrowAsync<NotFoundException>(
+            async () => await sut.Handle(new GetJobAdMatchDetailQuery(ad.Id.Value), ct));
+
+        // Non-vacuity: the row genuinely passed the handler's gate — the scorer WAS reached.
+        // Without this the spec could pass by the handler short-circuiting for some other reason.
+        scorer.ScoreFullCallCount.ShouldBe(1);
     }
 
     // =================================================================

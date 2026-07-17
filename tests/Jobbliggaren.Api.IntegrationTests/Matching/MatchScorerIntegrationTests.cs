@@ -1430,6 +1430,73 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         AssertSameDimension(liveScore.EmploymentFit, archivedScore.EmploymentFit);
     }
 
+    // =================================================================
+    // #885 — ScoreAsync REFUSES an Erased ad. The other half of the single family's ONE lifecycle
+    // contract: {Active, Archived} are scored, the tombstone is not.
+    //
+    // Same reason this lives at the scorer level as its Archived sibling above: ScoreAsync has ZERO
+    // production callers, so no endpoint test can detect this gate being REMOVED. Zero callers is
+    // not a reason to leave the port's published contract false for half its surface (#885 / CTO
+    // G4) — it is the reason the spec must live here.
+    //
+    // NOTE the direction: this is an EXCLUSION spec, so unlike its Archived sibling it fails-safe
+    // on a broken seed (a silently-failed Erase() leaves the ad Active → it scores → no throw →
+    // RED). The read-back is still asserted, because it pins the fact that makes the gate
+    // load-bearing rather than cosmetic: Erase() KEEPS the facets this scorer reads.
+    // =================================================================
+    [Fact]
+    public async Task ScoreAsync_RefusesAnErasedAd_TheTombstoneIsNotServed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var grp = NewConceptId("grp");
+        var reg = NewConceptId("reg");
+
+        // Identical facets; the ONLY difference is which transition ran.
+        var archived = await SeedJobAdAsync("Systemutvecklare", grp, reg, null, ct);
+        var erased = await SeedJobAdAsync("Systemutvecklare", grp, reg, null, ct);
+        await ArchiveAsync(archived, ct);
+        await EraseAsync(erased, ct);
+
+        var profile = new CandidateMatchProfile("Systemutvecklare", [grp], [reg], [], []);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+
+        // COUNTERFACTUAL: the same seed, merely ARCHIVED, is scored and genuinely Matches. So the
+        // refusal below is attributable to the Erased status alone — not to a seed that could
+        // never have scored (the facets are live on BOTH rows).
+        var archivedScore = await scorer.ScoreAsync(archived, profile, ct);
+        archivedScore.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match,
+            "Den arkiverade tvillingen ska matcha — annars bevisar refusalen nedan fel sak.");
+
+        // THE SPECIFICATION: the tombstone reads as ABSENT.
+        await Should.ThrowAsync<NotFoundException>(
+            async () => await scorer.ScoreAsync(erased, profile, ct));
+    }
+
+    // #885 — the REAL Art. 17 transition, parity ArchiveAsync below. The read-back asserts BOTH
+    // halves of the tombstone's shape: the status IS Erased, and the facets SURVIVED (JobAd.Erase:
+    // "a tombstone that keeps its SSYK code discloses nothing about her"). The second half is what
+    // makes the gate load-bearing — an erased row still carries live scoring inputs.
+    private async Task EraseAsync(JobAdId id, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var ad = await db.JobAds.FindAsync([id], ct);
+        ad.ShouldNotBeNull();
+        ad!.Erase(clock).IsSuccess.ShouldBeTrue("Erase() ska lyckas — annars är specen vakuös.");
+        await db.SaveChangesAsync(ct);
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stored = await verifyDb.JobAds.AsNoTracking().FirstAsync(j => j.Id == id, ct);
+        stored.Status.ShouldBe(JobAdStatus.Erased);
+        stored.OccupationGroupConceptId.ShouldNotBeNull(
+            "Facetterna ska ÖVERLEVA Erase() — det är just därför grinden bär last.");
+    }
+
     // The REAL retraction transition (#821: Archive() is JobAd's only lifecycle method — there is
     // no soft-delete axis to fabricate, and #843 forbids inventing one).
     //

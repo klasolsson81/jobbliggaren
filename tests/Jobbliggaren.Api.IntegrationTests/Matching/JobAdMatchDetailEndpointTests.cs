@@ -170,6 +170,35 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
         stored.Status.ShouldBe(JobAdStatus.Archived);
     }
 
+    // #885 — the REAL Art. 17 transition, parity ArchiveAsync above. Erase() is asserted for the
+    // same reason: a silently-refused Erase() would leave the ad Active and make the 410 spec
+    // vacuous (it would pass by seeding the wrong thing). The read-back also pins that Erase()
+    // EMPTIED the title while KEEPING the facets — the exact shape the gate must handle, and the
+    // reason a hand-stamped Status would be a row that cannot exist (#843).
+    private async Task EraseAsync(Guid id, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var jobAdId = new JobAdId(id);
+        var ad = await db.JobAds.FindAsync([jobAdId], ct);
+        ad.ShouldNotBeNull();
+        ad!.Erase(clock).IsSuccess.ShouldBeTrue("Erase() ska lyckas — annars är specen vakuös.");
+        await db.SaveChangesAsync(ct);
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stored = await verifyDb.JobAds.AsNoTracking().FirstAsync(j => j.Id == jobAdId, ct);
+        stored.Status.ShouldBe(JobAdStatus.Erased);
+        stored.Title.ShouldBeEmpty("Erase() ska TÖMMA titeln — annars är gravstenen fabricerad.");
+        // The facets SURVIVE by written design (JobAd.Erase: "a tombstone that keeps its SSYK code
+        // discloses nothing about her"). That is precisely why the gate is load-bearing: without
+        // it these live facets score a real, LABELLED grade for an erased row.
+        stored.OccupationGroupConceptId.ShouldNotBeNull(
+            "Facetterna ska ÖVERLEVA Erase() — annars vore grinden onödig och specen bevisar fel sak.");
+    }
+
     private static string BuildRawPayload(
         string externalId,
         string? occupationGroupConceptId,
@@ -500,7 +529,7 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
     // vanish from the modal. A regression with NO symptom. This spec is what makes that noisy.
     //
     // Why 200 + a grade is the TRUE answer, not a tolerated leftover (CTO D3):
-    //   - GET /api/v1/jobads/{id} serves an archived ad 200 (#805-3, deliberately). Two endpoints
+    //   - GET /api/v1/job-ads/{id} serves an archived ad 200 (#805-3, deliberately). Two endpoints
     //     must not disagree about whether one row EXISTS.
     //   - NotFoundException means "the row is absent" everywhere else in this codebase; overloading
     //     it with "exists but archived" corrupts a shared idiom (CLAUDE.md §3 → 404).
@@ -560,6 +589,112 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
         DimVerdict(archivedDto, "ssykOverlap").ShouldBe(Wire(MatchDimensionVerdict.Match));
         DimVerdict(archivedDto, "regionFit").ShouldBe(Wire(MatchDimensionVerdict.Match));
         DimVerdict(archivedDto, "employmentFit").ShouldBe(Wire(MatchDimensionVerdict.Match));
+    }
+
+    // =================================================================
+    // 5b. #885 — an ERASED ad is 410 Gone here, exactly as GET /api/v1/job-ads/{id} answers it.
+    //
+    // The defect this kills is NOT "a grade leaked". Erase() deliberately KEEPS the six
+    // *_concept_id facets ("a tombstone that keeps its SSYK code discloses nothing about her"),
+    // and this handler RESOLVES those concept-ids to human labels — so before the gate, a
+    // tombstone answered 200 with "Bra match" PLUS "Systemutvecklare" / "Stockholms län" /
+    // "Tillsvidareanställning": real, readable content about a row whose own detail page says
+    // "Annonsen är inte längre tillgänglig." The match endpoint was a side channel that confirmed
+    // an Art. 17 erasure the 410's neutral body was written to conceal.
+    //
+    // The ARCHIVED twin above (spec 5) is the counterfactual that makes this attributable: both
+    // ads carry identical facets and differ ONLY in which transition ran, so a 410 here cannot be
+    // "the seed scored nothing anyway" — the same seed, archived, returns 200 + a real grade.
+    // =================================================================
+
+    [Fact]
+    public async Task GET_match_detail_returns_410_for_an_erased_ad_while_its_archived_twin_is_200()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var grp = NewConceptId("grp");
+        var reg = NewConceptId("reg");
+        var emp = NewConceptId("emp");
+        await SetPreferencesAsync([grp], [reg], [emp], ct);
+
+        // Identical facets. The ONLY difference is which lifecycle transition ran.
+        var archivedAd = await SeedJobAdAsync("Systemutvecklare", grp, reg, emp, terms: null, ct);
+        var erasedAd = await SeedJobAdAsync("Systemutvecklare", grp, reg, emp, terms: null, ct);
+        await ArchiveAsync(archivedAd, ct);
+        await EraseAsync(erasedAd, ct);
+
+        // NON-VACUITY / COUNTERFACTUAL: the same seed, merely archived, genuinely scores a grade
+        // through this endpoint. So the 410 below is attributable to the ERASED status alone.
+        var archivedResponse = await GetDetailAsync(archivedAd, ct);
+        archivedResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var archivedDto = await archivedResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+        archivedDto.GetProperty("grade").GetString().ShouldNotBeNull(
+            "Den arkiverade tvillingen ska få en riktig grad — annars bevisar 410:an nedan fel sak " +
+            "(den kunde bero på att seeden inte matchar, inte på grinden).");
+
+        // THE SPECIFICATION.
+        var erasedResponse = await GetDetailAsync(erasedAd, ct);
+        erasedResponse.StatusCode.ShouldBe(HttpStatusCode.Gone,
+            "En raderad annons ska ge 410 här — inte 200 (som bekräftar radens existens efter att " +
+            "detaljsidan sagt Gone) och inte 404 (som påstår att vi aldrig haft raden).");
+
+        // The body is the neutral one. It must not name Art. 17, erasure, or the recruiter.
+        var problem = await erasedResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+        problem.GetProperty("detail").GetString().ShouldBe("Annonsen är inte längre tillgänglig.");
+    }
+
+    // =================================================================
+    // 5c. #885 (G6) — THE CONSISTENCY ORACLE: the two endpoints, the SAME erased ad, one answer.
+    //
+    // This is the acceptance criterion expressed as an assertion instead of restated as a literal:
+    // "the detail endpoint's response must be consistent with what GET /api/v1/job-ads/{id} says
+    // about the same ad." It pins the MAPPING, not the prose — edit either handler's message or
+    // either status and this fails; edit BOTH deliberately and it passes, which is correct (that
+    // is a decision, not a drift). A shared constant would have made the strings equal by
+    // construction while proving nothing about whether /job-ads/{id} still answers 410 at all.
+    // =================================================================
+
+    [Fact]
+    public async Task GET_match_detail_and_GET_jobad_agree_about_an_erased_ad()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var grp = NewConceptId("grp");
+        await SetPreferencesAsync([grp], [], [], ct);
+
+        var adId = await SeedJobAdAsync("Systemutvecklare", grp, null, null, terms: null, ct);
+        await EraseAsync(adId, ct);
+
+        var detailResponse = await _client.GetAsync($"/api/v1/job-ads/{adId}", ct);
+        var matchResponse = await GetDetailAsync(adId, ct);
+
+        // Same status.
+        matchResponse.StatusCode.ShouldBe(detailResponse.StatusCode,
+            "Match-vägen och annons-detaljen får ALDRIG vara oense om samma rad. Om detaljsidan " +
+            "säger Gone måste match-vägen säga Gone.");
+        detailResponse.StatusCode.ShouldBe(HttpStatusCode.Gone,
+            "Icke-vakuitet: /job-ads/{id} ska faktiskt svara 410 — annars kan likhets-assertionen " +
+            "ovan passera med två 200:or.");
+
+        // Same neutral body. BOTH fields the mapper writes — not just the prose.
+        var detailProblem = await detailResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+        var matchProblem = await matchResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+        matchProblem.GetProperty("detail").GetString()
+            .ShouldBe(detailProblem.GetProperty("detail").GetString(),
+                "Samma neutrala text — texten ÄR röjande-kontrollen; två olika formuleringar för " +
+                "samma rad är två olika påståenden om den.");
+
+        // `title` carries DomainError.Code through DomainErrorResults.ToProblemResult, so it is a
+        // BODY field holding a developer-authored string: a Code like "JobAd.Erased" would name the
+        // erasure on the wire and röja den lika säkert som texten gör. Pinning `detail` alone left
+        // the adjacent field of the same control unmapped — the guarantee was pinned one field
+        // short (security-auditor Minor 1, #885).
+        matchProblem.GetProperty("title").GetString()
+            .ShouldBe(detailProblem.GetProperty("title").GetString(),
+                "Hela kroppen är röjande-kontrollen, inte bara 'detail' — mapparen skriver felkoden " +
+                "till 'title', och en kod som namnger raderingen röjer den lika säkert som texten.");
     }
 
     // =================================================================

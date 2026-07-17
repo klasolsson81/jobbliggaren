@@ -1,4 +1,3 @@
-using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Resumes;
 
 namespace Jobbliggaren.Application.Resumes.Review.Abstractions;
@@ -22,8 +21,15 @@ public interface IResumeReviewReconciler
     /// CTO D-D), a criterion in the set whose post-write verdict genuinely cleared to
     /// Pass is flipped to Resolved first — the engine, not the click, decides; a
     /// partial fix stays Open. Pass null on every other write path.
+    ///
+    /// <para>Contract (CTO bind 2026-07-17, ADR 0093 §D5(b) amendment): the reconciler
+    /// either COMPLETES or THROWS — every input is server-derived, so any failure is a
+    /// server bug, never an expected client error. A throw propagates past the calling
+    /// handler, so <c>UnitOfWorkBehavior</c>'s unconditional save never runs and the
+    /// transaction's tracked mutations are discarded — the fail-loud atomicity
+    /// guarantee.</para>
     /// </summary>
-    ValueTask<Result> ReconcileAsync(
+    ValueTask ReconcileAsync(
         Resume resumeAggregate,
         IReadOnlyCollection<string>? autoResolveCriteria,
         CancellationToken cancellationToken);

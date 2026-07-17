@@ -18,7 +18,7 @@ public sealed class ResumeReviewReconciler(
     ICvReviewEngine engine,
     IDateTimeProvider clock) : IResumeReviewReconciler
 {
-    public async ValueTask<Result> ReconcileAsync(
+    public async ValueTask ReconcileAsync(
         Resume resumeAggregate,
         IReadOnlyCollection<string>? autoResolveCriteria,
         CancellationToken cancellationToken)
@@ -94,7 +94,5 @@ public sealed class ResumeReviewReconciler(
                 $"Ledger reconcile failed for server-derived inputs " +
                 $"({reconciled.Error.Code}) — inconsistent review state.");
         }
-
-        return Result.Success();
     }
 }

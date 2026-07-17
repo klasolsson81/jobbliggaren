@@ -101,10 +101,11 @@ public sealed class PromoteParsedResumeCommandHandler(
         // Fas 4b PR-8 (CTO-bind Q1; handoff §3 "efter Spara körs granskningen"): seed the
         // DEK-free finding-status ledger in the SAME transaction as the promote, so the
         // hub badge is live from the first save without the engine ever running on the
-        // list path (ADR 0045).
-        var reconciled = await reconciler.ReconcileAsync(resume, null, cancellationToken);
-        if (reconciled.IsFailure)
-            return Result.Failure<Guid>(reconciled.Error);
+        // list path (ADR 0045). The reconciler completes or THROWS (CTO bind
+        // 2026-07-17): a throw propagates past this handler, the unconditional
+        // UnitOfWork save never runs, and the tracked promote + Resume add roll back
+        // together — never a promoted artifact without its ledger.
+        await reconciler.ReconcileAsync(resume, null, cancellationToken);
 
         return Result.Success(resume.Id.Value);
     }

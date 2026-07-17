@@ -71,7 +71,10 @@ public sealed class UpdateMasterContentCommandHandler(
         // Fas 4b PR-8 (CTO-bind Q1): reconcile the DEK-free ledger against the NEW
         // content in the same transaction — a manual edit that fixes a finding prunes
         // its Open row (badge decrements); StaleAt stamping on Resolved rows already
-        // happened inside UpdateMasterContent.
-        return await reconciler.ReconcileAsync(resume, null, cancellationToken);
+        // happened inside UpdateMasterContent. The reconciler completes or THROWS (CTO
+        // bind 2026-07-17): a throw propagates past this handler, the unconditional
+        // UnitOfWork save never runs, and the tracked content write rolls back with it.
+        await reconciler.ReconcileAsync(resume, null, cancellationToken);
+        return Result.Success();
     }
 }

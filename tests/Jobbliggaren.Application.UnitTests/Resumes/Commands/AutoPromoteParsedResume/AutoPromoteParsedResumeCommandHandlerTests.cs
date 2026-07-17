@@ -58,9 +58,6 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         _correlationId.Current.Returns(_correlation);
         _requestContext.IpAddress.Returns("203.0.113.7");
         _requestContext.UserAgent.Returns("test-agent");
-        _reconciler.ReconcileAsync(
-                Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Result>(Result.Success()));
     }
 
     private AutoPromoteParsedResumeCommandHandler CreateSut(
@@ -536,6 +533,45 @@ public class AutoPromoteParsedResumeCommandHandlerTests
             Arg.Is<Resume>(r => r.Id.Value == promoted.ResumeId),
             Arg.Is<IReadOnlyCollection<string>>(x => x == null),
             Arg.Any<CancellationToken>());
+    }
+
+    // ===============================================================
+    // Reconciler-throw atomicity witness — THE Art. 22 witness (CTO bind 2026-07-17,
+    // ADR 0093 §D5(b) amendment; resolves the 5a security escalation): the reconciler
+    // completes or THROWS — the throw must propagate out of Handle unswallowed
+    // (UnitOfWorkBehaviorTests pins the other leg: a throwing next() means the
+    // unconditional save never runs), composing to resume + promote + audit discarded
+    // TOGETHER. The audit add sits AFTER the reconcile, so on a throw the audit row is
+    // never even tracked: a promoted CV persisted WITHOUT its Art. 22 audit row — the
+    // escalated anomaly — is unproducible.
+    // ===============================================================
+
+    [Fact]
+    public async Task Handle_WhenReconcilerThrows_ExceptionPropagates_NothingPersists_NoAuditRow()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var (parsed, _) = await SeedOwnedAsync(db, _userId);
+        _reconciler.ReconcileAsync(
+                Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromException(new InvalidOperationException("boom")));
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => CreateSut(db).Handle(
+                Command(parsed.Id.Value), TestContext.Current.CancellationToken).AsTask());
+
+        // The throw precedes the audit add — no audit row is ever tracked, so the
+        // rolled-back unit can never strand a promote without its audit (Art. 22).
+        db.AuditLogEntries.Local.ShouldBeEmpty();
+
+        // Consistency backstop, not the atomicity proof (this test bypasses the
+        // pipeline and never saves, so these hold on both paths — the discriminating
+        // pin above is the Local-empty audit assert): no Resume row, the artifact
+        // still PendingReview, not soft-deleted.
+        (await db.Resumes.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        var stored = await db.ParsedResumes.AsNoTracking()
+            .SingleAsync(r => r.Id == parsed.Id, TestContext.Current.CancellationToken);
+        stored.Status.ShouldBe(ParsedResumeStatus.PendingReview);
+        stored.DeletedAt.ShouldBeNull();
     }
 
     // ===============================================================

@@ -36,9 +36,6 @@ namespace Jobbliggaren.Worker.IntegrationTests.Security;
 ///      still <c>PendingReview</c> with <c>deleted_at</c> NULL, and no audit row — proven
 ///      on-disk, not just on the tracker.
 /// </summary>
-// CA2012: stubbing the ValueTask-returning ReconcileAsync is the known NSubstitute analyzer
-// false positive (parity with the handler unit tests).
-#pragma warning disable CA2012
 [Collection("Worker")]
 [Trait("Category", "SmokeTest")]
 public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
@@ -128,9 +125,6 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns(userId);
         var reconciler = Substitute.For<IResumeReviewReconciler>();
-        reconciler.ReconcileAsync(
-                Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Result>(Result.Success()));
         var correlation = Substitute.For<ICorrelationIdProvider>();
         correlation.Current.Returns(correlationId);
         var requestContext = Substitute.For<IRequestContextProvider>();

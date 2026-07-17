@@ -61,7 +61,11 @@ public sealed class SetResumeLanguageCommandHandler(
             return set;
 
         // Fas 4b PR-8 (CTO-bind Q1): the language changes what the engine assesses, so
-        // the ledger reconciles here like every other review-input write.
-        return await reconciler.ReconcileAsync(resume, null, cancellationToken);
+        // the ledger reconciles here like every other review-input write. The
+        // reconciler completes or THROWS (CTO bind 2026-07-17): a throw propagates past
+        // this handler, the unconditional UnitOfWork save never runs, and the tracked
+        // language write rolls back with it.
+        await reconciler.ReconcileAsync(resume, null, cancellationToken);
+        return Result.Success();
     }
 }

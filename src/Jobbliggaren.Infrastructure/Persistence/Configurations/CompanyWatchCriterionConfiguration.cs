@@ -105,9 +105,14 @@ public sealed class CompanyWatchCriterionConfiguration : IEntityTypeConfiguratio
         // delete is HARD (C-D8/G1): the row is gone, not hidden. The vestigial
         // `deleted_at IS NULL` filter PR-3 carried was demolished together with the column and the
         // aggregate's SoftDelete; it never excluded a row, because nothing ever set the stamp.
-        // Parity: RecentJobSearch / SavedJobAd, the other user-owned aggregates that delete for
-        // real. Adding a filter here later would silently de-scope the Art. 17 cascade sweep in
-        // AccountHardDeleter, which no longer needs IgnoreQueryFilters to see every row.
+        // Parity: RecentJobSearch / SavedJobAd, the other user-owned aggregates that delete for real.
+        //
+        // Adding a filter here later does NOT silently de-scope the Art. 17 cascade sweep — that is
+        // the point, and it is a gate rather than a hope. AccountHardDeleteCascadeFitnessTests
+        // .Cascade_reads_carry_IgnoreQueryFilters_iff_the_entity_declares_a_query_filter reads this
+        // very model: declare a filter here and the criteria arm in AccountHardDeleter goes RED until
+        // it carries IgnoreQueryFilters. A comment is not a gate, so this comment does not pretend to
+        // be one — it names the one that is.
         builder.Ignore(c => c.DomainEvents);
     }
 }

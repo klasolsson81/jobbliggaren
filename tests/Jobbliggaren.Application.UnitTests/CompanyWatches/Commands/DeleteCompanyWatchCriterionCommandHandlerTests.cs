@@ -13,9 +13,11 @@ namespace Jobbliggaren.Application.UnitTests.CompanyWatches.Commands;
 
 /// <summary>
 /// #560 PR-3 — HARD delete (C-D8/G1 verdict, the #782 template). The load-bearing assertion is
-/// PHYSICAL absence: the row must be gone even through <c>IgnoreQueryFilters()</c> — a soft delete
-/// would pass every query-filtered read while the predicate-PII sat resident forever
-/// (Art. 5(1)(e), the exact failure the verdict closes).
+/// PHYSICAL absence: the row must be GONE, not hidden. A handler that stamped a row instead of
+/// removing it would leave the user's whole job-hunt predicate resident forever (Art. 5(1)(e), the
+/// exact failure the verdict closes) — and this read has nothing to hide behind, because the
+/// aggregate has no lifecycle state left. The soft-delete apparatus this assertion once had to
+/// switch off with <c>IgnoreQueryFilters()</c> was demolished with the <c>deleted_at</c> column.
 /// </summary>
 public class DeleteCompanyWatchCriterionCommandHandlerTests
 {

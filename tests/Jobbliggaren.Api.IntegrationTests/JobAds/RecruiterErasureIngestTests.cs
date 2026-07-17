@@ -896,7 +896,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var label = await db.CompanyWatchCriteria.IgnoreQueryFilters()
+        var label = await db.CompanyWatchCriteria
             .Where(c => c.Id == criterionId)
             .Select(c => c.Label)
             .SingleAsync(ct);

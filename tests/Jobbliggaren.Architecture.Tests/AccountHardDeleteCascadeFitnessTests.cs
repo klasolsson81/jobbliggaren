@@ -181,7 +181,7 @@ public class AccountHardDeleteCascadeFitnessTests
     {
         // The core fitness function: every CascadeMap aggregate is bound to a deletion verb in
         // HardDeleteAccountAsync's BODY. An omission = orphaned PII on hard-delete (the #370 class).
-        var body = HardDeleteCascadeScan.ExtractMethodBody(ReadHardDeleterSource(), CascadeMethodName);
+        var body = HardDeleteCascadeScan.ExtractMethodCode(ReadHardDeleterSource(), CascadeMethodName);
 
         var unwired = HardDeleteCascadeScan.FindUnwiredDbSets(body, CascadeMap.Values);
 
@@ -215,7 +215,30 @@ public class AccountHardDeleteCascadeFitnessTests
         // The filtered set is read off the EF MODEL, never off a hand-kept list or a scan of the
         // Configurations folder — the model is what EF actually applies, and a second authority for
         // "what is filtered" is exactly the drift this guard exists to prevent.
-        var body = HardDeleteCascadeScan.ExtractMethodBody(ReadHardDeleterSource(), CascadeMethodName);
+        var body = HardDeleteCascadeScan.ExtractMethodCode(ReadHardDeleterSource(), CascadeMethodName);
+
+        // Two vacuity floors, because this guard reports ABSENCE and absence is exactly what a broken
+        // detector also reports (security-auditor Minor 2 + code-reviewer Minor 6, converged).
+        //
+        //   1. An empty body would yield zero violations forever.
+        //   2. Worse and subtler: an arm can fall SILENTLY out of the rule. The scan is
+        //      statement-scoped, so a read split across statements —
+        //      `var q = db.X.Where(...); var r = await q.ToListAsync(ct);` — matches neither
+        //      `db.X`+verb in one ';' segment nor the sibling wiring scan's [^;] reach. The arm would
+        //      simply stop being checked while everything stayed green. Requiring every CascadeMap
+        //      DbSet to present at least one query-executing statement makes "we looked at all eleven"
+        //      a measured fact rather than a property that happens to hold today. Same doctrine as the
+        //      DbSet-name pin above, which exists so the wiring scan cannot go vacuous.
+        body.ShouldNotBeNullOrWhiteSpace(
+            "metodkroppen är tom — vakten hade rapporterat noll brott för evigt");
+
+        var unexamined = HardDeleteCascadeScan.FindDbSetsWithoutQueryExecutingStatement(
+            body, CascadeMap.Values);
+        unexamined.ShouldBeEmpty(
+            "följande CascadeMap-aggregat har ingen query-exekverande sats som vakten kan se i " +
+            "HardDeleteAccountAsync — de granskas alltså INTE av iff-regeln, tyst. Antingen är " +
+            "läsningen uppdelad över flera satser (scannern är sats-scopad), eller så saknar armen " +
+            "en läsning helt. Bägge gör vakten vakuös just där: " + string.Join(", ", unexamined));
 
         var violations = HardDeleteCascadeScan.FindQueryFilterViolations(
             body, CascadeMap.Values, FilteredCascadeDbSetNames());
@@ -299,7 +322,8 @@ public class AccountHardDeleteCascadeFitnessTests
         //    ".IgnoreQueryFilters(" at all — so the test passed without the stripper even running and
         //    proved nothing. Mutation M3 (disable stripping → this test must go RED) is what caught
         //    that; keep the dot, or this negative goes vacuous again.
-        const string synthetic = """
+        const string syntheticMethod = """
+            public async Task HardDeleteAccountAsync(Guid jobSeekerId, CancellationToken ct)
             {
                 // The cascade sees soft-deleted rows only because of the single
                 // .IgnoreQueryFilters() call — prose, not a call, and it must not count as one.
@@ -310,8 +334,12 @@ public class AccountHardDeleteCascadeFitnessTests
             }
             """;
 
+        // Through the WHOLE pipeline: the detector takes CODE, and ExtractMethodCode is the one place
+        // that normalises. Passing the raw string here would skip the normaliser and prove nothing.
+        var code = HardDeleteCascadeScan.ExtractMethodCode(syntheticMethod, "HardDeleteAccountAsync");
+
         HardDeleteCascadeScan.FindQueryFilterViolations(
-                synthetic, ["CompanyWatchCriteria"], new HashSet<string>(StringComparer.Ordinal))
+                code, ["CompanyWatchCriteria"], new HashSet<string>(StringComparer.Ordinal))
             .ShouldBeEmpty(
                 "ett OFILTRERAT aggregat vars läsning saknar anropet är KORREKT — och varken " +
                 "RemoveRange (ingen query) eller ordet IgnoreQueryFilters i en KOMMENTAR får " +
@@ -347,6 +375,36 @@ public class AccountHardDeleteCascadeFitnessTests
     }
 
     [Fact]
+    public void Cascade_scan_is_not_satisfied_by_a_delete_verb_that_only_appears_in_a_comment()
+    {
+        // Self-proving negative for the SINGLE normalisation point (senior-cto-advisor, 2026-07-17).
+        // This runs the WHOLE pipeline — ExtractMethodCode → FindUnwiredDbSets — deliberately. Handing
+        // the detector a raw string would bypass the very normaliser under test and the negative would
+        // prove nothing, which is precisely how M3 caught the previous vacuous fixture.
+        //
+        // The hazard is measured, not imagined: prose in this repo writes tokens in exact code form.
+        // Before normalisation was hoisted, this scan read raw source, so the comment below SATISFIED
+        // the wiring requirement for SavedSearches — a real delete could be dropped in the same edit
+        // and its PII would orphan on account deletion with the guard green (the #370 class, re-admitted
+        // through the guard's own documentation).
+        const string syntheticMethod = """
+            public async Task HardDeleteAccountAsync(Guid jobSeekerId, CancellationToken ct)
+            {
+                // Historical note: we used to call db.SavedSearches.RemoveRange(savedSearches) here
+                // before the sweep moved. Prose only — it must NOT satisfy the wiring requirement.
+                db.Applications.RemoveRange(applications);
+            }
+            """;
+
+        var code = HardDeleteCascadeScan.ExtractMethodCode(syntheticMethod, "HardDeleteAccountAsync");
+
+        HardDeleteCascadeScan.FindUnwiredDbSets(code, ["Applications", "SavedSearches"])
+            .ShouldBe(["SavedSearches"],
+                "en delete-verb som bara står i en KOMMENTAR får inte uppfylla cascade-kravet — " +
+                "annars orphan:as aggregatets PII vid konto-radering medan vakten är grön (#370)");
+    }
+
+    [Fact]
     public void Partition_helper_flags_an_unclassified_aggregate_root()
     {
         // Self-proving negative #2: option (ii)'s HEADLINE guarantee can FAIL. A root in NEITHER
@@ -368,7 +426,7 @@ public class AccountHardDeleteCascadeFitnessTests
         // Proves the brace-matched extraction isolates the target method: it sees HardDeleteAccountAsync's
         // real deletes but NOT a sibling method's body — so a delete verb in CleanupIdentityOrphansAsync
         // / GetAccountsReadyForHardDeleteAsync cannot falsely satisfy an aggregate the cascade omits.
-        var body = HardDeleteCascadeScan.ExtractMethodBody(ReadHardDeleterSource(), CascadeMethodName);
+        var body = HardDeleteCascadeScan.ExtractMethodCode(ReadHardDeleterSource(), CascadeMethodName);
 
         body.Contains("db.UserJobAdMatches.RemoveRange", StringComparison.Ordinal).ShouldBeTrue(
             "den extraherade kroppen ska innehålla HardDeleteAccountAsync:s riktiga deletes.");
@@ -396,17 +454,36 @@ public class AccountHardDeleteCascadeFitnessTests
                 $"CascadeMap mappar {clrType.Name}, men EF-modellen känner inte typen — " +
                 "vakten kan inte avgöra om den är filtrerad och skulle tyst svara 'ofiltrerad'.");
 
-            if (entity!.GetDeclaredQueryFilters().Count > 0)
+            // GetDeclaredQueryFilters (EF 10) is the sanctioned successor — the classic
+            // GetQueryFilter() carries [Obsolete("Use GetDeclaredQueryFilters() instead.")], and EF
+            // only permits a filter on the ROOT of an inheritance hierarchy, so "declared" is where a
+            // filter always is. GetRootType() is a no-op today (all 11 CascadeMap aggregates are
+            // sealed roots with no mapped inheritance — measured) and costs nothing, but it makes the
+            // read correct under BOTH readings of "Declared" should a derived root ever land in the
+            // map: a Declared-scope that skipped a base-type filter would report "unfiltered", the
+            // guard would then FORBID a load-bearing IgnoreQueryFilters, and the root's filter would
+            // quietly shrink the Art. 17 read. Fail-closed beats clever.
+            if (entity!.GetRootType().GetDeclaredQueryFilters().Count > 0)
                 filtered.Add(dbSetName);
         }
 
-        // Fail-loud on a vacuous read: this repo filters most user-owned aggregates, so an EMPTY set
-        // means the model API returned nothing useful (an EF upgrade reshaped the accessor) rather
-        // than "nothing is filtered". Without this the guard would silently invert into "no arm may
-        // carry the call" and demand the removal of eleven load-bearing ones.
-        filtered.ShouldNotBeEmpty(
-            "inget CascadeMap-aggregat rapporterades som filtrerat — det är inte troligt, det är en " +
-            "trasig modell-avläsning (jfr EF 10:s named query filters). Vakten vore vakuös.");
+        // POSITIVE CONTROL on the instrument, not merely a floor (security-auditor Minor 1 +
+        // dotnet-architect, converged independently 2026-07-17). ShouldNotBeEmpty alone catches only
+        // a TOTAL failure of the model read; a PARTIAL regression — a future EF where the accessor
+        // goes quiet for some entity types — leaves the set non-empty, sails past the floor, and then
+        // misreports a genuinely filtered aggregate as unfiltered. At that point the guard tells a
+        // human to DELETE a load-bearing IgnoreQueryFilters and becomes the cause of the very Art. 17
+        // hole it exists to prevent. Anchoring a known-filtered aggregate makes the reader prove it
+        // can still see. Same doctrine as the sni_codes probe in ColumnExistsAsync: a detector that
+        // cannot demonstrate a positive can never prove a negative.
+        //
+        // This is not a second authority for the answer — the model still owns the whole set. It is
+        // one nail the instrument must be able to find.
+        filtered.ShouldContain("CompanyWatches",
+            customMessage: "modell-avläsningen ser inte CompanyWatches som filtrerat, trots att " +
+            "CompanyWatchConfiguration deklarerar ett query filter → avläsaren är trasig (jfr EF 10:s " +
+            "named query filters). Utan denna kontroll hade vakten börjat råda till borttagning av " +
+            "load-bearing IgnoreQueryFilters-anrop.");
 
         return filtered;
     }
@@ -520,12 +597,17 @@ internal static class HardDeleteCascadeScan
     /// scoped method body, so a sibling method's delete verb cannot satisfy a name here.
     /// </summary>
     internal static IReadOnlyList<string> FindUnwiredDbSets(
-        string source, IEnumerable<string> expectedDbSetNames)
+        string code, IEnumerable<string> expectedDbSetNames)
     {
+        // Takes CODE (see ExtractMethodCode). Before that normalisation was hoisted, this scan read
+        // raw source while its sibling stripped — so a COMMENT reading `db.X.RemoveRange(...)`
+        // satisfied it, and dropping the real call alongside such a comment would have orphaned that
+        // aggregate's PII on account deletion with the guard still green: the #370 class, re-admitted
+        // through this guard's own prose.
         var verbs = string.Join("|", DeletionVerbs);
 
         return expectedDbSetNames
-            .Where(name => !IsWiredToDeletion(source, name, verbs))
+            .Where(name => !IsWiredToDeletion(code, name, verbs))
             .ToList();
     }
 
@@ -541,18 +623,34 @@ internal static class HardDeleteCascadeScan
     ];
 
     /// <summary>
+    /// Reports the DbSet names that present NO query-executing statement the scan can see — i.e. the
+    /// arms the iff-rule silently does not examine. Absence of violations means nothing if the
+    /// detector never looked; this is the counterfactual that makes "all eleven are checked" a fact.
+    /// </summary>
+    internal static IReadOnlyList<string> FindDbSetsWithoutQueryExecutingStatement(
+        string code, IEnumerable<string> dbSetNames)
+    {
+        var verbs = string.Join("|", QueryExecutingVerbs);
+
+        return dbSetNames
+            .Where(name => !code.Split(';').Any(statement =>
+                Regex.IsMatch(statement, $@"\bdb\.{Regex.Escape(name)}\b.*?\.(?:{verbs})\(",
+                    RegexOptions.Singleline)))
+            .ToList();
+    }
+
+    /// <summary>
     /// Reports every statement in <paramref name="source"/> that executes a query against one of
     /// <paramref name="dbSetNames"/> whose <c>IgnoreQueryFilters()</c> presence disagrees with
     /// <paramref name="filteredDbSetNames"/> — in BOTH directions (filtered ⇒ required;
     /// unfiltered ⇒ forbidden).
     /// </summary>
     internal static IReadOnlyList<string> FindQueryFilterViolations(
-        string source, IEnumerable<string> dbSetNames, ISet<string> filteredDbSetNames)
+        string code, IEnumerable<string> dbSetNames, ISet<string> filteredDbSetNames)
     {
-        // CODE ONLY. A comment naming IgnoreQueryFilters is not a call, and a guard that fires on
-        // prose trains people to delete prose — the deleted CompanyWatchCriterionSoftDeleteDecoyTests
-        // learned this twice on two runs before it stripped literals first.
-        var code = StripCommentsAndStrings(source);
+        // Takes CODE — already normalised by ExtractMethodCode, which is the one place that strips.
+        // A comment naming IgnoreQueryFilters is not a call, and a guard that fires on prose trains
+        // people to delete prose (the demolished decoy guard learned that twice on two runs).
         var verbs = string.Join("|", QueryExecutingVerbs);
         var violations = new List<string>();
 
@@ -569,7 +667,17 @@ internal static class HardDeleteCascadeScan
                         RegexOptions.Singleline))
                     continue;   // not a query-executing statement (e.g. the RemoveRange call)
 
-                var hasCall = statement.Contains(".IgnoreQueryFilters(", StringComparison.Ordinal);
+                // The ARGUMENT-LESS form only. EF 10 added a selective overload —
+                // .IgnoreQueryFilters(["SomeFilter"]) — which bypasses only the named filters and
+                // leaves the rest LIVE. Treating that as equivalent to a total bypass would fail
+                // OPEN in the load-bearing direction: on an aggregate with two filters the selective
+                // form still lets one shrink the Art. 17 read, while a Contains(".IgnoreQueryFilters(")
+                // check reports "call present" and the guard goes green with PII surviving. Nothing
+                // uses named filters today (all 12 HasQueryFilter calls are single-lambda, measured),
+                // so this is unreachable now and cheap to make unreachable-by-construction. A
+                // selective call reads as NO call here → the guard goes red → a human decides, which
+                // is the correct fail-closed answer to a form this rule was never designed for.
+                var hasCall = Regex.IsMatch(statement, @"\.IgnoreQueryFilters\(\s*\)");
                 var mustHaveCall = filteredDbSetNames.Contains(name);
 
                 if (hasCall == mustHaveCall)
@@ -608,12 +716,31 @@ internal static class HardDeleteCascadeScan
         Regex.IsMatch(source, $@"\bdb\.{Regex.Escape(dbSetName)}\b[^;]*?\.(?:{verbs})\(");
 
     /// <summary>
-    /// Extracts the body (braces included) of the method named <paramref name="methodName"/> from
-    /// C# <paramref name="source"/> by comment-/string-aware brace matching, so the cascade scan is
-    /// scoped to one method. Assumes no raw-string (<c>"""</c>) or interpolated-string literals in
-    /// the scanned method (true for AccountHardDeleter — it is pure EF operations + comments).
+    /// Extracts the CODE of the method named <paramref name="methodName"/> from C#
+    /// <paramref name="source"/>: brace-matched to one method, then stripped of comments and string
+    /// literals. Assumes no raw-string (<c>"""</c>) or interpolated-string literals in the scanned
+    /// method (true for AccountHardDeleter — it is pure EF operations + comments).
+    ///
+    /// <para>
+    /// <b>The single normalisation point, deliberately (senior-cto-advisor, 2026-07-17).</b> Every
+    /// scan in this class reads code, never prose — and it must be impossible to OBTAIN an
+    /// un-normalised body, not merely conventional to strip one. An earlier shape had each detector
+    /// strip for itself; that is two normalisers, i.e. two rules that agree only until someone edits
+    /// one or adds a third. This class already ran that experiment: the H1b guard stripped, the #374
+    /// wiring scan did not, and the wiring scan was therefore satisfiable by a COMMENT reading
+    /// <c>db.X.RemoveRange(...)</c> — the #370 orphaned-PII class re-admitted through the guard's own
+    /// documentation. Normalising here makes that unrepresentable rather than remembered.
+    /// </para>
+    ///
+    /// <para>
+    /// Order is load-bearing: the brace matcher must SEE comments and literals to skip braces inside
+    /// them, so stripping happens AFTER extraction, never before.
+    /// </para>
     /// </summary>
-    internal static string ExtractMethodBody(string source, string methodName)
+    internal static string ExtractMethodCode(string source, string methodName) =>
+        StripCommentsAndStrings(ExtractMethodBody(source, methodName));
+
+    private static string ExtractMethodBody(string source, string methodName)
     {
         var sig = source.IndexOf(methodName + "(", StringComparison.Ordinal);
         if (sig < 0)

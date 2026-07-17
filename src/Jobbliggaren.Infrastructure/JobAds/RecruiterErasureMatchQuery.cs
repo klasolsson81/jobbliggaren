@@ -436,9 +436,11 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
 
         var pattern = LikePattern(identifier);
 
-        // Deliberately NOT filtered on deleted_at — same reasoning as CountSavedSearchesAsync: a
-        // soft-deleted row still physically HOLDS the label, and reporting only the live ones would
-        // under-count what we actually hold.
+        // No lifecycle predicate to exclude — and unlike CountSavedSearchesAsync there is no choice
+        // being made here. A criterion has no deleted_at and no soft-deleted state (delete is HARD,
+        // C-D8/G1), so this raw-SQL count over the physical table already counts every row we hold,
+        // which is exactly what an erasure disclosure must report. The SavedSearch case above is the
+        // one that genuinely has to argue past a filter: that aggregate really does soft-delete.
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM company_watch_criteria

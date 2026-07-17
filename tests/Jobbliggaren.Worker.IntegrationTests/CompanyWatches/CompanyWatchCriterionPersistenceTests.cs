@@ -214,37 +214,22 @@ public class CompanyWatchCriterionPersistenceTests(WorkerTestFixture fixture)
             + "ingenting");
     }
 
-    [Fact]
-    public async Task Criteria_AreVisible_WithoutAnyQueryFilterToIgnore()
-    {
-        // The other half of the demolition, from the read side: with the filter gone, an ordinary
-        // read sees every row. This is the assertion that would have caught the demolition being
-        // half-done — a dropped column with the HasQueryFilter left behind fails to translate, and
-        // a retained filter with nothing setting it is the vacuous-guarantee class (#805-3/#868)
-        // this PR exists to close.
-        var ct = TestContext.Current.CancellationToken;
-        var userId = Guid.NewGuid();
-
-        var criterionId = await SeedAsync(userId, [SniIt], [KommunStockholm], "Syns", ct);
-
-        using var verifyScope = _fixture.Services.CreateScope();
-        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var visible = await verifyDb.CompanyWatchCriteria
-            .AsNoTracking()
-            .SingleAsync(c => c.Id == criterionId, ct);
-        visible.Criteria.SniCodes.ShouldBe([SniIt]);
-        visible.Criteria.MunicipalityCodes.ShouldBe([KommunStockholm]);
-
-        // The plain read above and a filter-ignoring read return the SAME row set — the executable
-        // statement of "there is no filter here". Under PR-3's apparatus these two disagreed on any
-        // stamped row; now they cannot disagree on any row at all, because no row can be stamped.
-        var unfiltered = await verifyDb.CompanyWatchCriteria
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .SingleAsync(c => c.Id == criterionId, ct);
-        unfiltered.Id.ShouldBe(visible.Id);
-    }
+    // No "the filter is gone, so ordinary reads see every row" test lives here, deliberately. One
+    // was written for this PR and deleted before merge, because it could not fail:
+    //   * its ordinary-read half duplicated RoundTrip_OnAMaterialisedRow (which already reads the
+    //     seeded row back through a plain AsNoTracking query);
+    //   * its "same row through IgnoreQueryFilters" half was TAUTOLOGICAL — a filter-ignoring read is
+    //     strictly wider than a plain one on the same primary key, so if the plain read found the row
+    //     the wider read cannot fail to;
+    //   * and it claimed to catch "the demolition being half-done", which this PR's own mutation M4
+    //     falsified: with the migration's Up() neutered it stayed GREEN (7/8), while only
+    //     DeletedAtColumn_IsPhysicallyGone went red.
+    // A freshly seeded row passes any filter that does not exclude fresh rows, so no seed-and-read
+    // shape can prove "no filter exists". The property is real and IS guarded — by the EF model, at
+    // build time: re-adding HasQueryFilter to this aggregate flips it into the filtered set and
+    // AccountHardDeleteCascadeFitnessTests immediately demands the matching IgnoreQueryFilters in the
+    // Art. 17 cascade. That guard can fail; this test could not. Keeping it would have been the exact
+    // thing this PR condemns — a mechanism claiming more than it does (code-reviewer Major 2).
 
     // ---------------------------------------------------------------
     // Index pins — a guarantee nobody has checked is not a guarantee

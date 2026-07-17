@@ -100,10 +100,11 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
         (await _client.DeleteAsync($"{Endpoint}/{id}", ct)).StatusCode
             .ShouldBe(HttpStatusCode.NotFound);
 
-        // ...and physically gone, past the (retained-until-demolition) query filter.
+        // ...and physically gone. There is no filter left to read past: the demolition this comment
+        // once anticipated has happened (C-D8/G1), so an ordinary read IS the whole-table read.
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        (await db.CompanyWatchCriteria.IgnoreQueryFilters()
+        (await db.CompanyWatchCriteria
             .AnyAsync(c => c.Id == new Domain.CompanyWatches.CompanyWatchCriterionId(Guid.Parse(id)), ct))
             .ShouldBeFalse();
     }

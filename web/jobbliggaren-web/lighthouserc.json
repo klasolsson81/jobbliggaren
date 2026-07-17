@@ -7,7 +7,17 @@
       "numberOfRuns": 3,
       "startServerCommand": "pnpm start",
       "startServerReadyPattern": "Ready in|started server on|Local:",
-      "url": ["http://localhost:3000/"]
+      "//urls": "b6/m6 (#755): root + public marketing-inner (matchning, cv-granskning, hjalpcenter, for-utvecklare) + guest mirrors (gast/jobb, gast/oversikt, gast/cv). All backend-free under `pnpm start` (guest mirrors are mock-data, marketing-inner is static content) so the observe-only CI job needs no seeded stack. The guest mirrors exercise the same layout/bundle surfaces as the authed pages (i18n payload, wizard/CSS bundles) where the audit's bundle findings concentrate. Authed pages are a follow-up gated on TD-89's seeded CI stack (LHCI puppeteerScript form-login with the dev-test account, NOT committed here). numberOfRuns(3) runs per URL, so the collect phase scales ~linearly with URL count (1 -> 8 URLs is ~8x the collect time); the job stays observe-only (continue-on-error, not in ci.needs) so this never extends the blocking critical path.",
+      "url": [
+        "http://localhost:3000/",
+        "http://localhost:3000/matchning",
+        "http://localhost:3000/cv-granskning",
+        "http://localhost:3000/hjalpcenter",
+        "http://localhost:3000/for-utvecklare",
+        "http://localhost:3000/gast/jobb",
+        "http://localhost:3000/gast/oversikt",
+        "http://localhost:3000/gast/cv"
+      ]
     },
     "assert": {
       "budgetsFile": "./budget.json",

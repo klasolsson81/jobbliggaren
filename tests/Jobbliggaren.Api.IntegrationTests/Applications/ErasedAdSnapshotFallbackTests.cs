@@ -98,7 +98,12 @@ public sealed class ErasedAdSnapshotFallbackTests(ApiFactory factory)
     private sealed record Seed(
         Guid UserId,
         Guid ActiveAppId, Guid ArchivedAppId, Guid ErasedAppId, Guid ErasedNoSnapAppId,
-        Guid ActiveAdId, Guid ArchivedAdId, Guid ErasedAdId, Guid ErasedNoSnapAdId);
+        Guid ActiveAdId, Guid ArchivedAdId, Guid ErasedAdId, Guid ErasedNoSnapAdId,
+        // The erased ad's PRE-erase URL (Erase() blanks it in the DB and on the
+        // in-memory aggregate) — the one summary field where live-tombstone ("")
+        // and snapshot (real URL) DIFFER even textually, so it pins the Url arm
+        // of the fallback (code-review Minor 1).
+        string ErasedAdUrl);
 
     /// <summary>
     /// One user, four submitted applications: Active ad, Archived ad, Erased ad WITH
@@ -140,6 +145,10 @@ public sealed class ErasedAdSnapshotFallbackTests(ApiFactory factory)
         var erasedNoSnapApp = Apply(erasedNoSnapAd, withSnapshot: false);
         await db.SaveChangesAsync(ct);
 
+        // Captured BEFORE Erase() blanks it — the snapshot froze this value at
+        // apply-time and the fallback must surface it (code-review Minor 1).
+        var erasedAdUrl = erasedAd.Url;
+
         // Lifecycle transitions through the PRODUCTION methods, never column writes (#843).
         archivedAd.Archive(clock).IsSuccess.ShouldBeTrue();
         erasedAd.Erase(clock).IsSuccess.ShouldBeTrue();
@@ -160,7 +169,8 @@ public sealed class ErasedAdSnapshotFallbackTests(ApiFactory factory)
         return new Seed(
             userId,
             activeApp.Id.Value, archivedApp.Id.Value, erasedApp.Id.Value, erasedNoSnapApp.Id.Value,
-            activeAd.Id.Value, archivedAd.Id.Value, erasedAd.Id.Value, erasedNoSnapAd.Id.Value);
+            activeAd.Id.Value, archivedAd.Id.Value, erasedAd.Id.Value, erasedNoSnapAd.Id.Value,
+            erasedAdUrl);
     }
 
     // ─── GetApplications (the /ansokningar list) ────────────────────────────────────
@@ -182,6 +192,9 @@ public sealed class ErasedAdSnapshotFallbackTests(ApiFactory factory)
         var erased = result.Items.Single(i => i.Id == seed.ErasedAppId).JobAd.ShouldNotBeNull();
         erased.Title.ShouldBe("Raderad datatekniker");
         erased.Company.ShouldBe("Raderad AB");
+        // The Url arm's own pin: the tombstone's url is "" — only the snapshot
+        // can supply the real one (code-review Minor 1).
+        erased.Url.ShouldBe(seed.ErasedAdUrl);
         erased.Source.ShouldBe("Platsbanken");
         erased.Status.ShouldBe("Erased");
         erased.JobAdId.ShouldBe(seed.ErasedAdId); // R2: the tombstone row exists — truthful.
@@ -240,6 +253,7 @@ public sealed class ErasedAdSnapshotFallbackTests(ApiFactory factory)
         var erased = all.Single(i => i.Id == seed.ErasedAppId).JobAd.ShouldNotBeNull();
         erased.Title.ShouldBe("Raderad datatekniker");
         erased.Company.ShouldBe("Raderad AB");
+        erased.Url.ShouldBe(seed.ErasedAdUrl); // lockstep Url pin (code-review Minor 1)
         erased.Status.ShouldBe("Erased");
 
         var noSnap = all.Single(i => i.Id == seed.ErasedNoSnapAppId).JobAd.ShouldNotBeNull();
@@ -309,6 +323,8 @@ public sealed class ErasedAdSnapshotFallbackTests(ApiFactory factory)
         var jobAd = dto.JobAd.ShouldNotBeNull();
         jobAd.Title.ShouldBe("Raderad datatekniker");
         jobAd.Company.ShouldBe("Raderad AB");
+        // Url arm of the with-expression pinned (code-review Minor 1).
+        jobAd.Url.ShouldBe(seed.ErasedAdUrl);
         jobAd.Status.ShouldBe("Erased");
         // PR4 regression guard: the full preserved copy still rides the detail wire.
         var preserved = dto.PreservedAd.ShouldNotBeNull();

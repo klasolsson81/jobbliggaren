@@ -98,7 +98,11 @@ public sealed class GetActivityReportQueryHandler(
             // domän-sentinelen "[raderad]" över gränsen (§2.3). AdStatus bär
             // livscykel-signalen till FE-markören (aldrig defaultad, #805-3-idiomet).
             // Orten läses fortsatt live: *_concept_id-facetterna överlever Erase()
-            // (NotRecruiterData — se JobAd.Erase-kommentaren).
+            // (NotRecruiterData — se JobAd.Erase-kommentaren). Source-ternären
+            // avviker MEDVETET från Employer/Title/Url: Source överlever också
+            // Erase() (samma NotRecruiterData-klass), så utan snapshot är live-
+            // värdet fortfarande SANT — bara de blankade identitetsfälten går
+            // till null (code-review Minor 2).
             .Select(r => new
             {
                 r.a.Id,

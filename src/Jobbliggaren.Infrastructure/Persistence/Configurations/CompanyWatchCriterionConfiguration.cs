@@ -81,11 +81,15 @@ public sealed class CompanyWatchCriterionConfiguration : IEntityTypeConfiguratio
         // aggregate.
         builder.Ignore(c => c.Criteria);
 
-        // user_id index — NOT partial (deliberately, parity ix_company_watches_user_id). A
-        // "WHERE deleted_at IS NULL" filter would exclude the Art. 17 cascade sweep — which runs
-        // IgnoreQueryFilters(), i.e. WITHOUT the deleted_at predicate — from using the index,
-        // turning the erasure path into a seq scan. Three consumers: the "my criteria" scope query,
-        // the MaxPerUser count, and the cascade sweep.
+        // user_id index — plain, covering every row. Three consumers: the "my criteria" scope
+        // query, the MaxPerUser count, and the Art. 17 cascade sweep. Under hard delete (G1) there
+        // is no lifecycle column to partition on and every row is live, so no partial-index
+        // question arises at all — the earlier "NOT partial, deliberately" note existed only to
+        // stop a "WHERE deleted_at IS NULL" filter from de-indexing the erasure sweep. That hazard
+        // died with the column. The index is pinned as existing and non-partial by
+        // CompanyWatchCriterionPersistenceTests.UserIdIndex_OnCompanyWatchCriteria_Exists_AndIsNotPartial,
+        // which is also what proves the deleted_at drop did not take the index with it (DROP COLUMN
+        // silently drops dependent indexes).
         //
         // No UNIQUE(user_id, sni_codes, kommun_codes): a btree index tuple is capped at ~2704
         // bytes, and a legitimate whole-industry selection (up to MaxSniCodes = 1000 codes ≈ 9 kB)
@@ -96,16 +100,19 @@ public sealed class CompanyWatchCriterionConfiguration : IEntityTypeConfiguratio
 
         builder.Property(c => c.CreatedAt).IsRequired();
         builder.Property(c => c.UpdatedAt).IsRequired();
-        builder.Property(c => c.DeletedAt);
 
-        // VESTIGIAL under the C-D8/G1 verdict (2026-07-16): user delete is HARD, so nothing ever
-        // sets DeletedAt and this filter never excludes a row. It is retained — together with the
-        // column and the aggregate's SoftDelete — only until the follow-up schema-cleanup
-        // migration removes all three in one change-reason. Do not describe it as the exclusion
-        // mechanism; the Art. 17 cascade still runs IgnoreQueryFilters (harmless against a
-        // vacuous filter, load-bearing the day this comment is stale).
-        builder.HasQueryFilter(c => c.DeletedAt == null);
-
+        // NO QUERY FILTER, deliberately — this aggregate has no lifecycle state to filter on. User
+        // delete is HARD (C-D8/G1): the row is gone, not hidden. The vestigial
+        // `deleted_at IS NULL` filter PR-3 carried was demolished together with the column and the
+        // aggregate's SoftDelete; it never excluded a row, because nothing ever set the stamp.
+        // Parity: RecentJobSearch / SavedJobAd, the other user-owned aggregates that delete for real.
+        //
+        // Adding a filter here later does NOT silently de-scope the Art. 17 cascade sweep — that is
+        // the point, and it is a gate rather than a hope. AccountHardDeleteCascadeFitnessTests
+        // .Cascade_reads_carry_IgnoreQueryFilters_iff_the_entity_declares_a_query_filter reads this
+        // very model: declare a filter here and the criteria arm in AccountHardDeleter goes RED until
+        // it carries IgnoreQueryFilters. A comment is not a gate, so this comment does not pretend to
+        // be one — it names the one that is.
         builder.Ignore(c => c.DomainEvents);
     }
 }

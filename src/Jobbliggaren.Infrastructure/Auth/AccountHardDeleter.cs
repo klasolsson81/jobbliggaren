@@ -212,11 +212,16 @@ public sealed partial class AccountHardDeleter(
         // #560 Fork A1 / DPIA Part D C-D1 — CompanyWatchCriterion is an FK-less by-UserId aggregate
         // (ADR 0011 soft-reference). The criterion is personal data ABOUT THE USER (which industries
         // and towns they job-hunt in — profiling-adjacent, Art. 6(1)(b)), so like CompanyWatch it
-        // must be deleted EXPLICITLY here or its rows orphan on hard-delete. IgnoreQueryFilters also
-        // takes soft-deleted rows (SoftDelete deliberately RETAINS the criteria payload — the
-        // account cascade is what erases it for real).
+        // must be deleted EXPLICITLY here or its rows orphan on hard-delete.
+        //
+        // NO IgnoreQueryFilters, and that is enforced, not merely intended: the aggregate declares no
+        // query filter (delete is HARD — C-D8/G1), so the call would be a no-op asserting a filter
+        // that does not exist. It joins the other three unfiltered arms — RecentJobSearches and
+        // SavedJobAds above, ResumeFiles below — which likewise omit it. The iff-invariant
+        // (filtered ⇔ call present) is machine-checked for every arm by
+        // AccountHardDeleteCascadeFitnessTests — which is what actually closes the "a filter added
+        // tomorrow silently narrows this read" hazard, for all eleven aggregates rather than this one.
         var companyWatchCriteria = await db.CompanyWatchCriteria
-            .IgnoreQueryFilters()
             .Where(c => c.UserId == userId)
             .ToListAsync(cancellationToken);
 

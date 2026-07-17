@@ -34,28 +34,17 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 /// </para>
 ///
 /// <para>
-/// <b>Soft-delete KEEPS the criteria (deliberate contrast with
-/// <see cref="CompanyWatch.SoftDelete"/>, which CLEARS its filter).</b> The watch's filter is
-/// ancillary preference data on a row whose own existence still means something; here the
-/// criteria ARE the row's entire payload. Clearing them would persist a row whose domain
-/// invariant is FALSE — an empty spec is invalid per Fork B1, yet
-/// <see cref="CompanyWatchCriteriaSpec.FromTrusted"/> does not re-validate, so the gutted row
-/// would rehydrate into a SILENTLY EMPTY spec rather than a loud failure: a criterion that
-/// matches nothing and says nothing. The structural precedent is <c>SavedSearch</c> (predicate +
-/// label + soft-delete), which likewise retains its criteria; Art. 5(1)(c) is satisfied by the
-/// account-level hard-delete cascade, not by gutting the row.
-/// </para>
-///
-/// <para>
-/// <b>C-D8 VERDICT (senior-cto-advisor Fork G1, 2026-07-16): user delete is HARD.</b>
-/// <c>DeleteCompanyWatchCriterionCommandHandler</c> removes the row via tracked <c>Remove</c> (the
-/// #782/ADR 0104 template) — the payload IS the user's personal data, no sweeper exists, and a
-/// deleted criterion has no undo value, so Art. 5(1)(e) is satisfied by construction. This settles
-/// the C-D8 open condition (security-auditor 2026-07-13) and makes the <see cref="MaxPerUser"/>
-/// count question moot: soft-deleted rows cannot accumulate because nothing creates them. The
-/// soft-delete apparatus below (<see cref="SoftDelete"/>, <see cref="DeletedAt"/>, the query
-/// filter) is retained ONLY until a follow-up schema-cleanup migration removes it — see the method
-/// summary; it must not be wired into any production path.
+/// <b>C-D8 VERDICT (senior-cto-advisor Fork G1, 2026-07-16): user delete is HARD — there is no
+/// soft-delete state.</b> <c>DeleteCompanyWatchCriterionCommandHandler</c> removes the row via
+/// tracked <c>Remove</c> (the #782/ADR 0104 template) — the payload IS the user's personal data, no
+/// sweeper exists, and a deleted criterion has no undo value, so Art. 5(1)(e) is satisfied by
+/// construction. This settles the C-D8 open condition (security-auditor 2026-07-13) and makes the
+/// <see cref="MaxPerUser"/> count question moot: there is no hidden row to count. The soft-delete
+/// apparatus PR-3 carried under this verdict (a <c>SoftDelete()</c> method, a <c>DeletedAt</c>
+/// property, an EF query filter and the physical <c>deleted_at</c> column, all with zero production
+/// callers) was demolished wholesale in the follow-up migration this paragraph once promised. A
+/// criterion is therefore either present or gone — the only two states this aggregate has ever
+/// meaningfully had.
 /// </para>
 ///
 /// <para>
@@ -104,7 +93,6 @@ public sealed class CompanyWatchCriterion : AggregateRoot<CompanyWatchCriterionI
 
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
-    public DateTimeOffset? DeletedAt { get; private set; }
 
     // EF Core constructor
     private CompanyWatchCriterion() { }
@@ -153,8 +141,10 @@ public sealed class CompanyWatchCriterion : AggregateRoot<CompanyWatchCriterionI
     }
 
     /// <summary>
-    /// Replaces the predicate. Precondition: the criterion is active — editing a deleted criterion
-    /// is meaningless (parity <see cref="CompanyWatch.SetFilter"/>'s NotActive guard).
+    /// Replaces the predicate. No active-only precondition: under hard delete (G1) a removed
+    /// criterion has no row to load, so the handler 404s before an aggregate method is ever reached
+    /// — the state <c>CompanyWatch.SetFilter</c>'s NotActive guard protects against does not exist
+    /// here.
     /// </summary>
     public Result UpdateCriteria(CompanyWatchCriteriaSpec criteria, IDateTimeProvider clock)
     {
@@ -162,27 +152,16 @@ public sealed class CompanyWatchCriterion : AggregateRoot<CompanyWatchCriterionI
             return Result.Failure(DomainError.Validation(
                 "CompanyWatchCriterion.CriteriaRequired", "Bevakningens kriterier krävs."));
 
-        if (DeletedAt.HasValue)
-            return Result.Failure(DomainError.Validation(
-                "CompanyWatchCriterion.NotActive",
-                "Bevakningen är borttagen och kan inte ändras."));
-
         ApplyCriteria(criteria);
         UpdatedAt = clock.UtcNow;
         return Result.Success();
     }
 
     /// <summary>
-    /// Sets or clears the label (<c>null</c>/blank = clear). Same active-only precondition as
-    /// <see cref="UpdateCriteria"/>.
+    /// Sets or clears the label (<c>null</c>/blank = clear).
     /// </summary>
     public Result Rename(string? label, IDateTimeProvider clock)
     {
-        if (DeletedAt.HasValue)
-            return Result.Failure(DomainError.Validation(
-                "CompanyWatchCriterion.NotActive",
-                "Bevakningen är borttagen och kan inte ändras."));
-
         var labelResult = NormalizeLabel(label);
         if (labelResult.IsFailure)
             return Result.Failure(labelResult.Error);
@@ -190,23 +169,6 @@ public sealed class CompanyWatchCriterion : AggregateRoot<CompanyWatchCriterionI
         Label = labelResult.Value;
         UpdatedAt = clock.UtcNow;
         return Result.Success();
-    }
-
-    /// <summary>
-    /// <b>NO PRODUCTION CALLER, BY VERDICT — scheduled for demolition.</b> User delete is HARD
-    /// (C-D8 / CTO Fork G1, 2026-07-16; see the class summary): the delete handler calls
-    /// <c>Remove</c>, never this method. This method, <see cref="DeletedAt"/>, the EF query filter
-    /// and the physical <c>deleted_at</c> column are retained solely because their removal is a
-    /// MIGRATION that does not belong in PR-3 (no-migration mandate; the drop is a direct follow-up
-    /// PR with a hand-written migration). Do not wire this into any path — a live-looking delete
-    /// mechanism that production never runs is the #868 decoy class. An architecture guard pins
-    /// that no production code calls it.
-    /// </summary>
-    public void SoftDelete(IDateTimeProvider clock)
-    {
-        if (DeletedAt.HasValue) return;
-        DeletedAt = clock.UtcNow;
-        UpdatedAt = clock.UtcNow;
     }
 
     // Mutates the mapped lists IN PLACE (Clear/AddRange). EF's change detection therefore has to

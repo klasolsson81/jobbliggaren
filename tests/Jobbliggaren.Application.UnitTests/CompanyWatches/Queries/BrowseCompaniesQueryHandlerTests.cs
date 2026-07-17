@@ -111,23 +111,6 @@ public class BrowseCompaniesQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_SoftDeletedCriterion_ReturnsNotFound()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var db = TestAppDbContextFactory.Create();
-        var criterion = await SeedCriterionAsync(db, Owner, SniIt, KommunStockholm, ct);
-
-        criterion.SoftDelete(Clock);
-        await db.SaveChangesAsync(ct);
-
-        var result = await HandlerFor(db, Owner, Substitute.For<ICompanyWatchBrowseQuery>())
-            .Handle(new BrowseCompaniesQuery(criterion.Id.Value, 1, 20), ct);
-
-        // The soft-delete query filter hides it — a deleted criterion browses nothing.
-        result.ShouldBeNull();
-    }
-
-    [Fact]
     public async Task Handle_NoAuthenticatedUser_ReturnsNotFound_WithoutTouchingTheRegister()
     {
         var ct = TestContext.Current.CancellationToken;

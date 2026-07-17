@@ -13,7 +13,7 @@ namespace Jobbliggaren.Worker.IntegrationTests.CompanyWatches;
 /// <see cref="CompanyWatchCriterion"/> against REAL Postgres. Deliberately NOT EF-InMemory: every
 /// property under test here is one InMemory cannot see — the two <c>text[]</c> columns, the shadow
 /// backing-field mapping, the <c>ValueComparer</c> that makes in-place mutation visible to change
-/// detection, the soft-delete query filter, and the two indexes.
+/// detection, the two indexes, and the physical absence of the demolished <c>deleted_at</c> column.
 ///
 /// <para>
 /// <b>The load-bearing test is <see cref="UpdateCriteria_OnAMaterialisedRow_PersistsTheNewCodes"/>.</b>
@@ -70,7 +70,6 @@ public class CompanyWatchCriterionPersistenceTests(WorkerTestFixture fixture)
         reloaded.UserId.ShouldBe(userId);
         reloaded.Label.ShouldBe("IT i Stockholm");
         reloaded.CreatedAt.ShouldBe(T0);
-        reloaded.DeletedAt.ShouldBeNull();
         reloaded.Criteria.SniCodes.ShouldBe([SniIt, SniItConsulting]);
         reloaded.Criteria.MunicipalityCodes.ShouldBe([KommunStockholm, KommunGoteborg]);
 
@@ -176,46 +175,61 @@ public class CompanyWatchCriterionPersistenceTests(WorkerTestFixture fixture)
     }
 
     [Fact]
-    public async Task SoftDelete_HidesTheRowFromDefaultQueries_ButKeepsItRetrievableAndIntact()
+    public async Task DeletedAtColumn_IsPhysicallyGone_FromTheCriteriaTable()
     {
-        // Three things at once, all storage-level:
-        //   1. the global query filter (deleted_at IS NULL) hides the row from every ordinary read;
-        //   2. IgnoreQueryFilters still retrieves it — which is exactly how the Art. 17 cascade
-        //      finds it, and why the user_id index must NOT be partial;
-        //   3. the criteria payload is RETAINED on the deleted row (the deliberate contrast with
-        //      CompanyWatch, which clears its filter). A gutted row would break the VO's own
-        //      invariant, so the domain keeps it and the account cascade is what erases it.
+        // This pin guards the SNAPSHOT → PHYSICAL DATABASE link, and it is the only thing that does.
+        // Be precise about the division of labour, because overstating a guard is the exact sin this
+        // PR exists to correct:
+        //
+        //   * model ≠ snapshot          → EF's own PendingModelChangesWarning throws at MigrateAsync,
+        //                                 and it is LOUD (measured 2026-07-17: dropping DeletedAt from
+        //                                 the model with no migration took all 8 tests in this class
+        //                                 down at fixture setup, not just this one).
+        //   * snapshot ≠ real table     → NOTHING else looks. A hand-written Up() that updates the
+        //                                 snapshot but drops the wrong thing, or nothing at all,
+        //                                 satisfies EF completely: the model matches the snapshot, so
+        //                                 no warning fires, and the column lives on. That gap is what
+        //                                 this test closes — and hand-written migrations are exactly
+        //                                 where it opens.
+        //
+        // The column is the one the C-D8/G1 verdict condemned: nothing ever wrote it (delete is
+        // HARD), so it holds no data and its drop destroys nothing. That is exactly why it may go
+        // with a plain DROP COLUMN rather than the DROP EXPRESSION dance a computed column needs.
         var ct = TestContext.Current.CancellationToken;
-        var userId = Guid.NewGuid();
 
-        var criterionId = await SeedAsync(userId, [SniIt], [KommunStockholm], "Tas bort", ct);
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        using (var deleteScope = _fixture.Services.CreateScope())
-        {
-            var db = deleteScope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var criterion = await db.CompanyWatchCriteria.SingleAsync(c => c.Id == criterionId, ct);
+        var exists = await ColumnExistsAsync(db, "deleted_at", ct);
 
-            criterion.SoftDelete(new FixedClock(T0.AddDays(3)));
-            await db.SaveChangesAsync(ct);
-        }
+        exists.ShouldBeFalse(
+            "deleted_at ska vara fysiskt borta ur company_watch_criteria — kolumnen var en decoy "
+            + "som ingen skrivväg någonsin satte (C-D8/G1: delete är HARD)");
 
-        using var verifyScope = _fixture.Services.CreateScope();
-        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var visible = await verifyDb.CompanyWatchCriteria
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == criterionId, ct);
-        visible.ShouldBeNull("global query filter ska dölja soft-deletade kriterier");
-
-        var hidden = await verifyDb.CompanyWatchCriteria
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .SingleAsync(c => c.Id == criterionId, ct);
-        hidden.DeletedAt.ShouldBe(T0.AddDays(3));
-        hidden.Criteria.SniCodes.ShouldBe([SniIt],
-            "SoftDelete BEHÅLLER kriterierna — en rensad rad hade brutit VO:ts egen invariant");
-        hidden.Criteria.MunicipalityCodes.ShouldBe([KommunStockholm]);
+        // Self-proving negative: the same probe finds a column that IS there. Without this, a
+        // helper that silently answered "false" for every name — a typo'd table, a changed
+        // information_schema shape — would make the assertion above pass vacuously forever.
+        (await ColumnExistsAsync(db, "sni_codes", ct)).ShouldBeTrue(
+            "kontroll-probe: helpern måste kunna SE en kolumn som finns, annars bevisar raden ovan "
+            + "ingenting");
     }
+
+    // No "the filter is gone, so ordinary reads see every row" test lives here, deliberately. One
+    // was written for this PR and deleted before merge, because it could not fail:
+    //   * its ordinary-read half duplicated RoundTrip_OnAMaterialisedRow (which already reads the
+    //     seeded row back through a plain AsNoTracking query);
+    //   * its "same row through IgnoreQueryFilters" half was TAUTOLOGICAL — a filter-ignoring read is
+    //     strictly wider than a plain one on the same primary key, so if the plain read found the row
+    //     the wider read cannot fail to;
+    //   * and it claimed to catch "the demolition being half-done", which this PR's own mutation M4
+    //     falsified: with the migration's Up() neutered it stayed GREEN (7/8), while only
+    //     DeletedAtColumn_IsPhysicallyGone went red.
+    // A freshly seeded row passes any filter that does not exclude fresh rows, so no seed-and-read
+    // shape can prove "no filter exists". The property is real and IS guarded — by the EF model, at
+    // build time: re-adding HasQueryFilter to this aggregate flips it into the filtered set and
+    // AccountHardDeleteCascadeFitnessTests immediately demands the matching IgnoreQueryFilters in the
+    // Art. 17 cascade. That guard can fail; this test could not. Keeping it would have been the exact
+    // thing this PR condemns — a mechanism claiming more than it does (code-reviewer Major 2).
 
     // ---------------------------------------------------------------
     // Index pins — a guarantee nobody has checked is not a guarantee
@@ -247,10 +261,16 @@ public class CompanyWatchCriterionPersistenceTests(WorkerTestFixture fixture)
     [Fact]
     public async Task UserIdIndex_OnCompanyWatchCriteria_Exists_AndIsNotPartial()
     {
-        // The index is deliberately NOT partial. A "WHERE deleted_at IS NULL" filter would exclude
-        // the Art. 17 cascade sweep — which runs IgnoreQueryFilters(), i.e. WITHOUT that predicate —
-        // from using it, turning the ERASURE path into a seq scan. A partial index here would look
-        // like a harmless optimisation and quietly de-index the one query that must never be slow.
+        // THIS is what proves the deleted_at drop did not take the index with it. DROP COLUMN
+        // silently drops every index that depends on the column, and the EF model snapshot is blind
+        // to it — the migration would report success and the erasure sweep would degrade to a seq
+        // scan over every criterion in the table, with nothing red anywhere. The index is
+        // independent of deleted_at (plain, on user_id alone), so it MUST survive; this pin is the
+        // difference between believing that and knowing it.
+        //
+        // Non-partial is now structural rather than a judgement call: with the lifecycle column gone
+        // there is no predicate left to make it partial with. The assertion stays as the tripwire
+        // for anyone who reintroduces one.
         var ct = TestContext.Current.CancellationToken;
 
         using var scope = _fixture.Services.CreateScope();
@@ -262,8 +282,9 @@ public class CompanyWatchCriterionPersistenceTests(WorkerTestFixture fixture)
         var def = indexDef!;
         def.ShouldContain("user_id");
         def.ShouldNotContain("WHERE",
-            customMessage: "indexet får INTE vara partiellt — Art. 17-sweepen kör IgnoreQueryFilters "
-            + "och skulle då tappa indexet i just raderingsvägen");
+            customMessage: "indexet får INTE vara partiellt — Art. 17-sweepen läser HELA "
+            + "user_id-mängden (kriteriet har inget query filter) och ett partiellt index skulle "
+            + "tappas i just raderingsvägen");
     }
 
     // ---------------------------------------------------------------
@@ -331,6 +352,24 @@ public class CompanyWatchCriterionPersistenceTests(WorkerTestFixture fixture)
                 column)
             .ToListAsync(ct);
         return rows.ShouldHaveSingleItem();
+    }
+
+    // Physical column existence, straight from the catalog. The column name is PARAMETERISED (a
+    // value in the WHERE clause, not an identifier spliced into the SQL) — same discipline as
+    // ColumnUdtNameAsync above.
+    private static async Task<bool> ColumnExistsAsync(
+        AppDbContext db, string column, CancellationToken ct)
+    {
+        var rows = await db.Database
+            .SqlQueryRaw<int>(
+                """
+                SELECT count(*)::int AS "Value"
+                FROM information_schema.columns
+                WHERE table_name = 'company_watch_criteria' AND column_name = {0}
+                """,
+                column)
+            .ToListAsync(ct);
+        return rows.ShouldHaveSingleItem() > 0;
     }
 
     private static async Task<string?> IndexDefAsync(

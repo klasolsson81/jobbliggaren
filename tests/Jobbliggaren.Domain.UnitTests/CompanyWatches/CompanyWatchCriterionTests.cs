@@ -7,18 +7,18 @@ namespace Jobbliggaren.Domain.UnitTests.CompanyWatches;
 /// <summary>
 /// #560 kriterie-vågen PR-1 (Fork A1, ADR 0105 RF-1) — invariants for the
 /// <see cref="CompanyWatchCriterion"/> aggregate root: the <see cref="CompanyWatchCriterion.Create"/>
-/// guards, label normalization (blank = unlabelled, not an error), the active-only preconditions on
-/// <see cref="CompanyWatchCriterion.UpdateCriteria"/> / <see cref="CompanyWatchCriterion.Rename"/>,
-/// idempotent <see cref="CompanyWatchCriterion.SoftDelete"/> — and the deliberate CONTRAST with
-/// <see cref="CompanyWatch"/>: soft-delete here RETAINS the criteria payload.
+/// guards, label normalization (blank = unlabelled, not an error), and the write-path preconditions
+/// on <see cref="CompanyWatchCriterion.UpdateCriteria"/> / <see cref="CompanyWatchCriterion.Rename"/>.
 ///
 /// <para>
-/// <b>Why retention is the invariant and not an oversight.</b> <c>CompanyWatch.SoftDelete</c> clears
-/// its filter, because the filter is ancillary preference data on a row that still means something
-/// on its own. Here the criteria ARE the row — an empty spec is invalid per Fork B1 — so clearing
-/// them would persist a row whose own domain invariant is false. Art. 5(1)(c) is satisfied by the
-/// account-level Art. 17 hard-delete cascade (pinned behaviourally in
-/// <c>HardDeleteAccountsJobIntegrationTests</c>), not by gutting the row.
+/// <b>There is no lifecycle axis to test.</b> Delete is HARD (C-D8/CTO Fork G1) — the row is removed,
+/// never stamped — so the aggregate has exactly two states, present and gone, and the second one is
+/// not representable in memory. The soft-delete apparatus PR-3 carried (a <c>SoftDelete()</c> with
+/// zero production callers, a <c>DeletedAt</c> stamp, an EF query filter, a <c>deleted_at</c> column)
+/// was demolished wholesale in the follow-up migration; the tests that pinned its idempotency and
+/// its payload-retention contrast with <see cref="CompanyWatch"/> went with it, because they
+/// described a state that can no longer exist. Art. 5(1)(c) is satisfied by the account-level Art. 17
+/// hard-delete cascade (pinned behaviourally in <c>HardDeleteAccountsJobIntegrationTests</c>).
 /// </para>
 /// </summary>
 public class CompanyWatchCriterionTests
@@ -53,7 +53,6 @@ public class CompanyWatchCriterionTests
         criterion.Label.ShouldBe("IT i Stockholm");
         criterion.CreatedAt.ShouldBe(Clock.UtcNow);
         criterion.UpdatedAt.ShouldBe(Clock.UtcNow);
-        criterion.DeletedAt.ShouldBeNull();
         criterion.Id.Value.ShouldNotBe(Guid.Empty);
     }
 
@@ -237,22 +236,8 @@ public class CompanyWatchCriterionTests
         criterion.UpdatedAt.ShouldBe(Clock.UtcNow, "en avvisad ändring får inte stämpla UpdatedAt");
     }
 
-    [Fact]
-    public void UpdateCriteria_OnSoftDeletedCriterion_Fails_AndLeavesTheCriteriaUntouched()
-    {
-        var criterion = CreateValid();
-        criterion.SoftDelete(Clock);
-
-        var result = criterion.UpdateCriteria(
-            ConsultingInGoteborg(), FakeDateTimeProvider.At(Clock.UtcNow.AddDays(5)));
-
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("CompanyWatchCriterion.NotActive");
-        criterion.Criteria.SniCodes.ShouldBe(["62010"], "en borttagen bevakning får inte tyst muteras");
-    }
-
     // ---------------------------------------------------------------
-    // Rename — active-only; blank clears the label
+    // Rename — blank clears the label
     // ---------------------------------------------------------------
 
     [Fact]
@@ -295,80 +280,6 @@ public class CompanyWatchCriterionTests
         result.Error.Code.ShouldBe("CompanyWatchCriterion.LabelTooLong");
         criterion.Label.ShouldBe("Kort namn");
         criterion.UpdatedAt.ShouldBe(Clock.UtcNow, "en avvisad ändring får inte stämpla UpdatedAt");
-    }
-
-    [Fact]
-    public void Rename_OnSoftDeletedCriterion_Fails()
-    {
-        var criterion = CreateValid("Namngiven");
-        criterion.SoftDelete(Clock);
-
-        var result = criterion.Rename("Nytt namn", FakeDateTimeProvider.At(Clock.UtcNow.AddDays(2)));
-
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("CompanyWatchCriterion.NotActive");
-        criterion.Label.ShouldBe("Namngiven");
-    }
-
-    // ---------------------------------------------------------------
-    // SoftDelete — idempotent, and it KEEPS the criteria (the CompanyWatch contrast)
-    // ---------------------------------------------------------------
-
-    [Fact]
-    public void SoftDelete_OnActiveCriterion_StampsDeletedAtAndUpdatedAt()
-    {
-        var criterion = CreateValid();
-        var deleteClock = FakeDateTimeProvider.At(Clock.UtcNow.AddDays(3));
-
-        criterion.SoftDelete(deleteClock);
-
-        criterion.DeletedAt.ShouldBe(deleteClock.UtcNow);
-        criterion.UpdatedAt.ShouldBe(deleteClock.UtcNow);
-    }
-
-    [Fact]
-    public void SoftDelete_OnAlreadyDeletedCriterion_IsIdempotent()
-    {
-        var criterion = CreateValid();
-        var firstDelete = FakeDateTimeProvider.At(Clock.UtcNow.AddDays(3));
-        criterion.SoftDelete(firstDelete);
-
-        criterion.SoftDelete(FakeDateTimeProvider.At(Clock.UtcNow.AddDays(9)));
-
-        criterion.DeletedAt.ShouldBe(firstDelete.UtcNow, "originalstämpeln behålls vid upprepad borttagning");
-        criterion.UpdatedAt.ShouldBe(firstDelete.UtcNow);
-    }
-
-    [Fact]
-    public void SoftDelete_RetainsTheCriteria()
-    {
-        // THE contrast pin against CompanyWatch.SoftDelete, which CLEARS its filter. Here the
-        // criteria are the row's entire payload: gutting them would persist a row whose own
-        // invariant (both axes non-empty, Fork B1) is FALSE. If this test ever goes red because
-        // someone "harmonised" the two aggregates, the DB fills with invariant-breaking rows.
-        var criterion = CreateValid("IT i Stockholm");
-
-        criterion.SoftDelete(FakeDateTimeProvider.At(Clock.UtcNow.AddDays(3)));
-
-        criterion.Criteria.SniCodes.ShouldBe(["62010"]);
-        criterion.Criteria.MunicipalityCodes.ShouldBe(["0180"]);
-        criterion.Label.ShouldBe("IT i Stockholm");
-    }
-
-    [Fact]
-    public void SoftDelete_LeavesACriteriaPayloadThatStillSatisfiesTheDomainInvariant()
-    {
-        // The reason retention is correct, made executable: the payload left on a soft-deleted row
-        // still passes the VO's own write-path invariant. A cleared row would not — Create would
-        // reject exactly what the row now holds, which is the definition of a corrupt row.
-        var criterion = CreateValid();
-
-        criterion.SoftDelete(FakeDateTimeProvider.At(Clock.UtcNow.AddDays(3)));
-
-        var revalidated = CompanyWatchCriteriaSpec.Create(
-            criterion.Criteria.SniCodes, criterion.Criteria.MunicipalityCodes);
-        revalidated.IsSuccess.ShouldBeTrue(
-            "kvarhållen payload måste fortfarande vara ett GILTIGT spec — annars är raden trasig");
     }
 
     // ---------------------------------------------------------------

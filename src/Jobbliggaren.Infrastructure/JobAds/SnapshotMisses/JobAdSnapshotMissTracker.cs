@@ -122,10 +122,12 @@ internal sealed partial class JobAdSnapshotMissTracker(
         // missing from the snapshot, so a deny-list here selects the tombstone and re-stamps it
         // Archived, bypassing the aggregate's Archive() guard (ExecuteUpdate never loads the
         // aggregate) and unkeying UpdateFromSource's re-import refusal (`Status == Erased`) —
-        // the erased ad walks back in on the next sync. DELIBERATELY UNWITNESSED here (CTO
-        // 2026-07-16, B8g): no test runs this tracker's real SQL today; the real-SUT lifecycle
-        // test belongs to the writer-durability follow-up PR (with ExpireJobAdsJob's), a
-        // different change-reason than the read-gate witnesses.
+        // the erased ad walks back in on the next sync. WITNESSED (CTO 2026-07-16 B8g, resequenced
+        // by 2026-07-17 R2/R3 once PR #911 supplied the real-Postgres fixture): the real-SUT test
+        // RecruiterContactRetentionTests.JobAdSnapshotMissTracker_archive_does_not_resurrect_an_Erased_tombstone
+        // seeds a real Erased tombstone (JobAd.Import + Erase(), production funnel) that keeps its
+        // External key and a miss count over the threshold, and proves it is excluded from this
+        // bulk selection — the resurrection mutant (`== Active` → `!= Archived`) goes RED there.
         //
         // Domain-event-bortfall accepterat (CTO 2026-05-23 Q3=B, D8.a — inga
         // subscribers på JobAdArchivedDomainEvent). Aggregerad audit-rad via

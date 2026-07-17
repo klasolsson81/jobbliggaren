@@ -49,10 +49,12 @@ public sealed partial class ExpireJobAdsJob(
         // re-stamps an expired Erased tombstone (#842) to Archived, bypassing the aggregate's
         // Archive() guard (ExecuteUpdate never loads the aggregate) — and UpdateFromSource's
         // re-import refusal keys on Status == Erased, so the erased ad walks back in on the next
-        // nightly sync. DELIBERATELY UNWITNESSED here (CTO 2026-07-16, B7): this suite is
-        // substitute-based and cannot execute ExecuteUpdate's SQL; the real-SUT lifecycle test
-        // belongs to the writer-durability follow-up PR (with JobAdSnapshotMissTracker's), a
-        // different change-reason than the read-gate witnesses.
+        // nightly sync. WITNESSED (CTO 2026-07-16 B7, resequenced by 2026-07-17 R2/R3 once PR #911
+        // supplied the real-Postgres fixture): the real-SUT test
+        // RecruiterContactRetentionTests.ExpireJobAdsJob_does_not_resurrect_an_expired_Erased_tombstone
+        // seeds a real Erased tombstone (JobAd.Import + Erase(), production funnel) with a past
+        // ExpiresAt and proves it is excluded from this bulk selection — the resurrection mutant
+        // (`== Active` → `!= Archived`) goes RED there against real Postgres.
         var archivedStatus = JobAdStatus.Archived;
         var rowsAffected = await db.JobAds
             .Where(j => j.Status == JobAdStatus.Active

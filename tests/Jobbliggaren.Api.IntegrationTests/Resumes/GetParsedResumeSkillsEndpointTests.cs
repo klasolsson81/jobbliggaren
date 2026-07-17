@@ -50,7 +50,7 @@ public class GetParsedResumeSkillsEndpointTests(ApiFactory factory)
     {
         using var form = PdfForm();
         var import = await client.PostAsync("/api/v1/resumes/import", form, ct);
-        import.StatusCode.ShouldBe(HttpStatusCode.Created);
+        import.IsSuccessStatusCode.ShouldBeTrue();
         return (await import.Content.ReadFromJsonAsync<JsonElement>(ct))
             .GetProperty("parsedResumeId").GetString()!;
     }

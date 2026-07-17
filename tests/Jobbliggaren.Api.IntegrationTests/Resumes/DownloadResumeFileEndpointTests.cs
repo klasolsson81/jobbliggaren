@@ -83,7 +83,7 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
     {
         using var form = FileForm(bytes, fileName, declaredContentType);
         var import = await client.PostAsync("/api/v1/resumes/import", form, ct);
-        import.StatusCode.ShouldBe(HttpStatusCode.Created);
+        import.IsSuccessStatusCode.ShouldBeTrue();
         return (await import.Content.ReadFromJsonAsync<JsonElement>(ct))
             .GetProperty("parsedResumeId").GetString()!;
     }

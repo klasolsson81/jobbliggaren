@@ -15,6 +15,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- CV-pivot 5c: builds a real personnummer-bearing DOCX in-memory so the import→consent
+         re-POST wiring is proven end-to-end against the real extractor (version centrally
+         managed in Directory.Packages.props; already a product dependency). -->
+    <PackageReference Include="DocumentFormat.OpenXml" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" />
     <PackageReference Include="NSubstitute" />

@@ -1,5 +1,6 @@
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.JobSeekers.Commands.SetPrimaryResume;
+using Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 using Jobbliggaren.Application.Resumes.Commands.CreateResume;
 using Jobbliggaren.Application.Resumes.Commands.DeleteResume;
 using Jobbliggaren.Application.Resumes.Commands.DeleteResumeVersion;
@@ -63,13 +64,16 @@ public static class ResumesEndpoints
             return result is null ? Results.NotFound() : Results.Ok(result);
         }).RequireAuthorization();
 
-        // CV import + parse (F4-8). multipart/form-data with a single "file" part
-        // (PDF/DOCX). The bytes are read into the command HERE — IFormFile never crosses
-        // into Application (Clean Architecture). The body-size feature is tightened per
-        // request so an oversize upload is rejected by Kestrel before it is buffered; the
-        // handler then runs the authoritative magic-byte format gate + the personnummer
-        // guard on the raw text before persist (Invariant 1) and encrypts the CV-PII
-        // shadows (Invariant 3). The response carries no CV-PII (id + parse summary only).
+        // CV import + parse + auto-promote (F4-8; CV-pivot 5c — R4 "spara direkt"). One
+        // multipart/form-data upload: a "file" part (PDF/DOCX), an optional
+        // "personnummerAcknowledged" flag (the 5b consent re-POST), and an optional "name"
+        // (the CV display name the form prefills). The bytes are read into the command HERE
+        // — IFormFile never crosses into Application (Clean Architecture). The handler runs
+        // the magic-byte gate + the personnummer guard on the raw text before persist
+        // (Invariant 1) and encrypts the CV-PII shadows (Invariant 3). On a successful
+        // import the endpoint ALWAYS attempts auto-promote (two sends, two UnitOfWork — 5a
+        // CTO-bind §3); the response is PII-free (ids + parse-summary + the count/kinds
+        // personnummer finding, never a value).
         group.MapPost("/import", async (
             HttpRequest request, IMediator mediator, CancellationToken ct) =>
         {
@@ -111,15 +115,67 @@ public static class ResumesEndpoints
                     detail: "Ingen fil bifogades. Välj en PDF- eller Word-fil (DOCX).",
                     title: "Resume.NoFile", statusCode: 400);
 
+            // The personnummer-consent acknowledge (CV-pivot 5b/5c, ADR 0114 §D3): the FE
+            // re-POSTs the SAME bytes with this flag after the consent dialog. Fail-closed —
+            // an absent/malformed value parses to false, so a flagged body is never captured
+            // without an explicit "true". The flag is INERT without a server-side finding: the
+            // consent stamps follow the handler's own scan, never this client claim (ADR 0114
+            // §D3 / M-A) — a client that sets it on every upload writes no spurious consent.
+            // The parse RESULT is consumed (&&): an absent/unparseable value is a deliberate
+            // false (fail-closed), never a silently ignored TryParse default (CA1806).
+            var personnummerAcknowledged =
+                bool.TryParse(form["personnummerAcknowledged"], out var acknowledged) && acknowledged;
+
+            // The CV display name (CV-pivot 5c): the upload form prefills the account holder's
+            // name and lets the user edit it. Absent/blank → the AutoPromote handler resolves
+            // JobSeeker.DisplayName (5a CTO-bind R5). Never the parsed file's contact name.
+            var nameOverride = form["name"].ToString();
+            if (string.IsNullOrWhiteSpace(nameOverride))
+                nameOverride = null;
+
             using var buffer = new MemoryStream(
                 file.Length <= MaxUploadBytes ? (int)file.Length : 0);
             await file.CopyToAsync(buffer, ct);
 
-            var command = new ImportResumeCommand(file.FileName, file.ContentType, buffer.ToArray());
-            var result = await mediator.Send(command, ct);
-            return result.IsSuccess
-                ? Results.Created($"/api/v1/resumes/parsed/{result.Value.ParsedResumeId}", result.Value)
-                : result.Error.ToProblemResult();
+            // ── Import (txn 1): extract → personnummer guard → segment → capture the original
+            // (consented iff the body is flagged AND acknowledged) → persist the PendingReview
+            // parse. The response carries the PII-free personnummer finding the FE needs to
+            // decide whether to raise the consent dialog.
+            var importResult = await mediator.Send(
+                new ImportResumeCommand(
+                    file.FileName, file.ContentType, buffer.ToArray(), personnummerAcknowledged),
+                ct);
+            if (importResult.IsFailure)
+                return importResult.Error.ToProblemResult();
+
+            var import = importResult.Value;
+
+            // ── Auto-promote (txn 2, ALWAYS — R4: the import-without-promote onboarding flow is
+            // retired; every upload attempts "spara direkt"). Two sends in the endpoint, two
+            // UnitOfWork (5a CTO-bind §3): a LeftPending fails before any mutation, so its save
+            // is a no-op and the parse stays PendingReview for the review flow; a crash between
+            // the two degrades gracefully to that same flow. Routing is on the outcome TYPE
+            // (status + Outcome discriminator), never the block-reason string (CLAUDE.md §5).
+            var autoPromoteResult = await mediator.Send(
+                new AutoPromoteParsedResumeCommand(import.ParsedResumeId, nameOverride), ct);
+            if (autoPromoteResult.IsFailure)
+                return autoPromoteResult.Error.ToProblemResult();
+
+            return autoPromoteResult.Value switch
+            {
+                AutoPromoteOutcome.Promoted promoted => Results.Created(
+                    $"/api/v1/resumes/{promoted.ResumeId}",
+                    new ImportOutcomeResponse(
+                        import.ParsedResumeId, import.Personnummer,
+                        nameof(AutoPromoteOutcome.Promoted), promoted.ResumeId, BlockReason: null)),
+                AutoPromoteOutcome.LeftPending pending => Results.Ok(
+                    new ImportOutcomeResponse(
+                        import.ParsedResumeId, import.Personnummer,
+                        nameof(AutoPromoteOutcome.LeftPending), ResumeId: null,
+                        pending.Reason.ToString())),
+                _ => throw new InvalidOperationException(
+                    $"Ohanterat AutoPromoteOutcome '{autoPromoteResult.Value.GetType().Name}'."),
+            };
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.ResumeImportPolicy);
 
@@ -427,4 +483,18 @@ public static class ResumesEndpoints
     private sealed record SetLanguageBody(string Language);
     private sealed record SetFindingStatusBody(string Status);
     private sealed record PromoteParsedResumeBody(string Name, ResumeContentDto Content);
+
+    // The composed outcome of the import→auto-promote endpoint (CV-pivot 5c). Two Application
+    // results folded into one HTTP contract: the always-present parse id + the PII-free
+    // personnummer finding (the consent-dialog trigger — count/kinds/bool, never a value), plus
+    // the auto-promote disposition. Outcome is the TYPE discriminator ("Promoted"/"LeftPending")
+    // the FE routes on together with the status code; BlockReason is copy/telemetry only
+    // (CLAUDE.md §5 — never routed on). ResumeId is set iff Promoted (201); BlockReason iff
+    // LeftPending (200).
+    private sealed record ImportOutcomeResponse(
+        Guid ParsedResumeId,
+        PersonnummerScanDto Personnummer,
+        string Outcome,
+        Guid? ResumeId,
+        string? BlockReason);
 }

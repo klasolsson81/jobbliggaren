@@ -45,7 +45,7 @@ public class ParsedResumeAnalysisEndpointTests(ApiFactory factory)
         part.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
         using var form = new MultipartFormDataContent { { part, "file", "cv.pdf" } };
         var import = await client.PostAsync("/api/v1/resumes/import", form, ct);
-        import.StatusCode.ShouldBe(HttpStatusCode.Created);
+        import.IsSuccessStatusCode.ShouldBeTrue();
         return (await import.Content.ReadFromJsonAsync<JsonElement>(ct))
             .GetProperty("parsedResumeId").GetString()!;
     }

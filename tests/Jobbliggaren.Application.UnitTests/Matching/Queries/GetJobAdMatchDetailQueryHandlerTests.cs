@@ -516,6 +516,36 @@ public class GetJobAdMatchDetailQueryHandlerTests
         scorer.ScoreFullCallCount.ShouldBe(1);
     }
 
+    [Fact]
+    public async Task Handle_ShouldPropagateNotFound_WhenAdIsErasedBetweenTheStatusCheckAndTheScorerRead()
+    {
+        // THE TOCTOU, named (CTO G2 ground 3). The handler's gate PASSES (the row is Archived when it
+        // reads it); the scorer's own gate then sees the row erased and reports it absent. The race
+        // must degrade to 404 — never to a grade. This is the assertion behind MatchScorer.cs's
+        // written claim; without it that sentence is prose claiming a pin that does not exist (the
+        // #864 disease this PR exists to end). It differs from
+        // Handle_ShouldPropagateNotFoundException_WhenAdDoesNotExist in the one way that matters:
+        // the row EXISTS and CLEARS the first gate, so the second gate is what answers.
+        //
+        // No real interleaving is built: the CTO said "do not build a transaction for a millisecond
+        // window", and the same discipline applies to its oracle. The scorer's refusal is the
+        // observable behaviour, and a fake that refuses reproduces it deterministically.
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var ad = await SeedAdAsync(db, a => a.Archive(FakeDateTimeProvider.Default), ct);
+
+        var builder = new FakeProfileBuilder(FullProfileWithOccupation("skill-x"));
+        var scorer = new FakeScorer(new NotFoundException("JobAd hittades inte."));
+        var sut = CreateHandler(builder, scorer, db: db);
+
+        await Should.ThrowAsync<NotFoundException>(
+            async () => await sut.Handle(new GetJobAdMatchDetailQuery(ad.Id.Value), ct));
+
+        // Non-vacuity: the row genuinely passed the handler's gate — the scorer WAS reached.
+        // Without this the spec could pass by the handler short-circuiting for some other reason.
+        scorer.ScoreFullCallCount.ShouldBe(1);
+    }
+
     // =================================================================
     // Fail-closed — the profile builder throws (DEK/KMS failure) → propagates, never
     // swallowed into an honest-empty (a silent empty skill set would mis-report).

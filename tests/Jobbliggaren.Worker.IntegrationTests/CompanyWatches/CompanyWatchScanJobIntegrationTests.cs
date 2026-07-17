@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
@@ -560,6 +561,7 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
         var sp = scope.ServiceProvider;
         var job = new CompanyWatchScanJob(
             sp.GetRequiredService<AppDbContext>(),
+            sp.GetRequiredService<IProtectedIdentityTokenizer>(),
             new FixedClock(Now),
             sp.GetRequiredService<ILoggerFactory>().CreateLogger<CompanyWatchScanJob>());
         await job.RunAsync(ct);

@@ -1084,6 +1084,19 @@ public static class DependencyInjection
             Jobbliggaren.Application.Common.Security.IIdentifierPseudonymizer,
             Security.HmacIdentifierPseudonymizer>();
 
+        // #544 (ADR 0090 D5) — SEPARATE watch pepper for the enskild-firma org.nr at-rest token
+        // (security-auditor B1: one key = one purpose; permanent/non-rotatable, R1 — unlike the
+        // rotation-tolerant audit pepper). Same fail-closed ValidateOnStart posture.
+        services.AddOptions<Security.CompanyWatchPseudonymizationOptions>()
+            .Bind(configuration.GetSection(Security.CompanyWatchPseudonymizationOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<
+            Microsoft.Extensions.Options.IValidateOptions<Security.CompanyWatchPseudonymizationOptions>,
+            Security.CompanyWatchPseudonymizationOptionsValidator>();
+        services.AddSingleton<
+            Jobbliggaren.Application.Common.Security.IProtectedIdentityTokenizer,
+            Security.HmacProtectedIdentityTokenizer>();
+
         // F4-14 (ADR 0076 Decision 4/5) — IPerUserJobAdSearchQuery: den
         // per-användar-match-sorten ("Sortera efter matchning"). SEPARAT port från
         // IJobAdSearchQuery (som förblir match-ren/cachebar) men delar filter-SPOT:en

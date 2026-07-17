@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
@@ -50,6 +51,7 @@ namespace Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan;
 /// </summary>
 public sealed partial class CompanyWatchScanJob(
     IAppDbContext db,
+    IProtectedIdentityTokenizer tokenizer,
     IDateTimeProvider clock,
     ILogger<CompanyWatchScanJob> logger)
 {
@@ -128,34 +130,49 @@ public sealed partial class CompanyWatchScanJob(
             return 0;
         }
 
-        // Whole-watch map (RF-2/RF-3, 2026-07-12): the per-watch Filter must be available in the
-        // hit loop for the client-side ort check, so map org.nr → watch (not just its id).
-        var watchByOrgNr = activeWatches.ToDictionary(
-            w => w.OrganizationNumber.Value, w => w, StringComparer.Ordinal);
+        // #544 (ADR 0090 D5 / CTO D1-D2) — partition the active watches by at-rest form. A
+        // legal-entity (AB) org.nr is stored plaintext and matched by the unchanged SQL IN (the
+        // majority path). A personnummer-shaped (enskild-firma) org.nr is stored as an HMAC token
+        // that cannot match the plaintext job_ads column in SQL, so its ads are found by an in-memory
+        // HMAC match over the pnr-shaped candidate subset (mechanism 1, hybrid pnr-only).
+        // IsPersonnummerShaped is the SSOT discriminator (B2): a stored token → true (length≠10), an
+        // AB plaintext → false. Whole-watch values (RF-2/RF-3) so the per-watch Filter is in the loop.
+        var abWatchByOrgNr = new Dictionary<string, CompanyWatch>(StringComparer.Ordinal);
+        var enskildWatchByKey = new Dictionary<string, CompanyWatch>(StringComparer.Ordinal);
+        foreach (var w in activeWatches)
+        {
+            if (w.OrganizationNumber.IsPersonnummerShaped())
+                enskildWatchByKey[w.OrganizationNumber.Value] = w; // key = token (or legacy raw pnr)
+            else
+                abWatchByOrgNr[w.OrganizationNumber.Value] = w; // key = plaintext AB org.nr
+        }
         // IReadOnlyList<string> (not List<string>) so the org.nr membership uses the LINQ
         // Enumerable.Contains overload — EF translates it to SQL IN over the nullable shadow column
         // (parity the D6 ApplyFilter employer filter; a List<string>.Contains would reject the
         // string? column arg at compile time).
-        IReadOnlyList<string> watchedOrgNrs = watchByOrgNr.Keys.ToList();
+        IReadOnlyList<string> abOrgNrs = abWatchByOrgNr.Keys.ToList();
 
         var since = jobSeeker.LastCompanyWatchScanAt ?? now.AddDays(-ColdStartDays);
 
-        // Filter by CreatedAt (INGEST time), not PublishedAt (parity BackgroundMatchingJob — the
-        // watermark advances to clock-now, and CreatedAt is the monotonic ingest timestamp, so
-        // CreatedAt > since catches EVERY ad ingested since the last scan). The org.nr IN-membership
-        // uses the STORED generated shadow column (EF.Property — the same translation-safe pattern
-        // as the D6 employer filter; org.nr on job_ads is a plain string, not a VO). Project the id +
-        // its org.nr (to map back to the originating watch client-side, no join) + BOTH its geo
-        // axes (for the per-watch ort filter — RF-3=3D: the ort check is CLIENT-SIDE per (ad, watch)
-        // pair, keeping the SQL a pure set-membership query; the D5 seal EXTENDED, still scorer-/
-        // profile-free). Both axes are STORED generated columns, and both are needed: an ad may be
-        // tagged at län granularity with NO municipality, and a whole-län filter must still admit it
-        // (F4a / CTO Q3=B — the union semantics the rest of the house already uses).
+        // Filter by CreatedAt (INGEST time), not PublishedAt (parity BackgroundMatchingJob). ONE
+        // round-trip loads every new active ad whose org.nr is EITHER a watched AB org.nr (SQL IN,
+        // unchanged) OR pnr-shaped (a possible enskild match, resolved in memory). The pnr-shape arm
+        // (Length==10 AND 3rd digit 0/1) is a translatable SUPERSET of every ad that could HMAC-match
+        // an enskild watch — a matching ad carries the watch's own valid 10-digit pnr — so a too-narrow
+        // prefilter (the cardinal sin: a watch that matches nothing) fails the Testcontainers oracle,
+        // never silently in prod. Project the id + its org.nr (mapped back to the watch client-side, no
+        // join) + BOTH geo axes (per-watch ort filter, RF-3=3D — the ort check is CLIENT-SIDE per
+        // (ad, watch) pair; the D5 seal EXTENDED, still scorer-/profile-free). Both geo axes are needed:
+        // an ad tagged at län granularity with NO municipality must still pass a whole-län filter (F4a).
         var newAds = await db.JobAds
             .AsNoTracking()
             .Where(j => j.Status == JobAdStatus.Active
                         && j.CreatedAt > since
-                        && watchedOrgNrs.Contains(EF.Property<string?>(j, "OrganizationNumber")))
+                        && (abOrgNrs.Contains(EF.Property<string?>(j, "OrganizationNumber"))
+                            || (EF.Property<string?>(j, "OrganizationNumber") != null
+                                && EF.Property<string?>(j, "OrganizationNumber")!.Length == 10
+                                && (EF.Property<string?>(j, "OrganizationNumber")!.Substring(2, 1) == "0"
+                                    || EF.Property<string?>(j, "OrganizationNumber")!.Substring(2, 1) == "1"))))
             .Select(j => new
             {
                 j.Id,
@@ -183,9 +200,29 @@ public sealed partial class CompanyWatchScanJob(
 
             foreach (var ad in newAds)
             {
-                // The ad matched the IN of non-null watched org.nrs, so OrgNr is present and maps to
-                // exactly one active watch; TryGetValue is defense-in-depth against a NULL leak.
-                if (ad.OrgNr is null || !watchByOrgNr.TryGetValue(ad.OrgNr, out var watch))
+                if (ad.OrgNr is null)
+                    continue;
+
+                // Resolve the originating watch. AB org.nrs match plaintext directly; a pnr-shaped ad
+                // HMAC-matches an enskild watch token (or, during the backfill window, equals a legacy
+                // plaintext-pnr watch — the same dual-probe as the follow seam). An ad admitted only by
+                // the pnr-shape prefilter that matches no enskild watch falls through (most pnr-shaped
+                // ads have no follower). The tokenizer runs only when the user actually holds an enskild
+                // follow.
+                CompanyWatch? watch = null;
+                if (abWatchByOrgNr.TryGetValue(ad.OrgNr, out var abWatch))
+                {
+                    watch = abWatch;
+                }
+                else if (enskildWatchByKey.Count > 0)
+                {
+                    if (enskildWatchByKey.TryGetValue(tokenizer.Tokenize(ad.OrgNr), out var tokenWatch))
+                        watch = tokenWatch;
+                    else if (enskildWatchByKey.TryGetValue(ad.OrgNr, out var legacyWatch))
+                        watch = legacyWatch;
+                }
+
+                if (watch is null)
                     continue;
 
                 // Per-watch ort filter (RF-3=3D scan-time / RF-8=8A never-created): an active ort

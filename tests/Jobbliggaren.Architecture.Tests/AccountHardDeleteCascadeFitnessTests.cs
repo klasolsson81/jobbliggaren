@@ -286,13 +286,23 @@ public class AccountHardDeleteCascadeFitnessTests
         //    ignore. Scoping to query-executing verbs is what keeps the guard from reporting the
         //    RemoveRange statement of every unfiltered aggregate and getting widened into uselessness
         //    on its first run (senior-cto-advisor H1b, "the trap that must not be got wrong").
-        // 2. A comment that NAMES IgnoreQueryFilters is not a call. AccountHardDeleter's criteria arm
-        //    carries exactly such a comment ("NO IgnoreQueryFilters, and that is enforced…"), and the
-        //    deleted decoy guard fell for its own prose TWICE on two runs before it stripped literals.
-        //    A guard that fires on documentation teaches people to delete documentation.
+        // 2. A comment that NAMES the call is not a call — and prose in this repo writes the token in
+        //    its EXACT code form, dot and parens included. The pre-demolition
+        //    HardDeleteAccountsJobIntegrationTests carried the literal "the single
+        //    .IgnoreQueryFilters() in AccountHardDeleter"; AccountHardDeleter's criteria arm now
+        //    carries its own "NO IgnoreQueryFilters" note. The deleted decoy guard fell for its own
+        //    prose TWICE on two runs before it stripped literals, and a guard that fires on
+        //    documentation teaches people to delete documentation.
+        //
+        //    The fixture below therefore uses the DOTTED form deliberately. An earlier version wrote
+        //    it bare ("mentions IgnoreQueryFilters() in prose"), which does not match
+        //    ".IgnoreQueryFilters(" at all — so the test passed without the stripper even running and
+        //    proved nothing. Mutation M3 (disable stripping → this test must go RED) is what caught
+        //    that; keep the dot, or this negative goes vacuous again.
         const string synthetic = """
             {
-                // This mentions IgnoreQueryFilters() in prose and must not count as a call.
+                // The cascade sees soft-deleted rows only because of the single
+                // .IgnoreQueryFilters() call — prose, not a call, and it must not count as one.
                 var criteria = await db.CompanyWatchCriteria
                     .Where(c => c.UserId == userId)
                     .ToListAsync(cancellationToken);

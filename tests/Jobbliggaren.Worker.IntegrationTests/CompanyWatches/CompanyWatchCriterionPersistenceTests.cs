@@ -177,10 +177,20 @@ public class CompanyWatchCriterionPersistenceTests(WorkerTestFixture fixture)
     [Fact]
     public async Task DeletedAtColumn_IsPhysicallyGone_FromTheCriteriaTable()
     {
-        // The migration's ONLY oracle. Dropping deleted_at is invisible to every other gate: EF
-        // simply ignores columns the model does not map, so a migration that never ran — or ran and
-        // silently did nothing — leaves this suite green while the column, the schema drift and the
-        // decoy all survive. Nothing else in the build looks at the physical table.
+        // This pin guards the SNAPSHOT → PHYSICAL DATABASE link, and it is the only thing that does.
+        // Be precise about the division of labour, because overstating a guard is the exact sin this
+        // PR exists to correct:
+        //
+        //   * model ≠ snapshot          → EF's own PendingModelChangesWarning throws at MigrateAsync,
+        //                                 and it is LOUD (measured 2026-07-17: dropping DeletedAt from
+        //                                 the model with no migration took all 8 tests in this class
+        //                                 down at fixture setup, not just this one).
+        //   * snapshot ≠ real table     → NOTHING else looks. A hand-written Up() that updates the
+        //                                 snapshot but drops the wrong thing, or nothing at all,
+        //                                 satisfies EF completely: the model matches the snapshot, so
+        //                                 no warning fires, and the column lives on. That gap is what
+        //                                 this test closes — and hand-written migrations are exactly
+        //                                 where it opens.
         //
         // The column is the one the C-D8/G1 verdict condemned: nothing ever wrote it (delete is
         // HARD), so it holds no data and its drop destroys nothing. That is exactly why it may go

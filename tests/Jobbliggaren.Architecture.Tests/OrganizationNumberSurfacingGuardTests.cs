@@ -248,6 +248,18 @@ public class OrganizationNumberSurfacingGuardTests
             p => OrgNrSurfaceScan.ReachableTypes(p.Response).Contains(typeof(JobAdDetailDto)),
             "GetJobAdQuery's response graph must reach JobAdDetailDto (through Result<>) — "
             + "otherwise the walker no longer pierces the wrapper both guards depend on.");
+
+        // The ICommand<> arm needs its own anchor (test-writer Minor 1, CTO in-block 2026-07-17):
+        // the two assertions above exercise only the IQuery<> arm, so a predicate edit dropping the
+        // command arm would silently narrow BOTH guards to queries-only while this test stayed
+        // green. Shape-based on purpose — any command anchors it, no name coupling.
+        OrgNrSurfaceScan.MediatorResponses(typeof(JobAdDetailDto).Assembly)
+            .ShouldContain(
+                p => p.Request.GetInterfaces().Any(i => i.IsGenericType
+                     && i.GetGenericTypeDefinition() == typeof(Mediator.ICommand<>)),
+                "MediatorResponses no longer enumerates any ICommand<> request — the command arm "
+                + "of the shared predicate is broken and command responses are un-guarded in BOTH "
+                + "guards.");
     }
 
     [Fact]

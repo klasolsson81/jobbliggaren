@@ -140,11 +140,14 @@ describe("RecruiterContactBlock (#842 PR4)", () => {
     screen.getByRole("link", { name: "E-post: jobb@acme.se" });
 
     // The prefix lives in an sr-only span INSIDE the lead <a> — invisible, so
-    // the value stays the visual headline (R1(b): the value leads).
+    // the value stays the visual headline (R1(b): the value leads). Exact match
+    // (test-writer Minor 2, CTO in-block 2026-07-17): a substring check would
+    // still pass if a regression moved the VALUE into the sr-only span, hiding
+    // it — the span must hold the prefix and nothing else.
     const srOnlyPrefixes = container.querySelectorAll("a > .sr-only");
     expect(srOnlyPrefixes).toHaveLength(2);
-    expect(srOnlyPrefixes[0]).toHaveTextContent("Telefon:");
-    expect(srOnlyPrefixes[1]).toHaveTextContent("E-post:");
+    expect(srOnlyPrefixes[0]!.textContent).toBe("Telefon:");
+    expect(srOnlyPrefixes[1]!.textContent).toBe("E-post:");
   });
 
   it("renders every contact in the list (declared + derived together)", () => {

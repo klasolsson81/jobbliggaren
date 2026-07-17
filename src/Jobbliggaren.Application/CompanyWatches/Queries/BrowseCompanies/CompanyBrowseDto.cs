@@ -50,4 +50,14 @@ public sealed record CompanyBrowseDto(
     // load-bearing leading zero ("0180" = Stockholm) — never parsed to int.
     string SeatMunicipalityCode,
     string? SeatMunicipalityName,
-    IReadOnlyList<string> SniCodes);
+    IReadOnlyList<string> SniCodes)
+{
+    /// <summary>
+    /// REDACTED (#883). The DTO masks its org.nr at the SURFACING boundary, but a record's
+    /// compiler-generated <c>ToString()</c> prints every member — a plain <c>{X}</c> MEL placeholder
+    /// would still write <see cref="OrganizationNumber"/> into a log. Defense-in-depth at the log
+    /// boundary too (a sole prop's org.nr IS a personnummer, ADR 0087 D8(c); CLAUDE.md §5). Keeps
+    /// <see cref="Name"/>; pinned by <c>OrgNrRecordLoggingGuardTests</c>.
+    /// </summary>
+    public override string ToString() => $"CompanyBrowseDto({Name}, org.nr redacted)";
+}

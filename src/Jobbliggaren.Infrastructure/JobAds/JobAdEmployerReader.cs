@@ -58,5 +58,11 @@ internal sealed class JobAdEmployerReader(AppDbContext db) : IJobAdEmployerReade
     }
 
     // Materialisation shape: JobAdId (value-converted) projects cleanly; .Value is taken client-side.
-    private sealed record EmployerOrgNrRow(JobAdId Id, string? OrgNr);
+    private sealed record EmployerOrgNrRow(JobAdId Id, string? OrgNr)
+    {
+        // REDACTED (#883). The compiler-generated ToString() prints every member, so a plain {X} MEL
+        // placeholder would write OrgNr (a possible sole-prop personnummer, ADR 0087 D8(c); CLAUDE.md
+        // §5) into a log. Keeps Id; pinned by OrgNrRecordLoggingGuardTests.
+        public override string ToString() => $"EmployerOrgNrRow(Id={Id}, org.nr redacted)";
+    }
 }

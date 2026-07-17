@@ -1954,7 +1954,8 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             // placeholder content asserts nothing production could not construct (#843).
             db.ResumeFiles.Add(ResumeFile.CaptureOriginal(
                 seeker.Id, ParsedResumeId.New(), [1, 2, 3], "application/pdf",
-                "Ansokan Gunnel Bäckström.pdf", byteSize: 3, pnrFlagged: false, clock).Value);
+                "Ansokan Gunnel Bäckström.pdf", byteSize: 3, pnrFlagged: false,
+                pnrConsentAt: null, pnrConsentDialogVersion: null, clock).Value);
 
             // resumes.name — the CV's own name, typed via Rename()/Create.
             db.Resumes.Add(Resume.Create(

@@ -468,6 +468,7 @@ public static class ErasureCascadeRegistry
 
             ["parsed_resumes.source_content_type"] = ErasureColumnDisposition.NotRecruiterData,
             ["resume_files.content_type"] = ErasureColumnDisposition.NotRecruiterData,
+            ["resume_files.pnr_consent_dialog_version"] = ErasureColumnDisposition.NotRecruiterData,
             ["resumes.language"] = ErasureColumnDisposition.NotRecruiterData,
 
             // ── parsed_resumes: the converter-mapped jsonb metadata the FORM sweep exposed ──
@@ -709,8 +710,12 @@ public static class ErasureCascadeRegistry
                 + "any stored value as free text.",
 
             ["resume_files:NotRecruiterData"] =
-                "Closed domain: content_type is the MIME type from the same validated allowlist as "
-                + "parsed_resumes.source_content_type. No user write path into the value.",
+                "Closed domains: content_type is the MIME type from the same validated allowlist as "
+                + "parsed_resumes.source_content_type. pnr_consent_dialog_version is the Art. 7(1) "
+                + "dialog-version token (CV-pivot 5b): its sole write path stamps a server-owned "
+                + "Application constant through CaptureOriginal, whose biconditional refuses the "
+                + "value on any unflagged file - user text never reaches the parameter. No user "
+                + "write path into either value.",
 
             ["resume_files:HeldButNotSearchable"] =
                 "resume_files.content (the domain property is SealedContent) is THE CV FILE ITSELF - the bytes the raw_text we cannot read was "

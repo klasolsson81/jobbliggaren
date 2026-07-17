@@ -40,8 +40,13 @@ namespace Jobbliggaren.Infrastructure.Matching;
 /// aggregate total. A dimension whose CV-side input is empty, or whose ad-side value
 /// is absent (NULL shadow / no lexemes), is <see cref="MatchDimensionVerdict.NotAssessed"/>
 /// — never <see cref="MatchDimensionVerdict.NoMatch"/> (the honest "not assessed v1"
-/// state). Scoped (touches <see cref="AppDbContext"/>), unlike the singleton-cached
-/// deriver.
+/// state). <b>#552 carve-out (ADR 0076 amendment):</b> the two STATED-preference
+/// secondaries — ort (<see cref="ScoreOrtUnion"/>) and employment
+/// (<see cref="ScoreEmploymentMembership"/>) — invert the ad-side-absent rule: a
+/// stated preference against a NULL ad shadow is a contradiction (NoMatch, empty
+/// evidence), so the RB1 floor keeps such ads out of ≥Good. SSYK/title/skills keep
+/// the original rule. Scoped (touches <see cref="AppDbContext"/>), unlike the
+/// singleton-cached deriver.
 /// </para>
 /// </summary>
 internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMatchScorer
@@ -126,7 +131,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 profile.PreferredRegionConceptIds, profile.PreferredMunicipalityConceptIds,
                 profile.ContainmentRegionConceptIds,
                 ad.RegionConceptId, ad.MunicipalityConceptId),
-            EmploymentFit: ScoreMembership(profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
+            EmploymentFit: ScoreEmploymentMembership(profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
     }
 
     // Fas 4 STEG 13 (F4-13, ADR 0076 Decision 5; senior-cto-advisor 2026-06-19
@@ -202,7 +207,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                     profile.PreferredRegionConceptIds, profile.PreferredMunicipalityConceptIds,
                     profile.ContainmentRegionConceptIds,
                     ad.RegionConceptId, ad.MunicipalityConceptId),
-                EmploymentFit: ScoreMembership(profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
+                EmploymentFit: ScoreEmploymentMembership(profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
         }
 
         return result;
@@ -276,7 +281,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 fast.PreferredRegionConceptIds, fast.PreferredMunicipalityConceptIds,
                 fast.ContainmentRegionConceptIds,
                 ad.RegionConceptId, ad.MunicipalityConceptId),
-            EmploymentFit: ScoreMembership(fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
+            EmploymentFit: ScoreEmploymentMembership(fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
 
         var terms = (ad.ExtractedTerms ?? ExtractedTerms.Empty).Terms;
         var cvSkills = profile.CvSkillConceptIds.ToHashSet(StringComparer.Ordinal);
@@ -372,7 +377,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                     fast.PreferredRegionConceptIds, fast.PreferredMunicipalityConceptIds,
                     fast.ContainmentRegionConceptIds,
                     ad.RegionConceptId, ad.MunicipalityConceptId),
-                EmploymentFit: ScoreMembership(fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
+                EmploymentFit: ScoreEmploymentMembership(fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
 
             var terms = (ad.ExtractedTerms ?? ExtractedTerms.Empty).Terms;
             var fullScore = new FullMatchScore(
@@ -482,15 +487,26 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             .ToList();
     }
 
-    // SSYK / region / employment: the CV holds a list, the ad holds a single value.
-    // NotAssessed if either side is absent (empty CV list OR NULL ad shadow) — rule 1
-    // (CTO Decision 3): NoMatch is reserved for "data present on both sides, disjoint".
+    // Employment: the CV holds a stated preference list, the ad holds a single value.
     // Binary set membership → never Partial. Matched/Missing carry the cited evidence.
-    private static MatchDimension ScoreMembership(IReadOnlyList<string> cvPreferred, string? adValue)
+    //
+    // #552 grade gate (ADR 0076 amendment): employment is a STATED-preference secondary,
+    // so rule 1's "NotAssessed on NULL ad shadow" is deliberately narrowed here — a stated
+    // preference against an ad that states NO employment value is a contradiction (NoMatch
+    // with EMPTY evidence: nothing to cite, the ad is silent), never "cannot assess".
+    // NotAssessed remains only for the unstated preference (vacuous-gate doctrine).
+    // SSYK is NOT gated this way: an ad without an occupation group stays NotAssessed in
+    // ScoreSsykMembership (the SSYK gate, not the RB1 floor, owns that case).
+    private static MatchDimension ScoreEmploymentMembership(IReadOnlyList<string> cvPreferred, string? adValue)
     {
-        if (cvPreferred.Count == 0 || string.IsNullOrEmpty(adValue))
+        if (cvPreferred.Count == 0)
         {
             return NotAssessed();
+        }
+
+        if (string.IsNullOrEmpty(adValue))
+        {
+            return new MatchDimension(MatchDimensionVerdict.NoMatch, [], []);
         }
 
         return cvPreferred.Contains(adValue, StringComparer.Ordinal)
@@ -547,22 +563,25 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // dimension — the verdict keeps the name RegionFit (CTO B); there is no 5th dimension.
     // Match = the ad's region is among the preferred regions OR the ad's municipality is
     // among the preferred municipalities (a "hela länet" region preference matches any ad in
-    // that län; a specific municipality preference matches that kommun). NotAssessed when NO
-    // ort preference is stated (BOTH lists empty) OR the ad carries NEITHER ort value (BOTH
-    // shadows NULL) — the honest "can't assess" state, parity ScoreMembership rule 1.
+    // that län; a specific municipality preference matches that kommun). NotAssessed ONLY
+    // when NO ort preference is stated (BOTH lists empty) — the vacuous-gate doctrine.
     // NoMatch (which floors the grade to Basic via the UNCHANGED MatchGradeCalculator RB1
-    // rule) ONLY when an ort preference IS stated AND the ad HAS at least one ort value AND
-    // there is no union hit AND the containment carve-out below does not apply (e.g. a
-    // kommun-SPECIFIC ad in the same län but a non-preferred kommun — mirrors search; a
-    // LÄN-ONLY ad in a containment län reads NotAssessed instead, see #477 Low 1 below).
+    // rule) when an ort preference IS stated AND either (a) the ad carries NEITHER ort value
+    // (#552 grade gate, ADR 0076 amendment: the ad's silence on a user-constrained dimension
+    // is a contradiction — NoMatch with EMPTY evidence, nothing to cite) or (b) the ad HAS
+    // at least one ort value with no union hit AND the containment carve-out below does not
+    // apply (e.g. a kommun-SPECIFIC ad in the same län but a non-preferred kommun — mirrors
+    // search; a LÄN-ONLY ad in a containment län reads NotAssessed instead, #477 Low 1).
     // Matched/Missing carry the cited ort concept-ids (Ordinal-sorted); the modal
     // (PR-D) resolves their granularity (kommun-träff vs län-träff) for the evidence copy.
     //
-    // CRITICAL (CTO impl-trap): the NoMatch test is the COMBINED predicate
-    // `stated AND ad-has-some-ort-value AND no-union-hit` — NEVER a bare
+    // CRITICAL (CTO impl-trap, #552-updated): the explicit-mismatch NoMatch test is the
+    // COMBINED predicate `stated AND ad-has-some-ort-value AND no-union-hit` — NEVER a bare
     // `!preferredMunicipalities.Contains(adMunicipality)`. A NULL municipality shadow on an
     // ad that has a region must NOT read as a municipality-NoMatch, and must NOT appear in
     // Missing (a municipality hit/miss is only ever considered when the ad HAS a municipality).
+    // The both-NULL gate arm is its own EXPLICIT branch — in the SQL twin it must likewise be
+    // an explicit `IS NULL` disjunct (three-valued logic), see GradeRankExpression.
     //
     // #477 Low 1 — kommun→län-containment (containmentRegions = the län that contain the user's
     // preferred kommuner, derived by the profile builder from ParentConceptId). ONE new branch,
@@ -585,10 +604,20 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         var hasAdRegion = !string.IsNullOrEmpty(adRegion);
         var hasAdMunicipality = !string.IsNullOrEmpty(adMunicipality);
 
-        // NotAssessed: no ort preference stated, OR the ad has neither ort value.
-        if (!stated || (!hasAdRegion && !hasAdMunicipality))
+        // NotAssessed: no ort preference stated (vacuous-gate doctrine, unchanged).
+        if (!stated)
         {
             return NotAssessed();
+        }
+
+        // #552 grade gate (ADR 0076 amendment): a STATED ort preference against an ad
+        // that states NEITHER ort value is a contradiction (the ad is silent on a
+        // dimension the user constrained) → NoMatch with EMPTY evidence (nothing to
+        // cite), never "cannot assess". RB1 floors it to Basic downstream — this is
+        // what keeps a locationless ad out of ≥Good for a location-scoped user.
+        if (!hasAdRegion && !hasAdMunicipality)
+        {
+            return new MatchDimension(MatchDimensionVerdict.NoMatch, [], []);
         }
 
         // A municipality hit/miss is only ever considered when the ad HAS a municipality

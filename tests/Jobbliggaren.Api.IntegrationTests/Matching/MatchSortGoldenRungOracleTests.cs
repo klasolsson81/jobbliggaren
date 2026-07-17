@@ -574,21 +574,44 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
 
         var goldenTerms = ExtractedTerms.From([SkillTerm(CvSkillConceptId, CvSkillDisplay)]);
 
+        // #552 grade gate: a stated-but-NULL secondary now floors to Basic, so the old
+        // "employment null → NotAssessed → Good" seed no longer expresses Good. The remaining
+        // stable Good path under a both-stated profile is the #477 containment carve-out —
+        // Good in BOTH production epochs (containment reads NotAssessed before and after).
+        const string prefKommunRel = "mun-golden-rel-pref";
+        const string containmentLanRel = "reg-golden-rel-containment-lan";
+
         // relatedWithSkill: occupation ∈ related-only, region+employment Match (a would-be Strong),
         // AND carries the shared CV skill term — the golden precondition for an EXACT ad. Published
         // NEWER, so if the related rung wrongly took a golden lift (or any exact-positive rank), it
         // would sort first. The flat related-cap (rung 2) must place it BELOW the exact Good.
         var relatedWithSkill = await SeedJobAdAsync(
             run, RelatedGroup, PrefRegion, PrefEmployment, t.AddDays(2), goldenTerms, ct);
-        // exactGood: exact occupation + one confirmed secondary (region Match, employment null →
-        // NotAssessed) + NO skill term → plain Good (rung 3). Published OLDER.
+        // exactGood: exact occupation + one confirmed secondary (employment Match; ort via the
+        // län-only containment ad → RegionFit NotAssessed, #477) + NO skill term → plain Good
+        // (rung 3). Published OLDER.
         var exactGood = await SeedJobAdAsync(
-            run, PrefGroup, PrefRegion, employmentTypeConceptId: null, t.AddDays(1), terms: null, ct);
+            run, PrefGroup, containmentLanRel, PrefEmployment, t.AddDays(1), terms: null, ct);
+
+        // ProfileWithRelated + the kommun preference whose derived containment län admits the
+        // län-only exactGood ad (set directly — the taxonomy derivation is profile-builder-tested).
+        var profile = new FullCandidateMatchProfile(
+            new CandidateMatchProfile(
+                Title: string.Empty,
+                SsykGroupConceptIds: ExactGroups,
+                PreferredRegionConceptIds: [PrefRegion],
+                PreferredEmploymentTypeConceptIds: [PrefEmployment],
+                PreferredMunicipalityConceptIds: [prefKommunRel])
+            {
+                RelatedSsykGroupConceptIds = RelatedGroups,
+                ContainmentRegionConceptIds = [containmentLanRel],
+            },
+            [CvSkillConceptId]);
 
         var (scope, matchSort) = NewMatchSort();
         using var _ = scope;
         var page = await matchSort.SearchPerUserAsync(
-            FilterFor(run), ProfileWithRelated(CvSkillConceptId),
+            FilterFor(run), profile,
             grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, status: JobAdStatusFilter.None, seekerId: default, page: 1, pageSize: 100, ct);
 
         var orderedIds = page.Items.Select(i => i.Id).ToList();

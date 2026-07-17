@@ -45,6 +45,18 @@ export default async function OversiktRoute({
   // (HeaderStats använder samma endpoint). CTO-godkänd discovery-baserad
   // fix (agentId ad37955db80099f19). Landing-stats är publik anonym ADR 0064
   // — säker att läsa även från auth-gated route.
+  //
+  // #742 — starta taxonomi-hämtningen EAGER (oawaitad) så den överlappar fan-out:en
+  // istället för att serialisera en round-trip EFTER den för setup-gren-användare
+  // (första-gången/onboarding = appens långsammaste paint). Konsumeras först när
+  // `shouldMountSetup` (nedan); för icke-setup-laddningar slängs löftet. Det ligger
+  // off the critical path (körs parallellt med fan-out:en, resultatet konsumeras
+  // aldrig) → noll adderad wall-clock-latency. `getTaxonomyTree` returnerar ett
+  // Result och kastar aldrig i en giltig request-scope (cookie-läsning + try/catch),
+  // så det svävande löftet ger ingen unhandled rejection. Data-cachen är per-
+  // användare (Authorization-nyckel, `private`, revalidate 3600) — första
+  // laddningen/timme är alltså kall men oblockerande.
+  const taxonomyPromise = getTaxonomyTree();
   const [
     profile,
     pipeline,
@@ -145,13 +157,14 @@ export default async function OversiktRoute({
   const openSetupFromParam = matchsetupParam === "1";
   const shouldMountSetup = needsSetup && (showWelcome || openSetupFromParam);
 
-  // Taxonomi hämtas ENBART när modalen faktiskt ska monteras (yrkes-/region-/
-  // anställningsform-väljaren behöver trädet). Ingen extra fetch för de allra
-  // flesta sid-laddningar (användare med angivet yrke betalar den aldrig).
-  // Degraderar civilt: utan taxonomi visas ingen modal (väljaren vore tom) →
-  // modalen utelämnas hellre än renderas trasig.
+  // Taxonomin behövs ENBART när modalen faktiskt ska monteras (yrkes-/region-/
+  // anställningsform-väljaren behöver trädet). Löftet startades EAGER ovan (#742)
+  // så det redan är i luften parallellt med fan-out:en; här awaitas det bara i
+  // setup-grenen — icke-setup-laddningar konsumerar det aldrig. Degraderar civilt:
+  // utan taxonomi visas ingen modal (väljaren vore tom) → modalen utelämnas hellre
+  // än renderas trasig.
   const taxonomy = shouldMountSetup
-    ? await getTaxonomyTree().then((r) => (r.kind === "ok" ? r.data : null))
+    ? await taxonomyPromise.then((r) => (r.kind === "ok" ? r.data : null))
     : null;
 
   return (

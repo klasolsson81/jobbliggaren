@@ -6,6 +6,7 @@ using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
+using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 using Shouldly;
 
@@ -160,13 +161,17 @@ public class SetResumeLanguageCommandHandlerTests
     // amendment): the reconciler completes or THROWS. The language write is already
     // tracked when the reconciler runs, so the witness pins the PROPAGATION — no
     // try/catch may swallow the throw. Discarding the tracked mutation is the
-    // pipeline's structural guarantee: UnitOfWorkBehavior's unconditional save never
-    // runs on a throw, so the unsaved write dies with the scope.
+    // pipeline's structural guarantee (UnitOfWorkBehaviorTests pins that leg: a
+    // throwing next() means the unconditional save never runs). Language is a
+    // persisted column, so the store-level re-read discriminates — the seeded language
+    // surviving on disk proves the write never reached it.
     [Fact]
     public async Task Handle_WhenReconcilerThrows_ExceptionPropagates_NoSwallow()
     {
         var db = TestAppDbContextFactory.Create();
         var resume = await SeedResumeAsync(db, _userId);
+        var seededLanguage = resume.Language;
+        seededLanguage.ShouldNotBe(ResumeLanguage.En); // precondition: the write below changes it
         _reconciler.ReconcileAsync(Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromException(new InvalidOperationException("boom")));
 
@@ -180,5 +185,11 @@ public class SetResumeLanguageCommandHandlerTests
         // Non-vacuity: the write DID precede the reconcile — the tracker holds it, and
         // only the never-run save decides whether it persists.
         resume.Language.ShouldBe(ResumeLanguage.En);
+
+        // Store-level: the seeded pre-mutation language survived on disk — the tracked
+        // write did not reach the store.
+        var stored = await db.Resumes.AsNoTracking()
+            .SingleAsync(r => r.Id == resume.Id, TestContext.Current.CancellationToken);
+        stored.Language.ShouldBe(seededLanguage);
     }
 }

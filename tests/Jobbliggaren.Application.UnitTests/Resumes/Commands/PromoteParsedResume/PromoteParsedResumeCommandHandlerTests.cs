@@ -440,11 +440,12 @@ public class PromoteParsedResumeCommandHandlerTests
 
     // ===============================================================
     // Reconciler-throw atomicity witness (CTO bind 2026-07-17, ADR 0093 §D5(b)
-    // amendment): the reconciler completes or THROWS — the throw must propagate out of
-    // Handle unswallowed, so UnitOfWorkBehavior's unconditional save never runs and the
-    // tracked promote + soft-delete + Resume add are discarded TOGETHER. "Nothing
-    // persists" is proven at the store (tracked-but-unsaved mutations are invisible to
-    // an AsNoTracking read).
+    // amendment): the reconciler completes or THROWS — the load-bearing pin is that the
+    // throw PROPAGATES out of Handle unswallowed; UnitOfWorkBehaviorTests pins the
+    // other leg (a throwing next() means the unconditional save never runs), and the
+    // two compose to the promote + soft-delete + Resume add rolling back TOGETHER. The
+    // store reads below are a consistency backstop, not the atomicity proof — this
+    // test bypasses the pipeline and never saves, so they hold on both paths.
     // ===============================================================
 
     [Fact]
@@ -459,8 +460,8 @@ public class PromoteParsedResumeCommandHandlerTests
             () => CreateSut(db).Handle(
                 Command(parsed.Id.Value), TestContext.Current.CancellationToken).AsTask());
 
-        // Store-level: no Resume row; the artifact is still PendingReview and not
-        // soft-deleted — the whole unit rolls back, never a half-promoted artifact.
+        // Consistency backstop: nothing was saved by the handler itself — no Resume
+        // row, the artifact still PendingReview, not soft-deleted.
         (await db.Resumes.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
         var stored = await db.ParsedResumes.AsNoTracking()
             .SingleAsync(r => r.Id == parsed.Id, TestContext.Current.CancellationToken);

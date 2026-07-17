@@ -10,6 +10,7 @@ using Jobbliggaren.Application.UnitTests.Resumes.Improvement;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
+using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 using Shouldly;
 
@@ -402,25 +403,39 @@ public class ApplyCvImprovementsCommandHandlerTests
     // amendment): the reconciler completes or THROWS. The applied content is already
     // tracked when the reconciler runs, so the witness pins the PROPAGATION — no
     // try/catch may swallow the throw. Discarding the tracked mutation is the
-    // pipeline's structural guarantee: UnitOfWorkBehavior's unconditional save never
-    // runs on a throw, so the unsaved apply dies with the scope.
+    // pipeline's structural guarantee (UnitOfWorkBehaviorTests pins that leg: a
+    // throwing next() means the unconditional save never runs). The handler runs on a
+    // LATER clock than the seed so the store-level UpdatedAt re-read discriminates —
+    // the pre-mutation stamp surviving on disk proves the apply never reached it.
     [Fact]
     public async Task Handle_WhenReconcilerThrows_ExceptionPropagates_NoSwallow()
     {
         var db = TestAppDbContextFactory.Create();
         var resume = await SeedResumeAsync(db, _userId, WeakContent());
+        var seededUpdatedAt = resume.UpdatedAt;
+        var laterClock = new FakeDateTimeProvider(FakeDateTimeProvider.Default.UtcNow.AddDays(1));
         var preA2 = Fail("A2", FrameFixtures.WeakLine);
         StubOneReview(ResultWith(preA2));
         _reconciler.ReconcileAsync(Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromException(new InvalidOperationException("boom")));
 
+        var handler = new ApplyCvImprovementsCommandHandler(
+            db, _currentUser, _engine, _frameProvider, _verbMapper, laterClock, _failedAccess, _reconciler);
+
         await Should.ThrowAsync<InvalidOperationException>(
-            () => CreateSut(db).Handle(
+            () => handler.Handle(
                 new ApplyCvImprovementsCommand(resume.Id.Value, [LeddeChange(Fp(preA2))]),
                 CancellationToken.None).AsTask());
 
         // Non-vacuity: the apply DID precede the reconcile — the tracker holds it, and
         // only the never-run save decides whether it persists.
         resume.MasterVersion.Content.Summary.ShouldBe(FrameFixtures.LeddeAfter);
+        resume.UpdatedAt.ShouldBe(laterClock.UtcNow);
+
+        // Store-level: the seeded pre-mutation stamp survived on disk — the tracked
+        // apply did not reach the store.
+        var stored = await db.Resumes.AsNoTracking()
+            .SingleAsync(r => r.Id == resume.Id, TestContext.Current.CancellationToken);
+        stored.UpdatedAt.ShouldBe(seededUpdatedAt);
     }
 }

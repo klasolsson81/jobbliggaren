@@ -178,10 +178,12 @@ public class CreateResumeCommandHandlerTests
     }
 
     // Reconciler-throw atomicity witness (CTO bind 2026-07-17, ADR 0093 §D5(b)
-    // amendment): the reconciler completes or THROWS — the throw must propagate out of
-    // Handle unswallowed, so UnitOfWorkBehavior's unconditional save never runs and the
-    // tracked Resume add is discarded with the unit. "Nothing persists" is proven at the
-    // store: an Added-but-unsaved entity is invisible to queries.
+    // amendment): the reconciler completes or THROWS — the load-bearing pin is that the
+    // throw PROPAGATES out of Handle unswallowed; UnitOfWorkBehaviorTests pins the
+    // other leg (a throwing next() means the unconditional save never runs), and the
+    // two compose to full rollback. The store read below is a consistency backstop,
+    // not the atomicity proof — this test bypasses the pipeline and never saves, so it
+    // holds on both paths.
     [Fact]
     public async Task Handle_WhenReconcilerThrows_ExceptionPropagates_AndNoResumePersists()
     {
@@ -195,7 +197,8 @@ public class CreateResumeCommandHandlerTests
         await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(new CreateResumeCommand("Mitt CV", "Klas Olsson"), CancellationToken.None).AsTask());
 
-        (await db.Resumes.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse(
-            "a reconciler throw must keep the created Resume from ever reaching the store");
+        // Consistency backstop: nothing was saved by the handler itself (the rollback
+        // guarantee is the propagation above + the pipeline's never-run save).
+        (await db.Resumes.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 }

@@ -127,7 +127,7 @@ public class OrgNrRecordLoggingGuardTests
         // through MEL's default {X} rendering. It must override ToString() (redacting the org.nr,
         // keeping an identifying field) or be explicitly exempt with a reason.
         var leaking = OrgNrBearingRecords()
-            .Where(RecordToStringPrintsItsMembers)
+            .Where(HasCompilerGeneratedToString)
             .Where(t => !ExemptFromRedactedToString.Contains(t))
             .OrderBy(t => t.FullName, StringComparer.Ordinal)
             .ToList();
@@ -194,7 +194,7 @@ public class OrgNrRecordLoggingGuardTests
 
         var uncovered = OrgNrBearingRecords()
             .Where(IsRecord)
-            .Where(t => !RecordToStringPrintsItsMembers(t)) // has a redacting override
+            .Where(t => !HasCompilerGeneratedToString(t)) // has a redacting override
             .Where(t => !behaviorallyTested.Contains(t) && !coveredElsewhere.Contains(t))
             .OrderBy(t => t.FullName, StringComparer.Ordinal)
             .ToList();
@@ -237,27 +237,32 @@ public class OrgNrRecordLoggingGuardTests
         // both halves of the detector — otherwise the structural guard could pass vacuously.
         OrgNrSurfaceScan.HasOrgNrMember(typeof(LeakingSampleRecord)).ShouldBeTrue(
             "the detector must see the org.nr member");
-        RecordToStringPrintsItsMembers(typeof(LeakingSampleRecord)).ShouldBeTrue(
+        HasCompilerGeneratedToString(typeof(LeakingSampleRecord)).ShouldBeTrue(
             "a record that does not override ToString() keeps the compiler-generated, member-printing one");
     }
 
     [Fact]
-    public void Leak_detector_flags_a_derived_record_that_only_overrides_PrintMembers()
+    public void Leak_detector_flags_a_derived_leaking_record()
     {
-        // Self-proving negative for the INHERITANCE case (code-reviewer + test-writer, #883). For a
-        // `record Derived : Base`, the compiler synthesises ToString() on the BASE and only a
-        // [CompilerGenerated] PrintMembers override on Derived. So Derived.ToString().DeclaringType is
-        // Base, not Derived — a `DeclaringType == type` detector would MISS it, though `derived.ToString()`
-        // prints Derived's members (incl. the org.nr) via that PrintMembers override. Ground the claim
-        // first, then require the detector to catch it.
+        // Self-proving negative for the INHERITANCE case, and a permanent record of a review finding
+        // that was empirically FALSE (#883, mutation-verified 2026-07-17). The code-reviewer and
+        // test-writer both claimed that for `record Derived : Base` the compiler synthesises ToString()
+        // on the BASE and only a PrintMembers override on Derived, so `DeclaringType == type` would MISS
+        // a derived leaking record. That is NOT how .NET 10 / C# 14 behaves: a derived record synthesises
+        // its OWN [CompilerGenerated] ToString(), so LeakingDerivedOrgNrRecord.ToString().DeclaringType
+        // is the DERIVED type — the reflection diagnostic confirmed it, and the mutation that reverted a
+        // (briefly-added) PrintMembers-walking widening back to `DeclaringType == type` did NOT go red,
+        // because there was nothing to fix. This test pins the true codegen so the phantom hole is not
+        // re-raised from a half-remembered "records inherit ToString".
         new LeakingDerivedOrgNrRecord(KnownId, Sentinel).ToString()
             .Contains(Sentinel, StringComparison.Ordinal).ShouldBeTrue(
-                "ground truth: a derived record prints its own members through the inherited ToString");
+                "ground truth: a derived record prints its own members (incl. the org.nr) via its own " +
+                "synthesised ToString");
 
         OrgNrSurfaceScan.HasOrgNrMember(typeof(LeakingDerivedOrgNrRecord)).ShouldBeTrue();
-        RecordToStringPrintsItsMembers(typeof(LeakingDerivedOrgNrRecord)).ShouldBeTrue(
-            "the detector must catch a derived record whose ToString is synthesised on the base and " +
-            "whose PrintMembers override is on the derived — DeclaringType==type would miss it");
+        HasCompilerGeneratedToString(typeof(LeakingDerivedOrgNrRecord)).ShouldBeTrue(
+            "the detector catches a derived leaking record because the derived synthesises its own " +
+            "[CompilerGenerated] ToString (DeclaringType == the derived type) — no inheritance special-case needed");
     }
 
     [Fact]
@@ -266,22 +271,8 @@ public class OrgNrRecordLoggingGuardTests
         // ...and it must NOT fire on a record that DID override ToString(), or every override would be
         // pointless and people would route around a guard that never goes green.
         OrgNrSurfaceScan.HasOrgNrMember(typeof(RedactedSampleRecord)).ShouldBeTrue();
-        RecordToStringPrintsItsMembers(typeof(RedactedSampleRecord)).ShouldBeFalse(
+        HasCompilerGeneratedToString(typeof(RedactedSampleRecord)).ShouldBeFalse(
             "a hand-written ToString() override is not [CompilerGenerated]");
-    }
-
-    [Fact]
-    public void Leak_detector_passes_a_record_that_redacts_via_a_PrintMembers_override()
-    {
-        // The precise complement to the inheritance fix: redaction may live in a hand-written
-        // PrintMembers override (ToString stays compiler-generated but prints what PrintMembers emits).
-        // The detector checks the EFFECTIVE PrintMembers, so it must NOT false-positive here — a record
-        // that genuinely redacts is not a leak (resolves code-reviewer nit 3).
-        new PrintMembersRedactedRecord(KnownId, Sentinel).ToString()
-            .Contains(Sentinel, StringComparison.Ordinal).ShouldBeFalse(
-                "ground truth: a PrintMembers override that redacts does not print the org.nr");
-        RecordToStringPrintsItsMembers(typeof(PrintMembersRedactedRecord)).ShouldBeFalse(
-            "the detector must not flag a record that redacts via a hand-written PrintMembers override");
     }
 
     [Fact]
@@ -316,21 +307,33 @@ public class OrgNrRecordLoggingGuardTests
             .Where(OrgNrSurfaceScan.HasOrgNrMember);
 
     /// <summary>
-    /// True when calling <c>ToString()</c> on <paramref name="type"/> prints its members unredacted —
-    /// the leaking condition. INHERITANCE-CORRECT (code-reviewer + test-writer, #883):
-    /// <list type="bullet">
-    ///   <item>If the EFFECTIVE (most-derived) <c>ToString()</c> is hand-written (not
-    ///     <c>[CompilerGenerated]</c>), the author controls the output → not a member-printing leak.
-    ///     This covers a type that overrides <c>ToString()</c>, and a derived record whose base does.</item>
-    ///   <item>Otherwise <c>ToString()</c> is the record-synthesised one, which prints members via the
-    ///     virtual <c>PrintMembers</c>. Members are emitted iff the EFFECTIVE <c>PrintMembers</c> is
-    ///     itself <c>[CompilerGenerated]</c> — a hand-written <c>PrintMembers</c> override redacts.</item>
-    /// </list>
-    /// A plain class inherits <c>object.ToString()</c> (not <c>[CompilerGenerated]</c>) → not a leak.
-    /// This subsumes the old <c>DeclaringType == type</c> form, which missed a derived record whose
-    /// <c>ToString</c> is synthesised on the base.
+    /// True when <paramref name="type"/> declares its OWN parameterless <c>ToString()</c> and it is
+    /// <c>[CompilerGenerated]</c> — i.e. a record (class or struct) that did NOT override
+    /// <c>ToString()</c>, so the compiler-synthesised, every-member-printing one is in force. A plain
+    /// class inherits <c>object.ToString()</c> (declared on <c>object</c>, not the type → not a leak);
+    /// a hand-written override is not <c>[CompilerGenerated]</c> → not a leak. This is exactly the
+    /// leaking condition, without needing a separate "is it a record" probe.
+    ///
+    /// <para>
+    /// <b>Inheritance-safe as-is</b> (mutation-verified 2026-07-17, #883). A derived record synthesises
+    /// its OWN <c>[CompilerGenerated] ToString()</c> — on .NET 10 / C# 14,
+    /// <see cref="LeakingDerivedOrgNrRecord"/>'s <c>ToString</c> has <c>DeclaringType == the derived
+    /// type</c> — so <c>DeclaringType == type</c> catches a derived leaking record. The review-round
+    /// claim that the compiler leaves <c>ToString</c> on the base and overrides only <c>PrintMembers</c>
+    /// on the derived is FALSE on this runtime: a mutation reverting a widened, PrintMembers-walking
+    /// form back to this one did not go red, because there was nothing to fix
+    /// (<see cref="Leak_detector_flags_a_derived_leaking_record"/> pins the true behaviour).
+    /// </para>
+    ///
+    /// <para>
+    /// A record that redacts via a hand-written <c>PrintMembers</c> override (leaving <c>ToString</c>
+    /// compiler-generated) IS flagged as leaking — deliberately over-strict per CTO D3, which makes a
+    /// <c>ToString()</c> override the single sanctioned redaction mechanism (parity #841). Fail-closed:
+    /// the dev switches to the ToString form or exempts with a reason. No product record uses
+    /// <c>PrintMembers</c>-redaction.
+    /// </para>
     /// </summary>
-    private static bool RecordToStringPrintsItsMembers(Type type)
+    private static bool HasCompilerGeneratedToString(Type type)
     {
         var toString = type.GetMethod(
             nameof(ToString),
@@ -339,20 +342,9 @@ public class OrgNrRecordLoggingGuardTests
             types: Type.EmptyTypes,
             modifiers: null);
 
-        if (toString is null || !toString.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false))
-            return false;
-
-        var printMembers = type.GetMethod(
-            "PrintMembers",
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-            binder: null,
-            types: [typeof(StringBuilder)],
-            modifiers: null);
-
-        // A [CompilerGenerated] ToString with no PrintMembers is not a shape C# emits; treat it as
-        // leaking (fail-closed) rather than reason about it.
-        return printMembers is null
-            || printMembers.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false);
+        return toString is not null
+            && toString.DeclaringType == type
+            && toString.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false);
     }
 
     /// <summary>True for a C# record (class or struct): the compiler always synthesises a
@@ -463,14 +455,4 @@ public class OrgNrRecordLoggingGuardTests
 
     private sealed record LeakingDerivedOrgNrRecord(Guid Id, string OrganizationNumber)
         : LeakingBaseRecord(Id);
-
-    private sealed record PrintMembersRedactedRecord(Guid Id, string OrganizationNumber)
-    {
-        // A sealed record's synthesised PrintMembers is private, so the redacting override is too.
-        private bool PrintMembers(StringBuilder builder)
-        {
-            builder.Append("Id = ").Append(Id.ToString()).Append(", org.nr redacted");
-            return true;
-        }
-    }
 }

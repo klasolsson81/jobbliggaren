@@ -176,7 +176,9 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
 
         var (userId, _) = await SeedConsentingJobSeekerAsync(
             occupationGroups: [OccupationGroup],
-            regions: [Region],          // stated but the ad has no region → NotAssessed, not NoMatch
+            // stated, ad has no region/employment → Basic. Pre-#552 via 0 confirmed secondaries
+            // (both NotAssessed); post-#552 via the ort + employment NoMatch RB1 floor. Basic either way.
+            regions: [Region],
             employments: [Employment],
             skills: [],
             ct: ct);
@@ -189,6 +191,62 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
         // The watermark still advances (we scanned through `now`, just produced 0 notifiable).
         var scanAt = await GetLastMatchScanAtAsync(userId, ct);
         scanAt.ShouldBe(Now, "watermark ska avanceras även när 0 notifierbara matchningar skapas");
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // 3b. #552 grade-gate — a PREVIOUSLY-GOOD ad the gate demotes to Basic stops being persisted.
+    //
+    //    This is distinct from the honest-floor test above: there the ad had 0 confirmed secondaries
+    //    (Basic in every era). HERE the ad had exactly ONE confirmed secondary (employment Match) and
+    //    a NULL ort shadow, so pre-#552 it graded GOOD (ort NotAssessed does not floor) and WAS
+    //    persisted + notified. #552 makes the STATED-ort NULL shadow a NoMatch → RB1 floors it to
+    //    Basic → below the notifiable threshold → NO UserJobAdMatch row. So this is the consequence
+    //    the ticket names: the background scan stops persisting (and emailing) matches the gate
+    //    demotes. RED against current production, which persists a Good row for the gated ad.
+    // ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RunAsync_DoesNotPersist_WhenStatedOrtGateFloorsPreviouslyGoodToBasic()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        // gatedAd: occupation Match + region NULL (the ad states no ort) + employment Match. The user
+        // STATES a region preference, so pre-#552 the NULL ort read NotAssessed → 1 confirmed
+        // secondary (employment) → GOOD (persisted). #552: stated region + NULL ort shadow → RegionFit
+        // NoMatch → RB1 floor → Basic → NOT persisted.
+        var gatedAd = await SeedAdAsync(
+            OccupationGroup, regionConceptId: null, employmentTypeConceptId: Employment,
+            Now.AddDays(-1), terms: null, ct);
+
+        // notifiableAd (non-vacuity): region Match + employment Match → Good for a skill-less user →
+        // persisted in BOTH production states, proving the scan ran and can persist.
+        var notifiableAd = await SeedAdAsync(
+            OccupationGroup, Region, Employment, Now.AddDays(-1), terms: null, ct);
+
+        var (userId, _) = await SeedConsentingJobSeekerAsync(
+            occupationGroups: [OccupationGroup],
+            regions: [Region],          // STATED region — the dimension the ad leaves NULL
+            employments: [Employment],
+            skills: [],
+            ct: ct);
+
+        await RunJobAsync(ct);
+
+        // Non-vacuity: the genuinely-notifiable ad IS persisted (the scan ran and produced a match).
+        (await GetMatchAsync(userId, notifiableAd, ct))
+            .ShouldNotBeNull("den äkta notifierbara annonsen ska persisteras (scannen körde)");
+
+        // THE #552 GATE: the previously-Good ad is floored to Basic → NO row persisted.
+        (await GetMatchAsync(userId, gatedAd, ct))
+            .ShouldBeNull("#552: en annons vars ort-grind golvar den från Good till Basic ska INTE " +
+                "persisteras (bakgrundsscannen slutar persistera/notifiera demoterade matchningar)");
+
+        // Engine-grade cross-check: recompute the grade exactly as the Worker does — the gated ad is
+        // no longer notifiable (Basic → null), the anchor still is.
+        (await ComputeEngineGradeAsync(userId, gatedAd, ct))
+            .ShouldBeNull("#552: den grindade annonsen graderar Basic → inte notifierbar (motorn)");
+        (await ComputeEngineGradeAsync(userId, notifiableAd, ct))
+            .ShouldNotBeNull("ankar-annonsen är fortfarande notifierbar");
     }
 
     // ────────────────────────────────────────────────────────────────

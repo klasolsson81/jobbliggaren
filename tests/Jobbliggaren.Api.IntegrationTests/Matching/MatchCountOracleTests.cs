@@ -83,6 +83,13 @@ public class MatchCountOracleTests(ApiFactory factory)
     private const string OtherGroup = "grp-matchcount-other";
     private const string OtherRegion = "reg-matchcount-other";
 
+    // #477 Low 1 / #552 — a containment län (the parent län of the preferred kommun). Under #552 a
+    // STATED-ort NULL shadow is NoMatch (floors), so the ONLY reachable Good for a both-stated
+    // profile is the #477 containment carve-out (a län-only ad in the preferred kommun's parent
+    // län + employment Match → RegionFit NotAssessed → Good). DISTINCT from PrefRegion/OtherRegion
+    // so no other seed's grade changes when it is added to the profile.
+    private const string ContainmentLan = "reg-matchcount-containment-lan";
+
     // PR-4 (#300, ADR 0084) — a ssyk-4 in the RELATED set only (∉ exact). The count is LIST-ONLY
     // (ADR-question D): Related is filterable on /jobb but does NOT drive the headline count
     // {Good, Strong}. The profile states RelatedSsykGroupConceptIds = [RelatedGroup] so the related
@@ -128,6 +135,9 @@ public class MatchCountOracleTests(ApiFactory factory)
             // Empty in pre-PR-4 → behaviour-inert; non-empty so the list-only-vs-count regression
             // below can seed a genuinely Related-tagged ad. The headline count must still exclude it.
             RelatedSsykGroupConceptIds = RelatedGroups,
+            // #477 / #552 — set DIRECTLY. Behaviour-inert except for a län-only ContainmentLan ad,
+            // which reads NotAssessed → the only reachable Good under this both-stated profile.
+            ContainmentRegionConceptIds = [ContainmentLan],
         },
         CvSkillConceptIds: []);
 
@@ -241,9 +251,14 @@ public class MatchCountOracleTests(ApiFactory factory)
     private Task<JobAdId> SeedStrongAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
         SeedJobAdAsync(run, PrefGroup, PrefRegion, PrefEmployment, publishedAt, ct);
 
-    // Good (rank 2): exactly one confirmed secondary — region Match + employment NULL.
+    // Good: exactly one confirmed secondary. Under #552 the reachable Good for a both-stated
+    // profile is the #477 containment carve-out — a LÄN-ONLY ad (region = ContainmentLan, kommun
+    // NULL) reads RegionFit NotAssessed (neither floors nor lifts) + employment Match → Good. (Pre-
+    // #552 a plain "region Match + employment NULL" ad was also Good, but #552 floors it to Basic:
+    // employment NULL under a stated-employment profile is now NoMatch. Containment stays Good in
+    // BOTH production states, so every count-oracle Good sanity assertion survives the gate.)
     private Task<JobAdId> SeedGoodAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
-        SeedJobAdAsync(run, PrefGroup, PrefRegion, null, publishedAt, ct);
+        SeedJobAdAsync(run, PrefGroup, ContainmentLan, PrefEmployment, publishedAt, ct);
 
     // Basic (rank 1): both secondaries NotAssessed (region NULL + employment NULL).
     private Task<JobAdId> SeedBasicNeutralAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
@@ -685,5 +700,60 @@ public class MatchCountOracleTests(ApiFactory factory)
         relatedCount.ShouldBe(2,
             "{Related}-bandet ska räkna de två Related-annonserna (list-filtrerbart) — Related är " +
             "exkluderat från headline-counten, inte från korpusen.");
+    }
+
+    // ===============================================================
+    // 6. #552 grade-gate — the headline count EXCLUDES a STATED-preference-vs-NULL-shadow ad,
+    //    because the gate floors it from Good to Basic (below the {Good, Strong} headline band).
+    //    This is the count-side twin of the grade-filter oracle's new-arm test: the live-notis
+    //    number must SHRINK by exactly the ads the gate demotes. RED against current production,
+    //    which grades both new-arm ads Good and counts them in the headline (4, not 2).
+    //
+    //    The SQL floor must fire via an explicit `col IS NULL` disjunct (three-valued logic:
+    //    `NOT (col = ANY(...))` is NULL — not TRUE — for a NULL col), so only Testcontainers proves
+    //    it. Non-vacuity: the two genuine Strong ads ARE counted, so "count shrank" is not "count is 0".
+    // ===============================================================
+
+    [Fact]
+    public async Task Count_HeadlineBand_ExcludesGradeGateFlooredAds_StatedPrefNullShadow()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // Two genuine Strong (headline, both production states) + two #552 new-arm ads that grade
+        // Good today and Basic after the gate.
+        var strong1 = await SeedStrongAsync(run, t.AddDays(20), ct);
+        var strong2 = await SeedStrongAsync(run, t.AddDays(19), ct);
+        //   bothNullOrt:   SSYK Match + BOTH ort shadows NULL + employment Match → ort NoMatch (#552).
+        var bothNullOrt = await SeedJobAdAsync(run, PrefGroup, null, PrefEmployment, t.AddDays(15), ct,
+            municipalityConceptId: null);
+        //   nullEmployment: SSYK Match + region Match + NULL employment shadow → employment NoMatch (#552).
+        var nullEmployment = await SeedJobAdAsync(run, PrefGroup, PrefRegion, null, t.AddDays(14), ct);
+
+        var profile = Profile();
+        var filter = FilterFor(run);
+
+        // C# SSOT (the scorer-side of the twin): the new-arm ads grade Basic under #552.
+        var (scoreScope, scorer) = NewScorer();
+        using var scoreDispose = scoreScope;
+        var scores = await scorer.ScoreBatchAsync(
+            [strong1, strong2, bothNullOrt, nullEmployment], profile.Fast, ct);
+        MatchGradeCalculator.Grade(scores[strong1]).ShouldBe(MatchGrade.Strong);
+        MatchGradeCalculator.Grade(scores[strong2]).ShouldBe(MatchGrade.Strong);
+        MatchGradeCalculator.Grade(scores[bothNullOrt]).ShouldBe(MatchGrade.Basic,
+            "#552: both-NULL-ort + employment Match golvar till Basic (pre-#552 Good).");
+        MatchGradeCalculator.Grade(scores[nullEmployment]).ShouldBe(MatchGrade.Basic,
+            "#552: region Match + NULL employment (anställning angiven) golvar till Basic (pre-#552 Good).");
+
+        var (queryScope, query) = NewPerUserQuery();
+        using var queryDispose = queryScope;
+
+        var headlineCount = await query.CountPerUserAsync(
+            filter, profile, [MatchGrade.Good, MatchGrade.Strong], ct);
+        headlineCount.ShouldBe(2,
+            "#552: headline-counten {Good, Strong} ska vara 2 (bara de två äkta Strong) — de två " +
+            "grade-gate-golvade annonserna (both-NULL-ort och NULL-employment) demoteras till Basic " +
+            "och räknas INTE. Pre-#552 räknades de som Good (4).");
     }
 }

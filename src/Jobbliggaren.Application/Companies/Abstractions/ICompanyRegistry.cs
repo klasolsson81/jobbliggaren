@@ -77,4 +77,14 @@ public sealed record CompanyRegistryLookup(CompanyRegistryStatus Status, Company
 /// </summary>
 public sealed record CompanyRegistryEntry(
     string OrganizationNumber,
-    string Name);
+    string Name)
+{
+    /// <summary>
+    /// REDACTED (#883). The compiler-generated <c>ToString()</c> prints every member, so a plain
+    /// <c>{X}</c> MEL placeholder would write <see cref="OrganizationNumber"/> into a log — a sole
+    /// proprietor's org.nr IS a personnummer (ADR 0087 D8(c); CLAUDE.md §5). "Never logged" is stated
+    /// above; this override makes it structural rather than guard-dependent
+    /// (<c>OrgNrRecordLoggingGuardTests</c>). <see cref="Name"/> is kept for debugging.
+    /// </summary>
+    public override string ToString() => $"CompanyRegistryEntry({Name}, org.nr redacted)";
+}

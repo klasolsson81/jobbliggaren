@@ -87,6 +87,17 @@ public class OrganizationNumberSurfacingGuardTests
         // scan is what makes "the browse never logs an org.nr" a build gate rather than a discipline.
         "src/Jobbliggaren.Application/CompanyWatches/Queries/BrowseCompanies/BrowseCompaniesQueryHandler.cs",
         "src/Jobbliggaren.Infrastructure/CompanyRegister/CompanyWatchBrowseQuery.cs",
+        // #883 F8 (security-auditor follow-up) — the Art. 17 recruiter-erasure read-paths both hold a
+        // raw org.nr in scope and were missing from this list: RecruiterErasureMatchQuery runs the
+        // raw-SQL match (the normalised org.nr the requester submitted + the ads' org.nr) and
+        // EraseRecruiterAdsCommandHandler derives the evidence from it. The org.nr is the requester's
+        // own identifier — a possible sole-prop personnummer (ADR 0087 D8(c); §5) — and both surfaces
+        // log counts/GUIDs only today; this scan makes "the erasure path never logs an org.nr" a build
+        // gate rather than a discipline. It is also the compensating control the #883 CTO bind (D2)
+        // leaned on to keep the OrganizationNumber VO's raw ToString() out of scope — so the list must
+        // actually cover the VO's callers.
+        "src/Jobbliggaren.Infrastructure/JobAds/RecruiterErasureMatchQuery.cs",
+        "src/Jobbliggaren.Application/JobAds/Commands/EraseRecruiterAds/EraseRecruiterAdsCommandHandler.cs",
     ];
 
     /// <summary>
@@ -859,16 +870,20 @@ internal static class OrgNrSurfaceScan
     ///
     /// <para>
     /// <b>What "complete" can and cannot mean here.</b> This list covers the spellings the repo actually
-    /// uses and §1's English-identifier rule permits — <c>OrgNr</c> and <c>OrgNumber</c> included (the
-    /// reviewer's actual concern); <c>Organization</c> and <c>Personnummer</c> alone excluded. But NO
-    /// name detector can be complete: a member called <c>EmployerKey</c> holding a raw org.nr would slip
-    /// it, and no token list fixes that. What carries the guarantee is the STRUCTURAL half beside it —
-    /// a member TYPED <see cref="OrganizationNumber"/> is caught whatever it is called. The name half is
-    /// a heuristic and is scoped as one; the type half is the invariant.
+    /// uses and §1's English-identifier rule permits — <c>OrgNr</c>, <c>OrgNumber</c> and the snake_case
+    /// <c>organization_number</c> included (the last added by #883: <c>ScbCompanyRegisterStore.BatchRow</c>
+    /// carries a member literally named <c>organization_number</c> because <c>jsonb_to_recordset</c>
+    /// matches recordset columns by property NAME — it cannot be renamed to PascalCase without breaking
+    /// the SQL projection, so the detector must recognise the spelling instead);
+    /// <c>Organization</c> and <c>Personnummer</c> alone excluded. But NO name detector can be complete:
+    /// a member called <c>EmployerKey</c> holding a raw org.nr would slip it, and no token list fixes
+    /// that. What carries the guarantee is the STRUCTURAL half beside it — a member TYPED
+    /// <see cref="OrganizationNumber"/> is caught whatever it is called. The name half is a heuristic and
+    /// is scoped as one; the type half is the invariant.
     /// </para>
     /// </summary>
     private static readonly string[] OrgNrMemberNameTokens =
-        ["organizationnumber", "orgnr", "org_nr", "orgnumber"];
+        ["organizationnumber", "organization_number", "orgnr", "org_nr", "orgnumber"];
 
     private static bool IsOrgNrProperty(PropertyInfo p)
     {

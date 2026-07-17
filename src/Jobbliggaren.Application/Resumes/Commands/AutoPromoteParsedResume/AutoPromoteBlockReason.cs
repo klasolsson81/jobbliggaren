@@ -11,7 +11,9 @@ namespace Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 public enum AutoPromoteBlockReason
 {
     /// <summary>The parse (or the composed content — e.g. the account display name) carries a
-    /// personnummer. Fail-closed in 5a; PR 5b adds the consent path (DPIA #659 Beslut 2).</summary>
+    /// personnummer. Fail-closed — and consent does NOT change that: the 5b consent path
+    /// (DPIA #659 Beslut 2(c)) stores the original FILE only; content promotion still requires
+    /// the personnummer removed (5b security-bind B3 — original-file-only depth).</summary>
     PersonnummerPresent,
 
     /// <summary>The file carried unclassified text above its first heading (#844). Only the

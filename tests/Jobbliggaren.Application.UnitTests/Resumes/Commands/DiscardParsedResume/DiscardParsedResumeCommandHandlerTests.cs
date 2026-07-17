@@ -7,7 +7,9 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Files;
 using Jobbliggaren.Domain.Resumes.Parsing;
+using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 using Shouldly;
 
@@ -155,6 +157,76 @@ public class DiscardParsedResumeCommandHandlerTests
         // No mutation on someone else's artifact.
         otherParsed.Status.ShouldBe(ParsedResumeStatus.PendingReview);
         otherParsed.DeletedAt.ShouldBeNull();
+    }
+
+    // ===============================================================
+    // Original-file withdrawal cascade (CV-pivot 5b, security-bind B5 / CTO-bind M-E) —
+    // discarding the draft immediately hard-deletes its coupled original file in the
+    // SAME UnitOfWork. UNCONDITIONAL: the consented pnr-flagged original (the Art. 7(3)
+    // withdrawal case — never waiting on the 30-day sweep) AND the clean original (the
+    // same storage-limitation orphan class) both die with the draft.
+    // ===============================================================
+
+    private static ResumeFile SeedCoupledFile(
+        Infrastructure.Persistence.AppDbContext db, ParsedResume parsed, bool pnrFlagged)
+    {
+        var file = ResumeFile.CaptureOriginal(
+            parsed.JobSeekerId, parsed.Id, [0x01, 0xAA], "application/pdf", "cv.pdf", 2,
+            pnrFlagged,
+            pnrConsentAt: pnrFlagged ? FakeDateTimeProvider.Default.UtcNow : null,
+            pnrConsentDialogVersion: pnrFlagged ? "1" : null,
+            FakeDateTimeProvider.Default).Value;
+        db.ResumeFiles.Add(file);
+        return file;
+    }
+
+    [Theory]
+    [InlineData(true)]  // the consented flagged original — the Art. 7(3) withdrawal case
+    [InlineData(false)] // the clean original — same orphan class, same cascade
+    public async Task Handle_DiscardWithCoupledOriginal_HardDeletesTheFileInSameUnitOfWork(
+        bool pnrFlagged)
+    {
+        var db = TestAppDbContextFactory.Create();
+        var parsed = await SeedOwnedAsync(db, _userId);
+        var file = SeedCoupledFile(db, parsed, pnrFlagged);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        // The handler only ever projects the id then Removes a key-only stub — detach the
+        // seeded row so the stub-Remove does not collide with a tracked instance (parity
+        // DeleteResumeCommandHandlerTests).
+        db.Entry(file).State = EntityState.Detached;
+
+        var result = await CreateSut(db).Handle(
+            new DiscardParsedResumeCommand(parsed.Id.Value), TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        parsed.Status.ShouldBe(ParsedResumeStatus.Discarded);
+        (await db.ResumeFiles.AnyAsync(
+            f => f.Id == file.Id, TestContext.Current.CancellationToken)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_DiscardWithForeignOwnersFileOnSameParsedId_DoesNotDeleteIt()
+    {
+        // Defence-in-depth parity with the load: the cascade is owner-scoped, so a foreign
+        // owner's file row sharing the ParsedResumeId (a corrupt/hostile state) is untouched.
+        var db = TestAppDbContextFactory.Create();
+        var parsed = await SeedOwnedAsync(db, _userId);
+        var foreignFile = ResumeFile.CaptureOriginal(
+            new JobSeekerId(Guid.NewGuid()), parsed.Id, [0x01, 0xAA], "application/pdf",
+            "cv.pdf", 2, pnrFlagged: false, pnrConsentAt: null, pnrConsentDialogVersion: null,
+            FakeDateTimeProvider.Default).Value;
+        db.ResumeFiles.Add(foreignFile);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        db.Entry(foreignFile).State = EntityState.Detached;
+
+        var result = await CreateSut(db).Handle(
+            new DiscardParsedResumeCommand(parsed.Id.Value), TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        (await db.ResumeFiles.AnyAsync(
+            f => f.Id == foreignFile.Id, TestContext.Current.CancellationToken)).ShouldBeTrue();
     }
 
     // ===============================================================

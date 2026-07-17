@@ -1,9 +1,11 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Resumes.Abstractions;
+using Jobbliggaren.Domain.Auditing;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
@@ -20,7 +22,9 @@ namespace Jobbliggaren.Application.Resumes.Commands.ImportResume;
 /// normalize a transient scan-copy → run the personnummer guard on the RAW text BEFORE
 /// persist (Invariant 1) → segment → derive an SSYK proposal (F4-3, user confirms
 /// later) → construct the aggregate → capture the original file as a Form C-sealed
-/// <see cref="ResumeFile"/> when the body scan is clean (Fas 4b PR-9a, ADR 0100) →
+/// <see cref="ResumeFile"/> when the body scan is clean OR the user acknowledged the
+/// flagged storage (Fas 4b PR-9a, ADR 0100; consent path CV-pivot 5b, DPIA #659
+/// Beslut 2(c) — the consented capture also writes its distinct Art. 7(1) audit row) →
 /// persist (the SaveChanges interceptor encrypts the CV-PII shadows, Invariant 3).
 /// CV text is never logged.
 /// </summary>
@@ -34,7 +38,9 @@ public sealed class ImportResumeCommandHandler(
     IOccupationCodeDeriver occupationDeriver,
     IOccupationExperienceDeriver occupationExperienceDeriver,
     ISkillResolver skillResolver,
-    IBinaryFieldSealer sealer)
+    IBinaryFieldSealer sealer,
+    ICorrelationIdProvider correlationIdProvider,
+    IRequestContextProvider requestContextProvider)
     : ICommandHandler<ImportResumeCommand, Result<ImportResumeResponse>>
 {
     public async ValueTask<Result<ImportResumeResponse>> Handle(
@@ -194,21 +200,25 @@ public sealed class ImportResumeCommandHandler(
         var parsed = created.Value;
 
         // 6. Original-file capture (Fas 4b PR-9a, ADR 0093 §D5/ADR 0100 — P1 "filen är helig",
-        //    DPIA M-F1/M-F5). ONLY a body-scan-clean upload is captured: a personnummer-flagged
-        //    original is NOT stored in PR-9a (fail-closed M-F5; §7 Beslut 2 acknowledge-store =
-        //    deferred follow-up paired with the 9b download UX). A filename-only hit does NOT
-        //    block capture — the file BYTES are clean and CaptureOriginal masks the filename at
-        //    rest with the same redactor. The bytes are sealed EXPLICITLY (Form C, CTO Q2) under
-        //    the owner DEK the prefetch behavior warmed (this command carries
-        //    IRequiresFieldEncryptionKey; the sealer throws fail-closed if the DEK is not warm),
-        //    so the aggregate only ever sees opaque ciphertext. Canonical MIME comes from the
-        //    magic-byte-resolved kind — never the client-declared content-type (M-F2 groundwork).
-        //    ATOMICITY IS STRUCTURAL: UnitOfWorkBehavior saves unconditionally (no IsSuccess
-        //    guard), so NOTHING is added to the change tracker until BOTH results are validated
-        //    — a failure return (or a sealer/seal exception, which precedes everything) can
-        //    never leave a parsed row persisted without its captured original.
+        //    DPIA M-F1/M-F5). A body-scan-clean upload is always captured; a personnummer-flagged
+        //    upload is captured ONLY with the user's acknowledge (CV-pivot 5b, DPIA §7
+        //    Beslut 2(c) — the FE consent dialog re-POSTs the file with the flag). Flagged
+        //    without acknowledge stays fail-closed exactly as PR-9a: no capture, no sealer call.
+        //    The consent stamps are driven by the SERVER's scan, never the client flag alone —
+        //    an acknowledge on a clean upload is inert (no stamps; the aggregate refuses stray
+        //    evidence). A filename-only hit does NOT block capture — the file BYTES are clean
+        //    and CaptureOriginal masks the filename at rest with the same redactor. The bytes
+        //    are sealed EXPLICITLY (Form C, CTO Q2) under the owner DEK the prefetch behavior
+        //    warmed (this command carries IRequiresFieldEncryptionKey; the sealer throws
+        //    fail-closed if the DEK is not warm), so the aggregate only ever sees opaque
+        //    ciphertext. Canonical MIME comes from the magic-byte-resolved kind — never the
+        //    client-declared content-type (M-F2 groundwork). ATOMICITY IS STRUCTURAL:
+        //    UnitOfWorkBehavior saves unconditionally (no IsSuccess guard), so NOTHING is added
+        //    to the change tracker until BOTH results are validated — a failure return (or a
+        //    sealer/seal exception, which precedes everything) can never leave a parsed row
+        //    persisted without its captured original.
         ResumeFile? capturedFile = null;
-        if (!personnummer.Found)
+        if (!personnummer.Found || command.PersonnummerAcknowledged)
         {
             var sealedContent = sealer.Seal(command.FileBytes);
             var canonicalContentType = kind switch
@@ -221,6 +231,10 @@ public sealed class ImportResumeCommandHandler(
                     $"Ohanterad CvFileKind '{kind}' saknar kanonisk MIME-mappning."),
             };
 
+            // The flag + stamps follow the SERVER scan (M-A inertness): a flagged capture is by
+            // definition consented on this branch (the gate above), so it carries the full
+            // Art. 7(1) evidence pair; a clean capture carries none — and the aggregate's
+            // biconditional refuses every other combination.
             var captured = ResumeFile.CaptureOriginal(
                 jobSeekerId,
                 parsed.Id,
@@ -228,7 +242,9 @@ public sealed class ImportResumeCommandHandler(
                 canonicalContentType,
                 command.FileName,
                 command.FileBytes.Length,
-                pnrFlagged: false,
+                pnrFlagged: personnummer.Found,
+                pnrConsentAt: personnummer.Found ? clock.UtcNow : null,
+                pnrConsentDialogVersion: personnummer.Found ? PnrConsentDialog.Version : null,
                 clock);
 
             if (captured.IsFailure)
@@ -240,6 +256,24 @@ public sealed class ImportResumeCommandHandler(
         db.ParsedResumes.Add(parsed);
         if (capturedFile is not null)
             db.ResumeFiles.Add(capturedFile);
+
+        // The distinct Art. 7(1) consent audit row (5b CTO-bind M-D) — consented-capture branch
+        // ONLY, keyed on the AGGREGATE state (by the biconditional a captured PnrFlagged file IS
+        // a consented capture). It cannot ride the blanket AuditBehavior: that slot is already
+        // "Resume.Imported" (one command = one event type). PII-free — event + ids + IP/UA +
+        // timestamp; never the personnummer, the filename, or any content. Same UoW save.
+        if (capturedFile is { PnrFlagged: true })
+        {
+            db.AuditLogEntries.Add(AuditLogEntry.Create(
+                occurredAt: clock.UtcNow,
+                correlationId: correlationIdProvider.Current,
+                userId: currentUser.UserId,
+                eventType: ImportResumeCommand.PnrConsentAuditEventType,
+                aggregateType: "ResumeFile",
+                aggregateId: capturedFile.Id.Value,
+                ipAddress: requestContextProvider.IpAddress,
+                userAgent: requestContextProvider.UserAgent));
+        }
 
         return Result.Success(MapResponse(parsed, candidates));
     }

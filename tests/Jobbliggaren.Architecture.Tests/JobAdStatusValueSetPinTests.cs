@@ -105,11 +105,20 @@ public class JobAdStatusValueSetPinTests
     /// so pinning the projected strings transitively pins that no field's persisted value drifted.
     /// </summary>
     private static HashSet<string> DeclaredStatusValues() =>
+        DeclaredStatusFields().Select(s => s.Value).ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Every declared <see cref="JobAdStatus"/> instance: reflect each <c>public static</c> field of
+    /// type <see cref="JobAdStatus"/>. This is the SINGLE reflection surface both the value-set pin
+    /// and the field↔parser cross-check read from, so the <c>FieldType</c>/<c>BindingFlags</c> filter
+    /// cannot drift between two copies of it (DRY — one place per knowledge piece).
+    /// </summary>
+    private static List<JobAdStatus> DeclaredStatusFields() =>
         typeof(JobAdStatus)
             .GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Where(f => f.FieldType == typeof(JobAdStatus))
-            .Select(f => ((JobAdStatus)f.GetValue(null)!).Value)
-            .ToHashSet(StringComparer.Ordinal);
+            .Select(f => (JobAdStatus)f.GetValue(null)!)
+            .ToList();
 
     /// <summary>
     /// The pure drift function, factored out of <see cref="The_JobAdStatus_value_set_is_exactly_Active_Archived_Erased"/>
@@ -204,19 +213,20 @@ public class JobAdStatusValueSetPinTests
 
     /// <summary>
     /// The declared fields and <see cref="JobAdStatus.FromValue"/> must mirror ONE closed world
-    /// (DRY — one knowledge piece, one truth). Every declared field round-trips through the parser to
-    /// the same instance; an undeclared value — and the retired <c>"Expired"</c> (#886) — is rejected.
-    /// Closes the divergence the field-set pin does not catch by itself: a <c>FromValue</c> arm added
-    /// without a field, or a field whose <c>.Value</c> the parser does not accept.
+    /// (DRY — one knowledge piece, one truth). The <b>field→parser</b> direction is EXHAUSTIVE: every
+    /// declared field round-trips through the parser to its own instance, so a field whose
+    /// <c>.Value</c> the parser does not accept breaks the build. The <b>parser→field</b> direction is
+    /// a representative PROBE, not exhaustive — <see cref="JobAdStatus.FromValue"/> is a <c>switch</c>
+    /// expression, not an enumerable set (the same non-enumerability that rejected the parser-driven
+    /// Form B), so this asserts only that specific undeclared values — and the retired <c>"Expired"</c>
+    /// (#886) — are rejected; it cannot, on its own, catch every hypothetical <c>FromValue</c> arm
+    /// added without a matching field. The field-set identity pin above is the exhaustive guard on the
+    /// declaration surface; this cross-check adds the mirror in the direction reflection can prove.
     /// </summary>
     [Fact]
     public void FromValue_round_trips_every_declared_field_and_rejects_an_undeclared_value()
     {
-        var fields = typeof(JobAdStatus)
-            .GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
-            .Where(f => f.FieldType == typeof(JobAdStatus))
-            .Select(f => (JobAdStatus)f.GetValue(null)!)
-            .ToList();
+        var fields = DeclaredStatusFields();
 
         fields.ShouldNotBeEmpty(
             "reflection over JobAdStatus surfaced no value fields — the cross-check would be vacuous.");

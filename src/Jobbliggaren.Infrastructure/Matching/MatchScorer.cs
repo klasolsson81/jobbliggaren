@@ -74,22 +74,37 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // no raw_payload). EF.Property reads the shadows (Npgsql-bound — stays in
         // Infrastructure, ADR 0062). AsNoTracking: read-only.
         //
-        // NO STATUS GATE HERE, DELIBERATELY (#864 S-split, CTO D2/D3). The SINGLE methods serve
+        // NO *ACTIVE* GATE HERE, DELIBERATELY (#864 S-split, CTO D2/D3). The SINGLE methods serve
         // any status the product still RENDERS — today {Active, Archived}. The ad IS the request,
-        // not one row of a list: GET /api/v1/jobads/{id} serves an archived ad 200 (#805-3), so a
+        // not one row of a list: GET /api/v1/job-ads/{id} serves an archived ad 200 (#805-3), so a
         // scorer on that page must too, or two endpoints would disagree about whether one row
-        // exists. A gate here throws NotFoundException below; the grade is TRUE either way, because
-        // archiving changes none of the four inputs read. The BATCH methods DO gate (see
-        // ScoreBatchAsync) — the asymmetry is the contract, not an oversight.
+        // exists. The BATCH methods DO gate Active (see ScoreBatchAsync) — the asymmetry is the
+        // contract, not an oversight.
         //
-        // PINNED BY: ScoreAsync_ScoresAnArchivedAd_TheSingleFamilyDoesNotGate (this method has ZERO
-        // production callers — the detail endpoint runs ScoreFullAsync — so no endpoint test can
-        // detect a gate added here; it needs a scorer-level spec of its own, and now has one).
-        // NOT COVERED (parity ScoreFullAsync): an `Erased` ad (#842/#878) must stop being served
-        // here once /jobads/{id} answers 410 Gone. That status does not exist on this base.
+        // #885 — BUT THE TOMBSTONE IS EXCLUDED. An erased ad is not a status the product renders:
+        // /job-ads/{id} answers it 410 Gone. `Erase()` deliberately KEEPS the six *_concept_id
+        // facets (they are AF taxonomy codes, NotRecruiterData), and those facets are exactly what
+        // this method reads — so a tombstone scores a REAL grade off live facets unless gated here.
+        // A deny-list (`!= Erased`), never an allow-list of {Active, Archived}: this family's
+        // invariant is "agree with /job-ads/{id}", and that handler is itself a deny-list, so an
+        // allow-list would silently disagree with it the day a fourth status is declared. THIS GATE
+        // IS BOUND TO THAT ONE — if the detail page's 410 rule changes, this changes with it.
+        //
+        // The gate is the PORT's invariant, held for callers that do not exist yet — it is NOT
+        // redundant with GetJobAdMatchDetailQueryHandler's, which answers a different question
+        // ("what is the caller told?" = 410, which Infrastructure cannot express). It also closes
+        // the TOCTOU window where an ad erased between that handler's check and this read would
+        // otherwise be scored; here the race degrades to NotFoundException → 404, never a grade.
+        //
+        // PINNED BY: ScoreAsync_ScoresAnArchivedAd_TheSingleFamilyDoesNotGate (the Active axis) and
+        // ScoreAsync_RefusesAnErasedAd_TheTombstoneIsNotServed (the Erased axis). This method has
+        // ZERO production callers — the detail endpoint runs ScoreFullAsync — so no endpoint test
+        // can detect a gate added or removed here; it needs scorer-level specs of its own, and has
+        // them. Zero callers is not a reason to publish a contract the port does not mean: the
+        // single family's lifecycle rule is ONE contract across both methods (IMatchScorer).
         var ad = await db.JobAds
             .AsNoTracking()
-            .Where(j => j.Id == jobAdId)
+            .Where(j => j.Id == jobAdId && j.Status != JobAdStatus.Erased)
             .Select(j => new AdFacetRow(
                 j.Title,
                 EF.Property<string?>(j, OccupationGroupColumn),
@@ -210,13 +225,14 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // must_have is the binding requirement signal but it is just its own dimension's
     // verdict — there is no opaque total it could gate (Goodhart guard, CTO D0).
     // NotFoundException if the ad does not exist (parity ScoreAsync).
-    // NO STATUS GATE, DELIBERATELY (#864 S-split, CTO D2/D3) — this is the engine behind the
+    // NO *ACTIVE* GATE, DELIBERATELY (#864 S-split, CTO D2/D3) — this is the engine behind the
     // match-detail page (GET /api/v1/me/job-ad-match-tags/{id}), which must still explain WHY an
-    // archived ad was a fit (#805-3). Parity ScoreAsync; the BATCH family gates. NOT covered: an
-    // `Erased` ad (#842/#878) — once /jobads/{id} answers 410 Gone, this path must stop serving it
-    // too, or it confirms the row's existence after the page said Gone. JobAdStatus.Erased does not
-    // exist on this base (it would not compile), so it is filed against the #842/#878 lane, not
-    // built here — and #864 does not claim to cover it.
+    // archived ad was a fit (#805-3). Parity ScoreAsync; the BATCH family gates Active.
+    // #885 — THE TOMBSTONE IS EXCLUDED (`!= Erased`): once /job-ads/{id} answers 410 Gone, this
+    // path must stop serving that ad too, or it confirms the row's existence after the page said
+    // Gone. `Erase()` keeps the *_concept_id facets this method reads, so a tombstone would
+    // otherwise score a real, LABELLED grade. Deny-list, bound to /job-ads/{id}'s 410 rule — see
+    // ScoreAsync for the full rationale (form, port invariant, TOCTOU); it is not repeated here.
     // #300 PR-4 (ADR 0084 §F4): returns a FullScoredMatch — the score PLUS SsykIsRelated (the ad
     // matched only via a RELATED occupation group). Lit by the live ?includeRelated toggle (off
     // by default, #300); with it off the related set is empty, so SsykIsRelated is false.
@@ -231,7 +247,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // reads the Npgsql-bound shadows (stays in Infrastructure, ADR 0062).
         var ad = await db.JobAds
             .AsNoTracking()
-            .Where(j => j.Id == jobAdId)
+            .Where(j => j.Id == jobAdId && j.Status != JobAdStatus.Erased)
             .Select(j => new AdFullRow(
                 j.Title,
                 EF.Property<string?>(j, OccupationGroupColumn),

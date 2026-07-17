@@ -61,6 +61,11 @@ public static class MeJobAdMatchEndpoints
         // DEK-reading handler is never reached anonymously. The handler still returns null
         // for an absent UserId as defence-in-depth. A 200 with `null` body means "no match
         // section" (the FE renders nothing); a missing ad → 404 (NotFoundException).
+        // #885: an ERASED ad → 410 Gone with the same neutral body GET /api/v1/job-ads/{id} emits
+        // for that ad — this surface only decorates a page that has already decided, so it must
+        // not confirm the row's existence after that page said Gone. The status comes from the
+        // handler's DomainError.Kind through the central mapper (CLAUDE.md §3 — never a
+        // per-endpoint Code-string match).
         app.MapGet("/api/v1/me/job-ad-match-tags/{jobAdId:guid}", async (
                 Guid jobAdId, IMediator mediator,
                 // #300 PR-5a (ADR 0084 §A) — optional ?includeRelated=true grades a related-
@@ -71,7 +76,9 @@ public static class MeJobAdMatchEndpoints
             {
                 var result = await mediator.Send(
                     new GetJobAdMatchDetailQuery(jobAdId, includeRelated), ct);
-                return Results.Ok(result);
+                return result.IsSuccess
+                    ? Results.Ok(result.Value)
+                    : result.Error.ToProblemResult();
             })
             .WithTags("Me")
             .RequireAuthorization()

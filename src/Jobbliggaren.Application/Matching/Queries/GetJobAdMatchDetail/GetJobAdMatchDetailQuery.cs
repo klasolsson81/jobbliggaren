@@ -1,3 +1,4 @@
+using Jobbliggaren.Domain.Common;
 using Mediator;
 
 namespace Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
@@ -12,12 +13,21 @@ namespace Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
 /// The strings are detail-altitude: they would bloat a 100-ad list payload, so they ride
 /// this dedicated single-ad query instead of the batch DTO (CTO D3).
 /// <para>
-/// Returns <c>null</c> for an anonymous caller (the modal is auth-gated; the guest modal
-/// renders no match section). For an authenticated user the handler computes the FULL score
-/// for the one ad and returns the honest per-dimension breakdown — it does NOT short-circuit
-/// on an unstated occupation (unlike the batch handler): the modal shows the breakdown plus
-/// the "set your preferences" signpost. Reads the user's confirmed skill set (plaintext
-/// PreferredSkills, DEK-free — ADR 0079 STEG 3 PR-D).
+/// Returns <c>Result.Success(null)</c> for an anonymous caller (the modal is auth-gated; the
+/// guest modal renders no match section). For an authenticated user the handler computes the
+/// FULL score for the one ad and returns the honest per-dimension breakdown — it does NOT
+/// short-circuit on an unstated occupation (unlike the batch handler): the modal shows the
+/// breakdown plus the "set your preferences" signpost. Reads the user's confirmed skill set
+/// (plaintext PreferredSkills, DEK-free — ADR 0079 STEG 3 PR-D).
+/// </para>
+/// <para>
+/// <b>#885 — the two failure kinds are carried by DIFFERENT idioms, deliberately (CLAUDE.md
+/// §3).</b> An <c>Erased</c> ad is an EXPECTED failure and rides the Result idiom:
+/// <see cref="ErrorKind.Gone"/> → 410, mirroring <c>GET /api/v1/job-ads/{id}</c> for the same
+/// ad. A MISSING ad keeps its existing mechanism (the scorer throws
+/// <c>NotFoundException</c> → 404) — re-routing that onto the mapper is a different
+/// change-reason and would change the 404 body's shape, so #885 leaves it alone. Two idioms
+/// on one handler is §3's explicit design, not an accident.
 /// </para>
 /// </summary>
 /// <para>
@@ -27,4 +37,4 @@ namespace Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
 /// "Visa relaterade också" toggle (FE PR-5b maps ?relaterade=on). False = behaviour-inert.
 /// </para>
 public sealed record GetJobAdMatchDetailQuery(Guid JobAdId, bool IncludeRelated = false)
-    : IQuery<JobAdMatchDetailDto?>;
+    : IQuery<Result<JobAdMatchDetailDto?>>;

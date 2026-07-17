@@ -209,9 +209,13 @@ public static class JobAdLifecycleReadRegistry
             ["Jobbliggaren.Application.JobAds.Queries.GetJobAdExtractedTerms.GetJobAdExtractedTermsQueryHandler.Handle"] =
                 One(Any(
                     ".Where(j.Id == id).Select(j.ExtractedTerms) — one ad's extracted terms by id.",
-                    "Fetches a single already-resolved ad's extracted terms for the match-explanation panel; "
-                    + "status-agnostic because the caller has resolved the ad and the terms exist for any ad "
-                    + "(an Erased ad has empty terms). No lifecycle surfacing decision is made here.")),
+                    "UNREACHABLE: this query has NO endpoint and NO production sender (verified #885 — only its handler, "
+                    + "validator and tests reference it). The earlier reason here claimed it feeds 'the match-explanation "
+                    + "panel'; that was false, and a false reason in a registry whose whole purpose is written decisions is "
+                    + "the defect this registry exists to end. Status-agnostic as written; an Erased ad reads as empty terms "
+                    + "(Erase() sets ExtractedTerms.Empty) and no lifecycle surfacing decision is made. Whether the query "
+                    + "should exist AT ALL is a #886-class question (a declared thing with no caller) — a follow-up PR's "
+                    + "change-reason, not #885's.")),
             ["Jobbliggaren.Application.Applications.Queries.GetPipeline.GetPipelineQueryHandler.Handle"] =
                 One(Any(
                     ".GroupJoin(db.JobAds).SelectMany(DefaultIfEmpty()) — LEFT join enriching the pipeline applications.",
@@ -335,15 +339,28 @@ public static class JobAdLifecycleReadRegistry
             ],
             ["Jobbliggaren.Infrastructure.Matching.MatchScorer.ScoreAsync"] =
                 One(Any(
-                    ".Where(j.Id == jobAdId).Select(AdFacetRow) — single-ad facet read for the detail path.",
-                    "The single-ad detail scorer is deliberately UNGATED (#864 D4 / PR-B B3): the detail page must still "
-                    + "score and explain an archived ad (#805-3). Its batch twin ScoreBatchAsync gates Active; the single "
-                    + "method does not, by design — this is the inverse mutation nobody runs.")),
+                    ".Where(j.Id == jobAdId && j.Status != Erased).Select(AdFacetRow) — single-ad facet read for the detail path.",
+                    "Admits Active AND Archived and denies ONLY the tombstone (#885) — the same deny-list form, for the same "
+                    + "requirement, as SaveJobAdCommandHandler. Not Active-gated (#864 D4 / PR-B B3): the detail page must "
+                    + "still score and explain an archived ad (#805-3); its batch twin ScoreBatchAsync gates Active. The "
+                    + "Erased exclusion MIRRORS GetJobAdQueryHandler's 410 — Erase() keeps the *_concept_id facets this "
+                    + "method reads, so an ungated tombstone scores a real grade off live facets. THIS GATE IS BOUND TO "
+                    + "THAT ONE: if the detail page's 410 rule changes, this changes with it.")),
             ["Jobbliggaren.Infrastructure.Matching.MatchScorer.ScoreFullAsync"] =
                 One(Any(
-                    ".Where(j.Id == jobAdId).Select(AdFullRow) — single-ad full read for the detail path.",
-                    "The single-ad full detail scorer is deliberately UNGATED (#864 D4 / PR-B B3) — the detail page scores "
-                    + "an archived ad to explain the match (#805-3). Its batch twin ScoreFullBatchAsync gates Active.")),
+                    ".Where(j.Id == jobAdId && j.Status != Erased).Select(AdFullRow) — single-ad full read for the detail path.",
+                    "Same rule as ScoreAsync — the single family publishes ONE lifecycle contract: Active AND Archived are "
+                    + "scored (#805-3, the detail page explains an archived match), the Erased tombstone is not (#885, "
+                    + "mirroring GetJobAdQueryHandler's 410). Its batch twin ScoreFullBatchAsync gates Active. Bound to "
+                    + "the detail page's 410 rule.")),
+            ["Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail.GetJobAdMatchDetailQueryHandler.Handle"] =
+                One(Any(
+                    ".Where(j.Id == id).Select(j.Status.Value) — the #885 lifecycle pre-check, before the scorer runs.",
+                    "Reads the status ALONE to answer an erased ad with 410 Gone (the neutral body /job-ads/{id} emits for "
+                    + "the same row) — Infrastructure cannot express Gone, so the response decision lives here (§2.1) while "
+                    + "the scorer holds the port invariant. Deny-list (!= Erased): admits Active AND Archived deliberately, "
+                    + "because the modal explains an archived match (#805-3). A row absent here is NOT decided here — it "
+                    + "falls through to the scorer's NotFoundException → 404, the pre-existing missing-ad mechanism.")),
 
             // ════════════════════════════ WritePath — mutates / inserts ═════════════════════════════
             ["Jobbliggaren.Application.JobAds.Jobs.ExpireJobAds.ExpireJobAdsJob.RunAsync"] =

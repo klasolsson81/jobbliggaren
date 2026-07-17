@@ -2,8 +2,10 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Mediator;
+using Microsoft.EntityFrameworkCore;
 
 namespace Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
 
@@ -24,21 +26,57 @@ namespace Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail;
 /// <c>NotFoundException</c> from the scorer (→ 404). The profile build is DEK-free
 /// (confirmed plaintext skills, ADR 0079 PR-D) — no KMS dependency on this path.
 /// </para>
+/// <para>
+/// <b>#885 — an erased ad is 410 Gone here, because this surface only decorates a page that
+/// has already decided.</b> <c>GET /api/v1/job-ads/{id}</c> answers 410 for an erased ad; this
+/// endpoint would otherwise answer 200 + a grade for the same row, confirming its existence
+/// after the page said Gone. The neutrality rationale for the body is written ONCE, at
+/// <see cref="Application.JobAds.Queries.GetJobAd.GetJobAdQueryHandler"/> — it is not restated
+/// here, and the gated read paths are NOT enumerated in this comment (ADR 0106 §D9 holds that
+/// table; an enumeration in a comment drifts).
+/// </para>
 /// </summary>
 public sealed class GetJobAdMatchDetailQueryHandler(
+    IAppDbContext db,
     IMatchProfileBuilder profileBuilder,
     IMatchScorer scorer,
     ITaxonomyReadModel taxonomy,
     ICurrentUser currentUser)
-    : IQueryHandler<GetJobAdMatchDetailQuery, JobAdMatchDetailDto?>
+    : IQueryHandler<GetJobAdMatchDetailQuery, Result<JobAdMatchDetailDto?>>
 {
-    public async ValueTask<JobAdMatchDetailDto?> Handle(
+    public async ValueTask<Result<JobAdMatchDetailDto?>> Handle(
         GetJobAdMatchDetailQuery query, CancellationToken cancellationToken)
     {
         // Anonymous → no match section (the modal is auth-gated; the guest modal never
         // calls this). Defence-in-depth alongside the endpoint's RequireAuthorization.
+        // Success(null), not a failure: "no match section" is not an error.
         if (!currentUser.UserId.HasValue)
-            return null;
+            return Result.Success<JobAdMatchDetailDto?>(null);
+
+        // #885 — the lifecycle gate, BEFORE the scorer runs. Status alone; the erased row must not
+        // reach the scorer, and nothing else about the ad is needed to answer.
+        //
+        // `!= Erased` (deny-list), NOT an allow-list of {Active, Archived}: this endpoint's ONLY
+        // invariant is that it agrees with GET /api/v1/job-ads/{id} about the same ad, and that
+        // handler is itself a deny-list (it serves every status and 410s Erased alone). An
+        // allow-list here would silently disagree with it the day a fourth status is declared —
+        // #885's own defect, in mirror image. THIS GATE IS BOUND TO THAT ONE: if the detail page's
+        // 410 rule changes, this changes with it. (The batch family's ALLOW-list — MatchScorer
+        // .ScoreBatchAsync, #864 D4 — is a different invariant: it gates a LIST the product chose
+        // to present, where a leaked status becomes a push disclosure. Same word, different rule.)
+        //
+        // A row that is absent here is NOT decided here: it falls through to the scorer's
+        // NotFoundException → 404, which is the pre-existing mechanism for a missing ad (#885
+        // deliberately does not re-route it — different change-reason, different body shape).
+        var status = await db.JobAds
+            .AsNoTracking()
+            .Where(j => j.Id == new JobAdId(query.JobAdId))
+            .Select(j => j.Status.Value)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (status == JobAdStatus.Erased.Value)
+            return Result.Failure<JobAdMatchDetailDto?>(
+                DomainError.Gone("JobAd.Gone", "Annonsen är inte längre tillgänglig."));
 
         // Full profile from the user's CONFIRMED skill set (plaintext PreferredSkills,
         // DEK-free — ADR 0079 STEG 3 PR-D; the complete, curated set, so no truncation).
@@ -69,7 +107,7 @@ public sealed class GetJobAdMatchDetailQueryHandler(
         // labels / lexemes, so they are passed through unchanged.
         var labels = await ResolveMembershipLabelsAsync(score.Fast, cancellationToken);
 
-        return new JobAdMatchDetailDto(
+        return Result.Success<JobAdMatchDetailDto?>(new JobAdMatchDetailDto(
             Grade: grade,
             SsykOverlap: ToLabelledRow(score.Fast.SsykOverlap, labels),
             TitleSimilarity: ToRow(score.Fast.TitleSimilarity),
@@ -77,7 +115,7 @@ public sealed class GetJobAdMatchDetailQueryHandler(
             EmploymentFit: ToLabelledRow(score.Fast.EmploymentFit, labels),
             SkillOverlap: ToRow(score.SkillOverlap),
             MustHaveCoverage: ToRow(score.MustHaveCoverage),
-            NiceToHaveCoverage: ToRow(score.NiceToHaveCoverage));
+            NiceToHaveCoverage: ToRow(score.NiceToHaveCoverage)));
     }
 
     private async ValueTask<IReadOnlyDictionary<string, string>> ResolveMembershipLabelsAsync(

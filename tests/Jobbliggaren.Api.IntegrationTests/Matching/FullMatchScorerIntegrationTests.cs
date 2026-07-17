@@ -1204,6 +1204,71 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         archivedScore.Score.SkillOverlap.Matched.ShouldBe(liveScore.Score.SkillOverlap.Matched);
     }
 
+    // =================================================================
+    // #885 — ScoreFullAsync REFUSES an Erased ad. The single family's ONE lifecycle contract, on
+    // the half an endpoint actually reaches: {Active, Archived} are scored, the tombstone is not.
+    //
+    // The Archived spec directly above is the counterfactual, and the pair is the whole point: the
+    // gate must exclude the tombstone WITHOUT touching the behaviour #864 deliberately built. Both
+    // ads carry identical facets AND identical terms; only the transition differs.
+    //
+    // Note what Erase() does to the Full inputs specifically: it empties ExtractedTerms (so the
+    // skill dimensions go quiet) but KEEPS the *_concept_id facets — so an ungated tombstone would
+    // still score real SSYK/region membership, which the handler then resolves to human LABELS.
+    // That is why this is a disclosure gate, not tidiness.
+    // =================================================================
+    [Fact]
+    public async Task ScoreFullAsync_RefusesAnErasedAd_TheTombstoneIsNotServed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var grp = $"grp-eras-{Guid.NewGuid():N}"[..16];
+        var reg = $"reg-eras-{Guid.NewGuid():N}"[..16];
+        var terms = ExtractedTerms.From([SkillTerm(CSharpConceptId, CSharpDisplay)]);
+
+        var archived = await SeedJobAdAsync("Systemutvecklare", grp, reg, null, terms, ct);
+        var erased = await SeedJobAdAsync("Systemutvecklare", grp, reg, null, terms, ct);
+        await ArchiveAsync(archived, ct);
+        await EraseAsync(erased, ct);
+
+        var profile = new FullCandidateMatchProfile(
+            new CandidateMatchProfile("Systemutvecklare", [grp], [reg], [], []),
+            CvSkillConceptIds: [CSharpConceptId]);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+
+        // COUNTERFACTUAL: the same seed, merely ARCHIVED, is fully scored and Matches.
+        var archivedScore = await scorer.ScoreFullAsync(archived, profile, ct);
+        archivedScore.Score.Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match,
+            "Den arkiverade tvillingen ska matcha — annars bevisar refusalen nedan fel sak.");
+
+        // THE SPECIFICATION: the tombstone reads as ABSENT.
+        await Should.ThrowAsync<NotFoundException>(
+            async () => await scorer.ScoreFullAsync(erased, profile, ct));
+    }
+
+    // #885 — the REAL Art. 17 transition (parity ArchiveAsync). The read-back pins the tombstone's
+    // shape: status Erased, terms EMPTIED, facets SURVIVING. The last one is what makes the gate
+    // load-bearing rather than cosmetic.
+    private async Task EraseAsync(JobAdId id, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var ad = await db.JobAds.FindAsync([id], ct);
+        ad.ShouldNotBeNull();
+        ad!.Erase(clock).IsSuccess.ShouldBeTrue("Erase() ska lyckas — annars är specen vakuös.");
+        await db.SaveChangesAsync(ct);
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stored = await verifyDb.JobAds.AsNoTracking().FirstAsync(j => j.Id == id, ct);
+        stored.Status.ShouldBe(JobAdStatus.Erased);
+        stored.OccupationGroupConceptId.ShouldNotBeNull(
+            "Facetterna ska ÖVERLEVA Erase() — det är just därför grinden bär last.");
+    }
+
     // ---------------------------------------------------------------
     // Helpers.
     // ---------------------------------------------------------------

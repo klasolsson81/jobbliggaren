@@ -37,14 +37,28 @@ public interface IMatchScorer
     /// <see cref="MatchDimensionVerdict.NoMatch"/>). Deterministic: equal inputs
     /// yield an equal score, with Ordinal-stable matched/missing evidence.
     /// <para>
-    /// <b>Lifecycle (#864, the SINGLE half of the split):</b> this method scores ANY ad
-    /// whose row exists — including an <c>Archived</c> one. A single call means "the ad IS
-    /// the request", not "one row of a list the product chose to show", and the product
-    /// still renders an archived ad (<c>GET /api/v1/jobads/{id}</c> answers 200, #805-3);
-    /// the grade is TRUE either way, because archiving changes none of the inputs scored.
-    /// The BATCH methods gate on <c>Active</c> — see <see cref="ScoreBatchAsync"/>. That
-    /// asymmetry is deliberate and is the same one this port already publishes for
-    /// existence (batch omits a missing id, single throws).
+    /// <b>Lifecycle (#864, the SINGLE half of the split):</b> this method scores any ad
+    /// whose row exists and is not a tombstone — including an <c>Archived</c> one. A single
+    /// call means "the ad IS the request", not "one row of a list the product chose to show",
+    /// and the product still renders an archived ad (<c>GET /api/v1/job-ads/{id}</c> answers
+    /// 200, #805-3); the grade is TRUE either way, because archiving changes none of the
+    /// inputs scored. The BATCH methods gate on <c>Active</c> — see
+    /// <see cref="ScoreBatchAsync"/>. That asymmetry is deliberate and is the same one this
+    /// port already publishes for existence (batch omits a missing id, single throws).
+    /// </para>
+    /// <para>
+    /// <b>An <c>Erased</c> ad is NOT scored (#885)</b> — it reads as absent, so this method
+    /// throws <c>NotFoundException</c> for it, exactly as for a row that never existed. The
+    /// product does not render a tombstone: <c>GET /api/v1/job-ads/{id}</c> answers it 410 Gone,
+    /// and a scorer that graded it would confirm the row's existence after the page said Gone.
+    /// The exclusion is a DENY-list (<c>!= Erased</c>), not an allow-list of
+    /// <c>{Active, Archived}</c>: this family's invariant is that it AGREES with
+    /// <c>/job-ads/{id}</c>, and that handler is itself a deny-list — so an allow-list would
+    /// silently disagree with it the day a fourth status is declared. This rule is BOUND to
+    /// that one; if the detail page's 410 rule changes, this changes with it. (The batch
+    /// family's allow-list, <see cref="ScoreBatchAsync"/>, gates a different invariant.) The
+    /// 410 itself is the Application caller's to emit — Infrastructure cannot express it;
+    /// this port only refuses to score.
     /// </para>
     /// <para>
     /// This method has NO production caller today (the match-detail page runs
@@ -96,12 +110,11 @@ public interface IMatchScorer
     /// <para>
     /// Throws <see cref="Common.Exceptions.NotFoundException"/> if the ad does not
     /// exist (parity <see cref="ScoreAsync"/>) — and, parity <see cref="ScoreAsync"/>, it
-    /// does NOT gate on status: an ARCHIVED ad is scored, because this is the engine behind
-    /// the match-detail page, which exists to explain why an ad the user can still open
-    /// (#805-3) was a fit. NOT covered: an <c>Erased</c> ad (#842/#878) — the day
-    /// <c>GET /api/v1/jobads/{id}</c> answers 410 Gone, this path must stop serving it, or it
-    /// confirms a row's existence after the page said Gone. That status does not exist on this
-    /// base; it is the #842/#878 lane's, and #864 does not claim to cover it. The embedded
+    /// does NOT gate on <c>Active</c>: an ARCHIVED ad is scored, because this is the engine
+    /// behind the match-detail page, which exists to explain why an ad the user can still open
+    /// (#805-3) was a fit. An <c>Erased</c> ad IS excluded (#885) and reads as absent — see
+    /// <see cref="ScoreAsync"/> for the rule and its binding to <c>/job-ads/{id}</c>'s 410; the
+    /// single family publishes ONE lifecycle contract, and this is it. The embedded
     /// <see cref="FullMatchScore.Fast"/> equals what <see cref="ScoreAsync"/> would
     /// return for the same ad and <c>profile.Fast</c>. Each of the three new
     /// dimensions reports <see cref="MatchDimensionVerdict.NotAssessed"/> (never

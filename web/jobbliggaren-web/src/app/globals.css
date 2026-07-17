@@ -5209,39 +5209,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-body-sm);
   color: var(--jp-ink-1);
 }
-.jp-cvaction__meter {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-  max-width: 360px;
-}
-.jp-cvaction__meter-label {
-  font-size: var(--text-caption);
-  color: var(--jp-ink-2);
-}
-.jp-cvaction__meter-track {
-  height: 6px;
-  background: var(--jp-surface-3);
-  border-radius: var(--jp-r-pill);
-  overflow: hidden;
-}
-.jp-cvaction__meter-fill {
-  height: 100%;
-  background: var(--jp-brand-600);
-  border-radius: var(--jp-r-pill);
-}
 .jp-cvaction__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
 }
-.jp-cvaction__estimate {
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
-}
-
 /* ── Slutför-guiden (Fas 4b PR-8.3) — fullskärms-route-wizard ──
    Komponerar ENBART befintliga --jp-*-tokens (inga nya tokens). Civic:
    1px-ramar, ingen skugga/gradient, radie ≤ 8px. Båda teman token-drivna. */

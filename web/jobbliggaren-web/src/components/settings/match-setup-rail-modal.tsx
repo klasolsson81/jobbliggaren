@@ -135,7 +135,11 @@ interface MatchSetupRailModalProps {
  * innehåll per steg utan att skalet ändrar mått. Fri navigering (inget steg är
  * obligatoriskt). Skriver ENBART till `MatchPreferences` via det befintliga
  * full-replace-PUT:et vid "Spara matchning" (propose-and-approve, ADR 0040/0071
- * — inget skrivs innan dess). CV:t läses men promotas ALDRIG i det här flödet.
+ * — inget skrivs innan dess). Sedan CV-pivot 5c (R4) försöker varje uppladdning
+ * auto-promota: en ren, säker parse blir direkt ett kanoniskt CV (railens
+ * förslag läser då det promotade Resume:t), en icke-ren stannar som
+ * staging-artefakt (förslagen läser parsen). Railen själv skriver aldrig
+ * CV-data — promoten är uppladdningsflödets, inte railens.
  */
 export function MatchSetupRailModal({
   open,
@@ -198,13 +202,17 @@ export function MatchSetupRailModal({
     ...discoveredSkillGroups,
   ];
 
-  // Start-steget: id för det just inline-uppladdade parsed_resume:t (CV:t
-  // promotas INTE). Bär till yrkes-/kompetens-sektionerna så de auto-föreslår
-  // live ur staging-artefakten. `null` = inget CV uppladdat ("Fortsätt utan CV").
+  // Start-steget: FÖRSLAGSKÄLLAN — id för en live staging-artefakt (LeftPending).
+  // På Promoted är parsen borta (soft-deleted) och detta är null: sektionerna
+  // faller då tillbaka på det promotade Resume:ts latestRole-väg (CV-pivot 5c).
   const [uploadedParsedId, setUploadedParsedId] = useState<string | null>(null);
-  // Filnamnet för "CV inläst: {filnamn}"-plattan. CvUploadForm.onUploaded ger i
-  // dag bara parsedResumeId (se rapport: en rekommenderad section-utökning), så
-  // detta är tills vidare alltid null → plattan faller tillbaka på "CV inläst".
+  // UI-NÄRVARON — sant så snart en uppladdning lyckats i denna session (Promoted
+  // ELLER LeftPending). Skild från förslagskällan ovan: utan denna split skulle
+  // ett auto-promotat CV visa uppladdningsformen igen (dubblett-CV-risk,
+  // code-reviewer 5c minor 1).
+  const [hasUploadedCv, setHasUploadedCv] = useState(false);
+  // Filnamnet för "CV inläst: {filnamn}"-plattan (bärs av onUploaded sedan
+  // epik #526-utökningen; null → plattan faller tillbaka på "CV inläst").
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
 
   // Kompetens-steget: en remount-nyckel som "Återställ förslagen" bumpar för att
@@ -234,6 +242,7 @@ export function MatchSetupRailModal({
     );
     setDiscoveredSkillGroups([]);
     setUploadedParsedId(null);
+    setHasUploadedCv(false);
     setUploadedFileName(null);
     setSkillRemountKey(0);
     setSaved(false);
@@ -323,8 +332,10 @@ export function MatchSetupRailModal({
   function handleCvUploaded(outcome: UploadOutcome, fileName?: string) {
     // CV-pivot 5c (utfalls-medvetet): `promoted` → parsen är auto-promotad (borta), så
     // yrkes-/kompetens-sektionerna faller tillbaka på det promotade Resume:t (uploadedParsedId
-    // = null). `pending` → parsen lever; använd den för förslagen.
+    // = null). `pending` → parsen lever; använd den för förslagen. UI-närvaron
+    // (plattan, intro-copy, restore-knappen) styrs av hasUploadedCv i BÅDA fallen.
     setUploadedParsedId(outcome.kind === "pending" ? outcome.parsedResumeId : null);
+    setHasUploadedCv(true);
     setUploadedFileName(fileName ?? null);
   }
 
@@ -421,7 +432,7 @@ export function MatchSetupRailModal({
   function currentIntro(): string {
     // Yrken/Kompetenser: utan uppladdat CV finns inga CV-förslag → copy som inte
     // lovar dem (design-review Major). Med CV behålls "vi föreslår ur ditt CV".
-    const hasCv = uploadedParsedId !== null;
+    const hasCv = hasUploadedCv;
     switch (step) {
       case STEP_START:
         return t("start.intro");
@@ -451,7 +462,7 @@ export function MatchSetupRailModal({
     const passed = index < step;
     switch (index) {
       case STEP_START:
-        return uploadedParsedId !== null
+        return hasUploadedCv
           ? t("rail.meta.cvInlast")
           : t("rail.meta.frivilligtCv");
       case STEP_YRKEN:
@@ -663,7 +674,7 @@ export function MatchSetupRailModal({
                         </div>
                       </div>
 
-                      {uploadedParsedId === null ? (
+                      {!hasUploadedCv ? (
                         <div className="jp-wizard__upload">
                           <div className="jp-wizard__upload-head">
                             <h4 className="jp-wizard__upload-title">
@@ -732,9 +743,7 @@ export function MatchSetupRailModal({
                       ) : (
                         <InfoNote>
                           {t.rich(
-                            uploadedParsedId !== null
-                              ? "yrken.empty"
-                              : "yrken.emptyNoCv",
+                            hasUploadedCv ? "yrken.empty" : "yrken.emptyNoCv",
                             { b: (c) => <b>{c}</b> },
                           )}
                         </InfoNote>
@@ -783,7 +792,7 @@ export function MatchSetupRailModal({
                           <InfoNote>
                             {t.rich("komp.empty", { b: (c) => <b>{c}</b> })}
                           </InfoNote>
-                          {uploadedParsedId !== null && (
+                          {hasUploadedCv && (
                             <Button
                               type="button"
                               variant="secondary"

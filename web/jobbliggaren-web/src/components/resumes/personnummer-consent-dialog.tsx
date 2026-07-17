@@ -14,10 +14,12 @@ import {
 
 /**
  * Personnummer-samtyckesdialog (CV-pivot 5c, ADR 0114 / 5b security-bind B6). JURIDISKT
- * BÄRANDE — versionerad copy: dialogens materiella villkor är låsta till
- * `CONSENT_DIALOG_VERSION` = backendens `PnrConsentDialog.Version` ("1"). När copyn ändras
- * materiellt (villkoren, inte en stavfix) MÅSTE båda bumpas i lås — den stämpel som lagras
- * på `ResumeFile.PnrConsentDialogVersion` ska namnge exakt den text användaren godkände.
+ * BÄRANDE — versionerad copy: dialogens materiella villkor ÄR version "1", samma värde som
+ * backendens `PnrConsentDialog.Version` (Application-konstanten som stämplas på
+ * `ResumeFile.PnrConsentDialogVersion`; servern stämplar — versionen korsar aldrig wiren,
+ * ADR 0114 §D4, så FE bär ingen egen konstant). När copyn (resumes.consent.* i sv.json)
+ * ändras materiellt (villkoren, inte en stavfix) MÅSTE backend-konstanten bumpas i samma
+ * PR — stämpeln ska namnge exakt den text användaren godkände.
  *
  * B6-kraven copyn uppfyller: (i) den NAMNGER fyndet utan att rendera värdet (bara att ett
  * personnummer hittades) · (ii) den säger exakt vad som samtyckes till — varaktig,
@@ -27,8 +29,6 @@ import {
  * 0114:s icke-triviala förväntan: att spara filen gör den INTE till ett användbart CV —
  * innehållet befordras aldrig med ett personnummer kvar (grind A/B/C lyfts aldrig).
  */
-export const CONSENT_DIALOG_VERSION = "1";
-
 interface PersonnummerConsentDialogProps {
   open: boolean;
   /** The count from the PII-free finding — copy names it, never the value. */
@@ -77,9 +77,13 @@ export function PersonnummerConsentDialog({
         </p>
 
         <DialogFooter>
+          {/* Decline är secondary (inte ghost): security-auditorns valfria härdning +
+              design-reviewerns minor 1 — avböj-vägen ska vara visuellt fullvärdig
+              bredvid samtyckesknappen (Art. 25(2)-hygien; bindande verdikt var
+              ACCEPTABLE-AS-IS, detta är hårdare än kravet). */}
           <Button
             type="button"
-            variant="ghost"
+            variant="secondary"
             size="sm"
             disabled={saving}
             onClick={onDecline}

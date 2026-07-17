@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { pagedResult } from "./_helpers";
+// #842 PR4 — the preserved-ad snapshot projects recruiter contacts through the
+// SAME wire type as the live ad detail. ONE crossing schema, imported from
+// ./job-ads (CTO condition 2026-07-17) — never a second, drift-prone copy.
+import { adContactDtoSchema } from "./job-ads";
 
 export const applicationStatusSchema = z.enum([
   "Draft",
@@ -160,6 +164,13 @@ export const adSnapshotDtoSchema = z.object({
   publishedAt: z.string(),
   expiresAt: z.string().nullable(),
   description: z.string().nullable(),
+  // #842 PR4 — the apply-time frozen recruiter contact block: the follow-up
+  // person for THIS application. Never absent; [] when the ad held none at
+  // capture or once the application reached a terminal status (the body AND the
+  // contacts are dropped together — retention minimisation, ADR 0086 D3).
+  // Positioned before capturedAt to mirror the backend record (key order is
+  // irrelevant to zod).
+  contacts: z.array(adContactDtoSchema),
   capturedAt: z.string(),
 });
 export type AdSnapshotDto = z.infer<typeof adSnapshotDtoSchema>;

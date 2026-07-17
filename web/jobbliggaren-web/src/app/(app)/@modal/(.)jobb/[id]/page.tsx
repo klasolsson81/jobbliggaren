@@ -95,6 +95,7 @@ export default async function InterceptedJobbModal({
             match={match}
             ortGranularityByLabel={ortGranularityByLabel}
             previousApplicationCount={previousApplicationCount}
+            contacts={result.data.contacts}
           />
         </JobAdModalShell>
       );

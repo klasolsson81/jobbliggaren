@@ -1,3 +1,5 @@
+using Jobbliggaren.Application.JobAds.Queries;
+
 namespace Jobbliggaren.Application.Applications.Queries;
 
 /// <summary>
@@ -12,6 +14,16 @@ namespace Jobbliggaren.Application.Applications.Queries;
 /// falls back to it when the live JobAd is archived. <see cref="Description"/> is
 /// null once the application reached a terminal status (retention, ADR 0086 D3).
 /// </summary>
+/// <remarks>
+/// <see cref="Contacts"/> (#842 PR4) is the apply-time frozen recruiter contact
+/// block — the follow-up person for THIS application (re-bind R2: "this is the
+/// purpose"). Projected through the shared <see cref="JobAdContactDto"/> (CTO
+/// 2026-07-17: one crossing type, one fail-closed mapper — both surfaces project
+/// the same domain VO). Never null; <c>[]</c> when the ad held none at capture or
+/// once the application reached a terminal status (<c>WithoutAdBody</c> drops the
+/// body AND the contacts — the follow-up purpose is spent, ADR 0086 D3 / re-bind
+/// R4(b)).
+/// </remarks>
 public sealed record AdSnapshotDto(
     string Title,
     string Company,
@@ -21,4 +33,5 @@ public sealed record AdSnapshotDto(
     DateTimeOffset PublishedAt,
     DateTimeOffset? ExpiresAt,
     string? Description,
+    IReadOnlyList<JobAdContactDto> Contacts,
     DateTimeOffset CapturedAt);

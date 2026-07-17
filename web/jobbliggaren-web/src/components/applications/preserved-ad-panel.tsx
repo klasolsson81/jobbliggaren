@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import { applicationSourceLabel } from "@/lib/applications/status";
 import { formatDate } from "@/lib/i18n/format";
+import { RecruiterContactBlock } from "@/components/job-ads/recruiter-contact-block";
 import type { AdSnapshotDto } from "@/lib/types/applications";
 
 interface PreservedAdPanelProps {
@@ -138,6 +140,22 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
           </div>
         )}
       </div>
+
+      {/* #842 PR4 — recruiter contact block (the follow-up person for THIS
+          application) + a one-line transparency link, gated together on the
+          presence of contacts so the "how we handle contact details" link shows
+          exactly when contact details are shown. The block self-hides on [], but
+          gating the wrapper co-gates the link. */}
+      {preservedAd.contacts.length > 0 && (
+        <div className="mt-4">
+          <RecruiterContactBlock contacts={preservedAd.contacts} />
+          <p className="jp-muted mt-3 text-left">
+            <Link href="/kontaktperson-i-annons">
+              {tUi("preservedAd.recruiterNoticeLink")}
+            </Link>
+          </p>
+        </div>
+      )}
     </section>
   );
 }

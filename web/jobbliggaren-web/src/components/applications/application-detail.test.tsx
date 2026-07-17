@@ -412,4 +412,68 @@ describe("ApplicationDetail", () => {
     // detta tillstånd bor i source-ad-section.test.tsx (guarden själv).
     expect(screen.queryByText(/inte längre aktiv/)).toBeNull();
   });
+
+  // ── #892 (CTO R1): borttagen-markören i fullsidans header ───────────────
+  //
+  // BE-fallbacken ger headern den bevarade (frysta) identiteten för en raderad
+  // annons — som utan markör renderas IDENTISKT med en levande annons. Markören
+  // är andra halvan av samma fix (R1): bevarad identitet utan dödssignal låter
+  // en död annons se levande ut. Denna gren (`{adRemoved && …}` i jp-modal__head)
+  // var otäckt — test (e) renderar en Erased-annons men bevisar bara kroppens
+  // SourceAdSection, aldrig header-markören.
+
+  it("(j) RADERAD annons (Erased) → header-markör 'Annonsen är borttagen' + bevarad identitet", () => {
+    render(
+      <ApplicationDetail
+        application={makeDetail({
+          jobAd: { ...makeDetail().jobAd!, status: "Erased" },
+          preservedAd: makeSnapshot(),
+        })}
+      />
+    );
+    // Headern bär den bevarade identiteten (BE-fallbacken) …
+    expect(
+      screen.getByRole("heading", { name: "Backend-utvecklare" })
+    ).toBeInTheDocument();
+    // … och dödssignalen så den inte ser levande ut. Distinkt copy från kroppens
+    // "Om annonsen (sparad kopia)"/"inte längre aktiv" — ingen kollision.
+    const marker = screen.getByText("Annonsen är borttagen");
+    expect(marker).toHaveClass("jp-tag");
+  });
+
+  it("(k) header-markören uteblir för arkiverad OCH levande annons (Erased-exakt)", () => {
+    const { rerender } = render(
+      <ApplicationDetail
+        application={makeDetail({
+          jobAd: { ...makeDetail().jobAd!, status: "Archived" },
+          preservedAd: makeSnapshot(),
+        })}
+      />
+    );
+    // Arkiverad ≠ raderad: raden lever, ingen dödssignal i headern.
+    expect(screen.queryByText("Annonsen är borttagen")).toBeNull();
+
+    rerender(<ApplicationDetail application={makeDetail()} />);
+    expect(screen.queryByText("Annonsen är borttagen")).toBeNull();
+  });
+
+  it("(l) headless-läge → ingen header-markör (modalen äger headern, SPOT)", () => {
+    // I headless-läge utelämnas hela jp-modal__head — markören bärs då av
+    // route-modalens subtitle (@modal-page-testet), inte här. En dubblerad
+    // markör vore drift (två ytor eniga om VAD men oeniga om VAR, SPOT).
+    render(
+      <ApplicationDetail
+        headless
+        application={makeDetail({
+          jobAd: { ...makeDetail().jobAd!, status: "Erased" },
+          preservedAd: makeSnapshot(),
+        })}
+      />
+    );
+    expect(screen.queryByText("Annonsen är borttagen")).toBeNull();
+    // Kroppen renderas fortfarande (borta-läget ägs av SourceAdSection).
+    expect(
+      screen.getByText("Om annonsen (sparad kopia)")
+    ).toBeInTheDocument();
+  });
 });

@@ -246,8 +246,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
 
         // One round-trip: the title + three shadows (the Fast inputs) + the
         // extracted_terms VO (the Full inputs). The VO is materialized via its jsonb
-        // ValueConverter (parity GetJobAdExtractedTermsQueryHandler); EF.Property
-        // reads the Npgsql-bound shadows (stays in Infrastructure, ADR 0062).
+        // ValueConverter; EF.Property reads the Npgsql-bound shadows (stays in
+        // Infrastructure, ADR 0062).
         var ad = await db.JobAds
             .AsNoTracking()
             .Where(j => j.Id == jobAdId && j.Status != JobAdStatus.Erased)

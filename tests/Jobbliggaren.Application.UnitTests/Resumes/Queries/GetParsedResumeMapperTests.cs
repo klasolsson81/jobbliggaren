@@ -132,4 +132,68 @@ public class GetParsedResumeMapperTests
         dto.Confidence.Overall.ShouldBe(OverallConfidenceLevel.Failed.ToString());
         dto.Confidence.RequiresManualReview.ShouldBeTrue();
     }
+
+    // ===============================================================
+    // #844 / ADR 0109 (5c-b) — the unclassified preamble carrier reaches the DTO, verbatim and
+    // pnr-redacted at the mapper egress (parity with GetResumeAtsText). The engine describes; the
+    // user classifies — the field is shown back, never graded, never synthesised.
+    // ===============================================================
+
+    /// <summary>The established Luhn-valid synthetic vector (parity PersonnummerRedactorTests).</summary>
+    private const string Personnummer = "811218-9876";
+    private const string PersonnummerMask = "******-****";
+
+    private static ParsedResume BuildArtifactWithPreamble(string? preamble)
+    {
+        var content = new ParsedResumeContent(
+            new ParsedContact("Anna Andersson", null, null, null),
+            profile: null,
+            preamble: preamble);
+        var confidence = ParseConfidence.Failed(ParseFallbackReason.NoSectionsDetected);
+        var owner = JobSeeker.Register(Guid.NewGuid(), "Owner", FakeDateTimeProvider.Default).Value.Id;
+        return ParsedResume.Create(
+            owner, "cv.pdf", "application/pdf", ResumeLanguage.Sv,
+            content, "Anna Andersson", confidence, PersonnummerScanOutcome.None, [],
+            FakeDateTimeProvider.Default).Value;
+    }
+
+    [Fact]
+    public void ToDetailDto_MapsPreamble_Verbatim_PreservingLineBreaks_WhenNoPersonnummer()
+    {
+        // Multi-line un-headed prose that no contact extractor claimed — surfaced exactly as the
+        // user wrote it (newlines intact), so the neutral affordance can show it back unaltered.
+        const string preamble = "Erfaren undersköterska med tio år i yrket.\nSöker nya utmaningar.";
+
+        var dto = BuildArtifactWithPreamble(preamble).ToDetailDto();
+
+        dto.Content.Preamble.ShouldBe(preamble);
+    }
+
+    [Fact]
+    public void ToDetailDto_RedactsPersonnummerInPreamble_AtEgress()
+    {
+        // The residue can hold anything above the first heading, including a personnummer the user
+        // typed there. It is the ONLY content field rendered inline on the review, so it egresses
+        // pnr-redacted — the raw value never crosses the wire (CLAUDE.md §5, highest-priority guard).
+        var preamble = $"Anna Andersson\nPersonnummer {Personnummer}\nErfaren sjuksköterska.";
+
+        var mapped = BuildArtifactWithPreamble(preamble).ToDetailDto().Content.Preamble;
+
+        mapped.ShouldNotBeNull();
+        mapped.ShouldNotContain(Personnummer);
+        mapped.ShouldNotContain("8112189876"); // separator-free raw digits
+        mapped.ShouldContain(PersonnummerMask);
+        mapped.ShouldContain("Erfaren sjuksköterska."); // surrounding prose preserved
+        mapped.ShouldStartWith("Anna Andersson");
+    }
+
+    [Fact]
+    public void ToDetailDto_NullPreamble_ProjectsNull_NotEmptyString()
+    {
+        // null = the preamble was fully accounted for (the common case). The mapper must preserve
+        // null and NOT collapse it to "" via the redactor — the affordance keys its absence on null.
+        var dto = BuildArtifactWithPreamble(null).ToDetailDto();
+
+        dto.Content.Preamble.ShouldBeNull();
+    }
 }

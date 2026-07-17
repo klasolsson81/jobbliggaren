@@ -4,13 +4,13 @@ namespace Jobbliggaren.Application.Resumes.Queries.GetParsedResume;
 
 /// <summary>
 /// Full detail view of a PendingReview <c>ParsedResume</c> staging artifact (F4-8), used to
-/// drive the review + gap-fill UI (Fas 4 STEG B). Carries the owner's decrypted, loosely
-/// parsed CV content faithfully — every field is honest about what the deterministic parser
-/// found and nothing is synthesised (CLAUDE.md §5): each experience/education keeps its raw
-/// <c>Period</c> string (not a guessed date) so the gap-fill form collects structured dates
-/// downstream (DQ3-3a). This is CV-PII; the handler enforces owner-only access fail-closed
-/// (IDOR → 404 + audit) and reads it inside the field-encryption pipeline (Invariant 3).
-/// Reuses the parse-summary read-models (<see cref="ParseConfidenceDto"/>,
+/// drive the read-only review view (ADR 0112 — the reviewer is the product; the Slutför guide
+/// and gap-fill are retired, CV-pivot 5c). Carries the owner's decrypted, loosely parsed CV
+/// content faithfully — every field is honest about what the deterministic parser found and
+/// nothing is synthesised (CLAUDE.md §5): each experience/education keeps its raw <c>Period</c>
+/// string (not a guessed date). This is CV-PII; the handler enforces owner-only access
+/// fail-closed (IDOR → 404 + audit) and reads it inside the field-encryption pipeline
+/// (Invariant 3). Reuses the parse-summary read-models (<see cref="ParseConfidenceDto"/>,
 /// <see cref="PersonnummerScanDto"/>) already defined for the import response.
 /// </summary>
 public sealed record ParsedResumeDetailDto(
@@ -26,6 +26,20 @@ public sealed record ParsedResumeDetailDto(
     DateTimeOffset UpdatedAt);
 
 /// <summary>The loosely parsed CV content — best-effort, often partial; never synthesised.</summary>
+/// <param name="Preamble">
+/// Text the CV carried ABOVE its first heading that no contact extractor claimed — verbatim and
+/// UNCLASSIFIED (#844, ADR 0109). <c>null</c> when the preamble was fully accounted for by
+/// name / e-mail / phone / location extraction (the common case). The engine does NOT claim
+/// this is a profile: it is shown back with a neutral label so the owner can decide what it is,
+/// and no rule grades it (ADR 0109 §1 — the engine describes, the user classifies). This is the
+/// only <c>ParsedContentDto</c> field rendered inline on the review view, so it egresses through
+/// <c>PersonnummerRedactor</c> at the mapper — parity with <c>GetResumeAtsText</c>'s
+/// belt-and-braces redaction (CLAUDE.md §5; the personnummer guard is highest-priority). ADR 0109
+/// Amendment (5c-b): the adopt/classify action is FAS-DEFERRED — the Slutför guide that once
+/// hosted it is retired (ADR 0112), so the affordance is display-only; the path to adopt the text
+/// is to give it a heading in the file and upload again (auto-promote, which blocks on this exact
+/// residue via <c>AutoPromoteBlockReason.UnclassifiedPreamble</c>).
+/// </param>
 public sealed record ParsedContentDto(
     ParsedContactDto Contact,
     string? Profile,
@@ -33,7 +47,8 @@ public sealed record ParsedContentDto(
     IReadOnlyList<ParsedEducationDto> Educations,
     IReadOnlyList<string> Skills,
     IReadOnlyList<string> Languages,
-    IReadOnlyList<ParsedSectionDto> Sections);
+    IReadOnlyList<ParsedSectionDto> Sections,
+    string? Preamble);
 
 /// <summary>
 /// A section the CV has that is not one of the six typed kinds — "Projekt", "Referenser" (#815).

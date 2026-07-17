@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Resumes.Commands.ImportResume;
+using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes.Parsing;
 
 namespace Jobbliggaren.Application.Resumes.Queries.GetParsedResume;
@@ -52,12 +53,19 @@ internal static class GetParsedResumeMapper
             content.Skills,
             content.Languages,
             // #815: free sections travel verbatim — heading and lines exactly as the user wrote
-            // them. Nothing is normalised on the way out; the guide shows them back for approval.
+            // them. Nothing is normalised on the way out; the review shows them back as-is.
             content.Sections
                 .Select(s => new ParsedSectionDto(
                     s.Heading,
                     s.Entries
                         .Select(e => new ParsedSectionEntryDto(e.Title, e.Lines))
                         .ToList()))
-                .ToList());
+                .ToList(),
+            // #844/ADR 0109: the unclassified preamble is the one content field rendered inline
+            // on the review view, so it egresses pnr-redacted — parity with GetResumeAtsText's
+            // belt-and-braces redaction (CLAUDE.md §5). Null-preserving: null means "no preamble"
+            // and drives the affordance's absence, so it must not collapse to "" via the redactor.
+            Preamble: content.Preamble is { } preamble
+                ? PersonnummerRedactor.Redact(preamble)
+                : null);
 }

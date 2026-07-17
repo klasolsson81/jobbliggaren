@@ -149,6 +149,12 @@ export const parsedContentDtoSchema = z.object({
   // utelämnar nyckeln, och ett parse-artefakt skrivet före #815 saknar den i sin
   // krypterade JSON. Bägge landar som [] — aldrig ett kraschat schema.
   sections: z.array(parsedSectionDtoSchema).nullish().transform((v) => v ?? []),
+  // #844/ADR 0109: text ovanför första rubriken som ingen kontakt-extraktor kunde
+  // tillskriva ett fält — verbatim och OKLASSIFICERAD. Redan pnr-redigerad vid mapper-
+  // egress (parity `GetResumeAtsText`). `null` = ingen sådan text (vanligaste fallet, och
+  // det som håller A8:s ärliga Fail vid liv). Deploy-skew-tolerant som `sections`: en äldre
+  // backend UTELÄMNAR nyckeln, ett pre-#844-artefakt saknar den i sin JSON → båda landar null.
+  preamble: z.string().nullish().transform((v) => v ?? null),
 });
 export type ParsedContentDto = z.infer<typeof parsedContentDtoSchema>;
 

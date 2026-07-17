@@ -175,6 +175,9 @@ describe("@modal/(.)ansokningar/[id] page header (#315 / ADR 0086)", () => {
       screen.getByText("Om annonsen (sparad kopia)")
     ).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Visa annonsen/ })).toBeNull();
+    // #892 (CTO R1): arkivering ≠ radering → INGET borttagen-suffix i subtitlen
+    // (Erased-exakt; en mutation som alltid lägger till suffixet fångas här).
+    expect(screen.queryByText(/Annonsen är borttagen/)).toBeNull();
   });
 
   it("varken annons eller snapshot → oförändrad mono-#id-fallback", async () => {
@@ -186,5 +189,27 @@ describe("@modal/(.)ansokningar/[id] page header (#315 / ADR 0086)", () => {
 
     const heading = screen.getByRole("heading", { name: "Ansökan #aaaaaaaa" });
     expect(heading).toHaveClass("jp-mono");
+  });
+
+  // #892 (CTO R1): route-modalens subtitle bär borttagen-signalen. Headless
+  // ApplicationDetail utelämnar sin egen header (SPOT), så DENNA subtitle är den
+  // enda dödssignalen på modalytan — en bevarad identitet utan den ser levande ut.
+  it("RADERAD annons (Erased) → subtitlen bär borttagen-suffixet", async () => {
+    getApplicationById.mockResolvedValue({
+      kind: "ok",
+      data: makeDetail({
+        jobAd: { ...makeDetail().jobAd!, status: "Erased" },
+        preservedAd: makeSnapshot(),
+      }),
+    });
+    await renderModal();
+
+    // Den bevarade identiteten rider fortfarande titeln (BE-fallbacken) …
+    expect(
+      screen.getByRole("dialog", { name: /Backend-utvecklare/ })
+    ).toBeInTheDocument();
+    // … och subtitlen får dödssignalen suffixad. Distinkt copy från kroppens
+    // "Om annonsen (sparad kopia)" — den enda "Annonsen är borttagen" på ytan.
+    expect(screen.getByText(/Annonsen är borttagen/)).toBeInTheDocument();
   });
 });

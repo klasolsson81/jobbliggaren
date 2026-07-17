@@ -1,4 +1,5 @@
 import { useTranslations } from "next-intl";
+import { adIdentityOf } from "@/components/applications/ad-identity";
 import { DrawerLogFollowUpButton } from "@/components/applications/drawer-log-follow-up-button";
 import { DrawerStatusActions } from "@/components/applications/drawer-status-actions";
 import { FollowUpsSection } from "@/components/applications/follow-ups-section";
@@ -53,10 +54,14 @@ export function ApplicationDrawerBody({
   // #805-3: NÄR den bevarade kopian visas avgörs av SourceAdSection (SPOT) —
   // på källannonsens Status, inte på jobAd == null (den guarden var vakuös, #821).
   const preservedAd = application.preservedAd ?? null;
+  // #892: strukturell identitet — en raderad annons utan snapshot bär TOM
+  // identitet på wiren; adIdentityOf normaliserar tomt → null så coalescingen
+  // nedan aldrig väljer en tom sträng framför den sparade kopian/id-fallbacken.
+  const { title: adTitle, company: adCompany } = adIdentityOf(jobAd);
   // Toast-visningsnamn ("{company}: …"): företag (live → sparad kopia) före
   // det korta id:t — samma precedens som drawer-headern.
   const displayName =
-    jobAd?.company ??
+    adCompany ??
     preservedAd?.company ??
     `#${application.id.slice(0, 8)}`;
 
@@ -144,8 +149,8 @@ export function ApplicationDrawerBody({
         headerAction={
           <DrawerLogFollowUpButton
             applicationId={application.id}
-            contextTitle={jobAd?.title ?? preservedAd?.title ?? null}
-            contextCompany={jobAd?.company ?? preservedAd?.company ?? null}
+            contextTitle={adTitle ?? preservedAd?.title ?? null}
+            contextCompany={adCompany ?? preservedAd?.company ?? null}
             toastCompany={displayName}
           />
         }

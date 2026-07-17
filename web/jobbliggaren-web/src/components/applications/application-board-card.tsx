@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { applicationStatusLabel } from "@/lib/applications/status";
 import { daysInStatus, urgencyTagFor } from "@/lib/applications/urgency";
+import { adIdentityOf } from "./ad-identity";
 import { useUrgencyLabel } from "./use-urgency-label";
 import { StatusMenu } from "./status-menu";
 import type { ApplicationDto } from "@/lib/dto/applications";
@@ -53,10 +54,11 @@ export function ApplicationBoardCard({
   const justDraggedRef = useRef(false);
 
   const { jobAd, status } = application;
-  const hasIdentity = jobAd != null;
-  const title = hasIdentity
-    ? jobAd.title
-    : tUi("row.fallbackTitle", { shortId: application.id.slice(0, 8) });
+  // #892: strukturell identitet + borttagen-markör (lockstep med List-raden).
+  const { adRemoved, title: adTitle, company: adCompany } = adIdentityOf(jobAd);
+  const hasIdentity = adTitle != null;
+  const title =
+    adTitle ?? tUi("row.fallbackTitle", { shortId: application.id.slice(0, 8) });
 
   const days = daysInStatus(application.lastStatusChangeAt, now);
   const daysLabel = days != null ? tUi("board.daysShort", { days }) : null;
@@ -111,14 +113,15 @@ export function ApplicationBoardCard({
         {/* Länknamnet = rolltiteln; företag + status bärs som BESKRIVNING via
             aria-describedby (WCAG 2.4.6 — h3 förblir ren rolltitel i rotorn). */}
         <span id={contextId} className="sr-only">
-          {hasIdentity
-            ? `${jobAd.company}, ${applicationStatusLabel(t, status)}`
+          {adCompany != null
+            ? `${adCompany}, ${applicationStatusLabel(t, status)}`
             : applicationStatusLabel(t, status)}
+          {adRemoved ? `, ${tUi("adRemoved.tag")}` : null}
         </span>
         {compact ? (
           <div className="jp-board-card__subline">
-            {hasIdentity && <span>{jobAd.company}</span>}
-            {hasIdentity && daysLabel != null && (
+            {adCompany != null && <span>{adCompany}</span>}
+            {adCompany != null && daysLabel != null && (
               <span aria-hidden="true"> · </span>
             )}
             {daysLabel != null && (
@@ -126,9 +129,14 @@ export function ApplicationBoardCard({
             )}
           </div>
         ) : (
-          hasIdentity && (
-            <div className="jp-board-card__company">{jobAd.company}</div>
+          adCompany != null && (
+            <div className="jp-board-card__company">{adCompany}</div>
           )
+        )}
+        {adRemoved && (
+          <div className="jp-board-card__subline">
+            <span className="jp-tag jp-tag--neutral">{tUi("adRemoved.tag")}</span>
+          </div>
         )}
       </div>
 

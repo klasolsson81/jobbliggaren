@@ -16,6 +16,13 @@ export const activityReportItemDtoSchema = z.object({
   location: z.string().nullable().optional(),
   source: z.string().nullable().optional(),
   url: z.string().nullable().optional(),
+  // #892 (CTO R1): källannonsens livscykel-status ("Active" | "Archived" |
+  // "Erased") — den strukturella signalen borttagen-markören keyar på. En
+  // raderad annons rad visar den bevarade snapshot-identiteten (eller "Saknas"
+  // utan snapshot) och får inte se levande ut. null ⟺ manuell ansökan (ingen
+  // livs-utsaga — #805-3-idiomet). Lös z.string(): okänt framtida värde
+  // degraderar, hard-failar aldrig hela rapporten.
+  adStatus: z.string().nullable().optional(),
 });
 export type ActivityReportItemDto = z.infer<typeof activityReportItemDtoSchema>;
 

@@ -329,6 +329,9 @@
       "addNoteFailed": "Kunde inte spara noteringen.",
       "recordOutcomeFailed": "Kunde inte registrera utfallet.",
       "deleteFailed": "Det gick inte att ta bort ansökan."
+    },
+    "adRemoved": {
+      "tag": "Annonsen är borttagen"
     }
   }
 }

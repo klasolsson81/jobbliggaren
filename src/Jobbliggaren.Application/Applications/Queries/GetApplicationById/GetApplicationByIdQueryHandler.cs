@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries;
+using Jobbliggaren.Domain.JobAds;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -87,6 +88,28 @@ public sealed class GetApplicationByIdQueryHandler(
                     j.Id.Value, j.Title, j.Company.Name, j.Url,
                     j.Source.Value, j.PublishedAt, j.ExpiresAt, j.Status.Value))
                 .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        // #892 (CTO R1/R5): en raderad annons är en tombstone (Title="",
+        // Company="[raderad]") — headerns identitet faller tillbaka på ansökans
+        // egen AdSnapshot (redan materialiserad för preservedAd nedan), Status
+        // förblir "Erased". Utan snapshot (pre-#315) → TOM identitet: domän-
+        // sentinelen "[raderad]" korsar aldrig Application-gränsen (§2.3). Ren
+        // C#-gren — aggregatet och summaryn är båda redan i minnet (ingen
+        // träd-översättning, till skillnad från list-handlarna).
+        if (jobAd is not null && jobAd.Status == JobAdStatus.Erased.Value)
+        {
+            jobAd = app.AdSnapshot is { } fallback
+                ? jobAd with
+                {
+                    Title = fallback.Title,
+                    Company = fallback.Company,
+                    Url = fallback.Url,
+                    Source = fallback.Source,
+                    PublishedAt = fallback.PublishedAt,
+                    ExpiresAt = fallback.ExpiresAt,
+                }
+                : jobAd with { Title = string.Empty, Company = string.Empty, Url = null };
         }
 
         // Manuell ansökan: ingen JobAd-rad ⇒ ingen arkivering ⇒ ingen livs-utsaga.

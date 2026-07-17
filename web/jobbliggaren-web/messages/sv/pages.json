@@ -59,7 +59,8 @@
       "loadErrorTitle": "Kunde inte ladda ansökan",
       "fallbackTitle": "Ansökan #{shortId}",
       "subtitle": "{company} · #{shortId}",
-      "createdSubtitle": "Skapad {date}"
+      "createdSubtitle": "Skapad {date}",
+      "adRemoved": "Annonsen är borttagen"
     }
   },
   "cv": {

@@ -4,15 +4,19 @@ namespace Jobbliggaren.Application.Applications.Queries;
 
 /// <summary>
 /// The preserved ("sparad kopia") copy of a JobAd's text, captured onto the
-/// application at apply-time (issue #315, ADR 0086). Detail-only — surfaced by
-/// <c>GetApplicationByIdQueryHandler</c> from the materialised aggregate's
-/// <c>AdSnapshot</c> owned value object. <see cref="Location"/> is the municipality
+/// application at apply-time (issue #315, ADR 0086). Surfaced WHOLE only on the
+/// detail path — by <c>GetApplicationByIdQueryHandler</c> from the materialised
+/// aggregate's <c>AdSnapshot</c> owned value object. Since #892 the snapshot's
+/// SCALARS also back the erased-ad identity fallback inside
+/// <see cref="JobAdSummaryDto"/> on the list/pipeline/report paths (CTO R1) —
+/// this DTO stays the single FULL representation; the summary borrows identity,
+/// never the body or contacts. <see cref="Location"/> is the municipality
 /// name resolved at read-time from the snapshot's frozen concept-id via the
 /// taxonomy ACL (ADR 0086 D4 — the write side stays free of the ACL port); null
 /// when absent or unresolvable. Unlike <see cref="JobAdSummaryDto"/> (live JobAd
 /// metadata, no body), this carries the full <see cref="Description"/> — the FE
-/// falls back to it when the live JobAd is archived. <see cref="Description"/> is
-/// null once the application reached a terminal status (retention, ADR 0086 D3).
+/// falls back to it when the live JobAd is archived or erased. <see cref="Description"/>
+/// is null once the application reached a terminal status (retention, ADR 0086 D3).
 /// </summary>
 /// <remarks>
 /// <see cref="Contacts"/> (#842 PR4) is the apply-time frozen recruiter contact

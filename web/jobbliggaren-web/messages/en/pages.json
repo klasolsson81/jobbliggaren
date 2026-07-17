@@ -59,7 +59,8 @@
       "loadErrorTitle": "Could not load the application",
       "fallbackTitle": "Application #{shortId}",
       "subtitle": "{company} · #{shortId}",
-      "createdSubtitle": "Created {date}"
+      "createdSubtitle": "Created {date}",
+      "adRemoved": "The ad has been removed"
     }
   },
   "cv": {

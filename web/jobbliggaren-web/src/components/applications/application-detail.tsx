@@ -1,4 +1,5 @@
 import { useFormatter, useTranslations } from "next-intl";
+import { adIdentityOf } from "@/components/applications/ad-identity";
 import { StatusEditCard } from "@/components/applications/status-edit-card";
 import { FollowUpsSection } from "@/components/applications/follow-ups-section";
 import { NotesSection } from "@/components/applications/notes-section";
@@ -65,7 +66,6 @@ export function ApplicationDetail({
   // saknad nyckel ger undefined. Normalisera EN gång så guarden nedströms bara
   // har två fall att resonera om.
   const jobAd = application.jobAd ?? null;
-  const hasIdentity = jobAd != null;
   // #315 (ADR 0086): den frysta annons-kopian. #805-3 flyttade beslutet om NÄR
   // den visas till SourceAdSection (SPOT) — den renderas när källannonsen inte
   // längre är aktiv (Status != "Active"), inte när jobAd == null. Den gamla
@@ -80,13 +80,14 @@ export function ApplicationDetail({
   // null för en JobAd-länkad ansökan (#821). Grenen är borttagen — vi raderade
   // JobInfoPanel på svagare grunder än så.
   //
-  // Två sanna tillstånd kvar: annonsrad finns (live ELLER arkiverad — arkivering
-  // är inte radering, raden bär fortfarande titel/företag) → annonsens identitet;
-  // ingen annonsrad alls (enbart personligt brev) → generisk "#id"-fallback.
-  // Allt som sägs om annonsens LIVSTID ägs av SourceAdSection i kroppen.
-  const title = hasIdentity
-    ? jobAd.title
-    : tUi("detail.fallbackTitle", { shortId });
+  // Tre sanna tillstånd (#892): annonsrad med identitet (live/arkiverad — eller
+  // RADERAD med bevarad snapshot-identitet, BE-fallbacken) → identiteten; raderad
+  // UTAN snapshot → tom identitet från BE → generisk "#id"-fallback; ingen
+  // annonsrad alls (enbart personligt brev) → samma fallback. Allt som sägs om
+  // annonsens LIVSTID ägs av SourceAdSection i kroppen — utom borttagen-MARKÖREN
+  // här i headern (CTO R1: bevarad identitet utan dödssignal ser levande ut).
+  const { adRemoved, title: adTitle, company: adCompany } = adIdentityOf(jobAd);
+  const title = adTitle ?? tUi("detail.fallbackTitle", { shortId });
 
   const variant = PILL_VARIANT_CLASS[STATUS_BADGE_VARIANT[application.status]];
   const statusLabel = applicationStatusLabel(t, application.status);
@@ -119,15 +120,15 @@ export function ApplicationDetail({
           <div style={{ flex: 1 }}>
             <h1
               className={
-                hasIdentity ? "jp-modal__title" : "jp-modal__title jp-mono"
+                adTitle != null ? "jp-modal__title" : "jp-modal__title jp-mono"
               }
             >
               {title}
             </h1>
             <p className="jp-modal__company">
-              {hasIdentity ? (
+              {adCompany != null ? (
                 <>
-                  {jobAd.company} ·{" "}
+                  {adCompany} ·{" "}
                   <span className="jp-mono">#{shortId}</span>
                 </>
               ) : (
@@ -140,6 +141,14 @@ export function ApplicationDetail({
                 </>
               )}
             </p>
+            {/* #892 (CTO R1): borttagen-markören — headern visar den bevarade
+                kopians identitet och får inte låta en raderad annons se levande
+                ut. Panelen i kroppen (SourceAdSection) bär detaljerna. */}
+            {adRemoved && (
+              <p className="jp-modal__company">
+                <span className="jp-tag jp-tag--neutral">{tUi("adRemoved.tag")}</span>
+              </p>
+            )}
           </div>
         </header>
       )}

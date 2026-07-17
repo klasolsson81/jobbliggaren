@@ -25,7 +25,8 @@
     "text": "Inga ansökningar att rapportera för {month}. När du markerar en ansökan som ansökt visas den för månaden du sökte."
   },
   "card": {
-    "titleFallback": "Jobbansökan"
+    "titleFallback": "Jobbansökan",
+    "adRemoved": "Annonsen är borttagen"
   },
   "fields": {
     "employer": "Arbetsgivare",

@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getApplicationById } from "@/lib/api/applications";
+import { adIdentityOf } from "@/components/applications/ad-identity";
 import { ApplicationDrawerBody } from "@/components/applications/application-drawer-body";
 import { ApplicationModalShell } from "@/components/applications/application-modal-shell";
 import { formatDate } from "@/lib/i18n/format";
@@ -49,7 +50,10 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
       const application = result.data;
       const jobAd = application.jobAd ?? null;
       const shortId = application.id.slice(0, 8);
-      const hasIdentity = jobAd != null;
+      // #892: strukturell identitet — raderad annons bär bevarad snapshot-
+      // identitet (eller tom identitet utan snapshot) + status "Erased".
+      const { adRemoved, title: adTitle, company: adCompany } =
+        adIdentityOf(jobAd);
       // #805-3: the header used to carry a THIRD copy of the
       // `showPreservedAd = jobAd == null && preservedAd != null` guard — the very
       // predicate this PR proves unreachable (JobAd.DeletedAt has no writer, so
@@ -63,20 +67,24 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
       // → the generic "#id" fallback. The BODY (SourceAdSection) owns everything
       // said about the ad's LIVENESS — header and body cannot disagree, because
       // only one of them makes that claim.
-      const title = hasIdentity
-        ? jobAd.title
-        : t("ansokningar.detail.fallbackTitle", { shortId });
-      // Subtitle mirrors the title: ad row → "{company} · #shortId"; no ad row →
+      const title = adTitle ?? t("ansokningar.detail.fallbackTitle", { shortId });
+      // Subtitle mirrors the title: ad identity → "{company} · #shortId"; none →
       // "Skapad {date}" (created-date metadata, NOT an echo of the "#shortId"
-      // fallback title — design-reviewer F5 Major #2 2026-05-20).
-      const subtitle = hasIdentity
-        ? t("ansokningar.detail.subtitle", {
-            company: jobAd.company,
-            shortId,
-          })
-        : t("ansokningar.detail.createdSubtitle", {
-            date: formatDate(format, application.createdAt) ?? "",
-          }).trim();
+      // fallback title — design-reviewer F5 Major #2 2026-05-20). #892 (CTO R1):
+      // a removed ad's subtitle carries the death signal — the header shows the
+      // preserved copy's identity and must not let a dead ad look alive.
+      const baseSubtitle =
+        adCompany != null
+          ? t("ansokningar.detail.subtitle", {
+              company: adCompany,
+              shortId,
+            })
+          : t("ansokningar.detail.createdSubtitle", {
+              date: formatDate(format, application.createdAt) ?? "",
+            }).trim();
+      const subtitle = adRemoved
+        ? `${baseSubtitle} · ${t("ansokningar.detail.adRemoved")}`
+        : baseSubtitle;
       // Strict read-mode surface (#630 PR 6 lineage): NO Withdraw footer /
       // status mutation here — status changes live on the rows (PR 7). `now`
       // is the per-request reference time for the "N dagar i detta steg"
@@ -88,7 +96,7 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
           // mono only when there is no ad row at all (the "#id" fallback title).
           // An archived ad still supplies real prose, so it renders non-mono —
           // matching the component header (#805-3).
-          mono={!hasIdentity}
+          mono={adTitle == null}
         >
           {/* jp-modal__body äger padding + intern scroll i .jp-modal-flexkolumnen
               (samma anropar-wrapp som @modal/(.)jobb) — utan den svämmar kroppen

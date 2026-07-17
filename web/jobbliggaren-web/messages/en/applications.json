@@ -329,6 +329,9 @@
       "addNoteFailed": "Could not save the note.",
       "recordOutcomeFailed": "Could not record the outcome.",
       "deleteFailed": "The application could not be deleted."
+    },
+    "adRemoved": {
+      "tag": "The ad has been removed"
     }
   }
 }

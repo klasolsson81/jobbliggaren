@@ -121,6 +121,41 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     expect(fallback.closest("h3")).toHaveClass("jp-mono");
   });
 
+  // #892 (CTO R1): en raderad annons visar den BEVARADE snapshot-identiteten
+  // (BE-fallbacken) + borttagen-markören — identitet utan dödssignal skulle
+  // låta en död annons se levande ut.
+  it("renderar bevarad identitet + borttagen-markör när annonsen är raderad (med snapshot)", () => {
+    renderRow(
+      makeApplication({
+        jobAd: { ...jobAd, title: "Raderad roll", company: "Bevarat AB", status: "Erased" },
+      }),
+    );
+    expect(screen.getByText("Raderad roll")).toBeInTheDocument();
+    expect(screen.getByText("Bevarat AB")).toBeInTheDocument();
+    const marker = screen.getByText("Annonsen är borttagen");
+    expect(marker).toHaveClass("jp-tag");
+  });
+
+  // #892 (CTO R5): raderad UTAN snapshot → TOM identitet på wiren (aldrig
+  // "[raderad]"-literalen) → strukturell fallback-rendering + markör.
+  it("renderar mono-fallback + markör vid raderad annons utan snapshot (tom identitet)", () => {
+    renderRow(
+      makeApplication({
+        jobAd: { ...jobAd, title: "", company: "", url: null, status: "Erased" },
+      }),
+    );
+    const fallback = screen.getByText("Ansökan #11111111");
+    expect(fallback.closest("h3")).toHaveClass("jp-mono");
+    expect(screen.getByText("Annonsen är borttagen")).toBeInTheDocument();
+    expect(screen.queryByText("[raderad]")).toBeNull();
+  });
+
+  it("visar INGEN borttagen-markör för en arkiverad annons (Erased-exakt predikat)", () => {
+    renderRow(makeApplication({ jobAd: { ...jobAd, status: "Archived" } }));
+    expect(screen.getByText("Backend-utvecklare")).toBeInTheDocument();
+    expect(screen.queryByText("Annonsen är borttagen")).toBeNull();
+  });
+
   it("renderar status som kvadratisk färgkodad .jp-tag i meta-raden (#780)", () => {
     const { container } = renderRow(makeApplication());
     const statusTag = screen.getByText("Skickad");

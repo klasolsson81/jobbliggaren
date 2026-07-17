@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
+import { getMyProfile } from "@/lib/api/me";
 import { CvUploadForm } from "@/components/resumes/cv-upload-form";
 import { RouteModalShell } from "@/components/modals/route-modal-shell";
 
@@ -16,9 +17,11 @@ import { RouteModalShell } from "@/components/modals/route-modal-shell";
  * Samma `CvUploadForm` i båda (ADR 0053, DRY).
  *
  * RSC: auth-grind på servern; endast modal-chromet (RouteModalShell) och
- * CvUploadForm är "use client". Upload-flödet: vid 201 gör formuläret
- * router.push('/cv/slutfor/[parsedId]') (Fas 4b PR-8.3) — en full navigation som
- * ersätter modalen med Slutför-guiden. Stäng (ESC/scrim/X) → router.back() → /cv.
+ * CvUploadForm är "use client". Upload-flödet (CV-pivot 5c): formuläret rutar på
+ * utfallet — Promoted → router.push('/cv/[id]/granska'), LeftPending →
+ * router.push('/cv/granska/[parsedId]') — en full navigation som ersätter
+ * modalen. Personnummer-fyndet reser samtyckesdialogen i formuläret innan
+ * ruttningen. Stäng (ESC/scrim/X) → router.back() → /cv.
  */
 export default async function InterceptedCvImportModal() {
   const user = await getServerSession();
@@ -26,13 +29,18 @@ export default async function InterceptedCvImportModal() {
 
   const t = await getTranslations("pages");
 
+  // Samma namn-prefill som fullsidan (ADR 0053, DRY): rådgivande — en trasig
+  // profil-hämtning ger tomt fält, aldrig en blockerad uppladdning.
+  const profile = await getMyProfile();
+  const defaultName = profile.kind === "ok" ? profile.data.displayName : "";
+
   return (
     <RouteModalShell
       title={t("cv.import.title")}
       description={t("cv.import.modalDescription")}
     >
       <div className="jp-modal__body">
-        <CvUploadForm />
+        <CvUploadForm defaultName={defaultName} />
       </div>
     </RouteModalShell>
   );

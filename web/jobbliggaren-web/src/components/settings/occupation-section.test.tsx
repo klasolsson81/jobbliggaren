@@ -16,10 +16,36 @@ vi.mock("@/lib/actions/match-preferences", () => ({
 
 // Stub CvUploadForm (Spår 4 inline-upload) — the real one uses next/navigation +
 // fetch which jsdom lacks. The stub exposes a button that fires onUploaded with a
-// fixed parsed_resume id so the inline-upload → suggest flow is testable.
+// fixed LeftPending outcome (CV-pivot 5c — the callback is outcome-aware) so the
+// inline-upload → suggest flow is testable.
 vi.mock("@/components/resumes/cv-upload-form", () => ({
-  CvUploadForm: ({ onUploaded }: { onUploaded?: (id: string) => void }) => (
-    <button type="button" onClick={() => onUploaded?.("parsed-uploaded")}>
+  CvUploadForm: ({
+    onUploaded,
+  }: {
+    onUploaded?: (
+      outcome: {
+        kind: "pending";
+        parsedResumeId: string;
+        blockReason: string;
+        personnummerCount: number;
+      },
+      fileName?: string
+    ) => void;
+  }) => (
+    <button
+      type="button"
+      onClick={() =>
+        onUploaded?.(
+          {
+            kind: "pending",
+            parsedResumeId: "parsed-uploaded",
+            blockReason: "ParseNotConfident",
+            personnummerCount: 0,
+          },
+          "cv.pdf"
+        )
+      }
+    >
       Ladda upp (stub)
     </button>
   ),

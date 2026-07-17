@@ -3,7 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
 import { parseResponse, parseRetryAfter } from "@/lib/dto/_helpers";
-import { importResumeResponseSchema } from "@/lib/dto/parsed-resume";
+import { importOutcomeResponseSchema } from "@/lib/dto/parsed-resume";
 
 /**
  * BFF för CV-import (Fas 4 STEG B, F1). Binär-passthrough: klienten POST:ar en
@@ -17,8 +17,10 @@ import { importResumeResponseSchema } from "@/lib/dto/parsed-resume";
  * den AUKTORITATIVA capen är backendens Kestrel-body-cap (11 MiB → 413) +
  * FluentValidation-golvet (10 MiB → vänligt 400) + magic-byte-formatgrinden. Vi
  * EKAR ALDRIG backend-svarets body vid fel (GDPR Art. 5(1)(f) — ProblemDetails kan
- * bära stacktrace/PII); fel mappas till statusbaserad, säker svensk copy. Vid
- * framgång (201) returneras enbart `parsedResumeId` — inget CV-PII.
+ * bära stacktrace/PII); fel mappas till statusbaserad, säker svensk copy. Vid framgång
+ * (200 LeftPending / 201 Promoted — CV-pivot 5c, in-place import→auto-promote) vidarebefordras
+ * det sammansatta, PII-fria utfallet (parse-id + auto-promote-disposition + count/kinds/bool-
+ * fyndet) — aldrig personnummer-värdet, aldrig CV-innehåll.
  */
 
 export const runtime = "nodejs";
@@ -118,16 +120,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // 201 Created — validera formen och returnera ENBART parsedResumeId.
+  // 200 (LeftPending) eller 201 (Promoted) — validera det sammansatta utfallet och vidarebefordra
+  // de PII-fria fälten verbatim (parse-id + count/kinds/bool-fyndet + auto-promote-dispositionen).
+  // Inget här är PII: aldrig personnummer-värdet, aldrig CV-innehåll. Backend-statusen bär
+  // ruttningen (201 Promoted → nya CV:t; 200 LeftPending → granska-vyn / samtyckesdialogen).
   try {
     const data = await parseResponse(
       backendRes,
-      importResumeResponseSchema,
+      importOutcomeResponseSchema,
       "POST /api/v1/resumes/import (proxy)"
     );
     return NextResponse.json(
-      { parsedResumeId: data.parsedResumeId },
-      { status: 201 }
+      {
+        parsedResumeId: data.parsedResumeId,
+        outcome: data.outcome,
+        resumeId: data.resumeId,
+        blockReason: data.blockReason,
+        personnummer: data.personnummer,
+      },
+      { status: backendRes.status }
     );
   } catch {
     return NextResponse.json({ error: "error" }, { status: 502 });

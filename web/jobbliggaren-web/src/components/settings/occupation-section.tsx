@@ -13,7 +13,10 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CvUploadForm } from "@/components/resumes/cv-upload-form";
+import {
+  CvUploadForm,
+  type UploadOutcome,
+} from "@/components/resumes/cv-upload-form";
 import { InfoDialog } from "@/components/common/info-dialog";
 import type { TaxonomyOccupationField } from "@/lib/dto/taxonomy";
 import {
@@ -195,12 +198,19 @@ export function OccupationSection({
     });
   }
 
-  // Inline-uppladdning klar: behåll id:t, stäng upload-ytan och kör CV-förslaget
-  // direkt mot det nya parsed_resume:t (samma propose-and-approve som annars).
-  function handleCvUploaded(parsedId: string) {
-    setLocalParsedId(parsedId);
+  // Inline-uppladdning klar (CV-pivot 5c: utfalls-medvetet). `pending` → parsen lever;
+  // behåll id:t och kör CV-förslaget mot den (samma propose-and-approve). `promoted` →
+  // parsen är auto-promotad (borta); fall tillbaka på det promotade Resume:ts latestRole
+  // via runCvSuggest utan explicit parse-id (annars 404:ar förslaget mot en borttagen parse).
+  function handleCvUploaded(outcome: UploadOutcome) {
     setUploadOpen(false);
-    runCvSuggest(parsedId);
+    if (outcome.kind === "pending") {
+      setLocalParsedId(outcome.parsedResumeId);
+      runCvSuggest(outcome.parsedResumeId);
+    } else {
+      setLocalParsedId(null);
+      runCvSuggest();
+    }
   }
 
   // Wizard-prefill: kör CV-suggest en gång vid montering. "use client"-effekt
@@ -615,7 +625,7 @@ function CvSuggestStatus({
   readonly uploadOpen: boolean;
   readonly onOpenUpload: () => void;
   readonly onCancelUpload: () => void;
-  readonly onUploaded: (parsedResumeId: string) => void;
+  readonly onUploaded: (outcome: UploadOutcome, fileName?: string) => void;
 }) {
   const t = useTranslations("settings");
   // Fokus följer den nyöppnade upload-ytan (WCAG 2.4.3) — speglar "Lägg till

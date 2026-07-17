@@ -127,19 +127,11 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
         profile={profile}
       />
 
-      {/* CTA-söm mot F2: spara-flödet (komplettera + promote). Förbättra-CTA:n
-          (F4-10) togs bort med åtgärda-lagrets deferral (CV-pivot 2026-07-16,
-          ADR 0112) — forbattra-rutten 404:ar nu, granskningen är läs-bar. */}
-      <div className="jp-cv-cta">
-        <div className="jp-cv-cta__actions">
-          <Link
-            href={`/cv/granska/${parsedId}/komplettera`}
-            className="jp-btn jp-btn--primary"
-          >
-            {t("cv.review.continueSave")}
-          </Link>
-        </div>
-      </div>
+      {/* Ingen spara-CTA längre: Förbättra-CTA:n togs bort med åtgärda-lagrets
+          deferral (ADR 0112) och Fortsätt spara-CTA:n med Slutför-guidens
+          retirement (CV-pivot 5c, R4) — komplettera + slutfor 404:ar nu.
+          Granskningen är läs-bar; vägen till ett kanoniskt CV är att åtgärda
+          FILEN och ladda upp igen (auto-promote, 5b security-bind B3). */}
     </div>
   );
 }

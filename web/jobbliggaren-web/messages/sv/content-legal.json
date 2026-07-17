@@ -5,7 +5,7 @@
       "description": "Hur Jobbliggaren behandlar dina personuppgifter: ändamål, laglig grund, lagringstid, dina rättigheter och säkerhet. Ingen spårning och ingen AI."
     },
     "title": "Integritetspolicy",
-    "updated": "Senast uppdaterad: 2026-07-16",
+    "updated": "Senast uppdaterad: 2026-07-17",
     "intro": "Den här integritetspolicyn beskriver hur Jobbliggaren behandlar dina personuppgifter, varför, med vilken laglig grund och hur länge. Här finns också dina rättigheter och hur du använder dem. Jobbliggaren är en kostnadsfri tjänst som hjälper dig att hitta och hålla ordning på dina jobbansökningar, byggd på öppna data om lediga jobb från Arbetsförmedlingens JobTech (Platsbanken).",
     "sections": [
       {
@@ -25,13 +25,14 @@
         "heading": "Konto, profil och ansökningar (laglig grund: avtal)",
         "paragraphs": [
           "För att du ska kunna skapa ett konto och använda Jobbliggaren behandlar vi uppgifterna nedan. Den rättsliga grunden är att behandlingen är nödvändig för att vi ska kunna leverera tjänsten till dig (artikel 6.1 b, fullgörande av avtal). Utan dessa uppgifter kan vi inte tillhandahålla ett konto.",
-          "Ditt cv, dina personliga brev, dina anteckningar och dina uppföljningar är känsligare uppgifter och skyddas med kryptering, se avsnittet om säkerhet längre ner."
+          "Ditt cv, dina personliga brev, dina anteckningar och dina uppföljningar är känsligare uppgifter och skyddas med kryptering, se avsnittet om säkerhet längre ner.",
+          "En cv-fil du laddar upp kan innehålla uppgifter om andra personer, till exempel referenser. Sådana uppgifter behandlas bara som en del av ditt eget dokument, till exempel när filens text läses ut för din egen cv-granskning. De används aldrig för något annat ändamål, visas aldrig för någon annan och används aldrig för att kontakta någon. Filen lagras krypterad och bara för din egen användning."
         ],
         "list": [
           "E-postadress, lösenord (lagrat som kryptografisk hash, aldrig i klartext), visningsnamn och kontoidentifierare, samt identifierare från en extern inloggningstjänst om du loggar in via en sådan. Används för att skapa och säkra ditt konto och identifiera dig i tjänsten.",
           "Visningsnamn, språkval och dina matchningsönskemål, till exempel yrke, region, anställningsform och kompetenser du vill matcha mot. Används för att visa relevanta jobb och anpassa tjänsten efter dina val.",
           "Ditt cv och tolkat innehåll från det. Används för att spara, visa och arbeta med ditt cv i tjänsten.",
-          "Din uppladdade originalfil av cv:t (planerat). När du importerar ett cv sparar vi filen du laddade upp i original och krypterad, så att du kan ladda ner den igen och senare arbeta vidare från den. Filen sparas bara när den inte innehåller ett personnummer i själva texten. Detta är planerat och ännu inte i drift.",
+          "Din uppladdade originalfil av cv:t. När du importerar ett cv sparar vi filen du laddade upp i original och krypterad, så att du kan ladda ner den igen och senare arbeta vidare från den. Innehåller filens text ett personnummer sparas filen bara om du uttryckligen godkänner det när du laddar upp den; utan ditt godkännande sparas den inte. Du kan när som helst ångra ditt val genom att ta bort utkastet eller cv:t, då raderas filen direkt.",
           "Dina ansökningar, personliga brev, egna anteckningar och uppföljningar kopplade till jobb. Används för att hjälpa dig att hålla ordning på dina ansökningar och påminna dig om uppföljning.",
           "Ansökningshistorik och företagsöversikt (planerat). Vi sammanställer din egen ansökningshistorik per arbetsgivare så att du kan se hur många gånger du sökt hos ett företag, när du senast sökte och i vilket steg en ansökan avslutades. Sammanställningen kan vara ofullständig: en ansökan räknas med bara när vi har arbetsgivarens identitet från annonsen, så antalet vi visar är ett minsta antal och en arbetsgivare kan saknas helt. Sammanställningen visas bara för dig. Detta är planerat och ännu inte i drift."
         ]
@@ -88,7 +89,7 @@
         ],
         "list": [
           "Ditt konto och innehåll (cv, ansökningar, brev, anteckningar, uppföljningar) sparas så länge ditt konto är aktivt, så att du kan använda tjänsten. Du kan när som helst radera enskilt innehåll eller hela ditt konto.",
-          "Din uppladdade originalfil av cv:t (planerat). Originalfilen hör ihop med det cv du importerade den till. Raderar du cv:t raderas även originalfilen, och raderar du hela ditt konto tas den bort tillsammans med dina övriga uppgifter. Detta är planerat och ännu inte i drift.",
+          "Din uppladdade originalfil av cv:t. Originalfilen hör ihop med det cv eller utkast du importerade den till. Tar du bort utkastet eller raderar cv:t raderas även originalfilen direkt, och raderar du hela ditt konto tas den bort tillsammans med dina övriga uppgifter. Påbörjar du en import utan att slutföra den rensas filen automatiskt efter som mest 90 dagar.",
           "När du raderar ditt konto tas uppgifterna bort och de krypterade uppgifterna görs permanent oläsbara, se avsnittet om säkerhet. Efter att du begärt radering finns en period på 30 dagar då ett konto kan återställas, innan det raderas slutgiltigt.",
           "Säkerhets- och händelseloggen sparas i 90 dagar och rensas därefter automatiskt. När ditt konto raderas slutgiltigt avidentifieras de uppgifter i loggen som kan kopplas till dig.",
           "Jobbannonser från JobTech rensas inom 30 dagar.",

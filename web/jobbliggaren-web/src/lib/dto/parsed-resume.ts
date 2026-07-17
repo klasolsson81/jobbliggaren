@@ -20,15 +20,6 @@ import { z } from "zod";
  * ytas flag-only (count + kinds, aldrig råvärde — ADR 0074 Invariant 1).
  */
 
-/** Backend-svar efter `POST /api/v1/resumes/import`. Klienten behöver bara
- * `parsedResumeId` (för att navigera till granska-vyn) — övriga fält (confidence,
- * personnummer, yrkesförslag) hämtas på granska-vyn via `GET .../parsed/{id}`.
- * Okända nycklar ignoreras av zod (icke-strict), så schemat är avsiktligt smalt. */
-export const importResumeResponseSchema = z.object({
-  parsedResumeId: z.string(),
-});
-export type ImportResumeResponse = z.infer<typeof importResumeResponseSchema>;
-
 /** Övergripande parse-konfidens (OQ5). `Failed` = ingen användbar text → manuell
  * inmatning; `Degraded` = text men ofullständig struktur; `Confident` = pålitlig. */
 export const overallConfidenceLevelSchema = z.enum([
@@ -77,6 +68,33 @@ export const personnummerScanDtoSchema = z.object({
   kinds: z.array(z.string()),
 });
 export type PersonnummerScanDto = z.infer<typeof personnummerScanDtoSchema>;
+
+/** Varför auto-promote lämnade CV:t väntande (`AutoPromoteBlockReason`, CV-pivot 5a/5c). En
+ * LÅST mängd → `z.enum` fail-loud:ar vid drift (ett nytt backend-skäl ⇒ DtoParseError, aldrig
+ * tyst fel copy). FE:t rutar på `outcome` (Promoted/LeftPending), ALDRIG på detta värde
+ * (CLAUDE.md §5) — men läser `PersonnummerPresent` för att avgöra om samtyckesdialogen ska resas. */
+export const autoPromoteBlockReasonSchema = z.enum([
+  "PersonnummerPresent",
+  "UnclassifiedPreamble",
+  "ParseNotConfident",
+  "IncompleteContent",
+]);
+export type AutoPromoteBlockReason = z.infer<typeof autoPromoteBlockReasonSchema>;
+
+/** Backend-svar efter `POST /api/v1/resumes/import` (CV-pivot 5c — in-place import→auto-promote,
+ * R4). Sammansatt utfall: alltid parse-id:t + det PII-fria personnummer-fyndet
+ * (samtyckesdialogens trigger — bool/antal/typer, ALDRIG ett råvärde) + auto-promote-
+ * dispositionen. `outcome` är TYP-diskriminatorn FE:t rutar på (tillsammans med HTTP-statusen);
+ * `blockReason` är copy/telemetri. `resumeId` sätts iff `Promoted` (201), `blockReason` iff
+ * `LeftPending` (200). Varje fält är PII-fritt — aldrig personnummer-värdet, aldrig CV-innehåll. */
+export const importOutcomeResponseSchema = z.object({
+  parsedResumeId: z.string(),
+  personnummer: personnummerScanDtoSchema,
+  outcome: z.enum(["Promoted", "LeftPending"]),
+  resumeId: z.string().nullable(),
+  blockReason: autoPromoteBlockReasonSchema.nullable(),
+});
+export type ImportOutcomeResponse = z.infer<typeof importOutcomeResponseSchema>;
 
 export const parsedContactDtoSchema = z.object({
   fullName: z.string().nullable(),

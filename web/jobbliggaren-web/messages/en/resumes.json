@@ -43,9 +43,11 @@
   "upload": {
     "pendingLabel": "Uploading and reviewing your CV",
     "pendingText": "Uploading and reviewing your CV. This may take a moment.",
+    "nameLabel": "Name on the CV",
+    "nameHint": "The name appears at the top of your CV. We suggest your account name.",
     "dropText": "Choose a file to upload",
     "dropHint": "PDF or Word (DOCX)",
-    "help": "Upload a PDF or Word file (DOCX) of at most 10 MB. We read the contents and show a review. Your CV is not changed.",
+    "help": "Upload a PDF or Word file (DOCX) of at most 10 MB. We read the contents and create a CV you can review and edit.",
     "submit": "Upload and review CV",
     "errorWrongType": "Choose a PDF or Word file (DOCX).",
     "errorTooLarge": "The file is too large. The maximum size is 10 MB.",
@@ -53,6 +55,15 @@
     "errorGeneric": "Something went wrong during the import. Try again in a moment.",
     "errorUnauthorized": "You are not logged in.",
     "errorRateLimited": "Too many uploads. Wait {seconds} seconds and try again."
+  },
+  "consent": {
+    "title": "The file contains a personal identity number",
+    "finding": "We found {count, plural, one {a personal identity number} other {# personal identity numbers}} in the file you uploaded. A personal identity number does not need to be in a CV and should be removed before you use the contents.",
+    "storeExplainer": "Do you want to save the original file anyway? It is stored encrypted and only you can open it. Saving the file does not make it your CV. To use the contents you first need to remove the personal identity number from the file and upload it again.",
+    "save": "Save the file anyway",
+    "decline": "Do not save the file",
+    "saving": "Saving the file…",
+    "privacyLink": "How we handle personal identity numbers"
   },
   "parse": {
     "title": "How your CV was read",

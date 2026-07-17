@@ -89,7 +89,12 @@ public static class ResumeContentLinearizer
     {
         var blocks = experiences.Select(e =>
         {
-            var lines = new List<string> { e.Role, e.Company, PeriodLine(e.StartDate, e.EndDate) };
+            var lines = new List<string> { e.Role, e.Company };
+            if (PeriodLine(e.StartDate, e.EndDate, e.RawPeriod) is { } period)
+            {
+                lines.Add(period);
+            }
+
             if (!string.IsNullOrWhiteSpace(e.Description))
             {
                 lines.Add(e.Description);
@@ -104,7 +109,15 @@ public static class ResumeContentLinearizer
     private static string BuildEducation(IReadOnlyList<Education> educations)
     {
         var blocks = educations.Select(e =>
-            string.Join('\n', new[] { e.Degree, e.Institution, PeriodLine(e.StartDate, e.EndDate) }));
+        {
+            var lines = new List<string> { e.Degree, e.Institution };
+            if (PeriodLine(e.StartDate, e.EndDate, e.RawPeriod) is { } period)
+            {
+                lines.Add(period);
+            }
+
+            return string.Join('\n', lines);
+        });
 
         return string.Join(BlockSeparator, blocks);
     }
@@ -151,6 +164,15 @@ public static class ResumeContentLinearizer
     // Month-granular ISO period line; an ongoing role keeps an open right side. The en
     // dash (U+2013) matches the house period notation (PeriodParser recognises it);
     // em dash is banned in rendered copy (EmDashInReviewCopyGuardTests).
-    private static string PeriodLine(DateOnly start, DateOnly? end) =>
-        end is { } e ? $"{start:yyyy-MM} – {e:yyyy-MM}" : $"{start:yyyy-MM} –";
+    // Honest date absence (CTO-bind 5a-pre): structured dates are authoritative when a
+    // start exists; otherwise the verbatim RawPeriod is the citable fallback; with neither,
+    // the entry contributes NO period line — never an empty one (#815 parity: an absent
+    // line must not inject a phantom block boundary into the citation substrate).
+    private static string? PeriodLine(DateOnly? start, DateOnly? end, string? rawPeriod)
+    {
+        if (start is { } s)
+            return end is { } e ? $"{s:yyyy-MM} – {e:yyyy-MM}" : $"{s:yyyy-MM} –";
+
+        return string.IsNullOrWhiteSpace(rawPeriod) ? null : rawPeriod;
+    }
 }

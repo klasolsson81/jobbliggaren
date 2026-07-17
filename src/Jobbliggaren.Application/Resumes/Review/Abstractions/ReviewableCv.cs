@@ -44,7 +44,9 @@ public sealed record ReviewableContact(
 /// staging supplies the segmenter's verbatim block (header line + period line +
 /// description; <c>false</c>) with the freeform <see cref="PeriodText"/>; canonical
 /// supplies the pure description (<c>true</c>) with structured
-/// <see cref="StartDate"/>/<see cref="EndDate"/> (open end = ongoing).
+/// <see cref="StartDate"/>/<see cref="EndDate"/> (open end = ongoing) — and, since
+/// honest date absence (CTO-bind 5a-pre), a date-less canonical entry also carries
+/// <see cref="PeriodText"/> (the verbatim RawPeriod) so the period stays recoverable.
 /// </summary>
 public sealed record ReviewableExperience(
     string? Title,

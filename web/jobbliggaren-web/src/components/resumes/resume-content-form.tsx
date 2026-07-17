@@ -36,12 +36,16 @@ type FormValues = {
     startDate: string;
     endDate: string;
     description: string;
+    // Dold passthrough (CTO-bind 5a-pre): verbatim-perioden ur användarens fil.
+    // Redigeras aldrig här — bevaras så en icke-datum-edit inte tappar den.
+    rawPeriod: string;
   }>;
   educations: Array<{
     institution: string;
     degree: string;
     startDate: string;
     endDate: string;
+    rawPeriod: string;
   }>;
   skills: Array<{
     name: string;
@@ -61,15 +65,18 @@ function toFormValues(content: ResumeContentDto): FormValues {
     experiences: content.experiences.map((e) => ({
       company: e.company,
       role: e.role,
-      startDate: e.startDate,
+      // null = ärligt frånvarande datum (CTO-bind 5a-pre) — tomt fält, aldrig påhittat.
+      startDate: e.startDate ?? "",
       endDate: e.endDate ?? "",
       description: e.description ?? "",
+      rawPeriod: e.rawPeriod ?? "",
     })),
     educations: content.educations.map((e) => ({
       institution: e.institution,
       degree: e.degree,
-      startDate: e.startDate,
+      startDate: e.startDate ?? "",
       endDate: e.endDate ?? "",
+      rawPeriod: e.rawPeriod ?? "",
     })),
     skills: content.skills.map((s) => ({
       name: s.name,
@@ -92,15 +99,17 @@ type RawContentPayload = {
   experiences: Array<{
     company: string;
     role: string;
-    startDate: string;
+    startDate?: string;
     endDate?: string;
     description?: string;
+    rawPeriod?: string;
   }>;
   educations: Array<{
     institution: string;
     degree: string;
-    startDate: string;
+    startDate?: string;
     endDate?: string;
+    rawPeriod?: string;
   }>;
   skills: Array<{ name: string; yearsExperience: number | null }>;
   summary?: string;
@@ -117,15 +126,17 @@ function toRawPayload(values: FormValues): RawContentPayload {
     experiences: values.experiences.map((e) => ({
       company: e.company,
       role: e.role,
-      startDate: e.startDate,
+      startDate: e.startDate || undefined,
       endDate: e.endDate || undefined,
       description: e.description || undefined,
+      rawPeriod: e.rawPeriod || undefined,
     })),
     educations: values.educations.map((e) => ({
       institution: e.institution,
       degree: e.degree,
-      startDate: e.startDate,
+      startDate: e.startDate || undefined,
       endDate: e.endDate || undefined,
+      rawPeriod: e.rawPeriod || undefined,
     })),
     skills: values.skills.map((s) => ({
       name: s.name,
@@ -323,12 +334,14 @@ export function ResumeContentForm({
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor={`exp-${index}-startDate`}>{tr("startDateLabel")}</Label>
+                  {/* Inget required: ärligt frånvarande datum (CTO-bind 5a-pre) — native
+                      required skulle blockera submit före zod OCH sätta en aria-required-
+                      lögn (design-review Blocker, 5a-pre). */}
                   <Input
                     id={`exp-${index}-startDate`}
                     type="date"
                     {...register(`experiences.${index}.startDate`)}
                     {...fieldA11y(`experiences.${index}.startDate`)}
-                    required
                     disabled={isPending}
                   />
                 </div>
@@ -423,12 +436,12 @@ export function ResumeContentForm({
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor={`edu-${index}-startDate`}>{tr("startDateLabel")}</Label>
+                  {/* Inget required — samma honest-date-absence-kontrakt som erfarenhet. */}
                   <Input
                     id={`edu-${index}-startDate`}
                     type="date"
                     {...register(`educations.${index}.startDate`)}
                     {...fieldA11y(`educations.${index}.startDate`)}
-                    required
                     disabled={isPending}
                   />
                 </div>
@@ -563,9 +576,10 @@ function emptyExperienceFormItem() {
   return {
     company: e.company,
     role: e.role,
-    startDate: e.startDate,
+    startDate: e.startDate ?? "",
     endDate: e.endDate ?? "",
     description: e.description ?? "",
+    rawPeriod: e.rawPeriod ?? "",
   };
 }
 
@@ -574,8 +588,9 @@ function emptyEducationFormItem() {
   return {
     institution: e.institution,
     degree: e.degree,
-    startDate: e.startDate,
+    startDate: e.startDate ?? "",
     endDate: e.endDate ?? "",
+    rawPeriod: e.rawPeriod ?? "",
   };
 }
 

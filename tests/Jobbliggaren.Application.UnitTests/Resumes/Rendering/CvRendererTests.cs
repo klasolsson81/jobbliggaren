@@ -195,7 +195,7 @@ public class CvRendererTests
     public void FormatPeriod_ShouldRenderYearSpan_WhenStartAndEndDifferInYear()
     {
         var period = CvDocumentModel.FormatPeriod(
-            new DateOnly(2021, 3, 15), new DateOnly(2024, 6, 30), "pågående");
+            new DateOnly(2021, 3, 15), new DateOnly(2024, 6, 30), null, "pågående");
 
         period.ShouldBe("2021–2024"); // en-dash between years
     }
@@ -204,7 +204,7 @@ public class CvRendererTests
     public void FormatPeriod_ShouldCollapseToSingleYear_WhenStartAndEndShareYear()
     {
         var period = CvDocumentModel.FormatPeriod(
-            new DateOnly(2021, 1, 1), new DateOnly(2021, 12, 31), "pågående");
+            new DateOnly(2021, 1, 1), new DateOnly(2021, 12, 31), null, "pågående");
 
         period.ShouldBe("2021");
     }
@@ -214,7 +214,7 @@ public class CvRendererTests
     [InlineData("present")]
     public void FormatPeriod_ShouldUseLocalisedOngoingToken_WhenEndIsNull(string ongoingLabel)
     {
-        var period = CvDocumentModel.FormatPeriod(new DateOnly(2021, 7, 1), null, ongoingLabel);
+        var period = CvDocumentModel.FormatPeriod(new DateOnly(2021, 7, 1), null, null, ongoingLabel);
 
         period.ShouldBe($"2021–{ongoingLabel}");
     }
@@ -223,10 +223,49 @@ public class CvRendererTests
     public void FormatPeriod_ShouldUseEnDash_NeverTheForbiddenEmDash()
     {
         var period = CvDocumentModel.FormatPeriod(
-            new DateOnly(2018, 1, 1), new DateOnly(2020, 1, 1), "pågående");
+            new DateOnly(2018, 1, 1), new DateOnly(2020, 1, 1), null, "pågående");
 
         period.ShouldContain('–');        // en-dash present
         period.ShouldNotContain('—');     // em-dash (U+2014) is forbidden in UI copy (§5)
+    }
+
+    // ----- Honest date absence (CV-pivot 2026-07-17, CTO-bind 5a-pre) -----
+
+    [Fact]
+    public void FormatPeriod_ShouldFallBackToVerbatimRawPeriod_WhenNoStructuredStart()
+    {
+        var period = CvDocumentModel.FormatPeriod(null, null, "2019–2022", "pågående");
+
+        period.ShouldBe("2019–2022");
+    }
+
+    [Fact]
+    public void FormatPeriod_ShouldRenderNothing_WhenNeitherDatesNorRawPeriodExist()
+    {
+        var period = CvDocumentModel.FormatPeriod(null, null, null, "pågående");
+
+        // Never a fabricated period — an empty string renders as no period at all.
+        period.ShouldBe(string.Empty);
+    }
+
+    [Fact]
+    public void FormatPeriod_StructuredDatesStayAuthoritative_OverRawPeriod()
+    {
+        var period = CvDocumentModel.FormatPeriod(
+            new DateOnly(2021, 1, 1), new DateOnly(2024, 1, 1), "ska ignoreras", "pågående");
+
+        period.ShouldBe("2021–2024");
+    }
+
+    [Fact]
+    public void FormatPeriod_EndOnlyWithoutRawPeriod_RendersNothing_CharacterizationPin()
+    {
+        // v1 display gates on StartDate-presence: a lone EndDate is stored yet not
+        // rendered (deliberate, degrades honestly — CTO-triage with the auto-promote PR).
+        var period = CvDocumentModel.FormatPeriod(
+            null, new DateOnly(2020, 6, 1), null, "pågående");
+
+        period.ShouldBe(string.Empty);
     }
 
     [Fact]

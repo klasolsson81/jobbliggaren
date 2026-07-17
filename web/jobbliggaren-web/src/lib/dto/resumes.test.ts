@@ -82,6 +82,44 @@ describe("resumeContentDtoSchema", () => {
     expect(resumeContentDtoSchema.safeParse(broken).success).toBe(false);
   });
 
+  // Ärligt frånvarande datum (CTO-bind 5a-pre): en date-less BE-post (startDate: null)
+  // måste parsas rent — kontrafaktumet mot missing-key-testet ovan (nullable ≠ optional).
+  it("accepts experience with null startDate (dateless BE entry)", () => {
+    const dateless = {
+      ...validContent,
+      experiences: [
+        {
+          company: "Acme",
+          role: "Dev",
+          startDate: null,
+          endDate: null,
+          description: null,
+          rawPeriod: "2019–2022",
+        },
+      ],
+    };
+    expect(resumeContentDtoSchema.safeParse(dateless).success).toBe(true);
+  });
+
+  it("accepts rawPeriod present, null and absent (nullish)", () => {
+    for (const rawPeriod of ["2019–2022", null, undefined]) {
+      const variant = {
+        ...validContent,
+        experiences: [
+          {
+            company: "Acme",
+            role: "Dev",
+            startDate: "2024-01-01",
+            endDate: null,
+            description: null,
+            ...(rawPeriod === undefined ? {} : { rawPeriod }),
+          },
+        ],
+      };
+      expect(resumeContentDtoSchema.safeParse(variant).success).toBe(true);
+    }
+  });
+
   // Fas 4b AppCopy superset (ADR 0095): languages/sections är optional-med-default.
   it("parsar rent när languages OCH sections utelämnas (pre-superset back-compat)", () => {
     // validContent saknar redan båda fälten — pinnar att en pre-superset payload

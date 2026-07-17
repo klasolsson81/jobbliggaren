@@ -113,11 +113,15 @@ internal sealed record CvDocumentModel(
             content.Summary,
             content.Experiences
                 .Select(e => new ExperienceLine(
-                    e.Role, e.Company, FormatPeriod(e.StartDate, e.EndDate, ongoingLabel), e.Description ?? string.Empty))
+                    e.Role, e.Company,
+                    FormatPeriod(e.StartDate, e.EndDate, e.RawPeriod, ongoingLabel),
+                    e.Description ?? string.Empty))
                 .ToList(),
             content.Educations
                 .Select(e => new EducationLine(
-                    e.Institution, e.Degree, FormatPeriod(e.StartDate, e.EndDate, ongoingLabel), string.Empty))
+                    e.Institution, e.Degree,
+                    FormatPeriod(e.StartDate, e.EndDate, e.RawPeriod, ongoingLabel),
+                    string.Empty))
                 .ToList(),
             content.Skills.Select(s => s.Name).ToList(),
             content.SkillGroups
@@ -141,15 +145,22 @@ internal sealed record CvDocumentModel(
     /// deterministic, culture-free: only the year digits and the localised
     /// <paramref name="ongoingLabel"/> appear. An open-ended period (no <paramref name="end"/>)
     /// renders "{startYear}–{ongoingLabel}"; a single-year period collapses to just that year;
-    /// otherwise "{startYear}–{endYear}". Display only — the period is never scored (Goodhart/TD-B).
+    /// otherwise "{startYear}–{endYear}". Honest date absence (CTO-bind 5a-pre): with no
+    /// structured start, the verbatim <paramref name="rawPeriod"/> is the display fallback;
+    /// with neither, the entry renders no period at all — never a fabricated one. Display
+    /// only — the period is never scored (Goodhart/TD-B).
     /// </summary>
-    internal static string FormatPeriod(DateOnly start, DateOnly? end, string ongoingLabel)
+    internal static string FormatPeriod(
+        DateOnly? start, DateOnly? end, string? rawPeriod, string ongoingLabel)
     {
-        var startYear = start.Year.ToString(CultureInfo.InvariantCulture);
+        if (start is not { } s)
+            return string.IsNullOrWhiteSpace(rawPeriod) ? string.Empty : rawPeriod;
+
+        var startYear = s.Year.ToString(CultureInfo.InvariantCulture);
         if (end is null)
             return $"{startYear}{EnDash}{ongoingLabel}";
 
-        return end.Value.Year == start.Year
+        return end.Value.Year == s.Year
             ? startYear
             : $"{startYear}{EnDash}{end.Value.Year.ToString(CultureInfo.InvariantCulture)}";
     }

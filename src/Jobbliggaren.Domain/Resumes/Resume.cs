@@ -652,10 +652,21 @@ public sealed class Resume : AggregateRoot<ResumeId>
                 return Result.Failure(DomainError.Validation(
                     "Resume.ExperienceRoleRequired", "Roll krävs på erfarenhet."));
 
-            if (exp.EndDate is { } end && end < exp.StartDate)
+            // Honest date absence (CTO-bind 5a-pre): end-before-start is an error only when
+            // BOTH are present. A null start with a set end ("examen 2020") VALIDATES, but
+            // v1 display gates on StartDate-presence: a lone EndDate is stored yet not
+            // rendered/linearized (RawPeriod or nothing shows instead) — degrades honestly,
+            // never fabricates. Whether display should honor a lone EndDate is CTO-triage
+            // for the auto-promote PR (which itself never emits end-only entries).
+            if (exp.StartDate is { } start && exp.EndDate is { } end && end < start)
                 return Result.Failure(DomainError.Validation(
                     "Resume.ExperienceDatesInvalid",
                     "Slutdatum får inte vara före startdatum."));
+
+            if (exp.RawPeriod is { Length: > 100 })
+                return Result.Failure(DomainError.Validation(
+                    "Resume.ExperienceRawPeriodTooLong",
+                    "Periodtext får vara max 100 tecken."));
         }
 
         foreach (var edu in content.Educations)
@@ -668,10 +679,16 @@ public sealed class Resume : AggregateRoot<ResumeId>
                 return Result.Failure(DomainError.Validation(
                     "Resume.EducationDegreeRequired", "Examen krävs på utbildning."));
 
-            if (edu.EndDate is { } end && end < edu.StartDate)
+            // Honest date absence (CTO-bind 5a-pre) — parity with the experience rule above.
+            if (edu.StartDate is { } eduStart && edu.EndDate is { } eduEnd && eduEnd < eduStart)
                 return Result.Failure(DomainError.Validation(
                     "Resume.EducationDatesInvalid",
                     "Slutdatum får inte vara före startdatum."));
+
+            if (edu.RawPeriod is { Length: > 100 })
+                return Result.Failure(DomainError.Validation(
+                    "Resume.EducationRawPeriodTooLong",
+                    "Periodtext får vara max 100 tecken."));
         }
 
         // Fas 4b AppCopy superset (ADR 0095 D-E). Validation parity with the existing

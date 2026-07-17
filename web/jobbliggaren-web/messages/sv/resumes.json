@@ -167,7 +167,7 @@
     "experienceLegend": "Erfarenhet {index}",
     "companyLabel": "Företag",
     "roleLabel": "Roll",
-    "startDateLabel": "Startdatum",
+    "startDateLabel": "Startdatum (valfritt)",
     "endDateLabel": "Slutdatum (valfritt)",
     "descriptionLabel": "Beskrivning",
     "removeExperience": "Ta bort erfarenhet {index}",

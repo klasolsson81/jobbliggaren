@@ -115,8 +115,13 @@ public sealed record CvReviewContext(
                     content.PersonalInfo.Location),
                 content.Summary,
                 content.Experiences
+                    // Honest date absence (CTO-bind 5a-pre): the verbatim RawPeriod feeds
+                    // PeriodText so the review's PeriodParser can recover a date-less
+                    // entry's period from the user's own string — strictly-more-honest than
+                    // the null it carried when structured dates were guaranteed present.
                     .Select(e => new ReviewableExperience(
-                        e.Role, e.Company, null, e.StartDate, e.EndDate, e.Description ?? string.Empty,
+                        e.Role, e.Company, e.RawPeriod, e.StartDate, e.EndDate,
+                        e.Description ?? string.Empty,
                         TextIsDescriptionOnly: true))
                     .ToList(),
                 content.Educations

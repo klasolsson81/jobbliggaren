@@ -206,16 +206,6 @@ public static class JobAdLifecycleReadRegistry
                     "A user may bookmark an ad that is Active OR Archived, but not an Erased tombstone: 'Status != "
                     + "Erased' denies only the erased row, by design, and admitting Archived is deliberate (she can "
                     + "save an ad that has since been archived). This is a save action on a real ad, not a surfacing.")),
-            ["Jobbliggaren.Application.JobAds.Queries.GetJobAdExtractedTerms.GetJobAdExtractedTermsQueryHandler.Handle"] =
-                One(Any(
-                    ".Where(j.Id == id).Select(j.ExtractedTerms) — one ad's extracted terms by id.",
-                    "UNREACHABLE: this query has NO endpoint and NO production sender (verified #885 — only its handler, "
-                    + "validator and tests reference it). The earlier reason here claimed it feeds 'the match-explanation "
-                    + "panel'; that was false, and a false reason in a registry whose whole purpose is written decisions is "
-                    + "the defect this registry exists to end. Status-agnostic as written; an Erased ad reads as empty terms "
-                    + "(Erase() sets ExtractedTerms.Empty) and no lifecycle surfacing decision is made. Whether the query "
-                    + "should exist AT ALL is a #886-class question (a declared thing with no caller) — a follow-up PR's "
-                    + "change-reason, not #885's.")),
             ["Jobbliggaren.Application.Applications.Queries.GetPipeline.GetPipelineQueryHandler.Handle"] =
                 One(Any(
                     ".GroupJoin(db.JobAds).SelectMany(DefaultIfEmpty()) — LEFT join enriching the pipeline applications.",

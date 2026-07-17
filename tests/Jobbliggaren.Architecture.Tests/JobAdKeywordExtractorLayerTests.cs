@@ -9,9 +9,9 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <see cref="OccupationCodeDeriverLayerTests"/> (F4-3) with ONE deliberate
 /// divergence (dotnet-architect Variant A, ADR 0075):
 /// <list type="bullet">
-/// <item>The <b>port</b> <c>IJobAdKeywordExtractor</c> + the input/read DTOs
-/// (<c>JobAdExtractionInput</c>, <c>JobAdExtractionDto</c>/<c>ExtractedTermDto</c>)
-/// are Application abstractions — exactly like F4-3's <c>IOccupationCodeDeriver</c>.</item>
+/// <item>The <b>port</b> <c>IJobAdKeywordExtractor</c> + the input DTO
+/// (<c>JobAdExtractionInput</c>) are Application abstractions — exactly like F4-3's
+/// <c>IOccupationCodeDeriver</c>.</item>
 /// <item>The VALUE OBJECT + enums (<c>ExtractedTerms</c>, <c>ExtractedTerm</c>,
 /// <c>ExtractedTermKind</c>, <c>ExtractedTermSource</c>) live in <b>Domain</b>, NOT
 /// Application — because they are <b>persisted aggregate state</b> (jsonb on
@@ -56,16 +56,6 @@ public class JobAdKeywordExtractorLayerTests
         // text only — no PII, no domain identity). Mirrors F4-3's port DTOs.
         var input = typeof(Jobbliggaren.Application.JobAds.Abstractions.JobAdExtractionInput);
         input.Assembly.ShouldBe(
-            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly);
-    }
-
-    [Fact]
-    public void JobAdExtractionDto_is_in_Application_layer()
-    {
-        // The read projection (GetJobAdExtractedTermsQuery's result) is a boundary
-        // transport DTO — queries never return domain objects (CLAUDE.md §2.3).
-        var dto = typeof(Jobbliggaren.Application.JobAds.Abstractions.JobAdExtractionDto);
-        dto.Assembly.ShouldBe(
             typeof(Jobbliggaren.Application.AssemblyMarker).Assembly);
     }
 

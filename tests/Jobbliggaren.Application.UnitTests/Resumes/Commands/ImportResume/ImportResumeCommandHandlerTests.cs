@@ -339,6 +339,10 @@ public class ImportResumeCommandHandlerTests
         audit.AggregateId.ShouldBe(file.Id.Value);
         audit.UserId.ShouldBe(_userId);
         audit.CorrelationId.ShouldBe(_correlationGuid);
+        // B1 binds IP/UA parity as MANDATORY — witness the propagation (a regression to
+        // null would otherwise stay green; the Testcontainers arm sends null by design).
+        audit.IpAddress.ShouldBe("203.0.113.7");
+        audit.UserAgent.ShouldBe("test-agent");
         audit.Payload.ShouldBeNull(); // PII-free by construction — no content field exists
     }
 

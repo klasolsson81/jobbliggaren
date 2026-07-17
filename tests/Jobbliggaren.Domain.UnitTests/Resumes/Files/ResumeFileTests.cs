@@ -272,4 +272,16 @@ public class ResumeFileTests
         result.Value.PnrConsentAt.ShouldBeNull();
         result.Value.PnrConsentDialogVersion.ShouldBeNull();
     }
+
+    [Fact]
+    public void CaptureOriginal_WhitespaceVersionOnCleanFile_NormalizesToNull()
+    {
+        // A whitespace-only version on a clean file passes the reverse arm (not "present")
+        // but must persist NULL, never "" — the stored state cannot drift from
+        // "non-null iff PnrFlagged" even for a direct-domain caller (architect n1).
+        var result = Capture(pnrConsentDialogVersion: "   ");
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PnrConsentDialogVersion.ShouldBeNull();
+    }
 }

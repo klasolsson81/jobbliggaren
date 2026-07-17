@@ -185,7 +185,9 @@ public sealed class ResumeFile : AggregateRoot<ResumeFileId>
             byteSize,
             pnrFlagged,
             pnrConsentAt,
-            pnrConsentDialogVersion?.Trim(),
+            // Blank normalizes to NULL, not "" — the persisted state can never drift from
+            // "non-null iff PnrFlagged" even for a direct-domain caller (architect n1).
+            string.IsNullOrWhiteSpace(pnrConsentDialogVersion) ? null : pnrConsentDialogVersion.Trim(),
             clock.UtcNow);
 
         return Result.Success(file);

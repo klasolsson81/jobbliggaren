@@ -19,11 +19,14 @@ namespace Jobbliggaren.Domain.Resumes.Files;
 /// model, it IS what a stored original is. There is no plaintext-bytes member (pinned by an
 /// architecture test), so multi-MB CV plaintext is never change-tracked (§5 minimisation).</para>
 ///
-/// <para><b>pnr posture (DPIA M-F5 / §7 Beslut 2(c)):</b> a pnr-flagged original is stored
-/// only after an explicit user acknowledge. PR-9a captures ONLY non-flagged originals at
-/// import; <see cref="PnrFlagged"/> therefore rides as <c>false</c> here and exists so the
-/// deferred acknowledge-store follow-up (paired with the 9b download UX) can carry the flag as
-/// metadata. The flag never surfaces publicly and never bypasses the promote-block.</para>
+/// <para><b>pnr posture (DPIA M-F5 / §7 Beslut 2(c), delivered CV-pivot 5b):</b> a pnr-flagged
+/// original is stored only after an explicit user acknowledge — specific, informed consent under
+/// DSL 3:10. The aggregate enforces the evidence biconditional at construction:
+/// <see cref="PnrFlagged"/> is <c>true</c> iff BOTH <see cref="PnrConsentAt"/> and
+/// <see cref="PnrConsentDialogVersion"/> are present (5b security-bind B1 / CTO-bind M-B), so no
+/// caller can capture a flagged file without recording why, and none can stamp consent on a
+/// clean file. The flag never surfaces publicly and never bypasses the promote-block — consent
+/// stores the FILE only; a flagged parse remains unpromotable (5b security-bind B3).</para>
 /// </summary>
 public sealed class ResumeFile : AggregateRoot<ResumeFileId>
 {
@@ -53,9 +56,20 @@ public sealed class ResumeFile : AggregateRoot<ResumeFileId>
     public long ByteSize { get; private set; }
 
     /// <summary>Whether the import scanner flagged a personnummer in the file body (M-F5 metadata).
-    /// Always <c>false</c> in PR-9a (flagged originals are not captured); carried for the deferred
-    /// acknowledge-store path. Never surfaced publicly.</summary>
+    /// Since CV-pivot 5b a flagged original IS capturable — but only with the consent evidence
+    /// (the construction biconditional). Never surfaced publicly (pinned by a DTO-leak test).</summary>
     public bool PnrFlagged { get; private set; }
+
+    /// <summary>Art. 7(1) consent evidence — when the user acknowledged storing this pnr-flagged
+    /// original ("filen innehåller ditt personnummer, vill du spara den ändå?" — DPIA #659
+    /// Beslut 2(c), DSL 3:10). Immutable (write-once aggregate). Non-null iff
+    /// <see cref="PnrFlagged"/>. Never surfaced publicly.</summary>
+    public DateTimeOffset? PnrConsentAt { get; private set; }
+
+    /// <summary>Which version of the consent-dialog copy the acknowledge was given against —
+    /// the "informed" half of the Art. 7(1) evidence (5b CTO-bind M-C). Non-null iff
+    /// <see cref="PnrFlagged"/>. Never surfaced publicly.</summary>
+    public string? PnrConsentDialogVersion { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -75,6 +89,8 @@ public sealed class ResumeFile : AggregateRoot<ResumeFileId>
         string fileName,
         long byteSize,
         bool pnrFlagged,
+        DateTimeOffset? pnrConsentAt,
+        string? pnrConsentDialogVersion,
         DateTimeOffset now) : base(id)
     {
         JobSeekerId = jobSeekerId;
@@ -84,6 +100,8 @@ public sealed class ResumeFile : AggregateRoot<ResumeFileId>
         FileName = fileName;
         ByteSize = byteSize;
         PnrFlagged = pnrFlagged;
+        PnrConsentAt = pnrConsentAt;
+        PnrConsentDialogVersion = pnrConsentDialogVersion;
         CreatedAt = now;
     }
 
@@ -92,8 +110,11 @@ public sealed class ResumeFile : AggregateRoot<ResumeFileId>
     /// bytes (owner-DEK AES-256-GCM) and passes the opaque ciphertext in
     /// <paramref name="sealedContent"/> — this factory never sees plaintext. Validates structural
     /// preconditions (owner, parsed link, non-empty ciphertext, source metadata, non-negative
-    /// size) and masks any personnummer-shaped span in the filename at rest (M-F1), owning the
-    /// invariant "FileName carries no plaintext personnummer" for every caller.
+    /// size), masks any personnummer-shaped span in the filename at rest (M-F1), owning the
+    /// invariant "FileName carries no plaintext personnummer" for every caller, and enforces the
+    /// consent biconditional (5b): a flagged file without full consent evidence, or consent
+    /// evidence on an unflagged file, is refused — the ONLY construction path stays fail-closed
+    /// even under a caller predicate bug (defense-in-depth, security-bind B1 / CTO-bind M-B).
     /// </summary>
     public static Result<ResumeFile> CaptureOriginal(
         JobSeekerId jobSeekerId,
@@ -103,6 +124,8 @@ public sealed class ResumeFile : AggregateRoot<ResumeFileId>
         string? fileName,
         long byteSize,
         bool pnrFlagged,
+        DateTimeOffset? pnrConsentAt,
+        string? pnrConsentDialogVersion,
         IDateTimeProvider clock)
     {
         if (jobSeekerId == default)
@@ -126,6 +149,26 @@ public sealed class ResumeFile : AggregateRoot<ResumeFileId>
         if (byteSize <= 0)
             return Fail("ResumeFile.ByteSizeInvalid", "Filstorlek måste vara större än noll.");
 
+        // The consent biconditional (5b security-bind B1, CTO-bind M-B): PnrFlagged ⇔ full
+        // Art. 7(1) evidence. Direction 1 keeps a flagged capture fail-closed without consent
+        // (byte-parity with the pre-5b posture); direction 2 stops misleading consent evidence
+        // from ever landing on a clean file (it would also inflate any future consent count).
+        var consentAtPresent = pnrConsentAt.HasValue;
+        var versionPresent = !string.IsNullOrWhiteSpace(pnrConsentDialogVersion);
+        if (pnrFlagged && (!consentAtPresent || !versionPresent))
+        {
+            return Fail(
+                "ResumeFile.PnrConsentRequired",
+                "Ett original med personnummer kan bara sparas efter registrerat samtycke.");
+        }
+
+        if (!pnrFlagged && (consentAtPresent || versionPresent))
+        {
+            return Fail(
+                "ResumeFile.PnrConsentWithoutFlag",
+                "Samtyckesbevis kan bara registreras för en fil med flaggat personnummer.");
+        }
+
         // M-F1 / #465 precedent: a personnummer can ride in on the filename ("CV_811218-9876.pdf").
         // Mask it at rest with the SAME gap-aware, Luhn+date-gated redactor as the parsed sibling
         // (#427) so this unencrypted column never carries a plaintext personnummer. Deterministic,
@@ -141,6 +184,8 @@ public sealed class ResumeFile : AggregateRoot<ResumeFileId>
             redactedFileName,
             byteSize,
             pnrFlagged,
+            pnrConsentAt,
+            pnrConsentDialogVersion?.Trim(),
             clock.UtcNow);
 
         return Result.Success(file);

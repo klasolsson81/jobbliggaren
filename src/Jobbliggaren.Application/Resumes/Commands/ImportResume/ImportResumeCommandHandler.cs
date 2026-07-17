@@ -229,6 +229,8 @@ public sealed class ImportResumeCommandHandler(
                 command.FileName,
                 command.FileBytes.Length,
                 pnrFlagged: false,
+                pnrConsentAt: null,
+                pnrConsentDialogVersion: null,
                 clock);
 
             if (captured.IsFailure)

@@ -35,7 +35,9 @@ public class ResumeFileTests
         string? contentType = "application/pdf",
         string? fileName = "cv.pdf",
         long byteSize = 1234,
-        bool pnrFlagged = false) =>
+        bool pnrFlagged = false,
+        DateTimeOffset? pnrConsentAt = null,
+        string? pnrConsentDialogVersion = null) =>
         ResumeFile.CaptureOriginal(
             owner ?? Owner,
             parsed ?? Parsed,
@@ -44,6 +46,8 @@ public class ResumeFileTests
             fileName,
             byteSize,
             pnrFlagged,
+            pnrConsentAt,
+            pnrConsentDialogVersion,
             Clock);
 
     [Fact]
@@ -168,14 +172,104 @@ public class ResumeFileTests
         result.Error.Code.ShouldBe("ResumeFile.ByteSizeInvalid");
     }
 
+    // ── the 5b consent biconditional (security-bind B1 / CTO-bind M-B / M3) ─────
+    // PnrFlagged ⇔ (PnrConsentAt present AND PnrConsentDialogVersion present).
+    // Direction 1: a flagged file without FULL evidence is refused — the without-consent
+    // path stays fail-closed inside the single construction path, not handler discipline.
+    // Direction 2: consent evidence on a clean file is refused (misleading Art. 7(1) record).
+
+    private static readonly DateTimeOffset ConsentAt = new(2026, 7, 17, 9, 30, 0, TimeSpan.Zero);
+
     [Fact]
-    public void CaptureOriginal_PnrFlagged_CarriesFlagAsMetadata()
+    public void CaptureOriginal_PnrFlaggedWithFullConsentEvidence_Succeeds()
     {
-        // PR-9a's import path always passes false (flagged originals are not captured,
-        // M-F5); the aggregate itself carries the flag for the deferred acknowledge-store.
-        var result = Capture(pnrFlagged: true);
+        var result = Capture(
+            pnrFlagged: true, pnrConsentAt: ConsentAt, pnrConsentDialogVersion: "1");
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.PnrFlagged.ShouldBeTrue();
+        var file = result.Value;
+        file.PnrFlagged.ShouldBeTrue();
+        file.PnrConsentAt.ShouldBe(ConsentAt);
+        file.PnrConsentDialogVersion.ShouldBe("1");
+    }
+
+    [Fact]
+    public void CaptureOriginal_PnrFlaggedWithoutConsent_Fails()
+    {
+        var result = Capture(pnrFlagged: true);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("ResumeFile.PnrConsentRequired");
+    }
+
+    [Fact]
+    public void CaptureOriginal_PnrFlaggedWithOnlyConsentTimestamp_Fails()
+    {
+        var result = Capture(pnrFlagged: true, pnrConsentAt: ConsentAt);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("ResumeFile.PnrConsentRequired");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void CaptureOriginal_PnrFlaggedWithBlankDialogVersion_Fails(string version)
+    {
+        var result = Capture(
+            pnrFlagged: true, pnrConsentAt: ConsentAt, pnrConsentDialogVersion: version);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("ResumeFile.PnrConsentRequired");
+    }
+
+    [Fact]
+    public void CaptureOriginal_PnrFlaggedWithOnlyDialogVersion_Fails()
+    {
+        var result = Capture(pnrFlagged: true, pnrConsentDialogVersion: "1");
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("ResumeFile.PnrConsentRequired");
+    }
+
+    [Fact]
+    public void CaptureOriginal_ConsentEvidenceOnUnflaggedFile_Fails()
+    {
+        var result = Capture(
+            pnrFlagged: false, pnrConsentAt: ConsentAt, pnrConsentDialogVersion: "1");
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("ResumeFile.PnrConsentWithoutFlag");
+    }
+
+    [Fact]
+    public void CaptureOriginal_PartialConsentEvidenceOnUnflaggedFile_Fails()
+    {
+        // Even ONE stray stamp on a clean file is refused — a lone timestamp would still
+        // read as consent evidence in any future accounting.
+        var result = Capture(pnrFlagged: false, pnrConsentAt: ConsentAt);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("ResumeFile.PnrConsentWithoutFlag");
+    }
+
+    [Fact]
+    public void CaptureOriginal_TrimsDialogVersion()
+    {
+        var result = Capture(
+            pnrFlagged: true, pnrConsentAt: ConsentAt, pnrConsentDialogVersion: " 1 ");
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PnrConsentDialogVersion.ShouldBe("1");
+    }
+
+    [Fact]
+    public void CaptureOriginal_CleanFile_CarriesNoConsentEvidence()
+    {
+        var result = Capture();
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PnrConsentAt.ShouldBeNull();
+        result.Value.PnrConsentDialogVersion.ShouldBeNull();
     }
 }

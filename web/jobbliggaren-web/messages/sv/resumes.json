@@ -43,9 +43,11 @@
   "upload": {
     "pendingLabel": "Laddar upp och granskar ditt CV",
     "pendingText": "Laddar upp och granskar ditt CV. Det kan ta en liten stund.",
+    "nameLabel": "Namn på CV:t",
+    "nameHint": "Namnet visas överst på ditt CV. Vi föreslår ditt kontonamn.",
     "dropText": "Välj en fil att ladda upp",
     "dropHint": "PDF eller Word (DOCX)",
-    "help": "Ladda upp en PDF- eller Word-fil (DOCX) på högst 10 MB. Vi tolkar innehållet och visar en granskning. Ditt CV ändras inte.",
+    "help": "Ladda upp en PDF- eller Word-fil (DOCX) på högst 10 MB. Vi tolkar innehållet och skapar ett CV du kan granska och redigera.",
     "submit": "Ladda upp och granska CV",
     "errorWrongType": "Välj en PDF- eller Word-fil (DOCX).",
     "errorTooLarge": "Filen är för stor. Maxstorlek är 10 MB.",
@@ -53,6 +55,15 @@
     "errorGeneric": "Något gick fel vid importen. Försök igen om en stund.",
     "errorUnauthorized": "Du är inte inloggad.",
     "errorRateLimited": "För många uppladdningar. Vänta {seconds} sekunder och försök igen."
+  },
+  "consent": {
+    "title": "Filen innehåller ett personnummer",
+    "finding": "Vi hittade {count, plural, one {ett personnummer} other {# personnummer}} i filen du laddade upp. Ett personnummer behöver inte finnas i ett CV och bör tas bort innan du använder innehållet.",
+    "storeExplainer": "Vill du spara originalfilen ändå? Den lagras krypterat och bara du kan öppna den. Att spara filen gör den inte till ditt CV. För att använda innehållet behöver du först ta bort personnumret i granskningen.",
+    "save": "Spara filen ändå",
+    "decline": "Spara inte filen",
+    "saving": "Sparar filen…",
+    "privacyLink": "Så hanterar vi personnummer"
   },
   "parse": {
     "title": "Så tolkades ditt CV",

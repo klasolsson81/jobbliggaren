@@ -28,7 +28,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { BrandMarkSvg } from "@/components/brand/brand-mark-svg";
-import { CvUploadForm } from "@/components/resumes/cv-upload-form";
+import {
+  CvUploadForm,
+  type UploadOutcome,
+} from "@/components/resumes/cv-upload-form";
 import { OccupationSection } from "./occupation-section";
 import { SkillSection } from "./skill-section";
 import { RegionMunicipalityCascade } from "./region-municipality-cascade";
@@ -317,8 +320,11 @@ export function MatchSetupRailModal({
     setSkillRemountKey((k) => k + 1);
   }
 
-  function handleCvUploaded(parsedResumeId: string, fileName?: string) {
-    setUploadedParsedId(parsedResumeId);
+  function handleCvUploaded(outcome: UploadOutcome, fileName?: string) {
+    // CV-pivot 5c (utfalls-medvetet): `promoted` → parsen är auto-promotad (borta), så
+    // yrkes-/kompetens-sektionerna faller tillbaka på det promotade Resume:t (uploadedParsedId
+    // = null). `pending` → parsen lever; använd den för förslagen.
+    setUploadedParsedId(outcome.kind === "pending" ? outcome.parsedResumeId : null);
     setUploadedFileName(fileName ?? null);
   }
 

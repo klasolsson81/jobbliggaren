@@ -180,6 +180,7 @@
     "roleLabel": "Role",
     "startDateLabel": "Start date (optional)",
     "endDateLabel": "End date (optional)",
+    "rawPeriodHint": "Period in your file: {period}",
     "descriptionLabel": "Description",
     "removeExperience": "Remove experience {index}",
     "educationLabel": "Education",

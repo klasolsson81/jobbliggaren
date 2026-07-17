@@ -172,8 +172,9 @@ public sealed partial class CompanyWatchScanJob(
             // but skip already-persisted triples so the insert batch never throws on a window overlap
             // / re-run. Load the user's existing (jobAdId, watchId) pairs client-side (bounded by
             // their accumulated hits) — avoids the strongly-typed-VO Contains translation trap.
+            // No IgnoreQueryFilters: the aggregate has no soft-delete filter (#868 retired the
+            // writerless axis), so there is nothing to bypass.
             var existing = (await db.FollowedCompanyAdHits
-                    .IgnoreQueryFilters()
                     .Where(h => h.UserId == userId)
                     .Select(h => new { h.JobAdId, h.CompanyWatchId })
                     .ToListAsync(ct))

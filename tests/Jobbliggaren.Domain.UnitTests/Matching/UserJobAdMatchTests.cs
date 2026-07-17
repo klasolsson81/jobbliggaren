@@ -43,7 +43,6 @@ public class UserJobAdMatchTests
         match.MatchedSkillConceptIds.ShouldBe(["csharp", "sql"]);
         match.CreatedAt.ShouldBe(Clock.UtcNow);
         match.SentAt.ShouldBeNull();
-        match.DeletedAt.ShouldBeNull();
     }
 
     [Theory]
@@ -272,31 +271,6 @@ public class UserJobAdMatchTests
         match.NotificationStatus.ShouldBe(NotificationStatus.Failed);
     }
 
-    // ---------------------------------------------------------------
-    // SoftDelete — idempotent
-    // ---------------------------------------------------------------
-
-    [Fact]
-    public void SoftDelete_WhenActive_StampsDeletedAt()
-    {
-        var match = CreateValid().Value;
-        var deleteClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(1));
-
-        match.SoftDelete(deleteClock);
-
-        match.DeletedAt.ShouldBe(deleteClock.UtcNow);
-    }
-
-    [Fact]
-    public void SoftDelete_WhenAlreadyDeleted_IsIdempotentAndDeletedAtUnchanged()
-    {
-        var match = CreateValid().Value;
-        var firstDeleteClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(1));
-        match.SoftDelete(firstDeleteClock);
-
-        var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(5));
-        match.SoftDelete(laterClock);
-
-        match.DeletedAt.ShouldBe(firstDeleteClock.UtcNow);
-    }
+    // SoftDelete + DeletedAt retired by #868 (writerless decoy axis, same disease as #821/#915) —
+    // Art. 17 erasure is a HARD delete via AccountHardDeleter. No soft-delete tests remain.
 }

@@ -33,11 +33,12 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// invisible under InMemory;</item>
 /// <item>the <c>CreatedAt &gt; LastSeenMatchesAt</c> watermark comparison + the
 /// <c>IsNew</c> in-memory projection over the relational fetch;</item>
-/// <item>the soft-delete <c>HasQueryFilter(DeletedAt == null)</c> on <c>UserJobAdMatch</c>.
-/// (This list used to say "on BOTH aggregates". FALSE since #821 — <c>JobAd</c> carries NO query
-/// filter; its <c>DeletedAt</c> axis never had a writer and was retired. That false sentence is
-/// precisely why nobody noticed that an ARCHIVED ad joins: the suite believed a filter was
-/// excluding it, seeded only Active ads, and so could never observe otherwise.)</item>
+/// <item>NO soft-delete filter on <c>UserJobAdMatch</c> — #868 retired its writerless axis (the
+/// <c>DeletedAt</c> column + <c>HasQueryFilter</c> are gone, same disease as #821's <c>JobAd</c>
+/// axis). What excludes a stale match is the <c>Status == Active</c> lifecycle gate (#864), pinned
+/// below — never a soft-delete filter. (This list once said "on BOTH aggregates", believed a filter
+/// was excluding archived ads, seeded only Active ads, and so could never observe that an ARCHIVED
+/// ad joins — the #864 defect.)</item>
 /// <item>the watermark ROUND-TRIP (MarkMatchesSeen persists → the new-count drops to 0).</item>
 /// </list>
 /// Handler-level tests resolve the REAL handler from DI with a substituted

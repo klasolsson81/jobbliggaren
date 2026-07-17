@@ -77,7 +77,7 @@ public class UserJobAdMatchGoodhartTests
         // back if its NAME reads as a score/rank/total (a string "Score", an enum "Rank"). We
         // assert by NAME against ADR 0080's exact 7-token list. The aggregate's properties
         // (Id, UserId, JobAdId, Grade, NotificationStatus, MatchedSkillConceptIds, CreatedAt,
-        // SentAt, DeletedAt) all read clean. EqualityContract is excluded defensively (a future
+        // SentAt) all read clean. EqualityContract is excluded defensively (a future
         // record conversion would synthesise it; the aggregate is a class today).
         var offending = PublicInstanceProperties(typeof(UserJobAdMatch))
             .Where(p => p.Name != "EqualityContract")

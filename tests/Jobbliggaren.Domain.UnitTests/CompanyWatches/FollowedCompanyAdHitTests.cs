@@ -40,7 +40,6 @@ public class FollowedCompanyAdHitTests
         hit.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Pending);
         hit.CreatedAt.ShouldBe(Clock.UtcNow);
         hit.SentAt.ShouldBeNull();
-        hit.DeletedAt.ShouldBeNull();
         hit.Id.Value.ShouldNotBe(Guid.Empty);
     }
 
@@ -147,33 +146,8 @@ public class FollowedCompanyAdHitTests
         hit.SentAt.ShouldBe(firstSentClock.UtcNow);
     }
 
-    // ---------------------------------------------------------------
-    // SoftDelete — idempotent (Art. 17 cascade join by UserId)
-    // ---------------------------------------------------------------
-
-    [Fact]
-    public void SoftDelete_OnActiveHit_StampsDeletedAt()
-    {
-        var hit = CreateValid();
-        var deleteClock = FakeDateTimeProvider.At(Clock.UtcNow.AddDays(2));
-
-        hit.SoftDelete(deleteClock);
-
-        hit.DeletedAt.ShouldBe(deleteClock.UtcNow);
-    }
-
-    [Fact]
-    public void SoftDelete_WhenAlreadyDeleted_IsIdempotent()
-    {
-        var hit = CreateValid();
-        var firstDeleteClock = FakeDateTimeProvider.At(Clock.UtcNow.AddDays(2));
-        hit.SoftDelete(firstDeleteClock);
-
-        var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddDays(5));
-        hit.SoftDelete(laterClock);
-
-        hit.DeletedAt.ShouldBe(firstDeleteClock.UtcNow);
-    }
+    // SoftDelete + DeletedAt retired by #868 (writerless decoy axis, same disease as #821/#915) —
+    // Art. 17 erasure is a HARD delete via AccountHardDeleter. No soft-delete tests remain.
 
     // ---------------------------------------------------------------
     // MarkSeen - #453 cross-channel dedup (Pending-only, idempotent)

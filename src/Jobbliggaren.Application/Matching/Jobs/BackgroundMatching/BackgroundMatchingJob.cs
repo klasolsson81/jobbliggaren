@@ -158,9 +158,9 @@ public sealed partial class BackgroundMatchingJob(
             // already-persisted pairs so the insert batch never throws on a window overlap /
             // re-run. Load the user's existing match ids (bounded by their accumulated matches)
             // client-side — avoids the strongly-typed-VO Contains translation trap
-            // (memory ef_strongly_typed_vo_contains).
+            // (memory ef_strongly_typed_vo_contains). No IgnoreQueryFilters: the aggregate has no
+            // soft-delete filter (#868 retired the writerless axis), so there is nothing to bypass.
             var existingJobAdIds = (await db.UserJobAdMatches
-                .IgnoreQueryFilters()
                 .Where(m => m.UserId == userId)
                 .Select(m => m.JobAdId)
                 .ToListAsync(ct))

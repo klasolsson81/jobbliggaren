@@ -38,8 +38,9 @@ namespace Jobbliggaren.Infrastructure.Persistence.Configurations;
 /// </para>
 /// <para>
 /// <b>GDPR:</b> <c>matched_skill_concept_ids</c> are non-PII (taxonomy concept-id
-/// strings, ADR 0079 Beslut 1). Soft-delete via <c>deleted_at</c> (nullable
-/// timestamptz) + global query filter. No DEK column, no encryption surface.
+/// strings, ADR 0079 Beslut 1). No DEK column, no encryption surface. No soft-delete axis:
+/// Art. 17 erasure is a HARD delete (<c>AccountHardDeleter</c> RemoveRange); the writerless
+/// <c>deleted_at</c> column + query filter were retired (#868, same disease as #821/#915).
 /// </para>
 /// </summary>
 public sealed class UserJobAdMatchConfiguration : IEntityTypeConfiguration<UserJobAdMatch>
@@ -100,7 +101,6 @@ public sealed class UserJobAdMatchConfiguration : IEntityTypeConfiguration<UserJ
 
         builder.Property(m => m.CreatedAt).IsRequired();
         builder.Property(m => m.SentAt);
-        builder.Property(m => m.DeletedAt);
 
         // UNIQUE (user_id, job_ad_id) — the dedup spine (an existing row in any non-Pending
         // status is skipped; re-running the Worker scan never re-notifies). The Worker
@@ -122,9 +122,6 @@ public sealed class UserJobAdMatchConfiguration : IEntityTypeConfiguration<UserJ
         // UserId index for cascade-delete by user (AccountHardDeleter Art.17 sweep).
         builder.HasIndex(m => m.UserId)
             .HasDatabaseName("ix_user_job_ad_matches_user_id");
-
-        // Soft-delete: deleted rows hidden from normal queries (retained for audit).
-        builder.HasQueryFilter(m => m.DeletedAt == null);
 
         builder.Ignore(m => m.DomainEvents);
     }

@@ -23,6 +23,12 @@ namespace Jobbliggaren.Domain.Matching;
 /// <see cref="MatchedSkillConceptIds"/> are plaintext (DEK-free) explainability evidence
 /// (ADR 0071 "explainable by design") carried into the in-app surface / future email.
 /// </para>
+/// <para>
+/// <b>No domain events (deliberate):</b> background matching is a batch concern (ADR 0080
+/// Beslut 2 rejects per-match events on YAGNI/audit-aggregation grounds) and the Art. 17
+/// cascade is handler-driven by UserId (<c>AccountHardDeleter</c> hard-deletes these rows),
+/// so the state transitions raise no event.
+/// </para>
 /// </summary>
 public sealed class UserJobAdMatch : AggregateRoot<UserJobAdMatchId>
 {
@@ -42,7 +48,6 @@ public sealed class UserJobAdMatch : AggregateRoot<UserJobAdMatchId>
 
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? SentAt { get; private set; }
-    public DateTimeOffset? DeletedAt { get; private set; }
 
     private UserJobAdMatch() { }
 
@@ -146,22 +151,5 @@ public sealed class UserJobAdMatch : AggregateRoot<UserJobAdMatchId>
 
         NotificationStatus = NotificationStatus.Failed;
         return Result.Success();
-    }
-
-    /// <summary>
-    /// Soft-deletes the match. Joins the Art.17 hard-delete cascade by UserId
-    /// (<c>AccountHardDeleter</c> RemoveRanges these rows), and the handler-managed cascade
-    /// when the JobAd expires. Idempotent.
-    /// <para>
-    /// <b>No domain events on this aggregate (deliberate):</b> background matching is a
-    /// batch concern (ADR 0080 Beslut 2 rejects per-match events on YAGNI/audit-aggregation
-    /// grounds) and the Art.17 cascade is handler-driven by UserId — there is no reactive
-    /// consumer, so neither <see cref="SoftDelete"/> nor the state transitions raise an event.
-    /// </para>
-    /// </summary>
-    public void SoftDelete(IDateTimeProvider clock)
-    {
-        if (DeletedAt.HasValue) return;
-        DeletedAt = clock.UtcNow;
     }
 }

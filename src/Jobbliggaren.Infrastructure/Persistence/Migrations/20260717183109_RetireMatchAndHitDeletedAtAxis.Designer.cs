@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using NpgsqlTypes;
@@ -13,9 +14,11 @@ using NpgsqlTypes;
 namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260717183109_RetireMatchAndHitDeletedAtAxis")]
+    partial class RetireMatchAndHitDeletedAtAxis
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -778,15 +781,6 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ParsedResumeId")
                         .HasColumnType("uuid")
                         .HasColumnName("parsed_resume_id");
-
-                    b.Property<DateTimeOffset?>("PnrConsentAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("pnr_consent_at");
-
-                    b.Property<string>("PnrConsentDialogVersion")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("pnr_consent_dialog_version");
 
                     b.Property<bool>("PnrFlagged")
                         .ValueGeneratedOnAdd()

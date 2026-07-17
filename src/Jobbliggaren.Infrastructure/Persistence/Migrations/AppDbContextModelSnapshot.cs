@@ -438,6 +438,10 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("Contacts")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("contacts");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -1417,6 +1421,10 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                                 .HasMaxLength(200)
                                 .HasColumnType("character varying(200)")
                                 .HasColumnName("snapshot_company");
+
+                            b1.Property<string>("Contacts")
+                                .HasColumnType("jsonb")
+                                .HasColumnName("snapshot_contacts");
 
                             b1.Property<string>("Description")
                                 .HasColumnType("text")

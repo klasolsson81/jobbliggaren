@@ -229,7 +229,14 @@ public class AuditingLayerTests
             // skillnad mot ssyk/Klass2 går den INTE via JobAdRefetchBackfillRunner
             // (lokal re-projektion, ingen JobTech-refetch) → konsumerar
             // ISystemEventAuditor direkt. Ratchet-tillägg.
-            "BackfillJobAdExtractedTermsJob"
+            "BackfillJobAdExtractedTermsJob",
+            // #842 Tier A (2026-07-16, ADR 0106 Amendment e): kontakt-skrubb-
+            // backfillen skriver JobAdsSynced-audit (JobType="backfill-contact-
+            // scrub"/"-dryrun") — TORRKÖRNINGEN auditeras också, för STOPP-5-
+            // rapporten Klas granskar måste själv vara accountabel. Samma lokala
+            // re-projektions-klass som extraction-backfillen ovan → konsumerar
+            // ISystemEventAuditor direkt. Ratchet-tillägg.
+            "BackfillRecruiterContactScrubJob"
         };
         var unauthorized = consumers.Where(c => !allowed.Contains(c)).ToList();
 

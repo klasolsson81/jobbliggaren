@@ -195,6 +195,17 @@ export function JobAdDetail({
           <div id="jp-modal-desc" className="jp-modal__description">
             {formatAdDescription(jobAd.description)}
           </div>
+          {/* #842 Tier A (ADR 0106) — Art. 14(5)(b): the public recruiter notice
+              must be reachable from the ad detail; the link is the condition of
+              the disproportionate-effort exemption, not decoration. text-left
+              overrides .jp-muted's right-alignment (that default belongs to the
+              foot note below): this line sits in the left-aligned prose rhythm
+              (design-review Minor 1, 2026-07-16). */}
+          <p className="jp-muted mt-3 text-left">
+            <Link href="/kontaktperson-i-annons">
+              {tUi("detail.recruiterNoticeLink")}
+            </Link>
+          </p>
         </div>
       </div>
 

@@ -52,7 +52,7 @@ public class AdSnapshotPersistenceTests(ApiFactory factory)
             publishedAt: PublishedAt,
             expiresAt: ExpiresAt,
             description: "En lång beskrivning av tjänsten.",
-            capturedAt: CapturedAt);
+            capturedAt: CapturedAt, contacts: null);
 
     private static async Task<JobSeekerId> SeedSeekerAsync(
         AppDbContext db, IDateTimeProvider clock, CancellationToken ct)

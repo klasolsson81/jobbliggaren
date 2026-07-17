@@ -200,6 +200,21 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
                 (ValueConverter)ExtractedTermsConversion.Converter,
                 ExtractedTermsConversion.Comparer);
 
+        // #842 Tier A — the recruiter contacts (nullable jsonb, ValueConverter path — architect
+        // Q3, mirroring extracted_terms above). NULL = never populated / retention-cleared
+        // (non-Active); [] = ingested, none found. DELIBERATELY UNINDEXED (T1 CTO 2026-07-16:
+        // the erasure matcher is a fail-safe substring scan over an OR-disjunction that already
+        // seq-scans; a jsonb_ops GIN bound for a containment design nobody runs would be a dead
+        // index that reads as live — the false-signal class this issue exists to kill). NEVER in
+        // search_vector (STORED, title+description only — FTS lock L1) and never on a list DTO
+        // (lock L4).
+        builder.Property(j => j.Contacts)
+            .HasColumnName("contacts")
+            .HasColumnType("jsonb")
+            .HasConversion(
+                (ValueConverter)AdContactsConversion.Converter,
+                AdContactsConversion.Comparer);
+
         // STORED generated jsonb companion för F4-6:s overlap-pre-filter
         // (extracted_lexemes ?| @cvLexemes via GIN). Härleds deterministiskt ur den
         // C#-skrivna extracted_terms av Postgres (jsonb_path_query_array med konstant

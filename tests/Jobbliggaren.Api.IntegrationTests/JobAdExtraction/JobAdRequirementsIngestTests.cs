@@ -85,7 +85,8 @@ public sealed class JobAdRequirementsIngestTests : IAsyncLifetime
             ExpiresAt: new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero),
             SanitizedRawPayload: "{\"id\":\"" + externalId + "\"}",
             Facets: TestFacets.FromPayload("{\"id\":\"" + externalId + "\"}"),
-            Requirements: Requirements);
+            Requirements: Requirements,
+            DeclaredContacts: []);
 
     private static UpsertExternalJobAdCommandHandler NewHandler(IAppDbContext db)
     {

@@ -300,13 +300,19 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
+        // Tier A (2026-07-16) inverted this guard's email half: the address IS still stored —
+        // that is what keeps the erasure tests below non-vacuous — but ONLY in the structured
+        // contacts column (the ingest scrub moved it out of every free-text carrier), and it is
+        // no longer FTS-reachable. The set equality is the migration claim itself: an address in
+        // ANY other column means the scrub regressed; an empty set means the erasure tests go
+        // vacuous (#842 itself).
         (await ColumnsStillContainingAsync(db, RecruiterEmail, ct))
-            .ShouldNotBeEmpty("the address must actually be stored, or the erasure tests below "
-                + "would pass vacuously — which is #842 itself.");
+            .ShouldBe(["contacts"],
+                "post-Tier-A the address lives in the structured contacts column ALONE.");
 
-        (await FtsHitsAsync(db, RecruiterEmail, ct)).ShouldBe(1,
-            "any logged-in user can reverse-look-up the recruiter by her address today. That is "
-            + "the exposure Tier B closes.");
+        (await FtsHitsAsync(db, RecruiterEmail, ct)).ShouldBe(0,
+            "the ingest scrub removes the address from search_vector (FTS lock L3) — the "
+            + "reverse-lookup exposure Tier A closes for detected identifiers.");
 
         // TWO ads name her: the one that spells her "Magnus Fagerberg", and the one that writes
         // "Fagerberg, Magnus". FTS lexemes both to the same terms — which is the entire reason the
@@ -767,11 +773,18 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             + "query had only ever run against an empty applications table — which is not a test, "
             + "it is a type-check with a database attached.");
 
-        // Her address is in the ad body, so it is in the FROZEN snapshot too. Matched — and NOT
-        // erased: Art. 17(3)(e) (the applicant's own legal-claims record).
-        probe.Matched.ApplicationSnapshots.ShouldBe(1,
-            "snapshot_description is a frozen copy of the ad body, so it holds her address. We "
-            + "search it precisely BECAUSE we do not erase it.");
+        // Tier A (2026-07-16): the snapshot froze the SCRUBBED body, so her ADDRESS is not in
+        // snapshot_description any more — it is in the frozen snapshot_contacts (its own surface,
+        // erased surgically). Her NAME is still in the frozen body — no scrub reaches a name —
+        // and THAT is what the 17(3)(e) retention claim is asserted over.
+        probe.Matched.ApplicationSnapshotContacts.ShouldBe(1,
+            "the frozen contact block carries her address post-Tier-A; it is matched on its own "
+            + "surface and erased surgically, never with the applicant's record.");
+
+        var nameProbe = await EraseAsync(RecruiterName, ct, dryRun: true);
+        nameProbe.Matched.ApplicationSnapshots.ShouldBe(1,
+            "snapshot_description is a frozen copy of the ad body, so it holds her NAME. We "
+            + "search it precisely BECAUSE we do not erase it (Art. 17(3)(e)).");
 
         var response = await EraseAsync(RecruiterEmail, ct);
 
@@ -781,6 +794,9 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             "report-only. The application belongs to a JOB SEEKER; erasing it to serve the "
             + "recruiter's request would destroy a third party's data.");
         response.Erased.ApplicationSnapshots.ShouldBe(0, "Art. 17(3)(e).");
+        response.Erased.ApplicationSnapshotContacts.ShouldBe(1,
+            "the surgical arm removes the recruiter's frozen contact block while the applicant's "
+            + "record stands (b1 (4.4), T2 CTO 2026-07-16).");
 
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -788,6 +804,17 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         (await db.Applications.IgnoreQueryFilters().CountAsync(a => a.Id == applicationId, ct))
             .ShouldBe(1, "the application row must still be there. The ad is a tombstone; the "
                 + "application that points at it is untouched.");
+
+        // The DB row, not only the counter: a counter can report an arm that was deleted
+        // outright (mutation M8 survived on exactly that before the verdict-counting fix).
+        var frozen = await db.Applications.IgnoreQueryFilters().AsNoTracking()
+            .Where(a => a.Id == applicationId)
+            .Select(a => new { Contacts = a.AdSnapshot!.Contacts, a.AdSnapshot!.Description })
+            .SingleAsync(ct);
+        frozen.Contacts.ShouldBeNull(
+            "the surgical arm must have CLEARED the frozen contact block in the database.");
+        frozen.Description.ShouldNotBeNull(
+            "and the applicant's own record must stand — surgical, never whole-record.");
     }
 
     /// <summary>
@@ -918,9 +945,14 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        // Tier A (2026-07-16): the post-ingest steady state is contacts-only + zero FTS hits
+        // (the scrub already moved the address). A dry run must leave BOTH exactly as they were —
+        // the name's two FTS hits are the non-vacuous "nothing was destroyed" signal now.
         (await ColumnsStillContainingAsync(db, RecruiterEmail, ct))
-            .ShouldNotBeEmpty("a dry run that destroys something is not a dry run.");
-        (await FtsHitsAsync(db, RecruiterEmail, ct)).ShouldBe(1);
+            .ShouldBe(["contacts"], "a dry run that destroys something is not a dry run.");
+        (await FtsHitsAsync(db, RecruiterEmail, ct)).ShouldBe(0);
+        (await FtsHitsAsync(db, RecruiterName, ct)).ShouldBe(2,
+            "her name is untouched by a dry run — and by the scrub (Tier B's population).");
     }
 
     /// <summary>
@@ -1125,6 +1157,10 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             ad.PublishedAt,
             ad.ExpiresAt,
             ad.Description, // the sanitised JobAd.Description — never raw_payload (ADR 0086 D5)
+                            // #842 Tier A: the frozen contact block mirrors the production capture projection
+                            // (CreateApplicationFromJobAdCommandHandler projects j.Contacts) — the ingested ad
+                            // carries the promoted contacts, and the snapshot freezes them.
+            contacts: ad.Contacts,
             clock.UtcNow);
 
         var application = DomainApplication
@@ -1334,6 +1370,11 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
         // STORED generated from title + description, which are now empty.
         ["search_vector"] = string.Empty,
+
+        // #842 Tier A — the structured contact carrier is the recruiter's most direct PII on the
+        // row; Erase() clears it explicitly (retention normally already has, but Erase() can run
+        // against a still-Active ad).
+        ["contacts"] = null,
     };
 
     /// <summary>
@@ -1657,6 +1698,10 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         public Task<int> CountSavedSearchesAsync(
             string identifier, CancellationToken cancellationToken) =>
             inner.CountSavedSearchesAsync(identifier, cancellationToken);
+
+        public Task<IReadOnlyList<Guid>> FindApplicationSnapshotContactsAsync(
+            string identifier, CancellationToken cancellationToken) =>
+            inner.FindApplicationSnapshotContactsAsync(identifier, cancellationToken);
 
         public Task<int> CountApplicationSnapshotsAsync(
             string identifier, CancellationToken cancellationToken) =>
@@ -2049,7 +2094,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
         var snapshot = AdSnapshot.Capture(
             title, company, municipalityConceptId: null, url, ad.Source.Value,
-            ad.PublishedAt, ad.ExpiresAt, description, clock.UtcNow);
+            ad.PublishedAt, ad.ExpiresAt, description, contacts: null, clock.UtcNow);
 
         var application = DomainApplication
             .CreateFromJobAd(seeker.Id, ad.Id, snapshot, coverLetter: null, clock).Value;

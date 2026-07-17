@@ -140,7 +140,13 @@ internal sealed partial class JobAdSnapshotMissTracker(
                             && m.ExternalId == j.External.ExternalId
                             && m.MissCount >= threshold))
             .ExecuteUpdateAsync(
-                s => s.SetProperty(j => j.Status, _ => archivedStatus),
+                // #842 Tier A retention (re-bind R4, b1 §4.2): production's PRIMARY archival path
+                // (the auditor's M1 — the writer the first count missed). Bulk = bypasses the
+                // aggregate, so Archive()'s contact clear is repeated here; the retention fitness
+                // test binds all three writers to one rule.
+                s => s
+                    .SetProperty(j => j.Status, _ => archivedStatus)
+                    .SetProperty(j => j.Contacts, _ => (AdContacts?)null),
                 cancellationToken).ConfigureAwait(false);
 
         LogArchived(logger, source.Value, threshold, rowsAffected);

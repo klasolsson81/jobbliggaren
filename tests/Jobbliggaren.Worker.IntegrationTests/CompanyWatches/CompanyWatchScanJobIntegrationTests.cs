@@ -497,7 +497,7 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(60),
-            clock: new FixedClock(Now)).Value;
+            clock: new FixedClock(Now), declaredContacts: []).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
         return jobAd.Id;
@@ -548,7 +548,7 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: createdAt.AddDays(-1),
             expiresAt: createdAt.AddDays(60),
-            clock: new FixedClock(createdAt)).Value;
+            clock: new FixedClock(createdAt), declaredContacts: []).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
         return jobAd.Id;

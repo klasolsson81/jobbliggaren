@@ -31,7 +31,7 @@ public class AdSnapshotTests
             publishedAt: PublishedAt,
             expiresAt: ExpiresAt,
             description: "En lång beskrivning av tjänsten.",
-            capturedAt: CapturedAt);
+            capturedAt: CapturedAt, contacts: null);
 
     // ---------------------------------------------------------------
     // Capture — sätter varje fält (ingen validering, inget Result)
@@ -67,7 +67,7 @@ public class AdSnapshotTests
             publishedAt: PublishedAt,
             expiresAt: null,
             description: null,
-            capturedAt: CapturedAt);
+            capturedAt: CapturedAt, contacts: null);
 
         snapshot.Title.ShouldBe("Backend-utvecklare");
         snapshot.Company.ShouldBe("Klarna");
@@ -87,7 +87,7 @@ public class AdSnapshotTests
     {
         var snapshot = FullSnapshot();
 
-        var minimised = snapshot.WithoutDescription();
+        var minimised = snapshot.WithoutAdBody();
 
         minimised.Description.ShouldBeNull();
     }
@@ -97,7 +97,7 @@ public class AdSnapshotTests
     {
         var snapshot = FullSnapshot();
 
-        var minimised = snapshot.WithoutDescription();
+        var minimised = snapshot.WithoutAdBody();
 
         minimised.Title.ShouldBe("Backend-utvecklare");
         minimised.Company.ShouldBe("Klarna");
@@ -117,9 +117,9 @@ public class AdSnapshotTests
         var snapshot = AdSnapshot.Capture(
             "Backend-utvecklare", "Klarna", MunicipalityConceptId,
             "https://example.com/jobb/1", "Platsbanken",
-            PublishedAt, ExpiresAt, description: null, CapturedAt);
+            PublishedAt, ExpiresAt, description: null, contacts: null, CapturedAt);
 
-        var result = snapshot.WithoutDescription();
+        var result = snapshot.WithoutAdBody();
 
         result.ShouldBeSameAs(snapshot);
     }
@@ -129,8 +129,8 @@ public class AdSnapshotTests
     {
         var snapshot = FullSnapshot();
 
-        var once = snapshot.WithoutDescription();
-        var twice = once.WithoutDescription();
+        var once = snapshot.WithoutAdBody();
+        var twice = once.WithoutAdBody();
 
         twice.Description.ShouldBeNull();
         twice.ShouldBe(once);
@@ -157,7 +157,7 @@ public class AdSnapshotTests
         var b = AdSnapshot.Capture(
             "Frontend-utvecklare", "Klarna", MunicipalityConceptId,
             "https://example.com/jobb/1", "Platsbanken",
-            PublishedAt, ExpiresAt, "En lång beskrivning av tjänsten.", CapturedAt);
+            PublishedAt, ExpiresAt, "En lång beskrivning av tjänsten.", null, CapturedAt);
 
         a.ShouldNotBe(b);
     }
@@ -170,7 +170,7 @@ public class AdSnapshotTests
         var b = AdSnapshot.Capture(
             "Backend-utvecklare", "Klarna", "ZZZZ_zzz_ZZZ",
             "https://example.com/jobb/1", "Platsbanken",
-            PublishedAt, ExpiresAt, "En lång beskrivning av tjänsten.", CapturedAt);
+            PublishedAt, ExpiresAt, "En lång beskrivning av tjänsten.", null, CapturedAt);
 
         a.ShouldNotBe(b);
     }
@@ -181,7 +181,7 @@ public class AdSnapshotTests
         // Säkerställer att Description ingår i värde-likheten (annars skulle
         // WithoutDescription-kopia felaktigt vara lika med originalet).
         var a = FullSnapshot();
-        var b = a.WithoutDescription();
+        var b = a.WithoutAdBody();
 
         a.ShouldNotBe(b);
     }

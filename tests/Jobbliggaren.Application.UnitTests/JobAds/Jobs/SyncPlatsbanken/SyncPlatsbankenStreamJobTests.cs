@@ -43,7 +43,8 @@ public class SyncPlatsbankenStreamJobTests
         ExpiresAt: Now.AddDays(30),
         SanitizedRawPayload: "{\"id\":\"ext-1\"}",
         Facets: TestFacets.FromPayload("{\"id\":\"ext-1\"}"),
-        Requirements: []);
+        Requirements: [],
+        DeclaredContacts: []);
 
     private static SyncPlatsbankenStreamJob CreateJob(
         IJobSource jobSource,

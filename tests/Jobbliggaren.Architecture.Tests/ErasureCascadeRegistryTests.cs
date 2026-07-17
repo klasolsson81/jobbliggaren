@@ -824,7 +824,7 @@ public class ErasureCascadeRegistryTests
         surfaces.ShouldNotBeEmpty();
 
         // Drive the REAL BuildAuditPayload through the REAL command, with a fake pseudonymiser.
-        var counts = new ErasureSurfaceCounts(1, 2, 3, 4, 5, 6, 7, 8);
+        var counts = new ErasureSurfaceCounts(1, 2, 3, 4, 5, 6, 7, 8, 9);
         var response = new EraseRecruiterAdsResponse(
             RequestId: Guid.NewGuid(),
             DryRun: true,

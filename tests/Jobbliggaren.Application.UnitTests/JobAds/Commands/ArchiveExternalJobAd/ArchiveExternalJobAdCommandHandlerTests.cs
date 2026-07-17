@@ -36,6 +36,7 @@ public class ArchiveExternalJobAdCommandHandlerTests
         var jobAd = JobAd.Import(
             "Titel", company, "Beskrivning", "https://example.com/jobs/seed",
             external, "{\"id\":\"seed\"}", TestFacets.FromPayload("{\"id\":\"seed\"}"),
+            [],
             Now.AddDays(-1), Now.AddDays(30), clock).Value;
 
         if (archive)

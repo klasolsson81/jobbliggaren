@@ -62,7 +62,7 @@ public class JobAdRefetchBackfillRunnerTests
             facets: TestFacets.FromPayload("{\"id\":\"" + externalId + "\"}"),
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(30),
-            clock: clock).Value;
+            clock: clock, declaredContacts: []).Value;
 
     private static JobAdImportItem RefetchedItem(string externalId)
     {
@@ -80,7 +80,7 @@ public class JobAdRefetchBackfillRunnerTests
             ExpiresAt: Now.AddDays(30),
             SanitizedRawPayload: payload,
             Facets: TestFacets.FromPayload(payload),
-            Requirements: []);
+            Requirements: [], DeclaredContacts: []);
     }
 
     private sealed class FakeScopeFactory(IMediator mediator)

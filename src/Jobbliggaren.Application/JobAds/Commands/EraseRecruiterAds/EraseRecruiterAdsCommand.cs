@@ -118,6 +118,7 @@ public sealed record EraseRecruiterAdsCommand(
         ["recentJobSearches"] = counts.RecentJobSearches,
         ["savedSearches"] = counts.SavedSearches,
         ["applicationSnapshots"] = counts.ApplicationSnapshots,
+        ["applicationSnapshotContacts"] = counts.ApplicationSnapshotContacts,
         ["manualAdEntries"] = counts.ManualAdEntries,
         ["companyWatchCriteria"] = counts.CompanyWatchCriteria,
         ["resumeMetadata"] = counts.ResumeMetadata,

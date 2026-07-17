@@ -10,7 +10,7 @@ namespace Jobbliggaren.Domain.UnitTests.Applications;
 // GDPR Art. 5(1)(c) — på en TERMINAL transition (Accepted/Rejected/Withdrawn)
 // minimeras AdSnapshot:ets Description (droppas), medan stats-/identitetsmetadata
 // (titel/företag/ort/url/datum) BEHÅLLS. Icke-terminala transitions lämnar
-// snapshot:et orört. Idempotent + null-säkert (AdSnapshot?.WithoutDescription()).
+// snapshot:et orört. Idempotent + null-säkert (AdSnapshot?.WithoutAdBody()).
 // Ghosted är INTE terminal (reaktiverbar).
 public class ApplicationAdSnapshotRetentionTests
 {
@@ -35,7 +35,7 @@ public class ApplicationAdSnapshotRetentionTests
             publishedAt: PublishedAt,
             expiresAt: ExpiresAt,
             description: "En lång beskrivning av tjänsten.",
-            capturedAt: Clock.UtcNow);
+            capturedAt: Clock.UtcNow, contacts: null);
 
     private static Application FromJobAdSubmitted()
     {
@@ -170,7 +170,7 @@ public class ApplicationAdSnapshotRetentionTests
         var snapshotNoDescription = AdSnapshot.Capture(
             "Backend-utvecklare", "Klarna", MunicipalityConceptId,
             "https://example.com/jobb/1", "Platsbanken",
-            PublishedAt, ExpiresAt, description: null, Clock.UtcNow);
+            PublishedAt, ExpiresAt, description: null, contacts: null, Clock.UtcNow);
         var app = Application.CreateFromJobAd(
             ValidJobSeekerId, ValidJobAdId, snapshotNoDescription, null, Clock).Value;
         app.TransitionTo(ApplicationStatus.Submitted, Clock);

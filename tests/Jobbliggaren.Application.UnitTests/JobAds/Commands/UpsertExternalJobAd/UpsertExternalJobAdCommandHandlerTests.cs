@@ -33,7 +33,8 @@ public class UpsertExternalJobAdCommandHandlerTests
         string companyName = "Klarna",
         string description = "Vi söker en backend-utvecklare.",
         string url = "https://example.com/jobs/1",
-        IReadOnlyList<JobAdRequirement>? requirements = null) =>
+        IReadOnlyList<JobAdRequirement>? requirements = null,
+        IReadOnlyList<AdContact>? declaredContacts = null) =>
         new(
             ExternalId: externalId,
             Title: title,
@@ -44,9 +45,11 @@ public class UpsertExternalJobAdCommandHandlerTests
             ExpiresAt: Now.AddDays(30),
             SanitizedRawPayload: "{\"id\":\"ext-1\"}",
             Facets: TestFacets.FromPayload("{\"id\":\"ext-1\"}"),
-            // F4-4b — the last positional param. Defaults to empty so the existing
-            // upsert tests stay keyword/skill-only.
-            Requirements: requirements ?? []);
+            // F4-4b — defaults to empty so the existing upsert tests stay
+            // keyword/skill-only.
+            Requirements: requirements ?? [],
+            // #842 Tier A — empty means "the source declared nobody".
+            DeclaredContacts: declaredContacts ?? []);
 
     private static UpsertExternalJobAdCommandHandler CreateHandler(
         IAppDbContext db,
@@ -406,6 +409,7 @@ public class UpsertExternalJobAdCommandHandlerTests
         var jobAd = JobAd.Import(
             title, company, "Beskrivning", "https://example.com/jobs/seed",
             external, "{\"id\":\"seed\"}", TestFacets.FromPayload("{\"id\":\"seed\"}"),
+            [],
             Now.AddDays(-1), Now.AddDays(30), clock).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);

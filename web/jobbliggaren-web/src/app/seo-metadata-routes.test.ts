@@ -87,6 +87,7 @@ describe("sitemap.ts", () => {
       `${SITE_URL}/kontakt`,
       `${SITE_URL}/for-utvecklare`,
       `${SITE_URL}/integritet`,
+      `${SITE_URL}/kontaktperson-i-annons`,
       `${SITE_URL}/cookies`,
       `${SITE_URL}/villkor`,
       `${SITE_URL}/tillganglighet`,

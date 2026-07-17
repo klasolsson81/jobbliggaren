@@ -50,7 +50,7 @@ public sealed partial class UpsertExternalJobAdCommandHandler(
         var importResult = JobAd.Import(
             item.Title, companyResult.Value, item.Description, item.Url,
             extRefResult.Value, item.SanitizedRawPayload, item.Facets,
-            item.PublishedAt, item.ExpiresAt, clock);
+            item.DeclaredContacts, item.PublishedAt, item.ExpiresAt, clock);
 
         if (importResult.IsFailure)
         {
@@ -95,10 +95,12 @@ public sealed partial class UpsertExternalJobAdCommandHandler(
         // #841 — the Update path re-writes raw_payload, and therefore MUST re-write the seven facets
         // parsed from it. It cannot forget: JobAd.UpdateFromSource takes the facets as a required
         // parameter, so omitting them would not compile. (This is the whole reason the fix lives in the
-        // aggregate's signature rather than in a convention here.)
+        // aggregate's signature rather than in a convention here.) #842 Tier A rides the same
+        // guarantee: the declared contacts are a required parameter too, and the scrub invariant
+        // runs inside the aggregate — this handler neither scrubs nor merges anything itself.
         var updateResult = existing.UpdateFromSource(
             item.Title, item.Description, item.Url,
-            item.SanitizedRawPayload, item.Facets, item.ExpiresAt);
+            item.SanitizedRawPayload, item.Facets, item.DeclaredContacts, item.ExpiresAt);
 
         if (updateResult.IsFailure)
         {

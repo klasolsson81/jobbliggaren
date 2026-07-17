@@ -191,7 +191,8 @@
       "appliedNotice": "Du har markerat denna annons som ansökt. Se i",
       "appliedNoticeLink": "Mina ansökningar",
       "previousApplications": "Du har minst {count, plural, one {# tidigare ansökan} other {# tidigare ansökningar}} till detta företag. Sammanställningen kan vara ofullständig.",
-      "previousApplicationsLink": "Visa ansökningshistorik"
+      "previousApplicationsLink": "Visa ansökningshistorik",
+      "recruiterNoticeLink": "Är du kontaktperson i annonsen? Läs hur vi behandlar kontaktuppgifter."
     },
     "match": {
       "heading": "Matchning mot din profil",

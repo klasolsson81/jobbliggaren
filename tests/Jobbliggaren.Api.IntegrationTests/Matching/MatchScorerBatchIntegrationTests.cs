@@ -83,7 +83,7 @@ public class MatchScorerBatchIntegrationTests(ApiFactory factory)
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock).Value;
+            clock: clock, declaredContacts: []).Value;
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);

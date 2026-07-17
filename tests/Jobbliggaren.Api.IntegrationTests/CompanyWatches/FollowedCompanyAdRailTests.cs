@@ -127,7 +127,7 @@ public class FollowedCompanyAdRailTests(ApiFactory factory)
             facets: TestFacets.FromPayload(payload),
             publishedAt: clock.UtcNow,
             expiresAt: clock.UtcNow.AddDays(60),
-            clock: clock).Value;
+            clock: clock, declaredContacts: []).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
         return jobAd.Id;

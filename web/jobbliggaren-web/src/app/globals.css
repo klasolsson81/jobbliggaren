@@ -8471,8 +8471,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 
-/* "Du har ansökt"-noten i modalfoten (job-ad-detail, enda konsument) —
-   också en spökklass vars värden bars inline. Länken ärver notens färg
+/* job-ad-detail-noter: "Du har ansökt" i modalfoten (högerställd) och
+   Art. 14-notislänken under beskrivningen (#842 — vänsterställs med text-left
+   på konsumenten; caption-storleken delas). Länken ärver notens färg
    (var(--jp-link, currentColor) var odefinierad → computed = currentColor). */
 .jp-muted {
   margin-top: 8px;

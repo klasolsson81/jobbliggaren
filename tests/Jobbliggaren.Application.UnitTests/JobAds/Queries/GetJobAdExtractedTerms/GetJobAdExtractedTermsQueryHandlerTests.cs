@@ -38,7 +38,7 @@ public class GetJobAdExtractedTermsQueryHandlerTests
         IDateTimeProvider clock = new FakeDateTimeProvider(Now);
         return JobAd.Import(
             title, company, description, "https://example.com/jobb/1",
-            external, "{\"id\":\"x\"}", TestFacets.FromPayload("{\"id\":\"x\"}"), Now.AddDays(-1), Now.AddDays(30), clock).Value;
+            external, "{\"id\":\"x\"}", TestFacets.FromPayload("{\"id\":\"x\"}"), [], Now.AddDays(-1), Now.AddDays(30), clock).Value;
     }
 
     private static async Task<JobAd> SeedAsync(

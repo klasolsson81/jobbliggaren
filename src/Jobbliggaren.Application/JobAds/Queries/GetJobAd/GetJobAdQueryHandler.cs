@@ -20,11 +20,16 @@ namespace Jobbliggaren.Application.JobAds.Queries.GetJobAd;
 /// untouched, so she keeps her evidence of what she applied to; that is what that aggregate exists
 /// for.
 /// </para>
+/// <para>
+/// <b>Returns the DETAIL DTO (#842 Tier A, R2/ISP)</b> — a distinct type from the list's
+/// <see cref="JobAdDto"/>, so the contact block PR4 adds here can never leak onto the
+/// search wire. See <see cref="JobAdDetailDto"/>.
+/// </para>
 /// </remarks>
 public sealed class GetJobAdQueryHandler(IAppDbContext db)
-    : IQueryHandler<GetJobAdQuery, Result<JobAdDto>>
+    : IQueryHandler<GetJobAdQuery, Result<JobAdDetailDto>>
 {
-    public async ValueTask<Result<JobAdDto>> Handle(
+    public async ValueTask<Result<JobAdDetailDto>> Handle(
         GetJobAdQuery query, CancellationToken cancellationToken)
     {
         var row = await db.JobAds
@@ -33,7 +38,7 @@ public sealed class GetJobAdQueryHandler(IAppDbContext db)
             .Select(j => new
             {
                 Status = j.Status.Value,
-                Dto = new JobAdDto(
+                Dto = new JobAdDetailDto(
                     j.Id.Value,
                     j.Title,
                     j.Company.Name,
@@ -48,7 +53,7 @@ public sealed class GetJobAdQueryHandler(IAppDbContext db)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (row is null)
-            return Result.Failure<JobAdDto>(
+            return Result.Failure<JobAdDetailDto>(
                 DomainError.NotFound("JobAd.NotFound", "Annonsen finns inte."));
 
         // The body is deliberately NEUTRAL. Saying "raderad enligt artikel 17" would let ANY caller
@@ -57,7 +62,7 @@ public sealed class GetJobAdQueryHandler(IAppDbContext db)
         // that ad exercised a right. The erasure would then broadcast the very fact it exists to
         // protect. So: it is gone, and we do not say why.
         if (row.Status == JobAdStatus.Erased.Value)
-            return Result.Failure<JobAdDto>(
+            return Result.Failure<JobAdDetailDto>(
                 DomainError.Gone("JobAd.Gone", "Annonsen är inte längre tillgänglig."));
 
         return Result.Success(row.Dto);

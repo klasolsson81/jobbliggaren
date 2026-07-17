@@ -163,6 +163,7 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
                      OR lower(company_name) LIKE {pattern} ESCAPE {LikeEscapeSql}
                      OR (raw_payload IS NOT NULL AND lower(raw_payload::text) LIKE {pattern} ESCAPE {LikeEscapeSql})
                      OR organization_number = {orgNr}
+                     OR (contacts IS NOT NULL AND lower(contacts::text) LIKE {pattern} ESCAPE {LikeEscapeSql})
                   )
                 """)
             .ToListAsync(cancellationToken);
@@ -185,6 +186,7 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
                 j.Description,
                 Company = j.Company.Name,
                 j.OrganizationNumber,
+                j.Contacts,
             })
             .ToListAsync(cancellationToken);
 
@@ -194,7 +196,7 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
             {
                 var (channel, excerpt) = orgNr is not null && r.OrganizationNumber == orgNr
                     ? (ErasureMatchChannel.OrganizationNumber, OrgNrEvidence(orgNr))
-                    : Evidence(r.Title, r.Description, r.Company, needle);
+                    : Evidence(r.Title, r.Description, r.Company, r.Contacts, needle);
                 return new ErasureJobAdMatch(r.Id, r.ExternalId, r.Title, r.Company, channel, excerpt);
             }),
         ];
@@ -224,7 +226,7 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
     /// window with no hit in it is evidence of nothing.
     /// </remarks>
     private static (ErasureMatchChannel Channel, string Excerpt) Evidence(
-        string title, string? description, string company, string needle)
+        string title, string? description, string company, Domain.JobAds.AdContacts? contacts, string needle)
     {
         const int Window = 200;
         const int Lead = 60;
@@ -245,6 +247,28 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
 
         if (company.Contains(needle, StringComparison.OrdinalIgnoreCase))
             return (ErasureMatchChannel.CompanyName, company);
+
+        // #842 Tier A (T8 CTO 2026-07-16) — the structured contacts hit gets its OWN channel with
+        // REAL evidence: post-scrub this is the only carrier of a detected email/phone, i.e. the
+        // load-bearing Tier-A channel, and an empty FullTextOrRawPayload excerpt would hide a
+        // reviewable hit from the one human gate before irreversible destruction. The excerpt is
+        // the matched contact's own fields — exactly the data under review, admin-only, never
+        // logged.
+        var matchedContact = contacts?.Contacts.FirstOrDefault(c =>
+            (c.Name is not null && c.Name.Contains(needle, StringComparison.OrdinalIgnoreCase))
+            || (c.Role is not null && c.Role.Contains(needle, StringComparison.OrdinalIgnoreCase))
+            || (c.Email is not null && c.Email.Contains(needle, StringComparison.OrdinalIgnoreCase))
+            || (c.Phone is not null && c.Phone.Contains(needle, StringComparison.OrdinalIgnoreCase)));
+        if (matchedContact is not null)
+        {
+            var fields = new[]
+                {
+                    matchedContact.Name, matchedContact.Role, matchedContact.Email,
+                    matchedContact.Phone,
+                }
+                .Where(f => f is not null);
+            return (ErasureMatchChannel.ContactsMatch, string.Join(" · ", fields));
+        }
 
         // The hit came from the FTS lexemes or from raw_payload. There is no literal substring to
         // window, and pretending otherwise is the failure above.
@@ -361,6 +385,29 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
                OR lower(coalesce(snapshot_description, '')) LIKE {pattern} ESCAPE {LikeEscapeSql}
                OR lower(coalesce(snapshot_url, ''))         LIKE {pattern} ESCAPE {LikeEscapeSql}
             """, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Guid>> FindApplicationSnapshotContactsAsync(
+        string identifier, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        var pattern = LikePattern(identifier);
+
+        // #842 Tier A — IDS, not a count: this surface is ERASED surgically
+        // (Application.EraseAdSnapshotContacts) and an erase needs its targets. Deliberately NOT
+        // part of CountApplicationSnapshotsAsync: the body columns are retained (17(3)(e)); the
+        // contact block goes — one surface, one disposition (T2 CTO 2026-07-16). The jsonb::text
+        // cast searches every field of every frozen contact (name, role, email, phone) in one
+        // fail-safe over-matching sweep, same posture as the ad channels.
+        return await db.Database
+            .SqlQuery<Guid>($"""
+                SELECT id AS "Value"
+                FROM applications
+                WHERE snapshot_contacts IS NOT NULL
+                  AND lower(snapshot_contacts::text) LIKE {pattern} ESCAPE {LikeEscapeSql}
+                """)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<int> CountManualAdEntriesAsync(

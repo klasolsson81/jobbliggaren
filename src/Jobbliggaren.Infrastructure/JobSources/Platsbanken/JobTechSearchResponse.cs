@@ -114,6 +114,38 @@ internal sealed class JobTechHit
 
     [JsonPropertyName("nice_to_have")]
     public JobTechRequirements? NiceToHave { get; set; }
+
+    // #842 Tier A (ADR 0106, CTO re-bind R1(a)) — the advertiser's DECLARED contact persons.
+    // Top-level array (live-verifierat 2026-07-16 mot jobsearch.api.jobtechdev.se: {name,
+    // description, email, telephone, contact_type}, alla nullbara). ~45 % av annonserna bär
+    // kontakten ENBART här (100-annons-mätning 2026-07-13) — POCO:n deserialiserade den aldrig,
+    // så vi slängde den goda kopian och behöll den osökbara fritext-kopian. ACL:n mappar till
+    // Domain-VO:t AdContact; sanitizern är ORÖRD (R1(e)): application_contacts står INTE i
+    // allowlistan, så default-deny droppar hela blocket ur raw_payload — kontakten lever bara i
+    // den avgränsade, oindexerade, retention-bundna contacts-kolumnen.
+    [JsonPropertyName("application_contacts")]
+    public List<JobTechApplicationContact>? ApplicationContacts { get; set; }
+}
+
+// #842 Tier A — en deklarerad kontaktperson på wire-formatet. description bär i praktiken en
+// roll-/frikText ("Rekryterare", "Facklig företrädare: ..."), contact_type en typkod; båda
+// nullbara i live-data. POCO = ACL mot JobTech-wire-formatet (Evans 2003 §14).
+internal sealed class JobTechApplicationContact
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonPropertyName("email")]
+    public string? Email { get; set; }
+
+    [JsonPropertyName("telephone")]
+    public string? Telephone { get; set; }
+
+    [JsonPropertyName("contact_type")]
+    public string? ContactType { get; set; }
 }
 
 internal sealed class JobTechDescription

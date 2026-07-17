@@ -84,6 +84,11 @@ export default async function IntegritetPage() {
                 {t("privacy.relatedCookies")}
               </Link>
             </li>
+            <li>
+              <Link href="/kontaktperson-i-annons" className="underline">
+                {t("privacy.relatedRecruiterNotice")}
+              </Link>
+            </li>
           </ul>
         </div>
       </div>

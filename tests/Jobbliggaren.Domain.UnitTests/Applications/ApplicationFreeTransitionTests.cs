@@ -233,7 +233,7 @@ public class ApplicationFreeTransitionTests
             publishedAt: new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),
             expiresAt: new DateTimeOffset(2026, 5, 1, 0, 0, 0, TimeSpan.Zero),
             description: DescriptionText,
-            capturedAt: T0);
+            capturedAt: T0, contacts: null);
 
     // JobAd-kopplad ansökan med beskriven snapshot, submittad @ T1 (AppliedAt = T1).
     private static Application FromJobAdSubmitted()

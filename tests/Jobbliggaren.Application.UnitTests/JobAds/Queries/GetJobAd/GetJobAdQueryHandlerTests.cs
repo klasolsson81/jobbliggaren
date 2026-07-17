@@ -94,7 +94,7 @@ public class GetJobAdQueryHandlerTests
     private static async Task<JobAd> ImportJobAdWithDeclaredContactAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, CancellationToken ct)
     {
-        var externalId = Guid.NewGuid().ToString("N");
+        var externalId = TestIds.ExternalId();
         var payload = $"{{\"id\":\"{externalId}\"}}";
         var declared = AdContact.TryCreate(
             "Anna Karlsson", "Rekryterare", "anna@acme.se", "070-123 45 67",

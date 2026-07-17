@@ -170,7 +170,7 @@ public class ListJobAdsFilterTests(ApiFactory factory)
     public async Task GET_job_ads_with_q_filter_matches_title()
     {
         var ct = TestContext.Current.CancellationToken;
-        var unique = Guid.NewGuid().ToString("N")[..12];
+        var unique = TestIds.Token(12);
         await SeedImportedJobAdAsync(
             $"Backend {unique} developer", "ordinarie beskrivning",
             occupationGroupConceptId: null, regionConceptId: null,
@@ -195,7 +195,7 @@ public class ListJobAdsFilterTests(ApiFactory factory)
     public async Task GET_job_ads_with_q_filter_matches_description()
     {
         var ct = TestContext.Current.CancellationToken;
-        var unique = Guid.NewGuid().ToString("N")[..12];
+        var unique = TestIds.Token(12);
         await SeedImportedJobAdAsync(
             "Vanlig titel A", $"Vi söker {unique} expert.",
             occupationGroupConceptId: null, regionConceptId: null,
@@ -218,7 +218,7 @@ public class ListJobAdsFilterTests(ApiFactory factory)
     public async Task GET_job_ads_with_q_filter_is_case_insensitive()
     {
         var ct = TestContext.Current.CancellationToken;
-        var unique = Guid.NewGuid().ToString("N")[..8];
+        var unique = TestIds.Token(8);
         await SeedImportedJobAdAsync(
             $"Senior {unique}Developer", "desc",
             occupationGroupConceptId: null, regionConceptId: null,
@@ -240,7 +240,7 @@ public class ListJobAdsFilterTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var group = $"grp{Guid.NewGuid():N}"[..16];
         var region = $"reg{Guid.NewGuid():N}"[..16];
-        var qToken = Guid.NewGuid().ToString("N")[..10];
+        var qToken = TestIds.Token(10);
 
         // Match: occupationGroup + region + title innehåller qToken
         await SeedImportedJobAdAsync(

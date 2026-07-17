@@ -15,8 +15,10 @@ namespace Jobbliggaren.Application.JobAds.Queries;
 /// list DTO cannot carry a contact, because the type has no such member and the architecture test
 /// (<c>JobAdDtoSplitTests</c>, FTS lock L4) breaks the build if one appears.
 /// <para>
-/// <b>No <c>Contacts</c> member YET, deliberately</b> — a wire field lands WITH its reader
-/// (ADR 0108 §3), and the reader is PR4's UI. This PR ships the seam.
+/// <b><see cref="Contacts"/> landed WITH its reader (PR4, ADR 0108 §3)</b> — the contact block on
+/// the two detail surfaces (R2: ad detail + application detail, never list cards). Never null;
+/// <c>[]</c> when the ad holds none or retention cleared them. Each entry carries the R1(b)
+/// truth claim (<see cref="JobAdContactDto.IsDerived"/>) the UI must render.
 /// </para>
 /// </remarks>
 public sealed record JobAdDetailDto(
@@ -29,4 +31,5 @@ public sealed record JobAdDetailDto(
     string Status,
     DateTimeOffset PublishedAt,
     DateTimeOffset? ExpiresAt,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    IReadOnlyList<JobAdContactDto> Contacts);

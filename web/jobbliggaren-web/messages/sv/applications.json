@@ -264,7 +264,8 @@
       "applyBy": "Sista ansökningsdag",
       "source": "Källa",
       "descriptionLabel": "Annonstext",
-      "minimizedNotice": "Annonstexten har rensats eftersom ansökan är avslutad. Sparad metadata finns kvar."
+      "minimizedNotice": "Annonstexten har rensats eftersom ansökan är avslutad. Sparad metadata finns kvar.",
+      "recruiterNoticeLink": "Är du kontaktperson i annonsen? Läs hur vi behandlar kontaktuppgifter."
     },
     "notes": {
       "sectionLabel": "Anteckningar",

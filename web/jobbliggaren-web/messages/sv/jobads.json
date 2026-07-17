@@ -194,6 +194,12 @@
       "previousApplicationsLink": "Visa ansökningshistorik",
       "recruiterNoticeLink": "Är du kontaktperson i annonsen? Läs hur vi behandlar kontaktuppgifter."
     },
+    "contact": {
+      "title": "Kontakt",
+      "derived": "Från annonstexten",
+      "email": "E-post",
+      "phone": "Telefon"
+    },
     "match": {
       "heading": "Matchning mot din profil",
       "settingsCta": "Ställ in matchning",

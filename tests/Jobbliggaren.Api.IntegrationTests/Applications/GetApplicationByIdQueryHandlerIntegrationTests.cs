@@ -427,4 +427,127 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         result!.PreservedAd.ShouldNotBeNull();
         result.PreservedAd!.Location.ShouldBe(olofstromLabel);
     }
+
+    // ---------------------------------------------------------------
+    // #842 PR4 (ADR 0086 D3 / re-bind R2/R4(b)) — the apply-time FROZEN recruiter contact block on
+    // PreservedAd (AdSnapshotDto), projected through the SAME fail-closed mapper as the live ad
+    // detail (JobAdContactDto.ListFrom). Populated at capture; [] once the application reaches a
+    // terminal status (WithoutAdBody drops the body AND the contacts — the follow-up purpose is
+    // spent, there is nobody left to contact).
+    // ---------------------------------------------------------------
+
+    // An Active IMPORTED ad carrying one declared recruiter contact. Import runs the scrub/promote
+    // funnel (JobAd.Create does not), so Contacts is populated; the clean body adds no promoted hit.
+    // CreateApplicationFromJobAd then FREEZES these onto the application snapshot (its exact
+    // projection: j.Contacts → AdSnapshot.Capture).
+    private static async Task<JobAd> ImportAdWithDeclaredContactAsync(
+        AppDbContext db, IDateTimeProvider clock, CancellationToken ct)
+    {
+        var externalId = $"appsnap-contacts-{Guid.NewGuid():N}";
+        var payload = $"{{\"id\":\"{externalId}\"}}";
+        var declared = AdContact.TryCreate(
+            "Anna Rekryterare", "Rekryterare", "anna.declared@example.com", null,
+            AdContactOrigin.Declared)!;
+
+        var jobAd = JobAd.Import(
+            title: "Backend-utvecklare",
+            company: Company.Create("Klarna").Value,
+            description: "Vi söker en backend-utvecklare.",
+            url: "https://example.com/jobb/1",
+            external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
+            rawPayload: payload,
+            facets: TestFacets.FromPayload(payload),
+            declaredContacts: [declared],
+            publishedAt: clock.UtcNow,
+            expiresAt: clock.UtcNow.AddDays(30),
+            clock: clock).Value;
+
+        db.JobAds.Add(jobAd);
+        await db.SaveChangesAsync(ct);
+        return jobAd;
+    }
+
+    [Fact]
+    public async Task Handle_WhenSnapshotFrozeContacts_PopulatesPreservedAdContacts()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = JobSeeker.Register(_userId, "Test User", clock).Value;
+        db.JobSeekers.Add(seeker);
+        await EncryptionKeyTestSeed.WarmAsync(scope, seeker.Id, CancellationToken.None);
+
+        var jobAd = await ImportAdWithDeclaredContactAsync(db, clock, CancellationToken.None);
+
+        var createHandler = new CreateApplicationFromJobAdCommandHandler(db, _currentUser, clock);
+        var created = await createHandler.Handle(
+            new CreateApplicationFromJobAdCommand(jobAd.Id.Value), CancellationToken.None);
+        created.IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        var handler = new GetApplicationByIdQueryHandler(
+            db, _currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
+
+        var result = await handler.Handle(
+            new GetApplicationByIdQuery(created.Value), CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result!.PreservedAd.ShouldNotBeNull();
+        var contact = result.PreservedAd!.Contacts.ShouldHaveSingleItem();
+        contact.IsDerived.ShouldBeFalse(
+            "the frozen declared contact is the advertiser's declaration, never our inference (R1(b)).");
+        contact.Name.ShouldBe("Anna Rekryterare");
+        contact.Email.ShouldBe("anna.declared@example.com");
+    }
+
+    [Fact]
+    public async Task Handle_WhenApplicationReachedTerminalStatus_ClearsPreservedAdContacts()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = JobSeeker.Register(_userId, "Test User", clock).Value;
+        db.JobSeekers.Add(seeker);
+        await EncryptionKeyTestSeed.WarmAsync(scope, seeker.Id, CancellationToken.None);
+
+        var jobAd = await ImportAdWithDeclaredContactAsync(db, clock, CancellationToken.None);
+
+        var createHandler = new CreateApplicationFromJobAdCommandHandler(db, _currentUser, clock);
+        var created = await createHandler.Handle(
+            new CreateApplicationFromJobAdCommand(jobAd.Id.Value), CancellationToken.None);
+        created.IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        // Counterfactual: the snapshot HELD the contact before the terminal transition (absence
+        // proves a gate only against a prior presence). The just-created aggregate is still tracked,
+        // so this is its in-memory frozen snapshot.
+        var applicationId = new Jobbliggaren.Domain.Applications.ApplicationId(created.Value);
+        var app = await db.Applications.FirstAsync(a => a.Id == applicationId, CancellationToken.None);
+        app.AdSnapshot.ShouldNotBeNull();
+        app.AdSnapshot!.Contacts.ShouldNotBeNull(
+            "the frozen snapshot held the recruiter contact before the terminal transition.");
+
+        // Drive to a TERMINAL status — WithoutAdBody() drops the body AND the recruiter contacts
+        // (ADR 0086 D3 / re-bind R4(b): the follow-up purpose is spent). Submitted → Rejected is a
+        // valid transition (transitions are free, ADR 0092 D3), and Rejected is terminal.
+        app.TransitionTo(ApplicationStatus.Rejected, clock).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(CancellationToken.None);
+        db.ChangeTracker.Clear();
+
+        var handler = new GetApplicationByIdQueryHandler(
+            db, _currentUser, Substitute.For<IFailedAccessLogger>(), Substitute.For<ITaxonomyReadModel>());
+
+        var result = await handler.Handle(
+            new GetApplicationByIdQuery(created.Value), CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result!.PreservedAd.ShouldNotBeNull(
+            "the minimal snapshot (title/company/dates) is retained after a terminal transition.");
+        result.PreservedAd!.Contacts.ShouldBeEmpty(
+            "a terminal transition spends the follow-up purpose — WithoutAdBody cleared the contacts, "
+            + "and ListFrom(null) projects to [] (never null on the wire).");
+    }
 }

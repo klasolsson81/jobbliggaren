@@ -194,6 +194,12 @@
       "previousApplicationsLink": "View application history",
       "recruiterNoticeLink": "Are you a contact person in the ad? Read how we process contact details."
     },
+    "contact": {
+      "title": "Contact",
+      "derived": "From the ad text",
+      "email": "Email",
+      "phone": "Phone"
+    },
     "match": {
       "heading": "Match against your profile",
       "settingsCta": "Set up matching",

@@ -9,7 +9,10 @@ namespace Jobbliggaren.Architecture.Tests;
 /// FTS locks L1 + L4 (#842 Tier A, CTO re-bind R3): removing the recruiter from the reverse-lookup
 /// index is THE sharpest exposure in the issue, and each lock pins one structural guarantee. L2/L3
 /// (extraction and the funnel round-trip) are integration-level and live in
-/// <c>RecruiterContactIngestTests</c>.
+/// <c>RecruiterContactIngestTests</c>. The original L4b (detail DTO carries NO contact member)
+/// was spent by design when PR4 landed the member with its reader (ADR 0108 §3) — its
+/// replacement below is STRONGER: no Mediator response may ever reach the domain contact types;
+/// <see cref="JobAdContactDto"/> is the single sanctioned crossing type (§2.3).
 /// </summary>
 public class RecruiterContactFtsLockTests
 {
@@ -62,18 +65,97 @@ public class RecruiterContactFtsLockTests
     }
 
     /// <summary>
-    /// L4b — the detail DTO carries no contact member EITHER, until PR4 lands the reader
-    /// (ADR 0108 §3: a wire field lands WITH its reader). When PR4 arrives, IT deletes this fact
-    /// and adds the member + the UI in the same change.
+    /// L4b (PR4 replacement) — no Mediator response, walked transitively, ever reaches the DOMAIN
+    /// contact types. The original L4b pinned the detail DTO's contact-absence until its reader
+    /// existed; PR4 spent that fact by design (member + UI in the same change, ADR 0108 §3) and
+    /// this stronger lock took its place: <see cref="JobAdContactDto"/> is the single sanctioned
+    /// crossing type (§2.3 — no domain object past the Application boundary; CTO 2026-07-17), so
+    /// <see cref="AdContact"/>/<see cref="AdContacts"/> in ANY response graph — today's DTOs or a
+    /// future one — is a build break, not a review catch. Mirrors
+    /// <c>OrgNrSurfaceScan.FindRawCarriersInResponses</c> (the walker is reused outright).
     /// </summary>
     [Fact]
-    public void L4b_the_detail_dto_carries_no_contact_member_until_its_reader_exists()
+    public void L4b_no_mediator_response_reaches_a_domain_contact_type()
     {
-        typeof(JobAdDetailDto)
-            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.Name.Contains("Contact", StringComparison.OrdinalIgnoreCase))
-            .ShouldBeEmpty("the wire field lands with its PR4 reader, not before (ADR 0108 §3)");
+        var offenders = new List<string>();
+
+        foreach (var request in typeof(JobAdDetailDto).Assembly.GetTypes()
+                     .Where(t => t is { IsClass: true, IsAbstract: false }
+                                 || (t.IsValueType && !t.IsEnum)))
+        {
+            foreach (var iface in request.GetInterfaces().Where(IsMediatorRequest))
+            {
+                var response = iface.GetGenericArguments()[0];
+                foreach (var reached in OrgNrSurfaceScan.ReachableTypes(response)
+                             .Where(t => t == typeof(AdContact) || t == typeof(AdContacts)))
+                {
+                    offenders.Add($"{request.Name} -> {reached.Name}");
+                }
+            }
+        }
+
+        offenders.ShouldBeEmpty(
+            "Ett Mediator-svar når (transitivt) domänens AdContact/AdContacts. Rekryterarkontakter "
+            + "korsar Application-gränsen ENBART som JobAdContactDto (§2.3, fail-closed IsDerived + "
+            + "redacted ToString) — en domäntyp i ett svar serialiserar Origin-enumens interna namn "
+            + "och kringgår båda skydden. Överträdelser: " + string.Join(", ", offenders.Distinct()));
     }
+
+    /// <summary>
+    /// Self-proving negative for the L4b walker: it must find a domain contact type NESTED inside
+    /// a response-shaped graph (the exact shape a lazy handler would return), and the sanctioned
+    /// DTOs must be clean — otherwise the lock above is vacuous.
+    /// </summary>
+    [Fact]
+    public void L4b_walker_flags_a_nested_domain_contact_and_clears_the_sanctioned_dto()
+    {
+        OrgNrSurfaceScan.ReachableTypes(typeof(SyntheticContactLeakDto))
+            .ShouldContain(typeof(AdContacts),
+                "walkern måste hitta en domän-kontakttyp nästlad i en svarsform — annars är "
+                + "L4b-låset vakuöst för precis den form det finns för.");
+
+        OrgNrSurfaceScan.ReachableTypes(typeof(JobAdDetailDto))
+            .ShouldNotContain(typeof(AdContacts));
+        OrgNrSurfaceScan.ReachableTypes(typeof(JobAdDetailDto))
+            .ShouldNotContain(typeof(AdContact));
+    }
+
+    /// <summary>
+    /// The contact DTO's <c>ToString()</c> is redacted — same hole, one layer up from
+    /// <see cref="AdContact"/>: a record's generated <c>ToString()</c> prints every member, so a
+    /// plain <c>{Contact}</c> MEL placeholder (no <c>@</c>) dumps name/email/phone past both the
+    /// destructuring guard and every token scan (the <c>JobAdImportItem</c> lesson,
+    /// <c>JobAdPublicSurfaceGuardTests</c>).
+    /// </summary>
+    [Fact]
+    public void The_contact_dto_does_not_print_its_contents_in_ToString()
+    {
+        var dto = new JobAdContactDto(
+            "Anna Andersson", "Rekryterare", "anna@example.com", "070-123 45 67",
+            IsDerived: false);
+
+        var text = dto.ToString();
+
+        text.ShouldNotContain("Anna",
+            customMessage: "namnet får aldrig nå en logg via ToString()");
+        text.ShouldNotContain("anna@example.com");
+        text.ShouldNotContain("070");
+        text.ShouldNotContain("Rekryterare");
+
+        // ...and it must still be USEFUL for debugging, or someone will "fix" it by logging the
+        // fields individually.
+        text.ShouldContain("IsDerived");
+    }
+
+    private static bool IsMediatorRequest(Type iface) =>
+        iface.IsGenericType
+        && (iface.GetGenericTypeDefinition() == typeof(Mediator.IQuery<>)
+            || iface.GetGenericTypeDefinition() == typeof(Mediator.ICommand<>));
+
+    // A synthetic response shape carrying the DOMAIN collection — what a lazy handler returning
+    // the aggregate's VO straight out would produce. Lives in the TEST assembly, so it never
+    // pollutes the real Application-assembly reflection.
+    private sealed record SyntheticContactLeakDto(Guid Id, AdContacts Contacts);
 
     private static string SourcePath(string repoRelative)
     {

@@ -84,6 +84,38 @@ export const jobAdDtoSchema = z.object({
 });
 export type JobAdDto = z.infer<typeof jobAdDtoSchema>;
 
+// #842 PR4 — one recruiter contact on a DETAIL surface. Mirrors the backend
+// `JobAdContactDto` (camelCase on the wire): every field nullable except the
+// `isDerived` discriminator, which is FAIL-CLOSED backend-side (true for every
+// origin that is not an explicit advertiser declaration). A derived contact was
+// extracted from the ad body by us, never declared by the advertiser — the UI
+// MUST label it as such and must never present it as the advertiser's own
+// statement (re-bind R1(b)). A derived contact ALWAYS has `name === null` (the
+// backend never guesses a name). email/phone are plain strings (rendered only
+// behind our own fixed mailto:/tel: schemes, never as an arbitrary href), so no
+// URL-scheme refine is needed here — this is a 1:1 projection of the wire.
+export const adContactDtoSchema = z.object({
+  name: z.string().nullable(),
+  role: z.string().nullable(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  isDerived: z.boolean(),
+});
+export type AdContactDto = z.infer<typeof adContactDtoSchema>;
+
+// The single-ad DETAIL schema (re-bind R2 / ISP) — DELIBERATELY a distinct type
+// from the LIST schema `jobAdDtoSchema`, even though the base fields are
+// identical today. `contacts` lives ONLY here and is NEVER added to
+// `jobAdDtoSchema`: that schema backs the search/list wire (~20 ads per page over
+// the whole corpus), so widening it would put every recruiter's structured
+// contacts on the bulk-harvestable search surface — the exact thing R2 forbids.
+// `.extend()` reuses the list fields (DRY) without mutating the list schema.
+// `contacts` is never absent on the wire ([] when the ad holds none).
+export const jobAdDetailDtoSchema = jobAdDtoSchema.extend({
+  contacts: z.array(adContactDtoSchema),
+});
+export type JobAdDetailDto = z.infer<typeof jobAdDetailDtoSchema>;
+
 export const listJobAdsResultSchema = pagedResult(jobAdDtoSchema);
 export type ListJobAdsResult = z.infer<typeof listJobAdsResultSchema>;
 

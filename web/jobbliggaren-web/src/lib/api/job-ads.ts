@@ -2,11 +2,11 @@ import "server-only";
 import { getSessionId } from "@/lib/auth/session";
 import { authedFetch } from "@/lib/http/authed-fetch";
 import {
-  jobAdDtoSchema,
+  jobAdDetailDtoSchema,
   listJobAdsResultSchema,
   suggestJobAdTermsResultSchema,
   facetCountsSchema,
-  type JobAdDto,
+  type JobAdDetailDto,
   type ListJobAdsResult,
   type SuggestJobAdTermsResult,
   type JobAdSortBy,
@@ -146,7 +146,7 @@ export async function getJobAds(
  */
 export async function getJobAd(
   id: string
-): Promise<ApiResult<JobAdDto>> {
+): Promise<ApiResult<JobAdDetailDto>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
   // Allowlist-guard: reject a non-GUID before the id reaches the backend URL
@@ -163,7 +163,7 @@ export async function getJobAd(
     );
     return await responseToResult(
       res,
-      jobAdDtoSchema,
+      jobAdDetailDtoSchema,
       "GET /api/v1/job-ads/{id}",
       { includeNotFound: true }
     );

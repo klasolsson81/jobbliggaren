@@ -56,6 +56,7 @@ const snapshot: AdSnapshotDto = {
   publishedAt: "2026-04-10T08:00:00Z",
   expiresAt: null,
   description: "Sparad annonstext.",
+  contacts: [],
   capturedAt: "2026-04-12T08:00:00Z",
 };
 

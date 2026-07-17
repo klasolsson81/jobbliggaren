@@ -3,7 +3,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { ExternalLink } from "lucide-react";
 import { jobAdStatusLabel } from "@/lib/job-ads/status";
 import { formatDate } from "@/lib/i18n/format";
-import type { JobAdDto, JobAdStatus } from "@/lib/dto/job-ads";
+import type { AdContactDto, JobAdDto, JobAdStatus } from "@/lib/dto/job-ads";
 import type { JobAdMatchDetail } from "@/lib/dto/job-ad-match";
 import type { CompanyFollowState } from "@/lib/dto/company-follows";
 import type { OrtGranularity } from "@/lib/job-ads/ort-granularity";
@@ -11,6 +11,7 @@ import { SaveJobAdToggle } from "@/components/saved-job-ads/save-job-ad-toggle";
 import { HarAnsoktButton } from "@/components/applications/har-ansokt-button";
 import { FollowCompanyToggle } from "@/components/company-follows/follow-company-toggle";
 import { JobAdMatchSection } from "./job-ad-match-section";
+import { RecruiterContactBlock } from "./recruiter-contact-block";
 import { formatAdDescription } from "./format-ad-description";
 
 /**
@@ -82,6 +83,15 @@ interface JobAdDetailProps {
    * registrerade om hennes egna uppgifter är en Art. 5(1)(a)/(d)-defekt, inte en formuleringsfråga.</para>
    */
   previousApplicationCount?: number;
+  /**
+   * #842 PR4 — the ad's recruiter contacts (detail-only wire field). Optional
+   * additive prop, same pattern as `initialSaved`/`match`/`previousApplicationCount`
+   * above: the real detail pages pass `jobAd.contacts` (from the JobAdDetailDto
+   * getJobAd now returns), the guest demo omits it (a sample ad never fabricates a
+   * recruiter). Defaults to [] → RecruiterContactBlock self-hides. A derived
+   * entry is labelled as coming from the ad text; declared entries are not (R1(b)).
+   */
+  contacts?: readonly AdContactDto[];
 }
 
 // Active/Archived → .jp-pill-variant. Speglar
@@ -101,6 +111,7 @@ export function JobAdDetail({
   match,
   ortGranularityByLabel,
   previousApplicationCount,
+  contacts = [],
 }: JobAdDetailProps) {
   // Synchronous next-intl translators — keep JobAdDetail a non-async RSC (it is
   // shared by the full page and the @modal serialized slot, with sync tests).
@@ -207,6 +218,12 @@ export function JobAdDetail({
             </Link>
           </p>
         </div>
+
+        {/* #842 PR4 — recruiter contact block, adjacent to the Art. 14 notice
+            link above (which stays as this surface's transparency link). Sits in
+            the .jp-modal__body flex column (20px gap spaces it). Self-hides when
+            the ad carries no contacts; the guest demo omits the prop entirely. */}
+        <RecruiterContactBlock contacts={contacts} />
       </div>
 
       <div className="jp-modal__foot">

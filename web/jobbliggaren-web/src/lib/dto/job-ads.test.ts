@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  adContactDtoSchema,
+  jobAdDetailDtoSchema,
   jobAdDtoSchema,
   jobAdFiltersSchema,
   jobAdSortBySchema,
@@ -378,5 +380,102 @@ describe("suggestionDtoSchema (ADR 0067 Beslut 5a)", () => {
         label: "Mjukvaru- och systemutvecklare m.fl.",
       });
     }
+  });
+});
+
+// ── #842 PR4 — recruiter contacts on the DETAIL surfaces (R2/ISP split) ──────
+describe("adContactDtoSchema (#842 PR4)", () => {
+  const declared = {
+    name: "Anna Svensson",
+    role: "Rekryterare",
+    email: "anna.svensson@acme.se",
+    phone: "070-123 45 67",
+    isDerived: false,
+  };
+
+  it("accepts a fully-populated declared contact", () => {
+    expect(adContactDtoSchema.safeParse(declared).success).toBe(true);
+  });
+
+  it("accepts a derived contact with null name (the backend never guesses a name)", () => {
+    const derived = {
+      name: null,
+      role: null,
+      email: "jobb@acme.se",
+      phone: null,
+      isDerived: true,
+    };
+    expect(adContactDtoSchema.safeParse(derived).success).toBe(true);
+  });
+
+  it("requires every field key (nullable, not optional — the C# record always emits them)", () => {
+    const { isDerived: _omitFlag, ...withoutFlag } = declared;
+    expect(adContactDtoSchema.safeParse(withoutFlag).success).toBe(false);
+    const { name: _omitName, ...withoutName } = declared;
+    expect(adContactDtoSchema.safeParse(withoutName).success).toBe(false);
+  });
+
+  it("rejects a non-boolean isDerived discriminator", () => {
+    expect(
+      adContactDtoSchema.safeParse({ ...declared, isDerived: "true" }).success
+    ).toBe(false);
+  });
+});
+
+describe("jobAdDetailDtoSchema (#842 PR4 — detail twin of the list schema)", () => {
+  it("accepts the list fields plus an empty contacts array", () => {
+    expect(
+      jobAdDetailDtoSchema.safeParse({ ...baseJobAd, contacts: [] }).success
+    ).toBe(true);
+  });
+
+  it("accepts a declared + a derived contact", () => {
+    const parsed = jobAdDetailDtoSchema.safeParse({
+      ...baseJobAd,
+      contacts: [
+        {
+          name: "Anna",
+          role: "Rekryterare",
+          email: "anna@acme.se",
+          phone: null,
+          isDerived: false,
+        },
+        { name: null, role: null, email: "jobb@acme.se", phone: null, isDerived: true },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.contacts).toHaveLength(2);
+  });
+
+  it("REQUIRES contacts (never absent on the wire — backend sends [] when none)", () => {
+    // The twin of the list-schema lock below: the detail wire always carries the
+    // field, so a payload without it must fail rather than silently drop the block.
+    expect(jobAdDetailDtoSchema.safeParse(baseJobAd).success).toBe(false);
+  });
+
+  it("rejects a malformed contact entry", () => {
+    expect(
+      jobAdDetailDtoSchema.safeParse({
+        ...baseJobAd,
+        contacts: [{ isDerived: false }],
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe("jobAdDtoSchema stays the LIST wire (R2 — contacts never on search)", () => {
+  it("does not carry contacts: a stray contacts field is stripped, never exposed", () => {
+    // Widening the list schema would put every recruiter's structured contacts on
+    // the bulk-harvest search surface (re-bind R2). Zod strips unknown keys by
+    // default, so even a stray contacts field is dropped and the type never
+    // exposes it — contacts live ONLY on jobAdDetailDtoSchema.
+    const parsed = jobAdDtoSchema.safeParse({
+      ...baseJobAd,
+      contacts: [
+        { name: null, role: null, email: "x@y.se", phone: null, isDerived: true },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect("contacts" in parsed.data).toBe(false);
   });
 });

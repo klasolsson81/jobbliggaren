@@ -56,6 +56,7 @@ function makeSnapshot(
     publishedAt: "2026-04-10T08:00:00Z",
     expiresAt: "2026-05-10T08:00:00Z",
     description: "Vi söker en utvecklare med erfarenhet av distribuerade system.",
+    contacts: [],
     capturedAt: "2026-04-12T08:00:00Z",
     ...overrides,
   };

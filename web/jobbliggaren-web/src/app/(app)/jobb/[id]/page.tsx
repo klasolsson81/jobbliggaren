@@ -100,6 +100,7 @@ export default async function JobbDetailPage({
               match={match}
               ortGranularityByLabel={ortGranularityByLabel}
               previousApplicationCount={previousApplicationCount}
+              contacts={result.data.contacts}
             />
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  adSnapshotDtoSchema,
   applicationDetailDtoSchema,
   applicationDtoSchema,
   applicationStatusSchema,
@@ -192,5 +193,41 @@ describe("applicationDtoSchema — lastStatusChangeAt/lastFollowUpAt (PR 7)", ()
         lastFollowUpAt: null,
       }).success
     ).toBe(true);
+  });
+});
+
+// ── #842 PR4 — the preserved snapshot carries frozen recruiter contacts ──────
+describe("adSnapshotDtoSchema (#842 PR4)", () => {
+  const base = {
+    title: "Systemutvecklare .NET",
+    company: "Spotify",
+    location: "Stockholm",
+    url: null,
+    source: "Platsbanken",
+    publishedAt: "2026-04-10T08:00:00Z",
+    expiresAt: null,
+    description: "Vi söker en utvecklare.",
+    contacts: [],
+    capturedAt: "2026-04-12T08:00:00Z",
+  };
+
+  it("accepts a snapshot with an empty contacts array", () => {
+    expect(adSnapshotDtoSchema.safeParse(base).success).toBe(true);
+  });
+
+  it("accepts frozen contacts projected through the shared schema", () => {
+    const parsed = adSnapshotDtoSchema.safeParse({
+      ...base,
+      contacts: [
+        { name: null, role: null, email: "jobb@acme.se", phone: null, isDerived: true },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.contacts).toHaveLength(1);
+  });
+
+  it("REQUIRES contacts (never absent on the wire — [] when the ad held none)", () => {
+    const { contacts: _omit, ...withoutContacts } = base;
+    expect(adSnapshotDtoSchema.safeParse(withoutContacts).success).toBe(false);
   });
 });

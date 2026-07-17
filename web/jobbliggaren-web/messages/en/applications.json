@@ -264,7 +264,8 @@
       "applyBy": "Application deadline",
       "source": "Source",
       "descriptionLabel": "Ad text",
-      "minimizedNotice": "The full ad text was cleared because the application is concluded. The saved metadata is kept."
+      "minimizedNotice": "The full ad text was cleared because the application is concluded. The saved metadata is kept.",
+      "recruiterNoticeLink": "Are you a contact person in the ad? Read how we process contact details."
     },
     "notes": {
       "sectionLabel": "Notes",

@@ -165,7 +165,11 @@ public sealed class ApplyCvImprovementsCommandHandler(
         // content; only an applied criterion whose verdict genuinely cleared to an
         // ASSESSED Pass flips to Resolved (CTO D-D — the engine, not the click, decides;
         // a partial fix stays Open), and the ledger is seeded/pruned for the hub badge.
-        return await reconciler.ReconcileAsync(
+        // The reconciler completes or THROWS (CTO bind 2026-07-17): a throw propagates
+        // past this handler, the unconditional UnitOfWork save never runs, and the
+        // tracked apply rolls back with it.
+        await reconciler.ReconcileAsync(
             resume, appliedCriteria.Distinct(StringComparer.Ordinal).ToList(), cancellationToken);
+        return Result.Success();
     }
 }

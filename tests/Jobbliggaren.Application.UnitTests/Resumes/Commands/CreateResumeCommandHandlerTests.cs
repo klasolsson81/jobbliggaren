@@ -3,7 +3,6 @@ using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Resumes.Commands.CreateResume;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
-using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
 using Microsoft.EntityFrameworkCore;
@@ -26,8 +25,6 @@ public class CreateResumeCommandHandlerTests
     public CreateResumeCommandHandlerTests()
     {
         _currentUser.UserId.Returns(_userId);
-        _reconciler.ReconcileAsync(Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Result>(Result.Success()));
     }
 
     private static async Task<JobSeeker> SeedJobSeekerAsync(
@@ -178,5 +175,30 @@ public class CreateResumeCommandHandlerTests
             Arg.Is<Resume>(r => r.Id.Value == result.Value),
             Arg.Is<IReadOnlyCollection<string>>(x => x == null),
             Arg.Any<CancellationToken>());
+    }
+
+    // Reconciler-throw atomicity witness (CTO bind 2026-07-17, ADR 0093 §D5(b)
+    // amendment): the reconciler completes or THROWS — the load-bearing pin is that the
+    // throw PROPAGATES out of Handle unswallowed; UnitOfWorkBehaviorTests pins the
+    // other leg (a throwing next() means the unconditional save never runs), and the
+    // two compose to full rollback. The store read below is a consistency backstop,
+    // not the atomicity proof — this test bypasses the pipeline and never saves, so it
+    // holds on both paths.
+    [Fact]
+    public async Task Handle_WhenReconcilerThrows_ExceptionPropagates_AndNoResumePersists()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db, _userId);
+        _reconciler.ReconcileAsync(Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromException(new InvalidOperationException("boom")));
+
+        var handler = new CreateResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, _reconciler);
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => handler.Handle(new CreateResumeCommand("Mitt CV", "Klas Olsson"), CancellationToken.None).AsTask());
+
+        // Consistency backstop: nothing was saved by the handler itself (the rollback
+        // guarantee is the propagation above + the pipeline's never-run save).
+        (await db.Resumes.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 }

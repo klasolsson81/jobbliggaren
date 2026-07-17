@@ -5,7 +5,6 @@ using Jobbliggaren.Application.Resumes.Commands.PromoteParsedResume;
 using Jobbliggaren.Application.Resumes.Queries;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
-using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
@@ -49,8 +48,6 @@ public class PromoteParsedResumeCommandHandlerTests
     public PromoteParsedResumeCommandHandlerTests()
     {
         _currentUser.UserId.Returns(_userId);
-        _reconciler.ReconcileAsync(Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Result>(Result.Success()));
     }
 
     private PromoteParsedResumeCommandHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>
@@ -439,5 +436,36 @@ public class PromoteParsedResumeCommandHandlerTests
         result.IsFailure.ShouldBeTrue();
         await _reconciler.DidNotReceive().ReconcileAsync(
             Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>());
+    }
+
+    // ===============================================================
+    // Reconciler-throw atomicity witness (CTO bind 2026-07-17, ADR 0093 §D5(b)
+    // amendment): the reconciler completes or THROWS — the load-bearing pin is that the
+    // throw PROPAGATES out of Handle unswallowed; UnitOfWorkBehaviorTests pins the
+    // other leg (a throwing next() means the unconditional save never runs), and the
+    // two compose to the promote + soft-delete + Resume add rolling back TOGETHER. The
+    // store reads below are a consistency backstop, not the atomicity proof — this
+    // test bypasses the pipeline and never saves, so they hold on both paths.
+    // ===============================================================
+
+    [Fact]
+    public async Task Handle_WhenReconcilerThrows_ExceptionPropagates_AndNothingPersists()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var (parsed, _) = await SeedOwnedAsync(db, _userId);
+        _reconciler.ReconcileAsync(Arg.Any<Resume>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromException(new InvalidOperationException("boom")));
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => CreateSut(db).Handle(
+                Command(parsed.Id.Value), TestContext.Current.CancellationToken).AsTask());
+
+        // Consistency backstop: nothing was saved by the handler itself — no Resume
+        // row, the artifact still PendingReview, not soft-deleted.
+        (await db.Resumes.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        var stored = await db.ParsedResumes.AsNoTracking()
+            .SingleAsync(r => r.Id == parsed.Id, TestContext.Current.CancellationToken);
+        stored.Status.ShouldBe(ParsedResumeStatus.PendingReview);
+        stored.DeletedAt.ShouldBeNull();
     }
 }

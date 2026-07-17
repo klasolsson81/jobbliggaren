@@ -428,9 +428,10 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     /// <summary>
     /// #842 Tier A (ADR 0106 D4, CTO re-bind R1) — THE aggregate invariant: an imported ad never
     /// holds a detected recruiter email/phone in its body text. Promote → merge → scrub, in that
-    /// order: the declared <c>application_contacts</c> win, every uncovered detector hit is
-    /// promoted (<c>Origin = ExtractedFromBody</c>, never a guessed name), and the body keeps only
-    /// the marker.
+    /// order: the declared <c>application_contacts</c> win; uncovered detector hits from the
+    /// VISIBLE surfaces (Title/Description) are promoted (<c>Origin = ExtractedFromBody</c>,
+    /// never a guessed name), the RawPayload surface promotes only its EMAIL hits (the asymmetric
+    /// promote gate — ADR 0106 amendment 2026-07-17); and the body keeps only the marker.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -475,10 +476,21 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         Description = description.Scrubbed;
         RawPayload = payload.Scrubbed;
 
+        // The asymmetric promote gate (ADR 0106 amendment 2026-07-17): scrub for safety,
+        // promote for truth. A PHONE span found on the RawPayload surface is scrubbed but never
+        // promoted — a quoted id/reference number starting 0 + 6–12 digits is phone-shaped to
+        // the detector, and promoting it would surface a fabricated "derived contact" to the
+        // user (a precision failure on the promote step; the over-redaction posture priced only
+        // the scrub). Emails cannot be id-shaped by accident, so the payload's email spans keep
+        // promoting; Title/Description are the ad's visible text and keep both kinds.
         Contacts = Status == JobAdStatus.Active
             ? AdContacts.From(
                 declaredContacts,
-                [.. title.Found, .. description.Found, .. payload.Found])
+                [
+                    .. title.Found,
+                    .. description.Found,
+                    .. payload.Found.Where(s => s.Kind == ContactKind.Email),
+                ])
             : null;
     }
 

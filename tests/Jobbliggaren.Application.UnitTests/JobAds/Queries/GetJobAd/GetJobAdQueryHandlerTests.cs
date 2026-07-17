@@ -89,12 +89,12 @@ public class GetJobAdQueryHandlerTests
     /// An IMPORTED ad (JobAd.Import runs the scrub/promote funnel; JobAd.Create does not) carrying a
     /// single DECLARED contact and a clean body, so Contacts holds exactly that one contact.
     /// <c>ChangeTracker.Clear()</c> forces the read to re-materialise the jsonb VO through its value
-    /// converter — the round-trip the GetJobAdExtractedTermsQueryHandlerTests pattern relies on.
+    /// converter — the round-trip a read handler must survive when it re-hydrates the persisted VO.
     /// </summary>
     private static async Task<JobAd> ImportJobAdWithDeclaredContactAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, CancellationToken ct)
     {
-        var externalId = Guid.NewGuid().ToString("N");
+        var externalId = TestIds.ExternalId();
         var payload = $"{{\"id\":\"{externalId}\"}}";
         var declared = AdContact.TryCreate(
             "Anna Karlsson", "Rekryterare", "anna@acme.se", "070-123 45 67",

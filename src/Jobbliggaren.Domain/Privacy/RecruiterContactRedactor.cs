@@ -8,9 +8,9 @@ namespace Jobbliggaren.Domain.Privacy;
 /// (#842 Tier A, ADR 0106 D4/D5; CTO re-bind R1). Sibling of <see cref="PersonnummerRedactor"/>:
 /// static, <c>GeneratedRegex</c>, deterministic, never throws, idempotent. Returns BOTH the
 /// scrubbed text and the detected spans, because the scrub is a MIGRATION to a safe carrier, not a
-/// destruction — every span is promoted into the ad's structured <c>AdContacts</c> field by the
-/// aggregate (re-bind R1(b): refusing to promote would delete a contact the user needs, in the name
-/// of a minimisation we are not achieving).
+/// destruction — the aggregate promotes the spans into the ad's structured <c>AdContacts</c> field
+/// per its promotion policy (re-bind R1(b); the asymmetric promote gate, ADR 0106 amendment
+/// 2026-07-17, is the aggregate's decision — this recogniser only reports what it found).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -260,7 +260,8 @@ public static partial class RecruiterContactRedactor
 
 /// <summary>
 /// The redactor's result (#842 Tier A): the scrubbed text plus every detected span, in document
-/// order per kind (emails first — the replacement order above). <see cref="Found"/> is what the
-/// aggregate promotes into <c>AdContacts</c>; discarding it would be destruction, not migration.
+/// order per kind (emails first — the replacement order above). <see cref="Found"/> is the
+/// aggregate's promotion INPUT — which spans actually surface is its promotion policy (the
+/// asymmetric promote gate, ADR 0106 amendment 2026-07-17), never this type's claim.
 /// </summary>
 public sealed record ContactRedactionResult(string Scrubbed, IReadOnlyList<ContactSpan> Found);

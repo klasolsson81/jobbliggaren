@@ -70,5 +70,6 @@
        ergonomics live in one place. -->
   <ItemGroup>
     <Compile Include="..\Shared\TestFacets.cs" Link="Shared\TestFacets.cs" />
+    <Compile Include="..\Shared\TestIds.cs" Link="Shared\TestIds.cs" />
   </ItemGroup>
 </Project>

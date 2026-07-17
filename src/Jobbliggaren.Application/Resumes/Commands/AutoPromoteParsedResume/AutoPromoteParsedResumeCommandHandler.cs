@@ -130,9 +130,11 @@ public sealed class AutoPromoteParsedResumeCommandHandler(
             return LeftPending(AutoPromoteBlockReason.IncompleteContent);
 
         // ── Mutations begin. The aggregate owns the promote gate (PendingReview + no
-        // flagged personnummer); a failure here is a genuine inconsistency (the policy
-        // gates above already re-verified both preconditions on this loaded row), so it
-        // propagates as a real Failure, not a LeftPending.
+        // flagged personnummer); the personnummer half was re-verified by the policy gate
+        // above, and PendingReview is guaranteed structurally by the query filter (a
+        // Promoted/Discarded row is soft-deleted and reads as NotFound) — so a failure
+        // here is a genuine (e.g. concurrent) inconsistency and propagates as a real
+        // Failure, not a LeftPending.
         var promotion = parsed.Promote(clock);
         if (promotion.IsFailure)
             return Result.Failure<AutoPromoteOutcome>(promotion.Error);

@@ -348,6 +348,45 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         await AssertLeftPendingAsync(db, result, parsed, AutoPromoteBlockReason.ParseNotConfident);
     }
 
+    /// <summary>The bound gate ORDER (CTO §2: highest PII priority first) is behavior, not
+    /// style: a parse tripping ALL THREE gates must report the personnummer — the most
+    /// sensitive blocker — to telemetry/copy, never the confidence verdict. A reorder of
+    /// the three ifs would survive every single-gate test; this one catches it.</summary>
+    [Fact]
+    public async Task Handle_ParseTripsAllThreeGates_ReportsPersonnummerPresent_HighestPriorityFirst()
+    {
+        var flagged = PersonnummerScanOutcome.FromMatches(
+            PersonnummerScanner.Scan($"Pnr {ValidPersonnummer} i CV."));
+        var db = TestAppDbContextFactory.Create();
+        var (parsed, _) = await SeedOwnedAsync(
+            db, _userId,
+            content: CleanParsedContent(preamble: "Driven utvecklare."),
+            confidence: Degraded(),
+            pnr: flagged);
+
+        var result = await CreateSut(db).Handle(
+            Command(parsed.Id.Value), TestContext.Current.CancellationToken);
+
+        await AssertLeftPendingAsync(db, result, parsed, AutoPromoteBlockReason.PersonnummerPresent);
+    }
+
+    /// <summary>Second rung of the order: with no personnummer, the Klas-bound preamble
+    /// rule outranks the confidence verdict.</summary>
+    [Fact]
+    public async Task Handle_PreambleAndDegraded_ReportsUnclassifiedPreamble_BeforeConfidence()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var (parsed, _) = await SeedOwnedAsync(
+            db, _userId,
+            content: CleanParsedContent(preamble: "Driven utvecklare."),
+            confidence: Degraded());
+
+        var result = await CreateSut(db).Handle(
+            Command(parsed.Id.Value), TestContext.Current.CancellationToken);
+
+        await AssertLeftPendingAsync(db, result, parsed, AutoPromoteBlockReason.UnclassifiedPreamble);
+    }
+
     // ===============================================================
     // Tier 2 — buildability through the ONE aggregate authority
     // ===============================================================

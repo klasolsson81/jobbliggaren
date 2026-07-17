@@ -122,6 +122,33 @@ public class AutoPromoteContentMapperTests
 
     // ── Education ────────────────────────────────────────────────────────
 
+    /// <summary>The never-drops/never-truncates guarantee witnessed PER collection block
+    /// (test-writer gate): the education block is its own `.Select()` — an accidental
+    /// `.Where()`/`.Take()`/truncation edit there would slip past the experience pins.</summary>
+    [Fact]
+    public void ToContentDto_NeverDropsEducations_NorTruncatesPeriods_NorReorders()
+    {
+        var overlong = new string('y', 101);
+        var parse = new ParsedResumeContent(
+            ParsedContact.Empty,
+            education:
+            [
+                new ParsedEducation("KTH", "Civilingenjör", overlong, "raw1"),
+                new ParsedEducation("Chalmers", null, "2010–2013", "raw2"),
+                new ParsedEducation(null, "Master", null, "raw3"),
+            ]);
+
+        var dto = AutoPromoteContentMapper.ToContentDto(parse, AccountName);
+
+        dto.Educations.Count.ShouldBe(3);
+        dto.Educations[0].Institution.ShouldBe("KTH");
+        dto.Educations[0].RawPeriod.ShouldBe(overlong); // verbatim, 101 chars intact
+        dto.Educations[1].Institution.ShouldBe("Chalmers");
+        dto.Educations[1].Degree.ShouldBe(string.Empty); // null → honest empty
+        dto.Educations[2].Institution.ShouldBe(string.Empty);
+        dto.Educations[2].RawPeriod.ShouldBeNull();
+    }
+
     [Fact]
     public void ToContentDto_EducationMapsInstitutionDegree_NullDates_RawPeriod()
     {
@@ -177,6 +204,35 @@ public class AutoPromoteContentMapperTests
         var entry = section.Entries.ShouldNotBeNull().ShouldHaveSingleItem();
         entry.Title.ShouldBe("Kassasystem");
         entry.Lines.ShouldBe(["Byggde kassasystem."]);
+    }
+
+    /// <summary>Multi-section, multi-entry, multi-line order preservation — the sections
+    /// block is its own projection and needs its own never-drops witness (test-writer gate).</summary>
+    [Fact]
+    public void ToContentDto_NeverDropsSections_NorEntries_PreservingOrder()
+    {
+        var parse = new ParsedResumeContent(
+            ParsedContact.Empty,
+            sections:
+            [
+                new ParsedSection("Projekt",
+                [
+                    new ParsedSectionEntry("Kassasystem", ["Rad 1.", "Rad 2."]),
+                    new ParsedSectionEntry("Bokningsmotor", ["Rad A."]),
+                ]),
+                new ParsedSection("Referenser",
+                    [new ParsedSectionEntry(null, ["Lämnas på begäran."])]),
+            ]);
+
+        var dto = AutoPromoteContentMapper.ToContentDto(parse, AccountName);
+
+        dto.Sections.ShouldNotBeNull();
+        dto.Sections.Count.ShouldBe(2);
+        dto.Sections.Select(s => s.Heading).ShouldBe(["Projekt", "Referenser"]);
+        var first = dto.Sections[0].Entries.ShouldNotBeNull();
+        first.Count.ShouldBe(2);
+        first.Select(e => e.Title).ShouldBe(["Kassasystem", "Bokningsmotor"]);
+        first[0].Lines.ShouldBe(["Rad 1.", "Rad 2."]); // multi-line order intact
     }
 
     [Fact]

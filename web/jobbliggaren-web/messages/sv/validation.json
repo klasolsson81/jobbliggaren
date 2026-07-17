@@ -42,6 +42,7 @@
     "roleRequired": "Roll krävs.",
     "roleMax": "Roll får vara max 200 tecken.",
     "endBeforeStart": "Slutdatum kan inte vara före startdatum.",
+    "rawPeriodMax": "Periodtext får vara max 100 tecken.",
     "institutionRequired": "Lärosäte krävs.",
     "institutionMax": "Lärosäte får vara max 200 tecken.",
     "degreeRequired": "Examen krävs.",

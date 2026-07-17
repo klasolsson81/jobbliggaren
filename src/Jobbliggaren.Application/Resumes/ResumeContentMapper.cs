@@ -21,11 +21,13 @@ internal static class ResumeContentMapper
             dto.PersonalInfo.Location);
 
         var experiences = dto.Experiences
-            .Select(e => new Experience(e.Company, e.Role, e.StartDate, e.EndDate, e.Description))
+            .Select(e => new Experience(
+                e.Company, e.Role, e.StartDate, e.EndDate, e.Description, e.RawPeriod))
             .ToList();
 
         var educations = dto.Educations
-            .Select(e => new Education(e.Institution, e.Degree, e.StartDate, e.EndDate))
+            .Select(e => new Education(
+                e.Institution, e.Degree, e.StartDate, e.EndDate, e.RawPeriod))
             .ToList();
 
         var skills = dto.Skills
@@ -79,10 +81,12 @@ internal static class ResumeContentMapper
                 content.PersonalInfo.Phone,
                 content.PersonalInfo.Location),
             content.Experiences
-                .Select(e => new ExperienceDto(e.Company, e.Role, e.StartDate, e.EndDate, e.Description))
+                .Select(e => new ExperienceDto(
+                    e.Company, e.Role, e.StartDate, e.EndDate, e.Description, e.RawPeriod))
                 .ToList(),
             content.Educations
-                .Select(e => new EducationDto(e.Institution, e.Degree, e.StartDate, e.EndDate))
+                .Select(e => new EducationDto(
+                    e.Institution, e.Degree, e.StartDate, e.EndDate, e.RawPeriod))
                 .ToList(),
             content.Skills
                 .Select(s => new SkillDto(s.Name, s.YearsExperience))

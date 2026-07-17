@@ -42,6 +42,7 @@
     "roleRequired": "Role is required.",
     "roleMax": "Role may be at most 200 characters.",
     "endBeforeStart": "The end date cannot be before the start date.",
+    "rawPeriodMax": "The period text may be at most 100 characters.",
     "institutionRequired": "Institution is required.",
     "institutionMax": "Institution may be at most 200 characters.",
     "degreeRequired": "Degree is required.",

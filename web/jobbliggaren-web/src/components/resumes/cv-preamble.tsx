@@ -34,13 +34,13 @@ export function CvPreamble({ preamble }: { preamble: string | null }) {
       >
         {t("preamble.title")}
       </h2>
-      <p className="text-body-sm text-text-primary">{t("preamble.body")}</p>
+      <p className="max-w-[68ch] text-body-sm text-text-primary">{t("preamble.body")}</p>
       {/* blockquote: the text is quoted verbatim from the user's own file — semantic, not a
           nested landmark. whitespace-pre-wrap keeps the file's own line breaks. */}
       <blockquote className="m-0 whitespace-pre-wrap rounded-md border border-border bg-card p-4 text-body-sm text-text-primary">
         {text}
       </blockquote>
-      <p className="text-body-sm text-text-primary">{t("preamble.useHint")}</p>
+      <p className="max-w-[68ch] text-body-sm text-text-primary">{t("preamble.useHint")}</p>
     </section>
   );
 }

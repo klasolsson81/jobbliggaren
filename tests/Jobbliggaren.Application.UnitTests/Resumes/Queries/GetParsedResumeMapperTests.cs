@@ -143,7 +143,8 @@ public class GetParsedResumeMapperTests
     private const string Personnummer = "811218-9876";
     private const string PersonnummerMask = "******-****";
 
-    private static ParsedResume BuildArtifactWithPreamble(string? preamble)
+    private static ParsedResume BuildArtifactWithPreamble(
+        string? preamble, PersonnummerScanOutcome? scan = null)
     {
         var content = new ParsedResumeContent(
             new ParsedContact("Anna Andersson", null, null, null),
@@ -153,8 +154,24 @@ public class GetParsedResumeMapperTests
         var owner = JobSeeker.Register(Guid.NewGuid(), "Owner", FakeDateTimeProvider.Default).Value.Id;
         return ParsedResume.Create(
             owner, "cv.pdf", "application/pdf", ResumeLanguage.Sv,
-            content, "Anna Andersson", confidence, PersonnummerScanOutcome.None, [],
+            content, "Anna Andersson", confidence, scan ?? PersonnummerScanOutcome.None, [],
             FakeDateTimeProvider.Default).Value;
+    }
+
+    [Fact]
+    public void ToDetailDto_FlaggedParse_SuppressesPreambleEntirely_NotJustRedacts()
+    {
+        // #844 Domain binding (PreambleResidue): NEVER surface a preamble from a flagged parse.
+        // Suppression is the primary guard, not redaction — the residue can carry a personnummer
+        // the egress re-scan (over the reconstructed carrier) would miss. A flagged parse whose
+        // preamble itself carries a pnr ⇒ the whole field is null, not a masked string.
+        var flagged = PersonnummerScanOutcome.FromMatches(
+            PersonnummerScanner.Scan($"Pnr {Personnummer} i CV."));
+        var preamble = $"Anna Andersson {Personnummer}\nErfaren sjuksköterska.";
+
+        var dto = BuildArtifactWithPreamble(preamble, flagged).ToDetailDto();
+
+        dto.Content.Preamble.ShouldBeNull();
     }
 
     [Fact]

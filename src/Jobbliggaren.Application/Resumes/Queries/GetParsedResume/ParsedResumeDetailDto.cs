@@ -25,20 +25,29 @@ public sealed record ParsedResumeDetailDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
-/// <summary>The loosely parsed CV content — best-effort, often partial; never synthesised.</summary>
+/// <summary>The loosely parsed CV content — best-effort, often partial; never synthesised.
+/// <para>Personnummer-egress contract: only <see cref="Preamble"/> is rendered inline on the
+/// review, so only it carries the mapper's personnummer guard. <c>Profile</c> and the
+/// <c>RawText</c> fields travel verbatim but are NOT rendered here — they reach the client only via
+/// the preview / ATS-text surfaces, which redact at their own egress. A future inline render of any
+/// of them must add the same guard <see cref="Preamble"/> has (security-auditor + code-reviewer,
+/// 5c-b).</para></summary>
 /// <param name="Preamble">
 /// Text the CV carried ABOVE its first heading that no contact extractor claimed — verbatim and
 /// UNCLASSIFIED (#844, ADR 0109). <c>null</c> when the preamble was fully accounted for by
 /// name / e-mail / phone / location extraction (the common case). The engine does NOT claim
 /// this is a profile: it is shown back with a neutral label so the owner can decide what it is,
 /// and no rule grades it (ADR 0109 §1 — the engine describes, the user classifies). This is the
-/// only <c>ParsedContentDto</c> field rendered inline on the review view, so it egresses through
-/// <c>PersonnummerRedactor</c> at the mapper — parity with <c>GetResumeAtsText</c>'s
-/// belt-and-braces redaction (CLAUDE.md §5; the personnummer guard is highest-priority). ADR 0109
-/// Amendment (5c-b): the adopt/classify action is FAS-DEFERRED — the Slutför guide that once
-/// hosted it is retired (ADR 0112), so the affordance is display-only; the path to adopt the text
-/// is to give it a heading in the file and upload again (auto-promote, which blocks on this exact
-/// residue via <c>AutoPromoteBlockReason.UnclassifiedPreamble</c>).
+/// only <c>ParsedContentDto</c> field rendered inline on the review view, so the mapper guards it
+/// with the highest-priority personnummer control in two layers (CLAUDE.md §5): PRIMARY — the
+/// carrier is suppressed to <c>null</c> when the parse is flagged (<c>Personnummer.Found</c>), the
+/// categorical Domain binding (<c>PreambleResidue</c>, #844 — a residue subtracts no personnummer,
+/// and redaction re-scans the reconstructed carrier, not the flagged RawText); SECONDARY —
+/// <c>PersonnummerRedactor</c> on the unflagged path (belt-and-braces, parity <c>GetResumeAtsText</c>).
+/// ADR 0109 Amendment (5c-b): the adopt/classify action is FAS-DEFERRED — the Slutför guide that
+/// once hosted it is retired (ADR 0112), so the affordance is display-only; the path to adopt the
+/// text is to give it a heading in the file and upload again (auto-promote, which blocks on this
+/// exact residue via <c>AutoPromoteBlockReason.UnclassifiedPreamble</c>).
 /// </param>
 public sealed record ParsedContentDto(
     ParsedContactDto Contact,
@@ -65,8 +74,8 @@ public sealed record ParsedSectionEntryDto(string? Title, IReadOnlyList<string> 
 public sealed record ParsedContactDto(string? FullName, string? Email, string? Phone, string? Location);
 
 /// <summary>One experience entry — best-effort structured fields plus the verbatim entry
-/// text. <c>Period</c> is the raw parsed string (e.g. "2021–2024"); the gap-fill form turns
-/// it into structured dates (the backend never guesses dates on a PII field — DQ3-3a).</summary>
+/// text. <c>Period</c> is the raw parsed string (e.g. "2021–2024"), never a guessed date: the
+/// backend never invents dates on a PII field (DQ3-3a).</summary>
 public sealed record ParsedExperienceDto(string? Title, string? Organization, string? Period, string RawText);
 
 public sealed record ParsedEducationDto(string? Institution, string? Degree, string? Period, string RawText);

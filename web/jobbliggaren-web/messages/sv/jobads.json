@@ -246,6 +246,10 @@
         "skills": "Inga kompetenser kunde läsas ur ditt CV. Ladda upp ett CV under Profil.",
         "default": "Den här delen kunde inte bedömas."
       },
+      "adUnspecifiedReason": {
+        "regionFit": "Annonsen anger ingen ort.",
+        "employmentFit": "Annonsen anger ingen anställningsform."
+      },
       "mustHaveSummary": {
         "Match": "Du uppfyller alla ska-krav i annonsen.",
         "Partial": "Du uppfyller några av annonsens ska-krav.",

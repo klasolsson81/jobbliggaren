@@ -247,7 +247,7 @@
         "default": "This part could not be assessed."
       },
       "adUnspecifiedReason": {
-        "regionFit": "The ad does not state a location.",
+        "regionFit": "The ad does not state a region.",
         "employmentFit": "The ad does not state an employment type."
       },
       "mustHaveSummary": {

@@ -247,7 +247,7 @@
         "default": "Den här delen kunde inte bedömas."
       },
       "adUnspecifiedReason": {
-        "regionFit": "Annonsen anger ingen ort.",
+        "regionFit": "Annonsen anger ingen region.",
         "employmentFit": "Annonsen anger ingen anställningsform."
       },
       "mustHaveSummary": {

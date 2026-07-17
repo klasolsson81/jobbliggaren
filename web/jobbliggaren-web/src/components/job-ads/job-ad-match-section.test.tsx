@@ -443,11 +443,11 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
   // mot en annons som INTE anger dimensionen ger NoMatch med TOM matched/missing.
   // Bevisraden måste förklara annonsens tystnad — aldrig en tom cell.
   describe("adUnspecifiedReason (#552 — NoMatch med tom evidens)", () => {
-    it("RegionFit NoMatch utan evidens → 'Annonsen anger ingen ort.' i neutral ink", () => {
+    it("RegionFit NoMatch utan evidens → 'Annonsen anger ingen region.' i neutral ink", () => {
       const { container } = render(
         <JobAdMatchSection match={detail({ regionFit: row("NoMatch") })} />
       );
-      const reason = screen.getByText("Annonsen anger ingen ort.");
+      const reason = screen.getByText("Annonsen anger ingen region.");
       expect(reason).toBeInTheDocument();
       // Neutral ink (ink-2), aldrig röd — annonsens tystnad är inget fel.
       expect(reason.className).toContain("jp-modal__matchrow-missing");
@@ -474,7 +474,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
           ortGranularityByLabel={granularity}
         />
       );
-      expect(screen.getByText("Annonsen anger ingen ort.")).toBeInTheDocument();
+      expect(screen.getByText("Annonsen anger ingen region.")).toBeInTheDocument();
     });
 
     it("explicit ort-mismatch (missing bär annonsens ort) tar INTE den nya grenen", () => {
@@ -487,7 +487,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         screen.getByText("Annonsen efterfrågar även: Stockholms län")
       ).toBeInTheDocument();
       expect(
-        screen.queryByText("Annonsen anger ingen ort.")
+        screen.queryByText("Annonsen anger ingen region.")
       ).not.toBeInTheDocument();
     });
   });

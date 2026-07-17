@@ -105,19 +105,32 @@ describe("POST /api/cv/import (binär-passthrough BFF)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("201 → vidarebefordrar strömmen med Bearer + bevarad Content-Type och returnerar bara parsedResumeId", async () => {
+  it("201 Promoted → vidarebefordrar strömmen med Bearer + bevarad Content-Type och det PII-fria sammansatta utfallet", async () => {
+    const RESUME_ID = "22222222-2222-4222-8222-222222222222";
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ parsedResumeId: VALID_ID }), {
-        status: 201,
-        headers: { "Content-Type": "application/json" },
-      }),
+      new Response(
+        JSON.stringify({
+          parsedResumeId: VALID_ID,
+          personnummer: { found: false, count: 0, kinds: [] },
+          outcome: "Promoted",
+          resumeId: RESUME_ID,
+          blockReason: null,
+        }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      ),
     );
     global.fetch = fetchMock;
 
     const res = await POST(makeRequest({ "content-type": MULTIPART }));
 
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ parsedResumeId: VALID_ID });
+    expect(await res.json()).toEqual({
+      parsedResumeId: VALID_ID,
+      outcome: "Promoted",
+      resumeId: RESUME_ID,
+      blockReason: null,
+      personnummer: { found: false, count: 0, kinds: [] },
+    });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://test-backend/api/v1/resumes/import");
@@ -125,6 +138,32 @@ describe("POST /api/cv/import (binär-passthrough BFF)", () => {
     expect(headers.Authorization).toBe("Bearer sess-1");
     expect(headers["Content-Type"]).toBe(MULTIPART);
     expect(init.body).not.toBeNull();
+  });
+
+  it("200 LeftPending → statusen bevaras och personnummer-fyndet (count/kinds, aldrig värdet) flödar igenom", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          parsedResumeId: VALID_ID,
+          personnummer: { found: true, count: 1, kinds: ["Full"] },
+          outcome: "LeftPending",
+          resumeId: null,
+          blockReason: "PersonnummerPresent",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const res = await POST(makeRequest({ "content-type": MULTIPART }));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      parsedResumeId: VALID_ID,
+      outcome: "LeftPending",
+      resumeId: null,
+      blockReason: "PersonnummerPresent",
+      personnummer: { found: true, count: 1, kinds: ["Full"] },
+    });
   });
 
   it("429 → mappar rate-limit + Retry-After", async () => {

@@ -123,6 +123,17 @@ public static class JobAdLifecycleReadRegistry
     /// equal the observed count (SITE granularity, never METHOD granularity — the precedent's
     /// "COLUMN granularity, never DbSet" lesson, one level over).
     /// </summary>
+    /// <remarks>
+    /// <b>Only the list's LENGTH is machine-pinned.</b> The order/position of decisions within a
+    /// method's list is human documentation — the machine never binds <c>decisions[i]</c> to IL
+    /// site <c>i</c> (that binding would be reorder-fragile, the reason IL-ordinal keys were
+    /// rejected). Which decision describes which query is what the Note prose is for.
+    /// <para>
+    /// <b>Same-name overloads in one type share one key</b> and their counts are SUMMED — the key
+    /// carries no signature. Fail-closed regardless: a new overload's read still moves the summed
+    /// count and breaks the build; its per-overload attribution is then documentation, like order.
+    /// </para>
+    /// </remarks>
     public static IReadOnlyDictionary<string, IReadOnlyList<JobAdSiteDecision>> Sites { get; } =
         new Dictionary<string, IReadOnlyList<JobAdSiteDecision>>(StringComparer.Ordinal)
         {
@@ -181,7 +192,8 @@ public static class JobAdLifecycleReadRegistry
                     ".Where(j.Id == id).Select(... j.Status.Value ...) — the ad detail page.",
                     "THE detail page. #805-3: an archived ad is deliberately shown here with its grade and an "
                     + "explanation of why it matched, so it must NOT gate on Active. It projects Status.Value so "
-                    + "the surface can label the lifecycle; an Erased ad is handled upstream (410 / masked).")),
+                    + "the surface can label the lifecycle; an Erased ad is turned into a 410 by this same "
+                    + "handler AFTER the read (the read itself stays status-agnostic).")),
             ["Jobbliggaren.Application.SavedJobAds.Queries.ListSavedJobAds.ListSavedJobAdsQueryHandler.Handle"] =
                 One(Any(
                     ".GroupJoin(db.JobAds).SelectMany(DefaultIfEmpty()) — LEFT join enriching saved (bookmarked) ads.",

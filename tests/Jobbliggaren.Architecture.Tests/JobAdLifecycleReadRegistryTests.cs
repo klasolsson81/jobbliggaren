@@ -40,7 +40,10 @@ public class JobAdLifecycleReadRegistryTests
 
     /// <summary>
     /// The scanned assemblies: Application (interface reads) and Infrastructure (concrete reads).
-    /// Api/Worker compose DI only and hold no <c>JobAds</c> queries; Domain cannot see EF.
+    /// Api/Worker compose DI only and hold no <c>JobAds</c> queries; Domain cannot see EF. Migrate
+    /// is outside the scope too: its one <c>job_ads</c> read is a diagnostic raw-SQL EXPLAIN
+    /// (index-plan verification, ops-only — it surfaces no ad to any user), and being raw SQL it
+    /// would be a stated non-reach even if the assembly were scanned.
     /// </summary>
     private static IEnumerable<string> ScannedAssemblyPaths =>
     [
@@ -253,6 +256,16 @@ public class JobAdLifecycleReadRegistryTests
                 + "seen (the predicate inside the fragment is the R4 non-reach, not the site).",
         };
 
+        // The sentinel seed is an INCLUSION spec, and an inclusion spec cannot detect its OWN
+        // shrunken seed (the house lesson: a thinned seed stops covering shapes in silence, exactly
+        // as saved_searches.criteria stayed invisible for three rounds in the precedent). Floor the
+        // seed's own population so a future editor cannot quietly drop a shape off the list and
+        // reopen its blind spot unwitnessed.
+        sentinels.Count.ShouldBeGreaterThanOrEqualTo(6,
+            "the sentinel seed has been thinned. Each entry pins a scan shape (interface getter, "
+            + "Infrastructure read, bulk ExecuteUpdate writer, GroupJoin inner, bare .Add, FromSql "
+            + "chain); removing one lets that shape's blind spot reopen unwitnessed. Restore it.");
+
         var missing = sentinels
             .Where(s => !observed.ContainsKey(s.Key))
             .Select(s => $"{s.Key} — {s.Value}")
@@ -282,6 +295,70 @@ public class JobAdLifecycleReadRegistryTests
             + "leave a fail-open hole for any Infrastructure read through the concrete context.");
     }
 
+    /// <summary>
+    /// A floor on the raw population the scan surfaces. <see cref="Every_JobAds_read_site_carries_a_lifecycle_decision"/>
+    /// is the tight pin (observed SET == registry SET); this is an INDEPENDENT witness against the
+    /// one collapse that pin cannot catch — a narrowed matcher AND a correspondingly gutted registry,
+    /// changed together, would leave both small with NO mismatch and a green build. A hardcoded floor
+    /// tied to neither fires when the enumeration collapses wholesale. It is deliberately well below
+    /// the ~49 real sites: a catastrophic-collapse detector, not a change detector (the change
+    /// detector is the registry-equality pin).
+    /// </summary>
+    [Fact]
+    public void The_scan_surfaces_a_healthy_population_of_sites()
+    {
+        ScanSites().Count.ShouldBeGreaterThanOrEqualTo(35,
+            "the IL scan surfaced far fewer JobAds sites than the codebase holds. Either the matcher "
+            + "was narrowed (opcode, declaring type, or the compiler-generated unwrap) or the scanned "
+            + "assemblies changed — the enumeration this whole control rests on has collapsed. This "
+            + "floor is intentionally slack; the tight pin is "
+            + "Every_JobAds_read_site_carries_a_lifecycle_decision.");
+    }
+
+    /// <summary>
+    /// Every key the scan emits must be a CLEAN logical method path — no residual compiler-generated
+    /// mangling (<c>&lt;</c>, <c>&gt;</c>, <c>|</c>, <c>d__</c>/<c>b__</c>/<c>g__</c>, a bare
+    /// <c>MoveNext</c>). <see cref="LogicalOwnerKey"/> unwraps async state machines, lambdas and local
+    /// functions back to the human method; a shape it does NOT unwrap cleanly (the worst case being a
+    /// lambda nested inside a local function inside an async method, where the compiler names layer
+    /// <c>&lt;&lt;Owner&gt;g__..&gt;b__..</c>) would leak a mangled key.
+    /// </summary>
+    /// <remarks>
+    /// A mangled key that no registry entry matches fails THE test as "unclassified" — loudly, but
+    /// with a confusing name. A mangled key that happened to collapse onto an existing human method
+    /// name would instead MERGE its count into that method silently, and a merge is the one way the
+    /// count-pin can lose a net-new read (the pin catches +1 within a method; two human methods
+    /// sharing one key hide which +1 is whose, and same-name async OVERLOADS already merge here by
+    /// design — inside R4's acknowledged "declared decision may not match the actual predicate"
+    /// non-reach, still fail-CLOSED for net-new because the merged count still moves). This test pins
+    /// the unwrap directly so a leaked mangle is caught as a mangle, not diagnosed as something else.
+    /// </remarks>
+    [Fact]
+    public void Every_observed_site_key_is_a_clean_logical_method_path()
+    {
+        var keys = ScanSites().Keys.ToList();
+
+        keys.ShouldNotBeEmpty(
+            "the scan surfaced no sites at all — this cleanliness check would be vacuous.");
+
+        var mangled = keys
+            .Where(k =>
+                k.Contains('<') || k.Contains('>') || k.Contains('|')
+                || k.Contains("d__", StringComparison.Ordinal)
+                || k.Contains("b__", StringComparison.Ordinal)
+                || k.Contains("g__", StringComparison.Ordinal)
+                || k.EndsWith(".MoveNext", StringComparison.Ordinal))
+            .OrderBy(k => k, StringComparer.Ordinal)
+            .ToList();
+
+        mangled.ShouldBeEmpty(
+            "these observed keys still carry compiler-generated mangling — LogicalOwnerKey did not "
+            + "unwrap the shape back to the human method that wrote it. A key like this either fails "
+            + "as 'unclassified' (confusing) or, if it collapses onto a real method name, MERGES two "
+            + "methods' counts silently (fail-open for that pair). Extend the unwrap to cover the "
+            + "shape:\n  " + string.Join("\n  ", mangled));
+    }
+
     // ────────────────────────────────────────────────────────────────────────────────────────
     // THE REASON FLOORS — a decision that owes a reason has a real one
     // ────────────────────────────────────────────────────────────────────────────────────────
@@ -305,27 +382,131 @@ public class JobAdLifecycleReadRegistryTests
 
         foreach (var (method, decisions) in JobAdLifecycleReadRegistry.Sites)
             foreach (var (decision, index) in decisions.Select((d, i) => (d, i)))
-            {
-                var where = $"{method}[{index}] ({decision.Kind})";
-
-                if (string.IsNullOrWhiteSpace(decision.Note) || decision.Note.Length <= 20)
-                    thin.Add($"{where} — Note is missing or too thin to locate the site.");
-
-                var owesReason = decision.Kind is JobAdSiteKind.AnyStatus or JobAdSiteKind.WritePath;
-                if (owesReason && (decision.Reason is null || decision.Reason.Length <= 60))
-                    thin.Add(
-                        $"{where} — {decision.Kind} owes a WRITTEN reason (>60 chars). "
-                        + "Name why this site admits non-Active rows / what its write gate is. "
-                        + "'we judged it fine' is not a reason.");
-
-                if (decision.Kind == JobAdSiteKind.ActiveOnly && decision.Reason is not null)
-                    thin.Add(
-                        $"{where} — ActiveOnly needs no reason (it is the conforming default). If this "
-                        + "site actually admits non-Active rows, it is AnyStatus, not ActiveOnly.");
-            }
+                thin.AddRange(ReasonFloorViolations($"{method}[{index}] ({decision.Kind})", decision));
 
         thin.ShouldBeEmpty(
             "these decisions do not meet the reason floor:\n  " + string.Join("\n  ", thin));
+    }
+
+    /// <summary>
+    /// The reason-floor rule for a SINGLE decision, factored out of
+    /// <see cref="Every_decision_that_owes_a_reason_has_one"/> so the crafted-input witnesses below
+    /// exercise the SAME code. A floor proven only against the live registry — which already
+    /// satisfies it — is a floor no FAILING input has ever shown to have teeth. In particular the
+    /// ActiveOnly-carries-a-reason arm has no live instance to fire it (every ActiveOnly decision is
+    /// built by the reason-less <c>Active(...)</c> factory), so without a crafted witness that arm is
+    /// asserted-but-unproven — it was not among the five mutations the deliverable verified.
+    /// </summary>
+    private static IEnumerable<string> ReasonFloorViolations(string where, JobAdSiteDecision decision)
+    {
+        if (string.IsNullOrWhiteSpace(decision.Note) || decision.Note.Length <= 20)
+            yield return $"{where} — Note is missing or too thin to locate the site.";
+
+        var owesReason = decision.Kind is JobAdSiteKind.AnyStatus or JobAdSiteKind.WritePath;
+        if (owesReason && (decision.Reason is null || decision.Reason.Length <= 60))
+            yield return
+                $"{where} — {decision.Kind} owes a WRITTEN reason (>60 chars). "
+                + "Name why this site admits non-Active rows / what its write gate is. "
+                + "'we judged it fine' is not a reason.";
+
+        if (decision.Kind == JobAdSiteKind.ActiveOnly && decision.Reason is not null)
+            yield return
+                $"{where} — ActiveOnly needs no reason (it is the conforming default). If this "
+                + "site actually admits non-Active rows, it is AnyStatus, not ActiveOnly.";
+    }
+
+    /// <summary>
+    /// The witness for the arm no live decision fires: an <see cref="JobAdSiteKind.ActiveOnly"/>
+    /// decision that carries a <see cref="JobAdSiteDecision.Reason"/> it does not owe must be
+    /// rejected. ActiveOnly is the conforming default; a reason attached to it is either dead prose
+    /// or — worse — a site that actually admits non-Active rows mislabelled as the safe kind. The
+    /// live registry cannot exercise this (its ActiveOnly decisions are reason-less by construction),
+    /// so the floor's teeth on this arm exist only if a crafted input proves them.
+    /// </summary>
+    [Fact]
+    public void The_reason_floor_rejects_an_ActiveOnly_decision_that_smuggles_in_a_reason()
+    {
+        var decision = new JobAdSiteDecision(
+            JobAdSiteKind.ActiveOnly,
+            "a locating note comfortably past the twenty character floor",
+            "ActiveOnly is the conforming default and must not carry a reason it does not owe");
+
+        var violations = ReasonFloorViolations("crafted[0] (ActiveOnly)", decision).ToList();
+
+        violations.ShouldHaveSingleItem();
+        violations[0].ShouldContain("ActiveOnly needs no reason");
+    }
+
+    /// <summary>
+    /// An <see cref="JobAdSiteKind.AnyStatus"/> decision whose written reason is below the 60-char
+    /// floor is rejected — a load-bearing "this read admits archived rows" claim must cost more than
+    /// a shrug.
+    /// </summary>
+    [Fact]
+    public void The_reason_floor_rejects_an_AnyStatus_decision_whose_reason_is_below_the_floor()
+    {
+        var decision = new JobAdSiteDecision(
+            JobAdSiteKind.AnyStatus,
+            "a locating note comfortably past the twenty character floor",
+            "too short to be a reason");
+
+        ReasonFloorViolations("crafted[0] (AnyStatus)", decision).ToList()
+            .ShouldContain(v => v.Contains("owes a WRITTEN reason"),
+                "an AnyStatus decision with a sub-floor reason must be flagged.");
+    }
+
+    /// <summary>
+    /// A <see cref="JobAdSiteKind.WritePath"/> decision with no reason at all is rejected — an
+    /// irreversible mutation of the lifecycle axis must name its gate, or its deliberate absence.
+    /// </summary>
+    [Fact]
+    public void The_reason_floor_rejects_a_WritePath_decision_with_no_reason()
+    {
+        var decision = new JobAdSiteDecision(
+            JobAdSiteKind.WritePath,
+            "a locating note comfortably past the twenty character floor",
+            Reason: null);
+
+        ReasonFloorViolations("crafted[0] (WritePath)", decision).ToList()
+            .ShouldContain(v => v.Contains("owes a WRITTEN reason"),
+                "a WritePath decision with no reason must be flagged.");
+    }
+
+    /// <summary>
+    /// A decision whose <see cref="JobAdSiteDecision.Note"/> is too thin to locate the site is
+    /// rejected regardless of kind. The note is a proxy — the floor pins LENGTH, not that the note
+    /// actually locates anything, so a 21-char note of noise passes (R4 #5: the machine pins
+    /// existence and length; truth is the reviewer's, the same non-reach the registry states).
+    /// </summary>
+    [Fact]
+    public void The_reason_floor_rejects_a_decision_whose_note_is_too_thin_to_locate_the_site()
+    {
+        var decision = new JobAdSiteDecision(JobAdSiteKind.ActiveOnly, "too short", Reason: null);
+
+        ReasonFloorViolations("crafted[0] (ActiveOnly)", decision).ToList()
+            .ShouldContain(v => v.Contains("too thin to locate"),
+                "a note at or below the 20-char floor must be flagged.");
+    }
+
+    /// <summary>
+    /// The oracle must be able to say YES. A fully-specified decision of every kind passes clean —
+    /// otherwise the floor is a rubber stamp that would also reject the real registry, and a gate
+    /// that only ever rejects proves nothing about the gate that only ever passes.
+    /// </summary>
+    [Fact]
+    public void The_reason_floor_ACCEPTS_a_fully_specified_decision_of_every_kind()
+    {
+        const string goodNote = "a locating note comfortably past the twenty character floor";
+        const string goodReason =
+            "a written reason comfortably past the sixty character floor the gate imposes on kinds";
+
+        var anyStatus = new JobAdSiteDecision(JobAdSiteKind.AnyStatus, goodNote, goodReason);
+        var writePath = new JobAdSiteDecision(JobAdSiteKind.WritePath, goodNote, goodReason);
+        var activeOnly = new JobAdSiteDecision(JobAdSiteKind.ActiveOnly, goodNote);
+
+        ReasonFloorViolations("crafted (AnyStatus)", anyStatus).ShouldBeEmpty();
+        ReasonFloorViolations("crafted (WritePath)", writePath).ShouldBeEmpty();
+        ReasonFloorViolations("crafted (ActiveOnly)", activeOnly).ShouldBeEmpty();
     }
 
     // ────────────────────────────────────────────────────────────────────────────────────────

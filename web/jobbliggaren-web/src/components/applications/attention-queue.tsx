@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -61,7 +61,10 @@ interface AttentionQueueProps {
  * ligger kvar i sin statusgrupp i "Alla ansökningar" (listan är komplett). Ingen
  * MOVE-semantik längre.
  */
-export function AttentionQueue({ groups, now }: AttentionQueueProps) {
+export const AttentionQueue = memo(function AttentionQueue({
+  groups,
+  now,
+}: AttentionQueueProps) {
   const tUi = useTranslations("applications.ui");
   const tAttention = useTranslations("applications.ui.attention");
   const [expanded, setExpanded] = useState(false);
@@ -213,4 +216,4 @@ export function AttentionQueue({ groups, now }: AttentionQueueProps) {
       )}
     </section>
   );
-}
+});

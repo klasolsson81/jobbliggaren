@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { memo, useId } from "react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import {
@@ -36,7 +36,7 @@ interface ApplicationsTableRowProps {
  * interaktivt element nästlas i ankaret (ogiltig HTML). Soft-nav öppnar den
  * centrerade route-modalen (ADR 0053); modifierat klick (ny flik) når fullsidan.
  */
-export function ApplicationsTableRow({
+export const ApplicationsTableRow = memo(function ApplicationsTableRow({
   application,
   now,
   selected,
@@ -171,4 +171,4 @@ export function ApplicationsTableRow({
       </td>
     </tr>
   );
-}
+});

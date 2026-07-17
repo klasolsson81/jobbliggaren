@@ -195,6 +195,120 @@ public class AccountHardDeleteCascadeFitnessTests
     }
 
     [Fact]
+    public void Cascade_reads_carry_IgnoreQueryFilters_iff_the_entity_declares_a_query_filter()
+    {
+        // #560 demolition (senior-cto-advisor H1b, 2026-07-17). The cascade's completeness has a
+        // second failure mode the wiring scan above cannot see: a read that is wired to a delete verb
+        // but SILENTLY NARROWED. RemoveRange operates on an already-materialised list, so if a query
+        // filter is added to an aggregate tomorrow, the read feeding it returns fewer rows,
+        // RemoveRange dutifully deletes the shortened list, the wiring scan stays green — and PII
+        // survives account deletion. That is the vacuous-guarantee shape (#805-3/#868) in the one
+        // path where it is an Art. 17 breach.
+        //
+        // The invariant, both directions:
+        //   filtered   ⇒ IgnoreQueryFilters REQUIRED  — Art. 17 completeness (the load-bearing half).
+        //   unfiltered ⇒ IgnoreQueryFilters FORBIDDEN — the anti-decoy half: a no-op call is a claim
+        //                that a filter exists. Correlation was 12/12 before this PR, so in this
+        //                codebase the call IS that claim; leaving one where it is false is how the
+        //                next reader learns to distrust all twelve.
+        //
+        // The filtered set is read off the EF MODEL, never off a hand-kept list or a scan of the
+        // Configurations folder — the model is what EF actually applies, and a second authority for
+        // "what is filtered" is exactly the drift this guard exists to prevent.
+        var body = HardDeleteCascadeScan.ExtractMethodBody(ReadHardDeleterSource(), CascadeMethodName);
+
+        var violations = HardDeleteCascadeScan.FindQueryFilterViolations(
+            body, CascadeMap.Values, FilteredCascadeDbSetNames());
+
+        violations.ShouldBeEmpty(
+            "IgnoreQueryFilters-invarianten i AccountHardDeleter.HardDeleteAccountAsync är bruten. " +
+            "Regeln: en läsning mot ett aggregat MED query filter MÅSTE ha IgnoreQueryFilters " +
+            "(annars smiter PII förbi Art. 17-raderingen — filtret krymper läsningen och " +
+            "RemoveRange raderar bara det den fick), och en läsning mot ett aggregat UTAN filter får " +
+            "INTE ha anropet (en no-op som påstår att ett filter finns = decoy, #868/#805-3). " +
+            "Brott: " + string.Join(" | ", violations));
+    }
+
+    [Fact]
+    public void QueryFilter_guard_flags_a_filtered_read_that_forgot_IgnoreQueryFilters()
+    {
+        // Self-proving negative (load-bearing direction): the Art. 17 hole this guard exists to
+        // catch. CompanyWatches IS filtered; a read without the call must be reported.
+        const string synthetic = """
+            {
+                var watches = await db.CompanyWatches
+                    .Where(w => w.UserId == userId)
+                    .ToListAsync(cancellationToken);
+                db.CompanyWatches.RemoveRange(watches);
+            }
+            """;
+
+        var violations = HardDeleteCascadeScan.FindQueryFilterViolations(
+            synthetic, ["CompanyWatches"], new HashSet<string>(StringComparer.Ordinal) { "CompanyWatches" });
+
+        violations.ShouldHaveSingleItem()
+            .ShouldContain("CompanyWatches",
+                customMessage: "en FILTRERAD läsning utan IgnoreQueryFilters måste rapporteras — " +
+                "det är precis den tysta Art. 17-luckan vakten finns för");
+    }
+
+    [Fact]
+    public void QueryFilter_guard_flags_an_unfiltered_read_that_carries_a_pointless_IgnoreQueryFilters()
+    {
+        // Self-proving negative (anti-decoy direction): this is the state THIS PR removed, encoded
+        // so it cannot come back by hand. CompanyWatchCriteria has no filter; the call would be a
+        // no-op asserting one.
+        const string synthetic = """
+            {
+                var criteria = await db.CompanyWatchCriteria
+                    .IgnoreQueryFilters()
+                    .Where(c => c.UserId == userId)
+                    .ToListAsync(cancellationToken);
+                db.CompanyWatchCriteria.RemoveRange(criteria);
+            }
+            """;
+
+        var violations = HardDeleteCascadeScan.FindQueryFilterViolations(
+            synthetic, ["CompanyWatchCriteria"], new HashSet<string>(StringComparer.Ordinal));
+
+        violations.ShouldHaveSingleItem()
+            .ShouldContain("CompanyWatchCriteria",
+                customMessage: "ett OFILTRERAT aggregat med IgnoreQueryFilters måste rapporteras — " +
+                "annars är anropet en no-op som påstår att ett filter finns (#868-decoy-klassen)");
+    }
+
+    [Fact]
+    public void QueryFilter_guard_exempts_RemoveRange_and_reads_code_not_comments()
+    {
+        // The two ways a naive version of this guard is WORSE than none.
+        //
+        // 1. RemoveRange/Remove take already-materialised entities: no query, no filter, nothing to
+        //    ignore. Scoping to query-executing verbs is what keeps the guard from reporting the
+        //    RemoveRange statement of every unfiltered aggregate and getting widened into uselessness
+        //    on its first run (senior-cto-advisor H1b, "the trap that must not be got wrong").
+        // 2. A comment that NAMES IgnoreQueryFilters is not a call. AccountHardDeleter's criteria arm
+        //    carries exactly such a comment ("NO IgnoreQueryFilters, and that is enforced…"), and the
+        //    deleted decoy guard fell for its own prose TWICE on two runs before it stripped literals.
+        //    A guard that fires on documentation teaches people to delete documentation.
+        const string synthetic = """
+            {
+                // This mentions IgnoreQueryFilters() in prose and must not count as a call.
+                var criteria = await db.CompanyWatchCriteria
+                    .Where(c => c.UserId == userId)
+                    .ToListAsync(cancellationToken);
+                db.CompanyWatchCriteria.RemoveRange(criteria);
+            }
+            """;
+
+        HardDeleteCascadeScan.FindQueryFilterViolations(
+                synthetic, ["CompanyWatchCriteria"], new HashSet<string>(StringComparer.Ordinal))
+            .ShouldBeEmpty(
+                "ett OFILTRERAT aggregat vars läsning saknar anropet är KORREKT — och varken " +
+                "RemoveRange (ingen query) eller ordet IgnoreQueryFilters i en KOMMENTAR får " +
+                "förvandla det till ett brott");
+    }
+
+    [Fact]
     public void Cascade_scan_flags_an_omitted_aggregate_even_when_referenced_for_a_read()
     {
         // Self-proving negative #1 (synthetic stand-in, never production). A read/count reference
@@ -251,6 +365,52 @@ public class AccountHardDeleteCascadeFitnessTests
         body.Contains("orphanIds", StringComparison.Ordinal).ShouldBeFalse(
             "den extraherade kroppen ska EXKLUDERA CleanupIdentityOrphansAsync (en syskon-metod) — " +
             "bevisar att brace-matchningen isolerar målmetoden och dödar whole-file-false-pass:en.");
+    }
+
+    /// <summary>
+    /// The CascadeMap DbSet names whose entity type declares an EF query filter, read off the MODEL
+    /// (the authority on what EF actually applies) — precedent <c>ErasureCascadeRegistryTests</c>
+    /// / <c>JobAdFacetColumnMappingTests</c>. A hand-kept list, or a source-scan of the
+    /// Configurations folder, would be a SECOND authority that can drift from the model: exactly the
+    /// failure this guard exists to prevent (DRY as single knowledge authority).
+    /// </summary>
+    private static HashSet<string> FilteredCascadeDbSetNames()
+    {
+        using var db = ModelOnlyContext();
+
+        var filtered = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (clrType, dbSetName) in CascadeMap)
+        {
+            var entity = db.Model.FindEntityType(clrType);
+            entity.ShouldNotBeNull(
+                $"CascadeMap mappar {clrType.Name}, men EF-modellen känner inte typen — " +
+                "vakten kan inte avgöra om den är filtrerad och skulle tyst svara 'ofiltrerad'.");
+
+            if (entity!.GetDeclaredQueryFilters().Count > 0)
+                filtered.Add(dbSetName);
+        }
+
+        // Fail-loud on a vacuous read: this repo filters most user-owned aggregates, so an EMPTY set
+        // means the model API returned nothing useful (an EF upgrade reshaped the accessor) rather
+        // than "nothing is filtered". Without this the guard would silently invert into "no arm may
+        // carry the call" and demand the removal of eleven load-bearing ones.
+        filtered.ShouldNotBeEmpty(
+            "inget CascadeMap-aggregat rapporterades som filtrerat — det är inte troligt, det är en " +
+            "trasig modell-avläsning (jfr EF 10:s named query filters). Vakten vore vakuös.");
+
+        return filtered;
+    }
+
+    private static AppDbContext ModelOnlyContext()
+    {
+        // Model-only: the connection is never opened, so this needs no database. Precedent:
+        // ErasureCascadeRegistryTests.ModelOnlyContext.
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql("Host=localhost;Database=model-only")
+            .UseSnakeCaseNamingConvention()
+            .Options;
+
+        return new AppDbContext(options);
     }
 
     private static HashSet<Type> ReflectAllAggregateRoots() =>
@@ -357,6 +517,76 @@ internal static class HardDeleteCascadeScan
         return expectedDbSetNames
             .Where(name => !IsWiredToDeletion(source, name, verbs))
             .ToList();
+    }
+
+    // Verbs that EXECUTE a query — i.e. the statements a query filter can silently narrow. Remove /
+    // RemoveRange are deliberately ABSENT: they take already-materialised entities, run no query,
+    // and have nothing to ignore. Including them would report the RemoveRange statement of every
+    // unfiltered aggregate on the guard's first run (senior-cto-advisor H1b).
+    private static readonly string[] QueryExecutingVerbs =
+    [
+        "ToListAsync", "ToArrayAsync", "CountAsync", "AnyAsync",
+        "FirstOrDefaultAsync", "FirstAsync", "SingleOrDefaultAsync", "SingleAsync",
+        "ExecuteDeleteAsync", "ExecuteUpdateAsync",
+    ];
+
+    /// <summary>
+    /// Reports every statement in <paramref name="source"/> that executes a query against one of
+    /// <paramref name="dbSetNames"/> whose <c>IgnoreQueryFilters()</c> presence disagrees with
+    /// <paramref name="filteredDbSetNames"/> — in BOTH directions (filtered ⇒ required;
+    /// unfiltered ⇒ forbidden).
+    /// </summary>
+    internal static IReadOnlyList<string> FindQueryFilterViolations(
+        string source, IEnumerable<string> dbSetNames, ISet<string> filteredDbSetNames)
+    {
+        // CODE ONLY. A comment naming IgnoreQueryFilters is not a call, and a guard that fires on
+        // prose trains people to delete prose — the deleted CompanyWatchCriterionSoftDeleteDecoyTests
+        // learned this twice on two runs before it stripped literals first.
+        var code = StripCommentsAndStrings(source);
+        var verbs = string.Join("|", QueryExecutingVerbs);
+        var violations = new List<string>();
+
+        // Statement-scoped: ';' cannot appear inside a fluent chain, so it is the statement boundary
+        // — the same reach the wiring scan's [^;] class relies on.
+        foreach (var statement in code.Split(';'))
+        {
+            foreach (var name in dbSetNames)
+            {
+                if (!Regex.IsMatch(statement, $@"\bdb\.{Regex.Escape(name)}\b"))
+                    continue;
+
+                if (!Regex.IsMatch(statement, $@"\bdb\.{Regex.Escape(name)}\b.*?\.(?:{verbs})\(",
+                        RegexOptions.Singleline))
+                    continue;   // not a query-executing statement (e.g. the RemoveRange call)
+
+                var hasCall = statement.Contains(".IgnoreQueryFilters(", StringComparison.Ordinal);
+                var mustHaveCall = filteredDbSetNames.Contains(name);
+
+                if (hasCall == mustHaveCall)
+                    continue;
+
+                violations.Add(mustHaveCall
+                    ? $"db.{name}: FILTRERAT aggregat läses UTAN IgnoreQueryFilters → filtret " +
+                      "krymper Art. 17-läsningen och rader överlever konto-raderingen"
+                    : $"db.{name}: OFILTRERAT aggregat läses MED IgnoreQueryFilters → anropet är en " +
+                      "no-op som påstår att ett filter finns (decoy)");
+            }
+        }
+
+        return violations;
+    }
+
+    // Strips what code never lives in — string literals first (a // inside a string is not a
+    // comment), then block comments, then line comments. Mirrors the stripper the demolished
+    // CompanyWatchCriterionSoftDeleteDecoyTests carried; kept here because this guard reads the same
+    // kind of prose-rich source.
+    private static string StripCommentsAndStrings(string source)
+    {
+        var s = Regex.Replace(source, "\"\"\".*?\"\"\"", "\"\"", RegexOptions.Singleline);
+        s = Regex.Replace(s, "@\"(?:[^\"]|\"\")*\"", "\"\"");
+        s = Regex.Replace(s, "\"(?:[^\"\\\\\\r\\n]|\\\\.)*\"", "\"\"");
+        s = Regex.Replace(s, @"/\*.*?\*/", "", RegexOptions.Singleline);
+        return Regex.Replace(s, @"//[^\r\n]*", "");
     }
 
     private static bool IsWiredToDeletion(string source, string dbSetName, string verbs) =>

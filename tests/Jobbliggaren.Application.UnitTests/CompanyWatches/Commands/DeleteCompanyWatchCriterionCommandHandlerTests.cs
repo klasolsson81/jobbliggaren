@@ -47,9 +47,11 @@ public class DeleteCompanyWatchCriterionCommandHandlerTests
 
         result.IsSuccess.ShouldBeTrue();
 
-        // THE hard-delete oracle: absent even with the soft-delete filter OFF. A SoftDelete-based
-        // "delete" passes the filtered read and fails exactly here.
-        (await db.CompanyWatchCriteria.IgnoreQueryFilters().AnyAsync(ct)).ShouldBeFalse();
+        // THE hard-delete oracle: the row is GONE, not hidden. This read has no filter to see past
+        // — the aggregate has no lifecycle state left to hide behind (C-D8/G1; the vestigial
+        // filter this assertion once had to switch off with IgnoreQueryFilters was demolished with
+        // the deleted_at column). A handler that stamped a row instead of removing it fails here.
+        (await db.CompanyWatchCriteria.AnyAsync(ct)).ShouldBeFalse();
     }
 
     [Fact]

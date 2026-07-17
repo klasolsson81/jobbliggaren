@@ -57,10 +57,9 @@ public sealed class BrowseCompaniesQueryHandler(
         var userId = currentUser.UserId.Value;
         var criterionId = new CompanyWatchCriterionId(query.CriterionId);
 
-        // Hard delete (G1/C-D8) removes the row outright — a missing criterion is genuinely
-        // absent, not soft-hidden. The DeletedAt query filter is vestigial (nothing sets it) and
-        // awaits the follow-up schema-cleanup migration; do not credit it as the NotFound
-        // mechanism (dotnet-architect truth-sync, 2026-07-16).
+        // Hard delete (G1/C-D8) removes the row outright — a missing criterion is genuinely absent,
+        // not soft-hidden. Nothing hides rows from this read: the vestigial DeletedAt query filter
+        // that once had to be argued away here no longer exists (demolished with the column).
         var criterion = await db.CompanyWatchCriteria
             .AsNoTracking()
             .Where(c => c.Id == criterionId && c.UserId == userId)

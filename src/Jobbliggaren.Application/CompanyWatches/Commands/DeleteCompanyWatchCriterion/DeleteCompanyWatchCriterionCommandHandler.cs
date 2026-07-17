@@ -16,9 +16,10 @@ namespace Jobbliggaren.Application.CompanyWatches.Commands.DeleteCompanyWatchCri
 ///
 /// <para>
 /// Owner-scoped (C-D10) with the ADR 0031 probe: cross-user and non-existent ids are the same
-/// <c>NotFound</c> to the caller, and the cross-user attempt is logged. The aggregate's
-/// <c>SoftDelete</c> is deliberately NOT called anywhere — see its summary; the method and the
-/// <c>deleted_at</c> column await the follow-up schema-cleanup migration (G1).
+/// <c>NotFound</c> to the caller, and the cross-user attempt is logged. There is no soft-delete
+/// alternative to reach for: the aggregate's <c>SoftDelete</c>, its <c>DeletedAt</c> stamp, the EF
+/// query filter and the <c>deleted_at</c> column were demolished wholesale once G1 settled that
+/// delete here is hard. <c>Remove</c> is the only delete this aggregate has.
 /// </para>
 /// </summary>
 public sealed class DeleteCompanyWatchCriterionCommandHandler(

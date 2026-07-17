@@ -126,7 +126,7 @@ describe("ResumeContentForm", () => {
 
     const company = screen.getByLabelText("Företag");
     const role = screen.getByLabelText("Roll");
-    const startDate = screen.getByLabelText("Startdatum");
+    const startDate = screen.getByLabelText("Startdatum (valfritt)");
     // Strip required on all submit-blocking fields — schema's .min(1) is what
     // we want to trigger. company is first in experienceSchema declaration
     // order so issues[0] owns "experiences.0.company".

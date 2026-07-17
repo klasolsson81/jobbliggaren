@@ -10,9 +10,8 @@ export type ValidationTranslator = ReturnType<typeof useTranslations<"validation
 const GUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
-const makeDateString = (t: ValidationTranslator) =>
-  z.string().regex(DATE_REGEX, t("resume.dateInvalid"));
-
+// makeDateString (the required-date variant) was removed with the honest-date-absence
+// contract (CTO-bind 5a-pre): no editing surface may force a user to invent a date.
 const makeOptionalDateString = (t: ValidationTranslator) =>
   z
     .string()
@@ -63,11 +62,16 @@ const makeExperienceSchema = (t: ValidationTranslator) =>
         .trim()
         .min(1, t("resume.roleRequired"))
         .max(200, t("resume.roleMax")),
-      startDate: makeDateString(t),
+      // Ärligt frånvarande datum (CTO-bind 5a-pre): ett auto-promotat CV kan sakna
+      // startdatum, och en redigering utan datum måste kunna sparas om utan att
+      // användaren tvingas hitta på ett. rawPeriod är verbatim-perioden ur filen —
+      // dold passthrough; strukturerade datum vinner när de väl sätts.
+      startDate: makeOptionalDateString(t),
       endDate: makeOptionalDateString(t),
       description: makeOptionalNullableString(2000, t("resume.descriptionMax")),
+      rawPeriod: makeOptionalNullableString(100, t("resume.rawPeriodMax")),
     })
-    .refine((e) => !e.endDate || e.endDate >= e.startDate, {
+    .refine((e) => !e.endDate || !e.startDate || e.endDate >= e.startDate, {
       message: t("resume.endBeforeStart"),
       path: ["endDate"],
     });
@@ -85,10 +89,12 @@ const makeEducationSchema = (t: ValidationTranslator) =>
         .trim()
         .min(1, t("resume.degreeRequired"))
         .max(200, t("resume.degreeMax")),
-      startDate: makeDateString(t),
+      // Samma ärligt-frånvarande-datum-kontrakt som erfarenhet (CTO-bind 5a-pre).
+      startDate: makeOptionalDateString(t),
       endDate: makeOptionalDateString(t),
+      rawPeriod: makeOptionalNullableString(100, t("resume.rawPeriodMax")),
     })
-    .refine((e) => !e.endDate || e.endDate >= e.startDate, {
+    .refine((e) => !e.endDate || !e.startDate || e.endDate >= e.startDate, {
       message: t("resume.endBeforeStart"),
       path: ["endDate"],
     });
@@ -230,10 +236,11 @@ export function makeUpdateMasterContentSchema(t: ValidationTranslator) {
 }
 
 // Befordra en tolkad CV-stagingartefakt (F4-8 / STEG A) till en kanonisk Resume
-// (Fas 4 STEG B / F2). `content` återbrukar resumeContentSchema — exakt paritet
-// med domänens stränga Resume.ValidateContent (företag/roll/lärosäte/examen krävs,
-// strukturerade datum yyyy-MM-dd, slut >= start, färdighet 0–70 år). `name` är
-// CV-variantens interna namn (skilt från PersonalInfo.FullName).
+// (Fas 4 STEG B / F2). `content` återbrukar resumeContentSchema — paritet med
+// domänens Resume.ValidateContent (företag/roll/lärosäte/examen krävs; strukturerade
+// datum yyyy-MM-dd är VALFRIA sedan honest-date-absence, CTO-bind 5a-pre; slut >= start
+// gäller bara när båda finns; färdighet 0–70 år). `name` är CV-variantens interna
+// namn (skilt från PersonalInfo.FullName).
 export function makePromoteParsedResumeSchema(t: ValidationTranslator) {
   return z.object({
     parsedResumeId: z.string().regex(GUID_REGEX, t("resume.resumeIdInvalid")),

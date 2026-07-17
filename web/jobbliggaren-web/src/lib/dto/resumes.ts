@@ -15,21 +15,28 @@ export type PersonalInfoDto = z.infer<typeof personalInfoDtoSchema>;
 export const experienceDtoSchema = z.object({
   company: z.string(),
   role: z.string(),
-  /** "yyyy-MM-dd" — DateOnly serialiserad */
-  startDate: z.string(),
+  /** "yyyy-MM-dd" — DateOnly serialiserad; null = ärligt frånvarande datum
+   * (CV-pivot 2026-07-17, CTO-bind 5a-pre — parsern gissar aldrig datum). */
+  startDate: z.string().nullable(),
   /** "yyyy-MM-dd" eller null */
   endDate: z.string().nullable(),
   description: z.string().nullable(),
+  /** Verbatim periodsträng ur användarens egen fil ("2019–2022") — visnings-/
+   * citeringsfallback när strukturerade datum saknas; aldrig scorad. nullish:
+   * ett pre-5a-svar saknar nyckeln helt. */
+  rawPeriod: z.string().nullish(),
 });
 export type ExperienceDto = z.infer<typeof experienceDtoSchema>;
 
 export const educationDtoSchema = z.object({
   institution: z.string(),
   degree: z.string(),
-  /** "yyyy-MM-dd" */
-  startDate: z.string(),
+  /** "yyyy-MM-dd"; null = ärligt frånvarande datum (CTO-bind 5a-pre). */
+  startDate: z.string().nullable(),
   /** "yyyy-MM-dd" eller null */
   endDate: z.string().nullable(),
+  /** Verbatim periodsträng — samma kontrakt som experience.rawPeriod. */
+  rawPeriod: z.string().nullish(),
 });
 export type EducationDto = z.infer<typeof educationDtoSchema>;
 

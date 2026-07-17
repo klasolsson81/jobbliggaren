@@ -342,4 +342,34 @@ public class ResumeContentMapperTests
         System.Text.Json.JsonSerializer.Serialize(dto)
             .ShouldBe(System.Text.Json.JsonSerializer.Serialize(expected));
     }
+
+    // Honest date absence (CV-pivot 2026-07-17, CTO-bind 5a-pre): null dates + the
+    // verbatim RawPeriod must survive ToDomain→ToDto losslessly — a field added to one
+    // side without the other fails HERE, not silently.
+    [Fact]
+    public void ToDomainThenToDto_RoundTripsNullDatesAndRawPeriod()
+    {
+        var dto = new ResumeContentDto(
+            new PersonalInfoDto("Anna Andersson", null, null, null),
+            Experiences:
+            [
+                new ExperienceDto("Beta AB", "Utvecklare", null, null, null, "2019–2022"),
+            ],
+            Educations:
+            [
+                new EducationDto("KTH", "MSc", null, null, "2015–2019"),
+            ],
+            Skills: [],
+            Summary: null);
+
+        var roundTripped = ResumeContentMapper.ToDto(ResumeContentMapper.ToDomain(dto));
+
+        var exp = roundTripped.Experiences.ShouldHaveSingleItem();
+        exp.StartDate.ShouldBeNull();
+        exp.EndDate.ShouldBeNull();
+        exp.RawPeriod.ShouldBe("2019–2022");
+        var edu = roundTripped.Educations.ShouldHaveSingleItem();
+        edu.StartDate.ShouldBeNull();
+        edu.RawPeriod.ShouldBe("2015–2019");
+    }
 }

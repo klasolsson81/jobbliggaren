@@ -206,7 +206,9 @@ internal sealed class CvReviewEngine : ICvReviewEngine
                         experience, start, experience.EndDate ?? DateOnly.MaxValue, CanonicalFormatToken);
                 }
 
-                // Staging arm: the freeform period string is date-parsed exactly as before.
+                // No structured start (staging always; canonical when date-less, CTO-bind
+                // 5a-pre): the freeform period string is date-parsed exactly as before —
+                // for a date-less canonical entry PeriodText carries the verbatim RawPeriod.
                 return PeriodParser.TryParse(experience.PeriodText, out var s, out var end, out var format)
                     ? new DatedExperience(experience, s, end, format)
                     : new DatedExperience(experience, null, null, null);

@@ -11,10 +11,12 @@ internal static class ResumeMappingExtensions
             c.PersonalInfo.Phone,
             c.PersonalInfo.Location),
         c.Experiences
-            .Select(e => new ExperienceDto(e.Company, e.Role, e.StartDate, e.EndDate, e.Description))
+            .Select(e => new ExperienceDto(
+                e.Company, e.Role, e.StartDate, e.EndDate, e.Description, e.RawPeriod))
             .ToList(),
         c.Educations
-            .Select(e => new EducationDto(e.Institution, e.Degree, e.StartDate, e.EndDate))
+            .Select(e => new EducationDto(
+                e.Institution, e.Degree, e.StartDate, e.EndDate, e.RawPeriod))
             .ToList(),
         c.Skills
             .Select(s => new SkillDto(s.Name, s.YearsExperience))

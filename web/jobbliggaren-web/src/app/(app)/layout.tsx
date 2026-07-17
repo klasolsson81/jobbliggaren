@@ -17,18 +17,26 @@ export default async function AppLayout({
   // default.tsx → null när slotten är omatchad (ingen modal aktiv).
   modal: React.ReactNode;
 }) {
+  // ADR 0064 — landing-stats server-fetchas en gång per request, samma endpoint
+  // som anonyma landing. `<HeaderStats />` i AppShell pollar sedan klient-side var
+  // 10:e min (Klas-direktiv 2026-05-24). Backend-fail ⇒ det ärliga icke-svaret
+  // (inga tal), aldrig ett påhittat golv (CTO-bind 2026-07-13, A′). HeaderStats
+  // renderar en en-dash (–) tills en mätt siffra finns.
+  //
+  // #742 — anonym/publik (ADR 0064), inget session-beroende, och körs på VARJE
+  // (app)-sida. Starta den EAGER bredvid session-läsningen istället för seriellt
+  // EFTER — layouten kedjar inte längre /me → stats (sparar ~1 backend-RTT per
+  // authad sid-laddning). `cache()`-wrappad och returnerar värde/null (kastar
+  // aldrig), så på guest-redirect-vägen löser det svävande löftet sig ofarligt.
+  const statsPromise = fetchLandingStats();
+
   const user = await getServerSession();
   // Middleware blocks unauthenticated requests via cookie presence, but the
   // session can still be invalid/expired on the backend even with a cookie.
   if (!user) redirect("/logga-in");
 
   const isAdmin = user.roles.includes(ROLES.Admin);
-  // ADR 0064 — landing-stats server-fetchas en gång per request, samma
-  // endpoint som anonyma landing. `<HeaderStats />` i AppShell pollar sedan
-  // klient-side var 10:e min (Klas-direktiv 2026-05-24).
-  // Backend-fail ⇒ det ärliga icke-svaret (inga tal), aldrig ett påhittat golv (CTO-bind
-  // 2026-07-13, A′). HeaderStats renderar en en-dash (–) tills en mätt siffra finns.
-  const initialStats = (await fetchLandingStats()) ?? LANDING_STATS_UNKNOWN_DTO;
+  const initialStats = (await statsPromise) ?? LANDING_STATS_UNKNOWN_DTO;
   const t = await getTranslations("pages");
 
   return (

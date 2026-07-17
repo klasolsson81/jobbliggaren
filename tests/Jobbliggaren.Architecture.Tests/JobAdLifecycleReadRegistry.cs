@@ -359,8 +359,10 @@ public static class JobAdLifecycleReadRegistry
                     "Reads the status ALONE to answer an erased ad with 410 Gone (the neutral body /job-ads/{id} emits for "
                     + "the same row) — Infrastructure cannot express Gone, so the response decision lives here (§2.1) while "
                     + "the scorer holds the port invariant. Deny-list (!= Erased): admits Active AND Archived deliberately, "
-                    + "because the modal explains an archived match (#805-3). A row absent here is NOT decided here — it "
-                    + "falls through to the scorer's NotFoundException → 404, the pre-existing missing-ad mechanism.")),
+                    + "because the modal explains an archived match (#805-3). THIS GATE IS BOUND TO GetJobAdQueryHandler's "
+                    + "410 rule — this site OWNS the response, so it is where the binding matters most: if that rule "
+                    + "changes, this changes with it. A row absent here is NOT decided here — it falls through to the "
+                    + "scorer's NotFoundException → 404, the pre-existing missing-ad mechanism.")),
 
             // ════════════════════════════ WritePath — mutates / inserts ═════════════════════════════
             ["Jobbliggaren.Application.JobAds.Jobs.ExpireJobAds.ExpireJobAdsJob.RunAsync"] =

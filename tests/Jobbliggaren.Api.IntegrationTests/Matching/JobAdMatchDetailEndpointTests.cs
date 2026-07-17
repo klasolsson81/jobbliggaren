@@ -678,13 +678,23 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
             "Icke-vakuitet: /job-ads/{id} ska faktiskt svara 410 — annars kan likhets-assertionen " +
             "ovan passera med två 200:or.");
 
-        // Same neutral body.
+        // Same neutral body. BOTH fields the mapper writes — not just the prose.
         var detailProblem = await detailResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
         var matchProblem = await matchResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
         matchProblem.GetProperty("detail").GetString()
             .ShouldBe(detailProblem.GetProperty("detail").GetString(),
                 "Samma neutrala text — texten ÄR röjande-kontrollen; två olika formuleringar för " +
                 "samma rad är två olika påståenden om den.");
+
+        // `title` carries DomainError.Code through DomainErrorResults.ToProblemResult, so it is a
+        // BODY field holding a developer-authored string: a Code like "JobAd.Erased" would name the
+        // erasure on the wire and röja den lika säkert som texten gör. Pinning `detail` alone left
+        // the adjacent field of the same control unmapped — the guarantee was pinned one field
+        // short (security-auditor Minor 1, #885).
+        matchProblem.GetProperty("title").GetString()
+            .ShouldBe(detailProblem.GetProperty("title").GetString(),
+                "Hela kroppen är röjande-kontrollen, inte bara 'detail' — mapparen skriver felkoden " +
+                "till 'title', och en kod som namnger raderingen röjer den lika säkert som texten.");
     }
 
     // =================================================================

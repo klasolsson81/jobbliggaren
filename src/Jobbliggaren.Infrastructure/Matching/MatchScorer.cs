@@ -166,8 +166,11 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // MatchCountOracleTests binds the two engines to agree; before this gate they did not.
         // ALLOW-LIST (`== Active`), never `!= Archived` (CTO D4): a deny-list silently admits every
         // status added later — e.g. the `Erased` tombstone (#842/#878), whose `[raderad]` company
-        // name would then be EMAILED. It is also the form every sibling read path already writes.
-        // The SINGLE methods deliberately do NOT gate (see ScoreAsync) — batch omits, single throws.
+        // name would then be EMAILED. It is also the form every sibling LIST read path writes
+        // (JobAdSearchComposition.ApplyFilter, PerUserJobAdSearchQuery) — the single family writes a
+        // deny-list instead, for a different invariant (#885; see ScoreAsync).
+        // The SINGLE methods do not gate ACTIVE (see ScoreAsync) — they DO deny the Erased
+        // tombstone (#885). Batch omits, single throws.
         var rows = await db.JobAds
             .FromSql($"SELECT * FROM job_ads WHERE id = ANY({ids})")
             .AsNoTracking()

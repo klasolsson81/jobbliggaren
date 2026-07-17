@@ -44,13 +44,23 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// <c>!= Archived</c>, which the archived row alone cannot see.
 /// </para>
 /// <para>
-/// <b>It DOES reach one SINGLE scorer method, on purpose.</b> Test 4 calls the UNGATED
-/// <c>ScoreAsync</c> to establish the COUNTERFACTUAL — that the archived ad WOULD have graded into
-/// the band had it stayed Active — because absence only evidences a gate if the row would otherwise
-/// have been in the set. So a <c>Status</c> gate added to <c>ScoreAsync</c> ALSO turns this oracle
-/// red, and that is correct: the single family's deliberate non-gating is part of the contract
-/// (#864 D2/D3, the detail page still explains an archived ad — #805-3). <b>If you are here because
-/// you gated <c>ScoreAsync</c> and this went red, the gate is the defect — not this assertion.</b>
+/// <b>It DOES reach one SINGLE scorer method, on purpose.</b> Test 4 calls <c>ScoreAsync</c> — which
+/// does not gate <c>Active</c> — to establish the COUNTERFACTUAL for the ARCHIVED ad: that it WOULD
+/// have graded into the band had it stayed Active, because absence only evidences a gate if the row
+/// would otherwise have been in the set. So an <c>== Active</c> gate added to <c>ScoreAsync</c> ALSO
+/// turns this oracle red, and that is correct: the single family's deliberate non-gating on the
+/// ACTIVE axis is part of the contract (#864 D2/D3, the detail page still explains an archived ad —
+/// #805-3). <b>If you are here because you added an <c>== Active</c> gate to <c>ScoreAsync</c> and
+/// this went red, that gate is the defect — not this assertion.</b>
+/// </para>
+/// <para>
+/// <b>The ERASED axis is the exception, and it changed (#885).</b> The single family now DENIES the
+/// tombstone (<c>!= Erased</c>) — the match-detail path must not serve an ad whose own detail page
+/// answers 410 Gone. That gate is CORRECT, and it is why the erased counterfactual in test 4 no
+/// longer runs through the port: no scorer method can grade an erased row any more. Its two claims
+/// are asserted off the port instead — see the comment at the site. <b>Do not "fix" a red here by
+/// removing the <c>!= Erased</c> gate; that gate is the contract (#885), and its own detectors are
+/// <c>Score{,Full}Async_RefusesAnErasedAd_TheTombstoneIsNotServed</c>.</b>
 /// </para>
 /// <para>
 /// <b>What this oracle does NOT reach</b> (its claim is an enumeration, not a vague "matching is
@@ -542,13 +552,28 @@ public class MatchCountOracleTests(ApiFactory factory)
             "Den arkiverade annonsen SKULLE ha graderat Strong (den ogrindade single-metoden säger " +
             "det) — annars mäter detta orakel inte grinden utan seedens råkade gradfall.");
 
-        // The SAME counterfactual for the erased row — and it carries more: it proves the facets
-        // SURVIVED Erase() all the way into the scorer's read (a tombstone that lost its facets
-        // would grade untagged here, and the erased leg would be measuring seed decay, not gates).
-        var erasedIfItHadStayedActive = await scorer.ScoreAsync(erased, profile.Fast, ct);
-        MatchGradeCalculator.Grade(erasedIfItHadStayedActive).ShouldBe(MatchGrade.Strong,
-            "Den raderade annonsen SKULLE ha graderat Strong (facetterna överlever Erase(), #842) " +
-            "— annars vittnar erased-benet om seed-förfall, inte om grindarna.");
+        // #885 — THE ERASED COUNTERFACTUAL NO LONGER GOES THROUGH THE PORT, AND CANNOT.
+        //
+        // This used to be `ScoreAsync(erased)`, asserting Strong. #885 gated the SINGLE family on
+        // `!= Erased` (the match-detail path must not serve a tombstone once /job-ads/{id} answers
+        // 410), so no scorer method will ever grade an erased row again — by design. The old line
+        // now throws NotFoundException. It is NOT relocated to another scorer method, because there
+        // is none: the claim has to be established off the port entirely.
+        //
+        // It conflated TWO claims in one call, and each is established independently — more
+        // directly than the call did:
+        //   1. "The facets SURVIVED Erase()" — asserted against the DATABASE ROW itself, in
+        //      EraseAsync's fail-loud read-back (`stored.WorktimeExtentConceptId.ShouldBe(run)`).
+        //      That is the stronger form: it reads the column rather than inferring its survival
+        //      from a grade.
+        //   2. "Those facets WOULD have graded Strong" — carried by the ARCHIVED twin asserted
+        //      immediately above. `archived` and `erased` are seeded by the SAME SeedStrongAsync
+        //      helper with the SAME `run` facet, so they are identical in every scored input and
+        //      differ ONLY in which transition ran. A twin seeded here purely to re-prove it would
+        //      be redundant with that assertion.
+        //
+        // So the erased leg still cannot pass by seed decay: if Erase() had eaten the facets,
+        // EraseAsync goes red before this test body runs.
 
         // THE C# SIDE OF THE INVARIANT: the archived ad is MISSING to the batch scorer (#864).
         // Asserted as ABSENCE — never `scores[archived]`, which now throws KeyNotFoundException.

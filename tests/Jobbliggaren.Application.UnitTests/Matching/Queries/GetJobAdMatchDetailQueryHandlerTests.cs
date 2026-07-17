@@ -440,7 +440,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
     private static async Task<JobAd> SeedAdAsync(
         AppDbContext db, Func<JobAd, Result> transition, CancellationToken ct)
     {
-        var clock = new FixedClock();
+        var clock = FakeDateTimeProvider.Default;
         var ad = JobAd.Create(
             "Systemutvecklare", Company.Create("Testbolaget AB").Value, "Vi söker en utvecklare.",
             "https://example.test/jobb/1", JobSource.Platsbanken,
@@ -457,17 +457,13 @@ public class GetJobAdMatchDetailQueryHandlerTests
         return ad;
     }
 
-    private sealed class FixedClock : IDateTimeProvider
-    {
-        public DateTimeOffset UtcNow { get; } = new(2026, 7, 17, 12, 0, 0, TimeSpan.Zero);
-    }
 
     [Fact]
     public async Task Handle_ShouldReturnGone_WhenAdIsErased()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var db = TestAppDbContextFactory.Create();
-        var ad = await SeedAdAsync(db, a => a.Erase(new FixedClock()), ct);
+        var ad = await SeedAdAsync(db, a => a.Erase(FakeDateTimeProvider.Default), ct);
 
         // Fail-loud read-back through a FRESH view of the store, BEFORE the SUT runs: if the
         // seed did not actually erase, the witness must die here rather than pass for the
@@ -501,7 +497,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
     {
         var ct = TestContext.Current.CancellationToken;
         await using var db = TestAppDbContextFactory.Create();
-        var ad = await SeedAdAsync(db, a => a.Archive(new FixedClock()), ct);
+        var ad = await SeedAdAsync(db, a => a.Archive(FakeDateTimeProvider.Default), ct);
 
         var seeded = await db.JobAds.AsNoTracking()
             .FirstAsync(j => j.Id == ad.Id, ct);

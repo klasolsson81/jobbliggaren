@@ -327,8 +327,9 @@ public static class JobAdLifecycleReadRegistry
                     ".Where(org.nr != null && ILike(Company.Name, pattern)).GroupBy(org.nr) — employer disambiguation.",
                     "Resolves an employer (org.nr) by a company-name search for company-following (#560); status-agnostic "
                     + "by design — an employer exists to be followed whether or not its current ads are Active, so an "
-                    + "employer with only archived ads is still offered. (Reviewer: confirm Active-inclusion is intended "
-                    + "for this picker; if not, that is a follow-up gate change, not a registry defect.)")),
+                    + "employer with only archived ads is still offered. Confirmed product decision (Klas, 2026-07-17): "
+                    + "following an employer is a bet on its FUTURE ads, so the picker deliberately offers employers "
+                    + "whose current ads are all archived.")),
             ["Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatches.ListCompanyWatchesQueryHandler.Handle"] =
             [
                 Any("nameByOrgNr: .Where(orgNrs.Contains(orgNr)).Select(orgNr, Company.Name).Distinct() — org.nr → name lookup.",

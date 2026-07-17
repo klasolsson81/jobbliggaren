@@ -40,7 +40,9 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// selection is its <c>Status == Active</c> allow-list. The resurrection mutant
 /// (<c>== Active</c> → <c>!= Archived</c>) re-stamps the tombstone Archived and the read-back goes
 /// RED — a deny-list is worse than a leak, because a re-stamped tombstone bypasses the aggregate's
-/// <c>Archive()</c> guard and un-keys <c>UpdateFromSource</c>'s re-import refusal.
+/// <c>Archive()</c> guard and un-keys <c>UpdateFromSource</c>'s re-import refusal. The tracker
+/// witness seeds 2+1 (tombstone + qualifying Active companion): its count oracle then also kills a
+/// no-op'd writer (<c>archived == 0</c> → RED) instead of leaning on the retention sibling.
 /// </para>
 /// </remarks>
 public sealed class RecruiterContactRetentionTests : IAsyncLifetime
@@ -201,12 +203,17 @@ public sealed class RecruiterContactRetentionTests : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         const string externalId = "resurrection-miss-1";
+        const string companionId = "resurrection-miss-companion-1";
 
-        // Import an Active ad, tick its snapshot-miss count to the threshold via the production
-        // funnel (ApplyAsync counts only Active ads), THEN erase it. Erase() leaves the External
-        // key intact, so the miss row still joins the archival select — the ONLY excluder left is
+        // Asymmetric 2+1 seed: the tombstone-to-be AND a qualifying Active companion, both missed
+        // in the same complete snapshot (ApplyAsync ticks only Active ads), THEN one is erased.
+        // The companion is what makes the count oracle below asymmetric — a count-only zero is
+        // satisfied by a writer that did nothing at all, so the witness would otherwise lean on
+        // its retention sibling to catch a no-op'd writer. Erase() leaves the External key intact,
+        // so the tombstone's miss row still joins the archival select — the ONLY excluder left is
         // the Status == Active gate.
         await SeedActiveAdWithContactsAsync(externalId, ct);
+        await SeedActiveAdWithContactsAsync(companionId, ct);
         using (var scope = _provider.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -217,6 +224,7 @@ public sealed class RecruiterContactRetentionTests : IAsyncLifetime
         }
         await EraseAsync(externalId, ct);
         await AssertMissCountAtLeastAsync(externalId, threshold: 1, ct);
+        await AssertMissCountAtLeastAsync(companionId, threshold: 1, ct);
 
         int archived;
         using (var scope = _provider.CreateScope())
@@ -228,11 +236,15 @@ public sealed class RecruiterContactRetentionTests : IAsyncLifetime
                 JobSource.Platsbanken, threshold: 1, Now, ct);
         }
 
-        // The tombstone is not Active, so the primary archival writer must not select it. Under the
-        // resurrection mutant (== Active → != Archived) it IS selected → archived == 1 and its
-        // status flips to Archived, so both assertions go RED.
-        archived.ShouldBe(0,
-            "the primary archival writer must not select an Erased tombstone — it is not Active.");
+        // Exactly the companion: archiving it proves the writer RAN (a no-op'd writer yields 0 —
+        // RED), and the tombstone's exclusion is then attributable to the Status gate alone. Under
+        // the resurrection mutant (== Active → != Archived) the tombstone is selected too →
+        // archived == 2 and its status flips to Archived, so the count and the tombstone
+        // read-back both go RED.
+        archived.ShouldBe(1,
+            "the primary archival writer archives the qualifying Active companion and must not "
+            + "select the Erased tombstone — it is not Active.");
+        await AssertAdIsArchivedWithoutContactsAsync(companionId, ct);
         await AssertAdIsErasedTombstoneAsync(externalId, ct);
     }
 
@@ -366,11 +378,13 @@ public sealed class RecruiterContactRetentionTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         // Counterfactual: a qualifying miss row joins the archival select, so only the Status gate
-        // keeps the tombstone out. Without it the mutant would pass for the wrong reason.
+        // keeps the tombstone out. Without it the mutant would pass for the wrong reason. The
+        // source predicate mirrors the archival join's (source, external_id) key exactly.
         var missCount = (await db.Database
             .SqlQueryRaw<int>(
-                "SELECT miss_count AS \"Value\" FROM job_ad_snapshot_misses WHERE external_id = {0}",
-                externalId)
+                "SELECT miss_count AS \"Value\" FROM job_ad_snapshot_misses "
+                + "WHERE source = {0} AND external_id = {1}",
+                JobSource.Platsbanken.Value, externalId)
             .ToListAsync(ct)).Single();
 
         missCount.ShouldBeGreaterThanOrEqualTo(threshold,

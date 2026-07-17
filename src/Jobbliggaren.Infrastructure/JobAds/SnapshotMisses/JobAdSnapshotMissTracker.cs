@@ -126,8 +126,9 @@ internal sealed partial class JobAdSnapshotMissTracker(
         // by 2026-07-17 R2/R3 once PR #911 supplied the real-Postgres fixture): the real-SUT test
         // RecruiterContactRetentionTests.JobAdSnapshotMissTracker_archive_does_not_resurrect_an_Erased_tombstone
         // seeds a real Erased tombstone (JobAd.Import + Erase(), production funnel) that keeps its
-        // External key and a miss count over the threshold, and proves it is excluded from this
-        // bulk selection — the resurrection mutant (`== Active` → `!= Archived`) goes RED there.
+        // External key and a miss count at the threshold, and proves it is excluded from this bulk
+        // selection while an Active companion IS archived (2+1 — the writer demonstrably ran) —
+        // the resurrection mutant (`== Active` → `!= Archived`) goes RED there.
         //
         // Domain-event-bortfall accepterat (CTO 2026-05-23 Q3=B, D8.a — inga
         // subscribers på JobAdArchivedDomainEvent). Aggregerad audit-rad via

@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.JobAds.Queries;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -110,7 +111,12 @@ public sealed class GetApplicationByIdQueryHandler(
             var location = await ResolveLocationAsync(snap.MunicipalityConceptId, cancellationToken);
             preservedAd = new AdSnapshotDto(
                 snap.Title, snap.Company, location, snap.Url, snap.Source,
-                snap.PublishedAt, snap.ExpiresAt, snap.Description, snap.CapturedAt);
+                snap.PublishedAt, snap.ExpiresAt, snap.Description,
+                // #842 PR4 — the frozen contact block, through the ONE fail-closed mapper
+                // (shared with GetJobAdQueryHandler). [] after a terminal transition
+                // (WithoutAdBody cleared it) or when the ad held none at capture.
+                JobAdContactDto.ListFrom(snap.Contacts),
+                snap.CapturedAt);
         }
 
         return new ApplicationDetailDto(

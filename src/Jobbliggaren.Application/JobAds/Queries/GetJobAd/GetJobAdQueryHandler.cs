@@ -32,23 +32,26 @@ public sealed class GetJobAdQueryHandler(IAppDbContext db)
     public async ValueTask<Result<JobAdDetailDto>> Handle(
         GetJobAdQuery query, CancellationToken cancellationToken)
     {
+        // A NARROW anonymous row, not the entity: materialising JobAd would pull RawPayload
+        // (org.nr + pre-scrub recruiter free text) into handler memory for nothing (§3.6). The
+        // DTO is constructed AFTER the guards below — Contacts is a scalar-converted jsonb VO
+        // whose inner list cannot be projected in SQL, and a tombstone never gets a contact
+        // block built at all.
         var row = await db.JobAds
             .AsNoTracking()
             .Where(j => j.Id == new JobAdId(query.Id))
             .Select(j => new
             {
                 Status = j.Status.Value,
-                Dto = new JobAdDetailDto(
-                    j.Id.Value,
-                    j.Title,
-                    j.Company.Name,
-                    j.Description,
-                    j.Url,
-                    j.Source.Value,
-                    j.Status.Value,
-                    j.PublishedAt,
-                    j.ExpiresAt,
-                    j.CreatedAt),
+                j.Title,
+                CompanyName = j.Company.Name,
+                j.Description,
+                j.Url,
+                Source = j.Source.Value,
+                j.PublishedAt,
+                j.ExpiresAt,
+                j.CreatedAt,
+                j.Contacts,
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -65,6 +68,17 @@ public sealed class GetJobAdQueryHandler(IAppDbContext db)
             return Result.Failure<JobAdDetailDto>(
                 DomainError.Gone("JobAd.Gone", "Annonsen är inte längre tillgänglig."));
 
-        return Result.Success(row.Dto);
+        return Result.Success(new JobAdDetailDto(
+            query.Id,
+            row.Title,
+            row.CompanyName,
+            row.Description,
+            row.Url,
+            row.Source,
+            row.Status,
+            row.PublishedAt,
+            row.ExpiresAt,
+            row.CreatedAt,
+            JobAdContactDto.ListFrom(row.Contacts)));
     }
 }

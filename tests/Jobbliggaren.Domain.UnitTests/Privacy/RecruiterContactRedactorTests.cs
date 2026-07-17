@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Jobbliggaren.Domain.Privacy;
+using Jobbliggaren.TestSupport;
 using Shouldly;
 
 namespace Jobbliggaren.Domain.UnitTests.Privacy;
@@ -218,6 +219,82 @@ public class RecruiterContactRedactorTests
     [InlineData(null, null)]
     public void NormalizePhone_is_the_single_canonical_form(string? input, string? expected)
         => RecruiterContactRedactor.NormalizePhone(input).ShouldBe(expected);
+
+    // ---- TestIds is not phone-shaped (the PR #921 CI incident, 2026-07-17) ------------------
+    //
+    // A raw Guid "N" hex CAN be a phone: when it starts with 0 followed by ≥6 decimal digits
+    // before the first a–f letter, the detector anchors after a preceding quote/space/'%' and
+    // promotes the run as an ExtractedFromBody contact (~0.4 % of draws — green in isolation,
+    // red once every ~250 CI runs). TestIds' letter prefix is the disarming mechanism; these
+    // tests pin it against the REAL redactor, with the known-bad hex as the counterfactual that
+    // proves the oracle sees the mechanism at all.
+
+    // The known-bad hex from the incident repro: leading 0, then 9 digits before the first
+    // letter → normalizes to 10 digits, inside the 7–11 envelope.
+    private const string PhoneShapedHex = "0123456789abcdef0123456789abcdef";
+
+    // Worst-case embeddings measured in the tree: a JSON payload id (the #921 incident), a
+    // space-preceded title token, and a '%'-preceded LIKE-literal marker. Each preceding
+    // character passes the detector's lookbehind, so the TOKEN itself is the only defence.
+    private static string[] EmbeddingShapes(string token) =>
+    [
+        $"{{\"id\":\"{token}\"}}",
+        $"Backend {token} developer",
+        $"%{token} literal",
+    ];
+
+    [Fact]
+    public void Redact_detects_the_known_bad_hex_in_every_embedding_shape()
+    {
+        // The counterfactual: if this stops firing, the guard below passes for the wrong
+        // reason (a dead oracle proves nothing about TestIds).
+        foreach (var text in EmbeddingShapes(PhoneShapedHex))
+        {
+            var result = RecruiterContactRedactor.Redact(text);
+
+            var span = result.Found.ShouldHaveSingleItem(
+                $"the phone-shaped hex must anchor in \"{text}\" — this counterfactual is what "
+                + "gives the TestIds guard its teeth");
+            span.Kind.ShouldBe(ContactKind.Phone);
+        }
+    }
+
+    [Fact]
+    public void Redact_finds_nothing_in_a_TestIds_prefixed_known_bad_hex()
+    {
+        // The SAME hex, disarmed only by the prefix — one variable isolated. Removing or
+        // digit-ifying TestIds.Prefix turns this red via the counterfactual above.
+        foreach (var text in EmbeddingShapes(TestIds.Prefix + PhoneShapedHex))
+        {
+            var result = RecruiterContactRedactor.Redact(text);
+
+            result.Found.ShouldBeEmpty(
+                $"a TestIds-prefixed token must never be redacted, but \"{text}\" was");
+            result.Scrubbed.ShouldBe(text);
+        }
+    }
+
+    [Fact]
+    public void TestIds_outputs_are_shape_safe_and_survive_the_redactor()
+    {
+        // Shape guard (form over name): every output must start with an ASCII letter (the
+        // anchor-breaker) and continue with hex only (every inner 0 preceded by a letter or
+        // digit, which the lookbehind refuses). Then the real redactor confirms it — over the
+        // generated population, in all worst-case shapes. Deterministic given the shape: no
+        // draw of the hex tail can make a letter-led hex token anchor.
+        foreach (var token in Enumerable.Range(0, 100)
+                     .SelectMany(_ => new[] { TestIds.ExternalId(), TestIds.Token(8), TestIds.Token(12) }))
+        {
+            char.IsAsciiLetter(token[0]).ShouldBeTrue(
+                $"TestIds output \"{token}\" must start with a letter — a digit start re-arms the anchor");
+            token[1..].All(char.IsAsciiHexDigitLower).ShouldBeTrue(
+                $"TestIds output \"{token}\" must be hex after the prefix — separators could split a digit run");
+
+            foreach (var text in EmbeddingShapes(token))
+                RecruiterContactRedactor.Redact(text).Found.ShouldBeEmpty(
+                    $"TestIds output \"{token}\" was redacted in \"{text}\"");
+        }
+    }
 
     // ---- never throws -----------------------------------------------------------------------
 

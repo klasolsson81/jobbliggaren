@@ -115,7 +115,7 @@ public class SuggestJobAdTermsTests(ApiFactory factory)
     public async Task Suggest_EscapesLikeWildcards_LeftAnchorPreserved()
     {
         var ct = TestContext.Current.CancellationToken;
-        var marker = Guid.NewGuid().ToString("N")[..10];
+        var marker = TestIds.Token(10);
         // Titel som börjar med literal "%"+marker; och en utan.
         await SeedAsync($"%{marker} literal", ct);
         await SeedAsync($"prefix{marker} annan", ct);

@@ -2,6 +2,7 @@ using Jobbliggaren.Application.JobAds.Queries.GetJobAd;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.TestSupport;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.GetJobAd;
@@ -80,5 +81,77 @@ public class GetJobAdQueryHandlerTests
         result.Error.Code.ShouldBe("JobAd.Gone");
         result.Error.Message.ShouldNotContain("artikel");
         result.Error.Message.ShouldNotContain("raderat");
+    }
+
+    // ── #842 PR4 — the recruiter contact block on the detail projection ──────────────────────────
+
+    /// <summary>
+    /// An IMPORTED ad (JobAd.Import runs the scrub/promote funnel; JobAd.Create does not) carrying a
+    /// single DECLARED contact and a clean body, so Contacts holds exactly that one contact.
+    /// <c>ChangeTracker.Clear()</c> forces the read to re-materialise the jsonb VO through its value
+    /// converter — the round-trip the GetJobAdExtractedTermsQueryHandlerTests pattern relies on.
+    /// </summary>
+    private static async Task<JobAd> ImportJobAdWithDeclaredContactAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, CancellationToken ct)
+    {
+        var externalId = Guid.NewGuid().ToString("N");
+        var payload = $"{{\"id\":\"{externalId}\"}}";
+        var declared = AdContact.TryCreate(
+            "Anna Karlsson", "Rekryterare", "anna@acme.se", "070-123 45 67",
+            AdContactOrigin.Declared)!;
+
+        var jobAd = JobAd.Import(
+            title: "Backend-utvecklare",
+            company: Company.Create("Klarna").Value,
+            description: "Vi söker en backend-utvecklare.",
+            url: "https://jobs.klarna.com/job/1",
+            external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
+            rawPayload: payload,
+            facets: TestFacets.FromPayload(payload),
+            declaredContacts: [declared],
+            publishedAt: FakeDateTimeProvider.Default.UtcNow,
+            expiresAt: null,
+            clock: FakeDateTimeProvider.Default).Value;
+
+        db.JobAds.Add(jobAd);
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+        return jobAd;
+    }
+
+    [Fact]
+    public async Task Handle_WhenImportedAdHasDeclaredContact_PopulatesContactsAsNotDerived()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var jobAd = await ImportJobAdWithDeclaredContactAsync(db, CancellationToken.None);
+
+        var handler = new GetJobAdQueryHandler(db);
+        var result = await handler.Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var contact = result.Value.Contacts.ShouldHaveSingleItem();
+        contact.IsDerived.ShouldBeFalse(
+            "a declared contact is the advertiser's own declaration, never our inference (R1(b)).");
+        contact.Name.ShouldBe("Anna Karlsson");
+        contact.Email.ShouldBe("anna@acme.se");
+    }
+
+    [Fact]
+    public async Task Handle_WhenManualAdHasNoContacts_ReturnsEmptyContactsNotNull()
+    {
+        // JobAd.Create (the manual path) never populates Contacts, so the column is null. The DTO's
+        // ListFrom(null) must project to [] — the wire is never null (parity with the empty case; the
+        // null-vs-empty distinction is a retention concern, not a display one).
+        await using var db = TestAppDbContextFactory.Create();
+        var jobAd = CreateJobAd();
+        db.JobAds.Add(jobAd);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new GetJobAdQueryHandler(db);
+        var result = await handler.Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Contacts.ShouldNotBeNull("Contacts is never null on the wire — ListFrom yields [].");
+        result.Value.Contacts.ShouldBeEmpty();
     }
 }

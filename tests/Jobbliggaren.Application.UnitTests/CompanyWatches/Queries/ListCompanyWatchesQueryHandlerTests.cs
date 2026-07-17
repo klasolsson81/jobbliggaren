@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatches;
 using Jobbliggaren.Application.JobAds.Abstractions;
@@ -24,6 +25,7 @@ public class ListCompanyWatchesQueryHandlerTests
     // matching-count wiring itself is exercised by the WITH-SSYK tests further down.
     private readonly IMatchProfileBuilder _profileBuilder = Substitute.For<IMatchProfileBuilder>();
     private readonly IPerUserJobAdSearchQuery _perUserSearch = Substitute.For<IPerUserJobAdSearchQuery>();
+    private readonly IProtectedIdentityTokenizer _tokenizer = Substitute.For<IProtectedIdentityTokenizer>();
 
     private readonly FakeDateTimeProvider _clock = FakeDateTimeProvider.Default;
     private readonly Guid _userId = Guid.NewGuid();
@@ -31,6 +33,9 @@ public class ListCompanyWatchesQueryHandlerTests
     public ListCompanyWatchesQueryHandlerTests()
     {
         _currentUser.UserId.Returns(_userId);
+        // Deterministic 64-char token (distinct from plaintext). Only invoked when a pnr-shaped watch
+        // is present; these tests seed AB org.nrs, so it stays inert unless a test opts in.
+        _tokenizer.Tokenize(Arg.Any<string>()).Returns(ci => "hmac" + ci.Arg<string>().PadLeft(60, '0'));
         // Empty-SSYK profile ⇒ not-assessed path (MatchingAdCount == null, port never called).
         _profileBuilder
             .BuildFullForSortAsync(Arg.Any<CancellationToken>(), Arg.Any<bool>())
@@ -62,7 +67,7 @@ public class ListCompanyWatchesQueryHandlerTests
 
     private ListCompanyWatchesQueryHandler Handler(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db) =>
-        new(db, _currentUser, _profileBuilder, _perUserSearch);
+        new(db, _currentUser, _profileBuilder, _perUserSearch, _tokenizer);
 
     private void Add(Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId, string orgNr)
         => db.CompanyWatches.Add(
@@ -78,7 +83,8 @@ public class ListCompanyWatchesQueryHandlerTests
         var profileBuilder = Substitute.For<IMatchProfileBuilder>();
         var perUserSearch = Substitute.For<IPerUserJobAdSearchQuery>();
 
-        var result = await new ListCompanyWatchesQueryHandler(db, anon, profileBuilder, perUserSearch)
+        var result = await new ListCompanyWatchesQueryHandler(
+                db, anon, profileBuilder, perUserSearch, Substitute.For<IProtectedIdentityTokenizer>())
             .Handle(new ListCompanyWatchesQuery(), ct);
 
         result.ShouldBeEmpty();

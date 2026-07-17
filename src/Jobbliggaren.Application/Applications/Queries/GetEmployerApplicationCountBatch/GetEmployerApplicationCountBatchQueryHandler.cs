@@ -56,6 +56,8 @@ namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationCo
 /// fabrication, and a more dangerous one than in #444, because a false positive tells the user she has
 /// applied to a company she may never have applied to (and she may then decline to apply). An
 /// undercount is safe; a name-guessed overcount is not. Keep dropping; hedge the copy.
+/// #892 (CTO R4): an ERASED ad joins the same residue — <c>Erase()</c> nulls org.nr and the
+/// <c>AdSnapshot</c> holds none, so the erased case is documented here, not "fixed".
 /// </para>
 /// </summary>
 public sealed class GetEmployerApplicationCountBatchQueryHandler(

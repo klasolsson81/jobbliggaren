@@ -5,7 +5,10 @@ namespace Jobbliggaren.Domain.Applications;
 /// Application aggregate at apply-time (issue #315, ADR 0086). Owned value
 /// object, parallel to <see cref="ManualPosting"/>. Solves: the employer
 /// archives the ad after the deadline, but the user is interviewed weeks later —
-/// the source material must survive even after the JobAd is soft-deleted.
+/// the source material must survive the ad's whole lifecycle. Since #892 that
+/// includes Art. 17 erasure: the read paths swap summary identity to this
+/// snapshot when the ad is an Erased tombstone (list/pipeline/report/detail —
+/// CTO R1), so the applicant's preserved record survives the erasure.
 ///
 /// The snapshot captures the ad's OWN fields (title/company/url/source/dates/body)
 /// plus the JobAd's <see cref="MunicipalityConceptId"/> — the raw taxonomy

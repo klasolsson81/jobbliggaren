@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.JobAds;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -89,22 +90,40 @@ public sealed class GetActivityReportQueryHandler(
                 MunicipalityConceptId =
                     j != null ? EF.Property<string?>(j, "MunicipalityConceptId") : null
             })
+            // #892 (CTO R1/R5 + §14.3): rapporten LÄSTE live-annonsen medan Art.
+            // 17(3)(e)-retentionen av snapshot_company motiverades av EXAKT den här
+            // läsvägen — efter en radering sa arbetsgivarkolumnen "[raderad]".
+            // Raderad annons → identitet ur ansökans AdSnapshot; utan snapshot →
+            // null (DTO:ns frånvaro-vokabulär, FE renderar "Saknas") — aldrig
+            // domän-sentinelen "[raderad]" över gränsen (§2.3). AdStatus bär
+            // livscykel-signalen till FE-markören (aldrig defaultad, #805-3-idiomet).
+            // Orten läses fortsatt live: *_concept_id-facetterna överlever Erase()
+            // (NotRecruiterData — se JobAd.Erase-kommentaren).
             .Select(r => new
             {
                 r.a.Id,
                 AppliedAt = r.a.AppliedAt!.Value,
                 Employer = r.j != null
-                    ? r.j.Company.Name
+                    ? (r.j.Status == JobAdStatus.Erased
+                        ? (r.a.AdSnapshot != null ? r.a.AdSnapshot.Company : null)
+                        : r.j.Company.Name)
                     : r.a.ManualPosting != null ? r.a.ManualPosting.Company : null,
                 Title = r.j != null
-                    ? r.j.Title
+                    ? (r.j.Status == JobAdStatus.Erased
+                        ? (r.a.AdSnapshot != null ? r.a.AdSnapshot.Title : null)
+                        : r.j.Title)
                     : r.a.ManualPosting != null ? r.a.ManualPosting.Title : null,
                 Url = r.j != null
-                    ? r.j.Url
+                    ? (r.j.Status == JobAdStatus.Erased
+                        ? (r.a.AdSnapshot != null ? r.a.AdSnapshot.Url : null)
+                        : r.j.Url)
                     : r.a.ManualPosting != null ? r.a.ManualPosting.Url : null,
                 Source = r.j != null
-                    ? r.j.Source.Value
+                    ? (r.j.Status == JobAdStatus.Erased && r.a.AdSnapshot != null
+                        ? r.a.AdSnapshot.Source
+                        : r.j.Source.Value)
                     : r.a.ManualPosting != null ? "Manual" : null,
+                AdStatus = r.j != null ? r.j.Status.Value : null,
                 r.MunicipalityConceptId
             })
             .ToListAsync(cancellationToken);
@@ -123,7 +142,8 @@ public sealed class GetActivityReportQueryHandler(
                         ? loc
                         : null,
                 r.Source,
-                r.Url))
+                r.Url,
+                r.AdStatus))
             .ToList();
 
         return new ActivityReportDto(year, month, items);

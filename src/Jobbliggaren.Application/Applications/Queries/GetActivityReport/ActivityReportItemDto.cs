@@ -27,4 +27,11 @@ public sealed record ActivityReportItemDto(
     string? Title,              // "Jobbtitel"
     string? Location,          // "Ort" — resolved municipality label; null when unavailable
     string? Source,            // "Platsbanken" | "LinkedIn" | "Manual" (drives "Hur du sökte" default)
-    string? Url);              // optional "Länk till annons"
+    string? Url,               // optional "Länk till annons"
+                               // #892 (CTO R1): the source ad's lifecycle status ("Active" | "Archived" |
+                               // "Erased"), the structural signal the FE keys the removed-ad marker off —
+                               // an erased ad's row shows the applicant's preserved snapshot identity and
+                               // must not look alive. null ⟺ manual application (no JobAd row ⇒ no
+                               // lifecycle claim; never defaulted — the #805-3 idiom, same as
+                               // JobAdSummaryDto.Status).
+    string? AdStatus);

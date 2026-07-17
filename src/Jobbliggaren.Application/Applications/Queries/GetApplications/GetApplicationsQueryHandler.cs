@@ -3,6 +3,7 @@ using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.JobAds;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -83,10 +84,30 @@ public sealed class GetApplicationsQueryHandler(
                 // #805-3: Status projiceras (value-converter → string, samma idiom
                 // som Source). Manuell → null: ingen JobAd-rad ⇒ ingen arkivering
                 // ⇒ ingen livs-utsaga (aldrig defaultad till "Active").
+                //
+                // #892 (CTO R1/R5): en RADERAD annons är en tombstone-rad (Title="",
+                // Company="[raderad]") — identiteten faller tillbaka på ansökans egen
+                // AdSnapshot (ADR 0086, frusen vid apply-time); Status förblir "Erased"
+                // från den levande raden. Exakt Erased, ALDRIG != Active — en arkiverad
+                // annons behåller sin riktiga identitet och läses fortsatt live.
+                // Saknas snapshot (pre-#315) projiceras TOM identitet: domän-sentinelen
+                // "[raderad]" korsar aldrig Application-gränsen (§2.3); FE renderar
+                // strukturellt på Status + identitets-frånvaro, aldrig literal-match.
                 r.j != null
-                    ? new JobAdSummaryDto(
-                        r.j.Id.Value, r.j.Title, r.j.Company.Name, r.j.Url,
-                        r.j.Source.Value, r.j.PublishedAt, r.j.ExpiresAt, r.j.Status.Value)
+                    ? (r.j.Status == JobAdStatus.Erased
+                        ? (r.a.AdSnapshot != null
+                            ? new JobAdSummaryDto(
+                                r.j.Id.Value, r.a.AdSnapshot.Title, r.a.AdSnapshot.Company,
+                                r.a.AdSnapshot.Url, r.a.AdSnapshot.Source,
+                                r.a.AdSnapshot.PublishedAt, r.a.AdSnapshot.ExpiresAt,
+                                r.j.Status.Value)
+                            : new JobAdSummaryDto(
+                                r.j.Id.Value, string.Empty, string.Empty, null,
+                                r.j.Source.Value, r.j.PublishedAt, r.j.ExpiresAt,
+                                r.j.Status.Value))
+                        : new JobAdSummaryDto(
+                            r.j.Id.Value, r.j.Title, r.j.Company.Name, r.j.Url,
+                            r.j.Source.Value, r.j.PublishedAt, r.j.ExpiresAt, r.j.Status.Value))
                     : r.a.ManualPosting != null
                         ? new JobAdSummaryDto(
                             null, r.a.ManualPosting.Title, r.a.ManualPosting.Company,

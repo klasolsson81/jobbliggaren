@@ -31,10 +31,13 @@ namespace Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJo
 /// missing ad row yields no projection → NotFound — exactly the prior
 /// <c>AnyAsync</c> precondition. (It never meant more than that: the JobAd
 /// soft-delete filter this used to invoke was vacuous and is now retired, #821.
-/// Existence is the whole precondition; an ARCHIVED ad still resolves, and always
-/// did.) This is the deliberate write-side amendment of ADR 0048 Beslut
-/// (d): the read-path reference-by-id stance is unchanged; the snapshot is an
-/// additive, orthogonal write-side concern.
+/// An ARCHIVED ad still resolves, and always did.) Since #892 (CTO R3) existence
+/// is no longer the WHOLE precondition: an ERASED ad — an Art. 17 tombstone row —
+/// refuses with 410 Gone instead of freezing <c>Title=""</c>/<c>"[raderad]"</c>
+/// into a permanent snapshot; the refusal mirrors <c>GetJobAdQueryHandler</c>'s
+/// erased→410 read gate. This is the deliberate write-side amendment of ADR 0048
+/// Beslut (d): the read-path reference-by-id stance is unchanged; the snapshot is
+/// an additive, orthogonal write-side concern.
 /// </summary>
 public sealed class CreateApplicationFromJobAdCommandHandler(
     IAppDbContext db,
@@ -80,11 +83,22 @@ public sealed class CreateApplicationFromJobAdCommandHandler(
                 j.PublishedAt,
                 j.ExpiresAt,
                 EF.Property<string?>(j, "MunicipalityConceptId"),
-                j.Contacts))
+                j.Contacts,
+                j.Status))
             .FirstOrDefaultAsync(cancellationToken);
 
         if (jobAdData is null)
             return Result.Failure<Guid>(DomainError.NotFound("JobAd", command.JobAdId));
+
+        // #892 (CTO R3): en raderad annons är en tombstone-rad — att snapshota den
+        // fryser Title=""/Company="[raderad]" till ett PERMANENT bevarat record.
+        // Raderade annonser är onåbara från varje UI-yta (sök grindar Active,
+        // detaljen 410:ar, sparade renderar orphan), så ett raderat id här är en
+        // stale eller konstruerad request — 410 Gone speglar läsgrindens posture
+        // (GetJobAdQueryHandler) och skiljer "fanns och är borta" från 404.
+        if (jobAdData.Status == JobAdStatus.Erased)
+            return Result.Failure<Guid>(
+                DomainError.Gone("JobAd.Gone", "Annonsen är inte längre tillgänglig."));
 
         var snapshot = AdSnapshot.Capture(
             jobAdData.Title,
@@ -131,7 +145,11 @@ public sealed class CreateApplicationFromJobAdCommandHandler(
         DateTimeOffset PublishedAt,
         DateTimeOffset? ExpiresAt,
         string? MunicipalityConceptId,
-        Domain.JobAds.AdContacts? Contacts)
+        Domain.JobAds.AdContacts? Contacts,
+        // #892 (CTO R3): projected WHOLE (the EmployerHistory idiom) so the
+        // erased-refusal branches in C#, not in the tree — same single
+        // get_JobAds projection, no second load.
+        JobAdStatus Status)
     {
         // PII (#842): Contacts carries recruiter name/email/phone. A record's default ToString
         // prints every member — redacted for the same reason as JobAdImportItem's.

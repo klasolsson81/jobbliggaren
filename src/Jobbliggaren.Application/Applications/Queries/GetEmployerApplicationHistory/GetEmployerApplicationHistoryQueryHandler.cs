@@ -112,6 +112,10 @@ public sealed class GetEmployerApplicationHistoryQueryHandler(
             // with an honest, separately-labelled bucket -- changing it here would be a behaviour change
             // in a truth-only PR. Do not "fix" it by grouping the residue on CompanyName: that fabricates
             // a legal-entity identity we do not have (ADR 0087 D1).
+            // #892 (CTO R4): an ERASED ad joins this residue — Erase() nulls org.nr and the AdSnapshot
+            // holds none, so the drop is functionally unfixable here; documented, never name-guessed.
+            // The row falls out BEFORE GroupBy, so the tombstone's "[raderad]" can never become a
+            // group display name (counterfactual verified in the CTO ruling).
             .Where(r => r.OrgNr != null)
             .ToListAsync(cancellationToken);
 

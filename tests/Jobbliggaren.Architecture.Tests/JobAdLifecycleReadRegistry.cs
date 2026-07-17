@@ -217,42 +217,55 @@ public static class JobAdLifecycleReadRegistry
                     ".GroupJoin(db.JobAds).SelectMany(DefaultIfEmpty()) — LEFT join enriching the pipeline applications.",
                     "An application references an ad that may since have been archived or erased; the pipeline is the "
                     + "user's own record and must show it regardless of the ad's lifecycle (no ad row → JobAdGuid null, "
-                    + "handled downstream). #805-3 class — gating on Active would erase the user's own applications.")),
+                    + "handled downstream). #805-3 class — gating on Active would erase the user's own applications. "
+                    + "An Erased tombstone keeps its row but the projection swaps summary identity to the applicant's "
+                    + "own AdSnapshot — empty identity without one (#892 CTO R1/R5); the join stays status-agnostic.")),
             ["Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationHistory.GetEmployerApplicationHistoryQueryHandler.Handle"] =
                 One(Any(
                     ".GroupJoin(db.JobAds).SelectMany(DefaultIfEmpty()) — LEFT join deriving employer/org.nr on applications.",
                     "Enriches the user's application history with the ad's employer; the ad may be archived/erased and "
                     + "the history must still list the application (org.nr is null when the ad has aged out — #824). "
-                    + "Gating on Active would drop the user's own record.")),
+                    + "Gating on Active would drop the user's own record. An Erased ad's org.nr is nulled by Erase(), "
+                    + "so it joins the SAME dropped residue: the snapshot carries no org.nr, this is functionally "
+                    + "unfixable and documented, never name-guessed (#892 CTO R4; #824 owns the residue bucket).")),
             ["Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationCountBatch.GetEmployerApplicationCountBatchQueryHandler.Handle"] =
                 One(Any(
                     ".GroupJoin(db.JobAds).SelectMany(DefaultIfEmpty()) — LEFT join deriving org.nr per application.",
                     "'Have I applied to this employer?' counts over the user's own applications; the referenced ad may "
                     + "be archived. A NULL org.nr (aged-out ad, #824) drops out, never gated on Active — gating would "
-                    + "undercount her real applications.")),
+                    + "undercount her real applications. Erased ads join the same NULL-org.nr residue (Erase() nulls "
+                    + "the column; the snapshot holds no org.nr) — an undercount is safe, a name-guessed overcount is "
+                    + "not, so the drop is documented rather than 'fixed' (#892 CTO R4, identical class to History).")),
             ["Jobbliggaren.Application.Applications.Queries.GetApplications.GetApplicationsQueryHandler.Handle"] =
                 One(Any(
                     ".GroupJoin(db.JobAds).SelectMany(DefaultIfEmpty()) — LEFT join enriching the applications list.",
                     "The applications list is the user's own record; an archived/erased referenced ad must still "
                     + "appear (j == null → JobAdGuid null, deliberate). #805-3 class — gating on Active would drop "
-                    + "applications whose ad has since been archived.")),
+                    + "applications whose ad has since been archived. An Erased tombstone keeps its row but the "
+                    + "projection swaps summary identity to the applicant's own AdSnapshot — empty identity without "
+                    + "one, the '[raderad]' sentinel never crosses the boundary (#892 CTO R1/R5).")),
             ["Jobbliggaren.Application.Applications.Queries.GetActivityReport.GetActivityReportQueryHandler.Handle"] =
                 One(Any(
                     ".GroupJoin(db.JobAds).SelectMany(DefaultIfEmpty()) — LEFT join for the Arbetsförmedlingen activity report.",
                     "The activity report lists the user's applications for AF; a referenced ad's lifecycle must not "
                     + "filter it (an archived ad she applied to still counts as activity). No ad row → null, handled "
-                    + "in the projection.")),
+                    + "in the projection. An Erased ad's employer/title fall back to the applicant's AdSnapshot — the "
+                    + "Art. 17(3)(e) retention ground finally READS the column it argued for (#892 CTO §14.3/R1); "
+                    + "absent a snapshot the projection emits null, never the tombstone sentinel (R5).")),
             ["Jobbliggaren.Application.Applications.Queries.GetApplicationById.GetApplicationByIdQueryHandler.Handle"] =
                 One(Any(
                     ".Where(j.Id == jobAdId).Select(JobAdSummaryDto(... j.Status.Value)) — the application's referenced ad.",
                     "The application detail shows the ad it references; the ad may be archived/erased and must still "
-                    + "render (it projects Status.Value so the surface labels the lifecycle). #805-3 class.")),
+                    + "render (it projects Status.Value so the surface labels the lifecycle). #805-3 class. An Erased "
+                    + "summary swaps identity to the aggregate's already-materialised AdSnapshot in plain C# after "
+                    + "the query — empty identity without one (#892 CTO R1/R5); the by-id load stays status-agnostic.")),
             ["Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJobAd.CreateApplicationFromJobAdCommandHandler.Handle"] =
                 One(Any(
                     ".Where(j.Id == jobAdId).Select(JobAdSnapshotSource) — snapshot the ad's fields at apply time.",
-                    "Snapshots the ad's fields into the application at apply time by id; status-agnostic because the "
-                    + "snapshot is a frozen legal record (ADR 0086) independent of the ad's later lifecycle. Not gated "
-                    + "on Active — applying is a user action against the ad the caller resolved.")),
+                    "Snapshots the ad's fields into the application at apply time by id; the LOAD is status-agnostic "
+                    + "(one projection, Status carried out) and an Archived ad still captures — a frozen legal record "
+                    + "(ADR 0086). An ERASED tombstone refuses with 410 Gone BEFORE capture (#892 CTO R3): freezing "
+                    + "''/'[raderad]' into a permanent snapshot was the write-path half of the #D3 defect.")),
             ["Jobbliggaren.Application.JobAds.Commands.ArchiveExternalJobAd.ArchiveExternalJobAdCommandHandler.Handle"] =
                 One(Any(
                     ".Where(External.Source == source && External.ExternalId == externalId).FirstOrDefault() — load-for-mutate.",

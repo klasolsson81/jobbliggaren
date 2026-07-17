@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { memo, useId } from "react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import {
@@ -66,7 +66,7 @@ interface ApplicationRowProps {
  * overlayn (klick = öppna raden). Soft-nav öppnar den centrerade route-modalen
  * (ADR 0053); ett modifierat klick (ny flik) når fullsidan via href.
  */
-export function ApplicationRow({
+export const ApplicationRow = memo(function ApplicationRow({
   application,
   now,
   primaryAction,
@@ -190,4 +190,4 @@ export function ApplicationRow({
       </div>
     </article>
   );
-}
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState, useTransition } from "react";
+import { Fragment, useCallback, useMemo, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import {
   applicationStatusLabel,
@@ -133,6 +133,15 @@ export function ApplicationsPipeline({
 
   const shownTotal = sections.reduce((sum, s) => sum + s.applications.length, 0);
 
+  // #747: memoisera den plattade tabell-raduppsättningen. `sections` är redan
+  // useMemo-stabil; utan detta ger `sections.flatMap(...)` en ny array-identitet
+  // vid varje pipeline-omritning, vilket tvingar ApplicationsTables interna
+  // `sorted`-useMemo att sortera om ~50 rader i onödan (perf-audit d1).
+  const tableRows = useMemo(
+    () => sections.flatMap((section) => section.applications),
+    [sections],
+  );
+
   // "AVSLUT & VILANDE"-kicker före den FÖRSTA terminala/vilande sektionen — bara
   // utan aktivt stegfilter (design §5 / prototyp: filter === 'all').
   const firstTerminalStatus =
@@ -143,9 +152,11 @@ export function ApplicationsPipeline({
   const activeFilterLabel =
     statusFilter != null ? applicationStatusLabel(tEnum, statusFilter) : null;
 
-  const toggleFilter = (status: ApplicationStatus) => {
+  // useCallback: en stabil `onToggle`-referens låter memo(StepRail) skippa vid
+  // sök-tangenttryck (railen är keystroke-invariant) — perf-audit d2.
+  const toggleFilter = useCallback((status: ApplicationStatus) => {
     setStatusFilter((current) => (current === status ? null : status));
-  };
+  }, []);
 
   return (
     // #630 PR 7: providern äger mutations-plumbingen (transition + toast +
@@ -195,10 +206,7 @@ export function ApplicationsPipeline({
               statusFilter={statusFilter}
               onToggle={toggleFilter}
             />
-            <ApplicationsTable
-              rows={sections.flatMap((section) => section.applications)}
-              now={now}
-            />
+            <ApplicationsTable rows={tableRows} now={now} />
           </>
         ) : (
           <>

@@ -167,7 +167,7 @@
     "experienceLegend": "Experience {index}",
     "companyLabel": "Company",
     "roleLabel": "Role",
-    "startDateLabel": "Start date",
+    "startDateLabel": "Start date (optional)",
     "endDateLabel": "End date (optional)",
     "descriptionLabel": "Description",
     "removeExperience": "Remove experience {index}",

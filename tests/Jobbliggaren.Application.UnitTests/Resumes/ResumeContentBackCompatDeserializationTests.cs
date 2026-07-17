@@ -151,4 +151,54 @@ public class ResumeContentBackCompatDeserializationTests
         content.ShouldNotBeNull();
         content.PersonalInfo.FullName.ShouldBe("Cia Ceder");
     }
+
+    // -------------------------------------------------------------------------
+    // Honest date absence (CV-pivot 2026-07-17, CTO-bind 5a-pre) — the same
+    // expand/contract additive rules cover the new shape: a pre-5a blob has no
+    // rawPeriod key and always-present dates; a post-5a blob may carry null dates
+    // + a verbatim rawPeriod. Both directions must read cleanly.
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Deserialize_Pre5aBlobWithoutRawPeriodKey_YieldsNullRawPeriodAndIntactDates()
+    {
+        // LegacyJson (above) predates rawPeriod entirely — the trailing optional must
+        // land as null while the structured dates stay authoritative.
+        var content = JsonSerializer.Deserialize<ResumeContent>(
+            LegacyJson, EncryptedFieldRegistry.ContentJsonOptions);
+
+        content.ShouldNotBeNull();
+        var exp = content.Experiences.ShouldHaveSingleItem();
+        exp.RawPeriod.ShouldBeNull();
+        exp.StartDate.ShouldBe(new DateOnly(2021, 1, 1));
+        content.Educations.ShouldHaveSingleItem().RawPeriod.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Deserialize_DatelessEntryWithRawPeriod_RoundTripsThroughTheProductionSpot()
+    {
+        var original = new ResumeContent(
+            new PersonalInfo("Doris Dahl", null, null, null),
+            experiences:
+            [
+                new Experience("Beta AB", "Utvecklare", null, null, null, "2019–2022"),
+            ],
+            educations:
+            [
+                new Education("KTH", "MSc", null, null, "2015–2019"),
+            ]);
+
+        var json = JsonSerializer.Serialize(original, EncryptedFieldRegistry.ContentJsonOptions);
+        var roundTripped = JsonSerializer.Deserialize<ResumeContent>(
+            json, EncryptedFieldRegistry.ContentJsonOptions);
+
+        roundTripped.ShouldNotBeNull();
+        var exp = roundTripped.Experiences.ShouldHaveSingleItem();
+        exp.StartDate.ShouldBeNull();
+        exp.EndDate.ShouldBeNull();
+        exp.RawPeriod.ShouldBe("2019–2022");
+        var edu = roundTripped.Educations.ShouldHaveSingleItem();
+        edu.StartDate.ShouldBeNull();
+        edu.RawPeriod.ShouldBe("2015–2019");
+    }
 }

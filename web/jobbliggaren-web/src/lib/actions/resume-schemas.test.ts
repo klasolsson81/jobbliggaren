@@ -157,6 +157,36 @@ describe("resumeContentSchema – experiences", () => {
     expect(result.success).toBe(false);
   });
 
+  // Ärligt frånvarande datum (CTO-bind 5a-pre): ingen redigeringsyta får tvinga
+  // användaren att hitta på ett datum.
+  it("accepts experience with absent startDate (honest date absence)", () => {
+    const result = resumeContentSchema.safeParse({
+      ...base,
+      experiences: [{ company: "Acme AB", role: "Utvecklare" }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts end-only experience (endDate without startDate)", () => {
+    const result = resumeContentSchema.safeParse({
+      ...base,
+      experiences: [
+        { company: "Acme AB", role: "Utvecklare", endDate: "2020-06-01" },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects rawPeriod longer than 100 chars", () => {
+    const result = resumeContentSchema.safeParse({
+      ...base,
+      experiences: [
+        { company: "Acme AB", role: "Utvecklare", rawPeriod: "x".repeat(101) },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("rejects experience with endDate before startDate", () => {
     const result = resumeContentSchema.safeParse({
       ...base,

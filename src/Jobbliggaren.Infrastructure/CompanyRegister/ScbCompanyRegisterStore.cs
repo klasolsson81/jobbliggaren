@@ -189,5 +189,13 @@ internal sealed class ScbCompanyRegisterStore(AppDbContext db)
         IReadOnlyList<string> sni_codes,
         bool reklamsparr,
         string? scb_status_raw,
-        string status);
+        string status)
+    {
+        // REDACTED (#883). The member names are snake_case because jsonb_to_recordset matches recordset
+        // columns by property NAME (they cannot be renamed) — but the compiler-generated ToString() then
+        // prints organization_number for a plain {X} MEL placeholder. The register is legal-entities-only
+        // (ADR 0091) so this org.nr is not a personnummer, but redact defense-in-depth anyway (§5). Keeps
+        // company_name; pinned by OrgNrRecordLoggingGuardTests.
+        public override string ToString() => $"BatchRow({company_name}, org.nr redacted)";
+    }
 }

@@ -39,4 +39,14 @@ public interface IEmployerDisambiguationQuery
 /// intermediate is intentionally outside that scope, mirroring how <c>ListCompanyWatchesQueryHandler</c>
 /// holds a raw <c>OrganizationNumber</c> transiently before masking.
 /// </summary>
-public sealed record EmployerAdGroup(string OrganizationNumber, string CompanyName, int AdCount);
+public sealed record EmployerAdGroup(string OrganizationNumber, string CompanyName, int AdCount)
+{
+    /// <summary>
+    /// REDACTED (#883). This raw intermediate holds an un-masked <see cref="OrganizationNumber"/> (a
+    /// possible sole-prop personnummer, ADR 0087 D8(c); CLAUDE.md §5); the compiler-generated
+    /// <c>ToString()</c> would print it for a plain <c>{X}</c> MEL placeholder. Overriding makes the
+    /// leak structurally impossible (<c>OrgNrRecordLoggingGuardTests</c>). Keeps
+    /// <see cref="CompanyName"/> + <see cref="AdCount"/> for debugging.
+    /// </summary>
+    public override string ToString() => $"EmployerAdGroup({CompanyName}, AdCount={AdCount}, org.nr redacted)";
+}

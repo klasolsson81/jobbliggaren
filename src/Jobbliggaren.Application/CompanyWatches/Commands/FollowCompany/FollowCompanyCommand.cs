@@ -18,4 +18,13 @@ public sealed record FollowCompanyCommand(string OrganizationNumber)
     public string EventType => "CompanyWatch.Followed";
     public string AggregateType => "CompanyWatch";
     public Guid ExtractAggregateId(Result<Guid> response) => response.Value;
+
+    /// <summary>
+    /// REDACTED (#883). The org.nr is client-supplied input and IS the entire payload (the doc above
+    /// says it "travels in the request BODY, never a URL/log"); a record's compiler-generated
+    /// <c>ToString()</c> would still write it into a log for a plain <c>{X}</c> MEL placeholder, and it
+    /// can be a sole-prop personnummer (ADR 0087 D8(c); CLAUDE.md §5). This makes "never a log"
+    /// structural rather than convention-dependent; pinned by <c>OrgNrRecordLoggingGuardTests</c>.
+    /// </summary>
+    public override string ToString() => "FollowCompanyCommand(org.nr redacted)";
 }

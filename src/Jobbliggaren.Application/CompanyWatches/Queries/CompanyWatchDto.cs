@@ -61,7 +61,18 @@ public sealed record CompanyWatchDto(
     DateTimeOffset FollowedAt,
     int ActiveAdCount,
     int? MatchingAdCount,
-    WatchFilterDto? Filter);
+    WatchFilterDto? Filter)
+{
+    /// <summary>
+    /// REDACTED (#883). The DTO masks its org.nr at the SURFACING boundary, but a record's
+    /// compiler-generated <c>ToString()</c> prints every member — a plain <c>{X}</c> MEL placeholder
+    /// would still write <see cref="OrganizationNumber"/> into a log. Defense-in-depth at the log
+    /// boundary too (a sole prop's org.nr IS a personnummer, ADR 0087 D8(c); CLAUDE.md §5). Keeps
+    /// <see cref="Id"/> + <see cref="CompanyName"/>; pinned by <c>OrgNrRecordLoggingGuardTests</c>.
+    /// </summary>
+    public override string ToString() =>
+        $"CompanyWatchDto(Id={Id}, CompanyName={CompanyName}, org.nr redacted)";
+}
 
 /// <summary>
 /// The user's notification filter for ONE followed company (bevakning F4b). Carries the two DISJOINT

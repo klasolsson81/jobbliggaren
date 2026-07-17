@@ -71,8 +71,9 @@ describe("RecruiterContactBlock (#842 PR4)", () => {
     expect(screen.getByText("Från annonstexten")).toBeInTheDocument();
 
     // The value itself leads the entry (there is no name to headline it): the
-    // email is the headline link, not a labelled "E-post" row.
-    const email = screen.getByRole("link", { name: "jobb@acme.se" });
+    // email is the headline link, not a labelled "E-post" row. Its accessible
+    // name carries the sr-only kind prefix (CTO F3, 2026-07-17).
+    const email = screen.getByRole("link", { name: "E-post: jobb@acme.se" });
     expect(email).toHaveAttribute("href", "mailto:jobb@acme.se");
     expect(screen.queryByText("E-post")).not.toBeInTheDocument();
   });
@@ -88,9 +89,10 @@ describe("RecruiterContactBlock (#842 PR4)", () => {
     render(<RecruiterContactBlock contacts={[derived]} />);
 
     expect(screen.getByText("Från annonstexten")).toBeInTheDocument();
-    // Email leads (headline link, unlabelled); phone is the labelled secondary row.
+    // Email leads (headline link, sr-only-labelled); phone is the visibly
+    // labelled secondary row.
     expect(
-      screen.getByRole("link", { name: "rekrytering@acme.se" }),
+      screen.getByRole("link", { name: "E-post: rekrytering@acme.se" }),
     ).toHaveAttribute("href", "mailto:rekrytering@acme.se");
     expect(screen.getByText("Telefon")).toBeInTheDocument();
     expect(
@@ -110,8 +112,39 @@ describe("RecruiterContactBlock (#842 PR4)", () => {
 
     expect(screen.getByText("Från annonstexten")).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "0701234567" }),
+      screen.getByRole("link", { name: "Telefon: 0701234567" }),
     ).toHaveAttribute("href", "tel:0701234567");
+  });
+
+  it("labels the lead link sr-only for BOTH kinds — accessible name gains the kind, the visible text does not (CTO F3, 2026-07-17)", () => {
+    const phoneLead: AdContactDto = {
+      name: null,
+      role: null,
+      email: null,
+      phone: "0701234567",
+      isDerived: true,
+    };
+    const emailLead: AdContactDto = {
+      name: null,
+      role: null,
+      email: "jobb@acme.se",
+      phone: null,
+      isDerived: true,
+    };
+    const { container } = render(
+      <RecruiterContactBlock contacts={[phoneLead, emailLead]} />,
+    );
+
+    // Accessible name = "kind: value" for both lead kinds (the a11y guarantee).
+    screen.getByRole("link", { name: "Telefon: 0701234567" });
+    screen.getByRole("link", { name: "E-post: jobb@acme.se" });
+
+    // The prefix lives in an sr-only span INSIDE the lead <a> — invisible, so
+    // the value stays the visual headline (R1(b): the value leads).
+    const srOnlyPrefixes = container.querySelectorAll("a > .sr-only");
+    expect(srOnlyPrefixes).toHaveLength(2);
+    expect(srOnlyPrefixes[0]).toHaveTextContent("Telefon:");
+    expect(srOnlyPrefixes[1]).toHaveTextContent("E-post:");
   });
 
   it("renders every contact in the list (declared + derived together)", () => {
@@ -126,7 +159,7 @@ describe("RecruiterContactBlock (#842 PR4)", () => {
 
     expect(screen.getByText("Anna Svensson")).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "jobb@acme.se" }),
+      screen.getByRole("link", { name: "E-post: jobb@acme.se" }),
     ).toBeInTheDocument();
     // Exactly one derived marker — the declared entry is not tagged.
     expect(screen.getAllByText("Från annonstexten")).toHaveLength(1);

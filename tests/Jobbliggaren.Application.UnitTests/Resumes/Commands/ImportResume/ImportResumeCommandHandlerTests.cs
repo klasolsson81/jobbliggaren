@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.JobAds.Abstractions;
@@ -44,7 +45,12 @@ public class ImportResumeCommandHandlerTests
     // original bytes, CTO Q2). Faked: the real sealer needs a warmed scoped DEK cache
     // (Infrastructure); the handler contract under test is the capture GATE + wiring.
     private readonly IBinaryFieldSealer _sealer = Substitute.For<IBinaryFieldSealer>();
+    // CV-pivot 5b — the handler gained the audit providers for the IN-HANDLER consent audit
+    // row (M-D: the blanket AuditBehavior slot is already "Resume.Imported").
+    private readonly ICorrelationIdProvider _correlationId = Substitute.For<ICorrelationIdProvider>();
+    private readonly IRequestContextProvider _requestContext = Substitute.For<IRequestContextProvider>();
     private readonly Guid _userId = Guid.NewGuid();
+    private readonly Guid _correlationGuid = Guid.NewGuid();
 
     // "%PDF-1.7" — a real PDF magic prefix so CvFileSignature resolves Pdf.
     private static readonly byte[] PdfBytes = [0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x37];
@@ -74,14 +80,18 @@ public class ImportResumeCommandHandlerTests
         // Default: the sealer returns a fixed opaque envelope (the capture tests assert the
         // aggregate stores exactly this, never the plaintext bytes).
         _sealer.Seal(Arg.Any<ReadOnlyMemory<byte>>()).Returns(SealedBytes);
+        _correlationId.Current.Returns(_correlationGuid);
+        _requestContext.IpAddress.Returns("203.0.113.7");
+        _requestContext.UserAgent.Returns("test-agent");
     }
 
     private ImportResumeCommandHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>
         new(db, _currentUser, FakeDateTimeProvider.Default, _extractor, _layoutAnalyzer, _segmenter,
-            _deriver, _experienceDeriver, _skillResolver, _sealer);
+            _deriver, _experienceDeriver, _skillResolver, _sealer, _correlationId, _requestContext);
 
-    private static ImportResumeCommand PdfCommand(string fileName = "cv.pdf") =>
-        new(fileName, "application/pdf", PdfBytes);
+    private static ImportResumeCommand PdfCommand(
+        string fileName = "cv.pdf", bool personnummerAcknowledged = false) =>
+        new(fileName, "application/pdf", PdfBytes, personnummerAcknowledged);
 
     private async Task<JobSeeker> SeedJobSeekerAsync(Infrastructure.Persistence.AppDbContext db)
     {
@@ -228,10 +238,11 @@ public class ImportResumeCommandHandlerTests
     }
 
     // ===============================================================
-    // Original-file capture (Fas 4b PR-9a, ADR 0100 — DPIA M-F1/M-F5). The handler
-    // captures the SEALED original as a ResumeFile ONLY when the body scan is clean;
-    // a body-flagged upload is never stored and the sealer is never even invoked
-    // (fail-closed M-F5 — no plaintext leaves the request path).
+    // Original-file capture (Fas 4b PR-9a, ADR 0100 — DPIA M-F1/M-F5; consent path
+    // CV-pivot 5b, DPIA §7 Beslut 2(c)). The handler captures the SEALED original as a
+    // ResumeFile when the body scan is clean OR the user acknowledged the flagged
+    // storage; flagged-without-acknowledge is never stored and the sealer is never
+    // even invoked (fail-closed M-F5 — byte-parity with the pre-5b posture, pin M1).
     // ===============================================================
 
     [Fact]
@@ -257,7 +268,7 @@ public class ImportResumeCommandHandlerTests
         file.ContentType.ShouldBe(CvFileSignature.PdfContentType);
         file.FileName.ShouldBe("cv.pdf");
         file.ByteSize.ShouldBe(PdfBytes.Length);
-        file.PnrFlagged.ShouldBeFalse(); // PR-9a never stores flagged originals (Q4/M-F5)
+        file.PnrFlagged.ShouldBeFalse(); // clean body, no acknowledge in play → unflagged
         file.ParsedResumeId.ShouldBe(parsed.Id); // retention-coupling key (M-F3)
         file.JobSeekerId.ShouldBe(seeker.Id);
     }
@@ -265,8 +276,9 @@ public class ImportResumeCommandHandlerTests
     [Fact]
     public async Task Handle_PersonnummerInBody_DoesNotCaptureOriginal_AndNeverCallsSealer()
     {
-        // Fail-closed M-F5 (§7 Beslut 2 / CTO Q4): a body-flagged original is NOT stored in
-        // PR-9a (acknowledge-store is a deferred follow-up). The sealer must not even run.
+        // M1 (5b security-bind B4): a body-flagged original WITHOUT the acknowledge stays
+        // byte-identically fail-closed to the pre-5b posture — no capture, no sealer call,
+        // no consent audit row. The consent path exists (test below) but demands the flag.
         var db = TestAppDbContextFactory.Create();
         await SeedJobSeekerAsync(db);
         StubExtractor("Anna Andersson\nPnr 811218 9876", CvExtractionStatus.Extracted);
@@ -277,7 +289,102 @@ public class ImportResumeCommandHandlerTests
         result.IsSuccess.ShouldBeTrue(); // the parse artifact itself still persists (flagged)
         db.ParsedResumes.Local.ShouldHaveSingleItem();
         db.ResumeFiles.Local.ShouldBeEmpty();
+        db.AuditLogEntries.Local.ShouldBeEmpty();
         _sealer.DidNotReceive().Seal(Arg.Any<ReadOnlyMemory<byte>>());
+    }
+
+    [Fact]
+    public async Task Handle_PersonnummerInBody_WithAcknowledge_CapturesFlaggedOriginal_WithConsentEvidence()
+    {
+        // M2 (5b): the acknowledged re-POST captures the flagged original with the FULL
+        // Art. 7(1) evidence pair — the server scan drives the flag, the stamps ride with it.
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedJobSeekerAsync(db);
+        StubExtractor("Anna Andersson\nPnr 811218 9876", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation(experienceTitle: null));
+
+        var result = await CreateSut(db)
+            .Handle(PdfCommand(personnummerAcknowledged: true), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var parsed = db.ParsedResumes.Local.ShouldHaveSingleItem();
+        var file = db.ResumeFiles.Local.ShouldHaveSingleItem();
+        file.PnrFlagged.ShouldBeTrue();
+        file.PnrConsentAt.ShouldBe(FakeDateTimeProvider.Default.UtcNow);
+        file.PnrConsentDialogVersion.ShouldBe(PnrConsentDialog.Version);
+        file.SealedContent.ShouldBe(SealedBytes); // sealed, never plaintext
+        file.ParsedResumeId.ShouldBe(parsed.Id);
+        file.JobSeekerId.ShouldBe(seeker.Id);
+    }
+
+    [Fact]
+    public async Task Handle_ConsentedCapture_WritesDistinctPiiFreeAuditRow_InSameUnitOfWork()
+    {
+        // M6 (5b security-bind B4/M-D): the consented capture writes the DISTINCT
+        // ResumeFile.PnrStorageConsented row — aggregate = the FILE, ids/IP/UA/timestamp
+        // only, no payload (structurally PII-free: never the pnr, filename, or content).
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("Anna Andersson\nPnr 811218 9876", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation(experienceTitle: null));
+
+        var result = await CreateSut(db)
+            .Handle(PdfCommand(personnummerAcknowledged: true), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var file = db.ResumeFiles.Local.ShouldHaveSingleItem();
+        var audit = db.AuditLogEntries.Local.ShouldHaveSingleItem();
+        audit.EventType.ShouldBe(ImportResumeCommand.PnrConsentAuditEventType);
+        audit.AggregateType.ShouldBe("ResumeFile");
+        audit.AggregateId.ShouldBe(file.Id.Value);
+        audit.UserId.ShouldBe(_userId);
+        audit.CorrelationId.ShouldBe(_correlationGuid);
+        audit.Payload.ShouldBeNull(); // PII-free by construction — no content field exists
+    }
+
+    [Fact]
+    public async Task Handle_CleanBody_WithAcknowledge_FlagIsInert_NoConsentEvidence_NoAuditRow()
+    {
+        // M-A inertness: a blindly-set acknowledge on a CLEAN upload is a no-op — the file
+        // captures as a normal clean file with NO stamps and NO consent audit row (the stamp
+        // is driven by the server's scan, never the client flag; premature consent defeated).
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("Anna Andersson\nanna@example.com", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation(experienceTitle: null));
+
+        var result = await CreateSut(db)
+            .Handle(PdfCommand(personnummerAcknowledged: true), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        var file = db.ResumeFiles.Local.ShouldHaveSingleItem();
+        file.PnrFlagged.ShouldBeFalse();
+        file.PnrConsentAt.ShouldBeNull();
+        file.PnrConsentDialogVersion.ShouldBeNull();
+        db.AuditLogEntries.Local.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_ConsentedCapture_WhenCaptureOriginalFails_ReturnsFailure_NothingAdded()
+    {
+        // Structural atomicity holds on the NEW branch too: a CaptureOriginal failure on the
+        // consented path returns before ANY Add — no parsed row, no file, no audit row can
+        // outlive the failure through the unconditional UnitOfWork save. Forced via a
+        // misbehaving sealer (empty envelope) — the one refusal reachable past the parse.
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubExtractor("Anna Andersson\nPnr 811218 9876", CvExtractionStatus.Extracted);
+        StubSegmenter(ConfidentSegmentation(experienceTitle: null));
+        _sealer.Seal(Arg.Any<ReadOnlyMemory<byte>>()).Returns([]);
+
+        var result = await CreateSut(db)
+            .Handle(PdfCommand(personnummerAcknowledged: true), CancellationToken.None);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("ResumeFile.SealedContentRequired");
+        db.ParsedResumes.Local.ShouldBeEmpty();
+        db.ResumeFiles.Local.ShouldBeEmpty();
+        db.AuditLogEntries.Local.ShouldBeEmpty();
     }
 
     [Fact]
@@ -792,7 +899,7 @@ public class ImportResumeCommandHandlerTests
         currentUser.UserId.Returns((Guid?)null);
         var sut = new ImportResumeCommandHandler(
             db, currentUser, FakeDateTimeProvider.Default, _extractor, _layoutAnalyzer, _segmenter,
-            _deriver, _experienceDeriver, _skillResolver, _sealer);
+            _deriver, _experienceDeriver, _skillResolver, _sealer, _correlationId, _requestContext);
 
         await Should.ThrowAsync<UnauthorizedException>(
             () => sut.Handle(PdfCommand(), CancellationToken.None).AsTask());

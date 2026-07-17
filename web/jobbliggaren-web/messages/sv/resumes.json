@@ -121,6 +121,11 @@
     "title": "Möjliga yrkesområden",
     "lede": "Förslag på yrkesområde utifrån ditt CV. Du bekräftar yrke i ett senare steg."
   },
+  "preamble": {
+    "title": "Text ovanför första rubriken",
+    "body": "Din fil inleds med den här texten, ovanför den första rubriken. Eftersom den inte står under en rubrik tolkar vi den inte som ett avsnitt, och den togs inte med automatiskt i ditt CV.",
+    "useHint": "Vill du använda den? Ge den en rubrik i din fil, till exempel Profil, och ladda upp filen igen."
+  },
   "profileToggle": {
     "groupLabel": "Välj granskningsprofil",
     "ats": "ATS-profil",

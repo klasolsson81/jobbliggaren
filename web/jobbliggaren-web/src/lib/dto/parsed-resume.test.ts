@@ -4,6 +4,7 @@ import {
   proposedChangeKindSchema,
   structuralTransformKindSchema,
   changeProvenanceDtoSchema,
+  parsedContentDtoSchema,
   parsedGapSummarySchema,
   pendingParsedResumeSummarySchema,
   type ParsedGapSummary,
@@ -362,5 +363,48 @@ describe("changeProvenanceDtoSchema", () => {
         transform: "Disintegrate",
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("parsedContentDtoSchema (preamble-fältet, #844/ADR 0109)", () => {
+  // Minimal giltig parse-content (allt annat tomt/null) — vi varierar bara preambeln.
+  const base = {
+    contact: { fullName: null, email: null, phone: null, location: null },
+    profile: null,
+    experiences: [],
+    educations: [],
+    skills: [],
+    languages: [],
+    sections: [],
+  };
+
+  it("ytar preambeln verbatim när nyckeln finns (redan pnr-redigerad wire-sida)", () => {
+    const result = parsedContentDtoSchema.safeParse({
+      ...base,
+      preamble: "Erfaren undersköterska med tio år i yrket.",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.preamble).toBe(
+        "Erfaren undersköterska med tio år i yrket.",
+      );
+    }
+  });
+
+  it("accepterar preamble: null (residuen var helt tillskriven) → null", () => {
+    const result = parsedContentDtoSchema.safeParse({ ...base, preamble: null });
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.preamble).toBeNull();
+  });
+
+  it("accepterar helt UTELÄMNAD preamble-nyckel → success + null (.nullish() deploy-skew-pin)", () => {
+    // En äldre backend, eller ett pre-#844-artefakt, serialiserar inte nyckeln alls.
+    // `.nullish()` + transform normaliserar till null i stället för att fälla schemat.
+    const result = parsedContentDtoSchema.safeParse(base);
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.preamble).toBeNull();
   });
 });

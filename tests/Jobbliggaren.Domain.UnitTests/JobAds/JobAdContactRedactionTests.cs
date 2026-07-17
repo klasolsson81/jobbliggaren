@@ -8,7 +8,9 @@ namespace Jobbliggaren.Domain.UnitTests.JobAds;
 /// <summary>
 /// THE Tier-A aggregate invariant (#842, ADR 0106 D4, re-bind R1): an imported ad never holds a
 /// detected recruiter email/phone in Title/Description/RawPayload — every detected span is
-/// promoted into <see cref="JobAd.Contacts"/> (while Active) and the body keeps only the marker.
+/// scrubbed, and the promote step surfaces email/phone from the VISIBLE surfaces plus email-only
+/// from the payload into <see cref="JobAd.Contacts"/> (while Active; the asymmetric promote gate,
+/// ADR 0106 amendment 2026-07-17). The body keeps only the marker.
 /// Exercised through the REAL factories (Import/UpdateFromSource), never by hand-seeding — the
 /// V20/#843 rule.
 /// </summary>
@@ -223,6 +225,24 @@ public class JobAdContactRedactionTests
         var only = ad.Contacts!.Contacts.ShouldHaveSingleItem();
         only.Origin.ShouldBe(AdContactOrigin.ExtractedFromBody);
         only.Email.ShouldBe("jobb@acme.se");
+    }
+
+    [Fact]
+    public void A_phone_in_the_visible_title_still_promotes_exactly_once()
+    {
+        // The gate is scoped to the PAYLOAD surface: a phone in the ad's visible title promotes
+        // as always (and its payload mirror dedups on the recogniser's normalized form). An
+        // over-rotation of the filter onto title.Found would go red here, not silently green
+        // via the description-based sibling specs (test-writer m2+m3).
+        var ad = Import(
+            description: "Vi söker en utvecklare.",
+            title: "Ring 070-123 45 67 om jobbet",
+            rawPayload: """{"id":"ext-1","title":"Ring 070-123 45 67 om jobbet"}""");
+
+        ad.Title.ShouldNotContain("070-123 45 67");
+        var only = ad.Contacts!.Contacts.ShouldHaveSingleItem();
+        only.Origin.ShouldBe(AdContactOrigin.ExtractedFromBody);
+        only.Phone.ShouldBe("070-123 45 67");
     }
 
     [Fact]

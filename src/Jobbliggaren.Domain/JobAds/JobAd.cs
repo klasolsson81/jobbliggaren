@@ -428,9 +428,10 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     /// <summary>
     /// #842 Tier A (ADR 0106 D4, CTO re-bind R1) — THE aggregate invariant: an imported ad never
     /// holds a detected recruiter email/phone in its body text. Promote → merge → scrub, in that
-    /// order: the declared <c>application_contacts</c> win, every uncovered detector hit is
-    /// promoted (<c>Origin = ExtractedFromBody</c>, never a guessed name), and the body keeps only
-    /// the marker.
+    /// order: the declared <c>application_contacts</c> win; uncovered detector hits from the
+    /// VISIBLE surfaces (Title/Description) are promoted (<c>Origin = ExtractedFromBody</c>,
+    /// never a guessed name), the RawPayload surface promotes only its EMAIL hits (the asymmetric
+    /// promote gate — ADR 0106 amendment 2026-07-17); and the body keeps only the marker.
     /// </summary>
     /// <remarks>
     /// <para>

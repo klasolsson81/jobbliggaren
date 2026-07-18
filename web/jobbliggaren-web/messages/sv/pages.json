@@ -111,7 +111,9 @@
       "lede": "Det här är en deterministisk granskning av ditt importerade CV. Inget har ändrats i filen. Granskningen pekar bara ut vad du kan förbättra, med citerad evidens ur din egen text.",
       "loadErrorTitle": "Kunde inte ladda granskningen",
       "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till CV-listan.",
-      "continueSave": "Fortsätt och spara CV",
+      "nextStepTitle": "Nästa steg",
+      "nextStepBody": "Granskningen är endast för läsning och ändrar inget i din fil. För att förbättra ditt CV, uppdatera filen utifrån anmärkningarna och ladda upp den på nytt.",
+      "nextStepCta": "Ladda upp på nytt",
       "loading": "Läser in granskningen…"
     },
     "improve": {

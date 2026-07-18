@@ -372,6 +372,20 @@ The distans facet + `/jobb` filter + Orter-steget (Beslut 3's original UI
 target) land in #551 PR-B/PR-C; the grade-override consumer lands in PR-A (ADR
 0076 amendment 2026-07-18 (b)).
 
+The **persisted search-identity threading** — Beslut 6's "work_place_model
+om/när levererad" VO classification — lands in **#551 PR-D** (2026-07-18),
+mirroring #311 Employer PR-2b C1: `remote` is threaded through the SearchCriteria
+VO, `FilterHashCalculator` (an additive canonical-JSON format-bump between
+`employer` and the `sortBy` tail — benign re-bucket, cap-20 eviction self-heals,
+no backfill/versioning), a scalar `recent_job_searches.remote` column, the
+SavedSearch jsonb converter (missing key → false), `ICapturesRecentSearch`, and
+the two reproduce handlers (RunSavedSearch/ListRecentSearches). A committed
+`?remote=true` search is now captured to RecentJobSearch and reproduced on
+re-run. Write-commands stay `remote: false` until the PR-C save-search FE toggle
+(parity with the employer deferral, ADR 0087 D6). This discharges the
+dotnet-architect PR-B deferral (`docs/reviews/2026-07-18-551-prb-dotnet-architect.md`
+Punkt 4).
+
 ---
 
 *ADR-index underhålls av docs-keeper. ADR 0067 fastställer Platsbanken-sök-paritets-initiativets design: yrke-filter-nivåskifte till ssyk-level-4 (occupation-name-substrat bevarat), nya STORED-dimensioner (kommun/yrkesgrupp/anställningsform/omfattning) i Klass 1/Klass 2-sekvens, distans-defer, facet-counts via port-metod, typeahead-chip-sök med residual-FTS, VO-expansion, och fas-uppdelning A–E. Kompletteras av ADR 0043-amendment 2026-06-08 (kommun-dimension + yrkesgrupp-nivå).*

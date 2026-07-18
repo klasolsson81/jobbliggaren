@@ -85,7 +85,37 @@ internal static class JobAdSearchComposition
         // gren (OR-inom-dimension via IN(...) som förut). AND mot övriga
         // dimensioner (yrke/q) består — ADR 0067 Beslut 5-invarianten gäller
         // ortogonala dimensioner.
-        if (criteria.Municipality.Count > 0 && criteria.Region.Count > 0)
+        // #551 PR-B D5 (distans/remote) — remote är en BOOLESK location-sub-axel som
+        // UNIONAS in i geo-predikatet (kommun ∨ län ∨ remote), aldrig ett eget AND-Where
+        // (annars skulle Distans SKÄRA bort ort-träffar i stället för att bredda). Två
+        // grenar, inte en enda guard-predikat-gren: EF Core 10 PARAMETRISERAR captured
+        // lokala bool:ar (@__hasMuni) för plan-cache — den vik-konstant-viker dem INTE bort
+        // vid translation, så ett unifierat `(hasMuni && muni.Contains) || ... || (remote &&
+        // j.Remote)` emitterar `(@__hasMuni AND col IN (...)) OR ...`, INTE byte-identiskt
+        // mot dagens `col IN (...)` när remote=false. En Expression.OrElse-kombinator vore
+        // byte-identisk men kräver LinqKit (utanför BUILD.md §3.1). Därför: den befintliga
+        // muni/län-stegen ORÖRD i else-grenen (Remote=false ⇒ byte-identisk SQL, strukturellt
+        // garanterat), och en 4-fallsswitch (parity q-grens-switchen nedan) för remote=true.
+        if (criteria.Remote)
+        {
+            var municipalityValues = criteria.Municipality;
+            var regionValues = criteria.Region;
+            source = (criteria.Municipality.Count > 0, criteria.Region.Count > 0) switch
+            {
+                (true, true) => source.Where(j =>
+                    j.Remote
+                    || municipalityValues.Contains(EF.Property<string?>(j, "MunicipalityConceptId"))
+                    || regionValues.Contains(EF.Property<string?>(j, "RegionConceptId"))),
+                (true, false) => source.Where(j =>
+                    j.Remote
+                    || municipalityValues.Contains(EF.Property<string?>(j, "MunicipalityConceptId"))),
+                (false, true) => source.Where(j =>
+                    j.Remote
+                    || regionValues.Contains(EF.Property<string?>(j, "RegionConceptId"))),
+                (false, false) => source.Where(j => j.Remote),
+            };
+        }
+        else if (criteria.Municipality.Count > 0 && criteria.Region.Count > 0)
         {
             var municipalityValues = criteria.Municipality;
             var regionValues = criteria.Region;

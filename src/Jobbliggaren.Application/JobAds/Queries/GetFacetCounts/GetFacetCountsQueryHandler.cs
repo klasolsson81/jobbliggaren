@@ -36,6 +36,9 @@ public sealed class GetFacetCountsQueryHandler(
                 // FE-konsument före #408) → []. Facett-interaktionen med ett aktivt
                 // arbetsgivar-filter landar i PR-2b med disambiguerings-ytan.
                 Employer: [],
+                // #551 PR-B D5/D7 — remote-filterkontexten (aktivt Distans-val) trådas in
+                // så en facett-count för en annan dimension räknar mot samma WHERE som listan.
+                Remote: query.Remote,
                 Q: parser.Parse(query.Q).ResidualQ),
             query.Dimension,
             cancellationToken);

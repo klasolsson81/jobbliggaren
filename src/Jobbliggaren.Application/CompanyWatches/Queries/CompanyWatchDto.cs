@@ -89,4 +89,7 @@ public sealed record CompanyWatchDto(
 public sealed record WatchFilterDto(
     IReadOnlyList<string> Municipalities,
     IReadOnlyList<string> Regions,
-    bool OnlyMatched);
+    bool OnlyMatched,
+    // #551 PR-B D6 — the remote/distans axis, surfaced so the FE (PR-C) pre-fills the filter
+    // editor and discloses a remote-narrowed watch in the row's resting state.
+    bool Remote);

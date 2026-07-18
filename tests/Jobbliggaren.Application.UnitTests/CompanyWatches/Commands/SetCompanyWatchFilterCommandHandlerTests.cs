@@ -36,8 +36,9 @@ public class SetCompanyWatchFilterCommandHandlerTests
         Guid watchId,
         IReadOnlyList<string>? municipalities = null,
         IReadOnlyList<string>? regions = null,
-        bool onlyMatched = false) =>
-        new(watchId, municipalities ?? [], regions ?? [], onlyMatched);
+        bool onlyMatched = false,
+        bool remote = false) =>
+        new(watchId, municipalities ?? [], regions ?? [], onlyMatched, remote);
 
     // Seeds an ACTIVE watch for `userId`, optionally pre-filtered (the "had a filter" starting state).
     private async Task<CompanyWatch> SeedWatchAsync(
@@ -81,6 +82,26 @@ public class SetCompanyWatchFilterCommandHandlerTests
         stored.Filter.Regions.ShouldBe(["lan_skane"],
             "regionsaxeln måste nå domänen — annars tappas hela län-valet tyst");
         stored.Filter.OnlyMatched.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_RemoteOnlySelection_SetsRemoteFilter_NotCleared()
+    {
+        // #551 PR-B D6 — a selection whose ONLY narrowing is remote=true is NON-empty, so the handler
+        // takes the SetFilter path (not ClearFilter) and the stored filter carries Remote=true.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var watch = await SeedWatchAsync(db, _userId, ct);
+
+        var result = await Handler(db).Handle(
+            Command(watch.Id.Value, remote: true), ct);
+
+        result.IsSuccess.ShouldBeTrue();
+        var stored = await ReadBackAsync(db, watch.Id, ct);
+        stored.Filter.ShouldNotBeNull("remote=true alone is a valid, non-empty selection → a filter is set");
+        stored.Filter!.Remote.ShouldBeTrue();
+        stored.Filter.Municipalities.ShouldBeEmpty();
+        stored.Filter.Regions.ShouldBeEmpty();
     }
 
     [Fact]

@@ -42,6 +42,17 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// <c>GetFacetCounts</c>/<c>GetMyMatchCount</c>, passerar fortfarande medvetet
 /// <c>Employer: []</c> — de har ingen employer-dimension.)
 /// </para>
+/// <para>
+/// <b>#551 PR-B D5 (distans/remote, ADR 0076 #551-amendment):</b>
+/// <see cref="Remote"/> är en BOOLESK location-sub-axel (inte en lista): när
+/// <c>true</c> unionas den in i geo-predikatet (kommun ∨ län ∨ <c>remote</c>) i
+/// <c>ApplyFilter</c> mot annonsens <c>remote</c>-kolumn (AF:s distans-klassning,
+/// PR-A). <c>false</c> ⇒ INGET remote-villkor emitteras (byte-identisk SQL mot
+/// pre-#551). Obligatorisk (ingen default) — som list-axlarna tvingar den varje
+/// konstruktions-site att ta ställning (transpositions-fällan ovan). Driver den
+/// USER-VALDA facetten; annonsens flagga driver grad-override:n separat (F1 —
+/// scorern läser ALDRIG användarens remote-preferens; ADR 0079 never-grade-coupled).
+/// </para>
 /// </summary>
 public sealed record JobAdFilterCriteria(
     IReadOnlyList<string> OccupationGroup,
@@ -50,4 +61,5 @@ public sealed record JobAdFilterCriteria(
     IReadOnlyList<string> EmploymentType,
     IReadOnlyList<string> WorktimeExtent,
     IReadOnlyList<string> Employer,
+    bool Remote,
     string? Q);

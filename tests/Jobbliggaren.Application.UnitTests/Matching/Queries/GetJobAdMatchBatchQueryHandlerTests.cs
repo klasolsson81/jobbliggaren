@@ -82,6 +82,10 @@ public class GetJobAdMatchBatchQueryHandlerTests
             Guid userId, CancellationToken cancellationToken)
             => throw new NotSupportedException(
                 "BuildFullForUserIdAsync ska inte anropas av batch-handlern (request-scoped TAG-path).");
+
+        // #551 PR-B F3 — not reached by the TAG batch handler.
+        public ValueTask<bool> GetPreferredRemoteForNotificationCountAsync(CancellationToken cancellationToken)
+            => new(false);
     }
 
     private sealed class FakeScorer(IReadOnlyDictionary<JobAdId, FullMatchScore> scores) : IMatchScorer

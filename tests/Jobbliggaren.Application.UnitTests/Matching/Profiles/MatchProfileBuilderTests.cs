@@ -436,5 +436,64 @@ public class MatchProfileBuilderTests
             Arg.Is<IReadOnlyList<string>>(s => s.Count == 0),
             Arg.Any<CancellationToken>());
     }
+
+    // ---------------------------------------------------------------
+    // #551 PR-B F3 — GetPreferredRemoteForNotificationCountAsync reads MatchPreferences.
+    // PreferredRemote, owner-scoped, as a BARE bool (never on a CandidateMatchProfile — the
+    // profile is arch-pinned remote-free by MatchProfileRemoteIndependenceTests, F1).
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task GetPreferredRemoteForNotificationCount_WithStoredTrue_ReturnsTrue()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var prefs = MatchPreferences.Create(
+            preferredOccupationGroups: ["grp_12345"],
+            preferredRegions: null,
+            preferredEmploymentTypes: null,
+            preferredRemote: true).Value;
+        await SeedSeekerWithPrefsAsync(db, _userId, prefs);
+        var builder = NewBuilder(db);
+
+        var remote = await builder.GetPreferredRemoteForNotificationCountAsync(CancellationToken.None);
+
+        remote.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GetPreferredRemoteForNotificationCount_WithStoredFalse_ReturnsFalse()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerWithPrefsAsync(db, _userId, MatchPreferences.Empty); // PreferredRemote false
+        var builder = NewBuilder(db);
+
+        var remote = await builder.GetPreferredRemoteForNotificationCountAsync(CancellationToken.None);
+
+        remote.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task GetPreferredRemoteForNotificationCount_NoAuthenticatedUser_ReturnsFalse()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var anonymous = Substitute.For<ICurrentUser>();
+        anonymous.UserId.Returns((Guid?)null);
+        var builder = NewBuilder(db, user: anonymous);
+
+        var remote = await builder.GetPreferredRemoteForNotificationCountAsync(CancellationToken.None);
+
+        remote.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task GetPreferredRemoteForNotificationCount_NoJobSeeker_ReturnsFalse()
+    {
+        var db = TestAppDbContextFactory.Create(); // no seeded JobSeeker for _userId
+        var builder = NewBuilder(db);
+
+        var remote = await builder.GetPreferredRemoteForNotificationCountAsync(CancellationToken.None);
+
+        remote.ShouldBeFalse();
+    }
 }
 #pragma warning restore CA2012

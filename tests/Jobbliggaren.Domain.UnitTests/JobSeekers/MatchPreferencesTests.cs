@@ -37,7 +37,8 @@ public class MatchPreferencesTests
         IEnumerable<string>? preferredMunicipalities = null,
         IEnumerable<string>? preferredSkills = null,
         int? experienceYears = null,
-        IEnumerable<OccupationExperience>? preferredOccupationExperience = null) =>
+        IEnumerable<OccupationExperience>? preferredOccupationExperience = null,
+        bool preferredRemote = false) =>
         MatchPreferences.Create(
             preferredOccupationGroups: preferredOccupationGroups,
             preferredRegions: preferredRegions,
@@ -45,7 +46,8 @@ public class MatchPreferencesTests
             preferredMunicipalities: preferredMunicipalities,
             preferredSkills: preferredSkills,
             experienceYears: experienceYears,
-            preferredOccupationExperience: preferredOccupationExperience);
+            preferredOccupationExperience: preferredOccupationExperience,
+            preferredRemote: preferredRemote);
 
     // ---------------------------------------------------------------
     // Happy path — varje dimension samt allihop
@@ -975,5 +977,36 @@ public class MatchPreferencesTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("MatchPreferences.OccupationExperienceYearsOutOfRange");
+    }
+
+    // ---------------------------------------------------------------
+    // #551 PR-B F3 — the remote/distans preference bool.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void Create_WithPreferredRemote_StoresTheFlag()
+    {
+        var result = Create(preferredRemote: true);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PreferredRemote.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Create_WithoutPreferredRemote_DefaultsToFalse()
+    {
+        Create().Value.PreferredRemote.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Equals_DiffersOnlyByPreferredRemote_AreNotEqual()
+    {
+        // Pins that PreferredRemote is a member of BOTH Equals and GetHashCode — the jsonb-equality
+        // footgun: a member omitted there silently breaks EF change-tracking / jsonb comparison.
+        var withRemote = Create(preferredOccupationGroups: ["grp1"], preferredRemote: true).Value;
+        var withoutRemote = Create(preferredOccupationGroups: ["grp1"], preferredRemote: false).Value;
+
+        withRemote.ShouldNotBe(withoutRemote);
+        withRemote.GetHashCode().ShouldNotBe(withoutRemote.GetHashCode());
     }
 }

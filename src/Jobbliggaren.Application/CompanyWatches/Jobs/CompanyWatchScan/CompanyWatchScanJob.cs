@@ -186,6 +186,9 @@ public sealed partial class CompanyWatchScanJob(
                 OrgNr = EF.Property<string?>(j, "OrganizationNumber"),
                 Municipality = EF.Property<string?>(j, "MunicipalityConceptId"),
                 Region = EF.Property<string?>(j, "RegionConceptId"),
+                // #551 PR-B D6 — the ad's remote flag (PR-A bool column) feeds AdmitsLocation's
+                // remote disjunct so a per-watch remote filter admits a remote (location-less) ad.
+                j.Remote,
             })
             .ToListAsync(ct);
 
@@ -237,7 +240,7 @@ public sealed partial class CompanyWatchScanJob(
                 // ad produces NO hit row (data minimization). An ad tagged with NEITHER axis never
                 // passes an active ort filter (the VO's AdmitsLocation semantics). No filter → all pass.
                 if (watch.Filter is { } filter
-                    && !filter.AdmitsLocation(ad.Municipality, ad.Region))
+                    && !filter.AdmitsLocation(ad.Municipality, ad.Region, ad.Remote))
                 {
                     continue;
                 }

@@ -326,10 +326,10 @@ public class WatchFilterSpecTests
     {
         var spec = WatchFilterSpec.Create(municipalities: null, regions: null, onlyMatched: true).Value;
 
-        spec.AdmitsLocation("any_kommun", "any_lan").ShouldBeTrue();
-        spec.AdmitsLocation(null, "any_lan").ShouldBeTrue();
-        spec.AdmitsLocation("any_kommun", null).ShouldBeTrue();
-        spec.AdmitsLocation(null, null).ShouldBeTrue(
+        spec.AdmitsLocation("any_kommun", "any_lan", adRemote: false).ShouldBeTrue();
+        spec.AdmitsLocation(null, "any_lan", adRemote: false).ShouldBeTrue();
+        spec.AdmitsLocation("any_kommun", null, adRemote: false).ShouldBeTrue();
+        spec.AdmitsLocation(null, null, adRemote: false).ShouldBeTrue(
             "utan geo-axel är filtret inte geografiskt — även en annons helt utan ort passerar");
     }
 
@@ -339,8 +339,8 @@ public class WatchFilterSpecTests
         // The pre-F4a behaviour, unchanged: a kommun selection still means kommun.
         var spec = WatchFilterSpec.Create(["kommun_a", "kommun_b"], regions: null, onlyMatched: false).Value;
 
-        spec.AdmitsLocation("kommun_a", "lan_x").ShouldBeTrue();
-        spec.AdmitsLocation("kommun_c", "lan_x").ShouldBeFalse();
+        spec.AdmitsLocation("kommun_a", "lan_x", adRemote: false).ShouldBeTrue();
+        spec.AdmitsLocation("kommun_c", "lan_x", adRemote: false).ShouldBeFalse();
     }
 
     [Fact]
@@ -350,7 +350,7 @@ public class WatchFilterSpecTests
         // kommun axis — and there is no region axis to admit it either.
         var spec = WatchFilterSpec.Create(["kommun_a"], regions: null, onlyMatched: false).Value;
 
-        spec.AdmitsLocation(null, "lan_a").ShouldBeFalse();
+        spec.AdmitsLocation(null, "lan_a", adRemote: false).ShouldBeFalse();
     }
 
     [Fact]
@@ -363,7 +363,7 @@ public class WatchFilterSpecTests
         // whole-län watchers have stopped being told about län-only ads.
         var spec = WatchFilterSpec.Create(municipalities: null, ["lan_skane"], onlyMatched: false).Value;
 
-        spec.AdmitsLocation(municipalityConceptId: null, regionConceptId: "lan_skane").ShouldBeTrue();
+        spec.AdmitsLocation(municipalityConceptId: null, regionConceptId: "lan_skane", adRemote: false).ShouldBeTrue();
     }
 
     [Fact]
@@ -373,7 +373,7 @@ public class WatchFilterSpecTests
         // in the (empty) municipality list, so ONLY the region axis can admit it.
         var spec = WatchFilterSpec.Create(municipalities: null, ["lan_skane"], onlyMatched: false).Value;
 
-        spec.AdmitsLocation("kommun_malmo", "lan_skane").ShouldBeTrue();
+        spec.AdmitsLocation("kommun_malmo", "lan_skane", adRemote: false).ShouldBeTrue();
     }
 
     [Fact]
@@ -382,8 +382,8 @@ public class WatchFilterSpecTests
         // The union widens across AXES, never across VALUES: an unpicked län is still rejected.
         var spec = WatchFilterSpec.Create(municipalities: null, ["lan_skane"], onlyMatched: false).Value;
 
-        spec.AdmitsLocation("kommun_goteborg", "lan_vastra").ShouldBeFalse();
-        spec.AdmitsLocation(null, "lan_vastra").ShouldBeFalse();
+        spec.AdmitsLocation("kommun_goteborg", "lan_vastra", adRemote: false).ShouldBeFalse();
+        spec.AdmitsLocation(null, "lan_vastra", adRemote: false).ShouldBeFalse();
     }
 
     [Fact]
@@ -393,9 +393,9 @@ public class WatchFilterSpecTests
         // both of these ads (each satisfies exactly one axis) and starve the digest.
         var spec = WatchFilterSpec.Create(["kommun_a"], ["lan_skane"], onlyMatched: false).Value;
 
-        spec.AdmitsLocation("kommun_a", "lan_vastra").ShouldBeTrue("kommun-träff räcker");
-        spec.AdmitsLocation("kommun_z", "lan_skane").ShouldBeTrue("län-träff räcker");
-        spec.AdmitsLocation("kommun_z", "lan_vastra").ShouldBeFalse("ingen axel träffar");
+        spec.AdmitsLocation("kommun_a", "lan_vastra", adRemote: false).ShouldBeTrue("kommun-träff räcker");
+        spec.AdmitsLocation("kommun_z", "lan_skane", adRemote: false).ShouldBeTrue("län-träff räcker");
+        spec.AdmitsLocation("kommun_z", "lan_vastra", adRemote: false).ShouldBeFalse("ingen axel träffar");
     }
 
     [Fact]
@@ -408,9 +408,9 @@ public class WatchFilterSpecTests
         var regionOnly = WatchFilterSpec.Create(municipalities: null, ["lan_skane"], onlyMatched: false).Value;
         var both = WatchFilterSpec.Create(["kommun_a"], ["lan_skane"], onlyMatched: false).Value;
 
-        municipalityOnly.AdmitsLocation(null, null).ShouldBeFalse();
-        regionOnly.AdmitsLocation(null, null).ShouldBeFalse();
-        both.AdmitsLocation(null, null).ShouldBeFalse();
+        municipalityOnly.AdmitsLocation(null, null, adRemote: false).ShouldBeFalse();
+        regionOnly.AdmitsLocation(null, null, adRemote: false).ShouldBeFalse();
+        both.AdmitsLocation(null, null, adRemote: false).ShouldBeFalse();
     }
 
     [Fact]
@@ -421,7 +421,74 @@ public class WatchFilterSpecTests
         // scan-side (that would be a never-created hit for a purely read-time preference).
         var spec = WatchFilterSpec.Create(municipalities: null, regions: null, onlyMatched: true).Value;
 
-        spec.AdmitsLocation(null, null).ShouldBeTrue();
-        spec.AdmitsLocation("kommun_a", "lan_skane").ShouldBeTrue();
+        spec.AdmitsLocation(null, null, adRemote: false).ShouldBeTrue();
+        spec.AdmitsLocation("kommun_a", "lan_skane", adRemote: false).ShouldBeTrue();
+    }
+
+    // ---------------------------------------------------------------
+    // #551 PR-B D6 — the remote/distans axis (union disjunct, remote-only spec valid)
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void Create_RemoteOnlySpec_IsValid()
+    {
+        // A spec whose ONLY narrowing is remote=true narrows to remote ads → non-empty/valid.
+        var result = WatchFilterSpec.Create(
+            municipalities: null, regions: null, onlyMatched: false, remote: true);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Remote.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void IsEmptySelection_RemoteTrueAlone_IsNotEmpty()
+    {
+        WatchFilterSpec.IsEmptySelection(null, null, onlyMatched: false, remote: true).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsEmptySelection_AllEmptyInclRemoteFalse_IsEmpty()
+    {
+        WatchFilterSpec.IsEmptySelection(null, null, onlyMatched: false, remote: false).ShouldBeTrue();
+        // And Create fails-closed on the fully-empty selection (unchanged invariant).
+        WatchFilterSpec.Create(null, null, onlyMatched: false, remote: false).IsFailure.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void AdmitsLocation_RemoteOnlySpec_AdmitsRemoteAd_RejectsNonRemote()
+    {
+        var spec = WatchFilterSpec.Create(
+            municipalities: null, regions: null, onlyMatched: false, remote: true).Value;
+
+        // A remote (location-less) ad passes the remote disjunct...
+        spec.AdmitsLocation(null, null, adRemote: true).ShouldBeTrue();
+        // ...but a NON-remote ad does NOT — the early-return MUST account for Remote, else a
+        // remote-only spec would admit every ad (the D6 load-bearing fix).
+        spec.AdmitsLocation("kommun_a", "lan_skane", adRemote: false).ShouldBeFalse();
+        spec.AdmitsLocation(null, null, adRemote: false).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void AdmitsLocation_MunicipalityUnionRemote_EitherHitAdmits()
+    {
+        // Union across axes incl. remote (same shape as ApplyFilter's Distans+muni case):
+        // a muni-hit OR a remote ad passes; a non-remote ad in an unpicked kommun does not.
+        var spec = WatchFilterSpec.Create(
+            ["kommun_a"], regions: null, onlyMatched: false, remote: true).Value;
+
+        spec.AdmitsLocation("kommun_a", null, adRemote: false).ShouldBeTrue("kommun-träff räcker");
+        spec.AdmitsLocation(null, null, adRemote: true).ShouldBeTrue("remote-annons räcker");
+        spec.AdmitsLocation("kommun_z", "lan_x", adRemote: false).ShouldBeFalse("varken kommun eller remote");
+    }
+
+    [Fact]
+    public void Equals_DiffersOnlyByRemote_AreNotEqual()
+    {
+        // Pins that Remote is a member of BOTH Equals and GetHashCode (jsonb-equality footgun).
+        var withRemote = WatchFilterSpec.Create(["kommun_a"], null, onlyMatched: false, remote: true).Value;
+        var withoutRemote = WatchFilterSpec.Create(["kommun_a"], null, onlyMatched: false, remote: false).Value;
+
+        withRemote.Equals(withoutRemote).ShouldBeFalse();
+        withRemote.GetHashCode().ShouldNotBe(withoutRemote.GetHashCode());
     }
 }

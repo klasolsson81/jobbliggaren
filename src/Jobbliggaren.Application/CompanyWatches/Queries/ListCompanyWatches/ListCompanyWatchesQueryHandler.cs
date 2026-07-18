@@ -208,7 +208,8 @@ public sealed class ListCompanyWatchesQueryHandler(
                         : new WatchFilterDto(
                             w.Filter.Municipalities,
                             w.Filter.Regions,
-                            w.Filter.OnlyMatched));
+                            w.Filter.OnlyMatched,
+                            w.Filter.Remote));
             })
             .ToList();
     }

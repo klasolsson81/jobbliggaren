@@ -173,6 +173,46 @@ public sealed class CompanyWatchFilterJsonbBackcompatTests(ApiFactory factory)
         reloaded.Filter.OnlyMatched.ShouldBeTrue();
     }
 
+    // ── (6) #551 PR-B D6 — the remote/distans axis round-trips + legacy back-compat ──────────────
+
+    [Fact]
+    public async Task WatchWithRemote_RoundTripsThroughEf_StructurallyEqual()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // A remote-ONLY spec (no ort, not OnlyMatched) is valid and must survive the jsonb round-trip.
+        var filter = WatchFilterSpec.Create(
+            municipalities: null, regions: null, onlyMatched: false, remote: true).Value;
+        var watchId = await SeedWatchAsync(filter, ct);
+
+        var reloaded = await ReloadWatchAsync(watchId, ct);
+
+        reloaded.Filter.ShouldNotBeNull();
+        reloaded.Filter!.Remote.ShouldBeTrue(
+            "remote-axeln måste överleva jsonb-round-trippen — annars tappas distans-valet tyst");
+        reloaded.Filter.ShouldBe(filter);
+
+        var raw = await ReadRawFilterAsync(watchId, ct);
+        raw.ShouldNotBeNull();
+        raw!.Replace(" ", string.Empty, StringComparison.Ordinal).ShouldContain("\"Remote\":true");
+    }
+
+    [Fact]
+    public async Task LegacyRow_WithoutRemoteKey_ReadsAsRemoteFalse()
+    {
+        // A row written BEFORE #551 has NO "Remote" key → Remote == false (no remote axis), the
+        // back-compat direction. The other axes must survive untouched, never a crash on the missing key.
+        var ct = TestContext.Current.CancellationToken;
+        var watchId = await InsertRawWatchWithLegacyFilterAsync(
+            """{"Municipalities": ["gbg_kn"], "Regions": [], "OnlyMatched": false}""", ct);
+
+        var reloaded = await ReloadWatchAsync(watchId, ct);
+
+        reloaded.Filter.ShouldNotBeNull(
+            "en pre-#551-rad måste kunna läsas — aldrig krascha på den saknade Remote-nyckeln");
+        reloaded.Filter!.Remote.ShouldBeFalse("en rad utan Remote-nyckel betyder ingen remote-axel");
+        reloaded.Filter.Municipalities.ShouldBe(["gbg_kn"]);
+    }
+
     // ── (4) Unfollow persistence (RF-2 sub-bind) — SoftDelete clears the column ON DISK ──────────
 
     [Fact]

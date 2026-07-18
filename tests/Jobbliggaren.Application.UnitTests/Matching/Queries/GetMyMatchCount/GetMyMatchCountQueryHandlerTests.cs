@@ -28,11 +28,20 @@ public class GetMyMatchCountQueryHandlerTests
     // ---------------------------------------------------------------
     // Hand-rolled ValueTask fakes (CA2012-safe) with call counters / argument capture.
     // ---------------------------------------------------------------
-    private sealed class FakeProfileBuilder(FullCandidateMatchProfile sortProfile) : IMatchProfileBuilder
+    private sealed class FakeProfileBuilder(
+        FullCandidateMatchProfile sortProfile, bool preferredRemote = false) : IMatchProfileBuilder
     {
         public int SortCallCount { get; private set; }
         public int VerdictCallCount { get; private set; }
         public int PreferencesCallCount { get; private set; }
+        public int RemotePrefCallCount { get; private set; }
+
+        // #551 PR-B F3 — the remote notis preference as a BARE bool (never on a profile; F1).
+        public ValueTask<bool> GetPreferredRemoteForNotificationCountAsync(CancellationToken cancellationToken)
+        {
+            RemotePrefCallCount++;
+            return new ValueTask<bool>(preferredRemote);
+        }
 
         // The SORT path — the one the count handler uses (DEK-free).
         public ValueTask<FullCandidateMatchProfile> BuildFullForSortAsync(CancellationToken cancellationToken, bool includeRelated = false)
@@ -179,6 +188,55 @@ public class GetMyMatchCountQueryHandlerTests
         filter.Region.ShouldBe(["region_AB"]);
         filter.Municipality.ShouldBe(["kommun_0180"]);
         filter.EmploymentType.ShouldBe(["et_fast"]);
+    }
+
+    // =================================================================
+    // #551 PR-B F3 — the SAVED remote/distans preference feeds the count's location axis
+    // (mechanism B), read via the dedicated builder method AFTER the gate, NEVER via profile.Fast.
+    // =================================================================
+
+    [Fact]
+    public async Task Handle_ShouldSetRemoteFilterFromSavedPreference_WhenOccupationStated()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var builder = new FakeProfileBuilder(ProfileWithFacets(), preferredRemote: true);
+        var search = new FakeJobAdSearchQuery(countToReturn: 42);
+        var sut = CreateHandler(builder, search);
+
+        await sut.Handle(new GetMyMatchCountQuery(), ct);
+
+        // The user's saved distans preference becomes the count's Remote axis (unions with ort).
+        search.LastFilter!.Remote.ShouldBeTrue();
+        builder.RemotePrefCallCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldLeaveRemoteFalse_WhenPreferenceNotSet()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var builder = new FakeProfileBuilder(ProfileWithFacets()); // preferredRemote default false
+        var search = new FakeJobAdSearchQuery(countToReturn: 42);
+        var sut = CreateHandler(builder, search);
+
+        await sut.Handle(new GetMyMatchCountQuery(), ct);
+
+        search.LastFilter!.Remote.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_ShouldNotReadRemotePreference_WhenGateClosed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var builder = new FakeProfileBuilder(EmptyProfile(), preferredRemote: true);
+        var search = new FakeJobAdSearchQuery(countToReturn: 42);
+        var sut = CreateHandler(builder, search);
+
+        await sut.Handle(new GetMyMatchCountQuery(), ct);
+
+        // The remote pref is read AFTER the SSYK gate (only for full profiles) — a gate-closed
+        // profile returns 0 without touching the pref OR the corpus.
+        builder.RemotePrefCallCount.ShouldBe(0);
+        search.CountCallCount.ShouldBe(0);
     }
 
     [Fact]

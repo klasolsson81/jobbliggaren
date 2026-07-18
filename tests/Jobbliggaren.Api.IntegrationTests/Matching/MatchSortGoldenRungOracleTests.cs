@@ -172,6 +172,7 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
         EmploymentType: [],
         WorktimeExtent: [runWorktimeExtent],
         Employer: [],
+        Remote: false,
         Q: null);
 
     private static ExtractedTerm SkillTerm(string conceptId, string display) =>

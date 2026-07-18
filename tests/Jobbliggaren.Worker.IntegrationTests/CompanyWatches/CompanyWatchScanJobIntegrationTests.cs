@@ -263,6 +263,33 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
             "län-only-annonsen avvisas av det aktiva kommun-filtret, ingen hit-rad skapas");
     }
 
+    // ─────────────────────────── #551 PR-B D6 — the remote/distans axis at scan time
+
+    [Fact]
+    public async Task RunAsync_RemoteFilter_CreatesHitForRemoteAd_RejectsNonRemote()
+    {
+        // A watch narrowed to the REMOTE axis alone (a valid remote-only spec) produces a hit ONLY for
+        // a remote (location-less) ad. A non-remote ad in KommunA is rejected — the remote-only spec
+        // must not admit every ad (the D6 early-return-accounts-for-remote fix), and it does not
+        // widen to ort. Proves the ad's remote flag (PR-A column) flows through the scan projection
+        // into AdmitsLocation's remote disjunct.
+        var ct = TestContext.Current.CancellationToken;
+        var orgNr = UniqueLegalOrgNr();
+        var (userId, _) = await SeedConsentingUserAsync(ct);
+        await SeedWatchWithGeoFilterAsync(userId, orgNr, [], [], ct, remote: true);
+        var remoteAd = await SeedAdWithOrgNrAndLocationAsync(
+            orgNr, "Distans Bygg AB", municipalityConceptId: null, regionConceptId: null, ct, remote: true);
+        await SeedAdWithOrgNrAndLocationAsync(orgNr, "A Bygg AB", KommunA, LanA, ct); // on-site, not remote
+
+        await RunJobAsync(ct);
+
+        var hits = await GetHitsAsync(userId, ct);
+        hits.Select(h => h.JobAdId).ShouldBe(
+            [remoteAd],
+            "endast den remote-klassade annonsen ska ge en hit — den icke-remote KommunA-annonsen " +
+            "avvisas av det aktiva remote-only-filtret (D6: tidiga return:en får inte släppa igenom allt)");
+    }
+
     // ─────────────────────────── F4a (#803) — the geo UNION at scan time
 
     [Fact]
@@ -638,14 +665,16 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
         string orgNr,
         IEnumerable<string> municipalities,
         IEnumerable<string> regions,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool remote = false)
     {
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock(Now);
 
         var watch = CompanyWatch.Follow(userId, OrganizationNumber.Create(orgNr).Value, clock).Value;
-        var filter = WatchFilterSpec.Create(municipalities, regions, onlyMatched: false).Value;
+        // #551 PR-B D6 — remote is a union axis on the watch filter (a remote-only spec is valid).
+        var filter = WatchFilterSpec.Create(municipalities, regions, onlyMatched: false, remote).Value;
         watch.SetFilter(filter).IsSuccess.ShouldBeTrue("SetFilter ska lyckas på en aktiv watch");
         db.CompanyWatches.Add(watch);
         await db.SaveChangesAsync(ct);
@@ -667,7 +696,8 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
         string companyName,
         string? municipalityConceptId,
         string? regionConceptId,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool remote = false)
     {
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -686,6 +716,17 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
             $"{{\"id\":\"{externalId}\"," +
             $"\"employer\":{{\"name\":\"{companyName}\",\"organization_number\":\"{orgNr}\"}}{addressJson}}}";
 
+        // #551 PR-B D6 — remote is AF's harvested classification, NOT a raw_payload key: when a
+        // test seeds a remote ad it states the flag on the facets (parity the ACL / TestFacets.From),
+        // alongside the org.nr + ort the scan filter reads. Non-remote path stays FromPayload.
+        var facets = remote
+            ? TestFacets.From(
+                municipality: municipalityConceptId,
+                region: regionConceptId,
+                organizationNumber: orgNr,
+                remote: true)
+            : TestFacets.FromPayload(rawPayload);
+
         var jobAd = JobAd.Import(
             title: "Snickare",
             company: Company.Create(companyName).Value,
@@ -693,7 +734,7 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
-            facets: TestFacets.FromPayload(rawPayload),
+            facets: facets,
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(60),
             clock: new FixedClock(Now), declaredContacts: []).Value;

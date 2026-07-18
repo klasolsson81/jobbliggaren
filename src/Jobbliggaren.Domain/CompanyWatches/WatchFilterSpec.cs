@@ -60,6 +60,15 @@ public sealed record WatchFilterSpec
     public IReadOnlyList<string> Regions { get; private init; } = [];
     public bool OnlyMatched { get; private init; }
 
+    // #551 PR-B D6 (ADR 0076 #551-amendment) — the remote/distans axis. A UNION disjunct of
+    // the ort dimension (not "only": named Remote, not OnlyRemote), mirroring the house geo
+    // predicate — an ad passes iff muni-hit OR region-hit OR (Remote && adRemote). A spec whose
+    // ONLY narrowing is Remote=true IS valid (it narrows to remote ads). Appended last so the
+    // jsonb-key write order stays a purely additive extension; the property name is the
+    // jsonb-key contract. This is the follow-company watch filter's ort dimension — NOT the
+    // SCB säteskommun of CompanyWatchCriteriaSpec (disjoint namespaces).
+    public bool Remote { get; private init; }
+
     // EF + record copy-semantics
     private WatchFilterSpec() { }
 
@@ -79,20 +88,24 @@ public sealed record WatchFilterSpec
     public static bool IsEmptySelection(
         IEnumerable<string>? municipalities,
         IEnumerable<string>? regions,
-        bool onlyMatched)
+        bool onlyMatched,
+        bool remote = false)
         => NormalizeList(municipalities).Length == 0
             && NormalizeList(regions).Length == 0
-            && !onlyMatched;
+            && !onlyMatched
+            // #551 PR-B D6 — remote=true alone narrows (to remote ads) → non-empty/valid.
+            && !remote;
 
     public static Result<WatchFilterSpec> Create(
         IEnumerable<string>? municipalities,
         IEnumerable<string>? regions,
-        bool onlyMatched)
+        bool onlyMatched,
+        bool remote = false)
     {
         var normMunicipalities = NormalizeList(municipalities);
         var normRegions = NormalizeList(regions);
 
-        if (normMunicipalities.Length == 0 && normRegions.Length == 0 && !onlyMatched)
+        if (normMunicipalities.Length == 0 && normRegions.Length == 0 && !onlyMatched && !remote)
         {
             return Result.Failure<WatchFilterSpec>(DomainError.Validation(
                 "WatchFilterSpec.Empty",
@@ -141,6 +154,7 @@ public sealed record WatchFilterSpec
             Municipalities = normMunicipalities,
             Regions = normRegions,
             OnlyMatched = onlyMatched,
+            Remote = remote,
         });
     }
 
@@ -163,9 +177,11 @@ public sealed record WatchFilterSpec
     /// matches an active geo filter (the hit is never created).
     /// </para>
     /// </summary>
-    public bool AdmitsLocation(string? municipalityConceptId, string? regionConceptId)
+    public bool AdmitsLocation(string? municipalityConceptId, string? regionConceptId, bool adRemote)
     {
-        if (Municipalities.Count == 0 && Regions.Count == 0)
+        // #551 PR-B D6 — NO geo axis set AT ALL (incl. the remote axis) → everything passes.
+        // The early-return MUST account for Remote, else a remote-only spec would admit EVERY ad.
+        if (Municipalities.Count == 0 && Regions.Count == 0 && !Remote)
             return true;
 
         if (municipalityConceptId is not null
@@ -174,8 +190,16 @@ public sealed record WatchFilterSpec
             return true;
         }
 
-        return regionConceptId is not null
-            && Regions.Contains(regionConceptId, StringComparer.Ordinal);
+        if (regionConceptId is not null
+            && Regions.Contains(regionConceptId, StringComparer.Ordinal))
+        {
+            return true;
+        }
+
+        // #551 PR-B D6 — remote is a UNION disjunct: a remote spec admits a remote ad. Same
+        // union shape as ApplyFilter's Distans-only case (D5) — one geo semantics across
+        // /jobb, match-setup and the watch filter.
+        return Remote && adRemote;
     }
 
     private static string[] NormalizeList(IEnumerable<string>? values)
@@ -201,6 +225,9 @@ public sealed record WatchFilterSpec
             return true;
 
         return OnlyMatched == other.OnlyMatched
+            // #551 PR-B D6 — Remote is a member too (jsonb-equality footgun: a member omitted
+            // here silently breaks EF change-tracking / jsonb value comparison).
+            && Remote == other.Remote
             && Municipalities.SequenceEqual(other.Municipalities, StringComparer.Ordinal)
             && Regions.SequenceEqual(other.Regions, StringComparer.Ordinal);
     }
@@ -209,6 +236,7 @@ public sealed record WatchFilterSpec
     {
         var hash = new HashCode();
         hash.Add(OnlyMatched);
+        hash.Add(Remote);
         foreach (var m in Municipalities)
             hash.Add(m, StringComparer.Ordinal);
         foreach (var r in Regions)

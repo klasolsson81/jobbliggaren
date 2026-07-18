@@ -40,6 +40,10 @@ public class BuildMatchProfileFromPreferencesQueryHandlerTests
             Guid userId, CancellationToken cancellationToken)
             => throw new NotSupportedException(
                 "BuildMatchProfileFromPreferences-handlern delegerar bara till BuildFromPreferencesAsync.");
+
+        // #551 PR-B F3 — not reached by this handler.
+        public ValueTask<bool> GetPreferredRemoteForNotificationCountAsync(CancellationToken cancellationToken)
+            => new(false);
     }
 
     [Fact]

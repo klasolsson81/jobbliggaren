@@ -99,6 +99,36 @@ public class ListJobAdsQueryHandlerTests
         captured!.Filter.Region.ShouldBeEmpty();
     }
 
+    // #551 PR-B D5 — the ?remote= facet must thread through the adapter to the filter, else the
+    // whole /jobb remote-filter goes silently dead (the D5 integration oracles go via CountAsync,
+    // past this handler, so only THIS pins the handler's Remote: query.Remote mapping).
+    [Fact]
+    public async Task Handle_WhenRemoteSelected_ThreadsRemoteTrueToFilter()
+    {
+        JobAdSearchCriteria? captured = null;
+        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandler();
+
+        await handler.Handle(new ListJobAdsQuery(Remote: true), TestContext.Current.CancellationToken);
+
+        captured.ShouldNotBeNull();
+        captured!.Filter.Remote.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_WhenRemoteNotSelected_FilterRemoteIsFalse()
+    {
+        JobAdSearchCriteria? captured = null;
+        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandler();
+
+        await handler.Handle(new ListJobAdsQuery(), TestContext.Current.CancellationToken); // Remote defaults false
+
+        captured!.Filter.Remote.ShouldBeFalse();
+    }
+
     [Fact]
     public async Task Handle_WhenRegionProvided_PassesListThroughToFilter()
     {

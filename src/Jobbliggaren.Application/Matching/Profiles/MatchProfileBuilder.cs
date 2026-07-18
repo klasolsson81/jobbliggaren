@@ -112,6 +112,19 @@ public sealed class MatchProfileBuilder(
         return await BuildFullCoreAsync(jobSeeker, includeRelated, cancellationToken);
     }
 
+    // #551 PR-B F3 — the remote/distans notis preference, owner-scoped. Reads ONLY
+    // MatchPreferences.PreferredRemote and returns it as a BARE bool — never onto a
+    // CandidateMatchProfile (F1: the scorer must never read the user's remote preference;
+    // arch-pinned by MatchProfileRemoteIndependenceTests). Reuses LoadJobSeekerAsync so the
+    // owner-scoping is the one authoritative gate (no duplicated user→JobSeeker resolution).
+    // Absent user / JobSeeker → false (the honest "distans not requested" default).
+    public async ValueTask<bool> GetPreferredRemoteForNotificationCountAsync(
+        CancellationToken cancellationToken)
+    {
+        var jobSeeker = await LoadJobSeekerAsync(cancellationToken);
+        return jobSeeker?.MatchPreferences.PreferredRemote ?? false;
+    }
+
     // The shared DEK-free build body (one knowledge piece, DRY) — used by both the
     // owner-scoped overloads and the explicit-user-id background variant. The load key is the
     // ONLY thing that differs between the call paths.

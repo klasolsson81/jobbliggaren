@@ -100,6 +100,7 @@ public class JobAdSearchLifecycleOracleTests(ApiFactory factory)
         EmploymentType: [],
         WorktimeExtent: [],
         Employer: [],
+        Remote: false,
         Q: null);
 
     // =================================================================

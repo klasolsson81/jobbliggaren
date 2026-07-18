@@ -69,6 +69,27 @@ public class GetFacetCountsQueryHandlerTests
         captured.Region.ShouldBe(["regA"]);
     }
 
+    // #551 PR-B D5/D7 — an active Distans selection must reach the port as filter context, else a
+    // facet-count for another dimension counts against a different WHERE than the list (residual
+    // inconsistency). The port's ExcludeDimension then decides whether to keep or drop it per facet.
+    [Fact]
+    public async Task Handle_ThreadsRemoteFilterContextToPort()
+    {
+        JobAdFilterCriteria? captured = null;
+        _search.FacetCountsAsync(
+                Arg.Do<JobAdFilterCriteria>(c => captured = c),
+                Arg.Any<FacetDimension>(),
+                Arg.Any<CancellationToken>())
+            .Returns(EmptyCounts());
+        var handler = new GetFacetCountsQueryHandler(_search, _parser);
+
+        await handler.Handle(
+            new GetFacetCountsQuery(FacetDimension.OccupationGroup, Remote: true),
+            TestContext.Current.CancellationToken);
+
+        captured!.Remote.ShouldBeTrue();
+    }
+
     [Fact]
     public async Task Handle_RunsQThroughParser_ResidualReachesFilterNotRawInput()
     {

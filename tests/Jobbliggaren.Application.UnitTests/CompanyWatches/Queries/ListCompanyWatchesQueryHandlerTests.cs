@@ -382,6 +382,8 @@ public class ListCompanyWatchesQueryHandlerTests
             .Select(p => p.Name)
             .ToList();
 
-        members.ShouldBe(["Municipalities", "Regions", "OnlyMatched"], ignoreOrder: true);
+        // #551 PR-B D6 — Remote is a taxonomy-adjacent boolean axis (no identity, no grade value),
+        // so it may cross the surfacing boundary alongside the ort axes.
+        members.ShouldBe(["Municipalities", "Regions", "OnlyMatched", "Remote"], ignoreOrder: true);
     }
 }

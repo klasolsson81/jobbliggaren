@@ -38,7 +38,9 @@ public static class CompanyWatchesEndpoints
     public sealed record SetWatchFilterRequest(
         IReadOnlyList<string>? Municipalities,
         IReadOnlyList<string>? Regions,
-        bool OnlyMatched);
+        bool OnlyMatched,
+        // #551 PR-B D6 — the remote/distans axis (default false = not selected).
+        bool Remote = false);
 
     public static void MapCompanyWatchesEndpoints(this IEndpointRouteBuilder app)
     {
@@ -106,7 +108,8 @@ public static class CompanyWatchesEndpoints
                     id,
                     request.Municipalities ?? [],
                     request.Regions ?? [],
-                    request.OnlyMatched),
+                    request.OnlyMatched,
+                    request.Remote),
                 ct);
 
             return result.IsSuccess

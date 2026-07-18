@@ -713,6 +713,12 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("q");
 
+                    b.Property<bool>("Remote")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("remote");
+
                     b.Property<int>("SortBy")
                         .HasColumnType("integer")
                         .HasColumnName("sort_by");

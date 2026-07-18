@@ -28,4 +28,21 @@ internal interface IJobTechSearchClient
     Task<JobTechHit?> GetAdByIdAsync(
         string id,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// #551 — the remote/distans harvest. <c>jobsearch.api.jobtechdev.se/search?remote=true</c>
+    /// returns the ads AF classifies as remote (the same classification that powers Platsbanken's own
+    /// remote filter). The ad RESPONSE schema has no per-ad remote field (ADR 0067 Beslut 3, amended
+    /// 2026-07-18) — <c>remote</c> is a server-side query parameter only — so <see cref="PlatsbankenJobSource"/>
+    /// paginates this once per snapshot run to build the set of remote source-ids, then sets
+    /// <c>JobAdFacets.Remote</c> from set membership. Paginated with <paramref name="offset"/>/<paramref name="limit"/>
+    /// (JobSearch caps offset at 2000; the remote total is well under that). Failure is handled by the
+    /// caller's fail-safe gate (a failed harvest leaves the remote column untouched — never flips the
+    /// corpus to false).
+    /// </summary>
+    [Get("/search?remote=true")]
+    Task<JobTechSearchListResponse> SearchRemoteAsync(
+        int offset,
+        int limit,
+        CancellationToken cancellationToken = default);
 }

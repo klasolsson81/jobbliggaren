@@ -82,6 +82,16 @@ public class JobAdPublicSurfaceGuardTests
         ["EmploymentTypeConceptId"] = "source facet (#841): same",
         ["WorktimeExtentConceptId"] = "source facet (#841): same",
 
+        // --- #551 remote/distans ---
+        ["Remote"] = "source facet (#551), but UNLIKE the seven #841 facets it is NOT derived from " +
+                     "raw_payload — the response schema carries no per-ad remote field (ADR 0067 Beslut 3, " +
+                     "amended 2026-07-18). It is AF's own remote=true classification, harvested once per " +
+                     "snapshot run and written through JobAd.SetSourcePayload like the others (ordinary " +
+                     "column, never DB-generated — the #841 trap does not apply because nothing derives it " +
+                     "from raw_payload). NON-PII: a closed-domain boolean (AF's classification), so it is " +
+                     "safe on logs and DTOs and STAYS on the Erase() tombstone like the concept-id facets " +
+                     "(classified NotRecruiterData in ErasureCascadeRegistry).",
+
         // --- the PII one ---
         ["OrganizationNumber"] = "source facet (#841) AND PII, HIGHEST PRIORITY: a sole proprietor's org.nr " +
                                  "IS a personnummer in plaintext (ADR 0087 D8(c), CLAUDE.md §5). Plaintext " +

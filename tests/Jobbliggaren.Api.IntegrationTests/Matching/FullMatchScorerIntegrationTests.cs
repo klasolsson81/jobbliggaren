@@ -135,7 +135,8 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         string? employmentTypeConceptId,
         ExtractedTerms? terms,
         CancellationToken ct,
-        string? municipalityConceptId = null)
+        string? municipalityConceptId = null,
+        bool remote = false)
     {
         var externalId = $"ext-{Guid.NewGuid():N}";
 
@@ -147,6 +148,19 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
             externalId, occupationGroupConceptId, regionConceptId, employmentTypeConceptId,
             municipalityConceptId);
 
+        // #551 — remote is NOT in raw_payload (it is AF's harvested classification), so when a test seeds
+        // a remote ad we state the facets explicitly (parity the ACL's MapFacets) rather than reading them
+        // back from the payload. From(...) with the same locals produces the same facets FromPayload would,
+        // plus remote:true. Non-remote seeds keep the FromPayload path unchanged (remote → false column).
+        var facets = remote
+            ? TestFacets.From(
+                occupationGroup: occupationGroupConceptId,
+                region: regionConceptId,
+                employmentType: employmentTypeConceptId,
+                municipality: municipalityConceptId,
+                remote: true)
+            : TestFacets.FromPayload(rawPayload);
+
         var jobAd = JobAd.Import(
             title: title,
             company: Company.Create("Test Company AB").Value,
@@ -154,7 +168,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
-            facets: TestFacets.FromPayload(rawPayload),
+            facets: facets,
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
             clock: clock, declaredContacts: []).Value;
@@ -167,6 +181,95 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
         return jobAd.Id;
+    }
+
+    // =================================================================
+    // #551 — remote/distans OVERRIDES the ort gate (ADR 0076 #551 amendment). The scorer half of the
+    // parity contract; the SQL twin half is proven in MatchSortGradeFilterOracleTests. All ads carry
+    // ExactGroup so the SSYK gate passes and the ort dimension is actually reached.
+    // =================================================================
+
+    // Case 1 (THE klar-kriterium): a stated-ort user, a remote ad with NO location at all. Without the
+    // override this is the #552 both-NULL contradiction → NoMatch → Basic. With it: Match → Good (≥Bra).
+    [Fact]
+    public async Task ScoreFull_RemoteAd_LocationlessForAStatedOrtUser_LiftsRegionFitToMatch_AndGradesGood()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", ExactGroup, regionConceptId: null, employmentTypeConceptId: null,
+            terms: null, ct, remote: true);
+        var profile = RelatedFullProfile(preferredRegions: PrefRegions); // stated ort, no employment
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match,
+            "a remote ad is a location-match for a stated-ort user (the override fires before the both-NULL #552 gate)");
+        result.Score.Fast.RegionFit.Matched.ShouldBeEmpty("no region concept-id to cite — the ad has none");
+        MatchGradeCalculator.Grade(result.Score.Fast, result.SsykIsRelated)
+            .ShouldBe(MatchGrade.Good, "RegionFit=Match earns one confirmed secondary → ≥Bra");
+    }
+
+    // Case 5 (the counterfactual — absence proves the gate only against this): the SAME stated-ort user
+    // and the SAME locationless ad, but NON-remote. The #552 gate must still floor it to Basic.
+    [Fact]
+    public async Task ScoreFull_NonRemoteAd_LocationlessForAStatedOrtUser_StaysNoMatch_AndFloorsToBasic()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", ExactGroup, regionConceptId: null, employmentTypeConceptId: null,
+            terms: null, ct, remote: false);
+        var profile = RelatedFullProfile(preferredRegions: PrefRegions);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
+            "a non-remote locationless ad against a stated ort is the #552 contradiction");
+        MatchGradeCalculator.Grade(result.Score.Fast, result.SsykIsRelated)
+            .ShouldBe(MatchGrade.Basic, "the #552 RB1 floor is intact for the non-remote twin");
+    }
+
+    // Case 3: remote wins over a NON-matching location tag ("remote, HQ elsewhere") — the override sits
+    // before the union logic, so a Stockholm ad matches a Göteborg user when it is remote.
+    [Fact]
+    public async Task ScoreFull_RemoteAd_WithANonMatchingRegionTag_StillMatches()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", ExactGroup, regionConceptId: AdWrongRegion, employmentTypeConceptId: null,
+            terms: null, ct, remote: true);
+        var profile = RelatedFullProfile(preferredRegions: PrefRegions); // PrefRegions excludes AdWrongRegion
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match,
+            "remote overrides even a present, non-preferred region tag");
+        MatchGradeCalculator.Grade(result.Score.Fast, result.SsykIsRelated).ShouldBe(MatchGrade.Good);
+    }
+
+    // Case 4 (scoping): an UNSTATED-ort user has no ort gate to override. Lifting RegionFit to Match would
+    // fabricate a confirmed secondary they never asked for (vacuous-gate doctrine) — so remote does NOTHING
+    // here. "A location-match for everyone" means regardless of WHICH ort, not "even for users who stated none".
+    [Fact]
+    public async Task ScoreFull_RemoteAd_ForAnUnstatedOrtUser_LeavesRegionFitNotAssessed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", ExactGroup, regionConceptId: null, employmentTypeConceptId: null,
+            terms: null, ct, remote: true);
+        var profile = RelatedFullProfile(); // no stated ort
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed,
+            "the remote override fires only AFTER the !stated early-return — an unstated user is untouched");
     }
 
     // occupation_group + employment_type are TOP-LEVEL; region lives under

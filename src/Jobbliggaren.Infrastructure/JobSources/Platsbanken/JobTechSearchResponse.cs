@@ -325,3 +325,24 @@ internal sealed class JobTechRequirementConcept
     [JsonPropertyName("legacy_ams_taxonomy_id")]
     public string? LegacyAmsTaxonomyId { get; set; }
 }
+
+// #551 — the /search list wrapper, used ONLY by the remote-classification harvest
+// (IJobTechSearchClient.SearchRemoteAsync). jobsearch.api.jobtechdev.se/search returns
+// { total: { value }, hits: [ad] }. The response schema carries no per-ad remote field
+// (ADR 0067 Beslut 3, amended 2026-07-18), so `remote=true` is a server-side QUERY filter over
+// AF's own classification; we harvest the ids it returns. We read only Total.Value (paginate to)
+// and Hits[].Id (the set) — the full ad body is deserialised into JobTechHit and discarded.
+internal sealed class JobTechSearchListResponse
+{
+    [JsonPropertyName("total")]
+    public JobTechSearchTotal? Total { get; set; }
+
+    [JsonPropertyName("hits")]
+    public List<JobTechHit>? Hits { get; set; }
+}
+
+internal sealed class JobTechSearchTotal
+{
+    [JsonPropertyName("value")]
+    public int Value { get; set; }
+}

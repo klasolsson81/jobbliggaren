@@ -504,6 +504,9 @@ public static class ErasureCascadeRegistry
             ["job_ads.occupation_group_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
             ["job_ads.employment_type_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
             ["job_ads.worktime_extent_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
+            // #551 — AF's remote/distans classification: a closed-domain boolean, no user write path,
+            // discloses nothing about a recruiter. Kept on the tombstone like the six facet codes.
+            ["job_ads.remote"] = ErasureColumnDisposition.NotRecruiterData,
             ["resume_finding_statuses.criterion_id"] = ErasureColumnDisposition.NotRecruiterData,
             ["resume_finding_statuses.rubric_version"] = ErasureColumnDisposition.NotRecruiterData,
             ["resume_finding_statuses.target_fingerprint"] = ErasureColumnDisposition.NotRecruiterData,
@@ -814,10 +817,11 @@ public static class ErasureCascadeRegistry
 
             ["job_ads:NotRecruiterData"] =
                 "Closed domain: external_id / external_source / source are the ingest tuple, status "
-                + "is a JobAdStatus value converter over a fixed set of four strings, and "
+                + "is a JobAdStatus value converter over a fixed set of four strings, "
                 + "ssyk_concept_id / region_concept_id / municipality_concept_id / "
                 + "occupation_group_concept_id / employment_type_concept_id / "
-                + "worktime_extent_concept_id are Arbetsförmedlingen taxonomy codes. The only "
+                + "worktime_extent_concept_id are Arbetsförmedlingen taxonomy codes, and remote is "
+                + "AF's own remote/distans classification (a closed-domain boolean). The only "
                 + "write path is the ingest funnel, which cannot author free text into any of "
                 + "them.",
 

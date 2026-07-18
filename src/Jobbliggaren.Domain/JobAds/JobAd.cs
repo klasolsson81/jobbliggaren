@@ -53,6 +53,17 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     public string? EmploymentTypeConceptId { get; private set; }
     public string? WorktimeExtentConceptId { get; private set; }
 
+    // #551 — AF's remote/distans classification. `bool NOT NULL DEFAULT false` (not nullable): the
+    // fail-safe direction is structural — an ad the harvest never spoke about reads `false`, so it is
+    // subject to the #552 ort gate (floored if locationless) until a successful harvest lifts it. It is
+    // written ONLY through SetSourcePayload (the single funnel, #841), and only when the snapshot harvest
+    // supplied a set — the stream path and a failed harvest pass JobAdFacets.Remote = null, which
+    // SetSourcePayload reads as PRESERVE. A remote ad OVERRIDES the ort gate in the grade (a location-match
+    // for everyone; ADR 0076 #551 amendment) — the scorer reads THIS flag, never the user's remote
+    // preference. Non-PII (AF's closed-domain boolean): kept on the Erase() tombstone like the six facets,
+    // classified NotRecruiterData in ErasureCascadeRegistry.
+    public bool Remote { get; private set; }
+
     // PII, highest priority (CLAUDE.md §5): a sole proprietor's org.nr IS a personnummer
     // in plaintext. Never logged, never surfaced un-flagged — consumers mask via
     // OrganizationNumber.IsPersonnummerShaped at the display boundary (ADR 0087 D8(c)).
@@ -421,6 +432,15 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         EmploymentTypeConceptId = facets.EmploymentTypeConceptId;
         WorktimeExtentConceptId = facets.WorktimeExtentConceptId;
         OrganizationNumber = facets.OrganizationNumber;
+
+        // #551 — remote has PRESERVE semantics the seven above do not: its source of truth is the
+        // snapshot harvest (a set of AF-classified ids), NOT this per-ad payload. A null (stream path,
+        // or a failed/absent harvest) means "no verdict this run" → keep the current value. A non-null
+        // value is AF's explicit true/false. `?? Remote` gives both for free: on Import the backing
+        // field is its `false` default, so null → false (safe for a brand-new ad); on UpdateFromSource
+        // null → the ad's current value (a failed harvest never flips the corpus to false — D1). This is
+        // the one facet whose absence is not authoritative, so it must not clobber.
+        Remote = facets.Remote ?? Remote;
 
         ApplyContactRedaction(declaredContacts);
     }

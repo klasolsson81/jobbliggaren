@@ -40,6 +40,13 @@ internal sealed partial class PlatsbankenJobSource(
         ArgumentNullException.ThrowIfNull(outcome);
         LogSnapshotStarted(logger);
 
+        // #551 — harvest AF's remote/distans classification ONCE per snapshot run (D1: snapshot owns
+        // remote; the 10-min stream does not). A null result (fetch failed/absent) is the fail-safe
+        // signal: MapFacets then emits JobAdFacets.Remote = null (preserve) so a bad harvest can never
+        // flip the corpus to false. A successful harvest assigns explicit true/false per set membership,
+        // which also handles AF declassifying an ad (dropped from the set → set back to false).
+        var remoteIds = await TryFetchRemoteIdSetAsync(cancellationToken);
+
         var converted = 0;
         var total = 0;
 
@@ -101,7 +108,7 @@ internal sealed partial class PlatsbankenJobSource(
                 if (hit.Removed == true)
                     continue; // Snapshot innehåller bara aktiva; defensive skip.
 
-                var item = TryConvertToImportItem(hit);
+                var item = TryConvertToImportItem(hit, remoteIds);
                 if (item is null)
                     continue;
 
@@ -191,7 +198,10 @@ internal sealed partial class PlatsbankenJobSource(
         return TryConvertToImportItem(hit);
     }
 
-    private JobAdImportItem? TryConvertToImportItem(JobTechHit hit)
+    // #551 — remoteIds is the snapshot harvest's set (null on the stream/refetch paths and on a failed
+    // harvest). Threaded to MapFacets, where null → JobAdFacets.Remote = null (preserve; the aggregate
+    // keeps its current remote value), non-null → explicit membership true/false.
+    private JobAdImportItem? TryConvertToImportItem(JobTechHit hit, IReadOnlySet<string>? remoteIds = null)
     {
         if (string.IsNullOrWhiteSpace(hit.Id) || hit.PublicationDate is null)
             return null;
@@ -249,7 +259,7 @@ internal sealed partial class PlatsbankenJobSource(
             PublishedAt: publishedAt,
             ExpiresAt: expiresAt,
             SanitizedRawPayload: sanitized,
-            Facets: MapFacets(hit),
+            Facets: MapFacets(hit, remoteIds),
             Requirements: MapRequirements(hit),
             DeclaredContacts: MapContacts(hit));
     }
@@ -302,14 +312,91 @@ internal sealed partial class PlatsbankenJobSource(
     //     working_hours_type. Mapping WorktimeExtentConceptId from anything else yields silent always-NULL.
     // JobAdFacets normalises blank -> null, so a "" from the wire cannot enter the partial IS NOT NULL
     // indexes as a value nothing can ever match.
-    private static JobAdFacets MapFacets(JobTechHit hit) =>
+    //
+    // #551 — remote is the eighth facet and the ONLY one not read from this hit's payload: the response
+    // schema carries no per-ad remote field (ADR 0067 Beslut 3, amended 2026-07-18). Its value is AF's
+    // `remote=true` classification, harvested separately as a set of ids (remoteIds). null set = "no
+    // verdict this run" (stream/refetch, or a failed snapshot harvest) → JobAdFacets.Remote = null =
+    // PRESERVE the aggregate's current value (never clobber). A non-null set = explicit membership.
+    private static JobAdFacets MapFacets(JobTechHit hit, IReadOnlySet<string>? remoteIds) =>
         new(ssykConceptId: hit.Occupation?.ConceptId,
             occupationGroupConceptId: hit.OccupationGroup?.ConceptId,
             municipalityConceptId: hit.WorkplaceAddress?.MunicipalityConceptId,
             regionConceptId: hit.WorkplaceAddress?.RegionConceptId,
             employmentTypeConceptId: hit.EmploymentType?.ConceptId,
             worktimeExtentConceptId: hit.WorkingHoursType?.ConceptId,
-            organizationNumber: hit.Employer?.OrganizationNumber);
+            organizationNumber: hit.Employer?.OrganizationNumber,
+            remote: remoteIds is null ? null : remoteIds.Contains(hit.Id));
+
+    // #551 — the remote/distans harvest (D1 option i, ACL-internal). Paginates
+    // jobsearch.api.jobtechdev.se/search?remote=true once per snapshot run and returns the set of
+    // AF-classified remote source-ids. Kept BEHIND the IJobSource port (the ACL owns both the stream and
+    // the search client, ADR 0032 §2) — Application never sees a second feed.
+    //
+    // FAIL-SAFE (D1, load-bearing): any failure returns null, NOT an empty set. MapFacets reads null as
+    // "no verdict this run" → JobAdFacets.Remote = null → SetSourcePayload preserves the ad's current
+    // value. An empty set would flip every ad to remote=false, silently un-remoting the corpus and
+    // re-opening the #552 hole a remote ad exists to escape. So a JobSearch outage costs one night's
+    // freshness, never correctness. Genuine cancellation still propagates.
+    private async Task<IReadOnlySet<string>?> TryFetchRemoteIdSetAsync(CancellationToken cancellationToken)
+    {
+        const int PageSize = 100;
+        // JobSearch caps offset at 2000; the remote total is well under it (~660, measured 2026-07-18).
+        // If AF's remote corpus ever exceeds this, the cap bounds the set to the first 2000 — a partial
+        // harvest is still fail-SAFE (the missing ads read false → #552-gated, never falsely-remote).
+        const int MaxOffset = 2000;
+
+        try
+        {
+            var ids = new HashSet<string>(StringComparer.Ordinal);
+            var offset = 0;
+
+            while (offset < MaxOffset)
+            {
+                var page = await searchClient.SearchRemoteAsync(offset, PageSize, cancellationToken);
+                var hits = page.Hits;
+                if (hits is null || hits.Count == 0)
+                    break;
+
+                foreach (var hit in hits)
+                {
+                    if (!string.IsNullOrWhiteSpace(hit.Id))
+                        ids.Add(hit.Id);
+                }
+
+                offset += PageSize;
+                if (offset >= (page.Total?.Value ?? 0))
+                    break;
+            }
+
+            // A SUCCESSFUL but EMPTY response is the one edge the exception fail-safe does not cover: an
+            // empty (non-null) set would flip the WHOLE corpus to remote=false — the same silent un-remoting
+            // the fail-safe exists to prevent. AF's remote corpus is ~660; a sudden 0 is an anomaly (an
+            // AF-side classification glitch), not a credible true signal. So treat it as a failed harvest →
+            // null (preserve), never false (architect Note 1; documented in ADR 0067 amendment 2026-07-18).
+            if (ids.Count == 0)
+            {
+                LogRemoteHarvestEmpty(logger);
+                return null;
+            }
+
+            LogRemoteHarvestCompleted(logger, ids.Count);
+            return ids;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw; // Genuine cancellation propagates — never swallowed.
+        }
+        catch (Exception ex)
+            when (ex is Refit.ApiException or HttpRequestException or TaskCanceledException
+                or JsonException or IOException)
+        {
+            // Fail-safe: null (preserve), not an empty set (clobber). TaskCanceledException here is an
+            // HTTP TIMEOUT (the token was not requested — the filter above ruled that out), not a cancel.
+            LogRemoteHarvestFailed(logger, ex);
+            return null;
+        }
+    }
 
     // F4-4b — ACL-översättning: JobTech must_have/nice_to_have-SKILLS → neutrala
     // Application-Requirements (CTO Decision 1A: bara skills v1 — concept_id delar
@@ -400,4 +487,16 @@ internal sealed partial class PlatsbankenJobSource(
     [LoggerMessage(EventId = 5006, Level = LogLevel.Debug,
         Message = "Platsbanken refetch ExternalId={ExternalId} — 404 från källan, hoppas över (ej arkivering — retention-flödet skiljt).")]
     private static partial void LogRefetchNotFound(ILogger logger, string externalId);
+
+    [LoggerMessage(EventId = 5007, Level = LogLevel.Information,
+        Message = "Platsbanken remote-harvest klar — {RemoteCount} annonser klassade som distans av AF.")]
+    private static partial void LogRemoteHarvestCompleted(ILogger logger, int remoteCount);
+
+    [LoggerMessage(EventId = 5008, Level = LogLevel.Warning,
+        Message = "Platsbanken remote-harvest misslyckades — remote-kolumnen lämnas orörd denna körning (fail-safe; ingen annons flippas till false). Nästa lyckade snapshot rekoncilierar.")]
+    private static partial void LogRemoteHarvestFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 5009, Level = LogLevel.Warning,
+        Message = "Platsbanken remote-harvest gav NOLL träffar (lyckad respons, tom mängd) — behandlas som anomali (AF:s remote-korpus är normalt ~660). Remote-kolumnen lämnas orörd (fail-safe; ingen annons flippas till false).")]
+    private static partial void LogRemoteHarvestEmpty(ILogger logger);
 }

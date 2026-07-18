@@ -317,6 +317,61 @@ Se Beslut 7-fastabellen. Fas A (denna ADR + ADR 0043-amendment + agent-rapporter
 - Agent-domar: `docs/reviews/2026-06-08-sok-paritet-architect.md`, `-cto.md`, `-cto-followup.md`
 - Relaterade ADR: 0032, 0039, 0040, 0042, 0043, 0045, 0060, 0062, 0064; TD-86, TD-93, TD-100; CLAUDE.md §1/§2.1/§2.3/§2.5/§9.2/§9.6
 
+## Amendment 2026-07-18 — Beslut 3's distans payload-verification-trigger RESOLVES (#551)
+
+**Date:** 2026-07-18
+**Instrument:** amendment discharging the payload-verification-trigger Beslut 3
+set for `work-place-model`/distans. Written in English per the 2026-06-12
+language policy.
+**Driver:** Klas Olsson (AskUserQuestion 2026-07-18); senior-cto-advisor D1
+(`docs/reviews/2026-07-18-551-remote-distans-cto.md`).
+
+### The trigger fired — negative for a structured field
+
+Beslut 3 deferred distans behind a payload-verification-trigger: revisit only
+once a targeted `raw_payload` sample confirms a stable per-ad remote key. #551
+pulled that trigger. **Result: negative.** Verified 2026-07-18 against three
+independent sources — the live JobSearch `/search` response, the JobTech
+`AdFields.md` schema doc, and the original 2026-06-08 discovery — the ad
+**response** schema carries **no** per-ad `remote` / `work_place_model` field.
+`remote` exists only as a server-side **query parameter**. The
+`description ILIKE '%distans%'` text-heuristic Beslut 3 rejected (low precision,
+FTS pollution) remains rejected. (A definitive check of our own stored
+`raw_payload` requires dev-DB access and is a stack-owner follow-up; if it
+surprisingly reveals a stable key, this amendment is superseded by the Klass-2
+payload-key path, which is strictly smaller.)
+
+### The resolution — AF's own classification, harvested via the query filter
+
+Because no per-ad field exists, the signal source (Klas-decided) is **AF's own
+`remote=true` classification** — the same classification that powers
+Platsbanken's remote filter. This is a derivation source Beslut 3 did not model
+(it anticipated a payload key → Klass 2). The mechanism (CTO D1, "option (i)")
+is an **ACL-internal set-join**: `PlatsbankenJobSource` paginates
+`jobsearch.api.jobtechdev.se/search?remote=true` **once per snapshot run** into
+a set of source-ids, and `MapFacets` sets `JobAdFacets.Remote` from membership.
+
+- **Kept behind the ACL / `IJobSource` port** (ADR 0032 §2 / ADR 0043 ACL
+  boundary): the source already owns both the stream and the search client;
+  Application never sees a second feed.
+- **Single-funnel write, no reconcile pass** (rejected option ii): remote is
+  written only through `JobAd.SetSourcePayload`, atomically with the payload,
+  exactly like the seven facets — a second durable writer is the #841 class.
+- **Fail-safe**: a failed harvest returns null (preserve the current value),
+  never an empty set (which would flip the corpus to `remote = false`). This
+  includes a **successful-but-empty** response (a 200 with zero hits): AF's
+  remote corpus is ~660, so a sudden 0 is an anomaly (an AF-side classification
+  glitch), not a credible true signal — it is treated as a failed harvest →
+  null (preserve), not an empty set (dotnet-architect Note 1, 2026-07-18).
+  Column is `bool NOT NULL DEFAULT false`, ordinary (NOT a STORED generated
+  column — the #841 trap; nothing is derived from `raw_payload`). Snapshot owns
+  remote; the 10-min stream leaves it (≤24 h eventual consistency, the
+  conservative direction).
+
+The distans facet + `/jobb` filter + Orter-steget (Beslut 3's original UI
+target) land in #551 PR-B/PR-C; the grade-override consumer lands in PR-A (ADR
+0076 amendment 2026-07-18 (b)).
+
 ---
 
 *ADR-index underhålls av docs-keeper. ADR 0067 fastställer Platsbanken-sök-paritets-initiativets design: yrke-filter-nivåskifte till ssyk-level-4 (occupation-name-substrat bevarat), nya STORED-dimensioner (kommun/yrkesgrupp/anställningsform/omfattning) i Klass 1/Klass 2-sekvens, distans-defer, facet-counts via port-metod, typeahead-chip-sök med residual-FTS, VO-expansion, och fas-uppdelning A–E. Kompletteras av ADR 0043-amendment 2026-06-08 (kommun-dimension + yrkesgrupp-nivå).*

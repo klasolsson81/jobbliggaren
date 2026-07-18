@@ -1,10 +1,23 @@
 namespace Jobbliggaren.Domain.JobAds;
 
 /// <summary>
-/// #841 — the seven taxonomy/employer facets an imported ad carries, as parsed by the ACL from the
+/// #841 — the taxonomy/employer facets an imported ad carries, as parsed by the ACL from the
 /// source payload. Parameter and transport type ONLY: it is never persisted as a value object.
-/// <see cref="JobAd"/> projects it onto seven flat, indexed columns (the <c>RecentJobSearch</c> /
+/// <see cref="JobAd"/> projects it onto flat, indexed columns (the <c>RecentJobSearch</c> /
 /// <c>SearchCriteria</c> pattern — VO in as a method parameter, flat mapped state out).
+///
+/// <para>
+/// <b>#551 — <see cref="Remote"/> is the eighth facet, and it is deliberately UNLIKE the other
+/// seven.</b> The seven are per-ad taxonomy concept-ids read straight from the payload; remote is
+/// AF's own <c>remote=true</c> classification, which the response schema does NOT carry per-ad (ADR
+/// 0067 Beslut 3, amended 2026-07-18). It is harvested once per snapshot run as a set of source-ids
+/// and is therefore a <see langword="bool"/>? here with a THIRD reading the seven do not have:
+/// <see langword="null"/> means "the harvest did not speak this run" (fetch absent/failed, or the
+/// stream path, which never owns remote) — NOT "the ad is not remote". <see cref="JobAd.SetSourcePayload"/>
+/// reads that null as PRESERVE (keep the ad's current value), so a failed harvest can never flip the
+/// corpus to <c>false</c> and the ≤24 h stream→snapshot eventual-consistency direction stays
+/// conservative (never falsely-remote). A non-null value is AF's explicit true/false for this run.
+/// </para>
 ///
 /// <para>
 /// <b>Why this type exists at all, rather than seven loose parameters.</b> The facets must be written
@@ -40,8 +53,14 @@ public sealed record JobAdFacets
         regionConceptId: null,
         employmentTypeConceptId: null,
         worktimeExtentConceptId: null,
-        organizationNumber: null);
+        organizationNumber: null,
+        remote: null);
 
+    // #551 — remote is the one facet with a default, and only because its default IS the None value:
+    // null = "no remote signal this run" = preserve/absent, which is the correct neutral for every
+    // non-harvest caller (manual ads, tests). It cannot be transposed with the string facets (distinct
+    // type), so the #841 named-argument discipline it would otherwise weaken does not apply — and the
+    // single production caller that DOES harvest (PlatsbankenJobSource.MapFacets) passes it explicitly.
     public JobAdFacets(
         string? ssykConceptId,
         string? occupationGroupConceptId,
@@ -49,7 +68,8 @@ public sealed record JobAdFacets
         string? regionConceptId,
         string? employmentTypeConceptId,
         string? worktimeExtentConceptId,
-        string? organizationNumber)
+        string? organizationNumber,
+        bool? remote = null)
     {
         SsykConceptId = Normalize(ssykConceptId);
         OccupationGroupConceptId = Normalize(occupationGroupConceptId);
@@ -58,6 +78,7 @@ public sealed record JobAdFacets
         EmploymentTypeConceptId = Normalize(employmentTypeConceptId);
         WorktimeExtentConceptId = Normalize(worktimeExtentConceptId);
         OrganizationNumber = Normalize(organizationNumber);
+        Remote = remote;
     }
 
     /// <summary>ssyk-level-4 occupation concept (payload: <c>occupation.concept_id</c>, NESTED).</summary>
@@ -99,6 +120,15 @@ public sealed record JobAdFacets
     /// </summary>
     public string? OrganizationNumber { get; }
 
+    /// <summary>
+    /// #551 — AF's <c>remote=true</c> classification for this ad. <see langword="null"/> = the harvest
+    /// did not speak this run (preserve the ad's current value; see the class remarks); <see langword="true"/>/
+    /// <see langword="false"/> = AF's explicit verdict. A non-PII closed-domain boolean (classified
+    /// <c>NotRecruiterData</c> in <c>ErasureCascadeRegistry</c>; kept on the tombstone like the six
+    /// <c>*_concept_id</c> facets).
+    /// </summary>
+    public bool? Remote { get; }
+
     /// <summary>True when the payload carried no facet at all (parity <see cref="None"/>).</summary>
     public bool IsEmpty =>
         SsykConceptId is null
@@ -107,7 +137,8 @@ public sealed record JobAdFacets
         && RegionConceptId is null
         && EmploymentTypeConceptId is null
         && WorktimeExtentConceptId is null
-        && OrganizationNumber is null;
+        && OrganizationNumber is null
+        && Remote is null;
 
     /// <summary>
     /// REDACTED on purpose. A record's compiler-generated <c>ToString()</c> prints every public member —

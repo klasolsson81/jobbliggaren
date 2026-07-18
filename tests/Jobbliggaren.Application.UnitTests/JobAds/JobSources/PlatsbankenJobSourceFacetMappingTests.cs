@@ -165,11 +165,26 @@ public class PlatsbankenJobSourceFacetMappingTests
         item.Facets.OrganizationNumber.ShouldBeNull("whitespace is blank too");
     }
 
-    private sealed class FakeSearchClient(JobTechHit? hit = null) : IJobTechSearchClient
+    private sealed class FakeSearchClient(JobTechHit? hit = null, IReadOnlyList<string>? remoteIds = null)
+        : IJobTechSearchClient
     {
         public Task<JobTechHit?> GetAdByIdAsync(
             string id, CancellationToken cancellationToken = default) =>
             Task.FromResult(hit);
+
+        // #551 — the remote-harvest source. Paginates the injected remote-id list exactly like the
+        // real JobSearch client, so a test can assert MapFacets sets JobAdFacets.Remote from membership.
+        public Task<JobTechSearchListResponse> SearchRemoteAsync(
+            int offset, int limit, CancellationToken cancellationToken = default)
+        {
+            var all = remoteIds ?? [];
+            var hits = all.Skip(offset).Take(limit).Select(id => new JobTechHit { Id = id }).ToList();
+            return Task.FromResult(new JobTechSearchListResponse
+            {
+                Total = new JobTechSearchTotal { Value = all.Count },
+                Hits = hits,
+            });
+        }
     }
 
     private sealed class FakeStreamClient(params JobTechHit[] hits) : IJobTechStreamClient

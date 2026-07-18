@@ -33,6 +33,17 @@ internal static class TestFacets
     /// <summary>
     /// Builds facets from the subset a test actually cares about; everything unnamed is <c>null</c>, which
     /// is what a payload lacking that key would have produced under the old generated columns.
+    ///
+    /// <para>
+    /// <b>#551 — <paramref name="remote"/> is threaded here, NOT into the payload.</b> Remote is AF's own
+    /// <c>remote=true</c> classification, harvested once per snapshot run — the response schema does not
+    /// carry it per-ad (ADR 0067 Beslut 3, amended 2026-07-18), so a test states it as a separate
+    /// constructor arg exactly like the ACL (<c>PlatsbankenJobSource.MapFacets</c>) does. It stays
+    /// <see langword="bool"/>? with the PRESERVE reading: <see langword="null"/> (the default) = "the
+    /// harvest did not speak" → <c>JobAd.SetSourcePayload</c> keeps the ad's current value, so a
+    /// non-remote seed reads the <c>bool NOT NULL DEFAULT false</c> column. Pass <c>remote: true</c> to
+    /// seed a remote ad.
+    /// </para>
     /// </summary>
     internal static JobAdFacets From(
         string? ssyk = null,
@@ -41,14 +52,16 @@ internal static class TestFacets
         string? region = null,
         string? employmentType = null,
         string? worktimeExtent = null,
-        string? organizationNumber = null) =>
+        string? organizationNumber = null,
+        bool? remote = null) =>
         new(ssykConceptId: ssyk,
             occupationGroupConceptId: occupationGroup,
             municipalityConceptId: municipality,
             regionConceptId: region,
             employmentTypeConceptId: employmentType,
             worktimeExtentConceptId: worktimeExtent,
-            organizationNumber: organizationNumber);
+            organizationNumber: organizationNumber,
+            remote: remote);
 
     /// <summary>
     /// Reads the seven facets out of a seeded <c>raw_payload</c>, along the exact JSON paths the ACL uses.
@@ -75,11 +88,32 @@ internal static class TestFacets
     /// Tests whose subject IS the facets (ingest, purge survival, the empty-string invariant) pass them
     /// explicitly via <see cref="From"/> instead.
     /// </para>
+    ///
+    /// <para>
+    /// <b>#551 — <paramref name="remote"/> rides ALONGSIDE the parsed payload, deliberately.</b> The
+    /// remote/distans signal is NOT in <c>raw_payload</c> (it is AF's snapshot-harvest classification,
+    /// ADR 0067 Beslut 3), so a read-path test that seeds a remote ad keeps building its payload as
+    /// before and passes <c>remote: true</c> as a separate arg — the same split the production ACL makes.
+    /// It defaults to <see langword="null"/> (PRESERVE — the non-remote column default), so every existing
+    /// single-arg callsite is byte-for-byte unchanged.
+    /// </para>
     /// </summary>
-    internal static JobAdFacets FromPayload(string? rawPayload)
+    internal static JobAdFacets FromPayload(string? rawPayload, bool? remote = null)
     {
         if (string.IsNullOrWhiteSpace(rawPayload))
-            return JobAdFacets.None;
+            return remote is null
+                ? JobAdFacets.None
+                // The blank-payload path still has to carry an explicit remote verdict when one is given
+                // (JobAdFacets.None is a shared readonly instance whose get-only props preclude a `with`).
+                : new JobAdFacets(
+                    ssykConceptId: null,
+                    occupationGroupConceptId: null,
+                    municipalityConceptId: null,
+                    regionConceptId: null,
+                    employmentTypeConceptId: null,
+                    worktimeExtentConceptId: null,
+                    organizationNumber: null,
+                    remote: remote);
 
         using var doc = JsonDocument.Parse(rawPayload);
         var root = doc.RootElement;
@@ -94,7 +128,9 @@ internal static class TestFacets
             // working_hours_type key. Pointing this at "worktime_extent" would yield a silently
             // always-null column — which is what every Klass 2 filter test would then catch.
             worktimeExtentConceptId: Nested(root, "working_hours_type", "concept_id"),
-            organizationNumber: Nested(root, "employer", "organization_number"));
+            organizationNumber: Nested(root, "employer", "organization_number"),
+            // #551 — the eighth facet is NOT parsed from the payload; it is the caller's explicit verdict.
+            remote: remote);
     }
 
     private static string? Nested(JsonElement root, string parent, string child) =>

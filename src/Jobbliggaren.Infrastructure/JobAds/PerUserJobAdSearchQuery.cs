@@ -68,6 +68,12 @@ internal sealed class PerUserJobAdSearchQuery(
     // raw_payload->'workplace_address'->>'municipality_concept_id' (parity scorern).
     private const string MunicipalityColumn = "MunicipalityConceptId";
 
+    // #551 (ADR 0076 #551 amendment) — AF:s remote/distans-flagga, en `bool NOT NULL`-kolumn.
+    // SQL-tvillingen till MatchScorer.ScoreOrtUnions remote-override: en remote-annons golvas ALDRIG
+    // på ort och räknas som en bekräftad sekundär (för en angiven-ort-användare). Läses som non-null
+    // bool → grenen förblir TVÅVÄRD (ingen trevärd-NULL-fälla, till skillnad från region/kommun).
+    private const string RemoteColumn = "Remote";
+
     // STORED generated jsonb companion (extracted_lexemes = Lexeme-array, GIN-indexerad)
     // — bär skill-concept-ids (Lexeme == ConceptId för Skill/Requirement-termer). F4-15:s
     // gyllene rung testar `extracted_lexemes ?| @cvSkillIds` (EF.Functions.JsonExistAny).
@@ -521,6 +527,11 @@ internal sealed class PerUserJobAdSearchQuery(
                     // NULL-kolumn i rå SQL; endast den explicita IS NULL-grenen är bevisbart
                     // golvande oavsett null-semantik-regim. Testcontainers-oraklen pinnar detta.
                     : ((ortStated
+                            // #551 — en remote-annons golvas ALDRIG på ort (speglar ScoreOrtUnions
+                            // remote-override som returnerar Match FÖRE both-NULL-#552-grinden). `!remote`
+                            // som en TVÅVÄRD term (bool NOT NULL) → ingen trevärd-fälla. För en icke-remote
+                            // annons är !remote = true → grenen byte-identisk med pre-#551.
+                            && !EF.Property<bool>(j, RemoteColumn)
                             && ((EF.Property<string?>(j, RegionColumn) == null
                                     && EF.Property<string?>(j, MunicipalityColumn) == null)
                                 || ((EF.Property<string?>(j, RegionColumn) != null
@@ -541,12 +552,20 @@ internal sealed class PerUserJobAdSearchQuery(
                         // Exakt träff, ingen motsägelse: båda sekundärer → Strong (4), en → Good
                         // (3), ingen → Basic (1). (1+sekundärer-aritmetiken duger inte längre när
                         // Related sitter på 2 — boolean-mappning i stället.)
+                        // #551 — remote räknas som en bekräftad ort-sekundär, men BARA för en
+                        // angiven-ort-användare (`ortStated && remote`) — speglar ScoreOrtUnion, där
+                        // remote-override:n bara fyrar efter `!stated`-returen. En icke-remote annons:
+                        // `ortStated && false` = false → disjunkten byte-identisk med pre-#551.
                         : (regions.Contains(EF.Property<string?>(j, RegionColumn))
-                                || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn)))
+                                || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))
+                                || (ortStated && EF.Property<bool>(j, RemoteColumn)))
                             && employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))
                             ? 4
+                            // #551 — samma remote-sekundär-disjunkt som Strong-grenen ovan (en bekräftad
+                            // ort-sekundär för angiven-ort-användare); icke-remote = byte-identisk.
                             : (regions.Contains(EF.Property<string?>(j, RegionColumn))
-                                    || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn)))
+                                    || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))
+                                    || (ortStated && EF.Property<bool>(j, RemoteColumn)))
                                 || employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))
                                 ? 3
                                 : 1;

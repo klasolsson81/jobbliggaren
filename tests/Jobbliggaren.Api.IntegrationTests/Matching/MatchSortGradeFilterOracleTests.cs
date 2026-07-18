@@ -162,7 +162,8 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         string? employmentTypeConceptId,
         DateTimeOffset publishedAt,
         CancellationToken ct,
-        string? municipalityConceptId = null)
+        string? municipalityConceptId = null,
+        bool remote = false)
     {
         var externalId = $"ext-{Guid.NewGuid():N}";
 
@@ -174,6 +175,18 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
             externalId, occupationGroupConceptId, regionConceptId,
             runWorktimeExtent, employmentTypeConceptId, municipalityConceptId);
 
+        // #551 — remote is AF's harvested classification, not a raw_payload key: state it on the facets
+        // explicitly for a remote seed (parity the ACL's MapFacets). Non-remote seeds keep FromPayload.
+        var facets = remote
+            ? TestFacets.From(
+                occupationGroup: occupationGroupConceptId,
+                region: regionConceptId,
+                employmentType: employmentTypeConceptId,
+                municipality: municipalityConceptId,
+                worktimeExtent: runWorktimeExtent,
+                remote: true)
+            : TestFacets.FromPayload(rawPayload);
+
         var jobAd = JobAd.Import(
             title: "Gradefilter-orakel-annons",
             company: Company.Create("Test Company AB").Value,
@@ -181,7 +194,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
-            facets: TestFacets.FromPayload(rawPayload),
+            facets: facets,
             publishedAt: publishedAt,
             expiresAt: clock.UtcNow.AddDays(30),
             clock: clock, declaredContacts: []).Value;
@@ -291,6 +304,20 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
     private Task<JobAdId> SeedContainmentGoodAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
         SeedJobAdAsync(run, PrefGroup, PrefMunicipalityRegion, PrefEmployment, publishedAt, ct);
 
+    // #551 Strong via the REMOTE OVERRIDE — a location-LESS ad (region + municipality NULL) with a MATCHING
+    // employment. WITHOUT the override this is the #552 ort contradiction (locationless vs a stated ort) →
+    // region NoMatch → RB1 floor → Basic, even though employment Matches. Because it is remote, the ORT leg
+    // reads Match (a location-match for the stated-ort user) → region Match + employment Match = two
+    // confirmed secondaries → Strong. (The override lifts ONLY the ort leg, NOT the employment gate — so
+    // employment must Match here; a null employment against Profile()'s stated PrefEmployment would floor
+    // on the INDEPENDENT employment contradiction regardless of remote.) The discriminator: it grades Strong
+    // ONLY if the remote welds fire; without them it is Basic. The per-subset set-equality then AUTOMATICALLY
+    // proves scorer ≡ SQL on the remote leg (parity the containment seed) — a wrong `!remote` /
+    // `ortStated && remote` weld would floor it while the scorer lifts it, and the set-equality fails loud.
+    private Task<JobAdId> SeedRemoteStrongAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
+        SeedJobAdAsync(run, PrefGroup, regionConceptId: null, PrefEmployment, publishedAt, ct,
+            remote: true);
+
     // Related (rank 2, PR-4 #300): occupation group ∈ the RELATED set only (∉ exact). The flat cap
     // makes it Related regardless of secondaries — region + employment are stated Match here, but an
     // exact hit's Strong is capped to Related (the load-bearing flat-cap proof).
@@ -343,6 +370,9 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         // monotonically decreasing so recency does not accidentally coincide with grade order.
         // The containment Good ad is captured so its SSOT grade can be sanity-checked below.
         var containmentGood = await SeedContainmentGoodAsync(run, t.AddDays(13), ct);
+        // #551 — a remote locationless ad (employment matches): Strong via the override (WITHOUT it, the
+        // ort contradiction floors it to Basic). Captured so its SSOT grade is sanity-checked.
+        var remoteStrong = await SeedRemoteStrongAsync(run, t.AddDays(16), ct);
         var seeded = new List<JobAdId>
         {
             // --- Strong (≥2)
@@ -358,6 +388,9 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
             //     RegionFit NotAssessed + employment Match → Good. The per-subset set-equality then
             //     AUTOMATICALLY proves scorer ≡ SQL for the containment neutralisation.
             containmentGood,
+            // --- #551 Strong via the REMOTE OVERRIDE (locationless remote ad, employment Match; Basic
+            //     without the override — the ort contradiction floors it).
+            remoteStrong,
 
             // --- Related (≥2, PR-4 #300): occupation ∈ related-only → flat cap Related, even with
             //     both secondaries Match (a would-be Strong capped to Related).
@@ -413,6 +446,15 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         gradeById[containmentGood.Value].ShouldBe(MatchGrade.Good,
             "Containment-läns-only-annonsen ska grada Good via scorern (RegionFit NotAssessed + " +
             "anställning Match) — annars är seeden inte den #477-fixen påstår.");
+
+        // #551 — the remote locationless ad must grade STRONG via the SCORER (RegionFit=Match via the
+        // override + EmploymentFit=Match = two confirmed secondaries). The per-subset set-equality below then
+        // AUTOMATICALLY proves scorer ≡ SQL on the remote leg: it must appear in EXACTLY the Strong-containing
+        // subsets and none other. Had the SQL grade-WHERE floored it to Basic (a wrong `!remote`/
+        // `ortStated && remote` weld), that set-equality would fail loud — the whole point of the oracle.
+        gradeById[remoteStrong.Value].ShouldBe(MatchGrade.Strong,
+            "Den remote lokationslösa annonsen (anställning Match) ska grada Strong via override:n " +
+            "(RegionFit=Match + EmploymentFit=Match) — utan remote-armen golvas ort-motsägelsen till Basic.");
 
         var (queryScope, query) = NewPerUserQuery();
         using var queryDispose = queryScope;

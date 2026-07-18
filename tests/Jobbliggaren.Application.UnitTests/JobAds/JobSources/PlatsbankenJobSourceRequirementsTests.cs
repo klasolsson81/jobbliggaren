@@ -282,6 +282,15 @@ public class PlatsbankenJobSourceRequirementsTests
             string id,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(hit);
+
+        // #551 — no remote ads harvested (empty set). This test does not exercise the remote facet.
+        public Task<JobTechSearchListResponse> SearchRemoteAsync(
+            int offset, int limit, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new JobTechSearchListResponse
+            {
+                Total = new JobTechSearchTotal { Value = 0 },
+                Hits = [],
+            });
     }
 
     private sealed class FakeStreamClient(params JobTechHit[] hits) : IJobTechStreamClient

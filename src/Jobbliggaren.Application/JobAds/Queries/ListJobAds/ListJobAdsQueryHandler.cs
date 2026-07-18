@@ -70,8 +70,9 @@ public sealed class ListJobAdsQueryHandler(
             // #311 D6 (ADR 0087) — arbetsgivar-facet (org.nr). Live-sök-dimension
             // (null → [], samma normalisering som dimensionerna ovan).
             Employer: query.Employer ?? [],
-            // #551 PR-B: remote-facetten wiras i Commit 2 (query.Remote — ?remote=on).
-            Remote: false,
+            // #551 PR-B D5 — den boolska distans-facetten (?remote=on) unionas med
+            // kommun/län i ApplyFilter. Persistensen deferrad (se ListJobAdsQuery.Remote).
+            Remote: query.Remote,
             Q: parser.Parse(query.Q).ResidualQ);
 
         // #383 — resolvera seekern EN gång, ENDAST när status-filtret är aktivt (status

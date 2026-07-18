@@ -6,6 +6,7 @@ using Jobbliggaren.Application.JobAds.Commands.CreateJobAd;
 using Jobbliggaren.Application.JobAds.Queries.DisambiguateEmployers;
 using Jobbliggaren.Application.JobAds.Queries.GetFacetCounts;
 using Jobbliggaren.Application.JobAds.Queries.GetJobAd;
+using Jobbliggaren.Application.JobAds.Queries.GetRemoteAdCount;
 using Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree;
 using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 using Jobbliggaren.Application.JobAds.Queries.SuggestJobAdTerms;
@@ -65,6 +66,10 @@ public static class JobAdsEndpoints
             // till PR-2b med #408 FE-konsumenten (CTO-bind 2026-06-30).
             string[]? employer = null,
             string? q = null,
+            // #551 PR-B D5 — den boolska distans/remote-facetten (?remote=on unionas med
+            // kommun/län i ApplyFilter). ASP.NET bool-binding tar "true" (ej "1"); FE (PR-C)
+            // mappar den svenska ?distans=on hit. Persistensen deferrad (se ListJobAdsQuery.Remote).
+            bool remote = false,
             // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent-gate:
             // ?commit=1 vid avsiktlig sökning (Enter/Sök/förslags-val/toolbar)
             // → auto-capture; utelämnad (live-förhandsvisning) → ingen capture.
@@ -111,6 +116,7 @@ public static class JobAdsEndpoints
                     WorktimeExtent: worktimeExtent,
                     Employer: employer,
                     Q: q,
+                    Remote: remote,
                     Commit: commit,
                     MatchGrades: matchGrades,
                     IncludeRelated: includeRelated,
@@ -156,6 +162,9 @@ public static class JobAdsEndpoints
             // ADR 0067 Beslut 6 (Fas B2) — Klass 2-filterkontext för facetten.
             string[]? employmentType = null,
             string[]? worktimeExtent = null,
+            // #551 PR-B D5/D7 — aktivt Distans-val som filterkontext så en facett-count
+            // för en ANNAN dimension räknar mot samma WHERE som listan (residual-konsistens).
+            bool remote = false,
             string? q = null,
             CancellationToken ct = default) =>
         {
@@ -166,6 +175,33 @@ public static class JobAdsEndpoints
                     OccupationGroup: occupationGroup,
                     Municipality: municipality,
                     Region: region,
+                    EmploymentType: employmentType,
+                    WorktimeExtent: worktimeExtent,
+                    Remote: remote,
+                    Q: q), ct);
+            return Results.Ok(result);
+        })
+        .RequireRateLimiting(RateLimitingExtensions.FacetCountsPolicy);
+
+        // #551 PR-B D7 — "Distans (N)"-facett-hinten: hur många remote-annonser matchar
+        // resten av användarens val. En BOOLESK facett under Beslut-4-exkludering, INTE en
+        // FacetDimension (en boolean har inget concept-id-nyckelrum → ingen GROUP BY). Skalär
+        // via total-count-vägen (CountAsync), location-dimensionen strukturellt exkluderad
+        // (queryn bär inte ens muni/län). Egen FacetCountsPolicy (parity /facet-counts —
+        // en facett-hint-burst får inte svälta list-RSC-refetcharna). Cache-Control:
+        // private, no-store (dynamiskt per filter + korpus + auth).
+        group.MapGet("/remote-count", async (
+            IMediator mediator, HttpContext http,
+            string[]? occupationGroup = null,
+            string[]? employmentType = null,
+            string[]? worktimeExtent = null,
+            string? q = null,
+            CancellationToken ct = default) =>
+        {
+            http.Response.Headers.CacheControl = "private, no-store";
+            var result = await mediator.Send(
+                new GetRemoteAdCountQuery(
+                    OccupationGroup: occupationGroup,
                     EmploymentType: employmentType,
                     WorktimeExtent: worktimeExtent,
                     Q: q), ct);

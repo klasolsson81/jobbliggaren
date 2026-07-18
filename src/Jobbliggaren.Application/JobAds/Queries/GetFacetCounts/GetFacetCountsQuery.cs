@@ -26,4 +26,9 @@ public sealed record GetFacetCountsQuery(
     // worktime-filter (annars räknar facetten mot en annan WHERE än listan).
     IReadOnlyList<string>? EmploymentType = null,
     IReadOnlyList<string>? WorktimeExtent = null,
+    // #551 PR-B D5/D7 — remote-filterkontexten måste kunna anges så en facett-count
+    // för en ANNAN dimension reflekterar ett aktivt Distans-val (annars räknar facetten
+    // mot en annan WHERE än listan; residual-konsistens, E2c-architect §2). Ort-facetterna
+    // exkluderar remote via ExcludeDimension (D7); icke-ort-facetterna behåller det.
+    bool Remote = false,
     string? Q = null) : IQuery<IReadOnlyDictionary<string, int>>;

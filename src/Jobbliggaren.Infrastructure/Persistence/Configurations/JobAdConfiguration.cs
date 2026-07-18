@@ -149,9 +149,12 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         // is nothing in raw_payload to derive from, and deriving durable state from raw_payload is the
         // #841 data-loss trap regardless. `bool` (not `bool?`) → `boolean NOT NULL`; the migration adds it
         // with DEFAULT false so existing rows backfill safe-false (the #552-gated conservative direction).
-        // A partial index `WHERE remote` is raw-SQL/migration-owned (EF cannot express partial indexes) —
-        // remote ads are sparse (~1.4 %) and both readers query `remote = true` (the grade override and
-        // the Distans facet filter). No HasMaxLength (boolean), no HasComputedColumnSql (that is the trap).
+        // A partial index `WHERE remote` is raw-SQL/migration-owned (EF cannot express partial indexes). It
+        // is provisioned for PR-B's Distans FACET FILTER (a `WHERE remote = true` predicate over the sparse
+        // ~1.4 % of remote ads). PR-A's grade override does NOT use it — it reads `remote` inside a CASE in
+        // GradeRankExpression over the whole candidate set, never a `WHERE remote` predicate — so the index
+        // has no reader until PR-B. Landed here to keep the schema change in one migration (§6.5 hotspot).
+        // No HasMaxLength (boolean), no HasComputedColumnSql (that is the trap).
         builder.Property(j => j.Remote)
             .HasColumnName("remote")
             .ValueGeneratedNever();

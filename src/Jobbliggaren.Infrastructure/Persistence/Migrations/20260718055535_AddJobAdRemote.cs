@@ -19,10 +19,12 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// table rewrite), so this is safe at any table size.
     ///
     /// The partial index below is raw SQL because the fluent API cannot express a partial index (same
-    /// pattern as the six #841 facet indexes and <c>ix_job_ads_ssyk_concept_id</c> et al.). Remote ads are
-    /// sparse (~1.4%) and both readers query <c>remote = true</c> — the grade override in
-    /// <c>MatchScorer</c>/<c>PerUserJobAdSearchQuery</c> today, and the future Distans facet filter — so a
-    /// non-partial index would waste space indexing the ~98.6% of rows nobody ever looks up by this column.
+    /// pattern as the six #841 facet indexes and <c>ix_job_ads_ssyk_concept_id</c> et al.). It is
+    /// provisioned for PR-B's Distans FACET FILTER, whose <c>WHERE remote = true</c> predicate over the
+    /// sparse (~1.4%) remote rows can use it. PR-A's grade override does NOT use it — it reads <c>remote</c>
+    /// inside a CASE in <c>GradeRankExpression</c> over the whole candidate set, never a <c>WHERE remote</c>
+    /// predicate — so the index has no reader until PR-B; it lands here to keep the schema change in one
+    /// migration (§6.5 hotspot). A partial index avoids wasting space on the ~98.6% of non-remote rows.
     /// </summary>
     public partial class AddJobAdRemote : Migration
     {

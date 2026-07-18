@@ -369,6 +369,17 @@ internal sealed partial class PlatsbankenJobSource(
                     break;
             }
 
+            // A SUCCESSFUL but EMPTY response is the one edge the exception fail-safe does not cover: an
+            // empty (non-null) set would flip the WHOLE corpus to remote=false — the same silent un-remoting
+            // the fail-safe exists to prevent. AF's remote corpus is ~660; a sudden 0 is an anomaly (an
+            // AF-side classification glitch), not a credible true signal. So treat it as a failed harvest →
+            // null (preserve), never false (architect Note 1; documented in ADR 0067 amendment 2026-07-18).
+            if (ids.Count == 0)
+            {
+                LogRemoteHarvestEmpty(logger);
+                return null;
+            }
+
             LogRemoteHarvestCompleted(logger, ids.Count);
             return ids;
         }
@@ -484,4 +495,8 @@ internal sealed partial class PlatsbankenJobSource(
     [LoggerMessage(EventId = 5008, Level = LogLevel.Warning,
         Message = "Platsbanken remote-harvest misslyckades — remote-kolumnen lämnas orörd denna körning (fail-safe; ingen annons flippas till false). Nästa lyckade snapshot rekoncilierar.")]
     private static partial void LogRemoteHarvestFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 5009, Level = LogLevel.Warning,
+        Message = "Platsbanken remote-harvest gav NOLL träffar (lyckad respons, tom mängd) — behandlas som anomali (AF:s remote-korpus är normalt ~660). Remote-kolumnen lämnas orörd (fail-safe; ingen annons flippas till false).")]
+    private static partial void LogRemoteHarvestEmpty(ILogger logger);
 }

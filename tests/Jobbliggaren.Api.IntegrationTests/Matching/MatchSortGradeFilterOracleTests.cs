@@ -447,11 +447,11 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
             "Containment-läns-only-annonsen ska grada Good via scorern (RegionFit NotAssessed + " +
             "anställning Match) — annars är seeden inte den #477-fixen påstår.");
 
-        // #551 — the remote locationless ad must grade Good via the SCORER (RegionFit=Match via the
-        // override, one confirmed secondary). The per-subset set-equality below then AUTOMATICALLY proves
-        // scorer ≡ SQL on the remote leg: it must appear in EXACTLY the Good-containing subsets and none
-        // other. Had the SQL grade-WHERE floored it to Basic (a wrong `!remote`/`ortStated && remote` weld),
-        // that set-equality would fail loud — the whole point of the oracle.
+        // #551 — the remote locationless ad must grade STRONG via the SCORER (RegionFit=Match via the
+        // override + EmploymentFit=Match = two confirmed secondaries). The per-subset set-equality below then
+        // AUTOMATICALLY proves scorer ≡ SQL on the remote leg: it must appear in EXACTLY the Strong-containing
+        // subsets and none other. Had the SQL grade-WHERE floored it to Basic (a wrong `!remote`/
+        // `ortStated && remote` weld), that set-equality would fail loud — the whole point of the oracle.
         gradeById[remoteStrong.Value].ShouldBe(MatchGrade.Strong,
             "Den remote lokationslösa annonsen (anställning Match) ska grada Strong via override:n " +
             "(RegionFit=Match + EmploymentFit=Match) — utan remote-armen golvas ort-motsägelsen till Basic.");

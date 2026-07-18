@@ -358,11 +358,15 @@ a set of source-ids, and `MapFacets` sets `JobAdFacets.Remote` from membership.
   written only through `JobAd.SetSourcePayload`, atomically with the payload,
   exactly like the seven facets — a second durable writer is the #841 class.
 - **Fail-safe**: a failed harvest returns null (preserve the current value),
-  never an empty set (which would flip the corpus to `remote = false`). Column
-  is `bool NOT NULL DEFAULT false`, ordinary (NOT a STORED generated column —
-  the #841 trap; nothing is derived from `raw_payload`). Snapshot owns remote;
-  the 10-min stream leaves it (≤24 h eventual consistency, the conservative
-  direction).
+  never an empty set (which would flip the corpus to `remote = false`). This
+  includes a **successful-but-empty** response (a 200 with zero hits): AF's
+  remote corpus is ~660, so a sudden 0 is an anomaly (an AF-side classification
+  glitch), not a credible true signal — it is treated as a failed harvest →
+  null (preserve), not an empty set (dotnet-architect Note 1, 2026-07-18).
+  Column is `bool NOT NULL DEFAULT false`, ordinary (NOT a STORED generated
+  column — the #841 trap; nothing is derived from `raw_payload`). Snapshot owns
+  remote; the 10-min stream leaves it (≤24 h eventual consistency, the
+  conservative direction).
 
 The distans facet + `/jobb` filter + Orter-steget (Beslut 3's original UI
 target) land in #551 PR-B/PR-C; the grade-override consumer lands in PR-A (ADR

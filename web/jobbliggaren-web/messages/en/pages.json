@@ -111,7 +111,9 @@
       "lede": "This is a deterministic review of your imported CV. Nothing has been changed in the file. The review only points out what you can improve, with cited evidence from your own text.",
       "loadErrorTitle": "Could not load the review",
       "errorBody": "A technical error occurred. Try reloading the page or go back to the CV list.",
-      "continueSave": "Continue and save CV",
+      "nextStepTitle": "Next step",
+      "nextStepBody": "The review is read-only and changes nothing in your file. To improve your CV, update the file based on the findings and upload it again.",
+      "nextStepCta": "Upload again",
       "loading": "Loading the review…"
     },
     "improve": {

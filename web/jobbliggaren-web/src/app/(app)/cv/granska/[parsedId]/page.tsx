@@ -133,11 +133,30 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
         profile={profile}
       />
 
-      {/* Ingen spara-CTA längre: Förbättra-CTA:n togs bort med åtgärda-lagrets
-          deferral (ADR 0112) och Fortsätt spara-CTA:n med Slutför-guidens
-          retirement (CV-pivot 5c, R4) — komplettera + slutfor 404:ar nu.
-          Granskningen är läs-bar; vägen till ett kanoniskt CV är att åtgärda
-          FILEN och ladda upp igen (auto-promote, 5b security-bind B3). */}
+      {/* Next-step row (design-m4, ADR 0047 "what do I do now?"). The review is read-only
+          (ADR 0112): the Förbättra + Fortsätt-spara CTAs were retired (komplettera + slutfor
+          404), so a user who deep-links straight here would otherwise dead-end. The way to a
+          canonical CV is to fix the FILE and re-import (auto-promote, 5b B3). Low-key, and it
+          never implies a write on the review — it navigates to a fresh import. */}
+      <section
+        aria-labelledby="cv-nextstep-title"
+        className="flex flex-col gap-2 border-t border-border pt-6"
+      >
+        <h2
+          id="cv-nextstep-title"
+          className="text-h3 font-medium text-text-primary"
+        >
+          {t("cv.review.nextStepTitle")}
+        </h2>
+        <p className="max-w-[68ch] text-body-sm text-text-primary">
+          {t("cv.review.nextStepBody")}
+        </p>
+        <div>
+          <Link href="/cv/importera" className="jp-btn jp-btn--secondary">
+            {t("cv.review.nextStepCta")}
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

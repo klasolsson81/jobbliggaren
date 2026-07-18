@@ -50,6 +50,10 @@ public sealed class GetMyMatchCountQueryHandler(
             EmploymentType: profile.Fast.PreferredEmploymentTypeConceptIds,
             WorktimeExtent: [],
             Employer: [],
+            // #551 PR-B: remote-notis-preferensen wiras i Commit 3 (via
+            // IMatchProfileBuilder.GetPreferredRemoteForNotificationCountAsync — F1: aldrig
+            // via profilen, aldrig till scorern).
+            Remote: false,
             Q: null);
 
         var count = await search.CountAsync(filter, cancellationToken);

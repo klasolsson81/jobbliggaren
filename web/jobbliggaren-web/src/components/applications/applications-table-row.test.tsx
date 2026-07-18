@@ -53,6 +53,7 @@ function renderRow(application: ApplicationDto) {
           <ApplicationsTableRow
             application={application}
             now={FIXED_NOW}
+            pending={false}
             selected={false}
             onToggleSelect={vi.fn()}
           />

@@ -9,8 +9,9 @@ import type {
 
 // Mock action-modulens exports (server-actions körs aldrig i jsdom).
 // suggestOccupationsFromParsedResumeAction + de två skill-actionerna behövs
-// eftersom den (alltid monterade) dialogen importerar OccupationSection +
-// SkillSection som refererar dem.
+// eftersom dialogen (code-split sedan #748, monteras vid första klicket) drar in
+// OccupationSection + SkillSection som refererar dem — de fokus-retur-testerna
+// nedan klickar upp dialogen.
 const {
   updateMock,
   cvSuggestMock,

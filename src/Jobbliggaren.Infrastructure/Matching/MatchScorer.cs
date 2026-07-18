@@ -346,10 +346,12 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // actually reachable. "Missing" = the row does not exist OR it is not Active; allow-list, not
         // `!= Archived` (D4).
         //
-        // BackgroundMatchingJob:145 gates Status == Active on its own candidate query, and that gate
-        // MASKED the gap there (no UserJobAdMatch row was ever persisted for an archived ad). It is
-        // now FULLY SUBSUMED by this one — every id the job scores comes from that gated query, so
-        // deleting :145 changes no persisted outcome: this gate omits the archived rows anyway. Its
+        // BackgroundMatchingJob.ScanUserAsync's windowed candidate query gates Status == Active
+        // (the `newAds` projection; line-number anchors dropped after the #751 scope refactor
+        // shifted them), and that gate MASKED the gap there (no UserJobAdMatch row was ever
+        // persisted for an archived ad). It is now FULLY SUBSUMED by this one — every id the job
+        // scores comes from that gated query, so deleting the job's gate changes no persisted
+        // outcome: this gate omits the archived rows anyway. Its
         // mutation SURVIVES, and that is recorded rather than papered over. Keep it regardless: it is
         // the job's own definition of its candidate set, and it stops archived rows being LOADED and
         // projected in the first place (ADR 0045). This is NOT the 5th-surface R2 posture — there the

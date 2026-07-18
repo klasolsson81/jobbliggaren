@@ -32,6 +32,9 @@ internal sealed class WatchFilterSpecJsonConverter : JsonConverter<WatchFilterSp
         // backward direction is pinned by a Testcontainers back-compat test.
         List<string> regions = [];
         var onlyMatched = false;
+        // #551 PR-B D6 — a row written before #551 has NO "Remote" key → false (no remote
+        // axis), the back-compat direction (pinned by a Testcontainers back-compat test).
+        var remote = false;
 
         while (reader.Read())
         {
@@ -60,6 +63,16 @@ internal sealed class WatchFilterSpecJsonConverter : JsonConverter<WatchFilterSp
                             "WatchFilterSpec.OnlyMatched måste vara en boolean."),
                     };
                     break;
+                // #551 PR-B D6 — the remote/distans axis (default-deny bool, parity OnlyMatched).
+                case "Remote":
+                    remote = reader.TokenType switch
+                    {
+                        JsonTokenType.True => true,
+                        JsonTokenType.False => false,
+                        _ => throw new JsonException(
+                            "WatchFilterSpec.Remote måste vara en boolean."),
+                    };
+                    break;
                 // Unknown key → skip the VALUE (an additive future axis alongside an
                 // existing narrowing still reads). NOTE: a future-axis-ONLY spec (no
                 // municipalities, OnlyMatched=false) still fails loud via Create's
@@ -74,7 +87,7 @@ internal sealed class WatchFilterSpecJsonConverter : JsonConverter<WatchFilterSp
         // Re-validate via the Domain factory (single source of invariants + normalization).
         // Stored data was valid at write time; a stored spec that no longer satisfies the
         // invariants (e.g. an empty spec — which Create forbids) fails loud, never silently.
-        var result = WatchFilterSpec.Create(municipalities, regions, onlyMatched);
+        var result = WatchFilterSpec.Create(municipalities, regions, onlyMatched, remote);
         if (result.IsFailure)
             throw new JsonException(
                 $"Lagrad WatchFilterSpec-jsonb bröt domän-invariant: {result.Error.Code}.");
@@ -102,6 +115,9 @@ internal sealed class WatchFilterSpecJsonConverter : JsonConverter<WatchFilterSp
         writer.WriteEndArray();
 
         writer.WriteBoolean("OnlyMatched", value.OnlyMatched);
+
+        // #551 PR-B D6 — the remote/distans axis (appended last, additive jsonb extension).
+        writer.WriteBoolean("Remote", value.Remote);
 
         writer.WriteEndObject();
     }

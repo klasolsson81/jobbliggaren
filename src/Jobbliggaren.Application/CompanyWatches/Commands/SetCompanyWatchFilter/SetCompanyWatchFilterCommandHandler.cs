@@ -72,14 +72,14 @@ public sealed class SetCompanyWatchFilterCommandHandler(
         // and returns "at least one filter is required" — to a user who was trying to REMOVE the filter,
         // leaving the old one active with no way to clear it.
         if (WatchFilterSpec.IsEmptySelection(
-                command.Municipalities, command.Regions, command.OnlyMatched))
+                command.Municipalities, command.Regions, command.OnlyMatched, command.Remote))
         {
             watch.ClearFilter();
             return Result.Success();
         }
 
         var spec = WatchFilterSpec.Create(
-            command.Municipalities, command.Regions, command.OnlyMatched);
+            command.Municipalities, command.Regions, command.OnlyMatched, command.Remote);
         if (spec.IsFailure)
             return Result.Failure(spec.Error);
 

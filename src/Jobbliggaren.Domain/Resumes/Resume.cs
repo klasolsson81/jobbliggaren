@@ -650,6 +650,18 @@ public sealed class Resume : AggregateRoot<ResumeId>
             return Result.Failure(DomainError.Validation(
                 "Resume.FullNameTooLong", "Fullständigt namn får vara max 200 tecken."));
 
+        // #855: cap the remaining contact fields (client .max parity). These reach the client
+        // schema through the makeOptionalNullableString helper, so the label-field enumeration first
+        // missed them (both reviewers caught it — the RULE is close every client/server asymmetry,
+        // not the enumeration). Length-only, never required: both are optional (null validates).
+        if (content.PersonalInfo.Phone is { Length: > 50 })
+            return Result.Failure(DomainError.Validation(
+                "Resume.PhoneTooLong", "Telefonnummer får vara max 50 tecken."));
+
+        if (content.PersonalInfo.Location is { Length: > 200 })
+            return Result.Failure(DomainError.Validation(
+                "Resume.LocationTooLong", "Ort får vara max 200 tecken."));
+
         if (content.Summary is { Length: > 2_000 })
             return Result.Failure(DomainError.Validation(
                 "Resume.SummaryTooLong", "Sammanfattning får vara max 2 000 tecken."));
@@ -693,6 +705,15 @@ public sealed class Resume : AggregateRoot<ResumeId>
             if (exp.Role.Length > 200)
                 return Result.Failure(DomainError.Validation(
                     "Resume.ExperienceRoleTooLong", "Roll får vara max 200 tecken."));
+
+            // #855: cap the description prose body (2000, client .max parity — and closes an
+            // internal inconsistency: the sibling prose field Summary is already capped 2000).
+            // Length-only; Description is optional. Inline, NOT coupled to Summary's 2000 (they may
+            // diverge — spurious DRY otherwise).
+            if (exp.Description is { Length: > 2_000 })
+                return Result.Failure(DomainError.Validation(
+                    "Resume.ExperienceDescriptionTooLong",
+                    "Beskrivning får vara max 2 000 tecken."));
 
             // Honest date absence (CTO-bind 5a-pre): end-before-start is an error only when
             // BOTH are present. A null start with a set end ("examen 2020") VALIDATES, but

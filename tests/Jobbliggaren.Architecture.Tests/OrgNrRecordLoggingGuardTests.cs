@@ -409,6 +409,25 @@ public class OrgNrRecordLoggingGuardTests
                 new Jobbliggaren.Application.CompanyWatches.Abstractions.BrandGroup(
                     "volvo-koncernen", "Volvo (koncern)", [Sentinel]).ToString(),
                 "Volvo (koncern)"),
+            // #560 company-search wave — the four org.nr-term carriers of the register search:
+            // the two query records (client-supplied term), the Api request body, and the
+            // normalized input VO (FromTrusted so the pnr-refusing Create is not in the way —
+            // this proves the OVERRIDE, not the normalizer).
+            (typeof(Jobbliggaren.Application.CompanyRegister.Queries.SearchCompanies.SearchCompaniesQuery),
+                new Jobbliggaren.Application.CompanyRegister.Queries.SearchCompanies.SearchCompaniesQuery(
+                    null, null, null, Sentinel).ToString(),
+                "SearchCompaniesQuery"),
+            (typeof(Jobbliggaren.Application.CompanyRegister.Queries.GetCompanySearchMagnitude.GetCompanySearchMagnitudeQuery),
+                new Jobbliggaren.Application.CompanyRegister.Queries.GetCompanySearchMagnitude.GetCompanySearchMagnitudeQuery(
+                    null, null, null, Sentinel).ToString(),
+                "GetCompanySearchMagnitudeQuery"),
+            (typeof(CompaniesEndpoints.CompanySearchRequest),
+                new CompaniesEndpoints.CompanySearchRequest(OrganizationNumber: Sentinel).ToString(),
+                "CompanySearchRequest"),
+            (typeof(Jobbliggaren.Application.CompanyRegister.Abstractions.CompanyRegisterSearchCriteria),
+                Jobbliggaren.Application.CompanyRegister.Abstractions.CompanyRegisterSearchCriteria
+                    .FromTrusted([], [], null, Sentinel, 1, 20).ToString(),
+                "CompanyRegisterSearchCriteria"),
         };
 
         // F3 — the private, personnummer-capable Infrastructure projection record. Reflection reaches it

@@ -83,9 +83,18 @@ public sealed class ListCompanyWatchesQueryHandler(
         if (watches.Any(w => w.OrganizationNumber.IsPersonnummerShaped()))
         {
             // The pnr-shaped job_ads org.nrs (translatable SUPERSET of IsPersonnummerShaped:
-            // Length==10 AND 3rd digit 0/1). KEEP THIS ARM IN SYNC with CompanyWatchScanJob's identical
-            // prefilter — it is oracle-pinned there (RunAsync_PnrShapePrefilter_AdmitsBothBoundaryThirdDigits);
-            // a too-narrow copy = silent no-match (the cardinal sin). DISTINCT + bounded (enskild-firma
+            // Length==10 AND 3rd digit 0/1). The IDENTICAL prefilter lives in CompanyWatchScanJob,
+            // duplicated verbatim and deliberately NOT single-sourced: 2 call sites is below the §3.6
+            // rule-of-three, and single-sourcing the Scan site's OR-disjunct would force an OrElse
+            // predicate combinator the repo won't take: LinqKit is off the BUILD.md §3.1 allowlist, and
+            // hand-rolling its ExpressionVisitor to dodge that is the same dependency-discipline breach
+            // (declined — dotnet-architect + senior-cto-advisor 2026-07-18). Each copy is oracle-pinned
+            // INDEPENDENTLY against its OWN SQL statement: THIS List arm by
+            // CompanyWatchesTests.GET_list_reports_active_ad_count_even_when_org_number_is_masked (a
+            // 3rd-digit-1 sole-prop whose activeAdCount must resolve to 1 — drop the "1" disjunct and it
+            // goes red, mutation-verified 2026-07-18), the Scan arm by that job's
+            // RunAsync_PnrShapePrefilter_AdmitsBothBoundaryThirdDigits_TheSupersetPin. A too-narrow copy
+            // on either side = silent no-match (the cardinal sin). DISTINCT + bounded (enskild-firma
             // employers are rare). STATUS-AGNOSTIC on purpose (parity the name lookup below): a followed
             // company keeps its name whether or not its ads are Active, so the token must still resolve
             // for an archived-only enskild firma; the #447/#452 counts apply their OWN Active gate. HMAC

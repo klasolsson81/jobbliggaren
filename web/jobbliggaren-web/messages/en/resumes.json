@@ -121,6 +121,11 @@
     "title": "Possible occupational areas",
     "lede": "Suggested occupational areas based on your CV. You confirm your occupation in a later step."
   },
+  "preamble": {
+    "title": "Text above the first heading",
+    "body": "Your file opens with this text, above the first heading. Because it is not under a heading, we do not read it as a section, and it was not added to your CV automatically.",
+    "useHint": "Want to use it? Give it a heading in your file, for example Profile, and upload the file again."
+  },
   "profileToggle": {
     "groupLabel": "Choose review profile",
     "ats": "ATS profile",

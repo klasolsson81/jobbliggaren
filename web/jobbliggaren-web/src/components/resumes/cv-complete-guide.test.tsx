@@ -47,6 +47,8 @@ function makeContent(overrides: Partial<ParsedContentDto> = {}): ParsedContentDt
   return {
     // #815: fria sektioner - tomma om inget test sager annat.
     sections: [],
+    // #844/ADR 0109: ingen oklassificerad preambel om inget test sager annat.
+    preamble: null,
     contact: { fullName: "Anna Andersson", email: null, phone: null, location: null },
     profile: null,
     experiences: [],

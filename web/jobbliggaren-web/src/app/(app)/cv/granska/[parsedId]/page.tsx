@@ -14,6 +14,7 @@ import {
 import { PersonnummerWarning } from "@/components/resumes/personnummer-warning";
 import { ParseSummary } from "@/components/resumes/parse-summary";
 import { OccupationProposals } from "@/components/resumes/occupation-proposals";
+import { CvPreamble } from "@/components/resumes/cv-preamble";
 import { CvReviewPanel } from "@/components/resumes/cv-review-panel";
 import { CvPreview } from "@/components/resumes/cv-preview";
 
@@ -120,6 +121,11 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
       <ParseSummary confidence={parsed.confidence} />
 
       <OccupationProposals proposals={parsed.occupationProposals} />
+
+      {/* Neutral, display-only preamble affordance (#844, ADR 0109). CV-PII rendered
+          server-side only — parsed.content.preamble is already pnr-redacted at the mapper
+          egress and never crosses to a client island (page invariant, lines above). */}
+      <CvPreamble preamble={parsed.content.preamble} />
 
       <CvReviewPanel
         review={review}

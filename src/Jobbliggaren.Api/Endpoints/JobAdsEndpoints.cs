@@ -66,9 +66,10 @@ public static class JobAdsEndpoints
             // till PR-2b med #408 FE-konsumenten (CTO-bind 2026-06-30).
             string[]? employer = null,
             string? q = null,
-            // #551 PR-B D5 — den boolska distans/remote-facetten (?remote=on unionas med
-            // kommun/län i ApplyFilter). ASP.NET bool-binding tar "true" (ej "1"); FE (PR-C)
-            // mappar den svenska ?distans=on hit. Persistensen deferrad (se ListJobAdsQuery.Remote).
+            // #551 PR-B D5 — den boolska distans/remote-facetten (unionas med kommun/län i
+            // ApplyFilter). ASP.NET bool-binding kräver ?remote=true (INTE "on"/"1"); FE (PR-C)
+            // mappar den svenska rutt-flaggan ?distans=on → ?remote=true. Persistensen deferrad
+            // (se ListJobAdsQuery.Remote).
             bool remote = false,
             // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent-gate:
             // ?commit=1 vid avsiktlig sökning (Enter/Sök/förslags-val/toolbar)

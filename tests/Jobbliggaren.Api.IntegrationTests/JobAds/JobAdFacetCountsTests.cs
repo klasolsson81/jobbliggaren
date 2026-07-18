@@ -47,7 +47,8 @@ public class JobAdFacetCountsTests(ApiFactory factory)
         bool archived = false,
         bool erased = false,
         string? employmentType = null,
-        string? worktimeExtent = null)
+        string? worktimeExtent = null,
+        bool remote = false)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -93,7 +94,17 @@ public class JobAdFacetCountsTests(ApiFactory factory)
             url: $"https://example.com/jobs/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: rawPayload,
-            facets: TestFacets.FromPayload(rawPayload),
+            // #551 PR-B — remote is AF's harvested classification, NOT a raw_payload key: a remote
+            // seed states it on the facets (parity the ACL), keeping ort/group consistent.
+            facets: remote
+                ? TestFacets.From(
+                    occupationGroup: occupationGroup,
+                    municipality: municipality,
+                    region: region,
+                    employmentType: employmentType,
+                    worktimeExtent: worktimeExtent,
+                    remote: true)
+                : TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
             clock: clock, declaredContacts: []).Value;
@@ -120,7 +131,8 @@ public class JobAdFacetCountsTests(ApiFactory factory)
         IReadOnlyList<string>? region = null,
         string? q = null,
         IReadOnlyList<string>? employmentType = null,
-        IReadOnlyList<string>? worktimeExtent = null) =>
+        IReadOnlyList<string>? worktimeExtent = null,
+        bool remote = false) =>
         new(
             OccupationGroup: occupationGroup ?? [],
             Municipality: municipality ?? [],
@@ -128,7 +140,7 @@ public class JobAdFacetCountsTests(ApiFactory factory)
             EmploymentType: employmentType ?? [],
             WorktimeExtent: worktimeExtent ?? [],
             Employer: [],
-            Remote: false,
+            Remote: remote,
             Q: q);
 
     [Fact]
@@ -185,6 +197,59 @@ public class JobAdFacetCountsTests(ApiFactory factory)
         counts[grpA].ShouldBe(1);
         counts[grpB].ShouldBe(1);
         counts.ShouldNotContainKey(regY); // sanity: bara grupp-nycklar
+    }
+
+    // #551 PR-B D7 — an ORT facet under an active Distans (Remote=true) selection must exclude the
+    // WHOLE location dimension INCLUDING remote (ExcludeDimension nulls Remote for muni/region),
+    // else the Kommun/Län popover collapses to near-zero (WHERE remote ⇒ GROUP BY kommun excludes
+    // the location-less remote ads ⇒ the on-site kommun count reads 0, the Platsbanken lie).
+    [Fact]
+    public async Task FacetCountsAsync_OrtFacetUnderActiveDistans_ExcludesRemote()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var grp = $"grp{Guid.NewGuid():N}"[..16];
+        var kommunX = $"kn{Guid.NewGuid():N}"[..16];
+
+        await SeedAsync("On1", grp, kommunX, null, ct);                 // on-site, KommunX
+        await SeedAsync("On2", grp, kommunX, null, ct);                 // on-site, KommunX
+        await SeedAsync("Rem", grp, null, null, ct, remote: true);      // remote, location-less
+
+        using var scope = _factory.Services.CreateScope();
+        var sut = CreateSut(scope);
+
+        // Facet Municipality WITH Distans active — ExcludeDimension must drop the remote term too.
+        var counts = await sut.FacetCountsAsync(
+            Criteria(occupationGroup: [grp], remote: true), FacetDimension.Municipality, ct);
+
+        // Both on-site ads counted (2). If ExcludeDimension kept Remote=true here, WHERE would be
+        // group AND remote → only the location-less remote ad passes → kommunX would be absent/0.
+        counts[kommunX].ShouldBe(2);
+    }
+
+    // #551 PR-B D7 — a NON-ort facet under an active Distans selection must KEEP the remote term (a
+    // Distans filter legitimately bounds the count of another dimension). ExcludeDimension only drops
+    // the faceted dimension's own lists; Remote stays for employment/worktime/occupation facets.
+    [Fact]
+    public async Task FacetCountsAsync_NonOrtFacetUnderActiveDistans_KeepsRemote()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var grp = $"grp{Guid.NewGuid():N}"[..16];
+        var etX = $"et{Guid.NewGuid():N}"[..16];
+
+        // A remote ad and a non-remote ad, both with employment-type etX in the same group.
+        await SeedAsync("Rem", grp, null, null, ct, employmentType: etX, remote: true);
+        await SeedAsync("On", grp, null, null, ct, employmentType: etX); // non-remote (remote defaults false)
+
+        using var scope = _factory.Services.CreateScope();
+        var sut = CreateSut(scope);
+
+        // Facet EmploymentType WITH Distans active — Remote is KEPT (only the faceted dim is excluded).
+        var counts = await sut.FacetCountsAsync(
+            Criteria(occupationGroup: [grp], remote: true), FacetDimension.EmploymentType, ct);
+
+        // Only the remote ad counts for etX (1). If ExcludeDimension wrongly dropped Remote for the
+        // non-ort facet, the on-site ad would count too → etX would read 2.
+        counts[etX].ShouldBe(1);
     }
 
     [Fact]

@@ -59,8 +59,11 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
     // Per-test-unique org.nrs (the [Collection] shares one Postgres; the scan has no filter knob and
     // matches EVERY active ad whose org.nr is watched, so tests must not cross-contaminate).
     private static string UniqueLegalOrgNr() =>
-        // 10 digits, third digit ≥ 2 → a legal-entity org.nr (NOT personnummer-shaped). Random-ish
-        // but deterministic per call via a fresh Guid hash mapped into the 55xxxxxxxx space.
+        // 10 digits in the "55xxxxxxxx" space, unique per call via a fresh Guid hash. USUALLY a
+        // legal-entity org.nr, but NOT guaranteed non-personnummer-shaped: the D8 zero-pads, so the
+        // third digit can be a leading 0/1, making the value pnr-shaped (IsPersonnummerShaped true). The
+        // hit/count tests tolerate that (both scan arms hit the same ad); an AT-REST assertion needs the
+        // guaranteed non-pnr form UniqueAbOrgNr() below instead.
         "55" + (Math.Abs(Guid.NewGuid().GetHashCode()) % 100000000).ToString(
             "D8", System.Globalization.CultureInfo.InvariantCulture);
 

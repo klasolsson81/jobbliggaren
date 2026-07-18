@@ -533,6 +533,13 @@ export function MatchPreferencesCard({
           persistedSkillGroups={skillGroups}
           onSaved={onDialogSaved}
           importCvHref={IMPORT_CV_HREF}
+          // #748 (WCAG 2.4.3): return focus to the invoking "Lägg till" button
+          // when the dialog closes. Radix's default targets a null triggerRef
+          // (controlled dialog, no DialogTrigger) and would drop focus to body.
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            addButtonRef.current?.focus();
+          }}
         />
       )}
     </section>

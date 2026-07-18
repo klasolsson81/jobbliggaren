@@ -386,3 +386,23 @@ describe("MatchPreferencesCard — tangentbord", () => {
     );
   });
 });
+
+describe("fokus-retur när matchnings-dialogen stängs (#748, WCAG 2.4.3)", () => {
+  it("återlämnar fokus till 'Lägg till' efter close (aldrig till body)", async () => {
+    const user = userEvent.setup();
+    renderCard();
+
+    await user.click(screen.getByRole("button", { name: "Lägg till" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    // onCloseAutoFocus returnerar fokus till den öppnande knappen — utan den
+    // faller fokus till document.body (trigger-lös controlled Radix-dialog).
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Lägg till" })).toHaveFocus()
+    );
+    expect(document.body).not.toHaveFocus();
+  });
+});

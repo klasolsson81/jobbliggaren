@@ -30,11 +30,12 @@ namespace Jobbliggaren.Worker.IntegrationTests.Matching;
 /// jsonb <c>preferences</c> column.
 ///
 /// <para>
-/// The job is CONSTRUCTED DIRECTLY from the fixture scope (its five collaborators resolved +
-/// <c>new BackgroundMatchingJob(...)</c>) — parity with how the MatchScorer/sort-oracle tests
-/// construct the scorer directly. It does NOT depend on the Hangfire wrapper / DI registration
-/// (added in parallel by dotnet-architect). An injected <see cref="FixedClock"/> is the job's
-/// <c>now</c>, so the cold-start floor + watermark are deterministic.
+/// The job is constructed directly (<c>new BackgroundMatchingJob(...)</c>) against the fixture's
+/// REAL root <see cref="Microsoft.Extensions.DependencyInjection.IServiceScopeFactory"/> (#751 —
+/// the job resolves db/builder/scorer/account-service from a child scope PER USER, so these tests
+/// exercise the production resolution path end-to-end). It does NOT depend on the Hangfire
+/// wrapper / DI registration. An injected <see cref="FixedClock"/> is the job's <c>now</c>, so
+/// the cold-start floor + watermark are deterministic.
 /// </para>
 ///
 /// <para>
@@ -393,39 +394,25 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
 
     // ─────────────────────────── SUT construction ───────────────────────────
 
-    // Builds the job DIRECTLY from a fresh scope and new BackgroundMatchingJob(...) — parity with
-    // how FullMatchScorerIntegrationTests constructs `new MatchScorer(db, analyzer)`. The two
-    // matching collaborators (IMatchProfileBuilder / IMatchScorer) live in Infrastructure's
-    // AddJobSources module, which the Worker test fixture does NOT register (it mirrors the
-    // Worker host's DI surface, not the API's — memory f4_9_rename_and_test_fixture_lessons:
-    // "WorkerTestFixture ≠ Program.cs DI"). So they are constructed here against the SAME scoped
-    // AppDbContext used for IAppDbContext — exactly the single-scoped-context the production graph
-    // gives, so the job's tracked watermark-advance load + the builder's read share one context.
+    // #751: the job now owns its per-user child scopes, so the SUT gets the fixture's REAL root
+    // IServiceScopeFactory — every user resolves a fresh AppDbContext + the REAL IMatchProfileBuilder
+    // / IMatchScorer from fixture DI (the fixture registers AddMatchingEngine + AddTextAnalysis +
+    // AddCoreIdentityForWorker, mirroring Worker/Program.cs — the pre-#751 comment claiming the
+    // matching collaborators were unregistered was stale). This exercises the production resolution
+    // path end-to-end: child scope → scoped context shared by db/builder/scorer within one user.
+    // The real scoped IUserAccountService resolves too; no Identity users are seeded, so GetEmailAsync
+    // returns null and any Top-row dispatch skips benignly — these grade-parity / watermark /
+    // cold-start tests assert PERSISTENCE, not delivery (the delivery seam is pinned by the unit
+    // tests + DigestDispatchJobIntegrationTests). The match rows persist before the send regardless.
     // The clock is a FixedClock so `now` (cold-start floor + watermark) is deterministic.
     private async Task RunJobAsync(CancellationToken ct)
     {
-        using var scope = _fixture.Services.CreateScope();
-        var sp = scope.ServiceProvider;
-        var db = sp.GetRequiredService<AppDbContext>();
-        var profileBuilder = NewProfileBuilder(db, sp);
-        var scorer = NewScorer(db);
-        // PR-4b: the Top-direct email hook (IEmailSender + IUserAccountService). These grade-parity
-        // / watermark / cold-start tests assert PERSISTENCE, not delivery — a no-op email sender +
-        // an account service returning an address keeps any Top-row dispatch benign without coupling
-        // these tests to the email surface (the delivery seam is pinned by the unit tests +
-        // DigestDispatchJobIntegrationTests). The match rows persist before the send regardless.
-        var emailSender = Substitute.For<IEmailSender>();
-        var userAccounts = Substitute.For<IUserAccountService>();
-        userAccounts.GetEmailAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns("seeker@example.com");
         var job = new BackgroundMatchingJob(
-            db,
-            profileBuilder,
-            scorer,
-            emailSender,
-            userAccounts,
+            _fixture.Services.GetRequiredService<IServiceScopeFactory>(),
+            Substitute.For<IEmailSender>(),
             new FixedClock(Now),
-            sp.GetRequiredService<ILoggerFactory>().CreateLogger<BackgroundMatchingJob>());
+            _fixture.Services.GetRequiredService<ILoggerFactory>()
+                .CreateLogger<BackgroundMatchingJob>());
 
         await job.RunAsync(ct);
     }

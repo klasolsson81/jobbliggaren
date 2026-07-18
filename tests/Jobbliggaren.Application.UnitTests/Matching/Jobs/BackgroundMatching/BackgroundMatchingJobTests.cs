@@ -46,12 +46,14 @@ public class BackgroundMatchingJobTests
             .Returns("seeker@example.com");
     }
 
+    // #751 konstruktions-only-migration: jobbet tar nu en IServiceScopeFactory; faken ger SAMMA
+    // db/collaborators per scope så varje testkropp är orörd.
     private BackgroundMatchingJob CreateJob(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
         IMatchProfileBuilder profileBuilder,
         IMatchScorer scorer) =>
-        new(db, profileBuilder, scorer, _emailSender, _userAccounts, NowClock,
-            NullLogger<BackgroundMatchingJob>.Instance);
+        new(new FakeMatchingScopeFactory(db, profileBuilder, scorer, _userAccounts),
+            _emailSender, NowClock, NullLogger<BackgroundMatchingJob>.Instance);
 
     // Seeds a CONSENTING JobSeeker (opt-in ON, not withdrawn) and returns its UserId. The
     // produced profile is mocked per-test, so the seeker's MatchPreferences are irrelevant to
@@ -290,5 +292,41 @@ public class BackgroundMatchingJobTests
 
         var reloaded = await ReloadSeekerAsync(db, userId, ct);
         reloaded.LastMatchScanAt.ShouldBe(NowClock.UtcNow);
+    }
+
+    // 5. SCOPE-PER-USER regression pin (#751). Two consenting users, both mocked to hit the SSYK
+    // gate (the cheap advance-and-return path — no scoring), so the ONLY scope activity is the
+    // structural per-user scoping the fix introduced. The job opens ONE short scope for the
+    // opted-in due-set query BEFORE the loop, then a FRESH child scope PER USER inside the loop
+    // (own IAppDbContext → the change tracker lives and dies with one user, so a poisoned
+    // Added/Modified entity dies with its scope instead of riding into the next user's
+    // SaveChanges). 1 due-set scope + 1 per user (2 users) = 3. Hoisting the per-user scope out of
+    // the loop to a single shared scope for the whole batch drops this to 2 → RED. The fake is
+    // constructed EXPLICITLY (not via CreateJob) so the test can read its ScopesCreated counter.
+    [Fact]
+    public async Task RunAsync_CreatesOneChildScopePerUser()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userA = await SeedConsentingSeekerAsync(db, ct);
+        var userB = await SeedConsentingSeekerAsync(db, ct);
+
+        // Both hit the SSYK gate (empty occupation) → no scoring; the scope count reflects ONLY the
+        // structural per-user scoping, not any scan work.
+        _profileBuilder.BuildFullForUserIdAsync(userA, Arg.Any<CancellationToken>())
+            .Returns(ProfileWithoutOccupation());
+        _profileBuilder.BuildFullForUserIdAsync(userB, Arg.Any<CancellationToken>())
+            .Returns(ProfileWithoutOccupation());
+
+        // Constructed explicitly (not via CreateJob) so ScopesCreated is readable after the run.
+        var scopeFactory = new FakeMatchingScopeFactory(db, _profileBuilder, _scorer, _userAccounts);
+        var job = new BackgroundMatchingJob(
+            scopeFactory, _emailSender, NowClock, NullLogger<BackgroundMatchingJob>.Instance);
+
+        await Should.NotThrowAsync(() => job.RunAsync(ct));
+
+        scopeFactory.ScopesCreated.ShouldBe(3,
+            "1 scope för opt-in-frågan (due-set) + 1 child scope PER user (2 users) = 3; att hissa " +
+            "per-user-scopen ut ur loopen till en delad scope ger 2 → RED (#751 poison-isolering).");
     }
 }

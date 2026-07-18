@@ -73,6 +73,8 @@ builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ExpireJobAdsWorker>();
 // AddMatchingEngine ger IMatchScorer + IMatchProfileBuilder i Worker-SP — Worker anropar INTE
 // AddInfrastructure (HTTP-fri, ADR 0023), så dessa portar (registrerade där) saknas annars och
 // ValidateOnBuild=false (TD-103) skulle dölja gapet till Hangfire-invocation 03:20 UTC.
+// #751: jobbet resolvar db/builder/scorer/kontoservice ur en child-scope PER USER (via
+// IServiceScopeFactory, intrinsisk) — portarna måste alltså finnas i Worker-SP:n precis som förr.
 builder.Services.AddMatchingEngine();
 // ADR 0080 Vag 4 PR-4b — IEmailSender för bakgrundsmatchnings-notiserna (Top-direkt-hook i
 // scannen + DigestDispatchJob). Worker drar INTE in AddInfrastructure (HTTP-fri, ADR 0023)

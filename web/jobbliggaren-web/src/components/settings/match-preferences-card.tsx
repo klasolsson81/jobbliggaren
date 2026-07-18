@@ -5,6 +5,7 @@
 // revert-vid-fel, tangentbords-borttagning med fokus-flytt till grannen, samt
 // en dialog-öppna-affordans. Inget av detta går i en Server Component.
 
+import dynamic from "next/dynamic";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { formatTime } from "@/lib/i18n/format";
@@ -28,7 +29,19 @@ import {
 } from "./match-preferences-shared";
 import type { SkillGroup } from "@/lib/dto/skills";
 import { PreferenceChip } from "./preference-chip";
-import { MatchPreferencesDialog } from "./match-preferences-dialog";
+
+// #748: the dialog's static import chain (dialog + OccupationSection +
+// SkillSection + RegionMunicipalityCascade + CV-upload/suggest wiring, ~2.5k
+// lines of client code) is code-split out of the /installningar route bundle
+// and fetched on first open. `ssr: false` is deliberate: the dialog only ever
+// renders client-side after a click (gated behind `dialogRequested`), and it
+// gives next/dynamic its OWN Suspense boundary (fallback null) so a first-open
+// chunk fetch never bubbles up to the route's loading.tsx and flashes a
+// whole-page skeleton. The trigger button stays statically rendered → no CLS.
+const MatchPreferencesDialogLazy = dynamic(
+  () => import("./match-preferences-dialog").then((m) => m.MatchPreferencesDialog),
+  { ssr: false }
+);
 
 // Pure helpers re-exporteras så befintliga tester/konsumenter (som importerar
 // dem härifrån) inte bryts; definitionen bor i match-preferences-shared.
@@ -172,6 +185,11 @@ export function MatchPreferencesCard({
     useState<ReadonlyArray<SkillGroup>>(initialSkillGroups);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  // #748: latches true on the first "Lägg till" click and stays true, so the
+  // code-split dialog mounts on demand (never in the initial route JS) but is
+  // kept mounted afterwards — Radix still unmounts the dialog CONTENT on close
+  // (close animation + open-keyed draft reseed intact), and reopen is instant.
+  const [dialogRequested, setDialogRequested] = useState(false);
   const [isSaving, startSaving] = useTransition();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -464,7 +482,10 @@ export function MatchPreferencesCard({
           type="button"
           variant="secondary"
           aria-haspopup="dialog"
-          onClick={() => setDialogOpen(true)}
+          onClick={() => {
+            setDialogRequested(true);
+            setDialogOpen(true);
+          }}
         >
           {t("matchPrefs.add")}
         </Button>
@@ -490,28 +511,30 @@ export function MatchPreferencesCard({
         )}
       </div>
 
-      <MatchPreferencesDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        occupationFields={occupationFields}
-        regions={regions}
-        employmentTypes={employmentTypes}
-        persistedOccupationGroups={occupationGroups}
-        persistedRegions={selectedRegions}
-        persistedMunicipalities={selectedMunicipalities}
-        persistedEmploymentTypes={selectedEmployment}
-        persistedSkills={selectedSkills}
-        persistedExperienceYears={experienceYears}
-        // exp-per-occ (ADR 0079-amendment PR-4): pre-fill dialogen med overlayn
-        // scopad till de fortfarande valda yrkena (subset-regeln).
-        persistedOccupationExperience={projectOccupationExperience(
-          occupationExperience,
-          occupationGroups
-        )}
-        persistedSkillGroups={skillGroups}
-        onSaved={onDialogSaved}
-        importCvHref={IMPORT_CV_HREF}
-      />
+      {dialogRequested && (
+        <MatchPreferencesDialogLazy
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          occupationFields={occupationFields}
+          regions={regions}
+          employmentTypes={employmentTypes}
+          persistedOccupationGroups={occupationGroups}
+          persistedRegions={selectedRegions}
+          persistedMunicipalities={selectedMunicipalities}
+          persistedEmploymentTypes={selectedEmployment}
+          persistedSkills={selectedSkills}
+          persistedExperienceYears={experienceYears}
+          // exp-per-occ (ADR 0079-amendment PR-4): pre-fill dialogen med overlayn
+          // scopad till de fortfarande valda yrkena (subset-regeln).
+          persistedOccupationExperience={projectOccupationExperience(
+            occupationExperience,
+            occupationGroups
+          )}
+          persistedSkillGroups={skillGroups}
+          onSaved={onDialogSaved}
+          importCvHref={IMPORT_CV_HREF}
+        />
+      )}
     </section>
   );
 }

@@ -183,6 +183,15 @@ export function JobAdTypeahead({
   // dismissed by the same gestures as the list (#295) — outside-click, Escape,
   // focus-out — instead of lingering until the next keystroke.
   const showRateLimited = open && state.status === "rateLimited";
+  // #757 — sighted loading affordance. During an in-flight fetch `items` is
+  // empty, so `showList` is false and the suggestion list would unmount: sighted
+  // users saw their suggestions flash out to an empty gap until the next list
+  // popped in. This boolean gates ONLY the visible skeleton row below; it never
+  // feeds `aria-expanded`/`aria-activedescendant`/`showList` (the skeleton is not
+  // a list of options — the combobox stays truthfully collapsed during loading,
+  // and the sr-only status region carries the sole SR announcement). `showList`,
+  // `showRateLimited` and `showLoading` are mutually exclusive by the state union.
+  const showLoading = open && state.status === "loading";
 
   function choose(item: SuggestionDto) {
     onSelect(item);
@@ -282,6 +291,27 @@ export function JobAdTypeahead({
             ? t("typeahead.suggestionCount", { count: items.length })
             : ""}
       </p>
+
+      {showLoading && (
+        // #757 sighted loading row: a flat skeleton row in the same popup chrome
+        // as the list, so sighted users see that a suggestion is on its way instead
+        // of an empty gap while the next response is fetched (skeleton doctrine:
+        // "prefer Skeleton over Spinner", flat neutral grey, no shimmer/pulse/glow).
+        // Purely decorative → aria-hidden: the sr-only role="status" region above
+        // carries the sole screen-reader announcement ("Hämtar förslag…"), unchanged.
+        // The popup is absolutely positioned → no page layout shift; the outer frame
+        // is byte-identical to the list's (border/bg/shadow/position) and the loading
+        // row's px-3 py-2 mirrors an option row's padding, so the first result row
+        // lands at the same top padding on swap.
+        <div
+          aria-hidden="true"
+          className="absolute top-full left-0 z-10 mt-1 w-full overflow-hidden rounded-md border border-border-default bg-surface-primary shadow-md"
+        >
+          <div className="px-3 py-2">
+            <span className="jp-skeleton block h-5 w-40 max-w-full" />
+          </div>
+        </div>
+      )}
 
       {showRateLimited && (
         // Absolut-positionerad (som listan) så degraderingsraden escapar en

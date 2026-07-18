@@ -156,8 +156,15 @@ internal sealed class JobAdSearchQuery(
         JobAdFilterCriteria criteria, FacetDimension dimension) => dimension switch
         {
             FacetDimension.OccupationGroup => criteria with { OccupationGroup = [] },
+            // #551 PR-B D7 — remote är location-dimensionens BOOLESKA sub-axel (unionas
+            // med kommun/län i ApplyFilter). Ort-facetten exkluderar därför HELA
+            // location-dimensionen INKLUSIVE remote: annars, med Distans aktivt (remote=true),
+            // ger Kommun-/Län-popovern nära-noll (WHERE remote ⇒ GROUP BY kommun exkluderar
+            // NULL-ort ⇒ tomt), vilket ljuger vs Platsbanken. Icke-location-facetterna nedan
+            // BEHÅLLER remote (ett aktivt Distans-filter ska begränsa deras count) — gratis
+            // via with-klonen. Beslut 4:s ort-regel, utsträckt till remote.
             FacetDimension.Municipality or FacetDimension.Region =>
-                criteria with { Municipality = [], Region = [] },
+                criteria with { Municipality = [], Region = [], Remote = false },
             // ADR 0067 Beslut 6 (Fas B2) — Klass 2 är ORTOGONALA dimensioner:
             // varje facett exkluderar ENDAST sin egen lista ur WHERE (till
             // skillnad mot ort, där län ⊃ kommun = en dimension i två

@@ -395,12 +395,20 @@ public class OrgNrRecordLoggingGuardTests
                 new CompanyBrowseDto(Sentinel, false, "Region Stockholm", "0180", null, []).ToString(),
                 "Region Stockholm"),
             (typeof(CompanyWatchDto),
-                new CompanyWatchDto(KnownId, Sentinel, false, "Region Stockholm", default, 2, 1, null).ToString(),
+                new CompanyWatchDto(KnownId, Sentinel, false, "Region Stockholm", default, 2, 1, null,
+                    Jobbliggaren.Domain.CompanyWatches.CompanyWatchTargetType.Employer, null).ToString(),
                 "Region Stockholm"),
             (typeof(LookupCompanyQuery), new LookupCompanyQuery(Sentinel).ToString(), "LookupCompanyQuery"),
             (typeof(FollowCompanyCommand), new FollowCompanyCommand(Sentinel).ToString(), "FollowCompanyCommand"),
             (typeof(CompaniesEndpoints.CompanyLookupRequest),
                 new CompaniesEndpoints.CompanyLookupRequest(Sentinel).ToString(), "CompanyLookupRequest"),
+            // #311 PR-5: the curated brand-group carrier. Its members are public AB org.nrs (the loader
+            // rejects personnummer-shaped ones), but the redacting ToString() is enforced structurally —
+            // this proves it does not print the member org.nr and keeps the display name.
+            (typeof(Jobbliggaren.Application.CompanyWatches.Abstractions.BrandGroup),
+                new Jobbliggaren.Application.CompanyWatches.Abstractions.BrandGroup(
+                    "volvo-koncernen", "Volvo (koncern)", [Sentinel]).ToString(),
+                "Volvo (koncern)"),
         };
 
         // F3 — the private, personnummer-capable Infrastructure projection record. Reflection reaches it

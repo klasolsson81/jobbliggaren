@@ -107,4 +107,20 @@ public interface IMatchProfileBuilder
     /// </summary>
     ValueTask<FullCandidateMatchProfile> BuildFullForUserIdAsync(
         Guid userId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// #551 PR-B F3 (ADR 0076 #551-amendment) — the current user's remote/distans NOTIS-count
+    /// preference (mechanism B). Owner-scoped; reads ONLY <c>MatchPreferences.PreferredRemote</c>.
+    /// <para>
+    /// <b>Deliberately a bare <see langword="bool"/> from a SEPARATE method, not a member of any
+    /// <see cref="CandidateMatchProfile"/>.</b> This feeds the facet-hard notis count
+    /// (<c>JobAdFilterCriteria.Remote</c> in <c>GetMyMatchCount</c>) and must NEVER reach the
+    /// scorer profile — ADR 0079 never-grade-coupled, arch-pinned by
+    /// <c>MatchProfileRemoteIndependenceTests</c> (F1). The user's remote PREFERENCE (mechanism B)
+    /// and the AD's remote FLAG (mechanism A, the grade override) are the exact seam that must not
+    /// cross. Reuses the same owner-scoping + user→JobSeeker resolution as the profile builds.
+    /// Returns <see langword="false"/> for an absent user / JobSeeker / preference.
+    /// </para>
+    /// </summary>
+    ValueTask<bool> GetPreferredRemoteForNotificationCountAsync(CancellationToken cancellationToken);
 }

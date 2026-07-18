@@ -65,7 +65,7 @@ public class FollowCompanyFromJobAdCommandHandlerTests
         result.IsSuccess.ShouldBeTrue();
         var watch = await db.CompanyWatches.SingleAsync(ct);
         watch.UserId.ShouldBe(_userId);
-        watch.OrganizationNumber.Value.ShouldBe(LegalOrgNr);
+        watch.OrganizationNumber!.Value.ShouldBe(LegalOrgNr);
         watch.DeletedAt.ShouldBeNull();
         result.Value.ShouldBe(watch.Id.Value);
     }
@@ -85,7 +85,7 @@ public class FollowCompanyFromJobAdCommandHandlerTests
         var watch = await db.CompanyWatches.SingleAsync(ct);
         // #544 (ADR 0090 D5): the sole-prop org.nr (= a personnummer) is stored HMAC-tokenised at
         // rest, never the plaintext — while the follow itself is still allowed (D8: no feature gap).
-        watch.OrganizationNumber.Value.ShouldBe(FakeToken(SoleProprietorOrgNr));
+        watch.OrganizationNumber!.Value.ShouldBe(FakeToken(SoleProprietorOrgNr));
         watch.OrganizationNumber.Value.ShouldNotBe(SoleProprietorOrgNr);
         watch.OrganizationNumber.IsPersonnummerShaped().ShouldBeTrue(); // still masked at surfacing
     }

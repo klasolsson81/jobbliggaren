@@ -31,7 +31,9 @@ public static class MeJobAdMatchEndpoints
         IReadOnlyList<string>? OccupationGroups,
         IReadOnlyList<string>? Regions,
         IReadOnlyList<string>? Municipalities,
-        IReadOnlyList<string>? EmploymentTypes);
+        IReadOnlyList<string>? EmploymentTypes,
+        // #551 PR-B F3 — the wizard's distans/remote toggle (default false = not requested).
+        bool Remote = false);
 
     public static void MapMeJobAdMatchEndpoints(this IEndpointRouteBuilder app)
     {
@@ -118,7 +120,8 @@ public static class MeJobAdMatchEndpoints
                     OccupationGroups: body.OccupationGroups ?? [],
                     Regions: body.Regions ?? [],
                     Municipalities: body.Municipalities ?? [],
-                    EmploymentTypes: body.EmploymentTypes ?? []), ct);
+                    EmploymentTypes: body.EmploymentTypes ?? [],
+                    Remote: body.Remote), ct);
                 return Results.Ok(result);
             })
             .WithTags("Me")

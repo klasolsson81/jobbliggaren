@@ -10,6 +10,17 @@ const nextConfig: NextConfig = {
   // Remove the `X-Powered-By: Next.js` fingerprint (information disclosure).
   poweredByHeader: false,
 
+  // #748 (perf-audit epic #737, finding b7): rewrite `radix-ui` barrel imports
+  // (`import { Dialog as DialogPrimitive } from "radix-ui"`) to direct per-module
+  // imports at compile time. The unified barrel re-exports ~35 @radix-ui/react-*
+  // namespaces; despite `sideEffects: false`, the webpack build does NOT prune
+  // the unimported ones (measured: a route chunk carried Menubar/NavigationMenu/
+  // Toast/Slider/ScrollArea/… that no code imports). radix-ui is absent from
+  // Next's default optimizePackageImports list (which ships lucide-react etc.).
+  experimental: {
+    optimizePackageImports: ["radix-ui"],
+  },
+
   // Browser security headers on every response — issue #591 (epic #485).
   // Policy + rationale live in `src/lib/security/security-headers.ts`
   // (senior-cto-advisor bind, Approach A). Env branch resolves once at config

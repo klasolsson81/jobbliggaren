@@ -85,6 +85,13 @@ interface MatchPreferencesDialogProps {
   }) => void;
   /** URL till CV-importflödet (tom-state-länken). */
   readonly importCvHref: string;
+  /**
+   * #748 (WCAG 2.4.3): forwarded to Radix `DialogContent`. This is a CONTROLLED
+   * dialog with no `DialogTrigger`, so Radix's default close-autofocus targets a
+   * null `triggerRef` and focus falls to `document.body`. The parent passes a
+   * handler that returns focus to the invoking control instead.
+   */
+  readonly onCloseAutoFocus?: (event: Event) => void;
 }
 
 export function MatchPreferencesDialog({
@@ -103,6 +110,7 @@ export function MatchPreferencesDialog({
   persistedSkillGroups = [],
   onSaved,
   importCvHref,
+  onCloseAutoFocus,
 }: MatchPreferencesDialogProps) {
   const t = useTranslations("settings");
   const employmentOptions: ReadonlyArray<Option> = employmentTypes.map((e) => ({
@@ -239,7 +247,7 @@ export function MatchPreferencesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="jp-matchdialog">
+      <DialogContent className="jp-matchdialog" onCloseAutoFocus={onCloseAutoFocus}>
         <div className="jp-matchdialog__head">
           <DialogTitle className="jp-matchdialog__title">
             {t("matchPrefs.dialog.title")}
@@ -249,7 +257,10 @@ export function MatchPreferencesDialog({
           </DialogDescription>
           {/* Stäng-knappen = shadcn/radix Close inbyggd i DialogContent (civic-
               restylad i globals.css), inte en egen knapp — undviker dubblerad
-              "Stäng" för skärmläsare och ärver ESC/fokus-retur. */}
+              "Stäng" för skärmläsare och ärver ESC-stängning. Fokus-retur till
+              den öppnande kontrollen sköts av onCloseAutoFocus (WCAG 2.4.3) —
+              denna trigger-lösa controlled dialog har ingen triggerRef att ärva
+              den från (#748). */}
         </div>
 
         <div className="jp-matchdialog__body">

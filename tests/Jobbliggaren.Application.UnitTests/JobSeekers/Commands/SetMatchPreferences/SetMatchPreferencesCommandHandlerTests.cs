@@ -205,6 +205,51 @@ public class SetMatchPreferencesCommandHandlerTests
         seeker.MatchPreferences.PreferredOccupationGroups.ShouldBe(["grp_12345"]);
     }
 
+    // #551 PR-B F3 — the remote/distans notis preference is threaded into the stored VO.
+    [Fact]
+    public async Task Handle_WithPreferredRemote_ThreadsItIntoStoredPreferences()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId);
+        var handler = new SetMatchPreferencesCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+
+        var command = new SetMatchPreferencesCommand(
+            PreferredOccupationGroups: ["grp_12345"],
+            PreferredRegions: null,
+            PreferredEmploymentTypes: null,
+            PreferredRemote: true);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        db.JobSeekers.Single(js => js.UserId == _userId)
+            .MatchPreferences.PreferredRemote.ShouldBeTrue();
+    }
+
+    // Full-replace: omitting PreferredRemote (default false) clears a previously-stored true.
+    [Fact]
+    public async Task Handle_OmittingPreferredRemote_ClearsPreviouslyStoredTrue()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedSeekerAsync(db, _userId);
+        var handler = new SetMatchPreferencesCommandHandler(db, _currentUser, FakeDateTimeProvider.Default);
+
+        await handler.Handle(new SetMatchPreferencesCommand(
+            PreferredOccupationGroups: ["grp_12345"],
+            PreferredRegions: null,
+            PreferredEmploymentTypes: null,
+            PreferredRemote: true), CancellationToken.None);
+
+        var result = await handler.Handle(new SetMatchPreferencesCommand(
+            PreferredOccupationGroups: ["grp_12345"],
+            PreferredRegions: null,
+            PreferredEmploymentTypes: null), CancellationToken.None); // PreferredRemote defaults false
+
+        result.IsSuccess.ShouldBeTrue();
+        db.JobSeekers.Single(js => js.UserId == _userId)
+            .MatchPreferences.PreferredRemote.ShouldBeFalse();
+    }
+
     // STEG 3 (ADR 0079) — out-of-range experience bubbles up as a Create DomainError.
     [Fact]
     public async Task Handle_WithOutOfRangeExperienceYears_ReturnsDomainValidationError()

@@ -109,6 +109,33 @@ public class GetMatchCountPreviewQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ShouldThreadRemoteDraftToggleToFilter()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var search = new FakeJobAdSearchQuery(countToReturn: 5);
+        var sut = new GetMatchCountPreviewQueryHandler(search);
+
+        // #551 PR-B F3 — the wizard's distans toggle becomes the filter's Remote axis, so the
+        // preview count matches the saved-profile notis count for the same draft (samma siffra).
+        await sut.Handle(
+            new GetMatchCountPreviewQuery([], [], [], [], Remote: true), ct);
+
+        search.LastFilter!.Remote.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_ShouldLeaveRemoteFalse_WhenDraftToggleOff()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var search = new FakeJobAdSearchQuery(countToReturn: 5);
+        var sut = new GetMatchCountPreviewQueryHandler(search);
+
+        await sut.Handle(Query(occ: ["grp_dev"]), ct); // Remote defaults false
+
+        search.LastFilter!.Remote.ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task Handle_ShouldCountWholeCorpus_WhenDraftEmpty()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -43,7 +43,11 @@ public sealed record SetCompanyWatchFilterCommand(
     Guid CompanyWatchId,
     IReadOnlyList<string> Municipalities,
     IReadOnlyList<string> Regions,
-    bool OnlyMatched)
+    bool OnlyMatched,
+    // #551 PR-B D6 — the remote/distans axis. A UNION disjunct of the ort dimension: a spec
+    // whose ONLY narrowing is Remote=true IS valid (narrows to remote ads). Default false =
+    // not selected (full-replace: omit ⇒ cleared, like the other axes).
+    bool Remote = false)
     : ICommand<Result>, IAuthenticatedRequest, IAuditableCommand<Result>
 {
     public string EventType => "CompanyWatch.FilterChanged";

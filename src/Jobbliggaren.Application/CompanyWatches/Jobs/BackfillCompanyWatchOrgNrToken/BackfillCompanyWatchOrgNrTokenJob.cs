@@ -104,6 +104,14 @@ public sealed partial class BackfillCompanyWatchOrgNrTokenJob(
                     continue;
                 }
 
+                // A BRAND_GROUP watch (#311 PR-5) carries no org.nr — nothing to tokenise. Skip before
+                // the deref (the id stream includes every target type).
+                if (watch.OrganizationNumber is null)
+                {
+                    counts.Skipped++;
+                    continue;
+                }
+
                 // Compute the token in-process (the pepper never touches SQL). The aggregate method
                 // is the SSOT for "only a plaintext pnr converts" — it no-ops on AB / already-token.
                 var tokenized = OrganizationNumber.FromTrusted(

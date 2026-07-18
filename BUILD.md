@@ -269,10 +269,27 @@ Verifieras via ArchUnit.NET eller NetArchTest-regler i Domain.ArchitectureTests-
 | `Resume` | AR | `ResumeVersion` (entity) | `JobSeekerId` |
 | `SavedSearch` | AR | `SearchCriteria` (VO) | `JobSeekerId` |
 | `JobAd` | AR | — | `CompanyId` |
-| `Company` | AR | — | — |
+| `Company` | owned VO (se not) | — | — |
 | `Contact` | AR | — | `CompanyId` (opt.) |
 | `Application` | AR | `FollowUp` (entity), `ApplicationNote` (entity) | `JobSeekerId`, `JobAdId`, `ResumeVersionId`, `CoverLetterId`, `ContactId` |
 | `CoverLetter` | AR | — | `JobSeekerId`, `JobAdId`, `ApplicationId` |
+
+> **`Company` är inte ett persisterat aggregat i v1 (ADR 0087 D2, Accepterat
+> 2026-06-30).** I domänen är `Company` en namn-only *owned VO* på `JobAd`
+> (`src/Jobbliggaren.Domain/JobAds/Company.cs`), inte en Aggregate Root.
+> Företagsidentitet för företagsbevakning löses via en read-model-projektion
+> över `job_ads` (org.nr som naturlig nyckel + `company_name`); det byggda
+> aggregatet för bevakning är `CompanyWatch` (med notisspåret
+> `FollowedCompanyAdHit`), inte `Company`.
+>
+> Motsvarande obyggda rekryterar-/CRM-yta står kvar på flera ställen i specen och
+> behålls som framtida scope, inte v1-verklighet: `Company` som surrogat-nycklat
+> AR med `website`, `CompanyId`-referenserna (`JobAd` och `Contact`, §5.1;
+> `CompanyId`-VO:t, §5.2), `companies`/`contacts`-tabellerna i datamodellen (§7.1)
+> med deras `/api/v1/companies`- och `/contacts`-endpoints (§6.2), och
+> `Company.website` i Gmail-synk-matchningen (§9.2). Allt detta tillhör en **separat, ännu obyggd
+> framtida rekryterar-/CRM- + Gmail-synk-feature** (§9.2 är själv uppskjuten ur
+> MVP per #321).
 
 ### 5.2 Value Objects
 

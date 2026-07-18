@@ -35,4 +35,9 @@ public sealed record GetMatchCountPreviewQuery(
     IReadOnlyList<string> OccupationGroups,
     IReadOnlyList<string> Regions,
     IReadOnlyList<string> Municipalities,
-    IReadOnlyList<string> EmploymentTypes) : IQuery<MatchCountPreviewDto>;
+    IReadOnlyList<string> EmploymentTypes,
+    // #551 PR-B F3 — the wizard's distans/remote toggle. Applied as a REAL filter (union
+    // with ort in ApplyFilter), so the preview count equals the saved-profile notis count
+    // for the same draft (GetMyMatchCount reads the persisted PreferredRemote) — "samma
+    // siffra"-harmonin (ADR 0089/0079 H2). Default false = distans not requested.
+    bool Remote = false) : IQuery<MatchCountPreviewDto>;

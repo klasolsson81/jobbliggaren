@@ -33,6 +33,7 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
         List<string> skills = [];
         int? experienceYears = null;
         List<OccupationExperience> occupationExperience = [];
+        bool preferredRemote = false;
 
         while (reader.Read())
         {
@@ -74,6 +75,12 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
                     occupationExperience = ReadOccupationExperienceArray(
                         ref reader, "PreferredOccupationExperience");
                     break;
+                // #551 PR-B F3 — the remote/distans notis preference, a single bool
+                // (default-deny: True/False only). Missing key → false (a row written before
+                // #551, or the '{}' default) → back-compat, re-validated green in Create.
+                case "PreferredRemote":
+                    preferredRemote = ReadBool(ref reader, "PreferredRemote");
+                    break;
                 // Missing/unknown key → empty list / null via the defaults above (an old
                 // row written before Spår 3 / STEG 3, or the '{}' default, has no
                 // "PreferredMunicipalities" / "PreferredSkills" / "ExperienceYears" key →
@@ -94,7 +101,8 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
             preferredMunicipalities: municipalities,
             preferredSkills: skills,
             experienceYears: experienceYears,
-            preferredOccupationExperience: occupationExperience);
+            preferredOccupationExperience: occupationExperience,
+            preferredRemote: preferredRemote);
         if (result.IsFailure)
             throw new JsonException(
                 $"Lagrad MatchPreferences-jsonb bröt domän-invariant: {result.Error.Code}.");
@@ -164,6 +172,10 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
             writer.WriteEndObject();
         }
         writer.WriteEndArray();
+
+        // #551 PR-B F3 — the remote/distans notis preference (appended last, additive jsonb
+        // extension). Always written explicitly for a deterministic canonical form.
+        writer.WriteBoolean("PreferredRemote", value.PreferredRemote);
 
         writer.WriteEndObject();
     }
@@ -273,6 +285,20 @@ internal sealed class MatchPreferencesJsonConverter : JsonConverter<MatchPrefere
                 throw new JsonException(
                     $"MatchPreferences.{field} måste vara ett heltal eller null.");
         }
+    }
+
+    // #551 PR-B F3 — the one BOOLEAN key. Default-deny: only True/False is accepted
+    // (a number, string, object, null or array is rejected — no silent coercion, parity
+    // with the other readers). Missing key is handled by the caller's default (false).
+    private static bool ReadBool(ref Utf8JsonReader reader, string field)
+    {
+        return reader.TokenType switch
+        {
+            JsonTokenType.True => true,
+            JsonTokenType.False => false,
+            _ => throw new JsonException(
+                $"MatchPreferences.{field} måste vara true eller false."),
+        };
     }
 }
 

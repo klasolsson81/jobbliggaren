@@ -97,6 +97,10 @@ public class GetJobAdMatchDetailQueryHandlerTests
         public ValueTask<FullCandidateMatchProfile> BuildFullForUserIdAsync(
             Guid userId, CancellationToken cancellationToken)
             => throw new NotSupportedException("BuildFullForUserIdAsync ska inte anropas av modal-handlern.");
+
+        // #551 PR-B F3 — not reached by the modal detail handler.
+        public ValueTask<bool> GetPreferredRemoteForNotificationCountAsync(CancellationToken cancellationToken)
+            => new(false);
     }
 
     private sealed class FakeScorer : IMatchScorer

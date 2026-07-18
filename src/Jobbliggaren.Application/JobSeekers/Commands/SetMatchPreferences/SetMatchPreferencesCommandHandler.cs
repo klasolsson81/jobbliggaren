@@ -52,7 +52,8 @@ public sealed class SetMatchPreferencesCommandHandler(
             preferredMunicipalities: command.PreferredMunicipalities,
             preferredSkills: command.PreferredSkills,
             experienceYears: command.ExperienceYears,
-            preferredOccupationExperience: occupationExperience);
+            preferredOccupationExperience: occupationExperience,
+            preferredRemote: command.PreferredRemote);
         if (preferencesResult.IsFailure)
             return Result.Failure(preferencesResult.Error);
 

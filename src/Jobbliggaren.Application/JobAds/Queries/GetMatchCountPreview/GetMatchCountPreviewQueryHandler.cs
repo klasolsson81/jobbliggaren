@@ -35,8 +35,8 @@ public sealed class GetMatchCountPreviewQueryHandler(IJobAdSearchQuery search)
             EmploymentType: query.EmploymentTypes,
             WorktimeExtent: [],
             Employer: [],
-            // #551 PR-B: remote-utkastet wiras i Commit 3 (query.Remote).
-            Remote: false,
+            // #551 PR-B F3 — wizardens distans-toggle som location-axel (unionas med ort).
+            Remote: query.Remote,
             Q: null);
 
         var count = await search.CountAsync(filter, cancellationToken);

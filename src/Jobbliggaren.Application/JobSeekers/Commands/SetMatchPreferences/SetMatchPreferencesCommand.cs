@@ -42,7 +42,11 @@ public sealed record SetMatchPreferencesCommand(
     IReadOnlyList<string>? PreferredMunicipalities = null,
     IReadOnlyList<string>? PreferredSkills = null,
     int? ExperienceYears = null,
-    IReadOnlyList<OccupationExperienceInput>? PreferredOccupationExperience = null)
+    IReadOnlyList<OccupationExperienceInput>? PreferredOccupationExperience = null,
+    // #551 PR-B F3 — the remote/distans notis preference. Full-replace like every other
+    // dimension (omit ⇒ false). Feeds ONLY the facet-hard notis count (GetMyMatchCount),
+    // never the scorer (ADR 0079 never-grade-coupled, F1).
+    bool PreferredRemote = false)
     : ICommand<Result>, IAuthenticatedRequest;
 
 /// <summary>

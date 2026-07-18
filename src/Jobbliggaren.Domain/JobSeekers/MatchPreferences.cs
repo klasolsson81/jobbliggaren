@@ -94,6 +94,17 @@ public sealed record MatchPreferences
     // per-occupation years stated". See OccupationExperience for the value-object contract.
     public IReadOnlyList<OccupationExperience> PreferredOccupationExperience { get; private init; } = [];
 
+    // #551 PR-B F3 (ADR 0076 #551-amendment) — the user's remote/distans NOTIS-count
+    // preference: when true, the notis/setup count treats distans as an accepted location
+    // (JobAdFilterCriteria.Remote, unioned with the ort axes). A location-family bool that
+    // folds into the same "ort" dimension as PreferredMunicipalities/PreferredRegions.
+    // Appended last so the jsonb-key write order stays a purely additive extension.
+    // STORED + read by the FACET-HARD notis count ONLY (GetMyMatchCount) — NEVER the scorer:
+    // ADR 0079 never-grade-coupled, arch-pinned by MatchProfileRemoteIndependenceTests (F1),
+    // so PreferredRemote deliberately does NOT reach CandidateMatchProfile. Default false =
+    // honest "distans not requested".
+    public bool PreferredRemote { get; private init; }
+
     // EF + record copy-semantik. Property-initializers (= []) ensure non-null even
     // before EF materializes via the value converter.
     private MatchPreferences() { }
@@ -113,7 +124,8 @@ public sealed record MatchPreferences
         IEnumerable<string>? preferredMunicipalities = null,
         IEnumerable<string>? preferredSkills = null,
         int? experienceYears = null,
-        IEnumerable<OccupationExperience>? preferredOccupationExperience = null)
+        IEnumerable<OccupationExperience>? preferredOccupationExperience = null,
+        bool preferredRemote = false)
     {
         var normOccupationGroups = NormalizeList(preferredOccupationGroups);
         var normRegions = NormalizeList(preferredRegions);
@@ -187,6 +199,7 @@ public sealed record MatchPreferences
             PreferredSkills = normSkills,
             ExperienceYears = experienceYears,
             PreferredOccupationExperience = normOccupationExperience,
+            PreferredRemote = preferredRemote,
         });
     }
 
@@ -304,7 +317,10 @@ public sealed record MatchPreferences
             && ExperienceYears == other.ExperienceYears
             // OccupationExperience is a record → SequenceEqual uses its structural equality
             // (both lists are normalized sorted-by-ConceptId in Create → deterministic).
-            && PreferredOccupationExperience.SequenceEqual(other.PreferredOccupationExperience);
+            && PreferredOccupationExperience.SequenceEqual(other.PreferredOccupationExperience)
+            // #551 PR-B F3 — the remote bool is a member too (jsonb-equality footgun: a member
+            // omitted here silently breaks EF change-tracking / jsonb value comparison).
+            && PreferredRemote == other.PreferredRemote;
     }
 
     public override int GetHashCode()
@@ -323,6 +339,7 @@ public sealed record MatchPreferences
         hash.Add(ExperienceYears);
         foreach (var oe in PreferredOccupationExperience)
             hash.Add(oe);
+        hash.Add(PreferredRemote);
         return hash.ToHashCode();
     }
 }

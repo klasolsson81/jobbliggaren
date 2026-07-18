@@ -81,4 +81,42 @@ public class MatchPreferencesConverterTests
 
         Should.Throw<JsonException>(() => FromJson(corrupt));
     }
+
+    // #551 PR-B F3 — the remote/distans preference bool.
+    [Fact]
+    public void RoundTrip_PreservesPreferredRemote_True()
+    {
+        var original = MatchPreferences.Create(
+            preferredOccupationGroups: ["grp1"],
+            preferredRegions: null,
+            preferredEmploymentTypes: null,
+            preferredRemote: true).Value;
+
+        var restored = FromJson(ToJson(original));
+
+        restored.PreferredRemote.ShouldBeTrue();
+        restored.ShouldBe(original);
+    }
+
+    [Fact]
+    public void Read_MissingPreferredRemoteKey_DefaultsToFalse()
+    {
+        // A job_seekers row written before #551 has no PreferredRemote key → false (back-compat,
+        // re-validated green in Create), never a crash.
+        const string oldRow =
+            """{"PreferredOccupationGroups":["grp1"],"PreferredRegions":[],"PreferredEmploymentTypes":[],"PreferredMunicipalities":[],"PreferredSkills":[],"ExperienceYears":null,"PreferredOccupationExperience":[]}""";
+
+        var restored = FromJson(oldRow);
+
+        restored.PreferredRemote.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Read_NonBooleanPreferredRemote_FailsClosed()
+    {
+        // Default-deny (parity the other readers): a string/number/null in the bool key is rejected.
+        const string corrupt = """{"PreferredRemote":"yes"}""";
+
+        Should.Throw<JsonException>(() => FromJson(corrupt));
+    }
 }

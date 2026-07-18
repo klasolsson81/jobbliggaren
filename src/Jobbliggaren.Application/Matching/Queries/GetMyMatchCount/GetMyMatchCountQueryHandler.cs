@@ -39,6 +39,13 @@ public sealed class GetMyMatchCountQueryHandler(
         if (profile.Fast.SsykGroupConceptIds.Count == 0)
             return MyMatchCountDto.Zero;
 
+        // #551 PR-B F3 — den sparade remote/distans-preferensen matar count:ens location-axel
+        // (mechanism B). Läses via den dedikerade builder-metoden EFTER SSYK-grinden (bara för
+        // hel-angivna profiler) — ALDRIG via profile.Fast (F1: scorern får aldrig se den;
+        // ADR 0079 never-grade-coupled, arch-pinnad av MatchProfileRemoteIndependenceTests).
+        var preferredRemote =
+            await profileBuilder.GetPreferredRemoteForNotificationCountAsync(cancellationToken);
+
         // Sparade val som HÅRDA filter (H2). Named arguments per
         // JobAdFilterCriteria:s konstruktions-kontrakt (sex listor i rad =
         // tyst-fel-fälla). WorktimeExtent/Employer/Q är tomma/null —
@@ -50,10 +57,9 @@ public sealed class GetMyMatchCountQueryHandler(
             EmploymentType: profile.Fast.PreferredEmploymentTypeConceptIds,
             WorktimeExtent: [],
             Employer: [],
-            // #551 PR-B: remote-notis-preferensen wiras i Commit 3 (via
-            // IMatchProfileBuilder.GetPreferredRemoteForNotificationCountAsync — F1: aldrig
-            // via profilen, aldrig till scorern).
-            Remote: false,
+            // #551 PR-B F3 — den sparade remote-preferensen som location-axel (unionas med
+            // ort i ApplyFilter). Ur den dedikerade builder-metoden, ALDRIG ur profile.Fast.
+            Remote: preferredRemote,
             Q: null);
 
         var count = await search.CountAsync(filter, cancellationToken);

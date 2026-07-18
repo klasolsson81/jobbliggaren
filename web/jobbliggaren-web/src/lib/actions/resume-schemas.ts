@@ -127,10 +127,10 @@ const LANGUAGE_PROFICIENCY_TOKENS = [
   "Native",
 ] as const;
 
-// Mirrors the domain `Resume.ValidateContent` (ADR 0095 D-E): the language name
-// is required-only in the domain (no max, like Company/Role/Skill.Name). We keep
-// a generous UI-affordance max (100, matching Skill.Name) so an absurd paste is
-// caught client-side; the server (which has no max here) stays authoritative.
+// Mirrors the domain `Resume.ValidateContent`: the language name caps at 100 —
+// the scored-atom bound shared with Skill.Name (#855, `Skill.NameMaxLength`). The
+// domain is the authority; this client `.max(100)` mirrors it (the asymmetry the
+// domain formerly lacked a max is now closed — the server refuses an over-long name too).
 const makeSpokenLanguageSchema = (t: ValidationTranslator) =>
   z.object({
     name: z

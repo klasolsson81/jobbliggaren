@@ -34,11 +34,20 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// <b>Why CONCURRENTLY (+ <c>suppressTransaction</c>, which it requires):</b> a plain
     /// <c>CREATE INDEX</c> takes SHARE lock and blocks writes for the whole build — on the
     /// ~1,07M-row register that collides with the Saturday bulk sync's upsert batches (CTO F7:
-    /// never block the sync). Fresh databases (CI/Testcontainers) build it instantly either way.
-    /// Failure semantics: an aborted CONCURRENTLY build leaves an INVALID index behind —
-    /// mechanical recovery, documented here because the operator will meet it exactly once:
+    /// never block the sync). The converse direction is the one to schedule around: the build
+    /// itself WAITS (is delayed, never fails) on any already-open long transaction against the
+    /// table — the sync's vanish-sweep UPDATE can hold one for up to its 600 s ceiling — so
+    /// don't apply this against the dev DB mid-sync. Fresh databases (CI/Testcontainers) build
+    /// it instantly either way. First operative use of <c>suppressTransaction</c> in this repo
+    /// (the four earlier expression-index migrations each DECLINED CONCURRENTLY for their own
+    /// smaller/brief builds — a still-valid call for them, not a verdict on the mechanism).
+    /// Failure semantics: an aborted CONCURRENTLY build leaves an INVALID index behind, and
+    /// <c>IF NOT EXISTS</c> sees an INVALID index as EXISTING — a bare re-run would silently
+    /// skip the build and stamp the migration applied. Mechanical recovery, in this order:
     /// <c>DROP INDEX IF EXISTS ix_company_register_company_name_lower;</c> then re-run the
-    /// migration.
+    /// migration. (Plain DROP, not CONCURRENTLY, is deliberate there: dropping an invalid
+    /// index's catalog entry is near-instant — there is no completed index for readers to be
+    /// using — so the stronger lock protects nothing.)
     /// </para>
     /// </summary>
     public partial class AddCompanyRegisterNameSearchIndex : Migration

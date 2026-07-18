@@ -1247,6 +1247,42 @@ public class HeadingDrivenResumeSegmenterTests
     }
 
     [Fact]
+    public void Segment_SkillBlockWithKeptAtomAndOverLongToken_ConfidentWithRoutedEvidence()
+    {
+        // The count>0 & routedCount>0 arm of ListSectionConfidence: a Kompetenser block with BOTH a
+        // kept atom AND an over-long token must land Confident (a real atom survived) AND still carry
+        // the structural routed-note. Without this test that arm's routed-note is unasserted —
+        // deleting it from production keeps the rest of the suite green (a mutation gap). Distinct from
+        // test 4 (the count==0 Degraded arm, which has its own routed-note) and from the routing/
+        // section tests above (none of which assert the Confident-arm evidence).
+        var overLong = new string('a', Skill.NameMaxLength + 1);
+        var cv =
+            $"""
+            Anna Andersson
+            anna@example.com
+
+            Kompetenser
+            C#
+            {overLong}
+            """;
+
+        var result = _sut.Segment(cv);
+
+        // A real atom survived → Confident, not Degraded.
+        result.Content.Skills.ShouldContain("C#");
+        LevelOf(result, ParsedSectionKind.Skills).ShouldBe(SectionConfidenceLevel.Confident);
+
+        // ...and the Confident arm STILL carries the structural routed-note, never the CV text.
+        var skills = SectionOf(result, ParsedSectionKind.Skills);
+        skills.Evidence.ShouldContain(
+            e => e.Contains("routed", StringComparison.OrdinalIgnoreCase),
+            "Confident-armen (count>0) måste också bära routed-noten, inte bara Degraded-armen.");
+        skills.Evidence.ShouldNotContain(
+            e => e.Contains(overLong, StringComparison.Ordinal),
+            "konfidens-evidensen får aldrig bära CV-innehåll (ADR 0071, §5).");
+    }
+
+    [Fact]
     public void Segment_RoutedSection_SurvivesEvenWhenFreeSectionCapIsSaturated()
     {
         // THE load-bearing ADR 0071 guarantee (dotnet-architect Blocker-class): the routed section
@@ -1275,6 +1311,17 @@ public class HeadingDrivenResumeSegmenterTests
 
         // Regardless of the cap, the routed Kompetenser prose is retained (never silently dropped).
         RoutedLines(result, "Kompetenser").ShouldContain(overLong);
+
+        // ...AND prove the cap ACTUALLY engaged, or this is a silently-trivial green. The 32
+        // recognised document free headings must be capped to MaxSections (=30, private const in the
+        // segmenter), so exactly 30 DOCUMENT free sections land and the tail (incl. the 32nd,
+        // "intressen") is dropped. If a future lexicon shrink drops recognised free headings below 30,
+        // OR the cap stops engaging, this fails loudly instead of passing with the cap never hit.
+        var documentFreeSections = result.Content.Sections
+            .Where(s => s.Heading != "Kompetenser")
+            .ToList();
+        documentFreeSections.Count.ShouldBe(30);
+        documentFreeSections.ShouldNotContain(s => s.Heading == "intressen");
     }
 
     [Fact]

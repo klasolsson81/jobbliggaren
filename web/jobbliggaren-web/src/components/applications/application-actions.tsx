@@ -197,6 +197,10 @@ export function ApplicationActionsProvider({
 
   return (
     <ApplicationActionsContext.Provider value={value}>
+      {/* Pending-providern omsluter medvetet bara {children}: dialogerna nedan
+          renderar aldrig en rad/meny och behöver inte pending-scopet. Skulle en
+          framtida dialog rendera en ApplicationRow/StatusMenu måste den flyttas
+          in hit (annars kastar useApplicationPending). */}
       <ApplicationPendingContext.Provider value={pendingIds}>
         {children}
       </ApplicationPendingContext.Provider>

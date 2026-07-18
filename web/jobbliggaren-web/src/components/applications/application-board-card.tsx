@@ -55,8 +55,9 @@ export function ApplicationBoardCard({
   const justDraggedRef = useRef(false);
   // Tavla-kortet är inget d4-perf-mål (korten är inte memo-lindade och bara en vy
   // är monterad åt gången), men dess StatusMenu kräver `pending`-propet. Kortet
-  // läser Set:et direkt — samma re-render-granularitet som förr (StatusMenu
-  // prenumererade tidigare själv), utan ny prop-tråd genom BoardColumn.
+  // läser Set:et direkt: nu re-renderar hela kortet vid ett byte (förr bara dess
+  // StatusMenu-barn) — grövre men försumbart, och slipper en prop-tråd genom
+  // BoardColumn.
   const pending = useApplicationPending().has(application.id);
 
   const { jobAd, status } = application;

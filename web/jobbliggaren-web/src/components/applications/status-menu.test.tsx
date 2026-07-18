@@ -38,7 +38,7 @@ function makeApplication(
 function renderMenu(application: ApplicationDto = makeApplication()) {
   return render(
     <ApplicationActionsProvider>
-      <StatusMenu application={application} />
+      <StatusMenu application={application} pending={false} />
     </ApplicationActionsProvider>,
   );
 }

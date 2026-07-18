@@ -12,7 +12,6 @@ import { daysInStatus, urgencyTagFor } from "@/lib/applications/urgency";
 import { latestEventLabelKey, latestEventOf } from "@/lib/applications/latest-event";
 import { formatDate } from "@/lib/i18n/format";
 import { adIdentityOf } from "./ad-identity";
-import { useApplicationActions } from "./application-actions";
 import { useRowActions } from "./use-row-actions";
 import { useUrgencyLabel } from "./use-urgency-label";
 import { StatusMenu } from "./status-menu";
@@ -32,6 +31,12 @@ interface ApplicationRowProps {
    * — undviker date-flake-klassen (reference_oversikt_test_dayofmonth_flake).
    */
   now: Date;
+  /**
+   * Pågår ett statusbyte på DENNA rad? Trådas ned från vy-containern (StatusSection
+   * / AttentionQueue som läser pendingIds-Set:et) — raden prenumererar aldrig själv
+   * på Set:et, så memo(ApplicationRow) skippar den vid andra raders byten (d4).
+   */
+  pending: boolean;
   /**
    * Primär-knappen i handlingszonen. `undefined` → radens default ("Flytta
    * till {nästa}" / "Slutför och skicka" för utkast / "Återaktivera" för
@@ -69,6 +74,7 @@ interface ApplicationRowProps {
 export const ApplicationRow = memo(function ApplicationRow({
   application,
   now,
+  pending,
   primaryAction,
   secondaryAction,
   showStatusMenu = true,
@@ -76,10 +82,8 @@ export const ApplicationRow = memo(function ApplicationRow({
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
   const format = useFormatter();
-  const { pendingIds } = useApplicationActions();
   const { defaultPrimaryFor } = useRowActions();
   const { jobAd, status } = application;
-  const pending = pendingIds.has(application.id);
   const contextId = useId();
 
   // #892: strukturell identitet — en raderad annons bär bevarad snapshot-
@@ -186,7 +190,9 @@ export const ApplicationRow = memo(function ApplicationRow({
             {secondaryAction.label}
           </button>
         )}
-        {showStatusMenu && <StatusMenu application={application} />}
+        {showStatusMenu && (
+          <StatusMenu application={application} pending={pending} />
+        )}
       </div>
     </article>
   );

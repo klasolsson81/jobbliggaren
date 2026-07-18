@@ -89,8 +89,19 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         var profileText = SectionText(blocks, ParsedSectionKind.Profile);
         var experiences = ParseExperiences(blocks);
         var educations = ParseEducations(blocks);
-        var skills = ParseList(blocks, ParsedSectionKind.Skills, MaxSkills);
-        var languages = ParseList(blocks, ParsedSectionKind.Languages, MaxLanguages);
+        var skillsParse = ParseList(blocks, ParsedSectionKind.Skills, MaxSkills);
+        var languagesParse = ParseList(blocks, ParsedSectionKind.Languages, MaxLanguages);
+
+        // #856: an over-long token the segmenter could not atomise is routed OUT of the typed list
+        // into a free section carrying the recognised heading verbatim — the prose is preserved and
+        // shown back (no truncation/invention/drop, ADR 0071) instead of poisoning a scored chip.
+        // Appended before content is built so it rides the same Sections surface; see
+        // AppendRoutedSection for why the MaxSections cap must not gate it.
+        AppendRoutedSection(freeSections, headings, ParsedSectionKind.Skills, skillsParse.Routed);
+        AppendRoutedSection(freeSections, headings, ParsedSectionKind.Languages, languagesParse.Routed);
+
+        var skills = skillsParse.Kept;
+        var languages = languagesParse.Kept;
 
         var content = new ParsedResumeContent(
             contact, profileText, experiences, educations, skills, languages, freeSections,
@@ -102,8 +113,9 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
             ProfileConfidence(headings, profileText, preambleText, droppedLineCount),
             ListSectionConfidence(ParsedSectionKind.Experience, headings, experiences.Count),
             ListSectionConfidence(ParsedSectionKind.Education, headings, educations.Count),
-            ListSectionConfidence(ParsedSectionKind.Skills, headings, skills.Count),
-            ListSectionConfidence(ParsedSectionKind.Languages, headings, languages.Count),
+            ListSectionConfidence(ParsedSectionKind.Skills, headings, skills.Count, skillsParse.Routed.Count),
+            ListSectionConfidence(
+                ParsedSectionKind.Languages, headings, languages.Count, languagesParse.Routed.Count),
         };
 
         var confidence = ParseConfidence.FromSections(sections);
@@ -369,25 +381,90 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         return result;
     }
 
-    private static List<string> ParseList(
+    // #856: the outcome of parsing a typed list block. Kept = the short atoms that stay skills/
+    // languages (the scored units). Routed = tokens too long to BE an atom — prose the segmenter
+    // could not split (the line carried no separator glyph). A named struct, not a tuple, because
+    // Segment consumes it twice (Skills + Languages) and routing is a first-class part of the result.
+    private readonly record struct ListParse(IReadOnlyList<string> Kept, IReadOnlyList<string> Routed);
+
+    private static ListParse ParseList(
         Dictionary<ParsedSectionKind, string> blocks, ParsedSectionKind kind, int cap)
     {
-        var result = new List<string>();
+        var kept = new List<string>();
+        var routed = new List<string>();
         if (!blocks.TryGetValue(kind, out var block) || block.Length == 0)
-            return result;
+            return new ListParse(kept, routed);
 
         foreach (var token in ListSeparatorRegex().Split(block))
         {
             var trimmed = token.Trim().TrimStart('•', '-', '*', '·', '–', '—', '|').Trim();
-            if (trimmed.Length > 0)
+            if (trimmed.Length == 0)
+                continue;
+
+            // #856: an over-long token is not a skill/language — it is a sentence the segmenter
+            // failed to split (no separator glyph on the line). Emitting it as a chip poisons the
+            // scored atom the matcher scores. Route it out VERBATIM (Segment places it in a free
+            // section) rather than truncate (invention) or drop (#849). The threshold is the domain's
+            // own scored-atom bound — a token Resume.ValidateContent would reject as a name never
+            // becomes a chip (Skill.NameMaxLength, #855). Strict '>': exactly-max stays an atom, in
+            // lockstep with the domain cap (== max is accepted there). Routed is bounded by MaxEntries
+            // so the rescue cannot itself become a DoS vector.
+            if (trimmed.Length > Skill.NameMaxLength)
             {
-                result.Add(trimmed);
-                if (result.Count >= cap)
-                    break;
+                if (routed.Count < MaxEntries)
+                    routed.Add(trimmed);
+                continue;
             }
+
+            kept.Add(trimmed);
+            if (kept.Count >= cap)
+                break;
         }
 
-        return result;
+        return new ListParse(kept, routed);
+    }
+
+    // #856: build a free section for the tokens routed out of a typed list, keyed to the recognised
+    // heading VERBATIM (the user's own line, casing preserved — parity with the free sections
+    // BuildSectionBlocks makes). One section per (kind, block); each routed token is its own entry
+    // with no title (a lone line is content, never a title the parser invents — #815 / ADR 0071).
+    //
+    // Appended UNCONDITIONALLY — the MaxSections cap deliberately does NOT gate this. That cap bounds
+    // how many arbitrary DOCUMENT headings the parser will allocate sections for (a DoS bound where
+    // truncation is an accepted, if pathological, loss). Re-applying it here would SILENTLY DROP the
+    // very prose this fix rescues — the exact ADR 0071 / #849 defect #856 exists to close. The add is
+    // bounded anyway: ParseList runs once per typed list kind, so at most two routed sections, each
+    // with at most MaxEntries entries.
+    private static void AppendRoutedSection(
+        List<ParsedSection> freeSections,
+        List<DetectedHeading> headings,
+        ParsedSectionKind kind,
+        IReadOnlyList<string> routed)
+    {
+        if (routed.Count == 0)
+            return;
+
+        var heading = VerbatimHeading(headings, kind);
+        if (heading is null)
+            return; // unreachable in practice: routed is non-empty only when a typed block existed,
+                    // which requires a detected heading of that kind — but never NRE on an invariant.
+
+        var entries = new List<ParsedSectionEntry>(routed.Count);
+        foreach (var line in routed)
+            entries.Add(new ParsedSectionEntry(null, [line]));
+
+        freeSections.Add(new ParsedSection(heading, entries));
+    }
+
+    private static string? VerbatimHeading(List<DetectedHeading> headings, ParsedSectionKind kind)
+    {
+        foreach (var heading in headings)
+        {
+            if (heading.Kind == kind)
+                return heading.Heading;
+        }
+
+        return null;
     }
 
     private readonly record struct Entry(IReadOnlyList<string> Lines, string Text);
@@ -600,23 +677,41 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
                 [$"heading '{heading}' matched", "empty block"]);
     }
 
+    // <paramref name="routedCount"/> (#856): tokens too long to be a scored atom that were routed
+    // out to a free section (Skills/Languages only; 0 for Experience/Education). The evidence must
+    // say so, because a block whose ONLY content was over-long parses to 0 atoms — reporting a bare
+    // "no entries parsed" would blame the user for prose the segmenter chose to relocate. The note is
+    // a structural COUNT, never the CV text: SectionConfidence.Evidence rides the unencrypted
+    // parse_confidence column (parity with ProfileConfidence's dropped-line count).
     private static SectionConfidence ListSectionConfidence(
         ParsedSectionKind kind,
         List<DetectedHeading> headings,
-        int count)
+        int count,
+        int routedCount = 0)
     {
         var heading = MatchedHeading(headings, kind);
         if (heading is null)
             return new SectionConfidence(kind, SectionConfidenceLevel.NotFound, ["no heading detected"]);
 
-        return count > 0
+        if (count > 0)
+        {
+            var evidence = new List<string> { $"heading '{heading}' matched", $"{count} entries" };
+            if (routedCount > 0)
+                evidence.Add(RoutedEvidence(routedCount));
+            return new SectionConfidence(kind, SectionConfidenceLevel.Confident, evidence);
+        }
+
+        return routedCount > 0
             ? new SectionConfidence(
-                kind, SectionConfidenceLevel.Confident,
-                [$"heading '{heading}' matched", $"{count} entries"])
+                kind, SectionConfidenceLevel.Degraded,
+                [$"heading '{heading}' matched", RoutedEvidence(routedCount)])
             : new SectionConfidence(
                 kind, SectionConfidenceLevel.Degraded,
                 [$"heading '{heading}' matched", "no entries parsed"]);
     }
+
+    private static string RoutedEvidence(int routedCount) =>
+        $"{routedCount} over-long entr{(routedCount == 1 ? "y" : "ies")} routed to a free section";
 
     private static string? MatchedHeading(
         List<DetectedHeading> headings,

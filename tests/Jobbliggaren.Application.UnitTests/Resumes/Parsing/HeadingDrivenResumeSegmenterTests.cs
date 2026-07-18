@@ -1121,6 +1121,245 @@ public class HeadingDrivenResumeSegmenterTests
         result.Content.Skills.ShouldBeEmpty();
     }
 
+    // ── #856 (CV-lane STEG 3) — route over-long skill/language tokens OUT of the scored-atom ──
+    //    lists into a free ParsedSection (CTO bind C1; dotnet-architect mechanics).
+    //
+    // ParseList caps the COUNT of skill/language tokens but never their LENGTH, and it splits only on
+    // [\n,;•·|] (space is deliberately NOT a separator). A long, unsplittable line under a
+    // Kompetenser/Språk heading therefore becomes ONE over-long "skill" chip — and the chip IS the
+    // unit the matcher scores (Skill.NameMaxLength, #855), so a sentence let in as a skill poisons the
+    // atom. The fix: PER-TOKEN, when trimmed.Length > Skill.NameMaxLength (strict >), route that token
+    // OUT of Skills/Languages into a free ParsedSection carrying the recognised heading VERBATIM plus
+    // the prose as an entry. Nothing is truncated and nothing is dropped (ADR 0071) — the over-long
+    // prose stays visible and editable, just not as a scored atom.
+
+    [Fact]
+    public void Segment_OverLongSkillToken_RoutedOutOfSkillsIntoFreeSection()
+    {
+        // 101 chars, no separator glyph, no leading bullet — one unsplittable over-long token.
+        var overLong = new string('a', Skill.NameMaxLength + 1);
+        var cv =
+            $"""
+            Anna Andersson
+            anna@example.com
+
+            Kompetenser
+            C#
+            {overLong}
+            """;
+
+        var result = _sut.Segment(cv);
+
+        // The short atom stays a scored skill; the over-long line does NOT poison the atom list.
+        result.Content.Skills.ShouldContain("C#");
+        result.Content.Skills.ShouldNotContain(overLong);
+
+        // It is routed into a free section carrying the heading verbatim, prose intact (no truncation).
+        result.Content.Sections.Count.ShouldBe(1);
+        RoutedLines(result, "Kompetenser").ShouldContain(overLong);
+    }
+
+    [Theory]
+    [InlineData(Skill.NameMaxLength, false)]      // exactly at the bound → stays a skill (strict >)
+    [InlineData(Skill.NameMaxLength + 1, true)]   // one past the bound → routed out
+    public void Segment_SkillTokenAtLengthBoundary_RoutesOnlyWhenStrictlyOverMaxLength(
+        int length, bool expectRouted)
+    {
+        var token = new string('a', length);
+        var cv =
+            $"""
+            Anna Andersson
+            anna@example.com
+
+            Kompetenser
+            {token}
+            """;
+
+        var result = _sut.Segment(cv);
+
+        if (expectRouted)
+        {
+            result.Content.Skills.ShouldNotContain(token);
+            RoutedLines(result, "Kompetenser").ShouldContain(token);
+        }
+        else
+        {
+            // Exactly at the bound is a valid atom — the routing is strict >, never >=.
+            result.Content.Skills.ShouldContain(token);
+            result.Content.Sections.ShouldNotContain(s => s.Heading == "Kompetenser");
+        }
+    }
+
+    [Fact]
+    public void Segment_OverLongLanguageToken_RoutedOutOfLanguagesIntoFreeSection()
+    {
+        // The same bound (Skill.NameMaxLength) governs Languages — a spoken-language name is a scored
+        // atom too (Resume.ValidateContent caps SpokenLanguage.Name at the same 100, #855).
+        var overLong = new string('a', Skill.NameMaxLength + 1);
+        var cv =
+            $"""
+            Anna Andersson
+            anna@example.com
+
+            Språk
+            Svenska
+            {overLong}
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Languages.ShouldContain("Svenska");
+        result.Content.Languages.ShouldNotContain(overLong);
+
+        result.Content.Sections.Count.ShouldBe(1);
+        RoutedLines(result, "Språk").ShouldContain(overLong);
+    }
+
+    [Fact]
+    public void Segment_SkillBlockOfOnlyOverLongToken_DegradesWithRoutedEvidence_NotEmptyMisleading()
+    {
+        var overLong = new string('a', Skill.NameMaxLength + 1);
+        var cv =
+            $"""
+            Anna Andersson
+            anna@example.com
+
+            Kompetenser
+            {overLong}
+            """;
+
+        var result = _sut.Segment(cv);
+
+        // No atom survives — but the heading WAS matched, so this is Degraded, never NotFound.
+        result.Content.Skills.ShouldBeEmpty();
+        LevelOf(result, ParsedSectionKind.Skills).ShouldBe(SectionConfidenceLevel.Degraded);
+
+        // The evidence must state, STRUCTURALLY, that tokens were ROUTED — distinguishing "routed
+        // away" from the misleading "no entries parsed" — and it must NEVER carry the CV text
+        // (the confidence channel is not encrypted; structural facts only, ADR 0071 / §5).
+        var skills = SectionOf(result, ParsedSectionKind.Skills);
+        skills.Evidence.ShouldContain(
+            e => e.Contains("routed", StringComparison.OrdinalIgnoreCase),
+            "evidensen ska strukturellt notera att tokens routades ut.");
+        skills.Evidence.ShouldNotContain(
+            e => e.Contains(overLong, StringComparison.Ordinal),
+            "konfidens-evidensen får aldrig bära CV-innehåll (ADR 0071, §5).");
+    }
+
+    [Fact]
+    public void Segment_SkillBlockWithKeptAtomAndOverLongToken_ConfidentWithRoutedEvidence()
+    {
+        // The count>0 & routedCount>0 arm of ListSectionConfidence: a Kompetenser block with BOTH a
+        // kept atom AND an over-long token must land Confident (a real atom survived) AND still carry
+        // the structural routed-note. Without this test that arm's routed-note is unasserted —
+        // deleting it from production keeps the rest of the suite green (a mutation gap). Distinct from
+        // test 4 (the count==0 Degraded arm, which has its own routed-note) and from the routing/
+        // section tests above (none of which assert the Confident-arm evidence).
+        var overLong = new string('a', Skill.NameMaxLength + 1);
+        var cv =
+            $"""
+            Anna Andersson
+            anna@example.com
+
+            Kompetenser
+            C#
+            {overLong}
+            """;
+
+        var result = _sut.Segment(cv);
+
+        // A real atom survived → Confident, not Degraded.
+        result.Content.Skills.ShouldContain("C#");
+        LevelOf(result, ParsedSectionKind.Skills).ShouldBe(SectionConfidenceLevel.Confident);
+
+        // ...and the Confident arm STILL carries the structural routed-note, never the CV text.
+        var skills = SectionOf(result, ParsedSectionKind.Skills);
+        skills.Evidence.ShouldContain(
+            e => e.Contains("routed", StringComparison.OrdinalIgnoreCase),
+            "Confident-armen (count>0) måste också bära routed-noten, inte bara Degraded-armen.");
+        skills.Evidence.ShouldNotContain(
+            e => e.Contains(overLong, StringComparison.Ordinal),
+            "konfidens-evidensen får aldrig bära CV-innehåll (ADR 0071, §5).");
+    }
+
+    [Fact]
+    public void Segment_RoutedSection_SurvivesEvenWhenFreeSectionCapIsSaturated()
+    {
+        // THE load-bearing ADR 0071 guarantee (dotnet-architect Blocker-class): the routed section
+        // must NOT be silently dropped by the MaxSections cap. Saturate the free-section list with
+        // 30+ recognised free headings (the detector only recognises lexicon freeSections synonyms,
+        // so these are real synonyms, not invented "Projekt 1..30"), THEN add a Kompetenser block
+        // whose only token is over-long. The routed prose must still appear — a dropped routed
+        // section would be a silent content loss (§5).
+        var freeHeadings = new[]
+        {
+            "projekt", "projektportfölj", "utvalda projekt", "egna projekt", "projects",
+            "selected projects", "certifieringar", "certifikat", "certifications", "certificates",
+            "certifikat och intyg", "certifieringar och kurser", "kurser", "vidareutbildning",
+            "fortbildning", "courses", "kurser och certifikat", "kurser och intyg",
+            "kurser och utbildningar", "uppdrag", "assignments", "förtroendeuppdrag",
+            "ideella uppdrag", "volunteering", "ideellt engagemang", "publikationer", "publications",
+            "utmärkelser", "priser", "stipendier", "awards", "intressen",
+        };
+
+        var overLong = new string('a', Skill.NameMaxLength + 1);
+        var freeBlocks = string.Join(
+            "\n", freeHeadings.Select(h => $"{h}\nInnehåll under {h}.\n"));
+        var cv = $"Anna Andersson\nanna@example.com\n\n{freeBlocks}\nKompetenser\n{overLong}";
+
+        var result = _sut.Segment(cv);
+
+        // Regardless of the cap, the routed Kompetenser prose is retained (never silently dropped).
+        RoutedLines(result, "Kompetenser").ShouldContain(overLong);
+
+        // ...AND prove the cap ACTUALLY engaged, or this is a silently-trivial green. The 32
+        // recognised document free headings must be capped to MaxSections (=30, private const in the
+        // segmenter), so exactly 30 DOCUMENT free sections land and the tail (incl. the 32nd,
+        // "intressen") is dropped. If a future lexicon shrink drops recognised free headings below 30,
+        // OR the cap stops engaging, this fails loudly instead of passing with the cap never hit.
+        var documentFreeSections = result.Content.Sections
+            .Where(s => s.Heading != "Kompetenser")
+            .ToList();
+        documentFreeSections.Count.ShouldBe(30);
+        documentFreeSections.ShouldNotContain(s => s.Heading == "intressen");
+    }
+
+    [Fact]
+    public void Segment_ShortOnlySkillBlock_AddsNoRoutedSection_Regression()
+    {
+        // Nothing is over-long, so nothing routes: the skills parse is unchanged and NO spurious free
+        // section appears. Guards against a fix that routes on the wrong condition.
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Kompetenser
+            C#, PostgreSQL, Docker
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Skills.ShouldBe(["C#", "PostgreSQL", "Docker"]);
+        result.Content.Sections.ShouldBeEmpty();
+    }
+
+    // The lines of the routed free section whose heading matches (verbatim). Fails cleanly when no
+    // such section exists (the RED state against un-fixed production code).
+    private static List<string> RoutedLines(
+        Application.Resumes.Abstractions.ResumeSegmentationResult result, string heading)
+    {
+        var section = result.Content.Sections
+            .FirstOrDefault(s => s.Heading == heading)
+            .ShouldNotBeNull($"en routad fri sektion med rubriken '{heading}' ska finnas.");
+
+        return section.Entries.SelectMany(e => e.Lines).ToList();
+    }
+
+    private static SectionConfidence SectionOf(
+        Application.Resumes.Abstractions.ResumeSegmentationResult result, ParsedSectionKind kind) =>
+        result.Confidence.Sections.First(s => s.Kind == kind);
+
     private static SectionConfidenceLevel LevelOf(
         Application.Resumes.Abstractions.ResumeSegmentationResult result, ParsedSectionKind kind)
     {

@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
+using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Commands.FollowCompany;
 using Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan;
 using Jobbliggaren.Domain.Common;
@@ -213,6 +214,117 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
 
         (await GetHitsAsync(userId, ct)).Count.ShouldBe(1,
             "a personnummer-shaped (enskild firma) org.nr is scanned like any other watch");
+    }
+
+    // ─────────────────────────── BrandGroup (#311 PR-5, ADR 0087 D4)
+
+    [Fact]
+    public async Task RunAsync_MemberFollowedBothDirectlyAndViaGroup_CreatesTwoHits_MultimapOracle()
+    {
+        // THE multimap oracle (D3b): a member org.nr is watched by BOTH a direct EMPLOYER follow AND a
+        // BRAND_GROUP follow. Each is an independent watch, so the ad yields TWO hits
+        // (UNIQUE(UserId, JobAdId, CompanyWatchId) — D3c: two honest rows, the digest lists the ad twice).
+        // MUTATION: revert abWatchesByOrgNr from a multimap to a single-valued dict and the second
+        // AddWatch silently overwrites → one hit → RED.
+        var ct = TestContext.Current.CancellationToken;
+        var memberOrgNr = UniqueAbOrgNr();
+        var (userId, _) = await SeedConsentingUserAsync(ct);
+        var directWatchId = await SeedWatchAsync(userId, memberOrgNr, ct);
+        var groupWatchId = await SeedBrandGroupWatchAsync(userId, "volvo", ct);
+        var adId = await SeedAdWithOrgNrAsync(memberOrgNr, "Volvo Cars AB", ct);
+
+        await RunJobAsync(ct, StubProvider(("volvo", [memberOrgNr])));
+
+        var hits = await GetHitsAsync(userId, ct);
+        hits.Count.ShouldBe(2, "a direct follow AND a group follow of the same ad are two independent hits");
+        hits.ShouldAllBe(h => h.JobAdId == adId);
+        hits.Select(h => h.CompanyWatchId).ShouldBe([directWatchId, groupWatchId], ignoreOrder: true);
+    }
+
+    [Fact]
+    public async Task RunAsync_GroupWatch_HitsMembersOnly_NotNonMembersNorOtherGroups()
+    {
+        // Asymmetric seed (the count-only oracle's 2+1 convention, generalised to 1+1+1): a member ad
+        // MUST hit; a non-member AB ad MUST NOT; another group's member MUST NOT (this user does not
+        // follow that group). Both cardinal failures — "matches nothing" and "matches everything" — fall.
+        var ct = TestContext.Current.CancellationToken;
+        var member = UniqueAbOrgNr();
+        var nonMember = UniqueAbOrgNr();
+        var otherGroupMember = UniqueAbOrgNr();
+        var (userId, _) = await SeedConsentingUserAsync(ct);
+        var groupWatchId = await SeedBrandGroupWatchAsync(userId, "volvo", ct);
+        var memberAdId = await SeedAdWithOrgNrAsync(member, "Volvo AB", ct);
+        await SeedAdWithOrgNrAsync(nonMember, "Random AB", ct);
+        await SeedAdWithOrgNrAsync(otherGroupMember, "Scania AB", ct);
+
+        await RunJobAsync(ct, StubProvider(("volvo", [member]), ("scania", [otherGroupMember])));
+
+        var hits = await GetHitsAsync(userId, ct);
+        hits.Count.ShouldBe(1);
+        hits[0].JobAdId.ShouldBe(memberAdId);
+        hits[0].CompanyWatchId.ShouldBe(groupWatchId);
+    }
+
+    [Fact]
+    public async Task RunAsync_GroupWithTwoMembers_CreatesAHitForEachMemberAd()
+    {
+        // A group expands to ALL its members: two member ads → two hits, both keyed to the ONE group
+        // watch. (The hub's summed #447/#452 counts over these members are a List-handler concern, PR-5
+        // Commit 5 — here we pin only that the scan expands the full member set.)
+        var ct = TestContext.Current.CancellationToken;
+        var m1 = UniqueAbOrgNr();
+        var m2 = UniqueAbOrgNr();
+        var (userId, _) = await SeedConsentingUserAsync(ct);
+        var groupWatchId = await SeedBrandGroupWatchAsync(userId, "volvo", ct);
+        var ad1 = await SeedAdWithOrgNrAsync(m1, "Volvo Cars AB", ct);
+        var ad2 = await SeedAdWithOrgNrAsync(m2, "Volvo Trucks AB", ct);
+
+        await RunJobAsync(ct, StubProvider(("volvo", [m1, m2])));
+
+        var hits = await GetHitsAsync(userId, ct);
+        hits.Count.ShouldBe(2);
+        hits.Select(h => h.JobAdId).ShouldBe([ad1, ad2], ignoreOrder: true);
+        hits.ShouldAllBe(h => h.CompanyWatchId == groupWatchId);
+    }
+
+    [Fact]
+    public async Task RunAsync_GroupWatchWithSlugAbsentFromCatalogue_CreatesNoHit_AndDoesNotThrow()
+    {
+        // An orphaned slug (the group was later removed from the catalogue) resolves to zero members: the
+        // watch honestly matches nothing, the scan NEVER throws (per-user isolation must survive stale
+        // reference data), and the watermark still advances. Also the null-org.nr no-NRE pin: a group
+        // watch's org.nr is NULL, so a partition that dereferenced it would throw here.
+        var ct = TestContext.Current.CancellationToken;
+        var member = UniqueAbOrgNr();
+        var (userId, _) = await SeedConsentingUserAsync(ct);
+        await SeedBrandGroupWatchAsync(userId, "removed-group", ct);
+        await SeedAdWithOrgNrAsync(member, "Some AB", ct);
+
+        // The catalogue does NOT contain "removed-group".
+        await RunJobAsync(ct, StubProvider(("volvo", [member])));
+
+        (await GetHitsAsync(userId, ct)).ShouldBeEmpty();
+        (await GetSeekerAsync(userId, ct)).LastCompanyWatchScanAt.ShouldBe(Now,
+            "the watermark advances even when a group slug is orphaned — no exception aborted the scan");
+    }
+
+    [Fact]
+    public async Task RunAsync_GroupWatchWithGeoFilter_AppliesTheFilterPerWatch()
+    {
+        // D3d: the per-watch ort filter applies to a group watch identically. A group narrowed to KommunA
+        // admits the member ad in KommunA and suppresses the member ad in KommunB.
+        var ct = TestContext.Current.CancellationToken;
+        var member = UniqueAbOrgNr();
+        var (userId, _) = await SeedConsentingUserAsync(ct);
+        await SeedBrandGroupWatchWithGeoFilterAsync(userId, "volvo", [KommunA], [], ct);
+        var inA = await SeedAdWithOrgNrAndLocationAsync(member, "In A", KommunA, LanA, ct);
+        await SeedAdWithOrgNrAndLocationAsync(member, "In B", KommunB, LanB, ct);
+
+        await RunJobAsync(ct, StubProvider(("volvo", [member])));
+
+        var hits = await GetHitsAsync(userId, ct);
+        hits.Count.ShouldBe(1);
+        hits[0].JobAdId.ShouldBe(inA);
     }
 
     [Fact]
@@ -794,16 +906,62 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
         return jobAd.Id;
     }
 
-    private async Task RunJobAsync(CancellationToken ct)
+    private async Task RunJobAsync(CancellationToken ct, IBrandGroupProvider? brandGroups = null)
     {
         using var scope = _fixture.Services.CreateScope();
         var sp = scope.ServiceProvider;
         var job = new CompanyWatchScanJob(
             sp.GetRequiredService<AppDbContext>(),
             sp.GetRequiredService<IProtectedIdentityTokenizer>(),
+            // Default to the fixture's real provider (the EMPTY shipped catalogue); a group test passes a
+            // synthetic catalogue so its members are deterministic.
+            brandGroups ?? sp.GetRequiredService<IBrandGroupProvider>(),
             new FixedClock(Now),
             sp.GetRequiredService<ILoggerFactory>().CreateLogger<CompanyWatchScanJob>());
         await job.RunAsync(ct);
+    }
+
+    // A synthetic brand-group catalogue built directly (bypassing the loader — the scan only needs
+    // slug → member org.nrs). Members must be non-pnr AB org.nrs (UniqueAbOrgNr) to land on the
+    // plaintext arm, exactly as the loader would guarantee in production.
+    private static StubBrandGroupProvider StubProvider(params (string Slug, string[] Members)[] groups)
+    {
+        var dict = groups.ToDictionary(
+            g => g.Slug,
+            g => new BrandGroup(g.Slug, g.Slug + " (koncern)", g.Members),
+            StringComparer.Ordinal);
+        return new StubBrandGroupProvider(new BrandGroupCatalog("test.v1", dict));
+    }
+
+    private sealed class StubBrandGroupProvider(BrandGroupCatalog catalog) : IBrandGroupProvider
+    {
+        public BrandGroupCatalog Catalog { get; } = catalog;
+    }
+
+    private async Task<CompanyWatchId> SeedBrandGroupWatchAsync(Guid userId, string slug, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = new FixedClock(Now);
+        var watch = CompanyWatch.FollowBrandGroup(userId, BrandGroupId.Create(slug).Value, clock).Value;
+        db.CompanyWatches.Add(watch);
+        await db.SaveChangesAsync(ct);
+        return watch.Id;
+    }
+
+    private async Task<CompanyWatchId> SeedBrandGroupWatchWithGeoFilterAsync(
+        Guid userId, string slug, IEnumerable<string> municipalities, IEnumerable<string> regions,
+        CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = new FixedClock(Now);
+        var watch = CompanyWatch.FollowBrandGroup(userId, BrandGroupId.Create(slug).Value, clock).Value;
+        var filter = WatchFilterSpec.Create(municipalities, regions, onlyMatched: false).Value;
+        watch.SetFilter(filter).IsSuccess.ShouldBeTrue("SetFilter ska lyckas på en aktiv group-watch");
+        db.CompanyWatches.Add(watch);
+        await db.SaveChangesAsync(ct);
+        return watch.Id;
     }
 
     private async Task<IReadOnlyList<FollowedCompanyAdHit>> GetHitsAsync(Guid userId, CancellationToken ct)

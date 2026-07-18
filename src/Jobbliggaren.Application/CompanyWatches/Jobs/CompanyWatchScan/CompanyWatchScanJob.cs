@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
+using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
@@ -52,6 +53,7 @@ namespace Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan;
 public sealed partial class CompanyWatchScanJob(
     IAppDbContext db,
     IProtectedIdentityTokenizer tokenizer,
+    IBrandGroupProvider brandGroups,
     IDateTimeProvider clock,
     ILogger<CompanyWatchScanJob> logger)
 {
@@ -137,25 +139,44 @@ public sealed partial class CompanyWatchScanJob(
         // HMAC match over the pnr-shaped candidate subset (mechanism 1, hybrid pnr-only).
         // IsPersonnummerShaped is the SSOT discriminator (B2): a stored token → true (length≠10), an
         // AB plaintext → false. Whole-watch values (RF-2/RF-3) so the per-watch Filter is in the loop.
-        var abWatchByOrgNr = new Dictionary<string, CompanyWatch>(StringComparer.Ordinal);
+        // MULTIMAP (#311 PR-5 D3b): a member org.nr can be watched by MORE THAN ONE watch — a direct
+        // EMPLOYER follow AND one or more BRAND_GROUP follows whose curated member list includes it (ADR
+        // 0087 D4). A single-valued dict would SILENTLY drop all but one, losing hits; each matching watch
+        // must yield its OWN hit (UNIQUE(UserId, JobAdId, CompanyWatchId)). enskild stays single-valued:
+        // the active-partial UNIQUE(user, org.nr) gives ≤1 employer watch per token, and a group's members
+        // are all AB (the loader rejects personnummer-shaped members), so the group path never adds here.
+        var abWatchesByOrgNr = new Dictionary<string, List<CompanyWatch>>(StringComparer.Ordinal);
         var enskildWatchByKey = new Dictionary<string, CompanyWatch>(StringComparer.Ordinal);
         foreach (var w in activeWatches)
         {
-            // BRAND_GROUP watches (null org.nr) are not org.nr-keyed — group expansion lands in PR-5
-            // Commit 3. Until then a group watch cannot exist at runtime (no write path yet); this
-            // guard preserves employer-only behaviour and keeps the partition null-safe.
-            if (w.OrganizationNumber is null)
+            // Branch on the TARGET first (a group watch has a null org.nr — the shape partition below
+            // would NRE on it).
+            if (w.TargetType == CompanyWatchTargetType.BrandGroup)
+            {
+                // Expand the curated group into its member org.nrs (all public AB → the plaintext arm
+                // only, never the enskild/HMAC arm). An orphaned slug (the group was later removed from
+                // the catalogue) resolves to zero members: the watch honestly matches nothing, never
+                // throws (per-user isolation must not fail on stale reference data).
+                var group = w.BrandGroupId is null ? null : brandGroups.Catalog.Find(w.BrandGroupId.Value);
+                if (group is null)
+                    continue;
+                foreach (var member in group.MemberOrgNrs)
+                    AddWatch(abWatchesByOrgNr, member, w);
                 continue;
+            }
+
+            if (w.OrganizationNumber is null)
+                continue; // defensive: an EMPLOYER watch always carries an org.nr
             if (w.OrganizationNumber.IsPersonnummerShaped())
                 enskildWatchByKey[w.OrganizationNumber.Value] = w; // key = token (or legacy raw pnr)
             else
-                abWatchByOrgNr[w.OrganizationNumber.Value] = w; // key = plaintext AB org.nr
+                AddWatch(abWatchesByOrgNr, w.OrganizationNumber.Value, w); // key = plaintext AB org.nr
         }
         // IReadOnlyList<string> (not List<string>) so the org.nr membership uses the LINQ
         // Enumerable.Contains overload — EF translates it to SQL IN over the nullable shadow column
         // (parity the D6 ApplyFilter employer filter; a List<string>.Contains would reject the
         // string? column arg at compile time).
-        IReadOnlyList<string> abOrgNrs = abWatchByOrgNr.Keys.ToList();
+        IReadOnlyList<string> abOrgNrs = abWatchesByOrgNr.Keys.ToList();
 
         var since = jobSeeker.LastCompanyWatchScanAt ?? now.AddDays(-ColdStartDays);
 
@@ -218,46 +239,51 @@ public sealed partial class CompanyWatchScanJob(
                 if (ad.OrgNr is null)
                     continue;
 
-                // Resolve the originating watch. AB org.nrs match plaintext directly; a pnr-shaped ad
-                // HMAC-matches an enskild watch token (or, during the backfill window, equals a legacy
-                // plaintext-pnr watch — the same dual-probe as the follow seam). An ad admitted only by
-                // the pnr-shape prefilter that matches no enskild watch falls through (most pnr-shaped
-                // ads have no follower). The tokenizer runs only when the user actually holds an enskild
-                // follow.
-                CompanyWatch? watch = null;
-                if (abWatchByOrgNr.TryGetValue(ad.OrgNr, out var abWatch))
-                {
-                    watch = abWatch;
-                }
-                else if (enskildWatchByKey.Count > 0)
+                // Resolve EVERY watch this ad matches. AB org.nrs match plaintext directly (a list —
+                // possibly a direct employer follow AND one or more brand-group follows, D3b); a pnr-shaped
+                // ad HMAC-matches an enskild watch token (or, during the backfill window, equals a legacy
+                // plaintext-pnr watch — the same dual-probe as the follow seam), at most one. An ad
+                // admitted only by the pnr-shape prefilter that matches no enskild watch falls through
+                // (most pnr-shaped ads have no follower). The tokenizer runs only when the user holds an
+                // enskild follow.
+                var matches = new List<CompanyWatch>();
+                if (abWatchesByOrgNr.TryGetValue(ad.OrgNr, out var abWatches))
+                    matches.AddRange(abWatches);
+                if (enskildWatchByKey.Count > 0)
                 {
                     if (enskildWatchByKey.TryGetValue(tokenizer.Tokenize(ad.OrgNr), out var tokenWatch))
-                        watch = tokenWatch;
+                        matches.Add(tokenWatch);
                     else if (enskildWatchByKey.TryGetValue(ad.OrgNr, out var legacyWatch))
-                        watch = legacyWatch;
+                        matches.Add(legacyWatch);
                 }
 
-                if (watch is null)
+                if (matches.Count == 0)
                     continue;
 
-                // Per-watch ort filter (RF-3=3D scan-time / RF-8=8A never-created): an active ort
-                // filter admits an ad whose municipality OR whose region is selected — a filtered-out
-                // ad produces NO hit row (data minimization). An ad tagged with NEITHER axis never
-                // passes an active ort filter (the VO's AdmitsLocation semantics). No filter → all pass.
-                if (watch.Filter is { } filter
-                    && !filter.AdmitsLocation(ad.Municipality, ad.Region, ad.Remote))
+                foreach (var watch in matches)
                 {
-                    continue;
-                }
+                    // Per-watch ort filter (RF-3=3D scan-time / RF-8=8A never-created): an active ort
+                    // filter admits an ad whose municipality OR whose region is selected — a filtered-out
+                    // ad produces NO hit row (data minimization). An ad tagged with NEITHER axis never
+                    // passes an active ort filter (the VO's AdmitsLocation semantics). No filter → all
+                    // pass. Applied PER WATCH: a group and a direct follow of the same ad can carry
+                    // different filters, and each is honoured independently. (#551 PR-B: remote is the
+                    // 3rd AdmitsLocation axis — a distansannons passes a län/kommun filter.)
+                    if (watch.Filter is { } filter
+                        && !filter.AdmitsLocation(ad.Municipality, ad.Region, ad.Remote))
+                    {
+                        continue;
+                    }
 
-                if (existing.Contains((ad.Id, watch.Id)))
-                    continue;
+                    if (existing.Contains((ad.Id, watch.Id)))
+                        continue;
 
-                var created = FollowedCompanyAdHit.Create(userId, ad.Id, watch.Id, clock);
-                if (created.IsSuccess)
-                {
-                    db.FollowedCompanyAdHits.Add(created.Value);
-                    hitCount++;
+                    var created = FollowedCompanyAdHit.Create(userId, ad.Id, watch.Id, clock);
+                    if (created.IsSuccess)
+                    {
+                        db.FollowedCompanyAdHits.Add(created.Value);
+                        hitCount++;
+                    }
                 }
             }
         }
@@ -268,6 +294,15 @@ public sealed partial class CompanyWatchScanJob(
         await db.SaveChangesAsync(ct);
 
         return hitCount;
+    }
+
+    // Multimap insert: append a watch to the list keyed on an org.nr (D3b — one org.nr, many watches).
+    private static void AddWatch(
+        Dictionary<string, List<CompanyWatch>> map, string orgNr, CompanyWatch watch)
+    {
+        if (!map.TryGetValue(orgNr, out var list))
+            map[orgNr] = list = [];
+        list.Add(watch);
     }
 
     [LoggerMessage(Level = LogLevel.Information,

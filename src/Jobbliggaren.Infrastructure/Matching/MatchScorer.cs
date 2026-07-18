@@ -63,6 +63,12 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // raw_payload->'workplace_address'->>'municipality_concept_id' (JobAdConfiguration).
     private const string MunicipalityColumn = "MunicipalityConceptId";
 
+    // #551 (ADR 0076 #551 amendment) — AF's remote/distans flag, an ordinary `bool NOT NULL` column.
+    // A remote ad OVERRIDES the ort gate in RegionFit (a location-match for everyone with a stated ort).
+    // Read as a non-null bool so the SQL twin (GradeRankExpression) stays two-valued — no three-valued-NULL
+    // trap, unlike the nullable region/municipality shadows.
+    private const string RemoteColumn = "Remote";
+
     // Shared empty result for the no-ids batch fast-path (no allocation per call).
     private static readonly IReadOnlyDictionary<JobAdId, MatchScore> EmptyScores =
         new Dictionary<JobAdId, MatchScore>();
@@ -115,7 +121,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 EF.Property<string?>(j, OccupationGroupColumn),
                 EF.Property<string?>(j, RegionColumn),
                 EF.Property<string?>(j, EmploymentTypeColumn),
-                EF.Property<string?>(j, MunicipalityColumn)))
+                EF.Property<string?>(j, MunicipalityColumn),
+                EF.Property<bool>(j, RemoteColumn)))
             .FirstOrDefaultAsync(cancellationToken);
 
         if (ad is null)
@@ -130,7 +137,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             RegionFit: ScoreOrtUnion(
                 profile.PreferredRegionConceptIds, profile.PreferredMunicipalityConceptIds,
                 profile.ContainmentRegionConceptIds,
-                ad.RegionConceptId, ad.MunicipalityConceptId),
+                ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote),
             EmploymentFit: ScoreEmploymentMembership(profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
     }
 
@@ -186,7 +193,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 EF.Property<string?>(j, OccupationGroupColumn),
                 EF.Property<string?>(j, RegionColumn),
                 EF.Property<string?>(j, EmploymentTypeColumn),
-                EF.Property<string?>(j, MunicipalityColumn)))
+                EF.Property<string?>(j, MunicipalityColumn),
+                EF.Property<bool>(j, RemoteColumn)))
             .ToListAsync(cancellationToken);
 
         // Hoist the CV-title lexeme computation OUT of the per-ad loop (CTO Decision E):
@@ -206,7 +214,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 RegionFit: ScoreOrtUnion(
                     profile.PreferredRegionConceptIds, profile.PreferredMunicipalityConceptIds,
                     profile.ContainmentRegionConceptIds,
-                    ad.RegionConceptId, ad.MunicipalityConceptId),
+                    ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote),
                 EmploymentFit: ScoreEmploymentMembership(profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
         }
 
@@ -262,6 +270,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 EF.Property<string?>(j, RegionColumn),
                 EF.Property<string?>(j, EmploymentTypeColumn),
                 EF.Property<string?>(j, MunicipalityColumn),
+                EF.Property<bool>(j, RemoteColumn),
                 j.ExtractedTerms))
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -280,7 +289,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             RegionFit: ScoreOrtUnion(
                 fast.PreferredRegionConceptIds, fast.PreferredMunicipalityConceptIds,
                 fast.ContainmentRegionConceptIds,
-                ad.RegionConceptId, ad.MunicipalityConceptId),
+                ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote),
             EmploymentFit: ScoreEmploymentMembership(fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
 
         var terms = (ad.ExtractedTerms ?? ExtractedTerms.Empty).Terms;
@@ -356,6 +365,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 EF.Property<string?>(j, RegionColumn),
                 EF.Property<string?>(j, EmploymentTypeColumn),
                 EF.Property<string?>(j, MunicipalityColumn),
+                EF.Property<bool>(j, RemoteColumn),
                 j.ExtractedTerms))
             .ToListAsync(cancellationToken);
 
@@ -376,7 +386,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 RegionFit: ScoreOrtUnion(
                     fast.PreferredRegionConceptIds, fast.PreferredMunicipalityConceptIds,
                     fast.ContainmentRegionConceptIds,
-                    ad.RegionConceptId, ad.MunicipalityConceptId),
+                    ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote),
                 EmploymentFit: ScoreEmploymentMembership(fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
 
             var terms = (ad.ExtractedTerms ?? ExtractedTerms.Empty).Terms;
@@ -599,7 +609,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         IReadOnlyList<string> preferredMunicipalities,
         IReadOnlyList<string> containmentRegions,
         string? adRegion,
-        string? adMunicipality)
+        string? adMunicipality,
+        bool adRemote)
     {
         var stated = preferredRegions.Count > 0 || preferredMunicipalities.Count > 0;
         var hasAdRegion = !string.IsNullOrEmpty(adRegion);
@@ -609,6 +620,30 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         if (!stated)
         {
             return NotAssessed();
+        }
+
+        // #551 (ADR 0076 #551 amendment) — a remote ad OVERRIDES the ort gate: it is a location-match
+        // for EVERYONE with a stated ort preference, regardless of WHICH ort they stated and regardless
+        // of whether the ad also names a (non-matching) location. This realises the ADR 0076 #551
+        // forward-note the #552 gate accepted as a documented limitation.
+        //
+        // PLACEMENT is load-bearing (CTO D4). AFTER !stated: an unstated user has no ort gate to override,
+        // and lifting their RegionFit to Match would fabricate a confirmed secondary they never asked for
+        // (vacuous-gate doctrine — "a location-match for everyone" means regardless of WHICH ort, not "even
+        // for users who stated none"). BEFORE the both-NULL #552 gate AND the union logic: a remote ad must
+        // never be floored, and "remote, HQ Göteborg" must match a Stockholm user too (remote wins over a
+        // non-matching tag). Match (not NotAssessed) is FORCED: a Göteborg-only user needs ≥Bra, and
+        // NotAssessed+NotAssessed = 0 confirmed secondaries = Basic (MatchGradeCalculator).
+        //
+        // EMPTY evidence: there is no region concept-id to cite (the ad has none, or a non-matching one),
+        // and a magic-string "distans" sentinel in Matched is a §5 anti-pattern that would break the
+        // taxonomy-label resolver. The human reason ("Erbjuder distansarbete") rides a dedicated
+        // match-detail explainer flag (PR-C), not this shared MatchDimension — parity the #552 NoMatch
+        // empty-evidence shape just below. RegionFit=Match both clears the RB1 floor AND earns a confirmed
+        // secondary in MatchGradeCalculator, so the calculator needs NO change (verdict-driven parity, #477).
+        if (adRemote)
+        {
+            return new MatchDimension(MatchDimensionVerdict.Match, [], []);
         }
 
         // #552 grade gate (ADR 0076 amendment): a STATED ort preference against an ad
@@ -765,7 +800,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         string? OccupationGroupConceptId,
         string? RegionConceptId,
         string? EmploymentTypeConceptId,
-        string? MunicipalityConceptId);
+        string? MunicipalityConceptId,
+        bool Remote);
 
     // The batch row (F4-13) — AdFacetRow plus the JobAdId key, so ScoreBatchAsync can
     // key the result dictionary. j.Id materializes via its value converter (parity the
@@ -776,7 +812,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         string? OccupationGroupConceptId,
         string? RegionConceptId,
         string? EmploymentTypeConceptId,
-        string? MunicipalityConceptId);
+        string? MunicipalityConceptId,
+        bool Remote);
 
     // The Full row (F4-6) — the Fast inputs plus the extracted_terms VO (materialized
     // via its jsonb ValueConverter). Constructor-projected; ExtractedTerms is nullable
@@ -787,6 +824,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         string? RegionConceptId,
         string? EmploymentTypeConceptId,
         string? MunicipalityConceptId,
+        bool Remote,
         ExtractedTerms? ExtractedTerms);
 
     // The Full batch row (F4-15) — AdFullRow plus the JobAdId key, so ScoreFullBatchAsync
@@ -799,5 +837,6 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         string? RegionConceptId,
         string? EmploymentTypeConceptId,
         string? MunicipalityConceptId,
+        bool Remote,
         ExtractedTerms? ExtractedTerms);
 }

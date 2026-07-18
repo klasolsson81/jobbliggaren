@@ -1580,6 +1580,360 @@ public class ResumeTests
     }
 
     // ---------------------------------------------------------------
+    // #855 (CV-lane STEG 3, Fas 4b; CTO-bind A2). Server-side max-length caps on the FULL
+    // asymmetry set — the 8 label fields whose client zod maxes had no aggregate-side mirror.
+    // ValidateContent is shared with CreateFromParsed/CreateTailored, so pinning the codes on
+    // UpdateMasterContent covers every write surface. Each field gets a max+1 FAILURE (pins the
+    // code) and an exactly-at-max SUCCESS (pins the bound is `> max`, not `>= max`, guarding
+    // against over-capping). SkillGroup.Name is DELIBERATELY uncapped (no asymmetry) — not tested.
+    // Literal lengths (not a shared constant) keep the suite compilable so it shows true runtime RED.
+    // RED until the 8 caps ship; the AtMaxLength guards are already GREEN.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void UpdateMasterContent_WithSkillNameTooLong_ReturnsFailure()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            skills: new[] { new Skill(new string('A', 101), 5) });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.SkillNameTooLong");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithSkillNameAtMaxLength_ReturnsSuccess()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            skills: new[] { new Skill(new string('A', 100), 5) });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithLanguageNameTooLong_ReturnsFailure()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            languages: new[] { new SpokenLanguage(new string('A', 101), LanguageProficiency.NotStated) });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.LanguageNameTooLong");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithLanguageNameAtMaxLength_ReturnsSuccess()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            languages: new[] { new SpokenLanguage(new string('A', 100), LanguageProficiency.NotStated) });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithExperienceCompanyTooLong_ReturnsFailure()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            experiences: new[]
+            {
+                new Experience(new string('A', 201), "Backend Developer", new DateOnly(2020, 1, 1), null, null),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.ExperienceCompanyTooLong");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithExperienceCompanyAtMaxLength_ReturnsSuccess()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            experiences: new[]
+            {
+                new Experience(new string('A', 200), "Backend Developer", new DateOnly(2020, 1, 1), null, null),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithExperienceRoleTooLong_ReturnsFailure()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            experiences: new[]
+            {
+                new Experience("Mastercard", new string('A', 201), new DateOnly(2020, 1, 1), null, null),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.ExperienceRoleTooLong");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithExperienceRoleAtMaxLength_ReturnsSuccess()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            experiences: new[]
+            {
+                new Experience("Mastercard", new string('A', 200), new DateOnly(2020, 1, 1), null, null),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithEducationInstitutionTooLong_ReturnsFailure()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            educations: new[]
+            {
+                new Education(new string('A', 201), "MSc CS", new DateOnly(2018, 9, 1), null),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.EducationInstitutionTooLong");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithEducationInstitutionAtMaxLength_ReturnsSuccess()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            educations: new[]
+            {
+                new Education(new string('A', 200), "MSc CS", new DateOnly(2018, 9, 1), null),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithEducationDegreeTooLong_ReturnsFailure()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            educations: new[]
+            {
+                new Education("KTH", new string('A', 201), new DateOnly(2018, 9, 1), null),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.EducationDegreeTooLong");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithEducationDegreeAtMaxLength_ReturnsSuccess()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            educations: new[]
+            {
+                new Education("KTH", new string('A', 200), new DateOnly(2018, 9, 1), null),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithSectionHeadingTooLong_ReturnsFailure()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            sections: new[]
+            {
+                new ResumeSection(new string('A', 201), new[] { new SectionEntry("Titel", ["Rad"]) }),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.SectionHeadingTooLong");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithSectionHeadingAtMaxLength_ReturnsSuccess()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            sections: new[]
+            {
+                new ResumeSection(new string('A', 200), new[] { new SectionEntry("Titel", ["Rad"]) }),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithSectionEntryTitleTooLong_ReturnsFailure()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            sections: new[]
+            {
+                new ResumeSection("Projekt", new[] { new SectionEntry(new string('A', 201), ["Rad"]) }),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.SectionEntryTitleTooLong");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithSectionEntryTitleAtMaxLength_ReturnsSuccess()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            sections: new[]
+            {
+                new ResumeSection("Projekt", new[] { new SectionEntry(new string('A', 200), ["Rad"]) }),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    // ---------------------------------------------------------------
+    // #855 follow-up (two mandatory reviewers found the asymmetry set incomplete; CTO bound
+    // extending it in-block). Three MORE capped fields — all OPTIONAL (nullable), so the cap is
+    // length-only and null must NEVER error (the existing happy-path tests already exercise the
+    // null case). max+1 FAILURE pins the code; exactly-at-max SUCCESS pins the bound is `> max`.
+    // RED until the 3 caps ship.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void UpdateMasterContent_WithPhoneTooLong_ReturnsFailure()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, new string('A', 51), null));
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.PhoneTooLong");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithPhoneAtMaxLength_ReturnsSuccess()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, new string('A', 50), null));
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithLocationTooLong_ReturnsFailure()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, new string('A', 201)));
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.LocationTooLong");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithLocationAtMaxLength_ReturnsSuccess()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, new string('A', 200)));
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithExperienceDescriptionTooLong_ReturnsFailure()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            experiences: new[]
+            {
+                new Experience("Mastercard", "Backend Developer", new DateOnly(2020, 1, 1), null, new string('A', 2_001)),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.ExperienceDescriptionTooLong");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithExperienceDescriptionAtMaxLength_ReturnsSuccess()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            experiences: new[]
+            {
+                new Experience("Mastercard", "Backend Developer", new DateOnly(2020, 1, 1), null, new string('A', 2_000)),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    // ---------------------------------------------------------------
     // Hjälpmetoder
     // ---------------------------------------------------------------
 

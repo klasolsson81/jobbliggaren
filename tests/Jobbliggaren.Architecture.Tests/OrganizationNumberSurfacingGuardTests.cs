@@ -58,6 +58,24 @@ public class OrganizationNumberSurfacingGuardTests
     [
         "src/Jobbliggaren.Application/CompanyWatches/Jobs/CompanyWatchScan/CompanyWatchScanJob.cs",
         "src/Jobbliggaren.Application/CompanyWatches/Queries/ListCompanyWatches/ListCompanyWatchesQueryHandler.cs",
+        // #544 (ADR 0090 D5) — the personnummer-token tokeniser reads a raw org.nr into scope: it
+        // HMACs the verbatim plaintext value. It has no logging surface at all, so this scan proves it
+        // never grows one.
+        //
+        // BackfillCompanyWatchOrgNrTokenJob ALSO reads a raw org.nr and BELONGS here — but it is
+        // deliberately NOT in the list yet (interim hold, dotnet-architect verdict 2026-07-18). Its
+        // counts-only [LoggerMessage] templates literally contain the tokens "OrgNr" (the class-name
+        // prefix) and "personnummer" (the "aldrig ett org.nr/personnummer i loggen" prose), so the
+        // blunt substring FindOrgNrLoggingFragments scan flags all 5 as false positives even though the
+        // job logs only counts/flags/opaque GUIDs. Fix = refine FindOrgNrLoggingFragments to flag a
+        // token only inside a {OrganizationNumber} template placeholder OR anywhere in a Log*/
+        // [LoggerMessage]-partial ARGUMENT list (the same template-vs-member split code-reviewer already
+        // forced for OrgNrTokens vs OrgNrMemberNameTokens below) — then add this path. That touches a
+        // fail-closed PII log-guard whose helper is SHARED with OrgNrRecordLoggingGuardTests, so it is
+        // gated on security-auditor APPROVE + senior-cto-advisor/Klas (§9.2/§12) and must not land
+        // unilaterally. Until then the guard stays green with the gap annotated (no live regression;
+        // the job is covered by its own integration tests + the ADR 0072 public-repo pepper rule).
+        "src/Jobbliggaren.Infrastructure/Security/HmacProtectedIdentityTokenizer.cs",
         // #444 (ADR 0087 D2 / ADR 0090 D1) — the employer application-history projection reads the
         // raw org.nr from the job_ads shadow column server-side to GROUP BY (masked + flagged before
         // it leaves the handler; never logged).

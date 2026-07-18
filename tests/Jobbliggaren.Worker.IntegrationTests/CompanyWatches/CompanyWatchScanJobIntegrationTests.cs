@@ -1,4 +1,6 @@
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
+using Jobbliggaren.Application.CompanyWatches.Commands.FollowCompany;
 using Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
@@ -10,6 +12,7 @@ using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using NSubstitute;
 using Shouldly;
 
 namespace Jobbliggaren.Worker.IntegrationTests.CompanyWatches;
@@ -383,6 +386,198 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
         seeker.LastCompanyWatchScanAt.ShouldBe(Now,
             "vattenmärket avancerar även när alla kandidat-annonser filtrerats bort (atomiciteten består)");
     }
+
+    // ─────────────────────────── #544 (ADR 0090 D5) — pnr-shaped org.nr → HMAC token at rest
+
+    [Fact]
+    public async Task FollowViaExecutor_TokenisesPersonnummerShapedOrgNrAtRest_AbStaysPlaintext()
+    {
+        // At-rest witness. Following an enskild-firma (personnummer-shaped) org.nr through the REAL
+        // executor path (FollowCompanyCommandHandler → CompanyWatchFollowExecutor) must store a keyed
+        // HMAC token in company_watches.organization_number — NEVER the 10-digit personnummer. An AB
+        // org.nr is public and stays plaintext (the scan's SQL IN matches it directly). Read straight
+        // from Postgres past the EF value-converter so this proves the ON-DISK form.
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var pnr = UniquePersonnummerShapedOrgNr();
+        var ab = UniqueAbOrgNr();
+
+        var pnrWatchId = await FollowViaExecutorAsync(userId, pnr, ct);
+        var abWatchId = await FollowViaExecutorAsync(userId, ab, ct);
+
+        var storedPnr = await RawOrgNrByWatchIdAsync(pnrWatchId, ct);
+        var storedAb = await RawOrgNrByWatchIdAsync(abWatchId, ct);
+
+        storedPnr.ShouldNotBeNull();
+        storedPnr.ShouldNotBe(pnr, "a personnummer-shaped org.nr must NEVER be stored plaintext at rest");
+        storedPnr.Length.ShouldBe(64, "HMAC-SHA256 token = 64 lowercase hex chars");
+        storedPnr.ShouldBe(TokenOf(pnr),
+            "the at-rest value is exactly HMAC(watch pepper, pnr) — deterministic + scan-matchable");
+
+        storedAb.ShouldBe(ab, "a legal-entity (AB) org.nr is public data and stays plaintext at rest");
+    }
+
+    [Fact]
+    public async Task RunAsync_HitsEnskildFirma_WhenFollowIsTokenisedAtRest()
+    {
+        // The HMAC scan arm end-to-end. A tokenised enskild follow (token at rest) + a pnr-shaped ad →
+        // the scan admits the ad via the pnr-shape prefilter and matches it via the IN-MEMORY
+        // tokenizer.Tokenize(ad.org.nr) == storedToken probe. Distinct from the legacy-plaintext
+        // RunAsync_ScansPersonnummerShapedOrgNr test: here the follow is stored as a TOKEN, so this
+        // pins the #544 token arm (not the dual-probe legacy arm).
+        var ct = TestContext.Current.CancellationToken;
+        var pnr = UniquePersonnummerShapedOrgNr();
+        var (userId, _) = await SeedConsentingUserAsync(ct);
+        var watchId = await FollowViaExecutorAsync(userId, pnr, ct);
+
+        // Guard: the follow really is a token at rest (else this would pass for the wrong reason).
+        (await RawOrgNrByWatchIdAsync(watchId, ct))!.Length.ShouldBe(64,
+            "the enskild follow must be tokenised at rest for this test to exercise the HMAC scan arm");
+
+        var jobAdId = await SeedAdWithOrgNrAsync(pnr, "Enskild Firma Karlsson", ct);
+
+        await RunJobAsync(ct);
+
+        var hit = (await GetHitsAsync(userId, ct)).ShouldHaveSingleItem();
+        hit.JobAdId.ShouldBe(jobAdId);
+        hit.CompanyWatchId.Value.ShouldBe(watchId);
+    }
+
+    [Fact]
+    public async Task FollowViaExecutor_RefollowEnskildAfterUnfollow_KeepsExactlyOnePhysicalRow()
+    {
+        // Refollow dedup on a TOKENISED key. follow → unfollow (soft-delete) → follow the same enskild
+        // firma: the executor's token dual-probe (w.OrganizationNumber == storedToken || == plaintext)
+        // finds the soft-deleted token row and RESURRECTS it — never a second physical row. FORK B1
+        // "exactly one physical row per (user, org.nr) ever", holding across the plaintext→token change.
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var pnr = UniquePersonnummerShapedOrgNr();
+
+        var firstId = await FollowViaExecutorAsync(userId, pnr, ct);
+        await UnfollowDirectAsync(userId, ct);
+        var secondId = await FollowViaExecutorAsync(userId, pnr, ct);
+
+        secondId.ShouldBe(firstId, "the executor resurrects the SAME token row (dual-probe), never a second");
+        (await PhysicalWatchCountAsync(userId, ct)).ShouldBe(1,
+            "exactly one physical row per (user, enskild org.nr) — token dual-probe resurrect, not duplicate");
+    }
+
+    [Fact]
+    public async Task RunAsync_PnrShapePrefilter_AdmitsBothBoundaryThirdDigits_TheSupersetPin()
+    {
+        // THE CARDINAL-SIN SUPERSET PIN. The scan's SQL pnr-shape prefilter (Length==10 AND 3rd digit
+        // "0"/"1") MUST admit EVERY ad whose org.nr IsPersonnummerShaped() is true — a too-narrow
+        // prefilter silently drops an enskild ad its follower asked for (a watch that matches nothing
+        // forever, invisible in every log). IsPersonnummerShaped on a 10-digit value is `3rd digit < 2`,
+        // i.e. 0 OR 1. Seed pnr-shaped ads at BOTH boundary third-digits; a tokenised enskild follow of
+        // each MUST hit. Drop the "1" arm from the SQL prefilter and the third-digit-1 ad vanishes here.
+        var ct = TestContext.Current.CancellationToken;
+        var (userId, _) = await SeedConsentingUserAsync(ct);
+
+        var pnrDigit0 = UniquePnrShapedOrgNrWithThirdDigit('0');
+        var pnrDigit1 = UniquePnrShapedOrgNrWithThirdDigit('1');
+        OrganizationNumber.FromTrusted(pnrDigit0).IsPersonnummerShaped().ShouldBeTrue("fixture must be pnr-shaped");
+        OrganizationNumber.FromTrusted(pnrDigit1).IsPersonnummerShaped().ShouldBeTrue("fixture must be pnr-shaped");
+
+        var watch0 = await FollowViaExecutorAsync(userId, pnrDigit0, ct);
+        var watch1 = await FollowViaExecutorAsync(userId, pnrDigit1, ct);
+        var ad0 = await SeedAdWithOrgNrAsync(pnrDigit0, "Enskild Noll", ct);
+        var ad1 = await SeedAdWithOrgNrAsync(pnrDigit1, "Enskild Ett", ct);
+        // A pnr-shaped ad the user does NOT follow: a prefilter candidate that must fall through (no hit).
+        await SeedAdWithOrgNrAsync(UniquePnrShapedOrgNrWithThirdDigit('0'), "Enskild Utan Följare", ct);
+
+        await RunJobAsync(ct);
+
+        var hits = await GetHitsAsync(userId, ct);
+        hits.Select(h => h.JobAdId).ShouldContain(ad0, "3rd-digit-0 pnr ad must be admitted by the prefilter and hit");
+        hits.Select(h => h.JobAdId).ShouldContain(ad1, "3rd-digit-1 pnr ad must be admitted by the prefilter and hit");
+        hits.Count.ShouldBe(2, "exactly the two FOLLOWED pnr ads hit — the unfollowed pnr candidate falls through");
+        hits.Select(h => h.CompanyWatchId.Value).ShouldBe([watch0, watch1], ignoreOrder: true);
+    }
+
+    // Follows an org.nr through the REAL executor path (public FollowCompanyCommandHandler →
+    // internal CompanyWatchFollowExecutor). The executor decides the at-rest key (token for pnr-shaped,
+    // plaintext for AB) — the seam #544 changed. Returns the resulting watch id.
+    private async Task<Guid> FollowViaExecutorAsync(Guid userId, string orgNr, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var sp = scope.ServiceProvider;
+        var currentUser = Substitute.For<ICurrentUser>();
+        currentUser.UserId.Returns(userId);
+
+        var handler = new FollowCompanyCommandHandler(
+            sp.GetRequiredService<AppDbContext>(),
+            currentUser,
+            new FixedClock(Now),
+            sp.GetRequiredService<IDbExceptionInspector>(),
+            sp.GetRequiredService<IProtectedIdentityTokenizer>());
+
+        var result = await handler.Handle(new FollowCompanyCommand(orgNr), ct);
+        result.IsSuccess.ShouldBeTrue($"follow via executor should succeed for {orgNr}");
+        return result.Value;
+    }
+
+    // Reads organization_number straight from Postgres for one watch, PAST the EF value-converter, so
+    // the assertion is against the ON-DISK form (a 64-hex token or the 10-digit plaintext).
+    private async Task<string?> RawOrgNrByWatchIdAsync(Guid watchId, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var conn = db.Database.GetDbConnection();
+        if (conn.State != System.Data.ConnectionState.Open)
+            await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT organization_number FROM company_watches WHERE id = @id";
+        var p = cmd.CreateParameter();
+        p.ParameterName = "@id";
+        p.Value = watchId;
+        cmd.Parameters.Add(p);
+        var raw = await cmd.ExecuteScalarAsync(ct);
+        return raw is null or DBNull ? null : raw.ToString();
+    }
+
+    // The deterministic HMAC token for an org.nr under the test watch pepper (parity with what the
+    // executor stores + what the scan re-derives).
+    private string TokenOf(string orgNr)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<IProtectedIdentityTokenizer>().Tokenize(orgNr);
+    }
+
+    // Soft-deletes the user's (single) active watch — an unfollow, without going through the command
+    // handler (the refollow, not the unfollow, is what this test exercises).
+    private async Task UnfollowDirectAsync(Guid userId, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var watch = await db.CompanyWatches.IgnoreQueryFilters()
+            .SingleAsync(w => w.UserId == userId && w.DeletedAt == null, ct);
+        watch.SoftDelete(new FixedClock(Now));
+        await db.SaveChangesAsync(ct);
+    }
+
+    private async Task<int> PhysicalWatchCountAsync(Guid userId, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.CompanyWatches.IgnoreQueryFilters().CountAsync(w => w.UserId == userId, ct);
+    }
+
+    // A 10-digit personnummer-shaped org.nr with an EXACT third digit (0 or 1 — the two values <2 that
+    // IsPersonnummerShaped admits). Unique remainder so tests never cross-contaminate on the shared DB.
+    private static string UniquePnrShapedOrgNrWithThirdDigit(char thirdDigit) =>
+        "90" + thirdDigit + (Math.Abs(Guid.NewGuid().GetHashCode()) % 10000000).ToString(
+            "D7", System.Globalization.CultureInfo.InvariantCulture);
+
+    // A GUARANTEED non-personnummer-shaped (AB) org.nr — third digit fixed to '2' (a legal-entity group
+    // number is 2–9). NOTE the sibling UniqueLegalOrgNr() above does NOT guarantee this: its "55" + D8
+    // form zero-pads, so the third position can be a leading 0/1, making a nominal "AB" org.nr actually
+    // pnr-shaped. The existing hit/count tests tolerate that (both scan arms hit); an AT-REST assertion
+    // (the value must stay plaintext) does not, so it needs this guaranteed form.
+    private static string UniqueAbOrgNr() =>
+        "552" + (Math.Abs(Guid.NewGuid().GetHashCode()) % 10000000).ToString(
+            "D7", System.Globalization.CultureInfo.InvariantCulture);
 
     // ─────────────────────────── Seeding helpers
 

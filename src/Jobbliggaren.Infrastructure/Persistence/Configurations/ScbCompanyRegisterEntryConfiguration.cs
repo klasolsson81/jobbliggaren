@@ -165,5 +165,21 @@ internal sealed class ScbCompanyRegisterEntryConfiguration
         // AndStopsEarly, which goes red the moment the two diverge. Do not delete that test.
         builder.HasIndex(c => new { c.Name, c.OrganizationNumber })
             .HasDatabaseName("ix_company_register_company_name_organization_number");
+
+        // INVISIBLE TO EF, DELIBERATELY DOCUMENTED HERE (#560 company-search wave, CTO F2):
+        // migration AddCompanyRegisterNameSearchIndex creates a FUNCTIONAL index this fluent
+        // model cannot express —
+        //
+        //     ix_company_register_company_name_lower
+        //         ON company_register (lower(company_name) text_pattern_ops)
+        //
+        // It serves the register search's case-insensitive name-prefix predicate
+        // (`lower(company_name) LIKE lower(@name_prefix)`) — the composite btree above CANNOT
+        // (raw column + ICU collation ≠ the lower() expression + pattern ops). Because the MODEL
+        // SNAPSHOT does not know it exists, no scaffolded migration will ever recreate it: any
+        // future rebuild of this table must restore it BY HAND (the DROP-COLUMN-drops-indexes
+        // trap — the snapshot is blind exactly here). The living guard is
+        // CompanyRegisterSearchQueryPlanTests, which pins the index by name and goes red the
+        // moment it is missing.
     }
 }

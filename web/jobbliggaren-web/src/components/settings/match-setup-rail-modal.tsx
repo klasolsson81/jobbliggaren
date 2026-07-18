@@ -262,8 +262,10 @@ export function MatchSetupRailModal({
       municipalities: draftMunicipalities,
       employmentTypes: draftEmployment,
     },
-    // Bara när modalen är öppen — /cv monterar den stängd (open=false); ingen
-    // bakgrunds-poll mot den rate-limitade endpointen då.
+    // Only while the modal is open — no background polling against the
+    // rate-limited endpoint otherwise. (Its single mount point is /oversikt via
+    // MatchSetupLauncher, mounted closed until launched/auto-opened; the /cv
+    // mount this comment used to cite was removed in #815.)
     open,
   );
 

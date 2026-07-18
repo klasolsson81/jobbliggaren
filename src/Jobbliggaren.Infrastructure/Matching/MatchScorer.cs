@@ -63,10 +63,10 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // raw_payload->'workplace_address'->>'municipality_concept_id' (JobAdConfiguration).
     private const string MunicipalityColumn = "MunicipalityConceptId";
 
-    // #551 (ADR 0076 #551 amendment) — AF's remote/distans flag, an ordinary `bool NOT NULL` column.
-    // A remote ad OVERRIDES the ort gate in RegionFit (a location-match for everyone with a stated ort).
-    // Read as a non-null bool so the SQL twin (GradeRankExpression) stays two-valued — no three-valued-NULL
-    // trap, unlike the nullable region/municipality shadows.
+    // #551 (ADR 0076 #551 amendment) — AF's remote/distans flag, an ordinary `bool NOT NULL` column read via
+    // EF.Property (parity the facet shadows above; the column name stays an Infrastructure secret). A remote
+    // ad OVERRIDES the ort gate in RegionFit (a location-match for a stated-ort user). Read as a non-null
+    // bool so the SQL twin (GradeRankExpression) stays two-valued — no three-valued-NULL trap.
     private const string RemoteColumn = "Remote";
 
     // Shared empty result for the no-ids batch fast-path (no allocation per call).

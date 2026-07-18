@@ -438,4 +438,113 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
       await screen.findByRole("listbox", undefined, { timeout: 2000 }),
     ).toBeInTheDocument();
   });
+
+  // #757 — visible loading affordance. During an in-flight suggest fetch `items`
+  // is empty, so `showList` is false and the suggestion list would unmount:
+  // sighted users saw their suggestions flash out to an empty gap until the next
+  // list popped in. A flat, aria-hidden `.jp-skeleton` row now holds the popup
+  // surface during loading. The sr-only status region must stay the SOLE screen-
+  // reader announcement, and the combobox must report `aria-expanded="false"`
+  // during loading (the skeleton is not a list of selectable options).
+  it("#757: shows an aria-hidden skeleton loading row during the in-flight fetch, then swaps to results", async () => {
+    // A deferred fetch that stays pending until we resolve it — keeps the
+    // component in `loading` long enough to observe the skeleton (the existing
+    // suite's immediate responses would transition to `ready` too fast).
+    let resolveFetch!: (r: Response) => void;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    const { container } = render(<ControlledHarness onSelect={vi.fn()} />);
+    await user.type(screen.getByRole("combobox"), "back");
+
+    // Debounce fires → fetch is in flight → the skeleton row is present.
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1), {
+      timeout: 2000,
+    });
+    await waitFor(() =>
+      expect(container.querySelector(".jp-skeleton")).toBeInTheDocument(),
+    );
+
+    // sr-only region still announces loading (AC: unchanged) …
+    expect(screen.getByRole("status")).toHaveTextContent("Hämtar förslag");
+    // … the skeleton is decorative: it lives inside an aria-hidden subtree (the
+    // popup wrapper carries aria-hidden, which hides its descendants from AT),
+    // exposes no option role, and the combobox stays truthfully collapsed (no
+    // list of options is displayed).
+    expect(
+      container.querySelector(".jp-skeleton")!.closest('[aria-hidden="true"]'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+
+    // Results land → the skeleton is replaced by option rows, and now the
+    // combobox reports expanded.
+    resolveFetch(
+      new Response(
+        JSON.stringify([
+          { kind: 0, conceptId: null, label: "Backend-utvecklare" },
+        ]),
+        { status: 200 },
+      ),
+    );
+    expect(
+      await screen.findByRole(
+        "option",
+        { name: "Backend-utvecklare" },
+        { timeout: 2000 },
+      ),
+    ).toBeInTheDocument();
+    expect(container.querySelector(".jp-skeleton")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
+  it("#757: no skeleton lingers once a rate-limited response lands", async () => {
+    const fetchMock = vi.fn(async () => new Response("[]", { status: 429 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    const { container } = render(<ControlledHarness onSelect={vi.fn()} />);
+    await user.type(screen.getByRole("combobox"), "java");
+
+    // The rate-limited degradation row shows (loading resolved to rateLimited)
+    // and the skeleton is gone — the two popup states are mutually exclusive.
+    await waitFor(
+      () =>
+        expect(
+          screen.getByText(/För många sökningar på kort tid/),
+        ).toBeInTheDocument(),
+      { timeout: 2000 },
+    );
+    expect(container.querySelector(".jp-skeleton")).not.toBeInTheDocument();
+  });
+
+  it("#757: no skeleton lingers once results are empty (no popup)", async () => {
+    const fetchMock = vi.fn(async () => new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    const { container } = render(<ControlledHarness onSelect={vi.fn()} />);
+    await user.type(screen.getByRole("combobox"), "zzz");
+
+    // Empty result set → `ready` with 0 items → no list, no skeleton, and the
+    // sr-only region announces nothing (its empty-string branch).
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled(), { timeout: 2000 });
+    await waitFor(() =>
+      expect(container.querySelector(".jp-skeleton")).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("status").textContent).toBe("");
+  });
 });

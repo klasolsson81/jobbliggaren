@@ -111,6 +111,16 @@ public class OrganizationNumberSurfacingGuardTests
         // scan is what makes "the browse never logs an org.nr" a build gate rather than a discipline.
         "src/Jobbliggaren.Application/CompanyWatches/Queries/BrowseCompanies/BrowseCompaniesQueryHandler.cs",
         "src/Jobbliggaren.Infrastructure/CompanyRegister/CompanyWatchBrowseQuery.cs",
+        // #560 company-search wave (CTO F1) — the GENERAL register search mirrors the criterion
+        // browse pair above exactly: the port impl materialises every matched company's raw
+        // org.nr from company_register, the handler routes rows through CompanyBrowseDto.FromRow
+        // (mask + flag) before they become a response, and the search input carries a raw
+        // (validated, never personnummer-shaped — Create refuses those) org.nr term.
+        // CompanyBrowseDto.cs is listed too: FromRow moved the masking read INTO the DTO file
+        // when the second consumer arrived, and the scan must follow the read.
+        "src/Jobbliggaren.Application/CompanyRegister/Queries/SearchCompanies/SearchCompaniesQueryHandler.cs",
+        "src/Jobbliggaren.Infrastructure/CompanyRegister/CompanyRegisterSearchQuery.cs",
+        "src/Jobbliggaren.Application/CompanyWatches/Queries/BrowseCompanies/CompanyBrowseDto.cs",
         // #883 F8 (security-auditor follow-up) — the Art. 17 recruiter-erasure read-paths both hold a
         // raw org.nr in scope and were missing from this list: RecruiterErasureMatchQuery runs the
         // raw-SQL match (the normalised org.nr the requester submitted + the ads' org.nr) and
@@ -167,6 +177,12 @@ public class OrganizationNumberSurfacingGuardTests
     [
         typeof(Jobbliggaren.Application.CompanyWatches.Commands.FollowCompany.FollowCompanyCommand),
         typeof(Jobbliggaren.Application.Companies.Queries.LookupCompany.LookupCompanyQuery),
+        // #560 company-search wave: the search queries carry a CLIENT-SUPPLIED org.nr term. The
+        // single normalizer (CompanyRegisterSearchCriteria.Create) REFUSES a personnummer-shaped
+        // term before it can execute (D4 refuse-posture parity), and both records redact their
+        // ToString() (OrgNrRecordLoggingGuardTests, behavioral).
+        typeof(Jobbliggaren.Application.CompanyRegister.Queries.SearchCompanies.SearchCompaniesQuery),
+        typeof(Jobbliggaren.Application.CompanyRegister.Queries.GetCompanySearchMagnitude.GetCompanySearchMagnitudeQuery),
     ];
 
     /// <summary>
@@ -194,6 +210,11 @@ public class OrganizationNumberSurfacingGuardTests
         typeof(Jobbliggaren.Application.Companies.Abstractions.CompanyRegistryEntry),
         // #560 PR-2: the browse port's row type — the handler masks it into CompanyBrowseDto.
         typeof(Jobbliggaren.Application.CompanyWatches.Abstractions.CompanyBrowseResult),
+        // #560 company-search wave: the search port's INPUT VO. Its org.nr is the caller's search
+        // term AFTER the single normalizer validated it and refused personnummer-shaped values —
+        // it flows Application → Infrastructure (the port), never into a response (the walker
+        // below enforces that), and its ToString() is redacted (behavioral case).
+        typeof(Jobbliggaren.Application.CompanyRegister.Abstractions.CompanyRegisterSearchCriteria),
         // #842 round 6: the Art. 17 match port's recent-search row. MatchedEmployerOrgNr is the
         // NORMALISED org.nr the erasure REQUESTER herself submitted as her identifier, echoed with
         // the matched row so the operator can review a hard-delete ("a count cannot be reviewed").
@@ -491,6 +512,12 @@ public class OrganizationNumberSurfacingGuardTests
     [
         "src/Jobbliggaren.Application/CompanyWatches/Queries/BrowseCompanies/BrowseCompaniesQueryHandler.cs",
         "src/Jobbliggaren.Infrastructure/CompanyRegister/CompanyWatchBrowseQuery.cs",
+        // #560 company-search wave — the general register search read-path holds itself to the
+        // SAME no-logging-surface bar as the criterion browse (DPIA C-D5). It has no owner-scoped
+        // load, so not even LogCrossUserAttempt should appear: zero log calls, enforced below.
+        "src/Jobbliggaren.Application/CompanyRegister/Queries/SearchCompanies/SearchCompaniesQueryHandler.cs",
+        "src/Jobbliggaren.Application/CompanyRegister/Queries/GetCompanySearchMagnitude/GetCompanySearchMagnitudeQueryHandler.cs",
+        "src/Jobbliggaren.Infrastructure/CompanyRegister/CompanyRegisterSearchQuery.cs",
     ];
 
     private static readonly string[] AllowedBrowseLogCalls = ["LogCrossUserAttempt"];

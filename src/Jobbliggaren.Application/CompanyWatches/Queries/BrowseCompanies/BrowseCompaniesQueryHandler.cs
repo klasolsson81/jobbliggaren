@@ -89,28 +89,11 @@ public sealed class BrowseCompaniesQueryHandler(
             new CompanyBrowseCriteria(criterion.Criteria, query.Page, query.PageSize),
             cancellationToken);
 
-        var items = page.Items.Select(Mask).ToList();
+        // Masking is single-sourced on the DTO (CompanyBrowseDto.FromRow) since the company-search
+        // wave added a second consumer of the same rule (ADR 0087 D8(c) is ONE knowledge piece).
+        var items = page.Items.Select(CompanyBrowseDto.FromRow).ToList();
 
         return new PagedResult<CompanyBrowseDto>(
             items, page.TotalCount, page.Page, page.PageSize);
-    }
-
-    /// <summary>
-    /// Masks a personnummer-shaped org.nr at the Application boundary (ADR 0087 D8(c), §5). Normally
-    /// unreachable — ADR 0091 keeps sole traders out of the register at ingest — but the masking is
-    /// what makes a raw personnummer un-surfaceable by ANY future path, rather than by the continued
-    /// correctness of a different subsystem's filter. Explicit mapping, never AutoMapper (§5).
-    /// </summary>
-    private static CompanyBrowseDto Mask(CompanyBrowseResult row)
-    {
-        var isProtected = OrganizationNumber.FromTrusted(row.OrganizationNumber).IsPersonnummerShaped();
-
-        return new CompanyBrowseDto(
-            OrganizationNumber: isProtected ? null : row.OrganizationNumber,
-            IsProtectedIdentity: isProtected,
-            Name: row.Name,
-            SeatMunicipalityCode: row.SeatMunicipalityCode,
-            SeatMunicipalityName: row.SeatMunicipalityName,
-            SniCodes: row.SniCodes);
     }
 }

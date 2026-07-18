@@ -1,3 +1,5 @@
+using Jobbliggaren.Application.CompanyWatches.Abstractions;
+
 namespace Jobbliggaren.Application.CompanyWatches.Queries.BrowseCompanies;
 
 /// <summary>
@@ -52,6 +54,30 @@ public sealed record CompanyBrowseDto(
     string? SeatMunicipalityName,
     IReadOnlyList<string> SniCodes)
 {
+    /// <summary>
+    /// THE masking boundary (ADR 0087 D8(c), §5 highest-priority) — the ONLY way a port row
+    /// becomes this DTO. Lifted from <c>BrowseCompaniesQueryHandler</c>'s private mapper when the
+    /// company-search wave added a second consumer (#560, CTO F1): the masking rule is ONE
+    /// knowledge piece, and two private copies is how one of them drifts. Explicit mapping,
+    /// never AutoMapper (§5). Normally unreachable — ADR 0091 keeps sole traders out of the
+    /// register at ingest — but the mask is what makes a raw personnummer un-surfaceable by ANY
+    /// future path, rather than by the continued correctness of a different subsystem's filter.
+    /// </summary>
+    public static CompanyBrowseDto FromRow(CompanyBrowseResult row)
+    {
+        var isProtected = Jobbliggaren.Domain.CompanyWatches.OrganizationNumber
+            .FromTrusted(row.OrganizationNumber)
+            .IsPersonnummerShaped();
+
+        return new CompanyBrowseDto(
+            OrganizationNumber: isProtected ? null : row.OrganizationNumber,
+            IsProtectedIdentity: isProtected,
+            Name: row.Name,
+            SeatMunicipalityCode: row.SeatMunicipalityCode,
+            SeatMunicipalityName: row.SeatMunicipalityName,
+            SniCodes: row.SniCodes);
+    }
+
     /// <summary>
     /// REDACTED (#883). The DTO masks its org.nr at the SURFACING boundary, but a record's
     /// compiler-generated <c>ToString()</c> prints every member — a plain <c>{X}</c> MEL placeholder

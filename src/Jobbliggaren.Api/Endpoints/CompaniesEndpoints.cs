@@ -1,5 +1,9 @@
 using Jobbliggaren.Api.RateLimiting;
+using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.Companies.Queries.LookupCompany;
+using Jobbliggaren.Application.CompanyRegister.Queries.GetCompanySearchMagnitude;
+using Jobbliggaren.Application.CompanyRegister.Queries.SearchCompanies;
+using Jobbliggaren.Application.CompanyWatches.Queries.BrowseCompanies;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
@@ -53,5 +57,70 @@ public static class CompaniesEndpoints
                 ? Results.Ok(result.Value)
                 : result.Error.ToProblemResult();
         }).RequireRateLimiting(RateLimitingExtensions.CompanyLookupPolicy);
+
+        // #560 company-search wave — the general register search (/foretag/sok). POST-as-read,
+        // NOT GET: the org.nr term travels in the BODY per the group's D8(c) rule (a user-typed
+        // term can be personnummer-adjacent before the normalizer refuses it, and a URL/query
+        // lands in infra logs we don't control — the /lookup + /status precedent). TWO mediator
+        // sends composed (§2.3, the criterion-browse precedent): the page (whose
+        // PagedResult.TotalCount is a PAGINATION quantity, capped — never a magnitude) and the
+        // honest magnitude (own count, own ceiling, "10 000+" when saturated). Input errors 400
+        // in ValidationBehavior — both validators transport ONE Application-side normalizer,
+        // deliberately not named here (the carrier-name guard keeps every raw-carrier type out
+        // of this project's source, prose included). Rides CompanyBrowsePolicy (CTO F1): same
+        // register, same cost class as the criterion browse — one bulkhead budget, no upstream
+        // call to protect (unlike /lookup).
+        group.MapPost("/search", async (
+            CompanySearchRequest body, IMediator mediator, HttpContext http, CancellationToken ct) =>
+        {
+            http.Response.Headers.CacheControl = "private, no-store";
+
+            // Bare responses by contract: input errors 400 in ValidationBehavior (both
+            // validators transport the SAME single normalizer), and an empty page/zero
+            // magnitude is an honest answer — no Result, no not-found.
+            var page = await mediator.Send(
+                new SearchCompaniesQuery(
+                    body.SniCodes, body.MunicipalityCodes, body.Name, body.OrganizationNumber,
+                    body.Page, body.PageSize),
+                ct);
+
+            var magnitude = await mediator.Send(
+                new GetCompanySearchMagnitudeQuery(
+                    body.SniCodes, body.MunicipalityCodes, body.Name, body.OrganizationNumber),
+                ct);
+
+            return Results.Ok(new CompanySearchResponse(page, magnitude));
+        }).RequireRateLimiting(RateLimitingExtensions.CompanyBrowsePolicy);
     }
+
+    /// <summary>
+    /// Search request — the org.nr term travels in the body per D8(c) (never path/query). All
+    /// axes optional; an absent axis means "do not filter on it" (browse-all is legal).
+    /// </summary>
+    public sealed record CompanySearchRequest(
+        IReadOnlyList<string?>? SniCodes = null,
+        IReadOnlyList<string?>? MunicipalityCodes = null,
+        string? Name = null,
+        string? OrganizationNumber = null,
+        int Page = 1,
+        int PageSize = 20)
+    {
+        /// <summary>
+        /// REDACTED (#883): the client-supplied org.nr term can be personnummer-shaped (that is
+        /// exactly what the normalizer refuses) and a record's compiler-generated
+        /// <c>ToString()</c> would print it. Pinned by <c>OrgNrRecordLoggingGuardTests</c>.
+        /// </summary>
+        public override string ToString() =>
+            $"CompanySearchRequest(sni: {SniCodes?.Count ?? 0}, kommun: {MunicipalityCodes?.Count ?? 0}, "
+            + $"name: {(string.IsNullOrWhiteSpace(Name) ? "no" : "yes")}, org.nr redacted, "
+            + $"page {Page}/{PageSize})";
+    }
+
+    /// <summary>
+    /// The composed search response: the page and the honest magnitude side by side, so the FE
+    /// can never mistake the pagination count for the magnitude (the criterion-browse precedent).
+    /// </summary>
+    public sealed record CompanySearchResponse(
+        PagedResult<CompanyBrowseDto> Companies,
+        CompanySearchMagnitudeDto Magnitude);
 }

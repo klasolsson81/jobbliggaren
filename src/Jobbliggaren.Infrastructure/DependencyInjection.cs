@@ -1152,6 +1152,18 @@ public static class DependencyInjection
             Jobbliggaren.Application.CompanyWatches.Abstractions.ICompanyWatchBrowseQuery,
             CompanyRegister.CompanyWatchBrowseQuery>();
 
+        // #560 company-search wave (CTO F1) — ICompanyRegisterSearchQuery: the GENERAL register
+        // search (/foretag/sok; every axis optional, browse-all legal). A SEPARATE port from the
+        // criterion browse above — opposite absent-axis semantics (omitted clause vs fail-loud),
+        // bound as two ports by senior-cto-advisor 2026-07-18. Same placement rationale as the
+        // sibling: Api read concern (never gated on ScbRegister:Enabled), raw Npgsql (GIN `&&` +
+        // functional lower()-prefix are the only index-servable shapes), register off
+        // IAppDbContext (DPIA C-D4/M-C5). Scoped — shares the request AppDbContext. DI in the
+        // same commit as the port-impl (feedback_di_with_handlers_same_commit).
+        services.AddScoped<
+            Jobbliggaren.Application.CompanyRegister.Abstractions.ICompanyRegisterSearchQuery,
+            CompanyRegister.CompanyRegisterSearchQuery>();
+
         // #560 PR-3 (CTO Fork G2) — the SCB reference data (SNI 2025 + län/kommun) behind
         // ICriterionReferenceProvider: ONE authority for the Application existence-validator and the
         // FE picker tree. INSTANCE registration, deliberately: the loaders run HERE, at host build,

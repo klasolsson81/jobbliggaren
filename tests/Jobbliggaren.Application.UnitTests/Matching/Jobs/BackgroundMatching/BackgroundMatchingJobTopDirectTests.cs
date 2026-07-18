@@ -53,9 +53,11 @@ public class BackgroundMatchingJobTopDirectTests
             .Returns(ToEmail);
     }
 
+    // #751 konstruktions-only-migration: jobbet tar nu en IServiceScopeFactory; faken ger SAMMA
+    // db/collaborators per scope så varje testkropp är orörd.
     private BackgroundMatchingJob CreateJob(Jobbliggaren.Infrastructure.Persistence.AppDbContext db) =>
-        new(db, _profileBuilder, _scorer, _emailSender, _userAccounts, NowClock,
-            NullLogger<BackgroundMatchingJob>.Instance);
+        new(new FakeMatchingScopeFactory(db, _profileBuilder, _scorer, _userAccounts),
+            _emailSender, NowClock, NullLogger<BackgroundMatchingJob>.Instance);
 
     // ───────────────────────────── Score recipes (against MatchGradeCalculator.Grade(FullMatchScore))
 

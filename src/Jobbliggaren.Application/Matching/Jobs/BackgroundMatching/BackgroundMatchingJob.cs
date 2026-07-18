@@ -6,6 +6,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.Matching;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Jobbliggaren.Application.Matching.Jobs.BackgroundMatching;
@@ -46,13 +47,20 @@ namespace Jobbliggaren.Application.Matching.Jobs.BackgroundMatching;
 /// so the first run is bounded — no multi-hour scan and no first-digest spam burst. Per-user
 /// failure is isolated (one user's exception does not abort the batch — TD-25 pattern).
 /// </para>
+/// <para>
+/// <b>Child scope per user (#751, audit w1-bgmatch-shared-context):</b> every user's scan runs
+/// against its own DI scope (<see cref="IServiceScopeFactory.CreateAsyncScope"/>) → its own
+/// <see cref="IAppDbContext"/>, so the change tracker lives and dies with ONE user. The loop
+/// previously shared one scoped context: a mid-user failure AFTER <c>Add</c>/<c>AdvanceMatchScan</c>
+/// left poisoned Added/Modified entities that the NEXT user's SaveChanges re-flushed or re-failed
+/// on — a persistent error cascaded to every subsequent user, silently breaking the TD-25
+/// isolation promise above (the snapshot job's 23505 pathology, fixed there the same way).
+/// The scope also resets tracker growth over long runs (ADR 0045 Worker memory).
+/// </para>
 /// </summary>
 public sealed partial class BackgroundMatchingJob(
-    IAppDbContext db,
-    IMatchProfileBuilder profileBuilder,
-    IMatchScorer scorer,
+    IServiceScopeFactory scopeFactory,
     IEmailSender emailSender,
-    IUserAccountService userAccounts,
     IDateTimeProvider clock,
     ILogger<BackgroundMatchingJob> logger)
 {
@@ -68,11 +76,18 @@ public sealed partial class BackgroundMatchingJob(
         // The CONSENTING set (GDPR Art. 6/7): opt-in ON and not withdrawn. A withdrawal stops
         // dispatch immediately (the filter excludes withdrawn users). Default OFF → most rows
         // are excluded; the set is small, so a per-user loop is fine for the $16-VPS MVP.
-        var optedInUserIds = await db.JobSeekers
-            .Where(js => js.Preferences.BackgroundMatchNotificationsEnabled
-                         && js.Preferences.NotificationConsentWithdrawnAt == null)
-            .Select(js => js.UserId)
-            .ToListAsync(cancellationToken);
+        // Own short scope (#751): a one-shot projection — no context needs to outlive it, so
+        // the job class holds no DbContext at all.
+        List<Guid> optedInUserIds;
+        await using (var dueSetScope = scopeFactory.CreateAsyncScope())
+        {
+            var dueSetDb = dueSetScope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            optedInUserIds = await dueSetDb.JobSeekers
+                .Where(js => js.Preferences.BackgroundMatchNotificationsEnabled
+                             && js.Preferences.NotificationConsentWithdrawnAt == null)
+                .Select(js => js.UserId)
+                .ToListAsync(cancellationToken);
+        }
 
         LogOptedIn(logger, optedInUserIds.Count);
 
@@ -83,7 +98,19 @@ public sealed partial class BackgroundMatchingJob(
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                totalMatches += await ScanUserAsync(userId, now, cancellationToken);
+                // Own DI scope per user (#751) → own IAppDbContext (and profile builder / scorer /
+                // account service over that same context) → the change tracker lives and dies with
+                // ONE user. The scope disposes before the catch, so a failed user's poisoned
+                // Added/Modified entities die with it instead of riding into the next user's
+                // SaveChanges (parity SyncPlatsbankenSnapshotJob).
+                await using var userScope = scopeFactory.CreateAsyncScope();
+                var sp = userScope.ServiceProvider;
+                totalMatches += await ScanUserAsync(
+                    sp.GetRequiredService<IAppDbContext>(),
+                    sp.GetRequiredService<IMatchProfileBuilder>(),
+                    sp.GetRequiredService<IMatchScorer>(),
+                    sp.GetRequiredService<IUserAccountService>(),
+                    userId, now, cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -104,7 +131,18 @@ public sealed partial class BackgroundMatchingJob(
         LogComplete(logger, processedUsers, totalMatches);
     }
 
-    private async Task<int> ScanUserAsync(Guid userId, DateTimeOffset now, CancellationToken ct)
+    // The per-user unit. Every context-holding collaborator (db + the profile builder / scorer /
+    // account service resolved over the SAME scoped context) arrives as a parameter from the
+    // caller's child scope (#751) — the method never touches job-lifetime state beyond the
+    // stateless emailSender/clock/logger fields.
+    private async Task<int> ScanUserAsync(
+        IAppDbContext db,
+        IMatchProfileBuilder profileBuilder,
+        IMatchScorer scorer,
+        IUserAccountService userAccounts,
+        Guid userId,
+        DateTimeOffset now,
+        CancellationToken ct)
     {
         // Tracked load — the watermark advance must persist in the SAME unit of work as the
         // match inserts (atomicity).
@@ -224,7 +262,7 @@ public sealed partial class BackgroundMatchingJob(
         // not rethrow ordinary failures), so a send error neither rolls back the matches nor aborts
         // the user's scan — matchCount is still returned honestly.
         if (topDispatch.Count > 0)
-            await DispatchTopDirectAsync(userId, topDispatch, ct);
+            await DispatchTopDirectAsync(db, userAccounts, userId, topDispatch, ct);
 
         return matchCount;
     }
@@ -234,7 +272,11 @@ public sealed partial class BackgroundMatchingJob(
     // scan only re-touches Pending). Per-match isolation: a failure on one Top match neither blocks
     // the others nor rolls back the persisted matches; the stranded Queued row is the deliberate
     // "never double-email > never miss" trade-off (TD-114 reaper). ADR 0080 Vag 4 PR-4b.
+    // db MUST be the same child-scope context that tracked the created matches (#751) — the
+    // MarkQueued/MarkSent claim-then-send spine commits through the entities' own tracker.
     private async Task DispatchTopDirectAsync(
+        IAppDbContext db,
+        IUserAccountService userAccounts,
         Guid userId,
         IReadOnlyList<(UserJobAdMatch Match, MatchNotificationItem Item)> topMatches,
         CancellationToken ct)

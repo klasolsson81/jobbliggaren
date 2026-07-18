@@ -1127,7 +1127,8 @@ weaken a data-protection control to paper over a schema mistake* (senior-cto-adv
 
 **The six facet columns are only ever read under `Status == JobAdStatus.Active`** — verified at every
 consumer: `JobAdSearchComposition.cs:65`, `PerUserJobAdSearchQuery.cs:307,368`,
-`BackgroundMatchingJob.cs:145`, `CompanyWatchScanJob.cs:156`,
+`BackgroundMatchingJob.cs` (ScanUserAsync's windowed candidate query; line anchor dropped after the
+#751 scope refactor), `CompanyWatchScanJob.cs:156`,
 `ListCompanyWatchesQueryHandler.cs:99`, `SuggestJobAdTermsQueryHandler.cs:39`. An ad that leaves the
 Platsbanken feed is **Archived at 03:15** by `RetainPlatsbankenJobAdsJob` (ADR 0032-amendment
 2026-05-23) — *before* the 04:30 purge destroys its columns. **So for a DELISTED ad, the facet loss is

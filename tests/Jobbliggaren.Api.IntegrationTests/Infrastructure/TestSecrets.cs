@@ -39,6 +39,14 @@ internal static class TestSecrets
     /// </summary>
     internal const string AuditPepperEnvVar = "AuditPseudonymization__PepperBase64";
 
+    /// <summary>
+    /// #544 — the SEPARATE company-watch pepper (ADR 0090 D5). Its own
+    /// <c>CompanyWatchPseudonymizationOptionsValidator</c> hard-fails on a missing/short pepper in
+    /// EVERY environment via <c>.ValidateOnStart()</c>, so every host that boots the Api needs one —
+    /// set here for the same systemic reason as the audit pepper and master key.
+    /// </summary>
+    internal const string WatchPepperEnvVar = "CompanyWatchPseudonymization__PepperBase64";
+
     // Deterministisk 32-byte AES-256 test-nyckel (0..31). Runtime-genererad, ingen
     // literal → gitleaks ser ingen hemlighet; det är test-nyckelmaterial, inte en
     // prod-secret (prod-master-nyckelns skydd är TD-102, self-managed på Hetzner).
@@ -50,10 +58,16 @@ internal static class TestSecrets
     internal static readonly string AuditPepperBase64 =
         Convert.ToBase64String(Enumerable.Range(100, 32).Select(i => (byte)i).ToArray());
 
+    // #544 — deterministic 32-byte watch pepper (132..163), distinct from the master key AND the
+    // audit pepper so a test can never pass by accidentally peppering with the wrong key.
+    internal static readonly string WatchPepperBase64 =
+        Convert.ToBase64String(Enumerable.Range(132, 32).Select(i => (byte)i).ToArray());
+
     [ModuleInitializer]
     internal static void SetDefaultMasterKey()
     {
         Environment.SetEnvironmentVariable(MasterKeyEnvVar, MasterKeyBase64);
         Environment.SetEnvironmentVariable(AuditPepperEnvVar, AuditPepperBase64);
+        Environment.SetEnvironmentVariable(WatchPepperEnvVar, WatchPepperBase64);
     }
 }

@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Mediator;
@@ -16,7 +17,8 @@ public sealed class FollowCompanyCommandHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
     IDateTimeProvider clock,
-    IDbExceptionInspector dbExceptionInspector)
+    IDbExceptionInspector dbExceptionInspector,
+    IProtectedIdentityTokenizer tokenizer)
     : ICommandHandler<FollowCompanyCommand, Result<Guid>>
 {
     public async ValueTask<Result<Guid>> Handle(
@@ -31,6 +33,7 @@ public sealed class FollowCompanyCommandHandler(
             return Result.Failure<Guid>(orgNrResult.Error);
 
         return await CompanyWatchFollowExecutor.FollowOrResurrectAsync(
-            db, dbExceptionInspector, currentUser.UserId.Value, orgNrResult.Value, clock, cancellationToken);
+            db, dbExceptionInspector, tokenizer, currentUser.UserId.Value, orgNrResult.Value, clock,
+            cancellationToken);
     }
 }

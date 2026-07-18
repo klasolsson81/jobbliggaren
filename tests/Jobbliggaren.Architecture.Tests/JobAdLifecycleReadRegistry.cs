@@ -322,6 +322,8 @@ public static class JobAdLifecycleReadRegistry
                     + "whose current ads are all archived.")),
             ["Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatches.ListCompanyWatchesQueryHandler.Handle"] =
             [
+                Any("pnrShapedAdOrgNrs: .Where(orgNr Length==10 && 3rd digit '0'/'1').Select(orgNr).Distinct() — the bounded pnr-shaped ad set used to resolve an enskild-firma watch HMAC token back to its plaintext org.nr (#544, ADR 0090 D5); only runs when the user holds ≥1 enskild follow.",
+                    "Status-agnostic BY DESIGN — parity the name lookup below: a followed company keeps its name whether or not its ads are Active, so the token must resolve for an archived-only enskild firma too. The #447/#452 counts apply their own Active gate downstream."),
                 Any("nameByOrgNr: .Where(orgNrs.Contains(orgNr)).Select(orgNr, Company.Name).Distinct() — org.nr → name lookup.",
                     "Builds an org.nr → company-name display lookup across the followed employers; status-agnostic — a "
                     + "company keeps its name whether or not its ads are Active, and the watch list must show the name even "

@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.CompanyWatches.Commands;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Common;
@@ -21,7 +22,8 @@ public sealed class FollowCompanyFromJobAdCommandHandler(
     IJobAdEmployerReader employerReader,
     ICurrentUser currentUser,
     IDateTimeProvider clock,
-    IDbExceptionInspector dbExceptionInspector)
+    IDbExceptionInspector dbExceptionInspector,
+    IProtectedIdentityTokenizer tokenizer)
     : ICommandHandler<FollowCompanyFromJobAdCommand, Result<Guid>>
 {
     public async ValueTask<Result<Guid>> Handle(
@@ -50,6 +52,7 @@ public sealed class FollowCompanyFromJobAdCommandHandler(
                 "Den här annonsen saknar ett organisationsnummer för arbetsgivaren och kan inte bevakas."));
 
         return await CompanyWatchFollowExecutor.FollowOrResurrectAsync(
-            db, dbExceptionInspector, currentUser.UserId.Value, orgNrResult.Value, clock, cancellationToken);
+            db, dbExceptionInspector, tokenizer, currentUser.UserId.Value, orgNrResult.Value, clock,
+            cancellationToken);
     }
 }

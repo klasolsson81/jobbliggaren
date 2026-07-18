@@ -360,6 +360,7 @@ app.MapApplicationHistoryEndpoints();
 app.MapResumesEndpoints();
 app.MapAdminEndpoints();
 app.MapAdminJobAdsEndpoints();
+app.MapAdminCompanyWatchesEndpoints();
 app.MapAdminBackgroundJobsEndpoints();
 app.MapJobAdsEndpoints();
 app.MapSavedSearchesEndpoints();

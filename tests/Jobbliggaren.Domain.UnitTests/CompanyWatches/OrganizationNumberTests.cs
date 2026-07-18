@@ -108,6 +108,24 @@ public class OrganizationNumberTests
         OrganizationNumber.FromTrusted(trusted).IsPersonnummerShaped().ShouldBeTrue();
     }
 
+    [Fact]
+    public void IsPersonnummerShaped_ForStoredHmacToken_IsTrue_TheMaskingPostHmacPin()
+    {
+        // #544 (ADR 0090 D5) — a personnummer-shaped org.nr is stored as a 64-char lowercase-hex HMAC
+        // token via FromTrusted at the executor seam. The SAME predicate gates BOTH at-rest storage
+        // form AND surfacing/masking (B2, single-sourced discriminator), so it MUST keep firing on the
+        // stored token — otherwise ListCompanyWatchesQueryHandler would surface the token as an org.nr.
+        // A 64-char token has length ≠ 10 → the fail-safe branch returns true. If someone ever narrows
+        // the fail-safe (e.g. only flags third-digit-<2 on a strict 10-digit value), a tokenised row
+        // would surface un-masked and this goes red.
+        var token = OrganizationNumber.FromTrusted(
+            "91febfd18014665c2a686bb4e29c4400a806e46badb333758482bafa873f2e95");
+
+        token.Value.Length.ShouldBe(64, "a real HMAC-SHA256 token is 64 hex chars — the test fixture must be one");
+        token.IsPersonnummerShaped().ShouldBeTrue(
+            "a stored HMAC token (length ≠ 10) must still be flagged so masking fires on a tokenised row");
+    }
+
     // ---------------------------------------------------------------
     // TryFromWrittenForm — the Art. 17 identifier normaliser (#842 CTO ruling 2026-07-14)
     // ---------------------------------------------------------------

@@ -46,12 +46,14 @@ public class BackgroundMatchingJobTests
             .Returns("seeker@example.com");
     }
 
+    // #751 konstruktions-only-migration: jobbet tar nu en IServiceScopeFactory; faken ger SAMMA
+    // db/collaborators per scope så varje testkropp är orörd.
     private BackgroundMatchingJob CreateJob(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
         IMatchProfileBuilder profileBuilder,
         IMatchScorer scorer) =>
-        new(db, profileBuilder, scorer, _emailSender, _userAccounts, NowClock,
-            NullLogger<BackgroundMatchingJob>.Instance);
+        new(new FakeMatchingScopeFactory(db, profileBuilder, scorer, _userAccounts),
+            _emailSender, NowClock, NullLogger<BackgroundMatchingJob>.Instance);
 
     // Seeds a CONSENTING JobSeeker (opt-in ON, not withdrawn) and returns its UserId. The
     // produced profile is mocked per-test, so the seeker's MatchPreferences are irrelevant to

@@ -1,9 +1,11 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
+using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
+using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -35,7 +37,8 @@ public sealed class ListCompanyWatchesQueryHandler(
     ICurrentUser currentUser,
     IMatchProfileBuilder profileBuilder,
     IPerUserJobAdSearchQuery perUserSearch,
-    IProtectedIdentityTokenizer tokenizer)
+    IProtectedIdentityTokenizer tokenizer,
+    IBrandGroupProvider brandGroups)
     : IQueryHandler<ListCompanyWatchesQuery, IReadOnlyList<CompanyWatchDto>>
 {
     // #452 — "matchande annonser" = grade >= Good in the Fast band (parity
@@ -120,8 +123,9 @@ public sealed class ListCompanyWatchesQueryHandler(
 
         // Resolve each watch to the PLAINTEXT org.nr the projections key on. AB → itself; enskild → the
         // resolved plaintext, or null when no active ad currently carries that employer.
-        // A BRAND_GROUP watch (null org.nr) resolves to no org.nr here — its catalogue-driven name and
-        // member-summed counts land in PR-5 Commit 5. Until then a group watch cannot exist at runtime.
+        // EMPLOYER watches → the PLAINTEXT org.nr the projections key on (AB → itself; enskild → the
+        // token's resolved plaintext, or null when no active ad carries that employer). A BRAND_GROUP
+        // watch has no single org.nr here (resolved below).
         var resolvedByWatchId = watches.ToDictionary(
             w => w.Id,
             w => w.OrganizationNumber is null
@@ -131,7 +135,21 @@ public sealed class ListCompanyWatchesQueryHandler(
                     : w.OrganizationNumber.Value);
         var resolvedPlaintexts = resolvedByWatchId.Values
             .Where(p => p is not null).Select(p => p!).Distinct().ToList();
-        var orgNrs = resolvedPlaintexts.Select(o => (string?)o).ToList();
+
+        // #311 PR-5 (ADR 0087 D4) — resolve each BRAND_GROUP watch to its curated group (member org.nrs +
+        // display name from the catalogue, the SSOT — NEVER job_ads). An orphaned slug (removed from the
+        // catalogue) resolves to null → zero members + no curated name (the counts show 0, honest). The
+        // group's member org.nrs join the count-query org.nr set so the SAME bounded projections cover them.
+        var groupByWatchId = watches
+            .Where(w => w.TargetType == CompanyWatchTargetType.BrandGroup)
+            .ToDictionary(
+                w => w.Id,
+                w => w.BrandGroupId is null ? null : brandGroups.Catalog.Find(w.BrandGroupId.Value));
+
+        var groupMemberOrgNrs = groupByWatchId.Values
+            .Where(g => g is not null).SelectMany(g => g!.MemberOrgNrs);
+        var countOrgNrs = resolvedPlaintexts.Concat(groupMemberOrgNrs).Distinct().ToList();
+        var orgNrs = countOrgNrs.Select(o => (string?)o).ToList();
 
         var nameByOrgNr = (await db.JobAds
                 .AsNoTracking()
@@ -174,21 +192,53 @@ public sealed class ListCompanyWatchesQueryHandler(
         IReadOnlyDictionary<string, int>? matchingByOrgNr = null;
         if (profile.Fast.SsykGroupConceptIds.Count > 0)
         {
+            // Over BOTH the employer org.nrs AND the group members — each row then sums its own subset.
             matchingByOrgNr = await perUserSearch.CountPerUserByEmployerAsync(
-                resolvedPlaintexts, profile, MatchingGrades, cancellationToken);
+                countOrgNrs, profile, MatchingGrades, cancellationToken);
         }
 
         return watches
             .Select(w =>
             {
+                var filterDto = w.Filter is null
+                    ? null
+                    // F4b: the per-watch filter, straight off the already-materialised aggregate (no
+                    // extra query, no per-watch GET). null = no filter, mirroring the domain's canonical
+                    // NULL — never a redundant hasFilter bool beside it. Labels stay FE-side (the picker
+                    // already holds the taxonomy tree; a second label authority could only drift).
+                    : new WatchFilterDto(
+                        w.Filter.Municipalities, w.Filter.Regions, w.Filter.OnlyMatched, w.Filter.Remote);
+
+                if (w.TargetType == CompanyWatchTargetType.BrandGroup)
+                {
+                    // #311 PR-5 (ADR 0087 D4): a group carries no org.nr (never masked/surfaced); its NAME
+                    // is the curated DISPLAY name (catalogue SSOT, never job_ads); and its counts are
+                    // SUMMED over its distinct members. A given ad has ONE org.nr → belongs to ONE member
+                    // → counted once in the group sum. An orphaned slug → null group → 0 counts, no name.
+                    var group = groupByWatchId.GetValueOrDefault(w.Id);
+                    var members = group?.MemberOrgNrs ?? [];
+                    return new CompanyWatchDto(
+                        Id: w.Id.Value,
+                        OrganizationNumber: null,
+                        IsProtectedIdentity: false,
+                        CompanyName: group?.DisplayName,
+                        FollowedAt: w.CreatedAt,
+                        ActiveAdCount: members.Sum(m => activeAdCountByOrgNr.GetValueOrDefault(m)),
+                        MatchingAdCount: matchingByOrgNr is null
+                            ? null
+                            : members.Sum(m => matchingByOrgNr.GetValueOrDefault(m)),
+                        Filter: filterDto,
+                        TargetType: CompanyWatchTargetType.BrandGroup,
+                        BrandGroupId: w.BrandGroupId?.Value);
+                }
+
                 var isProtected = w.OrganizationNumber?.IsPersonnummerShaped() == true;
                 // #544: the projections key on the resolved PLAINTEXT org.nr (AB → itself; enskild →
                 // the token's resolved plaintext, or null when no active ad carries that employer).
                 var resolved = resolvedByWatchId[w.Id];
                 return new CompanyWatchDto(
                     Id: w.Id.Value,
-                    // FORK C1 / D8(c): never surface a personnummer-shaped org.nr (nor its token). A
-                    // group watch has no org.nr (null).
+                    // FORK C1 / D8(c): never surface a personnummer-shaped org.nr (nor its token).
                     OrganizationNumber: isProtected ? null : w.OrganizationNumber?.Value,
                     IsProtectedIdentity: isProtected,
                     // Name resolves at READ from public job_ads (ADR 0087 D3 / B3 — no snapshot),
@@ -204,17 +254,9 @@ public sealed class ListCompanyWatchesQueryHandler(
                     MatchingAdCount: matchingByOrgNr is null
                         ? null
                         : resolved is null ? 0 : matchingByOrgNr.GetValueOrDefault(resolved),
-                    // F4b: the per-watch filter, straight off the already-materialised aggregate (no
-                    // extra query, no per-watch GET). null = no filter, mirroring the domain's canonical
-                    // NULL — never a redundant hasFilter bool beside it. Labels stay FE-side (the picker
-                    // already holds the taxonomy tree; a second label authority could only drift).
-                    Filter: w.Filter is null
-                        ? null
-                        : new WatchFilterDto(
-                            w.Filter.Municipalities,
-                            w.Filter.Regions,
-                            w.Filter.OnlyMatched,
-                            w.Filter.Remote));
+                    Filter: filterDto,
+                    TargetType: CompanyWatchTargetType.Employer,
+                    BrandGroupId: null);
             })
             .ToList();
     }

@@ -1,4 +1,5 @@
 using Jobbliggaren.Api.RateLimiting;
+using Jobbliggaren.Application.CompanyWatches.Commands.FollowBrandGroup;
 using Jobbliggaren.Application.CompanyWatches.Commands.FollowCompany;
 using Jobbliggaren.Application.CompanyWatches.Commands.FollowCompanyFromJobAd;
 using Jobbliggaren.Application.CompanyWatches.Commands.MarkFollowedCompanyAdSeen;
@@ -59,6 +60,20 @@ public static class CompanyWatchesEndpoints
         {
             var result = await mediator.Send(command, ct);
             // Location bears the CompanyWatchId (Guid), never the org.nr (D8(c)).
+            return result.IsSuccess
+                ? Results.Created($"/api/v1/me/company-watches/{result.Value}", new { id = result.Value })
+                : result.Error.ToProblemResult();
+        }).RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        // #311 PR-5 (ADR 0087 D4) — follow a CURATED brand group by slug. The slug travels in the BODY
+        // (parity POST /: one follow-request shape; the slug is non-PII public reference data, so the
+        // body is a consistency choice, not a D8(c) requirement). Same 201 { id } shape; unfollow rides
+        // the existing DELETE /{id}. An unknown slug is a 404 (DomainError.NotFound), a malformed one a
+        // 400 (validator).
+        group.MapPost("/brand-group", async (
+            FollowBrandGroupCommand command, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(command, ct);
             return result.IsSuccess
                 ? Results.Created($"/api/v1/me/company-watches/{result.Value}", new { id = result.Value })
                 : result.Error.ToProblemResult();

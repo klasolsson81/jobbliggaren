@@ -42,7 +42,24 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 public sealed class CompanyWatch : AggregateRoot<CompanyWatchId>
 {
     public Guid UserId { get; private set; }
-    public OrganizationNumber OrganizationNumber { get; private set; } = null!;
+
+    /// <summary>
+    /// The watched employer org.nr — non-null iff <see cref="TargetType"/> is
+    /// <see cref="CompanyWatchTargetType.Employer"/>, null for a <see cref="CompanyWatchTargetType.BrandGroup"/>
+    /// watch (ADR 0087 D4 — a group targets <see cref="BrandGroupId"/> instead). The
+    /// <see cref="TargetType"/>-discriminated XOR with <see cref="BrandGroupId"/> is enforced by the
+    /// factories.
+    /// </summary>
+    public OrganizationNumber? OrganizationNumber { get; private set; }
+
+    /// <summary>
+    /// The watched brand-group slug — non-null iff <see cref="TargetType"/> is
+    /// <see cref="CompanyWatchTargetType.BrandGroup"/>, null for an
+    /// <see cref="CompanyWatchTargetType.Employer"/> watch (#311 PR-5, ADR 0087 D4). Its member
+    /// org.nrs live only in the versioned catalogue (never denormalised onto this row).
+    /// </summary>
+    public BrandGroupId? BrandGroupId { get; private set; }
+
     public CompanyWatchTargetType TargetType { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? DeletedAt { get; private set; }
@@ -57,15 +74,25 @@ public sealed class CompanyWatch : AggregateRoot<CompanyWatchId>
     // EF Core constructor
     private CompanyWatch() { }
 
+    // The one construction path for both targets. The two factories guarantee the
+    // TargetType-discriminated XOR, but assert it structurally here too so a future third factory cannot
+    // silently create a malformed row (defense-in-depth; the invariant becomes a property of the ctor,
+    // not just of its current callers).
     private CompanyWatch(
         CompanyWatchId id,
         Guid userId,
-        OrganizationNumber organizationNumber,
+        OrganizationNumber? organizationNumber,
+        BrandGroupId? brandGroupId,
         CompanyWatchTargetType targetType,
         DateTimeOffset createdAt) : base(id)
     {
+        if ((organizationNumber is null) == (brandGroupId is null))
+            throw new InvalidOperationException(
+                "A CompanyWatch targets exactly one of an org.nr or a brand group — never both, never neither.");
+
         UserId = userId;
         OrganizationNumber = organizationNumber;
+        BrandGroupId = brandGroupId;
         TargetType = targetType;
         CreatedAt = createdAt;
     }
@@ -74,7 +101,8 @@ public sealed class CompanyWatch : AggregateRoot<CompanyWatchId>
     /// Creates an active EMPLOYER follow of <paramref name="organizationNumber"/> for
     /// <paramref name="userId"/>. The org.nr is an already-validated <see cref="OrganizationNumber"/>
     /// VO (the caller constructs it via <see cref="OrganizationNumber.Create"/>), so the only
-    /// guard here is a non-empty user.
+    /// guard here is a non-empty user. Sets <see cref="TargetType"/> = Employer,
+    /// <see cref="BrandGroupId"/> = null (the XOR side of the discriminator).
     /// </summary>
     public static Result<CompanyWatch> Follow(
         Guid userId,
@@ -90,7 +118,35 @@ public sealed class CompanyWatch : AggregateRoot<CompanyWatchId>
                 "CompanyWatch.OrganizationNumberRequired", "Organisationsnummer krävs."));
 
         var watch = new CompanyWatch(
-            CompanyWatchId.New(), userId, organizationNumber, CompanyWatchTargetType.Employer, clock.UtcNow);
+            CompanyWatchId.New(), userId, organizationNumber, brandGroupId: null,
+            CompanyWatchTargetType.Employer, clock.UtcNow);
+        return Result.Success(watch);
+    }
+
+    /// <summary>
+    /// Creates an active BRAND_GROUP follow of <paramref name="brandGroupId"/> for
+    /// <paramref name="userId"/> (#311 PR-5, ADR 0087 D4). The slug is an already-validated
+    /// <see cref="BrandGroupId"/> VO; existence in the curated catalogue is the caller's concern
+    /// (the handler resolves it via <c>IBrandGroupProvider</c> and returns NotFound if unknown) —
+    /// the aggregate only guards a non-empty user + a present slug. Sets <see cref="TargetType"/> =
+    /// BrandGroup, <see cref="OrganizationNumber"/> = null (the XOR side of the discriminator).
+    /// </summary>
+    public static Result<CompanyWatch> FollowBrandGroup(
+        Guid userId,
+        BrandGroupId brandGroupId,
+        IDateTimeProvider clock)
+    {
+        if (userId == Guid.Empty)
+            return Result.Failure<CompanyWatch>(DomainError.Validation(
+                "CompanyWatch.UserIdRequired", "UserId krävs."));
+
+        if (brandGroupId is null)
+            return Result.Failure<CompanyWatch>(DomainError.Validation(
+                "CompanyWatch.BrandGroupIdRequired", "Varumärkesgrupp krävs."));
+
+        var watch = new CompanyWatch(
+            CompanyWatchId.New(), userId, organizationNumber: null, brandGroupId,
+            CompanyWatchTargetType.BrandGroup, clock.UtcNow);
         return Result.Success(watch);
     }
 
@@ -171,6 +227,9 @@ public sealed class CompanyWatch : AggregateRoot<CompanyWatchId>
     public bool ApplyOrganizationNumberTokenBackfill(OrganizationNumber tokenized)
     {
         if (tokenized is null)
+            return false;
+        // A BRAND_GROUP watch has no org.nr to tokenise — never backfillable.
+        if (OrganizationNumber is null)
             return false;
         // Only a 10-digit personnummer-shaped PLAINTEXT value is convertible. A token has length ≠ 10
         // (IsPersonnummerShaped true via the fail-safe), so it is excluded here; an AB org.nr is a

@@ -1163,6 +1163,13 @@ public static class DependencyInjection
                 CompanyRegister.Reference.CriterionReferenceLoader.LoadSni(),
                 CompanyRegister.Reference.CriterionReferenceLoader.LoadKommuner()));
 
+        // #311 PR-5 (ADR 0087 D4) — the curated brand-group catalogue behind IBrandGroupProvider. Same
+        // eager-INSTANCE fail-loud posture as the reference provider above: BrandGroupLoader runs HERE,
+        // at host build, so a malformed (or personnummer-shaped-member) catalogue kills the host loudly
+        // instead of surfacing on the first group follow. Immutable + thread-safe → singleton instance.
+        services.AddSingleton<Jobbliggaren.Application.CompanyWatches.Abstractions.IBrandGroupProvider>(
+            new CompanyWatches.BrandGroupProvider(CompanyWatches.BrandGroupLoader.Load()));
+
         // STEG 6 Approach B (2026-05-24) — fritext→SSYK-expansion för
         // recall-lift på terms som "systemutvecklare". IOptions-binding från
         // appsettings.json SearchSynonyms-sektion. DI i samma commit som

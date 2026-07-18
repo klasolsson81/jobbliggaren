@@ -49,14 +49,26 @@ public sealed class CompanyWatchConfiguration : IEntityTypeConfiguration<Company
         // (pnr-shaped) org.nr. FromTrusted: the DB value is a validated org.nr OR a token, both written
         // through the executor seam (parity with the strongly-typed Id idiom). Widened 10 → 64 to hold
         // the token; the deterministic token keeps the unique index + equality-match intact.
+        //
+        // NULLABLE (#311 PR-5, ADR 0087 D4): a BRAND_GROUP watch carries no org.nr (it targets
+        // BrandGroupId), so the column is NULL for those rows. EF never invokes the converter for null
+        // → SQL NULL round-trips as CLR null; the TargetType-discriminated XOR with brand_group_id is
+        // a domain invariant (the factories), not a DB CHECK (house style — invariant in the aggregate
+        // + partial unique indexes, not database constraints).
         builder.Property(w => w.OrganizationNumber)
-            .HasConversion(o => o.Value, value => OrganizationNumber.FromTrusted(value))
+            .HasConversion(o => o!.Value, value => OrganizationNumber.FromTrusted(value))
             .HasColumnName("organization_number")
-            .HasMaxLength(64)
-            .IsRequired();
+            .HasMaxLength(64);
 
-        // Single-member enum stored by NAME (reorder-safe; parity with NotifiableMatchGrade /
-        // NotificationStatus). Forward-compatible: a new member (BRAND_GROUP, D4) is additive.
+        // Brand-group slug VO ↔ text (#311 PR-5). NULL for an EMPLOYER watch, set for a BRAND_GROUP
+        // watch (the XOR counterpart of organization_number above). varchar(40) = BrandGroupId.MaxLength.
+        builder.Property(w => w.BrandGroupId)
+            .HasConversion(id => id!.Value, value => BrandGroupId.FromTrusted(value))
+            .HasColumnName("brand_group_id")
+            .HasMaxLength(BrandGroupId.MaxLength);
+
+        // Enum stored by NAME (reorder-safe; parity with NotifiableMatchGrade / NotificationStatus).
+        // "Employer" | "BrandGroup" both fit varchar(20).
         builder.Property(w => w.TargetType)
             .HasConversion<string>()
             .HasMaxLength(20)
@@ -78,13 +90,24 @@ public sealed class CompanyWatchConfiguration : IEntityTypeConfiguration<Company
             .HasColumnType("jsonb");
         filter.Metadata.SetValueComparer(WatchFilterSpecConversion.Comparer);
 
-        // FORK B1 — active-partial UNIQUE: at most one ACTIVE follow per (user, org.nr). The
+        // FORK B1 — active-partial UNIQUE: at most one ACTIVE employer follow per (user, org.nr). The
         // resurrect handler keeps it one physical row total. Quoted snake_case filter (parity with
-        // JobAdConfiguration's external_id partial unique).
+        // JobAdConfiguration's external_id partial unique). BRAND_GROUP rows carry NULL org.nr and
+        // enter this index with a NULL key — harmless (PG NULLS DISTINCT treats each as unique), and
+        // the mirror index below owns their uniqueness.
         builder.HasIndex(w => new { w.UserId, w.OrganizationNumber })
             .IsUnique()
             .HasFilter("\"deleted_at\" IS NULL")
             .HasDatabaseName("ux_company_watches_user_orgnr_active");
+
+        // #311 PR-5 — the mirror active-partial UNIQUE for BRAND_GROUP follows: at most one ACTIVE
+        // group follow per (user, brand_group_id). `AND brand_group_id IS NOT NULL` keeps EMPLOYER
+        // rows (NULL group id) out of this index entirely — the two partial uniques are disjoint by
+        // construction, each owning its own target axis. Mirrors the org.nr index shape.
+        builder.HasIndex(w => new { w.UserId, w.BrandGroupId })
+            .IsUnique()
+            .HasFilter("\"deleted_at\" IS NULL AND \"brand_group_id\" IS NOT NULL")
+            .HasDatabaseName("ux_company_watches_user_brand_group_active");
 
         // UserId index for the "my watches" scope query + the Art. 17 cascade-by-user sweep
         // (AccountHardDeleter) + the PR-4 scan's per-user grouping.

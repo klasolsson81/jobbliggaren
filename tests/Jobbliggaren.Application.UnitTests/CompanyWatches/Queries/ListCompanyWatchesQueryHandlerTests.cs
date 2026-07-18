@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
+using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatches;
 using Jobbliggaren.Application.JobAds.Abstractions;
@@ -65,13 +66,33 @@ public class ListCompanyWatchesQueryHandlerTests
                 PreferredMunicipalityConceptIds: []),
             CvSkillConceptIds: []);
 
+    // Empty catalogue by default; a group test passes a synthetic one.
+    private readonly StubBrandGroupProvider _brandGroups = StubProvider();
+
     private ListCompanyWatchesQueryHandler Handler(
-        Jobbliggaren.Infrastructure.Persistence.AppDbContext db) =>
-        new(db, _currentUser, _profileBuilder, _perUserSearch, _tokenizer);
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, IBrandGroupProvider? brandGroups = null) =>
+        new(db, _currentUser, _profileBuilder, _perUserSearch, _tokenizer, brandGroups ?? _brandGroups);
+
+    private static StubBrandGroupProvider StubProvider(
+        params (string Slug, string DisplayName, string[] Members)[] groups)
+    {
+        var dict = groups.ToDictionary(
+            g => g.Slug, g => new BrandGroup(g.Slug, g.DisplayName, g.Members), StringComparer.Ordinal);
+        return new StubBrandGroupProvider(new BrandGroupCatalog("test.v1", dict));
+    }
+
+    private sealed class StubBrandGroupProvider(BrandGroupCatalog catalog) : IBrandGroupProvider
+    {
+        public BrandGroupCatalog Catalog { get; } = catalog;
+    }
 
     private void Add(Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId, string orgNr)
         => db.CompanyWatches.Add(
             CompanyWatch.Follow(userId, OrganizationNumber.Create(orgNr).Value, _clock).Value);
+
+    private void AddGroup(Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId, string slug)
+        => db.CompanyWatches.Add(
+            CompanyWatch.FollowBrandGroup(userId, BrandGroupId.Create(slug).Value, _clock).Value);
 
     [Fact]
     public async Task Handle_WhenNotAuthenticated_ReturnsEmpty()
@@ -84,7 +105,8 @@ public class ListCompanyWatchesQueryHandlerTests
         var perUserSearch = Substitute.For<IPerUserJobAdSearchQuery>();
 
         var result = await new ListCompanyWatchesQueryHandler(
-                db, anon, profileBuilder, perUserSearch, Substitute.For<IProtectedIdentityTokenizer>())
+                db, anon, profileBuilder, perUserSearch, Substitute.For<IProtectedIdentityTokenizer>(),
+                _brandGroups)
             .Handle(new ListCompanyWatchesQuery(), ct);
 
         result.ShouldBeEmpty();
@@ -385,5 +407,88 @@ public class ListCompanyWatchesQueryHandlerTests
         // #551 PR-B D6 — Remote is a taxonomy-adjacent boolean axis (no identity, no grade value),
         // so it may cross the surfacing boundary alongside the ort axes.
         members.ShouldBe(["Municipalities", "Regions", "OnlyMatched", "Remote"], ignoreOrder: true);
+    }
+
+    // ─────────────────────────── BrandGroup (#311 PR-5, ADR 0087 D4)
+
+    [Fact]
+    public async Task Handle_BrandGroupWatch_SurfacesCatalogueNameAndNoOrgNr()
+    {
+        // The DTO shape for a group watch: TargetType=BrandGroup, BrandGroupId set, org.nr NULL (never
+        // surfaced), IsProtectedIdentity false, CompanyName = the CATALOGUE display name (not job_ads).
+        // Counts are 0 here (InMemory has no job_ads / generated org.nr column — the summed counts over
+        // real ads are pinned by the Testcontainers integration test).
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        AddGroup(db, _userId, "volvo-koncernen");
+        await db.SaveChangesAsync(ct);
+        var provider = StubProvider(("volvo-koncernen", "Volvo (koncern)", ["5560125790"]));
+
+        var result = await Handler(db, provider).Handle(new ListCompanyWatchesQuery(), ct);
+
+        var dto = result.ShouldHaveSingleItem();
+        dto.TargetType.ShouldBe(CompanyWatchTargetType.BrandGroup);
+        dto.BrandGroupId.ShouldBe("volvo-koncernen");
+        dto.OrganizationNumber.ShouldBeNull();
+        dto.IsProtectedIdentity.ShouldBeFalse();
+        dto.CompanyName.ShouldBe("Volvo (koncern)");
+    }
+
+    [Fact]
+    public async Task Handle_BrandGroupWatch_WithOrphanedSlug_HasNoNameAndZeroCounts()
+    {
+        // An orphaned slug (removed from the catalogue) resolves to null: no curated name, zero counts —
+        // honest, never an exception.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        AddGroup(db, _userId, "removed-group");
+        await db.SaveChangesAsync(ct);
+
+        // Empty catalogue (default _brandGroups) — the slug is not curated.
+        var result = await Handler(db).Handle(new ListCompanyWatchesQuery(), ct);
+
+        var dto = result.ShouldHaveSingleItem();
+        dto.TargetType.ShouldBe(CompanyWatchTargetType.BrandGroup);
+        dto.BrandGroupId.ShouldBe("removed-group");
+        dto.CompanyName.ShouldBeNull();
+        dto.ActiveAdCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Handle_BrandGroupWatch_MatchingAdCount_SumsOverMembers_AndPassesMembersToSearch()
+    {
+        // #452 for a group: the matching-count is SUMMED over the group's members (m1→2, m2→1 ⇒ 3), and
+        // the members must be handed to CountPerUserByEmployerAsync (countOrgNrs = employer ∪ members) —
+        // otherwise a group would silently report 0/null. Pins the non-null arm of the null-guard + the
+        // member SUM + the arg threading (the ActiveAdCount SUM has a Testcontainers oracle; this covers
+        // the parallel #452 gap flagged by code-reviewer/test-writer).
+        const string m1 = "5560125790";
+        const string m2 = "5569876543";
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        AddGroup(db, _userId, "volvo");
+        await db.SaveChangesAsync(ct);
+        var provider = StubProvider(("volvo", "Volvo (koncern)", [m1, m2]));
+
+        _profileBuilder
+            .BuildFullForSortAsync(Arg.Any<CancellationToken>(), Arg.Any<bool>())
+            .Returns(ProfileWithSsyk("1234"));
+        _perUserSearch
+            .CountPerUserByEmployerAsync(
+                Arg.Any<IReadOnlyList<string>>(),
+                Arg.Any<FullCandidateMatchProfile>(),
+                Arg.Any<IReadOnlyList<MatchGrade>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, int> { [m1] = 2, [m2] = 1 });
+
+        var dto = (await Handler(db, provider).Handle(new ListCompanyWatchesQuery(), ct)).ShouldHaveSingleItem();
+
+        dto.MatchingAdCount.ShouldBe(3); // 2 + 1 over the two members
+        // The member org.nrs were passed to the search port (else the group would report 0).
+        await _perUserSearch.Received().CountPerUserByEmployerAsync(
+            Arg.Is<IReadOnlyList<string>>(o => o.Contains(m1) && o.Contains(m2)),
+            Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Any<IReadOnlyList<MatchGrade>>(),
+            Arg.Any<CancellationToken>());
     }
 }

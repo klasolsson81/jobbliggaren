@@ -1,3 +1,5 @@
+using Jobbliggaren.Domain.CompanyWatches;
+
 namespace Jobbliggaren.Application.CompanyWatches.Queries;
 
 /// <summary>
@@ -52,6 +54,16 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries;
 /// I match?" (a follow-DECISION signal), while the filter answers "which of them should notify me". Three
 /// scopes of ONE grade definition, each independently explainable.
 /// </para>
+///
+/// <para>
+/// <b><see cref="TargetType"/> + <see cref="BrandGroupId"/> — the watched target (#311 PR-5, ADR 0087
+/// D4).</b> For an EMPLOYER watch, <see cref="BrandGroupId"/> is <c>null</c> and
+/// <see cref="OrganizationNumber"/> carries the (possibly-masked) org.nr. For a BRAND_GROUP watch,
+/// <see cref="BrandGroupId"/> is the curated slug, <see cref="OrganizationNumber"/> is <c>null</c> (a
+/// group has no single org.nr — its member org.nrs are never surfaced), <see cref="CompanyName"/> is the
+/// group's curated DISPLAY NAME (from the catalogue, never job_ads), and the two counts are SUMMED over
+/// the group's distinct members.
+/// </para>
 /// </summary>
 public sealed record CompanyWatchDto(
     Guid Id,
@@ -61,7 +73,9 @@ public sealed record CompanyWatchDto(
     DateTimeOffset FollowedAt,
     int ActiveAdCount,
     int? MatchingAdCount,
-    WatchFilterDto? Filter)
+    WatchFilterDto? Filter,
+    CompanyWatchTargetType TargetType,
+    string? BrandGroupId)
 {
     /// <summary>
     /// REDACTED (#883). The DTO masks its org.nr at the SURFACING boundary, but a record's

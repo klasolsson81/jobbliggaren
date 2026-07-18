@@ -161,8 +161,13 @@ public sealed partial class CompanyWatchScanJob(
         // an enskild watch — a matching ad carries the watch's own valid 10-digit pnr — so a too-narrow
         // prefilter (the cardinal sin: a watch that matches nothing) fails the Testcontainers oracle,
         // never silently in prod. The IDENTICAL predicate lives in ListCompanyWatchesQueryHandler's
-        // token→plaintext resolution — keep both in sync (a single-sourced IQueryable extension is a
-        // noted follow-up, dotnet-architect 2026-07-18). Project the id + its org.nr (mapped back to the watch client-side, no
+        // token→plaintext resolution — kept in sync BY HAND, deliberately NOT single-sourced: 2 call
+        // sites is below the §3.6 rule-of-three and single-sourcing this OR-disjunct would force an
+        // OrElse predicate combinator the repo won't take (LinqKit is off the BUILD.md §3.1 allowlist,
+        // and hand-rolling its ExpressionVisitor dodges that discipline) — declined, dotnet-architect +
+        // senior-cto-advisor 2026-07-18; each copy oracle-pinned independently: this Scan arm by
+        // RunAsync_PnrShapePrefilter_AdmitsBothBoundaryThirdDigits_TheSupersetPin, the List arm by
+        // CompanyWatchesTests.GET_list_reports_active_ad_count_even_when_org_number_is_masked). Project the id + its org.nr (mapped back to the watch client-side, no
         // join) + BOTH geo axes (per-watch ort filter, RF-3=3D — the ort check is CLIENT-SIDE per
         // (ad, watch) pair; the D5 seal EXTENDED, still scorer-/profile-free). Both geo axes are needed:
         // an ad tagged at län granularity with NO municipality must still pass a whole-län filter (F4a).

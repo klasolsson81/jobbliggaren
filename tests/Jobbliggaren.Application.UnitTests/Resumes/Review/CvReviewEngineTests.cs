@@ -58,8 +58,9 @@ public class CvReviewEngineTests
     {
         var result = await ReviewAsync(Resume(), RenderProfile.Ats);
 
-        // Bumped 2.0.0 → 2.1.0 (#655 PR-6b: B2/D9/E2 gained geometry thresholds → minor bump,
-        // RubricVersion doctrine — thresholds added, no new scored criterion). Prior: 1.2.0 →
+        // Bumped 2.1.0 → 2.2.0 (#891: D3 got a reader + fontBodyPtWarnBelow threshold → minor
+        // bump). Prior: 2.0.0 → 2.1.0 (#655 PR-6b: B2/D9/E2 gained geometry thresholds → minor
+        // bump, RubricVersion doctrine — thresholds added, no new scored criterion); 1.2.0 →
         // 2.0.0 (#655 PR-6a: C7 spelling criterion ADDED → major bump); 1.1.0 → 1.2.0 (#654,
         // thresholds-as-data + styleOnly); #488.
         result.RubricVersion.ShouldBe(RubricVersion.Parse("2.2.0"));
@@ -895,6 +896,23 @@ public class CvReviewEngineTests
 
         ParsedResume WithCliches(int count) =>
             Resume(profile: string.Join(". ", Phrases(ClicheKind.Cliche).Take(count)) + ".");
+    }
+
+    [Fact]
+    public void ReviewAsync_D3BodyFontThresholdShouldMatchTheRubricProse_GoldenDriftGuard()
+    {
+        // Golden drift-guard (#891, parity A7/A8/A1): D3's body-pt WARN floor is DERIVED from the
+        // versioned rubric prose, not a hardcoded expectation. atsPassSignal "…. 10–12 pt brödtext"
+        // — its first integer (the recommended-body LOWER bound) must equal the fontBodyPtWarnBelow
+        // datum the D3 rule reads. A prose edit ("9–12 pt") or a datum edit that diverge silently
+        // would fail here — the exact prose↔data drift this regime exists to catch (Rubric.cs doc:
+        // "golden drift-guards assert prose↔data agreement where the prose carries the number").
+        var d3 = RealRubric().Criteria.Single(c => c.Id == "D3");
+        var proseLowerPt = FirstInt(d3.AtsPassSignal!);   // the 10 in "10–12 pt brödtext"
+        var datum = (int)d3.RequiredThreshold(RubricThresholdKeys.FontBodyPtWarnBelow);
+
+        proseLowerPt.ShouldBe(datum,
+            "rubrikens D3-prosa (10–12 pt) måste stämma med tröskeln fontBodyPtWarnBelow — annars tyst drift.");
     }
 
     // The first integer embedded in a rubric prose signal ("<2 …" → 2, "≥3 …" → 3).

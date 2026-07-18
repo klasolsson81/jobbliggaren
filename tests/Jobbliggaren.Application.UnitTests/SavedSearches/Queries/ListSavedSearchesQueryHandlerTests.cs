@@ -62,7 +62,7 @@ public class ListSavedSearchesQueryHandlerTests
                 municipality: municipality,
                 region: region,
                 employmentType: null,
-                worktimeExtent: null, employer: null,
+                worktimeExtent: null, employer: null, remote: false,
                 q: null,
                 sortBy: JobAdSortBy.PublishedAtDesc).Value,
             false, FakeDateTimeProvider.Default).Value;
@@ -203,7 +203,7 @@ public class ListSavedSearchesQueryHandlerTests
             seeker.Id, "Bara q",
             SearchCriteria.Create(
                 occupationGroup: null, municipality: null, region: null,
-                employmentType: null, worktimeExtent: null, employer: null,
+                employmentType: null, worktimeExtent: null, employer: null, remote: false,
                 q: "remote", sortBy: JobAdSortBy.PublishedAtDesc).Value,
             false, FakeDateTimeProvider.Default).Value);
         await db.SaveChangesAsync(CancellationToken.None);
@@ -231,7 +231,7 @@ public class ListSavedSearchesQueryHandlerTests
             // inga concept-id".
             SearchCriteria.Create(
                 occupationGroup: null, municipality: null, region: null,
-                employmentType: null, worktimeExtent: null, employer: null,
+                employmentType: null, worktimeExtent: null, employer: null, remote: false,
                 q: "xy", sortBy: JobAdSortBy.PublishedAtDesc).Value,
             false, FakeDateTimeProvider.Default).Value);
         await db.SaveChangesAsync(CancellationToken.None);

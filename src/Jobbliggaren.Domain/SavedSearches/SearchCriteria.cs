@@ -101,6 +101,16 @@ public sealed record SearchCriteria
     // (2b C1) trådar in den i sök-identiteten (senior-cto-advisor 2026-07-01).
     public IReadOnlyList<string> Employer { get; private init; } = [];
 
+    // #551 PR-D (ADR 0087 D6-paritet) — den boolska distans/remote-dimensionen. En ÄKTA
+    // persisterad sök-identitets-dimension (del av FilterHash + SavedSearch jsonb +
+    // RecentJobSearch), till skillnad mot runtime-kontext-flaggorna (MatchGrades/status) som
+    // aldrig persisteras. Skalär bool — INGEN NormalizeList/format-validering (till skillnad mot
+    // list-dimensionerna): false = ingen remote-facet, true = "visa distans-jobb". PR-B shippade
+    // filter-dimensionen CONTAINED (live-sök endast, Remote: false i persistens); denna PR (PR-D)
+    // trådar in den i sök-identiteten (parity #311 Employer PR-2b C1). Placerad efter Employer på
+    // alla 5 identitetsytor (Create/Equals/GetHashCode/jsonb/FilterHash) — architect-bind.
+    public bool Remote { get; private init; }
+
     public string? Q { get; private init; }
     public JobAdSortBy SortBy { get; private init; }
 
@@ -114,6 +124,7 @@ public sealed record SearchCriteria
         IEnumerable<string>? employmentType,
         IEnumerable<string>? worktimeExtent,
         IEnumerable<string>? employer,
+        bool remote,
         string? q,
         JobAdSortBy sortBy)
     {
@@ -131,13 +142,18 @@ public sealed record SearchCriteria
 
         // #311 PR-2b C1: Employer deltar i tom-invarianten — en arbetsgivar-only-sökning
         // (Employer:[x] ensam) är en giltig sökning (speglar EmploymentType-only, CTO-bind D3).
+        // #551 PR-D: Remote deltar likaledes — en distans-only-sökning (remote=true ensam) är en
+        // äkta filter-intention (WHERE remote, "visa distans-jobb"), inte default-browse. remote=false
+        // ensamt förblir tomt (bool-semantik: false = inget filter). MÅSTE hållas i lockstep med
+        // capture-guarden i RecentJobSearchCaptureBehavior (architect-bind — annars tyst no-capture).
         if (normOccupationGroup.Length == 0 && normMunicipality.Length == 0
             && normRegion.Length == 0 && normEmploymentType.Length == 0
-            && normWorktimeExtent.Length == 0 && normEmployer.Length == 0 && normQ is null)
+            && normWorktimeExtent.Length == 0 && normEmployer.Length == 0 && normQ is null
+            && !remote)
         {
             return Result.Failure<SearchCriteria>(DomainError.Validation(
                 "SearchCriteria.Empty",
-                "Minst ett sökkriterium (yrkesgrupp, kommun, region, anställningsform, omfattning, arbetsgivare eller fritext) krävs."));
+                "Minst ett sökkriterium (yrkesgrupp, kommun, region, anställningsform, omfattning, arbetsgivare, distans eller fritext) krävs."));
         }
 
         // Cap + per-element-regex per dimension (invariant 2 + default-deny).
@@ -200,6 +216,7 @@ public sealed record SearchCriteria
             EmploymentType = normEmploymentType,
             WorktimeExtent = normWorktimeExtent,
             Employer = normEmployer,
+            Remote = remote,
             Q = normQ,
             SortBy = sortBy,
         });
@@ -272,7 +289,8 @@ public sealed record SearchCriteria
     // dubbletter. Listorna är redan normaliserade (sorterad+distinct ordinal)
     // i Create → sekvensjämförelse är deterministisk. Kanonisk dimensions-
     // ordning: OccupationGroup, Municipality, Region, EmploymentType,
-    // WorktimeExtent (architect F1; Klass 2 tillagt Fas B2, ADR 0067 Beslut 6).
+    // WorktimeExtent, Employer, Remote (architect F1; Klass 2 tillagt Fas B2, ADR
+    // 0067 Beslut 6; Employer #311 PR-2b C1; Remote #551 PR-D).
     public bool Equals(SearchCriteria? other)
     {
         if (other is null)
@@ -287,7 +305,8 @@ public sealed record SearchCriteria
             && Region.SequenceEqual(other.Region, StringComparer.Ordinal)
             && EmploymentType.SequenceEqual(other.EmploymentType, StringComparer.Ordinal)
             && WorktimeExtent.SequenceEqual(other.WorktimeExtent, StringComparer.Ordinal)
-            && Employer.SequenceEqual(other.Employer, StringComparer.Ordinal);
+            && Employer.SequenceEqual(other.Employer, StringComparer.Ordinal)
+            && Remote == other.Remote;
     }
 
     public override int GetHashCode()
@@ -307,6 +326,7 @@ public sealed record SearchCriteria
             hash.Add(w, StringComparer.Ordinal);
         foreach (var emp in Employer)
             hash.Add(emp, StringComparer.Ordinal);
+        hash.Add(Remote);
         return hash.ToHashCode();
     }
 }

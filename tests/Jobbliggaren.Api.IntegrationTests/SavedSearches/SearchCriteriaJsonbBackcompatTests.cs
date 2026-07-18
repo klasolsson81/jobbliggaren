@@ -271,6 +271,33 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         saved.Criteria.OccupationGroup.ShouldBe(["g1"]);
     }
 
+    [Fact]
+    public async Task MissingRemoteKey_ReadsAsFalse_CreatePasses()
+    {
+        // #551 PR-D bakåtkompat: en SavedSearch-rad lagrad FÖRE Remote-nyckeln infördes (nyckeln
+        // saknas helt) ska läsas som false → Create passerar (saknad nyckel → Read-switchens default
+        // false, samma additiva tolerans-mönster som Employer/Klass 2 — INTE ReadStringOrStringArray,
+        // som skulle kasta på en bool). ALDRIG fail-loud (reserverat för den BORTTAGNA "Ssyk"-nyckeln;
+        // en TILLAGD nyckels frånvaro är benign).
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var seeker = await SeedSeekerAsync(db, clock, ct);
+
+        // Pre-PR-D-rad: Remote-nyckeln saknas helt (raden är i övrigt en aktuell form).
+        var json = """{"OccupationGroup":["g1"],"Municipality":[],"Region":[],"EmploymentType":[],"WorktimeExtent":[],"Employer":[],"Q":null,"SortBy":0}""";
+        var id = await InsertRawSavedSearchAsync(seeker.Id.Value, json, ct);
+
+        using var readScope = Factory.Services.CreateScope();
+        var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var saved = await readDb.SavedSearches
+            .SingleAsync(s => s.Id == new SavedSearchId(id), ct);
+
+        saved.Criteria.Remote.ShouldBeFalse();
+        saved.Criteria.OccupationGroup.ShouldBe(["g1"]);
+    }
+
     // ---------------------------------------------------------------
     // (4) Write-form on-disk — nya nycklar skrivs, "Ssyk" skrivs ALDRIG.
     // OBS: jsonb normaliserar nyckelordning i lagrad form — Write-blockets
@@ -293,6 +320,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
             occupationGroup: ["g1"], municipality: ["m1"], region: ["r1"],
             employmentType: ["et_fast"], worktimeExtent: ["wt_heltid"],
             employer: ["5566010101"],
+            remote: false,
             q: "backend", sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Write-form", criteria, false, clock).Value;
         db.SavedSearches.Add(saved);
@@ -311,6 +339,8 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         raw.ShouldContain("\"WorktimeExtent\"");
         // #311 PR-2b C1: Employer-nyckeln skrivs alltid (array-form, mellan WorktimeExtent och Q).
         raw.ShouldContain("\"Employer\"");
+        // #551 PR-D: Remote-nyckeln skrivs alltid (skalär bool, mellan Employer och Q).
+        raw.ShouldContain("\"Remote\"");
         raw.ShouldContain("\"Q\"");
         raw.ShouldContain("\"SortBy\"");
     }
@@ -335,6 +365,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
             employmentType: ["et_vikariat", "et_fast"],
             worktimeExtent: ["wt_heltid"],
             employer: ["5566020202", "5566010101"],
+            remote: false,
             q: "backend",
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Roundtrip-rad", criteria, false, clock).Value;
@@ -352,8 +383,42 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         reloaded.Criteria.EmploymentType.ShouldBe(["et_fast", "et_vikariat"]); // sorterad ordinal
         reloaded.Criteria.WorktimeExtent.ShouldBe(["wt_heltid"]);
         reloaded.Criteria.Employer.ShouldBe(["5566010101", "5566020202"]); // sorterad ordinal
+        // #551 PR-D counterfactual: denna seed är remote=false → läses tillbaka som false
+        // (Remote=true-symmetrin bevisas i RemoteTrue_RoundTripsThroughEf).
+        reloaded.Criteria.Remote.ShouldBeFalse();
         reloaded.Criteria.Q.ShouldBe("backend");
         reloaded.Criteria.ShouldBe(criteria); // strukturell equality bevarad
+    }
+
+    [Fact]
+    public async Task RemoteTrue_RoundTripsThroughEf()
+    {
+        // #551 PR-D — Write+Read-symmetri för den boolska Remote-axeln över riktig Postgres jsonb:
+        // en criteria med Remote=true skrivs (writer.WriteBoolean("Remote", true)) och läses tillbaka
+        // (Read-switchens case "Remote": JsonTokenType.True → true). Om Read:s case "Remote" saknades
+        // skulle raden läsas som false → denna assertion faller (den avsiktliga symmetri-grinden;
+        // remote-only-criterian är giltig per den utökade tom-invarianten).
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var seeker = await SeedSeekerAsync(db, clock, ct);
+
+        var criteria = SearchCriteria.Create(
+            occupationGroup: [], municipality: [], region: [],
+            employmentType: [], worktimeExtent: [], employer: [],
+            remote: true, q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
+        var saved = SavedSearch.Create(seeker.Id, "Remote-roundtrip", criteria, false, clock).Value;
+        db.SavedSearches.Add(saved);
+        await db.SaveChangesAsync(ct);
+
+        using var readScope = Factory.Services.CreateScope();
+        var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var reloaded = await readDb.SavedSearches
+            .SingleAsync(s => s.Id == saved.Id, ct);
+
+        reloaded.Criteria.Remote.ShouldBeTrue();
+        reloaded.Criteria.ShouldBe(criteria); // strukturell equality bevarad (Remote ingår i Equals)
     }
 
     // ---------------------------------------------------------------

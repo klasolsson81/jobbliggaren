@@ -28,6 +28,7 @@ public class RecentJobSearchTests
             employmentType: null,
             worktimeExtent: null,
             employer: ["5566010101"],
+            remote: false,
             q: "backend",
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
@@ -39,6 +40,7 @@ public class RecentJobSearchTests
             employmentType: null,
             worktimeExtent: null,
             employer: ["5566020202"],
+            remote: false,
             q: "frontend",
             sortBy: JobAdSortBy.PublishedAtAsc).Value;
 
@@ -61,6 +63,9 @@ public class RecentJobSearchTests
         aggregate.Region.ShouldHaveSingleItem().ShouldBe("stockholm");
         // #311 PR-2b C1: employer (org.nr) projiceras in i recent-raden (employer_list).
         aggregate.Employer.ShouldHaveSingleItem().ShouldBe("5566010101");
+        // #551 PR-D counterfactual: ValidCriteria is remote=false → the projected flag is false
+        // (the remote=true projection is asserted in Capture_WithRemoteTrueCriteria_...).
+        aggregate.Remote.ShouldBeFalse();
         aggregate.SortBy.ShouldBe(JobAdSortBy.PublishedAtDesc);
         aggregate.LastSeenCount.ShouldBe(42);
         aggregate.LastViewedAt.ShouldBe(Clock.UtcNow);
@@ -75,7 +80,7 @@ public class RecentJobSearchTests
         var criteria = SearchCriteria.Create(
             occupationGroup: ["grp_only"], municipality: null, region: null,
             employmentType: null, worktimeExtent: null, employer: null,
-            q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
+            remote: false, q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
         var aggregate = RecentJobSearch.Capture(
             ValidJobSeekerId, criteria, currentCount: 0, Clock.UtcNow);
@@ -84,6 +89,26 @@ public class RecentJobSearchTests
         aggregate.Municipality.ShouldBeEmpty();
         aggregate.Region.ShouldBeEmpty();
         aggregate.Q.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Capture_WithRemoteTrueCriteria_ProjectsRemoteAndFoldsItIntoHash()
+    {
+        // #551 PR-D — a remote-only criteria (remote=true) projects onto the aggregate's Remote
+        // flag AND the FilterHash equals the canonical FilterHashCalculator.Compute(criteria)
+        // (which now folds Remote). Two guards in one: if Capture forgot to copy criteria.Remote,
+        // the Remote assertion fails; if Compute ignored Remote, a remote=true row would collide
+        // with the remote=false row this criteria otherwise is (identity leak).
+        var criteria = SearchCriteria.Create(
+            occupationGroup: ["grp_12345"], municipality: null, region: null,
+            employmentType: null, worktimeExtent: null, employer: null,
+            remote: true, q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
+
+        var aggregate = RecentJobSearch.Capture(
+            ValidJobSeekerId, criteria, currentCount: 3, Clock.UtcNow);
+
+        aggregate.Remote.ShouldBeTrue();
+        aggregate.FilterHash.ShouldBe(FilterHashCalculator.Compute(criteria));
     }
 
     [Fact]
@@ -146,12 +171,12 @@ public class RecentJobSearchTests
             occupationGroup: ["zzz", "aaa"], municipality: ["kkk", "jjj"],
             region: ["bbb", "ccc"], employmentType: null, worktimeExtent: null,
             employer: ["5566020202", "5566010101"],
-            q: "xx", sortBy: JobAdSortBy.PublishedAtDesc).Value;
+            remote: false, q: "xx", sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var c2 = SearchCriteria.Create(
             occupationGroup: ["aaa", "zzz"], municipality: ["jjj", "kkk"],
             region: ["ccc", "bbb"], employmentType: null, worktimeExtent: null,
             employer: ["5566010101", "5566020202"],
-            q: "xx", sortBy: JobAdSortBy.PublishedAtDesc).Value;
+            remote: false, q: "xx", sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
         var a = RecentJobSearch.Capture(ValidJobSeekerId, c1, 1, Clock.UtcNow);
         var b = RecentJobSearch.Capture(ValidJobSeekerId, c2, 1, Clock.UtcNow);

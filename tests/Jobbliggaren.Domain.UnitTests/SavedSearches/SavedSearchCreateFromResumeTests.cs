@@ -21,6 +21,7 @@ public class SavedSearchCreateFromResumeTests
             occupationGroup: occupationGroups.Length == 0 ? ["grp_12345"] : occupationGroups,
             municipality: null, region: null, employmentType: null, worktimeExtent: null,
             employer: null,
+            remote: false,
             q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
     [Fact]

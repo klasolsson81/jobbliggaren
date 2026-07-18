@@ -35,7 +35,8 @@ public class RunSavedSearchQueryHandlerTests
     private static async Task<(JobSeeker seeker, SavedSearch saved)> SeedAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId,
         string? occupationGroup = null, string? municipality = null,
-        string? region = null, string? q = null, string? employer = null)
+        string? region = null, string? q = null, string? employer = null,
+        bool remote = false)
     {
         var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
@@ -55,7 +56,7 @@ public class RunSavedSearchQueryHandlerTests
             municipality: municipalityList,
             region: regionList,
             employmentType: null,
-            worktimeExtent: null, employer: employerList,
+            worktimeExtent: null, employer: employerList, remote: remote,
             q: q,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Kör mig", criteria, false,
@@ -121,10 +122,35 @@ public class RunSavedSearchQueryHandlerTests
         // #311 PR-2b C1: the SavedSearch's employer (org.nr) is reproduced into the filter on run
         // (the CONTAINED-seam replacement — a regression back to Employer: [] would fail here).
         captured.Filter.Employer.ShouldBe(["5566010101"]);
+        // #551 PR-D counterfactual: this seed is remote=false → the filter must carry Remote=false
+        // (proves the threading is not hardcoded true; the remote=true case is asserted below).
+        captured.Filter.Remote.ShouldBeFalse();
         captured.Filter.Q.ShouldBe("backend");
         captured.SortBy.ShouldBe(JobAdSortBy.PublishedAtDesc);
         captured.Page.ShouldBe(2);
         captured.PageSize.ShouldBe(5);
+    }
+
+    [Fact]
+    public async Task Handle_WhenOwned_ThreadsRemoteTrueFromCriteriaIntoFilter()
+    {
+        // #551 PR-D (ADR 0087 D6-paritet): a SavedSearch whose criteria carries Remote=true must
+        // reproduce that distans-axis into JobAdFilterCriteria on run (PR-B's deferred seam,
+        // hardcoded Remote: false, is replaced). If the handler regresses to Remote: false this
+        // assertion fails — the key guard that the VO's Remote reaches the search port.
+        var db = TestAppDbContextFactory.Create();
+        var (_, saved) = await SeedAsync(db, _userId, q: "backend", remote: true);
+        JobAdSearchCriteria? captured = null;
+        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(c => captured = c), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+
+        var handler = new RunSavedSearchQueryHandler(
+            db, _currentUser, Substitute.For<IFailedAccessLogger>(), _search);
+
+        await handler.Handle(new RunSavedSearchQuery(saved.Id.Value), CancellationToken.None);
+
+        captured.ShouldNotBeNull();
+        captured!.Filter.Remote.ShouldBeTrue();
     }
 
     [Fact]

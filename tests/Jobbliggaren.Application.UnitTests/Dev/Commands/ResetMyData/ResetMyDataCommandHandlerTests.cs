@@ -40,7 +40,7 @@ public class ResetMyDataCommandHandlerTests
     private static SearchCriteria SampleCriteria() =>
         SearchCriteria.Create(
             occupationGroup: ["grp_12345"], municipality: null, region: null,
-            employmentType: null, worktimeExtent: null, employer: null,
+            employmentType: null, worktimeExtent: null, employer: null, remote: false,
             q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
     private static MatchPreferences StatedPreferences() =>

@@ -44,6 +44,7 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
         List<string> employmentType = [];
         List<string> worktimeExtent = [];
         List<string> employer = [];
+        bool remote = false;
         string? q = null;
         JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc;
 
@@ -85,6 +86,18 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
                 case "Employer":
                     employer = ReadStringOrStringArray(ref reader, "Employer");
                     break;
+                // #551 PR-D — Remote-nyckeln (distans, bool). Saknad nyckel (rad sparad före PR-D)
+                // → false via switch-default (samma additiva bakåtkompat-mönster som list-dims —
+                // bevisat av back-compat-testet). Skalär bool: egen True/False-läsare (INTE
+                // ReadStringOrStringArray, som kastar på bool). Property-namn = jsonb-kontrakt.
+                case "Remote":
+                    remote = reader.TokenType switch
+                    {
+                        JsonTokenType.True => true,
+                        JsonTokenType.False => false,
+                        _ => throw new JsonException("SearchCriteria.Remote måste vara en boolean."),
+                    };
+                    break;
                 case "Q":
                     q = reader.TokenType switch
                     {
@@ -123,6 +136,7 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
             employmentType: employmentType,
             worktimeExtent: worktimeExtent,
             employer: employer,
+            remote: remote,
             q: q,
             sortBy: sortBy);
         if (result.IsFailure)
@@ -178,6 +192,11 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
         foreach (var emp in value.Employer)
             writer.WriteStringValue(emp);
         writer.WriteEndArray();
+
+        // #551 PR-D — Remote (distans, bool) i kanonisk ordning efter Employer, före Q (matchar
+        // VO:ts Equals/GetHashCode + FilterHash). Skrivs alltid (skalär bool). En gammal rad utan
+        // nyckeln läses som false via Read-switchens default → replay-säker (paritet list-dims).
+        writer.WriteBoolean("Remote", value.Remote);
 
         if (value.Q is null)
             writer.WriteNull("Q");

@@ -21,6 +21,7 @@ public class SavedSearchTests
             occupationGroup: ["grp_12345"], municipality: ["sthlm_kn"],
             region: ["stockholm"], employmentType: null, worktimeExtent: null,
             employer: null,
+            remote: false,
             q: "backend",
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
@@ -181,7 +182,7 @@ public class SavedSearchTests
         var later = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(2));
         var newCriteria = SearchCriteria.Create(
             occupationGroup: ["grp_99999"], municipality: null, region: null,
-            employmentType: null, worktimeExtent: null, employer: null,
+            employmentType: null, worktimeExtent: null, employer: null, remote: false,
             q: null, sortBy: JobAdSortBy.PublishedAtAsc).Value;
 
         var result = savedSearch.UpdateCriteria(newCriteria, later);

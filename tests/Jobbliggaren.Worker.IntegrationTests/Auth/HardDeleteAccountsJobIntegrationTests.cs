@@ -335,6 +335,7 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
                 occupationGroup: ["grp_12345"], municipality: ["sthlm_kn"],
                 region: ["stockholm"], employmentType: null, worktimeExtent: null,
                 employer: null,
+                remote: false,
                 q: "developer",
                 sortBy: JobAdSortBy.PublishedAtDesc).Value;
 

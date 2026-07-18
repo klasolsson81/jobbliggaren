@@ -10,8 +10,9 @@ namespace Jobbliggaren.Application.RecentJobSearches.Common;
 ///
 /// <para>Interface exponerar de fält som tillsammans definierar filter-identitet
 /// (Q, OccupationGroup, Municipality, Region, EmploymentType, WorktimeExtent,
-/// SortBy — Fas C2/ADR 0067: occupation-name-dimensionen Ssyk utgick med VO-
-/// expansionen; Fas B2 2026-06-12: Klass 2 anställningsform/omfattning tillkom).
+/// Employer, Remote, SortBy — Fas C2/ADR 0067: occupation-name-dimensionen Ssyk
+/// utgick med VO-expansionen; Fas B2 2026-06-12: Klass 2 anställningsform/omfattning
+/// tillkom; #311 PR-2b C1: Employer (org.nr); #551 PR-D: Remote (distans)).
 /// Record-typer (t.ex. <c>ListJobAdsQuery</c>) matchar shape automatiskt via
 /// primary-ctor-properties.</para>
 ///
@@ -39,6 +40,12 @@ public interface ICapturesRecentSearch
     // sök-identiteten) → ListJobAdsQuery.Employer fångades aldrig. Denna PR (2b C1) lägger till den
     // så record-shapen matchar → en committad ?employer=-sökning fångas till RecentJobSearch.
     IReadOnlyList<string>? Employer { get; }
+
+    // #551 PR-D — distans/remote-dimensionen (bool). PR-B höll den MEDVETET UTANFÖR detta interface
+    // (CONTAINED-scope: remote trådades bara in i live-sök-filtret + facet-counts, ej sök-identiteten)
+    // → ListJobAdsQuery.Remote fångades aldrig. Denna PR (PR-D) lägger till den så record-shapen
+    // matchar → en committad ?remote=-sökning fångas till RecentJobSearch (parity Employer PR-2b C1).
+    bool Remote { get; }
 
     JobAdSortBy SortBy { get; }
 

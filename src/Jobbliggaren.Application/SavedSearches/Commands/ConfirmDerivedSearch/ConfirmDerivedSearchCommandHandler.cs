@@ -45,6 +45,10 @@ public sealed class ConfirmDerivedSearchCommandHandler(
             // occupation/location, not a watched org.nr). Employer is empty here by nature, not a
             // deferred seam. The VO/jsonb remain employer-aware for other paths.
             employer: [],
+            // #551 PR-D: a CV-derived saved search has no remote/distans dimension (it is derived
+            // from occupation/location, not from a ?remote= facet). Remote is false here by nature,
+            // not a deferred seam. The VO/jsonb remain remote-aware for other paths.
+            remote: false,
             q: command.Q,
             sortBy: command.SortBy);
         if (criteriaResult.IsFailure)

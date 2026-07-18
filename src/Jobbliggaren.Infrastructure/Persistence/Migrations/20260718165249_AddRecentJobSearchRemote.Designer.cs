@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using NpgsqlTypes;
@@ -13,9 +14,11 @@ using NpgsqlTypes;
 namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260718165249_AddRecentJobSearchRemote")]
+    partial class AddRecentJobSearchRemote
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -288,11 +291,6 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<string>("BrandGroupId")
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)")
-                        .HasColumnName("brand_group_id");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -306,6 +304,7 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnName("filter");
 
                     b.Property<string>("OrganizationNumber")
+                        .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("organization_number");
@@ -325,11 +324,6 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UserId")
                         .HasDatabaseName("ix_company_watches_user_id");
-
-                    b.HasIndex("UserId", "BrandGroupId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_company_watches_user_brand_group_active")
-                        .HasFilter("\"deleted_at\" IS NULL AND \"brand_group_id\" IS NOT NULL");
 
                     b.HasIndex("UserId", "OrganizationNumber")
                         .IsUnique()

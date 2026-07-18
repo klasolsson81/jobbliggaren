@@ -70,7 +70,7 @@ public class ListRecentSearchesQueryHandlerTests
             municipality: ["sthlm_kn"],
             region: ["stockholm"],
             employmentType: null,
-            worktimeExtent: null, employer: null,
+            worktimeExtent: null, employer: null, remote: false,
             q: q,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         return RecentJobSearch.Capture(seekerId, criteria, lastSeenCount, viewedAt);
@@ -178,7 +178,7 @@ public class ListRecentSearchesQueryHandlerTests
             municipality: ["gbg_kn"],
             region: ["goteborg"],
             employmentType: null,
-            worktimeExtent: null, employer: ["5566010101"],
+            worktimeExtent: null, employer: ["5566010101"], remote: false,
             q: "lärare",
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         db.RecentJobSearches.Add(
@@ -202,6 +202,36 @@ public class ListRecentSearchesQueryHandlerTests
         // (the CONTAINED-seam replacement — a regression back to Employer: [] would fail here).
         captured.Employer.ShouldBe(["5566010101"]);
         captured.Q.ShouldBe("lärare");
+    }
+
+    [Fact]
+    public async Task Handle_ThreadsRowRemoteIntoCountFilter()
+    {
+        // #551 PR-D: the recent row's remote (distans) flag is reproduced into the per-row count
+        // filter (the CONTAINED-seam replacement — a regression back to Remote: false fails here).
+        // A remote-only row is a valid search (empty-invariant accepts remote=true).
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        var criteria = SearchCriteria.Create(
+            occupationGroup: null, municipality: null, region: null,
+            employmentType: null, worktimeExtent: null, employer: null, remote: true,
+            q: null,
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
+        db.RecentJobSearches.Add(
+            RecentJobSearch.Capture(seeker.Id, criteria, 0, FakeDateTimeProvider.Default.UtcNow));
+        await db.SaveChangesAsync(CancellationToken.None);
+        JobAdFilterCriteria? captured = null;
+#pragma warning disable CA2012
+        _search.CountAsync(
+                Arg.Do<JobAdFilterCriteria>(c => captured = c), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<int>(0));
+#pragma warning restore CA2012
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        captured.ShouldNotBeNull();
+        captured!.Remote.ShouldBeTrue();
     }
 
     // ---------------------------------------------------------------
@@ -261,7 +291,7 @@ public class ListRecentSearchesQueryHandlerTests
             municipality: ["sthlm_kn"],
             region: ["stockholm"],
             employmentType: null,
-            worktimeExtent: null, employer: null,
+            worktimeExtent: null, employer: null, remote: false,
             q: null,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         db.RecentJobSearches.Add(
@@ -285,7 +315,7 @@ public class ListRecentSearchesQueryHandlerTests
             municipality: ["gbg_kn"],
             region: ["goteborg"],
             employmentType: null,
-            worktimeExtent: null, employer: null,
+            worktimeExtent: null, employer: null, remote: false,
             q: null,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         db.RecentJobSearches.Add(
@@ -309,7 +339,7 @@ public class ListRecentSearchesQueryHandlerTests
             municipality: null,
             region: ["stockholm"],
             employmentType: null,
-            worktimeExtent: null, employer: null,
+            worktimeExtent: null, employer: null, remote: false,
             q: null,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         db.RecentJobSearches.Add(
@@ -357,7 +387,7 @@ public class ListRecentSearchesQueryHandlerTests
             municipality: null,
             region: null,
             employmentType: null,
-            worktimeExtent: null, employer: null,
+            worktimeExtent: null, employer: null, remote: false,
             q: null,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         return RecentJobSearch.Capture(
@@ -432,7 +462,7 @@ public class ListRecentSearchesQueryHandlerTests
             municipality: ["kn_a", "kn_b", "kn_c"],
             region: null,
             employmentType: null,
-            worktimeExtent: null, employer: null,
+            worktimeExtent: null, employer: null, remote: false,
             q: null,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         db.RecentJobSearches.Add(RecentJobSearch.Capture(
@@ -479,7 +509,7 @@ public class ListRecentSearchesQueryHandlerTests
             municipality: null,
             region: ["reg_a", "reg_b"],
             employmentType: null,
-            worktimeExtent: null, employer: null,
+            worktimeExtent: null, employer: null, remote: false,
             q: null,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         db.RecentJobSearches.Add(RecentJobSearch.Capture(

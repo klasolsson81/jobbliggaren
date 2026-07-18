@@ -38,15 +38,21 @@ import type { ApplicationDto, ApplicationStatus } from "@/lib/dto/applications";
  */
 export function StatusMenu({
   application,
+  pending,
   compact = false,
 }: {
   application: ApplicationDto;
+  /**
+   * Pågår ett statusbyte på DENNA rad (disable:ar menyvalen + triggern)? Trådas
+   * ned från vy-containern (perf-audit d4) — menyn prenumererar aldrig själv på
+   * pendingIds-Set:et, så den re-renderar inte vid andra raders byten.
+   */
+  pending: boolean;
   compact?: boolean;
 }) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
-  const { pendingIds, transition, deleteApplication } = useApplicationActions();
-  const pending = pendingIds.has(application.id);
+  const { transition, deleteApplication } = useApplicationActions();
 
   const renderItem = (status: ApplicationStatus) => {
     const current = status === application.status;

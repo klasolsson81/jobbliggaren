@@ -65,7 +65,12 @@ function renderRow(
 ) {
   return render(
     <ApplicationActionsProvider>
-      <ApplicationRow application={application} now={FIXED_NOW} {...props} />
+      <ApplicationRow
+        application={application}
+        now={FIXED_NOW}
+        pending={false}
+        {...props}
+      />
     </ApplicationActionsProvider>,
   );
 }

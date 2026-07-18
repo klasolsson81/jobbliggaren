@@ -420,6 +420,67 @@ public class ResumeTests
     }
 
     // ---------------------------------------------------------------
+    // #668 (STEG 1 pnr-scanner hardening; ADR 0074 Invariant 1, CLAUDE.md §5): the aggregate
+    // REFUSES a personnummer-shaped CV name on EVERY name-write path (Create / CreateFromParsed /
+    // Rename). Resume.Name is a plaintext, unencrypted, list/export-surfaced column, so a
+    // personnummer typed into the LABEL must never reach it. The invariant runs the flag chain
+    // (Normalize -> Scan); the date+Luhn authority governs, so a lookalike that fails Luhn is
+    // ALLOWED (no over-flag). Non-ASCII gap points as \uXXXX escapes (project rule: ASCII source).
+    // ---------------------------------------------------------------
+
+    [Theory]
+    [InlineData("811218-9876")] // valid 10-digit personnummer
+    [InlineData("8112189876")] // contiguous, no separator
+    [InlineData("811278-9873")] // samordningsnummer (day 18+60=78)
+    [InlineData("811218\u00A09876")] // NBSP-gapped: proves Normalize runs before Scan
+    public void Create_WithPersonnummerShapedName_ReturnsFailure(string pnrName)
+    {
+        var result = Resume.Create(ValidJobSeekerId, pnrName, ValidFullName, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.NamePersonnummerMustBeRemoved");
+    }
+
+    [Fact]
+    public void Create_WithPersonnummerLookalikeFailingLuhn_IsAllowed_NoOverFlag()
+    {
+        // "811218-9875" has the personnummer SHAPE but a wrong Luhn check digit, so it is NOT a
+        // personnummer. The date+Luhn authority governs the name guard, so it must NOT over-flag.
+        var result = Resume.Create(ValidJobSeekerId, "811218-9875", ValidFullName, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Name.ShouldBe("811218-9875");
+    }
+
+    [Theory]
+    [InlineData("811218-9876")]
+    [InlineData("811218\u00A09876")] // NBSP-gapped: proves Normalize runs before Scan
+    public void CreateFromParsed_WithPersonnummerShapedName_ReturnsFailure(string pnrName)
+    {
+        var result = Resume.CreateFromParsed(
+            ValidJobSeekerId, pnrName, GapFilledContent(), ValidSourceParsedId, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.NamePersonnummerMustBeRemoved");
+    }
+
+    [Theory]
+    [InlineData("811218-9876")]
+    [InlineData("8112189876")]
+    [InlineData("811218\u00A09876")] // NBSP-gapped: proves Normalize runs before Scan
+    public void Rename_WithPersonnummerShapedName_ReturnsFailure(string pnrName)
+    {
+        var resume = CreateValidResume();
+        var before = resume.Name;
+
+        var result = resume.Rename(pnrName, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.NamePersonnummerMustBeRemoved");
+        resume.Name.ShouldBe(before); // refused -> Name is not mutated
+    }
+
+    // ---------------------------------------------------------------
     // UpdateMasterContent — happy path
     // ---------------------------------------------------------------
 

@@ -188,6 +188,73 @@ public class PersonnummerGuardPathEquivalenceTests
         match.Kind.ShouldBe(PersonnummerKind.Samordningsnummer);
     }
 
+    [Fact]
+    public void NewlyHardenedShapes_FlagPathDetection_ImpliesRedaction_NoDecimalDigitSurvives()
+    {
+        // STEG 1 pnr-scanner hardening (#665 two-separator zero-space, #667 fullwidth \p{Nd}): the
+        // two shapes newly reachable on the FLAG path in this change must ALSO satisfy the pinned
+        // redaction-superset-of-flag invariant - flag fires => Redact strips it AND no decimal
+        // digit (ASCII OR fullwidth) survives. Kept a focused product (not folded into the 2835-cell
+        // matrix above) because the double-separator and the fullwidth-digit rendering do not fit
+        // that generator's single-separator / ASCII-base cells. Contexts are digit-free, so every
+        // surviving \p{Nd} would be a leaked personnummer digit. Fullwidth vectors built at runtime
+        // (source stays ASCII-only, project rule).
+        var shapes = new (string Token, string Label)[]
+        {
+            ("811218--9876", "#665 double-separator no-space (personnummer)"),
+            ("811278--9873", "#665 double-separator no-space (samordningsnummer)"),
+            ("19811218--9876", "#665 double-separator no-space (12-digit)"),
+            (ToFullwidthDigits("811218-9876"), "#667 fullwidth personnummer"),
+            (ToFullwidthDigits("811278-9873"), "#667 fullwidth samordningsnummer"),
+            (ToFullwidthDigits("8112189876"), "#667 fullwidth contiguous"),
+            (ToFullwidthDigits("811218") + "--" + ToFullwidthDigits("9876"),
+                "#665+#667 fullwidth double-separator"),
+        };
+
+        var failures = new List<string>();
+        foreach (var (token, label) in shapes)
+        {
+            foreach (var (wrap, contextLabel) in Contexts)
+            {
+                var text = wrap(token);
+
+                // These are the newly-closed forms: the flag path MUST detect each.
+                if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text)).Count == 0)
+                {
+                    failures.Add($"NOT FLAGGED: {label} | context={contextLabel} | text=\"{Escape(text)}\"");
+                    continue;
+                }
+
+                var redacted = PersonnummerRedactor.Redact(text);
+                if (redacted == text || redacted.Any(c => CharUnicodeInfo.GetDecimalDigitValue(c) >= 0))
+                {
+                    failures.Add(
+                        $"NOT REDACTED / digit survived: {label} | context={contextLabel} | " +
+                        $"text=\"{Escape(text)}\" | redacted=\"{Escape(redacted)}\"");
+                }
+            }
+        }
+
+        failures.ShouldBeEmpty(
+            "every newly hardened flag-path-detected shape must also be redacted with no decimal " +
+            "digit surviving (flag superset invariant, #665/#667):" + Environment.NewLine +
+            string.Join(Environment.NewLine, failures));
+    }
+
+    // Fullwidth (U+FF10-U+FF19) rendering of the ASCII digits in the input, built at runtime so
+    // the source stays ASCII-only (project rule: no literal Unicode). Non-digits pass through.
+    private static string ToFullwidthDigits(string s)
+    {
+        var chars = s.ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+        {
+            if (chars[i] is >= '0' and <= '9')
+                chars[i] = (char)(0xFF10 + (chars[i] - '0'));
+        }
+
+        return new string(chars);
+    }
+
     // Composes lead + separator + gap + tail with the noise dimension applied: a zero-width
     // char either rides at the gap position (after the separator, before the visible gap) or
     // sits INSIDE the leading digit group (after its second digit). All zero-width points as

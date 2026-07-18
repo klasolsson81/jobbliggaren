@@ -64,23 +64,30 @@ public sealed record Personnummer
         if (candidate.IsEmpty)
             return false;
 
-        // Extract the significant digits, tolerating at most one separator. The separator
-        // SHAPE is ASCII '-'/'+', any Unicode dash (\p{Pd}), or U+2212 MINUS SIGN (#497 —
-        // Word/PDF/DOCX and this product's own rendering emit these). This widens only the
-        // accepted separator CHARACTER SET; the at-most-one COUNT rule and the date+Luhn
-        // authority below are UNCHANGED, so the guard can never over-flag. Any other
-        // character (letter, second separator, 13th digit) is rejected.
+        // Extract the significant digits, tolerating at most one separator. Digits are the
+        // Unicode decimal-digit category \p{Nd} FOLDED to their 0-9 value (#667 — via
+        // CharUnicodeInfo.GetDecimalDigitValue): a fullwidth (U+FF10-U+FF19) or other Nd form
+        // that PDF/DOCX extraction and non-Latin input methods emit is accepted and normalized
+        // to its ASCII digit here, so the Luhn/date math below (which does significant[i] - '0')
+        // operates on ASCII. Missing a fullwidth personnummer is a leak (false negative, strictly
+        // worse than a rare over-flag), so the digit class is widened. The separator SHAPE is
+        // ASCII '-'/'+', any Unicode dash (\p{Pd}), or U+2212 MINUS SIGN (#497 — Word/PDF/DOCX and
+        // this product's own rendering emit these). This widens only the accepted digit/separator
+        // CHARACTER SET; the at-most-one separator COUNT rule and the date+Luhn authority below
+        // are UNCHANGED, so the guard can never over-flag. Any other character (letter, second
+        // separator, 13th digit) is rejected.
         Span<char> digits = stackalloc char[12];
         var digitCount = 0;
         var separatorCount = 0;
 
         foreach (var c in candidate)
         {
-            if (char.IsAsciiDigit(c))
+            var digitValue = CharUnicodeInfo.GetDecimalDigitValue(c);
+            if (digitValue >= 0)
             {
                 if (digitCount == 12)
                     return false; // more than 12 digits — not a personnummer
-                digits[digitCount++] = c;
+                digits[digitCount++] = (char)('0' + digitValue);
             }
             else if (IsSeparator(c))
             {
@@ -178,7 +185,7 @@ public sealed record Personnummer
     }
 
     /// <summary>
-    /// Masks a personnummer-shaped text span: every ASCII digit → '*', every other
+    /// Masks a personnummer-shaped text span: every decimal digit (\p{Nd}, ASCII or fullwidth) → '*', every other
     /// character (a '-'/'+' separator or a bridging whitespace / zero-width gap) is
     /// kept and the overall length preserved, so a masked span maps 1:1 back onto the
     /// original text it was found in — no offset translation. Exposes NONE of the real
@@ -207,8 +214,12 @@ public sealed record Personnummer
 
     private static string MaskInto(ReadOnlySpan<char> span, Span<char> buffer)
     {
+        // Mask every Unicode decimal digit (\p{Nd}), not just ASCII (#667): a fullwidth or other
+        // non-ASCII digit is redacted to '*' too, so a detected non-ASCII personnummer never keeps
+        // a real digit. Length-preserving (one char -> one '*'), so the masked span still maps 1:1
+        // onto the original text it was found in.
         for (var i = 0; i < span.Length; i++)
-            buffer[i] = char.IsAsciiDigit(span[i]) ? '*' : span[i];
+            buffer[i] = CharUnicodeInfo.GetDecimalDigitValue(span[i]) >= 0 ? '*' : span[i];
 
         return new string(buffer);
     }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Jobbliggaren.Domain.Privacy;
 using Shouldly;
 
@@ -47,6 +48,46 @@ public class PersonnummerTests
         ok.ShouldBeTrue();
         result.ShouldNotBeNull();
         result.Kind.ShouldBe(PersonnummerKind.Samordningsnummer);
+    }
+
+    // #667 (STEG 1 pnr-scanner hardening; ADR 0074 Invariant 1): fullwidth digits
+    // (U+FF10-U+FF19) and other Unicode \p{Nd} forms are folded to their 0-9 value
+    // (CharUnicodeInfo.GetDecimalDigitValue) so the SAME date+Luhn authority validates them, and
+    // Masked redacts every \p{Nd} digit (not just ASCII). Vectors built at runtime so the source
+    // stays ASCII-only (project rule). Oracle = \p{Nd} absence, NOT char.IsAsciiDigit (a fullwidth
+    // leak is not ASCII and would pass an ASCII-only check silently).
+    [Theory]
+    [InlineData("811218-9876", PersonnummerKind.Personnummer)]
+    [InlineData("8112189876", PersonnummerKind.Personnummer)]
+    [InlineData("811278-9873", PersonnummerKind.Samordningsnummer)]
+    public void TryParse_FullwidthDigitPersonnummer_ReturnsTrue_AndMaskLeaksNoDigit(
+        string ascii, PersonnummerKind kind)
+    {
+        var fullwidth = ToFullwidthDigits(ascii);
+        fullwidth.Any(c => !char.IsAsciiDigit(c) && CharUnicodeInfo.GetDecimalDigitValue(c) >= 0)
+            .ShouldBeTrue("vector must carry a non-ASCII decimal digit");
+
+        var ok = Personnummer.TryParse(fullwidth, out var result);
+
+        ok.ShouldBeTrue();
+        result.ShouldNotBeNull();
+        result.Kind.ShouldBe(kind);
+        result.Masked.Any(c => CharUnicodeInfo.GetDecimalDigitValue(c) >= 0)
+            .ShouldBeFalse("Masked must not leak any decimal digit (ASCII or fullwidth)");
+    }
+
+    // Fullwidth (U+FF10-U+FF19) rendering of the ASCII digits in the input, built at runtime so
+    // the source stays ASCII-only (project rule: no literal Unicode). Non-digits pass through.
+    private static string ToFullwidthDigits(string s)
+    {
+        var chars = s.ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+        {
+            if (chars[i] is >= '0' and <= '9')
+                chars[i] = (char)(0xFF10 + (chars[i] - '0'));
+        }
+
+        return new string(chars);
     }
 
     // ===============================================================

@@ -50,7 +50,8 @@ namespace Jobbliggaren.Architecture.Tests;
 /// handler.
 /// (2) The transitive walk is bounded to the Application module — a sink call delegated to a
 /// Domain collaborator (a Domain service that composes content and invokes the aggregate itself)
-/// is outside the walk; a narrower cousin of the non-Mediator residual, tracked in issue #669.
+/// is outside the walk; a narrower cousin of the non-Mediator residual (issue #669, resolved as a
+/// documented residual — see the STEG 1 note below).
 /// (3) Virtual/interface dispatch is not devirtualized — the walk follows the callsite's declared
 /// target, so a handler that mutates via an injected Application interface (the callsite names
 /// the interface, the sink lives only in the implementation) would escape both probes. Contrived
@@ -58,6 +59,23 @@ namespace Jobbliggaren.Architecture.Tests;
 /// When that first id-based apply handler exists, a positive walker test pinning a
 /// helper-DELEGATED sink (handler → Application helper → Resume sink) should be added alongside
 /// the staleness anchors below.
+/// </para>
+///
+/// <para>
+/// STEG 1 pnr-scanner hardening (#668/#669 ruling): this content tripwire guards CANONICAL
+/// resume CONTENT at the Application boundary (Approach H). The CV LABEL (Resume.Name) is a
+/// separate surface -- a plaintext, unencrypted, list/export-surfaced column -- and its
+/// personnummer invariant lives in the AGGREGATE (Resume.ValidateName, called by Create /
+/// CreateFromParsed / Rename), NOT here: the name is not a ResumeContent sink, so it stays
+/// deliberately outside this tripwire's subject set (SinkProbe_ReturnsFalse pins that), and
+/// RenameResumeCommandHandler still does not call THIS guard type (GuardProbe_ReturnsFalse pins
+/// that). Enforcing the name rule in the aggregate closes the name channel for EVERY caller by
+/// construction, so residuals (1)/(2) -- a future non-Mediator or Domain-internal write path --
+/// are already covered FOR THE NAME (#668 subsumes #669 for that channel). The CONTENT residual
+/// (1)/(2) is unchanged: it remains a documented residual whose revisit trigger is this loud
+/// arch test itself (residual (3) already fired once when ApplyCvImprovements landed), so #669 is
+/// closed as a documented residual rather than a standing "maybe-someday" issue -- do not
+/// pre-build; CQRS (§2.3) keeps every product write surface a command handler.
 /// </para>
 /// </summary>
 public class ResumeContentPersonnummerGuardTests
@@ -205,6 +223,10 @@ public class ResumeContentPersonnummerGuardTests
         // RenameResumeCommandHandler mutates only the CV label (never canonical content free
         // text), never calls the guard, so the reachable-set IL-scan (own methods + async state
         // machine + followed Application-module calls) must return false for it.
+        // NB (#668, STEG 1): the CV label is NOT left unguarded for personnummer -- its pnr
+        // invariant lives in the AGGREGATE (Resume.ValidateName), a DIFFERENT type than this
+        // content guard, so this negative control (keyed on "ResumeContentPersonnummerGuard")
+        // correctly stays false while the label is still pnr-refused at Resume.Rename.
         // (CreateResumeCommandHandler was the original control; since Fas 4b PR-4 it GUARDS the
         // template fullName write path — security-auditor Major — and moved to the positive
         // anchor below.)

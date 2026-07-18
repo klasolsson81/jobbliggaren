@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes.Events;
 using Jobbliggaren.Domain.Resumes.Parsing;
 
@@ -104,6 +105,41 @@ public sealed class Resume : AggregateRoot<ResumeId>
         }
     }
 
+    // #668 (STEG 1 pnr-scanner hardening; ADR 0074 Invariant 1, CLAUDE.md §5 — the
+    // highest-priority PII rule): the shared name-invariant enforced on EVERY name-write path
+    // (Create / CreateFromParsed / Rename). Resume.Name is a PLAINTEXT, UNENCRYPTED column that
+    // surfaces in CV lists and exports, so a personnummer/samordningsnummer typed into the CV
+    // LABEL must be refused. This is a structural AGGREGATE invariant (DDD §2.2), not a boundary
+    // guard: enforcing it here closes the name channel for every caller by construction (Mediator
+    // handler or not), fail-closed, so a future name-write path cannot silently forget it
+    // (CTO-bound, #668 — subsumes #669 for the name channel).
+    //
+    // Detection = the FLAG-path chain (Normalize -> Scan), the same PersonnummerScanner authority
+    // the import/content guard runs. The name is REFUSED, never redacted — a label is user intent,
+    // not free-text evidence to strip in place. PersonnummerScanner/PersonnummerTextNormalizer are
+    // stateless pure Domain (Domain.Privacy), so calling them here stays within-Domain (Clean
+    // Architecture §2.1) and needs no injection. The unchanged date+Luhn authority
+    // (Personnummer.TryParse) still governs, so an ordinary label is never over-flagged.
+    // Returns the trimmed, validated name on success so callers use ONE canonical value
+    // (no per-site .Trim(), and the nullable-flow stays sound after the guard).
+    private static Result<string> ValidateName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return Result.Failure<string>(
+                DomainError.Validation("Resume.NameRequired", "Namn på CV är obligatoriskt."));
+
+        if (name.Length > 200)
+            return Result.Failure<string>(
+                DomainError.Validation("Resume.NameTooLong", "Namn får vara max 200 tecken."));
+
+        if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(name)).Count > 0)
+            return Result.Failure<string>(DomainError.Validation(
+                "Resume.NamePersonnummerMustBeRemoved",
+                "Ta bort personnummer ur CV-namnet."));
+
+        return Result.Success(name.Trim());
+    }
+
     // EF Core constructor
     private Resume() { }
 
@@ -133,13 +169,9 @@ public sealed class Resume : AggregateRoot<ResumeId>
             return Result.Failure<Resume>(
                 DomainError.Validation("Resume.JobSeekerIdRequired", "JobSeekerId krävs."));
 
-        if (string.IsNullOrWhiteSpace(name))
-            return Result.Failure<Resume>(
-                DomainError.Validation("Resume.NameRequired", "Namn på CV är obligatoriskt."));
-
-        if (name.Length > 200)
-            return Result.Failure<Resume>(
-                DomainError.Validation("Resume.NameTooLong", "Namn får vara max 200 tecken."));
+        var nameCheck = ValidateName(name);
+        if (nameCheck.IsFailure)
+            return Result.Failure<Resume>(nameCheck.Error);
 
         if (string.IsNullOrWhiteSpace(fullName))
             return Result.Failure<Resume>(
@@ -153,7 +185,7 @@ public sealed class Resume : AggregateRoot<ResumeId>
         var id = ResumeId.New();
         // Origin by construction (ADR 0096): Create is the in-app/template path — the
         // handoff's "mall"-CV ("Börja från profilen"). Immutable thereafter.
-        var resume = new Resume(id, jobSeekerId, name.Trim(), ResumeSourceOrigin.Template, now);
+        var resume = new Resume(id, jobSeekerId, nameCheck.Value, ResumeSourceOrigin.Template, now);
 
         var initialContent = ResumeContent.Empty(fullName.Trim());
         var master = ResumeVersion.CreateMaster(initialContent, clock);
@@ -190,13 +222,9 @@ public sealed class Resume : AggregateRoot<ResumeId>
             return Result.Failure<Resume>(
                 DomainError.Validation("Resume.JobSeekerIdRequired", "JobSeekerId krävs."));
 
-        if (string.IsNullOrWhiteSpace(name))
-            return Result.Failure<Resume>(
-                DomainError.Validation("Resume.NameRequired", "Namn på CV är obligatoriskt."));
-
-        if (name.Length > 200)
-            return Result.Failure<Resume>(
-                DomainError.Validation("Resume.NameTooLong", "Namn får vara max 200 tecken."));
+        var nameCheck = ValidateName(name);
+        if (nameCheck.IsFailure)
+            return Result.Failure<Resume>(nameCheck.Error);
 
         var contentValidation = ValidateContent(content);
         if (contentValidation.IsFailure)
@@ -206,7 +234,7 @@ public sealed class Resume : AggregateRoot<ResumeId>
         var id = ResumeId.New();
         // Origin by construction (ADR 0096): promoting a parsed import IS the import
         // path — "promote sets källa=import" is satisfied here, not by a setter.
-        var resume = new Resume(id, jobSeekerId, name.Trim(), ResumeSourceOrigin.Import, now);
+        var resume = new Resume(id, jobSeekerId, nameCheck.Value, ResumeSourceOrigin.Import, now);
         // PR-9c (ADR 0100 §D5): persist the parsed→resume provenance the event carries
         // transiently — it is the cascade key for per-CV original-file erasure. Set by
         // construction (before events), mirroring Origin.
@@ -227,15 +255,11 @@ public sealed class Resume : AggregateRoot<ResumeId>
 
     public Result Rename(string? name, IDateTimeProvider clock)
     {
-        if (string.IsNullOrWhiteSpace(name))
-            return Result.Failure(
-                DomainError.Validation("Resume.NameRequired", "Namn på CV är obligatoriskt."));
+        var nameCheck = ValidateName(name);
+        if (nameCheck.IsFailure)
+            return Result.Failure(nameCheck.Error);
 
-        if (name.Length > 200)
-            return Result.Failure(
-                DomainError.Validation("Resume.NameTooLong", "Namn får vara max 200 tecken."));
-
-        Name = name.Trim();
+        Name = nameCheck.Value;
         UpdatedAt = clock.UtcNow;
         return Result.Success();
     }

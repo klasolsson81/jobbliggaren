@@ -119,6 +119,17 @@ public sealed class PurgeStaleGradeGateMatchesMigrationTests(ApiFactory factory)
         var (db, scope) = NewScope();
         using (scope)
         {
+            // The migration's DELETE is a GLOBAL unscoped scan. In the shared [Collection("Api")]
+            // container, sibling collections run in PARALLEL against the same database — an
+            // uncontained run here would delete THEIR match rows mid-test whenever their seeds
+            // happen to satisfy the stale predicate (NULL-facet ad + stated prefs), a
+            // green-solo/red-in-suite failure the victim cannot diagnose. Everything below
+            // (seeds + both purge runs + assertions) therefore executes inside ONE transaction
+            // that is NEVER committed: the dispose rolls back and the shared database is
+            // byte-identical afterwards. ExecuteSqlRawAsync/SaveChangesAsync enlist in the
+            // context's current transaction, and our own reads see the uncommitted state.
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+
             // (a) ORT-branch stale row — MUST be deleted. The ad states NEITHER ort value
             // (region AND municipality both NULL); the user states an ort preference. Post-#552
             // this pair is gate-floored to Basic (MatchScorer.ScoreOrtUnion) and can never

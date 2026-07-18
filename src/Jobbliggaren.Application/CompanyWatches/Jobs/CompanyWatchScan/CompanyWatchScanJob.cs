@@ -160,7 +160,9 @@ public sealed partial class CompanyWatchScanJob(
         // (Length==10 AND 3rd digit 0/1) is a translatable SUPERSET of every ad that could HMAC-match
         // an enskild watch — a matching ad carries the watch's own valid 10-digit pnr — so a too-narrow
         // prefilter (the cardinal sin: a watch that matches nothing) fails the Testcontainers oracle,
-        // never silently in prod. Project the id + its org.nr (mapped back to the watch client-side, no
+        // never silently in prod. The IDENTICAL predicate lives in ListCompanyWatchesQueryHandler's
+        // token→plaintext resolution — keep both in sync (a single-sourced IQueryable extension is a
+        // noted follow-up, dotnet-architect 2026-07-18). Project the id + its org.nr (mapped back to the watch client-side, no
         // join) + BOTH geo axes (per-watch ort filter, RF-3=3D — the ort check is CLIENT-SIDE per
         // (ad, watch) pair; the D5 seal EXTENDED, still scorer-/profile-free). Both geo axes are needed:
         // an ad tagged at län granularity with NO municipality must still pass a whole-län filter (F4a).

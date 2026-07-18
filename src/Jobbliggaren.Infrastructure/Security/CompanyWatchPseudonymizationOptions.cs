@@ -22,6 +22,14 @@ namespace Jobbliggaren.Infrastructure.Security;
 /// <c>AuditPseudonymization:PepperBase64</c> and <c>FieldEncryption:LocalMasterKeyBase64</c> are.
 /// Generate one: <c>openssl rand -base64 32</c>.
 /// </para>
+/// <para>
+/// <b>Cross-host parity is load-bearing (code-reviewer #544).</b> The <b>Api</b> (write path —
+/// tokenises a new enskild-firma follow) and the <b>Worker</b> (scan path — HMAC-matches against
+/// <c>job_ads</c>) MUST hold the <b>identical</b> pepper. A divergence silently breaks every
+/// enskild-firma watch (the token can never match — a watch that matches nothing forever). This is the
+/// same cross-host requirement as <c>FieldEncryption:LocalMasterKeyBase64</c>; provision ONE value to
+/// both processes (ops-runbook line owned by docs-keeper/Klas).
+/// </para>
 /// </remarks>
 public sealed class CompanyWatchPseudonymizationOptions
 {

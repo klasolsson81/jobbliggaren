@@ -82,14 +82,18 @@ public sealed class ListCompanyWatchesQueryHandler(
         var plaintextByEnskildKey = new Dictionary<string, string>(StringComparer.Ordinal);
         if (watches.Any(w => w.OrganizationNumber.IsPersonnummerShaped()))
         {
-            // The pnr-shaped active job_ads org.nrs (translatable SUPERSET: Length==10 AND 3rd digit
-            // 0/1), DISTINCT + bounded (enskild-firma employers are rare). HMAC each so an enskild
-            // watch token resolves to the public plaintext org.nr. Server-side only — the raw org.nr
-            // is never surfaced/logged; the plaintext-key arm covers the plaintext→token backfill window.
+            // The pnr-shaped job_ads org.nrs (translatable SUPERSET of IsPersonnummerShaped:
+            // Length==10 AND 3rd digit 0/1). KEEP THIS ARM IN SYNC with CompanyWatchScanJob's identical
+            // prefilter — it is oracle-pinned there (RunAsync_PnrShapePrefilter_AdmitsBothBoundaryThirdDigits);
+            // a too-narrow copy = silent no-match (the cardinal sin). DISTINCT + bounded (enskild-firma
+            // employers are rare). STATUS-AGNOSTIC on purpose (parity the name lookup below): a followed
+            // company keeps its name whether or not its ads are Active, so the token must still resolve
+            // for an archived-only enskild firma; the #447/#452 counts apply their OWN Active gate. HMAC
+            // each so an enskild watch token resolves to the public plaintext org.nr. Server-side only —
+            // the raw org.nr is never surfaced/logged; the plaintext-key arm covers the backfill window.
             var pnrShapedAdOrgNrs = await db.JobAds
                 .AsNoTracking()
-                .Where(j => j.Status == JobAdStatus.Active
-                            && EF.Property<string?>(j, "OrganizationNumber") != null
+                .Where(j => EF.Property<string?>(j, "OrganizationNumber") != null
                             && EF.Property<string?>(j, "OrganizationNumber")!.Length == 10
                             && (EF.Property<string?>(j, "OrganizationNumber")!.Substring(2, 1) == "0"
                                 || EF.Property<string?>(j, "OrganizationNumber")!.Substring(2, 1) == "1"))

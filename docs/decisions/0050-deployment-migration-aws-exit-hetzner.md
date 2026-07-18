@@ -142,9 +142,13 @@ och Next.js-servern (`localhost:3000`, övriga routes); origin-cert + origin-IP-
 
 > **Amenderad 2026-07-18 (#756 — reverse-proxy-rutt-regeln korrigerad; denna
 > amendment är SSOT för routingen):** rutt-regeln i stycket ovan (`/api/*` →
-> ASP.NET) är **fel** och rättas här. Samtliga ASP.NET-backend-routes lever
-> enbart under `/api/v1/` (alla `MapGroup`-grupper prefixade `/api/v1/…`), medan
-> **11 Next.js-BFF-route-handlers** lever direkt under `/api/`: prefixen
+> ASP.NET) är **fel** och rättas här. Alla backend-**endpoints**
+> (`MapGroup`-grupper) lever under `/api/v1/`; de enda backend-routes utanför
+> `/api/v1/` är health-checkarna `/api/live` + `/api/ready` (direkt under `/api/`
+> via `MapHealthChecks`), som under Option B förblir interna by construction
+> (Compose-healthchecken träffar backend-containern på internnätet — default-path
+> `/api/ready` — inte edge). **11 Next.js-BFF-route-handlers** lever direkt under
+> `/api/`: prefixen
 > `/api/jobb/*`, `/api/me/*`, `/api/cv/*`, `/api/foretag/lookup`,
 > `/api/landing-stats`. En bred `/api/*` → ASP.NET vid edge skulle alltså slussa
 > de 11 BFF-handlers till backend, som inte serverar dem → **404/401 i produktion**
@@ -156,8 +160,9 @@ och Next.js-servern (`localhost:3000`, övriga routes); origin-cert + origin-IP-
 > `docs/reviews/2026-07-18-756-caddy-topology-cto.md`) — Option B,
 > "route-all-through-Next":** Caddy reverse-proxiar **all** trafik till
 > Next.js-servern (`web:3000`); **ASP.NET-API:t exponeras aldrig vid edge** — det
-> binds enbart till det interna Docker-nätverket (Compose `expose:`, inte
-> `ports:`). Ingen `/api`-matcher finns vid edge överhuvudtaget. Caddyfilens
+> binds enbart till det interna Docker-nätverket (inte publicerad via `ports:`
+> till host — `expose:` är informativt; host-onåbarheten kommer från frånvaron av
+> host-publicering). Ingen `/api`-matcher finns vid edge överhuvudtaget. Caddyfilens
 > app-del blir i praktiken en enda `reverse_proxy web:3000` (plus `encode`, se
 > TD-106). Cloudflare "Full (strict)" + origin-cert + origin-IP-lockdown + HSTS
 > är oförändrade.
@@ -177,7 +182,8 @@ och Next.js-servern (`localhost:3000`, övriga routes); origin-cert + origin-IP-
 > = first-match; `/api/v1/*` måste matchas före ett bredare `/api/*`) som *är*
 > defektklassen bakom #756.
 >
-> **Lastbärande invarianter (måste hålla, annars kollapsar Option B:s säkerhet):**
+> **Lastbärande invarianter (måste hålla — annars kollapsar Option B:s säkerhet
+> eller korrekthet):**
 > 1. **Browser-never-calls-backend:** ingen `NEXT_PUBLIC`-backend-URL får införas.
 >    Ett framtida direkt browser→backend-anrop är en **topologiändring** som
 >    kräver medveten ADR-amendment (återöppna en snävt-scopad, härdad
@@ -196,17 +202,30 @@ och Next.js-servern (`localhost:3000`, övriga routes); origin-cert + origin-IP-
 >    `/.well-known/acme-challenge/*` av Caddy internt före all `reverse_proxy` —
 >    varken backend- eller Next-rutt. (Med Cloudflare Full (strict) + origin-cert
 >    är detta ändå moot.)
+> 6. **`BACKEND_URL` resolvar internt (korrekthets-invariant, den som faktiskt får
+>    Option B att fungera):** Next-serverns server-only `BACKEND_URL`
+>    (`web/…/src/proxy.ts`, `lib/auth/session.ts`, `lib/security/security-headers.ts`
+>    — dokumenterad "server-only env getter") måste peka på backend-containern på
+>    det interna Docker-nätverket (service-DNS, t.ex. `http://api:8080`), **aldrig**
+>    det publika origin:et. Under Option B är internvägen den **enda** vägen till
+>    backend; pekas `BACKEND_URL` fel loopar varje SSR/BFF-anrop mot `/api/v1/*`
+>    genom Caddy→Next→**404** (Next har inga `/api/v1/*`-handlers).
 >
 > **Överlämnat till TD-106 (build-tid; security-auditors veto beväpnas där, inte
 > här — detta är en docs-only-ändring utan kod/secret/PII-touch):** (a)
-> backend-bind-posture `expose:` inte `ports:` (assertion att backend är onåbar
-> publikt även om Caddy kringgås); (b) en cutover-curl-matris som bevisar att de 5
-> BFF-prefixen resolvar till Next; (c) `encode zstd gzip` (finding
-> d2-compression); (d) **forwarded-headers/per-IP-rate-limit:** `AuthWritePolicy`
-> rate-limitar per klient-IP → Caddy måste passa äkta klient-IP (ForwardedHeaders
-> mot Caddy, inte den kvarvarande AWS-ALB-orienterade `AlbOptions`-hanteringen i
-> `Program.cs`; jfr TD-106 punkt 4 `AlbOptions → ReverseProxyOptions`), annars
-> kollapsar limits till Caddys IP och rate-limitingen dör tyst.
+> backend-bind-posture: inte publicerad via `ports:` till host (`expose:`
+> informativt) — TD-106 verifierar host-onåbarhet **empiriskt** (curl mot
+> host-IP:backend-port utifrån), inte via `expose:`-närvaro; (b) en
+> cutover-curl-matris som bevisar att de 11 BFF-`/api/*`-handlers resolvar till
+> Next; (c) `encode zstd gzip` (finding d2-compression); (d)
+> **forwarded-headers/per-IP-rate-limit:** `AuthWritePolicy` rate-limitar per
+> klient-IP → Caddy måste passa äkta klient-IP. Både `ForwardedHeadersConfig` +
+> `appsettings.Production.json`:s `ForwardedHeaders.KnownNetworks` (den faktiska
+> X-Forwarded-For-wiringen, i dag bunden till ALB:s VPC-CIDR) **och** `AlbOptions`
+> (HTTPS/HSTS-gaten) är ALB-orienterade och måste re-homas för Caddy/Docker-nätets
+> CIDR (jfr TD-106 punkt 3 `ForwardedHeadersConfig` + punkt 4 `AlbOptions →
+> ReverseProxyOptions`), annars kollapsar limits till Caddys IP och
+> rate-limitingen dör tyst.
 
 Nattlig `pg_dump` → **Hetzner-EU Storage Box** (~€3,20/mån/1 TB,
 samma EU-jurisdiktion som boxen) — backups ligger INTE på boxens 160 GB (håller
@@ -450,20 +469,24 @@ exekverar utan extra Klas-GO; override-yta noterad).
 
 6. **Beslut 4 reverse-proxy-routing korrigerad → Option B ("route-all-through-
    Next"):** den inline-amenderade rutt-regeln (`/api/*` → ASP.NET) var **fel**.
-   Samtliga backend-routes lever under `/api/v1/`; **11 Next.js-BFF-route-handlers**
-   lever direkt under `/api/` (prefixen `/api/jobb/*`, `/api/me/*`, `/api/cv/*`,
-   `/api/foretag/lookup`, `/api/landing-stats`). En bred `/api/*` → ASP.NET vid edge
-   hade skuggat de 11 → 404/401 i produktion. **Korrigering:** all trafik → Next
-   (`web:3000`); ASP.NET-API:t exponeras **aldrig** vid edge (Compose `expose:`,
-   inte `ports:`); ingen `/api`-matcher vid edge. Grund: backend har noll publika
-   konsumenter (ingen `NEXT_PUBLIC`-backend-URL, ingen tredjeparts-callback) →
-   least privilege + YAGNI, och topologin **eliminerar defektklassen** (utan
-   `/api`-matcher kan bred-prefix-skuggningen inte återuppstå). **Supersederar** den
-   tidigare "hela origin (API + Next.js)"-/`/api/*`-formuleringen i både Beslut 4:s
-   brödtext och Amendment 2026-06-14 punkt 5. Detaljer, lastbärande invarianter och
-   TD-106-överlämning: se den daterade inline-amendmenten under Beslut 4 (SSOT för
-   routingen). Ingen live-miljö påverkas (ingen Caddyfil finns ännu). Rör ingen kod
-   (docs-only); security-auditors veto beväpnas vid TD-106:s build-tid, inte här.
+   Alla backend-endpoints (`MapGroup`) lever under `/api/v1/` (enda undantag =
+   health-routes `/api/live` + `/api/ready` direkt under `/api/`, interna under
+   Option B); **11 Next.js-BFF-route-handlers** lever direkt under `/api/` (prefixen
+   `/api/jobb/*`, `/api/me/*`, `/api/cv/*`, `/api/foretag/lookup`,
+   `/api/landing-stats`). En bred `/api/*` → ASP.NET vid edge hade skuggat de 11 →
+   404/401 i produktion. **Korrigering:** all trafik → Next (`web:3000`); ASP.NET-
+   API:t exponeras **aldrig** vid edge (inte publicerad via `ports:` till host);
+   ingen `/api`-matcher vid edge. Grund: backend har noll publika konsumenter
+   (ingen `NEXT_PUBLIC`-backend-URL, ingen tredjeparts-callback) → least privilege +
+   YAGNI, och topologin **eliminerar defektklassen** (utan `/api`-matcher kan
+   bred-prefix-skuggningen inte återuppstå). **Supersederar** den tidigare "hela
+   origin (API + Next.js)"-/`/api/*`-formuleringen i både Beslut 4:s brödtext och
+   Amendment 2026-06-14 punkt 5, samt `localhost:3000`-upstreamen i TD-106-scope-
+   noten (Amendment 2026-06-14 ovan) → `web:3000` (Compose-service-DNS). Detaljer,
+   lastbärande invarianter och TD-106-överlämning: se den daterade inline-
+   amendmenten under Beslut 4 (SSOT för routingen). Ingen live-miljö påverkas (ingen
+   Caddyfil finns ännu). Rör ingen kod (docs-only); security-auditors veto beväpnas
+   vid TD-106:s build-tid, inte här.
 
 ## Relaterade beslut
 

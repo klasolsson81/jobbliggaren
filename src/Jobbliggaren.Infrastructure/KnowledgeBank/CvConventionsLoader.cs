@@ -66,6 +66,27 @@ internal static class CvConventionsLoader
                 "cv-conventions-assetet saknar sectionOrder. En tom ordning gör "
                 + "SectionReorderTransform permanent inert — assetets enda syfte är den listan.");
 
+        // fontAllowlist (Fas 4b #891, ADR 0108): the D3 body-font recommendation. An empty list is
+        // not "no opinion" — it is a D3 rule that can never match a standard font, i.e. every
+        // measured CV Warns. The asset's font half exists to carry these names.
+        if (file.FontAllowlist.Count == 0)
+            throw new InvalidOperationException(
+                "cv-conventions-assetet saknar fontAllowlist. En tom lista gör D3-regeln oförmögen "
+                + "att känna igen ett standardtypsnitt — varje mätt CV skulle då varna.");
+
+        var fontSeen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var font in file.FontAllowlist)
+        {
+            if (string.IsNullOrWhiteSpace(font))
+                throw new InvalidOperationException("cv-conventions-assetet har ett tomt fontnamn i fontAllowlist.");
+
+            // A font named twice is a data typo, not a second opinion — the rule dedupes on
+            // normalisation anyway, but a duplicate here should fail loud like a duplicate sectionId.
+            if (!fontSeen.Add(font))
+                throw new InvalidOperationException(
+                    $"Typsnittet '{font}' står två gånger i fontAllowlist — en post per typsnitt.");
+        }
+
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var order = new List<CvSectionOrderEntry>(file.SectionOrder.Count);
 
@@ -88,7 +109,7 @@ internal static class CvConventionsLoader
                 : new CvSectionOrderEntry(sectionId, TypedKind: null));
         }
 
-        return new CvConventions(file.ConventionsVersion, order);
+        return new CvConventions(file.ConventionsVersion, order, file.FontAllowlist);
     }
 }
 
@@ -102,4 +123,7 @@ internal sealed record CvConventionsFile
 
     [JsonPropertyName("sectionOrder")]
     public IReadOnlyList<string> SectionOrder { get; init; } = [];
+
+    [JsonPropertyName("fontAllowlist")]
+    public IReadOnlyList<string> FontAllowlist { get; init; } = [];
 }

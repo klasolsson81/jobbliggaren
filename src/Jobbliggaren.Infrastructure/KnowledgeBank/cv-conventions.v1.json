@@ -3,9 +3,25 @@
   "//order": "convention. NOT a formatting grab-bag: date-format policy lives in the rubric",
   "//owners": "(thresholds), heading/contact RECOGNITION lives in cv-parsing-lexicon (ADR 0107 §3),",
   "//form": "and regex/sort FORM lives in C#. fontAllowlist enters here only in the change that",
-  "//font": "gives rubric criterion D3 a reader — never before it. NO AI/LLM.",
+  "//font": "gives rubric criterion D3 a reader — landed in #891. NO AI/LLM.",
 
-  "conventionsVersion": "1.0.0",
+  "conventionsVersion": "1.1.0",
+
+  "//fontAllowlist": "The rubric's D3 atsPassSignal font list ('Arial, Calibri, Helvetica, Roboto,",
+  "//fontAllowlist2": "Times New Roman, Georgia, Verdana') made machine-readable — a RECOMMENDATION,",
+  "//fontAllowlist3": "parallel to sectionOrder. It is an EXEMPLAR set, not an exhaustive list of",
+  "//fontAllowlist4": "ATS-safe fonts (Garamond/Lato parse fine and are absent), so D3 WARNS on a",
+  "//fontAllowlist5": "non-member body font, never FAILS. The <10 pt band is a THRESHOLD and lives",
+  "//fontAllowlist6": "in the rubric (D3.thresholds.fontBodyPtWarnBelow), never here (ADR 0108).",
+  "fontAllowlist": [
+    "Arial",
+    "Calibri",
+    "Helvetica",
+    "Roboto",
+    "Times New Roman",
+    "Georgia",
+    "Verdana"
+  ],
 
   "//sectionOrder": "The rubric's B1 atsPassSignal made machine-readable: 'Kontakt -> (Profil) ->",
   "//sectionOrder2": "Arbetslivserfarenhet -> Utbildning -> Kompetenser -> Sprak -> Ovrigt'. The ids are",

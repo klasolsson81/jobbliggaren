@@ -23,7 +23,7 @@ public class ResumeReconcileFindingStatusesTests
     private static readonly FakeDateTimeProvider Clock = FakeDateTimeProvider.Default;
     private static readonly JobSeekerId ValidJobSeekerId = new(Guid.NewGuid());
 
-    private const string Version = "2.1.0";
+    private const string Version = "2.2.0";
 
     // Distinct, shape-valid fingerprints (64 lowercase hex; the aggregate validates shape, never
     // provenance — the reconciler derives the real digest, covered in ResumeReviewReconcilerTests).
@@ -186,7 +186,7 @@ public class ResumeReconcileFindingStatusesTests
         resume.SetFindingStatus("1.2.0", "A1", ReviewFindingStatus.Open, FpA, Clock);
         resume.SetFindingStatus("1.2.0", "A2", ReviewFindingStatus.Resolved, FpB, Clock);
 
-        // Reconciling at 2.1.0 with an empty actionable set must not drop the 1.2.0 Open row, nor
+        // Reconciling at 2.2.0 with an empty actionable set must not drop the 1.2.0 Open row, nor
         // touch the 1.2.0 Resolved row — a new rubric version is a new key space.
         resume.ReconcileFindingStatuses(Version, Actionable(), LaterClock(1));
 

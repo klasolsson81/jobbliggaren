@@ -205,6 +205,12 @@ public static class RubricThresholdKeys
     /// <summary>E2: tightest page margin (PDF points) BELOW which the layout is cramped → WARN
     /// (&lt;) — Fas 4b PR-6b (28.35 pt ~= 1 cm).</summary>
     public const string MinMarginPointsFloor = "minMarginPointsFloor";
+
+    /// <summary>D3: body-text point size BELOW which the font size warns (&lt;) — Fas 4b #891
+    /// (ADR 0108). Derived from the D3 prose "10–12 pt brödtext"; the &lt;9 pt FAIL band is a
+    /// deferred follow-up (no rule reads it yet, so no key exists for it — the completeness test
+    /// forbids an unread key).</summary>
+    public const string FontBodyPtWarnBelow = "fontBodyPtWarnBelow";
 }
 
 /// <summary>

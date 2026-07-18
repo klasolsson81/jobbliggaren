@@ -32,7 +32,7 @@ public class CvConventionsProviderTests
         var conventions = LoadConventions();
 
         conventions.ShouldNotBeNull();
-        conventions.Version.ShouldBe("1.0.0");
+        conventions.Version.ShouldBe("1.1.0");
     }
 
     [Fact]
@@ -103,7 +103,8 @@ public class CvConventionsProviderTests
         [
             new CvSectionOrderEntry("experience", ParsedSectionKind.Experience),
             new CvSectionOrderEntry("hobbyprojekt-i-tradgarden", TypedKind: null),
-        ]);
+        ],
+        ["Arial"]);
 
         var ex = Should.Throw<InvalidOperationException>(
             () => CvConventionsProvider.ValidateAgainstLexicon(drifted, RealLexicon()));
@@ -121,7 +122,8 @@ public class CvConventionsProviderTests
         [
             new CvSectionOrderEntry("experience", ParsedSectionKind.Experience),
             new CvSectionOrderEntry("projekt", TypedKind: null),
-        ]);
+        ],
+        ["Arial"]);
 
         Should.NotThrow(
             () => CvConventionsProvider.ValidateAgainstLexicon(withFreeSection, RealLexicon()));
@@ -136,7 +138,7 @@ public class CvConventionsProviderTests
         RealLexicon().FreeSectionIds.ShouldNotContain("skills");
 
         Should.NotThrow(() => CvConventionsProvider.ValidateAgainstLexicon(
-            new CvConventions("1.0.0", [new CvSectionOrderEntry("skills", ParsedSectionKind.Skills)]),
+            new CvConventions("1.0.0", [new CvSectionOrderEntry("skills", ParsedSectionKind.Skills)], ["Arial"]),
             RealLexicon()));
     }
 }

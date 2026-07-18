@@ -36,7 +36,12 @@ internal sealed record CriterionEvaluationContext(
     // the same route Analyzer/Cliches/Verbs, SpellChecker/Allowlist and Layout already take (rules
     // are new()'d with no ctor deps). It is the SAME SectionOrderAnalyzer the improvement engine's
     // SectionReorderTransform proposes against, so the judge and the proposer cannot disagree.
-    SectionOrderAssessment SectionOrder)
+    SectionOrderAssessment SectionOrder,
+    // Fas 4b #891 (ADR 0108): D3's recommended body-font allowlist, from cv-conventions (a
+    // RECOMMENDATION). The engine surfaces it here so D3StandardFontRule reaches it through the
+    // context (parity SectionOrder/Allowlist — new()'d rules, no ctor deps). The <10 pt band is a
+    // THRESHOLD read from the rubric via context.Criterion.RequiredThreshold, not carried here.
+    IReadOnlyList<string> FontAllowlist)
 {
     /// <summary>The source-agnostic structured content view (CV-PII, decrypted upstream).</summary>
     public ReviewableCv Content => Review.Content;

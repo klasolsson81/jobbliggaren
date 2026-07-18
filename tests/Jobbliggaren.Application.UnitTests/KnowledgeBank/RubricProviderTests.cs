@@ -38,7 +38,7 @@ public class RubricProviderTests
         // added, no new scored criterion, asset renamed rubric.v2.1.0.json). Prior: 1.2.0 →
         // 2.0.0 (#655 PR-6a: the C7 spelling criterion ADDED → MAJOR bump); 1.1.0 → 1.2.0
         // (#654, thresholds-as-data + styleOnly); 1.0.1 → 1.1.0 (#488).
-        rubric.Version.ShouldBe(RubricVersion.Parse("2.1.0"));
+        rubric.Version.ShouldBe(RubricVersion.Parse("2.2.0"));
         rubric.EffectiveDate.ShouldBeGreaterThan(default(DateOnly));
     }
 

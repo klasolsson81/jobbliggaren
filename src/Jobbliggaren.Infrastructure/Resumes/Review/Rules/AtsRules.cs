@@ -86,6 +86,92 @@ internal sealed class D6StandardHeadingsRule : ICriterionRule
 }
 
 /// <summary>
+/// D3 Standardtypsnitt (High, AtsOnly) — the CV's body text uses a standard, ATS-safe font at a
+/// readable size (Fas 4b #891, ADR 0108). Reads the font runs the <c>ICvLayoutAnalyzer</c>
+/// collected at import; the "body = the modal size by letter count" definition and the allowlist
+/// match are assessment POLICY and live HERE (never baked into the import artifact, so the
+/// definition stays revisable at review time). WARN-only in v1 — the cv-conventions allowlist is an
+/// EXEMPLAR set (Garamond/Lato parse fine yet are absent), so a non-member body font WARNS, never
+/// FAILS (§5: a false Fail on a good CV is the over-claim sin); the &lt;9 pt Fail band and
+/// icon-font detection are a deferred follow-up. NotAssessed without font runs — the canonical arm
+/// (<c>context.Layout</c> is null there), a DOCX/failed parse, or a pre-#891 import. The canonical
+/// arm deliberately has NO Pass-by-construction branch (unlike D1): the app's own ATS export uses
+/// Lato, which is NOT allowlisted, so Pass-by-construction is unavailable and a Warn would falsely
+/// blame a font the app itself chose — NotAssessed is the only honest canonical verdict.
+/// </summary>
+internal sealed class D3StandardFontRule : ICriterionRule
+{
+    public string CriterionId => "D3";
+
+    public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
+    {
+        var category = context.Criterion.Category;
+
+        if (context.Layout?.FontRuns is not { Count: > 0 } fontRuns)
+        {
+            return CvCriterionVerdict.NotAssessed("D3", category,
+                context.Criterion.NotAssessedReason ?? "Typsnittet kunde inte läsas ur källfilen.");
+        }
+
+        // Body size = the point size carrying the MOST letters (headings are larger and fewer);
+        // dominant body family = the heaviest run at that size (deterministic ordinal tiebreak).
+        var modalPt = fontRuns
+            .GroupBy(run => run.PointSize)
+            .OrderByDescending(group => group.Sum(run => run.LetterCount))
+            .ThenBy(group => group.Key)
+            .First().Key;
+
+        var dominantRaw = fontRuns
+            .Where(run => run.PointSize == modalPt)
+            .OrderByDescending(run => run.LetterCount)
+            .ThenBy(run => run.FontName, StringComparer.Ordinal)
+            .First().FontName;
+
+        var dominantFamily = FontNameNormalizer.Normalize(dominantRaw);
+
+        // The allowlist is DATA (cv-conventions), normalised the SAME way as the observed name so
+        // EXACT equality is the predicate (prefix/substring would pass "Arial Narrow" as "Arial").
+        // Resolve to the CLEAN allowlist entry so the evidence never echoes a subset-mangled name.
+        var matchedFont = dominantFamily.Length == 0
+            ? null
+            : context.FontAllowlist.FirstOrDefault(font => FontNameNormalizer.Normalize(font) == dominantFamily);
+
+        // The body-size floor is rubric v2.2 DATA (thresholds.fontBodyPtWarnBelow), read fail-loud.
+        var warnBelowPt = context.Criterion.RequiredThreshold(RubricThresholdKeys.FontBodyPtWarnBelow);
+
+        var fontOk = matchedFont is not null;
+        var sizeOk = modalPt >= warnBelowPt;
+
+        if (fontOk && sizeOk)
+        {
+            return CvCriterionVerdict.Assessed("D3", category, CriterionVerdict.Pass,
+                ReviewText.Cite(ReviewText.Structural(
+                    $"Brödtexten använder {matchedFont} i {modalPt} pt. Det är ett standardtypsnitt som ett ATS läser säkert.")));
+        }
+
+        // Warn (never Fail): an exemplar allowlist cannot honestly FAIL a non-member, and small
+        // body text is a readability nudge, not an ATS-parse break (§5 under-claim). No threshold
+        // number is echoed (it would drift from the datum — D9/E2 precedent); example fonts come
+        // FROM the allowlist DATA, never a hardcoded C# list (§5).
+        var exampleFonts = string.Join(", ", context.FontAllowlist.Take(2));
+        var note = (fontOk, sizeOk) switch
+        {
+            (false, false) =>
+                $"Brödtexten är liten och verkar inte använda ett standardtypsnitt (t.ex. {exampleFonts}). "
+                + "Byt till ett vanligt typsnitt i en något större storlek för säkrare ATS-tolkning.",
+            (false, true) =>
+                $"Brödtexten verkar inte använda ett standardtypsnitt (t.ex. {exampleFonts}). "
+                + "Byt till ett vanligt typsnitt för säkrare ATS-tolkning.",
+            _ => // (true, false) — standard font, but the body text is small
+                "Brödtexten är i minsta laget. Använd en något större brödtext för säkrare läsbarhet i ett ATS.",
+        };
+
+        return CvCriterionVerdict.Assessed("D3", category, CriterionVerdict.Warn,
+            ReviewText.Cite(ReviewText.Structural(note)));
+    }
+}
+
+/// <summary>
 /// D9 Filstorlek (Low, AtsOnly) — the imported file size (Fas 4b PR-6b, ADR 0093 §D4).
 /// NotAssessed without metrics (the canonical arm or a pre-PR-6b import). File size is
 /// format-agnostic, so this assesses a DOCX import too (the analyzer reports the size even when

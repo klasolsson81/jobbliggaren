@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { useForm, useFieldArray, useWatch, Controller } from "react-hook-form";
 import { useFormatter, useTranslations } from "next-intl";
 import { formatTime } from "@/lib/i18n/format";
 import { Button } from "@/components/ui/button";
@@ -174,10 +174,35 @@ export function ResumeContentForm({
   const educations = useFieldArray({ control, name: "educations" });
   const skills = useFieldArray({ control, name: "skills" });
 
+  // #914 rawPeriod hint (CV-pivot 5c-b): an auto-promoted entry lands date-less
+  // (StartDate null) with the file's verbatim period on rawPeriod. Surface it as a
+  // read-only citation ONLY while the structured startDate is still empty — the
+  // precedence contract is that structured dates are authoritative when present, so
+  // the hint retires per-entry the moment the user fills the date. Watching the whole
+  // arrays keeps the hooks stable across add/remove (a per-row useWatch would not).
+  const watchedExperiences = useWatch({ control, name: "experiences" });
+  const watchedEducations = useWatch({ control, name: "educations" });
+
   function fieldA11y(path: string) {
     return serverError?.path === path
       ? ({ "aria-invalid": true, "aria-describedby": ERROR_ID } as const)
       : {};
+  }
+
+  // Start-date variant of fieldA11y: composes the server-error describedby (when this
+  // field is the error target) with the rawPeriod-hint id (when the hint is showing),
+  // space-separated so neither clobbers the other (a11y §5 — form help text is linked
+  // via aria-describedby). hintId is passed iff the hint renders, so the reference and
+  // the <p> appear and vanish together and the id never dangles.
+  function startDateA11y(path: string, hintId: string | null) {
+    const hasError = serverError?.path === path;
+    const describedBy = [hasError ? ERROR_ID : null, hintId]
+      .filter(Boolean)
+      .join(" ");
+    return {
+      ...(hasError ? { "aria-invalid": true as const } : {}),
+      ...(describedBy ? { "aria-describedby": describedBy } : {}),
+    };
   }
 
   useEffect(() => {
@@ -341,7 +366,12 @@ export function ResumeContentForm({
                     id={`exp-${index}-startDate`}
                     type="date"
                     {...register(`experiences.${index}.startDate`)}
-                    {...fieldA11y(`experiences.${index}.startDate`)}
+                    {...startDateA11y(
+                      `experiences.${index}.startDate`,
+                      field.rawPeriod && !watchedExperiences?.[index]?.startDate
+                        ? `exp-${index}-rawperiod-hint`
+                        : null
+                    )}
                     disabled={isPending}
                   />
                 </div>
@@ -358,6 +388,14 @@ export function ResumeContentForm({
                   />
                 </div>
               </div>
+              {field.rawPeriod && !watchedExperiences?.[index]?.startDate && (
+                <p
+                  id={`exp-${index}-rawperiod-hint`}
+                  className="text-body-sm text-text-primary"
+                >
+                  {tr("rawPeriodHint", { period: field.rawPeriod })}
+                </p>
+              )}
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor={`exp-${index}-description`}>{tr("descriptionLabel")}</Label>
                 <Textarea
@@ -441,7 +479,12 @@ export function ResumeContentForm({
                     id={`edu-${index}-startDate`}
                     type="date"
                     {...register(`educations.${index}.startDate`)}
-                    {...fieldA11y(`educations.${index}.startDate`)}
+                    {...startDateA11y(
+                      `educations.${index}.startDate`,
+                      field.rawPeriod && !watchedEducations?.[index]?.startDate
+                        ? `edu-${index}-rawperiod-hint`
+                        : null
+                    )}
                     disabled={isPending}
                   />
                 </div>
@@ -458,6 +501,14 @@ export function ResumeContentForm({
                   />
                 </div>
               </div>
+              {field.rawPeriod && !watchedEducations?.[index]?.startDate && (
+                <p
+                  id={`edu-${index}-rawperiod-hint`}
+                  className="text-body-sm text-text-primary"
+                >
+                  {tr("rawPeriodHint", { period: field.rawPeriod })}
+                </p>
+              )}
               <div>
                 <Button
                   type="button"

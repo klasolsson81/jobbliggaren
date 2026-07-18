@@ -21,6 +21,23 @@ function withFullName(name = "Anna Andersson"): ResumeContentDto {
   return emptyContent(name);
 }
 
+// #914 rawPeriod hint fixture: an auto-promoted CV lands every entry date-less
+// (startDate "") with the file's verbatim period on rawPeriod. Mix in a dated entry
+// and a rawPeriod-less entry to pin all three branches of the hint's gate.
+function contentWithPeriods(): ResumeContentDto {
+  return {
+    ...emptyContent("Anna Andersson"),
+    experiences: [
+      { company: "Acme", role: "Utvecklare", startDate: "", endDate: null, description: null, rawPeriod: "2019-2022" },
+      { company: "Beta", role: "Ledare", startDate: "2015-01-01", endDate: null, description: null, rawPeriod: "2013-2015" },
+      { company: "Gamma", role: "Praktikant", startDate: "", endDate: null, description: null, rawPeriod: null },
+    ],
+    educations: [
+      { institution: "KTH", degree: "Civilingenjör", startDate: "", endDate: null, rawPeriod: "2011-2015" },
+    ],
+  };
+}
+
 describe("ResumeContentForm", () => {
   beforeEach(() => {
     updateMasterContentActionMock.mockReset();
@@ -175,5 +192,66 @@ describe("ResumeContentForm", () => {
     expect(fullNameField).toHaveAttribute("aria-describedby", "content-form-error");
     expect(fullNameField).toHaveFocus();
     expect(updateMasterContentActionMock).not.toHaveBeenCalled();
+  });
+
+  it("#914 rawPeriod hint: surfaces the file period for a date-less entry, hidden when a date is present or no rawPeriod", () => {
+    render(
+      <ResumeContentForm
+        resumeId={RESUME_ID}
+        initialContent={contentWithPeriods()}
+      />
+    );
+
+    // Date-less entries with a rawPeriod cite the file's verbatim period.
+    expect(screen.getByText("Period i din fil: 2019-2022")).toBeInTheDocument(); // exp0
+    expect(screen.getByText("Period i din fil: 2011-2015")).toBeInTheDocument(); // edu0
+    // An entry that already has a structured startDate does NOT show the hint
+    // (structured dates are authoritative — #914 precedence contract).
+    expect(screen.queryByText("Period i din fil: 2013-2015")).toBeNull(); // exp1 (dated)
+    // Exactly two hints render — exp1 (dated) and exp2 (no rawPeriod) show none.
+    expect(screen.getAllByText(/^Period i din fil:/)).toHaveLength(2);
+  });
+
+  it("#914 rawPeriod hint retires once the user fills the structured start date", async () => {
+    const user = userEvent.setup();
+    render(
+      <ResumeContentForm
+        resumeId={RESUME_ID}
+        initialContent={contentWithPeriods()}
+      />
+    );
+
+    expect(screen.getByText("Period i din fil: 2019-2022")).toBeInTheDocument();
+
+    // exp0's start date is the first "Startdatum (valfritt)" input (educations follow).
+    const startDates = screen.getAllByLabelText("Startdatum (valfritt)");
+    await user.type(startDates[0]!, "2019-06-01");
+
+    await waitFor(() => {
+      expect(screen.queryByText("Period i din fil: 2019-2022")).toBeNull();
+    });
+  });
+
+  it("#914 rawPeriod hint is programmatically linked to the start-date field (aria-describedby)", () => {
+    render(
+      <ResumeContentForm
+        resumeId={RESUME_ID}
+        initialContent={contentWithPeriods()}
+      />
+    );
+
+    const startDates = screen.getAllByLabelText("Startdatum (valfritt)");
+    // exp0 (date-less + rawPeriod): the start-date field points at the hint's id, so a
+    // screen reader announces the file period when focus lands on the empty date field.
+    expect(screen.getByText("Period i din fil: 2019-2022")).toHaveAttribute(
+      "id",
+      "exp-0-rawperiod-hint"
+    );
+    expect(startDates[0]!).toHaveAttribute(
+      "aria-describedby",
+      "exp-0-rawperiod-hint"
+    );
+    // exp1 already has a date → no hint, so no dangling describedby reference.
+    expect(startDates[1]!).not.toHaveAttribute("aria-describedby");
   });
 });

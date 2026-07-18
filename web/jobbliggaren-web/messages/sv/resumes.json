@@ -185,6 +185,7 @@
     "roleLabel": "Roll",
     "startDateLabel": "Startdatum (valfritt)",
     "endDateLabel": "Slutdatum (valfritt)",
+    "rawPeriodHint": "Period i din fil: {period}",
     "descriptionLabel": "Beskrivning",
     "removeExperience": "Ta bort erfarenhet {index}",
     "educationLabel": "Utbildning",

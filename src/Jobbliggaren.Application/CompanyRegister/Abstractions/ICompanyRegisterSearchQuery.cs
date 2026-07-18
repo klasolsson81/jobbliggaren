@@ -63,10 +63,13 @@ public interface ICompanyRegisterSearchQuery
 /// <summary>
 /// The validated, NORMALIZED search input — and the SINGLE normalizer for it (house rule: a rule
 /// with two normalizers is two rules). <see cref="Create"/> owns trimming, blank-dropping,
-/// dedupe, org.nr written-form folding and the personnummer refusal; there is deliberately NO
-/// FluentValidation validator for the search queries, so this factory cannot drift from a second
-/// authority. Handlers call <see cref="Create"/> and map its <see cref="DomainError"/> straight
-/// to 400 via the central mapper.
+/// dedupe, org.nr written-form folding and the personnummer refusal. The FluentValidation
+/// validators beside the two queries are pure pipeline TRANSPORTS for this factory (they run
+/// Create and forward its <see cref="DomainError"/> verbatim — Code as the failure key, message
+/// as the text), because <c>PagedResultContractTests</c> forbids a Result-wrapper on a paginated
+/// query: 400s belong to ValidationBehavior. Handlers re-run the SAME Create and treat failure
+/// as unreachable (a loud 500 on validator/normalizer drift, never a guessed response) — one
+/// authority, two call sites, zero duplicated rules.
 ///
 /// <para>
 /// <b>Every axis is optional; empty means "do not filter on this axis".</b> A no-axis instance
@@ -184,7 +187,11 @@ public sealed record CompanyRegisterSearchCriteria
         {
             return Result.Failure<CompanyRegisterSearchCriteria>(DomainError.Validation(
                 "CompanyRegisterSearch.TooManySniCodes",
-                $"Max {MaxSniCodes} branscher per sökning."));
+                // §10 civic copy: "Högst" + digit grouping with an ESCAPED no-break space
+                // (literal Unicode spaces are banned in source). The grouped literal equals
+                // MaxSniCodes (three lines up) — keep them in lockstep; interpolating the
+                // const would render ungrouped, and culture-formatting is environment-dependent.
+                "Högst 1\u00A0000 branscher per sökning."));
         }
 
         var kommun = NormalizeCodes(
@@ -197,7 +204,7 @@ public sealed record CompanyRegisterSearchCriteria
         {
             return Result.Failure<CompanyRegisterSearchCriteria>(DomainError.Validation(
                 "CompanyRegisterSearch.TooManyMunicipalityCodes",
-                $"Max {MaxMunicipalityCodes} kommuner per sökning."));
+                $"Högst {MaxMunicipalityCodes} kommuner per sökning."));
         }
 
         var namePrefix = name?.Trim();

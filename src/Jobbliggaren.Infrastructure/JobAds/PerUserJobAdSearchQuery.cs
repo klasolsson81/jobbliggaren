@@ -32,7 +32,7 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// <b>Sort-nyckeln/grad-ranken lever ENBART i <c>WHERE</c>/<c>ORDER BY</c></b> (Goodhart,
 /// Decision 4): aldrig projicerad in i <see cref="JobAdDto"/>, aldrig persisterad. Ranken
 /// speglar den <b>Fast</b> <c>MatchGradeCalculator.Grade(MatchScore)</c>-stegen +
-/// <c>MatchScorer.ScoreMembership</c> (yrke/anställning) + <c>MatchScorer.ScoreOrtUnion</c>
+/// <c>MatchScorer.ScoreSsykMembership</c>/<c>ScoreEmploymentMembership</c> (yrke/anställning) + <c>MatchScorer.ScoreOrtUnion</c>
 /// (ort = region ∪ kommun, Spår 3):
 /// <list type="bullet">
 /// <item>0 = otaggad (SSYK ∉ exact ∪ related) → exkluderas av grad-filtret (positiv-only),
@@ -64,7 +64,7 @@ internal sealed class PerUserJobAdSearchQuery(
 
     // Spår 3 (ADR 0076-amendment 2026-06-21) — kommun-granulariteten i ort-dimensionen.
     // Sort-ranken speglar nu MatchScorer.ScoreOrtUnion (region ∪ municipality) i stället
-    // för region-only ScoreMembership. STORED generated från
+    // för region-only membership-scoring. STORED generated från
     // raw_payload->'workplace_address'->>'municipality_concept_id' (parity scorern).
     private const string MunicipalityColumn = "MunicipalityConceptId";
 
@@ -96,7 +96,8 @@ internal sealed class PerUserJobAdSearchQuery(
 
         // Profil-listorna fångas lokalt → EF binder dem som parametrar (= ANY).
         // SSYK är icke-tom (handlerns gate). regions/employment kan vara tomma
-        // (NotAssessed — varken bekräftar eller golvar, MatchScorer.ScoreMembership).
+        // (NotAssessed — varken bekräftar eller golvar; vacuous-gate-doktrinen, oförändrad
+        // av #552-grinden som enbart gäller ANGIVEN pref mot NULL-shadow).
         var fast = profile.Fast;
         var ssyk = fast.SsykGroupConceptIds;
         // #300 PR-4 (ADR 0084 §F4): the RELATED ssyk-4 set (substitutable occupations). Populated

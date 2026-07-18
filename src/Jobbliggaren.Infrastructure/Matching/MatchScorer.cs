@@ -412,8 +412,9 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     //   - CV present but THIS partition has no ad terms → Vacuous ("we looked; the ad
     //     specifies none of this kind"). This per-partition distinction lets a
     //     no-must-have ad be gate-OPEN for the grade while a no-CV user is gate-CLOSED.
-    // NoMatch stays reserved for "data present on both sides, disjoint" (parity
-    // ScoreMembership rule 1). Verdict from set emptiness only (no threshold).
+    // NoMatch stays reserved for "data present on both sides, disjoint" (rule 1, CTO
+    // Decision 3 — parity ScoreSsykMembership; the #552 gate carves out ort/employment
+    // only). Verdict from set emptiness only (no threshold).
     private static MatchDimension ScoreConceptCoverage(
         IEnumerable<ExtractedTerm> adTerms, HashSet<string> cvSkillConceptIds)
     {
@@ -518,8 +519,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // holds TWO ssyk-4 lists — the user's STATED exact occupation groups and the substitutable
     // RELATED groups (derived from PR-1's taxonomy_relations snapshot behind ITaxonomyReadModel).
     // Match when the ad's group is in EITHER set; NotAssessed when BOTH CV-side lists are empty
-    // OR the ad has no group (parity ScoreMembership rule 1 — NoMatch stays reserved for "data
-    // present on both sides, disjoint"). Matched carries the hit concept-id; Missing carries the
+    // OR the ad has no group (rule 1, CTO Decision 3 — NoMatch stays reserved for "data
+    // present on both sides, disjoint"; SSYK is NOT #552-gated, unlike ort/employment). Matched carries the hit concept-id; Missing carries the
     // ad's group the union lacks (the civic "what the ad offers that you did not pick" direction).
     //
     // SCOPE (senior-cto-advisor Shape α): this broadens the GATE only — the profile builder
@@ -656,7 +657,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
 
         // Stated AND the ad has at least one ort value AND no union hit → NoMatch. Missing =
         // the ad's PRESENT ort value(s) the user did not select (the civic-useful "what the
-        // ad offers that you didn't pick" direction, parity ScoreMembership).
+        // ad offers that you didn't pick" direction, parity ScoreEmploymentMembership's
+        // explicit-mismatch arm).
         var missing = new List<string>(2);
         if (hasAdRegion)
         {

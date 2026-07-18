@@ -70,6 +70,11 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
     // The ort-union (region ∪ municipality) constants.
     private const string PrefMunicipality = "mun-gradefilter-pref";
 
+    // #552 review-pin — a municipality the profile does NOT prefer, for the mirror
+    // asymmetric shape (region NULL + municipality present-not-preferred). Distinct from
+    // every preferred/containment id so no seed accidentally hits the union.
+    private const string OtherMunicipality = "mun-gradefilter-other";
+
     // #477 Low 1 — the parent län of PrefMunicipality (kommun→län containment). DISTINCT from
     // PrefRegion AND OtherRegion so a län-only ad carrying it is neither a direct region hit nor an
     // arbitrary contradiction: the profile's ContainmentRegionConceptIds = [PrefMunicipalityRegion]
@@ -261,6 +266,16 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
     private Task<JobAdId> SeedBasicContradictionAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
         SeedJobAdAsync(run, PrefGroup, OtherRegion, PrefEmployment, publishedAt, ct);
 
+    // Basic (rank 1) via the MIRROR asymmetric contradiction (#552 review-pin, code-review
+    // Minor 2): region shadow NULL + a PRESENT-but-not-preferred municipality + employment
+    // Match. In-memory: no union hit, ad HAS an ort value → NoMatch → RB1 floor. The SQL
+    // floor's negated OR crosses regions.Contains(NULL-region) — this seed makes the
+    // comprehensive set-equality below adjudicate that EF's C#-null-semantics compensation
+    // keeps SQL ≡ scorer on this leg too (the claimed Good-vs-Basic divergence must not exist).
+    private Task<JobAdId> SeedBasicContradictionViaMunicipalityAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
+        SeedJobAdAsync(run, PrefGroup, regionConceptId: null, PrefEmployment, publishedAt, ct,
+            municipalityConceptId: OtherMunicipality);
+
     // Strong via the ORT-UNION municipality leg — region non-preferred but municipality
     // preferred → ort Match via the union; with employment Match → 2 confirmed → Strong.
     private Task<JobAdId> SeedStrongViaMunicipalityAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
@@ -352,6 +367,9 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
             // --- Basic (≥2): one neutral, one contradiction-floored
             await SeedBasicNeutralAsync(run, t.AddDays(10), ct),
             await SeedBasicContradictionAsync(run, t.AddDays(9), ct),
+            // --- Basic via the mirror asymmetric shape (#552 review-pin): region NULL +
+            //     municipality present-not-preferred; SQL ≡ scorer proven by set-equality.
+            await SeedBasicContradictionViaMunicipalityAsync(run, t.AddDays(8), ct),
 
             // --- Untagged (rank 0) — never selectable by any grade
             await SeedUntaggedSsykNoMatchAsync(run, t.AddDays(5), ct),

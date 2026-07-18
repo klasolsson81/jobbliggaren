@@ -650,6 +650,18 @@ public sealed class Resume : AggregateRoot<ResumeId>
             return Result.Failure(DomainError.Validation(
                 "Resume.FullNameTooLong", "Fullständigt namn får vara max 200 tecken."));
 
+        // #855: cap the remaining contact fields (client .max parity). These reach the client
+        // schema through the makeOptionalNullableString helper, so the label-field enumeration first
+        // missed them (both reviewers caught it — the RULE is close every client/server asymmetry,
+        // not the enumeration). Length-only, never required: both are optional (null validates).
+        if (content.PersonalInfo.Phone is { Length: > 50 })
+            return Result.Failure(DomainError.Validation(
+                "Resume.PhoneTooLong", "Telefonnummer får vara max 50 tecken."));
+
+        if (content.PersonalInfo.Location is { Length: > 200 })
+            return Result.Failure(DomainError.Validation(
+                "Resume.LocationTooLong", "Ort får vara max 200 tecken."));
+
         if (content.Summary is { Length: > 2_000 })
             return Result.Failure(DomainError.Validation(
                 "Resume.SummaryTooLong", "Sammanfattning får vara max 2 000 tecken."));
@@ -659,6 +671,15 @@ public sealed class Resume : AggregateRoot<ResumeId>
             if (string.IsNullOrWhiteSpace(skill.Name))
                 return Result.Failure(DomainError.Validation(
                     "Resume.SkillNameRequired", "Kompetensnamn krävs."));
+
+            // #855: cap the skill NAME. The skill chip IS the scored unit in the matching engine, so
+            // a sentence let in as a "skill" poisons the atom the matcher scores — the domain is the
+            // authority the client's .max(100) mirrors (Skill.NameMaxLength, shared with the #856
+            // segmenter threshold). Raw .Length: every write path pre-trims (client zod .trim(),
+            // parser .Trim()), parity with the FullName check above.
+            if (skill.Name.Length > Skill.NameMaxLength)
+                return Result.Failure(DomainError.Validation(
+                    "Resume.SkillNameTooLong", "Kompetensnamn får vara max 100 tecken."));
 
             if (skill.YearsExperience is { } years && (years < 0 || years > 70))
                 return Result.Failure(DomainError.Validation(
@@ -672,9 +693,27 @@ public sealed class Resume : AggregateRoot<ResumeId>
                 return Result.Failure(DomainError.Validation(
                     "Resume.ExperienceCompanyRequired", "Företagsnamn krävs på erfarenhet."));
 
+            // #855: cap the label fields (200, client .max parity).
+            if (exp.Company.Length > 200)
+                return Result.Failure(DomainError.Validation(
+                    "Resume.ExperienceCompanyTooLong", "Företagsnamn får vara max 200 tecken."));
+
             if (string.IsNullOrWhiteSpace(exp.Role))
                 return Result.Failure(DomainError.Validation(
                     "Resume.ExperienceRoleRequired", "Roll krävs på erfarenhet."));
+
+            if (exp.Role.Length > 200)
+                return Result.Failure(DomainError.Validation(
+                    "Resume.ExperienceRoleTooLong", "Roll får vara max 200 tecken."));
+
+            // #855: cap the description prose body (2000, client .max parity — and closes an
+            // internal inconsistency: the sibling prose field Summary is already capped 2000).
+            // Length-only; Description is optional. Inline, NOT coupled to Summary's 2000 (they may
+            // diverge — spurious DRY otherwise).
+            if (exp.Description is { Length: > 2_000 })
+                return Result.Failure(DomainError.Validation(
+                    "Resume.ExperienceDescriptionTooLong",
+                    "Beskrivning får vara max 2 000 tecken."));
 
             // Honest date absence (CTO-bind 5a-pre): end-before-start is an error only when
             // BOTH are present. A null start with a set end ("examen 2020") VALIDATES, but
@@ -699,9 +738,18 @@ public sealed class Resume : AggregateRoot<ResumeId>
                 return Result.Failure(DomainError.Validation(
                     "Resume.EducationInstitutionRequired", "Lärosäte krävs på utbildning."));
 
+            // #855: cap the label fields (200, client .max parity).
+            if (edu.Institution.Length > 200)
+                return Result.Failure(DomainError.Validation(
+                    "Resume.EducationInstitutionTooLong", "Lärosäte får vara max 200 tecken."));
+
             if (string.IsNullOrWhiteSpace(edu.Degree))
                 return Result.Failure(DomainError.Validation(
                     "Resume.EducationDegreeRequired", "Examen krävs på utbildning."));
+
+            if (edu.Degree.Length > 200)
+                return Result.Failure(DomainError.Validation(
+                    "Resume.EducationDegreeTooLong", "Examen får vara max 200 tecken."));
 
             // Honest date absence (CTO-bind 5a-pre) — parity with the experience rule above.
             if (edu.StartDate is { } eduStart && edu.EndDate is { } eduEnd && eduEnd < eduStart)
@@ -715,15 +763,22 @@ public sealed class Resume : AggregateRoot<ResumeId>
                     "Periodtext får vara max 100 tecken."));
         }
 
-        // Fas 4b AppCopy superset (ADR 0095 D-E). Validation parity with the existing
-        // rules: label fields are required-only (no max, like Company/Role/Skill.Name);
-        // prose bodies are capped like Summary. Proficiency is type-guaranteed valid
-        // (SmartEnum) so it needs no check.
+        // Fas 4b AppCopy superset (ADR 0095 D-E). #855 tightened the label fields: they are no
+        // longer required-only — Skill/Language names cap at 100 (the scored-atom bound), and the
+        // other label fields (Company/Role/Institution/Degree/Section.Heading/SectionEntry.Title) cap
+        // at 200. Every cap mirrors the client's zod .max, with the domain as the authority (the
+        // client mirrors the domain). Proficiency is type-guaranteed valid (SmartEnum) so it needs
+        // no check.
         foreach (var language in content.Languages)
         {
             if (string.IsNullOrWhiteSpace(language.Name))
                 return Result.Failure(DomainError.Validation(
                     "Resume.LanguageNameRequired", "Språknamn krävs."));
+
+            // #855: a language name is a scored atom too — same bound as Skill.Name.
+            if (language.Name.Length > Skill.NameMaxLength)
+                return Result.Failure(DomainError.Validation(
+                    "Resume.LanguageNameTooLong", "Språknamn får vara max 100 tecken."));
         }
 
         // Grouped-skills overlay reference invariant (ADR 0095 D-A): every group member
@@ -755,6 +810,11 @@ public sealed class Resume : AggregateRoot<ResumeId>
                 return Result.Failure(DomainError.Validation(
                     "Resume.SectionHeadingRequired", "Rubrik krävs på sektion."));
 
+            // #855: cap the section heading (200, client .max parity).
+            if (section.Heading.Length > 200)
+                return Result.Failure(DomainError.Validation(
+                    "Resume.SectionHeadingTooLong", "Rubrik får vara max 200 tecken."));
+
             foreach (var entry in section.Entries)
             {
                 // #815: an entry must carry SOMETHING — but not necessarily a title. A CV that says
@@ -768,6 +828,12 @@ public sealed class Resume : AggregateRoot<ResumeId>
                     return Result.Failure(DomainError.Validation(
                         "Resume.SectionEntryEmpty",
                         "En sektionspost måste ha en titel eller innehåll."));
+
+                // #855: cap the entry TITLE (200, client .max parity). Title is optional (an entry
+                // may carry only lines, #815), so cap only when present.
+                if (entry.Title is { Length: > 200 })
+                    return Result.Failure(DomainError.Validation(
+                        "Resume.SectionEntryTitleTooLong", "Titel får vara max 200 tecken."));
 
                 if (entry.Lines.Sum(l => l?.Length ?? 0) > 2_000)
                     return Result.Failure(DomainError.Validation(

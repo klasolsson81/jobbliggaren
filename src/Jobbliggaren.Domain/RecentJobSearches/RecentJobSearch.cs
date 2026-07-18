@@ -20,7 +20,7 @@ namespace Jobbliggaren.Domain.RecentJobSearches;
 /// <list type="number">
 /// <item><b>Identitet via FilterHash:</b> UNIQUE(JobSeekerId, FilterHash) på persistens-yta.
 /// <see cref="FilterHashCalculator"/> är canonical-källan; Q/OccupationGroup/Municipality/
-/// Region/EmploymentType/WorktimeExtent/Employer/SortBy är derivat av hash och får aldrig
+/// Region/EmploymentType/WorktimeExtent/Employer/Remote/SortBy är derivat av hash och får aldrig
 /// divergera (Bump muterar dem ej).</item>
 /// <item><b>Cap per seeker:</b> <see cref="MaxPerSeeker"/> — affärsregel, enforce:as i
 /// <c>IRecentJobSearchCapturer</c>-implementationen (evict äldsta LastViewedAt vid
@@ -73,6 +73,14 @@ public sealed class RecentJobSearch : AggregateRoot<RecentJobSearchId>
     private readonly List<string> _employer = [];
     public IReadOnlyList<string> Employer => _employer.AsReadOnly();
 
+    // #551 PR-D (ADR 0087 D6-paritet) — distans/remote-dimensionen. SKALÄR bool-kolumn
+    // (remote), INTE en text[]/shadow-backing-field som list-dimensionerna ovan — en binär
+    // axel behöver ingen List-wrapper (mappas nativt med builder.Property, aldrig i Ignore).
+    // Ingår i FilterHash → en recent-rad reproducerar exakt sökningen inkl. distans-facetten.
+    // PR-B shippade filter-dimensionen CONTAINED (Remote: false); denna PR trådar in den i
+    // sök-identiteten. Sätts en gång i Capture (private set, paritet Q/SortBy); Bump muterar den ej.
+    public bool Remote { get; private set; }
+
     public JobAdSortBy SortBy { get; private set; }
     public DateTimeOffset LastViewedAt { get; private set; }
     public int LastSeenCount { get; private set; }
@@ -98,6 +106,7 @@ public sealed class RecentJobSearch : AggregateRoot<RecentJobSearchId>
         _employmentType.AddRange(criteria.EmploymentType);
         _worktimeExtent.AddRange(criteria.WorktimeExtent);
         _employer.AddRange(criteria.Employer);
+        Remote = criteria.Remote;
         SortBy = criteria.SortBy;
         LastViewedAt = now;
         LastSeenCount = currentCount;

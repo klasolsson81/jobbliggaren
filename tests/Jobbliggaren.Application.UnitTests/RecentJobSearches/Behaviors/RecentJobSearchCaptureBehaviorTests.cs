@@ -39,6 +39,9 @@ public class RecentJobSearchCaptureBehaviorTests
         IReadOnlyList<string>? WorktimeExtent = null,
         // #311 PR-2b C1 (ADR 0087 D6) — Employer i ICapturesRecentSearch-shapen.
         IReadOnlyList<string>? Employer = null,
+        // #551 PR-D — Remote (distans, bool) i ICapturesRecentSearch-shapen. Default false så de
+        // befintliga (remote-agnostiska) capture-testerna består; remote-guarden testas explicit nedan.
+        bool Remote = false,
         JobAdSortBy SortBy = JobAdSortBy.PublishedAtDesc,
         bool Commit = true)
         : IQuery<FakeCaptureResponse>, ICapturesRecentSearch;
@@ -166,6 +169,29 @@ public class RecentJobSearchCaptureBehaviorTests
     }
 
     [Fact]
+    public async Task Handle_RemoteOnly_CapturesSearch()
+    {
+        // #551 PR-D: the default-browse guard now counts Remote → a committed search with ONLY
+        // ?remote=true (all lists empty, Q null) is a genuine filter intention and IS captured, with
+        // Remote threaded into the captured criteria. If the guard forgot the !capt.Remote clause a
+        // remote-only search would be silently dropped as default-browse (the lockstep-with-Create bind).
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(
+                _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
+            Q: null, OccupationGroup: null, Municipality: null, Region: null,
+            Remote: true));
+
+        await _capturer.Received(1).CaptureAsync(
+            _userId, Arg.Any<SearchCriteria>(), 7, Arg.Any<CancellationToken>());
+        captured.ShouldNotBeNull();
+        captured!.Remote.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task Handle_EmploymentTypeOnly_CapturesSearch()
     {
         // B2 (ADR 0067 Beslut 6/7): default-browse-guarden räknar nu alla FEM
@@ -270,6 +296,22 @@ public class RecentJobSearchCaptureBehaviorTests
     {
         await HandleAsync(new FakeSearchQuery(
             Q: "   ", OccupationGroup: [], Municipality: [], Region: []));
+
+        await _capturer.DidNotReceiveWithAnyArgs().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_RemoteFalseAndAllDimensionsEmpty_DoesNotCapture()
+    {
+        // #551 PR-D counterfactual to Handle_RemoteOnly_CapturesSearch: remote=false with everything
+        // else empty is default-browse (bool-semantik: false = inget filter) → never captured. If the
+        // guard mis-counted remote=false as a filter this would over-capture (data-minimering
+        // Art. 5(1)(c)); SearchCriteria.Create would also reject it (the lockstep tom-invariant).
+        await HandleAsync(new FakeSearchQuery(
+            Q: null, OccupationGroup: null, Municipality: null, Region: null,
+            Remote: false));
 
         await _capturer.DidNotReceiveWithAnyArgs().CaptureAsync(
             Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),

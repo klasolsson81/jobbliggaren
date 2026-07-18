@@ -41,6 +41,11 @@ public sealed class CreateSavedSearchCommandHandler(
             // (post-#448/#455 FE) only adds the field here — nothing to migrate. Not a silent-drop:
             // no employer value flows in to drop.
             employer: [],
+            // #551 PR-D: same posture as employer above — the SavedSearch WRITE path does not thread
+            // remote yet (no command field / no FE distans-toggle in the save-search form; PR-C). The
+            // VO + jsonb converter ARE remote-aware, so a future save-with-remote write only sets this
+            // true here — nothing to migrate. Not a silent-drop: no remote value flows in to drop.
+            remote: false,
             q: command.Q,
             sortBy: command.SortBy);
         if (criteriaResult.IsFailure)

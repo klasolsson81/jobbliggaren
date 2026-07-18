@@ -74,10 +74,15 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         // (?employer=) ska fångas (annars tyst gap analogt C1/Klass 2). Employer räknas därför i
         // default-browse-guarden.
         var employerCount = capt.Employer?.Count ?? 0;
+        // #551 PR-D: en committad sökning med ENBART distans-filter (?remote=true) ska fångas —
+        // remote=true är en äkta filter-intention, inte default-browse. remote=false = inget filter
+        // (bool-semantik). MÅSTE hållas i lockstep med SearchCriteria.Create:s tom-invariant
+        // (architect-bind — annars tyst no-capture: guarden släpper igenom men Create avvisar, ELLER
+        // guarden blockerar en giltig VO).
         if (string.IsNullOrWhiteSpace(capt.Q) && occupationGroupCount == 0
             && municipalityCount == 0 && regionCount == 0
             && employmentTypeCount == 0 && worktimeExtentCount == 0
-            && employerCount == 0)
+            && employerCount == 0 && !capt.Remote)
         {
             return response;
         }
@@ -91,6 +96,7 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
                 employmentType: capt.EmploymentType ?? [],
                 worktimeExtent: capt.WorktimeExtent ?? [],
                 employer: capt.Employer ?? [],
+                remote: capt.Remote,
                 q: capt.Q,
                 sortBy: capt.SortBy);
 

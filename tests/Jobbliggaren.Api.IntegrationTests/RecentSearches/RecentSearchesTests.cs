@@ -177,6 +177,40 @@ public class RecentSearchesTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Searching_jobs_with_remote_only_persists_the_remote_flag_to_the_column()
+    {
+        // #551 PR-D (ADR 0087 D6-paritet): a committed ?remote=true search captures a RecentJobSearch
+        // AND persists the distans-axis into the remote bool column — the DB-level proof of the scalar-
+        // column round-trip end-to-end (the ListRecentSearches unit tests use EF In-Memory). Remote is
+        // deliberately NOT surfaced on the wire (RecentJobSearchDto has no remote field — PR-D scope),
+        // so the round-trip is verified by reading the column directly. Mirrors the employer-only test.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var me = await _client.GetFromJsonAsync<JsonElement>("/api/v1/me", ct);
+        var userId = Guid.Parse(me.GetProperty("userId").GetString()!);
+
+        // ASP.NET bool-binding kräver ?remote=true (INTE "on"; FE mappar rutt-flaggan ?distans=on hit).
+        var searchResponse = await _client.GetAsync(
+            "/api/v1/job-ads?remote=true&commit=true&page=1&pageSize=20", ct);
+        searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // The recent-search row is captured (the default-browse guard now counts remote)...
+        var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
+        var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+        items.GetArrayLength().ShouldBe(1);
+        // ...but remote is NOT on the wire (RecentJobSearchDto has no remote field — PR-D scope).
+        items[0].TryGetProperty("remote", out _).ShouldBeFalse();
+
+        // The remote bool column round-trips through real Postgres: read this user's row.
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var seeker = await db.JobSeekers.AsNoTracking().SingleAsync(js => js.UserId == userId, ct);
+        var recent = await db.RecentJobSearches.AsNoTracking()
+            .Where(r => r.JobSeekerId == seeker.Id).ToListAsync(ct);
+        recent.ShouldHaveSingleItem().Remote.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task Re_searching_same_filter_bumps_existing_row_no_duplicate()
     {
         var ct = TestContext.Current.CancellationToken;

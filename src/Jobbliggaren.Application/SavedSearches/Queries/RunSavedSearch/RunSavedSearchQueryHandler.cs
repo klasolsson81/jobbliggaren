@@ -75,9 +75,10 @@ public sealed class RunSavedSearchQueryHandler(
                     // SearchCriteria-VO:t bär nu employer (org.nr) → en sparad sökning reproducerar
                     // sitt arbetsgivar-filter vid körning.
                     Employer: criteria.Employer,
-                    // #551 PR-B: remote-persistensen deferrad (SearchCriteria bär ännu ingen
-                    // remote-axel — följd-våg PR-D, parity #311 Employer-persistens PR-2b C1).
-                    Remote: false,
+                    // #551 PR-D (ADR 0087 D6-paritet): PR-B:s deferrade seam (Remote: false) ersatt —
+                    // SearchCriteria-VO:t bär nu distans-axeln → en sparad ?remote=-sökning reproducerar
+                    // sitt distans-filter vid körning (parity #311 Employer PR-2b C1).
+                    Remote: criteria.Remote,
                     Q: criteria.Q),
                 criteria.SortBy,
                 query.Page,

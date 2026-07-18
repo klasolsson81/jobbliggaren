@@ -29,6 +29,7 @@ public class SearchCriteriaTests
         IEnumerable<string>? employmentType = null,
         IEnumerable<string>? worktimeExtent = null,
         IEnumerable<string>? employer = null,
+        bool remote = false,
         string? q = null,
         JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc) =>
         SearchCriteria.Create(
@@ -38,6 +39,7 @@ public class SearchCriteriaTests
             employmentType: employmentType,
             worktimeExtent: worktimeExtent,
             employer: employer,
+            remote: remote,
             q: q,
             sortBy: sortBy);
 
@@ -401,9 +403,10 @@ public class SearchCriteriaTests
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("SearchCriteria.Empty");
         // Copy-kontrakt per architect F1. B2 (ADR 0067 Beslut 6/7): meddelandet
-        // nämner nu även anställningsform + omfattning (de två nya dimensionerna).
+        // nämner anställningsform + omfattning; #311 PR-2b C1: arbetsgivare;
+        // #551 PR-D: distans (de nya dimensionerna, i kanonisk ordning).
         result.Error.Message.ShouldBe(
-            "Minst ett sökkriterium (yrkesgrupp, kommun, region, anställningsform, omfattning, arbetsgivare eller fritext) krävs.");
+            "Minst ett sökkriterium (yrkesgrupp, kommun, region, anställningsform, omfattning, arbetsgivare, distans eller fritext) krävs.");
     }
 
     [Fact]
@@ -960,5 +963,86 @@ public class SearchCriteriaTests
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Employer.ShouldBe([orgNr]);
+    }
+
+    // ===============================================================
+    // #551 PR-D (ADR 0087 D6-paritet) — Remote (distans, bool) som SKALÄR
+    // sök-identitets-dimension. INGEN NormalizeList/format-validering (till
+    // skillnad mot list-dims): false = ingen remote-facet, true = "visa distans-
+    // jobb". Deltar i Equals/GetHashCode (sista konjunkt) OCH tom-invarianten
+    // (remote=true ensamt = giltig sökning; remote=false ensamt = tomt).
+    // ===============================================================
+
+    [Fact]
+    public void Create_RoundTripsRemoteOntoProperty()
+    {
+        // Grunden mot mappningen: remote-parametern landar oförändrad på VO:ts Remote-property
+        // (båda polerna) — inte hårdkodad, inte tappad.
+        var withRemote = Create(occupationGroup: ["grp1"], remote: true).Value;
+        var withoutRemote = Create(occupationGroup: ["grp1"], remote: false).Value;
+
+        withRemote.Remote.ShouldBeTrue();
+        withoutRemote.Remote.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void TwoCriteria_DifferentRemote_AreNotValueEqual_AndDifferentHash()
+    {
+        // Remote är en äkta identitets-dimension: två annars identiska criteria som skiljer sig
+        // ENBART på remote får aldrig vara lika (annars dedupe:ar SavedSearch jsonb / FilterHash-
+        // unique fel sökning bort). Om Equals tappade Remote-konjunkten faller den första grinden;
+        // om GetHashCode tappade hash.Add(Remote) faller den sista.
+        var a = Create(occupationGroup: ["grp1"], remote: true).Value;
+        var b = Create(occupationGroup: ["grp1"], remote: false).Value;
+
+        a.Equals(b).ShouldBeFalse();
+        (a == b).ShouldBeFalse();
+        a.ShouldNotBe(b);
+        a.GetHashCode().ShouldNotBe(b.GetHashCode());
+    }
+
+    [Fact]
+    public void TwoCriteria_SameRemote_AreValueEqualAndSameHash()
+    {
+        // Counterfactual: identisk remote → strukturellt lika + samma hash (annars vore VO:t
+        // instabilt som jsonb-dedupe-nyckel).
+        var a = Create(occupationGroup: ["grp1"], remote: true).Value;
+        var b = Create(occupationGroup: ["grp1"], remote: true).Value;
+
+        a.ShouldBe(b);
+        a.GetHashCode().ShouldBe(b.GetHashCode());
+    }
+
+    [Fact]
+    public void Create_WithRemoteOnly_ReturnsSuccess()
+    {
+        // Tom-invarianten utökad (lockstep med RecentJobSearchCaptureBehavior-guarden): remote=true
+        // ensamt (alla listor tomma, Q null) är en äkta filter-intention (WHERE remote, "visa
+        // distans-jobb"), INTE default-browse → giltig sökning med Remote==true på VO:t.
+        var result = Create(
+            occupationGroup: [], municipality: [], region: [],
+            employmentType: [], worktimeExtent: [], employer: [],
+            remote: true, q: null);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Remote.ShouldBeTrue();
+        result.Value.OccupationGroup.ShouldBeEmpty();
+        result.Value.Q.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Create_WithRemoteFalseAndEverythingElseEmpty_ReturnsEmptyFailure()
+    {
+        // Counterfactual till Create_WithRemoteOnly_ReturnsSuccess: remote=false ensamt = inget
+        // filter (bool-semantik) → SearchCriteria.Empty. Bevisar att det är remote=TRUE, inte blotta
+        // remote-parameterns närvaro, som passerar tom-invarianten (annars vore varje default-browse
+        // en giltig sökning).
+        var result = Create(
+            occupationGroup: [], municipality: [], region: [],
+            employmentType: [], worktimeExtent: [], employer: [],
+            remote: false, q: null);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("SearchCriteria.Empty");
     }
 }

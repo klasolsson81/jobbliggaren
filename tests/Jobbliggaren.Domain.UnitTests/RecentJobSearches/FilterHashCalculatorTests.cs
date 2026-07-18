@@ -8,11 +8,14 @@ using Shouldly;
 namespace Jobbliggaren.Domain.UnitTests.RecentJobSearches;
 
 // FilterHashCalculator — deterministic SHA-256 över canonical-JSON av filter-shape.
-// C2 (ADR 0067, CTO-dom (d)/(f) + architect F4): canonical-formen är
-// {"q":...,"occupationGroup":[...],"municipality":[...],"region":[...],"sortBy":int}
-// — "ssyk"-nyckeln UTGÅR. Ingen hash-versionering (recent-raderna raderas i
-// C2-migrationen). Bär uniqueness-kontraktet UNIQUE(job_seeker_id, filter_hash)
-// (ADR 0060).
+// Canonical-formen (ADR 0067 Fas C2/B2, #311 PR-2b C1, #551 PR-D) är
+// {"q":...,"occupationGroup":[...],"municipality":[...],"region":[...],
+//  "employmentType":[...],"worktimeExtent":[...],"employer":[...],"remote":bool,"sortBy":int}
+// — "ssyk"-nyckeln UTGÅR (C2). "employer" (org.nr) ligger mellan worktimeExtent och
+// sortBy (#311 PR-2b C1); "remote" (distans, bool) ligger mellan employer och sortBy
+// (#551 PR-D — skalär-svans före sortBy). Additivt format-bump, ingen hash-versionering
+// (recent-raderna är efemär cache; cap-20-eviction självläker). Bär uniqueness-kontraktet
+// UNIQUE(job_seeker_id, filter_hash) (ADR 0060).
 //
 // RÖD tills FilterHashCalculator implementerar nya canonical-formen + overloaden.
 public class FilterHashCalculatorTests
@@ -24,6 +27,7 @@ public class FilterHashCalculatorTests
         IEnumerable<string>? employmentType = null,
         IEnumerable<string>? worktimeExtent = null,
         IEnumerable<string>? employer = null,
+        bool remote = false,
         string? q = "backend",
         JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc) =>
         SearchCriteria.Create(
@@ -33,6 +37,7 @@ public class FilterHashCalculatorTests
             employmentType: employmentType ?? ["et_fast"],
             worktimeExtent: worktimeExtent ?? ["wt_heltid"],
             employer: employer ?? ["5566010101"],
+            remote: remote,
             q: q,
             sortBy: sortBy).Value;
 
@@ -58,17 +63,17 @@ public class FilterHashCalculatorTests
     [Fact]
     public void Compute_CanonicalJson_MatchesDocumentedContract()
     {
-        // Låser canonical-form-KONTRAKTET (B2, ADR 0067 Beslut 6/7): exakt
+        // Låser canonical-form-KONTRAKTET (B2, #311 PR-2b C1, #551 PR-D): exakt
         // nyckelordning q → occupationGroup → municipality → region →
-        // employmentType → worktimeExtent → sortBy. De två nya arrayerna ligger
-        // MELLAN region och sortBy. Om Infrastructure/Domain ändrar
-        // serialisering tyst förlorar vi unique-index-integritet — då ska detta
-        // test falla.
-        // #311 PR-2b C1: "employer" ligger MELLAN worktimeExtent och sortBy (kanonisk ordning
-        // matchar VO:ts Equals/GetHashCode + jsonb-writern). Ett ändrat läge bryter unique-index-
-        // integriteten → detta test faller.
+        // employmentType → worktimeExtent → employer → remote → sortBy. Om
+        // Infrastructure/Domain ändrar serialisering tyst förlorar vi unique-index-
+        // integritet — då ska detta test falla.
+        // #311 PR-2b C1: "employer" ligger MELLAN worktimeExtent och sortBy.
+        // #551 PR-D: "remote" (bool) ligger MELLAN employer och sortBy — skrivs OVILLKORLIGT
+        // (som list-arrayerna, inte conditional). Ett ändrat läge/utelämnat fält bryter unique-
+        // index-integriteten → detta test faller (den avsiktliga format-bump-beviskedjan).
         const string canonicalJson =
-            """{"q":"backend","occupationGroup":["g1"],"municipality":["m1"],"region":["r1"],"employmentType":["e1"],"worktimeExtent":["w1"],"employer":["5560000001"],"sortBy":0}""";
+            """{"q":"backend","occupationGroup":["g1"],"municipality":["m1"],"region":["r1"],"employmentType":["e1"],"worktimeExtent":["w1"],"employer":["5560000001"],"remote":false,"sortBy":0}""";
         var expected = Convert.ToHexStringLower(
             SHA256.HashData(Encoding.UTF8.GetBytes(canonicalJson)));
 
@@ -80,6 +85,7 @@ public class FilterHashCalculatorTests
             employmentType: ["e1"],
             worktimeExtent: ["w1"],
             employer: ["5560000001"],
+            remote: false,
             sortBy: JobAdSortBy.PublishedAtDesc);
 
         actual.ShouldBe(expected);
@@ -99,6 +105,7 @@ public class FilterHashCalculatorTests
             employmentType: criteria.EmploymentType,
             worktimeExtent: criteria.WorktimeExtent,
             employer: criteria.Employer,
+            remote: criteria.Remote,
             sortBy: criteria.SortBy);
 
         fromCriteria.ShouldBe(fromExplicit);
@@ -156,11 +163,11 @@ public class FilterHashCalculatorTests
         // dimensionerna åt — ["x1"] som yrkesgrupp ≠ ["x1"] som kommun.
         var a = FilterHashCalculator.Compute(
             q: null, occupationGroup: ["x1"], municipality: [], region: [],
-            employmentType: [], worktimeExtent: [], employer: [],
+            employmentType: [], worktimeExtent: [], employer: [], remote: false,
             sortBy: JobAdSortBy.PublishedAtDesc);
         var b = FilterHashCalculator.Compute(
             q: null, occupationGroup: [], municipality: ["x1"], region: [],
-            employmentType: [], worktimeExtent: [], employer: [],
+            employmentType: [], worktimeExtent: [], employer: [], remote: false,
             sortBy: JobAdSortBy.PublishedAtDesc);
 
         a.ShouldNotBe(b);
@@ -209,24 +216,24 @@ public class FilterHashCalculatorTests
     {
         Should.Throw<ArgumentNullException>(() => FilterHashCalculator.Compute(
             q: null, occupationGroup: null!, municipality: [], region: [],
-            employmentType: [], worktimeExtent: [], employer: [], sortBy: JobAdSortBy.PublishedAtDesc));
+            employmentType: [], worktimeExtent: [], employer: [], remote: false, sortBy: JobAdSortBy.PublishedAtDesc));
         Should.Throw<ArgumentNullException>(() => FilterHashCalculator.Compute(
             q: null, occupationGroup: [], municipality: null!, region: [],
-            employmentType: [], worktimeExtent: [], employer: [], sortBy: JobAdSortBy.PublishedAtDesc));
+            employmentType: [], worktimeExtent: [], employer: [], remote: false, sortBy: JobAdSortBy.PublishedAtDesc));
         Should.Throw<ArgumentNullException>(() => FilterHashCalculator.Compute(
             q: null, occupationGroup: [], municipality: [], region: null!,
-            employmentType: [], worktimeExtent: [], employer: [], sortBy: JobAdSortBy.PublishedAtDesc));
+            employmentType: [], worktimeExtent: [], employer: [], remote: false, sortBy: JobAdSortBy.PublishedAtDesc));
         // B2: de två nya list-params bär samma null-guard som de befintliga.
         Should.Throw<ArgumentNullException>(() => FilterHashCalculator.Compute(
             q: null, occupationGroup: [], municipality: [], region: [],
-            employmentType: null!, worktimeExtent: [], employer: [], sortBy: JobAdSortBy.PublishedAtDesc));
+            employmentType: null!, worktimeExtent: [], employer: [], remote: false, sortBy: JobAdSortBy.PublishedAtDesc));
         Should.Throw<ArgumentNullException>(() => FilterHashCalculator.Compute(
             q: null, occupationGroup: [], municipality: [], region: [],
-            employmentType: [], worktimeExtent: null!, employer: [], sortBy: JobAdSortBy.PublishedAtDesc));
-        // #311 PR-2b C1: employer-param bär samma null-guard.
+            employmentType: [], worktimeExtent: null!, employer: [], remote: false, sortBy: JobAdSortBy.PublishedAtDesc));
+        // #311 PR-2b C1: employer-param bär samma null-guard. (remote är en bool → ingen null-guard.)
         Should.Throw<ArgumentNullException>(() => FilterHashCalculator.Compute(
             q: null, occupationGroup: [], municipality: [], region: [],
-            employmentType: [], worktimeExtent: [], employer: null!, sortBy: JobAdSortBy.PublishedAtDesc));
+            employmentType: [], worktimeExtent: [], employer: null!, remote: false, sortBy: JobAdSortBy.PublishedAtDesc));
     }
 
     // ===============================================================
@@ -273,11 +280,11 @@ public class FilterHashCalculatorTests
         // Dimension-förväxlingsgrind för de två nya nycklarna.
         var a = FilterHashCalculator.Compute(
             q: null, occupationGroup: [], municipality: [], region: [],
-            employmentType: ["x1"], worktimeExtent: [], employer: [],
+            employmentType: ["x1"], worktimeExtent: [], employer: [], remote: false,
             sortBy: JobAdSortBy.PublishedAtDesc);
         var b = FilterHashCalculator.Compute(
             q: null, occupationGroup: [], municipality: [], region: [],
-            employmentType: [], worktimeExtent: ["x1"], employer: [],
+            employmentType: [], worktimeExtent: ["x1"], employer: [], remote: false,
             sortBy: JobAdSortBy.PublishedAtDesc);
 
         a.ShouldNotBe(b);
@@ -314,13 +321,66 @@ public class FilterHashCalculatorTests
         // "occupationGroup" ger olika canonical-JSON-nyckel → olika hash (jsonb-dedupe-säkerhet).
         var a = FilterHashCalculator.Compute(
             q: null, occupationGroup: [], municipality: [], region: [],
-            employmentType: [], worktimeExtent: [], employer: ["5566010101"],
+            employmentType: [], worktimeExtent: [], employer: ["5566010101"], remote: false,
             sortBy: JobAdSortBy.PublishedAtDesc);
         var b = FilterHashCalculator.Compute(
             q: null, occupationGroup: ["5566010101"], municipality: [], region: [],
-            employmentType: [], worktimeExtent: [], employer: [],
+            employmentType: [], worktimeExtent: [], employer: [], remote: false,
             sortBy: JobAdSortBy.PublishedAtDesc);
 
         a.ShouldNotBe(b);
+    }
+
+    // ===============================================================
+    // #551 PR-D (ADR 0087 D6-paritet) — Remote (distans, bool) ingår i hashen.
+    // ===============================================================
+
+    [Fact]
+    public void Compute_DifferentRemote_ProducesDifferentHash()
+    {
+        // THE key guard: två criteria identiska utom Remote (true vs false) MÅSTE hasha olika.
+        // Om produktionen glömde writer.WriteBoolean("remote", ...) skulle remote=true och
+        // remote=false serialisera identiskt → hash-kollision → en distans-sökning dedupe:as onto
+        // sin on-site-tvilling (UNIQUE(job_seeker_id, filter_hash)-identitetsläcka). Faller högt då.
+        var a = FilterHashCalculator.Compute(Criteria(remote: true));
+        var b = FilterHashCalculator.Compute(Criteria(remote: false));
+
+        a.ShouldNotBe(b);
+    }
+
+    [Fact]
+    public void Compute_CriteriaOverload_ThreadsRemote()
+    {
+        // Single-arg Compute(criteria)-overloaden MÅSTE tråda criteria.Remote in i den explicita
+        // overloaden (produktion: Compute(criteria) passar criteria.Remote). Bevisat åt båda håll:
+        // en remote=true-criteria hashar identiskt med den explicita overloaden anropad remote:true,
+        // och OLIKT den explicita overloaden anropad remote:false. Om single-arg-overloaden hårdkodade
+        // remote:false (eller tappade fältet) skulle fromCriteria ≠ explicitTrue → faller.
+        var criteria = Criteria(remote: true);
+
+        var fromCriteria = FilterHashCalculator.Compute(criteria);
+        var explicitTrue = FilterHashCalculator.Compute(
+            q: criteria.Q,
+            occupationGroup: criteria.OccupationGroup,
+            municipality: criteria.Municipality,
+            region: criteria.Region,
+            employmentType: criteria.EmploymentType,
+            worktimeExtent: criteria.WorktimeExtent,
+            employer: criteria.Employer,
+            remote: true,
+            sortBy: criteria.SortBy);
+        var explicitFalse = FilterHashCalculator.Compute(
+            q: criteria.Q,
+            occupationGroup: criteria.OccupationGroup,
+            municipality: criteria.Municipality,
+            region: criteria.Region,
+            employmentType: criteria.EmploymentType,
+            worktimeExtent: criteria.WorktimeExtent,
+            employer: criteria.Employer,
+            remote: false,
+            sortBy: criteria.SortBy);
+
+        fromCriteria.ShouldBe(explicitTrue);
+        fromCriteria.ShouldNotBe(explicitFalse);
     }
 }

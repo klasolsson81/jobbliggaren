@@ -1082,7 +1082,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         await db.SaveChangesAsync(ct);
 
         var criteria = SearchCriteria.Create(
-            null, null, null, null, null, null, RecruiterName, JobAdSortBy.Relevance).Value;
+            null, null, null, null, null, null, false, RecruiterName, JobAdSortBy.Relevance).Value;
 
         db.RecentJobSearches.Add(
             RecentJobSearch.Capture(seeker.Id, criteria, currentCount: 0, now: clock.UtcNow));
@@ -1113,7 +1113,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         foreach (var q in queries)
         {
             var criteria = SearchCriteria.Create(
-                null, null, null, null, null, null, q, JobAdSortBy.Relevance).Value;
+                null, null, null, null, null, null, false, q, JobAdSortBy.Relevance).Value;
 
             db.RecentJobSearches.Add(
                 RecentJobSearch.Capture(seeker.Id, criteria, currentCount: 0, now: clock.UtcNow));
@@ -1769,7 +1769,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
             var employerOnly = SearchCriteria.Create(
                 null, null, null, null, null,
-                employer: ["5509281234"], q: null, JobAdSortBy.PublishedAtDesc).Value;
+                employer: ["5509281234"], remote: false, q: null, JobAdSortBy.PublishedAtDesc).Value;
 
             db.RecentJobSearches.Add(
                 RecentJobSearch.Capture(seeker.Id, employerOnly, currentCount: 0, now: clock.UtcNow));
@@ -1909,7 +1909,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             await db.SaveChangesAsync(ct);
 
             var neutralCriteria = SearchCriteria.Create(
-                null, null, null, null, null, null, "sjuksköterska", JobAdSortBy.Relevance).Value;
+                null, null, null, null, null, null, false, "sjuksköterska", JobAdSortBy.Relevance).Value;
 
             db.SavedSearches.Add(SavedSearch.Create(
                 seeker.Id, "Petra Sandelins annonser", neutralCriteria,

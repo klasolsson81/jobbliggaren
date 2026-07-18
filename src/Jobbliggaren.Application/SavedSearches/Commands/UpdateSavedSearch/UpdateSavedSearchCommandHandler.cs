@@ -54,6 +54,10 @@ public sealed class UpdateSavedSearchCommandHandler(
                 // field, no FE picker). The VO/jsonb are employer-aware; adding it here is a future
                 // additive change. Not a silent-drop — no employer flows in. (Parity CreateSavedSearch.)
                 employer: [],
+                // #551 PR-D: SavedSearch WRITE path does not thread remote yet (no command field,
+                // no FE distans-toggle). The VO/jsonb are remote-aware; adding it here is a future
+                // additive change. Not a silent-drop — no remote flows in. (Parity CreateSavedSearch.)
+                remote: false,
                 q: c.Q,
                 sortBy: c.SortBy);
             if (criteriaResult.IsFailure)

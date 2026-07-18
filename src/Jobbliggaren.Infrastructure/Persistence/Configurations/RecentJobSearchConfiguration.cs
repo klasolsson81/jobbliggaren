@@ -118,6 +118,15 @@ public sealed class RecentJobSearchConfiguration : IEntityTypeConfiguration<Rece
             .IsRequired();
         employer.Metadata.SetValueComparer(stringListComparer);
 
+        // #551 PR-D (ADR 0087 D6-paritet): remote (distans, bool). SKALÄR kolumn — mappas nativt
+        // med builder.Property (INGEN shadow-backing-field/ValueComparer/Ignore-dans som list-dims;
+        // en bool spåras nativt). Additiv migration på levande cache-tabell: NOT NULL DEFAULT false
+        // (befintliga rader får false; FilterHash-format-bump → benign dubblett, cap-20 självläker).
+        builder.Property(r => r.Remote)
+            .HasColumnName("remote")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         // Public IReadOnlyList<string>-getters är beräknade wrappers — EF
         // ska inte försöka mappa dem (skulle duplicera shadow-kolumnerna).
         builder.Ignore(r => r.OccupationGroup);

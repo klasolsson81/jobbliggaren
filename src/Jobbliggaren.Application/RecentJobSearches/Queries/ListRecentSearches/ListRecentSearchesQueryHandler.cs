@@ -105,9 +105,10 @@ public sealed class ListRecentSearchesQueryHandler(
                         // RecentJobSearch bär nu employer_list → en återbesökt sökning räknar
                         // arbetsgivar-filtrerat (samma filter som reproduceras vid klick).
                         Employer: r.Employer,
-                        // #551 PR-B: remote-persistensen deferrad (SearchCriteria/RecentJobSearch
-                        // bär ännu ingen remote-axel — följd-våg PR-D, parity #311 Employer-persistens).
-                        Remote: false,
+                        // #551 PR-D (ADR 0087 D6-paritet): PR-B:s deferrade seam (Remote: false) ersatt —
+                        // RecentJobSearch bär nu remote-kolumnen → en återbesökt distans-sökning räknar
+                        // distans-filtrerat (samma filter som reproduceras vid klick).
+                        Remote: r.Remote,
                         Q: r.Q),
                     cancellationToken);
             }

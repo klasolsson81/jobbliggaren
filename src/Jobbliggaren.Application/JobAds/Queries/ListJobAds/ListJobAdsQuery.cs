@@ -46,13 +46,17 @@ public sealed record ListJobAdsQuery(
     // runtime-kontext-flaggorna nedan (MatchGrades/IncludeRelated/status) som ALDRIG persisteras.
     IReadOnlyList<string>? Employer = null,
     string? Q = null,
-    // #551 PR-B D5 — den boolska distans/remote-facetten (?remote=on). En ANON
+    // #551 PR-B D5 — den boolska distans/remote-facetten (?remote=true). En ANON
     // sök-facett (annons-kolumn, ingen per-användar-data) som unionas med kommun/län
-    // i ApplyFilter. PERSISTENSEN ÄR DEFERRAD (följd-våg PR-D, parity #311 Employer
-    // PR-2→PR-2b): remote ingår ÄNNU INTE i SearchCriteria/FilterHashCalculator/
-    // ICapturesRecentSearch (de läser bara de namngivna sök-identitets-fälten OVANFÖR
-    // detta) — så en committad ?remote=-sökning fångas/reproduceras inte förrän
-    // identitets-kedjan trådas. Bunds från ?remote=on; default false = ingen remote-facett.
+    // i ApplyFilter. PERSISTERAD sök-identitets-dimension (ADR 0087 D6-paritet, PR-D 2026-07-18):
+    // Remote ingår nu i ICapturesRecentSearch → en committad ?remote=-sökning fångas till
+    // RecentJobSearch, trådas via SearchCriteria-VO:t in i FilterHash + SavedSearch jsonb, och
+    // reproduceras vid RunSavedSearch/ListRecentSearches (PR-B:s CONTAINED-seam ersatt). Detta
+    // skiljer Remote (SKA persisteras, paritet Employer/EmploymentType/WorktimeExtent) från
+    // runtime-kontext-flaggorna nedan (MatchGrades/IncludeRelated/status) som ALDRIG persisteras.
+    // Bunds från ?remote=true (ASP.NET bool-binding kräver "true", INTE "on"/"1"; FE mappar den
+    // svenska rutt-flaggan ?distans=on hit, paritet ?relaterade=on→includeRelated). Default false
+    // = ingen remote-facett.
     bool Remote = false,
     // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent-gate för
     // auto-capture. Default false: live-förhandsvisning (router.replace per

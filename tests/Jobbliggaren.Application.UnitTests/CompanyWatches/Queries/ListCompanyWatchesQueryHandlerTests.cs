@@ -453,4 +453,42 @@ public class ListCompanyWatchesQueryHandlerTests
         dto.CompanyName.ShouldBeNull();
         dto.ActiveAdCount.ShouldBe(0);
     }
+
+    [Fact]
+    public async Task Handle_BrandGroupWatch_MatchingAdCount_SumsOverMembers_AndPassesMembersToSearch()
+    {
+        // #452 for a group: the matching-count is SUMMED over the group's members (m1→2, m2→1 ⇒ 3), and
+        // the members must be handed to CountPerUserByEmployerAsync (countOrgNrs = employer ∪ members) —
+        // otherwise a group would silently report 0/null. Pins the non-null arm of the null-guard + the
+        // member SUM + the arg threading (the ActiveAdCount SUM has a Testcontainers oracle; this covers
+        // the parallel #452 gap flagged by code-reviewer/test-writer).
+        const string m1 = "5560125790";
+        const string m2 = "5569876543";
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        AddGroup(db, _userId, "volvo");
+        await db.SaveChangesAsync(ct);
+        var provider = StubProvider(("volvo", "Volvo (koncern)", [m1, m2]));
+
+        _profileBuilder
+            .BuildFullForSortAsync(Arg.Any<CancellationToken>(), Arg.Any<bool>())
+            .Returns(ProfileWithSsyk("1234"));
+        _perUserSearch
+            .CountPerUserByEmployerAsync(
+                Arg.Any<IReadOnlyList<string>>(),
+                Arg.Any<FullCandidateMatchProfile>(),
+                Arg.Any<IReadOnlyList<MatchGrade>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, int> { [m1] = 2, [m2] = 1 });
+
+        var dto = (await Handler(db, provider).Handle(new ListCompanyWatchesQuery(), ct)).ShouldHaveSingleItem();
+
+        dto.MatchingAdCount.ShouldBe(3); // 2 + 1 over the two members
+        // The member org.nrs were passed to the search port (else the group would report 0).
+        await _perUserSearch.Received().CountPerUserByEmployerAsync(
+            Arg.Is<IReadOnlyList<string>>(o => o.Contains(m1) && o.Contains(m2)),
+            Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Any<IReadOnlyList<MatchGrade>>(),
+            Arg.Any<CancellationToken>());
+    }
 }

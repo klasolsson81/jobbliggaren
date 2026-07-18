@@ -19,6 +19,17 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// </list>
     /// The TargetType-discriminated XOR between the two columns is a DOMAIN invariant (the factories),
     /// not a DB CHECK (house style: aggregate invariant + partial unique indexes, not CHECK constraints).
+    ///
+    /// <para>
+    /// <b>Down is DESTRUCTIVE once any BRAND_GROUP row exists</b> (parity the sibling
+    /// <c>WidenCompanyWatchOrganizationNumberForToken</c> Down-note): rolling back drops
+    /// <c>brand_group_id</c> (which group a row followed is lost) and back-fills the re-NOT-NULLed
+    /// <c>organization_number</c> to <c>''</c> for those rows (an invalid, non-restorable value — they had
+    /// NULL org.nr). Real EMPLOYER rows are untouched (they already carry a non-null org.nr). Prod deploys
+    /// only ever run Up (the house flow, CLAUDE.md §11/§6.5); no personnummer is touched. The Up path that
+    /// actually ships is purely additive/widening — hence no RAISE vacuity guard (guards are reserved for
+    /// destructive Up operations).
+    /// </para>
     /// </summary>
     public partial class AddCompanyWatchBrandGroupTarget : Migration
     {

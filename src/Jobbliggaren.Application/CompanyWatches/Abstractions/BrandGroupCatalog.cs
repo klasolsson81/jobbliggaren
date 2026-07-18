@@ -18,6 +18,7 @@ namespace Jobbliggaren.Application.CompanyWatches.Abstractions;
 public sealed class BrandGroupCatalog
 {
     private readonly IReadOnlyDictionary<string, BrandGroup> _groupsById;
+    private readonly IReadOnlyCollection<BrandGroup> _groups;
 
     public BrandGroupCatalog(string version, IReadOnlyDictionary<string, BrandGroup> groupsById)
     {
@@ -26,13 +27,16 @@ public sealed class BrandGroupCatalog
 
         Version = version;
         _groupsById = groupsById;
+        // Materialise once (IReadOnlyDictionary.Values is typed IEnumerable<T> — a runtime cast would be
+        // brittle against a non-Dictionary implementation).
+        _groups = groupsById.Values.ToArray();
     }
 
     /// <summary>Dataset version stamp (e.g. "1.0") — surfaced so a stale cache is diagnosable.</summary>
     public string Version { get; }
 
     /// <summary>All curated groups (possibly empty). Order is unspecified.</summary>
-    public IReadOnlyCollection<BrandGroup> Groups => (IReadOnlyCollection<BrandGroup>)_groupsById.Values;
+    public IReadOnlyCollection<BrandGroup> Groups => _groups;
 
     /// <summary>
     /// Resolves a slug to its group, or <see langword="null"/> when the slug is not curated — the

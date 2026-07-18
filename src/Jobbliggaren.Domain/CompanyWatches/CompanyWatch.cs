@@ -74,9 +74,10 @@ public sealed class CompanyWatch : AggregateRoot<CompanyWatchId>
     // EF Core constructor
     private CompanyWatch() { }
 
-    // The one construction path for both targets. The TargetType-discriminated XOR between
-    // organizationNumber and brandGroupId is guaranteed by the two factories — never call this with
-    // both set or both null.
+    // The one construction path for both targets. The two factories guarantee the
+    // TargetType-discriminated XOR, but assert it structurally here too so a future third factory cannot
+    // silently create a malformed row (defense-in-depth; the invariant becomes a property of the ctor,
+    // not just of its current callers).
     private CompanyWatch(
         CompanyWatchId id,
         Guid userId,
@@ -85,6 +86,10 @@ public sealed class CompanyWatch : AggregateRoot<CompanyWatchId>
         CompanyWatchTargetType targetType,
         DateTimeOffset createdAt) : base(id)
     {
+        if ((organizationNumber is null) == (brandGroupId is null))
+            throw new InvalidOperationException(
+                "A CompanyWatch targets exactly one of an org.nr or a brand group — never both, never neither.");
+
         UserId = userId;
         OrganizationNumber = organizationNumber;
         BrandGroupId = brandGroupId;

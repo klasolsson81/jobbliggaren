@@ -45,10 +45,13 @@ public sealed class GetCompanyWatchStatusBatchQueryHandler(
         var userId = currentUser.UserId.Value;
 
         // The user's active follows. Load the (bounded) entities then correlate client-side — a
-        // value-converted VO member does not project cleanly server-side.
+        // value-converted VO member does not project cleanly server-side. Ordered by CreatedAt so the
+        // "first group wins" tie-break below (a member org.nr shared by two followed groups) is
+        // DETERMINISTIC — the oldest follow wins, never DB row order (§2.3 predictable result).
         var watches = await db.CompanyWatches
             .AsNoTracking()
             .Where(w => w.UserId == userId)
+            .OrderBy(w => w.CreatedAt)
             .ToListAsync(cancellationToken);
 
         // Three correlation maps (see class summary). The active-partial UNIQUEs give ≤1 active watch per

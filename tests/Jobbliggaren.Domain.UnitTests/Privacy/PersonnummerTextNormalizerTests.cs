@@ -5,7 +5,7 @@ namespace Jobbliggaren.Domain.UnitTests.Privacy;
 
 // Fas 4 STEG 8 (F4-8, ADR 0074 Invariant 1) — the spaced-form personnummer
 // call-site. F4-1 deferred the "spaced/OCR-gapped false-negative" here:
-// PersonnummerTextNormalizer.Normalize bridges a (8-or-6 digits)(1–2 space
+// PersonnummerTextNormalizer.Normalize bridges a (8-or-6 digits)(0–2 space
 // separators or tabs)(4 digits) gap on a TRANSIENT scan-copy so the UNCHANGED
 // context-free PersonnummerScanner.Scan can then FLAG the form. The safety stays
 // in the untouched validation layer (Personnummer.TryParse date+Luhn), so bridging
@@ -68,7 +68,7 @@ public class PersonnummerTextNormalizerTests
     [Fact]
     public void Scan_TabSeparatedValidPersonnummer_FlaggedAfterNormalize()
     {
-        // A tab is the other OCR-gap shape the normalizer bridges ([\p{Zs}\t]{1,2}).
+        // A tab is the other OCR-gap shape the normalizer bridges ([\p{Zs}\t]{0,2}).
         const string spaced = "811218\t9876";
         var text = $"Pnr {spaced}.";
 
@@ -125,7 +125,7 @@ public class PersonnummerTextNormalizerTests
     [Fact]
     public void Scan_TwoCharGapNbspThenSpace_FlaggedAfterNormalize()
     {
-        // A two-character gap mixing an NBSP and an ASCII space is within the {1,2}
+        // A two-character gap mixing an NBSP and an ASCII space is within the {0,2}
         // bound and is bridged (digit-group separator immediately before a stray space).
         const string text = "Pnr 811218\u00A0 9876.";
 
@@ -294,7 +294,7 @@ public class PersonnummerTextNormalizerTests
     public void Scan_ZeroWidthThenNonBreakingSpaceGap_FlaggedAfterNormalize()
     {
         // A zero-width char adjacent to the NBSP digit-group separator: strip the ZW first,
-        // then the {1,2} \p{Zs} bridge joins the digits.
+        // then the {0,2} \p{Zs} bridge joins the digits.
         const string text = "Pnr 811218\u200B\u00A09876.";
 
         PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
@@ -329,7 +329,7 @@ public class PersonnummerTextNormalizerTests
 
     // #427 V3 (accepted residual): a 3+ VISIBLE-column gap is deliberately NOT bridged
     // (a wider window would risk bridging two unrelated numbers). The zero-width strip
-    // does not change this — the {1,2} bound governs the visible \p{Zs}\t separators only.
+    // does not change this — the {0,2} bound governs the visible \p{Zs}\t separators only.
     [Fact]
     public void Normalize_ThreeVisibleColumnGap_NotBridged()
     {
@@ -344,7 +344,7 @@ public class PersonnummerTextNormalizerTests
     // ===============================================================
     // #427 (2nd CTO ruling) — import path: R2 (a '-'/'+' separator ADJACENT to a space,
     // "811218- 9876" / "811218 -9876") is now bridged too. R1 (zero-width between two
-    // spaces) is already handled by the \p{Cf} strip + the {1,2} bridge, asserted here
+    // spaces) is already handled by the \p{Cf} strip + the {0,2} bridge, asserted here
     // for path symmetry. V3 (3+ visible columns) is unchanged. Gap points as \u escapes.
     // ===============================================================
 
@@ -411,5 +411,111 @@ public class PersonnummerTextNormalizerTests
         PersonnummerScanner.Scan(text)
             .ShouldHaveSingleItem()
             .Kind.ShouldBe(PersonnummerKind.Personnummer);
+    }
+
+    // ===============================================================
+    // #665 (STEG 1 pnr-scanner hardening; ADR 0074 Invariant 1): the TWO-separator ZERO-space
+    // form "811218--9876". The redaction path (GapAwareCandidateRegex admits sep? space{0,2} sep?)
+    // already masks it, but the flag path could never reach it: CandidateRegex allows one
+    // separator, TryParse rejects a second, and the pre-#665 bridge required a MANDATORY space
+    // ([\p{Zs}\t]{1,2}). A permitted-direction false negative (redaction superset of flag), but
+    // an import-flag miss with a real PII consequence (Personnummer.Found never fires, so the 5c
+    // suppression / consent path does not trigger). The bridge is now {0,2} spaces, giving the
+    // normalizer structural parity with GapAwareCandidateRegex, so the joined digits ($1$2, both
+    // separators dropped) are flagged by the SAME unchanged scanner. Safety unchanged: the
+    // date+Luhn gate governs the joined token.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218--9876", PersonnummerKind.Personnummer)]
+    [InlineData("811278--9873", PersonnummerKind.Samordningsnummer)] // day 18+60=78
+    [InlineData("19811218--9876", PersonnummerKind.Personnummer)] // 12-digit full-century
+    public void Scan_DoubleSeparatorNoSpace_FalseNegativeDirectly_FlaggedAfterNormalize(
+        string doubleSep, PersonnummerKind kind)
+    {
+        var text = $"Personnummer {doubleSep} i CV.";
+
+        // Directly: the contiguous scanner sees two separators and cannot match (false negative).
+        PersonnummerScanner.Scan(text).ShouldBeEmpty();
+
+        // After Normalize joins the digits (dropping BOTH separators), the SAME scanner flags it.
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+            .ShouldHaveSingleItem()
+            .Kind.ShouldBe(kind);
+    }
+
+    [Fact]
+    public void Scan_TwoUnrelated_DoubleSeparatorNoSpace_NotManufacturedAfterNormalize()
+    {
+        // Over-flag guard: "12345678--0000" joins to 123456780000, whose month field ("56" after
+        // the century drop) fails date sanity, so the untouched date+Luhn gate rejects it. The
+        // {0,2} widening is candidate SHAPING only.
+        const string text = "Referens 12345678--0000 i systemet.";
+
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Normalize_DoubleSeparatorNoSpace_IsIdempotent()
+    {
+        const string text = "Personnummer 811218--9876 i CV.";
+
+        var once = PersonnummerTextNormalizer.Normalize(text);
+        var twice = PersonnummerTextNormalizer.Normalize(once);
+
+        twice.ShouldBe(once);
+    }
+
+    [Fact]
+    public void Normalize_SingleSeparatorContiguous_JoinsToIdempotentNoOp_StillFlagged()
+    {
+        // The {0,2} degenerate case: a single-separator contiguous "811218-9876" (no space) now
+        // ALSO matches the bridge and joins to "8112189876" (drops the one separator). This is a
+        // harmless no-op the Scan path already flags directly; assert it neither breaks detection
+        // nor changes the outcome, and stays idempotent.
+        const string text = "Personnummer 811218-9876 i CV.";
+
+        var normalized = PersonnummerTextNormalizer.Normalize(text);
+        normalized.ShouldContain("8112189876");
+        PersonnummerScanner.Scan(normalized)
+            .ShouldHaveSingleItem()
+            .Kind.ShouldBe(PersonnummerKind.Personnummer);
+        PersonnummerTextNormalizer.Normalize(normalized).ShouldBe(normalized);
+    }
+
+    // ===============================================================
+    // #667 (STEG 1 pnr-scanner hardening): a FULLWIDTH-digit (\p{Nd}) personnummer gapped by a
+    // space is bridged AND flagged too. Normalize's \d is already Unicode, so it joins the
+    // fullwidth digit groups; TryParse then folds \p{Nd} to its 0-9 value. Fullwidth vectors are
+    // built at runtime (source stays ASCII-only, project rule).
+    // ===============================================================
+
+    [Fact]
+    public void Scan_FullwidthDigitsSpacedForm_FlaggedAfterNormalize()
+    {
+        var spaced = ToFullwidthDigits("811218") + " " + ToFullwidthDigits("9876");
+        var text = $"Personnummer {spaced} i CV.";
+
+        // Directly the contiguous scanner does not bridge the space (false negative).
+        PersonnummerScanner.Scan(text).ShouldBeEmpty();
+
+        // After Normalize joins the fullwidth digits, the SAME scanner flags the folded token.
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+            .ShouldHaveSingleItem()
+            .Kind.ShouldBe(PersonnummerKind.Personnummer);
+    }
+
+    // Fullwidth (U+FF10-U+FF19) rendering of the ASCII digits in the input, built at runtime so
+    // the source stays ASCII-only (project rule: no literal Unicode). Non-digits pass through.
+    private static string ToFullwidthDigits(string s)
+    {
+        var chars = s.ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+        {
+            if (chars[i] is >= '0' and <= '9')
+                chars[i] = (char)(0xFF10 + (chars[i] - '0'));
+        }
+
+        return new string(chars);
     }
 }

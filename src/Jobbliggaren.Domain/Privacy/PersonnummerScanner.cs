@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Jobbliggaren.Domain.Privacy;
@@ -110,8 +111,12 @@ public static partial class PersonnummerScanner
 
         // The stripped token is DIGIT-ONLY (#497/#498, Approach A): every non-digit — ASCII
         // '-'/'+', a Unicode dash, and the bridging \p{Zs}/\t/\p{Cf} gap — is dropped, so the
-        // token is the joined digit sequence the UNCHANGED TryParse validates, exactly mirroring
-        // the import flag path's Normalize ($1$2 digit-join). No personnummer shape yields more
+        // token is the joined digit sequence the shared TryParse validates, exactly mirroring
+        // the import flag path's Normalize ($1$2 digit-join). Each kept digit is the Unicode
+        // decimal-digit category \p{Nd} FOLDED to its ASCII 0-9 value (#667), the same fold
+        // TryParse applies, so a fullwidth (U+FF10-U+FF19) personnummer validates identically on
+        // both paths and its ORIGINAL span still masks in place (MaskSpan masks every \p{Nd}).
+        // No personnummer shape yields more
         // than 12 digits (the 12-digit full-century form), so char[14] over-provisions and the
         // overflow guard below is pure defense-in-depth against a later regex change (never hit
         // today). Masking still uses the ORIGINAL span (gap + separators kept), not this token.
@@ -121,10 +126,12 @@ public static partial class PersonnummerScanner
         {
             var span = text.AsSpan(candidate.Index, candidate.Length);
 
-            // Build the DIGIT-ONLY token (#497/#498, Approach A): keep ASCII digits, drop every
-            // separator (ASCII/Unicode dash) and every bridging gap char (\p{Zs}/\t/\p{Cf}). This
-            // mirrors the flag path's $1$2 digit-join, so a dash-space-dash form ("811218- -9876",
-            // #498b) and a Unicode-dash form (#497) validate identically on both paths (no new
+            // Build the DIGIT-ONLY token (#497/#498, Approach A): keep every decimal digit
+            // (\p{Nd}) FOLDED to its ASCII 0-9 value (#667 — fullwidth U+FF10-U+FF19 and other
+            // Nd forms), drop every separator (ASCII/Unicode dash) and every bridging gap char
+            // (\p{Zs}/\t/\p{Cf}). This mirrors the flag path's $1$2 digit-join AND TryParse's own
+            // Nd-fold, so a dash-space-dash form ("811218- -9876", #498b), a Unicode-dash form
+            // (#497) and a fullwidth-digit form (#667) validate identically on both paths (no new
             // divergence). The ORIGINAL span (gap included) is what we hand to the match for
             // in-place masking. Bail defensively if a span ever carries more digits than any
             // personnummer shape can — never reached today (max 12); future-proofs the buffer.
@@ -132,7 +139,8 @@ public static partial class PersonnummerScanner
             var overflowed = false;
             foreach (var c in span)
             {
-                if (char.IsAsciiDigit(c))
+                var digitValue = CharUnicodeInfo.GetDecimalDigitValue(c);
+                if (digitValue >= 0)
                 {
                     if (length == token.Length)
                     {
@@ -140,7 +148,7 @@ public static partial class PersonnummerScanner
                         break;
                     }
 
-                    token[length++] = c;
+                    token[length++] = (char)('0' + digitValue);
                 }
             }
 

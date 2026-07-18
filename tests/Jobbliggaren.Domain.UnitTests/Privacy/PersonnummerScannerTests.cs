@@ -1,3 +1,4 @@
+using System.Globalization;
 using Jobbliggaren.Domain.Privacy;
 using Shouldly;
 
@@ -476,4 +477,108 @@ public class PersonnummerScannerTests
         text.Substring(match.StartOffset, match.Length).ShouldBe(pnr);
         match.Masked.Any(char.IsAsciiDigit).ShouldBeFalse();
     }
+
+    // ===============================================================
+    // #667 (STEG 1 pnr-scanner hardening; ADR 0074 Invariant 1): FULLWIDTH and other Unicode
+    // decimal-digit (\p{Nd}) forms of a personnummer. The candidate regexes match \p{Nd}
+    // already (.NET \d is Unicode), but TryParse, the ScanWithGaps token-builder and MaskInto
+    // were ASCII-only - so a fullwidth personnummer (U+FF10-U+FF19, emitted by CJK input
+    // methods and some PDF extractors) was neither FLAGGED (Scan) nor MASKED (ScanWithGaps): a
+    // PII leak. All three now fold \p{Nd} to its 0-9 value (CharUnicodeInfo.GetDecimalDigitValue).
+    // Fullwidth vectors are built at runtime from the canonical ASCII vectors so the source stays
+    // ASCII-only (project rule: no literal Unicode). The masking oracle is \p{Nd} ABSENCE, NOT
+    // char.IsAsciiDigit - a fullwidth leak is not ASCII and would pass an ASCII-only check silently.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218-9876", PersonnummerKind.Personnummer)]
+    [InlineData("811278-9873", PersonnummerKind.Samordningsnummer)] // day 18+60=78
+    [InlineData("8112189876", PersonnummerKind.Personnummer)] // contiguous, no separator
+    [InlineData("19811218-9876", PersonnummerKind.Personnummer)] // 12-digit full-century
+    public void Scan_FullwidthDigitPersonnummer_IsFlagged_AndMaskLeaksNoDigit(
+        string ascii, PersonnummerKind kind)
+    {
+        var fullwidth = ToFullwidthDigits(ascii);
+        // Anti-vacuous: the vector really carries a non-ASCII decimal digit.
+        fullwidth.Any(IsNonAsciiDecimalDigit)
+            .ShouldBeTrue("vector must contain a fullwidth (non-ASCII \\p{Nd}) digit");
+        var text = $"Personnummer {fullwidth} i CV.";
+
+        var match = PersonnummerScanner.Scan(text).ShouldHaveSingleItem();
+
+        match.Kind.ShouldBe(kind);
+        match.StartOffset.ShouldBe(text.IndexOf(fullwidth, StringComparison.Ordinal));
+        match.Length.ShouldBe(fullwidth.Length);
+        NoDecimalDigitSurvives(match.Masked);
+    }
+
+    [Theory]
+    [InlineData("811218-9876", PersonnummerKind.Personnummer)]
+    [InlineData("811278-9873", PersonnummerKind.Samordningsnummer)]
+    [InlineData("8112189876", PersonnummerKind.Personnummer)]
+    public void ScanWithGaps_FullwidthDigitPersonnummer_IsMaskedInPlace_NoDigitSurvives(
+        string ascii, PersonnummerKind kind)
+    {
+        var fullwidth = ToFullwidthDigits(ascii);
+        var text = $"Personnummer {fullwidth} i CV.";
+
+        var match = PersonnummerScanner.ScanWithGaps(text).ShouldHaveSingleItem();
+
+        match.Kind.ShouldBe(kind);
+        // The span points into the ORIGINAL text so the redactor masks in place.
+        text.Substring(match.StartOffset, match.Length).ShouldBe(fullwidth);
+        match.Masked.Length.ShouldBe(fullwidth.Length);
+        NoDecimalDigitSurvives(match.Masked);
+    }
+
+    [Fact]
+    public void Scan_FullwidthDigitsAndFullwidthDash_IsFlagged()
+    {
+        // Fullwidth digits AND a FULLWIDTH HYPHEN-MINUS (U+FF0D, \p{Pd}) - the exact rendering a
+        // CJK input method emits. \p{Pd} is already in the separator class; the #667 digit fold
+        // is what makes the folded token validate.
+        var fullwidth = ToFullwidthDigits("811218") + "\uFF0D" + ToFullwidthDigits("9876");
+        var text = $"Personnummer {fullwidth} i CV.";
+
+        PersonnummerScanner.Scan(text)
+            .ShouldHaveSingleItem()
+            .Kind.ShouldBe(PersonnummerKind.Personnummer);
+    }
+
+    [Fact]
+    public void Scan_FullwidthDigits_InvalidDate_NotFlagged_GateGovernsFoldedDigits()
+    {
+        // Over-flag guard: fullwidth "12345678-9012" folds to 123456789012 whose month field
+        // ("56" after the century drop) fails date sanity - the date+Luhn gate governs the FOLDED
+        // digits, so widening the digit class never manufactures a valid false positive.
+        var fullwidth = ToFullwidthDigits("12345678-9012");
+        var text = $"Referens {fullwidth} i systemet.";
+
+        PersonnummerScanner.Scan(text).ShouldBeEmpty();
+        PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
+    }
+
+    // Fullwidth (U+FF10-U+FF19) rendering of the ASCII digits in <paramref name="s"/>, built at
+    // runtime so the source stays ASCII-only (project rule: no literal Unicode in source). Every
+    // non-digit character (a separator, letter, dot) passes through unchanged.
+    private static string ToFullwidthDigits(string s)
+    {
+        var chars = s.ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+        {
+            if (chars[i] is >= '0' and <= '9')
+                chars[i] = (char)(0xFF10 + (chars[i] - '0'));
+        }
+
+        return new string(chars);
+    }
+
+    private static bool IsNonAsciiDecimalDigit(char c) =>
+        !char.IsAsciiDigit(c) && CharUnicodeInfo.GetDecimalDigitValue(c) >= 0;
+
+    // Masking oracle for #667: NO decimal digit - ASCII OR fullwidth (\p{Nd}) - may survive.
+    // Using char.IsAsciiDigit here would silently pass a fullwidth leak.
+    private static void NoDecimalDigitSurvives(string masked) =>
+        masked.Any(c => CharUnicodeInfo.GetDecimalDigitValue(c) >= 0)
+            .ShouldBeFalse("no decimal digit (ASCII or fullwidth) may survive masking");
 }

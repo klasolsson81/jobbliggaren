@@ -7,7 +7,8 @@ namespace Jobbliggaren.Domain.Privacy;
 /// personnummer-shaped digit–gap–digit pattern has its bridging whitespace removed
 /// (and any invisible zero-width <c>\p{Cf}</c> character stripped, #427 V2), so the
 /// context-free <see cref="PersonnummerScanner"/> can FLAG spaced/OCR-gapped and
-/// zero-width-gapped forms (e.g. <c>19811218 9876</c>, <c>811218 9876</c>). This is the
+/// zero-width-gapped forms (e.g. <c>19811218 9876</c>, <c>811218 9876</c>) — and, since #665,
+/// the two-separator no-space form (<c>811218--9876</c>) the redaction path already masks. This is the
 /// F4-8 call-site fix for the spaced-form false-negative F4-1 deferred here (ADR 0074
 /// Invariant 1).
 ///
@@ -23,7 +24,7 @@ namespace Jobbliggaren.Domain.Privacy;
 /// </summary>
 public static partial class PersonnummerTextNormalizer
 {
-    // Bridge ONLY: an 8- or 6-digit run, then 1–2 Unicode space separators or tabs
+    // Bridge ONLY: an 8- or 6-digit run, then 0–2 Unicode space separators or tabs
     // (never a newline — a newline is a field/line boundary, not an OCR gap), then
     // EXACTLY 4 digits, with non-digit boundaries on both ends so we never bite into
     // a longer number. The gap is removed (digits joined) so the scanner's
@@ -37,24 +38,32 @@ public static partial class PersonnummerTextNormalizer
     // would otherwise NEVER be bridged, the scanner would miss it, and the import guard
     // would store it flagged as "no personnummer found" (a PII leak). \p{Zs} subsumes the
     // ASCII space (U+0020) so this only widens, never narrows, the prior bridge. The width
-    // stays bounded at {1,2}: the defect is the character class, not the gap length, and a
+    // stays bounded at {0,2}: the defect is the character class, not the gap length, and a
     // wider window would needlessly raise the chance of bridging two unrelated numbers.
     // A 3+ visible-column gap is therefore deliberately NOT bridged — a reviewed, accepted
     // residual (#427 V3, senior-cto-advisor). This bound governs only the VISIBLE \p{Zs}\t
     // separators; invisible zero-width \p{Cf} noise is handled separately below (stripped,
-    // unbounded), so the {1,2} bound is unaffected by that widening.
+    // unbounded), so the {0,2} bound is unaffected by that widening.
     //
     // #427 (2nd CTO ruling, R2) + #497: an optional separator is now tolerated ADJACENT to the
-    // {1,2} space run on either side ((?:[-+\p{Pd}...])? before AND after), where the separator
+    // {0,2} space run on either side ((?:[-+\p{Pd}...])? before AND after), where the separator
     // class is ASCII '-'/'+', any Unicode dash (\p{Pd}) or U+2212 MINUS (#497 — Word/PDF emit
     // these), so a realistic rendering of a legitimate separator — "811218- 9876" / "811218 -9876"
-    // / a Unicode-dash spaced form — is bridged too (the space is mandatory, so a pure contiguous
-    // "811218-9876" is still left to Scan, not double-processed). The replacement joins only the
+    // / a Unicode-dash spaced form — is bridged too. #665
+    // (STEG 1 hardening): the visible-space run is {0,2}, NOT {1,2}, so the TWO-separator
+    // ZERO-space form "811218--9876" is bridged too — the redaction path
+    // (GapAwareCandidateRegex, sep? space{0,2} sep?) already masks it, but a MANDATORY space
+    // meant the flag path could never reach it (a redaction-superset-of-flag false negative).
+    // {0,2} gives this normalizer STRUCTURAL PARITY with GapAwareCandidateRegex (modulo \p{Cf},
+    // stripped globally first), closing the divergence at its root. The degenerate all-empty
+    // case (a pure contiguous "8112189876" / a single-separator "811218-9876" — no space) now
+    // matches too, but joins to itself / drops one separator: an idempotent no-op the Scan path
+    // already flags directly, so it adds neither detection nor over-flag. The replacement joins only the
     // two digit groups ($1$2), dropping the separator/space, so the joined token stays a valid Scan
     // candidate. Safety is unchanged — Personnummer.TryParse's date+Luhn gate is still the only
     // authority, so widening candidate SHAPING can never manufacture a valid false positive. This
     // separator class is shared with PersonnummerScanner and Personnummer.TryParse (symmetry).
-    [GeneratedRegex(@"(?<!\d)(\d{8}|\d{6})(?:[-+\p{Pd}\u2212])?[\p{Zs}\t]{1,2}(?:[-+\p{Pd}\u2212])?(\d{4})(?!\d)", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?<!\d)(\d{8}|\d{6})(?:[-+\p{Pd}\u2212])?[\p{Zs}\t]{0,2}(?:[-+\p{Pd}\u2212])?(\d{4})(?!\d)", RegexOptions.CultureInvariant)]
     private static partial Regex SpacedCandidateRegex();
 
     // #427 V2 (ADR 0074 Invariant 1): zero-width FORMAT characters (\p{Cf} — U+200B
@@ -85,7 +94,7 @@ public static partial class PersonnummerTextNormalizer
 
         // Strip invisible zero-width noise first (#427 V2), then bridge the visible
         // \p{Zs}\t gap. Order matters: a "digits<ZWSP><NBSP>digits" form is only bridged
-        // once the zero-width char no longer sits inside the {1,2} space window.
+        // once the zero-width char no longer sits inside the {0,2} space window.
         var stripped = ZeroWidthFormatRegex().Replace(text, string.Empty);
         return SpacedCandidateRegex().Replace(stripped, "$1$2");
     }

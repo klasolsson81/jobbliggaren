@@ -1,3 +1,4 @@
+using System.Globalization;
 using Jobbliggaren.Domain.Privacy;
 using Shouldly;
 
@@ -465,5 +466,47 @@ public class PersonnummerRedactorTests
         redacted.ShouldContain("*");
         // Length preserved (in-place, length-preserving masking).
         redacted.Length.ShouldBe(text.Length);
+    }
+
+    // ===============================================================
+    // #667 (STEG 1 pnr-scanner hardening; ADR 0074 Invariant 1): a FULLWIDTH-digit (\p{Nd})
+    // personnummer must be REDACTED too. Before the fix the redactor's ScanWithGaps token-builder
+    // and MaskInto were ASCII-only, so a fullwidth personnummer (U+FF10-U+FF19, from CJK input
+    // methods / some PDF extractors) was left INTACT in the unencrypted source_file_name column
+    // and CV evidence - a PII leak. Fullwidth vectors built at runtime (source stays ASCII-only).
+    // Oracle = \p{Nd} ABSENCE, NOT char.IsAsciiDigit (a fullwidth leak is not ASCII).
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218-9876")]
+    [InlineData("8112189876")] // contiguous, no separator
+    [InlineData("811278-9873")] // samordningsnummer
+    public void Redact_FullwidthDigitPersonnummer_MasksEveryDigit_NoDecimalDigitSurvives(string ascii)
+    {
+        var fullwidth = ToFullwidthDigits(ascii);
+        var text = $"Personnummer: {fullwidth} (uppgift i CV).";
+
+        var redacted = PersonnummerRedactor.Redact(text);
+
+        redacted.ShouldNotBe(text);
+        redacted.ShouldContain("*");
+        redacted.Length.ShouldBe(text.Length); // length-preserving in-place masking
+        // No decimal digit - ASCII OR fullwidth - survives (the only digits are the pnr).
+        redacted.Any(c => CharUnicodeInfo.GetDecimalDigitValue(c) >= 0)
+            .ShouldBeFalse("no decimal digit (ASCII or fullwidth) may survive redaction");
+    }
+
+    // Fullwidth (U+FF10-U+FF19) rendering of the ASCII digits in the input, built at runtime so
+    // the source stays ASCII-only (project rule: no literal Unicode). Non-digits pass through.
+    private static string ToFullwidthDigits(string s)
+    {
+        var chars = s.ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+        {
+            if (chars[i] is >= '0' and <= '9')
+                chars[i] = (char)(0xFF10 + (chars[i] - '0'));
+        }
+
+        return new string(chars);
     }
 }

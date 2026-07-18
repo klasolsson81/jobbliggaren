@@ -31,9 +31,20 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 ///   internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer)
 ///       : IMatchScorer
 ///   ValueTask&lt;MatchScore&gt; ScoreAsync(JobAdId, CandidateMatchProfile, CancellationToken)
-/// Per-dimension semantics (CTO Decision 3 — LOCKED):
-///   • NotAssessed when the CV-side input is EMPTY, OR the ad's shadow column is
-///     NULL. NoMatch ONLY when data present on BOTH sides and disjoint.
+/// Per-dimension semantics (CTO Decision 3 — LOCKED; #552 grade-gate amendment):
+///   • NotAssessed when the CV-side input is EMPTY (no preference stated). NoMatch when
+///     data is present on BOTH sides and disjoint —
+///     <b>AND (#552 grade-gate, ADR 0076-amendment):</b> when a preference IS stated on
+///     the ort or employment dimension but the ad's shadow is NULL. A stated preference the
+///     ad cannot answer is a location/employment CONTRADICTION (NoMatch, floors the grade
+///     to Basic via the unchanged MatchGradeCalculator RB1), NOT the honest "not assessed"
+///     state — an ad that names no ort is not a match for a user who stated one. The NoMatch
+///     here carries EMPTY Matched AND EMPTY Missing (nothing to cite — the ad states no value).
+///     <b>SSYK is UNCHANGED:</b> a NULL occupation-group shadow stays NotAssessed (the
+///     occupation gate owns the "no occupation" case; #552 touches only ort + employment).
+///     The remaining NotAssessed-by-NULL survivors are: an UNSTATED dimension (CV-side empty),
+///     the #477 containment carve-out (a län-only ad in the preferred kommun's parent län),
+///     and the impl-trap NULL-on-ONE-ort-shadow-while-the-OTHER-is-present case.
 ///   • dim-1 SSYK / dim-3 Region+Employment: Match / NoMatch / NotAssessed (no Partial).
 ///   • dim-2 Title: Match (all ad lexemes covered) / Partial (overlap + leftover) /
 ///     NoMatch (disjoint) / NotAssessed (empty title or NotSupportedException).
@@ -546,12 +557,20 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         score.RegionFit.Missing.ShouldBeEmpty();
     }
 
+    // #552 grade-gate (ADR 0076-amendment) — FLIPPED. A STATED region preference against an ad
+    // whose ort shadows are BOTH NULL is no longer NotAssessed: the ad names no ort the user
+    // stated one for → it CONTRADICTS the stated preference → NoMatch, with EMPTY Matched AND
+    // EMPTY Missing (nothing to cite — the ad states no ort value). This is the ort half of the
+    // grade-gate; the previous NotAssessed reading let such an ad grade Good, which #552 closes
+    // (RB1 floors it to Basic via the unchanged calculator). Was
+    // MatchScorer_RegionFit_AdShadowColumnNull_IsNotAssessed.
     [Fact]
-    public async Task MatchScorer_RegionFit_AdShadowColumnNull_IsNotAssessed()
+    public async Task MatchScorer_OrtUnion_StatedRegionPreference_AdBothShadowsNull_IsNoMatch_EmptyEvidence()
     {
         var ct = TestContext.Current.CancellationToken;
-        // region omitted from payload → region_concept_id NULL.
-        var jobAdId = await SeedJobAdAsync("Titel", null, null, null, ct);
+        // Ort stated via region; workplace_address omitted → BOTH region_concept_id AND
+        // municipality_concept_id shadows NULL.
+        var jobAdId = await SeedJobAdAsync("Titel", null, null, null, ct, municipalityConceptId: null);
         var profile = new CandidateMatchProfile(
             "Titel", [], [NewConceptId("reg")], [], []);
 
@@ -559,9 +578,13 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         using var _ = scope;
         var score = await scorer.ScoreAsync(jobAdId, profile, ct);
 
-        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
+            "En ANGIVEN ort-preferens mot en annons vars ort-shadows båda är NULL är en " +
+            "ort-motsägelse → NoMatch (inte NotAssessed) — #552 grade-gate.");
         score.RegionFit.Matched.ShouldBeEmpty();
-        score.RegionFit.Missing.ShouldBeEmpty();
+        score.RegionFit.Missing.ShouldBeEmpty(
+            "Inget att citera — annonsen anger ingen ort (tom Missing, till skillnad från " +
+            "explicit-mismatch-NoMatch som citerar annonsens närvarande ort-värden).");
     }
 
     // =================================================================
@@ -573,18 +596,19 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
     // { adRegion ∪ adMunicipality } — NO threshold:
     //   • Match    iff (adRegion ∈ prefRegions) OR (adMun ∈ prefMunicipalities).
     //               Matched = the hit value(s), Ordinal-sorted; Missing = [].
-    //   • NoMatch  iff an ort pref IS stated AND the ad HAS ≥1 ort value AND no
-    //               union hit. Matched = []; Missing = the ad's PRESENT ort
-    //               value(s), Ordinal-sorted.
-    //   • NotAssessed iff NO ort pref stated (BOTH pref lists empty) OR the ad
-    //               carries NEITHER ort value (BOTH shadows NULL).
-    // CRITICAL impl-trap (CTO C): NoMatch is `stated AND ad-has-some-ort AND
-    // no-union-hit`, NEVER a bare `!prefMun.Contains(adMun)`. A NULL municipality
-    // shadow on an ad that HAS a region must NOT read as a municipality-NoMatch
-    // and must NOT appear in Missing.
-    //
-    // RED until ScoreOrtUnion replaces ScoreMembership for RegionFit in all four
-    // score paths and the AdFacetRow projects the MunicipalityConceptId shadow.
+    //   • NoMatch  iff an ort pref IS stated AND either (a) the ad HAS ≥1 ort value
+    //               AND no union hit → Missing = the ad's PRESENT ort value(s),
+    //               Ordinal-sorted (the explicit-mismatch case), OR (b — #552
+    //               grade-gate) the ad's ort shadows are BOTH NULL → Missing = []
+    //               (nothing to cite; the ad states no ort). Matched = [] in both.
+    //   • NotAssessed iff NO ort pref stated (BOTH pref lists empty), whatever the ad
+    //               carries — the honest vacuous survivor. (Pre-#552 a stated-pref
+    //               both-NULL ad ALSO read NotAssessed; #552 flips that arm to NoMatch.)
+    // CRITICAL impl-trap (CTO C): the explicit-mismatch NoMatch is `stated AND
+    // ad-has-some-ort AND no-union-hit`, NEVER a bare `!prefMun.Contains(adMun)`. A NULL
+    // municipality shadow on an ad that HAS a region must NOT read as a municipality-NoMatch
+    // and must NOT appear in Missing. The #552 both-NULL NoMatch is DISTINCT: it fires only
+    // when NEITHER shadow is present (empty Missing), and only when an ort pref is stated.
     // =================================================================
 
     [Fact]
@@ -755,12 +779,17 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         score.RegionFit.Missing.ShouldBeEmpty();
     }
 
+    // #552 grade-gate (ADR 0076-amendment) — FLIPPED. Ort stated via BOTH a region AND a
+    // municipality preference; the ad carries NEITHER value (both shadows NULL) → NoMatch with
+    // empty evidence (was NotAssessed). The union states an ort preference, the ad answers none
+    // of it — a contradiction, floored to Basic downstream. Was
+    // MatchScorer_OrtUnion_AdHasNeitherOrtValue_IsNotAssessed.
     [Fact]
-    public async Task MatchScorer_OrtUnion_AdHasNeitherOrtValue_IsNotAssessed()
+    public async Task MatchScorer_OrtUnion_StatedRegionAndMunicipality_AdBothShadowsNull_IsNoMatch_EmptyEvidence()
     {
         var ct = TestContext.Current.CancellationToken;
         // adReg=null, adMun=null (workplace_address omitted → both shadows NULL); prefReg=[R],
-        // prefMun=[K] → ort stated but the ad carries NEITHER value → NotAssessed.
+        // prefMun=[K] → ort stated but the ad carries NEITHER value → NoMatch (#552).
         var jobAdId = await SeedJobAdAsync(
             "Titel", null, null, null, ct, municipalityConceptId: null);
         var profile = new CandidateMatchProfile(
@@ -770,7 +799,56 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         using var _ = scope;
         var score = await scorer.ScoreAsync(jobAdId, profile, ct);
 
-        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
+            "Angiven ort-union (region + kommun) mot en annons utan NÅGOT ort-värde → NoMatch (#552).");
+        score.RegionFit.Matched.ShouldBeEmpty();
+        score.RegionFit.Missing.ShouldBeEmpty("Inget att citera — annonsen anger ingen ort.");
+    }
+
+    // #552 grade-gate — NEW: the municipality-ONLY-stated arm. Ort stated via a municipality
+    // preference alone (no region stated); the ad carries neither ort value → NoMatch with empty
+    // evidence. Pins that the gate fires on EITHER stated ort granularity, not only region.
+    [Fact]
+    public async Task MatchScorer_OrtUnion_StatedMunicipalityPreference_AdBothShadowsNull_IsNoMatch_EmptyEvidence()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, null, null, ct, municipalityConceptId: null);
+        // prefReg=[] (no region stated), prefMun=[K] → ort IS stated (via municipality).
+        var profile = new CandidateMatchProfile(
+            "Titel", [], [], [], [NewConceptId("mun")]);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
+            "En kommun-ONLY-preferens mot en annons utan ort-värde → NoMatch (#552 — grinden " +
+            "utlöser på VILKEN som helst angiven ort-granularitet).");
+        score.RegionFit.Matched.ShouldBeEmpty();
+        score.RegionFit.Missing.ShouldBeEmpty();
+    }
+
+    // #552 grade-gate — PIN (stays GREEN, vacuous doctrine). When NO ort preference is stated
+    // (both lists empty), a both-NULL ad stays NotAssessed: there is no stated preference to
+    // contradict. This is the honest "can't assess" survivor the gate deliberately preserves —
+    // the counterfactual that proves the flips above are driven by STATED-ness, not by NULL alone.
+    [Fact]
+    public async Task MatchScorer_OrtUnion_NoOrtPreferenceStated_AdBothShadowsNull_IsNotAssessed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", null, null, null, ct, municipalityConceptId: null);
+        // prefReg=[], prefMun=[] → NO ort preference stated.
+        var profile = new CandidateMatchProfile("Titel", [], [], [], []);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed,
+            "Ingen angiven ort-preferens + annons utan ort-värde = NotAssessed (vakuöst) — " +
+            "grinden #552 rör bara ANGIVNA preferenser.");
         score.RegionFit.Matched.ShouldBeEmpty();
         score.RegionFit.Missing.ShouldBeEmpty();
     }
@@ -1064,8 +1142,13 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         score.EmploymentFit.Missing.ShouldBeEmpty();
     }
 
+    // #552 grade-gate (ADR 0076-amendment) — FLIPPED (the employment half). A STATED employment
+    // preference against an ad whose employment shadow is NULL is no longer NotAssessed: the ad
+    // names no employment type the user stated one for → it CONTRADICTS → NoMatch with EMPTY
+    // Matched AND EMPTY Missing (nothing to cite). Floors the grade to Basic downstream (RB1,
+    // unchanged calculator). Was MatchScorer_EmploymentFit_AdShadowColumnNull_IsNotAssessed.
     [Fact]
-    public async Task MatchScorer_EmploymentFit_AdShadowColumnNull_IsNotAssessed()
+    public async Task MatchScorer_EmploymentFit_StatedPreference_AdShadowColumnNull_IsNoMatch_EmptyEvidence()
     {
         var ct = TestContext.Current.CancellationToken;
         // employment_type omitted → employment_type_concept_id NULL.
@@ -1077,7 +1160,31 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         using var _ = scope;
         var score = await scorer.ScoreAsync(jobAdId, profile, ct);
 
-        score.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        score.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
+            "En ANGIVEN anställnings-preferens mot en annons vars employment-shadow är NULL är en " +
+            "motsägelse → NoMatch (inte NotAssessed) — #552 grade-gate.");
+        score.EmploymentFit.Matched.ShouldBeEmpty();
+        score.EmploymentFit.Missing.ShouldBeEmpty(
+            "Inget att citera — annonsen anger ingen anställningstyp (tom Missing).");
+    }
+
+    // #552 grade-gate — PIN (stays GREEN). An UNSTATED employment preference (empty list) against
+    // a NULL employment shadow stays NotAssessed: no stated preference to contradict. The
+    // counterfactual proving the flip above is driven by STATED-ness, not NULL alone.
+    [Fact]
+    public async Task MatchScorer_EmploymentFit_NoPreferenceStated_AdShadowColumnNull_IsNotAssessed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedJobAdAsync("Titel", null, null, null, ct);
+        // Employment pref EMPTY → unstated.
+        var profile = new CandidateMatchProfile("Titel", [], [], [], []);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed,
+            "Ingen angiven anställnings-preferens + NULL employment-shadow = NotAssessed (vakuöst).");
         score.EmploymentFit.Matched.ShouldBeEmpty();
         score.EmploymentFit.Missing.ShouldBeEmpty();
     }
@@ -1216,6 +1323,77 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         score.RegionFit.Matched.ShouldBe([adMunicipality]);
         score.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Strong);
+    }
+
+    // =================================================================
+    // #552 grade-gate — the END-TO-END payoff: the NEW both-NULL / stated-employment-NULL NoMatch
+    // flows into the UNCHANGED MatchGradeCalculator RB1 floor, so an ad that would have graded Good
+    // pre-#552 now grades Basic. These are RED against current production (which reads NotAssessed
+    // → Good) and prove the whole point of the gate: a match the ad cannot substantiate on a stated
+    // dimension is demoted, not presented as Good. The calculator is UNCHANGED (MatchGradeCalculatorTests
+    // is NOT touched) — these pin the VERDICT-to-GRADE flow-through of the new ScoreOrtUnion/EmploymentFit
+    // NoMatch, not the calculator itself.
+    // =================================================================
+
+    [Fact]
+    public async Task MatchScorer_OrtUnion_StatedOrt_AdBothShadowsNull_FloorsGradeToBasic()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adGroup = NewConceptId("grp");
+        var adEmployment = NewConceptId("emp");
+        // SSYK Match + employment Match, ort stated (region + municipality) but the ad carries
+        // NEITHER ort value (both shadows NULL). Pre-#552: RegionFit NotAssessed → 1 confirmed
+        // secondary (employment) → Good. #552: RegionFit NoMatch → RB1 floor → Basic.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", adGroup, null, adEmployment, ct, municipalityConceptId: null);
+        var profile = new CandidateMatchProfile(
+            Title: "Titel",
+            SsykGroupConceptIds: [adGroup],
+            PreferredRegionConceptIds: [NewConceptId("reg")],
+            PreferredEmploymentTypeConceptIds: [adEmployment],
+            PreferredMunicipalityConceptIds: [NewConceptId("mun")]);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        score.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
+            "Angiven ort + annons utan ort-värde → NoMatch (#552).");
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic,
+            "Ort-NoMatch (både shadows NULL, ort angiven) golvar graden till Basic (RB1) — trots " +
+            "bekräftad anställning. Pre-#552 var detta Good; #552-grinden demoterar.");
+    }
+
+    [Fact]
+    public async Task MatchScorer_EmploymentFit_StatedEmployment_AdShadowNull_FloorsGradeToBasic()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adGroup = NewConceptId("grp");
+        var adRegion = NewConceptId("reg");
+        // SSYK Match + region Match, employment stated but the ad's employment shadow is NULL.
+        // Pre-#552: EmploymentFit NotAssessed → 1 confirmed secondary (region) → Good. #552:
+        // EmploymentFit NoMatch → RB1 floor → Basic.
+        var jobAdId = await SeedJobAdAsync("Titel", adGroup, adRegion, null, ct);
+        var profile = new CandidateMatchProfile(
+            Title: "Titel",
+            SsykGroupConceptIds: [adGroup],
+            PreferredRegionConceptIds: [adRegion],
+            PreferredEmploymentTypeConceptIds: [NewConceptId("emp")],
+            PreferredMunicipalityConceptIds: []);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = await scorer.ScoreAsync(jobAdId, profile, ct);
+
+        score.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        score.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
+            "Angiven anställning + NULL employment-shadow → NoMatch (#552).");
+        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic,
+            "Anställnings-NoMatch (NULL shadow, anställning angiven) golvar graden till Basic (RB1) " +
+            "— trots bekräftad ort. Pre-#552 var detta Good; #552-grinden demoterar.");
     }
 
     // =================================================================

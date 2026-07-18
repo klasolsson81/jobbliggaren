@@ -280,6 +280,64 @@ public class MatchScorerBatchIntegrationTests(ApiFactory factory)
     }
 
     // =================================================================
+    // #552 grade-gate (ADR 0076-amendment) — the new stated-preference-vs-NULL-shadow NoMatch
+    // flows through the BATCH path identically to ScoreAsync (the embedded-helper regression
+    // contract extended to the gate). One ad has ort stated + BOTH ort shadows NULL (→ RegionFit
+    // NoMatch, empty evidence), one has employment stated + NULL employment shadow (→ EmploymentFit
+    // NoMatch, empty evidence). RED against current production (both read NotAssessed today).
+    // =================================================================
+
+    [Fact]
+    public async Task ScoreBatchAsync_GradeGate_StatedPrefNullShadow_IsNoMatch_EqualsScoreAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var grp = NewConceptId("grp");
+        var prefRegion = NewConceptId("reg");
+        var prefEmployment = NewConceptId("emp");
+
+        // ortNullAd: ort stated (region + municipality below) but the ad carries NEITHER ort
+        // value (both shadows NULL) → RegionFit NoMatch, empty evidence (#552).
+        var ortNullAd = await SeedJobAdAsync(
+            "Systemutvecklare", grp, null, prefEmployment, ct, municipalityConceptId: null);
+
+        // employmentNullAd: employment stated but the ad's employment shadow is NULL → EmploymentFit
+        // NoMatch, empty evidence (#552). Region present + preferred so RegionFit is a clean Match.
+        var employmentNullAd = await SeedJobAdAsync(
+            "Sjuksköterska", grp, prefRegion, null, ct);
+
+        var profile = new CandidateMatchProfile(
+            Title: "Systemutvecklare",
+            SsykGroupConceptIds: [grp],
+            PreferredRegionConceptIds: [prefRegion],
+            PreferredEmploymentTypeConceptIds: [prefEmployment],
+            PreferredMunicipalityConceptIds: [NewConceptId("mun")]);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+
+        var batch = await scorer.ScoreBatchAsync([ortNullAd, employmentNullAd], profile, ct);
+
+        batch.Count.ShouldBe(2);
+        foreach (var id in new[] { ortNullAd, employmentNullAd })
+        {
+            var single = await scorer.ScoreAsync(id, profile, ct);
+            AssertSameDimension(single.RegionFit, batch[id].RegionFit);
+            AssertSameDimension(single.EmploymentFit, batch[id].EmploymentFit);
+        }
+
+        // The new #552 verdicts, via the batch path.
+        batch[ortNullAd].RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
+            "Ort angiven + annons utan ort-värde → NoMatch via batch-vägen (#552).");
+        batch[ortNullAd].RegionFit.Matched.ShouldBeEmpty();
+        batch[ortNullAd].RegionFit.Missing.ShouldBeEmpty();
+
+        batch[employmentNullAd].EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
+            "Anställning angiven + NULL employment-shadow → NoMatch via batch-vägen (#552).");
+        batch[employmentNullAd].EmploymentFit.Matched.ShouldBeEmpty();
+        batch[employmentNullAd].EmploymentFit.Missing.ShouldBeEmpty();
+    }
+
+    // =================================================================
     // Missing / non-existent ids are OMITTED (no NotFoundException)
     // =================================================================
 

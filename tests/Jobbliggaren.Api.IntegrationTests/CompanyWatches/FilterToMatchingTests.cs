@@ -47,6 +47,12 @@ public class FilterToMatchingTests(ApiFactory factory)
     private const string RelatedGroup = "grp-f2m-related";
     private const string OtherRegion = "reg-f2m-other";
 
+    // #552 — Good's remaining stable shape under a both-stated profile is the #477 containment
+    // carve-out (a stated-but-NULL secondary now floors to Basic). Set DIRECTLY on the profile;
+    // inert for every other seed.
+    private const string PrefMunicipality = "mun-f2m-pref";
+    private const string ContainmentLan = "reg-f2m-containment-lan";
+
     // A CV skill concept-id feeding the WITH-skills seeds (proves ≥Good MEMBERSHIP is identical Fast vs
     // Full even when skills re-rank Strong→Top inside the band).
     private const string CvSkillConceptId = "skill-f2m-0001";
@@ -80,7 +86,10 @@ public class FilterToMatchingTests(ApiFactory factory)
                 SsykGroupConceptIds: [PrefGroup],
                 PreferredRegionConceptIds: [PrefRegion],
                 PreferredEmploymentTypeConceptIds: [PrefEmployment],
-                PreferredMunicipalityConceptIds: []),
+                PreferredMunicipalityConceptIds: [PrefMunicipality])
+            {
+                ContainmentRegionConceptIds = [ContainmentLan],
+            },
             cvSkillConceptIds);
 
     // As Profile, but also declares RelatedGroup as a SUBSTITUTABLE (related) occupation → an ad in
@@ -93,9 +102,10 @@ public class FilterToMatchingTests(ApiFactory factory)
                 SsykGroupConceptIds: [PrefGroup],
                 PreferredRegionConceptIds: [PrefRegion],
                 PreferredEmploymentTypeConceptIds: [PrefEmployment],
-                PreferredMunicipalityConceptIds: [])
+                PreferredMunicipalityConceptIds: [PrefMunicipality])
             {
                 RelatedSsykGroupConceptIds = [RelatedGroup],
+                ContainmentRegionConceptIds = [ContainmentLan],
             },
             cvSkillConceptIds);
 
@@ -201,9 +211,11 @@ public class FilterToMatchingTests(ApiFactory factory)
     private Task<JobAdId> SeedStrongAsync(string orgNr, CancellationToken ct, ExtractedTerms? terms = null) =>
         SeedAdAsync(orgNr, PrefGroup, PrefRegion, PrefEmployment, ct, terms);
 
-    // Good (rank 3): exactly one confirmed secondary — region Match + employment NULL.
+    // Good (rank 3): exactly one confirmed secondary — employment Match + ort via the #477
+    // containment carve-out (län-only ad in the preferred kommun's parent län → RegionFit
+    // NotAssessed). The pre-#552 shape (region Match + employment NULL) now floors to Basic.
     private Task<JobAdId> SeedGoodAsync(string orgNr, CancellationToken ct, ExtractedTerms? terms = null) =>
-        SeedAdAsync(orgNr, PrefGroup, PrefRegion, employmentTypeConceptId: null, ct, terms);
+        SeedAdAsync(orgNr, PrefGroup, ContainmentLan, PrefEmployment, ct, terms);
 
     // Basic (rank 1): both secondaries NotAssessed (region NULL + employment NULL).
     private Task<JobAdId> SeedBasicNeutralAsync(string orgNr, CancellationToken ct) =>
@@ -296,8 +308,8 @@ public class FilterToMatchingTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var orgNr = NewOrgNr();
         var activeGood = await SeedGoodAsync(orgNr, ct);
-        var erasedGood = await SeedAdAsync(orgNr, PrefGroup, PrefRegion, employmentTypeConceptId: null, ct, erased: true);
-        var archivedGood = await SeedAdAsync(orgNr, PrefGroup, PrefRegion, employmentTypeConceptId: null, ct, archived: true);
+        var erasedGood = await SeedAdAsync(orgNr, PrefGroup, ContainmentLan, PrefEmployment, ct, erased: true);
+        var archivedGood = await SeedAdAsync(orgNr, PrefGroup, ContainmentLan, PrefEmployment, ct, archived: true);
 
         var (queryScope, query) = NewPerUserQuery();
         using var queryDispose = queryScope;

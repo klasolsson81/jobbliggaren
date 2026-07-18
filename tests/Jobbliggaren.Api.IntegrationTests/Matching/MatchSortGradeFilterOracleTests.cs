@@ -70,6 +70,11 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
     // The ort-union (region ∪ municipality) constants.
     private const string PrefMunicipality = "mun-gradefilter-pref";
 
+    // #552 review-pin — a municipality the profile does NOT prefer, for the mirror
+    // asymmetric shape (region NULL + municipality present-not-preferred). Distinct from
+    // every preferred/containment id so no seed accidentally hits the union.
+    private const string OtherMunicipality = "mun-gradefilter-other";
+
     // #477 Low 1 — the parent län of PrefMunicipality (kommun→län containment). DISTINCT from
     // PrefRegion AND OtherRegion so a län-only ad carrying it is neither a direct region hit nor an
     // arbitrary contradiction: the profile's ContainmentRegionConceptIds = [PrefMunicipalityRegion]
@@ -261,6 +266,16 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
     private Task<JobAdId> SeedBasicContradictionAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
         SeedJobAdAsync(run, PrefGroup, OtherRegion, PrefEmployment, publishedAt, ct);
 
+    // Basic (rank 1) via the MIRROR asymmetric contradiction (#552 review-pin, code-review
+    // Minor 2): region shadow NULL + a PRESENT-but-not-preferred municipality + employment
+    // Match. In-memory: no union hit, ad HAS an ort value → NoMatch → RB1 floor. The SQL
+    // floor's negated OR crosses regions.Contains(NULL-region) — this seed makes the
+    // comprehensive set-equality below adjudicate that EF's C#-null-semantics compensation
+    // keeps SQL ≡ scorer on this leg too (the claimed Good-vs-Basic divergence must not exist).
+    private Task<JobAdId> SeedBasicContradictionViaMunicipalityAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
+        SeedJobAdAsync(run, PrefGroup, regionConceptId: null, PrefEmployment, publishedAt, ct,
+            municipalityConceptId: OtherMunicipality);
+
     // Strong via the ORT-UNION municipality leg — region non-preferred but municipality
     // preferred → ort Match via the union; with employment Match → 2 confirmed → Strong.
     private Task<JobAdId> SeedStrongViaMunicipalityAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
@@ -352,6 +367,9 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
             // --- Basic (≥2): one neutral, one contradiction-floored
             await SeedBasicNeutralAsync(run, t.AddDays(10), ct),
             await SeedBasicContradictionAsync(run, t.AddDays(9), ct),
+            // --- Basic via the mirror asymmetric shape (#552 review-pin): region NULL +
+            //     municipality present-not-preferred; SQL ≡ scorer proven by set-equality.
+            await SeedBasicContradictionViaMunicipalityAsync(run, t.AddDays(8), ct),
 
             // --- Untagged (rank 0) — never selectable by any grade
             await SeedUntaggedSsykNoMatchAsync(run, t.AddDays(5), ct),
@@ -624,7 +642,10 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         // band: the Good ad is published LATER than the Strong ad. If the sort were grade-
         // rank (orderByMatchRank), Strong would precede Good; with the plain PublishedAtDesc
         // axis, the later-published Good must precede the earlier-published Strong.
-        var laterGood = await SeedGoodAsync(run, t.AddDays(10), ct);   // higher recency, lower grade
+        // #552: a plain "region Match + employment NULL" ad no longer grades Good under a stated-
+        // employment profile (employment NULL → NoMatch → Basic). The reachable Good is the #477
+        // containment carve-out (län-only ad in the preferred kommun's parent län + employment Match).
+        var laterGood = await SeedContainmentGoodAsync(run, t.AddDays(10), ct); // higher recency, lower grade
         var earlierStrong = await SeedStrongAsync(run, t.AddDays(5), ct); // lower recency, higher grade
 
         // An out-of-band Basic + an untagged ad that must NOT appear in the filtered set.
@@ -895,5 +916,99 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         page.TotalCount.ShouldBe(2,
             "TotalCount för {Strong} ska vara 2 — räknat över Fast-Strong-bandet (båda annonserna), " +
             "inte över Full-badgen.");
+    }
+
+    // ===============================================================
+    // 7. #552 grade-gate — the SQL twin floors a STATED-preference-vs-NULL-shadow ad to Basic.
+    //
+    //    THE THREE-VALUED-LOGIC TRAP (why this is an SQL oracle, not just a C# test): the SQL RB1
+    //    floor must fire via an EXPLICIT `col IS NULL` disjunct. `NOT (col = ANY(@prefs))` evaluates
+    //    to NULL — not TRUE — when `col` is NULL (Postgres three-valued logic), so a bare membership
+    //    negation does NOT floor a NULL shadow; the floor must add
+    //    `(Region IS NULL AND Municipality IS NULL)` for ort and `(EmploymentType IS NULL)` for
+    //    employment. In-memory C# checks are BLIND to this (null-safe .Contains) — only Testcontainers
+    //    proves the SQL disjunct fires. This is RED against current production, which grades both
+    //    new-arm ads Good (rank 3) and returns them in the {Good} band, not {Basic}.
+    //
+    //    ASYMMETRIC SEED (the count-only-oracle rule): ≥2 in-band Basic (the two new-arm ads once the
+    //    gate lands, plus a contradiction Basic that is Basic in BOTH production states) + out-of-band
+    //    Good (containment) + Strong + untagged, so the {Basic}/{Good} band membership separates the
+    //    correct gate from a missing / mis-polarised one.
+    // ===============================================================
+
+    [Fact]
+    public async Task GradeFilter_GradeGate_StatedPrefNullShadowAds_AreInBasicBand_NotGoodBand()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // The two NEW-ARM ads (#552): under the stated-ort+employment Profile() each grades Good
+        // TODAY (NULL shadow → NotAssessed) and Basic AFTER the gate (NULL shadow → NoMatch → RB1 floor).
+        //   bothNullOrt:   SSYK Match + BOTH ort shadows NULL + employment Match → ort NoMatch (#552).
+        //   nullEmployment: SSYK Match + region Match + employment shadow NULL → employment NoMatch (#552).
+        var bothNullOrt = await SeedJobAdAsync(run, PrefGroup, null, PrefEmployment, t.AddDays(20), ct,
+            municipalityConceptId: null);
+        var nullEmployment = await SeedJobAdAsync(run, PrefGroup, PrefRegion, null, t.AddDays(19), ct);
+
+        // In-band Basic counterfactual (Basic in BOTH production states): region NoMatch contradiction.
+        var contradictionBasic = await SeedBasicContradictionAsync(run, t.AddDays(15), ct);
+
+        // Out-of-band anchors (non-vacuity): a genuine containment Good, a Strong, an untagged.
+        var good = await SeedContainmentGoodAsync(run, t.AddDays(12), ct);
+        var strong = await SeedStrongAsync(run, t.AddDays(11), ct);
+        var untagged = await SeedUntaggedSsykNoMatchAsync(run, t.AddDays(5), ct);
+
+        var profile = Profile();
+        var filter = FilterFor(run);
+
+        // ---- C# SSOT (the scorer-side of the twin): the new-arm ads grade Basic under #552. ----
+        var (scoreScope, scorer) = NewScorer();
+        using var scoreDispose = scoreScope;
+        var scores = await scorer.ScoreBatchAsync(
+            [bothNullOrt, nullEmployment, contradictionBasic, good, strong], profile.Fast, ct);
+        MatchGradeCalculator.Grade(scores[bothNullOrt]).ShouldBe(MatchGrade.Basic,
+            "#552: SSYK Match + båda ort-shadows NULL (ort angiven) + employment Match → ort NoMatch " +
+            "→ RB1-golv → Basic (pre-#552 var detta Good).");
+        MatchGradeCalculator.Grade(scores[nullEmployment]).ShouldBe(MatchGrade.Basic,
+            "#552: SSYK Match + region Match + NULL employment-shadow (anställning angiven) → employment " +
+            "NoMatch → RB1-golv → Basic (pre-#552 var detta Good).");
+        // Non-vacuity: the anchors grade as intended.
+        MatchGradeCalculator.Grade(scores[good]).ShouldBe(MatchGrade.Good);
+        MatchGradeCalculator.Grade(scores[strong]).ShouldBe(MatchGrade.Strong);
+
+        // ---- The SQL twin (grade-WHERE band membership). ----
+        var (queryScope, query) = NewPerUserQuery();
+        using var queryDispose = queryScope;
+
+        var goodBandIds = (await query.SearchPerUserAsync(
+            filter, profile, grades: [MatchGrade.Good], sort: JobAdSortBy.PublishedAtDesc,
+            orderByMatchRank: true, status: JobAdStatusFilter.None, seekerId: default, page: 1, pageSize: 100, ct))
+            .Items.Select(i => i.Id).ToHashSet();
+
+        // Non-vacuity: the containment Good IS in {Good} (the band is reachable + the query works).
+        goodBandIds.ShouldContain(good.Value,
+            "Containment-Good ska ligga i {Good}-bandet (non-vacuity — bandet är nåbart).");
+        // THE RED CORE (ort arm): the both-NULL-ort ad must NOT be in {Good} — it floors to Basic.
+        goodBandIds.ShouldNotContain(bothNullOrt.Value,
+            "#552: en both-NULL-ort-annons golvas till Basic i SQL-grad-WHERE:t (via en explicit " +
+            "Region IS NULL AND Municipality IS NULL-disjunkt) → den får INTE ligga i {Good}-bandet.");
+        // THE RED CORE (employment arm): the NULL-employment ad must NOT be in {Good}.
+        goodBandIds.ShouldNotContain(nullEmployment.Value,
+            "#552: en NULL-employment-annons (anställning angiven) golvas till Basic → inte i {Good}.");
+
+        var basicBandIds = (await query.SearchPerUserAsync(
+            filter, profile, grades: [MatchGrade.Basic], sort: JobAdSortBy.PublishedAtDesc,
+            orderByMatchRank: true, status: JobAdStatusFilter.None, seekerId: default, page: 1, pageSize: 100, ct))
+            .Items.Select(i => i.Id).ToHashSet();
+
+        // Non-vacuity: the genuine contradiction Basic IS in {Basic} (both production states).
+        basicBandIds.ShouldContain(contradictionBasic.Value,
+            "Motsägelse-Basic ska ligga i {Basic}-bandet (non-vacuity).");
+        // THE RED CORE: both new-arm ads land in {Basic} under #552.
+        basicBandIds.ShouldContain(bothNullOrt.Value,
+            "#552: both-NULL-ort-annonsen ska ligga i {Basic}-bandet (grad-WHERE:ts == null-disjunkt).");
+        basicBandIds.ShouldContain(nullEmployment.Value,
+            "#552: NULL-employment-annonsen ska ligga i {Basic}-bandet (grad-WHERE:ts == null-disjunkt).");
     }
 }

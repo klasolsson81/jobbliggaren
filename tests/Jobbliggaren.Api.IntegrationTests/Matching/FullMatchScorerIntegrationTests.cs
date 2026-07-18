@@ -758,6 +758,56 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
     }
 
     // =================================================================
+    // #552 grade-gate (ADR 0076-amendment) — the embedded Fast RegionFit/EmploymentFit apply the
+    // new stated-preference-vs-NULL-shadow NoMatch through ScoreFullAsync too (the match-detail
+    // engine, GET /me/job-ad-match-tags/{id}). Ort stated + both ort shadows NULL → RegionFit
+    // NoMatch (empty evidence); employment stated + NULL employment shadow → EmploymentFit NoMatch
+    // (empty evidence). RED against current production (both read NotAssessed today). Equals the
+    // standalone Fast ScoreAsync for the same ad + Fast profile (the embedding contract).
+    // =================================================================
+
+    [Fact]
+    public async Task ScoreFull_EmbeddedFast_GradeGate_StatedPrefNullShadow_IsNoMatch_EqualsScoreAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adGroup = $"grp-{Guid.NewGuid():N}"[..12];
+        var adRegion = $"reg-{Guid.NewGuid():N}"[..12];
+        // Ort stated (region + municipality below) but the ad carries NEITHER ort value (both
+        // shadows NULL) → RegionFit NoMatch. Employment stated but the ad's employment shadow is
+        // NULL → EmploymentFit NoMatch. Region present on the SSYK-only signal is irrelevant here;
+        // the ad has region NULL to make the ort both-NULL case.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", adGroup, null, null, terms: null, ct, municipalityConceptId: null);
+
+        var fast = new CandidateMatchProfile(
+            Title: "Titel",
+            SsykGroupConceptIds: [adGroup],
+            PreferredRegionConceptIds: [adRegion],
+            PreferredEmploymentTypeConceptIds: [$"emp-{Guid.NewGuid():N}"[..12]],
+            PreferredMunicipalityConceptIds: [$"mun-{Guid.NewGuid():N}"[..12]]);
+        var full = new FullCandidateMatchProfile(fast, []);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+
+        var fastScore = await scorer.ScoreAsync(jobAdId, fast, ct);
+        var fullScore = (await scorer.ScoreFullAsync(jobAdId, full, ct)).Score;
+
+        AssertSameDimension(fastScore.RegionFit, fullScore.Fast.RegionFit);
+        AssertSameDimension(fastScore.EmploymentFit, fullScore.Fast.EmploymentFit);
+
+        fullScore.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
+            "Ort angiven + annons utan ort-värde → RegionFit NoMatch via Full-vägen (#552).");
+        fullScore.Fast.RegionFit.Matched.ShouldBeEmpty();
+        fullScore.Fast.RegionFit.Missing.ShouldBeEmpty();
+
+        fullScore.Fast.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
+            "Anställning angiven + NULL employment-shadow → EmploymentFit NoMatch via Full-vägen (#552).");
+        fullScore.Fast.EmploymentFit.Matched.ShouldBeEmpty();
+        fullScore.Fast.EmploymentFit.Missing.ShouldBeEmpty();
+    }
+
+    // =================================================================
     // Ordinal-stable ordering of matched/missing (determinism)
     // =================================================================
 

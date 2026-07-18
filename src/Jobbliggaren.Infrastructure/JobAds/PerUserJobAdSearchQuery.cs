@@ -32,7 +32,7 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// <b>Sort-nyckeln/grad-ranken lever ENBART i <c>WHERE</c>/<c>ORDER BY</c></b> (Goodhart,
 /// Decision 4): aldrig projicerad in i <see cref="JobAdDto"/>, aldrig persisterad. Ranken
 /// speglar den <b>Fast</b> <c>MatchGradeCalculator.Grade(MatchScore)</c>-stegen +
-/// <c>MatchScorer.ScoreMembership</c> (yrke/anställning) + <c>MatchScorer.ScoreOrtUnion</c>
+/// <c>MatchScorer.ScoreSsykMembership</c>/<c>ScoreEmploymentMembership</c> (yrke/anställning) + <c>MatchScorer.ScoreOrtUnion</c>
 /// (ort = region ∪ kommun, Spår 3):
 /// <list type="bullet">
 /// <item>0 = otaggad (SSYK ∉ exact ∪ related) → exkluderas av grad-filtret (positiv-only),
@@ -64,7 +64,7 @@ internal sealed class PerUserJobAdSearchQuery(
 
     // Spår 3 (ADR 0076-amendment 2026-06-21) — kommun-granulariteten i ort-dimensionen.
     // Sort-ranken speglar nu MatchScorer.ScoreOrtUnion (region ∪ municipality) i stället
-    // för region-only ScoreMembership. STORED generated från
+    // för region-only membership-scoring. STORED generated från
     // raw_payload->'workplace_address'->>'municipality_concept_id' (parity scorern).
     private const string MunicipalityColumn = "MunicipalityConceptId";
 
@@ -96,7 +96,8 @@ internal sealed class PerUserJobAdSearchQuery(
 
         // Profil-listorna fångas lokalt → EF binder dem som parametrar (= ANY).
         // SSYK är icke-tom (handlerns gate). regions/employment kan vara tomma
-        // (NotAssessed — varken bekräftar eller golvar, MatchScorer.ScoreMembership).
+        // (NotAssessed — varken bekräftar eller golvar; vacuous-gate-doktrinen, oförändrad
+        // av #552-grinden som enbart gäller ANGIVEN pref mot NULL-shadow).
         var fast = profile.Fast;
         var ssyk = fast.SsykGroupConceptIds;
         // #300 PR-4 (ADR 0084 §F4): the RELATED ssyk-4 set (substitutable occupations). Populated
@@ -484,10 +485,11 @@ internal sealed class PerUserJobAdSearchQuery(
     // granne, ej i den angivna exakta mängden; platt cap), 3 (Good — en bekräftad sekundär),
     // 4 (Strong — båda). Gren-ordningen speglar calculatorns cap-ordning EXAKT: gate →
     // Related-cap (FÖRE RB1) → RB1-golv → sekundärer. En related-only-annons i fel stad läser
-    // därför Related (2), ALDRIG Basic (1). IMPL-TRAP (CTO C): motsägelse-golvet är ett
-    // KOMBINERAT predikat (angiven preferens OCH annonsen har ett ort-/anställnings-värde OCH
-    // ingen union-träff) — aldrig ett naket !list.Contains(col), som skulle läsa en NULL-shadow
-    // som "inte i listan". relatedSsyk fylls när den live ?relaterade=on-toggeln är på (av som
+    // därför Related (2), ALDRIG Basic (1). IMPL-TRAP (CTO C, #552-uppdaterad): en NULL-shadow
+    // på en ANGIVEN dimension GOLVAR numera (grinden, ADR 0076-amendment) — men ALLTID via en
+    // EXPLICIT `== null`-disjunkt, aldrig ett naket !list.Contains(col) (trevärd logik: NOT
+    // (col = ANY(...)) är NULL, ej TRUE, för NULL-kolumn — golvet skulle tyst utebli i rå SQL).
+    // relatedSsyk fylls när den live ?relaterade=on-toggeln är på (av som
     // standard); med den av är Related-grenen inert och exact-grenarna byte-for-byte som pre-#300
     // (bara rank-heltalen omnumrerade; GradeToRank
     // omnumreras likadant så filter/sort/count förblir koherenta — oracle-pinnat).
@@ -511,21 +513,30 @@ internal sealed class PerUserJobAdSearchQuery(
                 : !ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))
                     ? 2
                     // Exakt träff. RB1-motsägelse-golv → Basic (1).
+                    // #552-grinden (ADR 0076-amendment): en ANGIVEN ort/anställningsform mot en
+                    // annons vars shadow är NULL golvar OCKSÅ — via en EXPLICIT `== null`-disjunkt
+                    // (speglar ScoreOrtUnion/ScoreEmploymentMembership NoMatch-med-tom-evidens).
+                    // TREVÄRD-LOGIK-FÄLLAN: disjunkten får ALDRIG uttryckas som ett naket
+                    // !list.Contains(nullCol) — `NOT (col = ANY(...))` är NULL (ej TRUE) för en
+                    // NULL-kolumn i rå SQL; endast den explicita IS NULL-grenen är bevisbart
+                    // golvande oavsett null-semantik-regim. Testcontainers-oraklen pinnar detta.
                     : ((ortStated
-                            && (EF.Property<string?>(j, RegionColumn) != null
-                                || EF.Property<string?>(j, MunicipalityColumn) != null)
-                            && !(regions.Contains(EF.Property<string?>(j, RegionColumn))
-                                || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))
-                                // #477 Low 1 — en LÄN-ONLY-annons (municipality NULL) vars län
-                                // INNEHÅLLER en föredragen kommun är INGEN ort-motsägelse (speglar
-                                // ScoreOrtUnions containment-gren → NotAssessed, ej NoMatch). Muni
-                                // NULL-grinden håller grenen till län-only: en kommun-specifik annons
-                                // i en icke-föredragen kommun i samma län golvas fortsatt (RB1).
-                                || (EF.Property<string?>(j, MunicipalityColumn) == null
-                                    && containmentRegions.Contains(EF.Property<string?>(j, RegionColumn)))))
+                            && ((EF.Property<string?>(j, RegionColumn) == null
+                                    && EF.Property<string?>(j, MunicipalityColumn) == null)
+                                || ((EF.Property<string?>(j, RegionColumn) != null
+                                        || EF.Property<string?>(j, MunicipalityColumn) != null)
+                                    && !(regions.Contains(EF.Property<string?>(j, RegionColumn))
+                                        || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))
+                                        // #477 Low 1 — en LÄN-ONLY-annons (municipality NULL) vars län
+                                        // INNEHÅLLER en föredragen kommun är INGEN ort-motsägelse (speglar
+                                        // ScoreOrtUnions containment-gren → NotAssessed, ej NoMatch). Muni
+                                        // NULL-grinden håller grenen till län-only: en kommun-specifik annons
+                                        // i en icke-föredragen kommun i samma län golvas fortsatt (RB1).
+                                        || (EF.Property<string?>(j, MunicipalityColumn) == null
+                                            && containmentRegions.Contains(EF.Property<string?>(j, RegionColumn)))))))
                         || (employmentStated
-                            && EF.Property<string?>(j, EmploymentTypeColumn) != null
-                            && !employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))))
+                            && (EF.Property<string?>(j, EmploymentTypeColumn) == null
+                                || !employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn)))))
                         ? 1
                         // Exakt träff, ingen motsägelse: båda sekundärer → Strong (4), en → Good
                         // (3), ingen → Basic (1). (1+sekundärer-aritmetiken duger inte längre när

@@ -99,7 +99,7 @@ public sealed class GetJobAdMatchDetailQueryHandler(
         var grade = MatchGradeCalculator.Grade(score, scored.SsykIsRelated);
 
         // The three membership dimensions (SSYK / region / employment) carry RAW
-        // taxonomy concept-ids in their evidence (MatchScorer.ScoreMembership). A
+        // taxonomy concept-ids in their evidence (MatchScorer.ScoreSsykMembership/ScoreOrtUnion/ScoreEmploymentMembership). A
         // concept-id must never reach the user — it is the external system's ubiquitous
         // language (ADR 0043 ACL) and an opaque id is the opposite of explainable
         // (CLAUDE.md §5). Resolve them to human labels via the taxonomy read-model

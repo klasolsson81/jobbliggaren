@@ -438,4 +438,57 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
     expect(screen.getByText("Du har: Göteborg")).toBeInTheDocument();
     expect(screen.queryByText(/Kommun som matchar/)).not.toBeInTheDocument();
   });
+
+  // #552-grinden (ADR 0076-amendment): en angiven ort-/anställningsform-preferens
+  // mot en annons som INTE anger dimensionen ger NoMatch med TOM matched/missing.
+  // Bevisraden måste förklara annonsens tystnad — aldrig en tom cell.
+  describe("adUnspecifiedReason (#552 — NoMatch med tom evidens)", () => {
+    it("RegionFit NoMatch utan evidens → 'Annonsen anger ingen region.' i neutral ink", () => {
+      const { container } = render(
+        <JobAdMatchSection match={detail({ regionFit: row("NoMatch") })} />
+      );
+      const reason = screen.getByText("Annonsen anger ingen region.");
+      expect(reason).toBeInTheDocument();
+      // Neutral ink (ink-2), aldrig röd — annonsens tystnad är inget fel.
+      expect(reason.className).toContain("jp-modal__matchrow-missing");
+      // Verdiktet är fortfarande Saknas (graden golvas — det är grindens poäng).
+      const verdict = container.querySelector(
+        '.jp-modal__matchrow-verdict[data-verdict="NoMatch"]'
+      );
+      expect(verdict).not.toBeNull();
+    });
+
+    it("EmploymentFit NoMatch utan evidens → 'Annonsen anger ingen anställningsform.'", () => {
+      render(
+        <JobAdMatchSection match={detail({ employmentFit: row("NoMatch") })} />
+      );
+      expect(
+        screen.getByText("Annonsen anger ingen anställningsform.")
+      ).toBeInTheDocument();
+    });
+
+    it("förklaringen visas ÄVEN med granularitets-karta (grenen ligger före granularitets-grenen)", () => {
+      render(
+        <JobAdMatchSection
+          match={detail({ regionFit: row("NoMatch") })}
+          ortGranularityByLabel={granularity}
+        />
+      );
+      expect(screen.getByText("Annonsen anger ingen region.")).toBeInTheDocument();
+    });
+
+    it("explicit ort-mismatch (missing bär annonsens ort) tar INTE den nya grenen", () => {
+      render(
+        <JobAdMatchSection
+          match={detail({ regionFit: row("NoMatch", [], ["Stockholms län"]) })}
+        />
+      );
+      expect(
+        screen.getByText("Annonsen efterfrågar även: Stockholms län")
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Annonsen anger ingen region.")
+      ).not.toBeInTheDocument();
+    });
+  });
 });

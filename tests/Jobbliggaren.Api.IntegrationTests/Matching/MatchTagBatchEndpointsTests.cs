@@ -188,14 +188,17 @@ public class MatchTagBatchEndpointsTests(ApiFactory factory)
         // ceilingAd: occupation + both secondaries confirmed, but NO CV → must-have
         // NotAssessed → gate NOT met → caps at Good (PR-B1 reversal; pre-rebind = Strong).
         var ceilingAd = await SeedJobAdAsync("Systemutvecklare", grp, reg, emp, ct);
-        // goodAd: occupation + region confirmed, employment NULL (NotAssessed) → Good.
-        var goodAd = await SeedJobAdAsync("Arkitekt", grp, reg, null, ct);
-        // basicAd: occupation only, both secondaries NULL → Basic.
+        // flooredAd: occupation + region confirmed, employment NULL vs the STATED emp
+        // preference → NoMatch → RB1-floored to Basic (#552 gate; pre-gate this shape
+        // read NotAssessed → Good — the Good rung now lives in the containment oracles).
+        var flooredAd = await SeedJobAdAsync("Arkitekt", grp, reg, null, ct);
+        // basicAd: occupation only, both secondaries NULL vs stated prefs → floored Basic
+        // (#552 gate; pre-gate the same Basic via zero confirmed secondaries).
         var basicAd = await SeedJobAdAsync("Projektledare", grp, null, null, ct);
         // gatedAd: different occupation (no SSYK match) → omitted (no tag).
         var gatedAd = await SeedJobAdAsync("Sjuksköterska", NewConceptId("grp"), reg, emp, ct);
 
-        var dto = await PostMatchTagsAsync([ceilingAd, goodAd, basicAd, gatedAd], ct);
+        var dto = await PostMatchTagsAsync([ceilingAd, flooredAd, basicAd, gatedAd], ct);
 
         // Only the three occupation-matching ads earn a tag; the gated ad is absent.
         EntriesCount(dto).ShouldBe(3);
@@ -211,8 +214,10 @@ public class MatchTagBatchEndpointsTests(ApiFactory factory)
         // Title is always NotAssessed on the preference path.
         ceilingEntry.GetProperty("titleSimilarity").GetString().ShouldBe(Wire(MatchDimensionVerdict.NotAssessed));
 
-        TryGetEntry(dto, goodAd, out var goodEntry).ShouldBeTrue();
-        goodEntry.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Good));
+        TryGetEntry(dto, flooredAd, out var flooredEntry).ShouldBeTrue();
+        // #552: the ad is silent on the stated employment dimension → NoMatch → Basic.
+        flooredEntry.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Basic));
+        flooredEntry.GetProperty("employmentFit").GetString().ShouldBe(Wire(MatchDimensionVerdict.NoMatch));
 
         TryGetEntry(dto, basicAd, out var basicEntry).ShouldBeTrue();
         basicEntry.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Basic));

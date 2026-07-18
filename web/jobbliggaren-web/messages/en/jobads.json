@@ -246,6 +246,10 @@
         "skills": "No skills could be read from your CV. Upload a CV under Profile.",
         "default": "This part could not be assessed."
       },
+      "adUnspecifiedReason": {
+        "regionFit": "The ad does not state a region.",
+        "employmentFit": "The ad does not state an employment type."
+      },
       "mustHaveSummary": {
         "Match": "You meet all the must-have requirements in the ad.",
         "Partial": "You meet some of the ad's must-have requirements.",

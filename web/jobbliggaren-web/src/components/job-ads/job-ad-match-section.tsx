@@ -299,6 +299,15 @@ function MatchRow({
 }) {
   const word = t(`verdict.${detail.verdict}`);
   const isNotAssessed = detail.verdict === "NotAssessed";
+  // #552-grinden: en angiven ort-/anställningsform-preferens mot en annons som
+  // INTE anger dimensionen ger NoMatch med TOM matched/missing (inget att citera
+  // — annonsen är tyst). Bevisraden förklarar VARFÖR i neutral ink (annonsens
+  // tystnad är inget fel), i stället för en tom cell. ADR 0076-amendment.
+  const isAdUnspecified =
+    detail.verdict === "NoMatch" &&
+    detail.matched.length === 0 &&
+    detail.missing.length === 0 &&
+    (dimensionKey === "regionFit" || dimensionKey === "employmentFit");
   // Granularitets-uppdelad bevisrad bara för Region OCH bara när kartan finns.
   const useOrtGranularity =
     dimensionKey === "regionFit" && granularityByLabel !== undefined;
@@ -343,6 +352,15 @@ function MatchRow({
           // matchrow-missing = ink-2, ej röd — ett relaterat yrke är inget fel).
           <span className="jp-modal__matchrow-missing">
             {t("relatedYrkeReason")}
+          </span>
+        ) : isAdUnspecified ? (
+          // #552 — annonsen anger inte dimensionen: förklara i stället för en
+          // tom bevis-cell. FÖRE granularitets-grenen (som annars renderar
+          // ingenting när matched/missing båda är tomma). Neutral ink.
+          <span className="jp-modal__matchrow-missing">
+            {dimensionKey === "regionFit"
+              ? t("adUnspecifiedReason.regionFit")
+              : t("adUnspecifiedReason.employmentFit")}
           </span>
         ) : useOrtGranularity ? (
           <RegionFitEvidence

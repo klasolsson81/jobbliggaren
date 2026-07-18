@@ -56,6 +56,13 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
     private const string OtherGroup = "grp-cwmatch-other";
     private const string OtherRegion = "reg-cwmatch-other";
 
+    // #552 — Good's remaining stable shape under a both-stated profile is the #477
+    // containment carve-out (a stated-but-NULL secondary now floors to Basic): a preferred
+    // kommun + its parent län, set DIRECTLY on the profile (taxonomy derivation is
+    // profile-builder-tested, not re-proven here). Inert for every other seed.
+    private const string PrefMunicipality = "mun-cwmatch-pref";
+    private const string ContainmentLan = "reg-cwmatch-containment-lan";
+
     // A CV skill concept-id used by the oracle's WITH-skills seed (proves that even when skills are
     // present, the ≥Good BAND MEMBERSHIP is identical Fast vs Full — skills only re-rank inside it).
     private const string CvSkillConceptId = "skill-cwmatch-0001";
@@ -93,7 +100,10 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
                 SsykGroupConceptIds: [PrefGroup],
                 PreferredRegionConceptIds: [PrefRegion],
                 PreferredEmploymentTypeConceptIds: [PrefEmployment],
-                PreferredMunicipalityConceptIds: []),
+                PreferredMunicipalityConceptIds: [PrefMunicipality])
+            {
+                ContainmentRegionConceptIds = [ContainmentLan],
+            },
             cvSkillConceptIds);
 
     // ── Seeding — raw_payload drives BOTH the org.nr column AND the grade shadows ────────────────
@@ -197,9 +207,12 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
     private Task<JobAdId> SeedStrongAsync(string orgNr, CancellationToken ct, ExtractedTerms? terms = null) =>
         SeedAdAsync(orgNr, PrefGroup, PrefRegion, PrefEmployment, ct, terms);
 
-    // Good (rank 3): exactly one confirmed secondary — region Match + employment NULL.
+    // Good (rank 3): exactly one confirmed secondary — employment Match + ort via the #477
+    // containment carve-out (län-only ad in the preferred kommun's parent län → RegionFit
+    // NotAssessed, neither confirms nor floors). The pre-#552 shape (region Match +
+    // employment NULL) now floors to Basic — the gate closed that path by design.
     private Task<JobAdId> SeedGoodAsync(string orgNr, CancellationToken ct, ExtractedTerms? terms = null) =>
-        SeedAdAsync(orgNr, PrefGroup, PrefRegion, employmentTypeConceptId: null, ct, terms);
+        SeedAdAsync(orgNr, PrefGroup, ContainmentLan, PrefEmployment, ct, terms);
 
     // Basic (rank 1): both secondaries NotAssessed (region NULL + employment NULL).
     private Task<JobAdId> SeedBasicNeutralAsync(string orgNr, CancellationToken ct) =>

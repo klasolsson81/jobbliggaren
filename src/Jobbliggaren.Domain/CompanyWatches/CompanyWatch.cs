@@ -155,4 +155,30 @@ public sealed class CompanyWatch : AggregateRoot<CompanyWatchId>
     /// is set; allowed regardless of soft-delete state (clearing never widens exposure).
     /// </summary>
     public void ClearFilter() => Filter = null;
+
+    /// <summary>
+    /// #544 backfill (ADR 0090 D5) — replace a stored PLAINTEXT personnummer-shaped org.nr with its
+    /// HMAC token, in place, discarding the plaintext (irreversible — the point). The token is
+    /// computed by the Application layer (the Domain never sees the pepper) and handed in as an
+    /// already-wrapped VO. Returns <see langword="true"/> when it converted.
+    /// <para>
+    /// <b>Idempotent by shape (the SSOT discriminator):</b> a no-op when the current value is not a
+    /// 10-digit personnummer-shaped plaintext — i.e. a legal-entity (AB) org.nr (stays plaintext) or
+    /// an already-tokenised value (a 64-char token → <see cref="OrganizationNumber.Value"/> length ≠
+    /// 10). So a re-run, or the run after a crash, never double-tokenises.
+    /// </para>
+    /// </summary>
+    public bool ApplyOrganizationNumberTokenBackfill(OrganizationNumber tokenized)
+    {
+        if (tokenized is null)
+            return false;
+        // Only a 10-digit personnummer-shaped PLAINTEXT value is convertible. A token has length ≠ 10
+        // (IsPersonnummerShaped true via the fail-safe), so it is excluded here; an AB org.nr is a
+        // 10-digit value that is NOT personnummer-shaped, so it stays plaintext.
+        if (OrganizationNumber.Value.Length != 10 || !OrganizationNumber.IsPersonnummerShaped())
+            return false;
+
+        OrganizationNumber = tokenized;
+        return true;
+    }
 }

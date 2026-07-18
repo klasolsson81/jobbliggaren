@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
@@ -33,7 +34,8 @@ public sealed class ListCompanyWatchesQueryHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
     IMatchProfileBuilder profileBuilder,
-    IPerUserJobAdSearchQuery perUserSearch)
+    IPerUserJobAdSearchQuery perUserSearch,
+    IProtectedIdentityTokenizer tokenizer)
     : IQueryHandler<ListCompanyWatchesQuery, IReadOnlyList<CompanyWatchDto>>
 {
     // #452 — "matchande annonser" = grade >= Good in the Fast band (parity
@@ -70,11 +72,53 @@ public sealed class ListCompanyWatchesQueryHandler(
         // ad set for a prolific employer (avoids the §5 unpaginated-fetch smell). string? element type
         // so the EF.Property<string?> Contains translates cleanly (the column is nullable; a NULL
         // org.nr ad never matches via `= ANY(...)`). Values themselves non-null.
-        // Distinct watched org.nrs, derived once. The non-null form drives the #452 matching-count
-        // port call; the string? projection is what the EF.Property<string?> Contains translations
-        // below bind (the shadow column is nullable — a NULL-org.nr ad never matches via `= ANY(...)`).
-        var watchedOrgNrs = watches.Select(w => w.OrganizationNumber.Value).Distinct().ToList();
-        var orgNrs = watchedOrgNrs.Select(o => (string?)o).ToList();
+        // #544 (ADR 0090 D5) — a watch's stored value is EITHER a plaintext AB org.nr OR an HMAC token
+        // for a personnummer-shaped (enskild-firma) org.nr. The job_ads projections below key on the
+        // PLAINTEXT org.nr, so resolve each enskild token back to its plaintext via the bounded
+        // pnr-shaped active-ad set (the tokeniser is deterministic: HMAC(plaintext) == token). This
+        // resolves the name + counts at READ (ADR 0087 D3 / B3 — never a denormalised snapshot); the
+        // DTO output is unchanged from the plaintext era, only the at-rest storage differs.
+        // IsPersonnummerShaped is the SSOT discriminator (B2): a token → true (length≠10), AB → false.
+        var plaintextByEnskildKey = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (watches.Any(w => w.OrganizationNumber.IsPersonnummerShaped()))
+        {
+            // The pnr-shaped job_ads org.nrs (translatable SUPERSET of IsPersonnummerShaped:
+            // Length==10 AND 3rd digit 0/1). KEEP THIS ARM IN SYNC with CompanyWatchScanJob's identical
+            // prefilter — it is oracle-pinned there (RunAsync_PnrShapePrefilter_AdmitsBothBoundaryThirdDigits);
+            // a too-narrow copy = silent no-match (the cardinal sin). DISTINCT + bounded (enskild-firma
+            // employers are rare). STATUS-AGNOSTIC on purpose (parity the name lookup below): a followed
+            // company keeps its name whether or not its ads are Active, so the token must still resolve
+            // for an archived-only enskild firma; the #447/#452 counts apply their OWN Active gate. HMAC
+            // each so an enskild watch token resolves to the public plaintext org.nr. Server-side only —
+            // the raw org.nr is never surfaced/logged; the plaintext-key arm covers the backfill window.
+            var pnrShapedAdOrgNrs = await db.JobAds
+                .AsNoTracking()
+                .Where(j => EF.Property<string?>(j, "OrganizationNumber") != null
+                            && EF.Property<string?>(j, "OrganizationNumber")!.Length == 10
+                            && (EF.Property<string?>(j, "OrganizationNumber")!.Substring(2, 1) == "0"
+                                || EF.Property<string?>(j, "OrganizationNumber")!.Substring(2, 1) == "1"))
+                .Select(j => EF.Property<string?>(j, "OrganizationNumber"))
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            foreach (var p in pnrShapedAdOrgNrs)
+            {
+                if (p is null) continue;
+                plaintextByEnskildKey[tokenizer.Tokenize(p)] = p; // token → plaintext (post-backfill)
+                plaintextByEnskildKey[p] = p;                     // plaintext → plaintext (legacy window)
+            }
+        }
+
+        // Resolve each watch to the PLAINTEXT org.nr the projections key on. AB → itself; enskild → the
+        // resolved plaintext, or null when no active ad currently carries that employer.
+        var resolvedByWatchId = watches.ToDictionary(
+            w => w.Id,
+            w => w.OrganizationNumber.IsPersonnummerShaped()
+                ? plaintextByEnskildKey.GetValueOrDefault(w.OrganizationNumber.Value)
+                : w.OrganizationNumber.Value);
+        var resolvedPlaintexts = resolvedByWatchId.Values
+            .Where(p => p is not null).Select(p => p!).Distinct().ToList();
+        var orgNrs = resolvedPlaintexts.Select(o => (string?)o).ToList();
 
         var nameByOrgNr = (await db.JobAds
                 .AsNoTracking()
@@ -118,29 +162,34 @@ public sealed class ListCompanyWatchesQueryHandler(
         if (profile.Fast.SsykGroupConceptIds.Count > 0)
         {
             matchingByOrgNr = await perUserSearch.CountPerUserByEmployerAsync(
-                watchedOrgNrs, profile, MatchingGrades, cancellationToken);
+                resolvedPlaintexts, profile, MatchingGrades, cancellationToken);
         }
 
         return watches
             .Select(w =>
             {
                 var isProtected = w.OrganizationNumber.IsPersonnummerShaped();
+                // #544: the projections key on the resolved PLAINTEXT org.nr (AB → itself; enskild →
+                // the token's resolved plaintext, or null when no active ad carries that employer).
+                var resolved = resolvedByWatchId[w.Id];
                 return new CompanyWatchDto(
                     Id: w.Id.Value,
-                    // FORK C1 / D8(c): never surface a personnummer-shaped org.nr.
+                    // FORK C1 / D8(c): never surface a personnummer-shaped org.nr (nor its token).
                     OrganizationNumber: isProtected ? null : w.OrganizationNumber.Value,
                     IsProtectedIdentity: isProtected,
-                    CompanyName: nameByOrgNr.GetValueOrDefault(w.OrganizationNumber.Value),
+                    // Name resolves at READ from public job_ads (ADR 0087 D3 / B3 — no snapshot),
+                    // unchanged from the plaintext era via the token→plaintext resolution above.
+                    CompanyName: resolved is null ? null : nameByOrgNr.GetValueOrDefault(resolved),
                     FollowedAt: w.CreatedAt,
                     // #447: public open-role count — surfaced even when the org.nr is masked (no PII);
                     // 0 when the employer has no active ad (or none ingested yet).
-                    ActiveAdCount: activeAdCountByOrgNr.GetValueOrDefault(w.OrganizationNumber.Value),
+                    ActiveAdCount: resolved is null ? 0 : activeAdCountByOrgNr.GetValueOrDefault(resolved),
                     // #452: null = not-assessed (no stated occupation); else the >= Good matching
                     // count (0 when this employer has no matching active ad). Surfaced even when the
                     // org.nr is masked (public data, no user-PII).
                     MatchingAdCount: matchingByOrgNr is null
                         ? null
-                        : matchingByOrgNr.GetValueOrDefault(w.OrganizationNumber.Value),
+                        : resolved is null ? 0 : matchingByOrgNr.GetValueOrDefault(resolved),
                     // F4b: the per-watch filter, straight off the already-materialised aggregate (no
                     // extra query, no per-watch GET). null = no filter, mirroring the domain's canonical
                     // NULL — never a redundant hasFilter bool beside it. Labels stay FE-side (the picker

@@ -9,15 +9,19 @@ namespace Jobbliggaren.Infrastructure.Persistence.Configurations;
 /// ADR 0087 D3 (#311 PR-3) — EF Core configuration for <see cref="CompanyWatch"/>.
 ///
 /// <para>
-/// <b>org.nr is PLAINTEXT (ADR 0087 D8(b), Klas Art. 32 risk-accept 2026-06-30).</b> The
-/// <c>organization_number</c> column is stored plaintext — NOT DEK-encrypted — because the PR-4
-/// <c>CompanyWatchScanJob</c> must equality/IN-match it (a DEK breaks SQL IN; the
-/// <c>ef_strongly_typed_vo_contains</c> trap). Its protection is owner-scoped access + Art. 17
-/// cascade erasability (the by-UserId RemoveRange in <c>AccountHardDeleter</c>), NOT encryption.
-/// A sole-prop (enskild firma) org.nr can equal a personnummer — the guard for THAT lives at the
-/// surfacing/log boundary (<c>OrganizationNumber.IsPersonnummerShaped</c> in the read DTO; org.nr
-/// is never logged un-flagged, CLAUDE.md §5). The DEK envelope (ADR 0049/0066) stays reserved for
-/// high-sensitivity user-authored PII (CV/cover-letter), not public-source ingest org.nr.
+/// <b>org.nr at-rest posture — AB plaintext, enskild firma HMAC-tokenised (ADR 0090 D5 / #544;
+/// supersedes the ADR 0087 D8(b) plaintext-only accept for the pnr-shaped subset).</b> A legal-entity
+/// (AB etc.) <c>organization_number</c> is public data and stays PLAINTEXT — <c>CompanyWatchScanJob</c>
+/// equality/IN-matches it directly (a DEK breaks SQL IN; the <c>ef_strongly_typed_vo_contains</c>
+/// trap). A personnummer-shaped (enskild firma) org.nr <i>equals</i> the owner's personnummer, so it
+/// is stored as a keyed HMAC token (<c>IProtectedIdentityTokenizer</c>) — never plaintext at rest —
+/// while staying deterministically equality-matchable. The write-time discriminator is the
+/// single-sourced <c>OrganizationNumber.IsPersonnummerShaped</c> (B2), applied once at the
+/// <c>CompanyWatchFollowExecutor</c> seam. Both forms share owner-scoped access + Art. 17 cascade
+/// erasability (the by-UserId RemoveRange in <c>AccountHardDeleter</c>). The surfacing/log guard
+/// (<c>IsPersonnummerShaped</c> in the read DTO; org.nr never logged un-flagged, CLAUDE.md §5) is
+/// unchanged and still fires on a token (length≠10 fail-safe). The DEK envelope (ADR 0049/0066) stays
+/// reserved for high-sensitivity user-authored PII (CV/cover-letter), not this key.
 /// </para>
 ///
 /// <para>
@@ -40,12 +44,15 @@ public sealed class CompanyWatchConfiguration : IEntityTypeConfiguration<Company
         builder.Property(w => w.UserId)
             .IsRequired();
 
-        // org.nr VO ↔ plaintext text(10) (D8(b) — see class summary). FromTrusted: the DB value was
-        // validated by OrganizationNumber.Create on write (parity with the strongly-typed Id idiom).
+        // org.nr VO ↔ text (#544, ADR 0090 D5 — see class summary). The column holds EITHER a public
+        // 10-digit AB org.nr (plaintext) OR a 64-char keyed HMAC token for an enskild-firma
+        // (pnr-shaped) org.nr. FromTrusted: the DB value is a validated org.nr OR a token, both written
+        // through the executor seam (parity with the strongly-typed Id idiom). Widened 10 → 64 to hold
+        // the token; the deterministic token keeps the unique index + equality-match intact.
         builder.Property(w => w.OrganizationNumber)
             .HasConversion(o => o.Value, value => OrganizationNumber.FromTrusted(value))
             .HasColumnName("organization_number")
-            .HasMaxLength(10)
+            .HasMaxLength(64)
             .IsRequired();
 
         // Single-member enum stored by NAME (reorder-safe; parity with NotifiableMatchGrade /

@@ -46,7 +46,13 @@ public sealed record OrganizationNumber
     // is fail-safe in the wide direction.
     private static readonly Regex Pattern = new(@"^[0-9]{10}\z", RegexOptions.Compiled);
 
-    /// <summary>The verbatim 10-digit org.nr. Never null on a validly-constructed instance.</summary>
+    /// <summary>
+    /// The stored follow key. For a legal-entity (AB) employer this is the verbatim 10-digit org.nr;
+    /// for a personnummer-shaped (enskild firma) employer it is a keyed HMAC token (#544, ADR 0090 D5),
+    /// never the plaintext personnummer. Never null on a validly-constructed instance. The token enters
+    /// only through <see cref="FromTrusted"/> at the persistence/executor seam — <see cref="Create"/>
+    /// still enforces the 10-digit input format on the raw value.
+    /// </summary>
     public string Value { get; }
 
     private OrganizationNumber(string value) => Value = value;
@@ -126,7 +132,12 @@ public sealed record OrganizationNumber
     /// <summary>
     /// True when this 10-digit value is shaped like a Swedish personnummer (i.e. a potential
     /// enskild-firma org.nr that equals the owner's national identity number) and MUST be
-    /// flagged/masked at any surfacing/log boundary (ADR 0087 D8(c)).
+    /// flagged/masked at any surfacing/log boundary (ADR 0087 D8(c)). Also the single-sourced
+    /// write-time discriminator that decides HMAC-tokenisation at rest (#544, ADR 0090 D5,
+    /// security-auditor B2) — the SAME predicate gates both storage form and surfacing, so the set
+    /// tokenised is exactly the set masked (a second, drifting discriminator would leave a pnr
+    /// plaintext or un-masked). Returns <see langword="true"/> for a stored token too (length ≠ 10 →
+    /// the fail-safe below), so masking still fires on a tokenised row.
     ///
     /// <para>
     /// <b>Heuristic (conservative, non-primary, safe-default-sensitive):</b> a Swedish

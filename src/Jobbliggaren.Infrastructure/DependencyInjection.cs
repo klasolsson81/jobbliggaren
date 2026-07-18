@@ -529,6 +529,17 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Jobs.BackfillRecruiterContactScrub.BackfillRecruiterContactScrubJob>();
 
+        // #544 (ADR 0090 D5) — one-off backfill that tokenises existing plaintext personnummer-shaped
+        // company_watches.organization_number rows. Execution is Klas-gated (STOPP-5, security-auditor
+        // B5); the admin endpoint defaults to dryRun. DI in the same commit as the job.
+        services.AddOptions<Jobbliggaren.Application.CompanyWatches.Jobs.BackfillCompanyWatchOrgNrToken.BackfillCompanyWatchOrgNrTokenOptions>()
+            .Bind(configuration.GetSection(
+                Jobbliggaren.Application.CompanyWatches.Jobs.BackfillCompanyWatchOrgNrToken.BackfillCompanyWatchOrgNrTokenOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<
+            Jobbliggaren.Application.CompanyWatches.Jobs.BackfillCompanyWatchOrgNrToken.BackfillCompanyWatchOrgNrTokenJob>();
+
         // Fas 4 STEG 4b (F4-4b) — requirements re-ingest backfill (must_have/
         // nice_to_have-skills → Requirement-termer). Tunn wrapper kring
         // JobAdRefetchBackfillRunner (paritet Klass2). Predikatet behöver Npgsql
@@ -1083,6 +1094,19 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Common.Security.IIdentifierPseudonymizer,
             Security.HmacIdentifierPseudonymizer>();
+
+        // #544 (ADR 0090 D5) — SEPARATE watch pepper for the enskild-firma org.nr at-rest token
+        // (security-auditor B1: one key = one purpose; permanent/non-rotatable, R1 — unlike the
+        // rotation-tolerant audit pepper). Same fail-closed ValidateOnStart posture.
+        services.AddOptions<Security.CompanyWatchPseudonymizationOptions>()
+            .Bind(configuration.GetSection(Security.CompanyWatchPseudonymizationOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<
+            Microsoft.Extensions.Options.IValidateOptions<Security.CompanyWatchPseudonymizationOptions>,
+            Security.CompanyWatchPseudonymizationOptionsValidator>();
+        services.AddSingleton<
+            Jobbliggaren.Application.Common.Security.IProtectedIdentityTokenizer,
+            Security.HmacProtectedIdentityTokenizer>();
 
         // F4-14 (ADR 0076 Decision 4/5) — IPerUserJobAdSearchQuery: den
         // per-användar-match-sorten ("Sortera efter matchning"). SEPARAT port från

@@ -41,6 +41,11 @@ public sealed class WorkerTestFixture : IAsyncLifetime
     internal static readonly string TestAuditPepperBase64 =
         Convert.ToBase64String([.. Enumerable.Range(100, 32).Select(i => (byte)i)]);
 
+    // #544 — deterministic 32-byte company-watch pepper, distinct from the master key AND the audit
+    // pepper so the scan's HMAC token can never collide with either.
+    internal static readonly string TestWatchPepperBase64 =
+        Convert.ToBase64String([.. Enumerable.Range(132, 32).Select(i => (byte)i)]);
+
     /// <summary>
     /// ADR 0066 — räknande <see cref="Application.Common.Security.IDataKeyProvider"/>-
     /// dekoratör runt den riktiga <c>LocalDataKeyProvider</c> som hela
@@ -75,6 +80,11 @@ public sealed class WorkerTestFixture : IAsyncLifetime
                 // does, which would explode with an OptionsValidationException pointing nowhere
                 // near this fixture. Set it now, not after the confusing failure.
                 ["AuditPseudonymization:PepperBase64"] = TestAuditPepperBase64,
+
+                // #544 — separate company-watch pepper, fail-closed at startup (all environments), so
+                // the Worker host that runs CompanyWatchScanJob + resolves IProtectedIdentityTokenizer
+                // boots. Same reasoning as the audit pepper directly above.
+                ["CompanyWatchPseudonymization:PepperBase64"] = TestWatchPepperBase64,
             })
             .Build();
 

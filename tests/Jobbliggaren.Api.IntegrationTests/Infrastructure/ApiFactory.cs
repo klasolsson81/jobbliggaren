@@ -111,6 +111,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
                 // #842 — Art. 17 audit pepper (fail-closed at startup, all environments).
                 ["AuditPseudonymization:PepperBase64"] = TestSecrets.AuditPepperBase64,
+
+                // #544 — separate company-watch pepper (fail-closed at startup, all environments).
+                ["CompanyWatchPseudonymization:PepperBase64"] = TestSecrets.WatchPepperBase64,
             }));
 
         builder.ConfigureServices(services =>

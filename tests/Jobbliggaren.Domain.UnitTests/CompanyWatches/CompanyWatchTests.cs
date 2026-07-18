@@ -211,4 +211,73 @@ public class CompanyWatchTests
         watch.DeletedAt.ShouldBeNull();
         watch.Filter.ShouldBeNull();
     }
+
+    // ---------------------------------------------------------------
+    // ApplyOrganizationNumberTokenBackfill (#544, ADR 0090 D5) — idempotent-by-shape backfill
+    // ---------------------------------------------------------------
+
+    // A personnummer-shaped (third digit 0) legal-form: a legacy PLAINTEXT enskild-firma org.nr as
+    // stored before #544 (Follow stores the VO verbatim; only the executor tokenises).
+    private static readonly OrganizationNumber PnrShapedPlaintext =
+        OrganizationNumber.Create("9001011234").Value;
+
+    // A 64-char lowercase-hex HMAC token — the at-rest form of a pnr-shaped org.nr after #544. Handed
+    // in already-wrapped: the Domain never sees the pepper (the Application layer computed it).
+    private static readonly OrganizationNumber Token =
+        OrganizationNumber.FromTrusted("91febfd18014665c2a686bb4e29c4400a806e46badb333758482bafa873f2e95");
+
+    private static readonly OrganizationNumber OtherToken =
+        OrganizationNumber.FromTrusted("00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff");
+
+    [Fact]
+    public void ApplyOrganizationNumberTokenBackfill_OnPlaintextPnrShapedValue_ConvertsToToken_ReturnsTrue()
+    {
+        // The one convertible case: a 10-digit personnummer-shaped PLAINTEXT value becomes the token,
+        // discarding the plaintext in place (irreversible — the point of the backfill).
+        var watch = CompanyWatch.Follow(ValidUserId, PnrShapedPlaintext, Clock).Value;
+
+        var converted = watch.ApplyOrganizationNumberTokenBackfill(Token);
+
+        converted.ShouldBeTrue();
+        watch.OrganizationNumber.ShouldBe(Token);
+        watch.OrganizationNumber.Value.ShouldBe(
+            "91febfd18014665c2a686bb4e29c4400a806e46badb333758482bafa873f2e95");
+    }
+
+    [Fact]
+    public void ApplyOrganizationNumberTokenBackfill_OnAbOrgNr_IsNoOp_ReturnsFalse()
+    {
+        // An AB org.nr (ValidOrgNr, third digit 9) is NOT personnummer-shaped → public data → stays
+        // plaintext. The backfill must never tokenise it (it would break the scan's SQL IN match).
+        var watch = FollowValid();
+
+        var converted = watch.ApplyOrganizationNumberTokenBackfill(Token);
+
+        converted.ShouldBeFalse();
+        watch.OrganizationNumber.ShouldBe(ValidOrgNr, "an AB org.nr stays plaintext at rest");
+    }
+
+    [Fact]
+    public void ApplyOrganizationNumberTokenBackfill_OnAlreadyTokenisedValue_IsNoOp_ReturnsFalse()
+    {
+        // Idempotent BY SHAPE: an already-tokenised value has length ≠ 10, so a re-run (or the run
+        // after a crash) never double-tokenises. Passing a DIFFERENT token proves it does not overwrite.
+        var watch = CompanyWatch.Follow(ValidUserId, Token, Clock).Value;
+
+        var converted = watch.ApplyOrganizationNumberTokenBackfill(OtherToken);
+
+        converted.ShouldBeFalse();
+        watch.OrganizationNumber.ShouldBe(Token, "an already-tokenised value is a fixed point — never re-tokenised");
+    }
+
+    [Fact]
+    public void ApplyOrganizationNumberTokenBackfill_WithNull_ReturnsFalse_AndDoesNotMutate()
+    {
+        var watch = CompanyWatch.Follow(ValidUserId, PnrShapedPlaintext, Clock).Value;
+
+        var converted = watch.ApplyOrganizationNumberTokenBackfill(null!);
+
+        converted.ShouldBeFalse();
+        watch.OrganizationNumber.ShouldBe(PnrShapedPlaintext, "a null token argument is a no-op, never a wipe");
+    }
 }

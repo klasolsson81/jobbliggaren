@@ -2,12 +2,18 @@ using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Jobbliggaren.Application.Resumes.Abstractions;
+using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
+using Jobbliggaren.Infrastructure.Resumes.Review;
+using Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using Shouldly;
+// The #891 font-run + end-to-end D3 tests drive the REAL review engine over the analyzer's
+// output; reuse the shared engine builders (real knowledge-bank assets, all-correct spell stub).
+using static Jobbliggaren.Application.UnitTests.Resumes.Review.CvReviewFixtures;
 // `Document` is ambiguous between QuestPDF and OpenXml (both used here — QuestPDF builds the PDF
 // fixtures, OpenXml the DOCX fixture). Alias the QuestPDF one; OpenXml's `Document` stays bare
 // in BuildDocx.
@@ -249,5 +255,111 @@ public class PdfPigCvLayoutAnalyzerTests
 
         Should.Throw<OperationCanceledException>(
             () => _sut.Analyze(pdf, CvFileKind.Pdf, cts.Token));
+    }
+
+    // ===============================================================
+    // (h) FontRuns (#891, ADR 0108) — the reader actually tallies (name, pt) runs
+    // ===============================================================
+
+    // A full-width body paragraph at a KNOWN font size. QuestPDF's bundled default family is Lato,
+    // embedded in the PDF regardless of OS (deterministic) — and Lato is NOT in the D3 allowlist.
+    private static byte[] BuildBodyPdf(int fontSize) =>
+        QuestDocument.Create(container =>
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(2, Unit.Centimetre);
+                page.Content().Text(BodyParagraph).FontSize(fontSize);
+            }))
+            .GeneratePdf();
+
+    [Fact]
+    public void Analyze_TextPdf_CollectsFontRuns_WithTheBodySizeAsTheModalRun()
+    {
+        var pdf = BuildBodyPdf(fontSize: 11);
+
+        var metrics = _sut.Analyze(pdf, CvFileKind.Pdf, CancellationToken.None);
+
+        metrics.GeometryStatus.ShouldBe(LayoutGeometryStatus.Analyzed);
+        metrics.FontRuns.ShouldNotBeNull();
+        metrics.FontRuns.ShouldNotBeEmpty();
+
+        // The modal run (most letters) is the body text rendered at the set size — the reader is
+        // not a no-op; it read the point size back from the real glyph geometry.
+        var modal = metrics.FontRuns!.MaxBy(run => run.LetterCount)!;
+        modal.PointSize.ShouldBe(11);
+
+        // A REAL family name was read: it normalises to a non-empty token, and that token is NOT
+        // one of the D3 allowlist entries (Lato is a real, readable, non-standard font). The raw
+        // name may carry an embedding subset tag, so assert on the NORMALISED family, never the raw.
+        var normalized = FontNameNormalizer.Normalize(modal.FontName);
+        normalized.ShouldNotBeNullOrEmpty("analysatorn ska ha läst ett riktigt typsnittsnamn, inte tomt.");
+        var allowlistTokens = RealCvConventionsProvider().GetConventions().FontAllowlist
+            .Select(FontNameNormalizer.Normalize).ToHashSet();
+        allowlistTokens.ShouldNotContain(normalized, "QuestPDF:s standardtypsnitt (Lato) står inte på allowlistan.");
+
+        // The letters actually tally: the summed run counts track the body paragraph's letters.
+        metrics.FontRuns!.Sum(run => run.LetterCount).ShouldBeGreaterThan(100);
+    }
+
+    [Fact]
+    public void Analyze_Docx_HasNullFontRuns()
+    {
+        // Parity the margin: a DOCX is not geometry-analysed (D10) → no font runs.
+        var docx = BuildDocx("Anna Andersson", "Backend-utvecklare på Acme AB");
+
+        var metrics = _sut.Analyze(docx, CvFileKind.Docx, CancellationToken.None);
+
+        metrics.GeometryStatus.ShouldBe(LayoutGeometryStatus.NotApplicable);
+        metrics.FontRuns.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Analyze_EmptyBytesAsPdf_HasNullFontRuns()
+    {
+        var metrics = _sut.Analyze(ReadOnlyMemory<byte>.Empty, CvFileKind.Pdf, CancellationToken.None);
+
+        metrics.GeometryStatus.ShouldBe(LayoutGeometryStatus.Failed);
+        metrics.FontRuns.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Analyze_GarbageBytesAsPdf_HasNullFontRuns()
+    {
+        byte[] garbage = [0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x37, 0x00, 0xDE, 0xAD, 0xBE, 0xEF];
+
+        var metrics = _sut.Analyze(garbage, CvFileKind.Pdf, CancellationToken.None);
+
+        metrics.GeometryStatus.ShouldBe(LayoutGeometryStatus.Failed);
+        metrics.FontRuns.ShouldBeNull();
+    }
+
+    // ===============================================================
+    // (i) END-TO-END — analyzer → real engine → D3 (the FORM PdfPig emits)
+    // ===============================================================
+
+    [Fact]
+    public async Task Analyze_TextPdf_ThenRealEngine_D3Warns_BecauseLatoIsNotAllowlisted()
+    {
+        // "The oracle runs the FORM production emits (PdfPig Letters)": build a REAL PDF
+        // (QuestPDF/Lato), run the REAL PdfPigCvLayoutAnalyzer, feed its CvLayoutMetrics into the
+        // REAL CvReviewEngine and assert D3. Lato is a real, readable font that is NOT on the
+        // exemplar allowlist → Warn (never Pass; never NotAssessed — font runs WERE collected).
+        var engine = new CvReviewEngine(
+            RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
+            AllCorrectSpellChecker(), RealAllowlist(),
+            RealCvConventionsProvider(), RealParsingLexicon());
+
+        var pdf = BuildBodyPdf(fontSize: 11);
+        var metrics = _sut.Analyze(pdf, CvFileKind.Pdf, CancellationToken.None);
+
+        var result = await engine.ReviewAsync(
+            CvReviewContext.FromParsed(Resume(layoutMetrics: metrics)),
+            RenderProfile.Ats, TestContext.Current.CancellationToken);
+        var d3 = result.Verdicts.Single(v => v.CriterionId == "D3");
+
+        d3.Verdict.ShouldNotBe(CriterionVerdict.NotAssessed, "font runs samlades in ur PDF:en, D3 kan bedömas.");
+        d3.Verdict.ShouldNotBe(CriterionVerdict.Pass, "Lato är läsbart men står inte på allowlistan.");
+        d3.Verdict.ShouldBe(CriterionVerdict.Warn);
     }
 }

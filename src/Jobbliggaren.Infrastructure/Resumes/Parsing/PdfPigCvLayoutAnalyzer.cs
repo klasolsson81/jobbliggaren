@@ -51,6 +51,10 @@ internal sealed class PdfPigCvLayoutAnalyzer : ICvLayoutAnalyzer
             var pageCount = document.NumberOfPages;
 
             double? minMargin = null;
+            // D3 (#891, ADR 0108): tally letters by (raw font name, integer-rounded pt) across the
+            // SAME scanned letters the margin uses. A dumb collector — the "body font = modal run"
+            // definition and the allowlist match are assessment POLICY and live in the D3 rule.
+            var fontTally = new Dictionary<(string FontName, int PointSize), long>();
             var scanned = 0;
             foreach (var page in document.GetPages())
             {
@@ -60,13 +64,24 @@ internal sealed class PdfPigCvLayoutAnalyzer : ICvLayoutAnalyzer
                     break;
                 }
 
-                if (SmallestMargin(page) is { } pageMargin)
+                if (ScanPage(page, fontTally) is { } pageMargin)
                 {
                     minMargin = minMargin is { } current ? Math.Min(current, pageMargin) : pageMargin;
                 }
             }
 
-            return CvLayoutMetrics.Analyzed(fileSizeBytes, pageCount, minMargin);
+            var fontRuns = fontTally.Count == 0
+                ? null
+                : fontTally
+                    // Deterministic order: heaviest run first, then by name then size (ordinal) so
+                    // the persisted jsonb is stable for a given document (comparison-by-serialization).
+                    .OrderByDescending(kv => kv.Value)
+                    .ThenBy(kv => kv.Key.FontName, StringComparer.Ordinal)
+                    .ThenBy(kv => kv.Key.PointSize)
+                    .Select(kv => new CvFontRun(kv.Key.FontName, kv.Key.PointSize, kv.Value))
+                    .ToList();
+
+            return CvLayoutMetrics.Analyzed(fileSizeBytes, pageCount, minMargin, fontRuns);
         }
         catch (OperationCanceledException)
         {
@@ -81,11 +96,14 @@ internal sealed class PdfPigCvLayoutAnalyzer : ICvLayoutAnalyzer
         }
     }
 
-    // The tightest of the four page-edge margins (PDF points) between the union bounding box of
-    // the page's letters and the page's MediaBox. null when the page carries no letters (a
-    // blank/scanned page contributes no margin signal) or when the text spills outside the media
-    // box (rotated/pathological — never fabricate a negative margin into a signal).
-    private static double? SmallestMargin(Page page)
+    // Scans one page's letters ONCE: tallies the (font name, rounded pt) runs into
+    // <paramref name="fontTally"/> (D3) AND returns the tightest of the four page-edge margins
+    // (PDF points) between the union bounding box of the page's letters and the page's MediaBox
+    // (E2). Margin is null when the page carries no letters (a blank/scanned page contributes no
+    // signal) or when the text spills outside the media box (rotated/pathological — never fabricate
+    // a negative margin into a signal). A letter with a null/blank font name tallies as the empty
+    // family, which the D3 rule treats as unresolvable → Warn (never a fabricated allowlist match).
+    private static double? ScanPage(Page page, Dictionary<(string FontName, int PointSize), long> fontTally)
     {
         var letters = page.Letters;
         if (letters is null || letters.Count == 0)
@@ -102,6 +120,11 @@ internal sealed class PdfPigCvLayoutAnalyzer : ICvLayoutAnalyzer
             if (rect.Right > textRight) textRight = rect.Right;
             if (rect.Bottom < textBottom) textBottom = rect.Bottom;
             if (rect.Top > textTop) textTop = rect.Top;
+
+            var fontName = letter.FontName ?? string.Empty;
+            var pointSize = (int)Math.Round(letter.PointSize, MidpointRounding.AwayFromZero);
+            var key = (fontName, pointSize);
+            fontTally[key] = fontTally.TryGetValue(key, out var count) ? count + 1 : 1;
         }
 
         var media = page.MediaBox.Bounds;

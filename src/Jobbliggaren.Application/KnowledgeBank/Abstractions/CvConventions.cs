@@ -23,9 +23,17 @@ namespace Jobbliggaren.Application.KnowledgeBank.Abstractions;
 /// <param name="SectionOrder">The recommended section order, most-important first. Sections the
 /// order does not name (free sections — "Projekt", "Referenser") follow the named ones, keeping
 /// their observed relative order; that is the sort's stability property, not data.</param>
+/// <param name="FontAllowlist">The rubric D3 <c>atsPassSignal</c> font list made machine-readable
+/// (Fas 4b #891, ADR 0108) — a RECOMMENDATION, parallel to <see cref="SectionOrder"/>. An EXEMPLAR
+/// set, not exhaustive: Garamond/Lato parse fine yet are absent, so <c>D3StandardFontRule</c> WARNS
+/// on a non-member body font, never FAILS. The reader normalises both these entries and each
+/// observed font name through one shared normaliser (subset-tag + style-suffix stripping is parser
+/// FORM in C#, not data). The pt band is a THRESHOLD and lives in the rubric, NOT here (ADR 0108's
+/// kind-boundary: RECOMMENDATION → this asset; THRESHOLDS → rubric).</param>
 public sealed record CvConventions(
     string Version,
-    IReadOnlyList<CvSectionOrderEntry> SectionOrder);
+    IReadOnlyList<CvSectionOrderEntry> SectionOrder,
+    IReadOnlyList<string> FontAllowlist);
 
 /// <summary>
 /// One position in the recommended section order. <see cref="SectionId"/> is a section identity

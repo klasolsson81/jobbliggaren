@@ -103,7 +103,7 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         {
             var evaluation = new CriterionEvaluationContext(
                 context, criterion, profile, language, cliches, verbs, _analyzer,
-                _spellChecker, allowlist, datedExperiences, sectionOrder);
+                _spellChecker, allowlist, datedExperiences, sectionOrder, _conventions.FontAllowlist);
             scored.Add(Evaluate(evaluation));
         }
 
@@ -181,6 +181,10 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         // (misspelling -> Warn, never Fail); C1 (spelling+grammar) stays NotAssessedV1.
         new C7SpellingRule(),
         new D1FileFormatRule(),
+        // Fas 4b #891 (ADR 0108): D3 standard body font/size from the ICvLayoutAnalyzer font runs
+        // read at import (allowlist = cv-conventions, pt floor = rubric v2.2 threshold). Warn-only;
+        // NotAssessed without font runs (canonical arm / DOCX / failed parse / pre-#891 import).
+        new D3StandardFontRule(),
         new D6StandardHeadingsRule(),
         // Fas 4b PR-6b (ADR 0093 §D4): D9 file size + E2 whitespace (tightest margin), both
         // from the ICvLayoutAnalyzer metrics read at import. NotAssessed without metrics.

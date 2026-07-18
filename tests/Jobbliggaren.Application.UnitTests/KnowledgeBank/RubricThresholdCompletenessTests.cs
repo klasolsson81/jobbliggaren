@@ -39,6 +39,11 @@ public class RubricThresholdCompletenessTests
             ["C3"] = [RubricThresholdKeys.FailRatio],
             ["C6"] = [RubricThresholdKeys.MaxUnexplainedAcronyms],
             ["C7"] = [RubricThresholdKeys.WarnFromMisspellingCount],
+            // Fas 4b #891 (ADR 0108): D3 body-font size floor (the allowlist itself is a
+            // cv-conventions RECOMMENDATION, not a rubric threshold). Only the WARN-below key
+            // exists in v1 — the <9 pt FAIL band is a deferred follow-up, so no key for it yet
+            // (an unread key would fail the reverse-direction test below).
+            ["D3"] = [RubricThresholdKeys.FontBodyPtWarnBelow],
             ["D9"] = [RubricThresholdKeys.FileSizeWarnBytes, RubricThresholdKeys.FileSizeFailBytes],
             ["E2"] = [RubricThresholdKeys.MinMarginPointsFloor],
         };

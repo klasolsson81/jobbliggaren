@@ -32,7 +32,7 @@ public class CvConventionsProviderTests
         var conventions = LoadConventions();
 
         conventions.ShouldNotBeNull();
-        conventions.Version.ShouldBe("1.0.0");
+        conventions.Version.ShouldBe("1.1.0");
     }
 
     [Fact]
@@ -87,6 +87,27 @@ public class CvConventionsProviderTests
     }
 
     [Fact]
+    public void FontAllowlist_ShouldMatchTheRubricsD3Prose_SoTheAssetCannotDriftFromItSilently()
+    {
+        // Same premise as SectionOrder, for the font half (#891, ADR 0108 amendment): fontAllowlist
+        // is "the rubric's D3 atsPassSignal font list made machine-readable". Pinning it against a
+        // hand-written list would let the rubric add/drop a font (e.g. "Cambria") while the asset
+        // stays put — silently, every test green. DERIVE the expectation from the D3 prose instead.
+        var d3Signal = new RubricProvider().GetRubric().Criteria
+            .Single(c => c.Id == "D3").AtsPassSignal
+            .ShouldNotBeNull("D3 måste bära sin atsPassSignal — det är typsnittslistan assetet kodifierar.");
+
+        // The font clause is everything before the pt recommendation ("…Verdana. 10–12 pt brödtext");
+        // "Times New Roman" carries no comma, so a plain ", " split yields exactly the named fonts.
+        var proseFonts = d3Signal.Split(". ", StringSplitOptions.None)[0]
+            .Split(", ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        LoadConventions().FontAllowlist.ShouldBe(proseFonts,
+            "fontAllowlist MÅSTE vara exakt de typsnitt rubrikens D3-prosa namnger, i samma ordning — "
+            + "annars är premissen 'D3:s typsnittslista gjord maskinläsbar' inte längre sann.");
+    }
+
+    [Fact]
     public void Ctor_ShouldConstruct_WhenTheShippedAssetAgreesWithTheShippedLexicon()
     {
         // The pin, run against the REAL pair — this is the guarantee the host gets at build.
@@ -103,7 +124,8 @@ public class CvConventionsProviderTests
         [
             new CvSectionOrderEntry("experience", ParsedSectionKind.Experience),
             new CvSectionOrderEntry("hobbyprojekt-i-tradgarden", TypedKind: null),
-        ]);
+        ],
+        ["Arial"]);
 
         var ex = Should.Throw<InvalidOperationException>(
             () => CvConventionsProvider.ValidateAgainstLexicon(drifted, RealLexicon()));
@@ -121,7 +143,8 @@ public class CvConventionsProviderTests
         [
             new CvSectionOrderEntry("experience", ParsedSectionKind.Experience),
             new CvSectionOrderEntry("projekt", TypedKind: null),
-        ]);
+        ],
+        ["Arial"]);
 
         Should.NotThrow(
             () => CvConventionsProvider.ValidateAgainstLexicon(withFreeSection, RealLexicon()));
@@ -136,7 +159,7 @@ public class CvConventionsProviderTests
         RealLexicon().FreeSectionIds.ShouldNotContain("skills");
 
         Should.NotThrow(() => CvConventionsProvider.ValidateAgainstLexicon(
-            new CvConventions("1.0.0", [new CvSectionOrderEntry("skills", ParsedSectionKind.Skills)]),
+            new CvConventions("1.0.0", [new CvSectionOrderEntry("skills", ParsedSectionKind.Skills)], ["Arial"]),
             RealLexicon()));
     }
 }

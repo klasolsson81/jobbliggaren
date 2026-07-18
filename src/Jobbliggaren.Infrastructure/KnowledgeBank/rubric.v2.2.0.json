@@ -1,6 +1,6 @@
 {
-  "rubricVersion": "2.1.0",
-  "effectiveDate": "2026-07-06",
+  "rubricVersion": "2.2.0",
+  "effectiveDate": "2026-07-18",
   "weights": {
     "Kritisk": 3,
     "Hög": 2,
@@ -427,7 +427,10 @@
       "assessability": "deterministic",
       "atsPassSignal": "Arial, Calibri, Helvetica, Roboto, Times New Roman, Georgia, Verdana. 10–12 pt brödtext",
       "atsFailSignal": "Custom-fonter; <9 pt; ikonfonter",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV."
+      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "thresholds": {
+        "fontBodyPtWarnBelow": 10
+      }
     },
     {
       "id": "D4",

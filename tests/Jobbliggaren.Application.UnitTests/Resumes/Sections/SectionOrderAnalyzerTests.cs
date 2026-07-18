@@ -109,7 +109,8 @@ public class SectionOrderAnalyzerTests
             new CvSectionOrderEntry("experience", ParsedSectionKind.Experience),
             new CvSectionOrderEntry("projekt", TypedKind: null),
             new CvSectionOrderEntry("education", ParsedSectionKind.Education),
-        ]);
+        ],
+        ["Arial"]);
 
         var order = SectionOrderAnalyzer.Analyze(
             "Utbildning\nKTH\nProjekt\nJobbliggaren\nArbetslivserfarenhet\nDev",

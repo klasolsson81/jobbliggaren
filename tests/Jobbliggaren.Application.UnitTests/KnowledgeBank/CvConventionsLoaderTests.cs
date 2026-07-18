@@ -20,7 +20,8 @@ public class CvConventionsLoaderTests
     private const string MinimalValid = """
         {
           "conventionsVersion": "1.0.0",
-          "sectionOrder": ["contact", "experience", "education"]
+          "sectionOrder": ["contact", "experience", "education"],
+          "fontAllowlist": ["Arial", "Calibri"]
         }
         """;
 
@@ -106,5 +107,39 @@ public class CvConventionsLoaderTests
         var conventions = CvConventionsLoader.LoadFrom(Mutated("\"education\"", "\"0\""));
 
         conventions.SectionOrder.Single(e => e.SectionId == "0").TypedKind.ShouldBeNull();
+    }
+
+    // ── fontAllowlist (Fas 4b #891, ADR 0108) ────────────────────────────
+
+    [Fact]
+    public void LoadFrom_ShouldMapTheFontAllowlist_WhenTheAssetIsWellFormed()
+    {
+        var conventions = CvConventionsLoader.LoadFrom(Json(MinimalValid));
+
+        conventions.FontAllowlist.ShouldBe(["Arial", "Calibri"]);
+    }
+
+    [Fact]
+    public void LoadFrom_ShouldThrow_WhenFontAllowlistIsEmpty()
+    {
+        // An empty allowlist is not "no opinion" — it is a D3 rule that can never recognise a
+        // standard font, so every measured CV would Warn. The font half exists to carry the list.
+        Should.Throw<InvalidOperationException>(
+            () => CvConventionsLoader.LoadFrom(Mutated("[\"Arial\", \"Calibri\"]", "[]")));
+    }
+
+    [Fact]
+    public void LoadFrom_ShouldThrow_WhenAFontNameIsBlank()
+    {
+        Should.Throw<InvalidOperationException>(
+            () => CvConventionsLoader.LoadFrom(Mutated("\"Calibri\"", "\"\"")));
+    }
+
+    [Fact]
+    public void LoadFrom_ShouldThrow_WhenAFontIsListedTwice()
+    {
+        // A duplicate is a data typo, not a second opinion — fail loud like a duplicate sectionId.
+        Should.Throw<InvalidOperationException>(
+            () => CvConventionsLoader.LoadFrom(Mutated("\"Calibri\"", "\"Calibri\", \"Arial\"")));
     }
 }

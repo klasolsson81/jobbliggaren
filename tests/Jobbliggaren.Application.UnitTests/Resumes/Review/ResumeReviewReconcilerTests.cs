@@ -31,7 +31,7 @@ public class ResumeReviewReconcilerTests
 {
     private readonly ICvReviewEngine _engine = Substitute.For<ICvReviewEngine>();
 
-    private static readonly RubricVersion Version = RubricVersion.Parse("2.1.0");
+    private static readonly RubricVersion Version = RubricVersion.Parse("2.2.0");
 
     private ResumeReviewReconciler CreateSut() =>
         new(_engine, FakeDateTimeProvider.Default);
@@ -143,8 +143,8 @@ public class ResumeReviewReconcilerTests
 
         await CreateSut().ReconcileAsync(resume, autoResolveCriteria: null, CancellationToken.None);
 
-        resume.FindingStatuses.ShouldHaveSingleItem().RubricVersion.ShouldBe("2.1.0");
-        resume.ReviewedRubricVersion.ShouldBe("2.1.0");
+        resume.FindingStatuses.ShouldHaveSingleItem().RubricVersion.ShouldBe("2.2.0");
+        resume.ReviewedRubricVersion.ShouldBe("2.2.0");
     }
 
     // ===============================================================

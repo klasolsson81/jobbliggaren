@@ -101,6 +101,12 @@
     <EmbeddedResource Include="CompanyRegister\Reference\scb-kommuner-2026.v1.json">
       <LogicalName>Jobbliggaren.Infrastructure.CompanyRegister.Reference.scb-kommuner-2026.v1.json</LogicalName>
     </EmbeddedResource>
+    <!-- #311 PR-5 (ADR 0087 D4) — curated brand-group catalogue (org.nr -> group alias). Members are
+         public AB org.nrs only (the loader fails host build on a personnummer-shaped one). Curated via
+         reviewed PR; this shipped asset is deliberately EMPTY (the mechanism ships before any group). -->
+    <EmbeddedResource Include="CompanyWatches\brand-groups.v1.json">
+      <LogicalName>Jobbliggaren.Infrastructure.CompanyWatches.brand-groups.v1.json</LogicalName>
+    </EmbeddedResource>
     <!-- ADR 0067 Fas C2 — FRUSEN migration-ägd reverse-lookup-resurs
          (occupation-name → ssyk-level-4). Läses ENDAST av C2-migrationen;
          regenereras aldrig (CTO-dom (c) 2026-06-09, migrations-immutabilitet). -->

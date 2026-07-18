@@ -1,0 +1,5 @@
+{
+  "//": "#311 PR-5 (ADR 0087 D4) — curated brand-group catalogue. org.nr -> group alias, e.g. 'Volvo (koncern)' -> an EXPLICIT list of member org.nrs. Manually curated, NO automatic name-matching, ever (the 'Volvo x20' trap). Members MUST be public legal-entity (AB) org.nrs verified against Bolagsverket/allabolag — NEVER a personnummer-shaped (enskild firma) org.nr (the loader fails host build on one). Curated only via reviewed PR (git history is the audit trail); the first real group ships in a separate Klas-authored data-PR with source-verified org.nrs. This shipped catalogue is deliberately EMPTY — the mechanism ships before any group is curated (an empty groups array is a legal state).",
+  "brandGroupVersion": "1.0",
+  "groups": []
+}

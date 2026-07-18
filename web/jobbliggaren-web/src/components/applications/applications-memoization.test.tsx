@@ -14,6 +14,9 @@ import { ApplicationRow } from "./application-row";
 import { ApplicationsTableRow } from "./applications-table-row";
 import { AttentionQueue } from "./attention-queue";
 import { StepRail } from "./step-rail";
+// Den mockade server-actionen (se vi.mock nedan) — d4-testerna nedan overridar
+// den till en aldrig-resolvande promise för att isolera pending-add-renderingen.
+import { transitionStatusAction } from "@/lib/actions/applications";
 
 /**
  * #747 (perf-audit d1/d2) — render-count fitness function för memoiseringen av
@@ -273,5 +276,77 @@ describe("#747 memoisering — struktur (sekundär närvaro-kontroll)", () => {
         (Component as unknown as { $$typeof: symbol }).$$typeof,
       ).toBe(memoType);
     }
+  });
+});
+
+/**
+ * #d4 (perf-audit d4-pendingids-context-fanout) — samma render-count-orakel: ett
+ * statusbyte lägger radens id i pendingIds-Set:et (add). Efter split:en läser
+ * löven (ApplicationRow / ApplicationsTableRow) INTE Set:et via context — de får
+ * `pending` som prop från vy-containern (StatusSection / ApplicationsTable som
+ * prenumererar på Set:et). Containern re-renderar vid bytet (billig map), men de
+ * memo-lindade raderna skippar utom den vars `pending` faktiskt flippade → exakt
+ * EN rad-rendering, aldrig hela listan.
+ *
+ * MUTATIONS-VERIFIERAT: låt lövet läsa pendingIds ur context igen (ta bort
+ * `pending`-propet + återinför `const { pendingIds } = useApplicationActions()`)
+ * → alla fyra raderna re-renderar → +4, testet blir RÖTT. Den aldrig-resolvande
+ * transition-mocken isolerar add-re-renderingen: delete-grenen (som skulle ge en
+ * andra +1 på samma rad) fyrar aldrig, så deltan är rent +1.
+ */
+describe("#d4 pendingIds-context-fanout — statusbyte re-renderar bara den togglade raden", () => {
+  it("LISTA: byte på en av fyra list-rader → +1 daysInStatus (bara den raden)", () => {
+    // Aldrig resolve → transition()s setPendingIds(delete)-gren fyrar aldrig.
+    vi.mocked(transitionStatusAction).mockReturnValueOnce(
+      new Promise<never>(() => {}),
+    );
+    const { container } = render(
+      <ApplicationsPipeline
+        groups={makeGroups("Submitted", 4, "Utvecklare")}
+        nowIso={NOW_ISO}
+        initialView="lista"
+      />,
+    );
+    // Fyra list-rader (Submitted default-öppen), tom kö (inga signaler).
+    expect(counters.days).toBe(4);
+    counters.days = 0;
+
+    // Radens primär-CTA = "Flytta till {nästa}" (moveToNext). Toggla den FÖRSTA.
+    const moveButtons = container.querySelectorAll<HTMLButtonElement>(
+      ".jp-rowbtn--emphasis",
+    );
+    expect(moveButtons).toHaveLength(4);
+    fireEvent.click(moveButtons[0]!);
+
+    // +1: bara rad 0:s `pending` flippade → bara rad 0 re-renderar. Utan
+    // context-split/prop-tråd re-renderar alla fyra → +4.
+    expect(counters.days).toBe(1);
+  });
+
+  it("TABELL: byte på en av fyra tabell-rader → +1 daysInStatus (bara den raden)", () => {
+    vi.mocked(transitionStatusAction).mockReturnValueOnce(
+      new Promise<never>(() => {}),
+    );
+    const { container } = render(
+      <ApplicationsPipeline
+        groups={makeGroups("Submitted", 4, "Utvecklare")}
+        nowIso={NOW_ISO}
+        initialView="tabell"
+      />,
+    );
+    // Ignorera initial render + `sorted`-komparatorns daysInStatus-anrop.
+    counters.days = 0;
+
+    // Tabellradens "Nästa steg"-cell = moveToNext-knappen. Toggla den FÖRSTA.
+    const nextButtons = container.querySelectorAll<HTMLButtonElement>(
+      ".jp-apptable__nextlink",
+    );
+    expect(nextButtons).toHaveLength(4);
+    fireEvent.click(nextButtons[0]!);
+
+    // +1: `sorted`-useMemon är cachad (sortnycklarna orörda → ingen om-sortering)
+    // och bara rad 0:s `pending` flippade → bara rad 0 re-renderar. Utan
+    // split/prop → +4.
+    expect(counters.days).toBe(1);
   });
 });

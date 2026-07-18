@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { applicationStatusLabel } from "@/lib/applications/status";
 import { daysInStatus, urgencyTagFor } from "@/lib/applications/urgency";
 import { adIdentityOf } from "./ad-identity";
+import { useApplicationPending } from "./application-actions";
 import { useUrgencyLabel } from "./use-urgency-label";
 import { StatusMenu } from "./status-menu";
 import type { ApplicationDto } from "@/lib/dto/applications";
@@ -52,6 +53,11 @@ export function ApplicationBoardCard({
   const tUi = useTranslations("applications.ui");
   const contextId = useId();
   const justDraggedRef = useRef(false);
+  // Tavla-kortet är inget d4-perf-mål (korten är inte memo-lindade och bara en vy
+  // är monterad åt gången), men dess StatusMenu kräver `pending`-propet. Kortet
+  // läser Set:et direkt — samma re-render-granularitet som förr (StatusMenu
+  // prenumererade tidigare själv), utan ny prop-tråd genom BoardColumn.
+  const pending = useApplicationPending().has(application.id);
 
   const { jobAd, status } = application;
   // #892: strukturell identitet + borttagen-markör (lockstep med List-raden).
@@ -156,7 +162,7 @@ export function ApplicationBoardCard({
       {/* Tangentbords-/no-drag-vägen (CTO-bind A11y) — z-lyft ovanför
           länk-overlay:en så menyn inte nästlas i ankaret. */}
       <div className="jp-board-card__menu">
-        <StatusMenu application={application} />
+        <StatusMenu application={application} pending={pending} />
       </div>
     </article>
   );

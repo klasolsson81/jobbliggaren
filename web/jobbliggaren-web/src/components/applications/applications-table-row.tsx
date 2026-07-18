@@ -12,7 +12,6 @@ import { daysInStatus } from "@/lib/applications/urgency";
 import { latestEventLabelKey, latestEventOf } from "@/lib/applications/latest-event";
 import { formatDate } from "@/lib/i18n/format";
 import { adIdentityOf } from "./ad-identity";
-import { useApplicationActions } from "./application-actions";
 import { useRowActions } from "./use-row-actions";
 import { StatusMenu } from "./status-menu";
 import type { ApplicationDto } from "@/lib/dto/applications";
@@ -21,6 +20,12 @@ interface ApplicationsTableRowProps {
   application: ApplicationDto;
   /** Server-beräknad referenstidpunkt (#336-determinism), trädad in per rad. */
   now: Date;
+  /**
+   * Pågår ett statusbyte på DENNA rad? Trådas ned från ApplicationsTable (som
+   * läser pendingIds-Set:et) — raden prenumererar aldrig själv, så
+   * memo(ApplicationsTableRow) skippar den vid andra raders byten (d4).
+   */
+  pending: boolean;
   selected: boolean;
   onToggleSelect: (id: string) => void;
 }
@@ -39,17 +44,16 @@ interface ApplicationsTableRowProps {
 export const ApplicationsTableRow = memo(function ApplicationsTableRow({
   application,
   now,
+  pending,
   selected,
   onToggleSelect,
 }: ApplicationsTableRowProps) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
   const format = useFormatter();
-  const { pendingIds } = useApplicationActions();
   const { defaultPrimaryFor } = useRowActions();
 
   const { jobAd, status } = application;
-  const pending = pendingIds.has(application.id);
   const contextId = useId();
 
   // #892: strukturell identitet + borttagen-markör (lockstep med List-raden).
@@ -126,7 +130,7 @@ export const ApplicationsTableRow = memo(function ApplicationsTableRow({
           </span>
           {/* Kompakt ▾-trigger (22×22, design §7) — fulltext-triggern svämmar
               över 200px-kolumnen på den bredaste taggen. */}
-          <StatusMenu application={application} compact />
+          <StatusMenu application={application} pending={pending} compact />
         </div>
       </td>
 

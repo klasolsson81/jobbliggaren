@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import type { ApplicationDto, ApplicationStatus } from "@/lib/dto/applications";
+import { useApplicationPending } from "./application-actions";
 import { ApplicationRow } from "./application-row";
 
 // Synliga rader per ÖPPEN statussektion innan "Visa fler" (design 2a §5). Enkel
@@ -43,6 +44,10 @@ export function StatusSection({
   forceOpen,
 }: StatusSectionProps) {
   const tUi = useTranslations("applications.ui");
+  // Läser pendingIds-Set:et och trådar ett per-rad `pending`-prop ned (d4). Denna
+  // sektion re-renderar vid ett statusbyte (billig map), men de memo-lindade
+  // raderna skippar utom den vars `pending` faktiskt flippade.
+  const pendingIds = useApplicationPending();
   const [openState, setOpenState] = useState(defaultOpen);
   const [expanded, setExpanded] = useState(false);
   const headRef = useRef<HTMLButtonElement>(null);
@@ -117,6 +122,7 @@ export function StatusSection({
                 key={application.id}
                 application={application}
                 now={now}
+                pending={pendingIds.has(application.id)}
               />
             ))}
           </div>

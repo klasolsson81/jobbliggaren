@@ -27,6 +27,7 @@ import {
   type TableSortKey,
 } from "@/lib/applications/table-sort";
 import type { ApplicationDto, ApplicationStatus } from "@/lib/dto/applications";
+import { useApplicationPending } from "./application-actions";
 import { ApplicationsTableRow } from "./applications-table-row";
 import { ApplicationsBulkBar } from "./applications-bulk-bar";
 import { ApplicationsPager } from "./applications-pager";
@@ -54,6 +55,11 @@ interface ApplicationsTableProps {
 export function ApplicationsTable({ rows, now }: ApplicationsTableProps) {
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
+  // Läser pendingIds-Set:et och trådar per-rad `pending` ned (d4). Tabellen
+  // re-renderar vid ett byte, men `sorted`-useMemon är cachad (sortnycklarna
+  // ändras inte) → ingen om-sortering, och memo(ApplicationsTableRow) skippar alla
+  // rader utom den togglade.
+  const pendingIds = useApplicationPending();
 
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -248,6 +254,7 @@ export function ApplicationsTable({ rows, now }: ApplicationsTableProps) {
                     key={application.id}
                     application={application}
                     now={now}
+                    pending={pendingIds.has(application.id)}
                     selected={selectedIds.has(application.id)}
                     onToggleSelect={toggleRow}
                   />

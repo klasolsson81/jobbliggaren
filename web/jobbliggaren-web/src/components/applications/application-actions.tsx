@@ -42,12 +42,6 @@ interface DialogState {
 
 export interface ApplicationActionsValue {
   /**
-   * Id:n med pågående statusbyte (disable:ar radens knappar). Ett SET — två
-   * överlappande byten på olika rader får inte återaktivera varandra i förtid
-   * (code-reviewer Minor 3).
-   */
-  pendingIds: ReadonlySet<string>;
-  /**
    * Direkt statusbyte (design §9 "direktbyten utan dialog"): persistas
    * omedelbart via den auditerade servern-actionen; vid framgång publiceras
    * ångra-toasten (ADR 0092 D3 — ångra är en kompenserande invers transition).
@@ -70,11 +64,42 @@ const ApplicationActionsContext = createContext<ApplicationActionsValue | null>(
   null,
 );
 
+/**
+ * pendingIds (id:n med pågående statusbyte, disable:ar radens knappar — ett SET
+ * så två överlappande byten på olika rader inte återaktiverar varandra i förtid)
+ * ligger i ett EGET context, SKILT från de stabila action-funktionerna ovan
+ * (perf-audit d4). Set:et byter identitet vid varje statusbyte (add + delete);
+ * hade det legat i samma value som funktionerna hade varenda `useApplicationActions`-
+ * konsument re-renderat två gånger per byte. Nu prenumererar bara vy-containrarna
+ * (StatusSection / ApplicationsTable / AttentionQueue / ApplicationBoardCard) på
+ * Set:et och trådar ett boolean `pending`-prop ned till de memo-lindade löven →
+ * vid ett byte re-renderar bara den togglade raden, aldrig hela listan.
+ */
+const ApplicationPendingContext = createContext<ReadonlySet<string> | null>(
+  null,
+);
+
 export function useApplicationActions(): ApplicationActionsValue {
   const value = useContext(ApplicationActionsContext);
   if (value == null) {
     throw new Error(
       "useApplicationActions must be used within <ApplicationActionsProvider>",
+    );
+  }
+  return value;
+}
+
+/**
+ * Prenumererar på pendingIds-Set:et (perf-audit d4). Anropas ENBART av
+ * vy-containrarna som trådar ett per-rad `pending`-prop till löven — aldrig av
+ * ett memo-lindat löv självt (då hade context-prenumerationen kringgått memon och
+ * re-renderat lövet vid varje statusbyte, vilket är precis defekten d4 stänger).
+ */
+export function useApplicationPending(): ReadonlySet<string> {
+  const value = useContext(ApplicationPendingContext);
+  if (value == null) {
+    throw new Error(
+      "useApplicationPending must be used within <ApplicationActionsProvider>",
     );
   }
   return value;
@@ -153,15 +178,17 @@ export function ApplicationActionsProvider({
     setDialog({ kind: "delete", application, top: null });
   }, []);
 
+  // Bara de stabila funktionerna — pendingIds är UTE ur denna value (d4). Alla
+  // deps är useCallback([]) → value:n är referens-stabil över öns livstid, så
+  // ingen `useApplicationActions`-konsument re-renderar vid ett statusbyte.
   const value = useMemo<ApplicationActionsValue>(
     () => ({
-      pendingIds,
       transition,
       openFinishDraft,
       openLogFollowUp,
       deleteApplication,
     }),
-    [pendingIds, transition, openFinishDraft, openLogFollowUp, deleteApplication],
+    [transition, openFinishDraft, openLogFollowUp, deleteApplication],
   );
 
   const closeDialog = (open: boolean) => {
@@ -170,7 +197,9 @@ export function ApplicationActionsProvider({
 
   return (
     <ApplicationActionsContext.Provider value={value}>
-      {children}
+      <ApplicationPendingContext.Provider value={pendingIds}>
+        {children}
+      </ApplicationPendingContext.Provider>
       {dialog?.kind === "finishDraft" && (
         <FinishDraftDialog
           open

@@ -15,7 +15,10 @@ import type {
   ApplicationDto,
   PipelineGroupDto,
 } from "@/lib/dto/applications";
-import { useApplicationActions } from "./application-actions";
+import {
+  useApplicationActions,
+  useApplicationPending,
+} from "./application-actions";
 import { ApplicationRow, type RowAction } from "./application-row";
 
 type FiringSignal = Exclude<ApplicationAttentionSignal, "None">;
@@ -71,6 +74,10 @@ export const AttentionQueue = memo(function AttentionQueue({
   const router = useRouter();
   const { transition, openFinishDraft, openLogFollowUp } =
     useApplicationActions();
+  // Trådar per-kort `pending` ned till ApplicationRow (d4). Kön är ≤4 synliga kort
+  // och re-renderar ändå per byte (cardActions ger nya action-identiteter), så
+  // vinsten här är sekundär mot list-/tabell-vyn — men löven kräver propet.
+  const pendingIds = useApplicationPending();
 
   const anchorY = (e: React.MouseEvent<HTMLButtonElement>): number =>
     e.clientY > 0 ? e.clientY : e.currentTarget.getBoundingClientRect().top;
@@ -193,6 +200,7 @@ export const AttentionQueue = memo(function AttentionQueue({
                   <ApplicationRow
                     application={card.application}
                     now={now}
+                    pending={pendingIds.has(card.application.id)}
                     primaryAction={actions.primary}
                     secondaryAction={actions.secondary ?? null}
                     showStatusMenu={false}

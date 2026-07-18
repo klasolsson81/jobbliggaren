@@ -66,7 +66,7 @@ public static partial class PersonnummerScanner
     //     globally before Scan, so a \p{Cf} INSIDE a digit group is flagged there; the redaction
     //     path must mask it too, so \p{Cf}* rides after every digit, and/or
     //   * up to TWO visible Unicode space separators or tabs ((?:[\p{Zs}\t]\p{Cf}*){0,2},
-    //     bounded {0,2} EXACTLY like PersonnummerTextNormalizer's {1,2} — a 3+ visible-column
+    //     bounded {0,2} EXACTLY like PersonnummerTextNormalizer's {0,2} — a 3+ visible-column
     //     gap is deliberately NOT bridged; a wider window would raise the chance of bridging
     //     two unrelated numbers, the reviewed accepted residual #427 V3), and/or
     //   * at most ONE separator per side, ADJACENT to the space run on either side

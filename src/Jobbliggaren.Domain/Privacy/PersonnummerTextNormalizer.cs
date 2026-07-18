@@ -50,7 +50,7 @@ public static partial class PersonnummerTextNormalizer
     // class is ASCII '-'/'+', any Unicode dash (\p{Pd}) or U+2212 MINUS (#497 — Word/PDF emit
     // these), so a realistic rendering of a legitimate separator — "811218- 9876" / "811218 -9876"
     // / a Unicode-dash spaced form — is bridged too. #665
-    // (STEG 1 härdning): the visible-space run is {0,2}, NOT {1,2}, so the TWO-separator
+    // (STEG 1 hardening): the visible-space run is {0,2}, NOT {1,2}, so the TWO-separator
     // ZERO-space form "811218--9876" is bridged too — the redaction path
     // (GapAwareCandidateRegex, sep? space{0,2} sep?) already masks it, but a MANDATORY space
     // meant the flag path could never reach it (a redaction-superset-of-flag false negative).
@@ -94,7 +94,7 @@ public static partial class PersonnummerTextNormalizer
 
         // Strip invisible zero-width noise first (#427 V2), then bridge the visible
         // \p{Zs}\t gap. Order matters: a "digits<ZWSP><NBSP>digits" form is only bridged
-        // once the zero-width char no longer sits inside the {1,2} space window.
+        // once the zero-width char no longer sits inside the {0,2} space window.
         var stripped = ZeroWidthFormatRegex().Replace(text, string.Empty);
         return SpacedCandidateRegex().Replace(stripped, "$1$2");
     }

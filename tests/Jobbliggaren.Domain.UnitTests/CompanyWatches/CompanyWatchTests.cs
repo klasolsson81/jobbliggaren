@@ -16,6 +16,7 @@ public class CompanyWatchTests
     private static readonly FakeDateTimeProvider Clock = FakeDateTimeProvider.Default;
     private static readonly Guid ValidUserId = Guid.NewGuid();
     private static readonly OrganizationNumber ValidOrgNr = OrganizationNumber.Create("5592804784").Value;
+    private static readonly BrandGroupId ValidBrandGroupId = BrandGroupId.Create("volvo-koncernen").Value;
 
     private static CompanyWatch FollowValid() =>
         CompanyWatch.Follow(ValidUserId, ValidOrgNr, Clock).Value;
@@ -33,6 +34,8 @@ public class CompanyWatchTests
         var watch = result.Value;
         watch.UserId.ShouldBe(ValidUserId);
         watch.OrganizationNumber.ShouldBe(ValidOrgNr);
+        // XOR side of the discriminator: an EMPLOYER watch carries no brand-group id.
+        watch.BrandGroupId.ShouldBeNull();
         watch.TargetType.ShouldBe(CompanyWatchTargetType.Employer);
         watch.CreatedAt.ShouldBe(Clock.UtcNow);
         watch.DeletedAt.ShouldBeNull();
@@ -55,6 +58,70 @@ public class CompanyWatchTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("CompanyWatch.OrganizationNumberRequired");
+    }
+
+    // ---------------------------------------------------------------
+    // FollowBrandGroup (#311 PR-5, ADR 0087 D4) — the BrandGroup XOR side
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void FollowBrandGroup_WithValidData_CreatesActiveBrandGroupWatch()
+    {
+        var result = CompanyWatch.FollowBrandGroup(ValidUserId, ValidBrandGroupId, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        var watch = result.Value;
+        watch.UserId.ShouldBe(ValidUserId);
+        watch.BrandGroupId.ShouldBe(ValidBrandGroupId);
+        // XOR side of the discriminator: a BRAND_GROUP watch carries no org.nr (the masking/scan
+        // paths must never treat a group watch as an employer follow).
+        watch.OrganizationNumber.ShouldBeNull();
+        watch.TargetType.ShouldBe(CompanyWatchTargetType.BrandGroup);
+        watch.CreatedAt.ShouldBe(Clock.UtcNow);
+        watch.DeletedAt.ShouldBeNull();
+        watch.Id.Value.ShouldNotBe(Guid.Empty);
+    }
+
+    [Fact]
+    public void FollowBrandGroup_WithEmptyUserId_Fails()
+    {
+        var result = CompanyWatch.FollowBrandGroup(Guid.Empty, ValidBrandGroupId, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("CompanyWatch.UserIdRequired");
+    }
+
+    [Fact]
+    public void FollowBrandGroup_WithNullBrandGroupId_Fails()
+    {
+        var result = CompanyWatch.FollowBrandGroup(ValidUserId, null!, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("CompanyWatch.BrandGroupIdRequired");
+    }
+
+    [Fact]
+    public void FollowBrandGroup_DoesNotBackfillToken_HasNoOrgNr()
+    {
+        // A group watch has no org.nr to tokenise — the #544 backfill must skip it (never NRE on
+        // the null org.nr) and report no conversion.
+        var watch = CompanyWatch.FollowBrandGroup(ValidUserId, ValidBrandGroupId, Clock).Value;
+
+        var converted = watch.ApplyOrganizationNumberTokenBackfill(
+            OrganizationNumber.FromTrusted("anytoken"));
+
+        converted.ShouldBeFalse();
+        watch.OrganizationNumber.ShouldBeNull();
+    }
+
+    // The enum is stored BY NAME (varchar(20)); a rename/reorder would silently corrupt persisted
+    // rows. Pin both the member name string and its numeric value.
+    [Fact]
+    public void CompanyWatchTargetType_BrandGroup_HasStableNameAndValue()
+    {
+        Enum.GetName(CompanyWatchTargetType.BrandGroup).ShouldBe("BrandGroup");
+        ((int)CompanyWatchTargetType.BrandGroup).ShouldBe(1);
+        ((int)CompanyWatchTargetType.Employer).ShouldBe(0);
     }
 
     // ---------------------------------------------------------------
@@ -240,7 +307,7 @@ public class CompanyWatchTests
 
         converted.ShouldBeTrue();
         watch.OrganizationNumber.ShouldBe(Token);
-        watch.OrganizationNumber.Value.ShouldBe(
+        watch.OrganizationNumber!.Value.ShouldBe(
             "91febfd18014665c2a686bb4e29c4400a806e46badb333758482bafa873f2e95");
     }
 

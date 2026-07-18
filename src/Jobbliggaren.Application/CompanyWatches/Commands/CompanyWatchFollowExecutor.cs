@@ -100,4 +100,62 @@ internal static class CompanyWatchFollowExecutor
 
         return Result.Success(watch.Id.Value);
     }
+
+    /// <summary>
+    /// #311 PR-5 (ADR 0087 D4) — the shared idempotent follow path for a BRAND_GROUP watch. Parity with
+    /// <see cref="FollowOrResurrectAsync"/> (the resurrect + unique-race mechanics), keyed on
+    /// <c>(UserId, BrandGroupId)</c>. No tokeniser and no dual-probe: a brand-group slug is public
+    /// curated data, never a personnummer, so there is exactly one at-rest form. Existence in the
+    /// catalogue is the caller's concern (the handler returns NotFound for an unknown slug).
+    /// </summary>
+    public static async Task<Result<Guid>> FollowBrandGroupOrResurrectAsync(
+        IAppDbContext db,
+        IDbExceptionInspector dbExceptionInspector,
+        Guid userId,
+        BrandGroupId brandGroupId,
+        IDateTimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        // IgnoreQueryFilters — a previously unfollowed (soft-deleted) group row must be FOUND so it can
+        // be resurrected (parity the employer path; the active-partial unique does not block a
+        // soft-deleted row). Tracked so a resurrect persists.
+        var existing = await db.CompanyWatches
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(
+                w => w.UserId == userId && w.BrandGroupId == brandGroupId,
+                cancellationToken);
+
+        if (existing is not null)
+        {
+            existing.Refollow(clock);
+            return Result.Success(existing.Id.Value);
+        }
+
+        var watchResult = CompanyWatch.FollowBrandGroup(userId, brandGroupId, clock);
+        if (watchResult.IsFailure)
+            return Result.Failure<Guid>(watchResult.Error);
+
+        var watch = watchResult.Value;
+        db.CompanyWatches.Add(watch);
+
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (dbExceptionInspector.IsUniqueConstraintViolation(ex))
+        {
+            // Race: a concurrent fresh follow of the same (user, brand group) won. Return the winner.
+            db.Detach(watch);
+
+            var winner = await db.CompanyWatches
+                .AsNoTracking()
+                .Where(w => w.UserId == userId && w.BrandGroupId == brandGroupId)
+                .Select(w => w.Id)
+                .FirstAsync(cancellationToken);
+
+            return Result.Success(winner.Value);
+        }
+
+        return Result.Success(watch.Id.Value);
+    }
 }

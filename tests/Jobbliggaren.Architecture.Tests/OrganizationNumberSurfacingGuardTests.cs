@@ -58,6 +58,12 @@ public class OrganizationNumberSurfacingGuardTests
     [
         "src/Jobbliggaren.Application/CompanyWatches/Jobs/CompanyWatchScan/CompanyWatchScanJob.cs",
         "src/Jobbliggaren.Application/CompanyWatches/Queries/ListCompanyWatches/ListCompanyWatchesQueryHandler.cs",
+        // #311 PR-5 (ADR 0087 D4 / #544 gap-closure) — the per-ad follow-state overlay reads each page
+        // ad's raw org.nr (via IJobAdEmployerReader) into scope to correlate it against the user's
+        // watches, and now tokenises it (the enskild token-probe channel). It is NEVER surfaced (the DTO
+        // is Guid? + bool, no org.nr member) nor logged; this scan makes that a build gate. It was a
+        // latent gap before PR-5 — the handler already read a raw org.nr but was not on this list.
+        "src/Jobbliggaren.Application/CompanyWatches/Queries/GetCompanyWatchStatusBatch/GetCompanyWatchStatusBatchQueryHandler.cs",
         // #544 (ADR 0090 D5) — the personnummer-token tokeniser reads a raw org.nr into scope: it
         // HMACs the verbatim plaintext value. It has no logging surface at all, so this scan proves it
         // never grows one.
@@ -200,6 +206,13 @@ public class OrganizationNumberSurfacingGuardTests
         // IRecruiterErasureMatchQuery a derived carrier-producing port, so the Api project can
         // never inject it around the handler's evidence derivation.
         typeof(Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds.ErasureRecentSearchMatch),
+        // #311 PR-5 (ADR 0087 D4): the curated brand-group's member org.nrs. Internal catalogue data —
+        // the members are public legal-entity (AB) org.nrs (the loader rejects personnummer-shaped ones
+        // fail-loud at host build), and they NEVER reach a Mediator response: the read handler resolves a
+        // group's DISPLAY NAME + summed counts into CompanyWatchDto, never the member list (ADR 0087 D4
+        // D5d). The walker below enforces that BrandGroup is unreachable from any response. A public
+        // read-endpoint for groups (FE-PR) would surface only id + display name + counts, never members.
+        typeof(Jobbliggaren.Application.CompanyWatches.Abstractions.BrandGroup),
     ];
 
     [Fact]

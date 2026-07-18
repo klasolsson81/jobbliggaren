@@ -9,8 +9,9 @@ import type {
 
 // Mock action-modulens exports (server-actions körs aldrig i jsdom).
 // suggestOccupationsFromParsedResumeAction + de två skill-actionerna behövs
-// eftersom den (alltid monterade) dialogen importerar OccupationSection +
-// SkillSection som refererar dem.
+// eftersom dialogen (code-split sedan #748, monteras vid första klicket) drar in
+// OccupationSection + SkillSection som refererar dem — de fokus-retur-testerna
+// nedan klickar upp dialogen.
 const {
   updateMock,
   cvSuggestMock,
@@ -384,5 +385,25 @@ describe("MatchPreferencesCard — tangentbord", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Lägg till" })).toHaveFocus()
     );
+  });
+});
+
+describe("fokus-retur när matchnings-dialogen stängs (#748, WCAG 2.4.3)", () => {
+  it("återlämnar fokus till 'Lägg till' efter close (aldrig till body)", async () => {
+    const user = userEvent.setup();
+    renderCard();
+
+    await user.click(screen.getByRole("button", { name: "Lägg till" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    // onCloseAutoFocus returnerar fokus till den öppnande knappen — utan den
+    // faller fokus till document.body (trigger-lös controlled Radix-dialog).
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Lägg till" })).toHaveFocus()
+    );
+    expect(document.body).not.toHaveFocus();
   });
 });

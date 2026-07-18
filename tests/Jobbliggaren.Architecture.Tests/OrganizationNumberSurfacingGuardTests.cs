@@ -61,21 +61,21 @@ public class OrganizationNumberSurfacingGuardTests
         // #544 (ADR 0090 D5) — the personnummer-token tokeniser reads a raw org.nr into scope: it
         // HMACs the verbatim plaintext value. It has no logging surface at all, so this scan proves it
         // never grows one.
-        //
-        // BackfillCompanyWatchOrgNrTokenJob ALSO reads a raw org.nr and BELONGS here — but it is
-        // deliberately NOT in the list yet (interim hold, dotnet-architect verdict 2026-07-18). Its
-        // counts-only [LoggerMessage] templates literally contain the tokens "OrgNr" (the class-name
-        // prefix) and "personnummer" (the "aldrig ett org.nr/personnummer i loggen" prose), so the
-        // blunt substring FindOrgNrLoggingFragments scan flags all 5 as false positives even though the
-        // job logs only counts/flags/opaque GUIDs. Fix = refine FindOrgNrLoggingFragments to flag a
-        // token only inside a {OrganizationNumber} template placeholder OR anywhere in a Log*/
-        // [LoggerMessage]-partial ARGUMENT list (the same template-vs-member split code-reviewer already
-        // forced for OrgNrTokens vs OrgNrMemberNameTokens below) — then add this path. That touches a
-        // fail-closed PII log-guard whose helper is SHARED with OrgNrRecordLoggingGuardTests, so it is
-        // gated on security-auditor APPROVE + senior-cto-advisor/Klas (§9.2/§12) and must not land
-        // unilaterally. Until then the guard stays green with the gap annotated (no live regression;
-        // the job is covered by its own integration tests + the ADR 0072 public-repo pepper rule).
         "src/Jobbliggaren.Infrastructure/Security/HmacProtectedIdentityTokenizer.cs",
+        // #544 follow-up (security-gated, 2026-07-18) — the KLAS-gated backfill ALSO reads a raw org.nr
+        // into scope (it HMACs the plaintext value in-process). It was held out of this list until
+        // FindOrgNrLoggingFragments was refined: the earlier block-wide substring scan false-positived on
+        // the job's OWN counts-only surface — its [LoggerMessage] Message prose carries the class-name
+        // prefix "…OrgNrToken" and the words "org.nr/personnummer" (the "aldrig ett org.nr/personnummer i
+        // loggen" reassurance), none of which is a {placeholder} or a logged argument. The scan now flags
+        // an org.nr token ONLY inside a {placeholder} of the Message template OR inside the ARGUMENT
+        // list of a Log*() call / generated [LoggerMessage]-partial declaration (the value carriers) —
+        // so this job's counts-only surface passes
+        // cleanly while a real {OrganizationNumber} placeholder or an org.nr-named argument is still
+        // caught (self-proving negatives Log_scan_flags_an_org_nr_logging_fragment +
+        // Log_scan_flags_an_org_nr_argument_under_a_token_free_template fire; the counts-only prose case
+        // Log_scan_does_not_flag_org_nr_tokens_in_prose_or_names does not).
+        "src/Jobbliggaren.Application/CompanyWatches/Jobs/BackfillCompanyWatchOrgNrToken/BackfillCompanyWatchOrgNrTokenJob.cs",
         // #444 (ADR 0087 D2 / ADR 0090 D1) — the employer application-history projection reads the
         // raw org.nr from the job_ads shadow column server-side to GROUP BY (masked + flagged before
         // it leaves the handler; never logged).
@@ -562,6 +562,64 @@ public class OrganizationNumberSurfacingGuardTests
     }
 
     [Fact]
+    public void Log_scan_does_not_flag_org_nr_tokens_in_prose_or_names()
+    {
+        // Self-proving POSITIVE (#544 follow-up 2026-07-18) — the placeholder-or-argument scoping's
+        // reason to exist. A counts-only logging surface whose org.nr tokens live ONLY in the Message
+        // PROSE, a class-name prefix, or the Log<Word> method name (none of which interpolates a runtime
+        // value) must NOT be flagged. This mirrors BackfillCompanyWatchOrgNrTokenJob's real surface —
+        // which is exactly why it can now join RawOrgNrReadingSourcePaths. The earlier block-wide
+        // substring scan flagged all of these (false positive); reverting the scoping reddens THIS test.
+        const string countsOnly = """
+            [LoggerMessage(EventId = 6161, Level = LogLevel.Information,
+                Message = "BackfillCompanyWatchOrgNrToken: startad — dryRun={DryRun}, max={Max}. "
+                    + "Counts only — aldrig ett org.nr/personnummer i loggen.")]
+            private static partial void LogStarted(ILogger logger, bool dryRun, int max);
+            // usage:
+            LogStarted(logger, dryRun, o.MaxItemsPerRun);
+            """;
+
+        OrgNrSurfaceScan.FindOrgNrLoggingFragments(countsOnly).ShouldBeEmpty(
+            "log-scannen får INTE flagga org.nr-token som bara står i Message-prosa, ett klassnamn-" +
+            "prefix eller ett Log<Word>-metodnamn — inget av dem bär ett runtime-värde. Bara ett " +
+            "{placeholder} eller ett loggat argument kan, och de flaggas fortfarande.");
+    }
+
+    [Fact]
+    public void Log_scan_flags_an_org_nr_argument_under_a_token_free_template()
+    {
+        // The ARGUMENT half of the scan, isolated: MEL logs an argument positionally, so a token-free
+        // template ("{Count}") over an org.nr-named argument is a real leak the placeholder scan alone
+        // would miss. The refinement must still flag it.
+        const string synthetic = """
+            logger.LogWarning("scanned {Count} employers", watch.OrganizationNumber.Value);
+            """;
+
+        OrgNrSurfaceScan.FindOrgNrLoggingFragments(synthetic).ShouldNotBeEmpty(
+            "ett org.nr-namngivet argument måste flaggas även under en token-fri mall — MEL loggar " +
+            "argumentet positionellt.");
+    }
+
+    [Fact]
+    public void Log_scan_flags_an_org_nr_placeholder_under_a_token_free_arg_list()
+    {
+        // Isolates the PLACEHOLDER branch (Arm 1) so deleting the placeholder loop reddens a test. The
+        // existing Log_scan_flags_an_org_nr_logging_fragment carries BOTH a {OrganizationNumber}
+        // placeholder AND an org.nr-named argument, so the argument scan alone keeps it green — the
+        // placeholder loop was exercised but not deletion-pinned (senior-cto-advisor 2026-07-18). Here
+        // the token lives ONLY in the {OrganizationNumber} placeholder; the partial declaration's arg
+        // list is token-free, so ONLY the placeholder scan can flag it.
+        const string synthetic = """
+            [LoggerMessage(Level = LogLevel.Information, Message = "scanned {OrganizationNumber}")]
+            private static partial void LogX(ILogger logger, string value);
+            """;
+
+        OrgNrSurfaceScan.FindOrgNrLoggingFragments(synthetic).ShouldNotBeEmpty(
+            "en {OrganizationNumber}-placeholder måste flaggas av placeholder-grenen även när arg-listan " +
+            "är token-fri — annars är placeholder-loopen oskyddad mot borttagning.");
+    }
+
+    [Fact]
     public void Raw_org_nr_reading_source_paths_all_exist()
     {
         // Pins every scanned source path — a moved/renamed source fails loud here instead of making
@@ -938,28 +996,51 @@ internal static class OrgNrSurfaceScan
                 || p.Name.Contains("Masked", StringComparison.Ordinal)));
 
     /// <summary>
-    /// Returns the logging fragments in <paramref name="source"/> (<c>[LoggerMessage]</c> attribute
-    /// blocks + <c>Log&lt;Word&gt;(...)</c> call/declaration sites) that reference an org.nr token. A
-    /// raw org.nr must never reach a log (ADR 0087 D8 / §5) — an org.nr placeholder in a template or a
-    /// org.nr-named argument in a Log call is reported. Non-logging references (e.g. the scan's
-    /// <c>EF.Property(..., "OrganizationNumber")</c> query, or doc comments) are NOT fragments and are
-    /// ignored.
+    /// Returns the logging fragments in <paramref name="source"/> that could put a raw org.nr in a log:
+    /// an org.nr token inside a <c>{placeholder}</c> of a <c>[LoggerMessage]</c> Message template, or
+    /// inside the ARGUMENT list of a <c>Log&lt;Word&gt;(...)</c> call / generated partial-method
+    /// declaration. A raw org.nr must never reach a log (ADR 0087 D8 / §5).
+    ///
+    /// <para>
+    /// <b>Scoped to the value carriers</b> — the <c>{placeholder}</c> and the argument list — NOT the
+    /// whole match. Message PROSE, a class-name prefix inside it, and the <c>Log&lt;Word&gt;</c> METHOD
+    /// NAME are compile-time constants that cannot interpolate a runtime value, so a token there is a
+    /// false positive. The earlier block-wide substring form flagged all of them, which false-positived
+    /// on the counts-only <c>BackfillCompanyWatchOrgNrTokenJob</c> (class-name prefix <c>…OrgNrToken</c>
+    /// + the prose "aldrig ett org.nr/personnummer i loggen" in its Message templates, while it logs
+    /// only counts/GUIDs). Same template-vs-member split as <see cref="OrgNrTokens"/> (log) vs
+    /// <see cref="OrgNrMemberNameTokens"/> (member name). A real <c>{OrganizationNumber}</c> placeholder
+    /// or an org.nr-named argument is still caught; non-logging references (the scan's own
+    /// <c>EF.Property(..., "OrganizationNumber")</c> query, doc comments) are ignored as before. The
+    /// scan is a strict NARROWING of the old form (it can only flag a subset), so no already-green
+    /// source path can regress.
+    /// </para>
     /// </summary>
     internal static IReadOnlyList<string> FindOrgNrLoggingFragments(string source)
     {
         var fragments = new List<string>();
 
-        // [LoggerMessage( ... )] attribute blocks (contain the Message = "..." template).
-        foreach (Match m in Regex.Matches(source, @"\[LoggerMessage\b[^\]]*\]"))
-            fragments.Add(m.Value);
+        // [LoggerMessage(...)] templates — flag an org.nr token ONLY inside a {placeholder} of the
+        // Message string (the sole interpolation point), never the surrounding prose or a class-name
+        // prefix (compile-time constants that carry no runtime value).
+        foreach (Match block in Regex.Matches(source, @"\[LoggerMessage\b[^\]]*\]"))
+        {
+            foreach (Match placeholder in Regex.Matches(block.Value, @"\{[^{}]*\}"))
+            {
+                if (OrgNrTokens.Any(tok => placeholder.Value.Contains(tok, StringComparison.OrdinalIgnoreCase)))
+                    fragments.Add(placeholder.Value);
+            }
+        }
 
-        // Log<Word>( ... ) call sites AND generated partial-method declarations (arg/param list up to
-        // the first ')' — a logging call/declaration never crosses a ';').
-        foreach (Match m in Regex.Matches(source, @"\bLog[A-Z]\w*\([^;)]*\)"))
-            fragments.Add(m.Value);
+        // Log<Word>(...) call sites AND generated partial-method declarations — flag an org.nr token in
+        // the ARGUMENT list only (the logged values/params), never the Log<Word> method name. A logging
+        // call/declaration never crosses a ';', so [^;)]* bounds the arg list.
+        foreach (Match call in Regex.Matches(source, @"\bLog[A-Z]\w*\(([^;)]*)\)"))
+        {
+            if (OrgNrTokens.Any(tok => call.Groups[1].Value.Contains(tok, StringComparison.OrdinalIgnoreCase)))
+                fragments.Add(call.Value);
+        }
 
-        return fragments
-            .Where(f => OrgNrTokens.Any(tok => f.Contains(tok, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
+        return fragments;
     }
 }

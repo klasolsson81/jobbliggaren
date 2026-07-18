@@ -58,6 +58,12 @@ public class OrganizationNumberSurfacingGuardTests
     [
         "src/Jobbliggaren.Application/CompanyWatches/Jobs/CompanyWatchScan/CompanyWatchScanJob.cs",
         "src/Jobbliggaren.Application/CompanyWatches/Queries/ListCompanyWatches/ListCompanyWatchesQueryHandler.cs",
+        // #311 PR-5 (ADR 0087 D4 / #544 gap-closure) — the per-ad follow-state overlay reads each page
+        // ad's raw org.nr (via IJobAdEmployerReader) into scope to correlate it against the user's
+        // watches, and now tokenises it (the enskild token-probe channel). It is NEVER surfaced (the DTO
+        // is Guid? + bool, no org.nr member) nor logged; this scan makes that a build gate. It was a
+        // latent gap before PR-5 — the handler already read a raw org.nr but was not on this list.
+        "src/Jobbliggaren.Application/CompanyWatches/Queries/GetCompanyWatchStatusBatch/GetCompanyWatchStatusBatchQueryHandler.cs",
         // #544 (ADR 0090 D5) — the personnummer-token tokeniser reads a raw org.nr into scope: it
         // HMACs the verbatim plaintext value. It has no logging surface at all, so this scan proves it
         // never grows one.

@@ -141,6 +141,11 @@ public sealed partial class CompanyWatchScanJob(
         var enskildWatchByKey = new Dictionary<string, CompanyWatch>(StringComparer.Ordinal);
         foreach (var w in activeWatches)
         {
+            // BRAND_GROUP watches (null org.nr) are not org.nr-keyed — group expansion lands in PR-5
+            // Commit 3. Until then a group watch cannot exist at runtime (no write path yet); this
+            // guard preserves employer-only behaviour and keeps the partition null-safe.
+            if (w.OrganizationNumber is null)
+                continue;
             if (w.OrganizationNumber.IsPersonnummerShaped())
                 enskildWatchByKey[w.OrganizationNumber.Value] = w; // key = token (or legacy raw pnr)
             else

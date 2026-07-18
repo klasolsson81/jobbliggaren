@@ -80,7 +80,7 @@ public sealed class ListCompanyWatchesQueryHandler(
         // DTO output is unchanged from the plaintext era, only the at-rest storage differs.
         // IsPersonnummerShaped is the SSOT discriminator (B2): a token → true (length≠10), AB → false.
         var plaintextByEnskildKey = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (watches.Any(w => w.OrganizationNumber.IsPersonnummerShaped()))
+        if (watches.Any(w => w.OrganizationNumber?.IsPersonnummerShaped() == true))
         {
             // The pnr-shaped job_ads org.nrs (translatable SUPERSET of IsPersonnummerShaped:
             // Length==10 AND 3rd digit 0/1). The IDENTICAL prefilter lives in CompanyWatchScanJob,
@@ -120,11 +120,15 @@ public sealed class ListCompanyWatchesQueryHandler(
 
         // Resolve each watch to the PLAINTEXT org.nr the projections key on. AB → itself; enskild → the
         // resolved plaintext, or null when no active ad currently carries that employer.
+        // A BRAND_GROUP watch (null org.nr) resolves to no org.nr here — its catalogue-driven name and
+        // member-summed counts land in PR-5 Commit 5. Until then a group watch cannot exist at runtime.
         var resolvedByWatchId = watches.ToDictionary(
             w => w.Id,
-            w => w.OrganizationNumber.IsPersonnummerShaped()
-                ? plaintextByEnskildKey.GetValueOrDefault(w.OrganizationNumber.Value)
-                : w.OrganizationNumber.Value);
+            w => w.OrganizationNumber is null
+                ? null
+                : w.OrganizationNumber.IsPersonnummerShaped()
+                    ? plaintextByEnskildKey.GetValueOrDefault(w.OrganizationNumber.Value)
+                    : w.OrganizationNumber.Value);
         var resolvedPlaintexts = resolvedByWatchId.Values
             .Where(p => p is not null).Select(p => p!).Distinct().ToList();
         var orgNrs = resolvedPlaintexts.Select(o => (string?)o).ToList();
@@ -177,14 +181,15 @@ public sealed class ListCompanyWatchesQueryHandler(
         return watches
             .Select(w =>
             {
-                var isProtected = w.OrganizationNumber.IsPersonnummerShaped();
+                var isProtected = w.OrganizationNumber?.IsPersonnummerShaped() == true;
                 // #544: the projections key on the resolved PLAINTEXT org.nr (AB → itself; enskild →
                 // the token's resolved plaintext, or null when no active ad carries that employer).
                 var resolved = resolvedByWatchId[w.Id];
                 return new CompanyWatchDto(
                     Id: w.Id.Value,
-                    // FORK C1 / D8(c): never surface a personnummer-shaped org.nr (nor its token).
-                    OrganizationNumber: isProtected ? null : w.OrganizationNumber.Value,
+                    // FORK C1 / D8(c): never surface a personnummer-shaped org.nr (nor its token). A
+                    // group watch has no org.nr (null).
+                    OrganizationNumber: isProtected ? null : w.OrganizationNumber?.Value,
                     IsProtectedIdentity: isProtected,
                     // Name resolves at READ from public job_ads (ADR 0087 D3 / B3 — no snapshot),
                     // unchanged from the plaintext era via the token→plaintext resolution above.

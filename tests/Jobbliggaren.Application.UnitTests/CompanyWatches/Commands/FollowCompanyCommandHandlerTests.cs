@@ -41,7 +41,7 @@ public class FollowCompanyCommandHandlerTests
         result.IsSuccess.ShouldBeTrue();
         var watch = await db.CompanyWatches.SingleAsync(ct);
         watch.UserId.ShouldBe(_userId);
-        watch.OrganizationNumber.Value.ShouldBe(OrgNr);
+        watch.OrganizationNumber!.Value.ShouldBe(OrgNr);
         watch.DeletedAt.ShouldBeNull();
         result.Value.ShouldBe(watch.Id.Value);
     }

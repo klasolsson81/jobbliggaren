@@ -37,8 +37,12 @@ public sealed class GetCompanyWatchStatusBatchQueryHandler(
             .Where(w => w.UserId == userId)
             .ToListAsync(cancellationToken);
 
+        // Only EMPLOYER watches (non-null org.nr) correlate by org.nr here. BRAND_GROUP watches
+        // (null org.nr) get their member-org.nr correlation in PR-5 Commit 6, which also closes the
+        // #544 token-blindness this handler still carries; until then a group watch cannot exist.
         var companyWatchIdByOrgNr = watches
-            .GroupBy(w => w.OrganizationNumber.Value)
+            .Where(w => w.OrganizationNumber is not null)
+            .GroupBy(w => w.OrganizationNumber!.Value)
             .ToDictionary(g => g.Key, g => g.First().Id.Value);
 
         // org.nr per requested ad, resolved server-side (raw org.nr stays here, never surfaced).

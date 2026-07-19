@@ -52,19 +52,38 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
 {
     private readonly ApiFactory _factory = factory;
 
-    // The q-search shape ListJobAds actually emits: the status gate (JobAdSearchComposition.ApplyFilter:65
-    // — the SPOT, ADR 0032-amendment 2026-05-23) AND a DISJUNCTION of the FTS branch and the title-trigram
-    // substring fallback. Postgres serves it as a BitmapOr over BOTH GIN indexes, so this one query is the
-    // oracle for both. Mirrors Jobbliggaren.Migrate --explain-search.
+    // The q-search DISJUNCTION ListJobAds emits: the FTS branch OR the title-trigram substring fallback,
+    // served as a BitmapOr over BOTH GIN indexes — this one query is the oracle for both. Mirrors the
+    // disjunction in JobAdSearchComposition.ApplyFilter / Jobbliggaren.Migrate --explain-search.
+    //
+    // Deliberately WITHOUT the `status='Active'` conjunct that production ALSO emits (ApplyFilter SPOT).
+    // #743 added ix_job_ads_status_published_at_id, whose leading `status` key gives that conjunct its own
+    // Index Cond; on the empty Testcontainers table the planner then serves the whole query via that btree
+    // and never reaches the GINs — collapsing this oracle's power to prove GIN predicate-implication. The
+    // status conjunct is ORTHOGONAL to whether the FTS/title-trigram GINs are usable for their arms; its
+    // index-servability is proven separately by
+    // DefaultBrowseSort_IsIndexServedForBothFilterAndOrder_NoSeqScanNoSort. This
+    // is the file's "shape production emits" rule APPLIED, not broken: the disjunction is verbatim
+    // production (same operators, same form) and isolating it proves exactly the #821 property this file
+    // owns — keeping the orthogonal conjunct would only let the oracle go green via a different index.
     private const string QSearchSql =
-        "SELECT id FROM job_ads WHERE status = 'Active' " +
-        "AND (search_vector @@ websearch_to_tsquery('swedish', 'lärare') " +
+        "SELECT id FROM job_ads WHERE (search_vector @@ websearch_to_tsquery('swedish', 'lärare') " +
         "OR lower(title) LIKE '%lärare%')";
 
-    // SuggestJobAdTermsQueryHandler:37-44 — status-gated, left-anchored LIKE with an explicit ESCAPE.
+    // SuggestJobAdTermsQueryHandler:37-44 — left-anchored LIKE with an explicit ESCAPE. WITHOUT the
+    // production `status='Active'` conjunct, same reason as QSearchSql: #743's status index would otherwise
+    // serve that conjunct on empty data and mask whether the title prefix/trigram index is usable.
     private const string SuggestSql =
-        @"SELECT title FROM job_ads WHERE status = 'Active' " +
-        @"AND lower(title) LIKE 'lärar%' ESCAPE '\'";
+        @"SELECT title FROM job_ads WHERE lower(title) LIKE 'lärar%' ESCAPE '\'";
+
+    // #743 — the default no-facet /jobb browse ITEMS query production emits: status = 'Active'
+    // (JobAdSearchComposition.ApplyFilter SPOT) + PublishedAtDesc sort (ApplySort:263 —
+    // `ORDER BY published_at DESC, id`) + the page window (LIMIT = ListJobAdsQuery.PageSize default 20).
+    // The projection columns don't change the scan/sort nodes, so this pins the filter+order shape that
+    // determines index-servability.
+    private const string BrowseSortSql =
+        "SELECT id FROM job_ads WHERE status = 'Active' " +
+        "ORDER BY published_at DESC, id LIMIT 20";
 
     [Fact]
     public async Task QSearch_IsServedByBothTheFtsAndTitleTrigramIndexes()
@@ -109,6 +128,31 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
         indexServed.ShouldBeTrue(
             "title-suggest was served by neither the btree prefix index nor the title trigram index. " +
             $"Plan:\n{plan}");
+    }
+
+    [Fact]
+    public async Task DefaultBrowseSort_IsIndexServedForBothFilterAndOrder_NoSeqScanNoSort()
+    {
+        // #743 — the browse-sort index (status, published_at DESC, id) must serve BOTH halves of the most-
+        // hit anonymous query: the status='Active' filter AND the published_at DESC, id ORDER BY. Before it,
+        // job_ads had zero index on those columns → Seq Scan + top-N heapsort of ~42k active rows per page.
+        var ct = TestContext.Current.CancellationToken;
+        var plan = await ExplainWithoutSeqScanAsync(BrowseSortSql, ct);
+
+        // Filter half: with seqscan priced at ~1e10 a surviving Seq Scan proves the index is UNUSABLE for
+        // this query (the #821 predicate-implication failure mode), not merely un-preferred.
+        plan.ShouldNotContain("Seq Scan on job_ads", Case.Insensitive,
+            $"the default browse CANNOT use an index for its status filter — Seq Scan survived. Plan:\n{plan}");
+
+        // Order half: the index's column order (status asc, published_at DESC, id asc) must yield the page
+        // window already sorted. A surviving Sort / Incremental Sort node means the index serves only the
+        // filter and the ~42k-row heapsort is still there — the whole point of #743 unmet.
+        plan.ShouldNotContain("Sort", Case.Insensitive,
+            $"the browse-sort index does not serve the ORDER BY — a Sort node survived, so the top-N heapsort " +
+            $"is still paid on every page view. Plan:\n{plan}");
+
+        plan.ShouldContain("ix_job_ads_status_published_at_id", Case.Insensitive,
+            $"the default browse was not served by the #743 browse-sort index. Plan:\n{plan}");
     }
 
     private async Task<string> ExplainWithoutSeqScanAsync(string sql, CancellationToken ct)

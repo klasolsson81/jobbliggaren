@@ -186,6 +186,34 @@ public class JobAdIndexOracleTests(ApiFactory factory)
             "2026-05-21, re-armed. See #821 Q2.");
     }
 
+    [Fact]
+    public async Task BrowseSortIndex_ExistsPredicateFreeBtreeOverStatusPublishedAtDescId()
+    {
+        // #743 — the default-browse-sort index. Fluent HasIndex (not raw SQL) so the model snapshot tracks
+        // it and a future scaffold can never silently drop it (unlike the RebuiltIndexes above). Asserts the
+        // shape empirically from pg_indexes.indexdef, not the form we wrote.
+        var ct = TestContext.Current.CancellationToken;
+        var def = await ReadIndexDefAsync("ix_job_ads_status_published_at_id", ct);
+
+        def.ShouldNotBeNull(
+            "ix_job_ads_status_published_at_id is MISSING — the default /jobb browse (status='Active' + " +
+            "PublishedAt DESC, Id) would seq-scan + top-N-heapsort every active row per page view. See #743.");
+
+        // btree over the three columns in ORDER-BY order, published_at DESC so the range scan is pre-sorted.
+        def!.ShouldContain("USING btree", Case.Insensitive, $"wrong access method. Actual:\n{def}");
+        def.ShouldContain("status", Case.Insensitive, $"missing status key column. Actual:\n{def}");
+        def.ShouldContain("published_at DESC", Case.Insensitive,
+            $"published_at must be DESC (mirrors the ORDER BY) or the scan is not pre-sorted. Actual:\n{def}");
+        def.ShouldContain("id", Case.Insensitive, $"missing id tiebreak column. Actual:\n{def}");
+
+        // #821 Q2 — predicate-free. `status` is a KEY column here, never a partial WHERE predicate: a
+        // lifecycle-derived predicate can drift from the query's WHERE and go silently UNUSABLE (the
+        // 35-50 s bug of 2026-05-21). A key column cannot drift.
+        def.ShouldNotContain(" WHERE ", Case.Insensitive,
+            $"ix_job_ads_status_published_at_id grew a partial predicate — #821 Q2 bans lifecycle-derived " +
+            $"index predicates on job_ads. Use status as a key column, not a WHERE. Actual:\n{def}");
+    }
+
     private async Task<string?> ReadIndexDefAsync(string indexName, CancellationToken ct)
     {
         using var scope = _factory.Services.CreateScope();

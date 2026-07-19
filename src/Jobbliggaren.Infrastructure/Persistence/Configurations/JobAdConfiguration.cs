@@ -256,6 +256,23 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         // see RetireJobAdDeletedAtAxis. Do not reintroduce a lifecycle-derived index
         // predicate: F6P4aJobAdTrigramIndexPredicateFix cost ~35-50 s of seq scan when an
         // index predicate and a query predicate drifted apart.
+
+        // #743 — the default no-facet /jobb browse (the most-hit anonymous query) filters
+        // `status = 'Active'` (ApplyFilter SPOT) and sorts `PublishedAt DESC, Id` (ApplySort),
+        // over a table with no index on those columns → seq scan + top-N heapsort of ~42k active
+        // rows per page view. This composite serves BOTH the filter and the order: `status` is a
+        // KEY column (equality-seek into the Active partition), NOT a partial WHERE predicate — so
+        // it is #821-Q2-compliant (the ban is on lifecycle-derived *predicates* that can drift from
+        // the query; a key column cannot drift, the planner proves usability at plan time). Column
+        // order mirrors the ORDER BY exactly (status asc, published_at DESC, id asc) so the range
+        // scan yields the page window already sorted — no Sort node. Fluent (not raw-SQL) so the
+        // model snapshot tracks it and a future scaffold can never silently drop it. The ExpiresAt
+        // alt-sorts are a cold path needing an `(expires_at IS NULL)`-first expression index and are
+        // deliberately NOT indexed here (SoC; raise a follow-up only if measured hot).
+        builder.HasIndex(j => new { j.Status, j.PublishedAt, j.Id })
+            .IsDescending(false, true, false)
+            .HasDatabaseName("ix_job_ads_status_published_at_id");
+
         builder.Ignore(j => j.DomainEvents);
     }
 }

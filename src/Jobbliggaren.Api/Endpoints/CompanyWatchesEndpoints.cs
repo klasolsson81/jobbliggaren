@@ -6,6 +6,7 @@ using Jobbliggaren.Application.CompanyWatches.Commands.MarkFollowedCompanyAdSeen
 using Jobbliggaren.Application.CompanyWatches.Commands.SetCompanyWatchFilter;
 using Jobbliggaren.Application.CompanyWatches.Commands.UnfollowCompany;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCompanyWatchStatusBatch;
+using Jobbliggaren.Application.CompanyWatches.Queries.GetCompanyWatchStatusByOrgNrBatch;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatches;
 using Mediator;
 
@@ -28,6 +29,19 @@ public static class CompanyWatchesEndpoints
 {
     /// <summary>#455 follow-state batch request. <c>JobAdIds</c> is a page of ids (validator caps at 100).</summary>
     public sealed record CompanyWatchStatusBatchRequest(IReadOnlyList<Guid> JobAdIds);
+
+    /// <summary>
+    /// #560 PR-C — org.nr-keyed follow-state batch request for <c>/foretag/sok</c>. The org.nrs travel in
+    /// the BODY, never a URL path (D8(c) — a sole-prop org.nr can be a personnummer, and a URL is logged
+    /// un-flagged by infra we don't control). The nullable list is tolerated on the wire and coalesced to
+    /// empty in the send. The redacting <see cref="ToString"/> keeps the org.nrs out of logs
+    /// (<c>OrgNrRecordLoggingGuardTests</c>, behavioral); validator caps at 100.
+    /// </summary>
+    public sealed record CompanyWatchStatusByOrgNrBatchRequest(IReadOnlyList<string>? OrganizationNumbers)
+    {
+        public override string ToString() =>
+            $"CompanyWatchStatusByOrgNrBatchRequest(Count={OrganizationNumbers?.Count ?? 0})";
+    }
 
     /// <summary>
     /// Bevakning F4a (#803) — the watch's full filter selection. The two geo lists are DISJOINT
@@ -97,6 +111,18 @@ public static class CompanyWatchesEndpoints
         {
             var result = await mediator.Send(
                 new GetCompanyWatchStatusBatchQuery(body.JobAdIds ?? []), ct);
+            return Results.Ok(result);
+        }).RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // #560 PR-C — org.nr-keyed follow-state overlay for /foretag/sok (the search caller already holds
+        // each row's unmasked org.nr, so no job-ad hop). org.nrs in the BODY (D8(c), never a path). The
+        // response is POSITIONAL (1:1 with the request order) and carries NO org.nr. Same MeListReadPolicy
+        // as /status — a light per-user read of company_watches only (firewalled off company_register).
+        group.MapPost("/status/by-org-nr", async (
+            CompanyWatchStatusByOrgNrBatchRequest body, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(
+                new GetCompanyWatchStatusByOrgNrBatchQuery(body.OrganizationNumbers ?? []), ct);
             return Results.Ok(result);
         }).RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 

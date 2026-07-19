@@ -428,6 +428,16 @@ public class OrgNrRecordLoggingGuardTests
                 Jobbliggaren.Application.CompanyRegister.Abstractions.CompanyRegisterSearchCriteria
                     .FromTrusted([], [], null, Sentinel, 1, 20).ToString(),
                 "CompanyRegisterSearchCriteria"),
+            // #560 company-search wave PR-C — the org.nr-keyed follow-state carriers: the Application
+            // query record (client-supplied org.nr list) and the Api request body. Both redact their
+            // ToString() to the non-PII count; this proves the override does not print a member org.nr.
+            (typeof(Jobbliggaren.Application.CompanyWatches.Queries.GetCompanyWatchStatusByOrgNrBatch.GetCompanyWatchStatusByOrgNrBatchQuery),
+                new Jobbliggaren.Application.CompanyWatches.Queries.GetCompanyWatchStatusByOrgNrBatch
+                    .GetCompanyWatchStatusByOrgNrBatchQuery([Sentinel]).ToString(),
+                "GetCompanyWatchStatusByOrgNrBatchQuery"),
+            (typeof(CompanyWatchesEndpoints.CompanyWatchStatusByOrgNrBatchRequest),
+                new CompanyWatchesEndpoints.CompanyWatchStatusByOrgNrBatchRequest([Sentinel]).ToString(),
+                "CompanyWatchStatusByOrgNrBatchRequest"),
         };
 
         // F3 — the private, personnummer-capable Infrastructure projection record. Reflection reaches it

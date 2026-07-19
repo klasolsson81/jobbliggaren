@@ -43,9 +43,33 @@ describe("CompanyFollowButton", () => {
       />
     );
     expect(
-      screen.getByRole("button", { name: `Sluta bevaka ${COMPANY}` })
+      screen.getByRole("button", { name: `Bevakar ${COMPANY}` })
     ).toBeInTheDocument();
     expect(screen.getByText("Bevakar")).toBeInTheDocument();
+  });
+
+  it("keeps the visible label word inside the accessible name in both states (WCAG 2.5.3)", () => {
+    // Fresh mounts, not rerender: `following` seeds from the prop via useState (mount-only), so a
+    // rerender with a new prop would not flip state.
+    const { unmount } = render(
+      <CompanyFollowButton
+        orgNr={ORG_NR}
+        companyName={COMPANY}
+        initialCompanyWatchId={null}
+      />
+    );
+    // Not following: visible "Bevaka" is contained in the accessible name "Bevaka {company}".
+    expect(screen.getByRole("button")).toHaveAccessibleName(`Bevaka ${COMPANY}`);
+    unmount();
+    render(
+      <CompanyFollowButton
+        orgNr={ORG_NR}
+        companyName={COMPANY}
+        initialCompanyWatchId="cw1"
+      />
+    );
+    // Following: visible "Bevakar" is contained in "Bevakar {company}" — never "Sluta bevaka …".
+    expect(screen.getByRole("button")).toHaveAccessibleName(`Bevakar ${COMPANY}`);
   });
 
   it("calls followCompanyAction with the org.nr and flips to following", async () => {
@@ -76,7 +100,7 @@ describe("CompanyFollowButton", () => {
     );
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: `Sluta bevaka ${COMPANY}` }));
+    await user.click(screen.getByRole("button", { name: `Bevakar ${COMPANY}` }));
 
     expect(unfollowActionMock).toHaveBeenCalledWith("cw1");
     expect(await screen.findByText("Bevaka")).toBeInTheDocument();
@@ -118,7 +142,7 @@ describe("CompanyFollowButton", () => {
     );
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: `Sluta bevaka ${COMPANY}` }));
+    await user.click(screen.getByRole("button", { name: `Bevakar ${COMPANY}` }));
 
     expect(
       await screen.findByText(/Kunde inte sluta bevaka företaget/i)
@@ -141,7 +165,7 @@ describe("CompanyFollowButton", () => {
     await user.click(screen.getByRole("button", { name: `Bevaka ${COMPANY}` }));
     await screen.findByText("Bevakar");
 
-    await user.click(screen.getByRole("button", { name: `Sluta bevaka ${COMPANY}` }));
+    await user.click(screen.getByRole("button", { name: `Bevakar ${COMPANY}` }));
 
     expect(unfollowActionMock).toHaveBeenCalledWith("cw-resolved");
     expect(await screen.findByText("Bevaka")).toBeInTheDocument();

@@ -20,7 +20,7 @@ describe("SaveJobAdToggle", () => {
   it("renders 'Spara' when initialSaved is false", () => {
     render(<SaveJobAdToggle jobAdId="j1" initialSaved={false} />);
     expect(
-      screen.getByRole("button", { name: /Spara annonsen som bokmärke/i })
+      screen.getByRole("button", { name: "Spara" })
     ).toBeInTheDocument();
     expect(screen.getByText("Spara")).toBeInTheDocument();
   });
@@ -28,7 +28,7 @@ describe("SaveJobAdToggle", () => {
   it("renders 'Sparad' when initialSaved is true", () => {
     render(<SaveJobAdToggle jobAdId="j1" initialSaved={true} />);
     expect(
-      screen.getByRole("button", { name: /Ta bort bokmärke för annonsen/i })
+      screen.getByRole("button", { name: "Sparad" })
     ).toBeInTheDocument();
     expect(screen.getByText("Sparad")).toBeInTheDocument();
   });
@@ -39,7 +39,7 @@ describe("SaveJobAdToggle", () => {
 
     const user = userEvent.setup();
     await user.click(
-      screen.getByRole("button", { name: /Spara annonsen som bokmärke/i })
+      screen.getByRole("button", { name: "Spara" })
     );
 
     expect(saveActionMock).toHaveBeenCalledWith("j1");
@@ -52,7 +52,7 @@ describe("SaveJobAdToggle", () => {
 
     const user = userEvent.setup();
     await user.click(
-      screen.getByRole("button", { name: /Ta bort bokmärke för annonsen/i })
+      screen.getByRole("button", { name: "Sparad" })
     );
 
     expect(unsaveActionMock).toHaveBeenCalledWith("j1");
@@ -68,7 +68,7 @@ describe("SaveJobAdToggle", () => {
 
     const user = userEvent.setup();
     await user.click(
-      screen.getByRole("button", { name: /Spara annonsen som bokmärke/i })
+      screen.getByRole("button", { name: "Spara" })
     );
 
     expect(
@@ -76,5 +76,31 @@ describe("SaveJobAdToggle", () => {
     ).toBeInTheDocument();
     // Tillbaka till "Spara" efter rollback
     expect(screen.getByText("Spara")).toBeInTheDocument();
+  });
+
+  it("default variant's accessible name is the visible label (WCAG 2.5.3)", () => {
+    // Fresh mounts, not rerender: `saved` seeds mount-only from the prop via useState.
+    const { unmount } = render(
+      <SaveJobAdToggle jobAdId="j1" initialSaved={false} />
+    );
+    expect(screen.getByRole("button")).toHaveAccessibleName("Spara");
+    unmount();
+    render(<SaveJobAdToggle jobAdId="j1" initialSaved={true} />);
+    // Saved: visible "Sparad" is the accessible name (previously "Ta bort bokmärke…" — a 2.5.3 break).
+    expect(screen.getByRole("button")).toHaveAccessibleName("Sparad");
+  });
+
+  it("keeps an aria-label on the icon-only compact variant (no visible text → 2.5.3 N/A)", () => {
+    const { unmount } = render(
+      <SaveJobAdToggle jobAdId="j1" initialSaved={false} variant="compact" />
+    );
+    expect(screen.getByRole("button")).toHaveAccessibleName(
+      "Spara annonsen som bokmärke"
+    );
+    unmount();
+    render(<SaveJobAdToggle jobAdId="j1" initialSaved={true} variant="compact" />);
+    expect(screen.getByRole("button")).toHaveAccessibleName(
+      "Ta bort bokmärke för annonsen"
+    );
   });
 });

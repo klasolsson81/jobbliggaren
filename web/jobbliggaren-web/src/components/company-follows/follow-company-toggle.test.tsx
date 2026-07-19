@@ -20,7 +20,7 @@ describe("FollowCompanyToggle", () => {
   it("renders 'Bevaka företaget' when not following", () => {
     render(<FollowCompanyToggle jobAdId="j1" initialCompanyWatchId={null} />);
     expect(
-      screen.getByRole("button", { name: /Bevaka det här företaget/i })
+      screen.getByRole("button", { name: "Bevaka företaget" })
     ).toBeInTheDocument();
     expect(screen.getByText("Bevaka företaget")).toBeInTheDocument();
   });
@@ -28,9 +28,20 @@ describe("FollowCompanyToggle", () => {
   it("renders 'Bevakar företaget' when already following", () => {
     render(<FollowCompanyToggle jobAdId="j1" initialCompanyWatchId="cw1" />);
     expect(
-      screen.getByRole("button", { name: /Sluta bevaka det här företaget/i })
+      screen.getByRole("button", { name: "Bevakar företaget" })
     ).toBeInTheDocument();
     expect(screen.getByText("Bevakar företaget")).toBeInTheDocument();
+  });
+
+  it("uses the visible label as the accessible name in both states (WCAG 2.5.3, no divergent aria verb)", () => {
+    // Fresh mounts, not rerender: `following` seeds from the prop via useState (mount-only).
+    const { unmount } = render(
+      <FollowCompanyToggle jobAdId="j1" initialCompanyWatchId={null} />
+    );
+    expect(screen.getByRole("button")).toHaveAccessibleName("Bevaka företaget");
+    unmount();
+    render(<FollowCompanyToggle jobAdId="j1" initialCompanyWatchId="cw1" />);
+    expect(screen.getByRole("button")).toHaveAccessibleName("Bevakar företaget");
   });
 
   it("calls followCompanyFromJobAdAction with the jobAdId and flips to following", async () => {
@@ -39,7 +50,7 @@ describe("FollowCompanyToggle", () => {
 
     const user = userEvent.setup();
     await user.click(
-      screen.getByRole("button", { name: /Bevaka det här företaget/i })
+      screen.getByRole("button", { name: "Bevaka företaget" })
     );
 
     expect(followActionMock).toHaveBeenCalledWith("j1");
@@ -52,7 +63,7 @@ describe("FollowCompanyToggle", () => {
 
     const user = userEvent.setup();
     await user.click(
-      screen.getByRole("button", { name: /Sluta bevaka det här företaget/i })
+      screen.getByRole("button", { name: "Bevakar företaget" })
     );
 
     expect(unfollowActionMock).toHaveBeenCalledWith("cw1");
@@ -68,7 +79,7 @@ describe("FollowCompanyToggle", () => {
 
     const user = userEvent.setup();
     await user.click(
-      screen.getByRole("button", { name: /Bevaka det här företaget/i })
+      screen.getByRole("button", { name: "Bevaka företaget" })
     );
 
     expect(
@@ -86,7 +97,7 @@ describe("FollowCompanyToggle", () => {
 
     const user = userEvent.setup();
     await user.click(
-      screen.getByRole("button", { name: /Sluta bevaka det här företaget/i })
+      screen.getByRole("button", { name: "Bevakar företaget" })
     );
 
     expect(
@@ -102,12 +113,12 @@ describe("FollowCompanyToggle", () => {
 
     const user = userEvent.setup();
     await user.click(
-      screen.getByRole("button", { name: /Bevaka det här företaget/i })
+      screen.getByRole("button", { name: "Bevaka företaget" })
     );
     await screen.findByText("Bevakar företaget");
 
     await user.click(
-      screen.getByRole("button", { name: /Sluta bevaka det här företaget/i })
+      screen.getByRole("button", { name: "Bevakar företaget" })
     );
 
     expect(unfollowActionMock).toHaveBeenCalledWith("cw-resolved");

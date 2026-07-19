@@ -244,9 +244,7 @@
     },
     "harAnsokt": {
       "applied": "Ansökt",
-      "markAsApplied": "Markera som ansökt",
-      "appliedAriaLabel": "Du har markerat denna annons som ansökt",
-      "markAriaLabel": "Markera annonsen som ansökt"
+      "markAsApplied": "Markera som ansökt"
     },
     "jobInfo": {
       "title": "Om annonsen",

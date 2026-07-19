@@ -244,9 +244,7 @@
     },
     "harAnsokt": {
       "applied": "Applied",
-      "markAsApplied": "Mark as applied",
-      "appliedAriaLabel": "You have marked this ad as applied",
-      "markAriaLabel": "Mark the ad as applied"
+      "markAsApplied": "Mark as applied"
     },
     "jobInfo": {
       "title": "About the ad",

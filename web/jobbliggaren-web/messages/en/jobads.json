@@ -25,9 +25,7 @@
   },
   "follow": {
     "follow": "Follow the company",
-    "following": "Following the company",
-    "followAria": "Follow this company",
-    "unfollowAria": "Stop following this company"
+    "following": "Following the company"
   },
   "companyWatches": {
     "listLabel": "Followed companies",

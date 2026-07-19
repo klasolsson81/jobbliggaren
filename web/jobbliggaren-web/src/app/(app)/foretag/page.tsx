@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Search } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getCompanyWatches, markFollowedAdsSeen } from "@/lib/api/company-follows";
@@ -102,6 +104,15 @@ export default async function ForetagPage() {
       </section>
 
       <div className="jp-container jp-page">
+        {/* #560 PR-B — link to the general company-register search (name/branch/kommun/org.nr). */}
+        <Link
+          href="/foretag/sok"
+          className="jp-btn jp-btn--primary mb-6 inline-flex w-fit items-center gap-2"
+        >
+          <Search size={16} aria-hidden="true" />
+          {t("foretag.sok.hubLink")}
+        </Link>
+
         {registryEnabled && <CompanyLookup />}
 
         <section className="jp-section scroll-mt-6">

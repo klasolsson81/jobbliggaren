@@ -23,7 +23,8 @@ public sealed class ReviewResumeQueryHandler(
     ICurrentUser currentUser,
     ICvReviewEngine engine,
     IRubricProvider rubricProvider,
-    IFailedAccessLogger failedAccessLogger)
+    IFailedAccessLogger failedAccessLogger,
+    IFindingFingerprinter fingerprinter)
     : IQueryHandler<ReviewResumeQuery, CvReviewDto?>
 {
     public async ValueTask<CvReviewDto?> Handle(
@@ -94,7 +95,7 @@ public sealed class ReviewResumeQueryHandler(
     /// a fabricated lingering warning, CLAUDE.md §5). Fresh decisions pass through as-is;
     /// statuses keyed to another rubric version never carry over (D2(e) key boundary).
     /// </summary>
-    private static Dictionary<string, (string Status, DateTimeOffset? StaleAt)> BuildStatusOverlay(
+    private Dictionary<string, (string Status, DateTimeOffset? StaleAt)> BuildStatusOverlay(
         IReadOnlyList<ResumeFindingStatus> statuses, CvReviewResult result)
     {
         var version = result.RubricVersion.ToString();
@@ -110,7 +111,7 @@ public sealed class ReviewResumeQueryHandler(
 
             if (row.Status == ReviewFindingStatus.Resolved && row.StaleAt is not null)
             {
-                var currentFingerprint = FindingTargetFingerprint.Compute(result.RubricVersion, verdict);
+                var currentFingerprint = fingerprinter.Compute(result.RubricVersion, verdict);
                 if (!string.Equals(currentFingerprint, row.TargetFingerprint, StringComparison.Ordinal))
                     continue;
             }

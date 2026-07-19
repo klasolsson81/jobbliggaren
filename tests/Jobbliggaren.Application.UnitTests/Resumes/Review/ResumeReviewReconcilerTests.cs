@@ -2,6 +2,7 @@ using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Application.UnitTests.Common.Security;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
 using NSubstitute;
@@ -17,7 +18,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// (Fail/Warn) findings via Resume.ReconcileFindingStatuses, and — for the caller-supplied
 /// autoResolveCriteria only — flips a criterion the engine now scores Pass to Resolved (the engine,
 /// not the click, decides — PR-7 CTO D-D parity). Fingerprints are ALWAYS server-derived
-/// (FindingTargetFingerprint.Compute; ADR 0074 Invariant 2).
+/// (IFindingFingerprinter.Compute — keyed HMAC #692; ADR 0074 Invariant 2).
 ///
 /// The <see cref="ICvReviewEngine"/> is NSubstitute-mocked (one stub per profile); the Resume is a
 /// real aggregate so the ledger transitions are exercised end-to-end through the reconciler.
@@ -34,7 +35,7 @@ public class ResumeReviewReconcilerTests
     private static readonly RubricVersion Version = RubricVersion.Parse("2.2.0");
 
     private ResumeReviewReconciler CreateSut() =>
-        new(_engine, FakeDateTimeProvider.Default);
+        new(_engine, TestFindingFingerprinter.Instance, FakeDateTimeProvider.Default);
 
     private static Resume CreateResume() =>
         Resume.Create(JobSeekerId.New(), "Mitt CV", "Klas Olsson", FakeDateTimeProvider.Default).Value;
@@ -132,7 +133,7 @@ public class ResumeReviewReconcilerTests
         await CreateSut().ReconcileAsync(resume, autoResolveCriteria: null, CancellationToken.None);
 
         resume.FindingStatuses.ShouldHaveSingleItem()
-            .TargetFingerprint.ShouldBe(FindingTargetFingerprint.Compute(Version, a1));
+            .TargetFingerprint.ShouldBe(TestFindingFingerprinter.Compute(Version, a1));
     }
 
     [Fact]
@@ -163,7 +164,7 @@ public class ResumeReviewReconcilerTests
         var row = resume.FindingStatuses.ShouldHaveSingleItem();
         row.CriterionId.ShouldBe("A1");
         row.Status.ShouldBe(ReviewFindingStatus.Resolved);
-        row.TargetFingerprint.ShouldBe(FindingTargetFingerprint.Compute(Version, a1Pass));
+        row.TargetFingerprint.ShouldBe(TestFindingFingerprinter.Compute(Version, a1Pass));
     }
 
     [Fact]

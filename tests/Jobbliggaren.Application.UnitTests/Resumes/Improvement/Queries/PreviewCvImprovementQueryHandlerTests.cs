@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Resumes.Improvement.Queries.PreviewCvImprovement;
 using Jobbliggaren.Application.Resumes.Review;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Application.UnitTests.Common.Security;
 using Jobbliggaren.Application.UnitTests.Resumes.Improvement;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
@@ -53,7 +54,7 @@ public class PreviewCvImprovementQueryHandlerTests
     }
 
     private PreviewCvImprovementQueryHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>
-        new(db, _currentUser, _engine, _frameProvider, _verbMapper, _failedAccess);
+        new(db, _currentUser, _engine, _frameProvider, _verbMapper, _failedAccess, TestFindingFingerprinter.Instance);
 
     private void StubReview(CvReviewResult review) =>
         _engine.ReviewAsync(Arg.Any<CvReviewContext>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>())
@@ -112,7 +113,7 @@ public class PreviewCvImprovementQueryHandlerTests
         dto.Before.ShouldBe(FrameFixtures.WeakLine);
         dto.After.ShouldBe(FrameFixtures.LeddeAfter);
         // The fingerprint is MINTED server-side — the exact digest the apply command will re-derive.
-        dto.FindingFingerprint.ShouldBe(FindingTargetFingerprint.Compute(Version, verdict));
+        dto.FindingFingerprint.ShouldBe(TestFindingFingerprinter.Compute(Version, verdict));
         dto.RubricVersion.ShouldBe("1.2.0");
     }
 

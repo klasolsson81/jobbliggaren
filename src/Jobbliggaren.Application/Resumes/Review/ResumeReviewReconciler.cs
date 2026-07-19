@@ -16,6 +16,7 @@ namespace Jobbliggaren.Application.Resumes.Review;
 /// </summary>
 public sealed class ResumeReviewReconciler(
     ICvReviewEngine engine,
+    IFindingFingerprinter fingerprinter,
     IDateTimeProvider clock) : IResumeReviewReconciler
 {
     public async ValueTask ReconcileAsync(
@@ -59,7 +60,7 @@ public sealed class ResumeReviewReconciler(
                     continue;
                 }
 
-                var fingerprint = FindingTargetFingerprint.Compute(rubricVersion, verdict);
+                var fingerprint = fingerprinter.Compute(rubricVersion, verdict);
                 var set = resumeAggregate.SetFindingStatus(
                     rubricVersion.ToString(), criterionId,
                     ReviewFindingStatus.Resolved, fingerprint, clock);
@@ -79,7 +80,7 @@ public sealed class ResumeReviewReconciler(
         var actionable = union.Values
             .Where(v => v.Verdict is CriterionVerdict.Fail or CriterionVerdict.Warn)
             .Select(v => new ReviewFindingSnapshot(
-                v.CriterionId, FindingTargetFingerprint.Compute(rubricVersion, v)))
+                v.CriterionId, fingerprinter.Compute(rubricVersion, v)))
             .ToList();
 
         var reconciled = resumeAggregate.ReconcileFindingStatuses(

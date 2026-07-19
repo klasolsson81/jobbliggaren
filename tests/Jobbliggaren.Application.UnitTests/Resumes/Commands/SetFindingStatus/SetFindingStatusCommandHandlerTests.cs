@@ -6,6 +6,7 @@ using Jobbliggaren.Application.Resumes.Commands.SetFindingStatus;
 using Jobbliggaren.Application.Resumes.Review;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Application.UnitTests.Common.Security;
 using Jobbliggaren.Application.UnitTests.Resumes.Review;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
@@ -48,7 +49,8 @@ public class SetFindingStatusCommandHandlerTests
     }
 
     private SetFindingStatusCommandHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>
-        new(db, _currentUser, _engine, _rubricProvider, FakeDateTimeProvider.Default, _failedAccess);
+        new(db, _currentUser, _engine, _rubricProvider, FakeDateTimeProvider.Default, _failedAccess,
+            TestFindingFingerprinter.Instance);
 
     private void StubEngine(CvReviewResult result) =>
         _engine.ReviewAsync(Arg.Any<CvReviewContext>(), Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>())
@@ -95,7 +97,7 @@ public class SetFindingStatusCommandHandlerTests
         row.Status.ShouldBe(ReviewFindingStatus.Resolved);
         row.RubricVersion.ShouldBe("1.1.0");
         // The fingerprint is SERVER-derived from the engine's current finding (never client input).
-        row.TargetFingerprint.ShouldBe(FindingTargetFingerprint.Compute(Version110, verdict));
+        row.TargetFingerprint.ShouldBe(TestFindingFingerprinter.Compute(Version110, verdict));
     }
 
     [Fact]
@@ -239,7 +241,8 @@ public class SetFindingStatusCommandHandlerTests
         var anon = Substitute.For<ICurrentUser>();
         anon.UserId.Returns((Guid?)null);
         var sut = new SetFindingStatusCommandHandler(
-            db, anon, _engine, _rubricProvider, FakeDateTimeProvider.Default, _failedAccess);
+            db, anon, _engine, _rubricProvider, FakeDateTimeProvider.Default, _failedAccess,
+            TestFindingFingerprinter.Instance);
 
         await Should.ThrowAsync<UnauthorizedException>(
             () => sut.Handle(new SetFindingStatusCommand(Guid.NewGuid(), "A1", "Resolved"),

@@ -250,4 +250,129 @@ public class CvParsingLexiconProviderTests
     [InlineData("""{ "headings": { "experience": ["e"] }, "languageHints": { "sv": ["och"] }, "freeSections": { "p": ["p"] } }""")]
     public void Load_Throws_OnAMissingBlock(string json) =>
         Should.Throw<InvalidOperationException>(() => CvParsingLexiconLoader.LoadFrom(Json(json)));
+
+    // ── displayForms (#893, lexicon v6): the two invariants that reconstruct the no-synthesis ──────
+    // guarantee D6 gives up by leaving FromStructuralOp. Exercised over synthetic lexicons, so the
+    // shipped asset never has to be broken to prove the loader refuses a broken one.
+
+    /// <summary>
+    /// INV-1: a display form must key on a KNOWN synonym (typed or free). A dangling key names a
+    /// heading nothing recognises — the form could never be proposed, so it is a silent authoring
+    /// mistake. Fail loud, parity the unknown-typed-key throw.
+    /// </summary>
+    [Fact]
+    public void Load_Throws_WhenADisplayFormKeyIsNotAKnownSynonym()
+    {
+        var ex = Should.Throw<InvalidOperationException>(() => CvParsingLexiconLoader.LoadFrom(Json(
+            """
+            { "version": 9,
+              "headings": { "skills": ["it-kompetenser"] },
+              "languageHints": { "sv": ["och"] },
+              "freeSections": { "projekt": ["projekt"] },
+              "displayForms": { "webbutveckling": "Webbutveckling" } }
+            """)));
+
+        ex.Message.ShouldContain("webbutveckling");
+        ex.Message.ShouldContain("not a known");
+    }
+
+    /// <summary>
+    /// INV-2: a display form must be a pure RE-CASING of its synonym — it may differ from the
+    /// (already normalized) key ONLY by letter case. A remap ("it-kompetenser" → "Kompetenser")
+    /// rewrites the user's word into a different one, which is synthesis (ADR 0074 / ADR 0108 §5 /
+    /// CLAUDE.md §5). This is the mechanical guard that makes "never a synonym remap" a shape
+    /// invariant rather than a comment.
+    /// </summary>
+    [Fact]
+    public void Load_Throws_WhenADisplayFormIsARemapNotARecasing()
+    {
+        var ex = Should.Throw<InvalidOperationException>(() => CvParsingLexiconLoader.LoadFrom(Json(
+            """
+            { "version": 9,
+              "headings": { "skills": ["it-kompetenser", "kompetenser"] },
+              "languageHints": { "sv": ["och"] },
+              "freeSections": { "projekt": ["projekt"] },
+              "displayForms": { "it-kompetenser": "Kompetenser" } }
+            """)));
+
+        ex.Message.ShouldContain("it-kompetenser");
+        ex.Message.ShouldContain("re-casing");
+    }
+
+    /// <summary>
+    /// INV-2 is TIGHTER than "NormalizeHeading(form) == key" (which would also strip a trailing
+    /// ':'/'.' and collapse whitespace). A display form that merely ADDS a trailing colon is not a
+    /// re-casing — proposing it would add punctuation the user did not write — so it throws too.
+    /// (Under the looser NormalizeHeading-equality check this passed; the tightened OrdinalIgnoreCase
+    /// check catches it. code-reviewer/dotnet-architect Minor, CTO in-block bind.)
+    /// </summary>
+    [Fact]
+    public void Load_Throws_WhenADisplayFormAddsATrailingSeparator()
+    {
+        var ex = Should.Throw<InvalidOperationException>(() => CvParsingLexiconLoader.LoadFrom(Json(
+            """
+            { "version": 9,
+              "headings": { "skills": ["it-kompetenser"] },
+              "languageHints": { "sv": ["och"] },
+              "freeSections": { "projekt": ["projekt"] },
+              "displayForms": { "it-kompetenser": "IT-kompetenser:" } }
+            """)));
+
+        ex.Message.ShouldContain("it-kompetenser");
+        ex.Message.ShouldContain("re-casing");
+    }
+
+    /// <summary>
+    /// INV-3: one key, one canonical form. Two raw keys that normalize to the same key with DIFFERENT
+    /// forms are an order-dependent silent last-one-wins — the exact failure the freeById "claimed by
+    /// BOTH" throw guards, now for display forms too. (An identical duplicate is idempotent, allowed.)
+    /// </summary>
+    [Fact]
+    public void Load_Throws_WhenTwoRawKeysCollideOnADifferentDisplayForm()
+    {
+        var ex = Should.Throw<InvalidOperationException>(() => CvParsingLexiconLoader.LoadFrom(Json(
+            """
+            { "version": 9,
+              "headings": { "skills": ["it-kompetenser"] },
+              "languageHints": { "sv": ["och"] },
+              "freeSections": { "projekt": ["projekt"] },
+              "displayForms": { "it-kompetenser": "IT-kompetenser", "IT-KOMPETENSER": "IT-Kompetenser" } }
+            """)));
+
+        ex.Message.ShouldContain("it-kompetenser");
+        ex.Message.ShouldContain("BOTH");
+    }
+
+    /// <summary>A valid display form (a re-casing of a known synonym) loads and is retrievable by the
+    /// normalised synonym key — the exact lookup D6 does.</summary>
+    [Fact]
+    public void Load_ExposesTheDisplayForm_ForASynonymThatCarriesARecasing()
+    {
+        var lexicon = CvParsingLexiconLoader.LoadFrom(Json(
+            """
+            { "version": 9,
+              "headings": { "skills": ["it-kompetenser"] },
+              "languageHints": { "sv": ["och"] },
+              "freeSections": { "projekt": ["projekt"] },
+              "displayForms": { "it-kompetenser": "IT-kompetenser" } }
+            """));
+
+        lexicon.DisplayFormByHeading["it-kompetenser"].ShouldBe("IT-kompetenser");
+    }
+
+    /// <summary>displayForms is OPTIONAL — a lexicon without the block loads to an empty map, never a
+    /// null (D6's TryGetValue must not NRE on an older-shaped asset).</summary>
+    [Fact]
+    public void Load_LeavesDisplayFormsEmpty_WhenTheBlockIsAbsent()
+    {
+        var lexicon = CvParsingLexiconLoader.LoadFrom(Json(
+            """
+            { "version": 9,
+              "headings": { "skills": ["kompetenser"] },
+              "languageHints": { "sv": ["och"] },
+              "freeSections": { "projekt": ["projekt"] } }
+            """));
+
+        lexicon.DisplayFormByHeading.ShouldBeEmpty();
+    }
 }

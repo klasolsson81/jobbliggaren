@@ -1,3 +1,5 @@
+using System.Text;
+using Jobbliggaren.Application.Common.Abstractions.TextAnalysis;
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Improvement.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
@@ -5,6 +7,8 @@ using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Improvement;
+using Jobbliggaren.Infrastructure.Resumes.Improvement.Transforms;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using NSubstitute;
 using Shouldly;
 using static Jobbliggaren.Application.UnitTests.Resumes.Improvement.CvImprovementFixtures;
@@ -1004,21 +1008,96 @@ public class CvImprovementEngineTests
         change.Replacement.After.ShouldBe(expected);
     }
 
-    [Theory]
-    [InlineData("IT-kompetenser")]
-    [InlineData("IT-KOMPETENSER")]
-    public async Task SuggestAsync_ShouldNotProposeHeadingNormalization_ForACompoundHeadingLeadingWithAnAcronym(
-        string heading)
+    [Fact]
+    public async Task SuggestAsync_ShouldProposeCanonicalDisplayForm_ForAnAcronymHeadingTheLexiconCarriesADisplayFormFor()
     {
-        // A REGRESSION THIS STEP INTRODUCED, and caught by the gates. "it-kompetenser" IS a lexicon
-        // synonym of `skills`, so widening D6's recognition to the lexicon brought it in range of
-        // NormalizeCase ("first letter up, the rest down") — which would propose "It-kompetenser".
-        // The engine would be DEGRADING a heading the user wrote correctly. It diagnoses; it never
-        // makes the CV worse. The canonical capitalisation of a compound is not recoverable from the
-        // text alone, so the engine declines to guess.
-        Of(await SuggestAsync(Resume(rawText: $"{heading}\nC#, PostgreSQL, Kubernetes")),
+        // #893 (STEG 5). What SuggestAsync_ShouldNotPropose..._ForACompoundHeadingLeadingWithAnAcronym
+        // used to FORBID — a test whose own premise (an acronym compound is unnormalisable) this step
+        // makes false. "it-kompetenser" is a lexicon synonym of `skills` whose canonical casing
+        // ("IT-kompetenser") a pure NormalizeCase cannot recover ("It-kompetenser"). Lexicon v6 carries
+        // that display form, so D6 now PROPOSES it — knowledge-bank-sourced (not a pure transform), the
+        // After pinned to the resolved KB value, no structural operation. The user wrote it ALL-CAPS.
+        var change = Single(
+            await SuggestAsync(Resume(rawText: "IT-KOMPETENSER\nC#, PostgreSQL, Kubernetes")),
+            ProposedChangeKind.HeadingNormalization);
+
+        change.Replacement.ShouldNotBeNull();
+        change.Replacement!.Before.ShouldBe("IT-KOMPETENSER");
+        change.Replacement.After.ShouldBe("IT-kompetenser");
+        change.Operation.ShouldBeNull("En KB-källad rubrikform bär ingen strukturell operation.");
+
+        var provenance = change.Provenance.ShouldBeOfType<KnowledgeBankProvenance>();
+        provenance.Source.ShouldBe("cv-parsing-lexicon");
+        provenance.Key.ShouldBe("it-kompetenser");
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldNotProposeHeadingNormalization_WhenAnAcronymHeadingIsAlreadyInItsDisplayForm()
+    {
+        // The no-op half: a heading already IN its canonical display form yields nothing — the engine
+        // never fabricates a no-change edit. "IT-kompetenser" IS the v6 display form for it-kompetenser.
+        Of(await SuggestAsync(Resume(rawText: "IT-kompetenser\nC#, PostgreSQL, Kubernetes")),
             ProposedChangeKind.HeadingNormalization).ShouldBeEmpty();
     }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldNotProposeHeadingNormalization_WhenTheDisplayFormHeadingIsCanonicalWithATrailingColon()
+    {
+        // #893 FINDING 1b (CTO in-block). ARM 1 fires only on a GENUINE casing difference, symmetric
+        // with ARM 2, which preserves a trailing colon ("ERFARENHET:" → "Erfarenhet:"). "IT-kompetenser:"
+        // is already canonically cased — only a colon differs — so proposing "IT-kompetenser" would strip
+        // the colon under a "standardisera versaliseringen" rationale that is false. No proposal.
+        Of(await SuggestAsync(Resume(rawText: "IT-kompetenser:\nC#, PostgreSQL, Kubernetes")),
+            ProposedChangeKind.HeadingNormalization).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task SuggestAsync_ShouldProposeCanonicalDisplayForm_ForAnAcronymHeadingInWrongCaseEvenWithATrailingColon()
+    {
+        // The other half of 1b: a GENUINE casing difference DOES fire even with a trailing colon. The KB
+        // arm snaps to the clean canonical value; the colon drops as a documented side effect — every
+        // FromKnowledgeBank proposal replaces with the resolved KB value (the cliché/verb arms are alike).
+        var change = Single(
+            await SuggestAsync(Resume(rawText: "IT-KOMPETENSER:\nC#, PostgreSQL, Kubernetes")),
+            ProposedChangeKind.HeadingNormalization);
+
+        change.Replacement.ShouldNotBeNull();
+        change.Replacement!.Before.ShouldBe("IT-KOMPETENSER:");
+        change.Replacement.After.ShouldBe("IT-kompetenser");
+    }
+
+    [Fact]
+    public void HeadingNormalization_StillDeclines_ForAHyphenatedSynonymThatCarriesNoDisplayForm()
+    {
+        // B3 (CTO #893). The display-form arm fixes it-kompetenser, but the hyphen guard must SURVIVE
+        // as the honest-decline fallback for a FUTURE hyphenated synonym that has no display form yet —
+        // otherwise the engine would silently degrade "PL-SQL" → "Pl-sql", a fresh instance of the very
+        // bug #893 fixes. Driven over a SYNTHETIC lexicon (parity the loader's fail-loud tests), because
+        // the real asset's only hyphenated synonym (it-kompetenser) now carries a display form, so
+        // nothing in production reaches this arm.
+        var lexicon = CvParsingLexiconLoader.LoadFrom(Json(
+            """
+            { "version": 9,
+              "headings": { "skills": ["pl-sql"] },
+              "languageHints": { "sv": ["och"] },
+              "freeSections": { "projekt": ["projekt"] } }
+            """));
+
+        var changes = new HeadingNormalizationTransform(lexicon)
+            .Propose(ImprovementContext("PL-SQL\nOracle, T-SQL"));
+
+        changes.ShouldBeEmpty(
+            "En bindestrecks-synonym utan display-form ska fortfarande avstå (NormalizeCase skulle " +
+            "degradera 'PL-SQL' till 'Pl-sql') — bindestrecks-guarden är kvar som ärlig fallback.");
+    }
+
+    private static MemoryStream Json(string json) => new(Encoding.UTF8.GetBytes(json));
+
+    // The minimal context a heading transform proposes against — it reads only RawText + CriterionIdFor;
+    // the cliché/verb/analyzer inputs are real fixtures, unused by D6.
+    private static CvImprovementContext ImprovementContext(string rawText) =>
+        new(Resume(rawText: rawText), Review: null, RenderProfile.Ats, TextLanguage.Swedish,
+            RealClicheList(), RealVerbMapping(), Analyzer());
 
     [Fact]
     public async Task SuggestAsync_ShouldProposeNothing_WhenTheCvIsCleanAndConventionallyOrdered()

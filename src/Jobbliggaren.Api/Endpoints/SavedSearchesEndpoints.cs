@@ -3,7 +3,9 @@ using Jobbliggaren.Application.JobAds.Queries.DeriveOccupationCodes;
 using Jobbliggaren.Application.SavedSearches.Commands.ConfirmDerivedSearch;
 using Jobbliggaren.Application.SavedSearches.Commands.CreateSavedSearch;
 using Jobbliggaren.Application.SavedSearches.Commands.DeleteSavedSearch;
+using Jobbliggaren.Application.SavedSearches.Commands.MarkResultsSeen;
 using Jobbliggaren.Application.SavedSearches.Commands.UpdateSavedSearch;
+using Jobbliggaren.Application.SavedSearches.Queries.GetNewResultsCount;
 using Jobbliggaren.Application.SavedSearches.Queries.GetSavedSearch;
 using Jobbliggaren.Application.SavedSearches.Queries.ListSavedSearches;
 using Jobbliggaren.Application.SavedSearches.Queries.RunSavedSearch;
@@ -26,6 +28,18 @@ public static class SavedSearchesEndpoints
             var result = await mediator.Send(new ListSavedSearchesQuery(), ct);
             return Results.Ok(result);
         });
+
+        // #312 (ADR 0115) — per-sökning "N nya träffar"-räkning (in-app-only v1, Art. 6(1)(b)).
+        // ListReadPolicy: räkningen är en per-sökning COUNT-fan-out (samma multi-query-DoS-yta
+        // som /run, × N sökningar), capped i handlern. R1: fitness-function mot ADR 0045 gatar
+        // FE-go-live (parity ListRecentSearches slow-COUNT/TD-94). Statisk route (:guid-constraintet
+        // på /{id} disambiguerar → ingen route-krock).
+        group.MapGet("/new-results-count", async (IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new GetNewSavedSearchResultsCountQuery(), ct);
+            return Results.Ok(result);
+        })
+        .RequireRateLimiting(RateLimitingExtensions.ListReadPolicy);
 
         group.MapGet("/{id:guid}", async (Guid id, IMediator mediator, CancellationToken ct) =>
         {
@@ -108,7 +122,29 @@ public static class SavedSearchesEndpoints
             return result is null ? Results.NotFound() : Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.ListReadPolicy);
+
+        // #312 (ADR 0115) — markera en sparad söknings resultat som sedda (nollställer dess
+        // "N nya träffar"-badge). Body { seenThrough } = max JobAd.CreatedAt användaren såg
+        // (#477/#759 — null → clock-now i handlern; aggregatet är monotont + klampar framtid).
+        // Owner-scoped, MeWritePolicy (parity POST /me/matches/seen). 204 / 404 (okänt id el.
+        // cross-tenant — ingen existens-läcka).
+        group.MapPost("/{id:guid}/results-seen", async (
+            Guid id, MarkSavedSearchResultsSeenRequest? body, IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(
+                new MarkSavedSearchResultsSeenCommand(id, body?.SeenThrough), ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        })
+        .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
     }
+
+    // #312 (ADR 0115) — body för POST /{id}/results-seen. SeenThrough = max JobAd.CreatedAt
+    // användaren faktiskt såg (#477/#759 — sätts som watermark, ej clock-now; null → clock-now
+    // i handlern). Parity MarkMatchesSeenRequest.
+    private sealed record MarkSavedSearchResultsSeenRequest(DateTimeOffset? SeenThrough);
 
     private sealed record UpdateSavedSearchBody(
         string? Name,

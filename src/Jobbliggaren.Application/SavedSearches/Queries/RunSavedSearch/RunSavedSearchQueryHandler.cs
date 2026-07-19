@@ -54,32 +54,16 @@ public sealed class RunSavedSearchQueryHandler(
             return null;
         }
 
-        // ADR 0039 Beslut 1 — samma sök-väg (IJobAdSearchQuery) som ListJobAds.
-        // ADR 0039 Beslut 2 — ingen last_run_at-skrivning (query, ej command).
-        // ADR 0067 Fas C2: VO:t bär OccupationGroup + Municipality — mappas in
-        // i filter-SPOT:en (C1:s tomma-listor-fönster täppt; sparade
-        // yrkesgrupp-/kommun-sökningar filtrerar). Ssyk-dimensionen utgick med
-        // reverse-lookup-migrationen (CTO-dom (e)/(f)). #293/#306: det tidigare
-        // Since=null-argumentet utgår — "Ny" beräknas på FE (JobAdDto bär ingen
-        // IsNew-flagga; SavedSearch exponerade ändå aldrig "Ny").
+        // ADR 0039 Beslut 1 — samma sök-väg (IJobAdSearchQuery) som ListJobAds; VO→filter
+        // via den delade SearchCriteriaMapping-SPOT:en (#312 — RunSavedSearch + den nya
+        // GetNewSavedSearchResultsCount-räkningen kan aldrig divergera på vad ett sparat
+        // filter betyder; #311 Employer + #551 Remote + Fas C2/B2-dimensionerna bor där).
+        // ADR 0039 Beslut 2 — ingen last_run_at-skrivning (query, ej command). #293/#306:
+        // det tidigare Since=null-argumentet utgår — "Ny" beräknas ur den per-sökning-
+        // watermarken (SavedSearch.ResultsSeenAt), ej ett fast fönster.
         return await search.SearchAsync(
             new JobAdSearchCriteria(
-                new JobAdFilterCriteria(
-                    OccupationGroup: criteria.OccupationGroup,
-                    Municipality: criteria.Municipality,
-                    Region: criteria.Region,
-                    // ADR 0067 Beslut 6 (Fas B2) — VO:ts Klass 2 reproducerar filtret.
-                    EmploymentType: criteria.EmploymentType,
-                    WorktimeExtent: criteria.WorktimeExtent,
-                    // #311 PR-2b C1 (ADR 0087 D6): PR-2:s CONTAINED-seam (Employer: []) ersatt —
-                    // SearchCriteria-VO:t bär nu employer (org.nr) → en sparad sökning reproducerar
-                    // sitt arbetsgivar-filter vid körning.
-                    Employer: criteria.Employer,
-                    // #551 PR-D (ADR 0087 D6-paritet): PR-B:s deferrade seam (Remote: false) ersatt —
-                    // SearchCriteria-VO:t bär nu distans-axeln → en sparad ?remote=-sökning reproducerar
-                    // sitt distans-filter vid körning (parity #311 Employer PR-2b C1).
-                    Remote: criteria.Remote,
-                    Q: criteria.Q),
+                SearchCriteriaMapping.ToFilterCriteria(criteria),
                 criteria.SortBy,
                 query.Page,
                 query.PageSize),

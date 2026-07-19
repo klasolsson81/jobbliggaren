@@ -36,6 +36,10 @@ public class GetRemoteAdCountQueryHandlerTests
             return new ValueTask<int>(countToReturn);
         }
 
+        public ValueTask<int> CountNewSinceAsync(
+            JobAdFilterCriteria criteria, DateTimeOffset since, CancellationToken cancellationToken)
+            => throw new NotSupportedException("CountNewSinceAsync ska inte anropas av remote-count-handlern.");
+
         public ValueTask<PagedResult<JobAdDto>> SearchAsync(
             JobAdSearchCriteria criteria, CancellationToken cancellationToken)
             => throw new NotSupportedException("SearchAsync ska inte anropas av remote-count-handlern.");

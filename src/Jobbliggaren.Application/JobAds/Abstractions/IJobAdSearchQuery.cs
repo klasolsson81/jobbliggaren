@@ -42,6 +42,22 @@ public interface IJobAdSearchQuery
         JobAdFilterCriteria criteria, CancellationToken cancellationToken);
 
     /// <summary>
+    /// #312 (ADR 0115) — räknar AKTIVA jobbannonser som matchar
+    /// <paramref name="criteria"/> OCH ingesterades efter <paramref name="since"/>
+    /// (en sparad söknings per-sökning-<c>ResultsSeenAt</c>-watermark). Samma
+    /// filter-predikat som <see cref="SearchAsync"/>/<see cref="CountAsync"/> (delad
+    /// <see cref="JobAdFilterCriteria"/> → SPOT: <c>Status=Active</c>-allow-list +
+    /// synonym-expansion inkluderad — en rå db.JobAds-fönsterfråga skulle tappa både
+    /// synonymerna → falska negativ och #864-livscykelgrinden) plus ett
+    /// <c>CreatedAt &gt; since</c>-fönster. Watermark-driven (INTE #293/#306:s retirerade
+    /// fasta "Ny"-fönster — <paramref name="since"/> är användarens läs-mark, ej ett fast
+    /// N-dygns-fönster). Konsumeras av <c>GetNewSavedSearchResultsCountQueryHandler</c>
+    /// för in-app "nya träffar"-räkningen (in-app-only v1, GDPR Art. 6(1)(b)).
+    /// </summary>
+    ValueTask<int> CountNewSinceAsync(
+        JobAdFilterCriteria criteria, DateTimeOffset since, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Per-option facet-counts för <paramref name="dimension"/> (ADR 0067
     /// Beslut 4 — Platsbanken sök-paritet Fas D1). Returnerar
     /// concept-id → antal matchande aktiva annonser, t.ex. "Mörbylånga (34)".

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using NpgsqlTypes;
@@ -13,9 +14,11 @@ using NpgsqlTypes;
 namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260719070714_AddSavedSearchResultsSeenAt")]
+    partial class AddSavedSearchResultsSeenAt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -538,10 +541,6 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_job_ads");
-
-                    b.HasIndex("Status", "PublishedAt", "Id")
-                        .IsDescending(false, true, false)
-                        .HasDatabaseName("ix_job_ads_status_published_at_id");
 
                     b.ToTable("job_ads", (string)null);
                 });

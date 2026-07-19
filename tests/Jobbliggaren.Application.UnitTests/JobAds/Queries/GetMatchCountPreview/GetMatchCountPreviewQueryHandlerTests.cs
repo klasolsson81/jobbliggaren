@@ -33,6 +33,12 @@ public class GetMatchCountPreviewQueryHandlerTests
             return new ValueTask<int>(countToReturn);
         }
 
+        // The count-new-since path — never used by the preview-count handler.
+        public ValueTask<int> CountNewSinceAsync(
+            JobAdFilterCriteria criteria, DateTimeOffset since, CancellationToken cancellationToken)
+            => throw new NotSupportedException(
+                "CountNewSinceAsync ska inte anropas av preview-count-handlern.");
+
         // The list/facet paths — never used by the preview-count handler.
         public ValueTask<PagedResult<JobAdDto>> SearchAsync(
             JobAdSearchCriteria criteria, CancellationToken cancellationToken)

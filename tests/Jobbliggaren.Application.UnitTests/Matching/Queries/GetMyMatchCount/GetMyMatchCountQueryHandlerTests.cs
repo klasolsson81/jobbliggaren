@@ -86,6 +86,11 @@ public class GetMyMatchCountQueryHandlerTests
             return new ValueTask<int>(countToReturn);
         }
 
+        public ValueTask<int> CountNewSinceAsync(
+            JobAdFilterCriteria criteria, DateTimeOffset since, CancellationToken cancellationToken)
+            => throw new NotSupportedException(
+                "CountNewSinceAsync ska inte anropas av count-handlern.");
+
         public ValueTask<PagedResult<JobAdDto>> SearchAsync(
             JobAdSearchCriteria criteria, CancellationToken cancellationToken)
             => throw new NotSupportedException(

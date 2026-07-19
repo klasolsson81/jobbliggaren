@@ -162,7 +162,7 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
               at all. The InfoDialog is a SIBLING of the text (never a child of a control) and explains
               the one thing this line cannot: that the row's COUNTS are not filter-aware. */}
           {filterLine && (
-            <p className="jp-watchfilterline">
+            <p className="jp-transparency-note jp-transparency-note--compact jp-transparency-note--inline-control mt-2">
               <Filter size={14} aria-hidden="true" />
               {filterLine}
               <InfoDialog

@@ -4,11 +4,8 @@ import { getMyProfile } from "@/lib/api/me";
 import { getPipeline } from "@/lib/api/applications";
 import { getSavedJobAds } from "@/lib/api/saved-job-ads";
 import { getRecentSearches } from "@/lib/api/recent-searches";
-import { getResumes } from "@/lib/api/resumes";
 import { getMatchCount } from "@/lib/api/match-count";
-import { getNewMatchCount } from "@/lib/api/me-matches";
 import { getNewFollowedCompanyAdCount } from "@/lib/api/company-follows";
-import { fetchLandingStats } from "@/lib/api/landing";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { hasSeenSetupWelcome } from "@/lib/onboarding/setup-welcome";
 import { OversiktPage } from "@/components/oversikt/oversikt-page";
@@ -37,15 +34,6 @@ export default async function OversiktRoute({
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
-  // PERF svans-PR2 (2026-05-24): bytt getJobAds() → getLandingStats() för
-  // "Aktiva annonser totalt"-fältet. Samma värde (activeCount), men landing-
-  // stats är Worker-precomputed Redis-cache 0-1ms vs ListJobAdsQuery p50
-  // ~1.2s / max ~7s (CloudWatch-discovery 2026-05-24). Eliminerar 1-2s från
-  // Promise.all-max + löser samtidigt 28-vs-9 mismatch i HeaderStats
-  // (HeaderStats använder samma endpoint). CTO-godkänd discovery-baserad
-  // fix (agentId ad37955db80099f19). Landing-stats är publik anonym ADR 0064
-  // — säker att läsa även från auth-gated route.
-  //
   // #742 — starta taxonomi-hämtningen EAGER (oawaitad) så den överlappar fan-out:en
   // istället för att serialisera en round-trip EFTER den för setup-gren-användare
   // (första-gången/onboarding = appens långsammaste paint). Konsumeras först när
@@ -62,22 +50,18 @@ export default async function OversiktRoute({
     pipeline,
     savedJobAds,
     recentSearches,
-    resumes,
-    landingStats,
     matchCount,
-    newMatchCount,
     newFollowedCompanyAdCount,
   ] = await Promise.all([
     getMyProfile(),
     getPipeline(),
+    // #726 — deadline-notisen läser nu riktig `expiresAt` ur de sparade
+    // annonserna (findUpcomingSavedJobDeadlines).
     getSavedJobAds(),
-    // svans-PR4 perf-fix: includeCount=false skippar slow per-row JobAds-
-    // COUNT (TD-94 rot) som triggade FE-timeout 8s → Npgsql 57014 (Klas
-    // 2026-05-24). /oversikt använder bara label + lastViewedAt — currentCount
-    // är 0 vilket är OK eftersom Sammanfattningen inte renderar "(N nya)".
+    // includeCount=false skippar slow per-row JobAds-COUNT (TD-94). /oversikt
+    // använder bara label + lastViewedAt för senaste-sökning-notisen; "N nya
+    // träffar" hämtas lazy klient-side (SavedSearchNoticeText).
     getRecentSearches(false),
-    getResumes(1, 20),
-    fetchLandingStats(),
     // ADR 0079 STEG 6 — live match-count för notisen. Degraderar CIVILT och
     // OBEROENDE av övriga källor: ett fel (nätverk/auth mid-render/rate-limit)
     // får aldrig reject:a Promise.all eller redirecta — den löses till null
@@ -86,28 +70,20 @@ export default async function OversiktRoute({
     // null. Notera: till skillnad från de auth-kritiska källorna driver ett
     // unauthorized HÄR ingen redirect (notisen är icke-kritisk yta).
     getMatchCount(),
-    // ADR 0080 Vag 4 PR-5 — "Nya matchningar"-räknaren (bakgrundsmatchningar nya
-    // sedan senaste besök) för Sammanfattningens rad. Degraderar CIVILT och
-    // OBEROENDE precis som `getMatchCount`: ett fel får aldrig reject:a
-    // Promise.all eller redirecta — det löses till 0 nedan så raden alltid visar
-    // en honest siffra och resten av sidan renderar.
-    getNewMatchCount(),
-    // Bevakning F2 (#801, RF-6=6B) — "Nya annonser från bevakade företag"-count (nya sedan senaste
-    // /foretag-besök) för Sammanfattningens Bevakning-rad. Degraderar CIVILT och OBEROENDE precis som
-    // `getNewMatchCount`: ett fel får aldrig reject:a Promise.all eller redirecta — det löses till 0
-    // nedan så raden alltid visar en honest siffra och resten av sidan renderar.
+    // Bevakning F2 (#801, RF-6=6B) — "Nya annonser från bevakade företag"-count
+    // (nya sedan senaste /foretag-besök) för Företagsbevaknings-notisen (#726).
+    // Degraderar CIVILT och OBEROENDE precis som `getMatchCount`: ett fel får
+    // aldrig reject:a Promise.all eller redirecta — det löses till 0 nedan.
     getNewFollowedCompanyAdCount(),
   ]);
 
   // Unauthorized mid-render (token expired mellan layout-check och här):
   // redirecta. Övriga fel ⇒ degraderad render i OversiktPage.
-  // (landingStats är anonym så har ingen unauthorized-väg.)
   if (
     profile.kind === "unauthorized" ||
     pipeline.kind === "unauthorized" ||
     savedJobAds.kind === "unauthorized" ||
-    recentSearches.kind === "unauthorized" ||
-    resumes.kind === "unauthorized"
+    recentSearches.kind === "unauthorized"
   ) {
     redirect("/logga-in");
   }
@@ -119,14 +95,6 @@ export default async function OversiktRoute({
   // siffra; alla andra Result-kinds (unauthorized/rateLimited/error) blir null
   // ⇒ match-notisen utelämnas (degraderad render), aldrig mock-fallback.
   const matchCountValue = matchCount.kind === "ok" ? matchCount.data.count : null;
-
-  // ADR 0080 Vag 4 PR-5 — live "Nya matchningar"-count → number. Endast `ok` ger
-  // den riktiga siffran; alla andra Result-kinds (unauthorized mid-render /
-  // rateLimited / error) degraderar till 0 (honest fallback — raden visar alltid
-  // en siffra, aldrig en mock). En unauthorized HÄR driver ingen redirect (icke-
-  // kritisk yta, paritet `matchCount`).
-  const newMatchCountValue =
-    newMatchCount.kind === "ok" ? newMatchCount.data.count : 0;
 
   // Bevakning F2 (#801, RF-6=6B) — live "Nya annonser från bevakade företag"-count → number. Endast
   // `ok` ger den riktiga siffran; alla andra Result-kinds (unauthorized mid-render / rateLimited /
@@ -176,10 +144,7 @@ export default async function OversiktRoute({
         pipeline={pipeline}
         savedJobAds={savedJobAds}
         recentSearches={recentSearches}
-        resumes={resumes}
-        landingStats={landingStats}
         matchCount={matchCountValue}
-        newMatchCount={newMatchCountValue}
         newFollowedCompanyAdCount={newFollowedCompanyAdCountValue}
       />
       {shouldMountSetup && taxonomy !== null && profile.kind === "ok" && (

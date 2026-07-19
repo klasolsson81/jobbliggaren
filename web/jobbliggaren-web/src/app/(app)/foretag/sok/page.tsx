@@ -6,6 +6,7 @@ import { getCriterionReference } from "@/lib/api/company-criteria";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
 import { ForetagSokFilters } from "@/components/company-criteria/foretag-sok-filters";
 import { ForetagSokOrgnr } from "@/components/company-criteria/foretag-sok-orgnr";
+import { ForetagSokFollowAll } from "@/components/company-criteria/foretag-sok-follow-all";
 import { ForetagSokResults } from "@/components/company-criteria/foretag-sok-results";
 import { ForetagSokResultsSkeleton } from "@/components/company-criteria/foretag-sok-results-skeleton";
 import {
@@ -65,10 +66,11 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
   );
   const page = parseSida(params.sida);
 
-  // Re-trigger the results skeleton on any URL-axis change (org.nr is outside this boundary).
-  const suspenseKey = `${namn}|${[...sni].sort().join(",")}|${[...kommun]
-    .sort()
-    .join(",")}|${page}`;
+  // The active-filter signature (name + sorted axes), page-independent. Keys the follow-all CTA so a
+  // filter change remounts it (clearing any saved/error state); the results skeleton also re-triggers
+  // on it plus the page (org.nr is outside this boundary).
+  const filterKey = `${namn}|${[...sni].sort().join(",")}|${[...kommun].sort().join(",")}`;
+  const suspenseKey = `${filterKey}|${page}`;
 
   return (
     <>
@@ -89,6 +91,11 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
           kommun={kommun}
         />
         <ForetagSokOrgnr />
+        {/* #560 PR-D — save the active filter as a criterion watch. Keyed on the filter signature so
+            a filter change remounts it (clearing any saved/error state). Outside the Suspense
+            boundary: it depends only on the URL filter, so it renders instantly while results
+            stream, and disabled-with-explainer whenever the filter is not criterion-shaped. */}
+        <ForetagSokFollowAll key={filterKey} namn={namn} sni={sni} kommun={kommun} />
         <Suspense key={suspenseKey} fallback={<ForetagSokResultsSkeleton />}>
           <ForetagSokResults
             namn={namn}

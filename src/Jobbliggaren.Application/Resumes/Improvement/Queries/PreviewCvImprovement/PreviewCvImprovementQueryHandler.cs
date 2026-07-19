@@ -28,7 +28,8 @@ public sealed class PreviewCvImprovementQueryHandler(
     ICvReviewEngine reviewEngine,
     IFrameProvider frameProvider,
     IVerbMapper verbMapper,
-    IFailedAccessLogger failedAccessLogger)
+    IFailedAccessLogger failedAccessLogger,
+    IFindingFingerprinter fingerprinter)
     : IQueryHandler<PreviewCvImprovementQuery, Result<FramePreviewDto>>
 {
     public async ValueTask<Result<FramePreviewDto>> Handle(
@@ -92,7 +93,7 @@ public sealed class PreviewCvImprovementQueryHandler(
             cancellationToken);
 
         // The preview MINTS the fingerprint (no client echo yet — this IS the echo source).
-        var resolved = FrameApplyComposer.ResolveFinding(review, query.CriterionId, content);
+        var resolved = FrameApplyComposer.ResolveFinding(review, query.CriterionId, content, fingerprinter);
         if (resolved.IsFailure)
             return Result.Failure<FramePreviewDto>(resolved.Error);
 

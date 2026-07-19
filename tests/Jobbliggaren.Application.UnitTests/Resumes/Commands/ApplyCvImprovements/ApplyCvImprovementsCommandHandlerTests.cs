@@ -6,6 +6,7 @@ using Jobbliggaren.Application.Resumes.Commands.ApplyCvImprovements;
 using Jobbliggaren.Application.Resumes.Review;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Application.UnitTests.Common.Security;
 using Jobbliggaren.Application.UnitTests.Resumes.Improvement;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
@@ -56,7 +57,8 @@ public class ApplyCvImprovementsCommandHandlerTests
     }
 
     private ApplyCvImprovementsCommandHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>
-        new(db, _currentUser, _engine, _frameProvider, _verbMapper, FakeDateTimeProvider.Default, _failedAccess, _reconciler);
+        new(db, _currentUser, _engine, _frameProvider, _verbMapper, FakeDateTimeProvider.Default, _failedAccess,
+            _reconciler, TestFindingFingerprinter.Instance);
 
     // Fas 4b PR-8.1: the auto-resolve loop folded into the shared reconciler (CTO-bind
     // Q1) — the ledger-behavior tests run the REAL reconciler over the SAME stubbed
@@ -65,7 +67,9 @@ public class ApplyCvImprovementsCommandHandlerTests
     private ApplyCvImprovementsCommandHandler CreateSutWithRealReconciler(
         Infrastructure.Persistence.AppDbContext db) =>
         new(db, _currentUser, _engine, _frameProvider, _verbMapper, FakeDateTimeProvider.Default,
-            _failedAccess, new ResumeReviewReconciler(_engine, FakeDateTimeProvider.Default));
+            _failedAccess,
+            new ResumeReviewReconciler(_engine, TestFindingFingerprinter.Instance, FakeDateTimeProvider.Default),
+            TestFindingFingerprinter.Instance);
 
     // Pre-apply review, then post-apply verify review (two distinct ReviewAsync calls).
     private void StubReviews(CvReviewResult preApply, CvReviewResult postApply) =>
@@ -88,7 +92,7 @@ public class ApplyCvImprovementsCommandHandlerTests
     private static CvReviewResult ResultWith(params CvCriterionVerdict[] verdicts) =>
         new(Version, RenderProfile.Ats, [], verdicts, [], verdicts.Length, verdicts.Length);
 
-    private static string Fp(CvCriterionVerdict verdict) => FindingTargetFingerprint.Compute(Version, verdict);
+    private static string Fp(CvCriterionVerdict verdict) => TestFindingFingerprinter.Compute(Version, verdict);
 
     private const string MeasureLine = FrameFixtures.MeasureLine;
 
@@ -329,7 +333,8 @@ public class ApplyCvImprovementsCommandHandlerTests
         var anon = Substitute.For<ICurrentUser>();
         anon.UserId.Returns((Guid?)null);
         var sut = new ApplyCvImprovementsCommandHandler(
-            db, anon, _engine, _frameProvider, _verbMapper, FakeDateTimeProvider.Default, _failedAccess, _reconciler);
+            db, anon, _engine, _frameProvider, _verbMapper, FakeDateTimeProvider.Default, _failedAccess,
+            _reconciler, TestFindingFingerprinter.Instance);
 
         await Should.ThrowAsync<UnauthorizedException>(
             () => sut.Handle(
@@ -420,7 +425,8 @@ public class ApplyCvImprovementsCommandHandlerTests
             .Returns(ValueTask.FromException(new InvalidOperationException("boom")));
 
         var handler = new ApplyCvImprovementsCommandHandler(
-            db, _currentUser, _engine, _frameProvider, _verbMapper, laterClock, _failedAccess, _reconciler);
+            db, _currentUser, _engine, _frameProvider, _verbMapper, laterClock, _failedAccess,
+            _reconciler, TestFindingFingerprinter.Instance);
 
         await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(

@@ -62,9 +62,10 @@ public static class FrameApplyComposer
     /// rewrite a moved target — ADR 0093 §D2).
     /// </summary>
     public static Result<LocatedFinding> ResolveFinding(
-        CvReviewResult review, string criterionId, string clientFingerprint, ResumeContent content)
+        CvReviewResult review, string criterionId, string clientFingerprint, ResumeContent content,
+        IFindingFingerprinter fingerprinter)
     {
-        var resolved = ResolveFinding(review, criterionId, content);
+        var resolved = ResolveFinding(review, criterionId, content, fingerprinter);
         if (resolved.IsFailure)
         {
             return resolved;
@@ -86,10 +87,12 @@ public static class FrameApplyComposer
     /// ADR 0074 Invariant 2).
     /// </summary>
     public static Result<LocatedFinding> ResolveFinding(
-        CvReviewResult review, string criterionId, ResumeContent content)
+        CvReviewResult review, string criterionId, ResumeContent content,
+        IFindingFingerprinter fingerprinter)
     {
         ArgumentNullException.ThrowIfNull(review);
         ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(fingerprinter);
 
         var verdict = review.Verdicts.FirstOrDefault(v =>
             string.Equals(v.CriterionId, criterionId, StringComparison.Ordinal));
@@ -124,7 +127,7 @@ public static class FrameApplyComposer
                 "Den citerade raden finns inte längre i CV:t. Granska på nytt och försök igen."));
         }
 
-        var fingerprint = FindingTargetFingerprint.Compute(review.RubricVersion, verdict);
+        var fingerprint = fingerprinter.Compute(review.RubricVersion, verdict);
         return Result.Success(new LocatedFinding(verdict, line, fingerprint));
 
         static Result<LocatedFinding> NotActionable() =>

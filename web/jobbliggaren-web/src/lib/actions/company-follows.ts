@@ -45,9 +45,11 @@ export async function followCompanyFromJobAdAction(
 }
 
 /**
- * #454 — follow an employer directly by org.nr (the /foretag lookup card's "bevaka"; works for a
- * 0-ad company the by-job-ad path cannot reach). Idempotent server-side (resurrect + race-safe).
- * Revalidates `/foretag` (the watch list gains the row) + `/jobb` (detail toggles re-read state).
+ * #454 / #560 PR-C — follow an employer directly by org.nr (the /foretag lookup card's "bevaka" AND the
+ * /foretag/sok per-row "Bevaka"; works for a 0-ad company the by-job-ad path cannot reach). Idempotent
+ * server-side (resurrect + race-safe). Revalidates `/foretag` (the watch list gains the row), `/jobb`
+ * (detail toggles re-read state), and `/foretag/sok` (the search results' follow-overlay re-reads on the
+ * next render — the optimistic button bridges the interim).
  */
 export async function followCompanyAction(
   orgNr: string
@@ -58,6 +60,7 @@ export async function followCompanyAction(
     case "ok":
       revalidatePath("/jobb");
       revalidatePath("/foretag");
+      revalidatePath("/foretag/sok");
       return { success: true, companyWatchId: result.data.companyWatchId };
     case "unauthorized":
       return { success: false, error: t("notLoggedIn") };
@@ -70,9 +73,10 @@ export async function followCompanyAction(
 }
 
 /**
- * #455 / #448 — stop following, by the opaque CompanyWatchId. Idempotent. Revalidates `/jobb` (the
- * detail toggle) and `/foretag` (the followed-companies list drops the row on the next RSC render —
- * server state drives the removal, no client-side optimistic copy; CTO Q4 2026-07-01, §5).
+ * #455 / #448 / #560 PR-C — stop following, by the opaque CompanyWatchId. Idempotent. Revalidates `/jobb`
+ * (the detail toggle), `/foretag` (the followed-companies list drops the row on the next RSC render —
+ * server state drives the removal, no client-side optimistic copy; CTO Q4 2026-07-01, §5), and
+ * `/foretag/sok` (the search results' follow-overlay re-reads).
  */
 export async function unfollowCompanyAction(
   companyWatchId: string
@@ -83,6 +87,7 @@ export async function unfollowCompanyAction(
     case "ok":
       revalidatePath("/jobb");
       revalidatePath("/foretag");
+      revalidatePath("/foretag/sok");
       return { success: true };
     case "unauthorized":
       return { success: false, error: t("notLoggedIn") };

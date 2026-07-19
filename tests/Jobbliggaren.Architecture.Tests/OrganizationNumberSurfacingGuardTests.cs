@@ -64,6 +64,12 @@ public class OrganizationNumberSurfacingGuardTests
         // is Guid? + bool, no org.nr member) nor logged; this scan makes that a build gate. It was a
         // latent gap before PR-5 — the handler already read a raw org.nr but was not on this list.
         "src/Jobbliggaren.Application/CompanyWatches/Queries/GetCompanyWatchStatusBatch/GetCompanyWatchStatusBatchQueryHandler.cs",
+        // #560 company-search wave PR-C (CTO F3) — the org.nr-keyed follow-state overlay for /foretag/sok.
+        // Unlike the jobAdId-keyed sibling above, the org.nrs arrive PLAINTEXT in the request body (the
+        // search row already carried them); the handler correlates each against the user's watches (and
+        // tokenises for the enskild channel). NEVER surfaced (the DTO is Guid? only, no org.nr member) nor
+        // logged — this scan makes that a build gate.
+        "src/Jobbliggaren.Application/CompanyWatches/Queries/GetCompanyWatchStatusByOrgNrBatch/GetCompanyWatchStatusByOrgNrBatchQueryHandler.cs",
         // #544 (ADR 0090 D5) — the personnummer-token tokeniser reads a raw org.nr into scope: it
         // HMACs the verbatim plaintext value. It has no logging surface at all, so this scan proves it
         // never grows one.
@@ -183,6 +189,12 @@ public class OrganizationNumberSurfacingGuardTests
         // ToString() (OrgNrRecordLoggingGuardTests, behavioral).
         typeof(Jobbliggaren.Application.CompanyRegister.Queries.SearchCompanies.SearchCompaniesQuery),
         typeof(Jobbliggaren.Application.CompanyRegister.Queries.GetCompanySearchMagnitude.GetCompanySearchMagnitudeQuery),
+        // #560 company-search wave PR-C: the org.nr-keyed follow-state query carries CLIENT-SUPPLIED
+        // org.nrs (the search rows' own values). Masking is meaningless on an input the caller already
+        // holds; what protects it is the owner-scoped read (it echoes no org.nr — the response DTO is
+        // Guid? only) and the log-boundary scan. Its ToString() is redacted (OrgNrRecordLoggingGuardTests,
+        // behavioral).
+        typeof(Jobbliggaren.Application.CompanyWatches.Queries.GetCompanyWatchStatusByOrgNrBatch.GetCompanyWatchStatusByOrgNrBatchQuery),
     ];
 
     /// <summary>

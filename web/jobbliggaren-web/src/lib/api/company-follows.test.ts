@@ -15,6 +15,7 @@ import {
   followCompanyFromJobAd,
   unfollowCompany,
   getCompanyWatchStatus,
+  getCompanyWatchStatusByOrgNr,
   getCompanyWatches,
   markFollowedCompanyAdSeen,
   getNewFollowedCompanyAdCount,
@@ -203,6 +204,70 @@ describe("getCompanyWatchStatus (#455) — fail-safe to not-followable", () => {
   it("network throw → fallback", async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("boom"));
     expect(await getCompanyWatchStatus(VALID_ID)).toEqual(fallback);
+  });
+});
+
+describe("getCompanyWatchStatusByOrgNr (#560 PR-C) — positional overlay, fail-safe to all-null", () => {
+  const ORG_A = "5590000001";
+  const ORG_B = "5590000002";
+
+  it("empty input → [] without a backend round-trip", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    expect(await getCompanyWatchStatusByOrgNr([])).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("no session → all-null (one per input) without a backend round-trip", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    expect(await getCompanyWatchStatusByOrgNr([ORG_A, ORG_B])).toEqual([
+      { companyWatchId: null },
+      { companyWatchId: null },
+    ]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("positional pass-through: statuses returned 1:1 in request order", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({
+        statuses: [{ companyWatchId: null }, { companyWatchId: "cw-b" }],
+      })
+    );
+    expect(await getCompanyWatchStatusByOrgNr([ORG_A, ORG_B])).toEqual([
+      { companyWatchId: null },
+      { companyWatchId: "cw-b" },
+    ]);
+  });
+
+  it("length mismatch → all-null (never mis-align the zip)", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({ statuses: [{ companyWatchId: "cw-b" }] }) // 1 status for 2 requested
+    );
+    expect(await getCompanyWatchStatusByOrgNr([ORG_A, ORG_B])).toEqual([
+      { companyWatchId: null },
+      { companyWatchId: null },
+    ]);
+  });
+
+  it("!res.ok → all-null", async () => {
+    global.fetch = vi.fn().mockResolvedValue(emptyResponse(500));
+    expect(await getCompanyWatchStatusByOrgNr([ORG_A])).toEqual([{ companyWatchId: null }]);
+  });
+
+  it("shape mismatch (zod parse fail) → all-null", async () => {
+    // companyWatchId must be string|null; a number fails safeParse (not just a defaulted-empty statuses).
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({ statuses: [{ companyWatchId: 123 }] })
+    );
+    expect(await getCompanyWatchStatusByOrgNr([ORG_A])).toEqual([{ companyWatchId: null }]);
+  });
+
+  it("network throw → all-null", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("boom"));
+    expect(await getCompanyWatchStatusByOrgNr([ORG_A])).toEqual([{ companyWatchId: null }]);
   });
 });
 

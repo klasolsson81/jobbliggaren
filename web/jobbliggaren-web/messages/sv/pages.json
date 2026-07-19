@@ -374,7 +374,7 @@
         "follow": "Bevaka",
         "following": "Bevakar",
         "followAria": "Bevaka {company}",
-        "unfollowAria": "Sluta bevaka {company}",
+        "followingAria": "Bevakar {company}",
         "cannotFollow": "Kan inte bevakas",
         "emptyTitle": "Inga företag matchar just nu.",
         "emptyBody": "Prova att ändra bevakningens branscher eller kommuner för att bredda urvalet."

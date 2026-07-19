@@ -67,7 +67,7 @@ describe("CompanyBrowseList — #560 PR-C follow-column gate", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Sluta bevaka Acme Bygg AB" })
+      screen.getByRole("button", { name: "Bevakar Acme Bygg AB" })
     ).toBeInTheDocument();
   });
 

@@ -19,7 +19,7 @@ interface FollowCompanyToggleProps {
 }
 
 /**
- * #311 #455 (ADR 0087 D3/D8(c)) — "Bevaka det här företaget" toggle in the job-ad detail footer (ADR
+ * #311 #455 (ADR 0087 D3/D8(c)) — "Bevaka företaget" toggle in the job-ad detail footer (ADR
  * 0053), alongside Spara / Har-ansökt. Keyed by JobAdId: following resolves the employer org.nr
  * server-side (it never crosses the wire — a sole-prop org.nr can be a personnummer); unfollowing
  * addresses the opaque CompanyWatchId returned by the follow.
@@ -78,7 +78,6 @@ export function FollowCompanyToggle({
   }
 
   const label = following ? t("following") : t("follow");
-  const ariaLabel = following ? t("unfollowAria") : t("followAria");
   const opacity = isPending ? 0.7 : 1;
 
   return (
@@ -86,7 +85,9 @@ export function FollowCompanyToggle({
       <button
         type="button"
         className="jp-btn jp-btn--secondary"
-        aria-label={ariaLabel}
+        // No aria-label override: the accessible name is the visible text ("Bevaka företaget" /
+        // "Bevakar företaget") so it always contains the visible label (WCAG 2.5.3); the toggle state
+        // rides aria-pressed, never a divergent action verb ("Sluta bevaka…") that would break 2.5.3.
         aria-pressed={following}
         onClick={handleClick}
         style={{ opacity }}

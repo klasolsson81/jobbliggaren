@@ -7,7 +7,7 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// <summary>
 /// #679 — locks the invariants of <see cref="EmailTemplates.EmailChangeConfirmation"/>
 /// (Infrastructure-internal, reachable via InternalsVisibleTo). Load-bearing invariants: the confirm
-/// link is built as <c>{baseUrl}/bekrafta-epost?uid={uid:N}&amp;email={percent-encoded}&amp;token={raw}</c>;
+/// link is built as <c>{baseUrl}/bekrafta-epost?uid={uid:D}&amp;email={percent-encoded}&amp;token={raw}</c>;
 /// the new address is percent-encoded (so plus-addressing survives the query round-trip) while the
 /// Base64Url token passes through UNescaped (escaping <c>-</c>/<c>_</c> would corrupt the single-use
 /// token); the base URL is not double-slashed; civic tone (no exclamation marks, no em-dash); and the
@@ -25,7 +25,7 @@ public class EmailTemplatesEmailChangeConfirmationTests
         => new(userId ?? Guid.NewGuid(), newEmail, token);
 
     [Fact]
-    public void EmailChangeConfirmation_ShouldBuildConfirmLink_WithCompactUidEncodedEmailAndRawToken()
+    public void EmailChangeConfirmation_ShouldBuildConfirmLink_WithDashedUidEncodedEmailAndRawToken()
     {
         var userId = Guid.NewGuid();
         const string email = "ny.adress@example.se";
@@ -33,9 +33,10 @@ public class EmailTemplatesEmailChangeConfirmationTests
         var rendered = EmailTemplates.EmailChangeConfirmation(
             BaseUrl, new EmailChangeConfirmationEmail(userId, email, Base64UrlToken));
 
-        // The whole link in one assertion pins uid:N, the percent-encoded email, and the raw token.
+        // The whole link in one assertion pins uid:D (the confirm endpoint's STJ Guid binder accepts only
+        // the dashed 'D' form; a compact 'N' uid 400s, #981), the percent-encoded email, and the raw token.
         rendered.PlainTextBody.ShouldContain(
-            $"{BaseUrl}/bekrafta-epost?uid={userId:N}&email={Uri.EscapeDataString(email)}&token={Base64UrlToken}");
+            $"{BaseUrl}/bekrafta-epost?uid={userId:D}&email={Uri.EscapeDataString(email)}&token={Base64UrlToken}");
     }
 
     [Fact]

@@ -190,11 +190,14 @@ internal static class EmailTemplates
     {
         var trimmed = baseUrl.TrimEnd('/');
 
-        // uid: compact 'N' Guid (url-safe). email: percent-encoded (plus-addressing / '@').
-        // token: already Base64Url (only [A-Za-z0-9_-]) so it survives the query round-trip unescaped.
+        // uid: dashed 'D' Guid — LOAD-BEARING. /confirm-email-change binds ConfirmEmailChangeRequest.Uid
+        // as a Guid via System.Text.Json, whose Guid converter accepts ONLY the dashed 'D' form; a compact
+        // 'N' uid fails to bind and 400s every confirm (#981, same root cause as the registration link).
+        // Do NOT shorten this to ':N'. email: percent-encoded (plus-addressing / '@'). token: already
+        // Base64Url (only [A-Za-z0-9_-]) so it survives the query round-trip unescaped.
         var confirmLink =
             $"{trimmed}/bekrafta-epost" +
-            $"?uid={content.UserId:N}" +
+            $"?uid={content.UserId:D}" +
             $"&email={Uri.EscapeDataString(content.NewEmail)}" +
             $"&token={content.UrlSafeToken}";
 
@@ -247,8 +250,9 @@ internal static class EmailTemplates
     /// <summary>
     /// #714 — registration email-confirmation, sent to the account's OWN address after signup. Builds
     /// the activation link from <paramref name="baseUrl"/> + the URL-safe token; the token is already
-    /// Base64Url (only [A-Za-z0-9_-]) so it survives the query round-trip unescaped, and the compact
-    /// 'N' Guid uid is url-safe. No email in the link (the address is unchanged). Civic tone (1177/
+    /// Base64Url (only [A-Za-z0-9_-]) so it survives the query round-trip unescaped, and the uid is the
+    /// dashed 'D' Guid the confirm endpoint binds (STJ's Guid converter accepts only 'D'; #981). No email
+    /// in the link (the address is unchanged). Civic tone (1177/
     /// Digg): no exclamation marks, no em-dash. The account cannot log in until the link is opened; the
     /// link is valid for 24h (EmailConfirmationTokenProvider TokenLifespan).
     /// </summary>
@@ -257,11 +261,14 @@ internal static class EmailTemplates
     {
         var trimmed = baseUrl.TrimEnd('/');
 
-        // uid: compact 'N' Guid (url-safe). token: already Base64Url (only [A-Za-z0-9_-]) so it
-        // survives the query round-trip unescaped. No email param (the address is not changing).
+        // uid: dashed 'D' Guid — LOAD-BEARING. /verify-email binds VerifyEmailRequest.Uid as a Guid via
+        // System.Text.Json, whose Guid converter accepts ONLY the dashed 'D' form; a compact 'N' uid fails
+        // to bind and 400s every activation (#981). Do NOT shorten this to ':N'. token: already Base64Url
+        // (only [A-Za-z0-9_-]) so it survives the query round-trip unescaped. No email param (the address
+        // is not changing).
         var confirmLink =
             $"{trimmed}/bekrafta-konto" +
-            $"?uid={content.UserId:N}" +
+            $"?uid={content.UserId:D}" +
             $"&token={content.UrlSafeToken}";
 
         return new EmailContent(

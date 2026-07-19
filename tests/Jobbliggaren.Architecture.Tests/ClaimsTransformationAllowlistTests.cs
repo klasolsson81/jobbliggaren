@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.Authorization;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Shouldly;
@@ -11,28 +12,31 @@ namespace Jobbliggaren.Architecture.Tests;
 /// An <c>IClaimsTransformation</c> runs after authentication-success on every authenticated request and
 /// can add Role claims or other privilege claims — a security-critical extension point (impersonation
 /// promote, test-only role injectors, federated IdP claim mapping). This test locks the set of allowed
-/// implementations in Infrastructure so a new one breaks the build until it is deliberately allowlisted —
-/// the same pattern as the audit-bypass gates (ADR 0024 D1).
+/// implementations so a new one breaks the build until it is deliberately allowlisted — the same pattern
+/// as the audit-bypass gates (ADR 0024 D1).
 /// </para>
 ///
 /// <para>
 /// Since #746 PR-B the allowlist is EMPTY: role resolution was moved out of the eager
-/// <c>SessionRoleClaimsTransformation</c> (deleted) and into the on-demand Api-layer
+/// <c>SessionRoleClaimsTransformation</c> (deleted) into the on-demand Api-layer
 /// <c>AdminRoleAuthorizationHandler</c>, so no <c>IClaimsTransformation</c> exists any more. The guard is
-/// therefore STRICTER now — any newly introduced transformation must be reviewed and allowlisted. The
-/// privilege-granting authorization handlers are guarded in parallel by
-/// <see cref="AuthorizationHandlerAllowlistTests"/>.
+/// therefore STRICTER now. The privilege-granting authorization handlers are guarded in parallel by
+/// <see cref="AuthorizationHandlerAllowlistTests"/>, whose <c>ShouldContain</c> anchor exercises the same
+/// <c>GetTypes()</c>/<c>IsAssignableFrom</c> reflection — so a silently-broken scan here (which would
+/// otherwise stay vacuously green with an empty allowlist) would surface there.
 /// </para>
 /// </summary>
 public class ClaimsTransformationAllowlistTests
 {
     [Fact]
-    public void IClaimsTransformation_implementations_in_Infrastructure_must_be_in_allowlist()
+    public void No_IClaimsTransformation_may_exist_outside_the_allowlist()
     {
         var allowed = System.Array.Empty<string>();
 
-        var implementations = typeof(AppDbContext).Assembly
-            .GetTypes()
+        // Scan both Api and Infrastructure — an IClaimsTransformation in either layer must be reviewed and
+        // allowlisted before it can add privilege claims.
+        var implementations = new[] { typeof(AdminRoleRequirement).Assembly, typeof(AppDbContext).Assembly }
+            .SelectMany(a => a.GetTypes())
             .Where(t => t is { IsClass: true, IsAbstract: false }
                         && typeof(IClaimsTransformation).IsAssignableFrom(t))
             .Select(t => t.Name)

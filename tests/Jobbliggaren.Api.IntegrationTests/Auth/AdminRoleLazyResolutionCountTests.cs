@@ -41,9 +41,12 @@ public sealed class AdminRoleLazyResolutionCountTests : IDisposable
     public AdminRoleLazyResolutionCountTests(ApiFactory factory)
     {
         _factory = factory;
-        // Derived host with the counting decorator. Built once for this class (few providers process-wide;
-        // the >20 ManyServiceProvidersCreatedWarning is nowhere near). Its own decorator instance so the
-        // count never races another test class.
+        // Derived host with the counting decorator — its own instance so the count never races another
+        // class (and [Collection("Api")] serializes execution). xUnit news this class per test method, so
+        // this builds one host per method; the EF ManyServiceProvidersCreatedWarning is process-wide but
+        // only a couple of derived hosts exist across the whole suite (this + the cached
+        // email-confirmation one), far under the 20 threshold. The admin promote below uses
+        // _factory.Services while requests go through _host — both share the collection fixture's Postgres.
         _host = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
             services.AddScoped<IUserAccountService>(sp =>
                 new CountingUserAccountService(

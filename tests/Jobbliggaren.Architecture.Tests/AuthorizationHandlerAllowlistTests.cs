@@ -1,11 +1,12 @@
 using Jobbliggaren.Api.Authorization;
+using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Shouldly;
 
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// Architecture rule for <see cref="IAuthorizationHandler"/> implementations in the Api layer (#746 PR-B).
+/// Architecture rule for <see cref="IAuthorizationHandler"/> implementations (#746 PR-B).
 ///
 /// <para>
 /// An <c>IAuthorizationHandler</c> can grant privileges — <c>AdminRoleAuthorizationHandler</c> resolves
@@ -20,12 +21,14 @@ namespace Jobbliggaren.Architecture.Tests;
 public class AuthorizationHandlerAllowlistTests
 {
     [Fact]
-    public void IAuthorizationHandler_implementations_in_Api_must_be_in_allowlist()
+    public void IAuthorizationHandler_implementations_must_be_in_allowlist()
     {
         var allowed = new[] { "AdminRoleAuthorizationHandler" };
 
-        var implementations = typeof(AdminRoleRequirement).Assembly
-            .GetTypes()
+        // Scan both Api (where AdminRoleAuthorizationHandler lives) AND Infrastructure (which may reference
+        // Microsoft.AspNetCore.Authorization too), so a privilege-granting handler in either layer is caught.
+        var implementations = new[] { typeof(AdminRoleRequirement).Assembly, typeof(AppDbContext).Assembly }
+            .SelectMany(a => a.GetTypes())
             .Where(t => t is { IsClass: true, IsAbstract: false }
                         && typeof(IAuthorizationHandler).IsAssignableFrom(t))
             .Select(t => t.Name)
@@ -35,13 +38,13 @@ public class AuthorizationHandlerAllowlistTests
         // is renamed/removed the sanity fails, so the empty-diff below can never be vacuously green.
         implementations.ShouldContain(
             "AdminRoleAuthorizationHandler",
-            "Sanity: the Admin role authorization handler must exist in the Api assembly.");
+            "Sanity: the Admin role authorization handler must exist in the scanned assemblies.");
 
         var unauthorized = implementations.Where(impl => !allowed.Contains(impl)).ToList();
 
         unauthorized.ShouldBeEmpty(
-            "A new IAuthorizationHandler in the Api layer requires explicit review before being added to " +
-            "this allowlist — such a handler can grant privileges (attach Role claims, satisfy a policy). " +
+            "A new IAuthorizationHandler requires explicit review before being added to this allowlist — " +
+            "such a handler can grant privileges (attach Role claims, satisfy a policy). " +
             $"Unauthorized: {string.Join(", ", unauthorized)}");
     }
 }

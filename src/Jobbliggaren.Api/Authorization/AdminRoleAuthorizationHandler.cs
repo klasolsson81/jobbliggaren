@@ -27,6 +27,7 @@ namespace Jobbliggaren.Api.Authorization;
 /// </summary>
 public sealed partial class AdminRoleAuthorizationHandler(
     IUserAccountService userAccountService,
+    IHttpContextAccessor httpContextAccessor,
     ILogger<AdminRoleAuthorizationHandler> logger)
     : AuthorizationHandler<AdminRoleRequirement>
 {
@@ -67,8 +68,11 @@ public sealed partial class AdminRoleAuthorizationHandler(
         if (!Guid.TryParse(userIdClaim, out var userId))
             return;
 
-        // RequestAborted so the role fetch respects client-disconnect (parity with the old transformation).
-        var ct = (context.Resource as HttpContext)?.RequestAborted ?? CancellationToken.None;
+        // RequestAborted (via IHttpContextAccessor, parity with the old transformation + CurrentUser) so
+        // the role fetch respects client-disconnect. Read from the accessor rather than
+        // context.Resource so it does not depend on the resource being an HttpContext (which the
+        // SuppressUseHttpContextAsAuthorizationResource switch could change).
+        var ct = httpContextAccessor.HttpContext?.RequestAborted ?? CancellationToken.None;
 
         IReadOnlyList<string> roles;
         try

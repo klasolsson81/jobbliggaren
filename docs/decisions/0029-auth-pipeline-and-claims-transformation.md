@@ -1,10 +1,32 @@
 # ADR 0029 — HTTP-auth-pipeline och `IClaimsTransformation`-disciplin
 
 **Datum:** 2026-05-11
-**Status:** Accepted
+**Status:** Accepted · role-resolution *mechanism* superseded-in-part by #746 PR-B (2026-07-19) — see Amendment below
 **Kontext:** Fas 2 polish-block — TD-60-stängning efter H-3 SoC-split (role-fetch flyttad från `SessionAuthenticationHandler` till `SessionRoleClaimsTransformation`)
 **Beslutsfattare:** Klas Olsson (efter senior-cto-advisor-triage 2026-05-11 Block C, TD-60-defer)
 **Relaterad:** ADR 0008 (Mediator pipeline-ordning, komplementär), ADR 0017 (frontend auth-pattern, opaque session-id), ADR 0022 (audit-log + marker-interface), ADR 0024 D1 (audit-bypass-port-allowlist-pattern), ADR 0028 (admin authorization defense-in-depth, **komplementär — supersedas inte**)
+
+## Amendment (2026-07-19, #746 PR-B — perf audit #737 d2/d4)
+
+The role-resolution **mechanism** this ADR documents has moved. `SessionRoleClaimsTransformation` (the
+`IClaimsTransformation` that resolved roles on *every* authenticated request) is **deleted**; role
+resolution is now performed **on demand** by `AdminRoleAuthorizationHandler`
+(`AuthorizationHandler<AdminRoleRequirement>` in `Jobbliggaren.Api.Authorization`) **only when the Admin
+policy is evaluated**. Motive: the sole consumer of `ClaimTypes.Role` is the Admin path, so the eager
+per-request fetch was pure waste on the non-admin fan-out (2 identity queries × every request, ×8 on
+`/oversikt`; and a 429'd flood paid it per rejected request). The handler attaches `ClaimTypes.Role` to
+the request principal (in endpoint routing `AuthorizationHandlerContext.User` is the same reference as
+`HttpContext.User`), so the defense-in-depth chain (HTTP policy + Mediator `AdminAuthorizationBehavior`
+via `ICurrentUser.IsInRole`) is unchanged.
+
+The **decisions this ADR made stand**: per-request resolution (immediate-revoke, no cache — A1); the
+401-vs-403 pipeline discipline (now via `RequireAuthenticatedUser()`); and conscious review of
+privilege-granting auth extension points. Only **where** in the pipeline roles resolve changed — a policy
+handler under `UseAuthorization`, not an `IClaimsTransformation` after authentication. The guard follows:
+`ClaimsTransformationAllowlistTests` is emptied (any new transformation still breaks the build) and the
+privilege surface is now locked by `AuthorizationHandlerAllowlistTests`. Beslut 1's pipeline diagram
+(`UseAuthentication → IClaimsTransformation → UseAuthorization`) is superseded by
+`UseAuthentication → UseAuthorization(AdminRoleAuthorizationHandler resolves+attaches) → endpoint`.
 
 ## Kontext
 

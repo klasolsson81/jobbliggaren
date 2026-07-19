@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Settings } from "lucide-react";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
@@ -11,13 +11,34 @@ import { useNoticePrefs } from "./use-notice-prefs";
 export type NoticeSource = "applications" | "jobads" | "companies";
 
 /**
- * En notis i en källsektion. Utökar `NoticeData` med `source` + `type` för
- * inställnings-filtrering och "markera alla"-omfattning (#726).
+ * SSOT för notis-typerna per källa (code-reviewer Minor 1, #726): notis-
+ * konstruktionen (`SectionNoticeData.type`), kugghjuls-popoverns rader och
+ * pref-nycklarna `"<source>:<type>"` läser ALLA denna tabell — en felstavad
+ * typ-slug blir ett kompileringsfel i stället för en tyst trasig filtrering.
+ * Typer utan notis ännu ("statuschanges", "companyevents") är förberedda
+ * popover-val per handoffen.
  */
-export interface SectionNoticeData extends NoticeData {
-  readonly source: NoticeSource;
-  readonly type: string;
-}
+export const NOTICE_TYPES = {
+  applications: ["followup", "interviews", "offers", "statuschanges"],
+  jobads: ["deadlines", "matches", "latestsearch"],
+  companies: ["followedads", "companyevents"],
+} as const satisfies Record<NoticeSource, ReadonlyArray<string>>;
+
+export type NoticeType<S extends NoticeSource = NoticeSource> =
+  (typeof NOTICE_TYPES)[S][number];
+
+/**
+ * En notis i en källsektion. Utökar `NoticeData` med `source` + `type` för
+ * inställnings-filtrering och "markera alla"-omfattning (#726). Mappad union:
+ * `type` måste tillhöra just sin `source` (compile-time-länken till
+ * {@link NOTICE_TYPES}).
+ */
+export type SectionNoticeData = {
+  [S in NoticeSource]: NoticeData & {
+    readonly source: S;
+    readonly type: NoticeType<S>;
+  };
+}[NoticeSource];
 
 export interface NoticePrefType {
   readonly id: string;
@@ -66,7 +87,7 @@ export function NoticeSection({
   prefTypes,
 }: NoticeSectionProps) {
   const t = useTranslations("oversikt");
-  const { dismissed, dismiss, restore } = useDismissedNotices();
+  const { dismissed, dismiss, restore, restoreMany } = useDismissedNotices();
   const { isEnabled, toggle } = useNoticePrefs();
 
   const [showRead, setShowRead] = useState(false);
@@ -78,6 +99,30 @@ export function NoticeSection({
     closeSettings,
     gearRef,
   );
+
+  // WCAG 2.4.3 (design-reviewer Major, #726): dismiss/restore/återställ-alla
+  // avmonterar elementet som bar fokus → utan programmatisk förflyttning faller
+  // fokus till <body> och en tangentbords-/SR-användare tappar sin plats.
+  // Efter re-rendern flyttas fokus till ett stabilt syskon: läst-fotens toggle
+  // ("Visa"/"Dölj"), popover-panelens första kryssruta, eller kugghjulet.
+  // Ref-flagga (inte state): varje fokus-relevant handling muterar dismiss-
+  // store:n, så effekten nedan (keyad på `dismissed`) körs garanterat efter
+  // re-rendern — och en ref-nollning i effekten är lint-säker
+  // (react-hooks/set-state-in-effect förbjuder setState där).
+  const footToggleRef = useRef<HTMLButtonElement>(null);
+  const pendingFocusRef = useRef<"foot" | "panel" | "gear" | null>(null);
+  useEffect(() => {
+    const target = pendingFocusRef.current;
+    if (target === null) return;
+    pendingFocusRef.current = null;
+    if (target === "foot" && footToggleRef.current) {
+      footToggleRef.current.focus();
+    } else if (target === "panel" && panelRef.current) {
+      panelRef.current.querySelector("input")?.focus();
+    } else {
+      gearRef.current?.focus();
+    }
+  }, [dismissed, panelRef]);
 
   // Avbockad typ filtreras bort helt (räknas inte i "N olästa" heller).
   const enabled = useMemo(
@@ -93,9 +138,30 @@ export function NoticeSection({
     [enabled, dismissed],
   );
 
+  // Läst-fotens toggle finns alltid direkt efter en dismiss (read ≥ 1).
+  const handleDismiss = useCallback(
+    (id: string) => {
+      pendingFocusRef.current = "foot";
+      dismiss(id);
+    },
+    [dismiss],
+  );
+
+  // Efter restore av SISTA lästa raden avmonteras även foten → kugghjulet.
+  const handleRestore = useCallback(
+    (id: string) => {
+      pendingFocusRef.current = read.length > 1 ? "foot" : "gear";
+      restore(id);
+    },
+    [restore, read.length],
+  );
+
+  // En skrivning + en notifiering för hela sektionen (code-reviewer Minor 2).
+  // Reset-knappen avmonteras när read töms → fokus till panelens första kryssruta.
   const resetRead = useCallback(() => {
-    for (const n of read) restore(n.id);
-  }, [read, restore]);
+    pendingFocusRef.current = "panel";
+    restoreMany(read.map((n) => n.id));
+  }, [read, restoreMany]);
 
   return (
     <section className="jp-section" aria-labelledby={titleId}>
@@ -159,7 +225,7 @@ export function NoticeSection({
       <ul className="jp-notice-list">
         {unread.length > 0 ? (
           unread.map((n) => (
-            <NoticeRow key={n.id} notice={n} onDismiss={dismiss} />
+            <NoticeRow key={n.id} notice={n} onDismiss={handleDismiss} />
           ))
         ) : (
           <li className="jp-notice-empty">
@@ -171,7 +237,7 @@ export function NoticeSection({
         )}
         {showRead &&
           read.map((n) => (
-            <NoticeRow key={n.id} notice={n} read onRestore={restore} />
+            <NoticeRow key={n.id} notice={n} read onRestore={handleRestore} />
           ))}
         {read.length > 0 && (
           <li className="jp-notice-foot">
@@ -179,6 +245,7 @@ export function NoticeSection({
               {t("notices.readCount", { count: read.length })}
             </span>
             <button
+              ref={footToggleRef}
               type="button"
               className="jp-notice-foot__toggle"
               aria-expanded={showRead}

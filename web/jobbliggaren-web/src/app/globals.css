@@ -7234,9 +7234,22 @@ a.jp-adminnav__link[aria-current="page"]::after {
    kort (setup-callout), kugghjuls-popover, läst-läge-fot och tomt-läge. Tokens
    only — inga nya hex; mörkt tema kommer gratis via `--jp-*`. */
 
-/* Läst (dismissad men ej borttagen) notisrad — dimmad. X byts mot RotateCcw i
-   NoticeRow. */
-.jp-notice--read { opacity: 0.55; }
+/* Läst (dismissad men ej borttagen) notisrad — de-emfaserad via AA-säkra
+   muted-tokens, ALDRIG en blanket-opacity: raden bär fortfarande AKTIVA
+   kontroller (CTA-länken + återställ-knappen) som måste klara WCAG 1.4.3/1.4.11
+   i full kontrast (design-reviewer Blocker #726 — gäller även mockens 04-dimning;
+   WCAG AA kan inte ADR:as bort). Endast presentationella delar dämpas: text/
+   label/tid → ink-3 (≥4.5:1 mot surface); strippen är dekorativ och får dämpas.
+   X byts mot RotateCcw i NoticeRow. Selektorerna nedan vinner över kind-
+   färgerna (.jp-notice--warning .jp-notice__label m.fl., samma specificitet)
+   på källordning — detta block ligger efter dem. */
+.jp-notice--read .jp-notice__label,
+.jp-notice--read .jp-notice__text,
+.jp-notice--read .jp-notice__time {
+  color: var(--jp-ink-3);
+}
+.jp-notice--read .jp-notice__text b { color: inherit; }
+.jp-notice--read .jp-notice__strip { opacity: 0.45; }
 
 /* Sid-toolbar: "senast uppdaterad"-stämpel vänster, "Markera alla" höger. */
 .jp-oversikt-toolbar {

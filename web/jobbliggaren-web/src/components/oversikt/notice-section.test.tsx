@@ -1,12 +1,17 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { NoticeSection, type SectionNoticeData } from "./notice-section";
+import type { NoticeData } from "./notice-row";
+import {
+  NoticeSection,
+  type NoticeType,
+  type SectionNoticeData,
+} from "./notice-section";
 
 function n(
   id: string,
-  type: string,
-  overrides: Partial<SectionNoticeData> = {},
+  type: NoticeType<"jobads">,
+  overrides: Partial<NoticeData> = {},
 ): SectionNoticeData {
   return {
     id,
@@ -93,6 +98,46 @@ describe("NoticeSection", () => {
     await user.click(screen.getByRole("button", { name: "Återställ notis" }));
     expect(screen.getByText("1 oläst")).toBeInTheDocument();
     expect(screen.queryByText("1 läst notis")).toBeNull();
+  });
+
+  it("fokus flyttas till läst-fotens toggle efter dismiss (WCAG 2.4.3)", async () => {
+    const user = userEvent.setup();
+    renderSection([n("a", "matches")]);
+    await user.click(screen.getByRole("button", { name: "Markera som läst" }));
+    expect(screen.getByRole("button", { name: "Visa" })).toHaveFocus();
+  });
+
+  it("fokus flyttas till kugghjulet när sista lästa raden återställs", async () => {
+    const user = userEvent.setup();
+    renderSection([n("a", "matches")]);
+    await user.click(screen.getByRole("button", { name: "Markera som läst" }));
+    await user.click(screen.getByRole("button", { name: "Visa" }));
+    await user.click(screen.getByRole("button", { name: "Återställ notis" }));
+    expect(
+      screen.getByRole("button", { name: "Notisinställningar" }),
+    ).toHaveFocus();
+  });
+
+  it("Återställ lästa notiser (restoreMany) återställer alla i sektionen och fokuserar panelens första kryssruta", async () => {
+    const user = userEvent.setup();
+    renderSection([n("a", "matches"), n("b", "deadlines", { kind: "warning" })]);
+    await user.click(
+      screen.getAllByRole("button", { name: "Markera som läst" })[0]!,
+    );
+    await user.click(
+      screen.getAllByRole("button", { name: "Markera som läst" })[0]!,
+    );
+    expect(screen.getByText("2 lästa notiser")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Notisinställningar" }));
+    await user.click(
+      screen.getByRole("button", { name: "Återställ lästa notiser (2)" }),
+    );
+    expect(screen.getByText("2 olästa")).toBeInTheDocument();
+    expect(screen.queryByText(/lästa? notis/)).toBeNull();
+    expect(
+      screen.getByRole("checkbox", { name: "Deadlines för sparade annonser" }),
+    ).toHaveFocus();
   });
 
   it("kugghjul öppnar popovern; avbockad typ filtrerar bort raderna och räknas inte", async () => {

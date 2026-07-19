@@ -1,13 +1,14 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { NoticeData } from "./notice-row";
 import { NoticeToolbar } from "./notice-toolbar";
 import type { SectionNoticeData } from "./notice-section";
 
 const DISMISS_KEY = "jp-oversikt-dismissed-notices";
 const PREFS_KEY = "jp-oversikt-notice-prefs";
 
-function notice(overrides: Partial<SectionNoticeData> = {}): SectionNoticeData {
+function notice(overrides: Partial<NoticeData> = {}): SectionNoticeData {
   return {
     id: "n-1",
     source: "jobads",
@@ -21,6 +22,18 @@ function notice(overrides: Partial<SectionNoticeData> = {}): SectionNoticeData {
     ...overrides,
   };
 }
+
+const applicationsNotice: SectionNoticeData = {
+  id: "b",
+  source: "applications",
+  type: "followup",
+  kind: "warning",
+  label: "Uppföljning",
+  text: "En notis.",
+  cta: "Visa",
+  href: "/ansokningar",
+  time: "i dag",
+};
 
 describe("NoticeToolbar", () => {
   beforeEach(() => window.localStorage.clear());
@@ -43,10 +56,7 @@ describe("NoticeToolbar", () => {
     render(
       <NoticeToolbar
         lastUpdated="x"
-        notices={[
-          notice({ id: "a" }),
-          notice({ id: "b", source: "applications", type: "followup" }),
-        ]}
+        notices={[notice({ id: "a" }), applicationsNotice]}
       />,
     );
 
@@ -63,6 +73,22 @@ describe("NoticeToolbar", () => {
     expect(
       screen.queryByRole("button", { name: /Markera alla/ }),
     ).toBeNull();
+  });
+
+  it("flyttar fokus till första sektionens kugghjul efter 'Markera alla' (WCAG 2.4.3)", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <NoticeToolbar lastUpdated="x" notices={[notice({ id: "a" })]} />
+        <button type="button" className="jp-section__gear" aria-label="Notisinställningar" />
+      </>,
+    );
+    await user.click(
+      screen.getByRole("button", { name: /Markera alla som lästa/ }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Notisinställningar" }),
+    ).toHaveFocus();
   });
 
   it("räknar inte en pref-avstängd typ som synlig", () => {

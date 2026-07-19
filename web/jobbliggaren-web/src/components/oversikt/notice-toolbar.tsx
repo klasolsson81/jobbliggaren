@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import { useDismissedNotices } from "./use-dismissed-notices";
@@ -30,6 +31,20 @@ export function NoticeToolbar({ lastUpdated, notices }: NoticeToolbarProps) {
       !dismissed.has(n.id),
   );
 
+  // WCAG 2.4.3 (design-reviewer Major, #726): "Markera alla" avmonterar sig
+  // själv när inget avfärdbart återstår → utan förflyttning faller fokus till
+  // <body>. Efter re-rendern flyttas fokus till första sektionens kugghjul
+  // (stabilt — sektionerna döljs aldrig). Ref-flagga i stället för state:
+  // klicket muterar dismiss-store:n → effekten (keyad på `dismissed`) körs
+  // efter re-rendern; ref-nollning där är lint-säker
+  // (react-hooks/set-state-in-effect).
+  const moveFocusRef = useRef(false);
+  useEffect(() => {
+    if (!moveFocusRef.current) return;
+    moveFocusRef.current = false;
+    document.querySelector<HTMLButtonElement>(".jp-section__gear")?.focus();
+  }, [dismissed]);
+
   return (
     <div className="jp-oversikt-toolbar">
       <span className="jp-oversikt-toolbar__stamp">
@@ -42,7 +57,10 @@ export function NoticeToolbar({ lastUpdated, notices }: NoticeToolbarProps) {
         <button
           type="button"
           className="jp-btn jp-btn--ghost jp-btn--sm"
-          onClick={() => dismissMany(dismissibleVisible.map((n) => n.id))}
+          onClick={() => {
+            moveFocusRef.current = true;
+            dismissMany(dismissibleVisible.map((n) => n.id));
+          }}
         >
           <Check size={14} aria-hidden="true" /> {t("notices.markAllRead")}
         </button>

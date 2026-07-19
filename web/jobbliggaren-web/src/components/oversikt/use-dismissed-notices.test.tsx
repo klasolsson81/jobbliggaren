@@ -40,6 +40,24 @@ describe("useDismissedNotices", () => {
     expect(result.current.dismissed.has("a")).toBe(false);
   });
 
+  it("restoreMany tar bort flera id i en skrivning", () => {
+    const { result } = renderHook(() => useDismissedNotices());
+    act(() => result.current.dismissMany(["a", "b", "c"]));
+    act(() => result.current.restoreMany(["a", "b"]));
+    expect(result.current.dismissed.has("a")).toBe(false);
+    expect(result.current.dismissed.has("b")).toBe(false);
+    expect(result.current.dismissed.has("c")).toBe(true);
+    expect(JSON.parse(window.localStorage.getItem(LS_KEY) ?? "[]")).toEqual([
+      "c",
+    ]);
+  });
+
+  it("restoreMany utan träffar är en no-op (skriver inte)", () => {
+    const { result } = renderHook(() => useDismissedNotices());
+    act(() => result.current.restoreMany(["finns-ej"]));
+    expect(window.localStorage.getItem(LS_KEY)).toBeNull();
+  });
+
   it("hydrerar från befintlig localStorage", () => {
     window.localStorage.setItem(LS_KEY, JSON.stringify(["x", "y"]));
     const { result } = renderHook(() => useDismissedNotices());

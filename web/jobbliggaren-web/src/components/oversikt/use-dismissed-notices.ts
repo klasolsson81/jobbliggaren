@@ -75,6 +75,8 @@ export interface DismissedNoticesStore {
   readonly dismissMany: (ids: ReadonlyArray<string>) => void;
   /** Återställ (avmarkera) en läst notis — tar bort id:t ur arrayen. */
   readonly restore: (id: string) => void;
+  /** Återställ flera lästa notiser i EN skrivning (t.ex. "Återställ lästa"). */
+  readonly restoreMany: (ids: ReadonlyArray<string>) => void;
 }
 
 /**
@@ -105,5 +107,13 @@ export function useDismissedNotices(): DismissedNoticesStore {
     writeIds(next);
   }, []);
 
-  return { dismissed, dismiss, dismissMany, restore };
+  const restoreMany = useCallback((ids: ReadonlyArray<string>) => {
+    const next = new Set(parseIds(readRaw()));
+    let changed = false;
+    for (const id of ids) changed = next.delete(id) || changed;
+    if (!changed) return;
+    writeIds(next);
+  }, []);
+
+  return { dismissed, dismiss, dismissMany, restore, restoreMany };
 }

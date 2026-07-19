@@ -23,8 +23,11 @@ import { SavedSearchNoticeText } from "./saved-search-notice-text";
 import { SetupCallout } from "./setup-callout";
 import { NoticeToolbar } from "./notice-toolbar";
 import {
+  NOTICE_TYPES,
   NoticeSection,
   type NoticePrefType,
+  type NoticeSource,
+  type NoticeType,
   type SectionNoticeData,
 } from "./notice-section";
 
@@ -277,24 +280,25 @@ export function OversiktPage({
     ...companyNotices,
   ];
 
-  // Kugghjuls-typer per sektion (inkl. förberedda typer utan notiser ännu —
-  // "Statusändringar", "Företagshändelser"). A′: sök-typen heter "Senaste
-  // sökningen", inte "Sparade sökningar".
-  const applicationPrefTypes: NoticePrefType[] = [
-    { id: "followup", label: t("notices.prefFollowup") },
-    { id: "interviews", label: t("notices.prefInterviews") },
-    { id: "offers", label: t("notices.prefOffers") },
-    { id: "statuschanges", label: t("notices.prefStatusChanges") },
-  ];
-  const jobAdPrefTypes: NoticePrefType[] = [
-    { id: "deadlines", label: t("notices.prefDeadlines") },
-    { id: "matches", label: t("notices.prefMatches") },
-    { id: "latestsearch", label: t("notices.prefLatestSearch") },
-  ];
-  const companyPrefTypes: NoticePrefType[] = [
-    { id: "followedads", label: t("notices.prefFollowedAds") },
-    { id: "companyevents", label: t("notices.prefCompanyEvents") },
-  ];
+  // Kugghjuls-typer per sektion, byggda ur NOTICE_TYPES-SSOT:en så popover-
+  // raderna aldrig kan drifta från notisernas `type`-slugs (code-reviewer
+  // Minor 1). `Record<NoticeType, string>` tvingar en label för VARJE typ —
+  // en ny typ utan label blir ett kompileringsfel. Inkluderar förberedda typer
+  // utan notiser ännu ("Statusändringar", "Företagshändelser"). A′: sök-typen
+  // heter "Senaste sökningen", inte "Sparade sökningar".
+  const prefLabels: Record<NoticeType, string> = {
+    followup: t("notices.prefFollowup"),
+    interviews: t("notices.prefInterviews"),
+    offers: t("notices.prefOffers"),
+    statuschanges: t("notices.prefStatusChanges"),
+    deadlines: t("notices.prefDeadlines"),
+    matches: t("notices.prefMatches"),
+    latestsearch: t("notices.prefLatestSearch"),
+    followedads: t("notices.prefFollowedAds"),
+    companyevents: t("notices.prefCompanyEvents"),
+  };
+  const prefTypesFor = (source: NoticeSource): NoticePrefType[] =>
+    NOTICE_TYPES[source].map((id) => ({ id, label: prefLabels[id] }));
 
   return (
     <>
@@ -328,7 +332,7 @@ export function OversiktPage({
           title={t("notices.sectionApplications")}
           notices={applicationNotices}
           emptyBody={t("notices.emptyApplications")}
-          prefTypes={applicationPrefTypes}
+          prefTypes={prefTypesFor("applications")}
         />
         <NoticeSection
           source="jobads"
@@ -336,7 +340,7 @@ export function OversiktPage({
           title={t("notices.sectionJobAds")}
           notices={jobAdNotices}
           emptyBody={t("notices.emptyJobAds")}
-          prefTypes={jobAdPrefTypes}
+          prefTypes={prefTypesFor("jobads")}
         />
         <NoticeSection
           source="companies"
@@ -344,7 +348,7 @@ export function OversiktPage({
           title={t("notices.sectionCompanies")}
           notices={companyNotices}
           emptyBody={t("notices.emptyCompanies")}
-          prefTypes={companyPrefTypes}
+          prefTypes={prefTypesFor("companies")}
         />
       </div>
     </>

@@ -1435,7 +1435,13 @@ public static class DependencyInjection
         });
 #pragma warning restore JOBBLIGGAREN0001
 
-        services.Configure<SessionStoreOptions>(configuration.GetSection(SessionStoreOptions.SectionName));
+        // #746 — bind + validate at startup: SessionStoreOptionsValidator caps SlideThreshold to
+        // [0.0, 0.25] (a bad throttle value must fail the boot, not silently widen the Art.17
+        // orphan self-heal window). ValidateOnStart() forces the check eagerly.
+        services.AddOptions<SessionStoreOptions>()
+            .Bind(configuration.GetSection(SessionStoreOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<SessionStoreOptions>, SessionStoreOptionsValidator>();
 
         // #714 — email-confirmation-first registration toggle (Application-owned contract, bound
         // here). Read by RegisterCommandHandler + UserAccountService.ValidateCredentialsAsync.

@@ -73,6 +73,19 @@ public sealed class SessionStoreOptions
     // moot. A future in-window restore MUST clear the tombstone (docs/runbooks/account-deletion.md).
     public TimeSpan DeletionTombstoneTtl { get; init; } = TimeSpan.FromDays(30);
 
+    // #746 sliding-write throttle: GetAsync skips the per-read SADD/KeyExpire/SetString rewrite
+    // while less than SlideThreshold × the profile's SlidingTtl has elapsed since the last slide
+    // (SlidAt). A fraction (not an absolute interval) so ONE value scales across all three profiles
+    // (24h / 14d / 30d). 0.0 disables throttling — every read slides, pre-#746 behaviour — and is
+    // the shipped default: the mechanism lands inert and a live ratchet is a deliberate ops flip
+    // (CTO bind 2026-07-19). Capped at SessionStoreOptionsValidator.MaxSlideThreshold (0.25): the
+    // residual orphan-index self-heal window is SlideThreshold × SlidingTtl (worst case Persistent's
+    // 30d), and a security-relevant healing property must not be widened past ~a week even by a
+    // config typo, so the ceiling is enforced at startup rather than by discipline; a production
+    // ratchet above 0.1 additionally needs security-auditor sign-off. Enablement procedure +
+    // pre-ratchet checklist: docs/runbooks/session-slide-throttle-ratchet.md.
+    public double SlideThreshold { get; init; }
+
     public SessionLifetimeProfile ProfileFor(SessionLifetime lifetime) => lifetime switch
     {
         SessionLifetime.Persistent => Persistent,

@@ -1,9 +1,21 @@
 "use client";
 
-import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
+// ─────────────────────────────────────────────────────────────────────────────
+// GUEST-ONLY (efter #726 notiscenter-refaktoreringen). Den autentiserade
+// `/oversikt` bygger nu notiser per källa via `notice-section.tsx` +
+// `notice-toolbar.tsx`. Den här platta "Kräver åtgärd / Information"-listan lever
+// kvar ENBART för den publika gäst-förhandsvisningen
+// (`components/guest/guest-oversikt-page.tsx`), som är en avsiktlig demo-yta.
+// Dismiss-state delas numera via `use-dismissed-notices` (samma store som det
+// autentiserade centret) så kunskapen bor på en plats. Observerbart beteende är
+// oförändrat — gäst-testerna förblir gröna.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import { NoticeRow, type NoticeData } from "./notice-row";
+import { useDismissedNotices } from "./use-dismissed-notices";
 
 interface NoticeListProps {
   readonly actionNotices: ReadonlyArray<NoticeData>;
@@ -11,131 +23,28 @@ interface NoticeListProps {
   readonly lastUpdated: string;
 }
 
-const LS_KEY = "jp-oversikt-dismissed-notices";
-
-/**
- * Subscribe-funktion för useSyncExternalStore — kör en gång per mount och
- * lyssnar på "storage"-events (om andra flikar dismissar; bonus, inte krav).
- */
-function subscribeStorage(callback: () => void): () => void {
-  if (typeof window === "undefined") return () => undefined;
-  window.addEventListener("storage", callback);
-  return () => window.removeEventListener("storage", callback);
-}
-
-function getDismissedSnapshot(): string {
-  if (typeof window === "undefined") return "[]";
-  try {
-    return window.localStorage.getItem(LS_KEY) ?? "[]";
-  } catch {
-    return "[]";
-  }
-}
-
-function getServerSnapshot(): string {
-  return "[]";
-}
-
-function parseDismissed(raw: string): ReadonlySet<string> {
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((v): v is string => typeof v === "string"));
-  } catch {
-    return new Set();
-  }
-}
-
-/**
- * Client Component — dismiss-state via useSyncExternalStore + localStorage.
- *
- * Ingen `markNotificationRead`-server-action finns ännu (HANDOVER §3.7);
- * vi gör optimistic local-only-state. Persistens sker till localStorage så
- * notiser inte återkommer vid reload tills BE-port finns. `useSyncExternalStore`
- * ger SSR-säker hydration (server-snapshot = tom array; klient-snapshot =
- * faktiska localStorage-värden post-hydration).
- *
- * Lokal `additions`-state lägger på dismiss-IDs sedan senaste sync —
- * vi mergar med localStorage-snapshoten vid render så multi-tab-rörelser
- * inte tappas. Notice-id är stabilt (genereras i page.tsx från pipeline-
- * data eller mock-snippet-key) så localStorage-värden är meningsfulla
- * mellan sessioner.
- */
 export function NoticeList({
   actionNotices,
   infoNotices,
   lastUpdated,
 }: NoticeListProps) {
   const t = useTranslations("oversikt");
-  const storedRaw = useSyncExternalStore(
-    subscribeStorage,
-    getDismissedSnapshot,
-    getServerSnapshot
-  );
-  const [additions, setAdditions] = useState<ReadonlySet<string>>(
-    () => new Set<string>()
-  );
-
-  const dismissed = useMemo(() => {
-    const merged = new Set(parseDismissed(storedRaw));
-    for (const id of additions) merged.add(id);
-    return merged;
-  }, [storedRaw, additions]);
-
-  const persist = useCallback((next: ReadonlySet<string>) => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(LS_KEY, JSON.stringify([...next]));
-    } catch {
-      // localStorage kan vara blockerad (private-mode/Safari ITP) — degradera tyst
-    }
-  }, []);
-
-  const dismissOne = useCallback(
-    (id: string) => {
-      const next = new Set(dismissed);
-      next.add(id);
-      persist(next);
-      setAdditions((prev) => {
-        const merged = new Set(prev);
-        merged.add(id);
-        return merged;
-      });
-    },
-    [dismissed, persist]
-  );
-
-  const dismissAll = useCallback(() => {
-    // F4-12 PR-B (ADR 0076): icke-avfärdbara notiser (setup-nudgen) får INTE
-    // markeras som lästa — de exkluderas ur id-insamlingen så "Markera alla
-    // som lästa" lämnar dem synliga.
-    const allIds = [...actionNotices, ...infoNotices]
-      .filter((n) => n.dismissible !== false)
-      .map((n) => n.id);
-    const next = new Set(dismissed);
-    for (const id of allIds) next.add(id);
-    persist(next);
-    setAdditions((prev) => {
-      const merged = new Set(prev);
-      for (const id of allIds) merged.add(id);
-      return merged;
-    });
-  }, [actionNotices, infoNotices, dismissed, persist]);
+  const { dismissed, dismiss, dismissMany } = useDismissedNotices();
 
   // En icke-avfärdbar notis är ALLTID synlig (filtreras aldrig av dismissed-
   // mängden); en avfärdbar göms när dess id finns i dismissed.
   const isVisible = useCallback(
     (n: NoticeData) => n.dismissible === false || !dismissed.has(n.id),
-    [dismissed]
+    [dismissed],
   );
 
   const visibleAction = useMemo(
     () => actionNotices.filter(isVisible),
-    [actionNotices, isVisible]
+    [actionNotices, isVisible],
   );
   const visibleInfo = useMemo(
     () => infoNotices.filter(isVisible),
-    [infoNotices, isVisible]
+    [infoNotices, isVisible],
   );
   const visibleCount = visibleAction.length + visibleInfo.length;
 
@@ -145,6 +54,15 @@ export function NoticeList({
   const hasDismissibleVisible =
     visibleAction.some((n) => n.dismissible !== false) ||
     visibleInfo.some((n) => n.dismissible !== false);
+
+  const dismissAll = useCallback(() => {
+    // F4-12 PR-B (ADR 0076): icke-avfärdbara notiser (setup-nudgen) exkluderas
+    // ur id-insamlingen så "Markera alla som lästa" lämnar dem synliga.
+    const ids = [...actionNotices, ...infoNotices]
+      .filter((n) => n.dismissible !== false)
+      .map((n) => n.id);
+    dismissMany(ids);
+  }, [actionNotices, infoNotices, dismissMany]);
 
   return (
     <section className="jp-section" aria-labelledby="oversikt-notiser">
@@ -189,7 +107,7 @@ export function NoticeList({
               </div>
               <ul className="jp-notice-list">
                 {visibleAction.map((n) => (
-                  <NoticeRow key={n.id} notice={n} onDismiss={dismissOne} />
+                  <NoticeRow key={n.id} notice={n} onDismiss={dismiss} />
                 ))}
               </ul>
             </>
@@ -206,7 +124,7 @@ export function NoticeList({
               </div>
               <ul className="jp-notice-list">
                 {visibleInfo.map((n) => (
-                  <NoticeRow key={n.id} notice={n} onDismiss={dismissOne} />
+                  <NoticeRow key={n.id} notice={n} onDismiss={dismiss} />
                 ))}
               </ul>
             </>

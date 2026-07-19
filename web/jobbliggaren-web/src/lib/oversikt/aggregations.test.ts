@@ -3,15 +3,16 @@ import { createTranslator } from "next-intl";
 import {
   computeApplicationCounts,
   daysSince,
-  filterFutureDeadlines,
   findFollowUpCandidates,
   findLatestOffer,
   findRecentInterviews,
+  findUpcomingSavedJobDeadlines,
   flattenPipeline,
   formatDaysAgo,
   formatNoticesStamp,
   formatSwedishLongDate,
   formatSwedishShortDate,
+  OVERSIKT_DEADLINE_WINDOW_DAYS,
   OVERSIKT_FOLLOW_UP_DAYS,
 } from "./aggregations";
 import type {
@@ -19,6 +20,7 @@ import type {
   ApplicationStatus,
   PipelineGroupDto,
 } from "@/lib/dto/applications";
+import type { SavedJobAdDto } from "@/lib/dto/saved-job-ads";
 import svOversikt from "../../../messages/sv/oversikt.json";
 
 // Real next-intl translator scoped to `oversikt.relativeTime` (Swedish catalog
@@ -389,25 +391,75 @@ describe("formatDaysAgo", () => {
   });
 });
 
-describe("filterFutureDeadlines", () => {
-  it("behåller deadlines som är idag eller i framtiden", () => {
-    const now = new Date("2026-05-24T00:00:00Z");
-    const deadlines = [
-      { date: "2026-05-22", label: "22 maj" }, // passerat
-      { date: "2026-05-24", label: "24 maj" }, // idag
-      { date: "2026-05-27", label: "27 maj" }, // framtid
-    ];
-    const out = filterFutureDeadlines(deadlines, now);
-    expect(out.map((d) => d.label)).toEqual(["24 maj", "27 maj"]);
+describe("findUpcomingSavedJobDeadlines", () => {
+  const now = new Date("2026-05-24T00:00:00Z");
+
+  function makeSaved(
+    company: string,
+    expiresAt: string | null,
+    hasJobAd = true
+  ): SavedJobAdDto {
+    return {
+      id: `saved-${company}-${expiresAt}`,
+      jobAdId: "ad-1",
+      savedAt: "2026-05-01T00:00:00Z",
+      jobAd: hasJobAd
+        ? {
+            jobAdId: "ad-1",
+            title: `Roll hos ${company}`,
+            company,
+            url: null,
+            source: "Platsbanken",
+            publishedAt: null,
+            expiresAt,
+          }
+        : null,
+    };
+  }
+
+  it("behåller deadlines idag t.o.m. fönstrets slut, sorterade närmast först", () => {
+    // Fönster = 7 dagar. Idag (24:e), +7 (31:a) inkluderas; +8 (1 jun) exkluderas.
+    const out = findUpcomingSavedJobDeadlines(
+      [
+        makeSaved("Klarna", "2026-05-31T00:00:00Z"), // +7 (gräns, inkl)
+        makeSaved("Folksam", "2026-05-24T00:00:00Z"), // idag
+        makeSaved("ICA", "2026-06-01T00:00:00Z"), // +8 (utanför fönstret)
+      ],
+      now
+    );
+    expect(out.map((d) => d.company)).toEqual(["Folksam", "Klarna"]);
+    expect(out[0]?.expiresAt).toBe("2026-05-24T00:00:00Z");
   });
 
-  it("returnerar tom array när alla passerat", () => {
-    const now = new Date("2026-06-01T00:00:00Z");
-    const deadlines = [
-      { date: "2026-05-25" },
-      { date: "2026-05-27" },
-    ];
-    expect(filterFutureDeadlines(deadlines, now)).toEqual([]);
+  it("exkluderar passerade deadlines (i går och tidigare)", () => {
+    const out = findUpcomingSavedJobDeadlines(
+      [makeSaved("Igår", "2026-05-23T00:00:00Z")],
+      now
+    );
+    expect(out).toEqual([]);
+  });
+
+  it("exkluderar deadline exakt utanför fönstret (+8 dagar)", () => {
+    const out = findUpcomingSavedJobDeadlines(
+      [makeSaved("Precis över", "2026-06-01T00:00:00Z")],
+      now
+    );
+    expect(out).toEqual([]);
+  });
+
+  it("null-guardar rader utan jobAd eller utan expiresAt", () => {
+    const out = findUpcomingSavedJobDeadlines(
+      [
+        makeSaved("UtanAnnons", "2026-05-25T00:00:00Z", false),
+        makeSaved("UtanDatum", null),
+      ],
+      now
+    );
+    expect(out).toEqual([]);
+  });
+
+  it("OVERSIKT_DEADLINE_WINDOW_DAYS är 7", () => {
+    expect(OVERSIKT_DEADLINE_WINDOW_DAYS).toBe(7);
   });
 });
 

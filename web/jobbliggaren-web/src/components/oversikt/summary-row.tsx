@@ -1,3 +1,7 @@
+// GUEST-ONLY (efter #726 notiscenter-refaktoreringen): den autentiserade
+// `/oversikt` har inte längre en Sammanfattning. Denna rad-komponent lever kvar
+// enbart för den publika gäst-förhandsvisningen (`guest-oversikt-page.tsx`, som
+// bygger en egen sammanfattnings-tabell), en avsiktlig demo-yta.
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 

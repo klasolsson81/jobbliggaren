@@ -94,14 +94,19 @@ vid start. Kopiera config-mallen och fyll i:
 
 ```bash
 cp src/Jobbliggaren.Api/appsettings.Local.json.example src/Jobbliggaren.Api/appsettings.Local.json
-# generera de två nycklarna och klistra in dem i filen:
+# generera EN nyckel per krävd sektion (öppna .example för den fullständiga listan) och
+# klistra in dem i appsettings.Local.json:
 openssl rand -base64 32   # → FieldEncryption:LocalMasterKeyBase64
 openssl rand -base64 32   # → AuditPseudonymization:PepperBase64
+openssl rand -base64 32   # → CompanyWatchPseudonymization:PepperBase64
+openssl rand -base64 32   # → CvReviewFingerprintPseudonymization:PepperBase64
 ```
 
 `appsettings.Local.json` är gitignored — committa aldrig. Mallen (`.example`) är spårad och är
-källan till sanning för *vilka* lokala nycklar som krävs; hamnar en ny obligatorisk option i
-`ValidateOnStart` ska den läggas till i mallen samtidigt. Att starta .NET-stacken: §7.
+källan till sanning för *vilka* lokala nycklar som krävs; hamnar en ny obligatorisk
+`ValidateOnStart`-option ska den läggas till i mallen **OCH §7:s fälla-4-lista i SAMMA PR** som
+optionen (dev-boot-config-contract, CLAUDE.md §11 — annars fail-fast:ar nästa stack-ägares boot
+en krasch i taget). Att starta .NET-stacken: §7.
 
 ---
 
@@ -254,12 +259,16 @@ Alla tre startas av CC som bakgrundsprocesser.
    API:t OCH Worker:n fail-fast-validerar flera options (`ValidateOnStart` i
    Infrastructure-DI). En saknad nyckel kraschar starten och NAMNGER exakt vilken.
    `appsettings.Local.json` (gitignored, i `src/Jobbliggaren.Api/`) måste innehålla
-   `FieldEncryption` + `AuditPseudonymization` (+ `Email`). **Kopiera
-   `appsettings.Local.json.example` → `appsettings.Local.json` och generera nycklarna**
-   (`openssl rand -base64 32`). `AuditPseudonymization:PepperBase64` tillkom 2026-07-14
-   (ADR 0090 D5, #842) och är den senast tillkomna — en dev-DB som konfigurerades före
-   dess saknar den. Utan `FieldEncryption:Provider=Local` defaultar en worktree-start
-   dessutom till Kms och 500:ar mot AWS (#802).
+   `FieldEncryption` + de tre pseudonymiserings-pepprarna `AuditPseudonymization` +
+   `CompanyWatchPseudonymization` + `CvReviewFingerprintPseudonymization` (+ `Email`).
+   **Kopiera `appsettings.Local.json.example` → `appsettings.Local.json` och generera
+   nycklarna** (`openssl rand -base64 32` per sektion; `.example` är källan till sanning för
+   listan). De tre pepprarna tillkom successivt — `AuditPseudonymization` 2026-07-14 (ADR 0090
+   D5, #842), `CompanyWatchPseudonymization` 2026-07-18 (#544/#942),
+   `CvReviewFingerprintPseudonymization` 2026-07-19 (ADR 0093 D2, #692) — så en dev-DB /
+   Local.json som konfigurerades före var och en saknar den (fail-fast NAMNGER exakt vilken).
+   Utan `FieldEncryption:Provider=Local` defaultar en worktree-start dessutom till Kms och
+   500:ar mot AWS (#802).
 5. **Worker läser `DOTNET_ENVIRONMENT`, INTE `ASPNETCORE_ENVIRONMENT`.** Worker:n är en
    generic host (`Host.CreateApplicationBuilder`), inte en web-host. Sätter du bara
    `ASPNETCORE_ENVIRONMENT` kör Worker:n i **Production** och laddar fel appsettings.

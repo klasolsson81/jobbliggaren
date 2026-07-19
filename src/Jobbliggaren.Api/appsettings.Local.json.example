@@ -22,6 +22,18 @@
     "PepperBase64": "GENERATE ONCE: openssl rand -base64 32"
   },
 
+  "CompanyWatchPseudonymization": {
+    "//": "Sole-proprietor org.nr (= personnummer) at-rest tokenization pepper (ADR 0090 D5,",
+    "//1": "#544/#942). Required since 2026-07-18; the API AND Worker refuse to start without it.",
+    "PepperBase64": "GENERATE ONCE: openssl rand -base64 32"
+  },
+
+  "CvReviewFingerprintPseudonymization": {
+    "//": "CV-review finding-fingerprint HMAC key (ADR 0093 D2, #692) — keyed HMAC over short CV",
+    "//1": "quotes at-rest. Required since 2026-07-19; the API AND Worker refuse to start without it.",
+    "PepperBase64": "GENERATE ONCE: openssl rand -base64 32"
+  },
+
   "Email": {
     "//": "Dev default is Console (ConsoleEmailSender — mail is written to the log, no key needed).",
     "//1": "Set Provider=Resend + a real ApiKey only to exercise the live e-mail path (ADR 0080).",

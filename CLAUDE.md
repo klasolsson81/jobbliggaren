@@ -387,6 +387,14 @@ doubt, in-block wins (quality > tempo) and senior-cto-advisor decides.
   `ConsoleEmailSender` for mail, `LocalDataKeyProvider` (AES-256-GCM) for
   field encryption. Frontend `.env.local`; backend
   `appsettings.Development.json` + gitignored `appsettings.Local.json`.
+- **Dev-boot config contract.** A new fail-fast option (`ValidateOnStart` in the
+  Infrastructure DI) that a fresh dev-stack boot needs — a required key, secret, or
+  pepper the API/Worker refuses to start without — MUST be added to
+  `src/Jobbliggaren.Api/appsettings.Local.json.example` (the required-keys SSOT) **and**
+  `docs/runbooks/local-dev-setup.md` (§2.4 + §7) in the **same PR** as the option, by the
+  introducing CC. A gitignored `appsettings.Local.json` predates the new key, so an
+  out-of-sync template fails the next stack-owner's boot one crash at a time (`#544`
+  org.nr-HMAC + `#692` CV-fingerprint peppers both did — measured 2026-07-19).
 
 ## 12. When something looks wrong
 

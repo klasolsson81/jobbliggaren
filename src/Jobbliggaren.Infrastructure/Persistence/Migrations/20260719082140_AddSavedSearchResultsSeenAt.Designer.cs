@@ -14,7 +14,7 @@ using NpgsqlTypes;
 namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260719070714_AddSavedSearchResultsSeenAt")]
+    [Migration("20260719082140_AddSavedSearchResultsSeenAt")]
     partial class AddSavedSearchResultsSeenAt
     {
         /// <inheritdoc />
@@ -541,6 +541,10 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_job_ads");
+
+                    b.HasIndex("Status", "PublishedAt", "Id")
+                        .IsDescending(false, true, false)
+                        .HasDatabaseName("ix_job_ads_status_published_at_id");
 
                     b.ToTable("job_ads", (string)null);
                 });

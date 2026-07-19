@@ -79,14 +79,17 @@ internal sealed class JobAdSearchQuery(
     // både synonymerna → falska negativ OCH #864-Active-livscykelgrinden) och lägger
     // CreatedAt > since-fönstret ovanpå. Fönstret smalnar mängden hårt, men ett
     // q-fritext-kriterium de-TOAST:ar fortfarande search_vector → samma bitmap-plan-
-    // tvång som CountAsync (TD-94). Watermark-driven, ej #293/#306:s fasta fönster.
+    // tvång som CountAsync (TD-94), #744-gatad på q (ingen fritext → ingen detoast att
+    // undvika). Watermark-driven, ej #293/#306:s fasta fönster.
     public async ValueTask<int> CountNewSinceAsync(
         JobAdFilterCriteria criteria, DateTimeOffset since, CancellationToken cancellationToken)
     {
         var query = JobAdSearchComposition
             .ApplyFilter(db.JobAds.AsNoTracking(), criteria, synonymExpander)
             .Where(j => j.CreatedAt > since);
-        return await CountWithBitmapPlanAsync(query.CountAsync, cancellationToken);
+        return await BitmapPlanCount.CountWithBitmapPlanAsync(
+            db, JobAdSearchComposition.HasFreeTextQuery(criteria.Q),
+            query.CountAsync, cancellationToken);
     }
 
     // ADR 0067 Beslut 4 (Fas D1) — per-option facet-counts.

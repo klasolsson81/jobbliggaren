@@ -361,6 +361,7 @@ app.MapResumesEndpoints();
 app.MapAdminEndpoints();
 app.MapAdminJobAdsEndpoints();
 app.MapAdminCompanyWatchesEndpoints();
+app.MapAdminResumesEndpoints();
 app.MapAdminBackgroundJobsEndpoints();
 app.MapJobAdsEndpoints();
 app.MapSavedSearchesEndpoints();

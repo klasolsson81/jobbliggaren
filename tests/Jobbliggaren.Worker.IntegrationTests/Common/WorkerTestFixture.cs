@@ -159,6 +159,11 @@ public sealed class WorkerTestFixture : IAsyncLifetime
         services.AddScoped<Jobbliggaren.Application.Resumes.Jobs.ParsedResumeRetention.ParsedResumeRetentionJob>();
         services.AddScoped<Jobbliggaren.Worker.Hosting.ParsedResumeRetentionWorker>();
 
+        // #664: same — the one-off source_file_name mask backfill (admin-enqueued, no recurring worker)
+        // is registered in AddJobSources (which this fixture does not call), so mirror it here for its
+        // integration test to resolve it (parity #544's job, minus a worker wrapper).
+        services.AddScoped<Jobbliggaren.Application.Resumes.Jobs.BackfillParsedResumeSourceFileNameMask.BackfillParsedResumeSourceFileNameMaskJob>();
+
         // #560 (ADR 0091) — the SCB register bulk store, resolved per child scope by
         // ScbCompanyRegisterRefresher. Registered directly (concrete, no port — Fork 2) so the
         // orchestrator Testcontainers test can drive the real filter -> upsert -> sweep -> audit path.

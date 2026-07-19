@@ -751,6 +751,29 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Review.Abstractions.IResumeReviewReconciler,
             Jobbliggaren.Application.Resumes.Review.ResumeReviewReconciler>();
+
+        // #692 (ADR 0093 §D2(e), security-auditor Fas 4b PR-4 Q4) — the keyed HMAC that fingerprints
+        // a finding at rest. DUAL-HOST, like every AddJobSources registration: this module
+        // (AddCvReview) is reached by AddJobSources (line ~400), which BOTH hosts pass — Api via
+        // AddInfrastructure, Worker directly (Worker/Program.cs) — so BOTH boot this pepper section and
+        // BOTH must provision the pepper in prod (parity the watch pepper #544). Only the Api actually
+        // COMPUTES a fingerprint, but AddCvReview also registers the dual-host IResumeReviewReconciler,
+        // which now depends on IFindingFingerprinter, so the hasher must live wherever the reconciler
+        // does (an Api-only seam would leave the Worker's reconciler with an unresolvable dep). This is
+        // exactly the host-drift the AddJobSources placement is designed to prevent (see the #754
+        // options comment above). BindConfiguration (not .Bind(config.GetSection())) because AddCvReview
+        // takes no IConfiguration. ValidateOnStart hard-fails a missing/weak pepper in every environment
+        // and BOTH hosts, parity the audit (#842) and watch (#544) peppers.
+        services.AddOptions<Security.CvReviewFingerprintPseudonymizationOptions>()
+            .BindConfiguration(Security.CvReviewFingerprintPseudonymizationOptions.SectionName)
+            .ValidateOnStart();
+        services.AddSingleton<
+            Microsoft.Extensions.Options.IValidateOptions<Security.CvReviewFingerprintPseudonymizationOptions>,
+            Security.CvReviewFingerprintPseudonymizationOptionsValidator>();
+        // Stateless after reading the pepper once → singleton, parity HmacProtectedIdentityTokenizer.
+        services.AddSingleton<
+            Jobbliggaren.Application.Resumes.Review.Abstractions.IFindingFingerprinter,
+            Security.HmacFindingFingerprinter>();
         return services;
     }
 

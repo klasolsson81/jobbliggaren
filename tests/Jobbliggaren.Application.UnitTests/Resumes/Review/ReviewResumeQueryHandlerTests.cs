@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Resumes.Review;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Queries.ReviewResume;
 using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Application.UnitTests.Common.Security;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
 using NSubstitute;
@@ -43,7 +44,7 @@ public class ReviewResumeQueryHandlerTests
     }
 
     private ReviewResumeQueryHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>
-        new(db, _currentUser, _engine, _rubricProvider, _failedAccess);
+        new(db, _currentUser, _engine, _rubricProvider, _failedAccess, TestFindingFingerprinter.Instance);
 
     // The canonical Master content is EF-Ignore'd; the handler dereferences it before the mocked
     // engine (linearize → FromCanonical), so hydrate it on materialization like production does.
@@ -184,7 +185,8 @@ public class ReviewResumeQueryHandlerTests
 
         var anon = Substitute.For<ICurrentUser>();
         anon.UserId.Returns((Guid?)null);
-        var sut = new ReviewResumeQueryHandler(db, anon, _engine, _rubricProvider, _failedAccess);
+        var sut = new ReviewResumeQueryHandler(db, anon, _engine, _rubricProvider, _failedAccess,
+            TestFindingFingerprinter.Instance);
 
         var result = await sut.Handle(
             new ReviewResumeQuery(resume.Id.Value, "Ats"), TestContext.Current.CancellationToken);
@@ -247,7 +249,7 @@ public class ReviewResumeQueryHandlerTests
     public async Task Handle_ShouldSurfaceUserStatus_WhenFreshResolvedRowExists()
     {
         var db = CreateDb();
-        var matchingFingerprint = FindingTargetFingerprint.Compute(StubVersion, A7Fail());
+        var matchingFingerprint = TestFindingFingerprinter.Compute(StubVersion, A7Fail());
         var resume = await SeedOwnedResumeAsync(db, _userId, r =>
             r.SetFindingStatus("1.0.0", "A7", ReviewFindingStatus.Resolved,
                 matchingFingerprint, FakeDateTimeProvider.Default));
@@ -269,7 +271,7 @@ public class ReviewResumeQueryHandlerTests
         var db = CreateDb();
         var resume = await SeedOwnedResumeAsync(db, _userId, r =>
             r.SetFindingStatus("2.0.0", "A7", ReviewFindingStatus.Resolved,
-                FindingTargetFingerprint.Compute(RubricVersion.Parse("2.0.0"), A7Fail()),
+                TestFindingFingerprinter.Compute(RubricVersion.Parse("2.0.0"), A7Fail()),
                 FakeDateTimeProvider.Default));
         StubEngine(ResultWith(A7Fail())); // result is version 1.0.0
 
@@ -294,7 +296,7 @@ public class ReviewResumeQueryHandlerTests
         var db = CreateDb();
         var resume = await SeedOwnedResumeAsync(db, _userId, r =>
             r.SetFindingStatus("1.1.0", "A7", ReviewFindingStatus.Resolved,
-                FindingTargetFingerprint.Compute(RubricVersion.Parse("1.1.0"), A7Fail()),
+                TestFindingFingerprinter.Compute(RubricVersion.Parse("1.1.0"), A7Fail()),
                 FakeDateTimeProvider.Default));
         // The review rides the SHIPPED v1.2.0 rubric version (stamped on every result).
         StubEngine(new CvReviewResult(
@@ -338,7 +340,7 @@ public class ReviewResumeQueryHandlerTests
     {
         var db = CreateDb();
         var staleClock = new FakeDateTimeProvider(FakeDateTimeProvider.Default.UtcNow.AddHours(1));
-        var matchingFingerprint = FindingTargetFingerprint.Compute(StubVersion, A7Fail());
+        var matchingFingerprint = TestFindingFingerprinter.Compute(StubVersion, A7Fail());
         var resume = await SeedOwnedResumeAsync(db, _userId, r =>
         {
             r.SetFindingStatus("1.0.0", "A7", ReviewFindingStatus.Resolved,

@@ -114,6 +114,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
                 // #544 — separate company-watch pepper (fail-closed at startup, all environments).
                 ["CompanyWatchPseudonymization:PepperBase64"] = TestSecrets.WatchPepperBase64,
+
+                // #692 — separate CV-review finding-fingerprint pepper (AddCvReview, reached by the
+                // dual-host AddJobSources; fail-closed at startup via ValidateOnStart in all environments).
+                ["CvReviewFingerprintPseudonymization:PepperBase64"] = TestSecrets.FingerprintPepperBase64,
             }));
 
         builder.ConfigureServices(services =>

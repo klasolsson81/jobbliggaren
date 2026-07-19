@@ -43,7 +43,8 @@ public sealed class ApplyCvImprovementsCommandHandler(
     IVerbMapper verbMapper,
     IDateTimeProvider clock,
     IFailedAccessLogger failedAccessLogger,
-    IResumeReviewReconciler reconciler)
+    IResumeReviewReconciler reconciler,
+    IFindingFingerprinter fingerprinter)
     : ICommandHandler<ApplyCvImprovementsCommand, Result>
 {
     public async ValueTask<Result> Handle(
@@ -113,7 +114,7 @@ public sealed class ApplyCvImprovementsCommandHandler(
             }
 
             var resolved = FrameApplyComposer.ResolveFinding(
-                review, change.CriterionId, change.FindingFingerprint, patched);
+                review, change.CriterionId, change.FindingFingerprint, patched, fingerprinter);
             if (resolved.IsFailure)
                 return Result.Failure(resolved.Error);
 

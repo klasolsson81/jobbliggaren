@@ -348,6 +348,29 @@ public class D3StandardFontRuleTests
     }
 
     // ===============================================================
+    // Intra-pt tiebreak guard — a LIGHTER icon run CO-LOCATED at the modal pt
+    // must not win the dominant-run pick (code-reviewer #957 Minor: since the
+    // Fail arm landed, the heaviest-LetterCount tiebreak is verdict-deciding
+    // for the first time — pin it as load-bearing).
+    // ===============================================================
+
+    [Fact]
+    public async Task D3_ShouldPass_WhenALighterIconRunCohabitsTheModalPointSize()
+    {
+        // BOTH runs sit at the same modal pt (11); the icon run is the LIGHTER one. The body is
+        // the heavier Arial run, so the verdict is Pass — a co-located icon accent never fails D3.
+        var d3 = await D3Async(WithRuns(
+            new CvFontRun("Arial", 11, 500),
+            new CvFontRun("Wingdings", 11, 30)));
+
+        d3.Verdict.ShouldBe(CriterionVerdict.Pass);
+        d3.Verdict.ShouldNotBe(CriterionVerdict.Fail,
+            "den tyngre standard-runen är brödtexten på modal-pt; en lättare ikon-run på samma storlek får aldrig fälla D3.");
+        var observation = d3.Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>().Observation;
+        observation.ShouldContain("Arial");
+    }
+
+    // ===============================================================
     // Deliberate under-claim — bare "Symbol" is EXCLUDED from the icon token
     // set (nonzero legit-font collision tail), so a Symbol-body CV falls through
     // to the existing non-allowlisted Warn, never Fail (§5: a false Fail on a

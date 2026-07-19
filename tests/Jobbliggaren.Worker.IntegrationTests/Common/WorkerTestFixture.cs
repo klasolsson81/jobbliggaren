@@ -95,9 +95,10 @@ public sealed class WorkerTestFixture : IAsyncLifetime
                 // boots. Same reasoning as the audit pepper directly above.
                 ["CompanyWatchPseudonymization:PepperBase64"] = TestWatchPepperBase64,
 
-                // #692 — separate CV-review finding-fingerprint pepper. AddCvReview() (below) registers
-                // HmacFindingFingerprinter, which this fixture's graph resolves; the real Worker never
-                // calls AddCvReview, but this integration fixture does, so it must supply the pepper.
+                // #692 — separate CV-review finding-fingerprint pepper. The real Worker DOES boot this
+                // section: Program.cs calls AddJobSources, which calls AddCvReview, which registers the
+                // options + ValidateOnStart. So the prod Worker needs this pepper provisioned too (like
+                // the watch pepper), and this fixture — which builds the same graph — supplies it.
                 ["CvReviewFingerprintPseudonymization:PepperBase64"] = TestFingerprintPepperBase64,
             })
             .Build();

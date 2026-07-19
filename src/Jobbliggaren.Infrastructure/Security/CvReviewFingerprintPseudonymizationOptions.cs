@@ -23,13 +23,15 @@ namespace Jobbliggaren.Infrastructure.Security;
 /// <c>FieldEncryption:LocalMasterKeyBase64</c> are. Generate one: <c>openssl rand -base64 32</c>.
 /// </para>
 /// <para>
-/// <b>Api-host-only (dotnet-architect D4).</b> The CV-review path
-/// (<c>IResumeReviewReconciler</c>/the review + improve handlers) lives in <c>AddCvReview</c>, which
-/// the Api calls and the Worker does not — no Worker job computes a finding fingerprint. So only the
-/// Api process (and the Api integration test host) boots this section; the Worker never needs this
-/// pepper. This is the mirror-opposite of the company-watch pepper, whose <c>CompanyWatchScanJob</c>
-/// IS Worker-resident. (The Worker <i>integration test</i> fixture does construct the graph via
-/// <c>AddCvReview</c>, so that fixture — not the real Worker — supplies a test pepper.)
+/// <b>Dual-host (both the Api AND the Worker boot this section).</b> <c>AddCvReview</c> is reached by
+/// <c>AddJobSources</c>, the one module BOTH hosts pass (Api via <c>AddInfrastructure</c>, Worker
+/// directly in <c>Worker/Program.cs</c>) — so both processes register this options section and its
+/// <c>ValidateOnStart</c>, and <b>both must provision the pepper in prod</b> (parity the company-watch
+/// pepper #544, which is likewise dual-host). Only the Api actually COMPUTES a finding fingerprint,
+/// but <c>AddCvReview</c> also registers the dual-host <see cref="Jobbliggaren.Application.Resumes.Review.Abstractions.IResumeReviewReconciler"/>,
+/// which depends on <see cref="Jobbliggaren.Application.Resumes.Review.Abstractions.IFindingFingerprinter"/> —
+/// so the hasher (and thus this pepper) is a Worker boot requirement too, even though no Worker job
+/// invokes it. A missing pepper fail-closes BOTH hosts at startup.
 /// </para>
 /// </remarks>
 public sealed class CvReviewFingerprintPseudonymizationOptions

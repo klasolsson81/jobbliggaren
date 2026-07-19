@@ -49,9 +49,10 @@ internal static class TestSecrets
 
     /// <summary>
     /// #692 — the SEPARATE CV-review finding-fingerprint pepper (ADR 0093 §D2(e)). Registered in
-    /// <c>AddCvReview</c> (Api-only) with its own <c>CvReviewFingerprintPseudonymizationOptionsValidator</c>
-    /// + <c>.ValidateOnStart()</c>, so every host that boots the Api hard-fails without it — set here
-    /// for the same systemic reason as the audit and watch peppers.
+    /// <c>AddCvReview</c> (reached by the dual-host <c>AddJobSources</c>) with its own
+    /// <c>CvReviewFingerprintPseudonymizationOptionsValidator</c> + <c>.ValidateOnStart()</c>, so every
+    /// host that boots the Api hard-fails without it — set here for the same systemic reason as the
+    /// audit and watch peppers.
     /// </summary>
     internal const string FingerprintPepperEnvVar = "CvReviewFingerprintPseudonymization__PepperBase64";
 

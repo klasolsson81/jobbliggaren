@@ -202,10 +202,12 @@
   --jp-fs-countcard-num: 26px;  /* .jp-wizard__countcard-num — wizard-räknarsiffra */
   --jp-fs-brand-word:    24px;  /* brand-lockupens ordmärke */
 
-  /* Skalets sticky header: .jp-header__inner 88px + 1px border-bottom. Ett TOKEN,
-     inte en magisk siffra, så att sticky-positionerade ytor (och scroll-padding)
-     inte kan driva isär från headern när dess höjd ändras. */
-  --jp-header-h: 89px;
+  /* Skalets sticky header. .jp-header__inner-höjden är SSOT; --jp-header-h
+     härleds ur den (+ 1px border-bottom) så sticky-positionerade ytor (och
+     scroll-padding) aldrig kan driva isär från headern när dess höjd ändras.
+     Tidigare stod --jp-header-h som en hårdkodad 89-dublett av inner-höjden. */
+  --jp-header-inner-h: 88px;
+  --jp-header-h: calc(var(--jp-header-inner-h) + 1px);  /* + border-bottom */
 
   /* Display-klassens komponentbundna storlekar (#549 WS2): ADR 0068-undantagen
      flyttade till namngivna tokens (dokumenterade, swappbara) — INTE en del av
@@ -757,7 +759,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   max-width: 1200px;
   margin-inline: auto;
   padding: 0 32px;
-  height: 88px;
+  height: var(--jp-header-inner-h);
   display: flex;
   align-items: center;
   gap: 24px;
@@ -805,6 +807,32 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   font-weight: var(--jp-fw-medium);
   line-height: 1.15;
   color: var(--jp-ink-2);
+}
+
+/* Reflow (WCAG 1.4.10): skal-headern kapas progressivt så den ryms vid 320px
+   CSS-px-golvet utan tvådimensionell scroll. .jp-nav + .jp-header-stats kollapsar
+   redan vid ≤900px (nedan); kvarvarande overflow vid smala bredder är brand-
+   lockupen + actions-klustret mot den fasta 32px-paddingen / 24px-gapet.
+   Brand-override:arna är scope:ade till .jp-header__inner MED FLIT: BrandLogo
+   (variant full) renderas ÄVEN i footern (.jp-foot__brandcol) och de publika
+   .jp-head-headrarna (landning + logga-in m.fl.), som INTE ska kollapsa här — en
+   oscopead .jp-brand__lockup-regel skulle tyst dölja wordmarken där. Descendant-
+   selektorn (specificitet 0,0,2,0) begränsar effekten till skal-headern och gör den
+   dessutom källordnings-oberoende mot .jp-brand-basreglerna. Uppmätta fit-kanter
+   (prod-build): full lockup ryms ≥561px, mark+ordmärke ≥~360px. Vid ≤640px stramas
+   padding/gap och den dekorativa tagline-sublinjen döljs (mark + ordmärke kvar); vid
+   ≤400px kollapsar branden till enbart sigillet (~100px marginal vid 320px).
+   Namngivna tokens är oförändrade — layout-responsivitet, inte en token-värde-
+   ändring. */
+@media (max-width: 640px) {
+  .jp-header__inner {
+    padding-inline: 16px;
+    gap: 12px;
+  }
+  .jp-header__inner .jp-brand__tagline { display: none; }
+}
+@media (max-width: 400px) {
+  .jp-header__inner .jp-brand__lockup { display: none; }
 }
 
 /* Brand-spinner "Sigillet i rörelse" (logo-översyn 2026-06-13, Fas 2): registret

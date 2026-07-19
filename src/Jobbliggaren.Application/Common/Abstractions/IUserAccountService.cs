@@ -14,6 +14,16 @@ public sealed record UserCredentials(Guid UserId, IReadOnlyList<string> Roles);
 /// </summary>
 public sealed record EmailConfirmationResend(Guid UserId, string Email, string UrlSafeToken);
 
+/// <summary>
+/// The composite the <c>/me</c> session probe needs in ONE query intention (#828): the account's address
+/// plus its roles. <c>Email</c> is nullable and carries the TRUE absence of an address — a present account
+/// with no email is a broken #822 invariant (the address is the account's SSOT, never a claim), distinct
+/// from the account row being gone (which <see cref="IUserAccountService.GetAccountSummaryAsync"/> signals
+/// with a <c>null</c> summary). The "empty string, not a 401" coalescing is a handler policy and stays out
+/// of this port. <c>Roles</c> is still populated when <c>Email</c> is null.
+/// </summary>
+public sealed record AccountSummary(string? Email, IReadOnlyList<string> Roles);
+
 public interface IUserAccountService
 {
     Task<Result<Guid>> CreateUserAsync(string email, string password, CancellationToken ct);
@@ -31,6 +41,17 @@ public interface IUserAccountService
     Task<Result<UserCredentials>> ValidateCredentialsAsync(string email, string password, CancellationToken ct);
     Task<IReadOnlyList<string>> GetRolesAsync(Guid userId, CancellationToken ct);
     Task<string?> GetEmailAsync(Guid userId, CancellationToken ct);
+
+    /// <summary>
+    /// Reads the account's address AND roles in ONE identity round-trip (#828), for the <c>/me</c> probe
+    /// that runs on every (app) render. Collapses the handler's former <see cref="GetRolesAsync"/> +
+    /// <see cref="GetEmailAsync"/> pair — two <c>FindByIdAsync</c> calls that only coincidentally cost one
+    /// SELECT because the second is served from the scoped identity change tracker; this method makes the
+    /// single round-trip a contract, not an implementation accident. Returns <c>null</c> when no account
+    /// row exists for <paramref name="userId"/>; the granular methods remain for their other single-purpose
+    /// callers (claims transformation, re-auth, email-change, digest/background-match dispatch).
+    /// </summary>
+    Task<AccountSummary?> GetAccountSummaryAsync(Guid userId, CancellationToken ct);
 
     /// <summary>
     /// True if some account already owns <paramref name="email"/> (RequireUniqueEmail). Used by the

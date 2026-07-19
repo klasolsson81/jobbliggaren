@@ -152,6 +152,19 @@ public sealed partial class UserAccountService(
         return user?.Email;
     }
 
+    public async Task<AccountSummary?> GetAccountSummaryAsync(Guid userId, CancellationToken ct)
+    {
+        // #828 — ONE FindByIdAsync for the /me probe's address + roles, instead of GetRolesAsync +
+        // GetEmailAsync each resolving the same row. FindByIdAsync/GetRolesAsync take no CancellationToken
+        // (Identity API limitation, same as the two granular methods above). Null row => null summary; a
+        // present row with a null Email is surfaced honestly (broken #822 invariant), not coalesced here.
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null) return null;
+
+        var roles = await userManager.GetRolesAsync(user);
+        return new AccountSummary(user.Email, roles.ToList());
+    }
+
     public async Task<bool> IsEmailTakenAsync(string email, CancellationToken ct)
     {
         var user = await userManager.FindByEmailAsync(email);

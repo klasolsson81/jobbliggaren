@@ -269,4 +269,91 @@ public class SavedSearchTests
         savedSearch.DeletedAt.ShouldBe(firstDelete.UtcNow);
         savedSearch.DomainEvents.OfType<SavedSearchDeletedDomainEvent>().ShouldBeEmpty();
     }
+
+    // ---------------------------------------------------------------
+    // #312 (ADR 0115) — ResultsSeenAt user-read watermark: init + MarkResultsSeen
+    // (monoton, klampar framtid). Sibling till JobSeeker.SetLastSeenMatches.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void Create_BaselinesResultsSeenAtToNow()
+    {
+        var result = SavedSearch.Create(ValidJobSeekerId, ValidName, ValidCriteria(), false, Clock);
+
+        // En ny sökning baseline:ar sin seen-watermark vid skapande: bara annonser
+        // ingesterade EFTER att den finns räknas som "ny" (aldrig historisk backlog).
+        result.Value.ResultsSeenAt.ShouldBe(Clock.UtcNow);
+    }
+
+    [Fact]
+    public void CreateFromResume_BaselinesResultsSeenAtToNow()
+    {
+        var result = SavedSearch.CreateFromResume(
+            ValidJobSeekerId, ValidName, ValidCriteria(), false, Guid.NewGuid(), Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ResultsSeenAt.ShouldBe(Clock.UtcNow);
+    }
+
+    [Fact]
+    public void MarkResultsSeen_WithLaterValue_AdvancesWatermarkAndTouchesUpdatedAt()
+    {
+        var savedSearch = CreateValid();
+        var seenThrough = Clock.UtcNow.AddHours(5);
+        var later = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(6));
+
+        savedSearch.MarkResultsSeen(seenThrough, later);
+
+        savedSearch.ResultsSeenAt.ShouldBe(seenThrough);
+        savedSearch.UpdatedAt.ShouldBe(later.UtcNow);
+    }
+
+    [Fact]
+    public void MarkResultsSeen_WithEarlierValue_IsMonotonicNoOp()
+    {
+        // Den BÄRANDE invarianten (mutation-verify-mål): en stale/out-of-order call
+        // flyttar aldrig watermarken bakåt.
+        var savedSearch = CreateValid();                     // ResultsSeenAt == Clock.UtcNow
+        var advanced = Clock.UtcNow.AddHours(5);
+        savedSearch.MarkResultsSeen(advanced, FakeDateTimeProvider.At(Clock.UtcNow.AddHours(6)));
+        var updatedAtAfterAdvance = savedSearch.UpdatedAt;
+
+        // En tidigare seenThrough får INTE flytta watermarken bakåt.
+        savedSearch.MarkResultsSeen(
+            Clock.UtcNow.AddHours(1), FakeDateTimeProvider.At(Clock.UtcNow.AddHours(7)));
+
+        savedSearch.ResultsSeenAt.ShouldBe(advanced);           // oförändrad
+        savedSearch.UpdatedAt.ShouldBe(updatedAtAfterAdvance);  // orörd (no-op)
+    }
+
+    [Fact]
+    public void MarkResultsSeen_WithFutureValue_ClampsToNow()
+    {
+        var savedSearch = CreateValid();
+        var now = Clock.UtcNow.AddHours(2);
+        var clock = FakeDateTimeProvider.At(now);
+        var future = now.AddDays(3);   // en dålig klient-klocka
+
+        savedSearch.MarkResultsSeen(future, clock);
+
+        // Klampad till now — en framtidsdaterad seenThrough kan aldrig springa
+        // watermarken förbi verkligheten.
+        savedSearch.ResultsSeenAt.ShouldBe(now);
+    }
+
+    [Fact]
+    public void MarkResultsSeen_WithEqualValue_IsNoOp_UpdatedAtUntouched()
+    {
+        // Pinnar <=-likhetsgränsen: seenThrough == current är en no-op — BÅDE ResultsSeenAt OCH
+        // UpdatedAt orörda. En mutation <= → < skulle spuriöst bumpa UpdatedAt vid idempotent
+        // lika-anrop (och därmed omordna count-queryns cap-set); detta test dödar den.
+        var savedSearch = CreateValid();
+        var current = savedSearch.ResultsSeenAt!.Value;   // == Clock.UtcNow (baseline)
+        var updatedAtBefore = savedSearch.UpdatedAt;
+
+        savedSearch.MarkResultsSeen(current, FakeDateTimeProvider.At(Clock.UtcNow.AddHours(1)));
+
+        savedSearch.ResultsSeenAt.ShouldBe(current);
+        savedSearch.UpdatedAt.ShouldBe(updatedAtBefore, "seenThrough == current är no-op — UpdatedAt orört");
+    }
 }

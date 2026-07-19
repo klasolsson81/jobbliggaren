@@ -49,6 +49,12 @@ public sealed class SavedSearchConfiguration : IEntityTypeConfiguration<SavedSea
         // ADR 0039 Beslut 2 — kolumnen finns (schema-stabil), skrivlogik Fas 5.
         builder.Property(s => s.LastRunAt);
 
+        // #312 (ADR 0115) — per-search USER-read watermark för in-app "nya
+        // träffar"-räkningen. Nullable (null = aldrig sedd), men i praktiken alltid
+        // satt: ctor init:ar den vid skapande och #312-migrationen backfillar
+        // befintliga rader till now(). DISTINKT från LastRunAt (email-fasens scan-mark).
+        builder.Property(s => s.ResultsSeenAt);
+
         builder.Property(s => s.CreatedAt).IsRequired();
         builder.Property(s => s.UpdatedAt).IsRequired();
         builder.Property(s => s.DeletedAt);

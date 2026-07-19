@@ -167,6 +167,8 @@ public static class JobAdLifecycleReadRegistry
                 One(Active("db.JobAds → ApplyFilter (j.Status == Active SPOT); the /jobb total-count over the filtered Active set.")),
             ["Jobbliggaren.Infrastructure.JobAds.JobAdSearchQuery.FacetCountsAsync"] =
                 One(Active("db.JobAds → ApplyFilter (j.Status == Active SPOT); per-option facet counts over the Active set.")),
+            ["Jobbliggaren.Infrastructure.JobAds.JobAdSearchQuery.CountNewSinceAsync"] =
+                One(Active("db.JobAds → ApplyFilter (j.Status == Active SPOT) + .Where(CreatedAt > since); #312 saved-search 'nya träffar' count — windowed over the Active set, so an archived ad can never be counted (#864-immune by construction).")),
             ["Jobbliggaren.Infrastructure.JobAds.PerUserJobAdSearchQuery.SearchPerUserAsync"] =
                 One(Active("db.JobAds → ApplyFilter (j.Status == Active SPOT) then ApplyStatusFilter (per-user saved/applied); the base set is Active.")),
             ["Jobbliggaren.Infrastructure.JobAds.PerUserJobAdSearchQuery.CountPerUserAsync"] =

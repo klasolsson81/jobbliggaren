@@ -72,6 +72,26 @@ internal sealed class JobAdSearchQuery(
             query.CountAsync, cancellationToken);
     }
 
+    // #312 (ADR 0115) — antal AKTIVA annonser som matchar `criteria` OCH ingesterats
+    // efter `since` (en sparad söknings ResultsSeenAt-watermark). Återanvänder
+    // ApplyCriteria-SPOT:en (ADR 0039 Beslut 1 — Status=Active-allow-list +
+    // synonym-expansion + filter-paritet; en rå db.JobAds-fönsterfråga skulle tappa
+    // både synonymerna → falska negativ OCH #864-Active-livscykelgrinden) och lägger
+    // CreatedAt > since-fönstret ovanpå. Fönstret smalnar mängden hårt, men ett
+    // q-fritext-kriterium de-TOAST:ar fortfarande search_vector → samma bitmap-plan-
+    // tvång som CountAsync (TD-94), #744-gatad på q (ingen fritext → ingen detoast att
+    // undvika). Watermark-driven, ej #293/#306:s fasta fönster.
+    public async ValueTask<int> CountNewSinceAsync(
+        JobAdFilterCriteria criteria, DateTimeOffset since, CancellationToken cancellationToken)
+    {
+        var query = JobAdSearchComposition
+            .ApplyFilter(db.JobAds.AsNoTracking(), criteria, synonymExpander)
+            .Where(j => j.CreatedAt > since);
+        return await BitmapPlanCount.CountWithBitmapPlanAsync(
+            db, JobAdSearchComposition.HasFreeTextQuery(criteria.Q),
+            query.CountAsync, cancellationToken);
+    }
+
     // ADR 0067 Beslut 4 (Fas D1) — per-option facet-counts.
     public async ValueTask<IReadOnlyDictionary<string, int>> FacetCountsAsync(
         JobAdFilterCriteria criteria, FacetDimension dimension,

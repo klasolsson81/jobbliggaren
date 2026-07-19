@@ -174,6 +174,35 @@ if (scenarioSelector is "match-tags-stress" or "all")
     scenarioBudgets[matchTagsStress.ScenarioName] = MatchTagBatchScenarios.Class_A_P95_BudgetMs;
 }
 
+// #312 (ADR 0115 R1) — GET /api/v1/saved-searches/new-results-count per-search COUNT fan-out.
+// Class (a) p95 <= 300 ms (ADR 0045 Decision 1). Auth-gated (LOADTEST_BEARER_TOKEN,
+// ListReadPolicy). R1: this fitness function MUST clear ADR 0045 before the FE surface
+// (/sokningar re-activation, ADR 0115 Decision "(2)") goes live — see
+// SavedSearchNewResultsCountScenarios.cs header for the fixture preconditions (the target
+// account must be provisioned at the fan-out ceiling for a meaningful PRIMARY signal; without
+// it this measures a conservative floor, not the worst case).
+if (scenarioSelector is "saved-search-notify" or "all")
+{
+    var savedSearchNotifyCeiling =
+        SavedSearchNewResultsCountScenarios.FanOutCeiling(httpClient, baseUrl);
+
+    scenarios.Add(savedSearchNotifyCeiling);
+
+    scenarioBudgets[savedSearchNotifyCeiling.ScenarioName] =
+        SavedSearchNewResultsCountScenarios.Class_A_P95_BudgetMs;
+}
+
+if (scenarioSelector is "saved-search-notify-typical" or "all")
+{
+    var savedSearchNotifyTypical =
+        SavedSearchNewResultsCountScenarios.TypicalNotificationLoad(httpClient, baseUrl);
+
+    scenarios.Add(savedSearchNotifyTypical);
+
+    scenarioBudgets[savedSearchNotifyTypical.ScenarioName] =
+        SavedSearchNewResultsCountScenarios.Class_A_P95_BudgetMs;
+}
+
 Console.WriteLine(
     $"::notice::Load-test runner startar — baseUrl={baseUrl}, " +
     $"scenarios=[{string.Join(", ", scenarios.Select(s => s.ScenarioName))}], " +

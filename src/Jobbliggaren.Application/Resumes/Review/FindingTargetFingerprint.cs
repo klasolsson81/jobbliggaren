@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text;
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
@@ -7,12 +6,18 @@ namespace Jobbliggaren.Application.Resumes.Review;
 
 /// <summary>
 /// Content-addressed identity for one review finding (Fas 4b PR-4, CTO-bind Q4 — the
-/// D2(e) "TargetId fingerprint"): SHA-256 over the unit-separator-joined tuple
-/// (rubric version, criterion id, normalized evidence), full 64-char lowercase hex.
-/// Identifies a finding by WHAT IT IS, one-way and stable under layout shifts — never
-/// by position (offsets are distrusted, <c>TextSpan.NotLocated</c>) and never by storing
-/// the text itself. Always SERVER-derived from the engine's current finding
-/// (ADR 0074 Invariant 2 — a client-submitted fingerprint would be forgeable provenance).
+/// D2(e) "TargetId fingerprint"): builds the canonical, one-way-hashable payload — the
+/// unit-separator-joined tuple (rubric version, criterion id, normalized evidence).
+/// Identifies a finding by WHAT IT IS, stable under layout shifts — never by position
+/// (offsets are distrusted, <c>TextSpan.NotLocated</c>) and never by storing the text
+/// itself. Always SERVER-derived from the engine's current finding (ADR 0074 Invariant 2
+/// — a client-submitted fingerprint would be forgeable provenance).
+///
+/// <para><b>This class owns the canonicalization (the business knowledge); it does NOT hash.</b>
+/// The keyed HMAC over this payload is <see cref="Abstractions.IFindingFingerprinter"/>, whose
+/// per-deployment pepper lives OUTSIDE the database (#692, security-auditor Q4 — an unsalted
+/// digest of short CV quotes is brute-forceable if the ledger leaks). Separation per Clean
+/// Architecture: normalization is Application logic under these tests; the key is Infrastructure.</para>
 /// </summary>
 public static class FindingTargetFingerprint
 {
@@ -21,13 +26,13 @@ public static class FindingTargetFingerprint
     private const char UnitSeparator = (char)0x1F;
 
     /// <summary>
-    /// Computes the fingerprint for one (already redacted) criterion verdict. Multiple
-    /// evidence items are normalized, sorted ordinal and joined BEFORE hashing, so the
-    /// engine's quote ordering can never change the fingerprint. A
-    /// <c>TextSpanEvidence</c> contributes its quote; a <c>StructuralEvidence</c> its
-    /// (non-PII by construction) observation.
+    /// Builds the canonical pre-hash payload for one (already redacted) criterion verdict.
+    /// Multiple evidence items are normalized, sorted ordinal and joined, so the engine's
+    /// quote ordering can never change the fingerprint. A <c>TextSpanEvidence</c> contributes
+    /// its quote; a <c>StructuralEvidence</c> its (non-PII by construction) observation. The
+    /// keyed HMAC over this string is <see cref="Abstractions.IFindingFingerprinter.Compute"/>.
     /// </summary>
-    public static string Compute(RubricVersion rubricVersion, CvCriterionVerdict verdict)
+    public static string BuildCanonicalPayload(RubricVersion rubricVersion, CvCriterionVerdict verdict)
     {
         ArgumentNullException.ThrowIfNull(verdict);
 
@@ -41,12 +46,9 @@ public static class FindingTargetFingerprint
             }))
             .Order(StringComparer.Ordinal);
 
-        var payload = string.Join(
+        return string.Join(
             UnitSeparator,
             [rubricVersion.ToString(), verdict.CriterionId, .. evidence]);
-
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(payload));
-        return Convert.ToHexStringLower(hash);
     }
 
     /// <summary>

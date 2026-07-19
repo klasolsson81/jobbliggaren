@@ -47,6 +47,14 @@ internal static class TestSecrets
     /// </summary>
     internal const string WatchPepperEnvVar = "CompanyWatchPseudonymization__PepperBase64";
 
+    /// <summary>
+    /// #692 — the SEPARATE CV-review finding-fingerprint pepper (ADR 0093 §D2(e)). Registered in
+    /// <c>AddCvReview</c> (Api-only) with its own <c>CvReviewFingerprintPseudonymizationOptionsValidator</c>
+    /// + <c>.ValidateOnStart()</c>, so every host that boots the Api hard-fails without it — set here
+    /// for the same systemic reason as the audit and watch peppers.
+    /// </summary>
+    internal const string FingerprintPepperEnvVar = "CvReviewFingerprintPseudonymization__PepperBase64";
+
     // Deterministisk 32-byte AES-256 test-nyckel (0..31). Runtime-genererad, ingen
     // literal → gitleaks ser ingen hemlighet; det är test-nyckelmaterial, inte en
     // prod-secret (prod-master-nyckelns skydd är TD-102, self-managed på Hetzner).
@@ -63,11 +71,17 @@ internal static class TestSecrets
     internal static readonly string WatchPepperBase64 =
         Convert.ToBase64String(Enumerable.Range(132, 32).Select(i => (byte)i).ToArray());
 
+    // #692 — deterministic 32-byte finding-fingerprint pepper (164..195), distinct from the master key
+    // AND both other peppers so a test can never pass by accidentally peppering with the wrong key.
+    internal static readonly string FingerprintPepperBase64 =
+        Convert.ToBase64String(Enumerable.Range(164, 32).Select(i => (byte)i).ToArray());
+
     [ModuleInitializer]
     internal static void SetDefaultMasterKey()
     {
         Environment.SetEnvironmentVariable(MasterKeyEnvVar, MasterKeyBase64);
         Environment.SetEnvironmentVariable(AuditPepperEnvVar, AuditPepperBase64);
         Environment.SetEnvironmentVariable(WatchPepperEnvVar, WatchPepperBase64);
+        Environment.SetEnvironmentVariable(FingerprintPepperEnvVar, FingerprintPepperBase64);
     }
 }

@@ -27,7 +27,8 @@ public sealed class SetFindingStatusCommandHandler(
     ICvReviewEngine engine,
     IRubricProvider rubricProvider,
     IDateTimeProvider clock,
-    IFailedAccessLogger failedAccessLogger)
+    IFailedAccessLogger failedAccessLogger,
+    IFindingFingerprinter fingerprinter)
     : ICommandHandler<SetFindingStatusCommand, Result>
 {
     public async ValueTask<Result> Handle(
@@ -112,7 +113,7 @@ public sealed class SetFindingStatusCommandHandler(
                 "Den här regeln kan inte ignoreras. Endast stilregler går att ignorera."));
         }
 
-        var fingerprint = FindingTargetFingerprint.Compute(result.RubricVersion, verdict);
+        var fingerprint = fingerprinter.Compute(result.RubricVersion, verdict);
         return resume.SetFindingStatus(
             result.RubricVersion.ToString(), command.CriterionId, status, fingerprint, clock);
     }

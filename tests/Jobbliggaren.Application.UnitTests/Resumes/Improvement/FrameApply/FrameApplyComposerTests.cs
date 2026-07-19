@@ -2,6 +2,7 @@ using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Improvement.FrameApply;
 using Jobbliggaren.Application.Resumes.Review;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
+using Jobbliggaren.Application.UnitTests.Common.Security;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Resumes;
 using Shouldly;
@@ -15,7 +16,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Improvement.FrameApply;
 /// single content line CONTAINS the cited quote, deterministic search order); its counterpart
 /// <see cref="FrameApplyComposer.ApplyToContent"/> swaps exactly that line, returning a NEW immutable
 /// <see cref="ResumeContent"/>. The fingerprint oracle is the REAL server-side
-/// <see cref="FindingTargetFingerprint.Compute"/> (never a client-forged digest — ADR 0074 Inv. 2).
+/// <see cref="IFindingFingerprinter.Compute"/> (never a client-forged digest — ADR 0074 Inv. 2).
 ///
 /// SPEC-DRIVEN — RED until LocatedFinding + FrameApplyComposer ship in
 /// Jobbliggaren.Application.Resumes.Improvement.FrameApply.
@@ -33,7 +34,7 @@ public class FrameApplyComposerTests
         new(Version, RenderProfile.Ats, [], verdicts, [], verdicts.Length, verdicts.Length);
 
     private static string Fingerprint(CvCriterionVerdict verdict) =>
-        FindingTargetFingerprint.Compute(Version, verdict);
+        TestFindingFingerprinter.Compute(Version, verdict);
 
     private static ResumeContent WithSummary(string summary) =>
         new(new PersonalInfo("Klas Olsson", null, null, null), summary: summary);
@@ -53,7 +54,7 @@ public class FrameApplyComposerTests
         var verdict = Fail("A2", line);
 
         var result = FrameApplyComposer.ResolveFinding(
-            ResultWith(verdict), "A2", Fingerprint(verdict), content);
+            ResultWith(verdict), "A2", Fingerprint(verdict), content, TestFindingFingerprinter.Instance);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Line.ShouldBe(line);
@@ -71,7 +72,7 @@ public class FrameApplyComposerTests
         var verdict = Fail("A2", target);
 
         var result = FrameApplyComposer.ResolveFinding(
-            ResultWith(verdict), "A2", Fingerprint(verdict), content);
+            ResultWith(verdict), "A2", Fingerprint(verdict), content, TestFindingFingerprinter.Instance);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Line.ShouldBe(target);
@@ -87,7 +88,7 @@ public class FrameApplyComposerTests
         var verdict = Fail("C3", "Ansvarig", RubricCategory.Language);
 
         var result = FrameApplyComposer.ResolveFinding(
-            ResultWith(verdict), "C3", Fingerprint(verdict), content);
+            ResultWith(verdict), "C3", Fingerprint(verdict), content, TestFindingFingerprinter.Instance);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Line.ShouldBe(line);
@@ -105,7 +106,7 @@ public class FrameApplyComposerTests
         var verdict = Fail("A2", line);
 
         var result = FrameApplyComposer.ResolveFinding(
-            ResultWith(verdict), "A2", clientFingerprint: new string('0', 64), content);
+            ResultWith(verdict), "A2", clientFingerprint: new string('0', 64), content, TestFindingFingerprinter.Instance);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Resume.FindingChanged");
@@ -121,7 +122,7 @@ public class FrameApplyComposerTests
             [new TextSpanEvidence(new TextSpan(0, line.Length, line), null)]);
 
         var result = FrameApplyComposer.ResolveFinding(
-            ResultWith(pass), "A2", Fingerprint(pass), content);
+            ResultWith(pass), "A2", Fingerprint(pass), content, TestFindingFingerprinter.Instance);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Resume.FindingNotActionable");
@@ -137,7 +138,7 @@ public class FrameApplyComposerTests
             [new StructuralEvidence("1 personnummer hittat")]);
 
         var result = FrameApplyComposer.ResolveFinding(
-            ResultWith(structural), "B4", Fingerprint(structural), content);
+            ResultWith(structural), "B4", Fingerprint(structural), content, TestFindingFingerprinter.Instance);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Resume.FindingNotActionable");
@@ -150,7 +151,7 @@ public class FrameApplyComposerTests
         var verdict = Fail("A2", "Ansvarig för kundtjänst");
 
         var result = FrameApplyComposer.ResolveFinding(
-            ResultWith(verdict), "A2", Fingerprint(verdict), content);
+            ResultWith(verdict), "A2", Fingerprint(verdict), content, TestFindingFingerprinter.Instance);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Resume.FindingLineNotFound");
@@ -256,7 +257,7 @@ public class FrameApplyComposerTests
         var verdict = Fail("C3", "Ansvarig", RubricCategory.Language);
 
         var result = FrameApplyComposer.ResolveFinding(
-            ResultWith(verdict), "C3", Fingerprint(verdict), content);
+            ResultWith(verdict), "C3", Fingerprint(verdict), content, TestFindingFingerprinter.Instance);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Line.ShouldBe(line);

@@ -751,6 +751,23 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Review.Abstractions.IResumeReviewReconciler,
             Jobbliggaren.Application.Resumes.Review.ResumeReviewReconciler>();
+
+        // #692 (ADR 0093 §D2(e), security-auditor Fas 4b PR-4 Q4) — the keyed HMAC that fingerprints
+        // a finding at rest. Api-host-only: this module (AddCvReview) is Api-only in production (the
+        // Worker never calls it and runs no CV-review job), so only the Api boots this pepper section.
+        // BindConfiguration (not .Bind(config.GetSection())) because AddCvReview takes no IConfiguration
+        // — the option resolves it lazily from the container. ValidateOnStart hard-fails a missing/weak
+        // pepper in every environment, parity the audit (#842) and watch (#544) peppers.
+        services.AddOptions<Security.CvReviewFingerprintPseudonymizationOptions>()
+            .BindConfiguration(Security.CvReviewFingerprintPseudonymizationOptions.SectionName)
+            .ValidateOnStart();
+        services.AddSingleton<
+            Microsoft.Extensions.Options.IValidateOptions<Security.CvReviewFingerprintPseudonymizationOptions>,
+            Security.CvReviewFingerprintPseudonymizationOptionsValidator>();
+        // Stateless after reading the pepper once → singleton, parity HmacProtectedIdentityTokenizer.
+        services.AddSingleton<
+            Jobbliggaren.Application.Resumes.Review.Abstractions.IFindingFingerprinter,
+            Security.HmacFindingFingerprinter>();
         return services;
     }
 

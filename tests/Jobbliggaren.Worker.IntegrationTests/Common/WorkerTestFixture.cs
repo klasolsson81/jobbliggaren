@@ -46,6 +46,15 @@ public sealed class WorkerTestFixture : IAsyncLifetime
     internal static readonly string TestWatchPepperBase64 =
         Convert.ToBase64String([.. Enumerable.Range(132, 32).Select(i => (byte)i)]);
 
+    // #692 — deterministic 32-byte CV-review finding-fingerprint pepper, distinct from every other key.
+    // This fixture builds the graph via AddCvReview() below, which resolves HmacFindingFingerprinter;
+    // it reads this pepper at construction. Without it, HMACSHA256 silently accepts an empty key (it
+    // does NOT throw) and, because the fixture uses BuildServiceProvider() (no host start),
+    // ValidateOnStart never fires to catch it — so a Worker test resolving the real reconciler would
+    // fingerprint under an unkeyed HMAC. Set it, same reasoning as the audit + watch peppers above.
+    internal static readonly string TestFingerprintPepperBase64 =
+        Convert.ToBase64String([.. Enumerable.Range(164, 32).Select(i => (byte)i)]);
+
     /// <summary>
     /// ADR 0066 — räknande <see cref="Application.Common.Security.IDataKeyProvider"/>-
     /// dekoratör runt den riktiga <c>LocalDataKeyProvider</c> som hela
@@ -85,6 +94,11 @@ public sealed class WorkerTestFixture : IAsyncLifetime
                 // the Worker host that runs CompanyWatchScanJob + resolves IProtectedIdentityTokenizer
                 // boots. Same reasoning as the audit pepper directly above.
                 ["CompanyWatchPseudonymization:PepperBase64"] = TestWatchPepperBase64,
+
+                // #692 — separate CV-review finding-fingerprint pepper. AddCvReview() (below) registers
+                // HmacFindingFingerprinter, which this fixture's graph resolves; the real Worker never
+                // calls AddCvReview, but this integration fixture does, so it must supply the pepper.
+                ["CvReviewFingerprintPseudonymization:PepperBase64"] = TestFingerprintPepperBase64,
             })
             .Build();
 

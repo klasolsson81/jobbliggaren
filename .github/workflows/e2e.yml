@@ -133,6 +133,17 @@ jobs:
       - name: Generate Art. 17 audit pepper
         run: echo "AuditPseudonymization__PepperBase64=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
 
+      # #544/#692 — the two peppers added after the audit one, both fail-closed the same way:
+      # CompanyWatchPseudonymization (sole-trader org.nr = personnummer tokenised at rest,
+      # ADR 0090 D5) and CvReviewFingerprintPseudonymization (CV finding-status fingerprint
+      # HMAC, ADR 0093 D2). Without them the API refuses to boot and every E2E spec fails
+      # while `ci` stays green (this job is observe-only) — exactly the silent-break class
+      # the comment above describes; this happened for real 2026-07-18..19.
+      - name: Generate company-watch + CV-fingerprint peppers
+        run: |
+          echo "CompanyWatchPseudonymization__PepperBase64=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+          echo "CvReviewFingerprintPseudonymization__PepperBase64=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
       - name: Generate throwaway JWT keys
         run: |
           openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/jwt-private.pem

@@ -23,6 +23,7 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
     private RedisSessionStore _defaultStore = null!;
     private RedisSessionStore _cappedStore = null!;
     private RedisSessionStore _rotatingStore = null!;
+    private RedisSessionStore _throttledStore = null!;
     private IDatabase _db = null!;
     private ConnectionMultiplexer _mux = null!;
     private RedisCache _cache = null!;
@@ -81,6 +82,23 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
         // Default profiles (Persistent 30d/30d + 24h rotation), driven by the mutable
         // clock so the rotation tests can jump past the interval.
         _rotatingStore = new RedisSessionStore(cache, _mux, _capClock, Options.Create(new SessionStoreOptions()));
+
+        // #746 sliding-write throttle: 30d sliding / 180d cap, SlideThreshold 0.1 → a 3-day
+        // throttle window, driven by the mutable clock so a test can jump logical time across
+        // (or short of) the window while the real 30d Redis key TTL survives the sub-second run.
+        _throttledStore = new RedisSessionStore(
+            cache,
+            _mux,
+            _capClock,
+            Options.Create(new SessionStoreOptions
+            {
+                SlideThreshold = 0.1,
+                Legacy = new SessionLifetimeProfile
+                {
+                    SlidingTtl = TimeSpan.FromDays(30),
+                    AbsoluteTtl = TimeSpan.FromDays(180),
+                },
+            }));
     }
 
     public async ValueTask DisposeAsync()
@@ -532,6 +550,145 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
             Enumerable.Range(0, 20).Select(_ => _rotatingStore.RotateAsync(session.Id, ct)));
 
         results.Count(r => r is not null).ShouldBe(1);
+    }
+
+    // ── #746 sliding-write throttle ──────────────────────────────────────────────────────────
+
+    // Load-bearing assumption behind the throttle (CTO bind 2026-07-19 — "verify first"): the
+    // StackExchange RedisCache provider auto-slides a SlidingExpiration key on GetStringAsync
+    // (get-and-refresh via the stored `sldexp`) but does NOT touch an AbsoluteExpirationRelativeToNow
+    // key. Were this to regress, a throttled read would still slide the main key while the index SET
+    // stalled → the #502/Art.17 orphan. RedisSessionStore therefore writes the main key with
+    // AbsoluteExpirationRelativeToNow so the slide is explicit-only; this pins that provider contract.
+    [Fact]
+    public async Task RedisCache_ShouldAutoSlideSlidingKeyOnGet_ButNotAbsoluteKey()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        const string slidingKey = "jobbliggaren:probe:sliding";
+        const string absoluteKey = "jobbliggaren:probe:absolute";
+
+        await _cache.SetStringAsync(
+            "probe:sliding", "v",
+            new DistributedCacheEntryOptions { SlidingExpiration = TimeSpan.FromSeconds(60) }, ct);
+        await _cache.SetStringAsync(
+            "probe:absolute", "v",
+            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60) }, ct);
+
+        // Shrink both real TTLs to 10s, then read each once.
+        await _db.KeyExpireAsync(slidingKey, TimeSpan.FromSeconds(10));
+        await _db.KeyExpireAsync(absoluteKey, TimeSpan.FromSeconds(10));
+
+        (await _cache.GetStringAsync("probe:sliding", ct)).ShouldBe("v");
+        (await _cache.GetStringAsync("probe:absolute", ct)).ShouldBe("v");
+
+        var slidingTtl = await _db.KeyTimeToLiveAsync(slidingKey);
+        var absoluteTtl = await _db.KeyTimeToLiveAsync(absoluteKey);
+
+        // Sliding key was refreshed back toward the full 60s window; the absolute key kept its 10s.
+        slidingTtl.ShouldNotBeNull();
+        absoluteTtl.ShouldNotBeNull();
+        slidingTtl!.Value.ShouldBeGreaterThan(TimeSpan.FromSeconds(30));
+        absoluteTtl!.Value.ShouldBeLessThan(TimeSpan.FromSeconds(30));
+    }
+
+    // A read WITHIN the throttle window (< SlideThreshold × SlidingTtl since the last slide) must NOT
+    // rewrite the main key or the index SET. Pre-shrink both real TTLs to 60s; a read 1 day in (window
+    // is 3d) leaves them untouched — proving both the skipped SADD/KeyExpire/SetString AND (via the
+    // absolute main key) the absent GetStringAsync auto-slide.
+    [Fact]
+    public async Task GetAsync_ShouldNotRewrite_WhenWithinThrottleWindow()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var session = await _throttledStore.CreateAsync(userId, SessionLifetime.Legacy, ct);
+        var mainKey = RedisKey(session.Id);
+        var setKey = UserSessionsKey(userId);
+
+        await _db.KeyExpireAsync(mainKey, TimeSpan.FromSeconds(60));
+        await _db.KeyExpireAsync(setKey, TimeSpan.FromSeconds(60));
+
+        _capClock.UtcNow = _capClock.UtcNow.AddDays(1); // 1d < 3d window → throttled
+
+        (await _throttledStore.GetAsync(session.Id, ct)).ShouldNotBeNull();
+
+        var mainTtl = await _db.KeyTimeToLiveAsync(mainKey);
+        var setTtl = await _db.KeyTimeToLiveAsync(setKey);
+        // Still ~60s, NOT slid back to the 30d window.
+        mainTtl!.Value.ShouldBeLessThan(TimeSpan.FromMinutes(5));
+        setTtl!.Value.ShouldBeLessThan(TimeSpan.FromMinutes(5));
+    }
+
+    // A read PAST the throttle window must slide both keys back to the full window and report an
+    // ExpiresAt anchored on the fresh slide.
+    [Fact]
+    public async Task GetAsync_ShouldSlide_WhenPastThrottleWindow()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var session = await _throttledStore.CreateAsync(userId, SessionLifetime.Legacy, ct);
+        var mainKey = RedisKey(session.Id);
+        var setKey = UserSessionsKey(userId);
+
+        await _db.KeyExpireAsync(mainKey, TimeSpan.FromSeconds(60));
+        await _db.KeyExpireAsync(setKey, TimeSpan.FromSeconds(60));
+
+        _capClock.UtcNow = _capClock.UtcNow.AddDays(4); // 4d > 3d window → slides
+
+        var read = await _throttledStore.GetAsync(session.Id, ct);
+        read.ShouldNotBeNull();
+
+        var mainTtl = await _db.KeyTimeToLiveAsync(mainKey);
+        var setTtl = await _db.KeyTimeToLiveAsync(setKey);
+        mainTtl!.Value.ShouldBeGreaterThan(TimeSpan.FromDays(1)); // slid back toward 30d
+        setTtl!.Value.ShouldBeGreaterThan(TimeSpan.FromDays(1));
+        (read!.ExpiresAt - _capClock.UtcNow).ShouldBeGreaterThan(TimeSpan.FromDays(1));
+    }
+
+    // #502 self-heal cadence under throttling: a throttled read does NOT recreate an evicted index
+    // membership (the accepted bounded residual — orphan self-heal moves from every-read to
+    // every-window; account deletion stays backstopped by the :deleted tombstone, see the next test),
+    // but the first slide AFTER the window heals it so InvalidateAllForUser reaches the session again.
+    [Fact]
+    public async Task GetAsync_ShouldHealEvictedIndexOnNextSlide_NotWhileThrottled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var session = await _throttledStore.CreateAsync(userId, SessionLifetime.Legacy, ct);
+        var setKey = UserSessionsKey(userId);
+
+        // Simulate the TD-23 orphan: index gone, main key alive.
+        await _db.KeyDeleteAsync(setKey);
+
+        // Within the window: the read succeeds but does NOT heal the index (throttled).
+        _capClock.UtcNow = _capClock.UtcNow.AddDays(1);
+        (await _throttledStore.GetAsync(session.Id, ct)).ShouldNotBeNull();
+        (await _db.KeyExistsAsync(setKey)).ShouldBeFalse();
+
+        // Past the window: the slide re-SADDs the membership → invalidate-all reaches it.
+        _capClock.UtcNow = _capClock.UtcNow.AddDays(4);
+        (await _throttledStore.GetAsync(session.Id, ct)).ShouldNotBeNull();
+        (await _db.KeyExistsAsync(setKey)).ShouldBeTrue();
+        (await _throttledStore.InvalidateAllForUserAsync(userId, ct)).ShouldBe(1);
+        (await _throttledStore.GetAsync(session.Id, ct)).ShouldBeNull();
+    }
+
+    // #746 × Art.17 backstop: the :deleted tombstone gate runs on EVERY read BEFORE the throttle, so a
+    // throttled session (even with an evicted index) is still rejected the moment the user is
+    // tombstoned — account deletion never depends on the throttled index refresh.
+    [Fact]
+    public async Task GetAsync_ShouldRejectThrottledSession_WhenUserMarkedDeleted_EvenWithEvictedIndex()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var session = await _throttledStore.CreateAsync(userId, SessionLifetime.Legacy, ct);
+
+        await _db.KeyDeleteAsync(UserSessionsKey(userId)); // worst case: index also gone
+        _capClock.UtcNow = _capClock.UtcNow.AddDays(1); // within the throttle window
+
+        await _throttledStore.MarkUserDeletedAsync(userId, ct);
+
+        (await _throttledStore.GetAsync(session.Id, ct)).ShouldBeNull();
     }
 
     // Unprefixed session member (what RedisSessionStore stores in the user-index SET and

@@ -15,10 +15,15 @@ public abstract record ChangeProvenance;
 
 /// <summary>
 /// The <c>After</c> text is verbatim from the versioned knowledge bank: the
-/// <c>DropInReplacement</c> (cliché) or <c>SuggestedStrong</c> (verb) resolved for
-/// <paramref name="Key"/> in asset <paramref name="Source"/>@<paramref name="Version"/>.
-/// <paramref name="Source"/> ∈ {"cliche-list", "verb-mapping"} (the only KB assets that carry
-/// replacement strings).
+/// <c>DropInReplacement</c> (cliché), <c>SuggestedStrong</c> (verb), or canonical heading
+/// <c>displayForm</c> (parsing lexicon, #893) resolved for <paramref name="Key"/> in asset
+/// <paramref name="Source"/>@<paramref name="Version"/>. <paramref name="Source"/> ∈
+/// {"cliche-list", "verb-mapping", "cv-parsing-lexicon"} (the KB assets that carry replacement
+/// strings). For "cv-parsing-lexicon" the value is a pure RE-CASING of the recognised synonym
+/// <paramref name="Key"/> — the loader pins the form to differ from <paramref name="Key"/> only by
+/// letter case, so it is never a synonym remap or added punctuation: the no-synthesis guarantee D6
+/// gives up by leaving <see cref="StructuralTransformProvenance"/> is re-established in the lexicon
+/// loader instead.
 /// </summary>
 public sealed record KnowledgeBankProvenance(string Source, string Version, string Key)
     : ChangeProvenance;

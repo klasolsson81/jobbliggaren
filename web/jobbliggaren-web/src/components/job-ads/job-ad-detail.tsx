@@ -3,7 +3,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { ExternalLink } from "lucide-react";
 import { jobAdStatusLabel } from "@/lib/job-ads/status";
 import { formatDate } from "@/lib/i18n/format";
-import type { AdContactDto, JobAdDto, JobAdStatus } from "@/lib/dto/job-ads";
+import type { AdContactDto, JobAdDetailDto, JobAdStatus } from "@/lib/dto/job-ads";
 import type { JobAdMatchDetail } from "@/lib/dto/job-ad-match";
 import type { CompanyFollowState } from "@/lib/dto/company-follows";
 import type { OrtGranularity } from "@/lib/job-ads/ort-granularity";
@@ -28,7 +28,14 @@ import { formatAdDescription } from "./format-ad-description";
  */
 
 interface JobAdDetailProps {
-  jobAd: JobAdDto;
+  /**
+   * #745 — the DETAIL projection minus its `contacts` block (contacts arrive via the
+   * dedicated `contacts` prop below, so they are `Omit`-ted here to avoid a redundant
+   * second source). Typed against `JobAdDetailDto` — NOT the LIST type `JobAdDto`, which
+   * since #745 no longer carries `description` (the list wire dropped the ad body). The
+   * detail pages already hold a `JobAdDetailDto` from `getJobAd`; it is assignable here.
+   */
+  jobAd: Omit<JobAdDetailDto, "contacts">;
   /**
    * När true renderas titel/företag i modal-headern av anroparen
    * (JobAdModalShell), så detaljen utelämnar sin egen rubrik-header.

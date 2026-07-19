@@ -74,7 +74,7 @@ public class RunSavedSearchQueryHandlerTests
         var db = TestAppDbContextFactory.Create();
         var (_, saved) = await SeedAsync(db, _userId, q: "backend");
         var dto = new JobAdDto(
-            Guid.NewGuid(), "Backend-utvecklare", "Klarna", "Beskrivning",
+            Guid.NewGuid(), "Backend-utvecklare", "Klarna",
             "https://example.com/1", "Manual", "Active",
             DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow);
         var portResult = new PagedResult<JobAdDto>([dto], totalCount: 1, page: 1, pageSize: 20);

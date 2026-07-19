@@ -12,35 +12,31 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.Auth;
 
 /// <summary>
-/// Integration-tester för <c>SessionRoleClaimsTransformation</c> (ADR 0029).
+/// Integration tests for the Admin authorization path (#746 PR-B — lazy role resolution).
 ///
 /// <para>
-/// Verifierar HTTP-auth-pipeline-disciplinen end-to-end:
+/// Since #746 PR-B, roles are resolved ON DEMAND by <c>AdminRoleAuthorizationHandler</c> when the Admin
+/// policy is evaluated, replacing the eager <c>SessionRoleClaimsTransformation</c> that ran on every
+/// authenticated request. These tests verify the HTTP auth-pipeline discipline end-to-end:
 /// <list type="bullet">
-///   <item>Anonyma requests passerar transformation utan effekt (early return på <c>IsAuthenticated == false</c>).</item>
-///   <item>Autentiserade users utan roller får INTE Role-claims populerade (admin-endpoint → 403).</item>
-///   <item>Autentiserade users med Admin-roll får Role-claim populerad (admin-endpoint → 200).</item>
-///   <item>Per-request-fetch-disciplin: roll-revoke verkar omedelbart (ADR 0029 Beslut 3, ADR 0028 §1).</item>
-///   <item>Pipeline-ordning: transformation körs efter authentication-success och före authorization-policy
-///         (ADR 0029 Beslut 1) — verifieras indirekt via 401-vs-403-distinktion + admin-200-success.</item>
+///   <item>Anonymous requests reach anonymous endpoints unaffected (the handler never runs unauthenticated).</item>
+///   <item>An authenticated user WITHOUT the Admin role does not satisfy the policy → admin endpoint 403.</item>
+///   <item>An authenticated user WITH the Admin role has the role resolved + attached → admin endpoint 200,
+///         proving the handler runs before the endpoint (both the HTTP policy and the downstream Mediator
+///         AdminAuthorizationBehavior see the role).</item>
+///   <item>Per-request resolution: a role revoke takes effect immediately, no cache (A1 2026-05-11).</item>
+///   <item>Anonymous on an admin endpoint → 401 (challenge), not 403 — UseAuthentication before UseAuthorization;
+///         RequireAuthenticatedUser makes the split explicit with no DB call.</item>
 /// </list>
 /// </para>
 ///
 /// <para>
-/// Komplementär till <see cref="Admin.AdminAuditLogTests"/> som täcker admin-endpoint-flödet
-/// från slutanvändar-perspektiv. Denna fil dokumenterar explicit transformation-rollen i ADR 0029-termer.
-/// </para>
-///
-/// <para>
-/// Sentinel-claim-idempotens (<c>jobbliggaren:roles_resolved</c>) verifieras via kod-kommentar
-/// i <c>SessionRoleClaimsTransformation.cs:33-38</c> + per-request-fetch-test nedan. ASP.NET-pipelinen
-/// trigger:ar inte status-code re-execution i den normala request-vägen som integration-test exercise:ar,
-/// så call-count-verifiering kräver dedikerad enhetstest mot transformation-klassen i isolation
-/// (defererat — kräver Infrastructure.UnitTests-projekt som inte existerar idag).
+/// Complementary to <see cref="Admin.AdminAuditLogTests"/> (admin-endpoint flow from the end-user view) and
+/// <c>AdminRoleLazyResolutionCountTests</c> (the d2/d4 counterfactual: a non-admin request resolves zero roles).
 /// </para>
 /// </summary>
 [Collection("Api")]
-public class SessionRoleClaimsTransformationTests(ApiFactory factory)
+public class AdminRoleAuthorizationTests(ApiFactory factory)
 {
     private readonly ApiFactory _factory = factory;
 
@@ -51,7 +47,7 @@ public class SessionRoleClaimsTransformationTests(ApiFactory factory)
     private async Task<(HttpClient client, Guid userId)> RegisterAuthenticatedClientAsync(CancellationToken ct)
     {
         var client = _factory.CreateClient();
-        var email = $"trans-{Guid.NewGuid():N}@jobbliggaren.test";
+        var email = $"authz-{Guid.NewGuid():N}@jobbliggaren.test";
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, email, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
@@ -87,13 +83,9 @@ public class SessionRoleClaimsTransformationTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Anonymous_request_to_anonymous_endpoint_succeeds_without_transformation_effect()
+    public async Task Anonymous_request_to_anonymous_endpoint_succeeds()
     {
-        // ADR 0029 Beslut 1 + SessionRoleClaimsTransformation.cs:42-43:
-        // transformation gör early-return när IsAuthenticated == false. Verifieras
-        // indirekt: anonyma request till /api/ready ska få 200 utan att transformation
-        // crashar eller blockerar (om transformation skulle exception:a på anonymous
-        // principal skulle anonymous endpoints sluta fungera).
+        // The Admin handler never runs on an anonymous/open endpoint. /api/ready must stay 200.
         var ct = TestContext.Current.CancellationToken;
         var client = _factory.CreateClient();
 
@@ -103,11 +95,10 @@ public class SessionRoleClaimsTransformationTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Authenticated_user_without_admin_role_does_not_receive_admin_role_claim()
+    public async Task Authenticated_user_without_admin_role_is_forbidden_on_admin_endpoint()
     {
-        // ADR 0029 Beslut 2 + SessionRoleClaimsTransformation.cs:62-65:
-        // transformation anropar GetRolesAsync och adderar exakt de roller usern har.
-        // Rolless user ska INTE få falska Role-claims → admin-policy fail → 403.
+        // AdminRoleAuthorizationHandler resolves the user's roles on demand; a role-less user does not
+        // get the Admin role → the requirement stays unmet → 403.
         var ct = TestContext.Current.CancellationToken;
         var (client, _) = await RegisterAuthenticatedClientAsync(ct);
 
@@ -117,13 +108,11 @@ public class SessionRoleClaimsTransformationTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Authenticated_user_with_admin_role_receives_admin_role_claim()
+    public async Task Authenticated_admin_user_is_authorized_on_admin_endpoint()
     {
-        // ADR 0029 Beslut 2 + Beslut 1 (pipeline-ordning):
-        // transformation populerar ClaimTypes.Role efter authentication-success,
-        // FÖRE authorization-policy-utvärdering. Om transformation kördes efter
-        // policy:n skulle admin-users alltid få 403. 200-svaret bevisar att
-        // claim-population sker i rätt pipeline-position.
+        // The handler resolves + attaches ClaimTypes.Role BEFORE the endpoint runs, so both the HTTP
+        // Admin policy AND the downstream Mediator AdminAuthorizationBehavior (via ICurrentUser.IsInRole)
+        // pass → 200. Were resolution to run after the policy, an admin would always get 403.
         var ct = TestContext.Current.CancellationToken;
         var (client, userId) = await RegisterAuthenticatedClientAsync(ct);
         await PromoteToAdminAsync(userId, ct);
@@ -134,16 +123,11 @@ public class SessionRoleClaimsTransformationTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Role_revoke_takes_effect_on_next_request_proving_per_request_fetch()
+    public async Task Role_revoke_takes_effect_on_next_request_proving_per_request_resolution()
     {
-        // ADR 0029 Beslut 3 + ADR 0028 §1 (security-first per Microsoft Learn):
-        // transformation gör per-request DB-query mot AspNetUserRoles. Roll-revoke
-        // verkar på NÄSTA request, inte efter session-refresh. Ingen cache.
-        //
-        // NOT: AdminAuditLogTests.GetAuditLog_AfterRoleRevoke_Returns403OnNextRequest
-        // har samma assertion. Detta test re-asserterar disciplin från transformation-
-        // perspektiv så framtida cache-introduktion (separat ADR per Beslut 3-trigger)
-        // bryter BÅDA testfilerna och tvingar medveten review.
+        // Per-request on-demand resolution (A1, security-first): a role revoke takes effect on the NEXT
+        // request, no cache. A future cache introduction (separate ADR) would break this + AdminAuditLogTests,
+        // forcing conscious review.
         var ct = TestContext.Current.CancellationToken;
         var (client, userId) = await RegisterAuthenticatedClientAsync(ct);
         await PromoteToAdminAsync(userId, ct);
@@ -160,12 +144,9 @@ public class SessionRoleClaimsTransformationTests(ApiFactory factory)
     [Fact]
     public async Task Anonymous_request_to_admin_endpoint_returns_401_not_403()
     {
-        // ADR 0029 Beslut 1 (pipeline-ordning):
-        // UseAuthentication kör FÖRE UseAuthorization. Anonym request stoppas
-        // av authentication-middleware (401), inte av authorization-policy (403).
-        // Distinktionen är säkerhetskritisk för korrekt HTTP-protokoll-respons
-        // (RFC 7235 — 401 challenge vs 403 forbidden) och bekräftar att
-        // transformation aldrig körs på unauthenticated principal.
+        // UseAuthentication runs BEFORE UseAuthorization: an anonymous request is challenged (401) rather
+        // than forbidden (403). RequireAuthenticatedUser makes the split explicit (no DB call), and the
+        // distinction (RFC 7235) confirms the handler never runs on an unauthenticated principal.
         var ct = TestContext.Current.CancellationToken;
         var client = _factory.CreateClient();
 

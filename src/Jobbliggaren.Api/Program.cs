@@ -1,5 +1,6 @@
 using Hangfire;
 using Hangfire.PostgreSql;
+using Jobbliggaren.Api.Authorization;
 using Jobbliggaren.Api.Configuration;
 using Jobbliggaren.Api.Endpoints;
 using Jobbliggaren.Api.HealthChecks;
@@ -18,6 +19,7 @@ using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Logging;
 using Jobbliggaren.Infrastructure.Persistence;
 using Mediator;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.DependencyInjection;
@@ -68,14 +70,22 @@ builder.Services.AddAuthentication(options =>
     })
     .AddScheme<SessionAuthenticationSchemeOptions, SessionAuthenticationHandler>("Bearer", _ => { });
 
-// Admin-policy: HTTP-lager-gate för admin-endpoints (defense-in-depth tillsammans
-// med AdminAuthorizationBehavior i Mediator-pipelinen). RequireRole konsulterar
-// ClaimTypes.Role-claims som SessionAuthenticationHandler emit:ar per request
-// (senior-cto-advisor-beslut 2026-05-11, A1 — security-first per Microsoft Learn).
+// Admin-policy: HTTP-layer gate for admin endpoints (defense-in-depth with the Mediator
+// AdminAuthorizationBehavior). AdminRoleRequirement is satisfied by AdminRoleAuthorizationHandler,
+// which resolves roles ON DEMAND and attaches ClaimTypes.Role to the principal — so ONLY admin-policy
+// requests pay the identity query, not every authenticated request (#746 PR-B; epic #737 d2/d4 —
+// non-admin fan-out + 429'd floods now resolve zero roles). RequireAuthenticatedUser makes the
+// 401-vs-403 split explicit (anonymous → 401 challenge, no DB call). Immediate-revoke preserved:
+// roles resolved fresh per request, no cache (senior-cto-advisor A1 2026-05-11).
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy(AuthorizationPolicies.Admin, policy => policy.RequireRole(Roles.Admin));
+    options.AddPolicy(AuthorizationPolicies.Admin, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.AddRequirements(new AdminRoleRequirement());
+    });
 });
+builder.Services.AddScoped<IAuthorizationHandler, AdminRoleAuthorizationHandler>();
 builder.Services.AddJobbliggarenRateLimiting(builder.Configuration);
 
 // STEG 6 (2026-05-24) — Hangfire-client (storage-only, INGEN HangfireServer).

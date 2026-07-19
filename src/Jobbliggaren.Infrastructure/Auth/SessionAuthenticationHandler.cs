@@ -22,10 +22,10 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// Renamed to "Session" in Fas 1 when JWT classes are removed (ADR 0017).
 ///
 /// <para>
-/// H-3 SoC-split (arch-audit 2026-05-11): role-resolution flyttad till
-/// <see cref="SessionRoleClaimsTransformation"/>. Auth-handler:n hanterar bara
-/// session-id-parse + Redis-lookup + identity-konstruktion. Roller appliceras
-/// post-authentication via IClaimsTransformation-extension-punkten.
+/// H-3 SoC-split (arch-audit 2026-05-11): the auth handler only does session-id parse + Redis
+/// lookup + identity construction. Role resolution is NOT done here. Since #746 PR-B roles are
+/// resolved on demand by the Api-layer Admin authorization handler (AdminRoleAuthorizationHandler)
+/// when the Admin policy is evaluated — not eagerly on every request via an IClaimsTransformation.
 /// </para>
 /// </summary>
 public sealed class SessionAuthenticationHandler(
@@ -79,9 +79,10 @@ public sealed class SessionAuthenticationHandler(
             new("session_id_prefix", session.Id.ToString()), // 6-char prefix + "…", never raw value
         };
 
-        // Roll-claims appliceras post-authentication av SessionRoleClaimsTransformation
-        // (H-3 SoC-split). Per-request-fetch-modellen bibehållen — roll-revoke verkar
-        // omedelbart utan session-cache (senior-cto-advisor 2026-05-11 A1).
+        // Role claims are NOT applied here. Since #746 PR-B they are resolved on demand by
+        // AdminRoleAuthorizationHandler when the Admin policy is evaluated (only admin-policy
+        // requests pay the identity query). Per-request fetch is preserved there — a role revoke
+        // takes effect immediately, no session cache (senior-cto-advisor 2026-05-11 A1).
 
         var identity = new ClaimsIdentity(claims, Scheme.Name);
         var principal = new ClaimsPrincipal(identity);

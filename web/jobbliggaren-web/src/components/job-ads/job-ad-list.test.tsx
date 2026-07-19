@@ -10,7 +10,6 @@ const sampleAd = (id: string, title: string): JobAdDto => ({
   id,
   title,
   companyName: "Acme AB",
-  description: "Beskrivning av tjänsten.",
   url: "https://example.com/jobb/" + id,
   source: "Platsbanken",
   status: "Active",

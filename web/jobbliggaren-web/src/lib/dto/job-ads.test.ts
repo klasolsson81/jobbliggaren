@@ -453,6 +453,18 @@ describe("jobAdDetailDtoSchema (#842 PR4 — detail twin of the list schema)", (
     expect(jobAdDetailDtoSchema.safeParse(baseJobAd).success).toBe(false);
   });
 
+  it("#745 — REQUIRES description (re-declared on the detail wire, never inherited)", () => {
+    // #745 removed description from the list schema; the detail schema re-adds it via
+    // .extend(). The detail wire must still carry the ad body — a payload without it must
+    // fail rather than render an empty description block. Building the input from the LIST
+    // parse (which strips description) proves the re-declaration is load-bearing: without
+    // the explicit .extend({ description }), a description-less row would wrongly validate.
+    const listRowWithoutDescription = jobAdDtoSchema.parse(baseJobAd);
+    expect(
+      jobAdDetailDtoSchema.safeParse({ ...listRowWithoutDescription, contacts: [] }).success,
+    ).toBe(false);
+  });
+
   it("rejects a malformed contact entry", () => {
     expect(
       jobAdDetailDtoSchema.safeParse({
@@ -463,7 +475,7 @@ describe("jobAdDetailDtoSchema (#842 PR4 — detail twin of the list schema)", (
   });
 });
 
-describe("jobAdDtoSchema stays the LIST wire (R2 — contacts never on search)", () => {
+describe("jobAdDtoSchema stays the LIST wire (R2 — contacts never on search; #745 — no description)", () => {
   it("does not carry contacts: a stray contacts field is stripped, never exposed", () => {
     // Widening the list schema would put every recruiter's structured contacts on
     // the bulk-harvest search surface (re-bind R2). Zod strips unknown keys by
@@ -477,5 +489,17 @@ describe("jobAdDtoSchema stays the LIST wire (R2 — contacts never on search)",
     });
     expect(parsed.success).toBe(true);
     if (parsed.success) expect("contacts" in parsed.data).toBe(false);
+  });
+
+  it("#745 — does not carry description: a stray description field is stripped, never exposed", () => {
+    // #745 (epic #737, d1-list-dto-ships-full-description): the backend dropped the ad body
+    // from the list wire (no list card renders it; the detail fetches it separately via
+    // getJobAd). This must be mirrored here or listJobAdsResultSchema's required
+    // description would reject every list row. baseJobAd still carries description; Zod
+    // strips it so the parsed list row never exposes it — description lives ONLY on the
+    // detail schema. Twin of the detail-requires-description lock below.
+    const parsed = jobAdDtoSchema.safeParse(baseJobAd);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect("description" in parsed.data).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import type { JobAdDto } from "@/lib/dto/job-ads";
+import type { JobAdDetailDto } from "@/lib/dto/job-ads";
 import type { GuestMockJobAd } from "./mock-data";
 
 // F-Pre Punkt 5b 2026-05-24 — adapters för att map:a gäst-mockdata till
@@ -12,8 +12,16 @@ import type { GuestMockJobAd } from "./mock-data";
 // JobAdDto. NY = OLÄST kräver en per-användar watermark (auth) — en anonym
 // gäst har ingen ⇒ ingen NY (W4 cold-start). Gäst-demon behåller
 // "X DAGAR"-färskheten som recency-signal.
+//
+// #745 — `<JobAdDetail>` renderar annonstexten (`description`), men den ligger
+// inte längre på LIST-typen `JobAdDto` (som tappade fältet). Adaptern producerar
+// därför detalj-formen minus `contacts` (`Omit<JobAdDetailDto, "contacts">` —
+// gäst-demon fabricerar aldrig en rekryterarkontakt, så contacts-blocket utelämnas
+// och self-hider). Namnet speglar returtypen (§5): `toJobAdDetail`, ej `toJobAdDto`.
 
-export function toJobAdDto(mock: GuestMockJobAd): JobAdDto {
+export function toJobAdDetail(
+  mock: GuestMockJobAd,
+): Omit<JobAdDetailDto, "contacts"> {
   return {
     id: mock.id,
     title: mock.title,

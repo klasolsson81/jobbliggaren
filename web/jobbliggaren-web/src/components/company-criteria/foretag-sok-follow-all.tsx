@@ -6,7 +6,7 @@
 // screen. The page keys this component on the filter signature, so a filter change remounts it and
 // clears any prior saved/error state.
 
-import { useId, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { createCriterionAction } from "@/lib/actions/company-criteria";
@@ -52,6 +52,7 @@ export function ForetagSokFollowAll({ namn, sni, kommun }: ForetagSokFollowAllPr
   const t = useTranslations("pages.foretag.sok.followAll");
   const headingId = useId();
   const explainerId = useId();
+  const confirmRef = useRef<HTMLDivElement>(null);
   const [isSaving, startSaving] = useTransition();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +73,10 @@ export function ForetagSokFollowAll({ namn, sni, kommun }: ForetagSokFollowAllPr
       });
       if (result.success) {
         setSaved(true);
+        // Move focus to the (always-mounted) confirmation region so the keyboard user is not dropped
+        // to <body> when the button unmounts, and the screen reader lands on the status (WCAG 2.4.3 /
+        // 4.1.3) — parity with ForetagSokOrgnr.
+        confirmRef.current?.focus();
       } else {
         setError(result.error);
       }
@@ -81,25 +86,18 @@ export function ForetagSokFollowAll({ namn, sni, kommun }: ForetagSokFollowAllPr
   return (
     <section
       aria-labelledby={headingId}
-      className="flex flex-col gap-3 rounded-md border border-border p-4 md:p-6"
+      className="mt-8 rounded-md border border-border p-4 md:p-6"
     >
       <h2 id={headingId} className="text-h3 font-semibold text-text-primary">
         {t("heading")}
       </h2>
 
-      {saved ? (
-        <p role="status" className="text-body-sm text-text-primary">
-          {t("successBody")}{" "}
-          <Link href="/foretag" className="text-brand-700 underline underline-offset-2">
-            {t("successLink")}
-          </Link>
-        </p>
-      ) : (
+      {!saved && (
         <>
-          <p id={explainerId} className="text-body-sm text-text-primary">
+          <p id={explainerId} className="mt-2 text-body-sm text-text-primary">
             {ready ? t("ready") : t(REASON_KEY[gate.kind])}
           </p>
-          <div>
+          <div className="mt-4">
             <button
               type="button"
               className="jp-btn jp-btn--primary"
@@ -111,12 +109,27 @@ export function ForetagSokFollowAll({ namn, sni, kommun }: ForetagSokFollowAllPr
               {isSaving ? t("saving") : t("button")}
             </button>
           </div>
-          {error && (
-            <p role="alert" className="text-body-sm text-danger-700">
-              {error}
-            </p>
-          )}
         </>
+      )}
+
+      {/* Persistent polite live-region (parity with ForetagSokOrgnr): always mounted so the
+          confirmation announces reliably, and it receives programmatic focus on success so a keyboard
+          user keeps their place when the button unmounts. Empty (zero-height) until saved. */}
+      <div ref={confirmRef} tabIndex={-1} aria-live="polite" className="outline-none">
+        {saved && (
+          <p className="mt-2 text-body-sm text-text-primary">
+            {t("successBody")}{" "}
+            <Link href="/foretag" className="text-brand-700 underline underline-offset-2">
+              {t("successLink")}
+            </Link>
+          </p>
+        )}
+      </div>
+
+      {error && (
+        <p role="alert" className="mt-3 text-body-sm text-danger-700">
+          {error}
+        </p>
       )}
     </section>
   );

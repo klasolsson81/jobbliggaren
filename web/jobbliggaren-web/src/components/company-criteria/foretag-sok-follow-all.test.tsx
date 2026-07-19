@@ -77,6 +77,9 @@ describe("ForetagSokFollowAll", () => {
     expect(
       await screen.findByText("Sökningen sparades som bevakning."),
     ).toBeInTheDocument();
+    // Focus moved to the (always-mounted) confirmation region — not dropped to <body> when the
+    // button unmounts (WCAG 2.4.3, design-reviewer Major).
+    expect(document.activeElement).toHaveTextContent("Sökningen sparades som bevakning.");
     // The button is replaced by the confirmation (no accidental duplicate on a second click).
     expect(
       screen.queryByRole("button", { name: "Bevaka alla träffar" }),

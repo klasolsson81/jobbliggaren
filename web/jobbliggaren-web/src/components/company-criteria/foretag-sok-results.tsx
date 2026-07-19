@@ -63,38 +63,43 @@ export async function ForetagSokResults({
 
   return (
     <div className="mt-8">
-      <h2 className="text-h2 text-text-primary tabular-nums">
-        {hasFilter
-          ? t("magnitudeHeadlineFiltered", { count: magnitudeText })
-          : t("magnitudeHeadlineAll", { count: magnitudeText })}
-      </h2>
-
-      {/* Mandatory säteskommun explainer + inline help (the kommun is the registered seat, not
-          necessarily where the company operates). */}
-      <p className="mt-2 flex items-center gap-1 text-body-sm text-text-primary">
-        {t("seatExplainer")}
-        <InfoDialog
-          title={t("seatHelpTitle")}
-          paragraphs={[t("seatHelpBody1"), t("seatHelpBody2")]}
-          ariaLabel={t("seatHelpAria")}
-        />
-      </p>
-
       {companies.items.length === 0 ? (
-        <div className="jp-empty mt-6">
+        // Empty state carries the statement + next step; the magnitude headline + seat explainer are
+        // suppressed here so a zero-match search does not double the "no companies" message (they
+        // reference a table that is not shown).
+        <div className="jp-empty">
           <div className="jp-empty__title">{t("emptyTitle")}</div>
           <p className="text-body-sm text-text-primary">{t("emptyBody")}</p>
         </div>
       ) : (
-        <div className="mt-6 flex flex-col gap-4">
-          <CompanyBrowseList items={companies.items} reference={reference} />
-          <JobAdPagination
-            page={companies.page}
-            pageSize={companies.pageSize}
-            totalCount={companies.totalCount}
-            buildHref={(targetPage) => buildPageHref(filterState, targetPage)}
-          />
-        </div>
+        <>
+          <h2 className="text-h2 text-text-primary tabular-nums">
+            {hasFilter
+              ? t("magnitudeHeadlineFiltered", { count: magnitudeText })
+              : t("magnitudeHeadlineAll", { count: magnitudeText })}
+          </h2>
+
+          {/* Mandatory säteskommun explainer + inline help (the kommun is the registered seat, not
+              necessarily where the company operates). */}
+          <p className="mt-2 flex items-center gap-1 text-body-sm text-text-primary">
+            {t("seatExplainer")}
+            <InfoDialog
+              title={t("seatHelpTitle")}
+              paragraphs={[t("seatHelpBody1"), t("seatHelpBody2")]}
+              ariaLabel={t("seatHelpAria")}
+            />
+          </p>
+
+          <div className="mt-6 flex flex-col gap-4">
+            <CompanyBrowseList items={companies.items} reference={reference} />
+            <JobAdPagination
+              page={companies.page}
+              pageSize={companies.pageSize}
+              totalCount={companies.totalCount}
+              buildHref={(targetPage) => buildPageHref(filterState, targetPage)}
+            />
+          </div>
+        </>
       )}
 
       {/* Mandatory source attribution (DPIA C-D2/M-C4). */}

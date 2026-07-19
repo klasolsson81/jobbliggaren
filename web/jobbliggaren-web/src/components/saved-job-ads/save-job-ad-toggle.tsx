@@ -61,7 +61,10 @@ export function SaveJobAdToggle({
   }
 
   const label = saved ? t("saved") : t("save");
-  const ariaLabel = saved ? t("removeAria") : t("saveAria");
+  // Only the icon-only compact variant needs an aria-label — it has no visible text. The default
+  // variant's accessible name is its visible text ("Spara"/"Sparad"), so an aria-label override
+  // ("Ta bort bokmärke…") would DIVERGE from the visible label and break WCAG 2.5.3 label-in-name.
+  const compactAriaLabel = saved ? t("removeAria") : t("saveAria");
   const Icon = saved ? BookmarkCheck : Bookmark;
   const opacity = isPending ? 0.7 : 1;
 
@@ -70,7 +73,7 @@ export function SaveJobAdToggle({
       <button
         type="button"
         className="jp-icon-btn"
-        aria-label={ariaLabel}
+        aria-label={compactAriaLabel}
         aria-pressed={saved}
         onClick={handleClick}
         style={{ opacity }}
@@ -85,7 +88,7 @@ export function SaveJobAdToggle({
       <button
         type="button"
         className="jp-btn jp-btn--secondary"
-        aria-label={ariaLabel}
+        // No aria-label: the accessible name is the visible text; state rides aria-pressed (2.5.3).
         aria-pressed={saved}
         onClick={handleClick}
         style={{ opacity }}

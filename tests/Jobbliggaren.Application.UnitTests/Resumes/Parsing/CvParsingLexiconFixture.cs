@@ -21,7 +21,8 @@ internal static class CvParsingLexiconFixture
         int Version,
         Dictionary<string, string[]>? Headings,
         string[]? NameBanners,
-        Dictionary<string, string[]>? FreeSections);
+        Dictionary<string, string[]>? FreeSections,
+        Dictionary<string, string>? DisplayForms);
 
     internal static LexiconFile ReadFile()
     {

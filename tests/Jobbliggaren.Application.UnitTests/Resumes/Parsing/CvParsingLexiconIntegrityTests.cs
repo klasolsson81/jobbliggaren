@@ -156,4 +156,60 @@ public class CvParsingLexiconIntegrityTests
 
     private static bool IsLowercaseAsciiSlug(string id) =>
         id.Length > 0 && id.All(c => c is >= 'a' and <= 'z');
+
+    /// <summary>
+    /// #893 (lexicon v6) — the shipped displayForms pinned against the loader's two invariants, so the
+    /// fail-loud throws are never reached in production: every key is a KNOWN synonym (typed or free),
+    /// and every value is a pure RE-CASING of its synonym (<c>NormalizeHeading(form) == key</c>), never
+    /// a remap that would rewrite the user's word (synthesis, ADR 0108 §5 / CLAUDE.md §5).
+    /// </summary>
+    [Fact]
+    public void DisplayForms_KeyKnownSynonyms_AndValuesRecaseNeverRemap()
+    {
+        var file = CvParsingLexiconFixture.ReadFile();
+
+        var displayForms = file.DisplayForms.ShouldNotBeNull(
+            "displayForms saknas i lexikonet — v6 ska bära minst it-kompetenser.");
+        displayForms.ShouldNotBeEmpty("displayForms är tomt — testet skulle passera vakuöst.");
+
+        // The v6 override that exists to exist — the acronym NormalizeCase could only degrade. An
+        // explicit pin so an accidental deletion goes red here, not silently (parity V3Vocabulary).
+        displayForms.ShouldContainKeyAndValue("it-kompetenser", "IT-kompetenser");
+
+        var knownSynonyms = (file.Headings ?? []).Values.SelectMany(v => v).Select(Normalize)
+            .Concat(RawFreeSynonyms().Select(Normalize))
+            .ToHashSet();
+        knownSynonyms.ShouldNotBeEmpty();
+
+        foreach (var (rawKey, form) in displayForms)
+        {
+            var key = Normalize(rawKey);
+
+            knownSynonyms.ShouldContain(key,
+                $"displayForm-nyckeln '{rawKey}' är ingen känd synonym — en dinglande form kan aldrig föreslås.");
+
+            Normalize(form).ShouldBe(key,
+                $"displayForm '{form}' för '{key}' är en REMAP, inte en om-versalisering " +
+                $"(Normalize('{form}')='{Normalize(form)}'). En display-form återversaliserar; den byter aldrig ord.");
+        }
+    }
+
+    /// <summary>
+    /// #893 — display-form KEYS must be stored normalized (parity <see cref="FreeSectionSynonyms_AreStoredNormalized"/>).
+    /// An unnormalized key ("IT-KOMPETENSER") would resolve at load via <c>NormalizeHeading</c> but read
+    /// as a raw un-normalized authoring mistake here — and would only differ from the loader's key by the
+    /// very normalisation the lookup relies on, which is exactly the drift the shipped-data pin exists to catch.
+    /// </summary>
+    [Fact]
+    public void DisplayFormKeys_AreStoredNormalized()
+    {
+        var displayForms = CvParsingLexiconFixture.ReadFile().DisplayForms.ShouldNotBeNull();
+        displayForms.ShouldNotBeEmpty("displayForms är tomt — testet skulle passera vakuöst.");
+
+        var unnormalized = displayForms.Keys.Where(key => key != Normalize(key)).ToList();
+
+        unnormalized.ShouldBeEmpty(
+            $"Dessa displayForm-nycklar lagras onormaliserade: {string.Join(", ", unnormalized)}. " +
+            "En onormaliserad nyckel matchar aldrig en CV-rubrik via lexikonets normaliserare — tyst.");
+    }
 }

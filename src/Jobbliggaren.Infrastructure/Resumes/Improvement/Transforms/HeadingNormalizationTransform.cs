@@ -1,3 +1,4 @@
+using System.Globalization;
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Improvement.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
@@ -9,9 +10,18 @@ namespace Jobbliggaren.Infrastructure.Resumes.Improvement.Transforms;
 /// <summary>
 /// D6 standard headings (Fas 4 STEG 10, F4-10): a raw-text line the parsing LEXICON recognises as a
 /// section heading, but written in non-standard case (e.g. ALL-CAPS), is proposed normalised to
-/// standard case. The proposed <c>After</c> is a PURE case transform of the user's own text (never a
-/// synonym remap — that would be synthesis); the structural-transform guard re-runs the transform to
-/// verify it.
+/// standard case. TWO arms, both no-synthesis (CLAUDE.md §5):
+/// <list type="bullet">
+///   <item><b>Display form (#893, lexicon v6).</b> A synonym the lexicon carries a canonical
+///   <c>displayForm</c> for is proposed AS that form via <see cref="ProposedChange.FromKnowledgeBank"/>,
+///   because an acronym's casing (<c>"it-kompetenser"</c> → <c>"IT-kompetenser"</c>) is not recoverable
+///   by a case rule. The loader pins the form to differ from the synonym ONLY by letter case, so it is a
+///   pure RE-CASING of the user's own word, never a synonym remap.</item>
+///   <item><b>Case transform (fallback).</b> Otherwise the <c>After</c> is a PURE case transform of the
+///   user's own text via <see cref="ProposedChange.FromStructuralOp"/> (re-verified by re-running the
+///   transform). A COMPOUND heading with no display form is DECLINED — its canonical capitalisation is
+///   unknowable from the text alone — the honest failure mode, never a guess.</item>
+/// </list>
 ///
 /// <para><b>Recognition comes from the lexicon, and it used to come from the RENDERER (8b.4b fix).</b>
 /// This transform derived its canonical set from <c>CvRenderStrings.SectionHeadings()</c> — the PDF
@@ -56,18 +66,48 @@ internal sealed class HeadingNormalizationTransform : ICvTransform
                 continue;
             }
 
-            // A COMPOUND heading may lead with an acronym the user capitalised on purpose —
-            // "IT-kompetenser" is a lexicon synonym of `skills`, and NormalizeCase ("first letter up,
-            // the rest down") would propose "It-kompetenser". The engine would be DEGRADING a
-            // correctly written heading. Before 8b.4b the render table did not hold the synonym, so
-            // the line was simply invisible; widening recognition to the lexicon brought the case
-            // transform along with it, over a vocabulary that no longer satisfies its assumption.
-            //
-            // The guard is on FORM, not on a name-list: a hyphen is what makes the canonical
-            // capitalisation unknowable from the text alone. The general answer is a display form per
-            // synonym in the lexicon — knowledge-bank data, a different change-reason, filed
-            // separately. Until then the engine declines to guess, which is the honest failure mode:
-            // a heading it cannot improve is a heading it leaves alone.
+            // ARM 1 — display form (#893, lexicon v6). A synonym the lexicon carries a canonical
+            // display form for is proposed AS that form (knowledge-bank-sourced, not a pure transform).
+            // "it-kompetenser" is a lexicon synonym of `skills` whose casing ("IT-kompetenser")
+            // NormalizeCase cannot recover ("first letter up, the rest down" → "It-kompetenser",
+            // DEGRADING a correctly-written heading). The loader pins the form to differ from lexicalKey
+            // ONLY by letter case, so this RE-CASES the user's own word — it never remaps it to a
+            // different synonym (that would be synthesis, CLAUDE.md §5). This is why the After is KB-sourced:
+            // FromStructuralOp's After==pureTransform(Before) guard cannot express a curated casing.
+            if (_lexicon.DisplayFormByHeading.TryGetValue(lexicalKey, out var displayForm))
+            {
+                // Fire only on a GENUINE casing difference — symmetric with ARM 2's idempotence guard
+                // (heading == NormalizeCase(heading)). D6's criterion is versalisering, so strip the
+                // trailing separators NormalizeHeading ignores before comparing: a heading already in
+                // canonical case ("IT-kompetenser" OR "IT-kompetenser:") yields no proposal, because
+                // "standardise the casing" would be a false rationale when only a colon differs.
+                if (string.Equals(heading.TrimEnd(':', '.', ' ', '\t'), displayForm, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                yield return ProposedChange.FromKnowledgeBank(
+                    targetId: $"heading:{index++}",
+                    kind: ProposedChangeKind.HeadingNormalization,
+                    category: RubricCategory.Structure,
+                    criterionId: context.CriterionIdFor("D6"),
+                    evidence: ReviewText.Span(rawText, heading, "rubrik i icke-standard versalisering"),
+                    replacement: new ProposedReplacement(heading, displayForm),
+                    rationale: "Standardisera rubrikens versalisering till dess kanoniska form.",
+                    provenance: new KnowledgeBankProvenance(
+                        "cv-parsing-lexicon",
+                        _lexicon.Version.ToString(CultureInfo.InvariantCulture),
+                        lexicalKey),
+                    resolvedKbValue: displayForm);
+                continue;
+            }
+
+            // ARM 2 — case transform, with the compound-heading fallback guard. No display form: a
+            // COMPOUND heading's canonical capitalisation is unknowable from the text alone ("PL-SQL"
+            // could be "PL-SQL", "Pl-SQL", …), so NormalizeCase would DEGRADE it. The guard is on FORM,
+            // not a name-list — a hyphen is the signal — and the engine declines rather than guesses.
+            // ARM 1 is how a specific hyphenated synonym is LIFTED out of this decline; until a display
+            // form is authored, a heading it cannot improve is a heading it leaves alone.
             if (heading.Contains('-', StringComparison.Ordinal))
             {
                 continue;
@@ -79,14 +119,12 @@ internal sealed class HeadingNormalizationTransform : ICvTransform
                 continue;
             }
 
-            var evidence = ReviewText.Span(rawText, heading, "rubrik i icke-standard versalisering");
-
             yield return ProposedChange.FromStructuralOp(
                 targetId: $"heading:{index++}",
                 kind: ProposedChangeKind.HeadingNormalization,
                 category: RubricCategory.Structure,
                 criterionId: context.CriterionIdFor("D6"),
-                evidence: evidence,
+                evidence: ReviewText.Span(rawText, heading, "rubrik i icke-standard versalisering"),
                 replacement: new ProposedReplacement(heading, normalized),
                 operation: new StructuralOperation(StructuralTransformKind.NormalizeHeadingCase, "rubrik"),
                 rationale: "Standardisera rubrikens versalisering.",

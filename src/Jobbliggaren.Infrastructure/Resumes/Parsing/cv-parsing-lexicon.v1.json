@@ -1,6 +1,6 @@
 {
-  "version": 5,
-  "note": "F4-8 deterministic CV segmentation lexicon (ADR 0071/0074, NO AI/LLM). Versioned data, never inline C# strings (CLAUDE.md §5). Section headings (Swedish + English), language-detection function words, contact-field labels, and free sections. v4/v5 (8b.4a): freeSectionHeadings (a flat token set) became freeSections — a sectionId → synonyms map, the SAME shape the typed `headings` block already uses. The sectionId is the canonical identity a recommendation asset keys on, so RECOGNITION stays owned here and is never forked. v5 ADDS the sections the CV engine must be able to suggest (legitimation, körkort) and the compound forms of existing ones; these were UNRECOGNISED before, so their body was swallowed by the preceding section (#815). A compound heading is filed under the concept it LEADS with. No v3 synonym was removed. Own-authored from common CV conventions; no third-party data imported.",
+  "version": 6,
+  "note": "F4-8 deterministic CV segmentation lexicon (ADR 0071/0074, NO AI/LLM). Versioned data, never inline C# strings (CLAUDE.md §5). Section headings (Swedish + English), language-detection function words, contact-field labels, and free sections. v4/v5 (8b.4a): freeSectionHeadings (a flat token set) became freeSections — a sectionId → synonyms map, the SAME shape the typed `headings` block already uses. The sectionId is the canonical identity a recommendation asset keys on, so RECOGNITION stays owned here and is never forked. v5 ADDS the sections the CV engine must be able to suggest (legitimation, körkort) and the compound forms of existing ones; these were UNRECOGNISED before, so their body was swallowed by the preceding section (#815). A compound heading is filed under the concept it LEADS with. No v3 synonym was removed. v6 (#893) ADDS displayForms: a per-synonym canonical CASING (it-kompetenser → IT-kompetenser) that a pure NormalizeCase cannot recover, consumed ONLY by the D6 heading-normalization proposal, never by segmentation. Override-only — present just where NormalizeCase would degrade a correctly-written heading; the loader pins the form as a pure re-casing of the synonym (differs only by letter case, never added punctuation or a remap) and one canonical form per key. No synonym added or removed; recognition byte-identical to v5. Own-authored from common CV conventions; no third-party data imported.",
   "headings": {
     "contact": [
       "kontakt",
@@ -253,5 +253,8 @@
       "driving licence",
       "driving license"
     ]
+  },
+  "displayForms": {
+    "it-kompetenser": "IT-kompetenser"
   }
 }

@@ -16,6 +16,7 @@ internal sealed record CvParsingLexiconData(
     int Version,
     FrozenDictionary<string, ParsedSectionKind> HeadingMap,
     FrozenDictionary<string, string> FreeSectionIdByHeading,
+    FrozenDictionary<string, string> DisplayFormByHeading,
     FrozenSet<string> FreeSectionIds,
     FrozenSet<string> SwedishHints,
     FrozenSet<string> EnglishHints,
@@ -125,10 +126,61 @@ internal static partial class CvParsingLexiconLoader
                 $"{string.Join(", ", collisions)}. The collision silently changes segmentation.");
         }
 
+        // v6 (#893): displayForms carry a canonical CASING for a synonym that a pure NormalizeCase
+        // cannot recover ("it-kompetenser" → "IT-kompetenser"). The D6 heading-normalization proposal
+        // reads this; segmentation never does. THREE fail-loud invariants reconstruct the no-synthesis
+        // guarantee D6 gives up by leaving FromStructuralOp (a KB value has no After==pureTransform(Before)
+        // check — ADR 0074 / ADR 0108 §5 / CLAUDE.md §5):
+        //   INV-1 a display form must key on a KNOWN synonym (typed or free) — a dangling form can never
+        //         be proposed, so it is a silent mistake; fail loud, parity the unknown-typed-key throw.
+        //   INV-2 a display form must be a pure RE-CASING of the synonym: it may differ from the (already
+        //         normalized) key ONLY by letter case — string.Equals(form, key, OrdinalIgnoreCase). So
+        //         "IT-kompetenser" passes while "Kompetenser" (a remap), "IT-kompetenser:" (a trailing
+        //         separator) and "Tekniska  kompetenser" (collapsed whitespace) all throw: proposing any
+        //         of them would rewrite the user's word or add characters they did not write. A weaker
+        //         NormalizeHeading(form)==key check would ALSO strip a trailing ':'/'.' and collapse
+        //         whitespace, so the promise "re-casing" would drift from what it enforces.
+        //   INV-3 one key, one canonical form — parity the freeById "claimed by BOTH" throw above: two
+        //         raw keys normalizing to the same key with DIFFERENT forms are an order-dependent silent
+        //         last-one-wins, so fail loud (an identical duplicate is idempotent, allowed).
+        var displayForms = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (rawSynonym, form) in file.DisplayForms ?? [])
+        {
+            var key = NormalizeHeading(rawSynonym);
+            if (key.Length == 0 || (!headingMap.ContainsKey(key) && !freeById.ContainsKey(key)))
+            {
+                throw new InvalidOperationException(
+                    $"CV-parsing lexicon v{file.Version}: displayForm key '{rawSynonym}' is not a known " +
+                    "heading synonym (neither typed nor free). A dangling display form can never be " +
+                    "proposed — fail loud, not silent.");
+            }
+
+            if (!string.Equals(form, key, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"CV-parsing lexicon v{file.Version}: displayForm '{form}' for synonym '{key}' is not a " +
+                    "pure re-casing — it differs by more than letter case (a remap, a trailing separator, or " +
+                    "collapsed whitespace). Proposing it would rewrite the user's word or add characters they " +
+                    "did not write — synthesis (ADR 0074 / ADR 0108 §5 / CLAUDE.md §5). A display form re-cases " +
+                    "the synonym; it changes nothing else.");
+            }
+
+            if (displayForms.TryGetValue(key, out var existing)
+                && !string.Equals(existing, form, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"CV-parsing lexicon v{file.Version}: the display-form key '{key}' is claimed by BOTH " +
+                    $"'{existing}' and '{form}'. One heading cannot have two canonical forms.");
+            }
+
+            displayForms[key] = form;
+        }
+
         return new CvParsingLexiconData(
             file.Version,
             headingMap.ToFrozenDictionary(StringComparer.Ordinal),
             freeById.ToFrozenDictionary(StringComparer.Ordinal),
+            displayForms.ToFrozenDictionary(StringComparer.Ordinal),
             file.FreeSections.Keys.ToFrozenSet(StringComparer.Ordinal),
             ToHintSet(file.LanguageHints, "sv"),
             ToHintSet(file.LanguageHints, "en"),
@@ -201,7 +253,8 @@ internal static partial class CvParsingLexiconLoader
         Dictionary<string, string[]>? LanguageHints,
         string[]? NameBanners,
         ContactLabelsFile? ContactLabels,
-        Dictionary<string, string[]>? FreeSections);
+        Dictionary<string, string[]>? FreeSections,
+        Dictionary<string, string>? DisplayForms);
 
     /// <summary>Contact-field label vocabulary — versioned data, never inline C# strings (§5).</summary>
     private sealed record ContactLabelsFile(string[]? Location);

@@ -105,40 +105,77 @@ public sealed class RedisSessionStore(
         // Redis memory promptly at the ceiling).
         var capRemaining = payload.CreatedAt + profile.AbsoluteTtl - now;
         var slidingTtl = capRemaining < profile.SlidingTtl ? capRemaining : profile.SlidingTtl;
-        var expiresAt = now + slidingTtl;
         var sessionKey = Key(sessionId);
 
-        // Reset sliding expiration on read — for BOTH the secondary user-sessions-
-        // index AND the main session key, so the index never dies before the
-        // session it tracks (#502 / ADR 0024 D4). CreateAsync sets the set-TTL once
-        // at login; without refreshing it here the set expires SlidingTtl after the LAST
-        // login while GetAsync slides the main key forward indefinitely →
-        // InvalidateAllForUserAsync iterates an empty set and the token keeps
-        // authenticating after account deletion (Art. 17). Re-SADD is required (not
-        // just KeyExpire): if the set already expired, KeyExpire on the gone key is
-        // a no-op — the membership must be recreated. Order mirrors CreateAsync
-        // (SADD before KeyExpire, sequentially awaited) so a reordered KeyExpire can
-        // never set a TTL on a not-yet-created set and leave it immortal. Non-atomic,
-        // same accepted worst-case as CreateAsync (TD-23 — now a third such site).
-        try
-        {
-            var setKey = UserSessionsKey(payload.UserId);
-            await db.SetAddAsync(setKey, sessionKey);
-            // The index SET keeps the full sliding window (it must outlive the sessions
-            // it tracks, #502); a member whose capped main key has expired is a benign
-            // orphan (RemoveAsync is a no-op on it).
-            await db.KeyExpireAsync(setKey, profile.SlidingTtl);
+        // Sliding-write throttle (#746): the SADD/KeyExpire/SetString rewrite below is the Redis
+        // cost the auth hot path pays on EVERY read. Skip it while less than SlideThreshold ×
+        // SlidingTtl of the window has elapsed since the last slide (SlidAt) — i.e. slide at most
+        // once per that fraction, not on every request. A fraction (not an absolute interval)
+        // scales across the three profiles (24h / 14d / 30d). A pre-#746 payload has SlidAt ==
+        // default → anchor on CreatedAt so the first read after deploy slides once, then throttles.
+        // SlideThreshold == 0 disables throttling (the default — behaviour identical to pre-#746).
+        //
+        // CRITICAL (#502 / ADR 0024 D4): throttling is only safe because the main key no longer
+        // auto-slides on read. IDistributedCache (StackExchange RedisCache) stores a SlidingExpiration
+        // entry as a hash carrying `sldexp` and runs get-and-refresh on GetStringAsync — so a
+        // SlidingExpiration key would slide on EVERY read regardless of this gate, while the index SET
+        // (refreshed only when we slide) fell behind → the SET could expire before a live main key and
+        // InvalidateAllForUserAsync would miss the session (Art. 17 orphan). We therefore write the
+        // main key with AbsoluteExpirationRelativeToNow (no `sldexp`, no auto-slide), making the slide
+        // explicit-only. Both keys then slide together under this gate: at each slide the SET expiry is
+        // now + SlidingTtl and the main expiry is now + slidingTtl (≤ SlidingTtl, cap-clamped), and
+        // between slides neither key is touched — so main expiry ≤ SET expiry always, and the SET can
+        // never expire before the main key it tracks.
+        var slidAt = payload.SlidAt == default ? payload.CreatedAt : payload.SlidAt;
+        var shouldSlide = _options.SlideThreshold <= 0
+            || now - slidAt >= profile.SlidingTtl * _options.SlideThreshold;
 
-            await cache.SetStringAsync(
-                sessionKey,
-                json,
-                new DistributedCacheEntryOptions { SlidingExpiration = slidingTtl },
-                ct);
-        }
-        catch (RedisConnectionException ex)
+        if (shouldSlide)
         {
-            throw new SessionStoreUnavailableException("Redis-session-store är inte tillgänglig.", ex);
+            // Reset expiration on read — for BOTH the secondary user-sessions-index AND the main
+            // session key, so the index never dies before the session it tracks (#502 / ADR 0024
+            // D4). CreateAsync sets the set-TTL once at login; without refreshing it here the set
+            // expires SlidingTtl after the LAST login while the main key slides forward →
+            // InvalidateAllForUserAsync iterates an empty set and the token keeps authenticating
+            // after account deletion (Art. 17). Re-SADD is required (not just KeyExpire): if the set
+            // already expired, KeyExpire on the gone key is a no-op — the membership must be
+            // recreated. Order mirrors CreateAsync (SADD before KeyExpire, sequentially awaited) so a
+            // reordered KeyExpire can never set a TTL on a not-yet-created set and leave it immortal.
+            // Non-atomic, same accepted worst-case as CreateAsync (TD-23 — now a third such site;
+            // #746 additionally widens the orphan self-heal cadence from every read to every
+            // SlideThreshold × SlidingTtl, an accepted bounded residual — account deletion stays fully
+            // backstopped by the :deleted tombstone gate above).
+            try
+            {
+                var setKey = UserSessionsKey(payload.UserId);
+                await db.SetAddAsync(setKey, sessionKey);
+                // The index SET keeps the full sliding window (it must outlive the sessions
+                // it tracks, #502); a member whose capped main key has expired is a benign
+                // orphan (RemoveAsync is a no-op on it).
+                await db.KeyExpireAsync(setKey, profile.SlidingTtl);
+
+                // AbsoluteExpirationRelativeToNow (NOT SlidingExpiration): no `sldexp` is stored,
+                // so the GetStringAsync above performs no auto-slide — the slide is explicit-only
+                // and this gate fully controls it. Stamp SlidAt = now so subsequent reads throttle.
+                var slidJson = JsonSerializer.Serialize(payload with { SlidAt = now }, JsonOptions);
+                await cache.SetStringAsync(
+                    sessionKey,
+                    slidJson,
+                    new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = slidingTtl },
+                    ct);
+            }
+            catch (RedisConnectionException ex)
+            {
+                throw new SessionStoreUnavailableException("Redis-session-store är inte tillgänglig.", ex);
+            }
         }
+
+        // ExpiresAt reflects the ACTUAL Redis key TTL, never over-promising (CTO bind #1): on a
+        // slide the key expires at now + slidingTtl; on a throttled read it was last slid at slidAt,
+        // so it expires at slidAt + slidingTtl (and slidingTtl is cap-clamped at `now`, so this is
+        // ≤ the real TTL — conservative). No read-path consumer relies on it, but the refresh-seam
+        // consumers must not be handed an over-promised value.
+        var expiresAt = (shouldSlide ? now : slidAt) + slidingTtl;
 
         return new Session(sessionId, payload.UserId, payload.CreatedAt, expiresAt, payload.Lifetime);
     }
@@ -153,7 +190,8 @@ public sealed class RedisSessionStore(
         // CreatedAt (unused until the rotation seam ships in 2b).
         var expiresAt = now + profile.SlidingTtl;
 
-        var payload = new SessionPayload(userId, now, now, lifetime);
+        // SlidAt = now: a fresh key starts its #746 throttle window cleanly.
+        var payload = new SessionPayload(userId, now, now, lifetime, SlidAt: now);
         var json = JsonSerializer.Serialize(payload, JsonOptions);
         var sessionKey = Key(sessionId);
 
@@ -180,11 +218,14 @@ public sealed class RedisSessionStore(
             await db.SetAddAsync(setKey, sessionKey);
             await db.KeyExpireAsync(setKey, profile.SlidingTtl);
 
-            // Primär session-rad efter SADD
+            // Primär session-rad efter SADD. AbsoluteExpirationRelativeToNow (NOT SlidingExpiration,
+            // #746): the main key must never carry `sldexp`, else GetStringAsync auto-slides it on
+            // every read and defeats the sliding-write throttle (see GetAsync). Sliding is
+            // explicit-only across Create/Get/Rotate.
             await cache.SetStringAsync(
                 sessionKey,
                 json,
-                new DistributedCacheEntryOptions { SlidingExpiration = profile.SlidingTtl },
+                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = profile.SlidingTtl },
                 ct);
         }
         catch (RedisConnectionException ex)
@@ -338,8 +379,9 @@ public sealed class RedisSessionStore(
             var setKey = UserSessionsKey(payload.UserId);
 
             // Preserve CreatedAt + Lifetime verbatim (the cap anchor must never reset);
-            // stamp RotatedAt = now.
-            var rotatedPayload = payload with { RotatedAt = now };
+            // stamp RotatedAt = now and SlidAt = now (the new key starts a fresh #746
+            // throttle window).
+            var rotatedPayload = payload with { RotatedAt = now, SlidAt = now };
             var rotatedJson = JsonSerializer.Serialize(rotatedPayload, JsonOptions);
 
             // Slide the new key up to SlidingTtl, clamped to the absolute cap (as GetAsync).
@@ -350,10 +392,12 @@ public sealed class RedisSessionStore(
             // can never miss the rotated session during the transition; the old member is
             // removed after, leaving at worst a benign transient double-membership.
             await db.SetAddAsync(setKey, newKey);
+            // AbsoluteExpirationRelativeToNow (NOT SlidingExpiration, #746): the new main key must
+            // not carry `sldexp` — see CreateAsync/GetAsync. Sliding is explicit-only.
             await cache.SetStringAsync(
                 newKey,
                 rotatedJson,
-                new DistributedCacheEntryOptions { SlidingExpiration = slidingTtl },
+                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = slidingTtl },
                 ct);
             await db.KeyExpireAsync(setKey, profile.SlidingTtl);
 
@@ -444,10 +488,14 @@ public sealed class RedisSessionStore(
     // read site (profile selection). SupersededAt (2b-3) marks a key that has been rotated
     // away and is living out its fixed grace window (COND-A); a missing JSON property
     // deserializes to null (no grace in flight), so pre-field payloads stay valid.
+    // SlidAt (#746) anchors the last sliding-write so GetAsync can throttle the per-read
+    // rewrite; a pre-#746 payload has no slidAt property → deserializes to default →
+    // treated as CreatedAt at the read site, so the first read after deploy slides once.
     private sealed record SessionPayload(
         Guid UserId,
         DateTimeOffset CreatedAt,
         DateTimeOffset RotatedAt,
         SessionLifetime Lifetime,
-        DateTimeOffset? SupersededAt = null);
+        DateTimeOffset? SupersededAt = null,
+        DateTimeOffset SlidAt = default);
 }

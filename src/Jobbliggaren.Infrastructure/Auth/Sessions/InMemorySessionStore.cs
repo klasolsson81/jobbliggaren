@@ -65,6 +65,13 @@ public sealed class InMemorySessionStore(
             return Task.FromResult<Session?>(
                 new Session(sessionId, entry.UserId, entry.CreatedAt, entry.ExpiresAt, entry.Lifetime));
 
+        // NOTE (#746): the RedisSessionStore sliding-write throttle (SlidAt / SlideThreshold) is
+        // deliberately NOT mirrored here. The throttle exists solely to skip the per-read Redis
+        // round-trips (SADD/KeyExpire/SetString) on the user-sessions index + main key; the fake
+        // store has no secondary index and no round-trips to save, so it always slides — equivalent
+        // to the shipped default SlideThreshold = 0.0. At any SlideThreshold the observable
+        // ISessionStore contract (a live session authenticates; a revoked/deleted/expired one does
+        // not) is identical; only the TTL-refresh cadence differs, which the fake does not expose.
         // Slide up to SlidingTtl, clamped so it never passes the absolute cap.
         var capRemaining = entry.CreatedAt + profile.AbsoluteTtl - now;
         var slidingTtl = capRemaining < profile.SlidingTtl ? capRemaining : profile.SlidingTtl;

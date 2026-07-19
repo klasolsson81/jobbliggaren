@@ -28,7 +28,11 @@ interface CompanyFollowButtonProps {
  * <para>Parity FollowCompanyToggle: optimistic + rollback, NEVER `disabled` (Klas PR5 — the backend is
  * idempotent so a double-click is race-safe); pending shows via subtle opacity; `jp-btn--secondary`. The
  * visible label is compact ("Bevaka"/"Bevakar") — the company name sits in the same row — but the
- * accessible name interpolates the company so 20 buttons in a table are individually distinguishable.</para>
+ * accessible name interpolates the company so 20 buttons in a table are individually distinguishable
+ * (WCAG 2.4.4). Crucially the accessible name LEADS WITH the visible label word ("Bevaka {company}" /
+ * "Bevakar {company}") so it CONTAINS the visible text (WCAG 2.5.3 label-in-name — a speech-input user
+ * saying "Bevakar" reaches the button); the toggle state rides `aria-pressed`, never a divergent
+ * action verb in the name.</para>
  */
 export function CompanyFollowButton({
   orgNr,
@@ -80,8 +84,10 @@ export function CompanyFollowButton({
   }
 
   const label = following ? t("following") : t("follow");
+  // Accessible name leads with the visible label word so it contains the visible text (WCAG 2.5.3);
+  // the company keeps each row's button distinct (WCAG 2.4.4); state rides aria-pressed.
   const ariaLabel = following
-    ? t("unfollowAria", { company: companyName })
+    ? t("followingAria", { company: companyName })
     : t("followAria", { company: companyName });
   const opacity = isPending ? 0.7 : 1;
 

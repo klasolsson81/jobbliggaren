@@ -263,7 +263,19 @@
       "loadErrorTitle": "The search could not be loaded",
       "loadErrorBody": "Try again in a moment.",
       "rateLimited": "Too many requests right now. Wait a moment and reload the page.",
-      "loadingResults": "Searching companies…"
+      "loadingResults": "Searching companies…",
+      "followAll": {
+        "heading": "Watch this search",
+        "ready": "Save the industries and municipalities as a watch. Matching companies appear under your watches on Företag.",
+        "button": "Watch all matches",
+        "saving": "Saving…",
+        "reasonName": "A search by company name cannot be saved as a watch. Remove the name and search by industry and municipality.",
+        "reasonEmpty": "Choose at least one industry and one municipality to save the search as a watch.",
+        "reasonSni": "Add at least one industry to save the search as a watch.",
+        "reasonKommun": "Add at least one municipality to save the search as a watch.",
+        "successBody": "The search was saved as a watch.",
+        "successLink": "View your watches"
+      }
     },
     "watchesHeading": "Followed companies",
     "historyHeading": "Application history",

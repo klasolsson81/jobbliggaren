@@ -263,7 +263,19 @@
       "loadErrorTitle": "Sökningen kunde inte läsas in",
       "loadErrorBody": "Försök igen om en stund.",
       "rateLimited": "För många förfrågningar just nu. Vänta en stund och ladda om sidan.",
-      "loadingResults": "Söker företag…"
+      "loadingResults": "Söker företag…",
+      "followAll": {
+        "heading": "Bevaka den här sökningen",
+        "ready": "Spara branscherna och kommunerna som en bevakning. Du hittar matchande företag under dina bevakningar på Företag.",
+        "button": "Bevaka alla träffar",
+        "saving": "Sparar…",
+        "reasonName": "En sökning på företagsnamn går inte att spara som bevakning. Ta bort namnet och sök på bransch och kommun.",
+        "reasonEmpty": "Välj minst en bransch och en kommun för att spara sökningen som bevakning.",
+        "reasonSni": "Lägg till minst en bransch för att spara sökningen som bevakning.",
+        "reasonKommun": "Lägg till minst en kommun för att spara sökningen som bevakning.",
+        "successBody": "Sökningen sparades som bevakning.",
+        "successLink": "Visa dina bevakningar"
+      }
     },
     "watchesHeading": "Bevakade företag",
     "historyHeading": "Ansökningshistorik",

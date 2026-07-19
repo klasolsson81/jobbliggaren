@@ -305,12 +305,16 @@ internal static class JobAdSearchComposition
     // (ADR 0042 Beslut E-amendment 2026-06-28): den tidigare tidsbaserade
     // IsNew-projektionen (`PublishedAt >= since`) är BORTTAGEN — "Ny" = OLÄST
     // beräknas nu på FE ur CreatedAt mot den per-användar oläst-watermarken.
+    //
+    // #745 (epik #737, `d1-list-dto-ships-full-description`) — `j.Description` projiceras
+    // INTE längre. En icke-refererad kolumn selekteras inte i den EF-genererade SQL:en, så
+    // list-vägen slutar de-TOAST:a den breda `description`-kolumnen per rad för en payload
+    // ingen list-yta renderar. `Description` bor kvar på detalj-tråden (GetJobAd → JobAdDetailDto).
     internal static Expression<Func<JobAd, JobAdDto>> ToDto() =>
         j => new JobAdDto(
             j.Id.Value,
             j.Title,
             j.Company.Name,
-            j.Description,
             j.Url,
             j.Source.Value,
             j.Status.Value,

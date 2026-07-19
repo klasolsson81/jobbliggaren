@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { JobAdDetail } from "./job-ad-detail";
-import type { JobAdDto } from "@/lib/dto/job-ads";
+import type { JobAdDetailDto } from "@/lib/dto/job-ads";
 
-const baseAd: JobAdDto = {
+// #745 — the LIST type `JobAdDto` no longer carries `description`; the detail component
+// takes the detail projection minus its contacts block. This fixture mirrors that prop.
+const baseAd: Omit<JobAdDetailDto, "contacts"> = {
   id: "11111111-1111-1111-1111-111111111111",
   title: "Senior Backend Developer",
   companyName: "Acme AB",

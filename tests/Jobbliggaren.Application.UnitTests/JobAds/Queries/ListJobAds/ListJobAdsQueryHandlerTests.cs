@@ -246,7 +246,7 @@ public class ListJobAdsQueryHandlerTests
     public async Task Handle_ReturnsPortResultUnchanged()
     {
         var dto = new JobAdDto(
-            Guid.NewGuid(), "Backend-utvecklare", "Klarna", "Beskrivning",
+            Guid.NewGuid(), "Backend-utvecklare", "Klarna",
             "https://example.com/1", "Manual", "Active",
             DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow);
         var portResult = new PagedResult<JobAdDto>([dto], totalCount: 1, page: 1, pageSize: 20);
@@ -511,7 +511,7 @@ public class ListJobAdsQueryHandlerTests
         _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
             .Returns(FullProfileWithOccupation());
         var dto = new JobAdDto(
-            Guid.NewGuid(), "Backend-utvecklare", "Klarna", "Beskrivning",
+            Guid.NewGuid(), "Backend-utvecklare", "Klarna",
             "https://example.com/1", "Manual", "Active",
             DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow);
         var matchResult = new PagedResult<JobAdDto>([dto], totalCount: 1, page: 1, pageSize: 20);

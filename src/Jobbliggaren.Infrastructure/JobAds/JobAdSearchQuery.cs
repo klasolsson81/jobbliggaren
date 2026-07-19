@@ -39,10 +39,13 @@ internal sealed class JobAdSearchQuery(
         // totalen reflekterar filtrerad mängd, inte hela korpusen. TD-94 —
         // samma bitmap-plan-tvång som CountAsync/FacetCountsAsync: denna count
         // är ListJobAdsQuery:s fritext-totalCount (TD-94:s headline-konsument)
-        // och lider av identisk TOAST-detoast-seqscan. Den efterföljande items-
+        // och lider av identisk TOAST-detoast-seqscan. #744 — hygienen gatas på q:
+        // utan fritext finns ingen detoast att undvika. Den efterföljande items-
         // queryn (ts_rank-ordering + paginering) körs UTANFÖR transaktionen och
         // är medvetet orörd (enable_seqscan=off vore fel för ts_rank-vägen).
-        var totalCount = await CountWithBitmapPlanAsync(baseQuery.CountAsync, cancellationToken);
+        var totalCount = await BitmapPlanCount.CountWithBitmapPlanAsync(
+            db, JobAdSearchComposition.HasFreeTextQuery(criteria.Filter.Q),
+            baseQuery.CountAsync, cancellationToken);
 
         // ADR 0079 STEG 5 — sorten bor nu i den delade JobAdSearchComposition (SPOT),
         // så den per-användar-vägen kan återbruka samma rena sort under grad-filter.
@@ -64,7 +67,9 @@ internal sealed class JobAdSearchQuery(
         // ApplyCriteria-väg som SearchAsync (SPOT). ADR 0060 Beslut 4 N+1
         // capped vid 20.
         var query = JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), criteria, synonymExpander);
-        return await CountWithBitmapPlanAsync(query.CountAsync, cancellationToken);
+        return await BitmapPlanCount.CountWithBitmapPlanAsync(
+            db, JobAdSearchComposition.HasFreeTextQuery(criteria.Q),
+            query.CountAsync, cancellationToken);
     }
 
     // ADR 0067 Beslut 4 (Fas D1) — per-option facet-counts.
@@ -94,37 +99,13 @@ internal sealed class JobAdSearchQuery(
 
         // TD-94 (CTO-utvidgning 2026-06-13) — facet-counten kör samma
         // ApplyCriteria-q-väg och lider av samma TOAST-detoast-seqscan vid
-        // fritext. Samma bitmap-plan-tvång som CountAsync.
-        var grouped = await CountWithBitmapPlanAsync(
+        // fritext. Samma bitmap-plan-tvång som CountAsync. #744 — gatad på q
+        // (faceted bevarar Q; ExcludeDimension tömmer bara dimensions-listor).
+        var grouped = await BitmapPlanCount.CountWithBitmapPlanAsync(
+            db, JobAdSearchComposition.HasFreeTextQuery(faceted.Q),
             ct => groupedQuery.ToListAsync(ct), cancellationToken);
 
         return grouped.ToDictionary(x => x.ConceptId, x => x.Count, StringComparer.Ordinal);
-    }
-
-    // TD-94 (perf-ratchet, ADR 0045 Klass (a) 300 ms p95 warm) — coax the
-    // planner to the GIN bitmap for the q-COUNT. A bare COUNT over the
-    // FTS-hybrid q-predikatet otherwise Seq Scans and de-TOASTs the wide STORED
-    // search_vector column per row (~300–2451 ms warm / ~9 s OS-cold; isolerat
-    // bevisat: detoast-delta 487 ms, dotnet-architect-rond 2026-06-13). The GIN
-    // Bitmap(Or) plan avoids the detoast (<150 ms warm) men planeraren mis-kostar
-    // den eftersom TOAST-detoast-kostnaden inte finns i dess kostnadsmodell.
-    //
-    // SET LOCAL enable_seqscan = off är transaktions-scopad: den MÅSTE köras på
-    // SAMMA pinnade connection som counten (annars no-op utanför transaktionsblock)
-    // och återställs vid commit → läcker aldrig till den poolade connectionen
-    // (Npgsql pooling-hygien). Rör inte filter-predikatet → ADR 0039 Beslut 1
-    // SPOT på filter-semantik intakt; detta är en exekverings-budget-concern, ett
-    // annat ansvar (SoC, senior-cto-advisor-dom 2026-06-13, agentId a0472fa5783cdf9ea).
-    private async ValueTask<TResult> CountWithBitmapPlanAsync<TResult>(
-        Func<CancellationToken, Task<TResult>> count, CancellationToken cancellationToken)
-    {
-        await using var transaction =
-            await db.Database.BeginTransactionAsync(cancellationToken);
-        await db.Database.ExecuteSqlRawAsync(
-            "SET LOCAL enable_seqscan = off", cancellationToken);
-        var result = await count(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return result;
     }
 
     // FacetDimension → facett-kolumn (kolumnnamn är Infrastructure-hemlighet;

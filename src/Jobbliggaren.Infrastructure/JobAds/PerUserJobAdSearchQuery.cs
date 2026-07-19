@@ -165,8 +165,14 @@ internal sealed class PerUserJobAdSearchQuery(
         // den delade anonyma port-counten → spök-paginering. Separat count-query (CLAUDE
         // §3.6). Varken grad eller status aktiv ⇒ port-counten är exakt rätt (och bär
         // TD-94-bitmap-plan-hygienen).
+        // #744 — den grad/status-filtrerade counten bär filter.Q (nås via
+        // ListJobAdsQueryHandler med fritext) → samma TOAST-detoast-seqscan som den delade
+        // port-counten fixade. Gata bitmap-plan-hygienen på q (no-op utan fritext). Den
+        // andra grenen delegerar till den delade port-counten, som self-gatar efter #744.
         var totalCount = grades.Count > 0 || status.IsActive
-            ? await graded.CountAsync(cancellationToken)
+            ? await BitmapPlanCount.CountWithBitmapPlanAsync(
+                db, JobAdSearchComposition.HasFreeTextQuery(filter.Q),
+                graded.CountAsync, cancellationToken)
             : await searchQuery.CountAsync(filter, cancellationToken);
 
         // Ordning: match-rank (gyllene rung + grad-rank) när användaren valt "bästa
@@ -245,21 +251,23 @@ internal sealed class PerUserJobAdSearchQuery(
         var baseQuery = JobAdSearchComposition.ApplyFilter(
             db.JobAds.AsNoTracking(), filter, synonymExpander);
 
+        // #744 — routas genom den gatade bitmap-plan-hygienen som list-vägen. Notis-vägen
+        // (STEG 6) skickar alltid NoFilter med Q==null → HasFreeTextQuery false → bare
+        // count, byte-for-byte som förr. Att routa ändå (i st.f. ett medvetet "skippar
+        // hygien"-special-case) tar bort asymmetrin och gör en framtida q-bärande anropare
+        // automatiskt korrekt i st.f. att tyst åter-exponera TD-94:s detoast-seqscan.
+        var useHygiene = JobAdSearchComposition.HasFreeTextQuery(filter.Q);
+
         if (grades.Count == 0)
-            // Tom-grades-grenen utelämnar MEDVETET TD-94:s bitmap-plan-hygien (SET LOCAL
-            // enable_seqscan=off) som list-vägens delade port-count bär: den nås bara med
-            // rena equality-filter (ingen q-FTS — STEG 6-notisen skickar alltid icke-tom
-            // HeadlineGrades + NoFilter med Q==null), så TOAST-detoast-seqscan över
-            // search_vector biter inte här. Cardinaliteten är ändå identisk (samma
-            // ApplyFilter-SPOT).
-            return await baseQuery.CountAsync(cancellationToken);
+            return await BitmapPlanCount.CountWithBitmapPlanAsync(
+                db, useHygiene, baseQuery.CountAsync, cancellationToken);
 
         var rankExpr = GradeRankExpression(
             ssyk, relatedSsyk, regions, municipalities, containmentRegions, employment, ortStated, employmentStated);
         var selectedRanks = grades.Select(GradeToRank).Distinct().ToArray();
-        return await baseQuery
-            .Where(RankInSet(rankExpr, selectedRanks))
-            .CountAsync(cancellationToken);
+        var gradedQuery = baseQuery.Where(RankInSet(rankExpr, selectedRanks));
+        return await BitmapPlanCount.CountWithBitmapPlanAsync(
+            db, useHygiene, gradedQuery.CountAsync, cancellationToken);
     }
 
     public async ValueTask<IReadOnlyDictionary<string, int>> CountPerUserByEmployerAsync(
@@ -411,7 +419,12 @@ internal sealed class PerUserJobAdSearchQuery(
 
         // Count-korrekthet: över den status-filtrerade mängden, aldrig den anonyma
         // port-counten (annars spök-paginering). Separat count-query (CLAUDE §3.6).
-        var totalCount = await filtered.CountAsync(cancellationToken);
+        // #744 — filtered bär filter.Q (status-only-vägen nås via ListJobAdsQueryHandler
+        // med fritext) → samma detoast-hål som den grad-filtrerade counten. Samma gatade
+        // bitmap-plan-hygien (no-op utan fritext).
+        var totalCount = await BitmapPlanCount.CountWithBitmapPlanAsync(
+            db, JobAdSearchComposition.HasFreeTextQuery(filter.Q),
+            filtered.CountAsync, cancellationToken);
 
         var items = await JobAdSearchComposition.ApplySort(filtered, sort, filter.Q)
             .Skip((page - 1) * pageSize)

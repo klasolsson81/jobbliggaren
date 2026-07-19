@@ -26,26 +26,26 @@ public sealed partial class GetCurrentUserQueryHandler(
             return null;
 
         var userId = currentUser.UserId.Value;
-        var roles = await userAccountService.GetRolesAsync(userId, cancellationToken);
 
-        // #822: the identity store is the SSOT for the address — never a claim. The old
-        // path read a claim only the retired JWT generator emitted, so the DTO carried an
-        // empty string for every signed-in user.
-        var email = await userAccountService.GetEmailAsync(userId, cancellationToken);
+        // #828: one identity round-trip for address + roles (was GetRolesAsync + GetEmailAsync, two
+        // FindByIdAsync calls that only coincidentally hit one SELECT via the change tracker). #822: the
+        // identity store is the SSOT for the address — never a claim. The old path read a claim only the
+        // retired JWT generator emitted, so the DTO carried an empty string for every signed-in user.
+        var summary = await userAccountService.GetAccountSummaryAsync(userId, cancellationToken);
 
-        if (email is null)
+        if (summary?.Email is null)
         {
-            // Unreachable in practice (registration always sets an address, and a session
-            // cannot outlive its Identity row), so an empty address means a broken
-            // invariant — not a routine degradation. Say so out loud: it was precisely the
-            // ABSENCE of a signal that let the empty email ship. userId only, never PII.
+            // Unreachable in practice (registration always sets an address, and a session cannot outlive
+            // its Identity row), so a null summary OR a null Email means a broken invariant — not a
+            // routine degradation. Say so out loud: it was precisely the ABSENCE of a signal that let the
+            // empty email ship. userId only, never PII.
             LogAuthenticatedUserWithoutEmail(logger, userId);
         }
 
-        // Empty string, not a 401: /me is the session probe on every (app) render, so
-        // failing closed on a missing attribute would be indistinguishable from "session
-        // invalid" and would lock the account out of the whole product. The consumer that
-        // MUST fail closed — the irreversible account deletion — does so on its own.
-        return new CurrentUserDto(userId, email ?? string.Empty, roles);
+        // Empty string, not a 401: /me is the session probe on every (app) render, so failing closed on a
+        // missing attribute would be indistinguishable from "session invalid" and would lock the account
+        // out of the whole product. The consumer that MUST fail closed — the irreversible account
+        // deletion — does so on its own. Roles survive a missing email (summary.Roles is still populated).
+        return new CurrentUserDto(userId, summary?.Email ?? string.Empty, summary?.Roles ?? []);
     }
 }

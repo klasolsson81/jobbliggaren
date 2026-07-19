@@ -3,7 +3,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Infrastructure.Email;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -60,6 +63,12 @@ public class VerifyEmailTests(ApiFactory factory)
         var rawToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
         return Base64Url.EncodeToString(Encoding.UTF8.GetBytes(rawToken));
     }
+
+    // POST verify-email with uid + token as raw STRINGS (never a Guid): an N-format uid must actually
+    // reach System.Text.Json's Guid binder — the seam #981 broke. Passing a Guid OBJECT would serialize
+    // to the dashed "D" form and hide the bug (which is why the Guid-typed VerifyAsync above never caught it).
+    private Task<HttpResponseMessage> PostVerifyRawAsync(string uid, string token, CancellationToken ct)
+        => _client.PostAsJsonAsync("/api/v1/auth/verify-email", new { uid, token }, ct);
 
     [Fact]
     public async Task POST_verify_email_with_valid_token_confirms_and_enables_login()
@@ -204,5 +213,65 @@ public class VerifyEmailTests(ApiFactory factory)
         crossUser.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await crossUser.Content.ReadFromJsonAsync<JsonElement>(ct))
             .GetProperty("title").GetString().ShouldBe("Auth.InvalidEmailConfirmationToken");
+    }
+
+    [Fact]
+    public async Task POST_verify_email_activates_from_the_uid_and_token_in_the_emitted_activation_link()
+    {
+        // #981 — the REAL activation seam. EmailTemplates.EmailConfirmation renders the exact link the
+        // inbox receives (ConsoleEmailSender/ResendEmailSender both render through it). This test takes THAT
+        // link, decodes its query the way a browser (URLSearchParams / Next useSearchParams) does, and POSTs
+        // the values as strings — so the uid crosses the endpoint's System.Text.Json Guid binder in the form
+        // the template emits. That is the one thing the other tests here do NOT do (they POST a Guid object,
+        // which STJ writes as "D"), and it is where the bug lived: a compact "N" uid fails STJ's D-only Guid
+        // converter -> 400 on every activation. Red before the :N->:D template fix, green after.
+        var ct = TestContext.Current.CancellationToken;
+        var email = $"verify-emitted-link-{Guid.NewGuid()}@example.com";
+        (await RegisterAsync(email, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        var userId = await GetUserIdAsync(email, ct);
+        var urlSafeToken = await GenerateUrlSafeTokenAsync(userId, ct);
+
+        var rendered = EmailTemplates.EmailConfirmation(
+            "https://jobbliggaren.se", new EmailConfirmationEmail(userId, urlSafeToken));
+        var link = EmailLinkParsing.ExtractLinkQuery(rendered.PlainTextBody, "/bekrafta-konto");
+
+        // The token must be url-safe at the source (Base64Url) so the query decode below cannot mangle it.
+        link["token"].ShouldMatch("^[A-Za-z0-9_-]+$");
+
+        var response = await PostVerifyRawAsync(
+            EmailLinkParsing.BrowserDecodeQueryValue(link["uid"]),
+            EmailLinkParsing.BrowserDecodeQueryValue(link["token"]),
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        using var scope = _factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        user.ShouldNotBeNull();
+        user.EmailConfirmed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Minted_confirmation_token_is_url_safe_base64url_so_it_survives_the_query_round_trip()
+    {
+        // #981 defect-2 guard. The issue hypothesised a raw-base64 '+' corrupted by the browser query
+        // decode — NOT present: the confirmation token has been Base64Url since #714. The activation link
+        // embeds the token RAW (no Uri.EscapeDataString), which is correct ONLY while the token stays in the
+        // Base64Url alphabet ([A-Za-z0-9_-], no '+'/'/'/'='). Pin the PRODUCTION mint
+        // (UserAccountService.GenerateEmailConfirmationTokenAsync, Base64Url-encoded per its own comment):
+        // a regression to raw base64 (Convert.ToBase64String) would reintroduce '+', which URLSearchParams
+        // turns into a space -> a corrupted token -> 400.
+        var ct = TestContext.Current.CancellationToken;
+        var email = $"verify-tokenshape-{Guid.NewGuid()}@example.com";
+        (await RegisterAsync(email, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        var userId = await GetUserIdAsync(email, ct);
+
+        using var scope = _factory.Services.CreateScope();
+        var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
+        var token = await accounts.GenerateEmailConfirmationTokenAsync(userId, ct);
+
+        token.IsSuccess.ShouldBeTrue();
+        token.Value.ShouldMatch("^[A-Za-z0-9_-]+$");
     }
 }

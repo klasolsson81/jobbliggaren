@@ -5,6 +5,7 @@ import { CompanyBrowseList } from "./company-browse-list";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { InfoDialog } from "@/components/common/info-dialog";
 import { searchCompanies } from "@/lib/api/company-search";
+import { getCompanyWatchStatusByOrgNr } from "@/lib/api/company-follows";
 import { buildPageHref, PAGE_SIZE } from "@/lib/company-search/search-params";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
 
@@ -61,6 +62,21 @@ export async function ForetagSokResults({
     namn.length > 0 || sni.length > 0 || kommun.length > 0;
   const filterState = { namn, sni, kommun };
 
+  // #560 PR-C — follow-state overlay for the "Bevaka"-per-row affordance. A SEPARATE company_watches read
+  // composed at the RSC edge (never a server-side join against the firewalled register — DPIA C-D4/M-C5),
+  // sequenced after the search since its input is the search rows' own org.nrs. Masked/sole-prop rows
+  // carry no org.nr key → excluded (non-followable); an empty/all-masked page skips the request entirely.
+  const followableOrgNrs = companies.items.flatMap((company) =>
+    company.organizationNumber !== null && !company.isProtectedIdentity
+      ? [company.organizationNumber]
+      : []
+  );
+  const followStatuses = await getCompanyWatchStatusByOrgNr(followableOrgNrs);
+  const followStateByOrgNr = new Map<string, string | null>();
+  followableOrgNrs.forEach((orgNr, i) => {
+    followStateByOrgNr.set(orgNr, followStatuses[i]?.companyWatchId ?? null);
+  });
+
   return (
     <div className="mt-8">
       {companies.items.length === 0 ? (
@@ -91,7 +107,11 @@ export async function ForetagSokResults({
           </p>
 
           <div className="mt-6 flex flex-col gap-4">
-            <CompanyBrowseList items={companies.items} reference={reference} />
+            <CompanyBrowseList
+              items={companies.items}
+              reference={reference}
+              followStateByOrgNr={followStateByOrgNr}
+            />
             <JobAdPagination
               page={companies.page}
               pageSize={companies.pageSize}

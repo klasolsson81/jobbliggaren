@@ -358,6 +358,11 @@
         "colSni": "Branscher",
         "protectedIdentity": "Skyddad identitet",
         "sniMore": "+{count}",
+        "colFollow": "Bevaka",
+        "follow": "Bevaka",
+        "following": "Bevakar",
+        "followAria": "Bevaka {company}",
+        "unfollowAria": "Sluta bevaka {company}",
         "emptyTitle": "Inga företag matchar just nu.",
         "emptyBody": "Prova att ändra bevakningens branscher eller kommuner för att bredda urvalet."
       }

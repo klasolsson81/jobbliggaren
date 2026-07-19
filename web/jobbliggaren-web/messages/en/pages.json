@@ -358,6 +358,11 @@
         "colSni": "Industries",
         "protectedIdentity": "Protected identity",
         "sniMore": "+{count}",
+        "colFollow": "Follow",
+        "follow": "Follow",
+        "following": "Following",
+        "followAria": "Follow {company}",
+        "unfollowAria": "Unfollow {company}",
         "emptyTitle": "No companies match right now.",
         "emptyBody": "Try changing the watch's industries or municipalities to broaden the selection."
       }

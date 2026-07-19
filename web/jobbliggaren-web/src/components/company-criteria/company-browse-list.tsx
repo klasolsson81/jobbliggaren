@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 import { ShieldAlert } from "lucide-react";
 import { formatOrgNr } from "@/lib/company-follows/org-nr";
+import { CompanyFollowButton } from "@/components/company-follows/company-follow-button";
 import type {
   CompanyBrowse,
   CriterionReference,
@@ -12,6 +13,14 @@ const MAX_SNI_NAMES = 3;
 interface CompanyBrowseListProps {
   readonly items: ReadonlyArray<CompanyBrowse>;
   readonly reference: CriterionReference;
+  /**
+   * #560 PR-C — the current user's follow-state per org.nr (companyWatchId, or null when not followed),
+   * for the /foretag/sok "Bevaka"-per-row overlay. Composed at the RSC edge from a SEPARATE
+   * company_watches read (never a server-side join against company_register — DPIA C-D4/M-C5). When
+   * OMITTED the follow column is not rendered at all, so the criterion-run browse (bevakningar/[id]),
+   * the other consumer, is unchanged. Masked/sole-prop rows (no org.nr key) are never followable.
+   */
+  readonly followStateByOrgNr?: ReadonlyMap<string, string | null>;
 }
 
 /**
@@ -23,8 +32,13 @@ interface CompanyBrowseListProps {
  * explains that it is not necessarily where the company operates. SNI codes resolve to Swedish names
  * via the reference tree (unknown codes fall back to the raw code).
  */
-export function CompanyBrowseList({ items, reference }: CompanyBrowseListProps) {
+export function CompanyBrowseList({
+  items,
+  reference,
+  followStateByOrgNr,
+}: CompanyBrowseListProps) {
   const t = useTranslations("pages.foretag.criteria.browse");
+  const showFollow = followStateByOrgNr !== undefined;
 
   // Leaf-code → Swedish name, built once for the whole table.
   const sniNameByCode = new Map<string, string>();
@@ -44,6 +58,7 @@ export function CompanyBrowseList({ items, reference }: CompanyBrowseListProps) 
             <th scope="col">{t("colOrgNr")}</th>
             <th scope="col">{t("colSeat")}</th>
             <th scope="col">{t("colSni")}</th>
+            {showFollow && <th scope="col">{t("colFollow")}</th>}
           </tr>
         </thead>
         <tbody>
@@ -76,6 +91,24 @@ export function CompanyBrowseList({ items, reference }: CompanyBrowseListProps) 
                   return extra > 0 ? `${shown} ${t("sniMore", { count: extra })}` : shown;
                 })()}
               </td>
+              {showFollow && (
+                <td className="whitespace-nowrap">
+                  {company.organizationNumber && !company.isProtectedIdentity ? (
+                    <CompanyFollowButton
+                      orgNr={company.organizationNumber}
+                      companyName={company.name}
+                      initialCompanyWatchId={
+                        followStateByOrgNr?.get(company.organizationNumber) ?? null
+                      }
+                    />
+                  ) : (
+                    // Masked/sole-prop rows carry no org.nr key → not followable (ADR 0087 D8(c)).
+                    <span className="text-text-tertiary" aria-hidden="true">
+                      –
+                    </span>
+                  )}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

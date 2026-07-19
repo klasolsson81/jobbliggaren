@@ -3,6 +3,7 @@ import { getSessionId } from "@/lib/auth/session";
 import { authedFetch } from "@/lib/http/authed-fetch";
 import {
   companyWatchStatusBatchSchema,
+  companyWatchStatusByOrgNrBatchSchema,
   followCompanyResultSchema,
   listCompanyWatchesResultSchema,
   newFollowedCompanyAdCountSchema,
@@ -184,6 +185,45 @@ export async function getCompanyWatchStatus(jobAdId: string): Promise<CompanyFol
       : fallback;
   } catch {
     return fallback;
+  }
+}
+
+/**
+ * #560 PR-C (ADR 0087 D8(c)) — the org.nr-keyed follow-state overlay for the /foretag/sok search results.
+ * The RSC edge already holds each non-masked row's org.nr (the register search surfaced them), so it posts
+ * them here to learn which the user already follows. Returns one entry per input org.nr, POSITIONALLY (1:1
+ * with `orgNrs`, same order) — the caller zips by index.
+ *
+ * Firewall-safe by composition: this reads company_watches ONLY (the private follow graph); the register
+ * search reads company_register ONLY. They are two separate backend calls merged at the RSC layer, never a
+ * server-side join (DPIA C-D4/M-C5). Any failure / anon / contract drift (length mismatch) → all-null (no
+ * overlay; every row shows "Bevaka"), civic-utility no-teater. `POST /me/company-watches/status/by-org-nr`.
+ */
+export async function getCompanyWatchStatusByOrgNr(
+  orgNrs: ReadonlyArray<string>
+): Promise<ReadonlyArray<{ companyWatchId: string | null }>> {
+  const allNull = (): Array<{ companyWatchId: string | null }> =>
+    orgNrs.map(() => ({ companyWatchId: null }));
+
+  // Empty page (or all-masked) → no request at all.
+  if (orgNrs.length === 0) return [];
+
+  const sessionId = await getSessionId();
+  if (!sessionId) return allNull();
+
+  try {
+    const res = await authedFetch(sessionId, `${BASE}/status/by-org-nr`, {
+      method: "POST",
+      body: JSON.stringify({ organizationNumbers: orgNrs }),
+    });
+    if (!res.ok) return allNull();
+    const parsed = companyWatchStatusByOrgNrBatchSchema.safeParse(await res.json());
+    if (!parsed.success) return allNull();
+    // The positional zip is only valid if the lengths line up — degrade rather than mis-align on drift.
+    if (parsed.data.statuses.length !== orgNrs.length) return allNull();
+    return parsed.data.statuses;
+  } catch {
+    return allNull();
   }
 }
 

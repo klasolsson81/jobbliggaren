@@ -17,6 +17,22 @@ export const companyWatchStatusBatchSchema = z.object({
 });
 export type CompanyWatchStatusBatch = z.infer<typeof companyWatchStatusBatchSchema>;
 
+/**
+ * #560 PR-C (ADR 0087 D8(c)) — the ORG.NR-keyed follow-state overlay for /foretag/sok. The backend
+ * response is POSITIONAL: `statuses[i]` is the follow-state of the request's org.nr `i`, in the same
+ * order, with no dedup. Like the jobAdId-keyed schema above it carries NO org.nr — the caller supplied
+ * the org.nrs, so the response only needs the opaque `companyWatchId` (null = not followed). The FE zips
+ * the array back to its request list by index.
+ */
+export const orgNrFollowStatusSchema = z.object({
+  companyWatchId: z.string().nullable(),
+});
+export type OrgNrFollowStatus = z.infer<typeof orgNrFollowStatusSchema>;
+
+export const companyWatchStatusByOrgNrBatchSchema = z.object({
+  statuses: z.array(orgNrFollowStatusSchema).default([]),
+});
+
 /** POST /me/company-watches/by-job-ad/{id} returns the created/resurrected CompanyWatchId. */
 export const followCompanyResultSchema = z.object({ id: z.string() });
 

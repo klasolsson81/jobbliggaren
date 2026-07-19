@@ -15,8 +15,10 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// an AtsOnly criterion → assessed in the ATS profile, absent from a Visual review. Semantics:
 ///   • no font runs (null layout / null runs / empty runs / DOCX / failed / canonical) → NotAssessed;
 ///   • body = the modal point size by letter count; dominant family = the heaviest run at that size;
+///   • Fail = the modal body font is an ICON/DINGBAT typeface (IconFontClassifier, #957) — the
+///     criterion's only Fail; a non-modal icon run never triggers it (D4's permitted territory);
 ///   • Pass = allowlisted family (EXACT-equality after normalisation) AND modal pt ≥ the floor;
-///   • Warn = otherwise (family not allowlisted, and/or the body text is below the floor). Never Fail in v1.
+///   • Warn = otherwise (family not allowlisted, and/or below the floor) — terminal for family/size (#957).
 /// The pt floor (fontBodyPtWarnBelow) and the allowlist are versioned DATA, derived here from the
 /// real assets (anti-stale, parity <c>E2WhitespaceRuleTests.Floor()</c>) — never a literal in a decision.
 /// </summary>
@@ -266,6 +268,134 @@ public class D3StandardFontRuleTests
     {
         var visual = await Engine().ReviewAsync(
             CvReviewContext.FromParsed(Resume(layoutMetrics: WithRuns(new CvFontRun("Arial", 11, 500)))),
+            RenderProfile.Visual, TestContext.Current.CancellationToken);
+
+        visual.Verdicts.ShouldNotContain(v => v.CriterionId == "D3");
+    }
+
+    // ===============================================================
+    // Fail — the modal BODY font is an icon font (#957, the D3 Fail arm).
+    // Size-independent: an icon font never carries readable text, so it fails
+    // regardless of pt. The evidence cites the clean (subset-tag-stripped)
+    // observed name and is ABOUT icon fonts; never any glyph or CV text.
+    // ===============================================================
+
+    [Fact]
+    public async Task D3_ShouldFail_WhenTheModalBodyFontIsAnIconFont()
+    {
+        // A body set entirely in Wingdings renders as glyphs; an ATS reads symbols, not text.
+        var d3 = await D3Async(WithRuns(new CvFontRun("Wingdings", 11, 500)));
+
+        d3.Verdict.ShouldBe(CriterionVerdict.Fail);
+        var observation = d3.Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>().Observation;
+        // The clean font name is cited (parity with the D3 Pass-evidence test).
+        observation.ShouldContain("Wingdings");
+        // The copy is ABOUT icon fonts; that is the fragment separating this Fail from the generic
+        // non-allowlisted Warn. Case-folded so later copy polish stays green (draft copy).
+        observation.ToLowerInvariant().ShouldContain("ikon");
+    }
+
+    [Fact]
+    public async Task D3_ShouldFail_WhenTheIconBodyFontIsSubsetTaggedAndStyleSuffixed()
+    {
+        // PdfPig hands back a subset tag + style suffix. The Fail evidence cites the CLEAN name
+        // (subset tag stripped, e.g. "Wingdings-Regular"), never the mangled raw form; parity with
+        // the D3 Pass-evidence citation ("ABCDEF+Arial-BoldMT" is cited as "Arial").
+        var d3 = await D3Async(WithRuns(new CvFontRun("ABCDEF+Wingdings-Regular", 11, 500)));
+
+        d3.Verdict.ShouldBe(CriterionVerdict.Fail);
+        var observation = d3.Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>().Observation;
+        observation.ShouldContain("Wingdings");
+        observation.ShouldNotContain("ABCDEF");
+    }
+
+    [Theory]
+    [InlineData("FontAwesome5Free-Solid", "FontAwesome")]  // Font Awesome, the ubiquitous icon webfont
+    [InlineData("MaterialIcons-Regular", "MaterialIcons")] // Google Material Icons
+    public async Task D3_ShouldFail_WhenTheModalBodyFontIsAModernIconWebfont(
+        string rawBodyFont, string citedFragment)
+    {
+        var d3 = await D3Async(WithRuns(new CvFontRun(rawBodyFont, 11, 500)));
+
+        d3.Verdict.ShouldBe(CriterionVerdict.Fail);
+        var observation = d3.Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>().Observation;
+        observation.ShouldContain(citedFragment);
+        observation.ToLowerInvariant().ShouldContain("ikon");
+    }
+
+    // ===============================================================
+    // D4 boundary (load-bearing regression) — a NON-MODAL icon run (an accent,
+    // a bullet, a contact icon) never fails D3. Rubric D4: "Ikoner får finnas".
+    // The Fail arm keys off the modal BODY font ONLY; non-modal icon runs are
+    // D4's permitted territory, not D3's.
+    // ===============================================================
+
+    [Fact]
+    public async Task D3_ShouldPass_WhenAnAccentIconRunExistsButTheModalBodyIsStandard()
+    {
+        // Arial carries the body (500 letters at 11 pt); a handful of Wingdings glyphs (30 letters
+        // at 20 pt: section bullets / contact icons) are NON-modal. The verdict keys off the modal
+        // body font, so this is a clean Pass.
+        var d3 = await D3Async(WithRuns(
+            new CvFontRun("Arial", 11, 500),
+            new CvFontRun("Wingdings", 20, 30)));
+
+        d3.Verdict.ShouldBe(CriterionVerdict.Pass);
+        d3.Verdict.ShouldNotBe(CriterionVerdict.Fail,
+            "ikoner får finnas (rubrik D4): en icke-modal ikon-run fäller aldrig D3.");
+        var observation = d3.Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>().Observation;
+        observation.ShouldContain("Arial");
+    }
+
+    // ===============================================================
+    // Intra-pt tiebreak guard — a LIGHTER icon run CO-LOCATED at the modal pt
+    // must not win the dominant-run pick (code-reviewer #957 Minor: since the
+    // Fail arm landed, the heaviest-LetterCount tiebreak is verdict-deciding
+    // for the first time — pin it as load-bearing).
+    // ===============================================================
+
+    [Fact]
+    public async Task D3_ShouldPass_WhenALighterIconRunCohabitsTheModalPointSize()
+    {
+        // BOTH runs sit at the same modal pt (11); the icon run is the LIGHTER one. The body is
+        // the heavier Arial run, so the verdict is Pass — a co-located icon accent never fails D3.
+        var d3 = await D3Async(WithRuns(
+            new CvFontRun("Arial", 11, 500),
+            new CvFontRun("Wingdings", 11, 30)));
+
+        d3.Verdict.ShouldBe(CriterionVerdict.Pass);
+        d3.Verdict.ShouldNotBe(CriterionVerdict.Fail,
+            "den tyngre standard-runen är brödtexten på modal-pt; en lättare ikon-run på samma storlek får aldrig fälla D3.");
+        var observation = d3.Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>().Observation;
+        observation.ShouldContain("Arial");
+    }
+
+    // ===============================================================
+    // Deliberate under-claim — bare "Symbol" is EXCLUDED from the icon token
+    // set (nonzero legit-font collision tail), so a Symbol-body CV falls through
+    // to the existing non-allowlisted Warn, never Fail (§5: a false Fail on a
+    // good CV is the over-claim sin; under-claim is the safe arm).
+    // ===============================================================
+
+    [Fact]
+    public async Task D3_ShouldWarn_WhenTheBodyFontIsSymbol_NeverFail()
+    {
+        var d3 = await D3Async(WithRuns(new CvFontRun("Symbol", 11, 500)));
+
+        d3.Verdict.ShouldBe(CriterionVerdict.Warn);
+        d3.Verdict.ShouldNotBe(CriterionVerdict.Fail);
+    }
+
+    // ===============================================================
+    // Profile scoping — the icon Fail is still AtsOnly, absent from a Visual
+    // review (parity with the D3 AtsOnly test above).
+    // ===============================================================
+
+    [Fact]
+    public async Task D3_IconFontFail_ShouldNotAppearInAVisualReview()
+    {
+        var visual = await Engine().ReviewAsync(
+            CvReviewContext.FromParsed(Resume(layoutMetrics: WithRuns(new CvFontRun("Wingdings", 11, 500)))),
             RenderProfile.Visual, TestContext.Current.CancellationToken);
 
         visual.Verdicts.ShouldNotContain(v => v.CriterionId == "D3");

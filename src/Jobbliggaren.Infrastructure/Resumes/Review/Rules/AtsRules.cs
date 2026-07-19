@@ -5,11 +5,12 @@ using Jobbliggaren.Domain.Resumes.Parsing;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 
-// Fas 4 STEG 9 (F4-9) — ATS-parsability-category (D) criterion rules. Only D1 (file format,
-// via the parse-confidence signal) and D6 (standard headings, via the detected sections) are
-// assessable from the text parse; D2/D3/D4/D5/D7 (layout geometry), D8 (needs a target ad),
-// and D9/D10 (file metadata) have no rule and fall through to the engine's honest NotAssessed.
-// Fas 4b PR-4 (ADR 0093 §D8): on the CANONICAL arm both rules verdict on what is known BY
+// Fas 4 STEG 9 (F4-9) — ATS-parsability-category (D) criterion rules. D1 (file format, via
+// the parse-confidence signal) and D6 (standard headings, via the detected sections) read the
+// text parse; D3 (body font, via the imported font runs — #891/#957) and D9 (file size,
+// PR-6b) read the layout metrics; D2/D4/D5/D7 (layout geometry), D8 (needs a target ad), and
+// D10 have no rule and fall through to the engine's honest NotAssessed.
+// Fas 4b PR-4 (ADR 0093 §D8): on the CANONICAL arm D1/D6 verdict on what is known BY
 // CONSTRUCTION — app-managed content has no parsed source file, and its sections come from
 // the shared linearizer's structure, not heading heuristics (D4-bind parity: app-generated
 // CVs report Pass with StructuralEvidence).
@@ -90,14 +91,18 @@ internal sealed class D6StandardHeadingsRule : ICriterionRule
 /// readable size (Fas 4b #891, ADR 0108). Reads the font runs the <c>ICvLayoutAnalyzer</c>
 /// collected at import; the "body = the modal size by letter count" definition and the allowlist
 /// match are assessment POLICY and live HERE (never baked into the import artifact, so the
-/// definition stays revisable at review time). WARN-only in v1 — the cv-conventions allowlist is an
-/// EXEMPLAR set (Garamond/Lato parse fine yet are absent), so a non-member body font WARNS, never
-/// FAILS (§5: a false Fail on a good CV is the over-claim sin); the &lt;9 pt Fail band and
-/// icon-font detection are a deferred follow-up. NotAssessed without font runs — the canonical arm
-/// (<c>context.Layout</c> is null there), a DOCX/failed parse, or a pre-#891 import. The canonical
-/// arm deliberately has NO Pass-by-construction branch (unlike D1): the app's own ATS export uses
-/// Lato, which is NOT allowlisted, so Pass-by-construction is unavailable and a Warn would falsely
-/// blame a font the app itself chose — NotAssessed is the only honest canonical verdict.
+/// definition stays revisable at review time). The posture is TERMINAL as of #957 (ADR 0108
+/// amendment 2026-07-19): the one Fail is an ICON-FONT body (<see cref="IconFontClassifier"/> on
+/// the modal body run — extracted "text" is symbols, a deterministic, citable ATS-parse break);
+/// a non-allowlisted family stays WARN forever (the cv-conventions allowlist is an EXEMPLAR set —
+/// Garamond/Lato parse fine yet are absent — and a genuine encoding break is D1's outcome-observed
+/// signal, never a name guess); small body text stays WARN forever (no primary evidence sub-9pt
+/// breaks extraction; §5: a false Fail on a good CV is the over-claim sin). NotAssessed without
+/// font runs — the canonical arm (<c>context.Layout</c> is null there), a DOCX/failed parse, or a
+/// pre-#891 import. The canonical arm deliberately has NO Pass-by-construction branch (unlike D1):
+/// the app's own ATS export uses Lato, which is NOT allowlisted, so Pass-by-construction is
+/// unavailable and a Warn would falsely blame a font the app itself chose — NotAssessed is the
+/// only honest canonical verdict.
 /// </summary>
 internal sealed class D3StandardFontRule : ICriterionRule
 {
@@ -127,6 +132,21 @@ internal sealed class D3StandardFontRule : ICriterionRule
             .ThenBy(run => run.FontName, StringComparer.Ordinal)
             .First().FontName;
 
+        // Icon-body FAIL (#957, ADR 0108 amendment 2026-07-19) — the one deterministic,
+        // evidenceable ATS-parse break this criterion owns: a body set in an icon/dingbat
+        // typeface extracts as symbols, not words. The trigger is the MODAL BODY run ONLY —
+        // a non-modal icon run (accent/bullet/contact icons) is D4's territory, and D4's own
+        // pass signal permits it ("Ikoner får finnas ..."). The evidence cites the
+        // subset-tag-stripped observed name — never the mangled raw, never glyphs/CV text (§5).
+        if (IconFontClassifier.IsIconFont(dominantRaw))
+        {
+            return CvCriterionVerdict.Assessed("D3", category, CriterionVerdict.Fail,
+                ReviewText.Cite(ReviewText.Structural(
+                    $"Brödtexten är satt i ett ikontypsnitt ({FontNameNormalizer.StripSubsetTag(dominantRaw)}). "
+                    + "Ett ATS läser då symboler i stället för text. "
+                    + "Byt till ett standardtypsnitt för brödtexten.")));
+        }
+
         var dominantFamily = FontNameNormalizer.Normalize(dominantRaw);
 
         // The allowlist is DATA (cv-conventions), normalised the SAME way as the observed name so
@@ -149,7 +169,8 @@ internal sealed class D3StandardFontRule : ICriterionRule
                     $"Brödtexten använder {matchedFont} i {modalPt} pt. Det är ett standardtypsnitt som ett ATS läser säkert.")));
         }
 
-        // Warn (never Fail): an exemplar allowlist cannot honestly FAIL a non-member, and small
+        // Warn — terminal for family and size (#957): an exemplar allowlist cannot honestly FAIL
+        // a non-member (a genuine encoding break is D1's outcome-observed signal), and small
         // body text is a readability nudge, not an ATS-parse break (§5 under-claim). No threshold
         // number is echoed (it would drift from the datum — D9/E2 precedent); example fonts come
         // FROM the allowlist DATA, never a hardcoded C# list (§5).

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries;
@@ -28,6 +29,16 @@ internal static class JobAdSearchComposition
     // den config som search_vector-kolumnen genererades med (JobAdConfiguration
     // — to_tsvector('swedish', …)); annars matchar @@ inte GIN-indexet.
     internal const string TextSearchConfig = "swedish";
+
+    /// <summary>
+    /// The single definition of "does this search carry a free-text q?" — the q-FTS predicate below
+    /// (<c>search_vector @@ websearch_to_tsquery</c>) and the ts_rank relevance sort are gated on it, and
+    /// so is the bitmap-plan count hygiene (<see cref="BitmapPlanCount"/>, #744): the SET LOCAL is worth
+    /// its extra roundtrips ONLY when this q-predicate is what would otherwise TOAST-detoast-seqscan the
+    /// STORED search_vector. Kept here as SPOT so the hygiene gate can never drift from the predicate it
+    /// tracks — a second copy of <c>!IsNullOrWhiteSpace</c> would be a second rule.
+    /// </summary>
+    internal static bool HasFreeTextQuery([NotNullWhen(true)] string? q) => !string.IsNullOrWhiteSpace(q);
 
     // F2-P9 (TD-70). Filter via Postgres STORED generated columns (B-tree-
     // indexerade, equality-lookup). Shadow-properties refereras via
@@ -169,7 +180,7 @@ internal static class JobAdSearchComposition
                 employerValues.Contains(EF.Property<string?>(j, "OrganizationNumber")));
         }
 
-        if (!string.IsNullOrWhiteSpace(criteria.Q))
+        if (HasFreeTextQuery(criteria.Q))
         {
             var q = criteria.Q;
             // title-LIKE-fallbacken lower:as redan invariant-side (C#); EF/Npgsql
@@ -276,7 +287,7 @@ internal static class JobAdSearchComposition
     // desc, sedan Id.
     private static IQueryable<JobAd> ApplyRelevanceSort(IQueryable<JobAd> source, string? q)
     {
-        if (string.IsNullOrWhiteSpace(q))
+        if (!HasFreeTextQuery(q))
             return source.OrderByDescending(j => j.PublishedAt).ThenBy(j => j.Id);
 
         var query = q;

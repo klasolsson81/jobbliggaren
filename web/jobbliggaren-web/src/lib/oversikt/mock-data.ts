@@ -12,27 +12,14 @@ export interface OversiktTodayEvent {
   readonly source: "jobbliggaren" | "google";
 }
 
-export interface OversiktSavedJobDeadline {
-  readonly date: string; // ISO yyyy-MM-dd
-  readonly label: string; // svensk kortform "25 maj"
-}
-
 export interface OversiktSavedSearchHit {
   readonly name: string;
   readonly newHits: number;
 }
 
-export interface OversiktNoticeCopy {
-  readonly company: string;
-  readonly role?: string;
-  readonly deadlineCopy?: string;
-  readonly dateCopy?: string;
-}
-
 export interface OversiktMock {
   /** BE-port saknas: Google Calendar-integration framtid (HANDOVER §3.2). */
   readonly todaysEvents: ReadonlyArray<OversiktTodayEvent>;
-  readonly googleSynced: boolean;
   /**
    * GUEST-ONLY (efter ADR 0080 Vag 4 PR-5): den autentiserade Sammanfattningens
    * "Nya matchningar"-rad är nu LIVE via `getNewMatchCount()` (bakgrundsmatchningar
@@ -49,8 +36,6 @@ export interface OversiktMock {
    */
   readonly matchCountThisWeek: number;
   readonly matchSegmentLabel: string;
-  /** BE-port saknas: Deadline-fält på SavedJobAd (HANDOVER §3.3). */
-  readonly savedJobsDeadlines: ReadonlyArray<OversiktSavedJobDeadline>;
   /** BE-port saknas: letters-tabell (HANDOVER §3.6). */
   readonly personalLettersCount: number;
   /**
@@ -61,9 +46,6 @@ export interface OversiktMock {
    * en avsiktlig demo-yta utanför #294:s scope.
    */
   readonly savedSearchHitsLast: OversiktSavedSearchHit;
-  /** Static notice-snippets (mock — backend-driven content saknar port). */
-  readonly bonnierOffer: OversiktNoticeCopy;
-  readonly folksamInterview: OversiktNoticeCopy;
 }
 
 export const OVERSIKT_MOCK: OversiktMock = {
@@ -83,23 +65,9 @@ export const OVERSIKT_MOCK: OversiktMock = {
       source: "jobbliggaren",
     },
   ],
-  googleSynced: false,
   matchCountToday: 28,
   matchCountThisWeek: 143,
   matchSegmentLabel: "Mjukvaru- och systemutvecklare",
-  savedJobsDeadlines: [
-    { date: "2026-05-25", label: "25 maj" },
-    { date: "2026-05-27", label: "27 maj" },
-  ],
   personalLettersCount: 4,
   savedSearchHitsLast: { name: "Remote / Distansjobb", newHits: 4 },
-  bonnierOffer: {
-    company: "Bonnier News",
-    role: "verksamhetsutvecklare",
-    deadlineCopy: "27 maj",
-  },
-  folksamInterview: {
-    company: "Folksam IT",
-    dateCopy: "tisdag 26 maj 14:00",
-  },
 } as const;

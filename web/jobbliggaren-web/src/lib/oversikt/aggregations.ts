@@ -2,6 +2,7 @@ import type {
   ApplicationDto,
   PipelineGroupDto,
 } from "@/lib/dto/applications";
+import type { ListSavedJobAdsResult } from "@/lib/dto/saved-job-ads";
 import { daysSince } from "@/lib/i18n/relative-time";
 
 // Relative-time helpers live in `lib/i18n/relative-time` now (#336 DRY
@@ -180,9 +181,9 @@ export function formatSwedishLongDate(date: Date): SwedishLongDate {
  * SSOT: filtret nedan OCH copy-talet (`notices.followUpText` via en ICU
  * `{days}`-param) läser samma konstant, så tröskeln och det visade talet aldrig
  * kan drifta isär (drift-guard-mönstret från #291). Detta är FE-side view-policy
- * (parallellt med `findRecentInterviews` ≤1d / `filterFutureDeadlines`), MEDVETET
- * SKILT från /ansokningar-attentionens design §11-trösklar (no-response nudge
- * 14d, ghost-förslag 30d) — Översikten är en lättare nudge-yta (CTO-dom #384).
+ * (parallellt med `findRecentInterviews` ≤1d / `findUpcomingSavedJobDeadlines`),
+ * MEDVETET SKILT från /ansokningar-attentionens design §11-trösklar (no-response
+ * nudge 14d, ghost-förslag 30d) — Översikten är en lättare nudge-yta (CTO-dom #384).
  */
 export const OVERSIKT_FOLLOW_UP_DAYS = 14;
 
@@ -261,15 +262,48 @@ export function findLatestOffer(
 }
 
 /**
- * Filtrerar deadline-poster och behåller bara de som ligger >= idag (UTC-
- * kalenderdag). Förhindrar att MOCK-deadlines i `OVERSIKT_MOCK` visar
- * "denna vecka"-notisen efter att alla datum passerat (code-reviewer M3
- * 2026-05-24). När BE-port för riktiga deadlines finns: ersätt mock-arrayen,
- * filterlogiken förblir korrekt.
+ * Deadline-fönstret för Översikt-notisen, i dagar (#726 SSOT). Copyn läser samma
+ * konstant via en ICU `{days}`-param — det visade talet och filtrets fönster kan
+ * aldrig drifta isär (drift-guard-mönstret från #291/#384). En sparad annons vars
+ * `expiresAt` ligger idag t.o.m. {@link OVERSIKT_DEADLINE_WINDOW_DAYS} dagar fram
+ * räknas med.
  */
-export function filterFutureDeadlines<
-  T extends { readonly date: string },
->(deadlines: ReadonlyArray<T>, now: Date = new Date()): ReadonlyArray<T> {
-  return deadlines.filter((d) => daysSince(d.date, now) <= 0);
+export const OVERSIKT_DEADLINE_WINDOW_DAYS = 7;
+
+export interface OversiktSavedJobDeadline {
+  readonly company: string;
+  /** Annonsens sista ansökningsdag (ISO), råstämpel för formatering i UI. */
+  readonly expiresAt: string;
+}
+
+/**
+ * Returnerar sparade annonser vars sista ansökningsdag (`jobAd.expiresAt`) ligger
+ * idag eller i framtiden inom {@link OVERSIKT_DEADLINE_WINDOW_DAYS} dagar. Ersätter
+ * den tidigare mock-drivna deadline-notisen (#726): riktig `expiresAt` ur
+ * `ListSavedJobAdsResult` i stället för `OVERSIKT_MOCK.savedJobsDeadlines`.
+ *
+ * `daysSince(expiresAt, now)` ger NEGATIVT för framtida datum, så fönstervillkoret
+ * är `<= 0` (idag eller framåt) OCH `>= -WINDOW` (inte längre bort än fönstret).
+ * Passerade deadlines (positivt diff) och rader utan `jobAd`/`expiresAt` faller
+ * bort. Sorteras stigande på `expiresAt` (närmast först). Tom array ⇒ dölj notisen.
+ */
+export function findUpcomingSavedJobDeadlines(
+  savedJobAds: ListSavedJobAdsResult,
+  now: Date = new Date()
+): ReadonlyArray<OversiktSavedJobDeadline> {
+  const entries: OversiktSavedJobDeadline[] = [];
+  for (const saved of savedJobAds) {
+    const jobAd = saved.jobAd;
+    if (jobAd == null || jobAd.expiresAt == null) continue;
+    // Defensiv: en ogiltig stämpel skulle annars ge daysSince → 0 (= "idag") och
+    // smyga in i fönstret. Backend skickar giltig ISO, men guardas ändå.
+    if (Number.isNaN(new Date(jobAd.expiresAt).getTime())) continue;
+    const diff = daysSince(jobAd.expiresAt, now);
+    if (diff <= 0 && diff >= -OVERSIKT_DEADLINE_WINDOW_DAYS) {
+      entries.push({ company: jobAd.company, expiresAt: jobAd.expiresAt });
+    }
+  }
+  entries.sort((a, b) => a.expiresAt.localeCompare(b.expiresAt));
+  return entries;
 }
 

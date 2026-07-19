@@ -1,32 +1,35 @@
+import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type { JobSeekerProfileDto } from "@/lib/dto/me";
 import type { PipelineGroupDto } from "@/lib/dto/applications";
 import type { ListSavedJobAdsResult } from "@/lib/dto/saved-job-ads";
 import type { ListRecentSearchesResult } from "@/lib/dto/recent-searches";
-import type { GetResumesResult } from "@/lib/dto/resumes";
-import type { LandingStatsDto } from "@/lib/dto/landing";
 import {
-  computeApplicationCounts,
-  daysSince,
-  filterFutureDeadlines,
   findFollowUpCandidates,
   findLatestOffer,
   findRecentInterviews,
+  findUpcomingSavedJobDeadlines,
   flattenPipeline,
   formatDaysAgo,
   formatNoticesStamp,
   formatSwedishShortDate,
+  OVERSIKT_DEADLINE_WINDOW_DAYS,
   OVERSIKT_FOLLOW_UP_DAYS,
 } from "@/lib/oversikt/aggregations";
-import { OVERSIKT_MOCK } from "@/lib/oversikt/mock-data";
 import { buildJobbHref, DEFAULT_SORT_BY } from "@/lib/job-ads/search-params";
 import { buildRecentSearchHref } from "@/lib/job-ads/recent-search-href";
-import { TodayCard } from "./today-card";
-import { NoticeList } from "./notice-list";
-import { Summary } from "./summary";
 import { SavedSearchNoticeText } from "./saved-search-notice-text";
-import type { NoticeData } from "./notice-row";
+import { SetupCallout } from "./setup-callout";
+import { NoticeToolbar } from "./notice-toolbar";
+import {
+  NOTICE_TYPES,
+  NoticeSection,
+  type NoticePrefType,
+  type NoticeSource,
+  type NoticeType,
+  type SectionNoticeData,
+} from "./notice-section";
 
 interface OversiktPageProps {
   readonly email: string;
@@ -35,52 +38,34 @@ interface OversiktPageProps {
   readonly pipeline: ApiResult<PipelineGroupDto[]>;
   readonly savedJobAds: ApiResult<ListSavedJobAdsResult>;
   readonly recentSearches: ApiResult<ListRecentSearchesResult>;
-  readonly resumes: ApiResult<GetResumesResult>;
-  /**
-   * Landing-stats per CTO svans-PR2-dom (agentId ad37955db80099f19) —
-   * ersatte tidigare `jobAds` prop. Worker-precomputed Redis-cache
-   * (ADR 0064), 0-1ms read vs ListJobAdsQuery p50 ~1.2s. Samma
-   * `activeCount` som HeaderStats renderar → ingen 28 vs 9 mismatch.
-   */
-  readonly landingStats: LandingStatsDto | null;
   /**
    * ADR 0079 STEG 6 — live match-count (Bra + Stark) för matchnings-notisen.
    * `number` = backend-svar (`count`, kan vara 0 = honest nollstate). `null` =
    * fetch:en degraderade (nätverk/auth/rate-limit) ⇒ notisen utelämnas helt
    * (aldrig en mock-fallback). Notisen renderas bara när profilen har angett ett
-   * yrke (`hasStatedDesiredOccupation`); annars äger setup-nudgen slotten.
+   * yrke (`hasStatedDesiredOccupation`); annars äger setup-kortet slotten.
    */
   readonly matchCount: number | null;
   /**
-   * ADR 0080 Vag 4 PR-5 — antalet bakgrundsmatchningar NYA sedan senaste besök
-   * (live `GET /me/new-match-count`), för Sammanfattningens "Nya matchningar"-
-   * rad (ersätter den dagliga `matchCountToday`-mocken 28, nu guest-only; SKILD
-   * från STEG 6:s vecko-`matchCount` som ersatte mock-143). Degraderar till `0`
-   * vid fetch-fel (paritet STEG 6:s
-   * `matchCount`-degradering, men `0` här i stället för `null` — raden visar
-   * alltid en siffra och länkar till /matchningar; ett honest 0 är korrekt
-   * fallback när bakgrundsmatchning ej kunde läsas).
-   */
-  readonly newMatchCount: number;
-  /**
    * Bevakning F2 (#801, RF-6=6B) — antalet nya annonser från bevakade företag
    * NYA sedan senaste /foretag-besök (live `GET /me/followed-company-ads/new-count`,
-   * per-watch grad-filtrerat read-time). Degraderar till `0` vid fetch-fel (paritet
-   * `newMatchCount`); ett honest 0 är korrekt fallback. Raden länkar till /foretag.
+   * per-watch grad-filtrerat read-time). Driver Företagsbevaknings-notisen (#726);
+   * `0` ⇒ notisen utelämnas (honest tomt-läge). Degraderar till `0` vid fetch-fel.
    */
   readonly newFollowedCompanyAdCount: number;
 }
 
 /**
- * F6 P5 Punkt 4 — Översikt-sidan. Server Component (orkestratorn).
+ * F6 P5 Punkt 4 — Översikt-sidan, omgjord till NOTISCENTER (#726). Server
+ * Component (orkestratorn, non-async — synkron next-intl-translator).
  *
- * Per CTO-dom 2026-05-24 (Variant A): direkt RSC `Promise.all` mot 5-6
- * befintliga endpoints, ingen ny composer-endpoint, ingen Worker-cache
- * (per-user-data, ej publik anonym).
+ * Bygger notiser grupperade per KÄLLA (Mina ansökningar / Jobbannonser /
+ * Företagsbevakning) i stället för de globala "Kräver åtgärd"/"Information"-
+ * grupperna, plus ett "Kräver åtgärd"-kort för matchnings-setup. Sammanfattningen
+ * och I dag-kortet är borttagna (guest-only-ytorna behåller sina kopior).
  *
- * Degraderad fallback: ApiResult-fel på enskild källa ger "—" eller mock-
- * default i sin sektion, men låter resten rendra. Aldrig blank sida pga
- * enskild endpoint-failure.
+ * Degraderad fallback: ApiResult-fel på en enskild källa ger en tom sektion
+ * (tomt-läge), aldrig en blank sida.
  */
 export function OversiktPage({
   email,
@@ -89,174 +74,134 @@ export function OversiktPage({
   pipeline,
   savedJobAds,
   recentSearches,
-  resumes,
-  landingStats,
   matchCount,
-  newMatchCount,
   newFollowedCompanyAdCount,
 }: OversiktPageProps) {
-  // Synchronous next-intl translator — keeps OversiktPage a non-async RSC.
   const t = useTranslations("oversikt");
-  // Scoped translator for the relative-time helper (`formatDaysAgo`), which is
-  // a pure helper and receives `t` as a param.
+  // Scoped translator for the relative-time helper (`formatDaysAgo`).
   const tRelativeTime = useTranslations("oversikt.relativeTime");
+  const bold = (chunks: ReactNode) => <b>{chunks}</b>;
   const today = new Date();
-  // Klas svans-PR2 Variant A: datum-suffix på notice-IDs så dismissad notis
-  // återkommer när data ändras (nästa dag = ny render av "143 nya annonser").
-  // Permanent-dismiss-defekten i PR1 (Klas-feedback #2 2026-05-24) löst.
-  // När unified notification-port finns: ersätt slug+datum med riktigt
-  // notificationId per backend-instans.
+  // Datum-suffix på notice-IDs så en dismissad notis återkommer när data ändras
+  // (nästa dag = ny render). När unified notification-port finns: byt slug+datum
+  // mot riktigt notificationId per backend-instans.
   const dateSlug = today.toISOString().slice(0, 10);
   const kickerName =
     displayName && displayName.trim().length > 0
       ? displayName
       : (email.split("@")[0] ?? email);
 
-  // Pipeline → counts + apps (för datum-filtrerade notiser)
   const pipelineData = pipeline.kind === "ok" ? pipeline.data : [];
-  const counts = computeApplicationCounts(pipelineData);
   const allApps = flattenPipeline(pipelineData);
 
-  // BE-driven notiser
   const followUps = findFollowUpCandidates(allApps, today);
   const recentInterviews = findRecentInterviews(allApps, today);
   const latestOffer = findLatestOffer(allApps);
 
-  // Notice-konstruktion: BE-driven först, mock som copy-template för fält
-  // utan BE-port. Tom-state ⇒ notis exkluderas (HANDOVER §3.3).
-  //
-  // design-reviewer M3 (2026-05-24): notice-text använder ApplicationDto-
-  // data direkt (jobAd?.company / .title / .updatedAt) — inte mock-företags-
-  // namn — för att inte vilseleda användaren ("Bonnier News" när hen har
-  // erbjudande från Skatteverket). Mock används bara för fält där BE-port
-  // saknas (deadline-copy, dateCopy).
-  const actionNotices: NoticeData[] = [];
+  // F4-12 PR-B (ADR 0076): setup-kort ↔ match-notis är ÖMSESIDIGT uteslutande,
+  // styrt av `hasStatedDesiredOccupation`. Yrke angett → match-notis (live count).
+  // Ej angett → setup-kortet. Aldrig båda.
+  const hasStatedOccupation =
+    profile.kind === "ok" && profile.data.hasStatedDesiredOccupation;
+
+  // ── Mina ansökningar ──────────────────────────────────────────────────────
+  const applicationNotices: SectionNoticeData[] = [];
+
+  if (followUps.length > 0) {
+    applicationNotices.push({
+      id: `n-followup-${dateSlug}`,
+      source: "applications",
+      type: "followup",
+      kind: "warning",
+      label: t("notices.followUpLabel"),
+      text: t.rich("notices.followUpText", {
+        count: followUps.length,
+        // #384 — talet läser samma SSOT som filter-tröskeln (ingen hårdkodad "14").
+        days: OVERSIKT_FOLLOW_UP_DAYS,
+        b: bold,
+      }),
+      cta: t("notices.followUpCta"),
+      href: "/ansokningar",
+      // MOCK: BE-port saknas för "när-noteringen-räknades-ut"-tidsstämpel.
+      time: t("notices.timeToday"),
+    });
+  }
 
   if (latestOffer) {
-    const offerCompany =
-      latestOffer.jobAd?.company ?? t("notices.fallbackCompany");
+    const offerCompany = latestOffer.jobAd?.company ?? t("notices.fallbackCompany");
     const offerTitle = latestOffer.jobAd?.title;
-    actionNotices.push({
+    applicationNotices.push({
       id: `n-offer-${dateSlug}`,
+      source: "applications",
+      type: "offers",
       kind: "success",
       label: t("notices.offerLabel"),
       text: offerTitle
         ? t.rich("notices.offerTextWithTitle", {
             company: offerCompany,
             title: offerTitle,
-            b: (chunks) => <b>{chunks}</b>,
+            b: bold,
           })
-        : t.rich("notices.offerText", {
-            company: offerCompany,
-            b: (chunks) => <b>{chunks}</b>,
-          }),
+        : t.rich("notices.offerText", { company: offerCompany, b: bold }),
       cta: t("notices.offerCta"),
       href: "/ansokningar",
       time: formatDaysAgo(tRelativeTime, latestOffer.updatedAt, today),
     });
   }
 
-  if (followUps.length > 0) {
-    actionNotices.push({
-      id: `n-followup-${dateSlug}`,
-      kind: "warning",
-      label: t("notices.followUpLabel"),
-      text: t.rich("notices.followUpText", {
-        count: followUps.length,
-        // #384 — talet kommer från samma SSOT som filter-tröskeln (ingen
-        // hårdkodad "14" i copyn) så de aldrig kan drifta isär.
-        days: OVERSIKT_FOLLOW_UP_DAYS,
-        b: (chunks) => <b>{chunks}</b>,
+  if (recentInterviews.length > 0) {
+    const interview = recentInterviews[0]!;
+    const interviewCompany =
+      interview.jobAd?.company ?? t("notices.fallbackEmployer");
+    applicationNotices.push({
+      id: `n-interview-confirmed-${dateSlug}`,
+      source: "applications",
+      type: "interviews",
+      kind: "brand",
+      label: t("notices.interviewLabel"),
+      text: t.rich("notices.interviewText", {
+        company: interviewCompany,
+        b: bold,
       }),
-      cta: t("notices.followUpCta"),
+      cta: t("notices.interviewCta"),
       href: "/ansokningar",
-      // MOCK: BE-port saknas för "när-noteringen-räknades-ut"-tidsstämpel
-      time: t("notices.timeToday"),
+      time: formatDaysAgo(tRelativeTime, interview.updatedAt, today),
     });
   }
 
-  // Deadline-notis: BE-port saknas (saved-job-ads har ingen deadline-yta).
-  // Visa bara om vi har sparade annonser OCH framtida (ej passerade) mock-
-  // deadlines kvar (code-reviewer M3 2026-05-24 — filterFutureDeadlines).
-  const savedCount =
-    savedJobAds.kind === "ok" ? savedJobAds.data.length : 0;
-  const futureDeadlines = filterFutureDeadlines(
-    OVERSIKT_MOCK.savedJobsDeadlines,
-    today
-  );
-  if (savedCount > 0 && futureDeadlines.length > 0) {
-    const labels = futureDeadlines.map((d) => d.label).join(", ");
-    actionNotices.push({
+  // ── Jobbannonser ──────────────────────────────────────────────────────────
+  const jobAdNotices: SectionNoticeData[] = [];
+
+  // Deadline-notis: nu RIKTIG `expiresAt` ur de sparade annonserna (#726),
+  // ersätter den gamla mock-drivna "denna vecka"-notisen. Etiketterna är
+  // FÖRETAGSNAMN (per skisserna), tidskolumnen den NÄRMASTE deadlinens datum.
+  const savedJobAdsData = savedJobAds.kind === "ok" ? savedJobAds.data : [];
+  const deadlines = findUpcomingSavedJobDeadlines(savedJobAdsData, today);
+  if (deadlines.length > 0) {
+    const labels = deadlines.map((d) => d.company).join(", ");
+    jobAdNotices.push({
       id: `n-deadline-${dateSlug}`,
+      source: "jobads",
+      type: "deadlines",
       kind: "warning",
       label: t("notices.deadlineLabel"),
       text: t.rich("notices.deadlineText", {
-        count: futureDeadlines.length,
+        count: deadlines.length,
+        // SSOT: samma konstant som filtrets fönster (ingen hårdkodad "7").
+        days: OVERSIKT_DEADLINE_WINDOW_DAYS,
         labels,
-        b: (chunks) => <b>{chunks}</b>,
+        b: bold,
       }),
       cta: t("notices.deadlineCta"),
       href: "/sparade",
-      // MOCK: BE-port saknas för faktisk deadline-stämpel
-      time: t("notices.timeThisWeek"),
+      time: formatSwedishShortDate(deadlines[0]!.expiresAt),
     });
   }
 
-  // F4-12 PR-B (ADR 0076): setup-nudge ↔ match-notis är ÖMSESIDIGT uteslutande
-  // och styrs av `hasStatedDesiredOccupation`. Du kan inte ha "annonser som
-  // matchar din profil" innan en profil finns — det vore ohederligt. Yrke
-  // angett → match-notis (LIVE count, STEG 6). Ej angett → setup-nudge. Aldrig
-  // båda (undviker två motsägande "Matchning"-rader).
-  const hasStatedOccupation =
-    profile.kind === "ok" && profile.data.hasStatedDesiredOccupation;
-
-  // Recent searches — consumed by both the saved-search notice (below) and the
-  // Summary. `lastSearch` = the most recently run/viewed search ("din senaste
-  // körning"), which is the one the notice features (#294).
-  const recentSearchesData =
-    recentSearches.kind === "ok" ? recentSearches.data : [];
-  const lastSearch =
-    recentSearchesData.length > 0
-      ? [...recentSearchesData].sort((a, b) =>
-          b.lastViewedAt.localeCompare(a.lastViewedAt),
-        )[0]
-      : null;
-
-  const infoNotices: NoticeData[] = [];
-
-  if (!hasStatedOccupation) {
-    // Persistent, icke-avfärdbar nudge — stabilt id UTAN dateSlug (ska bestå
-    // tills användaren angett ett yrke, inte återkomma per dag). Tom `time`
-    // → NoticeRow renderar ingen tids-span.
-    infoNotices.push({
-      id: "n-setup-match",
-      kind: "info",
-      dismissible: false,
-      label: t("notices.matchLabel"),
-      // Verbatim SPOT med jobads.ui.match.noStatedOccupation/settingsCta —
-      // samma copy som /jobb-disclosuren och match-sektionen (ingen drift).
-      text: t("notices.setupText"),
-      cta: t("notices.setupCta"),
-      // Epik #526 — öppnar matchnings-setup-modalen (rail-flödet) i stället för
-      // att länka till /installningar. ?matchsetup=1 auto-öppnar den via
-      // MatchSetupLauncher på /oversikt (mirror /cv:s ?matchning=1-prompt).
-      href: "/oversikt?matchsetup=1",
-      time: "",
-    });
-  } else if (matchCount !== null && profile.kind === "ok") {
-    // ADR 0079 STEG 6, HARMONISERAD 2026-07-03 (Klas "samma siffra, inget brus";
-    // CTO-bind H2) — notis-counten är nu en ren sök-facett-count över den SPARADE
-    // matchningens val (yrke ∧ ort ∧ form som hårda filter, samma ApplyFilter-SPOT
-    // som setup-modalens live-räknare). `null` = fetch:en degraderade ⇒ notisen
-    // utelämnas helt (denna gren körs inte), aldrig mock-fallback.
-    //
-    // Trust-invariant (load-bearing): länken bär EXAKT samma facetter som
-    // backend-counten (GetMyMatchCountQueryHandler bygger sitt filter ur samma
-    // MatchPreferences som profile.data.preferred* speglar) och INGA matchGrades
-    // — /jobb-sidans TotalCount == notis-talet == setup-räknaren per konstruktion.
-    // Grad-bandet är BORTTAGET ur counten (H2); graden lever som badges/sort på
-    // /jobb. (profile.kind === "ok" är garanterat av hasStatedOccupation-grenen;
-    // villkoret upprepas för TS-narrowing.)
+  if (hasStatedOccupation && matchCount !== null && profile.kind === "ok") {
+    // Trust-invariant (harmoniserad 2026-07-03, CTO H2): länken bär EXAKT samma
+    // facetter som backend-counten hård-filtrerar på och INGA matchGrades —
+    // /jobb-landningens TotalCount == notis-talet == setup-räknaren per konstruktion.
     const matchHref = buildJobbHref({
       q: "",
       occupationGroup: [...profile.data.preferredOccupationGroups],
@@ -267,65 +212,42 @@ export function OversiktPage({
       matchGrades: [],
       sortBy: DEFAULT_SORT_BY,
     });
-    infoNotices.push({
+    jobAdNotices.push({
       id: `n-match-${dateSlug}`,
+      source: "jobads",
+      type: "matches",
       kind: "info",
       label: t("notices.matchLabel"),
       text:
         matchCount > 0
-          ? t.rich("notices.matchText", {
-              // Raw number — the catalog formats it locale-aware via ICU
-              // {count, number} (sv: non-breaking-space grouping per CLAUDE §10;
-              // en: comma). The corpus routinely exceeds 1000 for broad
-              // occupation groups.
-              count: matchCount,
-              b: (chunks) => <b>{chunks}</b>,
-            })
+          ? t.rich("notices.matchText", { count: matchCount, b: bold })
           : t("notices.matchTextZero"),
       cta: t("notices.matchCta"),
       href: matchHref,
-      // MOCK: BE-port saknas för matchning-uppdaterings-stämpel (STEG 6
-      // follow-up). Counten är live; tidsstämpeln förblir mock så länge.
+      // MOCK: BE-port saknas för matchning-uppdaterings-stämpel; counten är live.
       time: t("notices.timeToday"),
     });
   }
 
-  if (recentInterviews.length > 0) {
-    const interview = recentInterviews[0]!;
-    const interviewCompany =
-      interview.jobAd?.company ?? t("notices.fallbackEmployer");
-    infoNotices.push({
-      id: `n-interview-confirmed-${dateSlug}`,
-      kind: "brand",
-      label: t("notices.interviewLabel"),
-      text: t.rich("notices.interviewText", {
-        company: interviewCompany,
-        b: (chunks) => <b>{chunks}</b>,
-      }),
-      cta: t("notices.interviewCta"),
-      href: "/ansokningar",
-      time: formatDaysAgo(tRelativeTime, interview.updatedAt, today),
-    });
-  }
-
-  // Sparad-sökning-notis (#294): featurar DIN SENASTE sökning (lastSearch) med
-  // riktigt namn + CTA som KÖR sökningen (replay-href via buildRecentSearchHref),
-  // i stället för det tidigare hårdkodade `/sokningar`-målet (fel destination +
-  // dubbelsteg) och mock-namnet. "Har N nya träffar"-counten hämtas lazy
-  // klient-side i SavedSearchNoticeText (TD-94: server-side per-sök-COUNT hoppas
-  // över, includeCount=false). Klas 2026-06-28: nya-annonser-signalen rankas
-  // UNDER match-/topp-match-notisen → notisen ligger sist i infoNotices (efter
-  // match-notisen + intervju-notisen). Tids-stämpeln är nu riktig (lastViewedAt).
+  // Senaste-sökning-notis (#294, A′-relabel #726): featurar DIN SENASTE sökning
+  // med replay-CTA. "Har N nya träffar"-counten hämtas lazy i SavedSearchNoticeText.
+  const recentSearchesData =
+    recentSearches.kind === "ok" ? recentSearches.data : [];
+  const lastSearch =
+    recentSearchesData.length > 0
+      ? [...recentSearchesData].sort((a, b) =>
+          b.lastViewedAt.localeCompare(a.lastViewedAt),
+        )[0]
+      : null;
   if (lastSearch) {
-    infoNotices.push({
+    jobAdNotices.push({
       id: `n-saved-search-${dateSlug}`,
+      source: "jobads",
+      type: "latestsearch",
       kind: "info",
       label: t("notices.savedSearchLabel"),
       text: (
-        <SavedSearchNoticeText
-          searchId={lastSearch.id}
-          name={lastSearch.label}
-        />
+        <SavedSearchNoticeText searchId={lastSearch.id} name={lastSearch.label} />
       ),
       cta: t("notices.savedSearchCta"),
       href: buildRecentSearchHref(lastSearch),
@@ -333,44 +255,55 @@ export function OversiktPage({
     });
   }
 
-  // Summary-data
-  const cvCount = resumes.kind === "ok" ? resumes.data.items.length : 0;
-  const firstResume =
-    resumes.kind === "ok" && resumes.data.items.length > 0
-      ? [...resumes.data.items].sort((a, b) =>
-          b.updatedAt.localeCompare(a.updatedAt)
-        )[0]
-      : null;
-  const lastUpdatedCvDate = firstResume
-    ? formatSwedishShortDate(firstResume.updatedAt)
-    : null;
+  // ── Företagsbevakning ─────────────────────────────────────────────────────
+  const companyNotices: SectionNoticeData[] = [];
+  if (newFollowedCompanyAdCount > 0) {
+    companyNotices.push({
+      id: `n-followed-ads-${dateSlug}`,
+      source: "companies",
+      type: "followedads",
+      kind: "info",
+      label: t("notices.companiesLabel"),
+      text: t.rich("notices.companiesText", {
+        count: newFollowedCompanyAdCount,
+        b: bold,
+      }),
+      cta: t("notices.companiesCta"),
+      href: "/foretag",
+      time: t("notices.timeToday"),
+    });
+  }
 
-  const lastSearchName = lastSearch?.label ?? null;
+  const allNotices: SectionNoticeData[] = [
+    ...applicationNotices,
+    ...jobAdNotices,
+    ...companyNotices,
+  ];
 
-  // design-reviewer M2: vid endpoint-failure ⇒ null (renders som en en-dash, –), inte 0 (missvisande).
-  // svans-PR2: nu från landing-stats (Worker-precomputed cache, samma siffra som HeaderStats).
-  //
-  // CTO-bind 2026-07-13 (A′): det gamla golvet (IsStale=true ⇒ activeCount=40 000) räknades tidigare
-  // som "ok" här — vi visade hellre en påhittad siffra än ett streck, för att slippa ett tomt fält.
-  // Golvet är borta: en omätt count är nu `null` hela vägen från backend, så samma `?? null` ger
-  // strecket och sidan säger sanningen i stället för att fylla hålet med fiktion.
-  const activeJobAdsTotal = landingStats?.activeCount ?? null;
-
-  const profileCreatedAt =
-    profile.kind === "ok" ? profile.data.createdAt : null;
-  const searchStartDate = profileCreatedAt
-    ? formatSwedishShortDate(profileCreatedAt)
-    : null;
-  const searchStartDaysSince = profileCreatedAt
-    ? daysSince(profileCreatedAt, today)
-    : null;
-
-  const stampDate = today.toISOString().slice(0, 10);
+  // Kugghjuls-typer per sektion, byggda ur NOTICE_TYPES-SSOT:en så popover-
+  // raderna aldrig kan drifta från notisernas `type`-slugs (code-reviewer
+  // Minor 1). `Record<NoticeType, string>` tvingar en label för VARJE typ —
+  // en ny typ utan label blir ett kompileringsfel. Inkluderar förberedda typer
+  // utan notiser ännu ("Statusändringar", "Företagshändelser"). A′: sök-typen
+  // heter "Senaste sökningen", inte "Sparade sökningar".
+  const prefLabels: Record<NoticeType, string> = {
+    followup: t("notices.prefFollowup"),
+    interviews: t("notices.prefInterviews"),
+    offers: t("notices.prefOffers"),
+    statuschanges: t("notices.prefStatusChanges"),
+    deadlines: t("notices.prefDeadlines"),
+    matches: t("notices.prefMatches"),
+    latestsearch: t("notices.prefLatestSearch"),
+    followedads: t("notices.prefFollowedAds"),
+    companyevents: t("notices.prefCompanyEvents"),
+  };
+  const prefTypesFor = (source: NoticeSource): NoticePrefType[] =>
+    NOTICE_TYPES[source].map((id) => ({ id, label: prefLabels[id] }));
 
   return (
     <>
-      {/* F6 P5 Punkt 6 — page-hero (HANDOVER-v4 §2.2). Edge-to-edge navy
-          band; TodayCard ligger som vitt kort i aside mot navy bg. */}
+      {/* Page-hero utan aside (I dag-kortet borttaget, #726) — edge-to-edge
+          navy/grön band per ADR 0068. */}
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
@@ -380,61 +313,43 @@ export function OversiktPage({
             <h1 className="jp-pagehero__title">{t("hero.title")}</h1>
             <p className="jp-pagehero__lede">{t("hero.lede")}</p>
           </div>
-          <div className="jp-pagehero__aside">
-            <TodayCard
-              today={today}
-              events={OVERSIKT_MOCK.todaysEvents}
-              googleSynced={OVERSIKT_MOCK.googleSynced}
-            />
-          </div>
         </div>
       </section>
 
       <div className="jp-container jp-page">
-        {/* Notiser */}
-        <NoticeList
-          actionNotices={actionNotices}
-          infoNotices={infoNotices}
-          // #384 — notiserna beräknas LIVE per request (force-dynamic), så
-          // "senast uppdaterad" är render-tiden, inte en stale mock-stämpel.
+        {/* #384 — notiserna beräknas LIVE per request (force-dynamic), så
+            "senast uppdaterad" är render-tiden, inte en stale mock-stämpel. */}
+        <NoticeToolbar
           lastUpdated={formatNoticesStamp(today)}
+          notices={allNotices}
         />
 
-        {/* Sammanfattning */}
-        <section
-          className="jp-section"
-          aria-labelledby="oversikt-sammanfattning"
-        >
-          <div className="jp-section__head">
-            <h2
-              className="jp-section__title"
-              id="oversikt-sammanfattning"
-            >
-              {t("summary.title")}
-            </h2>
-            <span className="jp-section__count">
-              {t.rich("summary.stamp", {
-                date: stampDate,
-                mono: (chunks) => <span className="jp-mono">{chunks}</span>,
-              })}
-            </span>
-          </div>
+        {!hasStatedOccupation && <SetupCallout />}
 
-          <Summary
-            counts={counts}
-            savedJobsCount={savedCount}
-            recentSearchesCount={recentSearchesData.length}
-            lastSearchName={lastSearchName}
-            activeJobAdsTotal={activeJobAdsTotal}
-            newMatchCount={newMatchCount}
-            newFollowedCompanyAdCount={newFollowedCompanyAdCount}
-            cvCount={cvCount}
-            personalLettersCount={OVERSIKT_MOCK.personalLettersCount}
-            lastUpdatedCvDate={lastUpdatedCvDate}
-            searchStartDate={searchStartDate}
-            searchStartDaysSince={searchStartDaysSince}
-          />
-        </section>
+        <NoticeSection
+          source="applications"
+          titleId="oversikt-applications"
+          title={t("notices.sectionApplications")}
+          notices={applicationNotices}
+          emptyBody={t("notices.emptyApplications")}
+          prefTypes={prefTypesFor("applications")}
+        />
+        <NoticeSection
+          source="jobads"
+          titleId="oversikt-jobads"
+          title={t("notices.sectionJobAds")}
+          notices={jobAdNotices}
+          emptyBody={t("notices.emptyJobAds")}
+          prefTypes={prefTypesFor("jobads")}
+        />
+        <NoticeSection
+          source="companies"
+          titleId="oversikt-companies"
+          title={t("notices.sectionCompanies")}
+          notices={companyNotices}
+          emptyBody={t("notices.emptyCompanies")}
+          prefTypes={prefTypesFor("companies")}
+        />
       </div>
     </>
   );

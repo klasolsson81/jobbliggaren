@@ -24,6 +24,13 @@ public abstract record SystemAuditEvent(
 /// <summary>
 /// Audit-event för en avslutad JobAd-sync-run (stream eller snapshot).
 /// </summary>
+/// <param name="ParsedTotal">#510 — snapshot-körningens <c>SnapshotOutcome.ParsedTotal</c>
+/// (SISTA attemptets element-antal). Detta är 7-dagars-baslinjens metrik
+/// (<c>GetMaxObservedSnapshotSizeAsync</c> läser <c>MAX(payload->>'ParsedTotal')</c>) —
+/// samma storhet som relativ-floorn jämför. <c>Fetched</c> duger INTE som baslinje:
+/// den räknar yields över ALLA retry-attempts (pipeline-throughput, ADR 0045 klass
+/// (d)) och inflateras av en trunkera-sen-lyckas-körning. Null för stream-rader och
+/// legacy-rader (pre-#510) — NULL exkluderas ur MAX (uppvärmnings-semantik).</param>
 public sealed record JobAdsSynced(
     Guid AggregateId,
     DateTimeOffset OccurredAt,
@@ -36,7 +43,8 @@ public sealed record JobAdsSynced(
     int Skipped,
     int Errors,
     DateTimeOffset StartedAt,
-    DateTimeOffset CompletedAt)
+    DateTimeOffset CompletedAt,
+    int? ParsedTotal = null)
     : SystemAuditEvent(
         EventType: "System.JobAdsSynced",
         AggregateType: "System.JobAdSync",

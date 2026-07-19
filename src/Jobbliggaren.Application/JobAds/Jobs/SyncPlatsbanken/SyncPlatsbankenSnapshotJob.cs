@@ -193,7 +193,11 @@ public sealed partial class SyncPlatsbankenSnapshotJob(
             Skipped: counts.Skipped,
             Errors: counts.Errors,
             StartedAt: startedAt,
-            CompletedAt: completedAt), cancellationToken);
+            CompletedAt: completedAt,
+            // #510 — baslinjens metrik: outcome:ns ParsedTotal (sista attemptets
+            // element-antal), INTE Fetched (yields över alla attempts, inflateras
+            // av retry). Se JobAdsSynced-docen.
+            ParsedTotal: snapshotOutcome.ParsedTotal), cancellationToken);
 
         return counts;
     }

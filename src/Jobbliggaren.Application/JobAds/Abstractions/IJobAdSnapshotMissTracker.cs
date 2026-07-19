@@ -55,11 +55,15 @@ public interface IJobAdSnapshotMissTracker
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Returnerar största observerade <c>Fetched</c> (snapshot-`ParsedTotal`)
-    /// från <c>audit_log</c>:s <c>System.JobAdsSynced</c>-rader med
-    /// <c>JobType=snapshot</c>, för given källa, inom senaste
-    /// <paramref name="days"/> dygn. Null om ingen audit-historik finns.
-    /// Använd för relativ floor-tröskel (CTO-rond 2026-05-23 Q5).
+    /// Returnerar största observerade <c>ParsedTotal</c> från <c>audit_log</c>:s
+    /// <c>System.JobAdsSynced</c>-rader med <c>JobType=snapshot</c>, för given
+    /// källa, inom senaste <paramref name="days"/> dygn. #510: metriken är
+    /// ParsedTotal (sista attemptets element-antal) — SAMMA storhet som
+    /// relativ-floorn jämför; Fetched (yields över alla retry-attempts) läses
+    /// aldrig här, den inflateras av trunkera-sen-lyckas-körningar. Null om
+    /// ingen rad i fönstret bär ParsedTotal (ingen historik, eller enbart
+    /// legacy-rader — uppvärmning) → relativ floor inaktiv
+    /// (cold-start-semantik, CTO-rond 2026-05-23 Q5).
     /// </summary>
     Task<int?> GetMaxObservedSnapshotSizeAsync(
         JobSource source,

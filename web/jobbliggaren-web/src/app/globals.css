@@ -8601,17 +8601,41 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 
-/* Bevakning F4b — den vilande filter-disclosuren på en bevakningsrad (BC-9′). Ren LAYOUT: färg, storlek
-   och vikt ärvs från samma ink-ramp som .jp-matchline (aldrig grå text; båda teman följer via --jp-*).
-   Ikonen ärver currentColor. Inga nya tokens, ingen ny radie, ingen ny textstorlek. */
-.jp-watchfilterline {
+/* #858 — delad platt transparens-disclosure. EN behandling för lastbärande "det du ser är smalare än
+   verkligheten"-förbehåll, oavsett per rad (bevakningens vilolägestext, BC-9′) eller per sektion
+   (ansökningshistorikens golv-not, #824): platt, --jp-ink-1 (aldrig grå; båda teman via token),
+   --jp-fw-medium, dekorativ ledande ikon, kapad radlängd. INGEN tint/box/vänsterkant/role="alert" —
+   ett neutralt faktum om användarens egna data får aldrig läsas som "ett problem hon orsakat"
+   (design-reviewer PR #857 (c); husets tintade info-primitiv .jp-matchsort-note är medvetet INTE
+   valet här). Roll-baserad storlek/justering via modifierare — "ett visuellt språk" är delad
+   BEHANDLING, inte delad storlek. OBS: skild från .jp-disclosure-row/-body (den INTERAKTIVA
+   expanderbara familjen) — annan change-reason, därför eget namn. */
+.jp-transparency-note {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 8px 0 0;
-  font-size: var(--text-ui);
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 68ch;
+  font-size: var(--text-body);
   font-weight: var(--jp-fw-medium);
   color: var(--jp-ink-1);
+}
+/* Dekorativ ledande ikon: krymper aldrig, optiskt justerad mot första textraden. Selektorn träffar
+   bara direkta barn — InfoDialog-triggerns HelpCircle sitter i en <button> och rörs inte. */
+.jp-transparency-note > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+/* Kompakt sekundärrad (t.ex. under ett företagsnamn) — storleksparitet med .jp-matchline (15px). */
+.jp-transparency-note--compact {
+  font-size: var(--text-ui);
+}
+/* Raden bär ett inline-kontroll-syskon (t.ex. InfoDialog): kontrollens 36px-höjd sätter radhöjden,
+   så centrera enradstexten mot kontrollen i stället för att förstarad-justera. */
+.jp-transparency-note--inline-control {
+  align-items: center;
+}
+.jp-transparency-note--inline-control > svg {
+  margin-top: 0;
 }
 
 /* Bevakning F4b — rad-chassit .jp-job/.jp-app delas med /jobb, där HELA kortet är klickbart. På /foretag

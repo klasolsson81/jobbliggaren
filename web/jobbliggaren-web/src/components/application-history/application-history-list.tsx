@@ -34,16 +34,17 @@ export function ApplicationHistoryList({ items }: ApplicationHistoryListProps) {
 
   return (
     <>
-      {/* design-review M1: informationsbärande text sätts ALDRIG under 16px (DESIGN.md §4) — och det
-          här är sidans mest informationsbärande text. `text-body` (16px) + kapad radlängd (68ch,
-          paritet .jp-attention/.jp-matchnudge__text) + explicit ink. Platt rad, INGEN tintad box:
-          husets tintade info-primitiv (.jp-matchsort-note, --jp-info-bg + vänsterkant) hade fått ett
-          neutralt faktum om användarens egna uppgifter att läsa som "ett problem du måste åtgärda"
-          (design-reviewer (c); code-reviewer Minor 4 ville tvärtom, men beskrev primitiven som platt
-          — den är det inte. Adjudicerat till design, som äger designen). Tailwind-utilities, ingen
-          globals.css-touch (hotspot). Färg via --jp-ink-1/currentColor → flippar i dark av sig själv. */}
-      <p className="mt-2 mb-4 flex max-w-[68ch] items-start gap-2 text-body font-medium text-text-primary">
-        <Info size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
+      {/* #858 — delad transparens-disclosure-behandling via .jp-transparency-note (globals.css); samma
+          visuella språk som bevakningsradens vilolägestext (BC-9′). Kärnrationalen är oförändrad:
+          informationsbärande text sätts ALDRIG under 16px (DESIGN.md §4) och det här är sidans mest
+          informationsbärande text → primitivens 16px-bas (INGEN --compact här). Platt rad, kapad
+          radlängd (68ch), explicit --jp-ink-1: INGEN tintad box — husets tintade info-primitiv
+          (.jp-matchsort-note, --jp-info-bg + vänsterkant) hade fått ett neutralt faktum om användarens
+          egna uppgifter att läsa som "ett problem du måste åtgärda" (design-reviewer PR #857 (c);
+          code-reviewer Minor 4 ville tvärtom men beskrev primitiven som platt — den är det inte;
+          adjudicerat till design). Färg via token → flippar i dark av sig själv. */}
+      <p className="jp-transparency-note mt-2 mb-4">
+        <Info size={16} aria-hidden="true" />
         <span>{t("incompleteNote")}</span>
       </p>
 

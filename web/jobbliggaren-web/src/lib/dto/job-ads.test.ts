@@ -198,6 +198,27 @@ describe("listJobAdsResultSchema", () => {
     expect(listJobAdsResultSchema.safeParse(result).success).toBe(true);
   });
 
+  it("#745 — a real description-less list row parses (production wire shape)", () => {
+    // Post-#745 the backend omits description on the list wire. This asserts the ACTUAL
+    // shape parses — and reds if someone re-adds a required `description: z.string()` to
+    // jobAdDtoSchema, which would reject every real production row. The strip-lock in the
+    // jobAdDtoSchema block feeds a description-BEARING baseJobAd and cannot see this failure
+    // mode. Hand-built (not via jobAdDtoSchema.parse) so the mutation is actually caught.
+    const listWireRow = {
+      id: "22222222-2222-2222-2222-222222222222",
+      title: "Backend-utvecklare",
+      companyName: "Acme AB",
+      url: "https://example.com/jobb/222",
+      source: "Platsbanken",
+      status: "Active",
+      publishedAt: "2026-05-13T08:00:00Z",
+      expiresAt: null,
+      createdAt: "2026-05-13T08:01:00Z",
+    };
+    const result = { items: [listWireRow], totalCount: 1, page: 1, pageSize: 20 };
+    expect(listJobAdsResultSchema.safeParse(result).success).toBe(true);
+  });
+
   it("rejects when item shape invalid", () => {
     const result = {
       items: [{ ...baseJobAd, source: "Indeed" }],

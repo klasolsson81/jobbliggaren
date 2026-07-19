@@ -18,7 +18,7 @@ namespace Jobbliggaren.Application.JobAds.Queries;
 /// authenticated requests, WORSE for the recruiter than today's free text because it arrives
 /// pre-parsed. The split makes that structurally impossible instead of convention-dependent: the
 /// list DTO cannot carry a contact, because the type has no such member and the architecture test
-/// (<c>JobAdDtoSplitTests</c>, FTS lock L4) breaks the build if one appears.
+/// (<c>RecruiterContactFtsLockTests</c>, FTS lock L4) breaks the build if one appears.
 /// <para>
 /// <b><see cref="Contacts"/> landed WITH its reader (PR4, ADR 0108 §3)</b> — the contact block on
 /// the two detail surfaces (R2: ad detail + application detail, never list cards). Never null;

@@ -59,9 +59,6 @@ export function HarAnsoktButton({
   const label = applied
     ? tUi("harAnsokt.applied")
     : tUi("harAnsokt.markAsApplied");
-  const ariaLabel = applied
-    ? tUi("harAnsokt.appliedAriaLabel")
-    : tUi("harAnsokt.markAriaLabel");
   const Icon = applied ? CheckCircle2 : Circle;
   const opacity = isPending ? 0.7 : 1;
 
@@ -76,7 +73,8 @@ export function HarAnsoktButton({
             ? "jp-btn jp-btn--secondary text-text-secondary"
             : "jp-btn jp-btn--secondary"
         }
-        aria-label={ariaLabel}
+        // No aria-label: the accessible name is the visible text ("Markera som ansökt" / "Ansökt")
+        // so it always contains the visible label (WCAG 2.5.3); state rides aria-pressed.
         aria-pressed={applied}
         onClick={handleClick}
         style={{ opacity }}

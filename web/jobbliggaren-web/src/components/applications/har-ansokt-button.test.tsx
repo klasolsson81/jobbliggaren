@@ -18,7 +18,7 @@ describe("HarAnsoktButton (PR5)", () => {
   it("renderar 'Markera som ansökt' när initialApplied=false", () => {
     render(<HarAnsoktButton jobAdId="j1" initialApplied={false} />);
     expect(
-      screen.getByRole("button", { name: /Markera annonsen som ansökt/i })
+      screen.getByRole("button", { name: "Markera som ansökt" })
     ).toBeInTheDocument();
     expect(screen.getByText("Markera som ansökt")).toBeInTheDocument();
   });
@@ -26,9 +26,7 @@ describe("HarAnsoktButton (PR5)", () => {
   it("renderar 'Ansökt' när initialApplied=true (paritet server-state)", () => {
     render(<HarAnsoktButton jobAdId="j1" initialApplied={true} />);
     expect(
-      screen.getByRole("button", {
-        name: /Du har markerat denna annons som ansökt/i,
-      })
+      screen.getByRole("button", { name: "Ansökt" })
     ).toBeInTheDocument();
     expect(screen.getByText("Ansökt")).toBeInTheDocument();
   });
@@ -42,7 +40,7 @@ describe("HarAnsoktButton (PR5)", () => {
 
     const user = userEvent.setup();
     await user.click(
-      screen.getByRole("button", { name: /Markera annonsen som ansökt/i })
+      screen.getByRole("button", { name: "Markera som ansökt" })
     );
 
     expect(createActionMock).toHaveBeenCalledWith("j1");
@@ -54,9 +52,7 @@ describe("HarAnsoktButton (PR5)", () => {
 
     const user = userEvent.setup();
     await user.click(
-      screen.getByRole("button", {
-        name: /Du har markerat denna annons som ansökt/i,
-      })
+      screen.getByRole("button", { name: "Ansökt" })
     );
 
     expect(createActionMock).not.toHaveBeenCalled();
@@ -71,12 +67,24 @@ describe("HarAnsoktButton (PR5)", () => {
 
     const user = userEvent.setup();
     await user.click(
-      screen.getByRole("button", { name: /Markera annonsen som ansökt/i })
+      screen.getByRole("button", { name: "Markera som ansökt" })
     );
 
     expect(
       await screen.findByText(/Kunde inte registrera ansökan/i)
     ).toBeInTheDocument();
     expect(screen.getByText("Markera som ansökt")).toBeInTheDocument();
+  });
+
+  it("accessible name is the visible label in both states (WCAG 2.5.3, no aria override)", () => {
+    // Fresh mounts, not rerender: `applied` seeds mount-only from the prop via useState.
+    const { unmount } = render(
+      <HarAnsoktButton jobAdId="j1" initialApplied={false} />
+    );
+    expect(screen.getByRole("button")).toHaveAccessibleName("Markera som ansökt");
+    unmount();
+    render(<HarAnsoktButton jobAdId="j1" initialApplied={true} />);
+    // Applied: visible "Ansökt" is the name (previously "Du har markerat…" — a 2.5.3 break).
+    expect(screen.getByRole("button")).toHaveAccessibleName("Ansökt");
   });
 });

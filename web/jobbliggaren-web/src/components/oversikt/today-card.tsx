@@ -1,3 +1,7 @@
+// GUEST-ONLY (efter #726 notiscenter-refaktoreringen): den autentiserade
+// `/oversikt`-heron har inte längre en aside och renderar INTE detta kort.
+// Kvar enbart för den publika gäst-förhandsvisningen
+// (`components/guest/guest-oversikt-page.tsx`), en avsiktlig demo-yta.
 import { Calendar } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { formatSwedishLongDate } from "@/lib/oversikt/aggregations";

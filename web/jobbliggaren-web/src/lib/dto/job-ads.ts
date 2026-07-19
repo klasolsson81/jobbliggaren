@@ -64,17 +64,25 @@ const jobAdUrlSchema = z
     message: "URL måste börja med http:// eller https://",
   });
 
-// Backend JobAdDto: Id, Title, CompanyName, Description, Url, Source, Status,
+// Backend JobAdDto (LIST wire): Id, Title, CompanyName, Url, Source, Status,
 // PublishedAt, ExpiresAt, CreatedAt. Datum-fält är ISO 8601-strängar på wire
 // per ADR 0020 §6. Den tidigare `isNew`-flaggan (tidsbaserad, ADR 0042 Beslut
 // E) är BORTTAGEN (#293/#306, amendment 2026-06-28): NY = OLÄST beräknas nu på
 // FE ur `createdAt` mot per-användar oläst-watermarken (`me-jobs.ts`), inte
 // server-side mot ett 7-dygnsfönster.
+//
+// #745 (epik #737, `d1-list-dto-ships-full-description`) — den här LIST-formen
+// bär INGEN `description`. Backend slutade projicera annonstexten på list-vägen
+// (inget list-kort renderar den; detaljvyn hämtar den separat via getJobAd). Det
+// måste speglas här: `listJobAdsResultSchema` parsar list-svaret, och ett
+// required `description: z.string()` skulle krascha parsen när fältet uteblir.
+// `description` lever kvar på detalj-schemat nedan (`jobAdDetailDtoSchema`, som
+// åter-deklarerar det explicit) — de två wire-formerna divergerar nu avsiktligt
+// på både `contacts` och `description`.
 export const jobAdDtoSchema = z.object({
   id: z.string(),
   title: z.string(),
   companyName: z.string(),
-  description: z.string(),
   url: jobAdUrlSchema,
   source: jobSourceSchema,
   status: jobAdStatusSchema,
@@ -104,14 +112,19 @@ export const adContactDtoSchema = z.object({
 export type AdContactDto = z.infer<typeof adContactDtoSchema>;
 
 // The single-ad DETAIL schema (re-bind R2 / ISP) — DELIBERATELY a distinct type
-// from the LIST schema `jobAdDtoSchema`, even though the base fields are
-// identical today. `contacts` lives ONLY here and is NEVER added to
+// from the LIST schema `jobAdDtoSchema`. The two now diverge on TWO axes:
+// `contacts` (detail-only — the bulk-harvest guard) and, since #745, `description`
+// (detail-only too). `contacts` lives ONLY here and is NEVER added to
 // `jobAdDtoSchema`: that schema backs the search/list wire (~20 ads per page over
 // the whole corpus), so widening it would put every recruiter's structured
 // contacts on the bulk-harvestable search surface — the exact thing R2 forbids.
-// `.extend()` reuses the list fields (DRY) without mutating the list schema.
-// `contacts` is never absent on the wire ([] when the ad holds none).
+// `description` is RE-DECLARED here (not inherited): #745 removed it from the list
+// schema, so `.extend()` must add it back or the detail wire loses the ad body the
+// modal/page render. `.extend()` reuses the remaining list fields (DRY) without
+// mutating the list schema. Neither `description` nor `contacts` is ever absent on
+// the detail wire (`contacts` is [] when the ad holds none).
 export const jobAdDetailDtoSchema = jobAdDtoSchema.extend({
+  description: z.string(),
   contacts: z.array(adContactDtoSchema),
 });
 export type JobAdDetailDto = z.infer<typeof jobAdDetailDtoSchema>;

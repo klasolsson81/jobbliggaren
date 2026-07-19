@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { findGuestJobAd } from "@/lib/guest/mock-data";
-import { toJobAdDto } from "@/lib/guest/mock-adapters";
+import { toJobAdDetail } from "@/lib/guest/mock-adapters";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 import { JobAdModalShell } from "@/components/job-ads/job-ad-modal-shell";
 
@@ -24,7 +24,7 @@ export default async function InterceptedGuestJobbModal({
   const mock = findGuestJobAd(id);
   if (!mock) notFound();
 
-  const jobAd = toJobAdDto(mock);
+  const jobAd = toJobAdDetail(mock);
 
   return (
     <JobAdModalShell title={jobAd.title} company={jobAd.companyName}>

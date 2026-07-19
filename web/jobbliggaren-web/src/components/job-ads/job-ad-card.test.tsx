@@ -10,7 +10,6 @@ const baseAd: JobAdDto = {
   id: "11111111-1111-1111-1111-111111111111",
   title: "Senior Backend Developer",
   companyName: "Acme AB",
-  description: "Vi söker en .NET-utvecklare för långsiktigt uppdrag.",
   url: "https://example.com/jobb/123",
   source: "Platsbanken",
   status: "Active",

@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { GuestDemoBanner } from "@/components/guest/guest-demo-banner";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 import { findGuestJobAd } from "@/lib/guest/mock-data";
-import { toJobAdDto } from "@/lib/guest/mock-adapters";
+import { toJobAdDetail } from "@/lib/guest/mock-adapters";
 
 // F-Pre Punkt 5b 2026-05-24 — fullsida för hard-nav till `/gast/jobb/[id]`.
 // Soft-nav fångas av intercepting route → modal.
@@ -19,7 +19,7 @@ export default async function GuestJobbFullPage({ params }: PageProps) {
   const mock = findGuestJobAd(id);
   if (!mock) notFound();
 
-  const jobAd = toJobAdDto(mock);
+  const jobAd = toJobAdDetail(mock);
   const t = await getTranslations("guest");
 
   return (

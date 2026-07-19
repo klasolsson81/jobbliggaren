@@ -264,7 +264,7 @@ Alla tre startas av CC som bakgrundsprocesser.
    **Kopiera `appsettings.Local.json.example` → `appsettings.Local.json` och generera
    nycklarna** (`openssl rand -base64 32` per sektion; `.example` är källan till sanning för
    listan). De tre pepprarna tillkom successivt — `AuditPseudonymization` 2026-07-14 (ADR 0090
-   D5, #842), `CompanyWatchPseudonymization` 2026-07-18 (#544/#942),
+   D5, #842), `CompanyWatchPseudonymization` 2026-07-18 (ADR 0090 D5, #544/#942),
    `CvReviewFingerprintPseudonymization` 2026-07-19 (ADR 0093 D2, #692) — så en dev-DB /
    Local.json som konfigurerades före var och en saknar den (fail-fast NAMNGER exakt vilken).
    Utan `FieldEncryption:Provider=Local` defaultar en worktree-start dessutom till Kms och
@@ -273,8 +273,9 @@ Alla tre startas av CC som bakgrundsprocesser.
    generic host (`Host.CreateApplicationBuilder`), inte en web-host. Sätter du bara
    `ASPNETCORE_ENVIRONMENT` kör Worker:n i **Production** och laddar fel appsettings.
    Och Worker:n har **ingen egen** `appsettings.Local.json` men validerar samma
-   Infrastructure-options som API:t → den behöver `FieldEncryption`- och
-   `AuditPseudonymization`-secrets via env, **lästa ur API:ts `appsettings.Local.json`
+   Infrastructure-options som API:t → den behöver `FieldEncryption`-nyckeln + ALLA TRE
+   pseudonymiserings-pepprarna (`AuditPseudonymization` + `CompanyWatchPseudonymization` +
+   `CvReviewFingerprintPseudonymization`) via env, **lästa ur API:ts `appsettings.Local.json`
    så de MATCHAR** (olika nycklar ⇒ API och Worker kan inte läsa varandras
    krypterade/pseudonymiserade data).
 
@@ -309,9 +310,13 @@ dotnet build Jobbliggaren.sln -c Debug
 
 # 2. Worker-secrets via env, lästa ur API:ts Local.json så de MATCHAR (fälla 5). API:t läser
 #    sin egen Local.json och behöver dem inte — men global export skadar inte (samma värden).
+#    ALLA tre pseudonymiserings-pepprarna är dual-host (Worker kör AddPersistence + AddJobSources)
+#    och fail-fast-valideras vid Worker-boot → alla tre MÅSTE exporteras, inte bara Audit.
 export FieldEncryption__Provider=Local
 export FieldEncryption__LocalMasterKeyBase64=$(python -c "import json;print(json.load(open('src/Jobbliggaren.Api/appsettings.Local.json'))['FieldEncryption']['LocalMasterKeyBase64'])")
 export AuditPseudonymization__PepperBase64=$(python -c "import json;print(json.load(open('src/Jobbliggaren.Api/appsettings.Local.json'))['AuditPseudonymization']['PepperBase64'])")
+export CompanyWatchPseudonymization__PepperBase64=$(python -c "import json;print(json.load(open('src/Jobbliggaren.Api/appsettings.Local.json'))['CompanyWatchPseudonymization']['PepperBase64'])")
+export CvReviewFingerprintPseudonymization__PepperBase64=$(python -c "import json;print(json.load(open('src/Jobbliggaren.Api/appsettings.Local.json'))['CvReviewFingerprintPseudonymization']['PepperBase64'])")
 
 # 3. API FÖRST (bakgrund) → invänta /api/ready=200 → sedan Worker + FE (bakgrund).
 dotnet run --project src/Jobbliggaren.Api --launch-profile http --no-build   # → http://localhost:5049

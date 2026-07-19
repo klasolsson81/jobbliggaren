@@ -387,9 +387,9 @@ doubt, in-block wins (quality > tempo) and senior-cto-advisor decides.
   `ConsoleEmailSender` for mail, `LocalDataKeyProvider` (AES-256-GCM) for
   field encryption. Frontend `.env.local`; backend
   `appsettings.Development.json` + gitignored `appsettings.Local.json`.
-- **Dev-boot config contract.** A new fail-fast option (`ValidateOnStart` in the
-  Infrastructure DI) that a fresh dev-stack boot needs — a required key, secret, or
-  pepper the API/Worker refuses to start without — MUST be added to
+- **Dev-boot config contract.** A new fail-fast option (a `ValidateOnStart` secret,
+  usually in the Infrastructure DI both hosts share) that a fresh dev-stack boot needs —
+  a required key, secret, or pepper the API/Worker refuses to start without — MUST be added to
   `src/Jobbliggaren.Api/appsettings.Local.json.example` (the required-keys SSOT) **and**
   `docs/runbooks/local-dev-setup.md` (§2.4 + §7) in the **same PR** as the option, by the
   introducing CC. A gitignored `appsettings.Local.json` predates the new key, so an

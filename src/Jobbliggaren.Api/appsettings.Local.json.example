@@ -18,7 +18,7 @@
 
   "AuditPseudonymization": {
     "//": "Art. 17 erasure audit-trail pseudonymization pepper (ADR 0090 D5, #842). Required since",
-    "//1": "2026-07-14; the API refuses to start without it.",
+    "//1": "2026-07-14; the API AND Worker refuse to start without it (dual-host, AddPersistence).",
     "PepperBase64": "GENERATE ONCE: openssl rand -base64 32"
   },
 

@@ -37,6 +37,14 @@ internal static partial class FontNameNormalizer
     private static readonly char[] Separators = ['-', ',', ' ', '\t'];
 
     /// <summary>
+    /// Strips ONLY the leading PDF subset tag ("ABCDEF+Wingdings-Regular" → "Wingdings-Regular"):
+    /// the display-clean observed name for evidence citation (#957 icon-body Fail). The full
+    /// <see cref="Normalize"/> output is a lowercase MATCHING token, not displayable copy — evidence
+    /// must cite the observed name without the subset mangle, never the folded token.
+    /// </summary>
+    internal static string StripSubsetTag(string raw) => SubsetTag().Replace(raw, string.Empty);
+
+    /// <summary>
     /// Normalises a raw font name to its comparable family token (e.g. "ABCDEF+Arial-BoldMT" →
     /// "arial", "TimesNewRomanPSMT" → "timesnewroman", "ArialNarrow" → "arialnarrow" — Narrow is a
     /// width, not a style, so it stays and correctly does NOT match "arial"). Returns the empty

@@ -82,7 +82,8 @@ public sealed class SessionStoreOptions
     // residual orphan-index self-heal window is SlideThreshold × SlidingTtl (worst case Persistent's
     // 30d), and a security-relevant healing property must not be widened past ~a week even by a
     // config typo, so the ceiling is enforced at startup rather than by discipline; a production
-    // ratchet above 0.1 additionally needs security-auditor sign-off.
+    // ratchet above 0.1 additionally needs security-auditor sign-off. Enablement procedure +
+    // pre-ratchet checklist: docs/runbooks/session-slide-throttle-ratchet.md.
     public double SlideThreshold { get; init; }
 
     public SessionLifetimeProfile ProfileFor(SessionLifetime lifetime) => lifetime switch

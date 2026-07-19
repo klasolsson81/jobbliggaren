@@ -25,7 +25,12 @@ public sealed class SessionStoreOptionsValidator : IValidateOptions<SessionStore
 
     public ValidateOptionsResult Validate(string? name, SessionStoreOptions options)
     {
-        if (options.SlideThreshold is < 0.0 or > MaxSlideThreshold)
+        // double.IsFinite first: NaN is neither < 0.0 nor > Max, so a "NaN" config value would slip
+        // through the range check and then throw ArgumentException at TimeSpan * NaN on EVERY read
+        // (RedisSessionStore.GetAsync) — moving the failure from boot to the hot path, exactly what
+        // ValidateOnStart is meant to prevent. (±Infinity is already caught by the range check.)
+        if (!double.IsFinite(options.SlideThreshold)
+            || options.SlideThreshold is < 0.0 or > MaxSlideThreshold)
             return ValidateOptionsResult.Fail(
                 string.Create(
                     CultureInfo.InvariantCulture,

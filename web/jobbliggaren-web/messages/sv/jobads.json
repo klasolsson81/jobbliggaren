@@ -25,9 +25,7 @@
   },
   "follow": {
     "follow": "Bevaka företaget",
-    "following": "Bevakar företaget",
-    "followAria": "Bevaka det här företaget",
-    "unfollowAria": "Sluta bevaka det här företaget"
+    "following": "Bevakar företaget"
   },
   "companyWatches": {
     "listLabel": "Bevakade företag",

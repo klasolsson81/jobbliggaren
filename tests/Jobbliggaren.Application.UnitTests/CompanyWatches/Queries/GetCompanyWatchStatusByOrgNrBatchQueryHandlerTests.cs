@@ -173,6 +173,24 @@ public class GetCompanyWatchStatusByOrgNrBatchQueryHandlerTests
         result.Statuses[1].CompanyWatchId.ShouldBe(watchId);
     }
 
+    [Fact]
+    public async Task Handle_WhenRequestContainsNullElement_CorrelatesItToNull_NoThrow()
+    {
+        // System.Text.Json can deserialise ["55...", null] into a list with a null element (NRT is not
+        // enforced across the wire). A null element must correlate to "not followed" (positional), never
+        // throw an ArgumentNullException on the dictionary probe.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var watchId = await SeedFollowAsync(db, FollowedOrgNr, ct);
+
+        var result = await Handler(db).Handle(
+            new GetCompanyWatchStatusByOrgNrBatchQuery([FollowedOrgNr, null!]), ct);
+
+        result.Statuses.Count.ShouldBe(2);
+        result.Statuses[0].CompanyWatchId.ShouldBe(watchId);
+        result.Statuses[1].CompanyWatchId.ShouldBeNull();
+    }
+
     // ─────────────────────────── #544 token-blindness closure + BrandGroup (#311 PR-5, ADR 0087 D4 D5e)
 
     [Fact]

@@ -24,8 +24,9 @@ interface CompanyBrowseListProps {
 }
 
 /**
- * #560 PR-3 — the register-browse result table. A pure Server Component (no client JS): a flat
- * civic-utility ledger (`.jp-table`, no zebra, hairline rows). org.nr renders ONLY for an unmasked
+ * #560 PR-3 — the register-browse result table. A Server Component (a flat civic-utility ledger:
+ * `.jp-table`, no zebra, hairline rows); when `followStateByOrgNr` is provided (#560 PR-C) it renders one
+ * `CompanyFollowButton` client island per non-masked row. org.nr renders ONLY for an unmasked
  * legal entity; a personnummer-shaped sole-prop arrives masked (`organizationNumber: null` +
  * `isProtectedIdentity: true`, ADR 0087 D8(c)) and shows a "Skyddad identitet" badge, never a raw
  * number. The kommun column is the company's REGISTERED SEAT (säteskommun) — the page's help affordance

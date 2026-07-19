@@ -91,6 +91,11 @@ public sealed class GetCompanyWatchStatusByOrgNrBatchQueryHandler(
         // DIRECT employer wins (AB plaintext, then enskild token/legacy probe), then brand-group member.
         Guid? Correlate(string orgNr)
         {
+            // A null/empty element (System.Text.Json does NOT enforce non-null string elements across the
+            // deserialisation boundary, so a body like ["55...", null] is possible) correlates to "not
+            // followed" — never throws (a Dictionary null-key probe would), and keeps the 1:1 positional zip.
+            if (string.IsNullOrEmpty(orgNr))
+                return null;
             if (employerPlaintextToId.TryGetValue(orgNr, out var abId))
                 return abId;
             if (enskildKeyToId.Count > 0

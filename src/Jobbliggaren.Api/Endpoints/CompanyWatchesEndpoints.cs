@@ -22,7 +22,9 @@ namespace Jobbliggaren.Api.Endpoints;
 /// un-flagged by infra we don't control (ADR 0087 D8(c), CLAUDE.md §5). POST <c>/</c> takes org.nr in the
 /// BODY; POST <c>/by-job-ad/{jobAdId}</c> takes the non-PII JobAdId and resolves org.nr server-side;
 /// DELETE addresses the watch by its opaque <c>CompanyWatchId</c>. POST <c>/status</c> returns per-ad
-/// follow-state (opaque <c>CompanyWatchId</c> + <c>Followable</c>, never org.nr).
+/// follow-state (opaque <c>CompanyWatchId</c> + <c>Followable</c>, never org.nr); POST
+/// <c>/status/by-org-nr</c> (#560 PR-C) is the org.nr-keyed sibling for /foretag/sok (org.nrs in the BODY,
+/// positional response, never org.nr echoed back).
 /// </para>
 /// </summary>
 public static class CompanyWatchesEndpoints

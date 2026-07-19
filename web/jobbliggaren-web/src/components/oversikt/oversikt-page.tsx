@@ -22,8 +22,8 @@ import { buildRecentSearchHref } from "@/lib/job-ads/recent-search-href";
 import { SavedSearchNoticeText } from "./saved-search-notice-text";
 import { SetupCallout } from "./setup-callout";
 import { NoticeToolbar } from "./notice-toolbar";
+import { NOTICE_TYPES } from "./notice-types";
 import {
-  NOTICE_TYPES,
   NoticeSection,
   type NoticePrefType,
   type NoticeSource,

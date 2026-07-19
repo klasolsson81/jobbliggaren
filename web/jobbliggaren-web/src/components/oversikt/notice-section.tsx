@@ -8,24 +8,15 @@ import { NoticeRow, type NoticeData, type NoticeKind } from "./notice-row";
 import { useDismissedNotices } from "./use-dismissed-notices";
 import { useNoticePrefs } from "./use-notice-prefs";
 
-export type NoticeSource = "applications" | "jobads" | "companies";
+// NOTICE_TYPES (the runtime SSOT) and its derived types live in the RSC-safe ./notice-types
+// module; they are re-exported here so existing importers of this file keep resolving. They must
+// NOT be defined in this "use client" module: the Server Component oversikt-page.tsx reads
+// NOTICE_TYPES, and a value imported across the "use client" boundary becomes a client reference
+// (undefined on the server) → `NOTICE_TYPES[source].map(...)` crashed the server render (#726).
+import { NOTICE_TYPES, type NoticeSource, type NoticeType } from "./notice-types";
 
-/**
- * SSOT för notis-typerna per källa (code-reviewer Minor 1, #726): notis-
- * konstruktionen (`SectionNoticeData.type`), kugghjuls-popoverns rader och
- * pref-nycklarna `"<source>:<type>"` läser ALLA denna tabell — en felstavad
- * typ-slug blir ett kompileringsfel i stället för en tyst trasig filtrering.
- * Typer utan notis ännu ("statuschanges", "companyevents") är förberedda
- * popover-val per handoffen.
- */
-export const NOTICE_TYPES = {
-  applications: ["followup", "interviews", "offers", "statuschanges"],
-  jobads: ["deadlines", "matches", "latestsearch"],
-  companies: ["followedads", "companyevents"],
-} as const satisfies Record<NoticeSource, ReadonlyArray<string>>;
-
-export type NoticeType<S extends NoticeSource = NoticeSource> =
-  (typeof NOTICE_TYPES)[S][number];
+export { NOTICE_TYPES };
+export type { NoticeSource, NoticeType };
 
 /**
  * En notis i en källsektion. Utökar `NoticeData` med `source` + `type` för

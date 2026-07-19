@@ -540,6 +540,19 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.CompanyWatches.Jobs.BackfillCompanyWatchOrgNrToken.BackfillCompanyWatchOrgNrTokenJob>();
 
+        // #664 (#479 Low, GDPR Art. 5(1)(c)/25) — one-off backfill that re-masks pre-#465 personnummer
+        // left plaintext in parsed_resumes.source_file_name. DEK-free set-based (ExecuteUpdate over a
+        // plaintext projection — NEVER materialise the DEK-bearing ParsedResume; senior-cto-advisor
+        // 2026-06-25 ParsedResumeRetentionJob rule). Execution is Klas-gated (STOPP-5); the admin
+        // endpoint defaults to dryRun. DI in the same commit as the job.
+        services.AddOptions<Jobbliggaren.Application.Resumes.Jobs.BackfillParsedResumeSourceFileNameMask.BackfillParsedResumeSourceFileNameMaskOptions>()
+            .Bind(configuration.GetSection(
+                Jobbliggaren.Application.Resumes.Jobs.BackfillParsedResumeSourceFileNameMask.BackfillParsedResumeSourceFileNameMaskOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<
+            Jobbliggaren.Application.Resumes.Jobs.BackfillParsedResumeSourceFileNameMask.BackfillParsedResumeSourceFileNameMaskJob>();
+
         // Fas 4 STEG 4b (F4-4b) — requirements re-ingest backfill (must_have/
         // nice_to_have-skills → Requirement-termer). Tunn wrapper kring
         // JobAdRefetchBackfillRunner (paritet Klass2). Predikatet behöver Npgsql

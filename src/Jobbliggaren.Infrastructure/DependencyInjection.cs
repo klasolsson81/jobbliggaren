@@ -1493,11 +1493,11 @@ public static class DependencyInjection
         services.AddSingleton<ILoginTimingEqualizer, LoginTimingEqualizer>();
         services.AddScoped<IUserAccountService, UserAccountService>();
 
-        // H-3 SoC-split (arch-audit 2026-05-11): role-fetch flyttad från
-        // SessionAuthenticationHandler till IClaimsTransformation. Körs efter auth,
-        // före authorization-policy-utvärdering. Per-request-fetch bibehållen.
-        services.AddScoped<Microsoft.AspNetCore.Authentication.IClaimsTransformation,
-            SessionRoleClaimsTransformation>();
+        // #746 PR-B: role resolution moved OUT of an IClaimsTransformation (which ran on every
+        // authenticated request) and INTO the Api-layer Admin authorization handler
+        // (AdminRoleAuthorizationHandler), which resolves roles on demand only when the Admin policy
+        // is evaluated — so non-admin requests and 429'd floods resolve zero roles (epic #737 d2/d4).
+        // Per-request fetch (immediate-revoke, A1) is preserved there; no cache is introduced.
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, CurrentUser>();

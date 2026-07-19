@@ -340,4 +340,20 @@ public class SavedSearchTests
         // watermarken förbi verkligheten.
         savedSearch.ResultsSeenAt.ShouldBe(now);
     }
+
+    [Fact]
+    public void MarkResultsSeen_WithEqualValue_IsNoOp_UpdatedAtUntouched()
+    {
+        // Pinnar <=-likhetsgränsen: seenThrough == current är en no-op — BÅDE ResultsSeenAt OCH
+        // UpdatedAt orörda. En mutation <= → < skulle spuriöst bumpa UpdatedAt vid idempotent
+        // lika-anrop (och därmed omordna count-queryns cap-set); detta test dödar den.
+        var savedSearch = CreateValid();
+        var current = savedSearch.ResultsSeenAt!.Value;   // == Clock.UtcNow (baseline)
+        var updatedAtBefore = savedSearch.UpdatedAt;
+
+        savedSearch.MarkResultsSeen(current, FakeDateTimeProvider.At(Clock.UtcNow.AddHours(1)));
+
+        savedSearch.ResultsSeenAt.ShouldBe(current);
+        savedSearch.UpdatedAt.ShouldBe(updatedAtBefore, "seenThrough == current är no-op — UpdatedAt orört");
+    }
 }

@@ -149,4 +149,59 @@ public class SavedSearchesCrossUserIsolationTests(ApiFactory factory)
         aJson.GetProperty("name").GetString().ShouldBe("User A:s sökning");
         aJson.GetProperty("notificationEnabled").GetBoolean().ShouldBeFalse();
     }
+
+    // #312 (ADR 0115) — notification-enabled create (the count's due-set requires NotificationEnabled).
+    private static async Task<string> CreateNotifyAsync(HttpClient client, CancellationToken ct)
+    {
+        var body = new
+        {
+            name = "User A:s notis-sökning",
+            occupationGroup = new[] { "grp_12345" },
+            municipality = (string[]?)null,
+            region = (string[]?)null,
+            q = "backend",
+            sortBy = 0,
+            notificationEnabled = true,
+        };
+        var response = await client.PostAsJsonAsync("/api/v1/saved-searches", body, ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+        return json.GetProperty("id").GetString()!;
+    }
+
+    [Fact]
+    public async Task User_B_POST_results_seen_saved_search_owned_by_user_A_returns_404()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clientA = await RegisterUserAsync("ss-iso-a", ct);
+        var clientB = await RegisterUserAsync("ss-iso-b", ct);
+        var id = await CreateAsync(clientA, ct);
+
+        var response = await clientB.PostAsJsonAsync(
+            $"/api/v1/saved-searches/{id}/results-seen",
+            new { seenThrough = (DateTimeOffset?)null },
+            ct);
+
+        // Cross-tenant results-seen → 404 (no existence leak); the handler logs the attempt +
+        // leaves A's watermark untouched (ADR 0031, parity /run).
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task User_B_GET_new_results_count_does_not_include_user_A_searches()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clientA = await RegisterUserAsync("ss-iso-a", ct);
+        var clientB = await RegisterUserAsync("ss-iso-b", ct);
+        var idA = await CreateNotifyAsync(clientA, ct);
+
+        var response = await clientB.GetAsync("/api/v1/saved-searches/new-results-count", ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+        json.ValueKind.ShouldBe(JsonValueKind.Array);
+        json.EnumerateArray()
+            .Any(e => e.GetProperty("savedSearchId").GetString() == idA)
+            .ShouldBeFalse("user B:s räkning ska inte innehålla user A:s notis-sökning (owner-scope)");
+    }
 }

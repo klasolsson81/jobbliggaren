@@ -56,6 +56,9 @@ public sealed class GetNewSavedSearchResultsCountQueryHandler(
             .Where(s => s.JobSeekerId == jobSeekerId && s.NotificationEnabled)
             .OrderByDescending(s => s.UpdatedAt)
             .Take(MaxSearchesScanned)
+            // Project to just the fields the fan-out needs (not the whole aggregate) — §3.6/§5,
+            // parity RunSavedSearchQueryHandler's `.Select(s => s.Criteria)`.
+            .Select(s => new { s.Id, s.Name, s.Criteria, s.ResultsSeenAt, s.CreatedAt })
             .ToListAsync(cancellationToken);
 
         var results = new List<NewSavedSearchResultsCountDto>(searches.Count);

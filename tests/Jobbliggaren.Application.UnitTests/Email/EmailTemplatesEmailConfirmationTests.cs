@@ -8,7 +8,7 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// #714 — locks the invariants of <see cref="EmailTemplates.EmailConfirmation"/> (Infrastructure-
 /// internal, reachable via InternalsVisibleTo; parity with <c>EmailTemplatesEmailChangeConfirmationTests</c>).
 /// Load-bearing invariants: the activation link is built as
-/// <c>{baseUrl}/bekrafta-konto?uid={uid:N}&amp;token={raw}</c>; the Base64Url token passes through
+/// <c>{baseUrl}/bekrafta-konto?uid={uid:D}&amp;token={raw}</c>; the Base64Url token passes through
 /// UNescaped (escaping <c>-</c>/<c>_</c> would corrupt the token so a valid link would 400); there is
 /// NO email query param (unlike the change-email confirm, the address is unchanged and never in the
 /// link); the base URL is not double-slashed; the 24-hour validity is stated; and the body keeps civic
@@ -25,15 +25,16 @@ public class EmailTemplatesEmailConfirmationTests
         => new(userId ?? Guid.NewGuid(), token);
 
     [Fact]
-    public void EmailConfirmation_ShouldBuildActivationLink_WithCompactUidAndRawToken()
+    public void EmailConfirmation_ShouldBuildActivationLink_WithDashedUidAndRawToken()
     {
         var userId = Guid.NewGuid();
 
         var rendered = EmailTemplates.EmailConfirmation(
             BaseUrl, new EmailConfirmationEmail(userId, Base64UrlToken));
 
-        // The whole link in one assertion pins uid:N and the raw (unescaped) token.
-        rendered.PlainTextBody.ShouldContain($"{BaseUrl}/bekrafta-konto?uid={userId:N}&token={Base64UrlToken}");
+        // The whole link in one assertion pins uid:D (the confirm endpoint's STJ Guid binder accepts only
+        // the dashed 'D' form; a compact 'N' uid 400s, #981) and the raw (unescaped) token.
+        rendered.PlainTextBody.ShouldContain($"{BaseUrl}/bekrafta-konto?uid={userId:D}&token={Base64UrlToken}");
     }
 
     [Fact]

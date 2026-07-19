@@ -6,6 +6,8 @@ using System.Text;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Infrastructure.Email;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -73,6 +75,14 @@ public class ConfirmEmailChangeTests(ApiFactory factory)
         var rawToken = await userManager.GenerateChangeEmailTokenAsync(user, newEmail);
         return Base64Url.EncodeToString(Encoding.UTF8.GetBytes(rawToken));
     }
+
+    // POST confirm-email-change with uid/email/token as raw STRINGS (never a Guid): the uid must reach
+    // System.Text.Json's Guid binder in the form the link carries (#981). A Guid OBJECT serializes to "D"
+    // and hides a compact "N" uid — which is why the Guid-typed ConfirmAsync above never caught it.
+    private Task<HttpResponseMessage> PostConfirmRawAsync(
+        string uid, string email, string token, CancellationToken ct)
+        => _client.PostAsJsonAsync(
+            "/api/v1/auth/confirm-email-change", new { uid, email, token }, ct);
 
     [Fact]
     public async Task POST_confirm_email_change_with_valid_token_swaps_email_and_logs_out_everywhere()
@@ -271,5 +281,43 @@ public class ConfirmEmailChangeTests(ApiFactory factory)
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         (await userManager.FindByIdAsync(userIdA.ToString()))!.Email.ShouldBe(emailA);
         (await userManager.FindByIdAsync(userIdB.ToString()))!.Email.ShouldBe(emailB);
+    }
+
+    [Fact]
+    public async Task POST_confirm_email_change_swaps_email_from_the_uid_email_token_in_the_emitted_link()
+    {
+        // #981 (sibling of the registration activation link — same root cause, same fix). EmailTemplates
+        // .EmailChangeConfirmation renders the exact link the NEW inbox receives. This test decodes that
+        // link's query the way a browser does and POSTs the values as strings, so the uid crosses the
+        // endpoint's System.Text.Json Guid binder in the emitted form. The other tests here POST a Guid
+        // object (STJ -> "D") and never exercise it; a compact "N" uid fails STJ's D-only converter -> 400.
+        // Red before the :N->:D template fix, green after.
+        var ct = TestContext.Current.CancellationToken;
+        var oldEmail = $"cec-emitted-old-{Guid.NewGuid()}@example.se";
+        var newEmail = $"cec-emitted-new-{Guid.NewGuid()}@example.se";
+        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, oldEmail, ct: ct);
+        var userId = await GetUserIdAsync(oldEmail, ct);
+        var urlSafeToken = await GenerateUrlSafeTokenAsync(userId, newEmail, ct);
+
+        var rendered = EmailTemplates.EmailChangeConfirmation(
+            "https://jobbliggaren.se", new EmailChangeConfirmationEmail(userId, newEmail, urlSafeToken));
+        var link = EmailLinkParsing.ExtractLinkQuery(rendered.PlainTextBody, "/bekrafta-epost");
+
+        link["token"].ShouldMatch("^[A-Za-z0-9_-]+$");
+
+        var response = await PostConfirmRawAsync(
+            EmailLinkParsing.BrowserDecodeQueryValue(link["uid"]),
+            EmailLinkParsing.BrowserDecodeQueryValue(link["email"]),
+            EmailLinkParsing.BrowserDecodeQueryValue(link["token"]),
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        using var scope = _factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        user.ShouldNotBeNull();
+        user.Email.ShouldBe(newEmail);
+        user.EmailConfirmed.ShouldBeTrue();
     }
 }

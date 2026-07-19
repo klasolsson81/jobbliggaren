@@ -80,10 +80,12 @@ describe("CompanyBrowseList — #560 PR-C follow-column gate", () => {
       />
     );
 
-    // The column exists, but the protected row carries no follow affordance (ADR 0087 D8(c)).
+    // The column exists, but the protected row carries no follow affordance (ADR 0087 D8(c)) — no button,
+    // and a screen-reader-only "Kan inte bevakas" in place of it.
     expect(
       screen.getByRole("columnheader", { name: "Bevaka" })
     ).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByText("Kan inte bevakas")).toBeInTheDocument();
   });
 });

@@ -253,4 +253,49 @@ public class GetCompanyWatchStatusByOrgNrBatchQueryHandlerTests
 
         result.Statuses.Single().CompanyWatchId.ShouldBe(directWatchId);
     }
+
+    [Fact]
+    public async Task Handle_WhenMemberSharedByTwoFollowedGroups_ReturnsTheOlderGroupsWatch()
+    {
+        // A member org.nr can appear in the curated member list of TWO followed brand groups (versioned
+        // catalogue, #311 PR-5). OrderBy(CreatedAt) + TryAdd (first-wins) must return the OLDER group's
+        // watch DETERMINISTICALLY (the oldest follow, never DB row order). MUTATION: OrderByDescending, or
+        // TryAdd → indexer assignment (last-wins), flips which id is returned → RED.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var older = new FakeDateTimeProvider(new DateTimeOffset(2026, 4, 19, 12, 0, 0, TimeSpan.Zero));
+        var newer = new FakeDateTimeProvider(new DateTimeOffset(2026, 4, 20, 12, 0, 0, TimeSpan.Zero));
+
+        var olderGroupWatch =
+            CompanyWatch.FollowBrandGroup(_userId, BrandGroupId.Create("volvo").Value, older).Value;
+        var newerGroupWatch =
+            CompanyWatch.FollowBrandGroup(_userId, BrandGroupId.Create("scania").Value, newer).Value;
+        db.CompanyWatches.Add(olderGroupWatch);
+        db.CompanyWatches.Add(newerGroupWatch);
+        await db.SaveChangesAsync(ct);
+
+        // Both curated groups list the same member org.nr.
+        var catalog = Stub(("volvo", [FollowedOrgNr]), ("scania", [FollowedOrgNr]));
+
+        var result = await Handler(db, catalog)
+            .Handle(new GetCompanyWatchStatusByOrgNrBatchQuery([FollowedOrgNr]), ct);
+
+        result.Statuses.Single().CompanyWatchId.ShouldBe(olderGroupWatch.Id.Value);
+    }
+
+    [Fact]
+    public async Task Handle_WhenGroupSlugOrphanedFromCatalogue_NotFollowable_NoThrow()
+    {
+        // A followed brand-group slug can be RETIRED from the versioned catalogue after the follow was
+        // created. The handler must skip the orphaned watch (matches nothing), never throw.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        await SeedGroupFollowAsync(db, "volvo", ct); // followed slug…
+
+        // …but the catalogue no longer contains "volvo" (empty catalogue = orphaned slug).
+        var result = await Handler(db, Stub())
+            .Handle(new GetCompanyWatchStatusByOrgNrBatchQuery([FollowedOrgNr]), ct);
+
+        result.Statuses.Single().CompanyWatchId.ShouldBeNull();
+    }
 }

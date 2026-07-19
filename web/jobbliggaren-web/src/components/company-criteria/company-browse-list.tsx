@@ -103,10 +103,14 @@ export function CompanyBrowseList({
                       }
                     />
                   ) : (
-                    // Masked/sole-prop rows carry no org.nr key → not followable (ADR 0087 D8(c)).
-                    <span className="text-text-tertiary" aria-hidden="true">
-                      –
-                    </span>
+                    // Masked/sole-prop rows carry no org.nr key → not followable (ADR 0087 D8(c)). A
+                    // screen-reader hears "Kan inte bevakas"; the dash is decorative for sighted users.
+                    <>
+                      <span className="sr-only">{t("cannotFollow")}</span>
+                      <span className="text-text-tertiary" aria-hidden="true">
+                        –
+                      </span>
+                    </>
                   )}
                 </td>
               )}

@@ -12,9 +12,10 @@ namespace Jobbliggaren.Api.IntegrationTests.CompanyWatches;
 /// <summary>
 /// #560 PR-C (ADR 0087 D8(c)) — end-to-end against Testcontainers Postgres: the ORG.NR-keyed follow-state
 /// batch that backs the <c>/foretag/sok</c> per-row "Bevaka" overlay. Proves the things InMemory cannot:
-/// the value-converted <c>OrganizationNumber</c> correlation runs in SQL, the response is POSITIONAL (1:1
-/// with the request order, never a dedup), the response carries NO org.nr member, and the read is
-/// owner-scoped (user B never sees user A's follow).
+/// the owner-scoped read (<c>Where(w =&gt; w.UserId == userId)</c>) + the value-converted
+/// <c>OrganizationNumber</c> materialisation translate to SQL (the org.nr correlation itself runs
+/// in-memory over the loaded watches), the response is POSITIONAL (1:1 with the request order, never a
+/// dedup), the response carries NO org.nr member, and user B never sees user A's follow.
 /// </summary>
 [Collection("Api")]
 public class CompanyWatchStatusByOrgNrEndpointTests(ApiFactory factory)

@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.TestSupport;
@@ -13,6 +14,10 @@ namespace Jobbliggaren.Domain.UnitTests.Privacy;
 /// </summary>
 public class RecruiterContactRedactorTests
 {
+    // Mirrors JobTechPayloadSanitizer.RelaxedEscaping: the encoder raw_payload is written with.
+    private static readonly JsonSerializerOptions SanitizerLikeEncoding =
+        new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
     // ---- email detection ------------------------------------------------------------------
 
     [Theory]
@@ -198,6 +203,144 @@ public class RecruiterContactRedactorTests
         Should.NotThrow(() => JsonDocument.Parse(result.Scrubbed));
         result.Scrubbed.ShouldNotContain("anna@acme.se");
         result.Scrubbed.ShouldNotContain("070-123 45 67");
+    }
+
+    [Fact]
+    public void Scrubbing_a_contact_immediately_after_a_json_escape_keeps_the_payload_parseable()
+    {
+        // #982 regression. raw_payload holds JSON TEXT, so a newline in the ad body is the two
+        // characters backslash + 'n'. When an email sits directly after such an escape
+        // ("CV till:" + newline + address, no separating space), the recogniser consumed the
+        // escape's LETTER ('n') into the email match and orphaned the backslash, so the marker
+        // (which starts '[') landed right after a lone '\' → "\[" → invalid JSON. Postgres rejected
+        // the jsonb write with 22P02, and because SyncPlatsbankenStreamJob and SystemEventAuditor
+        // share a scoped DbContext the poisoned JobAd re-failed the auditor's SaveChanges — the
+        // Art. 30 record-of-processing was dropped and the failure misreported as
+        // System.JobAdsSynced. The byte-for-byte log context was "...CV till:\[".
+        //
+        // Built from char arithmetic so no editor/tool layer decodes the escape prematurely.
+        var esc = new string((char)0x5C, 1) + "n"; // backslash + 'n' (a JSON newline escape, verbatim)
+        var payload =
+            "{\"description\":{\"text\":\"Skicka ditt personliga brev och CV till:"
+            + esc + "rekrytering@acme.se\"}}";
+
+        // Pre-condition: the input IS valid JSON before scrubbing (the sanitizer emits this shape).
+        Should.NotThrow(() => JsonDocument.Parse(payload));
+
+        var result = RecruiterContactRedactor.Redact(payload);
+
+        // The email is removed AND the document is still valid JSON — the invariant #982 broke.
+        result.Scrubbed.ShouldNotContain("rekrytering@acme.se");
+        result.Scrubbed.ShouldContain(RecruiterContactRedactor.Marker);
+        Should.NotThrow(() => JsonDocument.Parse(result.Scrubbed));
+
+        // The recogniser must not swallow the escape's letter into the address — the promoted
+        // contact is the real email, not "nrekrytering@acme.se".
+        result.Found.ShouldHaveSingleItem().Normalized.ShouldBe("rekrytering@acme.se");
+    }
+
+    [Theory]
+    // Every two-character JSON escape immediately before an email, plus \uXXXX. Each MUST stay
+    // valid JSON after the scrub and detect the real address (not the escape's letter). #982.
+    [InlineData("n")] // newline — the observed incident shape
+    [InlineData("t")] // tab
+    [InlineData("r")] // carriage return
+    [InlineData("f")] // form feed
+    [InlineData("b")] // backspace
+    public void An_email_after_any_two_char_json_escape_stays_valid_json(string escapeLetter)
+    {
+        var bs = new string((char)0x5C, 1); // a single backslash, built so no tool decodes it early
+        var payload = "{\"text\":\"CV till:" + bs + escapeLetter + "anna@acme.se\"}";
+        Should.NotThrow(() => JsonDocument.Parse(payload));
+
+        var result = RecruiterContactRedactor.Redact(payload);
+
+        Should.NotThrow(() => JsonDocument.Parse(result.Scrubbed));
+        result.Scrubbed.ShouldNotContain("anna@acme.se");
+        result.Found.ShouldHaveSingleItem().Normalized.ShouldBe("anna@acme.se");
+    }
+
+    [Fact]
+    public void An_email_after_a_unicode_json_escape_stays_valid_json()
+    {
+        //   (line separator) — UnsafeRelaxedJsonEscaping still emits it as \uXXXX. The six
+        // escape characters must be read as one separator, not consumed into the address.
+        var bs = new string((char)0x5C, 1);
+        var payload = "{\"text\":\"Skicka CV till:" + bs + "u2028anna@acme.se\"}";
+        Should.NotThrow(() => JsonDocument.Parse(payload));
+
+        var result = RecruiterContactRedactor.Redact(payload);
+
+        Should.NotThrow(() => JsonDocument.Parse(result.Scrubbed));
+        result.Scrubbed.ShouldNotContain("anna@acme.se");
+        result.Found.ShouldHaveSingleItem().Normalized.ShouldBe("anna@acme.se");
+    }
+
+    [Fact]
+    public void An_escaped_backslash_before_a_contact_is_consumed_as_one_unit()
+    {
+        // The subtle trap (CTO must-have): "\\" is an ESCAPED backslash — one JSON escape, two
+        // characters — decoding to a single literal backslash. It must be read as one unit so the
+        // char after it is not mis-parsed as a second escape body, and it must survive intact in the
+        // output (a doubled backslash is valid JSON). "\\n..." is a literal backslash then the
+        // letters "n..." (NOT a newline), so the address there really begins with that 'n'.
+        var bs = new string((char)0x5C, 1);
+        var doubled = bs + bs; // "\\" — one escaped backslash
+
+        var beforeEmail = "{\"text\":\"Ref " + doubled + "anna@acme.se\"}";
+        var beforeEmailWithLetter = "{\"text\":\"Ref " + doubled + "nanna@acme.se\"}";
+        foreach (var (payload, expected) in
+                 new[] { (beforeEmail, "anna@acme.se"), (beforeEmailWithLetter, "nanna@acme.se") })
+        {
+            Should.NotThrow(() => JsonDocument.Parse(payload));
+
+            var result = RecruiterContactRedactor.Redact(payload);
+
+            Should.NotThrow(() => JsonDocument.Parse(result.Scrubbed));
+            result.Scrubbed.ShouldContain(doubled); // the escaped backslash is preserved
+            result.Found.ShouldHaveSingleItem().Normalized.ShouldBe(expected);
+        }
+    }
+
+    [Fact]
+    public void Redact_now_reaches_a_phone_directly_after_a_newline_escape()
+    {
+        // Bonus recall (ADR 0106 D5, over-redaction is the bound direction). Before #982's fix, a
+        // phone directly after a "\n" escape survived: the escape's letter 'n' is \p{L}, which the
+        // phone anchor's lookbehind refuses, so no candidate anchored. Neutralising the escape lets
+        // the anchor see a separator and reach the number.
+        var bs = new string((char)0x5C, 1);
+        var payload = "{\"text\":\"Ring:" + bs + "n0701234567 idag.\"}";
+        Should.NotThrow(() => JsonDocument.Parse(payload));
+
+        var result = RecruiterContactRedactor.Redact(payload);
+
+        Should.NotThrow(() => JsonDocument.Parse(result.Scrubbed));
+        var span = result.Found.ShouldHaveSingleItem();
+        span.Kind.ShouldBe(ContactKind.Phone);
+        span.Normalized.ShouldBe("0701234567");
+    }
+
+    [Fact]
+    public void Scrubbing_a_payload_encoded_the_way_the_sanitizer_encodes_it_stays_valid_json()
+    {
+        // The encoder coupling, pinned (inherits #842 assertion (g)). JobTechPayloadSanitizer emits
+        // raw_payload with UnsafeRelaxedJsonEscaping: åäö stay literal (so the detector reads them),
+        // newlines become "\n". A body with a newline directly before an åäö email is exactly the
+        // production shape the scrub runs over — it must detect the address AND stay valid JSON.
+        var payload = JsonSerializer.Serialize(
+            new { description = new { text = "Skicka CV till:\nansökan@åkeriet.se" } },
+            SanitizerLikeEncoding);
+
+        // The encoder produced a "\n" escape and kept åäö literal — the shape the fix must handle.
+        payload.ShouldContain("\\n");
+        payload.ShouldContain("åkeriet");
+
+        var result = RecruiterContactRedactor.Redact(payload);
+
+        Should.NotThrow(() => JsonDocument.Parse(result.Scrubbed));
+        result.Scrubbed.ShouldNotContain("ansökan@åkeriet.se");
+        result.Found.ShouldHaveSingleItem().Normalized.ShouldBe("ansökan@åkeriet.se");
     }
 
     // ---- the recogniser owns the normalization (#844) --------------------------------------

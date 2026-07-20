@@ -28,6 +28,13 @@ public class CompanyWatchesTests(ApiFactory factory)
     private const string LegalOrgNr = "5592804784";       // third digit 9 → legal entity
     private const string SoleProprietorOrgNr = "9001011234"; // YYMMDD 900101 → personnummer-shaped
 
+    // #994 — org.nrs UNIQUE to the register-name-fallback tests (the [Collection("Api")] Postgres is
+    // SHARED and never reset; nothing else seeds a job_ad OR register row for these). Third digit 9 →
+    // legal-entity shaped, so never pnr-masked.
+    private const string RegisterOnlyOrgNr = "5598000010";  // followed, register row, NO job_ad
+    private const string RegisterAndAdOrgNr = "5598000028"; // followed, BOTH a job_ad and a register row
+    private const string DeregisteredRegisterOrgNr = "5598000036"; // followed, DEREGISTERED register row
+
     private readonly HttpClient _client = factory.CreateClient();
 
     private async Task AuthenticateAsync(CancellationToken ct)
@@ -182,6 +189,65 @@ public class CompanyWatchesTests(ApiFactory factory)
         var item = list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == id);
         item.GetProperty("companyName").GetString().ShouldBe("Acme Bygg AB");
         item.GetProperty("organizationNumber").GetString().ShouldBe(LegalOrgNr);
+    }
+
+    // ---- #994 — register name-fallback (Testcontainers: the register replica + the job_ads STORED
+    //      generated org.nr column both need real Postgres) ----------------------------------------
+
+    [Fact]
+    public async Task GET_list_resolves_company_name_from_register_when_followed_company_has_no_ad()
+    {
+        // #994 — a company followed from the register with ZERO job_ads has no job_ads name to
+        // project; the register HAS the name. The list falls back to it (a second READ projection, no
+        // snapshot), so the row shows the real name instead of the "namn är inte tillgängligt" copy.
+        var ct = TestContext.Current.CancellationToken;
+        await SeedRegisterCompanyAsync(RegisterOnlyOrgNr, "Registret Bygg AB", ct);
+        await AuthenticateAsync(ct);
+        var id = await FollowAsync(RegisterOnlyOrgNr, ct);
+
+        var list = await ListAsync(ct);
+
+        var item = list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == id);
+        item.GetProperty("companyName").GetString().ShouldBe("Registret Bygg AB");
+        item.GetProperty("organizationNumber").GetString().ShouldBe(RegisterOnlyOrgNr);
+    }
+
+    [Fact]
+    public async Task GET_list_prefers_the_job_ads_name_over_the_register_name()
+    {
+        // The coalesce order: an active ad's employer name WINS over the register (job_ads is the more
+        // current source; the register is only the fallback). Both carry a name for the same org.nr —
+        // the list must surface the job_ads one. Pins that the fallback never overrides a live name.
+        var ct = TestContext.Current.CancellationToken;
+        await SeedImportedJobAdAsync(RegisterAndAdOrgNr, "Aktuella Namnet AB", ct);
+        await SeedRegisterCompanyAsync(RegisterAndAdOrgNr, "Register Namnet AB", ct);
+        await AuthenticateAsync(ct);
+        var id = await FollowAsync(RegisterAndAdOrgNr, ct);
+
+        var list = await ListAsync(ct);
+
+        var item = list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == id);
+        item.GetProperty("companyName").GetString().ShouldBe("Aktuella Namnet AB");
+    }
+
+    [Fact]
+    public async Task GET_list_resolves_the_name_of_a_followed_company_that_has_since_deregistered()
+    {
+        // The register retains deregistered rows exactly so company_watch history stays resolvable
+        // (ADR 0091); the name port does NOT apply the Active-only gate the search/browse ports do
+        // (DPIA M-D6 gates discoverability, not the name of a company the user already follows). A
+        // followed company that later deregistered keeps a resolvable, public name. Pins the
+        // deliberate no-status-filter decision (#994) — an added Active gate here would go red.
+        var ct = TestContext.Current.CancellationToken;
+        await SeedRegisterCompanyAsync(
+            DeregisteredRegisterOrgNr, "Avregistrerad Firma AB", ct, status: "Deregistered");
+        await AuthenticateAsync(ct);
+        var id = await FollowAsync(DeregisteredRegisterOrgNr, ct);
+
+        var list = await ListAsync(ct);
+
+        var item = list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == id);
+        item.GetProperty("companyName").GetString().ShouldBe("Avregistrerad Firma AB");
     }
 
     // ---- F4b (#803) — the per-watch filter on the LIST read (the row's pre-fill + BC-9′ disclosure) ----
@@ -552,5 +618,26 @@ public class CompanyWatchesTests(ApiFactory factory)
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
         return jobAd.Id.Value;
+    }
+
+    // #994 — seeds a row into the local SCB company_register replica (the read-model the watch list
+    // falls back to for a followed 0-ad company). Raw SQL: the entity is Infrastructure-internal and
+    // deliberately OFF IAppDbContext (DPIA C-D4/M-C5), so the test writes the row directly rather than
+    // referencing the type. An empty sni_codes + a default seat kommun are enough for a name lookup;
+    // status is written by NAME ("Active"/"Deregistered"), matching HasConversion<string>.
+    private async Task SeedRegisterCompanyAsync(
+        string orgNr, string name, CancellationToken ct, string status = "Active")
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $$"""
+            INSERT INTO company_register
+              (organization_number, company_name, sate_kommun_code, sni_codes,
+               reklamsparr, status, synced_at, created_at)
+            VALUES
+              ({{orgNr}}, {{name}}, '0180', '{}'::text[], false, {{status}}, now(), now())
+            """,
+            ct);
     }
 }

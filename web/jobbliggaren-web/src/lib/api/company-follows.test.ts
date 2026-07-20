@@ -179,7 +179,9 @@ describe("getFollowedJobAdIds (#1000, V1) — list follow-overlay, fail-safe to 
   });
 
   it("shape mismatch (zod parse fail) → []", async () => {
-    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ wrong: "shape" }));
+    // `statuses` non-array genuinely fails z.array → exercises the !parsed.success guard.
+    // ({ wrong: "shape" }) would parse OK to { statuses: [] } via the schema default.
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ statuses: "nope" }));
     expect(await getFollowedJobAdIds([A])).toEqual([]);
   });
 

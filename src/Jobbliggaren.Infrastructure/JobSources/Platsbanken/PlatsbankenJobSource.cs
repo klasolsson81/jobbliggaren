@@ -147,8 +147,58 @@ internal sealed partial class PlatsbankenJobSource(
         DateTimeOffset since,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (var hit in streamClient.StreamChangesAsync(since, cancellationToken))
+        // #483 Low (CTO F2 P-ACL + B-GRACE) — mid-stream transport truncation of /v2/stream is
+        // caught HERE, at the enumeration boundary, symmetric with FetchSnapshotAsync above
+        // (which owns the same JsonException/IOException/HttpRequestException class). An uncaught
+        // throw would propagate out of SyncPlatsbankenStreamJob's foreach to Hangfire
+        // AutomaticRetry — the exact storm mechanism ADR 0032 §5 built the snapshot path to
+        // avoid (uncaught enumeration = "hela storm-mekanismen", 60 starts/0 completes).
+        //
+        // Unlike snapshot, the stream does NOT retry: it is INCREMENTAL and self-healing. The
+        // 10-min cron's 15-min overlap window + the nightly snapshot + idempotent UNIQUE-index
+        // upserts already re-deliver a dropped tail ("Tappade kör tolereras", Fowler 2002
+        // Idempotent Receiver — see SyncPlatsbankenStreamJob). Snapshot retries because it is
+        // AUTHORITATIVE and feeds miss-tracking (must become complete before recording the
+        // outcome); the stream has no such consumer, so a bounded refetch would just re-stream
+        // the same window the overlap already covers — a second normaliser for one failure. So on
+        // truncation we log and complete gracefully.
+        //
+        // DELIBERATELY NOT a shared helper with FetchSnapshotAsync: the two share the
+        // manual-enumerator SKELETON but differ in retry/outcome semantics — extract only at a
+        // third consumer (§3.6 rule-of-three). The manual GetAsyncEnumerator + try-around-
+        // MoveNextAsync (never around a yield — C# forbids yield inside a try with a catch) is
+        // exactly why FetchSnapshotAsync drives its enumerator by hand too.
+        await using var enumerator = streamClient
+            .StreamChangesAsync(since, cancellationToken)
+            .GetAsyncEnumerator(cancellationToken);
+
+        while (true)
         {
+            bool moved;
+            try
+            {
+                moved = await enumerator.MoveNextAsync();
+            }
+            catch (OperationCanceledException)
+            {
+                throw; // Cancellation always propagates — never swallowed as truncation.
+            }
+            catch (Exception ex)
+                when (ex is JsonException or IOException or HttpRequestException)
+            {
+                // Mid-stream transport truncation. NEVER widen to catch(Exception) or fold in the
+                // per-item conversion below — data errors (schema drift) are already skipped
+                // per-element inside JobTechStreamClient (see its rad 87 warning: keep the two
+                // error classes apart).
+                LogStreamTruncated(logger, ex);
+                yield break; // Grace: overlap window + nightly snapshot fill the dropped tail.
+            }
+
+            if (!moved)
+                yield break;
+
+            var hit = enumerator.Current;
+
             if (string.IsNullOrWhiteSpace(hit.Id))
                 continue;
 
@@ -506,4 +556,8 @@ internal sealed partial class PlatsbankenJobSource(
     [LoggerMessage(EventId = 5009, Level = LogLevel.Warning,
         Message = "Platsbanken remote-harvest gav NOLL träffar (lyckad respons, tom mängd) — behandlas som anomali (AF:s remote-korpus är normalt ~660). Remote-kolumnen lämnas orörd (fail-safe; ingen annons flippas till false).")]
     private static partial void LogRemoteHarvestEmpty(ILogger logger);
+
+    [LoggerMessage(EventId = 5010, Level = LogLevel.Warning,
+        Message = "Platsbanken-ström trunkerad mid-stream — avslutar gracefully (ingen retry, till skillnad mot snapshot). Overlap-fönstret (15 min) + nästa snapshot fyller den tappade svansen; upserts idempotenta via UNIQUE-index. Ihållande trunkering = JobTech-instabilitet, undersök. ADR 0032 §5 + #483.")]
+    private static partial void LogStreamTruncated(ILogger logger, Exception exception);
 }

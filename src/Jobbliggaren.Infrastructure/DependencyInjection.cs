@@ -311,9 +311,18 @@ public static class DependencyInjection
             // Snapshot kan vara ~50-100 MB; HttpClient default 100s räcker vid normal
             // hastighet men höjs för säkerhets skull.
             client.Timeout = TimeSpan.FromMinutes(5);
-            // sec-Min-3: DoS-skydd mot ondskefullt stor respons (10 GB OOM-attack).
-            // 500 MB cap är 5-10× förväntad snapshot-storlek per JobTech-docs.
-            client.MaxResponseContentBufferSize = 500_000_000;
+            // #483 Low — NO MaxResponseContentBufferSize here (deliberately). It only bounds a
+            // BUFFERED content read; both wire paths use HttpCompletionOption.ResponseHeadersRead
+            // + ReadAsStreamAsync + per-element DeserializeAsyncEnumerable<JsonElement>
+            // (JobTechStreamClient), so a cap would be a NO-OP — it enforces nothing on a streaming
+            // read. Protection against a maliciously/accidentally huge response comes from the
+            // streaming itself (memory bounded by the largest single element, never the whole
+            // response) and from the snapshot floor-guards (absolute 30k / relative 0.80×max7d,
+            // SyncPlatsbankenSnapshotJob) that fail-safe a corrupt corpus. It does NOT come from
+            // Timeout above: under ResponseHeadersRead, HttpClient.Timeout covers only the
+            // header-read phase, so the body-stream read is bounded by the job's CancellationToken
+            // (Hangfire abort / shutdown), not by Timeout. Never put a MaxResponseContentBufferSize
+            // "cap" back here thinking it bounds something — it does not.
         })
         .AddResilienceHandler("jobstream", builder =>
         {

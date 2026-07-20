@@ -56,14 +56,25 @@ export async function loadJobDetailData(
   id: string,
   includeRelated: boolean,
 ): Promise<JobDetailLoad> {
-  const result = await getJobAd(id);
-  if (result.kind !== "ok") return result;
-
-  // F6 P5 Punkt 2 PR5 / F4-16 — Spara + Har-ansökt + följ-state + matchnings-
-  // detalj + arbetsgivar-räknare parallellt (ingen inbördes waterfall). Alla
-  // degraderar civilt (false/null/tomt) vid fel.
-  const [initialSaved, initialApplied, followState, match, employerCounts] =
+  // #742 — merge getJobAd into the fan-out and start the taxonomy fetch EAGER.
+  // All five detail calls key on `id` only (none depend on getJobAd's result),
+  // so gating them behind getJobAd was a pure serial round-trip; running them
+  // together removes it. getTaxonomyTree() is started unawaited so it overlaps
+  // the fan-out and is only awaited (below) when there is a match — mirroring
+  // the already-shipped /oversikt + layout #742 fire-and-discard pattern. Net:
+  // an ad-detail open drops from ~3-4 serial backend stages to ~1.
+  //
+  // Cost on the rare non-ok ad (dead bookmark / tampered URL / transient
+  // unauthorized): the five id-keyed reads + one taxonomy read fire and are
+  // discarded. Every fetcher is Result-typed and never throws in a valid request
+  // scope, so the floating taxonomy promise raises no unhandled rejection and
+  // the discarded reads have no side-effect. The only write
+  // (markFollowedCompanyAdSeen) stays ok-gated in the callers, so a non-existent
+  // ad triggers nothing.
+  const taxonomyPromise = getTaxonomyTree();
+  const [result, initialSaved, initialApplied, followState, match, employerCounts] =
     await Promise.all([
+      getJobAd(id),
       isJobAdSaved(id),
       hasAppliedJobAd(id),
       getCompanyWatchStatus(id),
@@ -72,20 +83,21 @@ export async function loadJobDetailData(
       // ad's employer. Positive-only; anon/error → empty.
       getEmployerApplicationCounts([id]),
     ]);
+  if (result.kind !== "ok") return result;
+
   // Positive-only map: an absent key means zero (no history line is rendered).
   const previousApplicationCount = employerCounts.countsByJobAdId[id];
 
-  // Spår 3 PR-D — taxonomin behövs BARA när det finns en match (annars byggs
-  // ingen granularitets-karta). Cachad 1h (statisk referensdata) så en match-
-  // användare betalar en varm cache-läsning; kartan byggs FE-side (architect
-  // NOTE-2), taxonomi-fel → null → generisk bevisform.
-  const taxonomyResult = match != null ? await getTaxonomyTree() : null;
-  const ortGranularityByLabel =
+  // Spår 3 PR-D — granularitets-kartan är match-gatad; det eager-startade
+  // taxonomi-löftet konsumeras BARA här (och slängs när ingen match finns).
+  // Cachad 1h (statisk referensdata); kartan byggs FE-side (architect NOTE-2),
+  // taxonomi-fel → null → generisk bevisform.
+  const taxonomy =
     match != null
-      ? buildOrtGranularityMap(
-          taxonomyResult?.kind === "ok" ? taxonomyResult.data : null,
-        )
-      : undefined;
+      ? await taxonomyPromise.then((r) => (r.kind === "ok" ? r.data : null))
+      : null;
+  const ortGranularityByLabel =
+    match != null ? buildOrtGranularityMap(taxonomy) : undefined;
 
   return {
     kind: "ok",

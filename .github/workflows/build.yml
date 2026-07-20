@@ -279,15 +279,25 @@ jobs:
       # lhci autorun körs som ett run-steg (INTE treosh/lighthouse-ci-action) så
       # det ärver jobbets working-directory (web/jobbliggaren-web). Därmed löses
       # configens relativa sökvägar (collect.startServerCommand: pnpm start,
-      # assert.budgetsFile: ./budget.json, upload.outputDir: ./.lighthouseci)
-      # från web-dir — precis som en lokal körning. treosh-action körde lhci från
-      # repo-roten (GITHUB_WORKSPACE), ärvde ej working-directory, och kunde
-      # aldrig hitta vare sig `pnpm start` (start-scriptet finns i web-dirs
-      # package.json, ej rotens) eller ./budget.json → green-but-empty:
-      # `ERR_PNPM_NO_SCRIPT_OR_SERVER` på VARJE körning, maskerad grön av
-      # continue-on-error. @lhci/cli är pinnad devDep (samma runner treosh
-      # wrappade internt, nu i vår version-kontroll). Observe-only: continue-on-
-      # error gör att collect/assert-fail aldrig blockerar CI Fas 1.
+      # upload.outputDir: ./.lighthouseci) från web-dir — precis som en lokal
+      # körning. treosh-action körde lhci från repo-roten (GITHUB_WORKSPACE),
+      # ärvde ej working-directory, och kunde aldrig hitta `pnpm start`
+      # (start-scriptet finns i web-dirs package.json, ej rotens) →
+      # green-but-empty: `ERR_PNPM_NO_SCRIPT_OR_SERVER` på VARJE körning,
+      # maskerad grön av continue-on-error. @lhci/cli är pinnad devDep (samma
+      # runner treosh wrappade internt, nu i vår version-kontroll). Observe-
+      # only: continue-on-error gör att collect/assert-fail aldrig blockerar
+      # CI Fas 1.
+      #
+      # 2026-07-20: separat budget.json RETIRERAD. lhci 0.15.1 assert.js
+      # kastar ovillkorligt "Cannot use both budgets AND assertions" när
+      # assert.budgetsFile OCH assert.assertions är satta samtidigt — de är
+      # ömsesidigt uteslutande i denna CLI-version, inte kombinerbara.
+      # lighthouserc.json är nu ENDA källan: budget.json:s resourceSizes/
+      # resourceCounts ligger inline i assert.assertions som
+      # resource-summary:<type>:size|count (samma nyckelformat/KB→byte-formel
+      # lhci:s egen budgets-converter.js alltid använt) — SSOT, ingen
+      # dubblerad budgetdata som kan divergera.
       - name: Lighthouse CI
         id: lhci
         continue-on-error: true

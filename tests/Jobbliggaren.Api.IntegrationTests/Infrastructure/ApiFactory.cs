@@ -295,6 +295,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__JobAdMatchBatch__WindowSeconds", "60");
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__WindowSeconds", "60");
+        // #483 — HealthCheck is IP-partitioned FixedWindow like the anonymous policies above; the
+        // shared [Collection("Api")] motions /api/ready (HealthCheckEndpointsTests + AdminRole*
+        // readiness probes) through the same 127.0.0.1 bucket, so raise it too — else a future test
+        // that polls readiness or higher parallelism could silently trip a 429 in an unrelated class.
+        Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__WindowSeconds", "60");
 
         using var scope = Services.CreateScope();
         // F6 P4 — pg_trgm krävs av F6P4aJobAdTrigramIndexes-migrationen. I prod
@@ -355,6 +361,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__JobAdMatchBatch__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__WindowSeconds", null);
 
         if (File.Exists(_privateKeyPath)) File.Delete(_privateKeyPath);
         if (File.Exists(_publicKeyPath)) File.Delete(_publicKeyPath);

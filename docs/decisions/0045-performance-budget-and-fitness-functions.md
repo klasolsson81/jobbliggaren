@@ -55,7 +55,7 @@ Trösklar = Google/web.dev officiella "good"-trösklar 2026, 75:e percentilen. L
 | LCP | < 2,5 s | Gate (assert: error) |
 | CLS | < 0,1 | Gate (assert: error) |
 | INP | < 200 ms | Observe-only (assert: warn) — lab approximerar field-metrik dåligt |
-| Total page weight (resourceSizes) | budget i `budget.json` | Gate (assert: error) |
+| Total page weight (resourceSizes) | budget, se Amendment 2026-07-20 (tidigare `budget.json`, nu inline `resource-summary:*`-assertions i `lighthouserc.json`) | Gate (assert: error) |
 | Lighthouse composite perf-score | — | Observe-only (loggas, ej assert) |
 
 ### Beslut 3 — Worker-minnestak
@@ -183,6 +183,65 @@ amendment.
 
 - `docs/reviews/2026-07-13-754-752-perf-telemetry-cto.md` Q2 (full bind + rejected alternatives)
 - ADR 0032 (the streaming/OOM regression class this instrument backstops)
+
+## Amendment 2026-07-20 — Beslut 2/4 mechanism drift: Lighthouse runner and page-weight-budget source
+
+**Date:** 2026-07-20
+**Source:** #1007 (merged — Lighthouse-CI green-but-empty fix), follow-up PR (ee4c38b5 — budgets/assertions conflict fix)
+**Decision-maker:** N/A — mechanism drift, not a decision change (CLAUDE.md §9.6/§9.7 in-scope-fix). Beslut 2's budget numbers and Beslut 5/6's observe-only gate policy are UNCHANGED.
+
+### Context
+
+Beslut 2 (row "Total page weight") and Beslut 4 (tooling paragraph, "Frontend:") named
+`treosh/lighthouse-ci-action` + `budget.json` as the implementing mechanism. Two PRs
+today fixed the actual CI job and, in doing so, drifted both references from what the
+prose still says:
+
+1. **PR #1007 (merged):** the observe-only `lighthouse` job never collected any data —
+   `treosh/lighthouse-ci-action` ran `lhci` from the repo root (`GITHUB_WORKSPACE`),
+   which does not inherit the job's working-directory, so it could never find
+   `pnpm start` (the `start` script lives in `web/jobbliggaren-web/package.json`, not
+   the repo root) → `ERR_PNPM_NO_SCRIPT_OR_SERVER` on every run, masked green by
+   `continue-on-error`. Fixed by running `pnpm exec lhci autorun --config=lighthouserc.json`
+   as a plain `run:` step (inherits the job's working-directory), with `@lhci/cli`
+   pinned as a devDependency.
+2. **This follow-up PR:** with collect now working, the assert phase then errored
+   `Cannot use both budgets AND assertions` — `@lhci/cli` 0.15.1's `assert.js` rejects
+   `assert.budgetsFile` + `assert.assertions` set together, and Lighthouse 12.6.1 core
+   has no native `settings.budgets`/`budgetsPath` left to fall back to. Fix:
+   `budget.json` retired; its `resourceSizes`/`resourceCounts` moved inline into
+   `lighthouserc.json`'s `assert.assertions` as `resource-summary:<type>:size|count`
+   entries, using the same KB×1024 conversion `@lhci/utils`'s own
+   `budgets-converter.js` applies. The budget values are UNCHANGED: document 30 kB,
+   script 350 kB, stylesheet 75 kB, image 200 kB, font 120 kB, total 800 kB;
+   third-party ≤10 requests.
+
+### Clarification (clarifies Beslut 2/4 references, does not change the budgets or gate policy)
+
+- The Lighthouse runner is **`@lhci/cli`** (pinned devDependency,
+  `web/jobbliggaren-web/package.json`), invoked via `pnpm exec lhci autorun` in a
+  `run:` step — **not** `treosh/lighthouse-ci-action` as Beslut 4's tooling paragraph
+  still names it.
+- **`budget.json` is retired.** `web/jobbliggaren-web/lighthouserc.json` is now the
+  single source of truth for both Core Web Vitals assertions and page-weight budgets
+  (inline `resource-summary:*` assertions) — Beslut 4's `+ budget.json` mention
+  predates this consolidation; Beslut 2's page-weight cell is corrected above to point
+  here.
+- Beslut 5/6's observe-only Fas 1 posture (own CI job, `continue-on-error`, outside
+  `ci.needs`) is UNCHANGED by either fix — this amendment is mechanism drift (which
+  tool/file implements the gate), not a decision change (whether/how it gates).
+
+### Implementation trail
+
+- `web/jobbliggaren-web/lighthouserc.json` (inline `resource-summary:*` assertions, single source)
+- `.github/workflows/build.yml` (`lighthouse` job — `pnpm exec lhci autorun` run-step, replaces `treosh/lighthouse-ci-action`)
+- `web/jobbliggaren-web/package.json` (`@lhci/cli` pinned devDependency)
+
+### References
+
+- #1007 (merged — collect-phase fix)
+- Follow-up PR ee4c38b5 (this PR — assert-phase fix, `budget.json` retirement)
+- ADR 0045 Beslut 2 (page-weight budget table), Beslut 4 (tooling choice), Beslut 5/6 (gate policy, unchanged)
 
 ---
 

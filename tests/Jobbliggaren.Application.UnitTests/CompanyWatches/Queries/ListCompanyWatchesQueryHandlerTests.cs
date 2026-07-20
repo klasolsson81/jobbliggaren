@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
+using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatches;
@@ -28,6 +29,12 @@ public class ListCompanyWatchesQueryHandlerTests
     private readonly IPerUserJobAdSearchQuery _perUserSearch = Substitute.For<IPerUserJobAdSearchQuery>();
     private readonly IProtectedIdentityTokenizer _tokenizer = Substitute.For<IProtectedIdentityTokenizer>();
 
+    // #994 — the register name-fallback port. Defaulted to an EMPTY map so the pre-#994 tests keep
+    // their behaviour (no register name resolved → employer CompanyName stays null exactly as before,
+    // since InMemory cannot populate the job_ads name projection either). The register-fallback tests
+    // stub it explicitly.
+    private readonly ICompanyRegisterNameReader _nameReader = Substitute.For<ICompanyRegisterNameReader>();
+
     private readonly FakeDateTimeProvider _clock = FakeDateTimeProvider.Default;
     private readonly Guid _userId = Guid.NewGuid();
 
@@ -41,6 +48,12 @@ public class ListCompanyWatchesQueryHandlerTests
         _profileBuilder
             .BuildFullForSortAsync(Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns(EmptySsykProfile());
+        // Default: the register resolves NO name (empty map) — a non-stubbed async fake would return a
+        // null Task result and NRE in the handler's coalesce. Register-fallback tests override this.
+        _nameReader
+            .GetNamesByOrganizationNumbersAsync(
+                Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, string>());
     }
 
     // The frozen F4-5 Fast profile embedded in a FullCandidateMatchProfile. Empty SSYK = the
@@ -71,7 +84,8 @@ public class ListCompanyWatchesQueryHandlerTests
 
     private ListCompanyWatchesQueryHandler Handler(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, IBrandGroupProvider? brandGroups = null) =>
-        new(db, _currentUser, _profileBuilder, _perUserSearch, _tokenizer, brandGroups ?? _brandGroups);
+        new(db, _currentUser, _profileBuilder, _perUserSearch, _tokenizer, brandGroups ?? _brandGroups,
+            _nameReader);
 
     private static StubBrandGroupProvider StubProvider(
         params (string Slug, string DisplayName, string[] Members)[] groups)
@@ -106,7 +120,7 @@ public class ListCompanyWatchesQueryHandlerTests
 
         var result = await new ListCompanyWatchesQueryHandler(
                 db, anon, profileBuilder, perUserSearch, Substitute.For<IProtectedIdentityTokenizer>(),
-                _brandGroups)
+                _brandGroups, Substitute.For<ICompanyRegisterNameReader>())
             .Handle(new ListCompanyWatchesQuery(), ct);
 
         result.ShouldBeEmpty();
@@ -489,6 +503,90 @@ public class ListCompanyWatchesQueryHandlerTests
             Arg.Is<IReadOnlyList<string>>(o => o.Contains(m1) && o.Contains(m2)),
             Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<IReadOnlyList<MatchGrade>>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    // ── #994 — register name-fallback for a followed employer the job_ads projection left unnamed.
+    //    InMemory cannot populate the generated job_ads organization_number column, so the job_ads
+    //    name projection is always empty here — which is exactly the 0-ad shape this fallback covers.
+    //    The job_ads-name-WINS coalesce order is a Testcontainers oracle (CompanyWatchesTests). ──────
+
+    [Fact]
+    public async Task Handle_WhenEmployerHasNoJobAdName_ResolvesCompanyNameFromRegister()
+    {
+        // #994 — a followed AB with ZERO ads has no job_ads name to project; the register HAS the name.
+        // The list falls back to the register (a second READ projection, no snapshot) so the row shows
+        // the real name instead of the "Företagets namn är inte tillgängligt" fallback.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        Add(db, _userId, "5592804784"); // legal entity, no ads seeded
+        await db.SaveChangesAsync(ct);
+
+        _nameReader
+            .GetNamesByOrganizationNumbersAsync(
+                Arg.Is<IReadOnlyList<string>>(o => o.Contains("5592804784")),
+                Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, string> { ["5592804784"] = "Acme Bygg AB" });
+
+        var dto = (await Handler(db).Handle(new ListCompanyWatchesQuery(), ct)).ShouldHaveSingleItem();
+
+        dto.CompanyName.ShouldBe("Acme Bygg AB");
+    }
+
+    [Fact]
+    public async Task Handle_WhenNeitherJobAdsNorRegisterHaveName_CompanyNameStaysNull()
+    {
+        // The genuine fallback is preserved: no ad AND no register row → null (the FE renders the
+        // "namn är inte tillgängligt" copy). The default reader stub returns an empty map — so this
+        // also proves the coalesce never invents a name.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        Add(db, _userId, "5592804784");
+        await db.SaveChangesAsync(ct);
+
+        var dto = (await Handler(db).Handle(new ListCompanyWatchesQuery(), ct)).ShouldHaveSingleItem();
+
+        dto.CompanyName.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_PersonnummerShapedWatch_IsNeverSentToTheRegister()
+    {
+        // D8(c) parity — a personnummer-shaped watch resolves to null (no active ad carries it) and
+        // must NEVER reach the register (legal-entities-only anyway, ADR 0091). Its org.nr never
+        // leaves the handler; CompanyName stays null and the identity stays masked.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        Add(db, _userId, "9001011234"); // personnummer-shaped (third digit 0)
+        await db.SaveChangesAsync(ct);
+
+        var dto = (await Handler(db).Handle(new ListCompanyWatchesQuery(), ct)).ShouldHaveSingleItem();
+
+        dto.IsProtectedIdentity.ShouldBeTrue();
+        dto.CompanyName.ShouldBeNull();
+        await _nameReader.DidNotReceive().GetNamesByOrganizationNumbersAsync(
+            Arg.Is<IReadOnlyList<string>>(o => o.Contains("9001011234")),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_BrandGroupWatch_DoesNotResolveMembersAgainstTheRegister()
+    {
+        // A brand-group watch carries the curated catalogue DisplayName (ADR 0087 D4), never job_ads
+        // and never the register. Its member org.nrs must not reach the register name reader — the
+        // fallback is for UNNAMED employer watches only.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        AddGroup(db, _userId, "volvo");
+        await db.SaveChangesAsync(ct);
+        var provider = StubProvider(("volvo", "Volvo (koncern)", ["5560125790"]));
+
+        var dto = (await Handler(db, provider).Handle(new ListCompanyWatchesQuery(), ct))
+            .ShouldHaveSingleItem();
+
+        dto.CompanyName.ShouldBe("Volvo (koncern)"); // catalogue name, not the register
+        await _nameReader.DidNotReceive().GetNamesByOrganizationNumbersAsync(
+            Arg.Is<IReadOnlyList<string>>(o => o.Contains("5560125790")),
             Arg.Any<CancellationToken>());
     }
 }

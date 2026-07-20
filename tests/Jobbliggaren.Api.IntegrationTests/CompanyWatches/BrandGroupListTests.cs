@@ -1,6 +1,7 @@
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
+using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatches;
 using Jobbliggaren.Application.JobAds.Abstractions;
@@ -102,7 +103,8 @@ public sealed class BrandGroupListTests(ApiFactory factory)
             profileBuilder,
             sp.GetRequiredService<IPerUserJobAdSearchQuery>(),
             sp.GetRequiredService<IProtectedIdentityTokenizer>(),
-            new StubProvider(catalogue));
+            new StubProvider(catalogue),
+            sp.GetRequiredService<ICompanyRegisterNameReader>());
     }
 
     private sealed class StubProvider(BrandGroupCatalog catalog) : IBrandGroupProvider

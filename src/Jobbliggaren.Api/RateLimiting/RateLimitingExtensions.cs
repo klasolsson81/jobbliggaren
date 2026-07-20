@@ -27,6 +27,7 @@ public static partial class RateLimitingExtensions
     public const string FacetCountsPolicy = "facet-counts";
     public const string MatchCountPreviewPolicy = "match-count-preview";
     public const string LandingPublicReadPolicy = "landing-public-read";
+    public const string HealthCheckPolicy = "health-check";
     public const string MeListReadPolicy = "me-list-read";
     public const string JobAdStatusBatchPolicy = "job-ad-status-batch";
     public const string JobAdMatchBatchPolicy = "job-ad-match-batch";
@@ -278,6 +279,25 @@ public static partial class RateLimitingExtensions
                     {
                         PermitLimit = rateLimitOpts.LandingPublicRead.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOpts.LandingPublicRead.WindowSeconds),
+                        QueueLimit = 0,
+                    });
+            });
+
+            // Partition: IP. #483 Low — anonymous health endpoints /api/live + /api/ready. Own
+            // policy (least common mechanism, Saltzer/Schroeder): an anonymous DoS surface — and
+            // /api/ready amplifies each hit into a Postgres CanConnect + Redis PING — must not share
+            // a budget with LandingPublicRead. FixedWindow mirrors LandingPublicRead (anonymous
+            // public read); generous limit so ALB/orchestrator probes are never throttled while a
+            // flood is capped (see RateLimitingOptions.HealthCheck). Behind ALB requires
+            // UseForwardedHeaders (Sec-Major-1). QueueLimit=0 (a queue is itself a memory-DoS).
+            options.AddPolicy(HealthCheckPolicy, ctx =>
+            {
+                var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+                return RateLimitPartition.GetFixedWindowLimiter(ip, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOpts.HealthCheck.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOpts.HealthCheck.WindowSeconds),
                         QueueLimit = 0,
                     });
             });

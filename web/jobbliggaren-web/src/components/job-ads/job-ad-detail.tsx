@@ -142,6 +142,17 @@ export function JobAdDetail({
           <div style={{ flex: 1 }}>
             <h1 className="jp-modal__title">{jobAd.title}</h1>
             <p className="jp-modal__company">{jobAd.companyName}</p>
+            {/* #1000 (V1) — persistent "du bevakar arbetsgivaren"-indikator på
+                INFORMATIONS-nivå (samma BEVAKAR-tagg som /jobb-kortet, --jp-follow),
+                inte begravd i footer-knappens verb. Knappen bär ACTION (bevaka/sluta),
+                taggen bär STATE. Visas bara när man faktiskt följer. */}
+            {followState?.companyWatchId != null && (
+              <div style={{ marginTop: 6 }}>
+                <span className="jp-tag jp-tag--neutral" data-tag="followed">
+                  {tUi("tags.followed")}
+                </span>
+              </div>
+            )}
           </div>
           <span className={STATUS_PILL_CLASS[jobAd.status]}>
             <span className="jp-pill__dot" aria-hidden="true" />

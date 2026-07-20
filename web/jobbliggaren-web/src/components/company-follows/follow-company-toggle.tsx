@@ -92,11 +92,11 @@ export function FollowCompanyToggle({
         onClick={handleClick}
         style={{ opacity }}
       >
-        <Building2
-          size={14}
-          aria-hidden="true"
-          className={following ? "text-success-600" : undefined}
-        />{" "}
+        {/* #1000 (V1) — NO green tint on the followed icon: green is reserved for match-grade +
+            interaction accent (ADR 0068), so a green follow-icon mis-read as a grade/success. The
+            follow STATE is carried by the aria-pressed button + the header BEVAKAR tag (--jp-follow),
+            not a colour on the icon. */}
+        <Building2 size={14} aria-hidden="true" />{" "}
         {label}
       </button>
       {error && (

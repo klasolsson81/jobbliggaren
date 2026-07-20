@@ -2,14 +2,8 @@ import { after } from "next/server";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession, getSessionId } from "@/lib/auth/session";
-import { getJobAd } from "@/lib/api/job-ads";
-import { isJobAdSaved } from "@/lib/api/saved-job-ads";
-import { hasAppliedJobAd } from "@/lib/api/job-ad-status";
-import { getCompanyWatchStatus, markFollowedCompanyAdSeen } from "@/lib/api/company-follows";
-import { getJobAdMatchDetail } from "@/lib/api/job-ad-match";
-import { getEmployerApplicationCounts } from "@/lib/api/employer-application-counts";
-import { getTaxonomyTree } from "@/lib/api/taxonomy";
-import { buildOrtGranularityMap } from "@/lib/job-ads/ort-granularity";
+import { markFollowedCompanyAdSeen } from "@/lib/api/company-follows";
+import { loadJobDetailData } from "@/lib/job-ads/load-job-detail-data";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 
 interface PageProps {
@@ -43,49 +37,23 @@ export default async function JobbDetailPage({
   // on-värdet (paritet med listans page.tsx). Default AV.
   const { relaterade } = await searchParams;
   const includeRelated = relaterade === "on";
-  const result = await getJobAd(id);
+  // ADR 0053 — the full page and the intercepting modal load the SAME data via
+  // one shared helper (#596); the concurrency lives there, this route only maps
+  // the discriminated result to its own chrome.
+  const result = await loadJobDetailData(id, includeRelated);
 
   switch (result.kind) {
     case "ok": {
-      // F6 P5 Punkt 2 PR5 — parallell server-fetch av Spara + Har-ansökt-state.
-      // Promise.all undviker waterfall; båda misslyckas civilt (returnerar false).
-      // F4-16 — matchnings-detalj i samma Promise.all (degraderar till null =
-      // ingen sektion).
-      const [initialSaved, initialApplied, followState, match, employerCounts] =
-        await Promise.all([
-          isJobAdSaved(id),
-          hasAppliedJobAd(id),
-          getCompanyWatchStatus(id),
-          getJobAdMatchDetail(id, includeRelated),
-          // #593 (#446-uppföljning) — the caller's prior-application count for THIS ad's employer, so the
-          // detail view can link to /foretag#ansokningshistorik. Positive-only; anon/error → empty.
-          getEmployerApplicationCounts([id]),
-        ]);
-      // Positive-only map: an absent key means zero (the detail view renders no history line).
-      const previousApplicationCount = employerCounts.countsByJobAdId[id];
       // #453 (cross-channel dedup) — opening the ad in-app marks any Pending follow-hit for it seen so the
-      // follow-digest suppresses the redundant email. Moved OFF the detail fan-out (#741): scheduled with
-      // `after()` so the write runs after the response is sent instead of adding its POST round-trip to the
-      // Promise.all the page awaits before painting. Never throws; SeenAt is not rendered (no read-your-write
-      // ordering). The user is authed here (guest redirected above), and the session is read during render and
-      // passed in — an `after()` callback in a Server Component cannot read cookies.
+      // follow-digest suppresses the redundant email. Scheduled with `after()` (#741) so the POST runs after
+      // the response is sent instead of blocking paint. Never throws; SeenAt is not rendered (no read-your-
+      // write ordering). Kept in the caller — an ok-gated render side-effect, not data-loading: the user is
+      // authed here (guest redirected above), and an `after()` callback in a Server Component cannot read
+      // cookies, so the session id is read during render and passed in.
       const sessionId = await getSessionId();
       if (sessionId) {
         after(() => markFollowedCompanyAdSeen(id, sessionId));
       }
-      // Spår 3 PR-D — taxonomin behövs BARA när det finns en match (annars
-      // byggs ingen granularitets-karta). En inloggad användare utan match
-      // ska inte betala för round-trippen (cleanup-pass: gate guest-prefetch).
-      // Taxonomin är cachad 1h (statisk referensdata) så kostnaden för en
-      // match-användare är en varm cache-läsning; kartan byggs FE-side
-      // (architect NOTE-2), taxonomi-fel → null → generisk bevisform.
-      const taxonomyResult = match != null ? await getTaxonomyTree() : null;
-      const ortGranularityByLabel =
-        match != null
-          ? buildOrtGranularityMap(
-              taxonomyResult?.kind === "ok" ? taxonomyResult.data : null,
-            )
-          : undefined;
       return (
         <div className="jp-container jp-page">
           <div
@@ -100,14 +68,14 @@ export default async function JobbDetailPage({
             }}
           >
             <JobAdDetail
-              jobAd={result.data}
-              initialSaved={initialSaved}
-              initialApplied={initialApplied}
-              followState={followState}
-              match={match}
-              ortGranularityByLabel={ortGranularityByLabel}
-              previousApplicationCount={previousApplicationCount}
-              contacts={result.data.contacts}
+              jobAd={result.jobAd}
+              initialSaved={result.initialSaved}
+              initialApplied={result.initialApplied}
+              followState={result.followState}
+              match={result.match}
+              ortGranularityByLabel={result.ortGranularityByLabel}
+              previousApplicationCount={result.previousApplicationCount}
+              contacts={result.jobAd.contacts}
             />
           </div>
         </div>

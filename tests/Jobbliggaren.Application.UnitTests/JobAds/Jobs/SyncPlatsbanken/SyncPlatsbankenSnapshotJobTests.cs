@@ -523,6 +523,65 @@ public class SyncPlatsbankenSnapshotJobTests
         scopeFactory.ScopesCreated.ShouldBe(5);
     }
 
+    [Fact]
+    public async Task RunAsync_WritesSnapshotOutcomeParsedTotalToAuditEvent()
+    {
+        // #510 — the JobAdsSynced audit row is the 7-day baseline's data source
+        // (GetMaxObservedSnapshotSizeAsync reads MAX(payload->>'ParsedTotal')).
+        // It must carry the OUTCOME's ParsedTotal — the same metric the relative
+        // floor compares — not only the job-side Fetched, which counts yields
+        // across ALL retry attempts and inflates on a truncate-then-succeed run.
+        var items = new[] { ValidItem("a"), ValidItem("b"), ValidItem("c") };
+        var jobSource = StubJobSource(items);
+        var mediator = Substitute.For<IMediator>();
+        mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(UpsertOutcome.Added));
+
+        var auditor = Substitute.For<ISystemEventAuditor>();
+        JobAdsSynced? captured = null;
+        await auditor.RecordAsync(
+            Arg.Do<SystemAuditEvent>(e => captured = e as JobAdsSynced),
+            Arg.Any<CancellationToken>());
+
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator), auditor);
+        await job.RunAsync(TestContext.Current.CancellationToken);
+
+        captured.ShouldNotBeNull();
+        // The default stub records SnapshotOutcome(ParsedTotal: items.Length, ...).
+        captured.ParsedTotal.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenSnapshotTruncated_AuditEventStillCarriesTheOutcomeParsedTotal()
+    {
+        // #510 — a truncated run also writes an audit row; post-fix its ParsedTotal
+        // is the LAST attempt's partial count (deflate-only: MAX over the 7-day
+        // window self-corrects to the largest healthy run).
+        var jobSource = Substitute.For<IJobSource>();
+        jobSource.Source.Returns(JobSource.Platsbanken);
+        jobSource.FetchSnapshotAsync(Arg.Any<SnapshotOutcomeRecorder>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+                TruncatedEnumerable(
+                    new[] { ValidItem("a") },
+                    ci.ArgAt<SnapshotOutcomeRecorder>(0)));
+        var mediator = Substitute.For<IMediator>();
+        mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(UpsertOutcome.Added));
+
+        var auditor = Substitute.For<ISystemEventAuditor>();
+        JobAdsSynced? captured = null;
+        await auditor.RecordAsync(
+            Arg.Do<SystemAuditEvent>(e => captured = e as JobAdsSynced),
+            Arg.Any<CancellationToken>());
+
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator), auditor);
+        await job.RunAsync(TestContext.Current.CancellationToken);
+
+        captured.ShouldNotBeNull();
+        // TruncatedEnumerable records SnapshotOutcome(ParsedTotal: 1, Attempts: 3, true).
+        captured.ParsedTotal.ShouldBe(1);
+    }
+
     // #754 — call-placement guards for IngestionThroughputReporter. The
     // reporter's OWN gating/arithmetic logic (qualifying gate, below-floor,
     // durationSec==0) is tested exhaustively and in isolation in

@@ -408,7 +408,8 @@ public class JobTechHitDeserializationTests
     {
         // must_have/nice_to_have är TOP-LEVEL objekt med fem sub-arrayer; varje
         // element delar shape {weight, concept_id, label, legacy_ams_taxonomy_id}.
-        // weight kan vara null (live-verifierat i sample) → POCO-property int?.
+        // weight kan vara null (live-verifierat i sample) → POCO-property double?
+        // (#509 F3: widened from int? — a fractional weight must not poison the ad).
         const string wireJson = """
         {
             "id": "31063032",
@@ -441,6 +442,34 @@ public class JobTechHitDeserializationTests
         hit.NiceToHave.ShouldNotBeNull();
         hit.NiceToHave.Skills.ShouldNotBeNull();
         hit.NiceToHave.Skills.ShouldHaveSingleItem().ConceptId.ShouldBe("Rq03_nice_ccc");
+    }
+
+    [Fact]
+    public void Deserialize_ParsesFractionalRequirementWeight()
+    {
+        // #509 (CTO F3) — a relevance weight is canonically fractional. Under the old
+        // int? POCO a wire "weight": 0.75 threw JsonException, and post-#509 that
+        // element-level failure would poison-skip the ENTIRE (otherwise valid) ad over
+        // one optional field. double? widens the accepted wire shapes; the ACL consumer
+        // (skill.Weight ?? 0.0 → JobAdRequirement.Weight) is already double.
+        const string wireJson = """
+        {
+            "id": "31063035",
+            "must_have": {
+                "skills": [
+                    { "weight": 0.75, "concept_id": "Rq04_frac_ddd", "label": "Kubernetes", "legacy_ams_taxonomy_id": "4" }
+                ]
+            }
+        }
+        """;
+
+        var hit = JsonSerializer.Deserialize<JobTechHit>(wireJson);
+
+        hit.ShouldNotBeNull();
+        hit.MustHave.ShouldNotBeNull();
+        hit.MustHave.Skills.ShouldNotBeNull();
+        hit.MustHave.Skills.ShouldHaveSingleItem().Weight.ShouldBe(0.75,
+            "a fractional wire weight must deserialize, not poison the whole ad");
     }
 
     [Fact]

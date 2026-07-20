@@ -92,6 +92,15 @@ public sealed class SnapshotBaselineMetricTests : IAsyncLifetime
         // excluded by the 7-day occurred_at filter.
         await auditor.RecordAsync(SnapshotRow(now.AddDays(-10), fetched: 10_000, parsedTotal: 999_999), ct);
 
+        // R6: an in-window snapshot row for ANOTHER source — must be excluded by
+        // the payload Source filter (fourth counterfactual, architect review).
+        await auditor.RecordAsync(new JobAdsSynced(
+            AggregateId: Guid.NewGuid(), OccurredAt: now.AddHours(-1),
+            Source: "other-source", JobType: "snapshot",
+            Fetched: 0, Added: 0, Updated: 0, Archived: 0, Skipped: 0, Errors: 0,
+            StartedAt: now.AddHours(-1), CompletedAt: now.AddHours(-1),
+            ParsedTotal: 777_777), ct);
+
         var tracker = new JobAdSnapshotMissTracker(db, NullLogger<JobAdSnapshotMissTracker>.Instance);
         var max7d = await tracker.GetMaxObservedSnapshotSizeAsync(JobSource.Platsbanken, days: 7, ct);
 

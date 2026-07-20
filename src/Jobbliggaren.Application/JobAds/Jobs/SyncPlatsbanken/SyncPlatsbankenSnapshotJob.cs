@@ -194,9 +194,9 @@ public sealed partial class SyncPlatsbankenSnapshotJob(
             Errors: counts.Errors,
             StartedAt: startedAt,
             CompletedAt: completedAt,
-            // #510 — baslinjens metrik: outcome:ns ParsedTotal (sista attemptets
-            // element-antal), INTE Fetched (yields över alla attempts, inflateras
-            // av retry). Se JobAdsSynced-docen.
+            // #510 — the baseline's metric: the outcome's ParsedTotal (final attempt's
+            // element count), NOT Fetched (yields across all attempts, inflated by
+            // retry). See the JobAdsSynced doc.
             ParsedTotal: snapshotOutcome.ParsedTotal), cancellationToken);
 
         return counts;

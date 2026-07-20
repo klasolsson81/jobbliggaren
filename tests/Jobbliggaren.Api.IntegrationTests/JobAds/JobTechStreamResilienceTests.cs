@@ -168,11 +168,13 @@ public class JobTechStreamResilienceTests
     }
 
     [Fact]
-    public async Task FetchSnapshotAsync_WithoutPoison_YieldsEveryElement()
+    public async Task FetchSnapshotAsync_WithoutPoison_YieldsEveryElement_AndLogsNoSkipEvents()
     {
         // Counterfactual for the poison-skip test: the same shape WITHOUT the poison
         // element yields ALL elements — proves the skip is targeted at the malformed
-        // element, not silently dropping a tail.
+        // element, not silently dropping a tail. The capturing logger additionally
+        // pins that a CLEAN run emits neither per-element (5011) nor summary (5012)
+        // events — an unconditional summary would be log noise every night.
         var ct = TestContext.Current.CancellationToken;
         using var server = WireMockServer.Start();
 
@@ -186,13 +188,148 @@ public class JobTechStreamResilienceTests
                 .WithHeader("Content-Type", "application/json")
                 .WithBody(cleanBody));
 
-        var jobSource = BuildJobSource(server.Url!);
+        var capture = new CapturingLoggerProvider();
+        var jobSource = BuildJobSource(server.Url!, capture);
 
         var items = new List<JobAdImportItem>();
         await foreach (var item in jobSource.FetchSnapshotAsync(new SnapshotOutcomeRecorder(), ct))
             items.Add(item);
 
         items.Select(i => i.ExternalId).ShouldBe(["hit-1", "hit-2", "hit-3"]);
+        capture.Entries.ShouldNotContain(e => e.EventId.Id == 5011 || e.EventId.Id == 5012);
+    }
+
+    [Fact]
+    public async Task FetchSnapshotAsync_NullElementInArray_IsSilentlySkipped_NotCountedAsMalformed()
+    {
+        // A literal JSON null element is a DISTINCT skip class from a malformed
+        // element: Deserialize<JobTechHit> returns null without throwing → silent
+        // skip — not counted in ParsedTotal, not logged as 5011/5012 (a null is
+        // not schema drift worth an operator Warning).
+        var ct = TestContext.Current.CancellationToken;
+        using var server = WireMockServer.Start();
+
+        var bodyWithNull =
+            """[{"id":"hit-1","headline":"Dev","description":{"text":"d"},"employer":{"name":"X"},"webpage_url":"https://e/1","publication_date":"2026-05-12T10:00:00Z"},null,{"id":"hit-3","headline":"Dev3","description":{"text":"d"},"employer":{"name":"X"},"webpage_url":"https://e/3","publication_date":"2026-05-12T10:00:00Z"}]""";
+
+        server
+            .Given(Request.Create().WithPath("/v2/snapshot").UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody(bodyWithNull));
+
+        var capture = new CapturingLoggerProvider();
+        var jobSource = BuildJobSource(server.Url!, capture);
+        var recorder = new SnapshotOutcomeRecorder();
+
+        var items = new List<JobAdImportItem>();
+        await foreach (var item in jobSource.FetchSnapshotAsync(recorder, ct))
+            items.Add(item);
+
+        items.Select(i => i.ExternalId).ShouldBe(["hit-1", "hit-3"]);
+        recorder.Outcome.ShouldNotBeNull();
+        recorder.Outcome.ParsedTotal.ShouldBe(2);
+        capture.Entries.ShouldNotContain(e => e.EventId.Id == 5011 || e.EventId.Id == 5012);
+    }
+
+    [Fact]
+    public async Task FetchSnapshotAsync_NonObjectElement_IsMalformedSkipped_WithNullIdInTheLog()
+    {
+        // A bare number in the array IS a malformed element (Deserialize throws) and
+        // TryReadElementId must take its non-object branch → the 5011 log line
+        // renders id=(null) instead of crashing or reading a bogus key.
+        var ct = TestContext.Current.CancellationToken;
+        using var server = WireMockServer.Start();
+
+        var bodyWithNumber =
+            """[{"id":"hit-1","headline":"Dev","description":{"text":"d"},"employer":{"name":"X"},"webpage_url":"https://e/1","publication_date":"2026-05-12T10:00:00Z"},42,{"id":"hit-3","headline":"Dev3","description":{"text":"d"},"employer":{"name":"X"},"webpage_url":"https://e/3","publication_date":"2026-05-12T10:00:00Z"}]""";
+
+        server
+            .Given(Request.Create().WithPath("/v2/snapshot").UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody(bodyWithNumber));
+
+        var capture = new CapturingLoggerProvider();
+        var jobSource = BuildJobSource(server.Url!, capture);
+
+        var items = new List<JobAdImportItem>();
+        await foreach (var item in jobSource.FetchSnapshotAsync(new SnapshotOutcomeRecorder(), ct))
+            items.Add(item);
+
+        items.Select(i => i.ExternalId).ShouldBe(["hit-1", "hit-3"]);
+        var skipEntry = capture.Entries.Where(e => e.EventId.Id == 5011).ShouldHaveSingleItem();
+        skipEntry.Message.ShouldContain("id=(null)");
+    }
+
+    [Fact]
+    public async Task FetchSnapshotAsync_MalformedThenTruncated_LogsPerElementSkipsButNeverASummary()
+    {
+        // The summary (5012) is only reached on CLEAN enumeration end. An attempt
+        // that hits a malformed element and THEN truncates must log the per-element
+        // 5011 (once per attempt × 3 retries) but never a summary — if the summary
+        // ever moved into a finally, truncated attempts would emit misleading
+        // per-attempt totals three times a night.
+        var ct = TestContext.Current.CancellationToken;
+        using var server = WireMockServer.Start();
+
+        var malformedThenTruncated =
+            """[{"id":"poison-1","headline":"Bad","description":{"text":"d"},"employer":{"name":"X"},"webpage_url":"https://e/1","publication_date":"inte-ett-datum"},{"id":"hit-2","headline":"Dev2","desc""";
+
+        server
+            .Given(Request.Create().WithPath("/v2/snapshot").UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody(malformedThenTruncated));
+
+        var capture = new CapturingLoggerProvider();
+        var jobSource = BuildJobSource(server.Url!, capture);
+        var recorder = new SnapshotOutcomeRecorder();
+
+        var items = new List<JobAdImportItem>();
+        await foreach (var item in jobSource.FetchSnapshotAsync(recorder, ct))
+            items.Add(item);
+
+        recorder.Outcome.ShouldNotBeNull();
+        recorder.Outcome.TruncatedAndExhausted.ShouldBeTrue(
+            "the mid-element cut is still transport truncation");
+        capture.Entries.Count(e => e.EventId.Id == 5011).ShouldBe(3,
+            "one malformed-skip Warning per attempt, three attempts");
+        capture.Entries.ShouldNotContain(e => e.EventId.Id == 5012);
+    }
+
+    [Fact]
+    public async Task StreamChangesAsync_PoisonBeforeUpsert_AfterRemoval_YieldsBothRealEvents()
+    {
+        // Ordering symmetry for the stream path: the poison element sits AFTER the
+        // removal and BEFORE the upsert — both real events must still be delivered
+        // (no cross-element state in the tolerant parse).
+        var ct = TestContext.Current.CancellationToken;
+        using var server = WireMockServer.Start();
+
+        var streamJson =
+            """[{"id":"removal-1","removed":true,"removed_date":"2026-05-12T11:00:00Z"},{"id":"poison-2","headline":"Bad","description":{"text":"d"},"employer":{"name":"X"},"webpage_url":"https://e/2","publication_date":"inte-ett-datum"},{"id":"upsert-3","headline":"New Job","description":{"text":"desc"},"employer":{"name":"Acme"},"webpage_url":"https://e/3","publication_date":"2026-05-12T10:00:00Z"}]""";
+
+        server
+            .Given(Request.Create().WithPath("/v2/stream").UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody(streamJson));
+
+        var jobSource = BuildJobSource(server.Url!);
+        var since = new DateTimeOffset(2026, 5, 12, 9, 0, 0, TimeSpan.Zero);
+
+        var changes = new List<JobAdChange>();
+        await foreach (var change in jobSource.StreamChangesAsync(since, ct))
+            changes.Add(change);
+
+        changes.Count.ShouldBe(2);
+        changes.OfType<JobAdRemoval>().Single().ExternalId.ShouldBe("removal-1");
+        changes.OfType<JobAdUpsert>().Single().ExternalId.ShouldBe("upsert-3");
     }
 
     [Fact]

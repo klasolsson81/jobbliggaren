@@ -409,7 +409,7 @@ public class JobTechHitDeserializationTests
         // must_have/nice_to_have är TOP-LEVEL objekt med fem sub-arrayer; varje
         // element delar shape {weight, concept_id, label, legacy_ams_taxonomy_id}.
         // weight kan vara null (live-verifierat i sample) → POCO-property double?
-        // (#509 F3: vidgad från int? — fraktionell vikt får inte giftpilla annonsen).
+        // (#509 F3: widened from int? — a fractional weight must not poison the ad).
         const string wireJson = """
         {
             "id": "31063032",

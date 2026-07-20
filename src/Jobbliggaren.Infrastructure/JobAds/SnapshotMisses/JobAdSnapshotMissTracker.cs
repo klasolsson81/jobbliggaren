@@ -212,15 +212,15 @@ internal sealed partial class JobAdSnapshotMissTracker(
         // payload-jsonb innehåller serialiserade SystemAuditEvent-fält (Source,
         // JobType, Fetched, ParsedTotal, ...) per ADR 0035.
         //
-        // #510 — METRIK-LINJERING: baslinjen läser ParsedTotal (sista attemptets
-        // element-antal), SAMMA storhet som relativ-floorn jämför i snapshot-jobbet.
-        // Fetched är fel metrik här: den räknar yields över ALLA retry-attempts
-        // (pipeline-throughput) — en enda trunkera-sen-lyckas-körning inflaterade
-        // MAX(Fetched) och floorn "överträddes" av varje frisk körning i upp till
-        // 7 dagar → miss-tracking pausad → döda annonser arkiverades inte.
-        // Legacy-rader (pre-#510) saknar nyckeln → NULL → exkluderas ur MAX →
-        // baslinjen värms upp; NULL-baslinje = relativ floor inaktiv (medveten
-        // cold-start-semantik, CTO 2026-05-23 Q5; absoluta floorn kvarstår).
+        // #510 — METRIC LINEARIZATION: the baseline reads ParsedTotal (the final
+        // attempt's element count), the SAME quantity the relative floor compares in
+        // the snapshot job. Fetched is the wrong metric here: it counts yields across
+        // ALL retry attempts (pipeline throughput) — a single truncate-then-succeed
+        // run inflated MAX(Fetched) and the floor was "violated" by every healthy run
+        // for up to 7 days → miss-tracking paused → dead ads were never archived.
+        // Legacy rows (pre-#510) lack the key → NULL → excluded from MAX → the
+        // baseline warms up; a NULL baseline = relative floor inactive (deliberate
+        // cold-start semantics, CTO 2026-05-23 Q5; the absolute floor remains).
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = """
             SELECT MAX((payload->>'ParsedTotal')::int) AS max_parsed_total

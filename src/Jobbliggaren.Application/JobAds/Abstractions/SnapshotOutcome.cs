@@ -12,7 +12,10 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// 1975 — explicit > implicit).
 /// </para>
 /// </summary>
-/// <param name="ParsedTotal">Antal items som JobTech-strömmen parsade ut (inkl. skippade hits utan obligatoriska fält).</param>
+/// <param name="ParsedTotal">Antal items som JobTech-strömmen parsade ut (inkl. skippade hits utan
+/// obligatoriska fält). #509/#510: counts the FINAL attempt only, and elements the wire client
+/// poison-skipped (element-level data JsonException) are EXCLUDED — they never yield, so mass schema
+/// drift deflates this value and trips the snapshot floor guards (deliberate fail-safe).</param>
 /// <param name="Attempts">Antal HTTP-försök (bounded retry mot mid-stream-trunkering).</param>
 /// <param name="TruncatedAndExhausted">True om bounded retry uttömdes utan komplett stream — caller måste skippa diff-baserad retention-logik.</param>
 public sealed record SnapshotOutcome(

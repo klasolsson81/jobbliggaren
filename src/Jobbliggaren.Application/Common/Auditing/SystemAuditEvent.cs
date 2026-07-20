@@ -24,13 +24,13 @@ public abstract record SystemAuditEvent(
 /// <summary>
 /// Audit-event för en avslutad JobAd-sync-run (stream eller snapshot).
 /// </summary>
-/// <param name="ParsedTotal">#510 — snapshot-körningens <c>SnapshotOutcome.ParsedTotal</c>
-/// (SISTA attemptets element-antal). Detta är 7-dagars-baslinjens metrik
-/// (<c>GetMaxObservedSnapshotSizeAsync</c> läser <c>MAX(payload->>'ParsedTotal')</c>) —
-/// samma storhet som relativ-floorn jämför. <c>Fetched</c> duger INTE som baslinje:
-/// den räknar yields över ALLA retry-attempts (pipeline-throughput, ADR 0045 klass
-/// (d)) och inflateras av en trunkera-sen-lyckas-körning. Null för stream-rader och
-/// legacy-rader (pre-#510) — NULL exkluderas ur MAX (uppvärmnings-semantik).</param>
+/// <param name="ParsedTotal">#510 — the snapshot run's <c>SnapshotOutcome.ParsedTotal</c>
+/// (the FINAL attempt's element count). This is the 7-day baseline's metric
+/// (<c>GetMaxObservedSnapshotSizeAsync</c> reads <c>MAX(payload->>'ParsedTotal')</c>) —
+/// the same quantity the relative floor compares. <c>Fetched</c> is NOT usable as the
+/// baseline: it counts yields across ALL retry attempts (pipeline throughput, ADR 0045
+/// class (d)) and inflates on a truncate-then-succeed run. Null for stream rows and
+/// legacy rows (pre-#510) — NULL is excluded from MAX (warm-up semantics).</param>
 public sealed record JobAdsSynced(
     Guid AggregateId,
     DateTimeOffset OccurredAt,

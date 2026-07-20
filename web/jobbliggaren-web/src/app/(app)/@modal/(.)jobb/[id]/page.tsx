@@ -2,14 +2,8 @@ import { after } from "next/server";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession, getSessionId } from "@/lib/auth/session";
-import { getJobAd } from "@/lib/api/job-ads";
-import { isJobAdSaved } from "@/lib/api/saved-job-ads";
-import { hasAppliedJobAd } from "@/lib/api/job-ad-status";
-import { getCompanyWatchStatus, markFollowedCompanyAdSeen } from "@/lib/api/company-follows";
-import { getJobAdMatchDetail } from "@/lib/api/job-ad-match";
-import { getEmployerApplicationCounts } from "@/lib/api/employer-application-counts";
-import { getTaxonomyTree } from "@/lib/api/taxonomy";
-import { buildOrtGranularityMap } from "@/lib/job-ads/ort-granularity";
+import { markFollowedCompanyAdSeen } from "@/lib/api/company-follows";
+import { loadJobDetailData } from "@/lib/job-ads/load-job-detail-data";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 import { JobAdModalShell } from "@/components/job-ads/job-ad-modal-shell";
 
@@ -48,61 +42,38 @@ export default async function InterceptedJobbModal({
   // on-värdet (paritet med listans page.tsx). Default AV.
   const { relaterade } = await searchParams;
   const includeRelated = relaterade === "on";
-  const result = await getJobAd(id);
+  // ADR 0053 — the intercepting modal and the full page load the SAME data via
+  // one shared helper (#596); the concurrency lives there, this route only maps
+  // the discriminated result to its own modal shell.
+  const result = await loadJobDetailData(id, includeRelated);
 
   switch (result.kind) {
     case "ok": {
-      // F4-16 — matchnings-detalj parallellt med Spara/Har-ansökt (ingen
-      // waterfall). Degraderar civilt till null (ingen sektion) vid fel.
-      const [initialSaved, initialApplied, followState, match, employerCounts] =
-        await Promise.all([
-          isJobAdSaved(id),
-          hasAppliedJobAd(id),
-          getCompanyWatchStatus(id),
-          getJobAdMatchDetail(id, includeRelated),
-          // #593 (#446-uppföljning) — the caller's prior-application count for THIS ad's employer, so the
-          // detail view can link to /foretag#ansokningshistorik. Positive-only; anon/error → empty.
-          getEmployerApplicationCounts([id]),
-        ]);
-      // Positive-only map: an absent key means zero (the detail view renders no history line).
-      const previousApplicationCount = employerCounts.countsByJobAdId[id];
       // #453 (cross-channel dedup) — opening the ad in-app (here: the intercepting modal) marks any Pending
-      // follow-hit for it seen so the follow-digest suppresses the redundant email. Moved OFF the detail
-      // fan-out (#741): scheduled with `after()` so the write runs after the response is sent instead of
-      // adding its POST round-trip to the Promise.all the modal awaits before painting. Never throws; SeenAt
-      // is not rendered. The user is authed here (guest redirected above), and the session is read during
-      // render and passed in — an `after()` callback in a Server Component cannot read cookies.
+      // follow-hit for it seen so the follow-digest suppresses the redundant email. Scheduled with `after()`
+      // (#741) so the POST runs after the response is sent instead of blocking paint. Never throws; SeenAt is
+      // not rendered. Kept in the caller — an ok-gated render side-effect, not data-loading: the user is authed
+      // here (guest redirected above), and an `after()` callback in a Server Component cannot read cookies, so
+      // the session id is read during render and passed in.
       const sessionId = await getSessionId();
       if (sessionId) {
         after(() => markFollowedCompanyAdSeen(id, sessionId));
       }
-      // Spår 3 PR-D — taxonomin behövs BARA när det finns en match (annars
-      // byggs ingen granularitets-karta). En inloggad användare utan match
-      // ska inte betala för round-trippen (cleanup-pass: gate guest-prefetch).
-      // Cachad 1h (statisk referensdata); kartan byggs FE-side (architect
-      // NOTE-2), taxonomi-fel → null → generisk bevisform.
-      const taxonomyResult = match != null ? await getTaxonomyTree() : null;
-      const ortGranularityByLabel =
-        match != null
-          ? buildOrtGranularityMap(
-              taxonomyResult?.kind === "ok" ? taxonomyResult.data : null,
-            )
-          : undefined;
       return (
         <JobAdModalShell
-          title={result.data.title}
-          company={result.data.companyName}
+          title={result.jobAd.title}
+          company={result.jobAd.companyName}
         >
           <JobAdDetail
-            jobAd={result.data}
+            jobAd={result.jobAd}
             headless
-            initialSaved={initialSaved}
-            initialApplied={initialApplied}
-            followState={followState}
-            match={match}
-            ortGranularityByLabel={ortGranularityByLabel}
-            previousApplicationCount={previousApplicationCount}
-            contacts={result.data.contacts}
+            initialSaved={result.initialSaved}
+            initialApplied={result.initialApplied}
+            followState={result.followState}
+            match={result.match}
+            ortGranularityByLabel={result.ortGranularityByLabel}
+            previousApplicationCount={result.previousApplicationCount}
+            contacts={result.jobAd.contacts}
           />
         </JobAdModalShell>
       );

@@ -76,6 +76,24 @@ interface PageProps {
 const DEFAULT_PAGE_SIZE = 20;
 
 export default async function JobbPage({ searchParams }: PageProps) {
+  // #742 — start the hero-dependency fan-out EAGER, before awaiting the session
+  // read, so it overlaps the /me round-trip instead of serializing after it
+  // (the same reorder the (app) layout already made for landing-stats, #935).
+  // None of the four depend on the session object — each fetcher does its own
+  // getSessionId() + maps 401→unauthorized/error civilly — so a guest's calls
+  // degrade to error Results and are simply discarded on the redirect below.
+  // getMyProfile is cache()-wrapped (JobbResults reads the same value per
+  // request), so starting it here adds no duplicate profile fetch. The floating
+  // promise cannot reject (every fetcher is try/catch → Result), so the
+  // guest-redirect path leaves it resolving harmlessly (parity with the
+  // layout's statsPromise).
+  const heroDataPromise = Promise.all([
+    getTaxonomyTree(),
+    getRecentSearches(),
+    getSavedJobAds(),
+    getMyProfile(),
+  ]);
+
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
@@ -145,13 +163,10 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // Suspense) kan rendera Matchning + Dölj ansökta: `hasStatedDesiredOccupation`
   // gatar Matchning-pillen, en lyckad profil-läsning ⇒ seekern finns och gatar
   // Dölj ansökta (paritet med backend-guarden). Fel/anon → false (kontrollerna göms).
+  // #742 — startad EAGER överst (heroDataPromise) så den överlappade session-
+  // läsningen; här awaitas bara resultatet.
   const [taxonomyResult, recentSearchesResult, savedJobAdsResult, profileResult] =
-    await Promise.all([
-      getTaxonomyTree(),
-      getRecentSearches(),
-      getSavedJobAds(),
-      getMyProfile(),
-    ]);
+    await heroDataPromise;
   const hasStatedDesiredOccupation =
     profileResult.kind === "ok" && profileResult.data.hasStatedDesiredOccupation;
   const hasSeeker = profileResult.kind === "ok";

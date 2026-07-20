@@ -215,9 +215,12 @@ public class CompanyWatchesTests(ApiFactory factory)
     [Fact]
     public async Task GET_list_prefers_the_job_ads_name_over_the_register_name()
     {
-        // The coalesce order: an active ad's employer name WINS over the register (job_ads is the more
-        // current source; the register is only the fallback). Both carry a name for the same org.nr —
-        // the list must surface the job_ads one. Pins that the fallback never overrides a live name.
+        // When a company has BOTH an active ad ("Aktuella Namnet AB") AND a register row ("Register
+        // Namnet AB"), the list surfaces the JOB_ADS name. This pins the OUTCOME — job_ads is the
+        // primary source — enforced JOINTLY by the missingRegisterOrgNrs filter (the register is never
+        // even queried for an org.nr job_ads already named) and the coalesce, NOT by the coalesce order
+        // alone: the two name maps are disjoint by construction, so swapping the ?? operands is an
+        // equivalent mutant (test-writer 2026-07-20) — the filter, not the order, is the arbiter.
         var ct = TestContext.Current.CancellationToken;
         await SeedImportedJobAdAsync(RegisterAndAdOrgNr, "Aktuella Namnet AB", ct);
         await SeedRegisterCompanyAsync(RegisterAndAdOrgNr, "Register Namnet AB", ct);
@@ -228,6 +231,29 @@ public class CompanyWatchesTests(ApiFactory factory)
 
         var item = list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == id);
         item.GetProperty("companyName").GetString().ShouldBe("Aktuella Namnet AB");
+    }
+
+    [Fact]
+    public async Task GET_list_resolves_each_row_from_its_own_source_in_a_mixed_follow_set()
+    {
+        // Two employer watches in ONE response: one named by job_ads, one by the register. Pins per-row
+        // source selection + correct dict keying — a keying bug where the register name bled onto the
+        // job_ads-named row (or vice versa) would surface here where the single-follow tests can't.
+        var ct = TestContext.Current.CancellationToken;
+        const string adOnly = "5598000044";       // job_ads only (third digit 9 → legal entity)
+        const string registerOnly = "5598000051";  // register only
+        await SeedImportedJobAdAsync(adOnly, "Annons Endast AB", ct);
+        await SeedRegisterCompanyAsync(registerOnly, "Register Endast AB", ct);
+        await AuthenticateAsync(ct);
+        var adId = await FollowAsync(adOnly, ct);
+        var regId = await FollowAsync(registerOnly, ct);
+
+        var list = await ListAsync(ct);
+
+        list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == adId)
+            .GetProperty("companyName").GetString().ShouldBe("Annons Endast AB");
+        list.EnumerateArray().Single(w => w.GetProperty("id").GetString() == regId)
+            .GetProperty("companyName").GetString().ShouldBe("Register Endast AB");
     }
 
     [Fact]

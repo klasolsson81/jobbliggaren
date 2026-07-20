@@ -170,12 +170,21 @@ public sealed class ListCompanyWatchesQueryHandler(
 
         // #994 — company_name falls back to the SCB register for a followed EMPLOYER the job_ads
         // projection left unnamed (a 0-ad company; ADR 0087 D3 keeps it a READ projection — the
-        // register is a SECOND public read-model, still no snapshot). Resolve ONLY the employer
-        // org.nrs job_ads did not name — brand-group watches carry the curated catalogue DisplayName
-        // (a member is never register-resolved here), and a personnummer-shaped watch has
-        // resolved == null (absent from resolvedPlaintexts), so it never reaches the register and
-        // stays masked (parity D8(c); the register is legal-entities-only anyway, ADR 0091). The
-        // reader is skipped entirely when job_ads already named every followed employer.
+        // register is a SECOND public read-model, still no snapshot). The `!nameByOrgNr.ContainsKey`
+        // filter is LOAD-BEARING, not just a perf skip:
+        //   - PERF: an employer job_ads already named triggers no register round-trip; the reader is
+        //     skipped entirely (NoRegisterNames) when job_ads named every followed employer.
+        //   - PII FIREWALL (D8(c)): a personnummer-shaped watch is never sent to the register — via
+        //     TWO mechanisms, not one. (a) No matching ad → resolved == null → absent from
+        //     resolvedPlaintexts. (b) WITH a matching ad, the enskild-firma resolution (#544) yields a
+        //     non-null pnr PLAINTEXT — but that value is then a key in nameByOrgNr (the ad named it,
+        //     over the SAME status-agnostic org.nr set) → ContainsKey → excluded. So a pnr plaintext
+        //     never transits into a register query key. It is ContainsKey (presence), NOT a value-null
+        //     test, that carries this: a future value-null form could pass a resolved-but-unnamed pnr
+        //     plaintext through. Backstop: the register is legal-entities-only (ADR 0091), so even a
+        //     leak resolves to nothing.
+        // Brand-group members live in groupMemberOrgNrs (never resolvedPlaintexts) and carry the
+        // curated catalogue DisplayName — never register-resolved here.
         var missingRegisterOrgNrs = resolvedPlaintexts.Where(o => !nameByOrgNr.ContainsKey(o)).ToList();
         var registerNameByOrgNr = missingRegisterOrgNrs.Count == 0
             ? NoRegisterNames
@@ -265,8 +274,13 @@ public sealed class ListCompanyWatchesQueryHandler(
                     // Name resolves at READ from public job_ads (ADR 0087 D3 / B3 — no snapshot),
                     // unchanged from the plaintext era via the token→plaintext resolution above.
                     // #994 — when job_ads carries no name (a 0-ad followed company), fall back to the
-                    // SCB register (still a READ projection, a second public read-model): job_ads name
-                    // first, register name second, null only when NEITHER has it.
+                    // SCB register (still a READ projection, a second public read-model). The two maps
+                    // are DISJOINT by construction (missingRegisterOrgNrs excludes every org.nr
+                    // nameByOrgNr already named), so at most one side is non-null for a given org.nr:
+                    // this reads "whichever source named it, else null". The job_ads-first order is
+                    // intent-expressing (job_ads is the primary source), NOT a live tiebreak — the
+                    // filter above, not this ??, is what makes job_ads win, so swapping the operands is
+                    // an equivalent mutant (test-writer 2026-07-20).
                     CompanyName: resolved is null
                         ? null
                         : nameByOrgNr.GetValueOrDefault(resolved)

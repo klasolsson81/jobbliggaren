@@ -21,7 +21,9 @@ namespace Jobbliggaren.Application.CompanyRegister.Abstractions;
 /// output. The keys handed in are the caller's OWN resolved plaintext org.nrs (the user's followed
 /// employers), NOT rows selected out of the register, and the return carries only the public
 /// legal-entity name. The register is legal-entities-only (ADR 0091: no personnummer, no sole
-/// traders), so a personnummer-shaped watch never resolves here — parity the list's D8(c) mask.
+/// traders), so even a personnummer-shaped key would resolve to nothing — AND the caller excludes
+/// such values before calling (a pnr-shaped watch is named by job_ads or resolves to null, so it is
+/// filtered out of the org.nr set; see ListCompanyWatchesQueryHandler), parity the list's D8(c) mask.
 /// </para>
 /// </summary>
 public interface ICompanyRegisterNameReader

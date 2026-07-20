@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
+using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.JobAds.Abstractions;
@@ -38,9 +39,15 @@ public sealed class ListCompanyWatchesQueryHandler(
     IMatchProfileBuilder profileBuilder,
     IPerUserJobAdSearchQuery perUserSearch,
     IProtectedIdentityTokenizer tokenizer,
-    IBrandGroupProvider brandGroups)
+    IBrandGroupProvider brandGroups,
+    ICompanyRegisterNameReader registerNames)
     : IQueryHandler<ListCompanyWatchesQuery, IReadOnlyList<CompanyWatchDto>>
 {
+    // #994 — the empty register-name map for the fast path (no unnamed employer to resolve), so the
+    // reader is never touched when job_ads already named every followed employer.
+    private static readonly IReadOnlyDictionary<string, string> NoRegisterNames =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
     // #452 — "matchande annonser" = grade >= Good in the Fast band (parity
     // GetMyMatchCountQueryHandler.HeadlineGrades). Top is not Fast-computable (G3-OPT-A) and is
     // irrelevant to a >= Good COUNT: skills only elevate WITHIN the notifiable band, never lift a
@@ -161,6 +168,29 @@ public sealed class ListCompanyWatchesQueryHandler(
             .GroupBy(x => x.OrgNr!)
             .ToDictionary(g => g.Key, g => g.First().Name);
 
+        // #994 — company_name falls back to the SCB register for a followed EMPLOYER the job_ads
+        // projection left unnamed (a 0-ad company; ADR 0087 D3 keeps it a READ projection — the
+        // register is a SECOND public read-model, still no snapshot). The `!nameByOrgNr.ContainsKey`
+        // filter is LOAD-BEARING, not just a perf skip:
+        //   - PERF: an employer job_ads already named triggers no register round-trip; the reader is
+        //     skipped entirely (NoRegisterNames) when job_ads named every followed employer.
+        //   - PII FIREWALL (D8(c)): a personnummer-shaped watch is never sent to the register — via
+        //     TWO mechanisms, not one. (a) No matching ad → resolved == null → absent from
+        //     resolvedPlaintexts. (b) WITH a matching ad, the enskild-firma resolution (#544) yields a
+        //     non-null pnr PLAINTEXT — but that value is then a key in nameByOrgNr (the ad named it,
+        //     over the SAME status-agnostic org.nr set) → ContainsKey → excluded. So a pnr plaintext
+        //     never transits into a register query key. It is ContainsKey (presence), NOT a value-null
+        //     test, that carries this: a future value-null form could pass a resolved-but-unnamed pnr
+        //     plaintext through. Backstop: the register is legal-entities-only (ADR 0091), so even a
+        //     leak resolves to nothing.
+        // Brand-group members live in groupMemberOrgNrs (never resolvedPlaintexts) and carry the
+        // curated catalogue DisplayName — never register-resolved here.
+        var missingRegisterOrgNrs = resolvedPlaintexts.Where(o => !nameByOrgNr.ContainsKey(o)).ToList();
+        var registerNameByOrgNr = missingRegisterOrgNrs.Count == 0
+            ? NoRegisterNames
+            : await registerNames.GetNamesByOrganizationNumbersAsync(
+                missingRegisterOrgNrs, cancellationToken);
+
         // #447 — active-ad count per followed employer. Same org.nr set, PUBLIC job_ads, but keyed on
         // status='Active' — which is the WHOLE exclusion (JobAd has no soft-delete axis and no query
         // filter, #821; there is no ADR 0048 soft-delete filter here to credit — #864 B4 truth-sync).
@@ -243,7 +273,18 @@ public sealed class ListCompanyWatchesQueryHandler(
                     IsProtectedIdentity: isProtected,
                     // Name resolves at READ from public job_ads (ADR 0087 D3 / B3 — no snapshot),
                     // unchanged from the plaintext era via the token→plaintext resolution above.
-                    CompanyName: resolved is null ? null : nameByOrgNr.GetValueOrDefault(resolved),
+                    // #994 — when job_ads carries no name (a 0-ad followed company), fall back to the
+                    // SCB register (still a READ projection, a second public read-model). The two maps
+                    // are DISJOINT by construction (missingRegisterOrgNrs excludes every org.nr
+                    // nameByOrgNr already named), so at most one side is non-null for a given org.nr:
+                    // this reads "whichever source named it, else null". The job_ads-first order is
+                    // intent-expressing (job_ads is the primary source), NOT a live tiebreak — the
+                    // filter above, not this ??, is what makes job_ads win, so swapping the operands is
+                    // an equivalent mutant (test-writer 2026-07-20).
+                    CompanyName: resolved is null
+                        ? null
+                        : nameByOrgNr.GetValueOrDefault(resolved)
+                            ?? registerNameByOrgNr.GetValueOrDefault(resolved),
                     FollowedAt: w.CreatedAt,
                     // #447: public open-role count — surfaced even when the org.nr is masked (no PII);
                     // 0 when the employer has no active ad (or none ingested yet).

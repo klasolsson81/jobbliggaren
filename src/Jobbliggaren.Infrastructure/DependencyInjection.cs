@@ -1209,6 +1209,18 @@ public static class DependencyInjection
             Jobbliggaren.Application.CompanyRegister.Abstractions.ICompanyRegisterSearchQuery,
             CompanyRegister.CompanyRegisterSearchQuery>();
 
+        // #994 — ICompanyRegisterNameReader: resolves company_name by org.nr from the local SCB
+        // register replica, the SECOND read-model the company-watch list falls back to when the
+        // job_ads name projection is empty (a followed 0-ad company; ADR 0087 D3 keeps it a READ
+        // projection — no snapshot). Plain EF LINQ over the concrete AppDbContext.Set<>() (PK
+        // `= ANY`, no index-shape need for raw SQL, unlike the search sibling above); the register
+        // stays off IAppDbContext (DPIA C-D4/M-C5). An Api read concern, never gated on
+        // ScbRegister:Enabled (parity the browse ports). Scoped — shares the request AppDbContext.
+        // DI in the same commit as the port-impl (feedback_di_with_handlers_same_commit).
+        services.AddScoped<
+            Jobbliggaren.Application.CompanyRegister.Abstractions.ICompanyRegisterNameReader,
+            CompanyRegister.CompanyRegisterNameReader>();
+
         // #560 PR-3 (CTO Fork G2) — the SCB reference data (SNI 2025 + län/kommun) behind
         // ICriterionReferenceProvider: ONE authority for the Application existence-validator and the
         // FE picker tree. INSTANCE registration, deliberately: the loaders run HERE, at host build,

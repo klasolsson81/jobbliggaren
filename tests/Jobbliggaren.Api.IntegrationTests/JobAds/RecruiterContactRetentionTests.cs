@@ -272,7 +272,7 @@ public sealed class RecruiterContactRetentionTests : IAsyncLifetime
             external, "{\"id\":\"" + externalId + "\"}", TestFacets.None,
             [declared!],
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
-            expiresAt, clock).Value;
+            expiresAt, clock, extractTerms: TestKeywordExtraction.None).Value;
 
         // Counterfactual: the Active ad HELD a contact — Import populated it while Active.
         jobAd.Contacts.ShouldNotBeNull("the Active ad must hold a contact before archival.");

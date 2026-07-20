@@ -62,7 +62,7 @@ public class JobAdRefetchBackfillRunnerTests
             facets: TestFacets.FromPayload("{\"id\":\"" + externalId + "\"}"),
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(30),
-            clock: clock, declaredContacts: []).Value;
+            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
 
     private static JobAdImportItem RefetchedItem(string externalId)
     {

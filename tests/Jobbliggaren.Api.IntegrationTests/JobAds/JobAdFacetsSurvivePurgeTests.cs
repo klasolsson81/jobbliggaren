@@ -167,7 +167,7 @@ public sealed class JobAdFacetsSurvivePurgeTests(ApiFactory factory)
                 facets: TestFacets.From(ssyk: "", municipality: "   ", organizationNumber: null),
                 publishedAt: clock.UtcNow.AddDays(-1),
                 expiresAt: clock.UtcNow.AddDays(30),
-                clock: clock, declaredContacts: []).Value;
+                clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
 
             db.JobAds.Add(jobAd);
             await db.SaveChangesAsync(ct);
@@ -222,7 +222,7 @@ public sealed class JobAdFacetsSurvivePurgeTests(ApiFactory factory)
                 organizationNumber: "5592804784"),
             publishedAt: clock.UtcNow.AddDays(-publishedDaysAgo),
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock, declaredContacts: []).Value;
+            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);

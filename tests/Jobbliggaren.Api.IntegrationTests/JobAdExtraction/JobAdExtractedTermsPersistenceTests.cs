@@ -84,7 +84,7 @@ public sealed class JobAdExtractedTermsPersistenceTests : IAsyncLifetime
             external, "{\"id\":\"x\"}", TestFacets.FromPayload("{\"id\":\"x\"}"),
             [],
             new DateTimeOffset(2026, 5, 1, 0, 0, 0, TimeSpan.Zero),
-            new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock).Value;
+            new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock, extractTerms: TestKeywordExtraction.None).Value;
     }
 
     private static ExtractedTerms SampleTerms() =>
@@ -210,10 +210,15 @@ public sealed class JobAdExtractedTermsPersistenceTests : IAsyncLifetime
         Guid id;
         await using (var db = NewDb())
         {
-            var jobAd = NewJobAd(); // ExtractedTerms left NULL — never extracted
+            var jobAd = NewJobAd();
             db.JobAds.Add(jobAd);
             await db.SaveChangesAsync(ct);
             id = jobAd.Id.Value;
+            // #874 — Import folds extraction in, so NewJobAd() now persists Empty terms; the
+            // never-extracted NULL state this test asserts is legacy-only and unreachable through the
+            // aggregate. Null the column directly (the STORED extracted_lexemes follows to NULL).
+            await db.Database.ExecuteSqlAsync(
+                $"UPDATE job_ads SET extracted_terms = NULL WHERE id = {id}", ct);
         }
 
         await using (var db = NewDb())

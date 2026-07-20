@@ -407,7 +407,7 @@ public class FollowedCompanyDigestIntegrationTests(WorkerTestFixture fixture)
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(60),
-            clock: clock, declaredContacts: []).Value;
+            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
 
         var watch = CompanyWatch.Follow(userId, OrganizationNumber.Create(orgNr).Value, clock).Value;

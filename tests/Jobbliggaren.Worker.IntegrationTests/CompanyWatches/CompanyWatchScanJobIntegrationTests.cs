@@ -849,7 +849,7 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
             facets: facets,
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(60),
-            clock: new FixedClock(Now), declaredContacts: []).Value;
+            clock: new FixedClock(Now), declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
         return jobAd.Id;
@@ -900,7 +900,7 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: createdAt.AddDays(-1),
             expiresAt: createdAt.AddDays(60),
-            clock: new FixedClock(createdAt), declaredContacts: []).Value;
+            clock: new FixedClock(createdAt), declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
         return jobAd.Id;

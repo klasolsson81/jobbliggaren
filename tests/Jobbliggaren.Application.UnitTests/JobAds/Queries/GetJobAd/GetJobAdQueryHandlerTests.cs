@@ -111,7 +111,7 @@ public class GetJobAdQueryHandlerTests
             declaredContacts: [declared],
             publishedAt: FakeDateTimeProvider.Default.UtcNow,
             expiresAt: null,
-            clock: FakeDateTimeProvider.Default).Value;
+            clock: FakeDateTimeProvider.Default, extractTerms: TestKeywordExtraction.None).Value;
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);

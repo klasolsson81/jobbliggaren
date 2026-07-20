@@ -77,7 +77,7 @@ public class GetMyNewMatchCountQueryHandlerTests
             facets: TestFacets.FromPayload(payload),
             publishedAt: T0,
             expiresAt: T0.AddDays(60),
-            clock: _clock, declaredContacts: []).Value;
+            clock: _clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         return jobAd.Id;
     }

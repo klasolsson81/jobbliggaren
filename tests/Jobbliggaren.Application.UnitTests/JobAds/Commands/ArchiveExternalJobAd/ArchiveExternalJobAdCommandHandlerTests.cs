@@ -37,7 +37,7 @@ public class ArchiveExternalJobAdCommandHandlerTests
             "Titel", company, "Beskrivning", "https://example.com/jobs/seed",
             external, "{\"id\":\"seed\"}", TestFacets.FromPayload("{\"id\":\"seed\"}"),
             [],
-            Now.AddDays(-1), Now.AddDays(30), clock).Value;
+            Now.AddDays(-1), Now.AddDays(30), clock, extractTerms: TestKeywordExtraction.None).Value;
 
         if (archive)
         {

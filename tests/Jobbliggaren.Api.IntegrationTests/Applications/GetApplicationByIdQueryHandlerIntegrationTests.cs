@@ -406,7 +406,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
             "Backend-utvecklare", Company.Create("Klarna").Value, "En beskrivning.",
             "https://example.com/jobb/1",
             ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
-            rawPayload, TestFacets.FromPayload(rawPayload), [], clock.UtcNow, null, clock).Value;
+            rawPayload, TestFacets.FromPayload(rawPayload), [], clock.UtcNow, null, clock, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -460,7 +460,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
             declaredContacts: [declared],
             publishedAt: clock.UtcNow,
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock).Value;
+            clock: clock, extractTerms: TestKeywordExtraction.None).Value;
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);

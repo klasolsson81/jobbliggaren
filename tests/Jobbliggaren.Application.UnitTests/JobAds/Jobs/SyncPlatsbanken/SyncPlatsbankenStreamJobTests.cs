@@ -10,6 +10,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.TestSupport;
 using Mediator;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -48,12 +49,12 @@ public class SyncPlatsbankenStreamJobTests
 
     private static SyncPlatsbankenStreamJob CreateJob(
         IJobSource jobSource,
-        IMediator mediator,
+        IServiceScopeFactory scopeFactory,
         IDateTimeProvider? clock = null,
         ISystemEventAuditor? auditor = null,
         IngestionThroughputReporter? throughputReporter = null) =>
         new(
-            jobSource, mediator,
+            jobSource, scopeFactory,
             clock ?? new FakeDateTimeProvider(Now),
             auditor ?? Substitute.For<ISystemEventAuditor>(),
             throughputReporter ?? new IngestionThroughputReporter(
@@ -87,7 +88,7 @@ public class SyncPlatsbankenStreamJobTests
     {
         var jobSource = StubJobSource();
         var mediator = Substitute.For<IMediator>();
-        var job = CreateJob(jobSource, mediator);
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator));
 
         await job.RunAsync(TestContext.Current.CancellationToken);
 
@@ -106,7 +107,7 @@ public class SyncPlatsbankenStreamJobTests
         mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(UpsertOutcome.Added));
 
-        var job = CreateJob(jobSource, mediator);
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator));
         await job.RunAsync(TestContext.Current.CancellationToken);
 
         await mediator.Received(1).Send(
@@ -124,7 +125,7 @@ public class SyncPlatsbankenStreamJobTests
         mediator.Send(Arg.Any<ArchiveExternalJobAdCommand>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(ArchiveOutcome.Archived));
 
-        var job = CreateJob(jobSource, mediator);
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator));
         await job.RunAsync(TestContext.Current.CancellationToken);
 
         await mediator.Received(1).Send(
@@ -149,7 +150,7 @@ public class SyncPlatsbankenStreamJobTests
         mediator.Send(Arg.Any<ArchiveExternalJobAdCommand>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(ArchiveOutcome.Archived));
 
-        var job = CreateJob(jobSource, mediator);
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator));
         await job.RunAsync(TestContext.Current.CancellationToken);
 
         await mediator.Received(2).Send(
@@ -178,7 +179,7 @@ public class SyncPlatsbankenStreamJobTests
                 return Result.Success(UpsertOutcome.Added);
             });
 
-        var job = CreateJob(jobSource, mediator);
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator));
 
         // Får INTE kasta — fel-isolering per ADR 0032 §3 + TD-25-mönster.
         await job.RunAsync(TestContext.Current.CancellationToken);
@@ -206,7 +207,7 @@ public class SyncPlatsbankenStreamJobTests
                 throw new OperationCanceledException(cts.Token);
             });
 
-        var job = CreateJob(jobSource, mediator);
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator));
 
         await Should.ThrowAsync<OperationCanceledException>(
             () => job.RunAsync(cts.Token));
@@ -226,7 +227,7 @@ public class SyncPlatsbankenStreamJobTests
             });
 
         var mediator = Substitute.For<IMediator>();
-        var job = CreateJob(jobSource, mediator);
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator));
 
         await job.RunAsync(TestContext.Current.CancellationToken);
 
@@ -246,7 +247,7 @@ public class SyncPlatsbankenStreamJobTests
             .Returns(Result.Failure<UpsertOutcome>(
                 DomainError.Validation("Test.Failure", "simulerad")));
 
-        var job = CreateJob(jobSource, mediator);
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator));
 
         // Får inte kasta — failure-result räknas i errors.
         await job.RunAsync(TestContext.Current.CancellationToken);
@@ -284,7 +285,7 @@ public class SyncPlatsbankenStreamJobTests
         var reporter = new IngestionThroughputReporter(
             Options.Create(new IngestionThroughputOptions()), recorder);
         var job = CreateJob(
-            jobSource, mediator,
+            jobSource, new FakeScopeFactory(mediator),
             clock: new AdvancingFakeDateTimeProvider(Now, TimeSpan.FromSeconds(1)),
             throughputReporter: reporter);
 
@@ -325,7 +326,7 @@ public class SyncPlatsbankenStreamJobTests
         var reporter = new IngestionThroughputReporter(
             Options.Create(new IngestionThroughputOptions()), recorder);
         var job = CreateJob(
-            jobSource, mediator,
+            jobSource, new FakeScopeFactory(mediator),
             clock: new AdvancingFakeDateTimeProvider(Now, TimeSpan.FromSeconds(1)),
             throughputReporter: reporter);
 
@@ -333,5 +334,34 @@ public class SyncPlatsbankenStreamJobTests
             () => job.RunAsync(TestContext.Current.CancellationToken));
 
         recorder.Records.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task RunAsync_DispatchesEachEventInItsOwnChildScope()
+    {
+        // #982 — the static guard for the audit-isolation fix (parity SyncPlatsbankenSnapshotJob).
+        // Every stream event must run in its OWN DI scope → its own IAppDbContext → its own
+        // change-tracker, so a failed upsert cannot poison a sibling upsert OR the job-scope context
+        // the auditor writes its Art. 30 row on. A regression to one shared batch scope drops this
+        // count to 1 and turns this red.
+        var changes = new JobAdChange[]
+        {
+            new JobAdUpsert("ext-1", ValidItem("ext-1"), Now),
+            new JobAdRemoval("ext-rem", Now),
+            new JobAdUpsert("ext-2", ValidItem("ext-2"), Now),
+        };
+        var jobSource = StubJobSource(changes);
+        var mediator = Substitute.For<IMediator>();
+        mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(UpsertOutcome.Added));
+        mediator.Send(Arg.Any<ArchiveExternalJobAdCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(ArchiveOutcome.Archived));
+        var scopeFactory = new FakeScopeFactory(mediator);
+        var job = CreateJob(jobSource, scopeFactory);
+
+        await job.RunAsync(TestContext.Current.CancellationToken);
+
+        // One child scope per event (3), never a single shared scope for the whole batch.
+        scopeFactory.ScopesCreated.ShouldBe(3);
     }
 }

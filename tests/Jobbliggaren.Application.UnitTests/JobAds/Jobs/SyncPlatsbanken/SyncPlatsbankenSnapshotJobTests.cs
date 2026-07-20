@@ -77,32 +77,8 @@ public class SyncPlatsbankenSnapshotJobTests
             ParsedTotal: items.Length, Attempts: 1, TruncatedAndExhausted: false));
     }
 
-    /// <summary>
-    /// Konkret fake för DI-scope-kedjan. <c>scopeFactory.CreateAsyncScope()</c>
-    /// är en extension-metod som internt anropar
-    /// <see cref="IServiceScopeFactory.CreateScope"/> och wrappar resultatet i
-    /// <c>AsyncServiceScope</c>. En liten konkret fake är mer läsbar än en djup
-    /// NSubstitute-kedja (CLAUDE.md §2.4) och låter testet räkna scope-skapande
-    /// via <see cref="ScopesCreated"/> (regressions-assertion).
-    /// </summary>
-    private sealed class FakeScopeFactory(IMediator mediator)
-        : IServiceScopeFactory, IServiceScope, IServiceProvider
-    {
-        public int ScopesCreated { get; private set; }
-
-        public IServiceScope CreateScope()
-        {
-            ScopesCreated++;
-            return this;
-        }
-
-        public IServiceProvider ServiceProvider => this;
-
-        public object? GetService(Type serviceType) =>
-            serviceType == typeof(IMediator) ? mediator : null;
-
-        public void Dispose() { }
-    }
+    // FakeScopeFactory (the DI-scope chain fake) is shared with SyncPlatsbankenStreamJobTests —
+    // see FakeScopeFactory.cs. Both jobs dispatch each item in its own child scope (#982 parity).
 
     private static SyncPlatsbankenSnapshotJob CreateJob(
         IJobSource jobSource,

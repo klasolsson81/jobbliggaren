@@ -45,3 +45,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# lighthouse-ci (local lhci autorun writes results here; CI uploads them as a
+# build artifact instead of committing them)
+.lighthouseci/

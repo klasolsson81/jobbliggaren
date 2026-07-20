@@ -28,8 +28,8 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// <c>disabled_nodes</c> and prefers ANY seq-scan-free path REGARDLESS of cost, so it is an effective
 /// PROHIBITION as soon as a usable index exists. A surviving <c>Seq Scan on job_ads</c> therefore proves
 /// UNUSABILITY: exactly the predicate-implication failure, and independent of row count and ANALYZE state.
-/// (This mirrors the truth-sync in <see cref="Jobbliggaren.Worker.IntegrationTests.CompanyWatches"/>'s
-/// browse-query plan test — the enable_* GUCs are prohibitions on 17+, not the pre-17 cost penalty.)
+/// (This mirrors the truth-sync in <c>CompanyWatchBrowseQueryPlanTests</c> — the enable_* GUCs are
+/// prohibitions on 17+, not the pre-17 cost penalty.)
 /// <c>SET LOCAL</c> runs in an always-rolled-back transaction, so it cannot ride a pooled connection into
 /// another test.
 /// </para>
@@ -224,8 +224,8 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
         // still emitted (every candidate then carries the disabled node), so the test still reddens — they
         // only strip the statistics-driven CHOICE between a usable index and an equally-costed alternative,
         // which is what made the browse-sort fact flake. enable_sort=off is inert for the two ORDER-BY-free
-        // shapes (QSearch/Suggest emit no Sort); if either ever grows an ORDER BY, re-confirm that before
-        // relying on this shared helper.
+        // shapes (QSearch/Suggest emit no Sort); if either ever grows an ORDER BY (or a Sort-resolved
+        // DISTINCT), re-confirm that before relying on this shared helper.
         await using var tx = await connection.BeginTransactionAsync(ct);
 
         await using (var set = connection.CreateCommand())

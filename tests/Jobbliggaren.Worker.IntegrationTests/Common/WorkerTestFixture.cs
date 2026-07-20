@@ -114,6 +114,15 @@ public sealed class WorkerTestFixture : IAsyncLifetime
         // F4-9: the deterministic CV-review engine + its NLP tier (parity Program.cs), so the
         // CvReviewEncryptionTests can resolve ICvReviewEngine against the real DEK pipeline.
         services.AddTextAnalysis();
+        // #982 — the JobTech ingest keyword extractor + its shared skill index. Registered in
+        // AddJobSources in production (not called by this fixture), but the real
+        // UpsertExternalJobAdCommandHandler depends on IJobAdKeywordExtractor, so the
+        // SyncPlatsbankenStreamJobAuditIsolationTests drives the real upsert path end-to-end. Deps
+        // (ITextAnalyzer/IStemmer) come from AddTextAnalysis above; parity DependencyInjection.cs.
+        services.AddSingleton<Jobbliggaren.Infrastructure.Taxonomy.SkillTaxonomyIndex>();
+        services.AddSingleton<
+            Jobbliggaren.Application.JobAds.Abstractions.IJobAdKeywordExtractor,
+            Jobbliggaren.Infrastructure.Taxonomy.JobAdKeywordExtractor>();
         services.AddCvReview();
         // F4-10: the deterministic CV-build/improve engine (Phase A), so the
         // CvImprovementEncryptionTests can resolve ICvImprovementEngine against the real DEK

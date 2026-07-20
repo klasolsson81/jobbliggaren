@@ -6,6 +6,7 @@ using Jobbliggaren.Application.JobAds.Jobs.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Mediator;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Jobbliggaren.Application.JobAds.Jobs.SyncPlatsbanken;
@@ -35,14 +36,25 @@ namespace Jobbliggaren.Application.JobAds.Jobs.SyncPlatsbanken;
 /// </para>
 ///
 /// <para>
-/// <b>Per-event isolering:</b> En misslyckad upsert/archive ska inte fälla hela
-/// batch:n. Try/catch per event räknar i ErrorCount. ADR 0032 §3 +
-/// HardDeleteAccountsJob TD-25-pattern.
+/// <b>Per-event isolering — child-scope per item (#982, parity SyncPlatsbankenSnapshotJob's
+/// 2026-05-16 "Variant B" root-cause-fix):</b> a failed upsert/archive must not fell the
+/// batch, AND must not contaminate the run's audit write. Each event is dispatched in its own
+/// DI scope (<see cref="IServiceScopeFactory.CreateAsyncScope"/>) → its own
+/// <c>IAppDbContext</c> whose change-tracker lives and dies with ONE item. This restores
+/// ADR 0032 §5's single-command-scope assumption (which <c>UpsertExternalJobAdCommandHandler</c>'s
+/// <c>DbUpdateException</c> isolation relies on) and — the #982 fix — keeps the JOB-scope
+/// context that <see cref="ISystemEventAuditor"/> writes on CLEAN. Before this, all upserts and
+/// the audit shared one scoped context: an upsert that failed its <c>SaveChangesAsync</c> (e.g.
+/// a poisoned <c>raw_payload</c>) left the entity tracked, and the auditor's later
+/// <c>SaveChangesAsync</c> re-flushed it and failed too — the GDPR Art. 30 record-of-processing
+/// was dropped and misreported as a <c>System.JobAdsSynced</c> audit failure. Try/catch per
+/// event still counts failures in ErrorCount (ADR 0032 §3 + HardDeleteAccountsJob TD-25-pattern);
+/// the audit stays in <c>finally</c> so a partial run still records its Art. 30 row (ADR 0032 §8).
 /// </para>
 /// </summary>
 public sealed partial class SyncPlatsbankenStreamJob(
     IJobSource jobSource,
-    IMediator mediator,
+    IServiceScopeFactory scopeFactory,
     IDateTimeProvider clock,
     ISystemEventAuditor auditor,
     IngestionThroughputReporter throughputReporter,
@@ -87,6 +99,13 @@ public sealed partial class SyncPlatsbankenStreamJob(
 
                 try
                 {
+                    // Own DI scope per item → own IAppDbContext → change-tracker lives and dies
+                    // with ONE item (#982; parity SyncPlatsbankenSnapshotJob). A failed upsert can
+                    // no longer poison a sibling upsert OR the job-scope context the auditor writes
+                    // on. Resolve the mediator INSIDE the scope so its handlers use the child context.
+                    await using var itemScope = scopeFactory.CreateAsyncScope();
+                    var mediator = itemScope.ServiceProvider.GetRequiredService<IMediator>();
+
                     switch (change)
                     {
                         case JobAdUpsert upsert:

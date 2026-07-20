@@ -23,11 +23,34 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// <b><c>SET LOCAL enable_seqscan = off</c> is the instrument, and the obvious test is the wrong one.</b>
 /// "Seed rows, EXPLAIN, hope the planner picks the index" is flaky AND blind: on a small table the planner
 /// rationally prefers a seq scan even over a perfectly usable index, and the test cannot distinguish
-/// <i>"the index is UNUSABLE"</i> from <i>"usable but not chosen"</i> — yet only the first is the bug. With
-/// seqscan priced at ~1e10 the planner takes any usable index, so a surviving <c>Seq Scan on job_ads</c>
-/// proves UNUSABILITY: exactly the predicate-implication failure, and independent of row count and ANALYZE
-/// state. <c>SET LOCAL</c> runs in an always-rolled-back transaction, so it cannot ride a pooled connection
-/// into another test.
+/// <i>"the index is UNUSABLE"</i> from <i>"usable but not chosen"</i> — yet only the first is the bug. On
+/// PostgreSQL 17+ (18.3 here) <c>enable_seqscan = off</c> does not add a cost: the planner counts
+/// <c>disabled_nodes</c> and prefers ANY seq-scan-free path REGARDLESS of cost, so it is an effective
+/// PROHIBITION as soon as a usable index exists. A surviving <c>Seq Scan on job_ads</c> therefore proves
+/// UNUSABILITY: exactly the predicate-implication failure, and independent of row count and ANALYZE state.
+/// (This mirrors the truth-sync in <see cref="Jobbliggaren.Worker.IntegrationTests.CompanyWatches"/>'s
+/// browse-query plan test — the enable_* GUCs are prohibitions on 17+, not the pre-17 cost penalty.)
+/// <c>SET LOCAL</c> runs in an always-rolled-back transaction, so it cannot ride a pooled connection into
+/// another test.
+/// </para>
+/// <para>
+/// <b>The same instrument, applied to the ORDER half: <c>SET LOCAL enable_sort = off</c>.</b> A filter+order
+/// query has two eligibility questions — CAN the index serve the <c>WHERE</c>, and CAN it serve the
+/// <c>ORDER BY</c> — and each needs its own proof. seqscan-off answers the first; sort-off answers the
+/// second. Without it the browse-sort fact was a KNOWN intermittent CI flake (the fact was added by #743 /
+/// PR #970; it was later seen failing on PR #1010 and rerun-recovered — see the memory
+/// <c>reference_browse_sort_plan_test_flakes_on_small_shared_db</c>): with only the FILTER half pinned, the
+/// ORDER half stayed a cost-based choice, and when the shared <c>[Collection("Api")]</c> Postgres estimated a
+/// TINY active-row count (reproduced 2026-07-20 at 200 Archived + a handful of Active + ANALYZE, planner
+/// <c>rows=3</c>) it chose a <c>Bitmap Index Scan + Sort</c> over the ordered index walk — near cost-equal
+/// there, so the choice flipped with the shared DB's execution-order-dependent statistics. Disabling sort
+/// forces the ordered walk whenever the index CAN serve the order, so a surviving <c>Sort Key:</c> proves the
+/// order is index-UNSERVABLE — the exact mirror of a surviving <c>Seq Scan</c>, equally
+/// statistics-independent. Because the GUC is a prohibition, not a cost tweak, a sort that is the ONLY route
+/// to correct ordering is still emitted (every candidate plan then carries the disabled Sort node), so the
+/// instrument can never mask a real ordering regression. This stays an ELIGIBILITY claim (CAN the index serve
+/// the order), never a plan-CHOICE claim: the eligibility-vs-choice line is the #875 charter, and production's
+/// plan choice at corpus cardinality is a separate, Klas-gated guard tracked as its own follow-up (#1013).
 /// </para>
 /// <para>
 /// <b>Every shape below is one PRODUCTION ACTUALLY EMITS — and the first draft of this file got that wrong.</b>
@@ -89,11 +112,11 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
     public async Task QSearch_IsServedByBothTheFtsAndTitleTrigramIndexes()
     {
         var ct = TestContext.Current.CancellationToken;
-        var plan = await ExplainWithoutSeqScanAsync(QSearchSql, ct);
+        var plan = await ExplainWithScanAndSortDisabledAsync(QSearchSql, ct);
 
         plan.ShouldNotContain("Seq Scan on job_ads", Case.Insensitive,
             "/jobb q-search CANNOT use its indexes: PostgreSQL fell back to a sequential scan even with " +
-            "seqscan priced at ~1e10, which means an index is UNUSABLE for this query rather than merely " +
+            "seqscan disabled (a prohibition on PG 17+), which means an index is UNUSABLE for this query rather than merely " +
             $"un-preferred. That is the 2026-05-21 predicate-implication bug (~35-50 s). Plan:\n{plan}");
 
         // The disjunction must be served by BOTH arms (a BitmapOr). If only one index appears, the other
@@ -108,11 +131,11 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
     public async Task TitleSuggest_IsIndexServed()
     {
         var ct = TestContext.Current.CancellationToken;
-        var plan = await ExplainWithoutSeqScanAsync(SuggestSql, ct);
+        var plan = await ExplainWithScanAndSortDisabledAsync(SuggestSql, ct);
 
         plan.ShouldNotContain("Seq Scan on job_ads", Case.Insensitive,
             "title-suggest CANNOT use any index: PostgreSQL fell back to a sequential scan even with " +
-            $"seqscan priced at ~1e10 — the index is unusable for this query. Plan:\n{plan}");
+            $"seqscan disabled (a prohibition on PG 17+) — the index is unusable for this query. Plan:\n{plan}");
 
         // Deliberately NOT pinned to one index name. Dropping the predicates (#821 Q2 = (ii)) means
         // `lower(title) LIKE 'lärar%'` can now be served by EITHER the btree text_pattern_ops prefix index
@@ -137,44 +160,52 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
         // hit anonymous query: the status='Active' filter AND the published_at DESC, id ORDER BY. Before it,
         // job_ads had zero index on those columns → Seq Scan + top-N heapsort of ~42k active rows per page.
         var ct = TestContext.Current.CancellationToken;
-        var plan = await ExplainWithoutSeqScanAsync(BrowseSortSql, ct);
+        var plan = await ExplainWithScanAndSortDisabledAsync(BrowseSortSql, ct);
 
-        // Filter half: with seqscan priced at ~1e10 a surviving Seq Scan proves the index is UNUSABLE for
-        // this query (the #821 predicate-implication failure mode), not merely un-preferred.
+        // Filter half: with seqscan disabled (a prohibition on PG 17+) a surviving Seq Scan proves the index
+        // is UNUSABLE for this query (the #821 predicate-implication failure mode), not merely un-preferred.
         plan.ShouldNotContain("Seq Scan on job_ads", Case.Insensitive,
             $"the default browse CANNOT use an index for its status filter — Seq Scan survived. Plan:\n{plan}");
 
-        // Order half: the index's column order (status asc, published_at DESC, id asc) must yield the page
-        // window already sorted. A surviving Sort / Incremental Sort node means the index serves only the
-        // filter and the ~42k-row heapsort is still there — the whole point of #743 unmet.
+        // Order half: with sort ALSO disabled (see the helper), the index's column order
+        // (status asc, published_at DESC, id asc) must yield the page window already sorted. A surviving
+        // Sort / Incremental Sort node means the index cannot serve the order — the ~42k-row heapsort is
+        // still paid and the whole point of #743 is unmet.
         //
         // Anchor on "Sort Key:", not the bare substring "Sort". Every actual sort node in an EXPLAIN plan —
         // Sort, Incremental Sort, and sorts under Gather Merge / Unique / WindowAgg — emits a "Sort Key:"
-        // detail line (measured: the #743 mutation "drop published_at from the index" produces
-        // `Sort → Sort Key: published_at DESC, id`). An ordered Index (Only) Scan emits none. The bare
-        // "Sort" substring is a latent false-alarm surface — a future index or column name containing the
-        // letters "sort" would redden this gate while the guarantee holds. Removing that surface IS ADR 0045
-        // Beslut 5 ("flaky perf-gate sämre än ingen") applied, and mirrors the sibling
-        // CompanyWatchBrowseQueryPlanTests, which anchors on "Sort Key:" for the same reason.
+        // detail line; an ordered Index (Only) Scan emits none. The bare "Sort" substring is a latent
+        // false-alarm surface — a future index or column name containing the letters "sort" would redden this
+        // gate while the guarantee holds. Anchoring on "Sort Key:" mirrors the sibling
+        // CompanyWatchBrowseQueryPlanTests.
         //
-        // Written verdict (measured 2026-07-20, dedicated postgres:18 Testcontainer, 40+ states —
-        // N ∈ {0,1,20,200,2000,50000} × ANALYZE ∈ {false,true} + a ~2%-Active high-selectivity case):
-        // under `enable_seqscan = off` this query is ALWAYS served by an ordered Index Only Scan on
-        // ix_job_ads_status_published_at_id with no Sort, at every state — the instrument is robust to
-        // reltuples and ANALYZE by construction (that is the #821 point). Adding `enable_sort = off` was
-        // measured a NO-OP (byte-identical plans at every state); the "switches on planner statistics"
-        // premise reproduces only WITHOUT the seqscan GUC (the natural choice this GUC already suppresses).
-        // This oracle's charter is index ELIGIBILITY under `enable_seqscan = off`, NOT production's plan
-        // CHOICE at corpus cardinality — that separate, Klas-gated guard is tracked as its own follow-up.
+        // Written verdict — why `enable_sort = off` is load-bearing here, not decoration.
+        // This fact was a KNOWN intermittent CI flake (reference_browse_sort_plan_test_flakes_on_small_shared_db;
+        // the fact was added by #743 / PR #970, seen failing on PR #1010 and rerun-recovered). It ran under
+        // `enable_seqscan = off` ALONE, which pins the FILTER half but leaves the ORDER half a cost-based
+        // CHOICE. Reproduced 2026-07-20 (dedicated postgres:18 Testcontainer, 200 Archived + a handful of
+        // Active + ANALYZE — the shared-DB character): at a tiny active estimate the planner picks bitmap+sort
+        // over the ordered walk, because they are near cost-equal there —
+        //     Limit → Sort (Sort Key: published_at DESC, id)
+        //               → Bitmap Heap Scan → Bitmap Index Scan on ix_job_ads_status_published_at_id (rows=3)
+        // — a surviving Sort Key ⇒ the assertion failed, execution-order-dependently. With `enable_sort = off`
+        // added, the SAME state plans deterministically —
+        //     Limit → Index Only Scan using ix_job_ads_status_published_at_id (rows=3)
+        // — no Sort, at every measured active count {3,5,10}. So this is the ORDER-half eligibility mirror of
+        // the FILTER-half seqscan GUC, statistics-independent, no seeding. It stays an ELIGIBILITY claim
+        // (CAN the index serve the order), NOT production's plan CHOICE at corpus cardinality — the
+        // eligibility-vs-choice line is the #875 charter, and that separate CHOICE guard is Klas-gated and
+        // tracked as its own follow-up (#1013). enable_sort=off is inert for the two ORDER-BY-free facts
+        // above (they emit no Sort).
         plan.ShouldNotContain("Sort Key:", Case.Insensitive,
-            $"the browse-sort index does not serve the ORDER BY — a Sort node survived (its Sort Key line is " +
-            $"present), so the top-N heapsort is still paid on every page view. Plan:\n{plan}");
+            $"the browse-sort index does not serve the ORDER BY — a Sort survived even with sort disabled " +
+            $"(its Sort Key line is present), so the order is index-unservable. Plan:\n{plan}");
 
         plan.ShouldContain("ix_job_ads_status_published_at_id", Case.Insensitive,
             $"the default browse was not served by the #743 browse-sort index. Plan:\n{plan}");
     }
 
-    private async Task<string> ExplainWithoutSeqScanAsync(string sql, CancellationToken ct)
+    private async Task<string> ExplainWithScanAndSortDisabledAsync(string sql, CancellationToken ct)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -182,14 +213,25 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
         await using var connection = new NpgsqlConnection(db.Database.GetConnectionString());
         await connection.OpenAsync(ct);
 
-        // SET LOCAL + a transaction we never commit: the override dies with the transaction and can never
+        // SET LOCAL + a transaction we never commit: the overrides die with the transaction and can never
         // ride a pooled connection into another test.
+        //
+        // Two eligibility GUCs, one per half of a filter+order query. On PG 17+ (18.3 here) these are not
+        // cost penalties but `disabled_nodes` prohibitions: the planner prefers any path that avoids the
+        // disabled node whenever one exists, regardless of cost. enable_seqscan=off ⇒ a surviving `Seq Scan`
+        // proves the FILTER index unusable; enable_sort=off ⇒ a surviving `Sort Key:` proves the ORDER is not
+        // index-servable. Neither can mask a real regression: a scan/sort that is the ONLY correct plan is
+        // still emitted (every candidate then carries the disabled node), so the test still reddens — they
+        // only strip the statistics-driven CHOICE between a usable index and an equally-costed alternative,
+        // which is what made the browse-sort fact flake. enable_sort=off is inert for the two ORDER-BY-free
+        // shapes (QSearch/Suggest emit no Sort); if either ever grows an ORDER BY, re-confirm that before
+        // relying on this shared helper.
         await using var tx = await connection.BeginTransactionAsync(ct);
 
         await using (var set = connection.CreateCommand())
         {
             set.Transaction = tx;
-            set.CommandText = "SET LOCAL enable_seqscan = off;";
+            set.CommandText = "SET LOCAL enable_seqscan = off; SET LOCAL enable_sort = off;";
             await set.ExecuteNonQueryAsync(ct);
         }
 

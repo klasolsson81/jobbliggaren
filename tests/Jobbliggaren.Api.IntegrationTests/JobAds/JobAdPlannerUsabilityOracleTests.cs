@@ -147,9 +147,28 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
         // Order half: the index's column order (status asc, published_at DESC, id asc) must yield the page
         // window already sorted. A surviving Sort / Incremental Sort node means the index serves only the
         // filter and the ~42k-row heapsort is still there — the whole point of #743 unmet.
-        plan.ShouldNotContain("Sort", Case.Insensitive,
-            $"the browse-sort index does not serve the ORDER BY — a Sort node survived, so the top-N heapsort " +
-            $"is still paid on every page view. Plan:\n{plan}");
+        //
+        // Anchor on "Sort Key:", not the bare substring "Sort". Every actual sort node in an EXPLAIN plan —
+        // Sort, Incremental Sort, and sorts under Gather Merge / Unique / WindowAgg — emits a "Sort Key:"
+        // detail line (measured: the #743 mutation "drop published_at from the index" produces
+        // `Sort → Sort Key: published_at DESC, id`). An ordered Index (Only) Scan emits none. The bare
+        // "Sort" substring is a latent false-alarm surface — a future index or column name containing the
+        // letters "sort" would redden this gate while the guarantee holds. Removing that surface IS ADR 0045
+        // Beslut 5 ("flaky perf-gate sämre än ingen") applied, and mirrors the sibling
+        // CompanyWatchBrowseQueryPlanTests, which anchors on "Sort Key:" for the same reason.
+        //
+        // Written verdict (measured 2026-07-20, dedicated postgres:18 Testcontainer, 40+ states —
+        // N ∈ {0,1,20,200,2000,50000} × ANALYZE ∈ {false,true} + a ~2%-Active high-selectivity case):
+        // under `enable_seqscan = off` this query is ALWAYS served by an ordered Index Only Scan on
+        // ix_job_ads_status_published_at_id with no Sort, at every state — the instrument is robust to
+        // reltuples and ANALYZE by construction (that is the #821 point). Adding `enable_sort = off` was
+        // measured a NO-OP (byte-identical plans at every state); the "switches on planner statistics"
+        // premise reproduces only WITHOUT the seqscan GUC (the natural choice this GUC already suppresses).
+        // This oracle's charter is index ELIGIBILITY under `enable_seqscan = off`, NOT production's plan
+        // CHOICE at corpus cardinality — that separate, Klas-gated guard is tracked as its own follow-up.
+        plan.ShouldNotContain("Sort Key:", Case.Insensitive,
+            $"the browse-sort index does not serve the ORDER BY — a Sort node survived (its Sort Key line is " +
+            $"present), so the top-N heapsort is still paid on every page view. Plan:\n{plan}");
 
         plan.ShouldContain("ix_job_ads_status_published_at_id", Case.Insensitive,
             $"the default browse was not served by the #743 browse-sort index. Plan:\n{plan}");

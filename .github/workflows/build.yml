@@ -240,7 +240,15 @@ jobs:
   lighthouse:
     name: lighthouse (observe-only)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Sized for the REAL collect load this fix restores: install + build +
+    # 8 URLs × numberOfRuns:3 = 24 Lighthouse-körningar. Den gamla 15-min-
+    # budgeten sattes när jobbet failade på sekunder (green-but-empty) och
+    # mötte aldrig verklig last. En JOBB-timeout skulle cancel:a jobbet, och
+    # if: always()-steg (green-but-empty-vakten) kör INTE efter en cancel →
+    # tyst signalförlust, precis det §2.5-vakten ska stänga. Rymlig marginal
+    # skyddar vakten. Jobbet är observe-only (ej i ci.needs) → påverkar ej
+    # blockerande kritisk väg.
+    timeout-minutes: 30
     continue-on-error: true
     defaults:
       run:
@@ -268,22 +276,46 @@ jobs:
       - name: Build
         run: pnpm build
 
-      # treosh/lighthouse-ci-action — startServerCommand/assertions/budget
-      # läses ur web/jobbliggaren-web/lighthouserc.json (+ budget.json).
-      # Observe-only: jobbets continue-on-error gör att assert-fail aldrig
-      # blockerar CI Fas 1; resultatet finns i artefakt + summary.
+      # lhci autorun körs som ett run-steg (INTE treosh/lighthouse-ci-action) så
+      # det ärver jobbets working-directory (web/jobbliggaren-web). Därmed löses
+      # configens relativa sökvägar (collect.startServerCommand: pnpm start,
+      # assert.budgetsFile: ./budget.json, upload.outputDir: ./.lighthouseci)
+      # från web-dir — precis som en lokal körning. treosh-action körde lhci från
+      # repo-roten (GITHUB_WORKSPACE), ärvde ej working-directory, och kunde
+      # aldrig hitta vare sig `pnpm start` (start-scriptet finns i web-dirs
+      # package.json, ej rotens) eller ./budget.json → green-but-empty:
+      # `ERR_PNPM_NO_SCRIPT_OR_SERVER` på VARJE körning, maskerad grön av
+      # continue-on-error. @lhci/cli är pinnad devDep (samma runner treosh
+      # wrappade internt, nu i vår version-kontroll). Observe-only: continue-on-
+      # error gör att collect/assert-fail aldrig blockerar CI Fas 1.
       - name: Lighthouse CI
         id: lhci
         continue-on-error: true
-        uses: treosh/lighthouse-ci-action@v12
-        with:
-          configPath: web/jobbliggaren-web/lighthouserc.json
-          uploadArtifacts: true
+        run: pnpm exec lhci autorun --config=lighthouserc.json
 
-      - name: Observe-only-not
+      # Artifact-upload (ersätter treosh uploadArtifacts). path är workspace-
+      # relativ — upload-artifact är ett uses-steg och ärver ej working-directory.
+      - name: Upload Lighthouse results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lighthouse-results
+          path: web/jobbliggaren-web/.lighthouseci
+          if-no-files-found: ignore
+
+      # Green-but-empty-vakt (§2.5 no-silent-caps): producerade lhci ingen data
+      # är mätinstrumentet trasigt (som det var i hela sin historia före denna
+      # fix). Vakten ANNOTERAR synligt men GRINDAR ALDRIG — jobbet förblir
+      # observe-only (continue-on-error, ej i ci.needs). Flip→blockerande =
+      # medveten Klas-ratchet (ADR 0045 Beslut 6).
+      - name: Lighthouse results present (observe-only guard)
         if: always()
         run: |
-          echo "::notice::Lighthouse-CI observe-only Fas 1 (ADR 0045 Beslut 2/5) — LCP/CLS/page-weight assert-intent, INP/composite observe. Blockerar ej merge; ratchet→blockerande vid Klas-GO (Beslut 6)."
+          if [ -z "$(ls -A .lighthouseci 2>/dev/null)" ]; then
+            echo "::warning::Lighthouse-CI producerade ingen data (.lighthouseci tom/saknas) — mätinstrumentet är trasigt (green-but-empty). Se lhci-steget ovan. Grindar ej (observe-only Fas 1)."
+          else
+            echo "::notice::Lighthouse-CI samlade data ($(ls -1 .lighthouseci | wc -l) poster i .lighthouseci). Observe-only Fas 1 (ADR 0045 Beslut 2/5) — LCP/CLS/page-weight assert-intent, INP/composite observe. Ratchet→blockerande vid Klas-GO (Beslut 6)."
+          fi
 
   # Load-test (NBomber) — ADR 0045 Beslut 4. Fas 1: compile-verifierar
   # baslinje-scaffoldet (perf/Jobbliggaren.LoadTests, utanför sln). Faktiska

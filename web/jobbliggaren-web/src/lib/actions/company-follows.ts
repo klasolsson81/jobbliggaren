@@ -20,8 +20,13 @@ export type UnfollowCompanyResult =
 
 /**
  * #455 — follow a job ad's employer. Idempotent server-side (resurrect + race-safe). Returns the
- * CompanyWatchId so the toggle can unfollow by opaque id. Revalidates `/jobb` (the detail re-reads
- * follow-state) and `/foretag` (#448 — the followed-companies list re-reads on next render).
+ * CompanyWatchId so the toggle can unfollow by opaque id.
+ *
+ * This toggle lives INSIDE the job-ad detail modal, which is an intercepted route at `/jobb/[id]`.
+ * Revalidating `/jobb` would re-render that route and re-suspend the open modal to its dark scrim
+ * fallback mid-action — the #141 trap (see `setWatchFilterAction`). The toggle updates its own
+ * follow-state optimistically from the returned CompanyWatchId, so `/jobb` needs no server
+ * revalidate. Only `/foretag` (#448 — the followed-companies list) is revalidated.
  */
 export async function followCompanyFromJobAdAction(
   jobAdId: string
@@ -30,7 +35,6 @@ export async function followCompanyFromJobAdAction(
   const result = await followCompanyFromJobAd(jobAdId);
   switch (result.kind) {
     case "ok":
-      revalidatePath("/jobb");
       revalidatePath("/foretag");
       return { success: true, companyWatchId: result.data.companyWatchId };
     case "unauthorized":
@@ -73,10 +77,12 @@ export async function followCompanyAction(
 }
 
 /**
- * #455 / #448 / #560 PR-C — stop following, by the opaque CompanyWatchId. Idempotent. Revalidates `/jobb`
- * (the detail toggle), `/foretag` (the followed-companies list drops the row on the next RSC render —
- * server state drives the removal, no client-side optimistic copy; CTO Q4 2026-07-01, §5), and
- * `/foretag/sok` (the search results' follow-overlay re-reads).
+ * #455 / #448 / #560 PR-C — stop following, by the opaque CompanyWatchId. Idempotent. Revalidates
+ * `/foretag` (the followed-companies list drops the row on the next RSC render — server state drives
+ * the removal, no client-side optimistic copy; CTO Q4 2026-07-01, §5) and `/foretag/sok` (the search
+ * results' follow-overlay re-reads). NOT `/jobb`: the job-ad detail toggle that also calls this lives
+ * inside the intercepted `/jobb/[id]` modal and flips its own state optimistically, so revalidating
+ * `/jobb` would only re-suspend the open modal to its dark scrim mid-action (the #141 trap).
  */
 export async function unfollowCompanyAction(
   companyWatchId: string
@@ -85,7 +91,6 @@ export async function unfollowCompanyAction(
   const result = await unfollowCompany(companyWatchId);
   switch (result.kind) {
     case "ok":
-      revalidatePath("/jobb");
       revalidatePath("/foretag");
       revalidatePath("/foretag/sok");
       return { success: true };

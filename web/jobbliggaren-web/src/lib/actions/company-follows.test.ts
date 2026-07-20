@@ -13,14 +13,16 @@ const { revalidatePathMock } = vi.hoisted(() => ({ revalidatePathMock: vi.fn() }
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 
 // The BFF fetcher is server-only (Bearer + backend URL); drive every ApiResult branch through a stub.
-const { setWatchFilterMock, followCompanyMock, unfollowCompanyMock } = vi.hoisted(() => ({
-  setWatchFilterMock: vi.fn(),
-  followCompanyMock: vi.fn(),
-  unfollowCompanyMock: vi.fn(),
-}));
+const { setWatchFilterMock, followCompanyMock, followCompanyFromJobAdMock, unfollowCompanyMock } =
+  vi.hoisted(() => ({
+    setWatchFilterMock: vi.fn(),
+    followCompanyMock: vi.fn(),
+    followCompanyFromJobAdMock: vi.fn(),
+    unfollowCompanyMock: vi.fn(),
+  }));
 vi.mock("@/lib/api/company-follows", () => ({
   followCompany: followCompanyMock,
-  followCompanyFromJobAd: vi.fn(),
+  followCompanyFromJobAd: followCompanyFromJobAdMock,
   unfollowCompany: unfollowCompanyMock,
   setWatchFilter: setWatchFilterMock,
 }));
@@ -57,6 +59,7 @@ vi.mock("next-intl/server", async () => {
 import {
   setWatchFilterAction,
   followCompanyAction,
+  followCompanyFromJobAdAction,
   unfollowCompanyAction,
   type SetWatchFilterInput,
 } from "./company-follows";
@@ -72,6 +75,7 @@ beforeEach(() => {
   setWatchFilterMock.mockReset();
   setWatchFilterMock.mockResolvedValue({ kind: "ok", data: undefined });
   followCompanyMock.mockReset();
+  followCompanyFromJobAdMock.mockReset();
   unfollowCompanyMock.mockReset();
 });
 
@@ -204,20 +208,50 @@ describe("followCompanyAction / unfollowCompanyAction (#560 PR-C) — /foretag/s
     expect(revalidatePathMock).toHaveBeenCalledWith("/jobb");
   });
 
-  it("unfollowCompanyAction ok → revalidates /foretag/sok", async () => {
+  it("unfollowCompanyAction ok → revalidates /foretag + /foretag/sok, never /jobb (#141 modal pin)", async () => {
     unfollowCompanyMock.mockResolvedValue({ kind: "ok", data: undefined });
 
     const result = await unfollowCompanyAction(WATCH_ID);
 
     expect(result).toEqual({ success: true });
     expect(unfollowCompanyMock).toHaveBeenCalledExactlyOnceWith(WATCH_ID);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/foretag");
     expect(revalidatePathMock).toHaveBeenCalledWith("/foretag/sok");
+    // The job-ad modal toggle also unfollows through here; revalidating /jobb would re-suspend the
+    // open intercepted modal to its dark scrim (the #141 trap). The toggle flips optimistically.
+    expect(revalidatePathMock).not.toHaveBeenCalledWith("/jobb");
   });
 
   it("followCompanyAction failure → no revalidate", async () => {
     followCompanyMock.mockResolvedValue({ kind: "error" });
 
     const result = await followCompanyAction(ORG_NR);
+
+    expect(result.success).toBe(false);
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("followCompanyFromJobAdAction (#455) — the #141 modal-flash pin", () => {
+  it("ok → success + revalidates ONLY /foretag, never /jobb (the toggle lives in the /jobb/[id] modal)", async () => {
+    followCompanyFromJobAdMock.mockResolvedValue({
+      kind: "ok",
+      data: { companyWatchId: "cw-9" },
+    });
+
+    const result = await followCompanyFromJobAdAction("ad-1");
+
+    expect(result).toEqual({ success: true, companyWatchId: "cw-9" });
+    expect(followCompanyFromJobAdMock).toHaveBeenCalledExactlyOnceWith("ad-1");
+    // #141 trap: revalidating /jobb would re-suspend the open intercepted modal to its dark scrim
+    // mid-action. The toggle updates its own follow-state optimistically, so only /foretag revalidates.
+    expect(revalidatePathMock).toHaveBeenCalledExactlyOnceWith("/foretag");
+  });
+
+  it("failure → no revalidate", async () => {
+    followCompanyFromJobAdMock.mockResolvedValue({ kind: "error" });
+
+    const result = await followCompanyFromJobAdAction("ad-1");
 
     expect(result.success).toBe(false);
     expect(revalidatePathMock).not.toHaveBeenCalled();

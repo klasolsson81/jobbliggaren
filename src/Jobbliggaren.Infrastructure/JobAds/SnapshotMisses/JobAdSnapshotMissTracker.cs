@@ -210,11 +210,20 @@ internal sealed partial class JobAdSnapshotMissTracker(
 
         // Läser System.JobAdsSynced-audit-rader för snapshot-jobbet senaste N dygn.
         // payload-jsonb innehåller serialiserade SystemAuditEvent-fält (Source,
-        // JobType, Fetched, ...) per ADR 0035. MAX(Fetched) ger största
-        // observerade snapshot-storlek → relativ floor-baslinje.
+        // JobType, Fetched, ParsedTotal, ...) per ADR 0035.
+        //
+        // #510 — METRIC LINEARIZATION: the baseline reads ParsedTotal (the final
+        // attempt's element count), the SAME quantity the relative floor compares in
+        // the snapshot job. Fetched is the wrong metric here: it counts yields across
+        // ALL retry attempts (pipeline throughput) — a single truncate-then-succeed
+        // run inflated MAX(Fetched) and the floor was "violated" by every healthy run
+        // for up to 7 days → miss-tracking paused → dead ads were never archived.
+        // Legacy rows (pre-#510) lack the key → NULL → excluded from MAX → the
+        // baseline warms up; a NULL baseline = relative floor inactive (deliberate
+        // cold-start semantics, CTO 2026-05-23 Q5; the absolute floor remains).
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = """
-            SELECT MAX((payload->>'Fetched')::int) AS max_fetched
+            SELECT MAX((payload->>'ParsedTotal')::int) AS max_parsed_total
             FROM audit_log
             WHERE event_type = 'System.JobAdsSynced'
               AND occurred_at >= now() - (@days || ' days')::interval

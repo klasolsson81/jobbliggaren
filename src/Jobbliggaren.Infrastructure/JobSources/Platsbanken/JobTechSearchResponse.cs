@@ -311,10 +311,14 @@ internal sealed class JobTechRequirements
 // occupation-trion, plus JobTechs relevans-vikt. weight kan vara null i live-
 // payloaden (en must_have-skill utan vikt) → ACL:n mappar null till golvet 0.0
 // (ExtractedTerm.Weight kräver ett finit, icke-negativt värde).
+// #509 (CTO F3): double? — not int? — because a relevance weight is canonically
+// fractional. Under int? a wire "weight": 0.75 became a JsonException which
+// (post-#509) would poison-skip the ENTIRE otherwise-valid ad over one optional
+// field. The consumer (skill.Weight ?? 0.0) is already double.
 internal sealed class JobTechRequirementConcept
 {
     [JsonPropertyName("weight")]
-    public int? Weight { get; set; }
+    public double? Weight { get; set; }
 
     [JsonPropertyName("concept_id")]
     public string? ConceptId { get; set; }

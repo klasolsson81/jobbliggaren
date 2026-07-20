@@ -47,11 +47,18 @@ internal sealed partial class PlatsbankenJobSource(
         // which also handles AF declassifying an ad (dropped from the set → set back to false).
         var remoteIds = await TryFetchRemoteIdSetAsync(cancellationToken);
 
-        var converted = 0;
-        var total = 0;
-
         for (var attempt = 1; attempt <= MaxSnapshotAttempts; attempt++)
         {
+            // #510 — reset PER ATTEMPT: every retry re-streams from element 0, so
+            // counters held across attempts double-counted the parsed prefix. A
+            // truncate-then-succeed run then recorded ParsedTotal as the cross-attempt
+            // SUM, which inflated the 7-day MAX(ParsedTotal)-baseline and tripped the
+            // relative floor for every healthy run after it → miss-tracking (stale-ad
+            // archiving) suppressed for up to 7 days. ParsedTotal is defined as the
+            // FINAL attempt's element count; yields still span attempts (idempotent
+            // duplicates via UNIQUE index, ADR 0032 §5).
+            var converted = 0;
+            var total = 0;
             // Färsk GET per försök — strömmar per hit, ~300 MB materialiseras
             // aldrig (streaming-fix 2026-05-16). Konsumenten
             // (SyncPlatsbankenSnapshotJob) kör child-scope per yieldat item.

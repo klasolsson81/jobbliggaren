@@ -33,6 +33,18 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_HealthCheck_Is120Per60s()
+    {
+        // #483 Low — anonymous /api/live + /api/ready (shared IP-partitioned budget). Generous by
+        // design: legitimate ALB/orchestrator probes must never be throttled; a flood is still
+        // capped. security-auditor verifies this number (BLOCKING).
+        var sut = new RateLimitingOptions();
+
+        sut.HealthCheck.PermitLimit.ShouldBe(120);
+        sut.HealthCheck.WindowSeconds.ShouldBe(60);
+    }
+
+    [Fact]
     public void Defaults_AuthLoose_Is30Per60s()
     {
         var sut = new RateLimitingOptions();

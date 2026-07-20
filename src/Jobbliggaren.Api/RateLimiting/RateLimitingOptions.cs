@@ -367,6 +367,28 @@ public sealed class RateLimitingOptions
         WindowSeconds = 60,
     };
 
+    /// <summary>
+    /// #483 Low — anonymous health endpoints GET /api/live + GET /api/ready — partitioned per IP,
+    /// FixedWindow. Own policy (least common mechanism, Saltzer/Schroeder): an anonymous, unauth
+    /// DoS surface must not share a protection budget with LandingPublicRead. /api/ready runs a
+    /// Postgres CanConnect + Redis PING per hit, so an unthrottled flood is an amplification vector;
+    /// /api/live is predicate-free (cheap) but still an anonymous surface. The two SHARE this one
+    /// policy (one budget per IP across both).
+    /// <para>
+    /// <b>Load-bearing:</b> legitimate probes (ALB target-group / container runtime, a handful of
+    /// source IPs at a low cadence) must NEVER be throttled, so the limit is generous — 120/min/IP
+    /// covers any orchestrator cadence (even 5s liveness+readiness = 24/min) plus manual smoke tests
+    /// with wide headroom, while a flood (thousands/sec from one IP) is capped hard. Behind ALB
+    /// requires UseForwardedHeaders (else all probes bucket under one proxy IP). security-auditor
+    /// verifies the number (BLOCKING). Klas-lockable (ops/cost dimension). IOptions (§5.1).
+    /// </para>
+    /// </summary>
+    public PolicyOptions HealthCheck { get; init; } = new()
+    {
+        PermitLimit = 120,
+        WindowSeconds = 60,
+    };
+
     public sealed class PolicyOptions
     {
         public int PermitLimit { get; init; }

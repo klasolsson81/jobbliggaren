@@ -354,14 +354,19 @@ app.UseRateLimiter();
 //
 // Response: default HealthCheckResponseWriter skriver "Healthy" / "Unhealthy"
 // som text. ALB kollar bara HTTP-status; manuella smoke-tests får text-body.
+//
+// #483 Low — both endpoints carry the anonymous, IP-partitioned HealthCheckPolicy: /api/ready
+// runs a Postgres CanConnect + Redis PING per hit (an amplification vector for an unauth flood),
+// and /api/live, though cheap, is still an anonymous surface. The limit is generous so legitimate
+// ALB/orchestrator probes are never throttled (see RateLimitingOptions.HealthCheck).
 app.MapHealthChecks("/api/live", new HealthCheckOptions
 {
     Predicate = _ => false,
-});
+}).RequireRateLimiting(RateLimitingExtensions.HealthCheckPolicy);
 app.MapHealthChecks("/api/ready", new HealthCheckOptions
 {
     Predicate = check => check.Tags.Contains("ready"),
-});
+}).RequireRateLimiting(RateLimitingExtensions.HealthCheckPolicy);
 
 app.MapAuthEndpoints();
 app.MapMeEndpoints();

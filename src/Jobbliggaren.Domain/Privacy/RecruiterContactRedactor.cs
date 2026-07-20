@@ -86,53 +86,116 @@ public static partial class RecruiterContactRedactor
     /// The recogniser's canonical VIEW of the text (#844: the recogniser owns the question, the
     /// split and the normalization — including how whitespace forms are read). Length-preserving,
     /// so a match's offsets map 1:1 back to the original: a real NBSP (U+00A0) becomes one space,
-    /// and the six-character LITERAL escape sequence (backslash, u, 0, 0, a-or-A, 0) becomes six
-    /// spaces. The second form is how a JSON-escaped payload spells NBSP — every stock
-    /// <c>JavaScriptEncoder</c> (including <c>UnsafeRelaxedJsonEscaping</c> — measured 2026-07-16)
-    /// escapes U+00A0, so an NBSP-separated phone inside <c>raw_payload</c> reads as digits
-    /// separated by escape sequences. Without the shadow, that phone was scrubbed from
-    /// <c>description</c> but SURVIVED in the payload copy (found by test-writer's assertion (g)).
-    /// Spans carry the SHADOW slice as <see cref="ContactSpan.Raw"/> — the escape's own zeroes
-    /// must never leak into the digit normalization.
+    /// and EVERY JSON escape sequence becomes that many spaces — a two-character escape
+    /// (<c>\n \t \r \b \f \" \\ \/</c>) becomes two spaces, a <c>\uXXXX</c> escape becomes six.
+    /// The recogniser reads a JSON-escaped <c>raw_payload</c> (see <c>JobAd.ApplyContactRedaction</c>),
+    /// where <c>raw_payload</c> holds JSON TEXT — a newline in the ad body is the two characters
+    /// backslash + <c>n</c>, because <c>JobTechPayloadSanitizer</c> re-serialises with
+    /// <c>UnsafeRelaxedJsonEscaping</c>, which still escapes control characters and NBSP (measured
+    /// 2026-07-16). Neutralising escapes here is what keeps the escape's LETTER out of a contact
+    /// match and the backslash out of the marker.
     /// </summary>
     /// <remarks>
-    /// Accepted over-read, fail-safe direction: JSON text spelling a REAL backslash before
-    /// <c>u00a0</c> (a doubled backslash in the document, i.e. a literal backslash plus the five
-    /// characters u00a0 in the decoded value) is read as the NBSP form too. Over-normalizing a
-    /// separator can only widen detection — over-redaction of PII-adjacent text is the bound
-    /// posture (ADR 0106 D5).
+    /// <para>
+    /// <b>#982 — why every escape, not just <c> </c>.</b> Before, only the NBSP escape was
+    /// neutralised. An email sitting immediately after any OTHER escape — the common
+    /// <c>"CV till:" + newline + address</c> shape, i.e. <c>...CV till:\nanna@acme.se</c> in the
+    /// payload text — let the email regex consume the escape's letter (<c>n</c>) into the match and
+    /// start right after the lone backslash. <see cref="ReplaceMatches"/> then kept everything up to
+    /// the match (the orphaned <c>\</c>) and appended the marker, producing <c>\[</c> — invalid JSON.
+    /// Postgres rejected the <c>jsonb</c> write (22P02) and the dropped write was misreported as a
+    /// <c>System.JobAdsSynced</c> audit failure (a shared-context coupling; the GDPR Art. 30 record
+    /// was lost). Reading the whole escape as a separator fixes it AT THE RECOGNISER: the backslash
+    /// stays in the ORIGINAL, the match begins after the escape, and the marker never lands on a lone
+    /// backslash. As a corollary it also reaches a newline-adjacent PHONE that previously survived
+    /// (the escape's letter had blocked the phone anchor's lookbehind).
+    /// </para>
+    /// <para>
+    /// <b>The subtle case.</b> An escaped backslash (<c>\\</c>) is consumed as ONE escape (two
+    /// spaces) so the character after it is not mis-read as a second escape's body and a following
+    /// backslash is not mis-paired. A backslash that does not begin a valid JSON escape (a lone
+    /// trailing <c>\</c>, or <c>\x</c>) is left as literal text — the recogniser never throws and
+    /// invalid input is not this method's contract to repair.
+    /// </para>
+    /// <para>
+    /// Accepted over-read, fail-safe direction: reading an escape as a separator widens, never
+    /// narrows, detection FOR the payloads this runs over — <c>JobTechPayloadSanitizer</c> emits with
+    /// <c>UnsafeRelaxedJsonEscaping</c>, which escapes only control/NBSP/line-separator characters
+    /// (never an åäö or ASCII letter of an address), so a blanked <c>\uXXXX</c> is always a separator,
+    /// not a letter split out of a real token. Over-redaction of PII-adjacent text is the bound
+    /// posture regardless (ADR 0106 D5). Spans carry the SHADOW slice as
+    /// <see cref="ContactSpan.Raw"/>, so the escape's own characters never leak into the digit/address
+    /// normalization.
+    /// </para>
     /// </remarks>
     private static string DetectionShadow(string text)
     {
         const char Nbsp = (char)0x00A0;
 
         char[]? chars = null;
-        for (var i = 0; i < text.Length; i++)
+        var i = 0;
+        while (i < text.Length)
         {
             var c = text[i];
+
+            // A real NBSP character collapses to a space (the decoded wire form).
             if (c == Nbsp)
             {
                 chars ??= text.ToCharArray();
                 chars[i] = ' ';
+                i++;
                 continue;
             }
 
-            if (c == '\\'
-                && i + 5 < text.Length
-                && text[i + 1] == 'u'
-                && text[i + 2] == '0'
-                && text[i + 3] == '0'
-                && (text[i + 4] == 'a' || text[i + 4] == 'A')
-                && text[i + 5] == '0')
+            // A JSON escape sequence: blank it length-preservingly so the recogniser reads escaped
+            // text as text (its letter is never a contact char) and the backslash is never orphaned
+            // into the marker (#982). \\ is consumed as ONE unit so the next char is not mis-parsed.
+            if (c == '\\')
             {
-                chars ??= text.ToCharArray();
-                for (var k = 0; k < 6; k++)
-                    chars[i + k] = ' ';
-                i += 5;
+                var escapeLength = JsonEscapeLength(text, i);
+                if (escapeLength > 0)
+                {
+                    chars ??= text.ToCharArray();
+                    for (var k = 0; k < escapeLength; k++)
+                        chars[i + k] = ' ';
+                    i += escapeLength;
+                    continue;
+                }
             }
+
+            i++;
         }
 
         return chars is null ? text : new string(chars);
+    }
+
+    /// <summary>
+    /// Length in characters of the JSON escape sequence beginning at <paramref name="index"/> (a
+    /// backslash), or 0 if no valid escape starts there. <c>\uXXXX</c> is six (only with four hex
+    /// digits); the eight two-character escapes are two. Deliberately conservative: an unrecognised
+    /// <c>\x</c> or a truncated <c>\u</c> returns 0 and is left as literal text (fail-safe — this
+    /// recogniser does not repair invalid JSON).
+    /// </summary>
+    private static int JsonEscapeLength(string text, int index)
+    {
+        if (index + 1 >= text.Length)
+            return 0;
+
+        var next = text[index + 1];
+
+        if (next == 'u')
+        {
+            return index + 5 < text.Length
+                   && Uri.IsHexDigit(text[index + 2])
+                   && Uri.IsHexDigit(text[index + 3])
+                   && Uri.IsHexDigit(text[index + 4])
+                   && Uri.IsHexDigit(text[index + 5])
+                ? 6
+                : 0;
+        }
+
+        // The eight two-character JSON escapes. \\ MUST be listed so it is consumed as one unit.
+        return next is '"' or '\\' or '/' or 'b' or 'f' or 'n' or 'r' or 't' ? 2 : 0;
     }
 
     /// <summary>

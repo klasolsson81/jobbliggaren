@@ -1,7 +1,8 @@
 {
-  "//": "Lighthouse-CI assertions — ADR 0045 Beslut 2 (Core Web Vitals).",
+  "//": "Lighthouse-CI assertions — ADR 0045 Beslut 2 (Core Web Vitals + page-weight).",
   "//runs": "numberOfRuns:3 + median — single-run composite-score är dokumenterat flaky (web-verifierat 2026-05-17). Median stabiliserar lab-LCP under tröskeln.",
   "//gate": "Jobbet är observe-only Fas 1 (build.yml: ej i ci.needs, continue-on-error). Assertion-severity nedan är RATCHET-INTENT, inte Fas-1-blockering. Flip till blockerande = medveten ratchet vid Klas-GO (ADR 0045 Beslut 6).",
+  "//fix-2026-07-20": "budget.json (separat fil) RETIRERAD — lhci 0.15.1 assert.js:56 kastar alltid 'Cannot use both budgets AND assertions' när assert.budgetsFile OCH assert.assertions är satta samtidigt (verifierat: CI-jobb 88413360676, node_modules/@lhci/cli/src/assert/assert.js). Lighthouse 12.6.1 saknar dessutom helt native settings.budgets/budgetsPath (borttaget ur core — noll träffar i lighthouse/core/). Fix: budget.json:s resourceSizes/resourceCounts konverterade för hand till resource-summary:<type>:size|count-assertions nedan, exakt den formel lhci:s egen @lhci/utils/src/budgets-converter.js använder (KB*1024 för size, oförändrat för count) — SSOT: en fil (denna), inga dubblerade tal som kan divergera.",
   "ci": {
     "collect": {
       "numberOfRuns": 3,
@@ -20,16 +21,24 @@
       ]
     },
     "assert": {
-      "budgetsFile": "./budget.json",
+      "//lcp": "Google good < 2,5 s (ADR 0045) — gate-intent (error)",
+      "//cls": "Google good < 0,1 (ADR 0045) — gate-intent (error)",
+      "//inp": "INP är field-metrik; lab approximerar via TBT. ADR 0045: observe-only (warn).",
+      "//score": "Composite perf-score: observe-only (loggas, ej assert) — ADR 0045 Beslut 2.",
+      "//pageweight": "Page-weight-budget — ADR 0045 Beslut 2 (gate-intent/error), tidigare budget.json (retirerad, se //fix-2026-07-20). resourceType-namnen (document/script/stylesheet/image/font/total/third-party) är Lighthouse core's egna resource-summary-kategorier (core/computed/resource-summary.js) — inte uppfunna. aggregationMethod:median satt EXPLICIT (lhci:s default för resource-summary-assertions är annars 'optimistic' = bästa-av-3, vilket bryter mot projektets uttalade median-disciplin ovan för samma numberOfRuns:3-körning).",
+      "//pageweight-note": "Civic-utility-sida utan tunga assets (DESIGN.md). Budgetar satta stramt — Jobbliggaren ska vara lätt. Kalibrerade mot uppmätt baslinje vid första gröna Lighthouse-runs (CTO: kalibrera mot fakta, ej gissning).",
       "assertions": {
-        "//lcp": "Google good < 2,5 s (ADR 0045) — gate-intent (error)",
         "largest-contentful-paint": ["error", { "maxNumericValue": 2500, "aggregationMethod": "median" }],
-        "//cls": "Google good < 0,1 (ADR 0045) — gate-intent (error)",
         "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1, "aggregationMethod": "median" }],
-        "//inp": "INP är field-metrik; lab approximerar via TBT. ADR 0045: observe-only (warn).",
         "total-blocking-time": ["warn", { "maxNumericValue": 200, "aggregationMethod": "median" }],
-        "//score": "Composite perf-score: observe-only (loggas, ej assert) — ADR 0045 Beslut 2.",
-        "categories:performance": "off"
+        "categories:performance": "off",
+        "resource-summary:document:size": ["error", { "maxNumericValue": 30720, "aggregationMethod": "median" }],
+        "resource-summary:script:size": ["error", { "maxNumericValue": 358400, "aggregationMethod": "median" }],
+        "resource-summary:stylesheet:size": ["error", { "maxNumericValue": 76800, "aggregationMethod": "median" }],
+        "resource-summary:image:size": ["error", { "maxNumericValue": 204800, "aggregationMethod": "median" }],
+        "resource-summary:font:size": ["error", { "maxNumericValue": 122880, "aggregationMethod": "median" }],
+        "resource-summary:total:size": ["error", { "maxNumericValue": 819200, "aggregationMethod": "median" }],
+        "resource-summary:third-party:count": ["error", { "maxNumericValue": 10, "aggregationMethod": "median" }]
       }
     },
     "upload": {

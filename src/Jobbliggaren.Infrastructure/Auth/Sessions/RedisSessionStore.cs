@@ -25,6 +25,28 @@ public sealed class RedisSessionStore(
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
+    // #511: a stored payload that no longer deserializes (Redis data corruption, a truncated
+    // write, a foreign writer on the key namespace) is treated as an ABSENT session — never a
+    // thrown JsonException. A corrupt value is permanent, not a transient store outage, so the
+    // Redis-only resilience decorator neither catches it (JsonException is not a RedisException)
+    // nor should — a 503 would trap the holder in an unrecoverable retry loop until the key TTL
+    // (up to the 30-day long-lifetime profile), whereas null lets each read site fail closed as
+    // it already does for a missing key: GetAsync/RotateAsync return null (→ the auth handler
+    // 401s → re-login mints a fresh session → self-heal), and InvalidateAsync still drops the main
+    // key while skipping the now-unknowable index membership. Catch JsonException ONLY — a genuine
+    // bug must still surface (§5, no catch-all).
+    private static SessionPayload? TryDeserializePayload(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<SessionPayload>(json, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     public async Task<Session?> GetAsync(SessionId sessionId, CancellationToken ct)
     {
         string? json;
@@ -41,7 +63,7 @@ public sealed class RedisSessionStore(
 
         if (json is null) return null;
 
-        var payload = JsonSerializer.Deserialize<SessionPayload>(json, JsonOptions);
+        var payload = TryDeserializePayload(json);
         if (payload is null) return null;
 
         var db = redis.GetDatabase();
@@ -253,7 +275,7 @@ public sealed class RedisSessionStore(
         // Hämta payload för att veta vilken user:s set vi ska SREM från.
         // Om payload-deserialiseringen misslyckas (korrupt data) hoppar vi
         // bara secondary-index-borttagning — main-key:n droppas ändå.
-        var payload = JsonSerializer.Deserialize<SessionPayload>(existing, JsonOptions);
+        var payload = TryDeserializePayload(existing);
 
         try
         {
@@ -340,7 +362,7 @@ public sealed class RedisSessionStore(
 
         if (json is null) return null;
 
-        var payload = JsonSerializer.Deserialize<SessionPayload>(json, JsonOptions);
+        var payload = TryDeserializePayload(json);
         if (payload is null) return null;
 
         // A superseded key is already rotated away and living out its grace window — never

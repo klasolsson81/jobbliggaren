@@ -7,7 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "guard:css": "node scripts/guard-css.mjs src/app/globals.css",
+    "guard:css": "node scripts/guard-css.mjs src/app/globals.css \"src/app/(app)/app.css\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",

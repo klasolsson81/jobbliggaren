@@ -1,0 +1,2085 @@
+/* app.css — (app) route-group-scoped component CSS (GitHub #750, PR-1).
+   Extracted from globals.css: rules whose consuming components render only
+   under the (app) route group, so the public landing / auth / guest /
+   marketing pages no longer parse them. Pure relocation — no token or rule
+   changes. @theme/:root tokens and @keyframes stay in globals.css and resolve
+   here at runtime (globals.css also loads on (app) routes, before this file).
+   Imported by src/app/(app)/layout.tsx. Guarded by scripts/guard-css.mjs. */
+
+/* ── Inställningar-grid + field-block — F6 Prompt 2 ──────────
+   Två kolumner (1fr 1fr) på desktop, en kolumn under 900px.
+   Alla kort staplas inom respektive kolumn med 20px gap. */
+.jp-settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.jp-settings-grid__col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .jp-settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.jp-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jp-settings-field + .jp-settings-field {
+  margin-top: 20px;
+}
+.jp-settings-field__label {
+  font-size: var(--text-label);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-ink-1);
+}
+.jp-settings-field__hint {
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+  margin: 0;
+}
+
+/* ── Matchnings-summeringskort: facet-grupper + add-rad ──
+   (samma RE-BIND §1.1/§1.6). Hairlines mellan facet-grupperna (--jp-border-soft,
+   den lugna rytmen), add-rad med "Lägg till" vänster + status höger. */
+.jp-matchprefs__facets {
+  display: flex;
+  flex-direction: column;
+}
+.jp-matchprefs__facet {
+  padding: 16px 0;
+}
+.jp-matchprefs__facet:first-child {
+  padding-top: 8px;
+}
+.jp-matchprefs__facet + .jp-matchprefs__facet {
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-matchprefs__facethead {
+  margin: 0 0 10px;
+}
+.jp-matchprefs__empty {
+  margin: 0;
+}
+.jp-matchprefs__addrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--jp-border-soft);
+}
+
+/* ── Standardmodal-skin (.jp-stdmodal) — ADR 0077 / design-bind A.2 ──
+   Kanonisk bred/smal modal-skin på shadcn DialogContent-sloten. Speglar
+   .jp-modal-tokens (yta/kant/radie/skugga) så default-shadcn-looken ALDRIG
+   skeppas. Generaliserad ur den tidigare ad-hoc .jp-matchdialog (CTO Decision
+   A in-block); .jp-matchdialog komponerar nu på .jp-stdmodal (alias, ingen
+   beteendeändring). Bredd-varianter:
+     --wide   min(840px, 94vw) — preferens-editor med kaskad
+     (--narrow UTGICK 2026-07-03 med welcome-modalen — rail-modalen
+      .jp-wizard--rail sätter sin egen fasta storlek; epik #526 sweep.)
+   INGEN ny hex, ingen radie > 8px (modal-undantaget), ingen shadow-2xl/glow. */
+.jp-stdmodal {
+  max-height: 86vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-lg);
+  box-shadow: var(--jp-shadow-modal);
+}
+.jp-stdmodal--wide {
+  width: min(840px, 94vw);
+  max-width: min(840px, 94vw);
+}
+
+/* Matchnings-dialogen (STEG A) komponerar på .jp-stdmodal. Behåller sin
+   tidigare exakta bredd min(840px, 100%) — oförändrad rendering. */
+.jp-matchdialog {
+  width: min(840px, 100%);
+  max-width: min(840px, 100%);
+  max-height: 86vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-lg);
+  box-shadow: var(--jp-shadow-modal);
+}
+/* Den inbyggda shadcn/radix-Close ÄR dialogens stäng-kontroll, civic-restylad
+   (default-shadcn-looken får ej skeppas). En egen extra stäng-knapp vore en
+   dubblerad "Stäng" för skärmläsare; radix Close bär dessutom ESC/fokus-retur/
+   onOpenChange gratis. Radix renderar sin Close som det ENDA direkt-barn-
+   <button> till DialogContent (= .jp-matchdialog) — våra övriga knappar är alla
+   nästlade i __head/__body/__foot, så denna selektor träffar bara Close.
+   (Oskiktad CSS vinner över shadcns @layer-utilities → opacity/färg/position
+   överrids.) */
+.jp-matchdialog > button,
+.jp-stdmodal > button {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  opacity: 1;
+  color: var(--jp-ink-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--jp-r-md);
+  cursor: pointer;
+}
+.jp-matchdialog > button:hover,
+.jp-stdmodal > button:hover {
+  background: var(--jp-surface-3);
+  color: var(--jp-ink-1);
+}
+.jp-matchdialog__head {
+  position: relative;
+  padding: 22px 56px 16px 24px;
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-matchdialog__title {
+  margin: 0;
+  font-size: var(--text-h2);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: -0.015em;
+  color: var(--jp-heading-2);
+}
+.jp-matchdialog__intro {
+  margin: 6px 0 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-matchdialog__body {
+  padding: 20px 24px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+/* Facet-sektioner i dialogen separeras av --jp-border-strong (informations-
+   bärande avgränsare, §2.3) — starkare än kortets -soft-rytm. */
+.jp-matchdialog__section {
+  padding: 20px 0;
+}
+.jp-matchdialog__section:first-child {
+  padding-top: 0;
+}
+.jp-matchdialog__section + .jp-matchdialog__section {
+  border-top: 1px solid var(--jp-border-strong);
+}
+.jp-matchdialog__sectionhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+/* Clear-only-raden (wizarden, ingen rubrik): den ensamma Rensa-länken
+   vänsterställs explicit i stället för att förlita sig på space-between. */
+.jp-matchdialog__sectionhead--clearonly {
+  justify-content: flex-start;
+}
+/* Pinnade chips överst i sektionen + picker-väljaren under. */
+.jp-matchdialog__pinned {
+  margin-bottom: 14px;
+}
+/* ── Per-yrke-erfarenhet (exp-per-occ, ADR 0079-amendment PR-4) ──
+   Varje pinnat yrke får en egen rad: den borttagbara chippen + ett litet
+   "ungefärliga år"-tal-fält (0..70). Lokalitet — året bor PÅ yrket, inte i en
+   global siffra. EN <ul> med rad-per-yrke (chip vänster, fält höger). INGEN
+   magnitud-visualisering (ingen stapel/ring) — det är ett preferens-INPUT,
+   aldrig en poäng (Goodhart/§5). Token-drivet → båda teman flippar gratis. */
+.jp-occexp {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jp-occexp__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.jp-occexp__chip {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* Tal-fältet + dess inline-etikett. Etiketten bär instruktionen (aldrig
+   placeholder-exempel). Fältet är smalt (en 0..70-siffra ryms gott). */
+.jp-occexp__years {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.jp-occexp__years-label {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+  white-space: nowrap;
+}
+.jp-occexp__years-input {
+  width: 5rem;
+}
+.jp-matchdialog__cascade {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  overflow: hidden;
+}
+.jp-matchdialog__cascade-col {
+  max-height: 320px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.jp-matchdialog__cascade-col:first-child {
+  border-right: 1px solid var(--jp-border-soft);
+}
+.jp-matchdialog__cascade-colhead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 12px 16px 8px;
+  background: var(--jp-surface);
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-matchdialog__list {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+/* Synlig fokus-ring för .jp-checkitem i dialog-kontext (samma om-scoping som
+   .jp-matchprefs — den befintliga regeln är scoped till .jp-panel). */
+.jp-matchdialog .jp-checkitem:focus-visible,
+.jp-matchdialog .jp-popover-row:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: -2px;
+}
+.jp-matchdialog__suggest {
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Inline CV-uppladdning i matchnings-dialogen (Spår 4): laddar upp CV:t i
+   modalen i stället för att navigera bort till /cv/importera-sidan. */
+.jp-matchdialog__cvupload {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-md);
+  background: var(--jp-surface-2, var(--jp-surface));
+}
+.jp-matchdialog__cvupload-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* ── "Lägg till yrken"-disclosure (redesign 2026-06-21) ──
+   EN tydlig CTA som veck-öppnar filter/tvåkolumns-kaskaden (kollapsad default —
+   inget "skrivs ut på en gång"). Inline-disclosure i stället för popover:
+   JobbFilterPopover positionerar sig absolut ur triggerns viewport-rect och
+   slåss med Radix Dialogens fokus-trap/Esc inuti modalen. Disclosuren har
+   ingen positionsmatematik och är trivialt tangentbordsstyrd. CTA:n speglar
+   sekundär-knappens yta (border + surface, 40px, 4px radie — ingen ny hex). */
+.jp-occpicker {
+  margin-top: 4px;
+}
+.jp-occpicker__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  font-size: var(--text-body);
+  font-weight: var(--jp-fw-medium);
+  letter-spacing: -0.005em;
+  color: var(--jp-ink-1);
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border-input);
+  border-radius: var(--jp-r-md);
+  cursor: pointer;
+  transition: 80ms linear;
+}
+.jp-occpicker__cta:hover {
+  background: var(--jp-surface-3);
+  border-color: var(--jp-border-strong);
+}
+.jp-occpicker__panel {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+}
+.jp-matchdialog__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 16px 24px;
+  border-top: 1px solid var(--jp-border-soft);
+  background: var(--jp-surface-2);
+  border-bottom-left-radius: var(--jp-r-lg);
+  border-bottom-right-radius: var(--jp-r-lg);
+}
+
+/* ── Match-setup delade wizard-klasser (ADR 0077 STEG 5, amendad 2026-07-03) ──
+   Den gamla 5-stegs-wizarden är ERSATT av rail-modalen (.jp-wizard--rail, epik
+   #526); dess unika klasser (__head/__counter/__progress* /__title/__step/
+   __substeps) städades i cutover-then-sweep-PR:en efter rendered-verify. Kvar
+   här: de klasser rail-modalen fortsatt konsumerar (__intro/__skip/__foot* /
+   __error/__note*). */
+/* DialogDescription-intro under stegrubriken (fokus till H2 vid stegbyte,
+   tabIndex=-1, WCAG 2.4.3; den globala fokus-ringen gäller, ingen outline:none). */
+.jp-wizard__intro {
+  margin: 6px 0 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+/* "Hoppa över det här steget" — a benign, non-destructive navigation affordance.
+   Neutral ink, NOT .jp-clearlink (that primitive is destructive --jp-danger red):
+   skipping a step must never read as a warning (WCAG 1.4.1; design-bind A2.iv,
+   skip ≠ destructive). */
+.jp-wizard__skip {
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.jp-wizard__skip:hover {
+  color: var(--jp-ink-1);
+}
+.jp-wizard__skip:disabled {
+  color: var(--jp-ink-3);
+  cursor: default;
+  text-decoration: none;
+}
+/* Footer: Tillbaka (vänster, ghost) · Hoppa över (mitten, neutral) ·
+   primär Nästa/Spara (höger). Skip ≠ nästa (design-bind A2.iv). */
+.jp-wizard__foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px 24px;
+  border-top: 1px solid var(--jp-border-soft);
+  background: var(--jp-surface-2);
+  border-bottom-left-radius: var(--jp-r-lg);
+  border-bottom-right-radius: var(--jp-r-lg);
+}
+.jp-wizard__foot-spacer {
+  flex: 1 1 auto;
+}
+.jp-wizard__error {
+  flex-basis: 100%;
+  margin: 0;
+}
+/* #251 (A4) — icke-blockerande "Vanlig anställning"-not i anställningsformer-
+   steget. Lugn info-ton (vägledande info, inte en varnings-banner; status-
+   färger reserveras för status). .jp-wizard__note-slot är en alltid-monterad
+   live-region (SR-annonsering); själva noten renderas villkorligt. Hög kontrast
+   (ink-1 på info-bg) — ingen grå text. */
+.jp-wizard__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  background: var(--jp-info-bg);
+  border-radius: var(--jp-r-md);
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+  color: var(--jp-ink-1);
+}
+.jp-wizard__note-icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--jp-info);
+}
+
+/* ══ Match-setup-rail-modal (epik #526, förslag 2a "Steglistan") ══════════════
+   EN modal med fast storlek (1000×648) som ersätter det gamla fem-modal-flödet.
+   Komponerar på .jp-stdmodal (skin) + .jp-wizard--rail (fast mått + rad-layout:
+   272px rail + 1fr huvudyta). Återanvänder .jp-wizard__note / .jp-wizard__skip /
+   .jp-wizard__foot / .jp-clearlink / .jp-chip / .jp-checkitem / .jp-matchdialog__*
+   (sektionerna) och lägger 2a-looket (vald-chip/yrkecard/read-only-chip) på via
+   scoped additiv CSS. Token-only färger; ingen ny hex, ingen radie > 8px, ingen
+   gradient/glow/shadow utöver modal-skuggan. Dark följer med automatiskt med de
+   medvetna accent-700-på-ram-i-dark-valen (fill-kontraktet består för fyllda
+   indikatorer). K2-kontrast validerad i copy-facit. */
+
+/* Skalet: fast 1000×648, body scrollar (aldrig skalet). Override:ar .jp-stdmodal
+   (column → row, 86vh → 90vh) via källordning (denna regel ligger efter). */
+.jp-wizard--rail {
+  width: 1000px;
+  max-width: 96vw;
+  height: 648px;
+  max-height: 90vh;
+  padding: 0;
+  flex-direction: row;
+  overflow: hidden;
+}
+/* Stäng-krysset (radix Close = enda direkt-barn-<button>): 36px, top/right 14. */
+.jp-wizard--rail > button {
+  top: 14px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+}
+
+/* ── Railen (272px): brand-rad + steg-lista + räknarkort ── */
+.jp-wizard__rail {
+  flex: 0 0 272px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--jp-surface-2);
+  border-right: 1px solid var(--jp-border-soft);
+}
+.jp-wizard__railbrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 18px 12px;
+}
+.jp-wizard__railbrand-mark {
+  flex: 0 0 auto;
+}
+.jp-wizard__railbrand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.jp-wizard__railbrand-title {
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-ink-1);
+}
+.jp-wizard__railbrand-sub {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+.jp-wizard__raillist {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* Hela raden är en knapp (fri navigering). Aktiv rad = accent-50-bg + 3px grön
+   vänsterbar (samma mönster som .jp-popover-row[aria-pressed=true]). */
+.jp-wizard__railitem {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 12px;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  background: transparent;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: var(--jp-r-md);
+  cursor: pointer;
+}
+.jp-wizard__railitem:hover {
+  background: var(--jp-surface-3);
+}
+.jp-wizard__railitem[data-state="active"] {
+  background: var(--jp-accent-50);
+  border-left-color: var(--jp-accent-700);
+}
+/* Indikator 22px: klar = accent-800-fyllning + vit bock (fill-kontraktet, tema-
+   stabil); aktiv = vit med grön ram + grön siffra; kommande = vit med grå ram. */
+.jp-wizard__railind {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--jp-r-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--jp-surface);
+  border: 2px solid var(--jp-border-input);
+  color: var(--jp-ink-2);
+}
+.jp-wizard__railind[data-state="done"] {
+  background: var(--jp-accent-800);
+  border-color: var(--jp-accent-800);
+  color: var(--jp-on-fill);
+}
+.jp-wizard__railind[data-state="active"] {
+  border-color: var(--jp-accent-700);
+  color: var(--jp-accent-700);
+}
+.jp-wizard__railnum {
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+.jp-wizard__railitem-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.jp-wizard__railitem-label {
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-2);
+}
+.jp-wizard__railitem[data-state="done"] .jp-wizard__railitem-label {
+  color: var(--jp-ink-1);
+}
+/* Aktiv label: mörk grön-svart (#0B2A1E) i ljust. accent-900 skiftas ej → sätt
+   den ljusa text-tiern i dark så den läses mot accent-50-dark (annars osynlig). */
+.jp-wizard__railitem[data-state="active"] .jp-wizard__railitem-label {
+  color: var(--jp-accent-900);
+}
+[data-theme="dark"]
+  .jp-wizard__railitem[data-state="active"]
+  .jp-wizard__railitem-label {
+  color: var(--jp-accent-700);
+}
+.jp-wizard__railmeta {
+  max-width: 100%;
+  font-size: var(--text-micro);
+  color: var(--jp-ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Räknarkortet (railens nederkant) ── */
+.jp-wizard__countcard {
+  margin: 12px;
+  padding: 13px 15px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-wizard__countcard-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.jp-wizard__countcard-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-success);
+  animation: jp-wizard-count-pulse 2.4s ease-in-out infinite;
+}
+.jp-wizard__countcard-label {
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: 0.08em;
+  color: var(--jp-ink-2);
+}
+.jp-wizard__countcard-num {
+  margin: 4px 0 2px;
+  font-size: var(--jp-fs-countcard-num);
+  font-weight: var(--jp-fw-heavy);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-1);
+}
+.jp-wizard__countcard-unit {
+  margin: 0;
+  font-size: var(--text-micro);
+  line-height: 1.4;
+  color: var(--jp-ink-2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .jp-wizard__countcard-dot {
+    animation: none;
+  }
+}
+
+/* ── Huvudytan: head (stegräknare + H2 + intro) · body (scroll) · footer ── */
+.jp-wizard__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.jp-wizard__mainhead {
+  position: relative;
+  padding: 18px 62px 15px 28px;
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-wizard__stepcounter {
+  display: block;
+  margin: 0 0 6px;
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-2);
+}
+/* Stegnamnet i räknaren visas bara på mobil ("STEG 4 AV 6 · ORTER"). */
+.jp-wizard__stepcounter-name {
+  display: none;
+}
+.jp-wizard__h2 {
+  margin: 0;
+  font-size: var(--text-h2);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: -0.015em;
+  color: var(--jp-heading-2);
+}
+.jp-wizard--rail .jp-wizard__intro {
+  margin: 6px 0 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--jp-ink-1);
+}
+.jp-wizard__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 28px;
+  display: flex;
+  flex-direction: column;
+}
+.jp-wizard__body--center {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+/* Footern (återanvänder .jp-wizard__foot) spänner bara huvudytan → nolla dess
+   botten-radier (modalens overflow:hidden + 8px-radie klipper hörnen). */
+.jp-wizard--rail .jp-wizard__foot {
+  padding: 13px 20px;
+  border-radius: 0;
+}
+
+/* ── Steg 1 Start: pitch + CV-dropzon / "CV inläst"-platta ── */
+.jp-wizard__start {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.jp-wizard__pitch {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.jp-wizard__pitch-mark {
+  flex: 0 0 auto;
+}
+.jp-wizard__pitch-title {
+  margin: 2px 0 0;
+  font-size: var(--text-h3);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: -0.01em;
+  color: var(--jp-ink-1);
+}
+.jp-wizard__pitch-body {
+  margin: 6px 0 0;
+  max-width: 56ch;
+  font-size: var(--text-ui);
+  line-height: 1.6;
+  color: var(--jp-ink-1);
+}
+.jp-wizard__upload {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.jp-wizard__upload-title {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-ink-1);
+}
+.jp-wizard__upload-body {
+  margin: 4px 0 0;
+  max-width: 60ch;
+  font-size: var(--text-body-sm);
+  line-height: 1.5;
+  color: var(--jp-ink-1);
+}
+/* Restyla den återanvända CvUploadForm-dropzonen till 2a (1.5px dashed
+   border-input + accent-50-hover), scoped till rail-modalen. */
+.jp-wizard--rail .jp-cvupload {
+  max-width: none;
+}
+.jp-wizard--rail .jp-cvupload__drop {
+  border: 1.5px dashed var(--jp-border-input);
+  /* Polish (Klas 2026-07-03, fynd 1): kompaktare zon i modalen — Start-steget
+     ska inte behöva scrolla. Basens 28px-padding är för /cv/importera-sidan. */
+  padding: 14px 16px;
+  gap: 6px;
+}
+.jp-wizard--rail .jp-cvupload__drop:hover {
+  background: var(--jp-accent-50);
+  border-color: var(--jp-accent-700);
+}
+/* "Fortsätt utan CV" — grön länk-knapp (aldrig danger; skip ≠ destruktivt). */
+.jp-wizard__nocv {
+  margin: 4px 0 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+.jp-wizard__startlink {
+  color: var(--jp-accent-700);
+  font: inherit;
+  font-weight: var(--jp-fw-semibold);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.jp-wizard__startlink:hover {
+  color: var(--jp-accent-600);
+}
+/* "CV inläst"-plattan: success-bg + fylld grön bock-cirkel + ärlig copy. */
+.jp-wizard__cvdone {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--jp-success-bg);
+  border-radius: var(--jp-r-md);
+}
+.jp-wizard__cvdone-badge {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-success);
+  color: var(--jp-on-fill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.jp-wizard__cvdone-title {
+  margin: 0;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-ink-1);
+}
+.jp-wizard__cvdone-body {
+  margin: 3px 0 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.5;
+  color: var(--jp-ink-1);
+}
+
+/* ── Mono-caption (VALDA … (n) + Granska-rubriker) ── */
+.jp-wizard__groupcaption {
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-2);
+}
+.jp-wizard__groupcaption-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+/* Tomt-läges-wrappen (notis + "Återställ förslagen"-knapp). */
+.jp-wizard__emptywrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+/* Sektionerna monteras med showHeading={false}: dölj deras inbyggda clear-only-
+   rad (railen renderar egna captions; Kompetenser bär sin egen "Rensa alla"). */
+.jp-wizard--rail .jp-matchdialog__sectionhead--clearonly {
+  display: none;
+}
+
+/* ── Vald-chip (.jp-chip--valid) + de återanvända borttagbara sektions-chipsen ──
+   accent-50-bg + 1.5px accent-800-ram + ledande grön bock. Texten läser --jp-ink-1
+   (bas-chippen) → tema-adaptiv (≈#0B2A1E i ljust, ljus i dark) i st f accent-900
+   som skulle bli osynlig mot accent-50-dark. */
+.jp-chip--valid,
+.jp-wizard--rail .jp-chip--removable {
+  background: var(--jp-accent-50);
+  border: 1.5px solid var(--jp-accent-800);
+  font-weight: var(--jp-fw-semibold);
+}
+.jp-chip--valid::before,
+.jp-wizard--rail .jp-chip--removable::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+  background-color: var(--jp-accent-800);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='3.5'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M20%206%209%2017l-5-5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='3.5'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M20%206%209%2017l-5-5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+/* Dark: vald-chipens ram + bock läser accent-700 (text/border-tiern), inte den
+   tema-stabila accent-800-fyllnaden (som blir osynlig ram i dark). */
+[data-theme="dark"] .jp-chip--valid,
+[data-theme="dark"] .jp-wizard--rail .jp-chip--removable {
+  border-color: var(--jp-accent-700);
+}
+[data-theme="dark"] .jp-chip--valid::before,
+[data-theme="dark"] .jp-wizard--rail .jp-chip--removable::before {
+  background-color: var(--jp-accent-700);
+}
+
+/* ── Förslags-chip (.jp-chip--suggest) — vit, streckad ram, ledande plus ──
+   Definierad per CSS-planen. Sektionerna renderar i dag inga förslags-chips
+   (CV-förslagen pre-addas som valda; manuell tillägg sker via "Lägg till"-CTA +
+   sök/kaskad) — klassen finns tillgänglig för framtida förslags-ytor. */
+.jp-chip--suggest {
+  background: var(--jp-surface);
+  border: 1px dashed var(--jp-border-input);
+  color: var(--jp-ink-1);
+  font-weight: var(--jp-fw-medium);
+}
+.jp-chip--suggest::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  background-color: var(--jp-accent-800);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='3'%20stroke-linecap='round'%3E%3Cpath%20d='M12%205v14M5%2012h14'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='3'%20stroke-linecap='round'%3E%3Cpath%20d='M12%205v14M5%2012h14'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+.jp-chip--suggest:hover {
+  background: var(--jp-accent-50);
+  border-color: var(--jp-accent-700);
+}
+[data-theme="dark"] .jp-chip--suggest::before {
+  background-color: var(--jp-accent-700);
+}
+
+/* ── Steg 2 Yrken: yrkecard (restyla den återanvända .jp-occexp-raden) ──
+   Raden blir ett kort (vit, 1.5px grön ram) med fylld bock-cirkel + namn + X +
+   "År i yrket"-fält. Den inre chippen görs plan (kortet bär ramen). */
+.jp-wizard--rail .jp-occexp {
+  gap: 10px;
+}
+.jp-wizard--rail .jp-occexp__row {
+  flex-wrap: nowrap;
+  padding: 12px 14px;
+  gap: 12px;
+  background: var(--jp-surface);
+  border: 1.5px solid var(--jp-accent-800);
+  border-radius: var(--jp-r-md);
+}
+[data-theme="dark"] .jp-wizard--rail .jp-occexp__row {
+  border-color: var(--jp-accent-700);
+}
+.jp-wizard--rail .jp-occexp__chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* Fylld grön bock-cirkel (22px, vit bock) — fill-kontraktet, tema-stabil. */
+.jp-wizard--rail .jp-occexp__chip::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-accent-800)
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23fff'%20stroke-width='3.4'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M20%206%209%2017l-5-5'/%3E%3C/svg%3E")
+    center / 13px no-repeat;
+}
+/* Den inre yrkes-chippen blir plan (kortet äger ramen/bakgrunden). */
+.jp-wizard--rail .jp-occexp__row .jp-chip--removable {
+  background: transparent;
+  border: 0;
+  padding-left: 0;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-semibold);
+}
+.jp-wizard--rail .jp-occexp__row .jp-chip--removable::before {
+  display: none;
+}
+
+/* ── Steg 5 Anställningsform: checklista i ram (radseparerare); göm pinnade
+   chips (2a visar bara checklistan, det ikryssade bärs av rutorna). ── */
+.jp-wizard__formercheck .jp-matchdialog__pinned {
+  display: none;
+}
+.jp-wizard--rail .jp-matchdialog__list .jp-checkitem + .jp-checkitem {
+  border-top: 1px solid var(--jp-border-soft);
+}
+
+/* ── Steg 6 Granska: fyra grupper (caption + "Ändra"-länk + read-only-chips) ── */
+.jp-wizard__review {
+  display: flex;
+  flex-direction: column;
+}
+.jp-wizard__reviewgroup {
+  padding: 16px 0;
+}
+.jp-wizard__reviewgroup:first-child {
+  padding-top: 0;
+}
+.jp-wizard__reviewgroup + .jp-wizard__reviewgroup {
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-wizard__reviewhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.jp-wizard__editlink {
+  color: var(--jp-accent-700);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.jp-wizard__editlink:hover {
+  color: var(--jp-accent-600);
+}
+
+/* ── Klart-läget (efter Spara): centrerad bock-cirkel + typografisk bekräftelse ── */
+.jp-wizard__done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: 46ch;
+}
+.jp-wizard__done-badge {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-success-bg);
+  color: var(--jp-success);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.jp-wizard__done-title {
+  margin: 0;
+  font-size: var(--text-h2);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: -0.015em;
+  color: var(--jp-heading-2);
+}
+.jp-wizard__done-body {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.6;
+  color: var(--jp-ink-1);
+}
+
+/* ── Mobil-only element (dolda på desktop) ── */
+.jp-wizard__mobilebar {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 56px 12px 20px;
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-wizard__mobilebar-title {
+  font-size: var(--text-h4);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-ink-1);
+}
+.jp-wizard__mobileprog {
+  display: none;
+  gap: 4px;
+  margin: 0 0 8px;
+}
+.jp-wizard__mobileseg {
+  flex: 1 1 0;
+  height: 3px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-border);
+}
+.jp-wizard__mobileseg--on {
+  background: var(--jp-accent-800);
+}
+.jp-wizard__mobilecount {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-1);
+}
+.jp-wizard__mobilecount-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-success);
+}
+
+/* ── Mobil (< 720px): fullskärms-sheet, ingen rail, progressremsa + sticky
+   footer med räknarremsa. Alla hit targets ≥ 44px (WCAG 2.5.5). ── */
+@media (max-width: 719px) {
+  .jp-wizard--rail {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    flex-direction: column;
+  }
+  .jp-wizard__rail {
+    display: none;
+  }
+  .jp-wizard__mobilebar {
+    display: flex;
+  }
+  .jp-wizard__mobileprog {
+    display: flex;
+  }
+  .jp-wizard__stepcounter-name {
+    display: inline;
+  }
+  .jp-wizard__mobilecount {
+    display: inline-flex;
+    order: -1;
+    flex-basis: 100%;
+  }
+  .jp-wizard__mainhead {
+    padding: 14px 56px 12px 20px;
+  }
+  .jp-wizard__body {
+    padding: 18px 20px;
+  }
+  .jp-wizard--rail .jp-wizard__foot [data-slot="button"] {
+    min-height: 44px;
+  }
+  .jp-wizard--rail .jp-wizard__skip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  /* Stäng-krysset ≥ 44px på mobil-sheeten (WCAG 2.5.5, facit §108-114). */
+  .jp-wizard--rail > button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* ── Slutför-guiden (Fas 4b PR-8.3) — fullskärms-route-wizard ──
+   Komponerar ENBART befintliga --jp-*-tokens (inga nya tokens). Civic:
+   1px-ramar, ingen skugga/gradient, radie ≤ 8px. Båda teman token-drivna. */
+/* Skalet: 272px steglista + huvudyta, i SIDANS geometri (route, inte modal).
+   Välkomst-wizardens `.jp-wizard--rail` bär modalens fasta mått (1000x648, egen
+   scroll) och dess `--jp-r-lg`-radie är modal-undantaget från ADR 0052 — den kan
+   inte lånas hit. Delade TOKENS, inte delade klasser (CTO-bind Q1). Under 1024px
+   faller railen till en horisontell steglista över innehållet. */
+.jp-guide {
+  display: grid;
+  grid-template-columns: 272px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+@media (max-width: 1023px) {
+  .jp-guide {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+}
+.jp-guide__source {
+  margin: 0 0 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--jp-border-soft);
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-caption);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+  overflow-wrap: anywhere;
+}
+/* Railen följer med när huvudytan scrollar (sidan scrollar, inte en inre box).
+   `top` måste RENSA skalets sticky header — annars pinnas railen in UNDER den, och
+   källraden (det enda som säger vilken fil du slutför) försvinner vid scroll medan
+   fokusringen på steg 1 hamnar bakom kromet (code-reviewer Major).
+
+   Ingen egen fyllnad/ram: `--jp-surface-2` ÄR `--jp-canvas` i ljust tema (#F4F6FA
+   båda) — panelen jag trodde jag byggde fanns inte, och ramen låg på ~1,1:1. Att
+   låna modalens yt-token utan dess vita underlag ger ett dekorativt tomrum, och
+   inverterar hierarkin: navigationen blev sidans minst närvarande yta medan varje
+   innehållsblock är vitt. Railen är SID-MÖBEL (GOV.UK sub-nav), korten är innehåll
+   (design-reviewer Major; principles §1/§3). */
+.jp-guide__rail {
+  position: sticky;
+  top: calc(var(--jp-header-h) + 24px);
+  align-self: start;
+}
+@media (max-width: 1023px) {
+  .jp-guide__rail {
+    position: static;
+  }
+}
+.jp-guide__raillist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+@media (max-width: 1023px) {
+  .jp-guide__raillist {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+.jp-guide__railitem {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  /* ADR 0038 hit-target-golv. Spara-steget saknar konsekvensrad och blev annars
+     ~40px medan de övriga är ~54px — ojämn rytm OCH under golvet. */
+  min-height: 44px;
+  padding: 9px 12px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: var(--jp-r-md);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background 80ms linear,
+    border-color 80ms linear;
+}
+@media (max-width: 1023px) {
+  .jp-guide__railitem {
+    width: auto;
+    border: 1px solid var(--jp-border);
+    background: var(--jp-surface);
+  }
+}
+.jp-guide__railitem:hover {
+  background: var(--jp-surface-3);
+}
+.jp-guide__railitem:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.jp-guide__railitem[data-state="active"] {
+  background: var(--jp-accent-50);
+  border-left-color: var(--jp-accent-700);
+}
+@media (max-width: 1023px) {
+  .jp-guide__railitem[data-state="active"] {
+    border-color: var(--jp-accent-700);
+  }
+}
+.jp-guide__railitem-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.jp-guide__raillabel {
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-2);
+}
+.jp-guide__railitem[data-status="done"] .jp-guide__raillabel {
+  color: var(--jp-ink-1);
+}
+.jp-guide__railitem[data-state="active"] .jp-guide__raillabel {
+  color: var(--jp-accent-900);
+}
+[data-theme="dark"]
+  .jp-guide__railitem[data-state="active"]
+  .jp-guide__raillabel {
+  color: var(--jp-accent-700);
+}
+/* Konsekvensraden per steg ("2 uppgifter kvar" / "1 att åtgärda" / "klart").
+   Glyfen bär aldrig påståendet ensam (WCAG 1.4.1) — och den var sr-only, alltså
+   osynlig för alla som SER skärmen. */
+.jp-guide__railmeta {
+  max-width: 100%;
+  font-size: var(--text-micro);
+  color: var(--jp-ink-2);
+  /* Ingen nowrap/ellipsis: raden BÄR påståendet (WCAG 1.4.1) och skulle klippas
+     tyst vid 200 % textzoom (1.4.4) — i just den rad upplyftet finns till för. */
+}
+/* Stegets indikator bär STATUS (tre tillstånd), aldrig markeringen — var man står
+   säger railitem[data-state="active"]. Tidigare slogs de ihop i ett data-state, och
+   "klar" kunde skrivas över av "aktiv" (och tvärtom). CTO-bind Q3-A:
+   done = ifyllt OCH inget hindrar sparande · attention = ett fel hindrar sparande ·
+   remaining (default) = varken eller. Glyfen skiljer dem åt (bock/varning/siffra),
+   inte färgen ensam (WCAG 1.4.1) — och sr-only-texten bär påståendet i klartext. */
+.jp-guide__railind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-surface);
+  border: 2px solid var(--jp-border-input);
+  color: var(--jp-ink-2);
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+/* Markeringen får ALDRIG skriva över statusen — bara det NEUTRALA steget färgas av
+   att vara aktivt. Utan `[data-status="remaining"]` väger descendant-selektorn (0,3,0)
+   tyngre än `[data-status="done"]`/`[data-status="attention"]` (0,2,0), och då:
+   (i) aktivt + klart → bocken får `--jp-accent-700`, som i LJUST tema är samma hex som
+   accent-800-fyllningen → mörkgrön bock på mörkgrön skiva, 1,0:1, glyfen borta
+   (WCAG 1.4.11); (ii) aktivt + attention → varningstriangeln blir GRÖN, dvs. det enda
+   steget som BLOCKERAR sparandet bär produktens success-färg (principle §5: statusfärg
+   endast för status).
+   Det är exakt den sammanblandning CTO-bind Q3-A förbjöd, återinförd via specificitet i
+   stället för via attribut (design-reviewer Blocker). Välkomst-wizarden slipper det för
+   att den har ETT data-state på ETT element — när axlarna delas måste selektorerna
+   delas med dem. */
+.jp-guide__railitem[data-state="active"]
+  .jp-guide__railind[data-status="remaining"] {
+  border-color: var(--jp-accent-700);
+  color: var(--jp-accent-700);
+}
+.jp-guide__railind[data-status="done"] {
+  background: var(--jp-accent-800);
+  border-color: var(--jp-accent-800);
+  color: var(--jp-on-fill);
+}
+.jp-guide__railind[data-status="attention"] {
+  background: var(--jp-warning-bg);
+  border-color: var(--jp-warning);
+  color: var(--jp-warning);
+}
+/* Huvudytan: stegräknare + Stäng överst, innehåll, sticky fot. */
+.jp-guide__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.jp-guide__mainhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--jp-border);
+}
+.jp-guide__position {
+  margin: 0;
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ink-2);
+}
+.jp-guide__body {
+  display: flex;
+  flex-direction: column;
+  padding-top: 20px;
+}
+.jp-guide__steptitle {
+  margin: 0 0 4px;
+  font-size: var(--text-h2);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-heading-2);
+}
+.jp-guide__intro {
+  margin: 0 0 20px;
+  max-width: 68ch;
+  font-size: var(--text-body);
+  color: var(--jp-ink-1);
+}
+.jp-guide__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.jp-guide__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.jp-guide__field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.jp-guide__tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.jp-guide__hint {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+.jp-guide__wordcount {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+.jp-guide__degraded {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-warning);
+}
+.jp-guide__found {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-success);
+}
+.jp-guide__confirm {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-guide__confirm-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-success-bg);
+  color: var(--jp-success);
+  flex-shrink: 0;
+}
+.jp-guide__confirm-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.jp-guide__confirm-label {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+.jp-guide__confirm-value {
+  font-size: var(--text-body);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-ink-1);
+  overflow-wrap: anywhere;
+}
+.jp-guide__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 0;
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-guide__section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.jp-guide__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.jp-guide__section-title {
+  margin: 0;
+  font-size: var(--text-h3);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-ink-1);
+}
+.jp-guide__section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.jp-guide__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.jp-guide__empty {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+
+/* ── Yrkesstyrda sektionsförslag — .jp-sectionsuggest (Fas 4b 8b.4a, ADR 0107) ──
+   Ingen ny token: komponerar --jp-surface(-2), --jp-ink-1/-2, --jp-border-soft,
+   --jp-border-input, --jp-accent-700, --jp-r-md/-pill.
+
+   NEDSÄNKT under-bricka, inte en accent-tonad platta. Första utkastet fyllde den med
+   --jp-accent-50 och gjorde därmed den RÅDGIVANDE ytan till det enda färgade — och alltså
+   högst rankade — elementet i steget, medan UPPGIFTEN (skriv dina egna sektioner) låg tyst
+   i svart på vitt. I mörkt tema blev accent-50 dessutom ett mättat grönt block ovanpå det
+   navyblå kortet. Grönt hör hemma i hover/fokus/länk, inte som containerfärg.
+
+   KANTEN bär brickan, inte fyllningen. --jp-surface-2 är samma hex som --jp-canvas i LJUST
+   tema (#F4F6FA), och guidens sektioner är bakgrundslösa hela vägen upp till <body> — så
+   närmaste målade lager ÄR canvasen, och fyllningen blir en no-op (1,00:1). Receptet är
+   lånat från .jp-modal__metaitem, men DÄR ligger brickan på en vit modalyta. Exakt samma
+   fälla sänkte Slutför-guidens räl i #815 PR-2 ("surface-2 var en no-op i ljust tema") —
+   samma fil, en PR tidigare. Fyllningen behålls för mörkt tema (där den ÄR distinkt), men
+   det är --jp-border som gör brickan synlig i båda. --jp-r-md (6px) = panel-radien;
+   --jp-r-sm är input-radien (ADR 0052). Ingen gradient, ingen skugga, ingen glow. */
+.jp-sectionsuggest {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--jp-surface-2);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-sectionsuggest__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.jp-sectionsuggest__title {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-ink-1);
+}
+/* Motiveringen ("Vanligt inom vård och omsorg") är kunskapsbankens text, inte en status
+   → ingen pill-dot, ingen versalisering. Bara en dämpad bisats. */
+.jp-sectionsuggest__badge {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+.jp-sectionsuggest__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* min-width:0 bryter flex-items default min-width:auto. Utan den kan li:et aldrig krympa
+   under chippets min-content-bredd, och chippet spiller ur brickan vid 320px i stället för
+   att radbrytas (WCAG 1.4.10). */
+.jp-sectionsuggest__list > li {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+}
+/* Chippet ÄRVER .jp-chip:s civic-form (outline, pill-radie, caption, mixed-case) men är en
+   riktig <button> — en yta som LÄGGER TILL något ska se klickbar ut, inte som en läs-
+   etikett. Därför vit yta + --jp-border-input (den INTERAKTIVA kant-tokenen, samma som
+   .jp-btn--secondary 40px längre ned) i stället för den dekorativa --jp-border, som bara
+   når 1,34:1 mot brickan och alltså faller under UI-golvet 3:1 (WCAG 1.4.11). */
+.jp-sectionsuggest__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* ≥32px hit-area via padding (WCAG 2.5.8) — den synliga ikonen förblir 14px. */
+  padding: 6px 12px;
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
+  line-height: 1.4;
+  text-align: left;
+  color: var(--jp-ink-1);
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border-input);
+  border-radius: var(--jp-r-pill);
+  cursor: pointer;
+  max-width: 100%;
+}
+.jp-sectionsuggest__chip:hover:not(:disabled) {
+  border-color: var(--jp-accent-700);
+  color: var(--jp-accent-700);
+}
+.jp-sectionsuggest__chip:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+/* Rubriken RADBRYTS, den trunkeras inte. Att kapa namnet på den sektion användaren är på
+   väg att lägga till vore fel i sak — hon måste kunna läsa vad hon klickar på. (Utkastet
+   hade nowrap + ellipsis, vilket dessutom aldrig kunde utlösas: li:ets min-width:auto gjorde
+   max-width:100% cirkulärt, så chippet spillde i stället för att kapa.) */
+.jp-sectionsuggest__chiplabel {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* "Rekommenderas" = handoffens "extra standardsektion": sektionen FÖRVÄNTAS i yrket, till
+   skillnad från de bara vanliga. Bär sitt påstående i TEXT, aldrig i färg ensam (WCAG
+   1.4.1). --jp-accent-700 är TEXT-tokenen: den dark-skiftas till ljus mint (#6EE7A8) just
+   FÖR att förbli läsbar som text (9,2:1 mot chipytan i mörkt tema). Utkastet valde -800 med
+   motiveringen att -700 "skiftar" — resonemanget var exakt bakvänt: -800 är FILL-tokenen,
+   dark-skiftas ALDRIG, och ger 2,03:1 som text i mörkt tema. I ljust tema är de samma hex,
+   så bytet kostar ingenting. */
+.jp-sectionsuggest__tag {
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-accent-700);
+  white-space: nowrap;
+}
+.jp-sectionsuggest__prompt {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+
+/* Container-drivet, inte viewport-drivet (CTO Q2). Med railen på plats är huvudytan
+   ~830px vid 1280 — en @media på VIEWPORT-bredden vet ingenting om det och kunde
+   tvinga fram två spalter i en kolumn som inte rymmer dem. auto-fit + minmax mäter
+   den yta som faktiskt finns. */
+.jp-guide__parallel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: 16px;
+}
+.jp-guide__card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-guide__entry {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 16px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-guide__subentry {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-sm);
+}
+.jp-guide__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 12px;
+}
+.jp-guide__collapsed {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-guide__collapsed-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.jp-guide__collapsed-title {
+  font-size: var(--text-body);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-ink-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jp-guide__collapsed-meta {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+.jp-guide__chipeditor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.jp-guide__chipadd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.jp-guide__chipadd [data-slot="input"] {
+  flex: 1;
+  min-width: 0;
+}
+.jp-guide__summary {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-guide__summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+}
+.jp-guide__summary-row + .jp-guide__summary-row {
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-guide__summary-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-ink-1);
+}
+.jp-guide__summary-ind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--jp-r-pill);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-bold);
+  background: var(--jp-surface-3);
+  color: var(--jp-ink-2);
+  flex-shrink: 0;
+}
+/* Samma tre tillstånd som railens indikator — Spara-sammanställningen och railen
+   läser SAMMA predikat, så de kan inte säga emot varandra (CTO-bind Q3-A). */
+.jp-guide__summary-ind[data-status="done"] {
+  background: var(--jp-accent-800);
+  color: var(--jp-on-fill);
+}
+.jp-guide__summary-ind[data-status="attention"] {
+  background: var(--jp-warning-bg);
+  color: var(--jp-warning);
+}
+.jp-guide__summary-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+.jp-guide__note {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+/* Sticky fot: den enskilt största UX-vinsten i upplyftet (CTO Q2). Primärkontrollen
+   låg långt under vecket på steg 2 — ett CV med flera poster sköt "Nästa"/"Spara CV"
+   ur synfältet, så den som fyllde i formuläret inte såg vägen framåt. Foten sitter nu
+   kvar i botten av vyn medan innehållet scrollar. Ogenomskinlig bakgrund (inte
+   transparent) så innehållet aldrig lyser igenom under den. */
+.jp-guide__foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 14px 0;
+  background: var(--jp-canvas);
+  border-top: 1px solid var(--jp-border);
+}
+.jp-guide__foot-spacer {
+  flex: 1 1 auto;
+}
+.jp-guide__error {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-danger);
+}
+/* Per-fält-fel: felet står VID fältet det gäller (och kopplas dit med
+   aria-describedby + aria-invalid). Foten bar tidigare ett enda aggregerat fel åt
+   gången — fem fel kostade fem submit-varv. */
+.jp-guide__fielderror {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-danger);
+}
+/* Chip-listans fel: listan ÄR fältet (inget per-chip-fält finns att markera), så
+   felet bor vid listan och namnger chippet. Utan den här ytan påstod foten "De är
+   markerade nedan" om något som inte var markerat. */
+.jp-guide__chiperrors {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ============================================================================
+   Mallbyggaren (/cv/[id]/mall, #820) — reglage + forhandsvisning sida vid sida.
+   Inga nya design-tokens: allt komponeras ur befintliga --jp-*. Den enda nya
+   custom-propertyn ar --jp-mallcard-accent, som ar en DATAKANAL (varde = BE-
+   katalogens AccentOptionDto.Hex, satt inline pa kortgruppen) och lases av
+   schematikens fills — inte en token, och aldrig i :root.
+   ========================================================================== */
+
+.jp-mallbuilder {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: start;
+}
+/* Tva spalter forst nar bade reglagen och en lasbar A4-preview far plats. */
+@media (min-width: 1100px) {
+  .jp-mallbuilder { grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 28px; }
+}
+/* minmax(0, ...) pa bada spar: iframen far inte spranga rutnatet. */
+.jp-mallbuilder__options { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+.jp-mallbuilder__preview { display: flex; flex-direction: column; min-width: 0; }
+
+/* --- Optionsgrupp (rubrik + kontroll + ev. hjalptext) --- */
+.jp-mallsec { display: flex; flex-direction: column; gap: 12px; }
+.jp-mallsec__title {
+  margin: 0;
+  font-size: var(--text-h3);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-heading-2);
+}
+.jp-mallsec__hint {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.5;
+  color: var(--jp-ink-1); /* ingen gra brodtext */
+  max-width: 60ch;
+}
+
+/* --- MALL: valbara kort med mini-schematik --- */
+/* Korten far INTE svalla: utan tak stracker de sig over hela innehallsbredden i
+   enspalts-laget (640-1099px) och laser da som renderingar i stallet for struktur-
+   diagram — vilket motsager bade copyn ("miniatyrerna visar mallens struktur") och den
+   riktiga forhandsvisningen de star bredvid.
+   Taket sitter pa GRIDDEN, inte pa tracken: auto-fit raknar antalet spar pa track-
+   funktionens MAX nar den ar definit (CSS Grid §7.2.3.2), sa `minmax(118px, 172px)`
+   skulle styra aven hur manga kort som ryms — 440px-spalten tog da bara 2 kort och
+   lade Mork panel ensam pa rad 2, vilket bryter hela "valj en av tre"-jamforelsen.
+   Med 1fr som max raknas sparen pa MIN (118px) och max-width haller kortbredden.
+   540px = 3 x 172 + 2 x 12. */
+.jp-mallgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  max-width: 540px;
+  gap: 12px;
+}
+.jp-mallcard {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 10px;
+  text-align: left;
+  background: var(--jp-surface);
+  /* 1.5px redan i vila -> valt kort byter FARG, aldrig bredd (ingen layout-shift). */
+  border: 1.5px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  cursor: pointer;
+  transition: background 90ms ease, border-color 90ms ease;
+}
+.jp-mallcard:hover:not([data-state="checked"]) {
+  background: var(--jp-surface-3);
+  border-color: var(--jp-border-strong);
+}
+.jp-mallcard[data-state="checked"] {
+  background: var(--jp-accent-50);
+  border-color: var(--jp-accent-800);
+}
+[data-theme="dark"] .jp-mallcard[data-state="checked"] { border-color: var(--jp-accent-700); }
+/* Figuren avbildar en PDF, och PDF:ens papper ar VITT i varje tema — renderaren
+   kanner inte till appens dark mode. Utan en pin foljer .jp-schem__paper/-ink/-line
+   temat: i dark blir papperet #1B2B47, och de fyra katalogaccenterna (WCAG-gardade
+   mot VITT) faller till ~1,2-1,5:1 → accentlinjerna och HELA Mork panels sidopanel
+   blir osynliga, dvs kortens enda sarskiljande signal dor. Vi pinnar darfor
+   dokument-tokens till sina LJUSA varden inuti figuren. Samma scoped-token-override-
+   mekanism som [data-theme="dark"] .jp-header / .jp-land-top. */
+.jp-mallcard__figure {
+  --jp-surface: #FFFFFF;
+  --jp-ink-1: #0C1A2E;
+  --jp-border-strong: #7C8AA0;
+
+  display: block;
+  aspect-ratio: 1 / 1.414; /* A4 */
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-sm);
+  overflow: hidden;
+}
+.jp-mallcard__labelrow { display: flex; align-items: center; gap: 8px; }
+/* Indikatorn ar alltid narvarande (bara bocken tillkommer) -> ingen shift vid val. */
+.jp-mallcard__ind {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-surface);
+  border: 1.5px solid var(--jp-border-input);
+  color: var(--jp-on-fill);
+}
+.jp-mallcard[data-state="checked"] .jp-mallcard__ind {
+  background: var(--jp-accent-800);
+  border-color: var(--jp-accent-800);
+}
+.jp-mallcard__label {
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-1);
+}
+/* WCAG 1.4.1: valet bars av TRE icke-fargsignaler (bock, fet etikett, ramfarg). */
+.jp-mallcard[data-state="checked"] .jp-mallcard__label { font-weight: var(--jp-fw-bold); }
+/* body-sm, INTE micro: micro-tiern ar for counts/badge-text/proveniens, och det har
+   ar tva meningars prosa som anvandaren maste lasa for att valja mall (ADR 0038). */
+.jp-mallcard__desc {
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+  color: var(--jp-ink-1);
+}
+
+/* --- Mini-schematik (SVG). Alla fills gar via klass -> noll fargliteraler. --- */
+.jp-schem { display: block; width: 100%; height: 100%; }
+.jp-schem__paper { fill: var(--jp-surface); }
+.jp-schem__ink { fill: var(--jp-ink-1); }
+.jp-schem__line { fill: var(--jp-border-strong); } /* dekorativa "textrader", ej text */
+/* Datakanal, inte token: hex:en kommer ur BE-katalogen. Saknas den -> black, aldrig fel farg. */
+.jp-schem__accent { fill: var(--jp-mallcard-accent, var(--jp-ink-1)); }
+.jp-schem__panelink { fill: var(--jp-on-fill); }
+.jp-schem__panelline { fill: var(--jp-on-fill); opacity: 0.72; }
+
+/* --- ATS-utfall for den VALDA mallen --- */
+.jp-mallats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  background: var(--jp-surface-2);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-mallats__pill { height: 30px; padding: 0 12px; font-size: var(--text-body-sm); }
+/* Scopad override: den neutrala pillen ar annars ink-2 (gra). Har bar den ett
+   fortroendepastaende och ska lasas som ett medvetet utfall, inte dampad metadata.
+   .jp-pill globalt lamnas orort. */
+.jp-mallats .jp-pill--neutral {
+  color: var(--jp-ink-1);
+  border-color: var(--jp-border-strong);
+}
+.jp-mallats__hint {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.5;
+  color: var(--jp-ink-1);
+  max-width: 60ch;
+}
+
+/* --- ACCENTFARG: swatchar --- */
+.jp-swatchrow { display: flex; flex-wrap: wrap; gap: 14px; }
+.jp-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 2px;
+  min-width: 44px; /* ADR 0038 traffyte-golv: "Grafit" ar annars bara ~40px bred */
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+/* Prickens FYLL ar en dokumentfarg (de fyra morka katalog-hexarna) — mot dark-canvas
+   ligger den pa ~1,4-1,6:1, sa hela grans-uppfattningen vilar pa border:n. Den maste
+   darfor klara WCAG 1.4.11 (3:1) som UI-komponent: --jp-border-strong, inte --jp-border. */
+.jp-swatch__dot {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--jp-r-pill);
+  border: 1px solid var(--jp-border-strong);
+  color: var(--jp-on-fill); /* vit bock — alla fyra katalog-hex ar WCAG-gardade mot vitt */
+}
+/* Ringen ar en BORDER pa ett pseudo-element (aldrig box-shadow/glow, DESIGN.md §5).
+   Ringen ar gron (--jp-accent-700): den ar APP-krom. Den valda CV-fargen malar bara
+   dokumentinnehall (swatch-pricken + schematiken), aldrig kromet. */
+.jp-swatch[data-state="checked"] .jp-swatch__dot::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 2px solid var(--jp-accent-700);
+  border-radius: var(--jp-r-pill);
+}
+.jp-swatch__check { display: inline-flex; }
+.jp-swatch__label { font-size: var(--text-body-sm); color: var(--jp-ink-1); }
+.jp-swatch[data-state="checked"] .jp-swatch__label { font-weight: var(--jp-fw-semibold); }
+
+/* --- Spara --- */
+.jp-mallsave {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  padding-top: 20px;
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-mallsave__ok {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-success);
+}
+.jp-mallsave__err { margin: 0; font-size: var(--text-body-sm); color: var(--jp-danger); }
+
+/* De permanent monterade live-regionerna ar flex-items aven nar de ar tomma och ater
+   da ett gap (8px spokluft under Spara, ~6px ur centrum i platshallaren). Ta dem ur
+   FLODET nar de ar tomma — men ALDRIG med display:none: det plockar bort regionen ur
+   a11y-tradet och aterinfor exakt den insert-with-content-bugg som forhandsmonteringen
+   finns for att forhindra. */
+.jp-mallsave > [role="status"]:empty,
+.jp-mallpreview__placeholder > [role="status"]:empty {
+  position: absolute;
+}
+
+/* --- Forhandsvisning: inramat kort (huvud / stale-remsa / kropp / fot) --- */
+.jp-mallpreview {
+  display: flex;
+  flex-direction: column;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+  overflow: hidden;
+}
+.jp-mallpreview__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-mallpreview__title {
+  margin: 0;
+  font-size: var(--text-h3);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-heading-2);
+}
+.jp-mallpreview__stale {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 14px;
+  background: var(--jp-surface-2);
+  border-bottom: 1px solid var(--jp-border-soft);
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-mallpreview__body { padding: 14px; background: var(--jp-surface-2); }
+.jp-mallframe {
+  display: block;
+  width: 100%;
+  height: min(70vh, 800px);
+  border: 0;
+  border-radius: var(--jp-r-sm);
+  background: var(--jp-surface);
+}
+.jp-mallpreview__placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: min(70vh, 800px);
+  padding: 24px;
+  text-align: center;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border-soft);
+  border-radius: var(--jp-r-sm);
+  color: var(--jp-ink-1);
+}
+@media (max-width: 640px) {
+  .jp-mallframe { height: min(60vh, 520px); }
+  .jp-mallpreview__placeholder { min-height: min(60vh, 520px); }
+}
+/* iOS Safari vagrar rendera PDF i iframe -> "Oppna i ny flik" ar den riktiga
+   mobil-vagen och far aldrig stylas bort. */
+.jp-mallpreview__foot {
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--jp-border-soft);
+  font-size: var(--text-body-sm);
+}

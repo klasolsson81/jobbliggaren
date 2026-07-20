@@ -1,3 +1,7 @@
+// (app)-scoped component CSS (#750): rules whose consumers render only under
+// this route group, so public/landing/auth pages no longer parse them. Loads
+// after the root globals.css, whose tokens/keyframes it resolves via var().
+import "./app.css";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession, ROLES } from "@/lib/auth/session";

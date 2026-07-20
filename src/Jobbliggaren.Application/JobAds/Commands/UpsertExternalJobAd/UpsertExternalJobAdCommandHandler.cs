@@ -33,6 +33,18 @@ public sealed partial class UpsertExternalJobAdCommandHandler(
 
         var item = command.Item;
 
+        // #874 / F4-4 (ADR 0071/0074 Path C) + F4-4b — the deterministic keyword/skill extraction the
+        // aggregate folds into its ingest transitions (Import / UpdateFromSource) as the required
+        // JobAdTermExtraction delegate. Reads the public ad text (POST-SCRUB — the aggregate supplies its
+        // own scrubbed Title/Description) PLUS the employer-stated structured requirements
+        // (item.Requirements). Pure/in-process: local NLP + the committed skill taxonomy + pre-linked
+        // requirement concepts, no external call, reads only public ad data (no PII); Worker-sync context
+        // → no request-latency budget (ADR 0045). Passing it as a REQUIRED parameter is what makes a text
+        // write without re-extraction uncompilable, and the aggregate invoking it over post-scrub text
+        // keeps terms deriving from clean text on both the Add and Update paths (F-B, #842 Tier A).
+        ExtractedTerms Extract(string title, string description) =>
+            keywordExtractor.Extract(new JobAdExtractionInput(title, description, item.Requirements));
+
         var companyResult = Company.Create(item.CompanyName);
         if (companyResult.IsFailure)
         {
@@ -50,7 +62,7 @@ public sealed partial class UpsertExternalJobAdCommandHandler(
         var importResult = JobAd.Import(
             item.Title, companyResult.Value, item.Description, item.Url,
             extRefResult.Value, item.SanitizedRawPayload, item.Facets,
-            item.DeclaredContacts, item.PublishedAt, item.ExpiresAt, clock);
+            item.DeclaredContacts, item.PublishedAt, item.ExpiresAt, clock, Extract);
 
         if (importResult.IsFailure)
         {
@@ -59,7 +71,6 @@ public sealed partial class UpsertExternalJobAdCommandHandler(
         }
 
         var newJobAd = importResult.Value;
-        ApplyExtraction(newJobAd, item); // F4-4/F4-4b ingest hook — Add path (before SaveChanges below).
         db.JobAds.Add(newJobAd);
 
         try
@@ -92,15 +103,19 @@ public sealed partial class UpsertExternalJobAdCommandHandler(
             return Result.Success(UpsertOutcome.Skipped);
         }
 
-        // #841 — the Update path re-writes raw_payload, and therefore MUST re-write the seven facets
-        // parsed from it. It cannot forget: JobAd.UpdateFromSource takes the facets as a required
-        // parameter, so omitting them would not compile. (This is the whole reason the fix lives in the
-        // aggregate's signature rather than in a convention here.) #842 Tier A rides the same
-        // guarantee: the declared contacts are a required parameter too, and the scrub invariant
-        // runs inside the aggregate — this handler neither scrubs nor merges anything itself.
+        // #841/#842/#874 — the Update path re-writes raw_payload, so it MUST re-write everything derived
+        // from the source text: the seven facets (#841), the scrubbed body + declared contacts (#842 Tier
+        // A), and the extracted terms (#874). None can be forgotten — JobAd.UpdateFromSource takes the
+        // facets, the declared contacts AND the extraction delegate as REQUIRED parameters, so omitting
+        // any of them would not compile. That is the whole reason the fix lives in the aggregate's
+        // signature rather than a convention here: this handler neither scrubs, merges, nor extracts
+        // anything itself — it hands the aggregate the inputs and the aggregate keeps the invariants.
+        // (Re-extraction on the Update path is exactly what keeps an updated ad's terms tracking its
+        // possibly-changed title/description; applying only on the Add path would leave updated ads with
+        // stale terms — now structurally impossible, not a comment we have to trust.)
         var updateResult = existing.UpdateFromSource(
             item.Title, item.Description, item.Url,
-            item.SanitizedRawPayload, item.Facets, item.DeclaredContacts, item.ExpiresAt);
+            item.SanitizedRawPayload, item.Facets, item.DeclaredContacts, item.ExpiresAt, Extract);
 
         if (updateResult.IsFailure)
         {
@@ -108,25 +123,8 @@ public sealed partial class UpsertExternalJobAdCommandHandler(
             return Result.Success(UpsertOutcome.Skipped);
         }
 
-        // F4-4/F4-4b ingest hook — Update path. `existing` is persisted by
-        // UnitOfWorkBehavior's SaveChanges after this handler returns. Re-extract
-        // so an updated ad's terms track its (possibly changed) title/description +
-        // structured requirements — applying only on the Add path would leave updated
-        // ads with stale terms.
-        ApplyExtraction(existing, item);
         return Result.Success(UpsertOutcome.Updated);
     }
-
-    // F4-4 (ADR 0071/0074 Path C) + F4-4b — deterministic keyword/skill extraction
-    // from the public ad text PLUS the employer-stated structured requirements
-    // (must_have/nice_to_have skills the ACL parsed into item.Requirements) at the
-    // single external-ad write funnel (both Add + Update paths). Pure/in-process:
-    // local NLP + the committed skill taxonomy + the pre-linked requirement concepts,
-    // no external call, reads only public ad data (no PII). Worker-sync context → no
-    // request-latency budget (ADR 0045).
-    private void ApplyExtraction(JobAd jobAd, JobAdImportItem item) =>
-        jobAd.SetExtractedTerms(keywordExtractor.Extract(
-            new JobAdExtractionInput(jobAd.Title, jobAd.Description, item.Requirements)));
 
     [LoggerMessage(EventId = 5101, Level = LogLevel.Information,
         Message = "UpsertExternalJobAd: UNIQUE-collision på ExternalId={ExternalId} — växlar till update.")]

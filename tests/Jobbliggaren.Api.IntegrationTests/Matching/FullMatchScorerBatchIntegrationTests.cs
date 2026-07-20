@@ -7,6 +7,7 @@ using Jobbliggaren.Infrastructure.Matching;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.TextAnalysis;
 using Jobbliggaren.TestSupport;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -104,13 +105,22 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock, declaredContacts: []).Value;
+            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
 
         if (terms is not null)
             jobAd.SetExtractedTerms(terms);
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
+        if (terms is null)
+        {
+            // #874 - Import folds extraction in, so a persisted imported ad always carries terms
+            // (Empty at worst); the never-extracted NULL state is legacy-only and unreachable through
+            // the aggregate. Null the column directly to reproduce it (the STORED extracted_lexemes
+            // shadow follows extracted_terms to NULL).
+            await db.Database.ExecuteSqlAsync(
+                $"UPDATE job_ads SET extracted_terms = NULL WHERE id = {jobAd.Id.Value}", ct);
+        }
         return jobAd.Id;
     }
 

@@ -636,7 +636,7 @@ public class CompanyWatchesTests(ApiFactory factory)
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock, declaredContacts: []).Value;
+            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
 
         if (archived)
             jobAd.Archive(clock);

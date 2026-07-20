@@ -28,7 +28,7 @@ public class JobAdEraseTests
             facets: TestFacets.From(organizationNumber: SoleTraderOrgNr),
             publishedAt: Clock.UtcNow,
             expiresAt: null,
-            clock: Clock, declaredContacts: []).Value;
+            clock: Clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
 
     [Fact]
     public void Erase_clears_every_free_text_surface_and_marks_the_ad_Erased()
@@ -164,7 +164,7 @@ public class JobAdEraseTests
             url: "https://arbetsformedlingen.se/platsbanken/annonser/1",
             rawPayload: """{"id":"ext-1","employer":{"name":"Acme AB"}}""",
             facets: TestFacets.From(organizationNumber: SoleTraderOrgNr),
-            expiresAt: null, declaredContacts: []);
+            expiresAt: null, declaredContacts: [], extractTerms: TestKeywordExtraction.None);
 
         result.IsFailure.ShouldBeTrue(
             "if this passes, the 02:00 sync writes her address back and we have lied to her.");

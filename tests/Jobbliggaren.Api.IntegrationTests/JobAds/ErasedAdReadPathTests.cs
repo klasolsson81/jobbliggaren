@@ -92,7 +92,7 @@ public sealed class ErasedAdReadPathTests(ApiFactory factory)
             facets: TestFacets.FromPayload(payload),
             publishedAt: T0,
             expiresAt: T0.AddDays(30),
-            clock: clock, declaredContacts: []).Value;
+            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);

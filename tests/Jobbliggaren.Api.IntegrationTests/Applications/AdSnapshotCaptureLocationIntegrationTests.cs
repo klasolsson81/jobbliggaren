@@ -89,7 +89,7 @@ public class AdSnapshotCaptureLocationIntegrationTests
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: PublishedAt,
             expiresAt: null,
-            clock: clock, declaredContacts: []).Value;
+            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         return jobAd;
     }

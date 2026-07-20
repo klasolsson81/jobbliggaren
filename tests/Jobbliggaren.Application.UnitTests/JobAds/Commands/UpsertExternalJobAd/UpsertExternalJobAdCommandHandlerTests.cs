@@ -58,7 +58,7 @@ public class UpsertExternalJobAdCommandHandlerTests
     {
         if (extractor is null)
         {
-            // F4-4 ingest hook — default to a no-op extraction (Empty) so these
+            // F4-4 — default the extractor to a no-op (Empty) so these
             // upsert tests stay focused on the race-safe upsert behavior.
             extractor = Substitute.For<IJobAdKeywordExtractor>();
             extractor.Extract(Arg.Any<JobAdExtractionInput>()).Returns(ExtractedTerms.Empty);
@@ -237,9 +237,9 @@ public class UpsertExternalJobAdCommandHandlerTests
     }
 
     // ---------------------------------------------------------------
-    // F4-4 ingest hook — the deterministic extraction lands on the aggregate at
-    // the single external-ad write funnel, on BOTH the Add and the Update path
-    // (ApplyExtraction is called in both branches of the handler).
+    // F4-4 (#874) — the deterministic extraction lands on the aggregate at the
+    // single external-ad write funnel, on BOTH the Add and the Update path (the
+    // handler's Extract closure is folded into Import/UpdateFromSource on both branches).
     // ---------------------------------------------------------------
 
     private static ExtractedTerms SampleTerms() =>
@@ -272,7 +272,7 @@ public class UpsertExternalJobAdCommandHandlerTests
         var persisted = await db.JobAds.AsNoTracking()
             .FirstAsync(j => j.External!.ExternalId == "ext-extract-add", ct);
         persisted.ExtractedTerms.ShouldNotBeNull(
-            "Add-vägens ingest-hook ska sätta ExtractedTerms på aggregatet.");
+            "Add-vägens extraktion ska sätta ExtractedTerms på aggregatet.");
         persisted.ExtractedTerms!.ShouldBe(terms);
     }
 
@@ -316,7 +316,7 @@ public class UpsertExternalJobAdCommandHandlerTests
             .FirstAsync(j => j.External!.ExternalId == "ext-extract-upd", ct);
         existing.Title.ShouldBe("New Title", "Update-vägen uppdaterade titeln.");
         existing.ExtractedTerms.ShouldNotBeNull(
-            "Update-vägens ingest-hook ska sätta ExtractedTerms på `existing`.");
+            "Update-vägens extraktion ska sätta ExtractedTerms på `existing`.");
         existing.ExtractedTerms!.ShouldBe(terms);
         // Re-extraction used the UPDATED text, not the stale seeded text.
         extractor.Received().Extract(Arg.Is<JobAdExtractionInput>(
@@ -324,10 +324,10 @@ public class UpsertExternalJobAdCommandHandlerTests
     }
 
     // ---------------------------------------------------------------
-    // F4-4b ingest hook — ApplyExtraction(jobAd, item) threads item.Requirements
-    // into the JobAdExtractionInput on BOTH the Add and the Update path (the hook
-    // signature gains the item so requirements — which live on the import DTO, not
-    // the aggregate — reach the extractor).
+    // F4-4b — the handler's Extract closure threads item.Requirements into the
+    // JobAdExtractionInput on BOTH the Add and the Update path (the closure captures
+    // the import item so requirements — which live on the import DTO, not the
+    // aggregate — reach the extractor).
     // ---------------------------------------------------------------
 
     private static IReadOnlyList<JobAdRequirement> SampleRequirements() =>
@@ -410,7 +410,7 @@ public class UpsertExternalJobAdCommandHandlerTests
             title, company, "Beskrivning", "https://example.com/jobs/seed",
             external, "{\"id\":\"seed\"}", TestFacets.FromPayload("{\"id\":\"seed\"}"),
             [],
-            Now.AddDays(-1), Now.AddDays(30), clock).Value;
+            Now.AddDays(-1), Now.AddDays(30), clock, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
     }

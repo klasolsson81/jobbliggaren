@@ -295,7 +295,7 @@ $fn$ LANGUAGE plpgsql;";
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: publishedAt,
             expiresAt: publishedAt.AddDays(60),
-            clock: new FixedClock(Now), declaredContacts: []).Value; // CreatedAt = Now
+            clock: new FixedClock(Now), declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value; // CreatedAt = Now
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);

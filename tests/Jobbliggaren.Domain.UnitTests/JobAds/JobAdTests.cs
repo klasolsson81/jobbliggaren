@@ -123,7 +123,7 @@ public class JobAdTests
         var external = ValidExternalRef();
         const string raw = "{\"id\":\"26500001\",\"headline\":\"Senior Backend Engineer\"}";
 
-        var result = JobAd.Import(title, company, desc, url, external, raw, TestFacets.FromPayload(raw), [], publishedAt, null, Clock);
+        var result = JobAd.Import(title, company, desc, url, external, raw, TestFacets.FromPayload(raw), [], publishedAt, null, Clock, extractTerms: TestKeywordExtraction.None);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.External.ShouldBe(external);
@@ -139,7 +139,7 @@ public class JobAdTests
         var external = ValidExternalRef();
         const string raw = "{\"id\":\"26500001\"}";
 
-        var jobAd = JobAd.Import(title, company, desc, url, external, raw, TestFacets.FromPayload(raw), [], publishedAt, null, Clock).Value;
+        var jobAd = JobAd.Import(title, company, desc, url, external, raw, TestFacets.FromPayload(raw), [], publishedAt, null, Clock, extractTerms: TestKeywordExtraction.None).Value;
 
         var evt = jobAd.DomainEvents.ShouldHaveSingleItem().ShouldBeOfType<JobAdImportedDomainEvent>();
         evt.JobAdId.ShouldBe(jobAd.Id);
@@ -154,7 +154,7 @@ public class JobAdTests
         var (title, company, desc, url, _, publishedAt) = ValidParams();
         var external = ValidExternalRef();
 
-        var result = JobAd.Import(title, company, desc, url, external, "", TestFacets.FromPayload(""), [], publishedAt, null, Clock);
+        var result = JobAd.Import(title, company, desc, url, external, "", TestFacets.FromPayload(""), [], publishedAt, null, Clock, extractTerms: TestKeywordExtraction.None);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobAd.RawPayloadRequired");
@@ -166,7 +166,7 @@ public class JobAdTests
         var (title, company, desc, _, _, publishedAt) = ValidParams();
         var external = ValidExternalRef();
 
-        var result = JobAd.Import(title, company, desc, "not-a-url", external, "{}", TestFacets.FromPayload("{}"), [], publishedAt, null, Clock);
+        var result = JobAd.Import(title, company, desc, "not-a-url", external, "{}", TestFacets.FromPayload("{}"), [], publishedAt, null, Clock, extractTerms: TestKeywordExtraction.None);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobAd.UrlInvalid");
@@ -178,13 +178,13 @@ public class JobAdTests
         var (title, company, desc, url, _, publishedAt) = ValidParams();
         var external = ValidExternalRef();
         var jobAd = JobAd.Import(title, company, desc, url, external,
-            "{\"v\":1}", TestFacets.FromPayload("{\"v\":1}"), [], publishedAt, null, Clock).Value;
+            "{\"v\":1}", TestFacets.FromPayload("{\"v\":1}"), [], publishedAt, null, Clock, extractTerms: TestKeywordExtraction.None).Value;
         jobAd.ClearDomainEvents();
 
         var newExpiresAt = publishedAt.AddDays(14);
         var result = jobAd.UpdateFromSource(
             "Updated title", "Updated description",
-            "https://jobs.klarna.com/job/123-updated", "{\"v\":2}", TestFacets.FromPayload("{\"v\":2}"), [], newExpiresAt);
+            "https://jobs.klarna.com/job/123-updated", "{\"v\":2}", TestFacets.FromPayload("{\"v\":2}"), [], newExpiresAt, extractTerms: TestKeywordExtraction.None);
 
         result.IsSuccess.ShouldBeTrue();
         jobAd.Title.ShouldBe("Updated title");
@@ -203,7 +203,7 @@ public class JobAdTests
         var jobAd = JobAd.Create(title, company, desc, url, source, publishedAt, null, Clock).Value;
 
         var result = jobAd.UpdateFromSource(
-            "X", "Y", "https://example.com/x", "{}", TestFacets.FromPayload("{}"), [], null);
+            "X", "Y", "https://example.com/x", "{}", TestFacets.FromPayload("{}"), [], null, extractTerms: TestKeywordExtraction.None);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobAd.NotImported");
@@ -215,10 +215,10 @@ public class JobAdTests
         var (title, company, desc, url, _, publishedAt) = ValidParams();
         var external = ValidExternalRef();
         var jobAd = JobAd.Import(title, company, desc, url, external,
-            "{\"v\":1}", TestFacets.FromPayload("{\"v\":1}"), [], publishedAt, null, Clock).Value;
+            "{\"v\":1}", TestFacets.FromPayload("{\"v\":1}"), [], publishedAt, null, Clock, extractTerms: TestKeywordExtraction.None).Value;
 
         var result = jobAd.UpdateFromSource(
-            "Updated", "Updated desc", "https://example.com/x", "", TestFacets.FromPayload(""), [], null);
+            "Updated", "Updated desc", "https://example.com/x", "", TestFacets.FromPayload(""), [], null, extractTerms: TestKeywordExtraction.None);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobAd.RawPayloadRequired");
@@ -266,7 +266,7 @@ public class JobAdTests
     {
         var (title, company, desc, _, _, publishedAt) = ValidParams();
         var external = ValidExternalRef();
-        var result = JobAd.Import(title, company, desc, url, external, "{}", TestFacets.FromPayload("{}"), [], publishedAt, null, Clock);
+        var result = JobAd.Import(title, company, desc, url, external, "{}", TestFacets.FromPayload("{}"), [], publishedAt, null, Clock, extractTerms: TestKeywordExtraction.None);
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobAd.UrlInvalid");
     }
@@ -279,10 +279,10 @@ public class JobAdTests
         var (title, company, desc, url, _, publishedAt) = ValidParams();
         var external = ValidExternalRef();
         var jobAd = JobAd.Import(title, company, desc, url, external,
-            "{\"v\":1}", TestFacets.FromPayload("{\"v\":1}"), [], publishedAt, null, Clock).Value;
+            "{\"v\":1}", TestFacets.FromPayload("{\"v\":1}"), [], publishedAt, null, Clock, extractTerms: TestKeywordExtraction.None).Value;
 
         var result = jobAd.UpdateFromSource(
-            "Updated", "Updated desc", maliciousUrl, "{\"v\":2}", TestFacets.FromPayload("{\"v\":2}"), [], null);
+            "Updated", "Updated desc", maliciousUrl, "{\"v\":2}", TestFacets.FromPayload("{\"v\":2}"), [], null, extractTerms: TestKeywordExtraction.None);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobAd.UrlInvalid");

@@ -119,6 +119,7 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         IDateTimeProvider clock = new FixedClock(new DateTimeOffset(2026, 5, 1, 0, 0, 0, TimeSpan.Zero));
 
+        var seededIds = new List<Guid>();
         for (var i = 0; i < count; i++)
         {
             var company = Company.Create("Klarna").Value;
@@ -132,11 +133,20 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
                 "https://example.com/jobb/" + i, external, "{\"id\":\"x\"}", TestFacets.FromPayload("{\"id\":\"x\"}"),
                 [],
                 new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),
-                new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock).Value;
-            // Deliberately DO NOT call SetExtractedTerms → extracted_terms stays NULL.
+                new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock, extractTerms: TestKeywordExtraction.None).Value;
+            // #874 — Import now folds extraction in, so each ad persists with Empty terms; the
+            // never-extracted NULL state this backfill targets is legacy-only and unreachable through
+            // the aggregate. Nulled below (post-save) to reproduce the pre-F4-4 legacy rows.
             db.JobAds.Add(jobAd);
+            seededIds.Add(jobAd.Id.Value);
         }
         await db.SaveChangesAsync(ct);
+        // Null ONLY the rows this helper seeded — a caller may also seed an already-extracted '[]'
+        // row in the same (per-test) container, and that row must keep its non-null terms so the
+        // backfill predicate (extracted_lexemes IS NULL) skips it. The STORED extracted_lexemes shadow
+        // follows extracted_terms to NULL, reproducing the pre-F4-4 legacy state.
+        await db.Database.ExecuteSqlAsync(
+            $"UPDATE job_ads SET extracted_terms = NULL WHERE id = ANY({seededIds})", ct);
         return count;
     }
 
@@ -294,7 +304,7 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
                 external, "{\"id\":\"x\"}", TestFacets.FromPayload("{\"id\":\"x\"}"),
                 [],
                 new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),
-                new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock).Value;
+                new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock, extractTerms: TestKeywordExtraction.None).Value;
             already.SetExtractedTerms(ExtractedTerms.Empty); // extracted (non-null)
             db.JobAds.Add(already);
             await db.SaveChangesAsync(ct);

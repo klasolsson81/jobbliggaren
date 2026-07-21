@@ -10,9 +10,9 @@
 // Flip till blockerande = medveten ratchet vid Klas-GO (ADR 0045 Beslut 6).
 //
 // ADR 0045 Beslut 1 — server-side p95-budgetar mätta:
-//   (a) read-query/list  : p95 300 ms   (Klas-låst — landing-stats kläm denna)
-//   (b) typeahead/suggest: p95 150 ms   (Klas-låst — ej mätt denna PR)
-//   (c) command/write    : p95 400 ms   (CTO-satt — ej mätt denna PR)
+//   (a) read-query/list  : p95 300 ms   (Klas-låst — landing-stats + fritext + facet + match-sort)
+//   (b) typeahead/suggest: p95 150 ms   (Klas-låst — SuggestScenarios, #753)
+//   (c) command/write    : p95 400 ms   (CTO-satt — MeSeenWriteScenarios, #753)
 //   (d) ingestion        : ≥ 200 jobb/min sustained (ej mätt denna PR)
 //
 // KÖRLÄGEN:
@@ -29,6 +29,12 @@
 //
 //   LOADTEST_SCENARIOS=q-count dotnet run ...
 //     → kör baseline + q-COUNT-hot-path-scenariot (TD-94 regression guard).
+//
+//   LOADTEST_SCENARIOS=suggest dotnet run ...
+//     → kör baseline + typeahead/suggest-scenariot (#753, klass (b) 150 ms).
+//
+//   LOADTEST_SCENARIOS=me-seen-write dotnet run ...
+//     → kör baseline + /me/jobs/seen write-scenariot (#753, klass (c) 400 ms).
 //
 //   LOADTEST_SCENARIOS=all dotnet run ...
 //     → kör allt.
@@ -201,6 +207,34 @@ if (scenarioSelector is "saved-search-notify-typical" or "all")
 
     scenarioBudgets[savedSearchNotifyTypical.ScenarioName] =
         SavedSearchNewResultsCountScenarios.Class_A_P95_BudgetMs;
+}
+
+// #753 (epik #737) — GET /api/v1/job-ads/suggest typeahead. Klass (b) p95 ≤ 150 ms
+// (ADR 0045 Beslut 1, Klas-låst — den striktaste budgeten). Auth-gated (SuggestPolicy
+// 30/10s per UserId — kräver LOADTEST_BEARER_TOKEN; saknas → 401 → fail-count →
+// BudgetReporter-warning). Egen policy-partition → konkurrerar bara med sig självt om
+// Suggest-bucketen även i "all".
+if (scenarioSelector is "suggest" or "all")
+{
+    var suggest = SuggestScenarios.SuggestTypeahead(httpClient, baseUrl);
+
+    scenarios.Add(suggest);
+
+    scenarioBudgets[suggest.ScenarioName] = SuggestScenarios.Class_B_P95_BudgetMs;
+}
+
+// #753 (epik #737) — POST /api/v1/me/jobs/seen watermark-write. Klass (c) p95 ≤ 400 ms
+// (ADR 0045 Beslut 1, CTO-satt). Auth-gated write (MeWritePolicy 30/60s — kräver
+// LOADTEST_BEARER_TOKEN). Tom body → clock-now-fallback → genuin monoton UPDATE per
+// sample (ej no-op; se MeSeenWriteScenarios NO-OP-FÄLLAN). MUTERAR dev-DB:ns test-
+// användar-watermark → endast ensam stack-owner får köra den mot delade DB:n (§6.5).
+if (scenarioSelector is "me-seen-write" or "all")
+{
+    var seenWrite = MeSeenWriteScenarios.SeenWatermarkWrite(httpClient, baseUrl);
+
+    scenarios.Add(seenWrite);
+
+    scenarioBudgets[seenWrite.ScenarioName] = MeSeenWriteScenarios.Class_C_P95_BudgetMs;
 }
 
 Console.WriteLine(

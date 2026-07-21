@@ -7,7 +7,7 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// <summary>
 /// ADR 0087 D6/D7 (#311 PR-2b C2) — <see cref="IEmployerDisambiguationQuery"/> implementation. The
 /// projection lives here (not in a handler over IAppDbContext) because it uses PostgreSQL <c>ILIKE</c>
-/// + <c>GROUP BY</c> over the STORED <c>organization_number</c> shadow column — Npgsql-assembly LINQ
+/// + <c>GROUP BY</c> over the mapped <c>organization_number</c> column — Npgsql-assembly LINQ
 /// the architecture test forbids in Application (parity <see cref="JobAdSearchQuery"/> /
 /// <c>FacetCountsAsync</c>, ADR 0062). A SEPARATE read concern from <see cref="JobAdSearchQuery"/>
 /// (ADR 0087 D6/D7 — the disambiguation list must NOT be folded into <c>IJobAdSearchQuery</c>).
@@ -37,11 +37,11 @@ internal sealed class EmployerDisambiguationQuery(AppDbContext db) : IEmployerDi
 
         var groups = await db.JobAds
             .AsNoTracking()
-            .Where(j => EF.Property<string?>(j, "OrganizationNumber") != null
+            .Where(j => j.OrganizationNumber != null
                         && EF.Functions.ILike(j.Company.Name, pattern, LikeEscape))
             .GroupBy(j => new
             {
-                OrganizationNumber = EF.Property<string?>(j, "OrganizationNumber")!,
+                OrganizationNumber = j.OrganizationNumber!,
                 j.Company.Name,
             })
             .OrderByDescending(g => g.Count())

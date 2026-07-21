@@ -81,14 +81,14 @@ public sealed class GetActivityReportQueryHandler(
             {
                 x.a,
                 j,
-                // "Ort"-källa: kommun-concept-id är en shadow-prop (ACL, ADR
-                // 0043/0067 — ingen Domain-koppling till JobTech-taxonomin),
-                // härledd STORED ur raw_payload. Ingen annonsrad (manuell/enbart
+                // "Ort"-källa: kommun-concept-id är sedan #841 en vanlig mappad
+                // JobAd-property (ACL, ADR 0043/0067 — JobTech-taxonomikod, ingen
+                // Domain-koppling; C#-skriven, ej STORED/shadow). Ingen annonsrad (manuell/enbart
                 // brev) → j == null → ingen ort. (#805-3: en ARKIVERAD annons
                 // joinar fortfarande och bär sin ort — den gamla "soft-deletad"-
                 // utsagan var falsk, #821.)
                 MunicipalityConceptId =
-                    j != null ? EF.Property<string?>(j, "MunicipalityConceptId") : null
+                    j != null ? j.MunicipalityConceptId : null
             })
             // #892 (CTO R1/R5 + §14.3): rapporten LÄSTE live-annonsen medan Art.
             // 17(3)(e)-retentionen av snapshot_company motiverades av EXAKT den här

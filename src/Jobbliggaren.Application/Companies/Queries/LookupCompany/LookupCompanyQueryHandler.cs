@@ -74,14 +74,14 @@ public sealed class LookupCompanyQueryHandler(
 
         // ---- Found: enrich with our own bounded, org.nr-keyed projections. ----
 
-        // #447 idiom — public open-role count for THIS org.nr (STORED generated shadow column;
+        // #447 idiom — public open-role count for THIS org.nr (mapped organization_number column;
         // the Status == Active predicate below IS the whole exclusion — JobAd has no soft-delete
         // axis and no query filter, #821). Bounded single-key aggregate.
         var orgNrValue = (string?)orgNr.Value;
         var activeAdCount = await db.JobAds
             .AsNoTracking()
             .CountAsync(
-                j => EF.Property<string?>(j, "OrganizationNumber") == orgNrValue
+                j => j.OrganizationNumber == orgNrValue
                      && j.Status == JobAdStatus.Active,
                 cancellationToken);
 

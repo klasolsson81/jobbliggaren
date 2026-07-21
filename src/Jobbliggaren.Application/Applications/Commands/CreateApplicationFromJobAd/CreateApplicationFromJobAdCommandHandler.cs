@@ -24,8 +24,9 @@ namespace Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJo
 /// captured as the raw <c>MunicipalityConceptId</c> column (#841: an ordinary, C#-written
 /// ingest column since 2026-07-13 — it used to be a STORED generated column derived from
 /// raw_payload, so applying to an ad past the 30-day horizon froze a permanent NULL into the
-/// snapshot that exists precisely to OUTLIVE the ad. That is fixed at the root) (via
-/// EF.Property) and resolved to a name on the READ path (ADR 0086 D4, final
+/// snapshot that exists precisely to OUTLIVE the ad. That is fixed at the root) (read
+/// via the typed <c>j.MunicipalityConceptId</c> property since #873) and resolved to a
+/// name on the READ path (ADR 0086 D4, final
 /// ruling): the write side stays free of <c>ITaxonomyReadModel</c>, honouring the
 /// project's codified read-side-only ACL invariant (TaxonomyAclLayerTests). A
 /// missing ad row yields no projection → NotFound — exactly the prior
@@ -66,7 +67,8 @@ public sealed class CreateApplicationFromJobAdCommandHandler(
         // Project the snapshot-relevant JobAd fields (ADR 0086 / ADR 0048 Beslut d
         // amendment): a one-time write-side copy, NOT materialising the JobAd
         // aggregate (dotnet-architect B2). The MunicipalityConceptId
-        // property is read via EF.Property (the #316 pattern) and FROZEN as-is — it
+        // property is read via the typed j.MunicipalityConceptId accessor (#873; it was
+        // the #316 EF.Property pattern) and FROZEN as-is — it
         // is resolved to a name on the read path, keeping this write handler free
         // of the taxonomy ACL port (ADR 0086 D4). No row → NotFound, replacing the
         // prior AnyAsync existence precondition. JobAd carries no query filter
@@ -82,7 +84,7 @@ public sealed class CreateApplicationFromJobAdCommandHandler(
                 j.Source.Value,
                 j.PublishedAt,
                 j.ExpiresAt,
-                EF.Property<string?>(j, "MunicipalityConceptId"),
+                j.MunicipalityConceptId,
                 j.Contacts,
                 j.Status))
             .FirstOrDefaultAsync(cancellationToken);

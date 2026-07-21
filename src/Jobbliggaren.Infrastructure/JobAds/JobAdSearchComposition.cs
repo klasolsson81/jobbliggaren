@@ -40,10 +40,11 @@ internal static class JobAdSearchComposition
     /// </summary>
     internal static bool HasFreeTextQuery([NotNullWhen(true)] string? q) => !string.IsNullOrWhiteSpace(q);
 
-    // F2-P9 (TD-70). Filter via Postgres STORED generated columns (B-tree-
-    // indexerade, equality-lookup). Shadow-properties refereras via
-    // EF.Property<string?>(…) — de är inte top-level Domain-fält (Evans 2003
-    // §14 ACL — JobTech-taxonomi är inte Jobbliggarens ubiquitous language).
+    // F2-P9 (TD-70). Filter via de mappade Postgres-kolumnerna (B-tree-
+    // indexerade, equality-lookup). De sju taxonomi-/org.nr-kolumnerna är sedan
+    // #841/#873 vanliga mappade JobAd-properties (läses som j.X, kompilator-
+    // kontrollerat) — de bär JobTech-taxonomikoder, inte Jobbliggarens ubiquitous
+    // language (Evans 2003 §14 ACL). Bara search_vector/extracted_lexemes är shadow.
     // ADR 0042 Beslut B — multi → SQL IN(…) via list.Contains.
     //
     // ADR 0067 Beslut 1 (Platsbanken sök-paritet Fas C1, Variant C) — yrke-
@@ -83,7 +84,7 @@ internal static class JobAdSearchComposition
         if (criteria.OccupationGroup.Count > 0)
         {
             var groupValues = criteria.OccupationGroup;
-            source = source.Where(j => groupValues.Contains(EF.Property<string?>(j, "OccupationGroupConceptId")));
+            source = source.Where(j => groupValues.Contains(j.OccupationGroupConceptId));
         }
 
         // ADR 0067 implementerings-notat E2b (CTO VAL 1, 2026-06-11) — Ort är
@@ -115,14 +116,14 @@ internal static class JobAdSearchComposition
             {
                 (true, true) => source.Where(j =>
                     j.Remote
-                    || municipalityValues.Contains(EF.Property<string?>(j, "MunicipalityConceptId"))
-                    || regionValues.Contains(EF.Property<string?>(j, "RegionConceptId"))),
+                    || municipalityValues.Contains(j.MunicipalityConceptId)
+                    || regionValues.Contains(j.RegionConceptId)),
                 (true, false) => source.Where(j =>
                     j.Remote
-                    || municipalityValues.Contains(EF.Property<string?>(j, "MunicipalityConceptId"))),
+                    || municipalityValues.Contains(j.MunicipalityConceptId)),
                 (false, true) => source.Where(j =>
                     j.Remote
-                    || regionValues.Contains(EF.Property<string?>(j, "RegionConceptId"))),
+                    || regionValues.Contains(j.RegionConceptId)),
                 (false, false) => source.Where(j => j.Remote),
             };
         }
@@ -131,44 +132,44 @@ internal static class JobAdSearchComposition
             var municipalityValues = criteria.Municipality;
             var regionValues = criteria.Region;
             source = source.Where(j =>
-                municipalityValues.Contains(EF.Property<string?>(j, "MunicipalityConceptId"))
-                || regionValues.Contains(EF.Property<string?>(j, "RegionConceptId")));
+                municipalityValues.Contains(j.MunicipalityConceptId)
+                || regionValues.Contains(j.RegionConceptId));
         }
         else if (criteria.Municipality.Count > 0)
         {
             var municipalityValues = criteria.Municipality;
-            source = source.Where(j => municipalityValues.Contains(EF.Property<string?>(j, "MunicipalityConceptId")));
+            source = source.Where(j => municipalityValues.Contains(j.MunicipalityConceptId));
         }
         else if (criteria.Region.Count > 0)
         {
             var regionValues = criteria.Region;
-            source = source.Where(j => regionValues.Contains(EF.Property<string?>(j, "RegionConceptId")));
+            source = source.Where(j => regionValues.Contains(j.RegionConceptId));
         }
 
         // ADR 0067 Beslut 6 (Fas B2) — Klass 2 anställningsform + omfattning.
         // ORTOGONALA dimensioner (oberoende axlar, ej geo-union à la kommun/län):
-        // var lista är ett eget IN(...)-villkor AND mot allt annat. STORED
-        // generated columns (employment_type_concept_id / worktime_extent_concept_id),
+        // var lista är ett eget IN(...)-villkor AND mot allt annat. Mappade
+        // C#-skrivna kolumner (employment_type_concept_id / worktime_extent_concept_id),
         // B-tree-indexerade, NULL för annons utan key i payload (purgad/saknad)
         // → matchas ej (paritet med övriga taxonomi-dims; "0 träff" ≠ bug).
         if (criteria.EmploymentType.Count > 0)
         {
             var employmentTypeValues = criteria.EmploymentType;
             source = source.Where(j =>
-                employmentTypeValues.Contains(EF.Property<string?>(j, "EmploymentTypeConceptId")));
+                employmentTypeValues.Contains(j.EmploymentTypeConceptId));
         }
 
         if (criteria.WorktimeExtent.Count > 0)
         {
             var worktimeExtentValues = criteria.WorktimeExtent;
             source = source.Where(j =>
-                worktimeExtentValues.Contains(EF.Property<string?>(j, "WorktimeExtentConceptId")));
+                worktimeExtentValues.Contains(j.WorktimeExtentConceptId));
         }
 
         // #311 D6 (följ arbetsgivare, ADR 0087) — arbetsgivar-facet på org.nr.
         // ORTOGONAL dimension (som Klass 2, INTE geo-union à la kommun/län): eget
-        // IN(...)-villkor AND mot allt annat. STORED generated column
-        // organization_number (raw_payload->'employer'->>'organization_number'),
+        // IN(...)-villkor AND mot allt annat. Mappad C#-skriven kolumn
+        // organization_number (skriven vid ingest ur raw_payload->'employer'->>'organization_number'),
         // B-tree partial-indexerad (WHERE … IS NOT NULL), NULL för annons utan org.nr
         // i payload (B2-era: 100% NULL tills re-ingest) → matchas ej ("0 träff" ≠ bug,
         // paritet med övriga taxonomi-dims). org.nr = kanonisk nyckel (ingen fuzzy
@@ -177,7 +178,7 @@ internal static class JobAdSearchComposition
         {
             var employerValues = criteria.Employer;
             source = source.Where(j =>
-                employerValues.Contains(EF.Property<string?>(j, "OrganizationNumber")));
+                employerValues.Contains(j.OrganizationNumber));
         }
 
         if (HasFreeTextQuery(criteria.Q))
@@ -222,7 +223,7 @@ internal static class JobAdSearchComposition
                     EF.Property<NpgsqlTsVector>(j, "SearchVector")
                         .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
                     || EF.Functions.Like(j.Title.ToLower(), pattern)
-                    || expandedSsyks.Contains(EF.Property<string?>(j, "SsykConceptId"))),
+                    || expandedSsyks.Contains(j.SsykConceptId)),
                 (true, false) => source.Where(j =>
                     EF.Property<NpgsqlTsVector>(j, "SearchVector")
                         .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
@@ -230,7 +231,7 @@ internal static class JobAdSearchComposition
                 (false, true) => source.Where(j =>
                     EF.Property<NpgsqlTsVector>(j, "SearchVector")
                         .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
-                    || expandedSsyks.Contains(EF.Property<string?>(j, "SsykConceptId"))),
+                    || expandedSsyks.Contains(j.SsykConceptId)),
                 (false, false) => source.Where(j =>
                     EF.Property<NpgsqlTsVector>(j, "SearchVector")
                         .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))),

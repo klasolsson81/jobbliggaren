@@ -129,7 +129,7 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
             .AsNoTracking()
             .Where(j => j.Id == adId)
             .Select(j => ValueTuple.Create(
-                j.Status.Value, EF.Property<string?>(j, "OrganizationNumber")))
+                j.Status.Value, j.OrganizationNumber))
             .SingleAsync(ct);
 
     /// <summary>Seeds one application. finalStatus null → left as Draft (never applied).</summary>

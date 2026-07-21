@@ -173,7 +173,7 @@ public sealed partial class CompanyWatchScanJob(
                 AddWatch(abWatchesByOrgNr, w.OrganizationNumber.Value, w); // key = plaintext AB org.nr
         }
         // IReadOnlyList<string> (not List<string>) so the org.nr membership uses the LINQ
-        // Enumerable.Contains overload — EF translates it to SQL IN over the nullable shadow column
+        // Enumerable.Contains overload — EF translates it to SQL IN over the nullable organization_number column
         // (parity the D6 ApplyFilter employer filter; a List<string>.Contains would reject the
         // string? column arg at compile time).
         IReadOnlyList<string> abOrgNrs = abWatchesByOrgNr.Keys.ToList();
@@ -201,17 +201,17 @@ public sealed partial class CompanyWatchScanJob(
             .AsNoTracking()
             .Where(j => j.Status == JobAdStatus.Active
                         && j.CreatedAt > since
-                        && (abOrgNrs.Contains(EF.Property<string?>(j, "OrganizationNumber"))
-                            || (EF.Property<string?>(j, "OrganizationNumber") != null
-                                && EF.Property<string?>(j, "OrganizationNumber")!.Length == 10
-                                && (EF.Property<string?>(j, "OrganizationNumber")!.Substring(2, 1) == "0"
-                                    || EF.Property<string?>(j, "OrganizationNumber")!.Substring(2, 1) == "1"))))
+                        && (abOrgNrs.Contains(j.OrganizationNumber)
+                            || (j.OrganizationNumber != null
+                                && j.OrganizationNumber!.Length == 10
+                                && (j.OrganizationNumber!.Substring(2, 1) == "0"
+                                    || j.OrganizationNumber!.Substring(2, 1) == "1"))))
             .Select(j => new
             {
                 j.Id,
-                OrgNr = EF.Property<string?>(j, "OrganizationNumber"),
-                Municipality = EF.Property<string?>(j, "MunicipalityConceptId"),
-                Region = EF.Property<string?>(j, "RegionConceptId"),
+                OrgNr = j.OrganizationNumber,
+                Municipality = j.MunicipalityConceptId,
+                Region = j.RegionConceptId,
                 // #551 PR-B D6 — the ad's remote flag (PR-A bool column) feeds AdmitsLocation's
                 // remote disjunct so a per-watch remote filter admits a remote (location-less) ad.
                 j.Remote,

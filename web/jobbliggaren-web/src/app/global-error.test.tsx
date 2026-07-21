@@ -16,34 +16,32 @@ const rootError = Object.assign(new Error("root-layout-crash"), {
 
 describe("global-error boundary (#995)", () => {
   it("renders the civic last-resort surface, no internal detail leaked", () => {
-    render(<GlobalError error={rootError} reset={() => {}} />);
+    render(<GlobalError error={rootError} unstable_retry={() => {}} />);
 
     expect(
       screen.getByRole("heading", { name: "Något gick fel" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.",
-      ),
+      screen.getByText("Ett tekniskt fel uppstod. Försök igen om en stund."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/root-layout-crash/)).not.toBeInTheDocument();
     expect(screen.queryByText(/digest-abc/)).not.toBeInTheDocument();
   });
 
   it("offers a way back to the start page", () => {
-    render(<GlobalError error={rootError} reset={() => {}} />);
+    render(<GlobalError error={rootError} unstable_retry={() => {}} />);
 
     const toStart = screen.getByRole("link", { name: "Till startsidan" });
     expect(toStart).toHaveAttribute("href", "/");
   });
 
-  it("retry invokes reset()", async () => {
-    const reset = vi.fn();
+  it("retry invokes unstable_retry() (re-fetch + re-render)", async () => {
+    const unstableRetry = vi.fn();
     const user = userEvent.setup();
-    render(<GlobalError error={rootError} reset={reset} />);
+    render(<GlobalError error={rootError} unstable_retry={unstableRetry} />);
 
     await user.click(screen.getByRole("button", { name: "Försök igen" }));
 
-    expect(reset).toHaveBeenCalledTimes(1);
+    expect(unstableRetry).toHaveBeenCalledTimes(1);
   });
 });

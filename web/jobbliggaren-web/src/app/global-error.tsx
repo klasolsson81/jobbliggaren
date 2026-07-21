@@ -28,7 +28,11 @@ import "./globals.css";
  * Theme-aware: the app is light-only in the MVP (DARK_MODE_ENABLED = false), so
  * no ThemeScript is needed here; the civic light tokens resolve directly.
  */
-function GlobalErrorSurface({ reset }: { reset: () => void }) {
+function GlobalErrorSurface({
+  unstable_retry,
+}: {
+  unstable_retry: () => void;
+}) {
   const t = useTranslations("pages");
 
   return (
@@ -37,9 +41,16 @@ function GlobalErrorSurface({ reset }: { reset: () => void }) {
     // than gluing to the top edge. Layout utility, not a locked design token.
     <main className="jp-container jp-page flex min-h-[60vh] flex-col justify-center gap-4">
       <h1 className="jp-h1">{t("common.errorTitle")}</h1>
-      <p className="jp-lede">{t("common.errorBodyReload")}</p>
+      <p className="jp-lede">{t("common.errorBodyRetry")}</p>
       <div className="flex flex-wrap gap-3">
-        <button type="button" onClick={reset} className="jp-btn jp-btn--primary">
+        {/* unstable_retry() re-fetches and re-renders (the documented Next 16.2+
+            recovery for a transient throw); reset() would only re-render without
+            re-fetching. */}
+        <button
+          type="button"
+          onClick={() => unstable_retry()}
+          className="jp-btn jp-btn--primary"
+        >
           {t("common.retry")}
         </button>
         {/* A plain <a> (not next/link) on purpose: global-error replaces the
@@ -57,16 +68,23 @@ function GlobalErrorSurface({ reset }: { reset: () => void }) {
 }
 
 export default function GlobalError({
-  reset,
+  unstable_retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  unstable_retry: () => void;
 }) {
   return (
     <html lang="sv" data-density="standard" className="h-full font-sans">
+      {/* global-error replaces the root layout, so Next's metadata /
+          generateMetadata does not apply — set the document title explicitly
+          (from the sv-pinned catalog) so the catastrophic surface is not left
+          with a stale tab title. */}
+      <head>
+        <title>{svPages.common.errorTitle}</title>
+      </head>
       <body className="min-h-full bg-surface-primary text-text-primary antialiased">
         <NextIntlClientProvider locale="sv" messages={{ pages: svPages }}>
-          <GlobalErrorSurface reset={reset} />
+          <GlobalErrorSurface unstable_retry={unstable_retry} />
         </NextIntlClientProvider>
       </body>
     </html>

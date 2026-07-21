@@ -14,7 +14,7 @@ const boundaryError = Object.assign(new Error("boom-internal-detail"), {
 
 describe("(app)/error boundary (#995)", () => {
   it("renders the civic error surface without leaking the error to the user", () => {
-    render(<AppError error={boundaryError} reset={() => {}} />);
+    render(<AppError error={boundaryError} unstable_retry={() => {}} />);
 
     expect(
       screen.getByRole("heading", { name: "Något gick fel" }),
@@ -29,19 +29,19 @@ describe("(app)/error boundary (#995)", () => {
   });
 
   it("offers a way back to the overview", () => {
-    render(<AppError error={boundaryError} reset={() => {}} />);
+    render(<AppError error={boundaryError} unstable_retry={() => {}} />);
 
     const toOverview = screen.getByRole("link", { name: "Till översikten" });
     expect(toOverview).toHaveAttribute("href", "/oversikt");
   });
 
-  it("retry invokes Next's reset() to re-render the segment", async () => {
-    const reset = vi.fn();
+  it("retry invokes Next's unstable_retry() (re-fetch + re-render the segment)", async () => {
+    const unstableRetry = vi.fn();
     const user = userEvent.setup();
-    render(<AppError error={boundaryError} reset={reset} />);
+    render(<AppError error={boundaryError} unstable_retry={unstableRetry} />);
 
     await user.click(screen.getByRole("button", { name: "Försök igen" }));
 
-    expect(reset).toHaveBeenCalledTimes(1);
+    expect(unstableRetry).toHaveBeenCalledTimes(1);
   });
 });

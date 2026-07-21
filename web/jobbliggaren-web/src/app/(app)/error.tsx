@@ -9,8 +9,10 @@ import { useTranslations } from "next-intl";
  * here and rendered as the layout's children, so the shell, navigation and
  * theme stay intact and the user sees a calm civic surface (§10) instead of the
  * raw near-black Next overlay (dev) or an ungraceful blank (prod). No stack
- * trace is shown; `reset()` re-renders the segment to retry, and there is
- * always a way back to the overview.
+ * trace is shown; `unstable_retry()` re-fetches and re-renders the segment
+ * (the documented recovery for a transient throw in Next 16.2+ — `reset()`
+ * only re-renders without re-fetching, so it would replay the same failed RSC
+ * payload), and there is always a way back to the overview.
  *
  * Client Component by Next convention (error boundaries run on the client). The
  * `error` prop is accepted to match Next's boundary contract but deliberately
@@ -21,10 +23,10 @@ import { useTranslations } from "next-intl";
  * layout).
  */
 export default function AppError({
-  reset,
+  unstable_retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  unstable_retry: () => void;
 }) {
   const t = useTranslations("pages");
 
@@ -39,7 +41,11 @@ export default function AppError({
       <h1 className="jp-h1">{t("common.errorTitle")}</h1>
       <p className="jp-lede">{t("common.errorBodyRetry")}</p>
       <div className="flex flex-wrap gap-3">
-        <button type="button" onClick={reset} className="jp-btn jp-btn--primary">
+        <button
+          type="button"
+          onClick={() => unstable_retry()}
+          className="jp-btn jp-btn--primary"
+        >
           {t("common.retry")}
         </button>
         <Link href="/oversikt" className="jp-btn jp-btn--secondary">

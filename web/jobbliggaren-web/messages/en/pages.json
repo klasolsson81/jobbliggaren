@@ -2,8 +2,10 @@
   "common": {
     "rateLimitedTitle": "Too many requests",
     "rateLimitedBody": "You have made too many requests in a short time. Try again in {seconds, plural, one {# second} other {# seconds}}.",
+    "errorTitle": "Something went wrong",
     "errorBodyReload": "A technical error occurred. Try reloading the page in a moment.",
     "errorBodyRetry": "A technical error occurred. Try again in a moment.",
+    "retry": "Try again",
     "back": "Back",
     "notFound": {
       "title": "The page does not exist",

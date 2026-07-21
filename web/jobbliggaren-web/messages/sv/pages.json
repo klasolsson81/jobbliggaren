@@ -2,8 +2,10 @@
   "common": {
     "rateLimitedTitle": "För många förfrågningar",
     "rateLimitedBody": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
+    "errorTitle": "Något gick fel",
     "errorBodyReload": "Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.",
     "errorBodyRetry": "Ett tekniskt fel uppstod. Försök igen om en stund.",
+    "retry": "Försök igen",
     "back": "Tillbaka",
     "notFound": {
       "title": "Sidan finns inte",

@@ -117,6 +117,12 @@ export default async function ForetagPage() {
 
         <section className="jp-section scroll-mt-6">
           <h2 className="jp-section__title">{t("foretag.watchesHeading")}</h2>
+          {/* #998 (S3) — a lede that names the notification mechanic ("nya annonser"),
+              the one thing that distinguishes Bevakade företag from Smarta bevakningar
+              (a browsing surface with no per-company notices). */}
+          <p className="mt-1 mb-4 max-w-prose text-body-sm text-text-primary">
+            {t("foretag.watchesLede")}
+          </p>
           {renderSection(watchResult, t, t("foretag.loadErrorTitle"), (data) => (
             <CompanyWatchList items={data} regions={regions} />
           ))}

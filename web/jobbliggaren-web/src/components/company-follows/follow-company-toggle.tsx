@@ -84,7 +84,8 @@ export function FollowCompanyToggle({
     <div style={{ display: "inline-flex", flexDirection: "column", gap: 4 }}>
       <button
         type="button"
-        className="jp-btn jp-btn--secondary"
+        // #1000 (V1) — teal state-tint when following (live client state, matches the BEVAKAR tag).
+        className={`jp-btn jp-btn--secondary${following ? " jp-btn--on-follow" : ""}`}
         // No aria-label override: the accessible name is the visible text ("Bevaka företaget" /
         // "Bevakar företaget") so it always contains the visible label (WCAG 2.5.3); the toggle state
         // rides aria-pressed, never a divergent action verb ("Sluta bevaka…") that would break 2.5.3.

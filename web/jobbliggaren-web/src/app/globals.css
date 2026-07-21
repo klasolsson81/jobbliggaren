@@ -1925,6 +1925,30 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-btn--secondary:hover {
   background: var(--jp-surface-3);
 }
+/* #1000 (V1) — /jobb modal-footer: en STATE-toggle-knapp bär sin tillstånds-färg
+   när ON (matchar list-taggarna) så modalen läses lika tydligt som listan. LIVE
+   client-state (aria-pressed) → ingen stale-risk (därför släpptes header-snapshot-
+   taggen). Icke-grön (grönt reserverat, ADR 0068) — ikonerna tappar sin gröna tint:
+   Bevakar → --jp-follow (teal), Sparad/Ansökt → --jp-info (blå), paritet taggarna. */
+.jp-btn--secondary.jp-btn--on-follow {
+  background: var(--jp-follow-bg);
+  color: var(--jp-follow);
+  border-color: var(--jp-follow);
+}
+.jp-btn--secondary.jp-btn--on-saved,
+.jp-btn--secondary.jp-btn--on-applied {
+  background: var(--jp-info-bg);
+  color: var(--jp-info);
+  border-color: var(--jp-info);
+}
+/* Behåll tinten på hover (bas-`:hover` byter bg till surface-3 → skulle gråa ut den). */
+.jp-btn--secondary.jp-btn--on-follow:hover {
+  background: var(--jp-follow-bg);
+}
+.jp-btn--secondary.jp-btn--on-saved:hover,
+.jp-btn--secondary.jp-btn--on-applied:hover {
+  background: var(--jp-info-bg);
+}
 .jp-btn--ghost {
   background: transparent;
   color: var(--jp-ink-2);

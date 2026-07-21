@@ -6,7 +6,6 @@ import type { JobAdDto } from "@/lib/dto/job-ads";
 import type { MatchGrade } from "@/lib/dto/job-ad-match";
 import { JobTags } from "./job-tags";
 import { MatchChip } from "./match-chip";
-import { computeFreshnessLabel } from "./freshness";
 
 interface JobAdCardProps {
   jobAd: JobAdDto;
@@ -136,7 +135,6 @@ export function JobAdCard({
   const format = useFormatter();
   const publishedAt = formatPublishedAtWithTime(jobAd.publishedAt, tUi, format);
   const expiresAt = formatDate(format, jobAd.expiresAt);
-  const freshnessLabel = computeFreshnessLabel(jobAd.publishedAt);
 
   // #380 — bär list-URL:ens view-state in i radlänken så modal-soft-nav inte
   // tappar filter/match-läget (se `listQuery`-doc). Tom query ⇒ naken länk.
@@ -160,7 +158,6 @@ export function JobAdCard({
           <JobTags
             isNew={isNew}
             isFollowed={isFollowed}
-            freshnessLabel={freshnessLabel}
             isSaved={isSaved}
             isApplied={isApplied}
           />

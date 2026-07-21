@@ -49,7 +49,7 @@ public class JobAdRefetchBackfillRunnerTests
     // Representativt NULL-kolumn-predikat (ssyk). I InMemory är shadow-kolumnen
     // alltid NULL → matchar alla seedade rader.
     private static System.Linq.Expressions.Expression<Func<JobAd, bool>> SsykNullPredicate =>
-        j => EF.Property<string?>(j, "SsykConceptId") == null;
+        j => j.SsykConceptId == null;
 
     private static JobAd CreateImportedJobAd(string externalId, FakeDateTimeProvider clock) =>
         JobAd.Import(

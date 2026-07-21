@@ -105,7 +105,7 @@ public sealed class JobAdFacetsSurvivePurgeTests(ApiFactory factory)
             .AsNoTracking()
             .Where(j => j.Title == title)
             .Where(j => j.Status == JobAdStatus.Active)
-            .Where(j => municipalities.Contains(EF.Property<string?>(j, "MunicipalityConceptId")))
+            .Where(j => municipalities.Contains(j.MunicipalityConceptId))
             .CountAsync(ct);
 
         found.ShouldBe(1,

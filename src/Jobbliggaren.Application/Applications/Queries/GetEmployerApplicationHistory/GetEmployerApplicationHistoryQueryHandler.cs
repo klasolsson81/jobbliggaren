@@ -56,9 +56,9 @@ namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationHi
 /// <para>
 /// <b>org.nr surfacing (FORK C1 / D8(c)).</b> The raw org.nr is read SERVER-SIDE only, to GROUP BY;
 /// a personnummer-shaped value is masked to null + flagged before it leaves the handler, and is never
-/// logged (<c>OrganizationNumberSurfacingGuardTests</c> covers this source). The org.nr predicate uses
-/// the <c>EF.Property&lt;string?&gt;</c> accessor (a legacy of the shadow-property era; the site rewrite
-/// is #873) — NEVER a strongly-typed VO in <c>Contains</c>
+/// logged (<c>OrganizationNumberSurfacingGuardTests</c> covers this source). The org.nr predicate reads
+/// the typed <c>j.OrganizationNumber</c> property (#873 retired the legacy shadow-property
+/// <c>EF.Property&lt;string?&gt;</c> accessor here) — NEVER a strongly-typed VO in <c>Contains</c>
 /// (the VO-in-<c>Contains</c> → 500 translation trap).
 /// </para>
 /// </summary>
@@ -103,7 +103,7 @@ public sealed class GetEmployerApplicationHistoryQueryHandler(
             .GroupJoin(db.JobAds, a => a.JobAdId, j => j.Id, (a, ja) => new { a, ja })
             .SelectMany(x => x.ja.DefaultIfEmpty(), (x, j) => new
             {
-                OrgNr = j != null ? EF.Property<string?>(j, "OrganizationNumber") : null,
+                OrgNr = j != null ? j.OrganizationNumber : null,
                 CompanyName = j != null ? j.Company.Name : null,
                 x.a.AppliedAt,
                 x.a.Status,

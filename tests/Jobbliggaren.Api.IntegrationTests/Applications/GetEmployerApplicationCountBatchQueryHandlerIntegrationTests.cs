@@ -474,7 +474,7 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
         // ordinary C#-written column rather than one Postgres recomputes from the payload it just deleted.
         var (status, orgNr) = await db.JobAds.AsNoTracking()
             .Where(j => j.Id == priorStale.Id)
-            .Select(j => ValueTuple.Create(j.Status.Value, EF.Property<string?>(j, "OrganizationNumber")))
+            .Select(j => ValueTuple.Create(j.Status.Value, j.OrganizationNumber))
             .SingleAsync(ct);
         status.ShouldBe("Active");
         orgNr.ShouldBe(orgX,

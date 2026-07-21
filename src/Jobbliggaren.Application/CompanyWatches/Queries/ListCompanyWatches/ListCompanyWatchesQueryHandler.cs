@@ -73,14 +73,14 @@ public sealed class ListCompanyWatchesQueryHandler(
         if (watches.Count == 0)
             return [];
 
-        // ADR 0087 D2 — resolve company_name at read from public job_ads. org.nr is a STORED
-        // generated column exposed as the EF shadow property "OrganizationNumber" (parity with
+        // ADR 0087 D2 — resolve company_name at read from public job_ads. org.nr is the mapped
+        // organization_number column, read as j.OrganizationNumber since #873 (parity with
         // JobAdSearchComposition, PR-2). The employer name per org.nr is enough to identify the watch
         // (display projection, not an invariant — graceful null when no current ad carries it). The
         // name is stable per org.nr (one legal entity = one name), so SELECT DISTINCT (org.nr, name)
         // is pushed server-side — the fetch is bounded to distinct pairs (a handful), never the full
         // ad set for a prolific employer (avoids the §5 unpaginated-fetch smell). string? element type
-        // so the EF.Property<string?> Contains translates cleanly (the column is nullable; a NULL
+        // so the `j.OrganizationNumber` Contains translates cleanly (the column is nullable; a NULL
         // org.nr ad never matches via `= ANY(...)`). Values themselves non-null.
         // #544 (ADR 0090 D5) — a watch's stored value is EITHER a plaintext AB org.nr OR an HMAC token
         // for a personnummer-shaped (enskild-firma) org.nr. The job_ads projections below key on the
@@ -112,11 +112,11 @@ public sealed class ListCompanyWatchesQueryHandler(
             // the raw org.nr is never surfaced/logged; the plaintext-key arm covers the backfill window.
             var pnrShapedAdOrgNrs = await db.JobAds
                 .AsNoTracking()
-                .Where(j => EF.Property<string?>(j, "OrganizationNumber") != null
-                            && EF.Property<string?>(j, "OrganizationNumber")!.Length == 10
-                            && (EF.Property<string?>(j, "OrganizationNumber")!.Substring(2, 1) == "0"
-                                || EF.Property<string?>(j, "OrganizationNumber")!.Substring(2, 1) == "1"))
-                .Select(j => EF.Property<string?>(j, "OrganizationNumber"))
+                .Where(j => j.OrganizationNumber != null
+                            && j.OrganizationNumber!.Length == 10
+                            && (j.OrganizationNumber!.Substring(2, 1) == "0"
+                                || j.OrganizationNumber!.Substring(2, 1) == "1"))
+                .Select(j => j.OrganizationNumber)
                 .Distinct()
                 .ToListAsync(cancellationToken);
 
@@ -160,8 +160,8 @@ public sealed class ListCompanyWatchesQueryHandler(
 
         var nameByOrgNr = (await db.JobAds
                 .AsNoTracking()
-                .Where(j => orgNrs.Contains(EF.Property<string?>(j, "OrganizationNumber")))
-                .Select(j => new { OrgNr = EF.Property<string?>(j, "OrganizationNumber"), Name = j.Company.Name })
+                .Where(j => orgNrs.Contains(j.OrganizationNumber))
+                .Select(j => new { OrgNr = j.OrganizationNumber, Name = j.Company.Name })
                 .Distinct()
                 .ToListAsync(cancellationToken))
             .Where(x => x.OrgNr is not null)
@@ -195,15 +195,15 @@ public sealed class ListCompanyWatchesQueryHandler(
         // status='Active' — which is the WHOLE exclusion (JobAd has no soft-delete axis and no query
         // filter, #821; there is no ADR 0048 soft-delete filter here to credit — #864 B4 truth-sync).
         // Repo-wide translation form j.Status == JobAdStatus.Active, value-converted
-        // to `status = 'Active'`). GROUP BY the STORED organization_number shadow column server-side.
-        // Bounded to the handful of watched org.nrs. Only Postgres
-        // computes the generated column + translates this GROUP BY, so the count is proven by the
+        // to `status = 'Active'`). GROUP BY the organization_number column server-side.
+        // Bounded to the handful of watched org.nrs. Postgres
+        // translates this GROUP BY, so the count is proven by the
         // Testcontainers integration test (InMemory hides both).
         var activeAdCountByOrgNr = (await db.JobAds
                 .AsNoTracking()
-                .Where(j => orgNrs.Contains(EF.Property<string?>(j, "OrganizationNumber"))
+                .Where(j => orgNrs.Contains(j.OrganizationNumber)
                             && j.Status == JobAdStatus.Active)
-                .GroupBy(j => EF.Property<string?>(j, "OrganizationNumber"))
+                .GroupBy(j => j.OrganizationNumber)
                 .Select(g => new { OrgNr = g.Key, Count = g.Count() })
                 .ToListAsync(cancellationToken))
             .Where(x => x.OrgNr is not null)

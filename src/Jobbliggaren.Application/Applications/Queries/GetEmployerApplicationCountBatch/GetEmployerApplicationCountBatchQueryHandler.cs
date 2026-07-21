@@ -11,7 +11,7 @@ namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationCo
 /// count-per-card — ADR 0045 / CLAUDE.md §2.5):
 /// <list type="number">
 /// <item>the page ads' employer org.nr, server-side, via <see cref="IJobAdEmployerReader"/> (#455's
-/// <c>= ANY</c> shadow-column reader — org.nr never surfaced, ADR 0087 D8(c));</item>
+/// <c>= ANY</c> org.nr-column reader — org.nr never surfaced, ADR 0087 D8(c));</item>
 /// <item>the caller's OWN submitted applications joined to their ad's employer org.nr — the SAME
 /// translatable <c>GroupJoin</c>/<c>SelectMany(DefaultIfEmpty)</c> + in-memory group idiom as
 /// <see cref="GetEmployerApplicationHistory.GetEmployerApplicationHistoryQueryHandler"/> (#444), bounded
@@ -84,8 +84,8 @@ public sealed class GetEmployerApplicationCountBatchQueryHandler(
         if (jobSeekerId == default)
             return Empty;
 
-        // (1) Page ads -> employer org.nr, server-side (#455 reader: `= ANY` raw SQL + EF.Property shadow
-        // column). JobAd carries NO query filter at all (#821 retired the dead soft-delete axis) --
+        // (1) Page ads -> employer org.nr, server-side (#455 reader: `= ANY` raw SQL over the
+        // organization_number column). JobAd carries NO query filter at all (#821 retired the dead soft-delete axis) --
         // an archived ad still resolves its org.nr. What actually removes an ad from this map
         // is the org.nr having been recomputed to NULL after the raw_payload purge (#824/#841), not any
         // kind of deletion. org.nr is server-side-only here.
@@ -104,16 +104,17 @@ public sealed class GetEmployerApplicationCountBatchQueryHandler(
 
         // (2) The caller's OWN submitted applications joined to their ad's employer org.nr. Byte-for-byte
         // #444's proven-translatable shape (GroupJoin + SelectMany(DefaultIfEmpty) over the nullable
-        // JobAdId FK, ADR 0048 LEFT JOIN; org.nr via the EF.Property shadow column read SERVER-SIDE; group
-        // in memory). Bounded to one user's own history (parity #444 — no pagination). InMemory hides the
-        // `= ANY`/shadow-column translation, so the Testcontainers integration tests are the oracle.
+        // JobAdId FK, ADR 0048 LEFT JOIN; org.nr read SERVER-SIDE via the typed j.OrganizationNumber
+        // property (#873 retired the shadow-column form); group in memory). Bounded to one user's own
+        // history (parity #444 — no pagination). InMemory hides the `= ANY` column translation, so the
+        // Testcontainers integration tests are the oracle.
         var appliedOrgNrs = await db.Applications
             .AsNoTracking()
             .Where(a => a.JobSeekerId == jobSeekerId && a.AppliedAt != null)
             .GroupJoin(db.JobAds, a => a.JobAdId, j => j.Id, (a, ja) => new { a, ja })
             .SelectMany(
                 x => x.ja.DefaultIfEmpty(),
-                (x, j) => j != null ? EF.Property<string?>(j, "OrganizationNumber") : null)
+                (x, j) => j != null ? j.OrganizationNumber : null)
             // #824: the silent undercount. An application whose ad has aged past the raw_payload horizon
             // has a NULL org.nr and drops out here. It stays (the copy is hedged in #824 PR 4; the root
             // cause dies in #841). Do NOT recover it by matching on CompanyName: a name-guessed overcount

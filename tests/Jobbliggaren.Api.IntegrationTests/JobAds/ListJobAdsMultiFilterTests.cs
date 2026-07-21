@@ -16,7 +16,7 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 // Batch 3 — ADR 0042 Beslut B. ApplyCriteria (delad sök-SPOT, ADR 0039
 // Beslut 1) utvidgas till list-form: multi-occupationGroup/region ⇒ IN(...) via
-// occupationGroup.Contains(EF.Property<string?>(j,"OccupationGroupConceptId")).
+// occupationGroup.Contains(j.OccupationGroupConceptId).
 //
 // C1 (ADR 0067 Platsbanken sök-paritet) — Variant C nivåbyte: yrke-filtrets
 // multi-value-tester targetar OccupationGroupConceptId (Ssyk-grenen borttagen,

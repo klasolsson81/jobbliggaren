@@ -18,7 +18,8 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// <b>Why its own container, and not <c>ApiFactory</c>'s.</b> A plan-CHOICE assertion runs with NO GUC —
 /// it lets the cost-based planner have the whole search space, then asserts which plan it picks. That is
 /// only deterministic if the test owns the table's STATISTICS at EXPLAIN time. The shared Api container
-/// has ~62 classes that seed <c>job_ads</c> and never truncates between them (ADR 0045 Beslut 5 — "a
+/// has ~62 classes that seed <c>job_ads</c> (a rough count, measured 2026-07-20 — illustrative, not
+/// load-bearing) and never truncates between them (ADR 0045 Beslut 5 — "a
 /// flaky perf-gate is worse than no perf-gate"), so a no-GUC choice there flakes between Index Scan and
 /// Bitmap + Sort at the accumulated, execution-order-dependent row estimate. A TRUNCATE to fix that would
 /// wipe the other classes' seed. Exclusive ownership of the container is the only way to get both a
@@ -70,7 +71,8 @@ public sealed class JobAdBrowsePlanFixture : IAsyncLifetime
         services.AddPersistence(configuration);
 
         // Host parity: the bare ServiceCollection has no generic host, so register a Test environment
-        // explicitly (some AddPersistence registrations resolve IHostEnvironment). Mirrors WorkerTestFixture.
+        // explicitly. No AddPersistence registration takes IHostEnvironment after the KMS removal (#802);
+        // this is kept purely for host parity, exactly as WorkerTestFixture keeps it (WorkerTestFixture.cs).
         services.AddSingleton<IHostEnvironment>(new HostingEnvironment
         {
             EnvironmentName = "Test",

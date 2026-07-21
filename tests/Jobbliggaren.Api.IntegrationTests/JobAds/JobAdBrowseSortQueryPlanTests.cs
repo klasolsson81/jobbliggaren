@@ -97,9 +97,10 @@ public class JobAdBrowseSortQueryPlanTests(JobAdBrowsePlanFixture fixture)
         // index exists to beat. A choice made inside enable_seqscan/enable_sort = off is not production's.
         var plan = await ExplainAsync(db, BrowseSortSql, ct);
 
-        // Positive on the index name (a negative "no Seq Scan" passes under mutation while other index paths
-        // remain — dotnet-architect Q1(a), #875).
-        plan.ShouldContain(IndexName, Case.Insensitive, BrokenPlanMessage(plan));
+        // Positive on the index as the SCAN DRIVER ("using <index>"), never a negative "no Seq Scan" (which
+        // passes under mutation while other index paths remain — dotnet-architect Q1(a), #875). The "using "
+        // prefix requires an ordered Index Scan node on THIS index, not a mere mention of the name elsewhere.
+        plan.ShouldContain("using " + IndexName, Case.Insensitive, BrokenPlanMessage(plan));
 
         // ...AND the Sort node must be gone: reaching the index while still Sorting means the ordered walk
         // is not serving the order, and the ~40k-row heapsort is still paid per page.
@@ -109,10 +110,10 @@ public class JobAdBrowseSortQueryPlanTests(JobAdBrowsePlanFixture fixture)
     /// <summary>
     /// TRUNCATE-and-own → bulk-seed a production-scale regime → ANALYZE. Bulk INSERT (not the domain factory):
     /// job_ads carries no DEK-encrypted column, so a raw insert is faithful and fast at 50k, and this seeds a
-    /// PLANNER regime, not a semantic fixture. <c>published_at</c>, <c>status</c> and <c>company_name</c> are
-    /// deterministically decorrelated from insertion order so the planner does not price the index's heap
-    /// fetches as sequential — i.e. does not flatter the exact plan under test (the sibling's discipline).
-    /// <c>search_vector</c> / <c>extracted_lexemes</c> are STORED generated columns and are omitted.
+    /// PLANNER regime, not a semantic fixture. <c>published_at</c> and <c>company_name</c> are deterministically
+    /// decorrelated from insertion order, and <c>status</c> is interleaved (every 5th row), so the planner does
+    /// not price the index's heap fetches as sequential — i.e. does not flatter the exact plan under test (the
+    /// sibling's discipline). <c>search_vector</c> / <c>extracted_lexemes</c> are STORED generated columns and are omitted.
     /// </summary>
     private static async Task SeedProductionRegimeAsync(AppDbContext db, CancellationToken ct)
     {

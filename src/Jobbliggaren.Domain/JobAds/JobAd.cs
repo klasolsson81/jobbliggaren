@@ -153,11 +153,13 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         IReadOnlyList<AdContact> declaredContacts,
         DateTimeOffset publishedAt,
         DateTimeOffset? expiresAt,
-        IDateTimeProvider clock)
+        IDateTimeProvider clock,
+        JobAdTermExtraction extractTerms)
     {
         ArgumentNullException.ThrowIfNull(external);
         ArgumentNullException.ThrowIfNull(facets);
         ArgumentNullException.ThrowIfNull(declaredContacts);
+        ArgumentNullException.ThrowIfNull(extractTerms);
 
         var validation = ValidateCore(title, description, url, publishedAt, expiresAt);
         if (validation.IsFailure)
@@ -175,7 +177,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         {
             External = external,
         };
-        jobAd.SetSourcePayload(rawPayload, facets, declaredContacts);
+        jobAd.SetSourcePayload(rawPayload, facets, declaredContacts, extractTerms);
         jobAd.RaiseDomainEvent(new JobAdImportedDomainEvent(
             id, external.Source.Value, external.ExternalId, jobAd.Title, now));
         return Result.Success(jobAd);
@@ -352,10 +354,12 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         string? rawPayload,
         JobAdFacets facets,
         IReadOnlyList<AdContact> declaredContacts,
-        DateTimeOffset? expiresAt)
+        DateTimeOffset? expiresAt,
+        JobAdTermExtraction extractTerms)
     {
         ArgumentNullException.ThrowIfNull(facets);
         ArgumentNullException.ThrowIfNull(declaredContacts);
+        ArgumentNullException.ThrowIfNull(extractTerms);
 
         if (External is null)
             return Result.Failure(
@@ -392,7 +396,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         Description = description!.Trim();
         Url = url!;
         ExpiresAt = expiresAt;
-        SetSourcePayload(rawPayload, facets, declaredContacts);
+        SetSourcePayload(rawPayload, facets, declaredContacts, extractTerms);
 
         return Result.Success();
     }
@@ -411,8 +415,12 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     /// </para>
     ///
     /// <para>
-    /// Contrast <see cref="SetExtractedTerms"/>, which is a SEPARATE method the caller has to remember —
-    /// the weakness this deliberately does not copy (tracked as #874).
+    /// #874 — <see cref="ExtractedTerms"/> now rides the same guarantee: <see cref="JobAdTermExtraction"/>
+    /// is a required parameter of both transitions and is invoked here (post-scrub), so a text write that
+    /// forgets to refresh the terms is likewise uncompilable. <see cref="SetExtractedTerms"/> survives as
+    /// a public method, but only for the paths that legitimately re-derive terms on their own —
+    /// the two backfills, GIN-seeding tests, and (as a direct assignment) <see cref="Erase"/> — never as
+    /// the ingest hook it used to be.
     /// </para>
     ///
     /// <para>
@@ -422,7 +430,11 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     /// either: <c>JobAdRawPayloadDerivationGuardTests</c> fails the build if a second one appears.
     /// </para>
     /// </summary>
-    private void SetSourcePayload(string rawPayload, JobAdFacets facets, IReadOnlyList<AdContact> declaredContacts)
+    private void SetSourcePayload(
+        string rawPayload,
+        JobAdFacets facets,
+        IReadOnlyList<AdContact> declaredContacts,
+        JobAdTermExtraction extractTerms)
     {
         RawPayload = rawPayload;
         SsykConceptId = facets.SsykConceptId;
@@ -443,6 +455,21 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         Remote = facets.Remote ?? Remote;
 
         ApplyContactRedaction(declaredContacts);
+
+        // #874 — extraction is the LAST value derived from the source text, folded into THIS atomic
+        // funnel for the same reason the facets are: because it is a required parameter of the only two
+        // members that reach here (Import / UpdateFromSource), a text write that omits the re-extraction
+        // cannot COMPILE — closing the drift SetExtractedTerms used to leave open. It runs AFTER
+        // ApplyContactRedaction ON PURPOSE, so the terms derive from the POST-SCRUB Title/Description
+        // (F-B, the #842 Tier A invariant): the recruiter's contact spans are already gone, so no
+        // detected email/phone can leak into extracted_terms (and the STORED extracted_lexemes shadow
+        // that the matching engine's GIN pre-filter reads). The delegate is a caller-supplied PURE
+        // function — Application closes over IJobAdKeywordExtractor + the structured requirements, so the
+        // extractor PORT never enters Domain (§2.1); only the produced VALUE crosses (the JobAdFacets
+        // boundary rule). Deliberately NOT folded into ApplyContactRedaction: ApplyContactScrubBackfill
+        // calls that directly and does its OWN Requirement-preserving re-extraction in the job, which
+        // this must not double.
+        ExtractedTerms = extractTerms(Title, Description);
     }
 
     /// <summary>
@@ -458,10 +485,11 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     /// <b>Placement IS the durability argument (F-A).</b> The nightly snapshot and the 10-minute
     /// stream both funnel through <see cref="UpdateFromSource"/>, which reaches here
     /// unconditionally — so the scrub is re-applied on every rewrite, with no ledger, no
-    /// tombstone column and no suppression flag. And because <c>ApplyExtraction</c> in the upsert
-    /// handler reads the AGGREGATE's post-scrub <c>Title</c>/<c>Description</c>,
-    /// <c>extracted_terms</c> derives from clean text on both the Add and Update paths (F-B), and
-    /// the STORED <c>search_vector</c>/<c>extracted_lexemes</c> follow.
+    /// tombstone column and no suppression flag. And because <see cref="SetSourcePayload"/> folds the
+    /// extraction in AFTER this scrub (#874 — the <see cref="JobAdTermExtraction"/> delegate runs over
+    /// the aggregate's post-scrub <c>Title</c>/<c>Description</c>), <c>extracted_terms</c> derives from
+    /// clean text on both the Add and Update paths (F-B), and the STORED
+    /// <c>search_vector</c>/<c>extracted_lexemes</c> follow.
     /// </para>
     /// <para>
     /// <b>The body is scrubbed in EVERY status; <see cref="Contacts"/> is populated ONLY while
@@ -515,18 +543,18 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     }
 
     // F4-4 — set the deterministic keyword/skill extraction (ADR 0071/0074).
-    // Invoked by the ingest hook (UpsertExternalJobAd, both Add + Update paths)
-    // and the local backfill. Idempotent: a re-extraction over the same text
-    // yields an equal value object. No domain event — extraction is derived
-    // state, not a business transition (parity UpdateFromSource).
+    // Idempotent: a re-extraction over the same text yields an equal value object.
+    // No domain event — extraction is derived state, not a business transition
+    // (parity UpdateFromSource).
     //
-    // KNOWN ASYMMETRY, deliberate and tracked (#874). Unlike the source facets — which
-    // SetSourcePayload writes atomically with the payload they are parsed from, so
-    // omitting them cannot compile — this is a SEPARATE method the caller must remember
-    // to call after UpdateFromSource writes the very Title/Description it derives from.
-    // A future write path could update the text and leave the terms stale. Same failure
-    // class as #841, one notch milder: title/description carry no retention TTL, so the
-    // failure mode is staleness, not destruction — nothing silently zeroes these.
+    // #874 CLOSED for the ingest path. This is no longer the ingest hook: Import /
+    // UpdateFromSource now fold extraction in via the required JobAdTermExtraction
+    // delegate (SetSourcePayload, post-scrub), so a text write that leaves the terms
+    // stale cannot compile. The method stays public only for the paths that legitimately
+    // re-derive terms on their own and hold logic the aggregate cannot: the dedicated
+    // terms backfill, the contact-scrub backfill (which preserves Requirement-kind terms),
+    // and GIN-seeding tests. It is NOT called from the aggregate's own transitions —
+    // Erase() assigns ExtractedTerms.Empty by direct field write, not through here.
     public void SetExtractedTerms(ExtractedTerms terms)
     {
         ArgumentNullException.ThrowIfNull(terms);

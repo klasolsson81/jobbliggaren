@@ -256,7 +256,7 @@ public class MatchSortOracleTests(ApiFactory factory)
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: publishedAt,
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock, declaredContacts: []).Value;
+            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
@@ -1020,7 +1020,7 @@ public class MatchSortOracleTests(ApiFactory factory)
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: publishedAt,
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock, declaredContacts: []).Value;
+            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
 
         jobAd.SetExtractedTerms(terms);
 

@@ -68,7 +68,7 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-publishedDaysAgo),
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock, declaredContacts: []).Value;
+            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
@@ -502,7 +502,7 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-2),
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock, declaredContacts: []).Value;
+            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(ad);
         await db.SaveChangesAsync(ct);
 

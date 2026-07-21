@@ -27,7 +27,7 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAdExtraction;
 ///
 /// RED until: <c>JobAdImportItem.Requirements</c> + <c>JobAdExtractionInput.
 /// Requirements</c> + the extractor's requirement pass + the
-/// <c>ApplyExtraction(jobAd, item)</c> hook ship.
+/// handler's <c>Extract</c> closure folded into <c>Import</c>/<c>UpdateFromSource</c> (#874) ship.
 /// </summary>
 public sealed class JobAdRequirementsIngestTests : IAsyncLifetime
 {
@@ -168,7 +168,7 @@ public sealed class JobAdRequirementsIngestTests : IAsyncLifetime
         var jobAd = await db.JobAds.AsNoTracking()
             .FirstAsync(j => j.External!.ExternalId == externalId, ct);
 
-        jobAd.ExtractedTerms.ShouldNotBeNull("ingest-hooken ska ha satt extracted_terms.");
+        jobAd.ExtractedTerms.ShouldNotBeNull("ingest-extraktionen ska ha satt extracted_terms.");
         var requirementTerms = jobAd.ExtractedTerms!.Terms
             .Where(t => t.Kind == ExtractedTermKind.Requirement)
             .ToList();

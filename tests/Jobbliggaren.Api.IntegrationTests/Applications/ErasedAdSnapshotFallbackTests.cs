@@ -86,7 +86,7 @@ public sealed class ErasedAdSnapshotFallbackTests(ApiFactory factory)
             facets: TestFacets.FromPayload(payload),
             publishedAt: T0,
             expiresAt: T0.AddDays(30),
-            clock: clock, declaredContacts: []).Value;
+            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
     }
 
     private static AdSnapshot CaptureFrom(JobAd ad, IDateTimeProvider clock) =>

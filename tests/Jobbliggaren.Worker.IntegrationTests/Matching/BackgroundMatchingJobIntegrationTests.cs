@@ -518,7 +518,7 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: publishedAt,
             expiresAt: publishedAt.AddDays(60),
-            clock: new FixedClock(Now), declaredContacts: []).Value; // CreatedAt = Now (deterministic ingest time)
+            clock: new FixedClock(Now), declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value; // CreatedAt = Now (deterministic ingest time)
 
         if (terms is not null)
             jobAd.SetExtractedTerms(terms);
@@ -534,6 +534,15 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
                 $"UPDATE job_ads SET created_at = {createdAt} WHERE id = {jobAd.Id.Value}", ct);
         }
 
+        if (terms is null)
+        {
+            // #874 - Import folds extraction in, so a persisted imported ad always carries terms
+            // (Empty at worst); the never-extracted NULL state is legacy-only and unreachable through
+            // the aggregate. Null the column directly to reproduce it (the STORED extracted_lexemes
+            // shadow follows extracted_terms to NULL).
+            await db.Database.ExecuteSqlAsync(
+                $"UPDATE job_ads SET extracted_terms = NULL WHERE id = {jobAd.Id.Value}", ct);
+        }
         return jobAd.Id;
     }
 

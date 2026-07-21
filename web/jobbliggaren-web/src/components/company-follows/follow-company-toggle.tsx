@@ -84,7 +84,8 @@ export function FollowCompanyToggle({
     <div style={{ display: "inline-flex", flexDirection: "column", gap: 4 }}>
       <button
         type="button"
-        className="jp-btn jp-btn--secondary"
+        // #1000 (V1) — teal state-tint when following (live client state, matches the BEVAKAR tag).
+        className={`jp-btn jp-btn--secondary${following ? " jp-btn--on-follow" : ""}`}
         // No aria-label override: the accessible name is the visible text ("Bevaka företaget" /
         // "Bevakar företaget") so it always contains the visible label (WCAG 2.5.3); the toggle state
         // rides aria-pressed, never a divergent action verb ("Sluta bevaka…") that would break 2.5.3.
@@ -92,11 +93,11 @@ export function FollowCompanyToggle({
         onClick={handleClick}
         style={{ opacity }}
       >
-        <Building2
-          size={14}
-          aria-hidden="true"
-          className={following ? "text-success-600" : undefined}
-        />{" "}
+        {/* #1000 (V1) — NO green tint on the followed icon: green is reserved for match-grade +
+            interaction accent (ADR 0068), so a green follow-icon mis-reads as a grade/success. The
+            follow STATE is carried by this button's live label ("Bevakar företaget") + aria-pressed,
+            not a colour on the icon (and, on /jobb list cards, by the BEVAKAR tag, --jp-follow). */}
+        <Building2 size={14} aria-hidden="true" />{" "}
         {label}
       </button>
       {error && (

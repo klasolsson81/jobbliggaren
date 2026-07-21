@@ -87,17 +87,16 @@ export function SaveJobAdToggle({
     <div style={{ display: "inline-flex", flexDirection: "column", gap: 4 }}>
       <button
         type="button"
-        className="jp-btn jp-btn--secondary"
+        // #1000 (V1) — blue state-tint when saved (live client state, matches the SPARAD tag).
+        className={`jp-btn jp-btn--secondary${saved ? " jp-btn--on-saved" : ""}`}
         // No aria-label: the accessible name is the visible text; state rides aria-pressed (2.5.3).
         aria-pressed={saved}
         onClick={handleClick}
         style={{ opacity }}
       >
-        <Icon
-          size={14}
-          aria-hidden="true"
-          className={saved ? "text-success-600" : undefined}
-        />{" "}
+        {/* #1000 — no green icon tint (green reserved, ADR 0068); the icon inherits the
+            button's state colour via currentColor. */}
+        <Icon size={14} aria-hidden="true" />{" "}
         {label}
       </button>
       {error && (

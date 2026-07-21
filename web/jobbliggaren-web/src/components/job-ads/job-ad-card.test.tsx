@@ -35,6 +35,27 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
     expect(link).toHaveAttribute("href", `/jobb/${baseAd.id}`);
   });
 
+  // #1000 (V1) — BEVAKAR = du bevakar arbetsgivaren: `isFollowed` driver BÅDE
+  // kortets `data-followed`-vänsterkant OCH BEVAKAR-taggen. Länkens accessible
+  // name kommer ur aria-label (title–company), så taggen påverkar det inte.
+  it("#1000 — sätter data-followed + renderar BEVAKAR-tagg när isFollowed=true", () => {
+    render(<JobAdCard jobAd={baseAd} isFollowed={true} />);
+    const link = screen.getByRole("link", {
+      name: "Senior Backend Developer – Acme AB",
+    });
+    expect(link).toHaveAttribute("data-followed", "");
+    expect(screen.getByText("Bevakar")).toBeInTheDocument();
+  });
+
+  it("#1000 — inget data-followed + ingen BEVAKAR när isFollowed=false (default)", () => {
+    render(<JobAdCard jobAd={baseAd} />);
+    const link = screen.getByRole("link", {
+      name: "Senior Backend Developer – Acme AB",
+    });
+    expect(link).not.toHaveAttribute("data-followed");
+    expect(screen.queryByText("Bevakar")).not.toBeInTheDocument();
+  });
+
   // #380 — radlänken bär list-URL:ens view-state (filter + match + sort + sök)
   // så soft-nav till modalen inte tappar filter/match-läget vid öppna→stäng
   // (children-slotten re-rendras annars till tomma searchParams under modalen;

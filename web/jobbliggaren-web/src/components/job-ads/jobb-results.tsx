@@ -6,6 +6,7 @@ import { getJobAds } from "@/lib/api/job-ads";
 import { getJobAdStatusBatch } from "@/lib/api/job-ad-status";
 import { getJobAdMatchTags } from "@/lib/api/job-ad-match";
 import { getEmployerApplicationCounts } from "@/lib/api/employer-application-counts";
+import { getFollowedJobAdIds } from "@/lib/api/company-follows";
 import { getMyProfile } from "@/lib/api/me";
 import { getJobsWatermark, markJobsSeen } from "@/lib/api/me-jobs";
 import { resolveTaxonomyLabels } from "@/lib/api/taxonomy";
@@ -334,7 +335,7 @@ export async function JobbResults({
       // grad-taggar alls → tom matchGradeById → inga MatchChip på korten. Status-
       // batchen (Sparad/Ansökt) är oberoende av matchnings-axeln och hämtas
       // alltid.
-      const [status, matchTags, employerApplicationCounts] = await Promise.all([
+      const [status, matchTags, employerApplicationCounts, followedIds] = await Promise.all([
         getJobAdStatusBatch(itemIds),
         // F4-13 (ADR 0076) — graderad match-tagg-overlay. Anonym/utan-auth →
         // tom batch (degraderar civilt, inga taggar). POSITIVE-ONLY: bara
@@ -352,9 +353,16 @@ export async function JobbResults({
         // synas även vid ren bläddring, inte bara i match-läge. Anonym/utan-auth/
         // fel → tom batch (civil degradering, inga badges). POSITIVE-ONLY.
         getEmployerApplicationCounts(itemIds),
+        // #1000 (V1) — BEVAKAR-overlay: which of these ads' employers the user follows. ORTHOGONAL
+        // to the match axis (a relationship, not a grade): fetched ALWAYS (parity the status +
+        // employer-count batches), never gated on matchActive — a followed company reads on the card
+        // whether or not matching is on. Auth-gated → anon/utan-auth returns [] (civil degradering).
+        getFollowedJobAdIds(itemIds),
       ]);
       const savedIdSet = new Set(status.savedIds);
       const appliedIdSet = new Set(status.appliedIds);
+      // #1000 — Set<JobAdId> för O(1)-lookup per kort (paritet saved/applied). Tom = anon/ingen follow.
+      const followedIdSet = new Set(followedIds);
       // #446 — Map<JobAdId, antal> för O(1)-lookup per kort (paritet
       // savedIdSet/matchGradeById). Bara positiva räknare finns i mappen ⇒ en
       // saknad nyckel = 0 tidigare ansökningar ⇒ ingen badge.
@@ -427,6 +435,7 @@ export async function JobbResults({
               newIdSet={newIdSet}
               savedIdSet={savedIdSet}
               appliedIdSet={appliedIdSet}
+              followedIdSet={followedIdSet}
               matchGradeById={matchGradeById}
               employerApplicationCountById={employerApplicationCountById}
               listQuery={listQuery}

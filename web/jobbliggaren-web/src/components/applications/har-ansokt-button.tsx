@@ -66,11 +66,12 @@ export function HarAnsoktButton({
     <div style={{ display: "inline-flex", flexDirection: "column", gap: 4 }}>
       <button
         type="button"
-        // Dimmad text när applied (civic tyst bekräftelse) men knappen
-        // förblir klickbar (för future "ångra"-flöde — i Fas 7 ev.).
+        // #1000 (V1) — blue state-tint when applied (live client state, matches the ANSÖKT tag),
+        // replacing the earlier grey dimming: Klas wants the state clearly coloured, not muted. The
+        // button stays clickable (future "ångra"-flöde). Non-green icon (green reserved, ADR 0068).
         className={
           applied
-            ? "jp-btn jp-btn--secondary text-text-secondary"
+            ? "jp-btn jp-btn--secondary jp-btn--on-applied"
             : "jp-btn jp-btn--secondary"
         }
         // No aria-label: the accessible name is the visible text ("Markera som ansökt" / "Ansökt")
@@ -79,11 +80,7 @@ export function HarAnsoktButton({
         onClick={handleClick}
         style={{ opacity }}
       >
-        <Icon
-          size={14}
-          aria-hidden="true"
-          className={applied ? "text-success-600" : undefined}
-        />{" "}
+        <Icon size={14} aria-hidden="true" />{" "}
         {label}
       </button>
       {error && (

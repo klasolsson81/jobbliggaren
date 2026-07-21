@@ -48,6 +48,14 @@ export interface JobTagsProps {
    */
   isSaved?: boolean;
   isApplied?: boolean;
+  /**
+   * #1000 (V1) — BEVAKAR = du bevakar annonsens arbetsgivare. Per-user-overlay,
+   * server-fetchad via `getFollowedJobAdIds` (auth-gated batch) och buret ner via
+   * `JobbResults`→`JobAdList`s `followedIdSet`. Default false (anon/utan-auth eller
+   * annons vars arbetsgivare du inte följer ⇒ ingen tagg). En egen icke-grön,
+   * icke-blå semantisk axel (ADR: `--jp-follow`) — relation, inte grad/handling/tid.
+   */
+  isFollowed?: boolean;
 }
 
 export function JobTags({
@@ -55,10 +63,11 @@ export function JobTags({
   freshnessLabel,
   isSaved = false,
   isApplied = false,
+  isFollowed = false,
 }: JobTagsProps) {
   const t = useTranslations("jobads.ui");
 
-  if (!isNew && !freshnessLabel && !isSaved && !isApplied) {
+  if (!isNew && !isFollowed && !freshnessLabel && !isSaved && !isApplied) {
     return null;
   }
 
@@ -70,6 +79,11 @@ export function JobTags({
           {/* aria-label är ogiltig på en generisk <span> (role=generic); den rika
               skärmläsar-kontexten bärs pålitligt av en sr-only-text i stället. */}
           <span className="sr-only">{t("tags.newAriaLabel")}</span>
+        </span>
+      )}
+      {isFollowed && (
+        <span className="jp-tag jp-tag--neutral" data-tag="followed">
+          {t("tags.followed")}
         </span>
       )}
       {freshnessLabel && (

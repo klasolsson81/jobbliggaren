@@ -170,7 +170,8 @@
       "new": "Ny",
       "newAriaLabel": "Nytt jobb sedan ditt senaste besök",
       "saved": "Sparad",
-      "applied": "Ansökt"
+      "applied": "Ansökt",
+      "followed": "Bevakar"
     },
     "list": {
       "ariaLabel": "Jobbannonser",

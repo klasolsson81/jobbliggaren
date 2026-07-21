@@ -142,6 +142,14 @@ export function JobAdDetail({
           <div style={{ flex: 1 }}>
             <h1 className="jp-modal__title">{jobAd.title}</h1>
             <p className="jp-modal__company">{jobAd.companyName}</p>
+            {/* #1000 (V1) — INGEN separat BEVAKAR-tagg i modal-headern. Den vore en
+                load-time-snapshot (Server Component-prop) medan follow-knappen är ett
+                live client-island som medvetet INTE revaliderar medan modalen är öppen
+                (#993/#1004) → tagg och knapp skulle säga emot varandra efter klick
+                (design-reviewer 2026-07-20, ADR 0047 status/handling). I modalen bär
+                togglens label ("Bevakar företaget") + aria-pressed redan LIVE-tillståndet,
+                så en tagg vore redundant + stale-benägen. BEVAKAR-taggen lever på
+                list-KORTEN (alltid load-time-sann, inget per-kort-toggle). */}
           </div>
           <span className={STATUS_PILL_CLASS[jobAd.status]}>
             <span className="jp-pill__dot" aria-hidden="true" />

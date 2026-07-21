@@ -95,6 +95,12 @@
   --jp-warning:    #A34A06;  --jp-warning-bg: #FCE9D1;  /* #193: pill text 4.2->5.0:1 on warning-bg */
   --jp-danger:     #BE1B1B;  --jp-danger-bg:  #FBE0E0;
   --jp-info:       #1B5396;  --jp-info-bg:    #DEE9F8;
+  /* #1000 / ADR 0116 — "bevakad"-tillstånd (slate-teal). En FJÄRDE status-axel
+     (relation) vid sidan av grön=grad, blå=handling (sparad/ansökt), neutral=tid:
+     BEVAKAR-taggen + `.jp-job[data-followed]`-vänsterkanten. Icke-grön (grad+
+     interaktion låst, ADR 0068), icke-blå (sparad/ansökt), icke-danger. AA:
+     text/border mot vitt kort 5.83:1, mot --jp-follow-bg 4.92:1. */
+  --jp-follow:     #3E6C74;  --jp-follow-bg:  #E2EEF0;
 
   /* Accenter (v3-kanon) */
   --jp-leaf-600:  #1C7530;   --jp-leaf-50:  #DFF3E5;  /* #193: "Ny"-tag 3.76->4.97:1 on leaf-50 */
@@ -348,6 +354,9 @@
   --jp-warning: #FBC267;  --jp-warning-bg: #3F2A0B;
   --jp-danger:  #FB8989;  --jp-danger-bg:  #3F1419;
   --jp-info:    #8FBEEF;  --jp-info-bg:    #1B3358;
+  /* #1000 / ADR 0116 — "bevakad" (slate-teal), dark. Text/border mot mörk kort-yta
+     7.21:1, mot --jp-follow-bg 6.84:1. */
+  --jp-follow:  #7FC4CE;  --jp-follow-bg:  #153338;
 
   --jp-leaf-600:  #5BCB7B;  --jp-leaf-50:  #143E29;
   /* #290 — dark leaf-ramp extensions (mirror :root rungs). Stark/Bra/Grund
@@ -1916,6 +1925,30 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-btn--secondary:hover {
   background: var(--jp-surface-3);
 }
+/* #1000 (V1) — /jobb modal-footer: en STATE-toggle-knapp bär sin tillstånds-färg
+   när ON (matchar list-taggarna) så modalen läses lika tydligt som listan. LIVE
+   client-state (aria-pressed) → ingen stale-risk (därför släpptes header-snapshot-
+   taggen). Icke-grön (grönt reserverat, ADR 0068) — ikonerna tappar sin gröna tint:
+   Bevakar → --jp-follow (teal), Sparad/Ansökt → --jp-info (blå), paritet taggarna. */
+.jp-btn--secondary.jp-btn--on-follow {
+  background: var(--jp-follow-bg);
+  color: var(--jp-follow);
+  border-color: var(--jp-follow);
+}
+.jp-btn--secondary.jp-btn--on-saved,
+.jp-btn--secondary.jp-btn--on-applied {
+  background: var(--jp-info-bg);
+  color: var(--jp-info);
+  border-color: var(--jp-info);
+}
+/* Behåll tinten på hover (bas-`:hover` byter bg till surface-3 → skulle gråa ut den). */
+.jp-btn--secondary.jp-btn--on-follow:hover {
+  background: var(--jp-follow-bg);
+}
+.jp-btn--secondary.jp-btn--on-saved:hover,
+.jp-btn--secondary.jp-btn--on-applied:hover {
+  background: var(--jp-info-bg);
+}
 .jp-btn--ghost {
   background: transparent;
   color: var(--jp-ink-2);
@@ -2051,6 +2084,23 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-app:hover {
   border-color: var(--jp-accent-700);
 }
+/* #1000 / ADR 0116 — bevakat kort: en slate-teal vänsterkant på KORT-nivå
+   ("syns direkt"-signalen, komplement till BEVAKAR-taggens etikett). Ritad som
+   PSEUDO-ELEMENT, aldrig `border-left`: (a) `.jp-job:hover` sätter border-color på
+   alla fyra sidor → en riktig vänster-border skulle flippa grön vid hover och
+   tappa markören; (b) en border skulle förskjuta kort-geometrin 3px mot icke-
+   bevakade kort. Kanten ligger ovanpå den vänstra 1px-bordern och följer kortets
+   6px-radie via matchande hörn-radier. Scopat på `.jp-job[data-followed]` — rör
+   ALDRIG det delade `.jp-job, .jp-app`-blocket (ingen drift till /ansökningar). */
+.jp-job[data-followed]::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--jp-follow);
+  border-top-left-radius: var(--jp-r-md);
+  border-bottom-left-radius: var(--jp-r-md);
+}
 .jp-job__newflag {
   display: inline-flex;
   align-items: center;
@@ -2174,6 +2224,17 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: var(--jp-info);
   color: var(--jp-ink-inverse);
   border-color: var(--jp-info);
+  font-weight: var(--jp-fw-bold);
+}
+/* #1000 / ADR 0116 — BEVAKAR: du bevakar annonsens arbetsgivare. Slate-teal på den
+   nya "bevakad"-axeln (--jp-follow), tydligt skild från grön grad-chip (.jp-matchchip)
+   och blå sparad/ansökt. Fill + färgad border (outline) ger närvaro utan att bli en
+   solid pill som ANSÖKT. Text/border 4.92:1 mot fyllningen (ADR 0116). Bär sin text-
+   etikett "BEVAKAR" (WCAG 1.4.1 — färgen är förstärkning, inte enda signalen). */
+.jp-tag[data-tag="followed"] {
+  background: var(--jp-follow-bg);
+  color: var(--jp-follow);
+  border-color: var(--jp-follow);
   font-weight: var(--jp-fw-bold);
 }
 /* #336 slice 1 — APPLICATION STATUS TAG FAMILY (Klas decisions + design-

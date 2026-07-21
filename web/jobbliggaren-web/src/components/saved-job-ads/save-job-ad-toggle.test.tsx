@@ -31,6 +31,10 @@ describe("SaveJobAdToggle", () => {
       screen.getByRole("button", { name: "Sparad" })
     ).toBeInTheDocument();
     expect(screen.getByText("Sparad")).toBeInTheDocument();
+    // #1000 (V1) — blue state-tint when saved (matches the SPARAD tag).
+    expect(screen.getByRole("button", { name: "Sparad" })).toHaveClass(
+      "jp-btn--on-saved"
+    );
   });
 
   it("calls saveJobAdAction on click when not saved (optimistic flip)", async () => {

@@ -176,4 +176,43 @@ describe("JobTags (NY = oläst, #293/#306)", () => {
     expect(tags[2]).toHaveTextContent("Sparad");
     expect(tags[3]).toHaveTextContent("Ansökt");
   });
+
+  // #1000 (V1) — BEVAKAR = du bevakar annonsens arbetsgivare (--jp-follow-axeln).
+  it("renders BEVAKAR when isFollowed=true", () => {
+    render(<JobTags isNew={false} freshnessLabel={null} isFollowed={true} />);
+    const tag = screen.getByText("Bevakar");
+    expect(tag).toBeInTheDocument();
+    expect(tag).toHaveAttribute("data-tag", "followed");
+  });
+
+  it("does not render BEVAKAR when isFollowed=false (anon / not following)", () => {
+    render(<JobTags isNew={false} freshnessLabel={null} isFollowed={false} />);
+    expect(screen.queryByText("Bevakar")).not.toBeInTheDocument();
+  });
+
+  it("BEVAKAR ensam räcker för att rendera tagg-blocket (ingen annan tagg)", () => {
+    const { container } = render(
+      <JobTags isNew={false} freshnessLabel={null} isFollowed={true} />,
+    );
+    expect(container.querySelector(".jp-job-tags")).not.toBeNull();
+  });
+
+  it("renderar alla 5 taggar i ordning: NY → BEVAKAR → freshness → Sparad → Ansökt", () => {
+    const { container } = render(
+      <JobTags
+        isNew={true}
+        isFollowed={true}
+        freshnessLabel="Idag"
+        isSaved={true}
+        isApplied={true}
+      />,
+    );
+    const tags = container.querySelectorAll(".jp-tag");
+    expect(tags).toHaveLength(5);
+    expect(tags[0]).toHaveTextContent("Ny");
+    expect(tags[1]).toHaveTextContent("Bevakar");
+    expect(tags[2]).toHaveTextContent("Idag");
+    expect(tags[3]).toHaveTextContent("Sparad");
+    expect(tags[4]).toHaveTextContent("Ansökt");
+  });
 });

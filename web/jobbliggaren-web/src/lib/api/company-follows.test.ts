@@ -15,6 +15,7 @@ import {
   followCompanyFromJobAd,
   unfollowCompany,
   getCompanyWatchStatus,
+  getFollowedJobAdIds,
   getCompanyWatchStatusByOrgNr,
   getCompanyWatches,
   markFollowedCompanyAdSeen,
@@ -136,6 +137,57 @@ describe("unfollowCompany (#455)", () => {
   it("network throw -> error", async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("boom"));
     expect(await unfollowCompany(VALID_ID)).toEqual({ kind: "error" });
+  });
+});
+
+describe("getFollowedJobAdIds (#1000, V1) — list follow-overlay, fail-safe to empty", () => {
+  const A = "11111111-1111-1111-1111-111111111111";
+  const B = "22222222-2222-2222-2222-222222222222";
+  const C = "33333333-3333-3333-3333-333333333333";
+
+  it("empty input → [] without a backend round-trip", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    expect(await getFollowedJobAdIds([])).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("no session → [] without a backend round-trip (anon degraderar civilt)", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    expect(await getFollowedJobAdIds([A])).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returnerar BARA de följda id:na (companyWatchId !== null)", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({
+        statuses: [
+          { jobAdId: A, companyWatchId: "cw-1", followable: true }, // följd
+          { jobAdId: B, companyWatchId: null, followable: true }, // följbar, ej följd
+          { jobAdId: C, companyWatchId: "cw-2", followable: true }, // följd
+        ],
+      }),
+    );
+    expect(await getFollowedJobAdIds([A, B, C])).toEqual([A, C]);
+  });
+
+  it("!res.ok → []", async () => {
+    global.fetch = vi.fn().mockResolvedValue(emptyResponse(500));
+    expect(await getFollowedJobAdIds([A])).toEqual([]);
+  });
+
+  it("shape mismatch (zod parse fail) → []", async () => {
+    // `statuses` non-array genuinely fails z.array → exercises the !parsed.success guard.
+    // ({ wrong: "shape" }) would parse OK to { statuses: [] } via the schema default.
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ statuses: "nope" }));
+    expect(await getFollowedJobAdIds([A])).toEqual([]);
+  });
+
+  it("network throw → []", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("boom"));
+    expect(await getFollowedJobAdIds([A])).toEqual([]);
   });
 });
 

@@ -20,6 +20,12 @@ interface JobAdListProps {
   savedIdSet?: ReadonlySet<string>;
   appliedIdSet?: ReadonlySet<string>;
   /**
+   * #1000 (V1) — BEVAKAR-overlay: annons-id:n vars arbetsgivare den inloggade
+   * användaren följer (`getFollowedJobAdIds`, auth-gated batch). O(1)-lookup per
+   * kort (paritet savedIdSet). Tomt/utelämnat = anon/utan-auth ⇒ ingen BEVAKAR.
+   */
+  followedIdSet?: ReadonlySet<string>;
+  /**
    * F4-13 (ADR 0076) — graderad match-tagg per kort. Map<JobAdId, MatchGrade>
    * för O(1)-lookup (paritet med saved/applied-set:n). Saknad nyckel = ingen
    * positiv grad ⇒ ingen chip (POSITIVE-ONLY). Tom/utelämnad map = anonym
@@ -48,6 +54,7 @@ export function JobAdList({
   newIdSet,
   savedIdSet,
   appliedIdSet,
+  followedIdSet,
   matchGradeById,
   employerApplicationCountById,
   listQuery,
@@ -76,6 +83,7 @@ export function JobAdList({
             isNew={newIdSet?.has(jobAd.id) ?? false}
             isSaved={savedIdSet?.has(jobAd.id) ?? false}
             isApplied={appliedIdSet?.has(jobAd.id) ?? false}
+            isFollowed={followedIdSet?.has(jobAd.id) ?? false}
             matchGrade={matchGradeById?.get(jobAd.id)}
             previousApplicationCount={employerApplicationCountById?.get(jobAd.id)}
             listQuery={listQuery}

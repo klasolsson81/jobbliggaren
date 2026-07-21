@@ -189,6 +189,39 @@ export async function getCompanyWatchStatus(jobAdId: string): Promise<CompanyFol
 }
 
 /**
+ * #1000 (V1) — the LIST-level follow-state overlay for the /jobb job cards: of these ads, which
+ * ones' employers does the current user follow. Mirrors {@link getCompanyWatchStatus} (single-ad,
+ * detail footer) but keeps ALL statuses and returns the FOLLOWED jobAdIds (`companyWatchId !== null`)
+ * so the caller builds an O(1) `followedIdSet.has(id)` per card — parity with `getJobAdStatusBatch`
+ * (Sparad/Ansökt). Auth-gated: anon / failure / contract drift → `[]` (no BEVAKAR tags rendered;
+ * civic-utility no-teater). The page fetch is already within the endpoint's 100-id validator cap
+ * (parity the saved/applied batch). `POST /api/v1/me/company-watches/status`.
+ */
+export async function getFollowedJobAdIds(
+  jobAdIds: ReadonlyArray<string>,
+): Promise<ReadonlyArray<string>> {
+  if (jobAdIds.length === 0) return [];
+
+  const sessionId = await getSessionId();
+  if (!sessionId) return [];
+
+  try {
+    const res = await authedFetch(sessionId, `${BASE}/status`, {
+      method: "POST",
+      body: JSON.stringify({ jobAdIds: [...jobAdIds] }),
+    });
+    if (!res.ok) return [];
+    const parsed = companyWatchStatusBatchSchema.safeParse(await res.json());
+    if (!parsed.success) return [];
+    return parsed.data.statuses
+      .filter((s) => s.companyWatchId !== null)
+      .map((s) => s.jobAdId);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * #560 PR-C (ADR 0087 D8(c)) — the org.nr-keyed follow-state overlay for the /foretag/sok search results.
  * The RSC edge already holds each non-masked row's org.nr (the register search surfaced them), so it posts
  * them here to learn which the user already follows. Returns one entry per input org.nr, POSITIONALLY (1:1

@@ -20,6 +20,13 @@ interface JobAdCardProps {
   isSaved?: boolean;
   isApplied?: boolean;
   /**
+   * #1000 (V1) — BEVAKAR = du bevakar annonsens arbetsgivare. Per-user-overlay
+   * (`getFollowedJobAdIds`), buret via `JobAdList`s `followedIdSet`. Driver BÅDE
+   * BEVAKAR-taggen (JobTags) OCH kortets `data-followed`-vänsteredge (`.jp-job`).
+   * Default false (anon / arbetsgivare du inte följer ⇒ ingen markör).
+   */
+  isFollowed?: boolean;
+  /**
    * F4-13 (ADR 0076) — graderad match-tagg (server-fetchad via
    * `getJobAdMatchTags`). `undefined` = ingen positiv grad ⇒ ingen chip
    * (POSITIVE-ONLY). Aldrig en siffra — graden är en namngiven kategori.
@@ -117,6 +124,7 @@ export function JobAdCard({
   isNew = false,
   isSaved = false,
   isApplied = false,
+  isFollowed = false,
   matchGrade,
   previousApplicationCount,
   listQuery = "",
@@ -138,6 +146,9 @@ export function JobAdCard({
     <Link
       href={href}
       className="jp-job"
+      // #1000 (V1) — `data-followed` drives the card's left-edge (`.jp-job[data-followed]::before`,
+      // a pseudo-element so it survives the green :hover border). Attribute present iff followed.
+      data-followed={isFollowed ? "" : undefined}
       aria-label={tUi("ariaLabel", {
         title: jobAd.title,
         company: jobAd.companyName,
@@ -148,6 +159,7 @@ export function JobAdCard({
           <span>{jobAd.title}</span>
           <JobTags
             isNew={isNew}
+            isFollowed={isFollowed}
             freshnessLabel={freshnessLabel}
             isSaved={isSaved}
             isApplied={isApplied}

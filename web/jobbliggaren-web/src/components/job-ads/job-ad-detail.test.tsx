@@ -32,6 +32,19 @@ describe("JobAdDetail (ADR 0053 Fas-3 fält-set)", () => {
     expect(screen.getByText(baseAd.id)).toBeInTheDocument();
   });
 
+  // #1000 (V1) — modalen bär INGEN separat BEVAKAR-tagg (skulle bli en load-time-
+  // snapshot mot live-toggeln, design-reviewer 2026-07-20). Regressionsvakt: ett
+  // följt läge visar follow-STATE via togglens label, inte en header-tagg.
+  it("#1000 — ingen BEVAKAR-tagg i modal-headern (state bärs av follow-toggeln, ej en stale-snapshot)", () => {
+    render(
+      <JobAdDetail
+        jobAd={baseAd}
+        followState={{ companyWatchId: "cw-1", followable: true }}
+      />,
+    );
+    expect(screen.queryByText("Bevakar")).not.toBeInTheDocument();
+  });
+
   it("renders the Öppna annonsen link with safe rel attributes", () => {
     render(<JobAdDetail jobAd={baseAd} />);
     const link = screen.getByRole("link", { name: /Öppna annonsen/ });

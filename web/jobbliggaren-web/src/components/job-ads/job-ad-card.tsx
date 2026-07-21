@@ -6,7 +6,6 @@ import type { JobAdDto } from "@/lib/dto/job-ads";
 import type { MatchGrade } from "@/lib/dto/job-ad-match";
 import { JobTags } from "./job-tags";
 import { MatchChip } from "./match-chip";
-import { computeFreshnessLabel } from "./freshness";
 
 interface JobAdCardProps {
   jobAd: JobAdDto;
@@ -19,6 +18,13 @@ interface JobAdCardProps {
   /** PR5 — per-user overlay-status (ADR 0063 batch-port). */
   isSaved?: boolean;
   isApplied?: boolean;
+  /**
+   * #1000 (V1) — BEVAKAR = du bevakar annonsens arbetsgivare. Per-user-overlay
+   * (`getFollowedJobAdIds`), buret via `JobAdList`s `followedIdSet`. Driver BÅDE
+   * BEVAKAR-taggen (JobTags) OCH kortets `data-followed`-vänsteredge (`.jp-job`).
+   * Default false (anon / arbetsgivare du inte följer ⇒ ingen markör).
+   */
+  isFollowed?: boolean;
   /**
    * F4-13 (ADR 0076) — graderad match-tagg (server-fetchad via
    * `getJobAdMatchTags`). `undefined` = ingen positiv grad ⇒ ingen chip
@@ -117,6 +123,7 @@ export function JobAdCard({
   isNew = false,
   isSaved = false,
   isApplied = false,
+  isFollowed = false,
   matchGrade,
   previousApplicationCount,
   listQuery = "",
@@ -128,7 +135,6 @@ export function JobAdCard({
   const format = useFormatter();
   const publishedAt = formatPublishedAtWithTime(jobAd.publishedAt, tUi, format);
   const expiresAt = formatDate(format, jobAd.expiresAt);
-  const freshnessLabel = computeFreshnessLabel(jobAd.publishedAt);
 
   // #380 — bär list-URL:ens view-state in i radlänken så modal-soft-nav inte
   // tappar filter/match-läget (se `listQuery`-doc). Tom query ⇒ naken länk.
@@ -138,6 +144,9 @@ export function JobAdCard({
     <Link
       href={href}
       className="jp-job"
+      // #1000 (V1) — `data-followed` drives the card's left-edge (`.jp-job[data-followed]::before`,
+      // a pseudo-element so it survives the green :hover border). Attribute present iff followed.
+      data-followed={isFollowed ? "" : undefined}
       aria-label={tUi("ariaLabel", {
         title: jobAd.title,
         company: jobAd.companyName,
@@ -148,7 +157,7 @@ export function JobAdCard({
           <span>{jobAd.title}</span>
           <JobTags
             isNew={isNew}
-            freshnessLabel={freshnessLabel}
+            isFollowed={isFollowed}
             isSaved={isSaved}
             isApplied={isApplied}
           />

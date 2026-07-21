@@ -3,9 +3,8 @@ import { render, screen } from "@testing-library/react";
 import { JobAdCard } from "./job-ad-card";
 import type { JobAdDto } from "@/lib/dto/job-ads";
 
-// publishedAt avsiktligt > 7 dygn sedan så freshness-taggen INTE renderas i
-// default-tester (skulle annars läggas till h3:s accessible name och bryta
-// `getByRole("heading", { name: "..." })`-assertions).
+// publishedAt > 7 dygn sedan — historiskt för att undvika färskhets-taggen (nu
+// BORTTAGEN, #1000-review); värdet lämnas oförändrat så heading-assertions håller.
 const baseAd: JobAdDto = {
   id: "11111111-1111-1111-1111-111111111111",
   title: "Senior Backend Developer",
@@ -33,6 +32,27 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
       name: "Senior Backend Developer – Acme AB",
     });
     expect(link).toHaveAttribute("href", `/jobb/${baseAd.id}`);
+  });
+
+  // #1000 (V1) — BEVAKAR = du bevakar arbetsgivaren: `isFollowed` driver BÅDE
+  // kortets `data-followed`-vänsterkant OCH BEVAKAR-taggen. Länkens accessible
+  // name kommer ur aria-label (title–company), så taggen påverkar det inte.
+  it("#1000 — sätter data-followed + renderar BEVAKAR-tagg när isFollowed=true", () => {
+    render(<JobAdCard jobAd={baseAd} isFollowed={true} />);
+    const link = screen.getByRole("link", {
+      name: "Senior Backend Developer – Acme AB",
+    });
+    expect(link).toHaveAttribute("data-followed", "");
+    expect(screen.getByText("Bevakar")).toBeInTheDocument();
+  });
+
+  it("#1000 — inget data-followed + ingen BEVAKAR när isFollowed=false (default)", () => {
+    render(<JobAdCard jobAd={baseAd} />);
+    const link = screen.getByRole("link", {
+      name: "Senior Backend Developer – Acme AB",
+    });
+    expect(link).not.toHaveAttribute("data-followed");
+    expect(screen.queryByText("Bevakar")).not.toBeInTheDocument();
   });
 
   // #380 — radlänken bär list-URL:ens view-state (filter + match + sort + sök)

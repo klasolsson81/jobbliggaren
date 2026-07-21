@@ -2,7 +2,7 @@ import { useTranslations } from "next-intl";
 
 /**
  * Tagg-rad för jobbannons-rad (`.jp-job`). Generisk subkomponent — renderar
- * NY/färskhet/Sparad/Ansökt-taggar högerjusterat inom `.jp-job__title` h3 via
+ * NY/BEVAKAR/Sparad/Ansökt-taggar högerjusterat inom `.jp-job__title` h3 via
  * `margin-left:auto` (CTO-dom 2026-05-20, Variant D — utnyttjar h3:s befintliga
  * flex-wrap-kontrakt utan ny grid-topologi).
  *
@@ -15,9 +15,14 @@ import { useTranslations } from "next-intl";
  * `createdAt > lastSeenJobsAt` mot den hämtade watermarken (`JobbResults`) och
  * skickar resultatet hit som `isNew`. Den tidigare tidsbaserade
  * (`publishedAt`-7d-fönster) NY-modellen + dess localStorage-high-water-mark är
- * BORTTAGNA — "X DAGAR"-färskhetstaggen (`freshnessLabel`) är recency-signalen
- * nu (NY ≠ recency, dubbleringen Klas flaggade är borta). Ren presentations-
- * komponent (ingen client-state) ⇒ Server Component.
+ * BORTTAGNA. Ren presentations-komponent (ingen client-state) ⇒ Server Component.
+ *
+ * "5 DAGAR"-färskhetstaggen (`freshnessLabel`, `data-tag="freshness"`) BORTTAGEN
+ * 2026-07-21 (senior-cto-advisor, #1000-review): recency bärs av meta-radens
+ * exakta `Publicerad <datum>` som redan står på kortet — chippet var en dublett
+ * av ett redan synligt faktum (design-principles regel 3, "inga fyllnadselement").
+ * #293/#306-spliten försvarade färskhet mot redundans MOT NY (oläst ≠ ålder), en
+ * annan axel än färskhet-vs-meta-rad; den frågan öppnas inte igen.
  *
  * PR5 (Klas-feedback 2026-05-23 + CTO Val 4 Variant A): Sparad + Ansökt-taggar
  * (per-user-overlay via ADR 0063 batch-port). `isSaved`/`isApplied` är opt-in
@@ -38,27 +43,30 @@ export interface JobTagsProps {
    */
   isNew: boolean;
   /**
-   * Färskhets-etikett, server-beräknad från `publishedAt`. `null` när äldre än
-   * 7 dygn (renderas inte). T.ex. "Idag", "2 dagar", "5 dagar".
-   */
-  freshnessLabel: string | null;
-  /**
    * F6 P5 Punkt 2 PR5 — per-user-overlay-status (ADR 0063 batch-port).
    * Server-fetchad via `getJobAdStatusBatch` i list-page. Default false.
    */
   isSaved?: boolean;
   isApplied?: boolean;
+  /**
+   * #1000 (V1) — BEVAKAR = du bevakar annonsens arbetsgivare. Per-user-overlay,
+   * server-fetchad via `getFollowedJobAdIds` (auth-gated batch) och buret ner via
+   * `JobbResults`→`JobAdList`s `followedIdSet`. Default false (anon/utan-auth eller
+   * annons vars arbetsgivare du inte följer ⇒ ingen tagg). En egen icke-grön,
+   * icke-blå semantisk axel (ADR: `--jp-follow`) — relation, inte grad/handling/tid.
+   */
+  isFollowed?: boolean;
 }
 
 export function JobTags({
   isNew,
-  freshnessLabel,
   isSaved = false,
   isApplied = false,
+  isFollowed = false,
 }: JobTagsProps) {
   const t = useTranslations("jobads.ui");
 
-  if (!isNew && !freshnessLabel && !isSaved && !isApplied) {
+  if (!isNew && !isFollowed && !isSaved && !isApplied) {
     return null;
   }
 
@@ -72,9 +80,9 @@ export function JobTags({
           <span className="sr-only">{t("tags.newAriaLabel")}</span>
         </span>
       )}
-      {freshnessLabel && (
-        <span className="jp-tag jp-tag--neutral" data-tag="freshness">
-          {freshnessLabel}
+      {isFollowed && (
+        <span className="jp-tag jp-tag--neutral" data-tag="followed">
+          {t("tags.followed")}
         </span>
       )}
       {isSaved && (

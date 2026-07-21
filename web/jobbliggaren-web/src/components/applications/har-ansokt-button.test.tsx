@@ -29,6 +29,10 @@ describe("HarAnsoktButton (PR5)", () => {
       screen.getByRole("button", { name: "Ansökt" })
     ).toBeInTheDocument();
     expect(screen.getByText("Ansökt")).toBeInTheDocument();
+    // #1000 (V1) — blue state-tint when applied (matches the ANSÖKT tag).
+    expect(screen.getByRole("button", { name: "Ansökt" })).toHaveClass(
+      "jp-btn--on-applied"
+    );
   });
 
   it("kallar action vid klick + uppdaterar UI optimistic", async () => {

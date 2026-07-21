@@ -3,9 +3,8 @@ import { render, screen } from "@testing-library/react";
 import { JobAdCard } from "./job-ad-card";
 import type { JobAdDto } from "@/lib/dto/job-ads";
 
-// publishedAt avsiktligt > 7 dygn sedan så freshness-taggen INTE renderas i
-// default-tester (skulle annars läggas till h3:s accessible name och bryta
-// `getByRole("heading", { name: "..." })`-assertions).
+// publishedAt > 7 dygn sedan — historiskt för att undvika färskhets-taggen (nu
+// BORTTAGEN, #1000-review); värdet lämnas oförändrat så heading-assertions håller.
 const baseAd: JobAdDto = {
   id: "11111111-1111-1111-1111-111111111111",
   title: "Senior Backend Developer",

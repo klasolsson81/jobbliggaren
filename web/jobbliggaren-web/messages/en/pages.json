@@ -293,7 +293,7 @@
     "criteria": {
       "heading": "Smart watches",
       "lede": "A saved search by industry and municipality. You browse the matching companies and can start following the ones you are interested in. A smart watch sends no notifications of its own.",
-      "newButton": "New watch",
+      "newButton": "New smart watch",
       "listLabel": "Your smart watches",
       "emptyTitle": "You have no smart watches.",
       "emptyBody": "Create a watch to see companies in the register that match the industries and municipalities you choose.",
@@ -328,7 +328,7 @@
         "deleting": "Removing…"
       },
       "dialog": {
-        "createTitle": "New watch",
+        "createTitle": "New smart watch",
         "editTitle": "Edit watch",
         "intro": "Choose industries and municipalities. We show how many companies in the register match before you save.",
         "sniHeading": "Industries",

@@ -1,5 +1,5 @@
 /**
- * #560 PR-D — the criterion-shaped gate for the "Bevaka alla träffar" CTA on `/foretag/sok`.
+ * #560 PR-D — the criterion-shaped gate for the "Spara som smart bevakning" CTA on `/foretag/sok`.
  *
  * A `CompanyWatchCriterion` is SNI ∧ kommun — BOTH axes are required (the Domain forbids a
  * kommun-only or SNI-only criterion: `CompanyWatchCriteriaSpec.Create` returns `SniRequired` /

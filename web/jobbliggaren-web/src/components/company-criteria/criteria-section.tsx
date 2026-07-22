@@ -1,6 +1,6 @@
 "use client";
 
-// "use client": owns the "create dialog" open state + the "Ny bevakning" trigger. The rows and their
+// "use client": owns the "create dialog" open state + the "Ny smart bevakning" trigger. The rows and their
 // per-row dialogs are already client; this promotes no server logic to the client — the RSC page does
 // all data fetching and passes the criteria + reference tree down.
 
@@ -26,7 +26,7 @@ interface CriteriaSectionProps {
 
 /**
  * #560 PR-3 — the "Smarta bevakningar" section body on `/foretag`: the user's criteria (max 20) plus a
- * "Ny bevakning" button that opens the create dialog. A civic empty state names what a smart bevakning
+ * "Ny smart bevakning" button that opens the create dialog. A civic empty state names what a smart bevakning
  * is and how to make one.
  */
 export function CriteriaSection({ items, reference }: CriteriaSectionProps) {

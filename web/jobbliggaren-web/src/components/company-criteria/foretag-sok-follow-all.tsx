@@ -43,10 +43,10 @@ const REASON_KEY = {
  * via its `aria-describedby` explainer — the four-state honesty of the criterion dialog's preview
  * line, applied here.
  *
- * On success the button is replaced by a confirmation + a link to the hub: the create handler does
- * NOT dedupe criteria (racing/repeat creates are an accepted cosmetic overshoot), so removing the
- * button prevents an accidental duplicate from a second click on the same filter. The criteria LIST
- * stays on `/foretag` (this page only creates; the action revalidates `/foretag`).
+ * On success the button is replaced by a confirmation + a link to the Smarta bevakningar surface: the
+ * create handler does NOT dedupe criteria (racing/repeat creates are an accepted cosmetic overshoot),
+ * so removing the button prevents an accidental duplicate from a second click on the same filter. The
+ * criteria LIST lives on `/foretag/smarta-bevakningar` (this page only creates; the action revalidates it).
  */
 export function ForetagSokFollowAll({ namn, sni, kommun }: ForetagSokFollowAllProps) {
   const t = useTranslations("pages.foretag.sok.followAll");
@@ -119,7 +119,7 @@ export function ForetagSokFollowAll({ namn, sni, kommun }: ForetagSokFollowAllPr
         {saved && (
           <p className="mt-2 text-body-sm text-text-primary">
             {t("successBody")}{" "}
-            <Link href="/foretag" className="text-brand-700 underline underline-offset-2">
+            <Link href="/foretag/smarta-bevakningar" className="text-brand-700 underline underline-offset-2">
               {t("successLink")}
             </Link>
           </p>

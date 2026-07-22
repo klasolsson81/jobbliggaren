@@ -100,7 +100,7 @@ describe("JobAdDetail (ADR 0053 Fas-3 fält-set)", () => {
     expect(screen.queryByText(/tidigare ansökning/i)).not.toBeInTheDocument();
   });
 
-  it("renders the previous-applications line as a LINK to /foretag#ansokningshistorik when count > 0", () => {
+  it("renders the previous-applications line as a LINK to /foretag/historik when count > 0", () => {
     render(<JobAdDetail jobAd={baseAd} previousApplicationCount={3} />);
     // Plural sentence + a valid link (the detail view has no outer <a>, unlike the list card). The
     // count is a plain integer — org.nr is never passed to this component (§5, enskild firma =
@@ -111,7 +111,7 @@ describe("JobAdDetail (ADR 0053 Fas-3 fält-set)", () => {
       )
     ).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Visa ansökningshistorik" });
-    expect(link).toHaveAttribute("href", "/foretag#ansokningshistorik");
+    expect(link).toHaveAttribute("href", "/foretag/historik");
   });
 
   it("renders the singular previous-applications sentence for count 1", () => {

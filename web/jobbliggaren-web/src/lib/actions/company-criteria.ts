@@ -56,7 +56,7 @@ export async function createCriterionAction(
   );
 
   if (result.kind === "ok") {
-    revalidatePath("/foretag");
+    revalidatePath("/foretag/smarta-bevakningar");
     return { success: true };
   }
   return { success: false, error: writeError(result, t, "createFailed") };
@@ -84,7 +84,7 @@ export async function updateCriterionAction(
   });
 
   if (result.kind === "ok") {
-    revalidatePath("/foretag");
+    revalidatePath("/foretag/smarta-bevakningar");
     return { success: true };
   }
   return { success: false, error: writeError(result, t, "updateFailed") };
@@ -101,7 +101,7 @@ export async function deleteCriterionAction(
     // A repeat delete is 404 (the row is already gone) — the same UX outcome as a fresh delete, so it
     // is treated as success-equivalent rather than surfacing an error for an already-completed intent.
     case "notFound":
-      revalidatePath("/foretag");
+      revalidatePath("/foretag/smarta-bevakningar");
       return { success: true };
     case "unauthorized":
       return { success: false, error: t("notLoggedIn") };

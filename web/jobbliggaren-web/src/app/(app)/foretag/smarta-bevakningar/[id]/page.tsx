@@ -104,7 +104,7 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
 
       <div className="jp-container jp-page">
         <Link
-          href="/foretag"
+          href="/foretag/smarta-bevakningar"
           className="mb-4 inline-flex items-center gap-1.5 text-text-primary hover:underline"
         >
           <ArrowLeft size={16} aria-hidden="true" />
@@ -140,8 +140,8 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
               totalCount={companies.totalCount}
               buildHref={(targetPage) =>
                 targetPage <= 1
-                  ? `/foretag/bevakningar/${id}`
-                  : `/foretag/bevakningar/${id}?page=${targetPage}`
+                  ? `/foretag/smarta-bevakningar/${id}`
+                  : `/foretag/smarta-bevakningar/${id}?page=${targetPage}`
               }
             />
           </div>

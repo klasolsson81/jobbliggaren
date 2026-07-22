@@ -95,7 +95,7 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
     setError(null);
     startTransition(async () => {
       const result = await unfollowCompanyAction(item.id);
-      // On success `revalidatePath("/foretag")` re-renders the RSC list without this row.
+      // On success `revalidatePath("/foretag/bevakade")` re-renders the RSC list without this row.
       if (!result.success) setError(result.error);
     });
   }

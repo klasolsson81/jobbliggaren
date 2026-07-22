@@ -96,7 +96,7 @@ export function CriterionRow({ item, reference }: CriterionRowProps) {
           style={{ flexDirection: "row", alignItems: "center" }}
         >
           <Link
-            href={`/foretag/bevakningar/${item.id}`}
+            href={`/foretag/smarta-bevakningar/${item.id}`}
             className="jp-rowbtn"
             aria-label={t("row.openBrowseAria", { label: heading })}
           >

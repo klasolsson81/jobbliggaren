@@ -228,6 +228,14 @@
   "foretag": {
     "title": "Companies",
     "lede": "Companies you follow and your application history per employer.",
+    "subnav": {
+      "label": "Company sub-navigation",
+      "bevakade": "Followed companies",
+      "sok": "Search companies",
+      "smartaBevakningar": "Smart watches",
+      "historik": "Application history"
+    },
+    "loading": "Loading…",
     "sok": {
       "title": "Search companies",
       "lede": "Search the company register by name, industry or municipality.",
@@ -282,6 +290,7 @@
     "watchesHeading": "Followed companies",
     "watchesLede": "Companies you follow. New ads from them appear here and on the overview.",
     "historyHeading": "Application history",
+    "historyLede": "Your applications grouped by employer.",
     "loadErrorTitle": "Could not load followed companies",
     "historyLoadErrorTitle": "Could not load application history",
     "criteria": {

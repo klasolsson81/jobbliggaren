@@ -26,7 +26,7 @@ export type UnfollowCompanyResult =
  * Revalidating `/jobb` would re-render that route and re-suspend the open modal to its dark scrim
  * fallback mid-action — the #141 trap (see `setWatchFilterAction`). The toggle updates its own
  * follow-state optimistically from the returned CompanyWatchId, so `/jobb` needs no server
- * revalidate. Only `/foretag` (#448 — the followed-companies list) is revalidated.
+ * revalidate. Only `/foretag/bevakade` (the followed-companies surface) is revalidated.
  */
 export async function followCompanyFromJobAdAction(
   jobAdId: string
@@ -35,7 +35,7 @@ export async function followCompanyFromJobAdAction(
   const result = await followCompanyFromJobAd(jobAdId);
   switch (result.kind) {
     case "ok":
-      revalidatePath("/foretag");
+      revalidatePath("/foretag/bevakade");
       return { success: true, companyWatchId: result.data.companyWatchId };
     case "unauthorized":
       return { success: false, error: t("notLoggedIn") };
@@ -49,9 +49,10 @@ export async function followCompanyFromJobAdAction(
 }
 
 /**
- * #454 / #560 PR-C — follow an employer directly by org.nr (the /foretag lookup card's "bevaka" AND the
- * /foretag/sok per-row "Bevaka"; works for a 0-ad company the by-job-ad path cannot reach). Idempotent
- * server-side (resurrect + race-safe). Revalidates `/foretag` (the watch list gains the row), `/jobb`
+ * #454 / #560 PR-C — follow an employer directly by org.nr (the /foretag/bevakade lookup card's "bevaka"
+ * AND the /foretag/sok per-row "Bevaka"; works for a 0-ad company the by-job-ad path cannot reach).
+ * Idempotent server-side (resurrect + race-safe). Revalidates `/foretag/bevakade` (the watch list gains
+ * the row), `/jobb`
  * (detail toggles re-read state), and `/foretag/sok` (the search results' follow-overlay re-reads on the
  * next render — the optimistic button bridges the interim).
  */
@@ -63,7 +64,7 @@ export async function followCompanyAction(
   switch (result.kind) {
     case "ok":
       revalidatePath("/jobb");
-      revalidatePath("/foretag");
+      revalidatePath("/foretag/bevakade");
       revalidatePath("/foretag/sok");
       return { success: true, companyWatchId: result.data.companyWatchId };
     case "unauthorized":
@@ -78,7 +79,7 @@ export async function followCompanyAction(
 
 /**
  * #455 / #448 / #560 PR-C — stop following, by the opaque CompanyWatchId. Idempotent. Revalidates
- * `/foretag` (the followed-companies list drops the row on the next RSC render — server state drives
+ * `/foretag/bevakade` (the followed-companies list drops the row on the next RSC render — server state drives
  * the removal, no client-side optimistic copy; CTO Q4 2026-07-01, §5) and `/foretag/sok` (the search
  * results' follow-overlay re-reads). NOT `/jobb`: the job-ad detail toggle that also calls this lives
  * inside the intercepted `/jobb/[id]` modal and flips its own state optimistically, so revalidating
@@ -91,7 +92,7 @@ export async function unfollowCompanyAction(
   const result = await unfollowCompany(companyWatchId);
   switch (result.kind) {
     case "ok":
-      revalidatePath("/foretag");
+      revalidatePath("/foretag/bevakade");
       revalidatePath("/foretag/sok");
       return { success: true };
     case "unauthorized":
@@ -138,10 +139,10 @@ export async function setWatchFilterAction(
   const result = await setWatchFilter(companyWatchId, parsed.data);
   switch (result.kind) {
     case "ok":
-      // Only /foretag renders the filter (the row disclosure + the editor's pre-fill). The caller
+      // Only /foretag/bevakade renders the filter (the row disclosure + the editor's pre-fill). The caller
       // closes the dialog BEFORE this revalidate lands — a Server Action that re-renders the RSC tree
       // unmounts an open dialog mid-flow (the #141 trap).
-      revalidatePath("/foretag");
+      revalidatePath("/foretag/bevakade");
       return { success: true };
     case "unauthorized":
       return { success: false, error: t("notLoggedIn") };

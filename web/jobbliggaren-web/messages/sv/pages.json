@@ -293,7 +293,7 @@
     "criteria": {
       "heading": "Smarta bevakningar",
       "lede": "En sparad sökning på bransch och kommun. Du bläddrar bland företagen som matchar och kan börja bevaka dem du är intresserad av. En smart bevakning skickar inga egna notiser.",
-      "newButton": "Ny bevakning",
+      "newButton": "Ny smart bevakning",
       "listLabel": "Dina smarta bevakningar",
       "emptyTitle": "Du har inga smarta bevakningar.",
       "emptyBody": "Skapa en bevakning för att se företag i registret som matchar de branscher och kommuner du väljer.",
@@ -328,7 +328,7 @@
         "deleting": "Tar bort…"
       },
       "dialog": {
-        "createTitle": "Ny bevakning",
+        "createTitle": "Ny smart bevakning",
         "editTitle": "Ändra bevakning",
         "intro": "Välj branscher och kommuner. Vi visar hur många företag i registret som matchar innan du sparar.",
         "sniHeading": "Branscher",

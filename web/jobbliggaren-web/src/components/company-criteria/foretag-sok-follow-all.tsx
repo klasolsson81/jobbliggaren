@@ -35,7 +35,7 @@ const REASON_KEY = {
 } as const satisfies Record<FollowAllBlockedKind, string>;
 
 /**
- * #560 PR-D — "Bevaka alla träffar": save the active `/foretag/sok` filter as a criterion watch
+ * #560 PR-D — "Spara som smart bevakning": save the active `/foretag/sok` filter as a criterion watch
  * (pure reuse of `createCriterionAction` / `CreateCompanyWatchCriterionCommand` — no new domain, no
  * new command). The CTA is disabled-with-explainer whenever the filter is not criterion-shaped
  * (SNI ∧ kommun ∧ no name term — CTO F4). The button stays FOCUSABLE while blocked (`aria-disabled`,

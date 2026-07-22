@@ -226,8 +226,6 @@
     "loadErrorTitle": "Could not load saved listings"
   },
   "foretag": {
-    "title": "Companies",
-    "lede": "Companies you follow and your application history per employer.",
     "subnav": {
       "label": "Company sub-navigation",
       "bevakade": "Followed companies",
@@ -239,7 +237,6 @@
     "sok": {
       "title": "Search companies",
       "lede": "Search the company register by name, industry or municipality.",
-      "hubLink": "Search the company register",
       "filterHeading": "Filter the search",
       "nameLabel": "Company name",
       "nameHint": "Search the start of the company name.",

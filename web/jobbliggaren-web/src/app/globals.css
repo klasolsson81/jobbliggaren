@@ -3293,7 +3293,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 /* ── Sub-nav (S1 #996) — persistent horizontal wayfinding under the pagehero for
-   the /foretag surfaces (Sök företag · Smarta bevakningar · Bevakade företag ·
+   the /foretag surfaces (Bevakade företag · Sök företag · Smarta bevakningar ·
    Ansökningshistorik). Deliberately DISTINCT from .jp-segment above: that is a
    filled-pill toggle and is already reused inline inside the Bevakade view's
    matching/all control, so the page-level sub-nav uses an underline-rail active
@@ -3332,6 +3332,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-accent-700);
   font-weight: var(--jp-fw-semibold);
   border-bottom-color: var(--jp-accent-700);
+}
+.jp-subnav__item:focus-visible {
+  /* .jp-subnav is a scroll box (overflow-x:auto makes overflow-y compute to auto), which would clip
+     the global 2px / +2px-offset ring against its padding-box; inset the ring so it draws inside the
+     item, fully within the scroll box — parity with .jp-segment__opt:focus-visible above. */
+  outline-offset: -2px;
 }
 
 /* ── ToggleRow (switch-rad) — F6 Prompt 2 Inställningar ────

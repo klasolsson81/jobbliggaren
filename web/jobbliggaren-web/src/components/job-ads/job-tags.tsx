@@ -2,9 +2,11 @@ import { useTranslations } from "next-intl";
 
 /**
  * Tagg-rad för jobbannons-rad (`.jp-job`). Generisk subkomponent — renderar
- * NY/BEVAKAR/Sparad/Ansökt-taggar högerjusterat inom `.jp-job__title` h3 via
- * `margin-left:auto` (CTO-dom 2026-05-20, Variant D — utnyttjar h3:s befintliga
- * flex-wrap-kontrakt utan ny grid-topologi).
+ * NY/BEVAKAR/Sparad/Ansökt-taggar VÄNSTERANSATT inom `.jp-job__title` h3 som en
+ * del av titelradens flex-wrap-kontrakt (ADR 0118, 2026-07-22 — ersätter den
+ * tidigare `margin-left:auto`-högerjusteringen, kod-kommentar-"Variant D"
+ * 2026-05-20, som kopplade match-grad-chippens position till om denna tagg-rad
+ * råkade rendera: utan tagg föll graden inline vänster, med tagg drogs allt höger).
  *
  * Civic-utility-stil: rektangulära taggar (2px radie), 11px versaler, dovt
  * färg-spektrum från befintliga tokens. INGA pills, INGA pastellchips, INGA

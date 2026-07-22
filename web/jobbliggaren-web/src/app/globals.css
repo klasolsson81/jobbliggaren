@@ -2117,9 +2117,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 /* ── Tagg-system (pre-F6 Prompt 1, 2026-05-20) ─────────
    Generisk rektangulär tagg-rad för rad-komponenter (.jp-job /
-   .jp-app i Prompt 2+). Placeras inom .jp-job__title h3 och
-   högerjusteras via margin-left:auto — utnyttjar h3:s befintliga
-   flex/flex-wrap-kontrakt (CTO-dom 2026-05-20, Variant D). Klas-
+   .jp-app i Prompt 2+). Placeras inom .jp-job__title h3 som en
+   VÄNSTERANSATT del av titelradens flex/flex-wrap-kontrakt (ADR 0118,
+   2026-07-22 — ersätter den tidigare margin-left:auto-högerjusteringen,
+   kod-kommentar-"Variant D" 2026-05-20). Den högerjusteringen kopplade
+   chip-positionen till om taggraden råkade rendera: utan tagg föll
+   match-grad-chippen inline vänster, med tagg drogs allt (graden inkl.)
+   höger — en villkorlig asymmetri. Inline-left binder titel + metadata
+   till EN läsenhet; DOM-/källordning oförändrad (grad sist). Klas-
    mandat: civic-utility-stil, INGA pills, INGA pastell-chips,
    INGA ikoner-i-taggar (HANDOVER §0 / CLAUDE.md §5.2). .jp-tag
    bär en base-variant (.jp-tag--accent / --neutral / --brand) men
@@ -2128,7 +2133,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
    (grönt är reserverat för match-grad-chip:en) — se #290-blocket
    nedan. Återanvänds över rad-komponenter. */
 .jp-job-tags {
-  margin-left: auto;
+  /* ADR 0118 — inline-left: deliberately NO margin-left:auto. The tag row is a
+     left-aligned segment of the title's flex-wrap row (right after the title),
+     not a right-pushed cluster — so the match-grade chip that follows it keeps a
+     constant ordinal position whether or not any tag renders (see comment above). */
   display: inline-flex;
   flex-wrap: wrap;
   gap: 6px;

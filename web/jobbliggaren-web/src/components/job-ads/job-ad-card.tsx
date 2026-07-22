@@ -111,8 +111,9 @@ function formatPublishedAtWithTime(
  * CSS, ingen avvikande markup. Spara-knapp deferred (FE-action-fas).
  *
  * Tagg-system (pre-F6 Prompt 1, 2026-05-20): NY/färskhet/match renderas
- * högerjusterat inom `.jp-job__title` h3 via `JobTags` (CTO-dom 2026-05-20,
- * Variant D). NY-modell (#293/#306, ADR 0042 Beslut E-amendment 2026-06-28):
+ * VÄNSTERANSATT inom `.jp-job__title` h3 via `JobTags` + `MatchChip` (ADR 0118 —
+ * inline-left, ersätter den tidigare högerjusteringen "Variant D" 2026-05-20).
+ * NY-modell (#293/#306, ADR 0042 Beslut E-amendment 2026-06-28):
  * NY = OLÄST (per-användar watermark, beräknad i `JobbResults` mot
  * `lastSeenJobsAt`), INTE tidsbaserat — den tidigare localStorage-high-water-
  * mark-modellen + `<MarkJobbVisited />`-island är borttagna (watermarken bor
@@ -162,9 +163,11 @@ export function JobAdCard({
             isApplied={isApplied}
           />
           {/* F4-13 (ADR 0076) — graderad match-tagg. POSITIVE-ONLY: renderas
-              bara när annonsen har en grad. Lever i titel-radens flex-wrap
-              bredvid JobTags; `.jp-job-tags` har redan margin-left:auto, så
-              chip:en lägger sig efter tagg-blocket högerjusterat. */}
+              bara när annonsen har en grad. Lever SIST i titel-radens flex-wrap,
+              efter JobTags (ADR 0118 — inline-left: `.jp-job-tags` har INGEN
+              margin-left:auto, så graden håller en konstant ordinal position
+              [sist, direkt efter titel + ev. taggar] oavsett om taggraden
+              renderar — den byter aldrig sida beroende på follow/spara-status). */}
           {matchGrade && <MatchChip grade={matchGrade} />}
         </h3>
         <div className="jp-job__company">{jobAd.companyName}</div>

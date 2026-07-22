@@ -80,7 +80,7 @@ beforeEach(() => {
 });
 
 describe("setWatchFilterAction — the happy path", () => {
-  it("ok → success + revalidatePath('/foretag') (the only surface that renders the filter)", async () => {
+  it("ok → success + revalidatePath('/foretag/bevakade') (the only surface that renders the filter)", async () => {
     const result = await setWatchFilterAction(WATCH_ID, {
       municipalities: ["gbg_kn"],
       regions: ["skane_lan"],
@@ -88,7 +88,7 @@ describe("setWatchFilterAction — the happy path", () => {
     });
 
     expect(result).toEqual({ success: true });
-    expect(revalidatePathMock).toHaveBeenCalledExactlyOnceWith("/foretag");
+    expect(revalidatePathMock).toHaveBeenCalledExactlyOnceWith("/foretag/bevakade");
   });
 
   it("passes BOTH axes to the fetcher unexpanded and uncrossed", async () => {
@@ -124,7 +124,7 @@ describe("setWatchFilterAction — the happy path", () => {
       regions: [],
       onlyMatched: false,
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/foretag");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/foretag/bevakade");
   });
 });
 
@@ -195,7 +195,7 @@ describe("setWatchFilterAction — the zod guard", () => {
 });
 
 describe("followCompanyAction / unfollowCompanyAction (#560 PR-C) — /foretag/sok revalidation", () => {
-  it("followCompanyAction ok → revalidates /jobb, /foretag AND /foretag/sok", async () => {
+  it("followCompanyAction ok → revalidates /jobb, /foretag/bevakade AND /foretag/sok", async () => {
     followCompanyMock.mockResolvedValue({ kind: "ok", data: { companyWatchId: "cw-1" } });
 
     const result = await followCompanyAction(ORG_NR);
@@ -204,18 +204,18 @@ describe("followCompanyAction / unfollowCompanyAction (#560 PR-C) — /foretag/s
     expect(followCompanyMock).toHaveBeenCalledExactlyOnceWith(ORG_NR);
     // The search results carry the follow overlay, so the follow surface must revalidate too (#560 PR-C).
     expect(revalidatePathMock).toHaveBeenCalledWith("/foretag/sok");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/foretag");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/foretag/bevakade");
     expect(revalidatePathMock).toHaveBeenCalledWith("/jobb");
   });
 
-  it("unfollowCompanyAction ok → revalidates /foretag + /foretag/sok, never /jobb (#141 modal pin)", async () => {
+  it("unfollowCompanyAction ok → revalidates /foretag/bevakade + /foretag/sok, never /jobb (#141 modal pin)", async () => {
     unfollowCompanyMock.mockResolvedValue({ kind: "ok", data: undefined });
 
     const result = await unfollowCompanyAction(WATCH_ID);
 
     expect(result).toEqual({ success: true });
     expect(unfollowCompanyMock).toHaveBeenCalledExactlyOnceWith(WATCH_ID);
-    expect(revalidatePathMock).toHaveBeenCalledWith("/foretag");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/foretag/bevakade");
     expect(revalidatePathMock).toHaveBeenCalledWith("/foretag/sok");
     // The job-ad modal toggle also unfollows through here; revalidating /jobb would re-suspend the
     // open intercepted modal to its dark scrim (the #141 trap). The toggle flips optimistically.
@@ -233,7 +233,7 @@ describe("followCompanyAction / unfollowCompanyAction (#560 PR-C) — /foretag/s
 });
 
 describe("followCompanyFromJobAdAction (#455) — the #141 modal-flash pin", () => {
-  it("ok → success + revalidates ONLY /foretag, never /jobb (the toggle lives in the /jobb/[id] modal)", async () => {
+  it("ok → success + revalidates ONLY /foretag/bevakade, never /jobb (the toggle lives in the /jobb/[id] modal)", async () => {
     followCompanyFromJobAdMock.mockResolvedValue({
       kind: "ok",
       data: { companyWatchId: "cw-9" },
@@ -244,8 +244,8 @@ describe("followCompanyFromJobAdAction (#455) — the #141 modal-flash pin", () 
     expect(result).toEqual({ success: true, companyWatchId: "cw-9" });
     expect(followCompanyFromJobAdMock).toHaveBeenCalledExactlyOnceWith("ad-1");
     // #141 trap: revalidating /jobb would re-suspend the open intercepted modal to its dark scrim
-    // mid-action. The toggle updates its own follow-state optimistically, so only /foretag revalidates.
-    expect(revalidatePathMock).toHaveBeenCalledExactlyOnceWith("/foretag");
+    // mid-action. The toggle updates its own follow-state optimistically, so only /foretag/bevakade revalidates.
+    expect(revalidatePathMock).toHaveBeenCalledExactlyOnceWith("/foretag/bevakade");
   });
 
   it("failure → no revalidate", async () => {

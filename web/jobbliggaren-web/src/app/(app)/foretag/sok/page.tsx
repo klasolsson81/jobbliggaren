@@ -9,6 +9,7 @@ import { ForetagSokOrgnr } from "@/components/company-criteria/foretag-sok-orgnr
 import { ForetagSokFollowAll } from "@/components/company-criteria/foretag-sok-follow-all";
 import { ForetagSokResults } from "@/components/company-criteria/foretag-sok-results";
 import { ForetagSokResultsSkeleton } from "@/components/company-criteria/foretag-sok-results-skeleton";
+import { ForetagSubnav } from "@/components/foretag/foretag-subnav";
 import {
   toStringList,
   parseNamn,
@@ -84,6 +85,7 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
       </section>
 
       <div className="jp-container jp-page">
+        <ForetagSubnav active="sok" />
         <ForetagSokFilters
           reference={reference}
           namn={namn}

@@ -3292,6 +3292,54 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
 }
 
+/* ── Sub-nav (S1 #996) — persistent horizontal wayfinding under the pagehero for
+   the /foretag surfaces (Bevakade företag · Sök företag · Smarta bevakningar ·
+   Ansökningshistorik). Deliberately DISTINCT from .jp-segment above: that is a
+   filled-pill toggle and is already reused inline inside the Bevakade view's
+   matching/all control, so the page-level sub-nav uses an underline-rail active
+   treatment to avoid a nested-segment clash. RSC-driven (<Link> + data-active +
+   aria-current, no client JS). Composes existing tokens only. On narrow viewports
+   the row scrolls horizontally rather than wrapping or truncating (#862). */
+.jp-subnav {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  border-bottom: 1px solid var(--jp-border);
+  margin-bottom: 24px;
+}
+.jp-subnav__item {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  min-height: 44px;
+  padding: 12px 16px;
+  margin-bottom: -1px;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-ink-2);
+  border-bottom: 2px solid transparent;
+  transition: color 80ms, border-color 80ms;
+}
+.jp-subnav__item:hover:not([data-active="true"]) {
+  color: var(--jp-ink-1);
+  border-bottom-color: var(--jp-border-strong);
+}
+.jp-subnav__item[data-active="true"] {
+  color: var(--jp-accent-700);
+  font-weight: var(--jp-fw-semibold);
+  border-bottom-color: var(--jp-accent-700);
+}
+.jp-subnav__item:focus-visible {
+  /* .jp-subnav is a scroll box (overflow-x:auto makes overflow-y compute to auto), which would clip
+     the global 2px / +2px-offset ring against its padding-box; inset the ring so it draws inside the
+     item, fully within the scroll box — parity with .jp-segment__opt:focus-visible above. */
+  outline-offset: -2px;
+}
+
 /* ── ToggleRow (switch-rad) — F6 Prompt 2 Inställningar ────
    Hela raden är klickbar via switch-button (rätt target-storlek).
    Switch = button med track (32px×18px) + thumb (14px) som skiftar

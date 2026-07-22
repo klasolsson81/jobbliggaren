@@ -79,7 +79,7 @@ interface JobAdDetailProps {
    * `getEmployerApplicationCounts` (#446). `undefined`/0 → renderas EJ (anonym/gäst, eller inga tidigare
    * ansökningar — POSITIVE-ONLY, paritet #446-kort-badgen). Till skillnad från /jobb-list-kortet (ETT
    * ytter-`<Link>` → nästlad länk ogiltig, B1/Fork 3C) har detaljvyn inget ytter-ankare, så den renderas
-   * som en `<Link>` till `/foretag#ansokningshistorik`. Rent heltal; INGET org.nr i text/attribut/URL
+   * som en `<Link>` till `/foretag/historik`. Rent heltal; INGET org.nr i text/attribut/URL
    * (CLAUDE.md §5 — enskild firma = personnummer).
    *
    * <para>#824 PR 4 — antalet är ett GOLV. Predikatet faller på FRÅNVARO av arbetsgivar-identitet
@@ -196,7 +196,7 @@ export function JobAdDetail({
                 (globals.css a:not(.jp-btn)) sätter bara color; text-body-sm ärver ingen understrykning
                 (till skillnad från .jp-muted a). Tailwind-utility, ingen globals.css-touch (hotspot). */}
             <Link
-              href="/foretag#ansokningshistorik"
+              href="/foretag/historik"
               className="underline underline-offset-2"
             >
               {tUi("detail.previousApplicationsLink")}

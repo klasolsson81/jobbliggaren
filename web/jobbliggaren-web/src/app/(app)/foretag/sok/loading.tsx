@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 import { ForetagSokResultsSkeleton } from "@/components/company-criteria/foretag-sok-results-skeleton";
+import { ForetagSubnav } from "@/components/foretag/foretag-subnav";
 
 /**
  * #560 PR-B — route-level loading UI for `/foretag/sok`, painted on the first cross-route navigation
@@ -19,6 +20,7 @@ export default function Loading() {
         </div>
       </section>
       <div className="jp-container jp-page">
+        <ForetagSubnav active="sok" />
         <ForetagSokResultsSkeleton />
       </div>
     </>

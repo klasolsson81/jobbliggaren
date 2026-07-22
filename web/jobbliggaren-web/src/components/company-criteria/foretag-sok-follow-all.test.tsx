@@ -86,7 +86,7 @@ describe("ForetagSokFollowAll", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Visa dina smarta bevakningar" })).toHaveAttribute(
       "href",
-      "/foretag",
+      "/foretag/smarta-bevakningar",
     );
   });
 

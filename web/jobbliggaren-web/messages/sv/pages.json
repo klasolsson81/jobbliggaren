@@ -226,12 +226,17 @@
     "loadErrorTitle": "Kunde inte ladda sparade annonser"
   },
   "foretag": {
-    "title": "Företag",
-    "lede": "Företag du bevakar och din ansökningshistorik per arbetsgivare.",
+    "subnav": {
+      "label": "Undernavigering för företag",
+      "bevakade": "Bevakade företag",
+      "sok": "Sök företag",
+      "smartaBevakningar": "Smarta bevakningar",
+      "historik": "Ansökningshistorik"
+    },
+    "loading": "Laddar…",
     "sok": {
       "title": "Sök företag",
       "lede": "Sök i företagsregistret på namn, bransch eller kommun.",
-      "hubLink": "Sök i företagsregistret",
       "filterHeading": "Filtrera sökningen",
       "nameLabel": "Företagsnamn",
       "nameHint": "Sök på början av företagets namn.",
@@ -282,6 +287,7 @@
     "watchesHeading": "Bevakade företag",
     "watchesLede": "Företag du bevakar. Nya annonser från dem visas här och på Översikt.",
     "historyHeading": "Ansökningshistorik",
+    "historyLede": "Dina ansökningar grupperade per arbetsgivare.",
     "loadErrorTitle": "Kunde inte ladda bevakade företag",
     "historyLoadErrorTitle": "Kunde inte ladda ansökningshistoriken",
     "criteria": {

@@ -3,16 +3,15 @@ import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getCompanyWatches, markFollowedAdsSeen } from "@/lib/api/company-follows";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
-import { CompanyLookup } from "@/components/company-follows/company-lookup";
 import { CompanyWatchList } from "@/components/company-follows/company-watch-list";
 import { ForetagPagehero } from "@/components/foretag/foretag-pagehero";
 import { ForetagSubnav } from "@/components/foretag/foretag-subnav";
 import { renderSection } from "@/components/foretag/foretag-section";
 
 /**
- * `/foretag/bevakade` (S1 #996) — the Bevakade företag surface: the followed-company list plus the
- * org.nr lookup that lets you follow a new company (incl. a 0-ad company the by-job-ad path cannot
- * reach). This is the default landing of the /foretag hub (Klas 2026-07-21, "Bevakade först"): the
+ * `/foretag/bevakade` (S1 #996) — the Bevakade företag surface: the followed-company list. (The org.nr
+ * follow-lookup was removed here per Klas live-review 2026-07-22 — company search lives under Sök
+ * företag; the follow-via-org.nr consolidation is S2 #997.) This is the default landing of the /foretag hub (Klas 2026-07-21, "Bevakade först"): the
  * `/foretag` root redirects here, and the /oversikt "nya annonser från bevakade företag"-notis links
  * here. It is its own NOTIFICATION surface — distinct from Smarta bevakningar (a browsing surface with
  * no per-company notices), ADR 0117.
@@ -47,16 +46,6 @@ export default async function BevakadeForetagPage() {
 
   const regions = taxonomyResult.kind === "ok" ? taxonomyResult.data.regions : [];
 
-  // #454 (ADR 0088, F1(a) — CTO-bind + Klas 2026-07-02): the registry-lookup card is FEATURE-DARK in
-  // prod until the real SCB adapter is switched on (a search box that always answers "not enabled" is a
-  // dead civic control). Explicit env wins ("true"/"false"); without env it follows the backend's
-  // provider gating — ON in development (Fake provider), OFF otherwise (Null provider). The activation
-  // PR lights prod via COMPANY_REGISTRY_ENABLED=true.
-  const registryEnabled =
-    process.env.COMPANY_REGISTRY_ENABLED === "true" ||
-    (process.env.COMPANY_REGISTRY_ENABLED !== "false" &&
-      process.env.NODE_ENV === "development");
-
   return (
     <>
       <ForetagPagehero
@@ -65,7 +54,6 @@ export default async function BevakadeForetagPage() {
       />
       <div className="jp-container jp-page">
         <ForetagSubnav active="bevakade" />
-        {registryEnabled && <CompanyLookup />}
         {renderSection(watchResult, t, t("foretag.loadErrorTitle"), (data) => (
           <CompanyWatchList items={data} regions={regions} />
         ))}

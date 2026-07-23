@@ -75,7 +75,7 @@ export function ForetagSokFollowAll({ namn, sni, kommun }: ForetagSokFollowAllPr
         setSaved(true);
         // Move focus to the (always-mounted) confirmation region so the keyboard user is not dropped
         // to <body> when the button unmounts, and the screen reader lands on the status (WCAG 2.4.3 /
-        // 4.1.3) — parity with ForetagSokOrgnr.
+        // 4.1.3) — parity with the unified search field's org.nr live-region (ForetagSokSearch).
         confirmRef.current?.focus();
       } else {
         setError(result.error);
@@ -112,7 +112,7 @@ export function ForetagSokFollowAll({ namn, sni, kommun }: ForetagSokFollowAllPr
         </>
       )}
 
-      {/* Persistent polite live-region (parity with ForetagSokOrgnr): always mounted so the
+      {/* Persistent polite live-region (parity with ForetagSokSearch): always mounted so the
           confirmation announces reliably, and it receives programmatic focus on success so a keyboard
           user keeps their place when the button unmounts. Empty (zero-height) until saved. */}
       <div ref={confirmRef} tabIndex={-1} aria-live="polite" className="outline-none">

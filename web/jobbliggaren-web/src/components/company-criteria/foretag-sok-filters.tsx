@@ -1,36 +1,38 @@
 "use client";
 
-// "use client": holds the DRAFT filter state (name string + two leaf-code Sets), composes the two
+// "use client": holds the DRAFT filter state (two SCB leaf-code Sets), composes the two
 // CriterionPickers, and commits the whole draft to the URL on submit. The URL is the source of truth
-// for the shareable table; org.nr is NOT here (it lives in the separate ForetagSokOrgnr island — D8(c)).
+// for the shareable table. The name prefix + org.nr both live in the unified `ForetagSokSearch` field
+// (#997); this box owns only the SNI/kommun axes and carries the active `namn` through unchanged so a
+// filter apply never erases the name search. (org.nr is never here or in the URL — D8(c).)
 
-import { useId, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { CriterionPicker } from "./criterion-picker";
 import type { CriterionTreeNode } from "./criterion-tree";
 import { toggleGroup } from "@/lib/company-criteria/criterion-selection";
-import {
-  buildForetagSokHref,
-  MAX_NAME_PREFIX_LENGTH,
-} from "@/lib/company-search/search-params";
+import { buildForetagSokHref } from "@/lib/company-search/search-params";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
 
 interface ForetagSokFiltersProps {
   /** The SCB reference tree the pickers render. An empty tree (degraded load) shows civil notices. */
   readonly reference: CriterionReference;
-  /** The active filter axes, parsed from the URL — the draft seeds from these. */
+  /** The active name prefix, parsed from the URL — carried through unchanged so a filter apply preserves it. */
   readonly namn: string;
+  /** The active filter axes, parsed from the URL — the draft seeds from these. */
   readonly sni: ReadonlyArray<string>;
   readonly kommun: ReadonlyArray<string>;
 }
 
 /**
- * #560 PR-B — the `/foretag/sok` filter panel: a name-prefix field + the two SCB pickers (branch, seat
- * kommun), reusing `CriterionPicker`/`CriterionTree` (ADR 0105/RF-4 — the SCB namespace, never the
- * JobTech ort cascade). Filters are applied on an explicit "Sök företag" (not on every checkbox toggle)
- * so a browse over 1.07M rows is not re-queried on each keystroke; the commit resets to page 1. A no-JS
- * `<form method="get">` degrades to a name search (hidden inputs preserve the current SNI/kommun).
+ * #560 PR-B / #997 (S2) — the `/foretag/sok` filter panel: the two SCB pickers (branch, seat kommun),
+ * reusing `CriterionPicker`/`CriterionTree` (ADR 0105/RF-4 — the SCB namespace, never the JobTech ort
+ * cascade). The name prefix moved to the unified `ForetagSokSearch` field (#997); this box carries the
+ * active `namn` through unchanged. Filters are applied on an explicit "Sök företag" (not on every
+ * checkbox toggle) so a browse over 1.07M rows is not re-queried on each keystroke; the commit resets to
+ * page 1. A no-JS `<form method="get">` degrades to applying the current filter (hidden inputs preserve
+ * the current name + SNI/kommun).
  */
 export function ForetagSokFilters({
   reference,
@@ -43,8 +45,6 @@ export function ForetagSokFilters({
   // dialog's — reuse its namespace rather than duplicate it (the picker also reads it internally).
   const tp = useTranslations("pages.foretag.criteria.dialog");
   const router = useRouter();
-  const nameId = useId();
-  const nameHintId = useId();
   const [isPending, startTransition] = useTransition();
 
   // Build the picker trees + flat leaf lists from the reference (parity with criterion-dialog.tsx).
@@ -98,8 +98,8 @@ export function ForetagSokFilters({
     [reference],
   );
 
-  // Draft state, seeded from the URL-parsed props.
-  const [nameDraft, setNameDraft] = useState(namn);
+  // Draft state, seeded from the URL-parsed props. The name prefix is NOT a draft here — it is owned by
+  // the unified search field; this box carries the active `namn` through unchanged on every commit.
   const [sniSelected, setSniSelected] = useState<ReadonlySet<string>>(
     () => new Set(sni),
   );
@@ -107,14 +107,13 @@ export function ForetagSokFilters({
     () => new Set(kommun),
   );
 
-  const hasFilter =
-    nameDraft.trim().length > 0 || sniSelected.size > 0 || kommunSelected.size > 0;
+  const hasFilter = sniSelected.size > 0 || kommunSelected.size > 0;
 
   function apply() {
     startTransition(() => {
       router.push(
         buildForetagSokHref({
-          namn: nameDraft,
+          namn,
           sni: [...sniSelected],
           kommun: [...kommunSelected],
         }),
@@ -128,10 +127,9 @@ export function ForetagSokFilters({
   }
 
   function onClear() {
-    setNameDraft("");
     setSniSelected(new Set());
     setKommunSelected(new Set());
-    startTransition(() => router.push(buildForetagSokHref({ namn: "", sni: [], kommun: [] })));
+    startTransition(() => router.push(buildForetagSokHref({ namn, sni: [], kommun: [] })));
   }
 
   return (
@@ -147,27 +145,10 @@ export function ForetagSokFilters({
         {t("filterHeading")}
       </h2>
 
-      <div className="jp-field max-w-xl">
-        <label htmlFor={nameId} className="jp-label">
-          {t("nameLabel")}
-        </label>
-        <input
-          id={nameId}
-          name="namn"
-          className="jp-input"
-          type="text"
-          autoComplete="off"
-          maxLength={MAX_NAME_PREFIX_LENGTH}
-          aria-describedby={nameHintId}
-          value={nameDraft}
-          onChange={(e) => setNameDraft(e.target.value)}
-        />
-        <span id={nameHintId} className="jp-hint">
-          {t("nameHint")}
-        </span>
-      </div>
-
-      {/* Preserve the current code axes for the no-JS submit path (ignored when JS handles onSubmit). */}
+      {/* Preserve the current name + code axes for the no-JS submit path (ignored when JS handles
+          onSubmit). The name is owned by the unified field but carried through so a filter apply never
+          erases it. */}
+      {namn.length > 0 && <input type="hidden" name="namn" value={namn} />}
       {sni.map((code) => (
         <input key={`sni-${code}`} type="hidden" name="sni" value={code} />
       ))}

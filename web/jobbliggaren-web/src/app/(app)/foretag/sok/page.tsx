@@ -4,8 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getCriterionReference } from "@/lib/api/company-criteria";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
-import { ForetagSokSearch } from "@/components/company-criteria/foretag-sok-search";
-import { ForetagSokFilters } from "@/components/company-criteria/foretag-sok-filters";
+import { ForetagSokSearchbar } from "@/components/company-criteria/foretag-sok-searchbar";
 import { ForetagSokFollowAll } from "@/components/company-criteria/foretag-sok-follow-all";
 import { ForetagSokResults } from "@/components/company-criteria/foretag-sok-results";
 import { ForetagSokResultsSkeleton } from "@/components/company-criteria/foretag-sok-results-skeleton";
@@ -35,10 +34,10 @@ interface PageProps {
  * #560 PR-B / #997 (S2) — the general company-register search (`/foretag/sok`), the /jobb architecture:
  * searchParams → typed state → a POST-as-read fetch → Suspense-streamed results. A surface of the
  * `/foretag` sub-nav (S1). The shareable axes (name prefix + SNI + kommun + page) live in the URL. The
- * name prefix and the org.nr lookup share ONE unified field (`ForetagSokSearch`, #997): a value that
- * normalises to 10 digits is an org.nr (client POST, refuse pnr locally, NEVER the URL — D8(c)); anything
- * else is a name prefix (URL-driven, shareable). Empty filters browse the whole register (Klas bind:
- * browse-all default).
+ * name prefix, the org.nr lookup, and the bransch/ort filters share ONE draft island
+ * (`ForetagSokSearchbar`, #997) with ONE submit: a field value that normalises to 10 digits is an org.nr
+ * (client POST, refuse pnr locally, NEVER the URL — D8(c)); anything else is a name prefix + bransch + ort
+ * committed to the URL together. Empty filters browse the whole register (Klas bind: browse-all default).
  *
  * Drop-unknown discipline (parity /jobb's matchGrades): unknown SNI/kommun codes in a manipulated URL
  * are filtered against the SCB reference leaf-set rather than 400-ing the query. A degraded reference
@@ -87,11 +86,14 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
 
       <div className="jp-container jp-page">
         <ForetagSubnav active="sok" />
-        {/* #997 (S2) — ONE unified field: a company name (URL-driven, shareable) OR an org.nr (client
-            POST, refuse pnr locally, never the URL — D8(c)). The org.nr result carries a Bevaka. */}
-        <ForetagSokSearch namn={namn} sni={sni} kommun={kommun} />
-        <ForetagSokFilters
+        {/* #997 (S2) — ONE shared-draft search island: a company name OR an org.nr in the unified field
+            (org.nr → client POST, refuse pnr locally, never the URL — D8(c); its result carries a Bevaka),
+            plus the single-select bransch typeahead + the multi-select ort cascade. One submit commits
+            name + bransch + ort together (no silent draft drop — the former two-island split could drop
+            an edit). Replaces the former ForetagSokSearch + ForetagSokFilters. */}
+        <ForetagSokSearchbar
           reference={reference}
+          referenceOk={referenceOk}
           namn={namn}
           sni={sni}
           kommun={kommun}

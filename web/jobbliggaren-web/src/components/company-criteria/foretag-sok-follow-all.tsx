@@ -2,7 +2,7 @@
 
 // "use client": the CTA holds a useTransition around the create action plus a saved/error result
 // state, none of which runs in a Server Component. It acts on the ACTIVE (URL-applied) filter passed
-// as props — never the draft in ForetagSokFilters — so "follow all matches" always means what is on
+// as props — never the searchbar's unapplied draft — so "follow all matches" always means what is on
 // screen. The page keys this component on the filter signature, so a filter change remounts it and
 // clears any prior saved/error state.
 
@@ -75,7 +75,7 @@ export function ForetagSokFollowAll({ namn, sni, kommun }: ForetagSokFollowAllPr
         setSaved(true);
         // Move focus to the (always-mounted) confirmation region so the keyboard user is not dropped
         // to <body> when the button unmounts, and the screen reader lands on the status (WCAG 2.4.3 /
-        // 4.1.3) — parity with the unified search field's org.nr live-region (ForetagSokSearch).
+        // 4.1.3) — parity with the searchbar's org.nr live-region (ForetagSokSearchbar).
         confirmRef.current?.focus();
       } else {
         setError(result.error);
@@ -112,7 +112,7 @@ export function ForetagSokFollowAll({ namn, sni, kommun }: ForetagSokFollowAllPr
         </>
       )}
 
-      {/* Persistent polite live-region (parity with ForetagSokSearch): always mounted so the
+      {/* Persistent polite live-region (parity with ForetagSokSearchbar): always mounted so the
           confirmation announces reliably, and it receives programmatic focus on success so a keyboard
           user keeps their place when the button unmounts. Empty (zero-height) until saved. */}
       <div ref={confirmRef} tabIndex={-1} aria-live="polite" className="outline-none">

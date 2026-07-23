@@ -1,6 +1,6 @@
 /**
  * Client-side org.nr input normalisers — the FE mirror of the backend `OrganizationNumber` value object.
- * Shared by the unified `/foretag/sok` search field (`ForetagSokSearch`) and the `/api/foretag/sok` BFF
+ * Shared by the unified `/foretag/sok` search island (`ForetagSokSearchbar`) and the `/api/foretag/sok` BFF
  * route: they decide whether a typed value is an org.nr (10 digits) and whether it is personnummer-shaped
  * (the highest-priority guard). No wire schema lives here — the #454 lookup DTO was retired with the
  * lookup surface (#997); the org.nr search result shape is `orgNrSearchResultSchema` in `company-search.ts`.

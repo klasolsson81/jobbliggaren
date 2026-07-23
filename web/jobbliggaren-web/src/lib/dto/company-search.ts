@@ -25,6 +25,22 @@ export const companySearchResponseSchema = z.object({
 export type CompanySearchResponse = z.infer<typeof companySearchResponseSchema>;
 
 /**
+ * #997 (S2) — the org.nr branch of the unified `/foretag/sok` search field. The BFF (`/api/foretag/sok`)
+ * looks up the single register row by org.nr (0/1) and, for an unmasked legal entity, composes the
+ * user's own follow-state (`companyWatchId`, or null when not followed) from the SAME org.nr-keyed
+ * overlay the streamed result rows use (`getCompanyWatchStatusByOrgNr`) — never a server-side join
+ * against the register (DPIA C-D4/M-C5). `null` = no company with that org.nr. The org.nr never enters
+ * a URL (ADR 0087 D8(c)); this shape is client-parsed from the POST body only.
+ */
+export const orgNrSearchResultSchema = z
+  .object({
+    company: companyBrowseSchema,
+    companyWatchId: z.string().nullable(),
+  })
+  .nullable();
+export type OrgNrSearchResult = z.infer<typeof orgNrSearchResultSchema>;
+
+/**
  * The URL-driven search criteria the RSC page sends to the backend as a POST-as-read body. It carries
  * the three SHAREABLE axes (name prefix + SNI + kommun) and pagination — and, deliberately, NO
  * `organizationNumber` field. org.nr never enters this type: a sole-prop org.nr can equal a

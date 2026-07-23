@@ -6925,16 +6925,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
 }
 
-/* Signpost-/nudgelänk (accent, semibold, underline) — var 4 inline-kopior:
-   match-sektionens CTA:er + company-lookup/company-watch-row. */
+/* Signpost-/nudgelänk (accent, semibold, underline) — återanvänds av
+   match-sektionens CTA:er + company-watch-row m.fl. */
 .jp-nudgelink {
   color: var(--jp-accent-700);
   font-weight: var(--jp-fw-semibold);
   text-decoration: underline;
 }
 
-/* Matchrad under företagsnamn — var 2 inline-kopior (company-lookup +
-   company-watch-row, "SPOT"-kommentaren fanns redan i TSX). */
+/* Matchrad under företagsnamn — återanvänds av company-watch-row
+   ("SPOT"-kommentaren fanns redan i TSX). */
 .jp-matchline {
   margin: 6px 0 0;
   font-size: var(--text-ui);

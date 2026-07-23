@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  companyLookupSchema,
   isPersonnummerShapedOrgNr,
   normalizeOrgNrInput,
 } from "./company-registry";
@@ -34,34 +33,5 @@ describe("isPersonnummerShapedOrgNr (#454 — FE-spegel av backend-heuristiken)"
   it("fail-safe: oväntad form behandlas som känslig", () => {
     expect(isPersonnummerShapedOrgNr("")).toBe(true);
     expect(isPersonnummerShapedOrgNr("abc")).toBe(true);
-  });
-});
-
-describe("companyLookupSchema (#454 — wire-kontraktet)", () => {
-  it("parsar found-shapen", () => {
-    const parsed = companyLookupSchema.safeParse({
-      status: "found",
-      organizationNumber: "5560125790",
-      isProtectedIdentity: false,
-      companyName: "Volvo Aktiebolag",
-      activeAdCount: 0,
-      matchingAdCount: null,
-      companyWatchId: null,
-    });
-    expect(parsed.success).toBe(true);
-  });
-
-  it("parsar notFound/unavailable-shaperna och avvisar okänd status", () => {
-    const empty = {
-      organizationNumber: null,
-      isProtectedIdentity: false,
-      companyName: null,
-      activeAdCount: 0,
-      matchingAdCount: null,
-      companyWatchId: null,
-    };
-    expect(companyLookupSchema.safeParse({ ...empty, status: "notFound" }).success).toBe(true);
-    expect(companyLookupSchema.safeParse({ ...empty, status: "unavailable" }).success).toBe(true);
-    expect(companyLookupSchema.safeParse({ ...empty, status: "nope" }).success).toBe(false);
   });
 });

@@ -124,7 +124,7 @@ describe("ForetagSokSearchbar — one shared draft, one submit", () => {
     );
 
     // Edit the name field too.
-    await user.type(screen.getByLabelText("Sök företag"), "Volvo");
+    await user.type(screen.getByLabelText("Företagsnamn eller organisationsnummer"), "Volvo");
 
     // ONE submit carries all three axes together.
     await user.click(screen.getByRole("button", { name: "Sök företag" }));
@@ -276,7 +276,7 @@ describe("ForetagSokSearchbar — unified name/org.nr field", () => {
     renderBar();
     const user = userEvent.setup();
 
-    await user.type(screen.getByLabelText("Sök företag"), "Volvo");
+    await user.type(screen.getByLabelText("Företagsnamn eller organisationsnummer"), "Volvo");
     await user.click(screen.getByRole("button", { name: "Sök företag" }));
 
     expect(push).toHaveBeenCalledWith(
@@ -291,7 +291,7 @@ describe("ForetagSokSearchbar — unified name/org.nr field", () => {
     renderBar();
     const user = userEvent.setup();
 
-    await user.type(screen.getByLabelText("Sök företag"), PNR_SHAPED);
+    await user.type(screen.getByLabelText("Företagsnamn eller organisationsnummer"), PNR_SHAPED);
     await user.click(screen.getByRole("button", { name: "Sök företag" }));
 
     expect(
@@ -310,7 +310,7 @@ describe("ForetagSokSearchbar — unified name/org.nr field", () => {
     renderBar();
     const user = userEvent.setup();
 
-    await user.type(screen.getByLabelText("Sök företag"), VALID_ORGNR);
+    await user.type(screen.getByLabelText("Företagsnamn eller organisationsnummer"), VALID_ORGNR);
     await user.click(screen.getByRole("button", { name: "Sök företag" }));
 
     expect(await screen.findByText("Volvo AB")).toBeInTheDocument();
@@ -330,7 +330,7 @@ describe("ForetagSokSearchbar — unified name/org.nr field", () => {
     renderBar({ sni: ["62020"], kommun: ["0180"] });
     const user = userEvent.setup();
 
-    await user.type(screen.getByLabelText("Sök företag"), VALID_ORGNR);
+    await user.type(screen.getByLabelText("Företagsnamn eller organisationsnummer"), VALID_ORGNR);
     await user.click(screen.getByRole("button", { name: "Sök företag" }));
 
     await screen.findByText("Volvo AB");
@@ -349,7 +349,7 @@ describe("ForetagSokSearchbar — unified name/org.nr field", () => {
     renderBar();
     const user = userEvent.setup();
 
-    await user.type(screen.getByLabelText("Sök företag"), VALID_ORGNR);
+    await user.type(screen.getByLabelText("Företagsnamn eller organisationsnummer"), VALID_ORGNR);
     await user.click(screen.getByRole("button", { name: "Sök företag" }));
 
     const bevaka = await screen.findByRole("button", { name: "Bevaka Volvo AB" });
@@ -364,12 +364,46 @@ describe("ForetagSokSearchbar — unified name/org.nr field", () => {
     renderBar();
     const user = userEvent.setup();
 
-    await user.type(screen.getByLabelText("Sök företag"), VALID_ORGNR);
+    await user.type(screen.getByLabelText("Företagsnamn eller organisationsnummer"), VALID_ORGNR);
     await user.click(screen.getByRole("button", { name: "Sök företag" }));
 
     expect(
       await screen.findByText("Inget företag med det numret"),
     ).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a concrete retry time on 429 (Retry-After → seconds in copy)", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(null, { status: 429, headers: { "Retry-After": "30" } }),
+    );
+    renderBar();
+    const user = userEvent.setup();
+
+    await user.type(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+      VALID_ORGNR,
+    );
+    await user.click(screen.getByRole("button", { name: "Sök företag" }));
+
+    expect(await screen.findByText(/Vänta 30 sekunder/i)).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("renders the technical-error state on a non-ok backend response", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 502 }));
+    renderBar();
+    const user = userEvent.setup();
+
+    await user.type(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+      VALID_ORGNR,
+    );
+    await user.click(screen.getByRole("button", { name: "Sök företag" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /Sökningen kunde inte genomföras/i,
+    );
     expect(push).not.toHaveBeenCalled();
   });
 });
@@ -395,7 +429,7 @@ describe("ForetagSokSearchbar — degraded reference", () => {
     ).toBeInTheDocument();
 
     // The reference-free name field keeps working.
-    await user.type(screen.getByLabelText("Sök företag"), "Acme");
+    await user.type(screen.getByLabelText("Företagsnamn eller organisationsnummer"), "Acme");
     await user.click(screen.getByRole("button", { name: "Sök företag" }));
     expect(push).toHaveBeenCalledWith(
       buildForetagSokHref({ namn: "Acme", sni: [], kommun: [] }),

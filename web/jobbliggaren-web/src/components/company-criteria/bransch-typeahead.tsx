@@ -152,7 +152,9 @@ export function BranschTypeahead({
         className="jp-input"
         role="combobox"
         aria-expanded={showList}
-        aria-controls={listId}
+        // Only reference the listbox while it is actually rendered — a dangling aria-controls to an
+        // absent id is an ARIA 1.2 nit some AT surface.
+        aria-controls={showList ? listId : undefined}
         aria-autocomplete="list"
         aria-activedescendant={
           showList && active >= 0 ? optionId(active) : undefined
@@ -171,6 +173,7 @@ export function BranschTypeahead({
 
       {showNoMatch && (
         <p
+          role="status"
           className="absolute top-full left-0 z-10 mt-1 w-full rounded-md border border-border bg-surface-primary px-3 py-2 text-body-sm text-text-primary"
           style={{ boxShadow: "var(--jp-shadow-pop)" }}
         >

@@ -237,8 +237,8 @@
     "sok": {
       "title": "Sök företag",
       "lede": "Sök i företagsregistret på namn, bransch eller kommun.",
-      "searchLabel": "Sök företag",
-      "searchHint": "Sök på namn eller organisationsnummer (10 siffror).",
+      "searchLabel": "Företagsnamn eller organisationsnummer",
+      "searchHint": "Tio siffror tolkas som organisationsnummer, annars söks företagsnamn.",
       "searchSubmit": "Sök företag",
       "branschLabel": "Bransch",
       "branschHint": "Skriv och välj en bransch.",

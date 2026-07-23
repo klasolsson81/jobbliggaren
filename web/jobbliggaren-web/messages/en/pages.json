@@ -237,8 +237,8 @@
     "sok": {
       "title": "Search companies",
       "lede": "Search the company register by name, industry or municipality.",
-      "searchLabel": "Search companies",
-      "searchHint": "Search by name or organisation number (10 digits).",
+      "searchLabel": "Company name or organisation number",
+      "searchHint": "Ten digits are treated as an organisation number, otherwise the company name is searched.",
       "searchSubmit": "Search companies",
       "branschLabel": "Industry",
       "branschHint": "Type and choose an industry.",

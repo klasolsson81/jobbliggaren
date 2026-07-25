@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.RecentJobSearches.Abstractions;
 using Jobbliggaren.Application.RecentJobSearches.Common;
+using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.SavedSearches;
 using Mediator;
 using Microsoft.Extensions.Logging;
@@ -96,11 +97,36 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         // Deliberately NOT `ResidualQ` itself: it also collapses internal whitespace, while
         // SearchCriteria.NormalizeString only trims — passing it would change FilterHash for
         // searches that already captured fine, i.e. the dedupe semantics of persisted rows.
-        // That is a different change-reason and belongs in its own PR. This form is strictly
-        // additive: for any q the parser keeps, the captured value is byte-identical to
-        // before; only the previously-unreachable sub-minimum case changes, and it changes
-        // from "silent no-capture" to "capture what actually ran".
+        // That is a different change-reason and belongs in its own PR.
+        //
+        // For any q the parser KEEPS, the captured value is byte-identical to before — that is
+        // by construction, since `effectiveQ` is then `capt.Q` itself. The class that does
+        // change is the one the parser DROPS but Create used to accept: invisible stuffing such
+        // as a letter followed by U+200B ZERO WIDTH SPACE, where `char.IsWhiteSpace` is false
+        // so NormalizeString's Trim keeps it
+        // at length 2 while the parser strips the Cf rune and nulls the 1-char residual. Those
+        // rows now capture as q = null (with a dimension) or not at all (without one) — both
+        // the honest outcome, since a nulled q is what the search ran on. That class was never
+        // unreachable: raw length 2 passed the old MinimumLength too, which is the same leak
+        // that justifies removing the minimum in the first place.
         var effectiveQ = parser.Parse(capt.Q).ResidualQ is null ? null : capt.Q;
+
+        // #831 review round 2 — `Create` has THREE q-dependent invariants, not two. Beyond the
+        // Empty guard and the min-length rule there is RelevanceRequiresQ
+        // (`SearchCriteria.cs:214`): Relevance with a null q is rejected. So
+        // `?q=a&sortBy=Relevance&occupationGroup=X&commit=true` reproduced the very defect
+        // `effectiveQ` was added to fix — 200 with the dimension applied, then a silent
+        // no-capture one character later.
+        //
+        // Same principle, same answer: capture the sort that actually RAN. With a nulled
+        // residual `ApplyRelevanceSort` falls back to PublishedAt desc, so that is what the
+        // user got. This is not a new convention — `ListJobAdsSortExtensions.ToDomainSort`
+        // already maps MatchDesc to PublishedAtDesc for this exact seam, and documents it as
+        // "den honesta fallbacken ... det värde som recent-search-hashen lagrar" for a sort
+        // with no anonymous persistable meaning. Relevance-without-residual is that same case.
+        var effectiveSortBy = capt.SortBy == JobAdSortBy.Relevance && effectiveQ is null
+            ? JobAdSortBy.PublishedAtDesc
+            : capt.SortBy;
 
         if (string.IsNullOrWhiteSpace(effectiveQ) && occupationGroupCount == 0
             && municipalityCount == 0 && regionCount == 0
@@ -121,15 +147,18 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
                 employer: capt.Employer ?? [],
                 remote: capt.Remote,
                 q: effectiveQ,
-                sortBy: capt.SortBy);
+                sortBy: effectiveSortBy);
 
-            // Andra valideringsfel speglar query-validator-brott och bör inte
-            // rendera capture. #831 truth-sync: parentesen sa tidigare "queryn bör då ha
-            // failat i ValidationBehavior" — det är INTE längre sant för q-minimum, som
-            // validatorerna slutade avvisa. Den vägen är i stället stängd uppströms: `q`
-            // som når Create är `effectiveQ`, alltså redan nollad när parsern nollade den,
-            // så Create kan inte längre falla på sin min-invariant för en fråga som kördes.
-            // Kvarvarande failures speglar äkta validator-brott (fortsatt: capture:a inte).
+            // #831 truth-sync (rond 2). Parentesen sa tidigare "queryn bör då ha failat i
+            // ValidationBehavior". Det är INTE längre sant generellt — validatorerna slutade
+            // avvisa q-minimum. Alla TRE q-beroende invarianterna i Create är i stället
+            // stängda UPPSTRÖMS av `effectiveQ`/`effectiveSortBy`: Empty-guarden ovan,
+            // min-längden (q redan nollat när parsern nollade det) och RelevanceRequiresQ
+            // (sorten redan nedgraderad när residualen är null). Grenen är därmed ren
+            // defense-in-depth mot en FRAMTIDA q-beroende invariant i Create som inte hålls i
+            // lockstep här — vilket är precis den defekt rond 1 och rond 2 hittade en gång var.
+            // Inget test når den i dag, medvetet: att konstruera ett hade krävt ett input som
+            // passerar validatorn OCH failar Create, dvs. exakt den lucka som ska vara stängd.
             if (criteriaResult.IsFailure)
                 return response;
 

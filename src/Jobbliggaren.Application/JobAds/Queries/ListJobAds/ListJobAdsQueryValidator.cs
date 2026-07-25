@@ -105,7 +105,8 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
 
         // #831 — the q MinLength rule is GONE. The parser, not the validator, owns the
         // minimum: `SearchQueryParser` nulls a residual below QMinLength and runs on the
-        // dimensions instead (`SearchQueryParser.cs:77-78`), and this handler feeds it every
+        // dimensions instead (its `sb.Length < QMinLength` branch — referenced by symbol, not
+        // line: the line moved once already), and this handler feeds it every
         // q (`parser.Parse(query.Q).ResidualQ`). Two rules for one input meant a bookmarked
         // `/jobb?q=a` 400'd on one path and degraded on the other; the parser wins because a
         // GET list query should degrade, not refuse.
@@ -116,10 +117,10 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
         // 100 — not a near-full-table scan. The guard was also leaky, which is the stronger
         // reason: it measured RAW q while the parser normalises first (strips Cc/Cf,
         // collapses whitespace) and only then compares, so `?q=a<ZWSP>` passed the validator
-        // and got nulled anyway. A bound one invisible character defeats protects nothing.
+        // and got nulled anyway. A bound that one invisible character defeats protects nothing.
         //
-        // MaxLength(100) STAYS and is the load-bearing half: `SearchQueryParser.cs:47`
-        // allocates a StringBuilder(raw.Length) and enumerates every rune BEFORE truncating,
+        // MaxLength STAYS and is the load-bearing half: SearchQueryParser's
+        // `new StringBuilder(raw.Length)` allocation enumerates every rune BEFORE truncating,
         // so the max is the only pre-work resource bound. Same shape SearchSkillsQueryValidator
         // already chose (max only, never a 400 mid-typing). Refererar Domain-konstanten
         // (single source) — speglar MaxConceptIds-mönstret ovan.

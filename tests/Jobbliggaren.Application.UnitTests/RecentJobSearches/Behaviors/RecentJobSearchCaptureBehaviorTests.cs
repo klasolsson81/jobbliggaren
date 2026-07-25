@@ -453,6 +453,58 @@ public class RecentJobSearchCaptureBehaviorTests
     }
 
     [Fact]
+    public async Task Handle_SubMinimumQWithRelevanceSort_CapturesTheSortThatActuallyRan()
+    {
+        // #831 rond 2 — SearchCriteria.Create har TRE q-beroende invarianter, inte två.
+        // Utöver Empty-guarden och min-längden finns RelevanceRequiresQ: Relevance med
+        // null-q avvisas. `?q=a&sortBy=Relevance&occupationGroup=grp1&commit=true` gav
+        // därför exakt samma tysta capture-förlust som fixen ovan skulle stänga — 200 med
+        // dimensionen applicerad, sedan borta ur "Senaste sökningar" ett tecken senare.
+        //
+        // Samma princip igen: capture:a det som KÖRDES. Med nollad residual faller
+        // ApplyRelevanceSort tillbaka på PublishedAt desc, så det är vad användaren fick.
+        // Asserterar sorten OCH att dimensionen överlever — en anropsräkning hade passerat
+        // även om Relevance lagrats och nästa reconcile ljugit om vad sökningen var.
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(
+                _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
+            Q: "a", OccupationGroup: ["grp1"], Municipality: null, Region: null,
+            SortBy: JobAdSortBy.Relevance));
+
+        await _capturer.Received(1).CaptureAsync(
+            _userId, Arg.Any<SearchCriteria>(), 7, Arg.Any<CancellationToken>());
+        captured.ShouldNotBeNull();
+        captured.Q.ShouldBeNull();
+        captured.SortBy.ShouldBe(JobAdSortBy.PublishedAtDesc);
+        captured.OccupationGroup.ShouldBe(["grp1"]);
+    }
+
+    [Fact]
+    public async Task Handle_RelevanceSortWithKeptQ_CapturesRelevanceUnchanged()
+    {
+        // Motprov till testet ovan: nedgraderingen får bara träffa den nollade residualen.
+        // Utan det här testet hade `effectiveSortBy` kunnat nedgradera ALLA relevans-
+        // sökningar och den enda assertionen som fanns hade fortfarande varit grön.
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(
+                _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
+            Q: "backend", OccupationGroup: null, Municipality: null, Region: null,
+            SortBy: JobAdSortBy.Relevance));
+
+        captured.ShouldNotBeNull();
+        captured.Q.ShouldBe("backend");
+        captured.SortBy.ShouldBe(JobAdSortBy.Relevance);
+    }
+
+    [Fact]
     public async Task Handle_WhenCapturerThrows_ResponseStillReturned()
     {
         // Capture-fel får ALDRIG bryta sök-queryn (500 på söksidan oacceptabelt).

@@ -87,7 +87,13 @@ public class CvConventionsLoaderTests
             () => CvConventionsLoader.LoadFrom(
                 Mutated("[\"contact\", \"experience\", \"education\"]", "[]")));
 
-        ex.Message.ShouldContain("sectionOrder");
+        // The guard's OWN phrase, not the shared word: with an empty order and coreSections
+        // ["contact"], removing this guard still throws — via the containment check, whose message
+        // reads "Kärnsektionen 'contact' saknas I sectionOrder" and would satisfy a bare
+        // ShouldContain("sectionOrder"). The test would then stay green while the guard it names is
+        // gone. (The shipped GUARANTEE survives either way; it is the MEASUREMENT that was wrong,
+        // which is the same over-claim class this round exists to remove — re-review 2026-07-25.)
+        ex.Message.ShouldContain("saknar sectionOrder");
     }
 
     [Fact]

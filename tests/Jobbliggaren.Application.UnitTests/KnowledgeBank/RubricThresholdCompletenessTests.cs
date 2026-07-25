@@ -20,7 +20,7 @@ public class RubricThresholdCompletenessTests
     // RubricThresholdKeys constants, never inline strings (§5). Pinned BOTH ways: a missing key
     // would fail the live engine (fail-loud), an extra/renamed key is a silent data drift — both
     // fail here. Mirrors the rule reads: ContentRules (A1/A2/A4/A6/A7/A8/A9), StructureRules
-    // (B2/B6), LanguageRules (C2/C3/C6/C7), AtsRules (D9), VisualRules (E2). C7 (Stavning
+    // (B1/B2/B6), LanguageRules (C2/C3/C6/C7), AtsRules (D9), VisualRules (E2). C7 (Stavning
     // maskinell kontroll) joined in Fas 4b PR-6a (#655); B2 (sidantal) / D9 (filstorlek) /
     // E2 (whitespace) joined in Fas 4b PR-6b — geometry thresholds from ICvLayoutAnalyzer.
     private static readonly Dictionary<string, string[]> RequiredKeysByCriterion =
@@ -33,9 +33,11 @@ public class RubricThresholdCompletenessTests
             ["A7"] = [RubricThresholdKeys.PassBelowCount, RubricThresholdKeys.FailFromCount],
             ["A8"] = [RubricThresholdKeys.MaxWords],
             ["A9"] = [RubricThresholdKeys.FailFromCount],
-            // Fas 4b #890: B1's Fail arm ("kreativ ordning som döljer kärninfo"). WHICH sections are
-            // core is a cv-conventions RECOMMENDATION; how many displacing sections turn Warn into
-            // Fail is the threshold, and it lives here (ADR 0108 kind-boundary).
+            // Fas 4b #890: B1's Fail arm. WHICH sections are core is a cv-conventions RECOMMENDATION;
+            // how many sections may PRECEDE the first core section before Warn becomes Fail is the
+            // threshold, and it lives here (ADR 0108 kind-boundary). NOTE the wording: the retired
+            // first definition counted "displacing" sections, and leaving that word here would leave
+            // the rejected measure described in the identifiers of its replacement.
             ["B1"] = [RubricThresholdKeys.CoreLeadInFailAtLeast],
             ["B2"] = [RubricThresholdKeys.MaxPages],
             ["B6"] = [RubricThresholdKeys.MaxDistinctDateFormats],

@@ -88,6 +88,13 @@ internal static class SectionOrderAnalyzer
     /// lead-in computed over an incomplete core set can only ever OVER-count, and the bias is unbounded
     /// on a section-rich CV. Refusing is the honest answer; the criterion still Warns on deviation.</para>
     ///
+    /// <para><b>The known, accepted false positive, named rather than left to be discovered:</b> a CV
+    /// whose contact block sits unheaded at the top AND that also carries a headed "Kontakt" section
+    /// far down (a repeated contact block, or a "Kontakta mig"-style footer) measures a long lead-in,
+    /// because the measure can only see headings. The core set is complete, so the precondition does
+    /// not save it. It is rare, it is bounded, and it produces a Fail on a document that is arguably
+    /// fine — so it is written here instead of being met as a surprise.</para>
+    ///
     /// <para><b>The measure lives here; the threshold does not.</b> This analyzer is shared with
     /// <c>SectionReorderTransform</c> — that sharing is the class's entire thesis — and the improvement
     /// engine has no business holding a review threshold. So the count is computed here and
@@ -221,25 +228,8 @@ internal static class SectionOrderAnalyzer
     /// The section's position in the recommended order; <see cref="int.MaxValue"/> when the
     /// convention does not name it (a free section — it sorts after the named ones, stably).
     /// </summary>
-    private static int RankOf(ObservedSection section, CvConventions conventions)
-    {
-        for (var i = 0; i < conventions.SectionOrder.Count; i++)
-        {
-            var entry = conventions.SectionOrder[i];
-
-            var isMatch = section.TypedKind is not null
-                ? entry.TypedKind == section.TypedKind
-                : entry.TypedKind is null
-                    && string.Equals(entry.SectionId, section.FreeId, StringComparison.Ordinal);
-
-            if (isMatch)
-            {
-                return i;
-            }
-        }
-
-        return int.MaxValue;
-    }
+    private static int RankOf(ObservedSection section, CvConventions conventions) =>
+        TryResolveEntry(section, conventions, out var index) ? index : int.MaxValue;
 }
 
 /// <summary>

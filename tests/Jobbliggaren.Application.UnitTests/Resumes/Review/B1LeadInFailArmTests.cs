@@ -100,8 +100,9 @@ public class B1LeadInFailArmTests
     /// unheaded, which is the common Swedish top-of-page form. The core set is then incomplete and the
     /// measure must refuse.</summary>
     private const string ContactLastUnheaded =
-        "Profil\nErfaren utvecklare.\nKompetenser\nC#, SQL\nSpråk\nSvenska\nIntressen\nLöpning\n"
-        + "Arbetslivserfarenhet\nUtvecklare, Acme AB, 2021–2024\nUtbildning\nKTH, 2016–2021";
+        "Anna Andersson\nanna@example.se\nProfil\nErfaren utvecklare.\nKompetenser\nC#, SQL\n"
+        + "Språk\nSvenska\nIntressen\nLöpning\nArbetslivserfarenhet\nUtvecklare, Acme AB, 2021–2024\n"
+        + "Utbildning\nKTH, 2016–2021";
 
     [Theory]
     [InlineData(RecommendedOrder, CriterionVerdict.Pass)]
@@ -135,7 +136,9 @@ public class B1LeadInFailArmTests
         // incomplete, so a lead-in would count sections that may well sit BELOW an unlocated core
         // section: it can only over-count, and the bias is unbounded on a rich CV. Refusing is the
         // honest answer, and the criterion still Warns on the deviation it CAN see.
-        (await B1Async(Resume(rawText: ContactLastUnheaded))).Verdict.ShouldNotBe(CriterionVerdict.Fail);
+        // The exact verdict, not "not Fail": the CV still deviates, so Warn is the answer, and a rule
+        // that silently stopped assessing (NotAssessed) would pass a ShouldNotBe.
+        (await B1Async(Resume(rawText: ContactLastUnheaded))).Verdict.ShouldBe(CriterionVerdict.Warn);
     }
 
     [Fact]
@@ -223,7 +226,7 @@ public class B1LeadInFailArmTests
             + "Utbildning\nKTH, 2016–2021\nKompetenser\nC#\nSpråk\nSvenska\nIntressen\nLöpning\n"
             + "Profil\nErfaren utvecklare."));
 
-        b1.Verdict.ShouldNotBe(CriterionVerdict.Fail);
+        b1.Verdict.ShouldBe(CriterionVerdict.Warn);
     }
 
     /// <summary>The shipped rubric with ONLY B1's lead-in threshold rewritten, loaded through the real

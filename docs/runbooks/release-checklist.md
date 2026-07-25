@@ -110,6 +110,59 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
 
 ---
 
+## 2.6 HÅRD GRIND: integritetspolicyns "planerat"-formuleringar (#852)
+
+> Gäller **den första `v*`-taggen till prod** (och varje senare release som
+> aktiverar en behandling policyn ännu beskriver som planerad). Detta är en
+> **aktiverings**-händelse, inte en copy-händelse — därför bor den här och inte i
+> en PR.
+>
+> **Läget idag är korrekt, inte trasigt.** Policyn beskriver ansökningshistorik/
+> företagsöversikt, SCB-uppslag, Hetzner och Cloudflare som *"planerat och ännu
+> inte i drift"*. Koden är skeppad till dev, men det finns ingen prod-deploy och
+> inga registrerade — policyn styr den *driftsatta* tjänsten, och om den påstod
+> drift nu hade den varit falsk i motsatt riktning. **Flippa alltså aldrig i
+> förväg.** I samma sekund en `v*`-tagg går till prod blir meningarna falska, och
+> en behandling som körs under en policy som förnekar att den körs är enligt
+> ADR 0090 D3 *"unlawful-by-transparency-defect until the policy is honest"*
+> (Art. 12/13). Konsekvensen är juridisk, inte kosmetisk.
+>
+> **Samma grind och samma ögonblick som #842** (Art. 17-raderingen) — checka av
+> båda i samma cutover.
+
+- [ ] **1. Inventera** — `grep -c "planerat och ännu inte i drift"
+      web/jobbliggaren-web/messages/sv/content-legal.json` och
+      `grep -c "This is planned and not yet in operation."
+      web/jobbliggaren-web/messages/en/content-legal.json`. Vid 2026-07-25:
+      **6 + 6**. Alla 12 måste bedömas — en behandling i taget, inte som klump:
+      ansökningshistorik/företagsöversikt och SCB-uppslaget aktiveras av *koden*,
+      medan Hetzner och Cloudflare aktiveras av *deployen*.
+- [ ] **2. Flippa BARA det releasen faktiskt aktiverar.** Kvarstående "planerat"-
+      meningar för behandlingar som fortfarande inte är i drift ska stå kvar.
+      Släpper releasen ingen av dem är rätt utfall att inte ändra något.
+- [ ] **3. Paritet sv + en** — båda språken i samma ändring (`privacy.sections`
+      Art. 13-kategorilistan **och** avsnittet "Inga automatiserade beslut" bär
+      formuleringen; missa inte den andra).
+- [ ] **4. Bumpa `privacy.updated`** ("Senast uppdaterad: YYYY-MM-DD") i samma
+      ändring, båda språken.
+- [ ] **5. Lockstep** — flippen mergas och deployas **med** aktiveringen, aldrig
+      före (då påstår policyn drift medan lanseringsgrindarna, bl.a. #842, inte
+      passerats) och aldrig efter (då kör behandlingen under en policy som
+      förnekar den).
+- [ ] **6. security-auditor + design-reviewer** på copy-diffen (Art. 12/13
+      + civil ton, CLAUDE.md §10) — det är en renderad juridisk sida.
+
+Varför grinden bor här: plikten var tidigare spårad **enbart** i
+`docs/decisions/0090-*.md` och en `docs/reviews/`-rapport — **båda gitignorerade**,
+alltså osynliga för CI, för en PR-granskare och för en parallell CC-session
+(#852:s acceptanskriterium 4). Den här filen är trackad, och Art. 30-registerposten
+för ansökningshistorik (#853) bär samma **Statusgrind**-idiom som `resume_files`.
+
+Källa: #852 · ADR 0090 D3 · #824 PR 4 (som kvalificerade golv-semantiken i samma
+två stycken men medvetet inte flippade dem) · #842 (samma cutover).
+
+---
+
 ## 3. Tagga + deploy
 
 ```bash

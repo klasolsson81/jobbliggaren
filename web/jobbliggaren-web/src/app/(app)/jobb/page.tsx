@@ -9,7 +9,7 @@ import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { jobAdSortBySchema, type JobAdSortBy } from "@/lib/dto/job-ads";
 import { isListMatchGrade } from "@/lib/dto/job-ad-match";
 import {
-  clampSubMinimumQ,
+  parseQParam,
   MATCHNING_OFF_VALUE,
   RELATERADE_ON_VALUE,
   STATUS_ON_VALUE,
@@ -62,7 +62,11 @@ type JobbSearchParams = {
   // droppas tyst (paritet matchGrades drop-unknown; backend-validatorn skulle
   // annars 400:a hela list-queryn). string[] (manipulerad URL) → första värdet.
   employer?: string | string[];
-  q?: string;
+  // #847 — `string | string[]`, like every sibling above: Next.js delivers an array
+  // for a repeated query param. `q?: string` asserted a guarantee the runtime does
+  // not make, and `/jobb?q=a&q=b` threw `TypeError: q.trim is not a function`.
+  // Normalised (first value, trimmed, sub-minimum → undefined) by `parseQParam`.
+  q?: string | string[];
   // E2j (ADR 0060 amend) — commit-intent: "1" vid avsiktlig sökning.
   commit?: string;
 };
@@ -147,7 +151,11 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // ingen klient-grind når. Dessutom ÄRVDE heron det förgiftade q:t: `base.q` blev "a",
   // så varje efterföljande commit skickade med det och 400:ade igen även efter att
   // användaren lagt till ett giltigt filter. Klampen sker tyst (paritet med parsern).
-  const q = clampSubMinimumQ(emptyToUndefined(params.q));
+  // #847 — parseQParam är SPOT-parsern (delad med buildPageHref): den koercerar arity
+  // (upprepad param → första värdet) OCH trimmar OCH klampar. Den ersatte
+  // `clampSubMinimumQ(emptyToUndefined(...))` — en komposition där bara den yttre halvan
+  // var delad, och där den inre kraschade på en array (`.trim is not a function`).
+  const q = parseQParam(params.q);
   // E2j — commit-intent gatar backend-auto-capture. Strippas ur URL:en efter
   // mount av <StripCommitParam> (delningsbar länk re-capturerar inte).
   const commit = params.commit === "true";
@@ -361,10 +369,6 @@ function parseSortBy(raw: string | undefined): JobAdSortBy {
   if (!raw) return "PublishedAtDesc";
   const parsed = jobAdSortBySchema.safeParse(raw);
   return parsed.success ? parsed.data : "PublishedAtDesc";
-}
-
-function emptyToUndefined(s: string | undefined): string | undefined {
-  return s && s.trim().length > 0 ? s.trim() : undefined;
 }
 
 // Normaliserar string | string[] | undefined → string[] (tomma värden bort).

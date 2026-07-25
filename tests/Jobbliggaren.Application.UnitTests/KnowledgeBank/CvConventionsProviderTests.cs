@@ -32,7 +32,7 @@ public class CvConventionsProviderTests
         var conventions = LoadConventions();
 
         conventions.ShouldNotBeNull();
-        conventions.Version.ShouldBe("1.1.0");
+        conventions.Version.ShouldBe("1.2.0");
     }
 
     [Fact]
@@ -108,6 +108,29 @@ public class CvConventionsProviderTests
     }
 
     [Fact]
+    public void CoreSections_ShouldBeTheSameThreeB1sPresenceHalfAlreadyCalls_Karnsektioner()
+    {
+        // #890 does NOT mint a definition of "kärnsektion" — B1's presence half has bound it since
+        // F4-9, reporting exactly kontakt/arbetslivserfarenhet/utbildning as "Saknar kärnsektion(er)".
+        // The asset now holds the same set as data, so TWO places hold it, and this pin is what keeps
+        // them from drifting apart silently.
+        //
+        // The presence half is deliberately NOT refactored to iterate the asset: its severity split is
+        // not uniform (missing kontakt → Warn; missing erfarenhet/utbildning → Fail), so "iterate the
+        // data" would not be behaviour-preserving, and re-deriving that split is a second
+        // change-reason. Note the difference from the #898 defect class, because it will be
+        // questioned: there, two holders answered the SAME question with different normalisers and
+        // disagreed silently in production. Here they answer DIFFERENT questions (presence vs a long
+        // lead-in) over the same set.
+        //
+        // This pin is ONE-WAY, and saying so matters: it catches the ASSET drifting, which is the
+        // half a data edit can change casually. The RULE half is held by its own behavioural tests
+        // (B1LeadInFailArmTests pins the kontakt label and the presence Warn) — before those existed,
+        // renaming the label in StructureRules left all 17806 tests green.
+        LoadConventions().CoreSections.ShouldBe(["contact", "experience", "education"], ignoreOrder: true);
+    }
+
+    [Fact]
     public void Ctor_ShouldConstruct_WhenTheShippedAssetAgreesWithTheShippedLexicon()
     {
         // The pin, run against the REAL pair — this is the guarantee the host gets at build.
@@ -125,7 +148,8 @@ public class CvConventionsProviderTests
             new CvSectionOrderEntry("experience", ParsedSectionKind.Experience),
             new CvSectionOrderEntry("hobbyprojekt-i-tradgarden", TypedKind: null),
         ],
-        ["Arial"]);
+        ["Arial"],
+        new HashSet<string>(StringComparer.Ordinal) { "experience" });
 
         var ex = Should.Throw<InvalidOperationException>(
             () => CvConventionsProvider.ValidateAgainstLexicon(drifted, RealLexicon()));
@@ -144,7 +168,8 @@ public class CvConventionsProviderTests
             new CvSectionOrderEntry("experience", ParsedSectionKind.Experience),
             new CvSectionOrderEntry("projekt", TypedKind: null),
         ],
-        ["Arial"]);
+        ["Arial"],
+        new HashSet<string>(StringComparer.Ordinal) { "experience" });
 
         Should.NotThrow(
             () => CvConventionsProvider.ValidateAgainstLexicon(withFreeSection, RealLexicon()));
@@ -159,7 +184,8 @@ public class CvConventionsProviderTests
         RealLexicon().FreeSectionIds.ShouldNotContain("skills");
 
         Should.NotThrow(() => CvConventionsProvider.ValidateAgainstLexicon(
-            new CvConventions("1.0.0", [new CvSectionOrderEntry("skills", ParsedSectionKind.Skills)], ["Arial"]),
+            new CvConventions("1.0.0", [new CvSectionOrderEntry("skills", ParsedSectionKind.Skills)], ["Arial"],
+                new HashSet<string>(StringComparer.Ordinal) { "skills" }),
             RealLexicon()));
     }
 }

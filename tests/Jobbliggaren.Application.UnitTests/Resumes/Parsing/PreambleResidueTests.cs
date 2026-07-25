@@ -491,26 +491,96 @@ public class PreambleResidueTests
 
         content.Preamble.ShouldBeNull();
 
-        // And say the ugly part out loud: DetectName STILL picks the title on this layout. That is a
-        // pre-existing defect in the heuristic ("first substantial line under 60 chars"), untouched by
-        // #844 — but a test named for this layout must not quietly imply the layout is handled. It is
-        // handled for the CARRIER, not for the NAME. Filed separately; no content is lost either way,
-        // and the user corrects it in the guide (ADR 0040 propose-and-approve).
-        content.Contact.FullName.ShouldBe("Systemutvecklare");
+        // #898 closed the ONE-TOKEN half of what this comment used to say out loud. Until then
+        // DetectName still picked the TITLE on this layout — a pre-existing defect in the heuristic
+        // ("first substantial line under 60 chars"), untouched by #844, pinned here as
+        // ShouldBe("Systemutvecklare") so the layout could not look handled when only the carrier was.
+        // The name question now has a real recogniser (ContactPatterns.TryPersonName):
+        // "Systemutvecklare" is one token, so it is refused and the next line is recognised.
+        //
+        // And the same discipline applies to the half that is STILL open, so this comment does not
+        // repeat the sin it was written to end: a TWO-token Title-Case title
+        // ("Legitimerad Sjuksköterska") is shape-identical to a name and is still returned as one.
+        // Pinned in Segment_TwoTokenJobTitleAboveTheName_StillReportsTheTitle_KnownResidual below.
+        content.Contact.FullName.ShouldBe("Anna Andersson");
     }
 
     [Fact]
-    public void Segment_SurnameFirstName_IsTruncatedByTheFragmentSplit_KnownTradeOff()
+    public void Segment_TwoTokenJobTitleAboveTheName_StillReportsTheTitle_KnownResidual()
     {
-        // An HONEST regression, pinned rather than hidden. NameCandidates yields FRAGMENTS (it must:
-        // handing DetectName the rebuilt segment fabricated "Anna Andersson | linkedin.com/in/anna" as a
-        // name). The comma is a separator, so "Andersson, Anna" splits, and DetectName takes the first
-        // name-like fragment: "Andersson".
+        // The half of the job-title layout #898 did NOT close, pinned so the next person meets it as a
+        // known residual rather than as a surprise — the standard this file set for itself before
+        // #898 ("a test named for this layout must not quietly imply the layout is handled").
         //
-        // The trade is deliberate and it favours the common case: the SAME split is what makes
-        // "Anna Andersson, Undersköterska" resolve to "Anna Andersson" instead of carrying the job title
-        // into the name field. Nothing is LOST — the guide shows the name and the user corrects it
-        // (ADR 0040). Pinned so the next person meets it as a decision, not as a surprise.
+        // "Legitimerad Sjuksköterska" is two capitalised tokens, no digit, no colon, no e-mail, under
+        // the cap: formally identical to a name, and it wins because the preamble arm returns the
+        // FIRST recognised candidate. Closing it would need a job-title lexicon (a different change
+        // with a different risk profile) or refusing all two-token names (which is most names).
+        //
+        // The carrier half is unaffected and still correct: both lines precede the e-mail, so both are
+        // inside the contact block and nothing is offered back to her as a summary.
+        const string cv =
+            """
+            Legitimerad Sjuksköterska
+            Anna Andersson
+            anna.andersson@example.com
+
+            Arbetslivserfarenhet
+            Undersköterska — Vårdcentralen
+            2015 - 2024
+            """;
+
+        var content = _sut.Segment(cv).Content;
+
+        content.Contact.FullName.ShouldBe("Legitimerad Sjuksköterska");
+        content.Preamble.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Segment_CvBannerBelowTheContactBlock_IsSubtracted_NotCarried()
+    {
+        // The banner arm of IsConsumed — the line #898 rewrote — made observable. Every other banner
+        // test puts the banner ABOVE the e-mail, where the POSITIONAL contact-block drop accounts for
+        // it and the arm is dead weight in the test's eyes: disabling the arm entirely left all 17832
+        // tests green (mutation-verified, test-writer 2026-07-25). Below the last consumed contact
+        // line, only the arm can keep the document title out of the carrier the guide offers her back
+        // as candidate summary text.
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Curriculum Vitae
+            Erfaren backend-utvecklare med tio år i betalbranschen.
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        var preamble = _sut.Segment(cv).Content.Preamble;
+
+        preamble.ShouldNotBeNull();
+        preamble.ShouldNotContain("Curriculum Vitae");
+        preamble.ShouldContain("betalbranschen");
+    }
+
+    [Fact]
+    public void Segment_SurnameFirstName_IsRefused_NotTruncated()
+    {
+        // An HONEST decline, pinned rather than hidden. NameCandidates yields FRAGMENTS (it must:
+        // handing DetectName the rebuilt segment fabricated "Anna Andersson | linkedin.com/in/anna" as a
+        // name). The comma is a separator, so "Andersson, Anna" splits into two one-token fragments.
+        //
+        // Before #898 the heuristic took the first of them and reported "Andersson" — half a name, in a
+        // field labelled namn. The recogniser requires 2-4 tokens, so it refuses both fragments and the
+        // name comes back NULL: the gap reaches the user through ParsedGapSummary.HasFullName,
+        // ContactConfidence drops, and B3 warns. She fills it in (ADR 0040 propose-and-approve).
+        //
+        // Half an answer is worse than a declared gap, because a half answer is indistinguishable from
+        // a whole one at the point of use. The same fragment split still makes
+        // "Anna Andersson, Undersköterska" resolve to "Anna Andersson" rather than carrying the job
+        // title into the name field — that half of the trade is unchanged.
         const string cv =
             """
             Andersson, Anna
@@ -521,7 +591,7 @@ public class PreambleResidueTests
             2021 - 2024
             """;
 
-        _sut.Segment(cv).Content.Contact.FullName.ShouldBe("Andersson");
+        _sut.Segment(cv).Content.Contact.FullName.ShouldBeNull();
     }
 
     // ── The accepted residual, made visible ────────────────────────────────────────
@@ -876,7 +946,8 @@ public class PreambleResidueTests
         // perfectly. The line-boundary rule is what makes the truncation honest, and it needs its
         // own pin.
         //
-        // The line is deliberately over IsNameLike's 60-char limit, so no line is claimed as the
+        // The line is deliberately over the name recogniser's 60-char cap (ContactPatterns
+        // .MaxNameLength — the same cap the pre-#898 heuristic carried), so no line is claimed as the
         // name and every carried line must be a WHOLE source line.
         const string line = "Erfaren undersköterska med tio års erfarenhet av natt och trygg vård.";
         var giant = string.Join('\n', Enumerable.Repeat(line, 200));
@@ -964,8 +1035,13 @@ public class PreambleResidueTests
         //
         // Move LinkedIn one slot left — before the phone and the city, which is at least as common a
         // rail ordering — and it falls INSIDE the before-range. `Before` rebuilds to exactly the
-        // fabricated string the docstring promises is now impossible, IsNameLike accepts it (no "@",
-        // no phone shape, under 60 chars), and it is written to ParsedContact.FullName.
+        // fabricated string the docstring promises is now impossible; the heuristic of the day
+        // accepted it (no "@", no phone shape, under 60 chars) and wrote it to ParsedContact.FullName.
+        //
+        // #898 note: the recogniser that replaced the heuristic would ALSO refuse that rebuilt string
+        // (it glues two items onto one line), so the defect now has two independent guards. The test
+        // still earns its place: it pins the ATOMIC-fragment guarantee at its source, and a future
+        // relaxation of the fragment rule must not silently re-open fabrication.
         //
         // The engine inventing a name the user never wrote is ADR 0071's one absolute prohibition, and
         // FullName is not an internal — it reaches the guide and B3's verdicts.

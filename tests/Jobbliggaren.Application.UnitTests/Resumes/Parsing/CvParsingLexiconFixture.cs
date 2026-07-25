@@ -21,6 +21,7 @@ internal static class CvParsingLexiconFixture
         int Version,
         Dictionary<string, string[]>? Headings,
         string[]? NameBanners,
+        string[]? NameParticles,
         Dictionary<string, string[]>? FreeSections,
         Dictionary<string, string>? DisplayForms);
 

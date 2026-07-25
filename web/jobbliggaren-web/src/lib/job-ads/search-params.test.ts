@@ -1,12 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   buildJobbHref,
+  buildPageHref,
   parseEmployerParam,
   withCommitFlag,
   COMMIT_PARAM,
   COMMIT_VALUE,
   type JobbUrlState,
-  clampSubMinimumQ,
+  type JobbRawSearchParams,
+  parseQParam,
 } from "./search-params";
 
 const empty: JobbUrlState = {
@@ -265,28 +267,158 @@ describe("buildJobbHref #383 → förenklat (Dölj ansökta)", () => {
   });
 });
 
-describe("clampSubMinimumQ (#823)", () => {
-  // SPOT-klampen som BÅDA URL-vägarna på /jobb måste dela: page.tsx vid entry och
+describe("parseQParam (#823 klampen + #847 arity — SPOT-parsern, delad page ↔ buildPageHref)", () => {
+  // SPOT-parsern som BÅDA URL-vägarna på /jobb måste dela: page.tsx vid entry och
   // buildPageHref när den bygger pagineringslänkar. Divergerade de re-emitterade
   // sidlänkarna ett q som sidan självt ignorerar — en URL som påstår ett sök som inte körs.
   it("droppar en söktext under backendens minimum", () => {
-    expect(clampSubMinimumQ("a")).toBeUndefined();
-    expect(clampSubMinimumQ(" a ")).toBeUndefined();
+    expect(parseQParam("a")).toBeUndefined();
+    expect(parseQParam(" a ")).toBeUndefined();
   });
 
   it("normaliserar (trimmar) så båda URL-vägarna emitterar samma q", () => {
     // Utan detta kör sidan "ab" medan pagineringslänken bär "+ab+".
-    expect(clampSubMinimumQ(" ab ")).toBe("ab");
+    expect(parseQParam(" ab ")).toBe("ab");
   });
 
   it("behåller allt som backend faktiskt accepterar", () => {
-    expect(clampSubMinimumQ("ab")).toBe("ab");
+    expect(parseQParam("ab")).toBe("ab");
     // Regeln gäller HELA strängen, aldrig per ord — "a bc" är 4 tecken och giltigt.
-    expect(clampSubMinimumQ("a bc")).toBe("a bc");
-    expect(clampSubMinimumQ("backend")).toBe("backend");
+    expect(parseQParam("a bc")).toBe("a bc");
+    expect(parseQParam("backend")).toBe("backend");
   });
 
   it("lämnar frånvaro av söktext orörd", () => {
-    expect(clampSubMinimumQ(undefined)).toBeUndefined();
+    expect(parseQParam(undefined)).toBeUndefined();
+  });
+
+  it("#847: upprepad param (string[]) → första värdet, ingen krasch", () => {
+    // FÖRE fixen: `q.trim is not a function` (mätt) → teknisk-fel-kortet på
+    // /jobb?q=a&q=b. `q` är enkelvärt (EN söktext), så arity-koerceringen är
+    // första-värdet — samma som parseEmployerParam, INTE toStringList.
+    expect(parseQParam(["backend", "frontend"])).toBe("backend");
+    expect(parseQParam(["ab"])).toBe("ab");
+  });
+
+  it("#847: klampen gäller det koercerade värdet, inte det råa", () => {
+    // Första värdet är under minimum ⇒ ingen söktext. Att i stället plocka
+    // element 1 hade varit en gissning om avsikt (se parseQParam-doccen).
+    expect(parseQParam(["a", "backend"])).toBeUndefined();
+    expect(parseQParam(["", "backend"])).toBeUndefined();
+    expect(parseQParam([" ab ", "frontend"])).toBe("ab");
+  });
+
+  it("#847: tom array = frånvaro av söktext", () => {
+    expect(parseQParam([])).toBeUndefined();
+  });
+});
+
+/**
+ * #846 — flyttad hit från `components/job-ads/jobb-results-page-href.test.ts`
+ * tillsammans med `buildPageHref`. I sin gamla hemvist importerade testet från
+ * en Server-Component-modul, vilket drog hela dess graf in i jsdom och bara
+ * fungerade tack vare att `vitest.config.ts` aliasar `server-only` till en shim.
+ *
+ * Q-klamps-fallen är #823:s ursprungliga vakt, ordagrant. Param-bevarande-fallet
+ * är NYTT: varje rad i buildPageHref bär en kommentar om att den finns för att
+ * ett sida-2-klick annars tappar sitt filter (E2b/Klass 2/STEG 5/#454), men
+ * ingen av dem var testad — och e2e:n når dem aldrig, eftersom en tom annons-DB
+ * inte renderar någon paginering alls.
+ */
+describe("buildPageHref (#823 q-klampen, #846 hemvisten)", () => {
+  // Annotering, inte `as`: en assertion hade stängt av kontrollen permanent — läggs ett
+  // required-fält till fortsätter filen kompilera medan buildern tar en annan gren.
+  const params: JobbRawSearchParams = {};
+
+  it("droppar ett q under backendens minimum ur sidlänken", () => {
+    const href = buildPageHref({ ...params, q: "a" }, 2, 20);
+    expect(href).not.toContain("q=");
+    expect(href).toContain("page=2");
+  });
+
+  it("behåller ett giltigt q — och normaliserar det som page.tsx gör", () => {
+    expect(buildPageHref({ ...params, q: "backend" }, 2, 20)).toContain(
+      "q=backend"
+    );
+    // Trimmad paritet: annars kör sidan "ab" medan länken bär "+ab+".
+    expect(buildPageHref({ ...params, q: " ab " }, 2, 20)).toContain("q=ab");
+  });
+
+  it("#847: ett upprepat ?q= kraschar inte länkbyggaren", () => {
+    // MÄTT före fixen: `TypeError: q.trim is not a function` — buildPageHref var det
+    // andra q-konsumerande stället (page.tsx kraschade först i praktiken, men båda
+    // vägarna bar defekten, vilket är varför koerceringen bor i den delade parsern).
+    const href = buildPageHref({ ...params, q: ["backend", "frontend"] }, 2, 20);
+    expect(href).toContain("q=backend");
+    expect(href).not.toContain("frontend");
+  });
+
+  it("#847: ett upprepat q vars första värde är under minimum droppas", () => {
+    const href = buildPageHref({ ...params, q: ["a", "backend"] }, 2, 20);
+    expect(href).not.toContain("q=");
+    expect(href).toContain("page=2");
+  });
+
+  // NAMNET beskriver vad testet TÄCKER, inte hur många fält typen har (den bär
+  // fjorton; buildPageHref läser tretton — aldrig `page`, som `targetPage` ersätter;
+  // `pageSize` har sitt eget test nedan). Det är INTE en
+  // fullständighetsgaranti för /jobb: `matchning` läses av page.tsx men saknas i
+  // `JobbRawSearchParams`, så `?matchning=off` tappas vid ett sida-2-klick
+  // (pre-existerande — se ⚠-noten på typen). Ett test som hette "varje
+  // dimension" hade lovat mer än det asserterar, vilket är precis den
+  // test-fiktion CLAUDE.md §7 förbjuder.
+  it("bär vidare varje param den läser utom page, som targetPage ersätter", () => {
+    const href = buildPageHref(
+      {
+        occupationGroup: ["2512"],
+        region: ["01"],
+        municipality: ["0180", "0181"],
+        employmentType: ["1"],
+        worktimeExtent: ["2"],
+        matchGrades: ["Strong", "Good"],
+        relaterade: "on",
+        doljAnsokta: "on",
+        baraMatchade: "on",
+        employer: "5565021000",
+        q: "backend",
+        sortBy: "Relevance",
+      },
+      3,
+      20
+    );
+    expect(href).toContain("page=3");
+    expect(href).toContain("occupationGroup=2512");
+    expect(href).toContain("region=01");
+    expect(href).toContain("municipality=0180");
+    expect(href).toContain("municipality=0181");
+    expect(href).toContain("employmentType=1");
+    expect(href).toContain("worktimeExtent=2");
+    expect(href).toContain("matchGrades=Strong");
+    expect(href).toContain("matchGrades=Good");
+    expect(href).toContain("relaterade=on");
+    expect(href).toContain("doljAnsokta=on");
+    expect(href).toContain("baraMatchade=on");
+    expect(href).toContain("employer=5565021000");
+    expect(href).toContain("q=backend");
+    expect(href).toContain("sortBy=Relevance");
+    // Exakt form utöver närvaro-assertionerna: en `toContain` kan bara fånga att
+    // något SAKNAS, aldrig att något oavsett lagts TILL. Denna pinnar också
+    // param-ordningen, som är kontrakt för delningsbara URL:er.
+    expect(href).toBe(
+      "/jobb?page=3&sortBy=Relevance&occupationGroup=2512&region=01" +
+        "&municipality=0180&municipality=0181&employmentType=1&worktimeExtent=2" +
+        "&matchGrades=Strong&matchGrades=Good&relaterade=on&doljAnsokta=on" +
+        "&baraMatchade=on&employer=5565021000&q=backend"
+    );
+  });
+
+  it("utelämnar default-sorten och sida 1 så delningsbara URL:er förblir rena", () => {
+    // Samma default-utelämning som buildJobbHref — och `page` sätts aldrig för sida 1.
+    expect(buildPageHref({ sortBy: "PublishedAtDesc" }, 1, 20)).toBe("/jobb");
+  });
+
+  it("skriver bara ut pageSize när den avviker från sidans default", () => {
+    expect(buildPageHref({ pageSize: "20" }, 2, 20)).not.toContain("pageSize");
+    expect(buildPageHref({ pageSize: "50" }, 2, 20)).toContain("pageSize=50");
   });
 });

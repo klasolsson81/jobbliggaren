@@ -666,7 +666,7 @@ export function MatchSetupRailModal({
                           paperFill="var(--jp-mark-paper)"
                           ariaHidden
                         />
-                        <div className="jp-wizard__pitch-text">
+                        <div>
                           <h3 className="jp-wizard__pitch-title">
                             {t("start.pitchTitle")}
                           </h3>
@@ -678,7 +678,7 @@ export function MatchSetupRailModal({
 
                       {!hasUploadedCv ? (
                         <div className="jp-wizard__upload">
-                          <div className="jp-wizard__upload-head">
+                          <div>
                             <h4 className="jp-wizard__upload-title">
                               {t("start.uploadTitle")}
                             </h4>
@@ -717,7 +717,7 @@ export function MatchSetupRailModal({
                           >
                             <Check size={13} strokeWidth={3} />
                           </span>
-                          <div className="jp-wizard__cvdone-text">
+                          <div>
                             <p className="jp-wizard__cvdone-title">
                               {uploadedFileName
                                 ? t("start.cvDoneTitle", {

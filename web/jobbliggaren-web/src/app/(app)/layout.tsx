@@ -3,7 +3,9 @@
 // after the root globals.css, whose tokens/keyframes it resolves via var().
 import "./app.css";
 import { redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
+import { pickClientMessages } from "@/i18n/client-messages";
 import { getServerSession, ROLES } from "@/lib/auth/session";
 import { ApplicationToastHost } from "@/components/applications/application-toast-host";
 import { AppShell } from "@/components/shell/app-shell";
@@ -43,8 +45,29 @@ export default async function AppLayout({
   const initialStats = (await statsPromise) ?? LANDING_STATS_UNKNOWN_DTO;
   const t = await getTranslations("pages");
 
+  // #737 — the signed-in surface is the widest boundary: its client subtree
+  // (222 files) legitimately reads most of the catalog. It still declares its
+  // set explicitly, because the root provider now carries NOTHING — a nested
+  // provider replaces context rather than merging, so an omission here is a
+  // MISSING_MESSAGE, not a silent fallback. Verified for EQUALITY against the
+  // import graph by client-namespace-payload.test.ts.
+  const locale = await getLocale();
+  const messages = pickClientMessages(await getMessages(), [
+    "aktivitetsrapport",
+    "applications",
+    "common",
+    "jobads",
+    "landing",
+    "matchsetup",
+    "oversikt",
+    "pages",
+    "resumes",
+    "settings",
+    "validation",
+  ]);
+
   return (
-    <>
+    <NextIntlClientProvider locale={locale} messages={messages}>
       <SkipLink label={t("layout.skipToContent")} />
       <AppShell email={user.email} isAdmin={isAdmin} initialStats={initialStats}>
         {children}
@@ -58,6 +81,6 @@ export default async function AppLayout({
           samma modul-store (toast-store.ts). Fixed-positionerad, renderar null
           utan aktiv toast. */}
       <ApplicationToastHost />
-    </>
+    </NextIntlClientProvider>
   );
 }

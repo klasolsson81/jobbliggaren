@@ -454,3 +454,68 @@ open an issue before re-running.
   which was wrong on both counts — the carried #690/#693 cron question is now
   closed. The sweep then keeps the replica in step week to week.
 - Record the `LogCompleted` summary + query results in the session log.
+
+### Planner statistics — automatic after a sync, manual after a restore
+
+A completed sync now runs `ANALYZE company_register` itself, as its last step
+(#560, ADR 0119 — CLAUDE.md §3.6). It follows the 5712 run summary and is the
+last line of a successful run:
+
+```
+ScbCompanyRegisterRefresher: planerarstatistik uppdaterad (ANALYZE company_register) — 871 ms.
+```
+
+**Failed job, 5712 present, no 5718** — the extract and the sweep completed and
+only the statistics refresh failed (the exception names `ANALYZE
+company_register`). Run the manual `ANALYZE` in step 3 below. Do **not**
+re-trigger the sync: the upsert is idempotent, but a re-run costs ~11 h and the
+full metered SCB call budget — which is why the worker carries
+`AutomaticRetry(Attempts = 0)` (#688).
+
+**Do not rely on autovacuum to cover the gaps.** Its analyze trigger is
+change-driven, and its counters are discarded on an unclean shutdown and carried
+by neither `pg_upgrade` nor `pg_dump`. The register is written by one periodic
+job and read-only in between, so nothing re-arms that trigger until the next
+sync. Full argument: `ScbCompanyRegisterStore.AnalyzeAsync` — it is the
+canonical home and is not restated here.
+
+**Know which statistics you are missing before you act** (verified against the
+local PostgreSQL 18.3 binaries 2026-07-25 — an earlier draft of this section had
+it wrong):
+
+| | unclean shutdown | `pg_upgrade` (PG18) | `pg_dump` (PG18) |
+|---|---|---|---|
+| cumulative (`last_analyze`, autovacuum's trigger) | lost | not carried | not carried |
+| optimizer (`pg_stats` — what the planner reads) | **survives** | **carried by default** | **omitted** unless `--statistics` |
+
+So a PG18 major upgrade does **not** leave the table planning blind — it carries
+the optimizer statistics over (`--no-statistics` opts out). What it does not
+carry is extended statistics (`CREATE STATISTICS`), and
+`vacuumdb --analyze-in-stages --missing-stats-only` is the right instrument
+there. A `pg_dump` restore and a statistics reset are the cases that genuinely
+leave the planner without statistics.
+
+**Run this after a `pg_dump` restore or a statistics reset**, and any time the
+register search is unexpectedly slow:
+
+```sql
+-- 1. Diagnose: zero rows here means the planner has NO statistics for the table.
+SELECT count(*) FROM pg_stats
+WHERE schemaname = 'public' AND tablename = 'company_register';
+
+-- 2. Check when it was last refreshed (NULL on both = never, or counters reset).
+SELECT last_analyze, last_autoanalyze, n_live_tup, n_mod_since_analyze
+FROM pg_stat_user_tables
+WHERE schemaname = 'public' AND relname = 'company_register';
+
+-- 3. Fix. ~871 ms at 1 066 938 rows. Takes SHARE UPDATE EXCLUSIVE: it blocks
+--    neither reads nor writes, but it DOES conflict with a concurrent
+--    VACUUM/ANALYZE and with DDL — so do not run it against a sync in flight.
+--    Plain ANALYZE only — vacuuming is autovacuum's business.
+ANALYZE public.company_register;
+```
+
+A useful tell that the counters were reset rather than merely idle: **every**
+table in `pg_stat_user_tables` reads `n_live_tup = 0` with both timestamps NULL,
+including ones you know hold rows. `pg_stats` survives a reset (it is a catalog),
+so step 1 and step 2 answer different questions — run both.

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Domain.Common;
@@ -169,13 +170,140 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
         tail.Message.ShouldContain("Loggar aldrig org.nr");                       // §5 discipline on the new line
     }
 
+    [Fact]
+    public async Task RefreshAsync_AnalyzesTheRegister_SoThePlannerIsNotBlindAfterTheBulkLoad()
+    {
+        // #560 / ADR 0119 — the ANALYZE-after-bulk-load guard (CLAUDE.md §3.6). The register was
+        // populated to 1 066 938 rows with ZERO rows in pg_stats, and the planner then walked the wrong
+        // index at 1 681-6 268 ms. Autovacuum cannot be the guarantee: its trigger is change-driven and
+        // those counters are discarded on an unclean shutdown, leaving a write-once/read-only table with
+        // nothing left to re-arm it. So the sync must ANALYZE explicitly, and this pins that it does.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        var before = await ReadAnalyzeStatsAsync(ct);
+
+        // TWO batches, so "once per completed run" is a claim the counter can actually test: a per-batch
+        // ANALYZE — the anti-pattern RB-3.1 rejects by name — would land AnalyzeCount at +2.
+        var run = await BuildRefresher(
+            new FakeSource([Legal("5560000501")], fetched: 1000, extraBatches: [[Legal("5560000502")]]), T0)
+            .RefreshAsync(ct);
+
+        run.RowsUpserted.ShouldBe(2);
+
+        var after = await ReadAnalyzeStatsAsync(ct);
+        after.LastAnalyzeEpoch.ShouldBeGreaterThan(before.LastAnalyzeEpoch,
+            "en lyckad SCB-synk måste uppdatera planerarstatistiken för company_register");
+        after.AnalyzeCount.ShouldBe(before.AnalyzeCount + 1,
+            "exakt EN ANALYZE per körning — aldrig en per batch (RB-3.1)");
+        after.VacuumCount.ShouldBe(before.VacuumCount,
+            "vanlig ANALYZE, aldrig VACUUM ANALYZE — vakuum är autovacuums ärende (RB-3.1)");
+
+        // The claim is NOT "an ANALYZE happened" — that is what the counters above say, and a
+        // column-scoped ANALYZE would satisfy them while leaving the search columns blind, which is
+        // verbatim the #560 defect. This is the claim: the columns the register search plans against
+        // carry statistics. ANALYZE on a corpus this small still produces a row per column (measured,
+        // postgres:18 2026-07-25), and ResetAsync cleared pg_statistic so nothing here is inherited.
+        var analysed = await ReadAnalysedColumnsAsync(ct);
+        analysed.ShouldContain("company_name");        // #560 — the name-prefix search
+        analysed.ShouldContain("organization_number"); // the org.nr lookup
+        analysed.ShouldContain("status");              // the sweep + browse predicate
+        analysed.ShouldContain("sate_kommun_code");    // the kommun axis
+        analysed.ShouldContain("sni_codes");           // the SNI axis
+    }
+
+    [Fact]
+    public async Task RefreshAsync_NarratesTheAnalyzeStep_AfterTheRunSummary()
+    {
+        // Two claims, both about the run log. (1) Without EventId 5718 the ANALYZE is invisible in a run
+        // that is otherwise fully narrated, so an operator diagnosing a slow register search cannot tell
+        // whether the last sync refreshed the planner's statistics. (2) The summary (5712) is emitted
+        // BEFORE the ANALYZE, so a failing ANALYZE costs the run its statistics and not its numbers —
+        // the operator deciding whether to re-spend an ~11 h metered extract keeps the figures either
+        // way. That is the whole guarantee, not a proxy for it: it is an ordering property of the happy
+        // path, which is exactly what this assertion measures (senior-cto-advisor 2026-07-25).
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        var logger = new CapturingLogger<ScbCompanyRegisterRefresher>();
+        await BuildRefresher(new FakeSource([Legal("5560000511")], fetched: 1000), T0, logger)
+            .RefreshAsync(ct);
+
+        var ids = logger.Entries.Select(e => e.EventId.Id).ToList();
+        // Both presence checks are load-bearing: IndexOf returns -1 for a missing id, and -1 < n would
+        // pass vacuously on a suite where either line had been deleted.
+        ids.ShouldContain(5712);
+        ids.ShouldContain(5718);
+        ids.IndexOf(5712).ShouldBeLessThan(ids.IndexOf(5718),
+            "körningens sammanfattning måste loggas FÖRE ANALYZE-steget: flyttas den under anropet "
+            + "förlorar en misslyckad ANALYZE hela sifferraden ur körningsloggen");
+    }
+
+    [Fact]
+    public async Task RefreshAsync_AnalyzesAfterTheSweep_SoStatisticsDescribeTheStatusTheRunLeftBehind()
+    {
+        // The ORDERING half, and it is not decoration: the sweep rewrites `status` across the untouched
+        // majority, so statistics collected before it describe a distribution the run then discards.
+        // pg_stats is the oracle that can tell the two orderings apart — after a run that deregistered
+        // every row, the planner's most-common-value list for `status` must say Deregistered. It says
+        // Active both if the ANALYZE ran too early AND if it never ran at all (run 1's statistics
+        // survive), so this claim catches the ordering defect and the removal defect independently.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        // Run 1 (T0): 50 Active rows. No prior baseline → sweep applies; the run's own fresh rows
+        // survive (synced_at == runStartedAt, not < it). Its ANALYZE leaves pg_stats saying "Active".
+        var seeded = Enumerable.Range(1, 50).Select(i => Legal($"55600006{i:D2}")).ToList();
+        await BuildRefresher(new FakeSource(seeded, fetched: 1000), T0).RefreshAsync(ct);
+        (await ReadStatusMostCommonValsAsync(ct)).ShouldContain("Active"); // the pre-state is real
+
+        // Run 2 (T1): touches nothing, fetched 1000 ≥ 0.80 × 1000 → the sweep applies and flips all 50.
+        var run2 = await BuildRefresher(new FakeSource([], fetched: 1000), T1).RefreshAsync(ct);
+        run2.SweepApplied.ShouldBeTrue();
+        run2.RowsDeregistered.ShouldBe(50);
+
+        // These two assertions are load-bearing AS A PAIR and must not be reordered or split: line 1
+        // demands "Deregistered" present, line 2 demands "Active" absent, and no single static
+        // statistics snapshot can satisfy both — so the pair PROVES a refresh happened between run 1
+        // and here, whatever any neighbour left behind. (An empty MCV yields zero rows from unnest and
+        // fails the first assertion, so the small-sample hazard cannot produce a false pass either.)
+        var mcv = await ReadStatusMostCommonValsAsync(ct);
+        mcv.ShouldContain("Deregistered",
+            "statistiken måste beskriva tabellen EFTER sweepen, inte före");
+        mcv.ShouldNotContain("Active"); // no row is Active any more — stale statistics would still say so
+    }
+
+    [Fact]
+    public async Task RefreshAsync_DoesNotAnalyze_WhenTheSyncIsDisabled()
+    {
+        // The counterweight against over-firing (parity the browse-all claim in the plan guard): the
+        // disabled path loads nothing, so it has no table to ANALYZE. This is what goes red the day the
+        // call is hoisted above the Enabled check.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        var before = await ReadAnalyzeStatsAsync(ct);
+
+        var run = await BuildRefresher(
+            new FakeSource([Legal("5560000601")], fetched: 1000), T0, enabled: false).RefreshAsync(ct);
+
+        run.SweepSkipReason.ShouldBe("disabled");
+
+        // A single read suffices — last_analyze and analyze_count are written synchronously, so an
+        // ANALYZE that had happened would already be visible here (see ReadAnalyzeStatsAsync).
+        var after = await ReadAnalyzeStatsAsync(ct);
+        after.LastAnalyzeEpoch.ShouldBe(before.LastAnalyzeEpoch,
+            "en avstängd körning laddar ingenting och ska inte röra statistiken");
+        after.AnalyzeCount.ShouldBe(before.AnalyzeCount);
+    }
+
     private ScbCompanyRegisterRefresher BuildRefresher(
         IScbCompanyRegisterSource source, DateTimeOffset now,
-        ILogger<ScbCompanyRegisterRefresher>? logger = null) =>
+        ILogger<ScbCompanyRegisterRefresher>? logger = null, bool enabled = true) =>
         new(source,
             _fixture.Services.GetRequiredService<IServiceScopeFactory>(),
             new FixedClock(now),
-            Options.Create(new ScbRegisterOptions { Enabled = true, FloorAbsolute = 1, FloorRelativeRatio = 0.80 }),
+            Options.Create(new ScbRegisterOptions { Enabled = enabled, FloorAbsolute = 1, FloorRelativeRatio = 0.80 }),
             logger ?? NullLogger<ScbCompanyRegisterRefresher>.Instance);
 
     private static ScbCompanyRecord Legal(string orgNr, string sni = "29100") =>
@@ -192,6 +320,14 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
         await db.Database.ExecuteSqlRawAsync("TRUNCATE company_register;", ct);
         await db.Database.ExecuteSqlRawAsync(
             "DELETE FROM audit_log WHERE event_type = 'System.CompanyRegisterSynced';", ct);
+        // TRUNCATE does NOT clear pg_statistic, and neither does a following ANALYZE on the now-empty
+        // table (do_analyze_rel skips update_attstats on an empty sample) — measured, postgres:18
+        // 2026-07-25. Two neighbours in [Collection("Worker")] seed all-Active corpora into THIS
+        // container and ANALYZE them (CompanyRegisterSearchQueryPlanTests, CompanyWatchBrowseQueryPlanTests),
+        // so without this delete their leftovers satisfy both the column-coverage claim and test 2's
+        // pre-state row. Safe for them: each does its own TRUNCATE → seed → ANALYZE.
+        await db.Database.ExecuteSqlRawAsync(
+            "DELETE FROM pg_statistic WHERE starelid = 'public.company_register'::regclass;", ct);
     }
 
     private async Task<List<ScbCompanyRegisterEntry>> ReadAllAsync(CancellationToken ct)
@@ -237,6 +373,95 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
         return counts.Count == 0 ? null : counts[0];
     }
 
+    /// <summary>
+    /// The maintenance counters for <c>company_register</c>: <c>last_analyze</c> as seconds since the
+    /// epoch (0 when never analysed), plus the ANALYZE and VACUUM tallies.
+    ///
+    /// <para>
+    /// <b>There is nothing to poll for.</b> An earlier version of this helper slept up to 20 s on the
+    /// theory that these are deferred cumulative counters flushed at most once a second. They are not:
+    /// <c>pgstat_report_analyze()</c> takes the shared-memory entry lock and writes
+    /// <c>last_analyze_time</c> and <c>analyze_count</c> DIRECTLY when the command completes (PG15+
+    /// shared-memory stats), unlike the pending counters in the same view (<c>numscans</c>,
+    /// <c>n_tup_*</c>). Measured on postgres:18 2026-07-25: ANALYZE followed by an immediate read shows
+    /// <c>analyze_count = 1</c>. The poll cost ~60 s of the class's ~70 s and guarded nothing.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>pg_stat_clear_snapshot()</c> stays, for a DIFFERENT mechanism: <c>stats_fetch_consistency</c>
+    /// defaults to <c>cache</c> (PG15+), so a transaction holds the snapshot it first read. Each read
+    /// here is its own transaction, which already suffices — the call is insurance for the day these
+    /// reads get wrapped in one, not the thing that makes them correct today.
+    /// </para>
+    ///
+    /// <para>
+    /// Reads the MANUAL columns, never <c>last_autoanalyze</c>/<c>autoanalyze_count</c>. That separation
+    /// is what makes autovacuum unable to forge a pass here, and it is load-bearing — do not "simplify"
+    /// this into <c>GREATEST(last_analyze, last_autoanalyze)</c>. Epoch double rather than
+    /// <c>timestamptz</c> keeps Npgsql's infinity/nullable scalar mapping out of an assertion that only
+    /// needs "later than".
+    /// </para>
+    /// </summary>
+    private async Task<(double LastAnalyzeEpoch, long AnalyzeCount, long VacuumCount)>
+        ReadAnalyzeStatsAsync(CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.ExecuteSqlRawAsync("SELECT pg_stat_clear_snapshot();", ct);
+        var rows = await db.Database.SqlQueryRaw<AnalyzeStatsRow>(
+            """
+            -- Aliases are snake_case: the DbContext's naming convention applies to query types too, so
+            -- EF looks for last_analyze_epoch / analyze_count / vacuum_count, not the PascalCase
+            -- property names.
+            SELECT COALESCE(EXTRACT(EPOCH FROM last_analyze), 0)::double precision AS last_analyze_epoch,
+                   COALESCE(analyze_count, 0) AS analyze_count,
+                   COALESCE(vacuum_count, 0) AS vacuum_count
+            FROM pg_stat_user_tables
+            WHERE schemaname = 'public' AND relname = 'company_register'
+            """).ToListAsync(ct);
+        return rows.Count == 0 ? (0, 0, 0) : (rows[0].LastAnalyzeEpoch, rows[0].AnalyzeCount, rows[0].VacuumCount);
+    }
+
+    private sealed record AnalyzeStatsRow(double LastAnalyzeEpoch, long AnalyzeCount, long VacuumCount);
+
+    /// <summary>
+    /// The columns of <c>company_register</c> that currently carry planner statistics.
+    ///
+    /// <para>
+    /// This is the oracle that separates "an ANALYZE happened" from "the search columns have
+    /// statistics", and only the second one is the claim. A column-scoped
+    /// <c>ANALYZE company_register (status)</c> bumps <c>last_analyze</c> AND <c>analyze_count</c>
+    /// (measured, postgres:18 2026-07-25) while leaving <c>company_name</c> and
+    /// <c>organization_number</c> with no statistics at all — which is verbatim the #560 defect.
+    /// </para>
+    /// </summary>
+    private async Task<IReadOnlyList<string>> ReadAnalysedColumnsAsync(CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.Database.SqlQueryRaw<string>(
+            """
+            SELECT attname AS "Value"
+            FROM pg_stats
+            WHERE schemaname = 'public' AND tablename = 'company_register'
+            """).ToListAsync(ct);
+    }
+
+    // The planner's most-common-value list for `status` — pg_stats, i.e. the statistics the planner
+    // actually reads, not the activity counters. Empty when the column has no statistics yet.
+    private async Task<IReadOnlyList<string>> ReadStatusMostCommonValsAsync(CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var rows = await db.Database.SqlQueryRaw<string>(
+            """
+            SELECT unnest(most_common_vals::text::text[]) AS "Value"
+            FROM pg_stats
+            WHERE schemaname = 'public' AND tablename = 'company_register' AND attname = 'status'
+            """).ToListAsync(ct);
+        return rows;
+    }
+
     private sealed class FixedClock(DateTimeOffset now) : IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = now;
@@ -261,7 +486,8 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
         int fetched,
         IReadOnlyList<(ScbProtectedPartition Partition, int OverCapCount)>? protectedPartitions = null,
         int reconciliationGaps = 0,
-        int partitionRequestFailures = 0) : IScbCompanyRegisterSource
+        int partitionRequestFailures = 0,
+        IReadOnlyList<IReadOnlyList<ScbCompanyRecord>>? extraBatches = null) : IScbCompanyRegisterSource
     {
         public async IAsyncEnumerable<IReadOnlyList<ScbCompanyRecord>> StreamLegalEntitiesAsync(
             ScbSyncOutcome outcome, [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -278,6 +504,11 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
                 outcome.RecordPartitionRequestFailed(); // #708 — each latches truncated + tallies the audit count
             await Task.CompletedTask.ConfigureAwait(false);
             yield return batch;
+
+            // Lets a test drive MORE than one batch, so "ANALYZE once per completed run" becomes a
+            // claim the analyze_count assertion can distinguish from "ANALYZE per batch".
+            foreach (var extra in extraBatches ?? [])
+                yield return extra;
         }
     }
 }

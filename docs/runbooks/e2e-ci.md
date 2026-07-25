@@ -87,7 +87,6 @@ localhost as a secure context.
 - Field-encryption master key: `FieldEncryption__Provider=Local` +
   `FieldEncryption__LocalMasterKeyBase64=$(openssl rand -base64 32)` into
   `$GITHUB_ENV`.
-- Throwaway RSA JWT keys generated per-run (`Jwt__PrivateKeyPath`/`__PublicKeyPath`).
 - `Email__Provider=Console` (no outbound mail). Never depend on the gitignored
   `appsettings.Local.json` (absent in CI).
 

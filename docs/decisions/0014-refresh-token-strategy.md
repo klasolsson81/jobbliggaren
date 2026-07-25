@@ -1,7 +1,21 @@
 # ADR 0014 — Refresh tokens i DB + Redis för access-token jti (avviker från BUILD.md §11.2)
 
 **Datum:** 2026-04-19
-**Status:** Accepted
+**Status:** **Superseded by ADR 0017/0018 (2026-07-25) — never implemented.**
+The `refresh_tokens` table was dropped in #504a; the Redis jti-blacklist
+(`RedisAccessTokenRevocationStore`) was deleted in #827/#569 together with the rest of the
+JWT cluster. Opaque server-side sessions replaced the mechanism wholesale — there is no
+refresh token and no access-token jti to revoke. The text below is retained as the record of
+a decision that was taken and then abandoned, not as a description of the system. Current
+truth: BUILD.md §11.2.
+
+> **Why this needed a status flip and not an amendment (#827):** this ADR declared its own
+> authority over the spec — "BUILD.md §11.2 är nu inaktuell … Denna ADR är auktoritativ tills
+> dess". #827 rewrote §11.2 to the shipped session model, which ends that authority on the
+> ADR's own terms, and removed §11.2's pointer to this ADR — the only cross-reference that
+> warned a reader the two disagreed. Leaving it `Accepted` would have left a wholly false,
+> unreferenced ADR behind. Superseded rather than amended because the decision was abandoned
+> in full, not drifted from.
 **Kontext:** STEG 3 — Auth-stack
 **Beslutsfattare:** Klas Olsson
 **Relaterad:** ADR 0012, BUILD.md §11.2

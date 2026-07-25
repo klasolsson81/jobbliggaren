@@ -7,9 +7,7 @@ namespace Jobbliggaren.Infrastructure.Auth;
 
 /// <summary>
 /// Redis-backed <see cref="ICooldownGate"/> (generalised from the #733 resend primitive; #703).
-/// Form: a key with an absolute TTL via <see cref="IDistributedCache"/>. (The form-precedent
-/// used to be cited as RedisAccessTokenRevocationStore; that class was part of the never-shipped
-/// JWT cluster deleted in #827, so the cref is gone — the shape, not the reference, was the point.) The key is <c>cd/{scope}/v1/{sha256(subject)}</c> — the subject (an
+/// Form: a key with an absolute TTL via <see cref="IDistributedCache"/>. The key is <c>cd/{scope}/v1/{sha256(subject)}</c> — the subject (an
 /// email address or a user id) is normalised (trim + lower-invariant, parity with
 /// <see cref="AccountExistsNoticeIdempotencyKey.For"/>) and SHA-256-hashed, a one-way non-PII fingerprint
 /// (the raw value is never written to Redis); every call on the same <c>(scope, subject)</c> collapses to

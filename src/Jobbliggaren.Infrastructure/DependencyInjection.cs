@@ -1,5 +1,4 @@
 using System.Net.Http;
-using System.Security.Cryptography;
 using System.Threading.RateLimiting;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
@@ -28,7 +27,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
 using Polly;
 using Polly.RateLimiting;
 using Refit;

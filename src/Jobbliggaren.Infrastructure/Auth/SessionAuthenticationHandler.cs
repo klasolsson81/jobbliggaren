@@ -19,7 +19,9 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// we use the session-id as a lookup key, not as a value to compare against a known secret.
 ///
 /// Scheme name "Bearer" reflects wire-format (RFC 6750), not token type.
-/// Renamed to "Session" in Fas 1 when JWT classes are removed (ADR 0017).
+/// Scheme name "Bearer" reflects the wire format (RFC 6750), not the token type. The JWT
+/// classes were removed in #827; renaming the scheme to "Session" remains outstanding and is
+/// behavioural — it invalidates live sessions — so it is not a follow-on of that deletion.
 ///
 /// <para>
 /// H-3 SoC-split (arch-audit 2026-05-11): the auth handler only does session-id parse + Redis

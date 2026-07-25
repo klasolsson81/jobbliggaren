@@ -348,3 +348,104 @@ data instead. Never widen the logging to get them.
 4. **Ratcheting observe-only → blocking** (Beslut 6) is a Klas decision and requires a stable
    distribution over several green runs on consistent hardware. `docs/runbooks/e2e-ci.md`
    documents the same ratchet lever for the E2E workflow.
+
+## §F — Frontend document weight and Core Web Vitals
+
+The instrument is the `lighthouse (observe-only)` job in `build.yml`: 8 URLs × 3 runs,
+`aggregationMethod: median`, asserting the ADR 0045 Beslut 2 budgets from
+`web/jobbliggaren-web/lighthouserc.json`. It only became **verdict-giving** on 2026-07-24
+(#1007 fixed collection, #1011 fixed the assert phase) — every earlier green was
+green-but-empty, so 2026-07-20 is the first honest baseline in the project's history.
+
+### Which measurements are admissible evidence
+
+CTO bind D0 (2026-07-25), derived from ADR 0045 Beslut 2 (`numberOfRuns: 3` + median was
+chosen *because* single-run timing is flaky) and Alternativ 5 (shared runners make absolute
+timing thresholds inherently flaky):
+
+- **Byte metrics** (`resource-summary:*`) are deterministic. Measuring them locally against a
+  `pnpm build` + `next start` server is admissible evidence for shipping. Local numbers run
+  ~1,4 KB below CI's, which counts response headers.
+- **Timing metrics** (LCP/CLS/TBT) measured locally are a **hypothesis generator only**. A
+  local Windows run brackets ±300 ms on the same build (measured 2026-07-25: TBT varied
+  70→386 ms across runs of one build). Timing verdicts come from the CI job, and a delta
+  below **200 ms** there is not a signal.
+
+Consequence, stated plainly so it is not re-litigated: a change whose only claim is a
+sub-200 ms CI timing delta or a few KB of gzip has **no measured perf benefit**. #750 PR-2
+was declined on exactly this basis (−4,3 KB gzip → −55 ms LCP ceiling = noise).
+
+### Baseline — 2026-07-20 (#1011 CI run, job 88423824881)
+
+| URL | document | LCP |
+|---|---|---|
+| `/` | 43 379 ✗ | 2642 ✗ |
+| `/matchning` | 46 031 ✗ | ok |
+| `/cv-granskning` | 46 355 ✗ | ok |
+| `/hjalpcenter` | 40 702 ✗ | ok |
+| `/for-utvecklare` | 42 157 ✗ | ok |
+| `/gast/jobb` | 41 461 ✗ | 3068 ✗ |
+| `/gast/oversikt` | 43 289 ✗ | 3079 ✗ |
+| `/gast/cv` | 40 238 ✗ | 3226 ✗ |
+
+Budgets: document ≤ 30 720 B, LCP ≤ 2500 ms. Everything else (script, stylesheet, font,
+image, total, third-party, CLS) was green and stays green.
+
+`document:size` was closed by the per-boundary i18n payload scoping (#737) — measured
+locally at 10 216–25 021 B on the same 8 URLs, all clear of the budget with the tightest
+margin on `/gast/oversikt`. The instrument of record is still the CI job.
+
+### LCP — pre-registered decision rule
+
+LCP is red on 4/8 with **no proven cause**. Two candidates are excluded by counterfactual,
+both measured 2026-07-25:
+
+- **Not the webfonts.** Injecting the missing `<link rel="preload" as="font">` for the two
+  woff2 files moved FCP by −308 ms (`/`) and −302 ms (`/gast/cv`) but LCP by **±0**
+  (2975→2988, 3337→3345). FCP is not an ADR 0045 gate.
+- **Not document weight, at the ceiling.** A probe carrying only `landing`+`common`
+  (document 43 → 15 KB) left `/` at 2987 vs 2975. Inside the local noise bracket, so this
+  refutes nothing on its own — it only means no *large* effect is visible locally.
+
+The LCP element is server-rendered text (`p.jp-land-hero__lede--plate`, verified present in
+the SSR HTML) with Render Delay at 83–85 % of LCP and TTFB ~460 ms. Main-thread profile on
+`/`: Style & Layout 427 ms, Parse HTML & CSS 180 ms, Script Evaluation 662 ms, plus long
+tasks attributed to the document itself (206 + 103 + 68 ms — the inline Flight payload).
+
+**Read the next CI Lighthouse run against the baseline above and apply this rule as
+written. Do not re-derive it after seeing the number** (that is how a measurement becomes a
+rationalisation):
+
+- **LCP ≤ 2500 on all 8** → both budgets met. Record it and close the LCP track.
+- **LCP improves ≥ 200 ms on the four red URLs but stays > 2500** → the payload/hydration
+  hypothesis is supported. Next lever: client JS on the critical path, starting from the
+  audit finding `b3-no-dynamic-imports-modals`, scoped to the four red URLs. One measured
+  intervention, its own PR.
+- **LCP flat (< 200 ms)** → document weight is not the cause. The next step is
+  **attribution, not a fix**: pull Lighthouse's own LCP phase breakdown (TTFB / load delay /
+  load time / render delay) per URL from the CI artifact plus `next build`'s per-route First
+  Load JS, and test the standing hypothesis — *the four red URLs are exactly the ones with a
+  real client shell (`/` and the three `/gast/*`); the four green ones are static
+  marketing-inner content* — which points at hydration cost.
+
+In no branch does a speculative LCP fix ship. Note also that fixing one budget is **not**
+the ratchet condition for making this job blocking (Beslut 6 needs a stable distribution
+plus Klas-GO).
+
+### Known deviation — `next/font` emits no preload links
+
+Next 16.2.9's own docs (`node_modules/next/dist/docs/01-app/03-api-reference/02-components/font.md`,
+lines 148 and 1050) state that a font declared with `subsets` in the **root layout** is
+preloaded on all routes. Measured 2026-07-25: the landing document contains **zero**
+`woff2` references and no `rel="preload" as="font"` — the two font files are discovered only
+after the render-blocking CSS is parsed. Next's own `.p.` filename marker is present on
+exactly the two files the browser fetches, so the loader identifies them; the emission is
+what is missing.
+
+No local workaround is in the tree, deliberately: the only expressible form is the hashed
+filename, which changes with font config (CLAUDE.md §5 magic strings) and would linger as a
+duplicate hint once upstream is fixed. Leading untested hypothesis: `package.json` builds
+with `next build --webpack`, opting out of Next 16's default Turbopack path. Diffing the
+emitted `<head>` from a build without that flag is the next diagnostic — and if the flag is
+implicated, the fix is a build-toolchain decision (BUILD.md §3.1 class), not a perf-lane
+side effect.

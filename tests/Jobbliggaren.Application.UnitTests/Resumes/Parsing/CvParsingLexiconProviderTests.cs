@@ -375,4 +375,102 @@ public class CvParsingLexiconProviderTests
 
         lexicon.DisplayFormByHeading.ShouldBeEmpty();
     }
+
+    // ── nameParticles + the ONE banner normalisation (#898, lexicon v7) ────────────────────────
+
+    /// <summary>
+    /// A particle is matched against WHITESPACE-SEPARATED tokens, so a multi-word entry ("van der")
+    /// can never equal one. Loading it silently would be dead data that looks alive — and the name it
+    /// was authored for would keep being refused with no signal anywhere. Fail loud, parity the
+    /// dangling-display-form throw.
+    /// </summary>
+    [Fact]
+    public void Load_Throws_WhenANameParticleContainsWhitespace()
+    {
+        var ex = Should.Throw<InvalidOperationException>(() => CvParsingLexiconLoader.LoadFrom(Json(
+            """
+            { "version": 9,
+              "headings": { "skills": ["kompetenser"] },
+              "languageHints": { "sv": ["och"] },
+              "freeSections": { "projekt": ["projekt"] },
+              "nameParticles": ["von", "van der"] }
+            """)));
+
+        ex.Message.ShouldContain("van der");
+        ex.Message.ShouldContain("whitespace");
+    }
+
+    /// <summary>Particles are stored lowercased and trimmed, so the recogniser's lookup can be a plain
+    /// ordinal set membership on a lowercased token.</summary>
+    [Fact]
+    public void Load_NormalisesNameParticles_ToLowercase()
+    {
+        var lexicon = CvParsingLexiconLoader.LoadFrom(Json(
+            """
+            { "version": 9,
+              "headings": { "skills": ["kompetenser"] },
+              "languageHints": { "sv": ["och"] },
+              "freeSections": { "projekt": ["projekt"] },
+              "nameParticles": [" Von ", "VAN", ""] }
+            """));
+
+        lexicon.NameParticles.ShouldBe(["von", "van"], ignoreOrder: true);
+    }
+
+    /// <summary>nameParticles is OPTIONAL — absence only NARROWS what the recogniser accepts, and a
+    /// narrower recogniser yields an honest gap rather than a wrong name. (Contrast the whitespace
+    /// entry above, which is a wrong that hides.)</summary>
+    [Fact]
+    public void Load_LeavesNameParticlesEmpty_WhenTheBlockIsAbsent()
+    {
+        var lexicon = CvParsingLexiconLoader.LoadFrom(Json(
+            """
+            { "version": 9,
+              "headings": { "skills": ["kompetenser"] },
+              "languageHints": { "sv": ["och"] },
+              "freeSections": { "projekt": ["projekt"] } }
+            """));
+
+        lexicon.NameParticles.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// The STORE side takes the same normalisation the ASK side does (#898). An author writing
+    /// "- Curriculum Vitae" — an ASCII hyphen is exactly what a PDF extractor emits for a sidebar
+    /// bullet, so it is a natural thing to paste in — must not store a banner no line can ever match.
+    /// </summary>
+    [Fact]
+    public void Load_TrimsGlueFromNameBanners_SoAGluedBannerCannotBeAuthoredDead()
+    {
+        var lexicon = CvParsingLexiconLoader.LoadFrom(Json(
+            """
+            { "version": 9,
+              "headings": { "skills": ["kompetenser"] },
+              "languageHints": { "sv": ["och"] },
+              "freeSections": { "projekt": ["projekt"] },
+              "nameBanners": ["- Curriculum Vitae"] }
+            """));
+
+        lexicon.NameBanners.ShouldBe(["curriculum vitae"]);
+    }
+
+    /// <summary>
+    /// And the ASK side asks it ONE way. Before #898 the preamble residue asked
+    /// NormalizeHeading(TrimGlue(line)) while the segmenter asked NormalizeHeading(line): "- CV" was a
+    /// banner to one and content to the other. One question, one normalisation, one owner.
+    /// </summary>
+    [Theory]
+    [InlineData("CV")]
+    [InlineData("- CV")]
+    [InlineData("• Curriculum Vitae")]
+    [InlineData("Curriculum Vitae:")]
+    public void IsNameBanner_IsTrueRegardlessOfGlueOrTrailingSeparator(string line) =>
+        CvParsingLexiconFixture.Load().IsNameBanner(line).ShouldBeTrue();
+
+    [Theory]
+    [InlineData("Anna Andersson")]
+    [InlineData("- Anna Andersson")]
+    [InlineData("CV-utvecklare")]
+    public void IsNameBanner_IsFalseForContent(string line) =>
+        CvParsingLexiconFixture.Load().IsNameBanner(line).ShouldBeFalse();
 }

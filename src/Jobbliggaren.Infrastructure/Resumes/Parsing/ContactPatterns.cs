@@ -117,6 +117,102 @@ internal static partial class ContactPatterns
     }
 
     /// <summary>
+    /// The shortest and longest number of whitespace-separated tokens a recognised person name may
+    /// carry, and its length cap (60 — the cap the old heuristic already used, kept).
+    ///
+    /// <para>FORM, so it lives in C# and not in the lexicon, exactly like
+    /// <see cref="MinPhoneDigits"/> and <see cref="MaxLabelledValueLength"/>. These are emphatically
+    /// NOT rubric thresholds: the rubric governs review VERDICTS, never what the parser recognises
+    /// (ADR 0107 §3 owns parsing; ADR 0108's kind-boundary is about the knowledge bank).</para>
+    /// </summary>
+    private const int MinNameTokens = 2;
+    private const int MaxNameTokens = 4;
+    internal const int MaxNameLength = 60;
+
+    /// <summary>
+    /// Is this line a person's NAME? (#898.)
+    ///
+    /// <para><b>What it replaces.</b> The segmenter used to ask <c>IsNameLike</c> — "the first
+    /// substantial line under 60 characters that is not an e-mail, a phone or a date" — and used the
+    /// answer as if it were a recognised name. It is a heuristic that ALWAYS answers, so on the very
+    /// common layout that puts the job title above the name it returned <c>"Systemutvecklare"</c>, and
+    /// on a CV whose summary sits above a "Kontakt" heading it returned half that summary. Prose in a
+    /// field labelled <i>namn</i>, which B3 then verdicts on.</para>
+    ///
+    /// <para><b>The rule.</b> Over the glue-trimmed candidate: no digit, no colon, no e-mail, 2–4
+    /// whitespace tokens, and every token either starts with an uppercase letter or is a known
+    /// <c>nameParticles</c> member (with at least one of the former, so a line of only particles is
+    /// not a name). A token's TAIL is deliberately unconstrained: "ANNA ANDERSSON" is a very common CV
+    /// header and must pass.</para>
+    ///
+    /// <para><b>Refusal means <c>false</c>, never a fallback.</b> A recogniser that sometimes declines
+    /// beats a heuristic that always answers, because a guess is indistinguishable from knowledge at
+    /// the point of use. Known and accepted false negatives: a mononym ("Zlatan"), a 5+ token name, a
+    /// lowercase-styled name, and a labelled "Namn: Anna Andersson" line. Each yields no name, the gap
+    /// is surfaced honestly (<c>ParsedGapSummary.HasFullName</c>, <c>ContactConfidence</c>, B3), and the
+    /// user fills it in — propose-and-approve (ADR 0040), never invent.</para>
+    ///
+    /// <para><b>The phone and date arms of the old heuristic are absent on purpose</b>, not forgotten:
+    /// both shapes require digits, which the digit rule already refuses, so re-asking would be a guard
+    /// that cannot change an outcome — and a test pinning one would pass for the wrong reason. The
+    /// e-mail arm IS load-bearing (an address need carry no digit) and delegates to
+    /// <see cref="Email"/>, never a second copy (ADR 0107 §3).</para>
+    ///
+    /// <para><b>The normalisation lives HERE, inside the recogniser</b> — the #844 lesson, applied to
+    /// the name question. That is what makes a bulleted contact block ("• Anna Andersson") yield
+    /// <c>Anna Andersson</c> rather than the bullet with it, at every call site, without any call site
+    /// having to remember. Output is a pure trim of the user's own text: tokenisation drives the
+    /// DECISION only, never the VALUE (no internal whitespace collapse — see the display-form
+    /// invariants in <see cref="CvParsingLexiconLoader"/> for why re-writing user text is off limits).</para>
+    /// </summary>
+    /// <param name="particles">Versioned lexicon vocabulary (<c>nameParticles</c>), lowercased —
+    /// passed in, because this class owns FORM and never vocabulary (see the class remarks).</param>
+    internal static bool TryPersonName(string line, IReadOnlySet<string> particles, out string name)
+    {
+        ArgumentNullException.ThrowIfNull(particles);
+
+        name = string.Empty;
+
+        var candidate = InlineSeparators.TrimGlue(line);
+        if (candidate.Length is 0 or > MaxNameLength)
+            return false;
+
+        foreach (var c in candidate)
+        {
+            // A name carries no digit (that also disposes of every phone and every date range), and a
+            // colon makes the line a LABEL, not a bare name.
+            if (char.IsAsciiDigit(c) || c == ':')
+                return false;
+        }
+
+        if (Email().IsMatch(candidate))
+            return false;
+
+        var tokens = candidate.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length is < MinNameTokens or > MaxNameTokens)
+            return false;
+
+        var carriesCapitalisedToken = false;
+        foreach (var token in tokens)
+        {
+            if (char.IsUpper(token[0]))
+            {
+                carriesCapitalisedToken = true;
+                continue;
+            }
+
+            if (!particles.Contains(token.ToLowerInvariant()))
+                return false;
+        }
+
+        if (!carriesCapitalisedToken)
+            return false;
+
+        name = candidate;
+        return true;
+    }
+
+    /// <summary>
     /// Is this a BARE kommun ("Göteborg", "• Göteborg", "- Göteborg")? The taxonomy lookup (ADR 0043)
     /// with its normalisation attached, for the same reason as <see cref="TryLabelledValue"/>: the
     /// subtraction and <see cref="ContactLocationExtractor"/>'s rung 3 must ask the question in exactly

@@ -710,11 +710,26 @@ public class HeadingDrivenResumeSegmenterTests
     }
 
     [Fact]
-    public void Segment_SingleTokenName_IsStillExtracted()
+    public void Segment_MononymName_IsRefused_AndTheGapIsHonest()
     {
-        // #428 F1: the fix is a banner reject-list, NOT a "require >=2 alphabetic tokens"
-        // heuristic — a legitimate single-token name (mononym / first-name-only CV) must still
-        // be extracted, never traded away to avoid a banner.
+        // A DELIBERATE REVERSAL of a #428 decision, and it must be read as one. #428 pinned the
+        // mononym ("Zlatan") as extracted, on the reasoning that the banner fix must not be paid for
+        // with a ">= 2 tokens" rule. #898 pays exactly that price, knowingly, because the shape of a
+        // one-token line is IDENTICAL for a mononym and for the job title that sits above the name on a
+        // very common layout ("Systemutvecklare"). No deterministic rule can tell them apart, so the
+        // question is only which error to make: report a job title as her name, or report no name.
+        //
+        // Reporting no name is the honest one. It is also not silent: ContactConfidence drops to
+        // Degraded (proved below), ParsedGapSummary.HasFullName tells the guide, and B3 warns — so the
+        // user is ASKED for her name instead of being shown a wrong one (ADR 0040, ADR 0071).
+        //
+        // KNOCK-ON, stated because it is real and reaches the user: contact Degraded makes
+        // ParseConfidence.RequiresManualReview true, so 5a's auto-promote leaves this CV pending with
+        // AutoPromoteBlockReason.ParseNotConfident instead of saving it silently. That is the gate
+        // working as documented ("the parser owns the definition of clean; auto-promote does not
+        // second-guess it") — and it now says "clean" about one fewer CV that it could not read.
+        // The promoted CONTENT is unaffected either way: AutoPromoteContentMapper writes the ACCOUNT
+        // name, never the parsed one (Klas-bound 2026-07-16).
         const string cv =
             """
             Zlatan
@@ -727,7 +742,106 @@ public class HeadingDrivenResumeSegmenterTests
 
         var result = _sut.Segment(cv);
 
-        result.Content.Contact.FullName.ShouldBe("Zlatan");
+        result.Content.Contact.FullName.ShouldBeNull();
+        LevelOf(result, ParsedSectionKind.Contact).ShouldBe(SectionConfidenceLevel.Degraded);
+    }
+
+    // ===============================================================
+    // #898 — the name question has a RECOGNISER, and the layouts it used to get wrong
+    // ===============================================================
+
+    [Fact]
+    public void Segment_SummaryAboveAKontaktHeading_ReadsTheNameUnderTheHeading_NotTheSummary()
+    {
+        // THE second layout in #898. The heuristic answered with the first line of her SUMMARY
+        // ("Erfaren undersköterska, tio år i yrket." — 39 chars, no mail, no phone, no date: it
+        // cleared every check the heuristic had), and the real name under "Kontakt" was never reached,
+        // because the preamble arm runs first and the heuristic never declines.
+        //
+        // The recogniser declines on prose, so the preamble arm falls through and the contact block
+        // is read. Both halves are asserted: the name is HERS, and the summary is still CARRIED
+        // (#844's guarantee — the name fix must not eat the carrier).
+        const string cv =
+            """
+            Erfaren undersköterska, tio år i yrket.
+            Trygg i stressade lägen.
+
+            Kontakt
+            Anna Andersson
+            anna.andersson@example.com
+
+            Arbetslivserfarenhet
+            Undersköterska — Vårdcentralen
+            2015 - 2024
+            """;
+
+        var content = _sut.Segment(cv).Content;
+
+        content.Contact.FullName.ShouldBe("Anna Andersson");
+        content.Preamble.ShouldNotBeNull();
+        content.Preamble.ShouldContain("Erfaren undersköterska");
+    }
+
+    [Fact]
+    public void Segment_BulletedContactBlock_ExtractsTheNameWithoutTheBullet()
+    {
+        // A bulleted contact block yielded FullName = "• Anna Andersson" — bullet included — because
+        // the glue trim lived at the OTHER call site (the residue), not in the question itself. The
+        // normalisation now travels with the recogniser, so no call site can forget it.
+        const string cv =
+            """
+            Kontakt
+            • Anna Andersson
+            • anna.andersson@example.com
+            • 070-123 45 67
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        _sut.Segment(cv).Content.Contact.FullName.ShouldBe("Anna Andersson");
+    }
+
+    [Fact]
+    public void Segment_GluedCvTitleBannerInTheContactBlock_IsStillABanner()
+    {
+        // The two-normaliser defect, made observable end to end. The residue asked
+        // NormalizeHeading(TrimGlue(line)) and this segmenter asked NormalizeHeading(line), so
+        // "- Curriculum Vitae" was a banner to one side and CONTENT to the other — and inside a
+        // Kontakt block (which the residue never sees) the segmenter read the banner, glue and all,
+        // as her name. One owner now answers for both.
+        const string cv =
+            """
+            Kontakt
+            - Curriculum Vitae
+            Anna Andersson
+            anna.andersson@example.com
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        _sut.Segment(cv).Content.Contact.FullName.ShouldBe("Anna Andersson");
+    }
+
+    [Fact]
+    public void Segment_NameWithAParticle_IsRecognised()
+    {
+        // The versioned nameParticles vocabulary reaching production through the segmenter — the
+        // lowercase token between two capitalised ones is exactly what a shape-only rule would refuse.
+        const string cv =
+            """
+            Anna von Sydow
+            anna.von.sydow@example.com
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        _sut.Segment(cv).Content.Contact.FullName.ShouldBe("Anna von Sydow");
     }
 
     // ===============================================================

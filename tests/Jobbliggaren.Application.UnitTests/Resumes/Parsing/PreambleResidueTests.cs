@@ -491,26 +491,31 @@ public class PreambleResidueTests
 
         content.Preamble.ShouldBeNull();
 
-        // And say the ugly part out loud: DetectName STILL picks the title on this layout. That is a
-        // pre-existing defect in the heuristic ("first substantial line under 60 chars"), untouched by
-        // #844 — but a test named for this layout must not quietly imply the layout is handled. It is
-        // handled for the CARRIER, not for the NAME. Filed separately; no content is lost either way,
-        // and the user corrects it in the guide (ADR 0040 propose-and-approve).
-        content.Contact.FullName.ShouldBe("Systemutvecklare");
+        // #898 CLOSED the half this comment used to say out loud. Until then DetectName still picked
+        // the TITLE on this layout — a pre-existing defect in the heuristic ("first substantial line
+        // under 60 chars"), untouched by #844, pinned here as ShouldBe("Systemutvecklare") so the
+        // layout could not look handled when only the carrier was. The name question now has a real
+        // recogniser (ContactPatterns.TryPersonName): "Systemutvecklare" is one token, so it is
+        // refused, and the next line is recognised. The layout is handled for BOTH halves.
+        content.Contact.FullName.ShouldBe("Anna Andersson");
     }
 
     [Fact]
-    public void Segment_SurnameFirstName_IsTruncatedByTheFragmentSplit_KnownTradeOff()
+    public void Segment_SurnameFirstName_IsRefused_NotTruncated()
     {
-        // An HONEST regression, pinned rather than hidden. NameCandidates yields FRAGMENTS (it must:
+        // An HONEST decline, pinned rather than hidden. NameCandidates yields FRAGMENTS (it must:
         // handing DetectName the rebuilt segment fabricated "Anna Andersson | linkedin.com/in/anna" as a
-        // name). The comma is a separator, so "Andersson, Anna" splits, and DetectName takes the first
-        // name-like fragment: "Andersson".
+        // name). The comma is a separator, so "Andersson, Anna" splits into two one-token fragments.
         //
-        // The trade is deliberate and it favours the common case: the SAME split is what makes
-        // "Anna Andersson, Undersköterska" resolve to "Anna Andersson" instead of carrying the job title
-        // into the name field. Nothing is LOST — the guide shows the name and the user corrects it
-        // (ADR 0040). Pinned so the next person meets it as a decision, not as a surprise.
+        // Before #898 the heuristic took the first of them and reported "Andersson" — half a name, in a
+        // field labelled namn. The recogniser requires 2-4 tokens, so it refuses both fragments and the
+        // name comes back NULL: the gap reaches the user through ParsedGapSummary.HasFullName,
+        // ContactConfidence drops, and B3 warns. She fills it in (ADR 0040 propose-and-approve).
+        //
+        // Half an answer is worse than a declared gap, because a half answer is indistinguishable from
+        // a whole one at the point of use. The same fragment split still makes
+        // "Anna Andersson, Undersköterska" resolve to "Anna Andersson" rather than carrying the job
+        // title into the name field — that half of the trade is unchanged.
         const string cv =
             """
             Andersson, Anna
@@ -521,7 +526,7 @@ public class PreambleResidueTests
             2021 - 2024
             """;
 
-        _sut.Segment(cv).Content.Contact.FullName.ShouldBe("Andersson");
+        _sut.Segment(cv).Content.Contact.FullName.ShouldBeNull();
     }
 
     // ── The accepted residual, made visible ────────────────────────────────────────

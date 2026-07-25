@@ -21,7 +21,29 @@ internal sealed record CvParsingLexiconData(
     FrozenSet<string> SwedishHints,
     FrozenSet<string> EnglishHints,
     FrozenSet<string> NameBanners,
-    FrozenSet<string> LocationLabels);
+    FrozenSet<string> NameParticles,
+    FrozenSet<string> LocationLabels)
+{
+    /// <summary>
+    /// Is this line a CV-title BANNER ("Curriculum Vitae", "Meritförteckning", "- CV")? (#428, #898.)
+    ///
+    /// <para><b>One question, one normalisation.</b> This predicate had two spellings: the preamble
+    /// residue asked <c>NormalizeHeading(TrimGlue(candidate))</c> and the segmenter asked
+    /// <c>NormalizeHeading(line)</c> with no glue trim — and <c>NormalizeHeading</c> trims no glue at
+    /// either end. So "- Curriculum Vitae" (an ASCII hyphen is exactly what a PDF extractor emits for a
+    /// sidebar bullet) was a banner to one side and content to the other. A rule with two normalisers
+    /// is two rules — the same defect class <see cref="ContactPatterns.TryLabelledValue"/> and
+    /// <see cref="ContactPatterns.TryBareMunicipalityLine"/> were written to end for the location
+    /// question. It is now asked in ONE place, of the data that owns the vocabulary.</para>
+    ///
+    /// <para><b>Deliberately NOT generalised.</b> The glue trim belongs to the BANNER question only.
+    /// Giving <c>CvHeadingDetector</c> the same treatment would change how every CV is segmented — a
+    /// different change with a different risk profile, and not this one.</para>
+    /// </summary>
+    internal bool IsNameBanner(string line) =>
+        NameBanners.Contains(
+            CvParsingLexiconLoader.NormalizeHeading(InlineSeparators.TrimGlue(line)));
+}
 
 /// <summary>
 /// Loads the versioned embedded lexicon (CLAUDE.md §5 — vocabulary is data, never inline C# strings).
@@ -184,10 +206,52 @@ internal static partial class CvParsingLexiconLoader
             file.FreeSections.Keys.ToFrozenSet(StringComparer.Ordinal),
             ToHintSet(file.LanguageHints, "sv"),
             ToHintSet(file.LanguageHints, "en"),
-            (file.NameBanners ?? []).Select(NormalizeHeading).Where(b => b.Length > 0)
-                .ToFrozenSet(StringComparer.Ordinal),
+            // The STORE side takes the SAME normalisation the ASK side does (#898) — glue trim
+            // included. Without it an author writing "- Curriculum Vitae" would store a banner that no
+            // line can ever match: dead data, silently. This is the class's own stated doctrine ("every
+            // heading the lexicon STORES and every heading line a CV PRESENTS passes through this one
+            // function") extended to the glue that TrimGlue owns.
+            (file.NameBanners ?? []).Select(b => NormalizeHeading(InlineSeparators.TrimGlue(b)))
+                .Where(b => b.Length > 0).ToFrozenSet(StringComparer.Ordinal),
+            LoadNameParticles(file),
             (file.ContactLabels?.Location ?? []).Select(l => l.Trim().ToLowerInvariant())
                 .Where(l => l.Length > 0).ToFrozenSet(StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// v7 (#898): the name PARTICLES — the lowercase words a person's name may carry between its
+    /// capitalised tokens ("von", "van der", "de", "af", "bin"). Vocabulary, so it is data (§5); the
+    /// token band and length cap that read it are FORM and stay in <c>ContactPatterns</c>.
+    ///
+    /// <para><b>Fail-loud on a particle that could never match</b>, parity the dangling-display-form
+    /// throw above: <see cref="ContactPatterns.TryPersonName"/> compares WHITESPACE-SEPARATED tokens, so
+    /// an entry containing whitespace ("van der") can never equal one — it would be dead data that looks
+    /// alive, and the name it was authored for would silently keep being refused. Author the parts
+    /// ("van", "der") instead. An absent block is NOT an error (parity <c>nameBanners</c>): it only
+    /// narrows what is recognised, and narrowing yields an honest gap rather than a wrong answer.</para>
+    /// </summary>
+    private static FrozenSet<string> LoadNameParticles(LexiconFile file)
+    {
+        var particles = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var raw in file.NameParticles ?? [])
+        {
+            var particle = raw.Trim().ToLowerInvariant();
+            if (particle.Length == 0)
+                continue;
+
+            if (particle.Any(char.IsWhiteSpace))
+            {
+                throw new InvalidOperationException(
+                    $"CV-parsing lexicon v{file.Version}: the name particle '{raw}' contains whitespace. " +
+                    "Particles are matched against whitespace-separated tokens, so a multi-word entry can " +
+                    "never match — author its parts separately. Fail loud, not silently dead.");
+            }
+
+            particles.Add(particle);
+        }
+
+        return particles.ToFrozenSet(StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -252,6 +316,7 @@ internal static partial class CvParsingLexiconLoader
         Dictionary<string, string[]>? Headings,
         Dictionary<string, string[]>? LanguageHints,
         string[]? NameBanners,
+        string[]? NameParticles,
         ContactLabelsFile? ContactLabels,
         Dictionary<string, string[]>? FreeSections,
         Dictionary<string, string>? DisplayForms);

@@ -51,12 +51,12 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // #844: the residue runs BEFORE DetectName, and DetectName reads the RESIDUE.
         //
         // A sidebar/rail CV linearizes its contact block onto ONE line ("Anna Andersson |
-        // anna@x.se | 070-123 45 67 | Göteborg"). IsNameLike rejects any line matching EmailRegex,
-        // so that raw line was rejected wholesale and the NAME WAS LOST — a live defect on the most
-        // common two-column layout. After subtraction the surviving fragment is just "Anna
-        // Andersson", and the name is found. The ordering is therefore not a preference: reading the
-        // RAW preamble here would also leak the name into the carrier, which is the thing the
-        // carrier must not contain.
+        // anna@x.se | 070-123 45 67 | Göteborg"). The name recogniser refuses any line carrying an
+        // e-mail (and, since #898, any line carrying a digit), so that raw line is refused wholesale
+        // and the NAME WOULD BE LOST — a live defect on the most common two-column layout before #844.
+        // After subtraction the surviving fragment is just "Anna Andersson", and the name is found.
+        // The ordering is therefore not a preference: reading the RAW preamble here would also leak
+        // the name into the carrier, which is the thing the carrier must not contain.
         var residue = PreambleResidue.Subtract(preamble, _lexicon);
         var fullName = DetectName(PreambleResidue.NameCandidates(residue), blocks);
 
@@ -253,56 +253,54 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         Dictionary<ParsedSectionKind, string> blocks, ParsedSectionKind kind) =>
         blocks.TryGetValue(kind, out var text) && text.Length > 0 ? text : null;
 
+    /// <summary>
+    /// The person's name, at the top of the CV or under an explicit Kontakt heading — or
+    /// <c>null</c> when no line is RECOGNISED as one (#898).
+    ///
+    /// <para><b>It asks a recogniser now, and the difference is the whole point.</b> This method used
+    /// to ask <c>IsNameLike</c> — "the first substantial line under 60 characters that is not an
+    /// e-mail, a phone or a date" — a heuristic that ALWAYS answers. On the common layout that puts
+    /// the job title above the name it answered "Systemutvecklare"; on a CV whose summary sits above a
+    /// "Kontakt" heading it answered half that summary. Both were pinned by tests, as known defects.
+    /// <see cref="ContactPatterns.TryPersonName"/> owns the question, its normalisation and its
+    /// refusal, so those layouts now yield the RIGHT name or no name — never prose in a field labelled
+    /// <i>namn</i>.</para>
+    ///
+    /// <para>No fallback to "the first substantial line" is left behind: deleting it IS the fix. A
+    /// refused name is not silent — <c>ContactConfidence</c> drops, <c>ParsedGapSummary.HasFullName</c>
+    /// reports the gap to the guide, and B3 warns. The user fills it in (ADR 0040), and nothing is
+    /// invented (ADR 0071).</para>
+    /// </summary>
     private string? DetectName(
         IReadOnlyList<string> preamble, Dictionary<ParsedSectionKind, string> blocks)
     {
-        // The name is conventionally the first substantial line at the top of a CV
-        // (or under an explicit Kontakt heading) — not an e-mail/phone/heading line.
         foreach (var line in preamble)
         {
-            if (IsNameBanner(line))
-                continue;
-            if (IsNameLike(line))
-                return line.Trim();
+            if (TryRecogniseName(line, out var name))
+                return name;
         }
 
         if (blocks.TryGetValue(ParsedSectionKind.Contact, out var contactBlock))
         {
             foreach (var line in contactBlock.Split('\n'))
             {
-                if (IsNameBanner(line))
-                    continue;
-                if (IsNameLike(line))
-                    return line.Trim();
+                if (TryRecogniseName(line, out var name))
+                    return name;
             }
         }
 
         return null;
     }
 
-    // #428: a CV-title banner ("Curriculum Vitae", "Meritförteckning", "CV", ...) at the top of
-    // a CV is document metadata, not the person's name — skip it so DetectName does not return
-    // the banner as FullName (which also inflated ContactConfidence via hasName). Banners are
-    // versioned lexicon data (§5), matched after the same NormalizeHeading pass headings use.
-    private bool IsNameBanner(string line) => _lexicon.NameBanners.Contains(NormalizeHeading(line));
-
-    private static bool IsNameLike(string line)
+    // #428: a CV-title banner ("Curriculum Vitae", "Meritförteckning", "CV", ...) is document
+    // metadata, not the person's name — and "CV Anna Andersson" is not one either, which is why the
+    // banner is asked FIRST and the recogniser second. The banner question lives on the lexicon that
+    // owns the vocabulary (#898), so the residue and this class cannot ask it two different ways.
+    private bool TryRecogniseName(string line, out string name)
     {
-        var trimmed = line.Trim();
-        if (trimmed.Length is 0 or > 60)
-            return false;
-
-        if (EmailRegex().IsMatch(trimmed) || LooksLikePhone(trimmed) || LooksLikeDatePeriod(trimmed))
-            return false;
-
-        // Must contain at least one letter (avoid pure dates/separators).
-        foreach (var c in trimmed)
-        {
-            if (char.IsLetter(c))
-                return true;
-        }
-
-        return false;
+        name = string.Empty;
+        return !_lexicon.IsNameBanner(line)
+            && ContactPatterns.TryPersonName(line, _lexicon.NameParticles, out name);
     }
 
     private static string? FirstEmail(string text)
@@ -327,21 +325,12 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         return null;
     }
 
-    private static bool LooksLikePhone(string line)
-    {
-        var match = PhoneRegex().Match(line);
-        return match.Success && IsPhoneShaped(match.Value);
-    }
-
-    /// <summary>
-    /// A line carrying a date RANGE ("2021 - 2024", "2005 - nu") is a CV period, never a person's
-    /// name. Before #815 this was enforced by ACCIDENT: the old phone pattern matched any digit
-    /// run, so date lines were rejected as "phone-like". Tightening the phone pattern removed that
-    /// side effect, which would have let a line like "2021 - 2024 Volvo AB" — it has letters, so it
-    /// clears the letter check — become a name candidate. The rejection now rests on the date shape
-    /// it was always really about, and DatePatterns is the single owner of that shape (no drift).
-    /// </summary>
-    private static bool LooksLikeDatePeriod(string line) => DateRangeRegex().IsMatch(line);
+    // #898: LooksLikePhone and LooksLikeDatePeriod lived here to keep a phone line and a period line
+    // ("2021 - 2024 Volvo AB") out of the NAME field — the only thing that ever asked them. The
+    // recogniser refuses any candidate carrying a digit, which is a superset of both shapes, so
+    // keeping them would be two guards that cannot change an outcome. The shapes themselves are
+    // untouched: ContactPatterns.Phone/IsPhoneShaped and DatePatterns.DateRange are still the single
+    // owners, still read by FirstPhone and by the entry parsers below.
 
     private static List<ParsedExperience> ParseExperiences(
         Dictionary<ParsedSectionKind, string> blocks)

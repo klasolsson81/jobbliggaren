@@ -45,6 +45,7 @@
 | Load-test | NBomber | 6.x | MIT; .NET-native, xUnit/MTP-koherent; k6 avvisat (ADR 0045 Beslut 4) |
 | Load-test HTTP | NBomber.Http | 6.x | HTTP-scenario-helpers för API-latens-mätning |
 | Frontend framework | Next.js | 16.2 (App Router) | SSR + ISR |
+| Frontend bundler | Turbopack | bundlad med Next 16.2 | Next 16-default; `--webpack`-opt-outen (commit `63ea6683`) borttagen i #1046 — den kringgick Vercels edge-routing, och FE byggs inte längre på Vercel (ADR 0050 Beslut 3, amenderad 2026-06-14; §15.3 "ingen Vercel-build") |
 | Språk (frontend) | TypeScript | 6.0 | Strict mode |
 | UI-komponenter | shadcn/ui | senaste (CLI v4) | Tung customisering, se DESIGN.md |
 | Styling | Tailwind CSS | 4.2 | v4 config i `tailwind.config.ts` |

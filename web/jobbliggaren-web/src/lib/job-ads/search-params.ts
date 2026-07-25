@@ -201,9 +201,15 @@ export function parseEmployerParam(
  * not a stated search.
  *
  * This is the ONLY exported q-parser, deliberately: the sub-minimum clamp below
- * is module-private, so no call site can consume `q` while skipping the shape
- * guard. One normaliser, one rule — the divergence #823 and #846 each had to
- * close by hand.
+ * is module-private, so neither of the two /jobb URL paths can consume `q` while
+ * skipping the shape guard. One normaliser, one rule — the divergence #823 and
+ * #846 each had to close by hand.
+ *
+ * Scope of that claim, stated so it stays checkable: it covers the page entry and
+ * {@link buildPageHref}, not every `q` reader in the app. `app/api/jobb/facet-counts/
+ * route.ts` reads `q` off a `URLSearchParams` (`.get()` already returns the first
+ * value, so it cannot hit the array crash) and deliberately skips the clamp — a
+ * sub-minimum `q` there returns wider facet counts, it does not fail. Pre-existing.
  */
 export function parseQParam(
   raw: string | string[] | undefined
@@ -409,9 +415,11 @@ export function buildPageHref(
  * barriär.
  *
  * #847 — module-private. Both call sites reach the clamp through {@link parseQParam}, so
- * the arity guard cannot be bypassed by consuming the clamp on its own. It was exported
- * only for its own test, which is the same test-only-export smell #846 just removed from
- * this module.
+ * the arity guard cannot be bypassed by consuming the clamp on its own. Before #847 it had
+ * two out-of-module consumers: `jobb/page.tsx` (which #847 rewires to `parseQParam`) and
+ * its own test. With the production caller gone, keeping the export alive for the test
+ * alone would be the test-only-export smell #846 just removed from this module — so the
+ * test moves to the boundary parser instead.
  */
 function clampSubMinimumQ(q: string | undefined): string | undefined {
   if (q === undefined) return undefined;

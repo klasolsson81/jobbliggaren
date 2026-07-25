@@ -1341,8 +1341,7 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > Sekvensering: Hetzner sist, vid MVP före beta-testare, med samtliga
 > Pre-beta-data-gates lösta + andra security-granskning först).
 >
-> `infra/terraform/` (den tidigare AWS-stacken) + `deploy-dev.yml` refererar
-> **avvecklad infra** —
+> `infra/terraform/` (den tidigare AWS-stacken) + `deploy-dev.yml` refererar **avvecklad infra** —
 > den AWS-baserade dev-stacken (ECS/ECR/RDS/Redis) är **riven** 2026-05-26
 > (ADR 0066, commit `a1d9abd`), inte pausad; bara prod-baseline (~$2/mån: Route 53,
 > KMS, CloudTrail, IAM) kvarstår. Filerna är **bevarade som reversibilitets-/

@@ -51,8 +51,10 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS runtime
 # eller intern CA + VerifyFull) — samma ägare och samma villkor som Migrate-imagens.
 # Rör den inte i en städ-PR: #808 verifierade att alla tre Dockerfiles COPY:ar den
 # och att .dockerignore bär negationer för just det, medan den enda docker build i
-# CI pekar på pre-rename-sökvägar — en radering går alltså GRÖN och faller först
-# vid Hetzner-cutovern.
+# CI pekar på pre-rename-sökvägar. Skyddet är dessutom dubbelt: den workflowen är
+# `workflow_dispatch`-only sedan 2026-06-28, så ingen `docker build` körs i CI
+# överhuvudtaget. En radering går alltså GRÖN av två oberoende skäl och faller
+# först vid Hetzner-cutovern.
 COPY infra/certs/rds-global-bundle.pem /etc/ssl/certs/rds-global-bundle.pem
 
 WORKDIR /app

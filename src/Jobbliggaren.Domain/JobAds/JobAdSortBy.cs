@@ -14,8 +14,13 @@ public enum JobAdSortBy
     ExpiresAtDesc = 2,
     ExpiresAtAsc = 3,
 
-    // ADR 0042 Beslut D — relevans-sort (D2 ILIKE-heuristik). Kräver q
-    // non-null (invariant i SearchCriteria.Create + ListJobAdsQueryValidator
-    // — relevans-ordning utan söktext är odefinierad).
+    // ADR 0042 Beslut D — relevans-sort (D2 ILIKE-heuristik). Relevans-ordning utan
+    // söktext är odefinierad.
+    // #831 truth-sync: "invariant i SearchCriteria.Create + ListJobAdsQueryValidator"
+    // stämmer inte längre för validatorn. Den upprätthåller `NotEmpty` på RÅ q, medan
+    // sorten behöver en non-null RESIDUAL — och sedan q-minimum flyttade till parsern
+    // är `?q=a&sort=relevans` ett nåbart tillstånd där råvärdet finns men residualen
+    // nollas. Det degraderar medvetet till PublishedAt desc (ApplyRelevanceSort), det
+    // 400:ar inte. Create-invarianten står kvar och gäller SPARADE sökningar.
     Relevance = 4,
 }

@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Internal;
 using Jobbliggaren.Application.RecentJobSearches.Abstractions;
 using Jobbliggaren.Application.RecentJobSearches.Behaviors;
 using Jobbliggaren.Application.RecentJobSearches.Common;
@@ -62,7 +63,10 @@ public class RecentJobSearchCaptureBehaviorTests
 
     private RecentJobSearchCaptureBehavior<TMessage, TResponse> CreateBehavior<TMessage, TResponse>()
         where TMessage : IMessage =>
-        new(_currentUser, _capturer,
+        // #831 — the REAL parser, not a substitute: it is pure CPU and deterministic, and the
+        // behaviour under test is precisely "capture what the parser decided the search was".
+        // A fake here would let the test agree with itself instead of with production.
+        new(_currentUser, _capturer, new SearchQueryParser(),
             Substitute.For<ILogger<RecentJobSearchCaptureBehavior<TMessage, TResponse>>>());
 
     private static MessageHandlerDelegate<TMessage, TResponse> Next<TMessage, TResponse>(
@@ -401,10 +405,14 @@ public class RecentJobSearchCaptureBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_InvalidCriteria_DoesNotCaptureButReturnsResponse()
+    public async Task Handle_SubMinimumQAndNoDimensions_DoesNotCaptureButReturnsResponse()
     {
-        // Q = 1 tecken → SearchCriteria.Create failar (InvalidQ) → ingen
-        // capture, men queryn är orörd (best-effort).
+        // Var Handle_InvalidCriteria_DoesNotCaptureButReturnsResponse. Utfallet är detsamma
+        // (ingen capture) men #831 bytte VARFÖR, och den gamla kommentaren var därmed falsk:
+        // förr släppte default-browse-guarden igenom "a" och SearchCriteria.Create failade på
+        // InvalidQ. Nu nollar parsern q före guarden, så det här är ett rent default-browse
+        // (ingen söktext, inga dimensioner) och guarden returnerar — Create anropas aldrig.
+        // Ett default-browse ska inte capture:as, så beteendet är rätt av rätt skäl.
         var result = await HandleAsync(new FakeSearchQuery(
             Q: "a", OccupationGroup: null, Municipality: null, Region: null));
 
@@ -412,6 +420,88 @@ public class RecentJobSearchCaptureBehaviorTests
         await _capturer.DidNotReceiveWithAnyArgs().CaptureAsync(
             Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_SubMinimumQWithDimension_CapturesTheSearchThatActuallyRan()
+    {
+        // #831 REGRESSIONSTEST — den tysta förlusten som kontrakts-relaxeringen införde.
+        //
+        // Före #831 400:ade `?q=a&occupationGroup=grp1&commit=1` i ValidationBehavior, så
+        // capture var aldrig aktuell. Efter borttaget minimum returnerar samma URL 200 med
+        // yrkesgrupp-filtret applicerat — men med RÅ q vidare till Create föll hela capturen
+        // på Create:s min-invariant, och användaren tappade sökningen ur "Senaste sökningar"
+        // över ett tecken systemet självt ignorerar. Dimensionen försvann med den.
+        //
+        // Kravet är alltså inte bara "capture sker" utan "capture speglar det som KÖRDES":
+        // q = null (parsern nollade det), dimensionen bevarad. Asserterar båda — ett test som
+        // bara räknade anrop hade passerat även om q lagrats som "a".
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(
+                _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
+            Q: "a", OccupationGroup: ["grp1"], Municipality: null, Region: null));
+
+        await _capturer.Received(1).CaptureAsync(
+            _userId, Arg.Any<SearchCriteria>(), 7, Arg.Any<CancellationToken>());
+        captured.ShouldNotBeNull();
+        captured.Q.ShouldBeNull();
+        captured.OccupationGroup.ShouldBe(["grp1"]);
+    }
+
+    [Fact]
+    public async Task Handle_SubMinimumQWithRelevanceSort_CapturesTheSortThatActuallyRan()
+    {
+        // #831 rond 2 — SearchCriteria.Create har TRE q-beroende invarianter, inte två.
+        // Utöver Empty-guarden och min-längden finns RelevanceRequiresQ: Relevance med
+        // null-q avvisas. `?q=a&sortBy=Relevance&occupationGroup=grp1&commit=true` gav
+        // därför exakt samma tysta capture-förlust som fixen ovan skulle stänga — 200 med
+        // dimensionen applicerad, sedan borta ur "Senaste sökningar" ett tecken senare.
+        //
+        // Samma princip igen: capture:a det som KÖRDES. Med nollad residual faller
+        // ApplyRelevanceSort tillbaka på PublishedAt desc, så det är vad användaren fick.
+        // Asserterar sorten OCH att dimensionen överlever — en anropsräkning hade passerat
+        // även om Relevance lagrats och nästa reconcile ljugit om vad sökningen var.
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(
+                _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
+            Q: "a", OccupationGroup: ["grp1"], Municipality: null, Region: null,
+            SortBy: JobAdSortBy.Relevance));
+
+        await _capturer.Received(1).CaptureAsync(
+            _userId, Arg.Any<SearchCriteria>(), 7, Arg.Any<CancellationToken>());
+        captured.ShouldNotBeNull();
+        captured.Q.ShouldBeNull();
+        captured.SortBy.ShouldBe(JobAdSortBy.PublishedAtDesc);
+        captured.OccupationGroup.ShouldBe(["grp1"]);
+    }
+
+    [Fact]
+    public async Task Handle_RelevanceSortWithKeptQ_CapturesRelevanceUnchanged()
+    {
+        // Motprov till testet ovan: nedgraderingen får bara träffa den nollade residualen.
+        // Utan det här testet hade `effectiveSortBy` kunnat nedgradera ALLA relevans-
+        // sökningar och den enda assertionen som fanns hade fortfarande varit grön.
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(
+                _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
+            Q: "backend", OccupationGroup: null, Municipality: null, Region: null,
+            SortBy: JobAdSortBy.Relevance));
+
+        captured.ShouldNotBeNull();
+        captured.Q.ShouldBe("backend");
+        captured.SortBy.ShouldBe(JobAdSortBy.Relevance);
     }
 
     [Fact]

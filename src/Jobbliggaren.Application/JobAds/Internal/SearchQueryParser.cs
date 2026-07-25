@@ -21,8 +21,14 @@ namespace Jobbliggaren.Application.JobAds.Internal;
 ///   mellanslag (de är osynlig stuffing, inte ordgränser);</item>
 ///   <item>resultat kortare än <see cref="SearchCriteria.QMinLength"/> → <c>null</c>
 ///   (en 1-tecken-term skulle via title-LIKE <c>%a%</c> matcha nästan hela
-///   tabellen — DoS-yta validatorn redan skyddar mot; recall-bevarande eftersom
-///   dimensionerna gäller ändå);</item>
+///   tabellen; recall-bevarande eftersom dimensionerna gäller ändå). <b>#831 —
+///   den här grenen är sedan dess ENDA vakten på läsvägarna.</b> Tidigare stod
+///   här "DoS-yta validatorn redan skyddar mot"; list-/facet-/remote-count-
+///   validatorernas <c>MinimumLength</c> är borttagen, eftersom de mätte RÅ
+///   text medan den här normaliserar först — <c>?q=a&lt;ZWSP&gt;</c> passerade
+///   dem och nollades ändå här. Vad som återstår i validatorerna är
+///   <c>MaximumLength</c>, som är pre-work-resursgränsen (se trunkerings-
+///   punkten nedan: hela runa-passet sker FÖRE trunkering);</item>
 ///   <item>resultat längre än <see cref="SearchCriteria.QMaxLength"/> trunkeras
 ///   (defense-in-depth-tak — kastar ALDRIG).</item>
 /// </list>

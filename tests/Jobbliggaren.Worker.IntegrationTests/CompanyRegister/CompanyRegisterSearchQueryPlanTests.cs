@@ -208,18 +208,23 @@ public class CompanyRegisterSearchQueryPlanTests(WorkerTestFixture fixture)
     /// the branch under EXPLAIN must be the branch production would take for this criteria at this
     /// cardinality, otherwise the pin measures itself.
     ///
+    /// At this class's 2 000-row seed every probed axis is selective, so the count stays under the
+    /// cap and the materialized branch is the one exercised — which is production's behaviour for a
+    /// selective search, and leaves each ELIGIBILITY claim (the predicate is emitted in the one
+    /// shape the index can serve) intact. The browse-all CHOICE pin saturates the cap and keeps the
+    /// ordered walk, unchanged.
+    ///
     /// <para>
-    /// This class deliberately does NOT use production's <c>CountThenBuildPageAsync</c> seam the way
-    /// <see cref="CompanyRegisterSearchPlanChoiceTests"/> does, for a mechanical reason: these pins
-    /// run inside a transaction carrying <c>SET LOCAL enable_seqscan = off</c>, which the seam knows
-    /// nothing about. It costs nothing here — every claim in this class is about the PREDICATE's
-    /// shape, and both branches carry a byte-identical predicate, so the branch is irrelevant to
-    /// what these pins assert. The call site itself is guarded by the sibling.
-    /// </para> At this class's 2 000-row seed every probed
-    /// axis is selective, so the count stays under the cap and the materialized branch is the one
-    /// exercised — which is production's behaviour for a selective search, and leaves each
-    /// ELIGIBILITY claim (the predicate is emitted in the one shape the index can serve) intact.
-    /// The browse-all CHOICE pin saturates the cap and keeps the ordered walk, unchanged.
+    /// This class deliberately does NOT route through production's <c>CountThenBuildPageAsync</c>
+    /// seam the way <see cref="CompanyRegisterSearchPlanChoiceTests"/> does. The reason is the
+    /// SHAPE, not the transaction: <see cref="ExplainAsync"/> takes a
+    /// <c>Func&lt;NpgsqlConnection, NpgsqlCommand&gt;</c> and invokes it INSIDE a transaction it
+    /// opens itself (so <c>SET LOCAL</c> can be scoped), and a seam that returns an already-built
+    /// command does not fit that shape. It costs nothing here — every claim in this class is about
+    /// the PREDICATE's shape, and both branches carry a byte-identical predicate, so which branch
+    /// was taken is irrelevant to what these pins assert. The call site itself is guarded by the
+    /// sibling.
+    /// </para>
     /// </summary>
     private static async Task<string> ExplainItemsAsync(
         AppDbContext db,

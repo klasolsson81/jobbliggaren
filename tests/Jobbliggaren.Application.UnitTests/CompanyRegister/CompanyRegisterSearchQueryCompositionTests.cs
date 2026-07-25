@@ -13,7 +13,7 @@ namespace Jobbliggaren.Application.UnitTests.CompanyRegister;
 ///
 /// <para>
 /// <b>Why this instrument and not the plan guard.</b> The rule is a function of
-/// <c>(criteria, matchCount)</c>, and "did the rule fire for this axis combination" is a
+/// <c>(criteria, saturatingMatchCount)</c>, and "did the rule fire for this axis combination" is a
 /// COMPOSITION claim: it needs no statistics, no cardinality and no cost model, so pinning it in
 /// EXPLAIN would be both slower and weaker (a plan test cannot tell "the CTE is absent because the
 /// rule said walk" from "the CTE is absent because someone deleted the rule"). What genuinely
@@ -89,25 +89,25 @@ public class CompanyRegisterSearchQueryCompositionTests
     // rejected, and which regresses every small kommun) passes the whole table.
     [InlineData(SearchAxis.BrowseAll, 1999, true)]
     public void BuildItemsCommand_MaterializesIffTheMatchSetIsBounded(
-        SearchAxis axis, int matchCount, bool expectMaterialized)
+        SearchAxis axis, int saturatingMatchCount, bool expectMaterialized)
     {
         // The InlineData counts are written against the cap this page size derives; if MaxPage or
         // MaxPageSize ever moves, this fails loudly here instead of silently re-labelling rows.
         Cap.ShouldBe(
             2000,
-            "This theory's matchCount arguments are written against MaxServableRows(20) = 2 000. A "
+            "This theory's saturatingMatchCount arguments are written against MaxServableRows(20) = 2 000. A "
             + "paging cap change silently re-labels every row above, so it fails here first.");
 
         using var connection = new NpgsqlConnection();
         using var cmd = CompanyRegisterSearchQuery.BuildItemsCommand(
-            connection, Criteria(axis), matchCount);
+            connection, Criteria(axis), saturatingMatchCount);
 
         var sql = Normalize(cmd.CommandText);
 
         sql.StartsWith(MaterializedPrefix, StringComparison.Ordinal).ShouldBe(
             expectMaterialized,
-            $"Axis {axis} at matchCount {matchCount} took the wrong branch. The rule is "
-            + "`NamePrefix is not null OR matchCount < MaxServableRows(pageSize)` — one clause per "
+            $"Axis {axis} at saturatingMatchCount {saturatingMatchCount} took the wrong branch. The rule is "
+            + "`NamePrefix is not null OR saturatingMatchCount < MaxServableRows(pageSize)` — one clause per "
             + "cost structure, and neither is redundant (the name clause rescues broad prefixes "
             + "whose counts saturate; the count clause rescues sparse axes such as a small "
             + $"kommun).{Environment.NewLine}SQL:{Environment.NewLine}{sql}");
@@ -122,26 +122,35 @@ public class CompanyRegisterSearchQueryCompositionTests
     /// materialize, and at <c>pageSize = 1</c> the cap is 100, so a 100-match search would
     /// materialize when the rule says walk. Both directions are pinned.
     /// </summary>
+    /// <remarks>
+    /// The counts are written RELATIVE to each page size's own cap, never as absolutes. An absolute
+    /// form (2 000 / 10 000 / 99 / 100) is written against <c>MaxPage = 100</c> and stops testing the
+    /// boundary the moment that constant moves — at <c>MaxPage = 50</c> a hard-coded 10 000 sits far
+    /// above the cap instead of exactly on it, so the row would go green for the wrong reason and the
+    /// boundary test would have silently stopped being one.
+    /// </remarks>
     [Theory]
-    [InlineData(100, 2000, true)]
-    [InlineData(100, 10_000, false)]
-    [InlineData(1, 99, true)]
-    [InlineData(1, 100, false)]
+    [InlineData(100, -1, true)]
+    [InlineData(100, 0, false)]
+    [InlineData(1, -1, true)]
+    [InlineData(1, 0, false)]
     public void BuildItemsCommand_ReadsTheCapFromTheCallersPageSize_NotAFixedTwoThousand(
-        int pageSize, int matchCount, bool expectMaterialized)
+        int pageSize, int offsetFromCap, bool expectMaterialized)
     {
         var criteria = CompanyRegisterSearchCriteria.FromTrusted(
             [], ["2403"], null, null, page: 1, pageSize: pageSize);
+        var cap = CompanyRegisterSearchCriteria.MaxServableRows(pageSize);
+        var saturatingMatchCount = cap + offsetFromCap;
 
         using var connection = new NpgsqlConnection();
-        using var cmd = CompanyRegisterSearchQuery.BuildItemsCommand(connection, criteria, matchCount);
+        using var cmd = CompanyRegisterSearchQuery.BuildItemsCommand(connection, criteria, saturatingMatchCount);
 
         Normalize(cmd.CommandText).StartsWith(MaterializedPrefix, StringComparison.Ordinal).ShouldBe(
             expectMaterialized,
-            $"At pageSize {pageSize} the servable cap is "
-            + $"{CompanyRegisterSearchCriteria.MaxServableRows(pageSize)}, so matchCount "
-            + $"{matchCount} must {(expectMaterialized ? "" : "not ")}materialize. The rule must "
-            + "read the cap from the CALLER's page size, never a fixed 2 000.");
+            $"At pageSize {pageSize} the servable cap is {cap}, so saturatingMatchCount {saturatingMatchCount} must "
+            + $"{(expectMaterialized ? "" : "not ")}materialize. The rule must read the cap from the "
+            + "CALLER's page size — replacing MaxServableRows(criteria.PageSize) with a literal 2 000 "
+            + "is invisible at the default page size and wrong at every other one.");
     }
 
     [Theory]

@@ -280,6 +280,12 @@ public class CompanyRegisterSearchQueryTests(WorkerTestFixture fixture)
 
         // Å/Ö plus duplicate names: the collation decides the order and only the org.nr tiebreak
         // makes it total. Both are properties a branch change could silently break.
+        //
+        // INSERTION ORDER DELIBERATELY DIFFERS FROM COLLATION ORDER — do not "tidy" this seed into
+        // alphabetical order. The difference is what makes the E1 (inner LIMIT) mutation detectable:
+        // an inner limit takes the first rows in physical order (Zebra, Åkeriet) where the correct
+        // answer starts Alfa, Alfa. Sorted seed data would disarm the test without changing a line
+        // of the assertions.
         await SeedAsync(ctx.Db, ct,
             Entry("5560000012", "Zebra AB", KommunStockholm, [SniIt]),
             Entry("5560000020", "Åkeriet AB", KommunStockholm, [SniIt]),
@@ -294,9 +300,16 @@ public class CompanyRegisterSearchQueryTests(WorkerTestFixture fixture)
         var materialized = await ReadItemsAsync(ctx.Db, criteria, matchCount: cap - 1, ct);
         var walked = await ReadItemsAsync(ctx.Db, criteria, matchCount: cap, ct);
 
-        // Guard the guard: if both calls took the same branch this comparison proves nothing.
-        materialized.Sql.ShouldContain("MATERIALIZED");
-        walked.Sql.ShouldNotContain("MATERIALIZED");
+        // Guard the guard: if both calls took the SAME branch, the comparison below compares a
+        // result set with itself and proves nothing at all.
+        materialized.Sql.ShouldContain(
+            "MATERIALIZED",
+            customMessage: "The bounded-count call did not take the materialized branch, so the "
+                + "comparison below is between two identical branches and proves nothing.");
+        walked.Sql.ShouldNotContain(
+            "MATERIALIZED",
+            customMessage: "The saturated-count call did not take the walk branch, so the "
+                + "comparison below is between two identical branches and proves nothing.");
 
         // Compared as projected VALUES, not as records: CompanyBrowseResult carries a string[], and
         // record equality compares arrays by REFERENCE — two independently read result sets would
@@ -329,10 +342,25 @@ public class CompanyRegisterSearchQueryTests(WorkerTestFixture fixture)
         pagedMaterialized.ShouldBe(Project(materialized.Rows));
     }
 
-    private static IReadOnlyList<string> Project(IReadOnlyList<CompanyBrowseResult> rows) =>
-        [.. rows.Select(r =>
+    /// <summary>
+    /// Projects to comparable values: <see cref="CompanyBrowseResult"/> carries a <c>string[]</c>, so
+    /// record equality compares arrays by REFERENCE and two independently read result sets are never
+    /// equal — and its <c>ToString()</c> is org.nr-redacted (#883), which would make any diff
+    /// unreadable. Enumerating the members by hand is FAIL-OPEN against a sixth one being added
+    /// later (the comparison would silently stop covering it), so the member count is pinned.
+    /// </summary>
+    private static IReadOnlyList<string> Project(IReadOnlyList<CompanyBrowseResult> rows)
+    {
+        typeof(CompanyBrowseResult).GetProperties().Length.ShouldBe(
+            5,
+            "CompanyBrowseResult gained or lost a member. This projection enumerates its members by "
+            + "hand, so the branch-equality comparison has silently stopped covering the whole row — "
+            + "add the new member below before updating this count.");
+
+        return [.. rows.Select(r =>
             $"{r.OrganizationNumber}|{r.Name}|{r.SeatMunicipalityCode}|{r.SeatMunicipalityName}|"
             + string.Join(",", r.SniCodes))];
+    }
 
     /// <summary>
     /// Runs production's items command with a CHOSEN <c>matchCount</c> so a single test can exercise

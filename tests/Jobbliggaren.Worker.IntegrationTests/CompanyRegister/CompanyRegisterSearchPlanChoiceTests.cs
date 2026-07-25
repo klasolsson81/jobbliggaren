@@ -81,12 +81,16 @@ public class CompanyRegisterSearchPlanChoiceTests(CompanyRegisterPlanFixture fix
     {
         var criteria = Criteria(name: CompanyRegisterPlanFixture.ProbeNamePrefix);
 
-        // The corpus checks itself. This probe must stay BROAD — the walk is only chosen when the
-        // planner believes the match set is big enough for LIMIT 20 to stop early, so a shrunken
-        // cluster would quietly stop reproducing the defect and leave the assertions below passing
-        // for a reason unrelated to the fix. The count saturates the cap here, which is also the
-        // point: this regime is precisely the one the count clause CANNOT rescue, so the name
-        // clause carries it alone.
+        // A PROXY for the reproduction condition, not a counterfactual — say so plainly, because the
+        // sparse-kommun claim below has a real one and these are not equally tight. A name prefix
+        // materializes at ANY count, so the branch cannot be forced and the planner's CHOICE cannot
+        // be probed from here; what this checks is that the probe is still BROAD, which is the
+        // corpus property the choice depends on. The seed spreads first letters over 29 characters,
+        // so the cluster is ~TotalRows/29 and this saturates while TotalRows > 29 x 2 000 ≈ 58 000 —
+        // ABOVE the 50 000 floor at which claim (b) stops reproducing, so on a shrinking corpus this
+        // assertion fails first. That is the realistic decay path and it is covered.
+        // Saturation is also the point of this regime: it is exactly what the count clause cannot
+        // rescue, so the name clause carries it alone.
         (await CountAsync(criteria)).ShouldBe(
             CompanyRegisterSearchCriteria.MaxServableRows(PageSize),
             "The late-sorting name cluster no longer saturates the servable cap, so this test has "
@@ -275,6 +279,20 @@ public class CompanyRegisterSearchPlanChoiceTests(CompanyRegisterPlanFixture fix
         await using var cmd = forcedMatchCount is { } forced
             ? CompanyRegisterSearchQuery.BuildItemsCommand(connection, criteria, forced)
             : (await CompanyRegisterSearchQuery.CountThenBuildPageAsync(connection, criteria, ct)).Items;
+
+        // The counterfactual seam is INERT when a name prefix is set — the name clause short-circuits
+        // the count clause, so a forced count cannot reach the walk branch. Without this check the
+        // next reader writes ExplainItemsAsync(nameCriteria, cap), believes they forced the walk, gets
+        // a materialized plan, and writes an assertion that passes for the wrong reason.
+        if (forcedMatchCount is not null)
+        {
+            cmd.CommandText.ShouldNotContain(
+                "MATERIALIZED",
+                customMessage:
+                    "forcedMatchCount cannot force the walk branch for these criteria — the name "
+                    + "clause is unconditional and short-circuits the count. The counterfactual is "
+                    + "inert here; only axes that go through the COUNT clause can be forced.");
+        }
 
         cmd.CommandText = "EXPLAIN " + cmd.CommandText;
 

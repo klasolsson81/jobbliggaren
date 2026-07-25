@@ -72,12 +72,15 @@ internal sealed class CompanyRegisterSearchQuery(AppDbContext db) : ICompanyRegi
 
         var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        var (itemsCommand, totalCount) =
+        var items = new List<CompanyBrowseResult>();
+
+        var (itemsCmd, totalCount) =
             await CountThenBuildPageAsync(connection, criteria, cancellationToken)
                 .ConfigureAwait(false);
 
-        var items = new List<CompanyBrowseResult>();
-        await using (var itemsCmd = itemsCommand)
+        // Taken into `await using` immediately: the seam hands back an UNDISPOSED command, so
+        // nothing may sit between acquiring it and owning it.
+        await using (itemsCmd.ConfigureAwait(false))
         {
             await using var reader = await itemsCmd
                 .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);

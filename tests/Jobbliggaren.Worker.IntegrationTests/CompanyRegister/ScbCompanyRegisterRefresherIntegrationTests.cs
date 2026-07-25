@@ -213,11 +213,15 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
     }
 
     [Fact]
-    public async Task RefreshAsync_NarratesTheAnalyzeStep_SoAnOperatorCanSeeStatisticsWereRefreshed()
+    public async Task RefreshAsync_NarratesTheAnalyzeStep_AfterTheRunSummary()
     {
-        // Without EventId 5718 the step is invisible in a run that is otherwise fully narrated, and an
-        // operator diagnosing a slow register search cannot tell from the log whether the last sync
-        // refreshed the planner's statistics.
+        // Two claims, both about the run log. (1) Without EventId 5718 the ANALYZE is invisible in a run
+        // that is otherwise fully narrated, so an operator diagnosing a slow register search cannot tell
+        // whether the last sync refreshed the planner's statistics. (2) The summary (5712) is emitted
+        // BEFORE the ANALYZE, so a failing ANALYZE costs the run its statistics and not its numbers —
+        // the operator deciding whether to re-spend an ~11 h metered extract keeps the figures either
+        // way. That is the whole guarantee, not a proxy for it: it is an ordering property of the happy
+        // path, which is exactly what this assertion measures (senior-cto-advisor 2026-07-25).
         var ct = TestContext.Current.CancellationToken;
         await ResetAsync(ct);
 
@@ -225,7 +229,14 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
         await BuildRefresher(new FakeSource([Legal("5560000511")], fetched: 1000), T0, logger)
             .RefreshAsync(ct);
 
-        logger.Entries.ShouldContain(e => e.EventId.Id == 5718);
+        var ids = logger.Entries.Select(e => e.EventId.Id).ToList();
+        // Both presence checks are load-bearing: IndexOf returns -1 for a missing id, and -1 < n would
+        // pass vacuously on a suite where either line had been deleted.
+        ids.ShouldContain(5712);
+        ids.ShouldContain(5718);
+        ids.IndexOf(5712).ShouldBeLessThan(ids.IndexOf(5718),
+            "körningens sammanfattning måste loggas FÖRE ANALYZE-steget: flyttas den under anropet "
+            + "förlorar en misslyckad ANALYZE hela sifferraden ur körningsloggen");
     }
 
     [Fact]

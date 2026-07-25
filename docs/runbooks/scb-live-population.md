@@ -458,11 +458,19 @@ open an issue before re-running.
 ### Planner statistics — automatic after a sync, manual after a restore
 
 A completed sync now runs `ANALYZE company_register` itself, as its last step
-(#560, ADR 0119 — CLAUDE.md §3.6). You should see it in the run log:
+(#560, ADR 0119 — CLAUDE.md §3.6). It follows the 5712 run summary and is the
+last line of a successful run:
 
 ```
 ScbCompanyRegisterRefresher: planerarstatistik uppdaterad (ANALYZE company_register) — 871 ms.
 ```
+
+**Failed job, 5712 present, no 5718** — the extract and the sweep completed and
+only the statistics refresh failed (the exception names `ANALYZE
+company_register`). Run the manual `ANALYZE` in step 3 below. Do **not**
+re-trigger the sync: the upsert is idempotent, but a re-run costs ~11 h and the
+full metered SCB call budget — which is why the worker carries
+`AutomaticRetry(Attempts = 0)` (#688).
 
 **Do not rely on autovacuum to cover the gaps.** Its analyze trigger is
 change-driven, and its counters are discarded on an unclean shutdown and carried

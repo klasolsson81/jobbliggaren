@@ -145,6 +145,10 @@ internal sealed partial class ScbCompanyRegisterRefresher(
                 CompletedAt: completedAt), cancellationToken).ConfigureAwait(false);
         }
 
+        LogCompleted(logger, rowsUpserted, rowsDeregistered, excludedPersonnummerShaped,
+            excludedInvalid, outcome.TotalRowsFetched, sweepApplied,
+            outcome.PartitionRequestFailures, (completedAt - startedAt).TotalMinutes);
+
         // #560 / ADR 0119 — refresh the planner's statistics for the table this run just bulk-loaded
         // (CLAUDE.md §3.6). The ARGUMENT lives in ScbCompanyRegisterStore.AnalyzeAsync; what belongs
         // here is why it sits at THIS point in the run:
@@ -163,6 +167,14 @@ internal sealed partial class ScbCompanyRegisterRefresher(
         // Deliberately NOT wrapped in a catch: the worker carries AutomaticRetry(Attempts = 0) (#688),
         // so a throw here lands the job Failed and visible WITHOUT re-spending the ~11 h extract — and
         // "the statistics were not refreshed" is precisely the defect this call exists to prevent.
+        //
+        // AFTER LogCompleted, so a failing ANALYZE costs the run its statistics and NOT its narrated
+        // numbers — the operator deciding whether to re-spend an ~11 h metered extract should not have
+        // to reconstruct them from audit_log. Fail-loudness is carried by the Failed job, never by the
+        // ABSENCE of a console line: logging is console-only with no sink (CLAUDE.md §11, TD-104), so
+        // absence is indistinguishable from log loss, while suppression-by-position would also be
+        // silently inherited by any step later appended to this window. 5718's absence is specific by
+        // construction; 5712's would not be (senior-cto-advisor 2026-07-25, Position A).
         double analyzeDurationMs;
         await using (var analyzeScope = scopeFactory.CreateAsyncScope())
         {
@@ -175,10 +187,6 @@ internal sealed partial class ScbCompanyRegisterRefresher(
         }
 
         LogAnalyzed(logger, analyzeDurationMs);
-
-        LogCompleted(logger, rowsUpserted, rowsDeregistered, excludedPersonnummerShaped,
-            excludedInvalid, outcome.TotalRowsFetched, sweepApplied,
-            outcome.PartitionRequestFailures, (completedAt - startedAt).TotalMinutes);
 
         return new ScbCompanyRegisterRefreshResult(
             RowsUpserted: rowsUpserted,

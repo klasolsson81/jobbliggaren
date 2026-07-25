@@ -280,12 +280,16 @@ internal static class JobAdSearchComposition
         };
 
     // ADR 0062 — relevans-sort via PostgreSQL ts_rank(search_vector,
-    // websearch_to_tsquery('swedish', q)). Relevance kräver q non-null
-    // (invariant i SearchCriteria.Create + ListJobAdsQueryValidator);
-    // null-guarden är defense-in-depth (fallback PublishedAt desc, kastar ej i
-    // query-vägen). Rader som matchade enbart via title-LIKE-fallbacken (ej
-    // FTS) får ts_rank 0 → de sorteras efter FTS-träffarna, sedan PublishedAt
-    // desc, sedan Id.
+    // websearch_to_tsquery('swedish', q)). Relevans-ordning utan söktext är odefinierad.
+    // #831 truth-sync: null-guarden nedan var beskriven som "defense-in-depth" med
+    // ListJobAdsQueryValidator som upprätthållare. Den är nu PRIMÄRVÄG för ordinär input.
+    // Validatorns `NotEmpty` mäter RÅ q; sorten behöver en non-null RESIDUAL, och sedan
+    // q-minimum flyttade till ISearchQueryParser passerar `?q=a&sort=relevans` validatorn,
+    // nollas i handlern och landar här med q = null. Fallbacken (PublishedAt desc, kastar
+    // ej) är alltså det avsedda beteendet för det fallet, inte en osannolik skyddsnät-gren.
+    // Create-invarianten står kvar och gäller SPARADE sökningar, inte den här läsvägen.
+    // Rader som matchade enbart via title-LIKE-fallbacken (ej FTS) får ts_rank 0 → de
+    // sorteras efter FTS-träffarna, sedan PublishedAt desc, sedan Id.
     private static IQueryable<JobAd> ApplyRelevanceSort(IQueryable<JobAd> source, string? q)
     {
         if (!HasFreeTextQuery(q))

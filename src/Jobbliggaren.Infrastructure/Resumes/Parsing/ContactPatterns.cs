@@ -152,9 +152,15 @@ internal static partial class ContactPatterns
     /// the Kontakt-block arm passes RAW LINES, so the same text resolved to
     /// <c>"Anna Andersson, Undersköterska"</c> — a job title in a field labelled <i>namn</i>, i.e. the
     /// very defect #898 exists to remove, surviving in the half of the parser nobody re-read.
-    /// ("Göteborg, Sverige" was a name to that arm too.) Both call sites now pass the raw line and get
-    /// the same answer, and the preamble arm is unaffected because splitting an already-split fragment
-    /// is idempotent.</para>
+    /// ("Göteborg, Sverige" was a name to that arm too.) The rule now gives ONE answer per input, and
+    /// the preamble arm is unchanged because splitting an already-split fragment is idempotent
+    /// (the fragments carry no separator, and <c>TrimGlue</c> is a fixpoint).</para>
+    ///
+    /// <para><b>What that does NOT mean.</b> The two <c>DetectName</c> arms still FEED this method
+    /// different input — residue fragments above the first heading, raw lines under a Kontakt heading
+    /// — so a rail line that resolves above the heading yields no name below it. That asymmetry is
+    /// real, pre-existing and pinned as a known one; closing it would mean running the residue inside
+    /// the contact block, which is a different change with a different contract.</para>
     ///
     /// <para><b>Refusal means <c>false</c>, never a fallback.</b> A recogniser that sometimes declines
     /// beats a heuristic that always answers, because a guess is indistinguishable from knowledge at

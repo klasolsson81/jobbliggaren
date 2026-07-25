@@ -946,7 +946,8 @@ public class PreambleResidueTests
         // perfectly. The line-boundary rule is what makes the truncation honest, and it needs its
         // own pin.
         //
-        // The line is deliberately over IsNameLike's 60-char limit, so no line is claimed as the
+        // The line is deliberately over the name recogniser's 60-char cap (ContactPatterns
+        // .MaxNameLength — the same cap the pre-#898 heuristic carried), so no line is claimed as the
         // name and every carried line must be a WHOLE source line.
         const string line = "Erfaren undersköterska med tio års erfarenhet av natt och trygg vård.";
         var giant = string.Join('\n', Enumerable.Repeat(line, 200));
@@ -1034,8 +1035,13 @@ public class PreambleResidueTests
         //
         // Move LinkedIn one slot left — before the phone and the city, which is at least as common a
         // rail ordering — and it falls INSIDE the before-range. `Before` rebuilds to exactly the
-        // fabricated string the docstring promises is now impossible, IsNameLike accepts it (no "@",
-        // no phone shape, under 60 chars), and it is written to ParsedContact.FullName.
+        // fabricated string the docstring promises is now impossible; the heuristic of the day
+        // accepted it (no "@", no phone shape, under 60 chars) and wrote it to ParsedContact.FullName.
+        //
+        // #898 note: the recogniser that replaced the heuristic would ALSO refuse that rebuilt string
+        // (it glues two items onto one line), so the defect now has two independent guards. The test
+        // still earns its place: it pins the ATOMIC-fragment guarantee at its source, and a future
+        // relaxation of the fragment rule must not silently re-open fabrication.
         //
         // The engine inventing a name the user never wrote is ADR 0071's one absolute prohibition, and
         // FullName is not an internal — it reaches the guide and B3's verdicts.

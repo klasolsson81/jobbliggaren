@@ -217,12 +217,12 @@ internal static partial class CvParsingLexiconLoader
     /// The CV-title banners, stored through <see cref="NormalizeBanner"/> — the same function the ASK
     /// side calls (#428, #898).
     ///
-    /// <para><b>Fail-loud on a banner that normalises to nothing</b>, parity
-    /// <see cref="LoadNameParticles"/>: an entry that is only glue or only separators ("- ", ":")
-    /// would be dropped silently and the author would never learn that the banner they wrote does not
-    /// exist. Symmetry matters here specifically because the two rules sit three lines apart — a
-    /// loader that throws for one dead entry and shrugs at another teaches nothing about which
-    /// mistakes it catches.</para>
+    /// <para><b>The loader's rule for dead entries, stated once and applied the same way here and in
+    /// <see cref="LoadNameParticles"/>: an entry the AUTHOR can see is empty is skipped; an entry that
+    /// LOOKS like content but cannot ever match FAILS LOUD.</b> A bare <c>""</c> is a formatting
+    /// artifact, visible at a glance and harmless. <c>"- "</c> or <c>":"</c> is the dangerous kind:
+    /// it reads as a banner, survives review, and normalises away to nothing. The distinction is not
+    /// "which rule was written first" — it is whether the mistake HIDES.</para>
     /// </summary>
     private static FrozenSet<string> LoadNameBanners(LexiconFile file)
     {
@@ -230,12 +230,17 @@ internal static partial class CvParsingLexiconLoader
 
         foreach (var raw in file.NameBanners ?? [])
         {
+            // Visibly empty: skipped, same as an empty particle. Nothing is hidden from the author.
+            if (raw.Trim().Length == 0)
+                continue;
+
             var banner = NormalizeBanner(raw);
             if (banner.Length == 0)
             {
                 throw new InvalidOperationException(
-                    $"CV-parsing lexicon v{file.Version}: the name banner '{raw}' normalises to an " +
-                    "empty string, so no line can ever match it. Fail loud, not silently dead.");
+                    $"CV-parsing lexicon v{file.Version}: the name banner '{raw}' looks like content " +
+                    "but normalises to an empty string, so no line can ever match it. Fail loud, not " +
+                    "silently dead.");
             }
 
             banners.Add(banner);
@@ -249,10 +254,12 @@ internal static partial class CvParsingLexiconLoader
     /// capitalised tokens ("von", "van der", "de", "af", "bin"). Vocabulary, so it is data (§5); the
     /// token band and length cap that read it are FORM and stay in <c>ContactPatterns</c>.
     ///
-    /// <para><b>Fail-loud on a particle that could never match</b>, parity the dangling-display-form
-    /// throw above. Three character classes make an entry unmatchable, and the invariant covers all
-    /// three rather than the first one that came to mind — a partial fail-loud rule is weaker than
-    /// none, because it teaches the reader that the block is guarded:
+    /// <para><b>Fail-loud on a particle that could never match</b> — the same rule
+    /// <see cref="LoadNameBanners"/> applies, in the same words: a visibly empty entry is skipped, an
+    /// entry that looks like content but can never match throws. Three character classes make one
+    /// unmatchable, and the invariant covers all three rather than the first one that came to mind —
+    /// a partial fail-loud rule is weaker than none, because it teaches the reader that the block is
+    /// guarded:
     /// <see cref="ContactPatterns.TryPersonName"/> compares WHITESPACE-SEPARATED tokens (so "van der"
     /// can never equal one — author "van" and "der"), and it refuses the whole candidate on a DIGIT or
     /// a COLON before it ever tokenises (so "de3" or "de:" can never be reached either). Any of them
@@ -312,13 +319,18 @@ internal static partial class CvParsingLexiconLoader
     /// <para><b>Why it is a named function and not two inlined expressions.</b> The banner question
     /// had two spellings and they disagreed about "- Curriculum Vitae". Replacing them with the same
     /// composite written twice fixes today's disagreement and leaves tomorrow's available: the STORE
-    /// side, the ASK side (<see cref="CvParsingLexiconData.IsNameBanner"/>) and the integrity suite
-    /// that GUARDS the shipped data must all ask the identical question, and the only way to make that
-    /// checkable rather than conventional is one function they all call. The integrity suite's own
-    /// header states the rule this closes: "guarding data with a different function than the one that
-    /// consumes it is not a test" — before this, that suite normalised banners WITHOUT the glue trim,
-    /// so a banner authored as "- projekt" would have been stored as <c>projekt</c>, collided with the
-    /// free-section synonym, and the disjointness guard would have gone green looking at "- projekt".</para>
+    /// side and the ASK side (<see cref="CvParsingLexiconData.IsNameBanner"/>) both call THIS
+    /// function, and an architecture test pins that no other source file may interrogate
+    /// <c>NameBanners</c> at all — so the single ownership is a build-time property, not a
+    /// convention someone has to remember.
+    ///
+    /// The integrity suite closes the third side by reading the STORED set rather than re-normalising
+    /// the raw file, which is stronger than calling this function: it guards exactly the data
+    /// production consumes. Its own header states the rule — "guarding data with a different function
+    /// than the one that consumes it is not a test" — and before #898 that suite normalised banners
+    /// WITHOUT the glue trim, so a banner authored as "- projekt" would have been stored as
+    /// <c>projekt</c>, collided with the free-section synonym, and the disjointness guard would have
+    /// gone green looking at "- projekt".</para>
     ///
     /// <para>The glue trim is bound to the BANNER question deliberately. <see cref="NormalizeHeading"/>
     /// stays glue-blind for section headings: giving <c>CvHeadingDetector</c> the same treatment would

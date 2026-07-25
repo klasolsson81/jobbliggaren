@@ -300,10 +300,12 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     // #428: a CV-title banner ("Curriculum Vitae", "Meritförteckning", "CV", ...) is document
     // metadata, not the person's name.
     //
-    // The banner is asked FIRST, and that ordering is load-bearing for a concrete reason: several
-    // shipped banners are TITLE-CASED and 2-token ("Curriculum Vitae", "Cover Letter", "Personligt
-    // brev", "C V"), so TryPersonName would accept them as names if it got there first. #898 made
-    // that sharper, not looser — the 2..4-token rule is exactly the shape those banners have.
+    // The banner is asked FIRST, and that ordering is load-bearing for a concrete reason: three
+    // shipped banners are TITLE-CASED and 2-token ("Curriculum Vitae", "Cover Letter", "C V"), so
+    // TryPersonName would accept them as names if it got there first. #898 made that sharper, not
+    // looser — the 2..4-token rule is exactly the shape those banners have. ("Personligt brev" is
+    // NOT one of them: its lowercase second token is refused by the recogniser anyway, so listing it
+    // here would be an example that does not carry the claim.)
     // (A banner PREFIXED to a name, "CV Anna Andersson", is neither: not a banner by membership, and
     // accepted verbatim by the recogniser. That residual is listed on TryPersonName, not papered over
     // here.)

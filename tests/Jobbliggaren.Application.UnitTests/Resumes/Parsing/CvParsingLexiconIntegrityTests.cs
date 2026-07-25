@@ -76,8 +76,9 @@ public class CvParsingLexiconIntegrityTests
         {
             particle.ShouldBe(particle.Trim().ToLowerInvariant(),
                 $"Partikeln '{particle}' är inte lagrad i den form recognisern jämför mot.");
-            particle.ShouldNotContain(" ", Case.Sensitive,
-                $"Partikeln '{particle}' är flerordig och kan aldrig matcha ett token.");
+            particle.ShouldNotContain(c => char.IsWhiteSpace(c),
+                $"Partikeln '{particle}' bär whitespace (mellanslag eller tab) och kan aldrig matcha " +
+                "ett token — samma teckenklass loadern kastar på, kontrollerad på samma sätt.");
         }
 
         particles.Distinct(StringComparer.Ordinal).Count().ShouldBe(particles.Length,

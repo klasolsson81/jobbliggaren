@@ -21,7 +21,8 @@ public class CvConventionsLoaderTests
         {
           "conventionsVersion": "1.0.0",
           "sectionOrder": ["contact", "experience", "education"],
-          "fontAllowlist": ["Arial", "Calibri"]
+          "fontAllowlist": ["Arial", "Calibri"],
+          "coreSections": ["contact"]
         }
         """;
 
@@ -76,9 +77,23 @@ public class CvConventionsLoaderTests
     {
         // An empty order is not "no opinion" — it is a transform that can never fire, dressed as
         // data. The asset's entire purpose is this list.
-        Should.Throw<InvalidOperationException>(
+        // The message is asserted, not just the throw: coreSections carries its own empty-list guard
+        // three lines away, and an unasserted Should.Throw cannot tell which one fired. That is how
+        // this suite briefly stopped guarding sectionOrder at all — MinimalValid used to spell
+        // coreSections with the SAME three ids, so this whole-document Replace mutated both arrays
+        // and the coreSections guard threw in sectionOrder's place. All three sectionOrder guards
+        // could then be deleted with the suite green (measured, test-writer 2026-07-25).
+        var ex = Should.Throw<InvalidOperationException>(
             () => CvConventionsLoader.LoadFrom(
                 Mutated("[\"contact\", \"experience\", \"education\"]", "[]")));
+
+        // The guard's OWN phrase, not the shared word: with an empty order and coreSections
+        // ["contact"], removing this guard still throws — via the containment check, whose message
+        // reads "Kärnsektionen 'contact' saknas I sectionOrder" and would satisfy a bare
+        // ShouldContain("sectionOrder"). The test would then stay green while the guard it names is
+        // gone. (The shipped GUARANTEE survives either way; it is the MEASUREMENT that was wrong,
+        // which is the same over-claim class this round exists to remove — re-review 2026-07-25.)
+        ex.Message.ShouldContain("saknar sectionOrder");
     }
 
     [Fact]
@@ -86,16 +101,20 @@ public class CvConventionsLoaderTests
     {
         // A section named twice has two positions. The sort would silently take one of them, and
         // the other would be a lie the file tells about itself.
-        Should.Throw<InvalidOperationException>(
+        var ex = Should.Throw<InvalidOperationException>(
             () => CvConventionsLoader.LoadFrom(
                 Mutated("\"education\"", "\"education\", \"contact\"")));
+
+        ex.Message.ShouldContain("sectionOrder");
     }
 
     [Fact]
     public void LoadFrom_ShouldThrow_WhenASectionIdIsBlank()
     {
-        Should.Throw<InvalidOperationException>(
+        var ex = Should.Throw<InvalidOperationException>(
             () => CvConventionsLoader.LoadFrom(Mutated("\"education\"", "\"\"")));
+
+        ex.Message.ShouldContain("sectionOrder");
     }
 
     [Fact]
@@ -141,5 +160,64 @@ public class CvConventionsLoaderTests
         // A duplicate is a data typo, not a second opinion — fail loud like a duplicate sectionId.
         Should.Throw<InvalidOperationException>(
             () => CvConventionsLoader.LoadFrom(Mutated("\"Calibri\"", "\"Calibri\", \"Arial\"")));
+    }
+
+    // ── coreSections (#890) — the ids B1's Fail arm measures burial against ──────────────
+
+    [Fact]
+    public void LoadFrom_ShouldMapTheCoreSections_WhenTheAssetIsWellFormed()
+    {
+        var conventions = CvConventionsLoader.LoadFrom(Json(MinimalValid));
+
+        conventions.CoreSections.ShouldBe(["contact"]);
+    }
+
+    [Fact]
+    public void LoadFrom_ShouldThrow_WhenACoreSectionIsMissingFromTheOrder()
+    {
+        // THE INVARIANT THAT MATTERS, and the reason it cannot be a fallback. An observed section is
+        // resolved to a core id THROUGH sectionOrder, so a core id the order does not name can never
+        // be matched against a real CV: it stays permanently absent from the observed core set, the
+        // lead-in measure's validity precondition can never be satisfied, and B1's Fail arm goes
+        // silently unreachable. Every CV would look fine on the very dimension the asset was edited
+        // to sharpen. A validation that turns a data typo into a permanently green verdict is worse
+        // than no validation.
+        var ex = Should.Throw<InvalidOperationException>(() => CvConventionsLoader.LoadFrom(
+            Mutated(
+                "\"coreSections\": [\"contact\"]",
+                "\"coreSections\": [\"contact\", \"languages\"]")));
+
+        ex.Message.ShouldContain("languages");
+        ex.Message.ShouldContain("sectionOrder");
+    }
+
+    [Fact]
+    public void LoadFrom_ShouldThrow_WhenCoreSectionsIsEmpty()
+    {
+        // An empty list is not "no opinion" — it is a Fail arm that can never fire, dressed as data.
+        var ex = Should.Throw<InvalidOperationException>(() => CvConventionsLoader.LoadFrom(
+            Mutated("\"coreSections\": [\"contact\"]", "\"coreSections\": []")));
+
+        ex.Message.ShouldContain("coreSections");
+    }
+
+    [Fact]
+    public void LoadFrom_ShouldThrow_WhenACoreSectionIsListedTwice()
+    {
+        Should.Throw<InvalidOperationException>(() => CvConventionsLoader.LoadFrom(
+            Mutated(
+                "\"coreSections\": [\"contact\"]",
+                "\"coreSections\": [\"contact\", \"contact\"]")));
+    }
+
+    [Fact]
+    public void LoadFrom_ShouldThrow_WhenACoreSectionIdIsBlank()
+    {
+        // Reachable only because MinimalValid's coreSections no longer collides with sectionOrder —
+        // before that fix the sectionOrder blank-guard always threw first and this arm was dead.
+        var ex = Should.Throw<InvalidOperationException>(() => CvConventionsLoader.LoadFrom(
+            Mutated("\"coreSections\": [\"contact\"]", "\"coreSections\": [\" \"]")));
+
+        ex.Message.ShouldContain("coreSections");
     }
 }

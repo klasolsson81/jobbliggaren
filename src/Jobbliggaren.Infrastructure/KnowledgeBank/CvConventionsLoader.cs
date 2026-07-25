@@ -109,7 +109,60 @@ internal static class CvConventionsLoader
                 : new CvSectionOrderEntry(sectionId, TypedKind: null));
         }
 
-        return new CvConventions(file.ConventionsVersion, order, file.FontAllowlist);
+        return new CvConventions(
+            file.ConventionsVersion, order, file.FontAllowlist, MapCoreSections(file, seen));
+    }
+
+    /// <summary>
+    /// The CORE sections (#890) — validated against the order this same file declares.
+    ///
+    /// <para><b>Why the containment check is fail-loud and not a fallback.</b> An observed section is
+    /// resolved to a core id THROUGH <c>sectionOrder</c>, so a core id the order does not name can
+    /// never be matched against a real CV — it would be permanently missing from the observed core
+    /// set, the lead-in measure's validity precondition ("every core section was observed") could
+    /// never be satisfied, and B1's Fail arm would go silently unreachable. Every CV would look fine
+    /// on the dimension the asset was edited to sharpen. A validation that turns a data typo into a
+    /// permanently green verdict is worse than no validation, so it throws at host build.</para>
+    /// </summary>
+    private static HashSet<string> MapCoreSections(
+        CvConventionsFile file, HashSet<string> orderedSectionIds)
+    {
+        // An empty list is not "no opinion" — it is a Fail arm that can never fire, dressed as data.
+        if (file.CoreSections.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "cv-conventions-assetet saknar coreSections. En tom lista gör B1:s Fail-arm "
+                + "permanent oåtkomlig — kriteriet skulle aldrig kunna rapportera en begravd "
+                + "kärnsektion.");
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var sectionId in file.CoreSections)
+        {
+            if (string.IsNullOrWhiteSpace(sectionId))
+                throw new InvalidOperationException("cv-conventions-assetet har en tom sectionId i coreSections.");
+
+            if (!seen.Add(sectionId))
+            {
+                throw new InvalidOperationException(
+                    $"Sektionen '{sectionId}' står två gånger i coreSections — en sektion är kärna en gång.");
+            }
+
+            if (!orderedSectionIds.Contains(sectionId))
+            {
+                throw new InvalidOperationException(
+                    $"Kärnsektionen '{sectionId}' saknas i sectionOrder. En observerad sektion löses till "
+                    + "ett kärn-id GENOM sectionOrder, så ett id som ordningen inte namnger kan aldrig "
+                    + "matchas mot ett verkligt CV — B1:s Fail-arm skulle tyst bli onåbar.");
+            }
+        }
+
+        // The validated SET is what leaves this method, not the file's list: the type then carries
+        // the no-duplicates invariant this loop just proved, instead of merely having checked it, and
+        // membership is the only thing any consumer asks. It also stops the DTO's mutable list from
+        // escaping behind an IReadOnly interface.
+        return seen;
     }
 }
 
@@ -126,4 +179,7 @@ internal sealed record CvConventionsFile
 
     [JsonPropertyName("fontAllowlist")]
     public IReadOnlyList<string> FontAllowlist { get; init; } = [];
+
+    [JsonPropertyName("coreSections")]
+    public IReadOnlyList<string> CoreSections { get; init; } = [];
 }

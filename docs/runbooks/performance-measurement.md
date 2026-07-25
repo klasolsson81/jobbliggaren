@@ -536,7 +536,61 @@ everywhere (0,005 on `/`).
 
 **Branch (iii) is discharged.** No speculative fix shipped, per the rule.
 
-### Resolved — the missing font preload is our `--webpack` opt-out, not a Next bug
+### Refuted 2026-07-25 — the missing font preload is NOT the `--webpack` opt-out
+
+**Read this before the table below it.** The diagnosis recorded here earlier — that the
+webpack path loses `next/font`'s preload emission and costs ~300 ms FCP per page — **does not
+reproduce**. Re-measured on `6129c80b` (#1046), building the same tree both ways and serving
+each with `next start`:
+
+| | `next build --webpack` | `next build` (Turbopack) |
+|---|---|---|
+| Flight font hints in `/` | **2** | **2** |
+| `<link rel="preload" as="font">` | **0** | **0** |
+| `</head>` ends at byte | 3 159 | 3 159 |
+| First `woff2` reference at byte | 22 872 (after `</head>`) | 22 869 (after `</head>`) |
+| Document `/` gzip | 17 445 B | 17 430 B |
+| Delivered JS `/` gzip | 225 095 B (14 files) | 225 056 B (14 files) |
+
+The two documents are structurally identical. The ~300 ms does not exist.
+
+**The method note is the most useful line in this section.** The earlier "0 hints" for webpack
+is a **regex artefact**. The hints sit as escaped JSON inside the Flight stream —
+`:HL[\"…woff2\",\"font\",{…}]` — so a probe written as `"font",{` or `:HL\[[^\]]*"font"`
+matches nothing and returns 0 on a document that contains two of them. This session hit the
+same trap first and read 0 before matching the escaped form. Anyone re-testing this must probe
+the escaped shape, or they will reproduce the wrong answer and "confirm" the dead claim.
+
+**The structural cause, which no bundler changes.** No application route is statically
+prerendered — only `/icon.svg`, `/robots.txt` and `/sitemap.xml` are `○` in the build output.
+Every page is server-rendered on demand, so the font hints ride the Flight stream and land
+~30 % into the document under **any** bundler. There is no build-time `<head>` for a preload
+link to be written into.
+
+**Consequences for the font lever, which replace filing an issue** (CTO bind D4, 2026-07-25):
+
+- The manual-preload counterfactual measured −308 ms (`/`) and −302 ms (`/gast/cv`) FCP with
+  LCP **±0**. FCP is not an ADR 0045 gate (Beslut 2 gates LCP/CLS/INP/page weight), and −308 ms
+  from the local hypothesis-generator class sits under the CI instrument's own ≥350 ms floor.
+- The lever is therefore inert against every budget we gate on, and #749's `preload: false`
+  candidate is inert with it — **under both bundlers**, because the cause is the absent static
+  prerender, not the bundler.
+- Revisiting it is conditional on a prerendering strategy (PPR / static shell) landing, which
+  is an ADR-weight rendering decision. A future session that lands one finds this measurement
+  waiting rather than rediscovering it.
+
+**The opt-out's rationale was recorded all along** — in the commit that added it, `63ea6683`
+(2026-05-14): *"Turbopack-output bryter Vercel-routing"*, with `X-Vercel-Error: NOT_FOUND` on
+every route. A `git log -S` scoped to `web/jobbliggaren-web/package.json` cannot see it, because
+the file was `web/jobbpilot-web/package.json` before the ADR 0069 rename; `--follow` finds it.
+The claim "no rationale is recorded anywhere", below, was wrong for that reason. The flag was
+removed in #1046 on that basis: its cause is a platform this repo no longer builds on.
+
+### Not reproduced — the original 2026-07-25 diagnosis, kept as a record
+
+**Everything from here to the end of §F is superseded by the section above.** It is retained
+rather than deleted so the refutation stays attached to the claim; the numbers below must not
+be read as current.
 
 **Diagnosed 2026-07-25, deterministically.** Building the same tree twice, once with the
 committed `next build --webpack` and once with Next 16's default (Turbopack), and diffing the

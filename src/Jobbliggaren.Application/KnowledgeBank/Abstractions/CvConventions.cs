@@ -30,10 +30,30 @@ namespace Jobbliggaren.Application.KnowledgeBank.Abstractions;
 /// observed font name through one shared normaliser (subset-tag + style-suffix stripping is parser
 /// FORM in C#, not data). The pt band is a THRESHOLD and lives in the rubric, NOT here (ADR 0108's
 /// kind-boundary: RECOMMENDATION → this asset; THRESHOLDS → rubric).</param>
+/// <param name="CoreSections">The sections whose BURIAL is what B1's <c>atsFailSignal</c> means by
+/// "kreativ ordning som döljer kärninfo" (#890) — <c>contact</c>, <c>experience</c>,
+/// <c>education</c>. Not a new definition: B1's presence half already reports exactly these three as
+/// "kärnsektion(er)". Profil, Kompetenser and Språk are RECOMMENDED, not core — a buried Språk
+/// section is not hidden kärninfo, and failing a CV over it would be the over-claim this asset exists
+/// to prevent.
+/// <para>
+/// The asset carries WHICH sections are core (a recommendation). It does NOT carry how many sections
+/// may stand before the first of them: that is a THRESHOLD and lives in the rubric
+/// (<c>B1.thresholds.coreLeadInFailAtLeast</c>), and the MEASURE is an algorithm and lives in C#
+/// (<c>SectionOrderAnalyzer</c>). ADR 0108's kind-boundary, applied to one criterion.
+/// </para>
+/// <para>
+/// Every id here must also appear in <see cref="SectionOrder"/> — the loader throws otherwise. Under
+/// the lead-in measure the reason is identity, not rank: a core id the order does not name cannot be
+/// resolved from an observed section at all, so it would be permanently absent from the observed core
+/// set and the measure's own validity precondition could never be satisfied. B1's Fail arm would go
+/// silently unreachable — a data typo turned into a permanently green verdict.
+/// </para></param>
 public sealed record CvConventions(
     string Version,
     IReadOnlyList<CvSectionOrderEntry> SectionOrder,
-    IReadOnlyList<string> FontAllowlist);
+    IReadOnlyList<string> FontAllowlist,
+    IReadOnlySet<string> CoreSections);
 
 /// <summary>
 /// One position in the recommended section order. <see cref="SectionId"/> is a section identity

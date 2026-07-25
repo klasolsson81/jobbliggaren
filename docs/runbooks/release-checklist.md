@@ -110,8 +110,36 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
 
 ---
 
-## 2.6 HÅRD GRIND: integritetspolicyns "planerat"-formuleringar (#852)
+## 2.6 GRIND (mänsklig, interim): integritetspolicyns "planerat"-formuleringar (#852)
 
+> **Detta är en MÄNSKLIG grind, inte en mekanisk.** Ingenting hindrar
+> `git tag v1.0.0 && git push --tags` från att gå igenom med policyn oflippad —
+> en människa måste läsa den här sektionen före taggen. Rubriken säger därför
+> inte "HÅRD": ordet hade hävdat en egenskap instrumentet inte har, och husets
+> egen lärdom (#861, samma epik-uppsättning: en CI-defekt besvaras inte med en
+> mänsklig regel; *fail loud over fail silent*) gäller lika här.
+>
+> **En mekanisk grind är skyldig, och skyldigheten är placerad:** epik #1034
+> (`make the flow's gates mechanically enforced, not remembered`). Den byggs
+> tillsammans med prod-pipelinen (Hetzner-cutover, ADR 0050) — det finns idag
+> **inget tagg-triggat workflow alls** att hänga en grind på (`deploy-dev.yml`:s
+> `push: tags`-trigger är borttagen). Därför är checklistan det rätta
+> *interim*-instrumentet, inte sluttillståndet.
+>
+> **Grinden bär redan sitt eget maskinläsbara predikat:** punkt 2:s
+> inventeringsgrepp ÄR assertionen. Bygg dock INTE den naiva formen "fäll taggen
+> om någon `planerat` återstår" — planerat-påståenden får legitimt kvarstå för
+> icke-aktiverade behandlingar, så den kontrollen skulle tvinga fram förtidiga
+> flippar, dvs. exakt den skada sektionen finns för att förhindra. Två
+> aktiveringstillstånds-OBEROENDE invarianter kan byggas nu (observe-only per
+> CLAUDE.md §2.5 till en Klas-ratchet): **(a) sv/en-paritet** på planerat-
+> radmängden (fångar mekaniskt det mest sannolika felet — att flippa ett språk;
+> mängderna är idag radidentiska), och **(b) `privacy.updated`-datumparitet**
+> mellan språken. Full form: ett trackat aktiveringstillstånds-manifest per
+> behandling + en CI-assertion på `v*`-ref:en att manifestet matchar policyns
+> planerat-mängd — det inverterar kontrollen rätt (kräver inte en flip, kräver
+> att publicerad copy matchar ett deklarerat tillstånd).
+>
 > Gäller **den första `v*`-taggen till prod** och varje senare release som
 > aktiverar en behandling policyn ännu beskriver som planerad. Detta är en
 > **aktiverings**-händelse, inte en copy-händelse — därför bor den här och inte i
@@ -134,7 +162,10 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
 > transparens-påstående är en juridisk handling — CC förbereder diffen, Klas
 > beslutar och släpper.
 
-- [ ] **1. Inventera hela ytan** (inte bara den avslutande meningen):
+- [ ] **1. Inventera hela ytan** — men gör **punkt 2:s triage FÖRST**: aktiverar
+      releasen ingen av behandlingarna är rätt utfall att bocka hela sektionen och
+      sluta, utan att röra en rad. Inventeringen finns för att punkt 2 sa att det
+      finns något att göra. (Inte bara den avslutande meningen:)
       ```bash
       grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
       grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
@@ -209,6 +240,17 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
       den står som i drift, och omvänt.** Kör inventeringsgreppet igen efter
       flippen: antalet träffar ska minska med **exakt** antalet poster releasen
       aktiverar, aldrig med fler.
+      **Rad 131 kräver särskild kontroll — den är den enda rad greppet inte
+      självskyddar.** Dess inledning (`planerar` / `plans`) matchas INTE av
+      inventeringsmönstret (verifierat: 0 träffar), så raden syns bara via sin
+      avslutande mening. Tas bara den bort faller raden ur greppet helt, räkne-
+      testet ovan säger "minskade med exakt 1 — korrekt", och policyn påstår
+      fortfarande *"Jobbliggaren planerar en översikt av din egen
+      ansökningshistorik"* — mitt i avsnittet **"Inga automatiserade beslut"**,
+      dvs. i Art. 22-negationen. Läs rad 131 i sin helhet: hela stycket skrivs om
+      till presens, aldrig trunkeras. (De övriga sex raderna bär `(planerat)`/
+      `planeras` i själva sakpåståendet och lämnar därför kvar en grepp-träff om
+      flippen är ofullständig.)
 - [ ] **8. Art. 30-registret speglar flippen** —
       `docs/runbooks/gdpr-processing-register.md`, Art. 30(1)(d)/(f). OBS: den
       filen är **gitignorerad**, alltså osynlig för CI och för en PR-granskare.
@@ -225,6 +267,15 @@ alltså osynliga för CI, för en PR-granskare och för en parallell CC-session
 Källa: #852 · ADR 0090 D3 · ADR 0088 D3/D4 (SCB per-sökning, hård grind) ·
 ADR 0091 (SCB bulk-populering) · #824 PR 4 (som kvalificerade golv-semantiken i
 samma stycken men medvetet inte flippade dem).
+
+> **OBS om ADR-referenserna ovan:** ADR 0074+ är **gitignorerade** (CLAUDE.md
+> §6.5) och finns bara i huvudkopian — alltså osynliga för CI, för en
+> PR-granskare och för en parallell CC-session, precis som ROPA-filen i punkt 8.
+> Därför är de lastbärande citaten **inlinade ordagrant** i punkterna ovan
+> ("unlawful-by-transparency-defect until the policy is honest", "a new purpose
+> section under 6(1)(b)", "prior to that further processing"): sektionen ska stå
+> självständigt utan sina källor. Citaten finns kvar för Klas' egen
+> revisionskedja, inte som något en granskare kan följa.
 
 ---
 

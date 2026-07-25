@@ -112,54 +112,119 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
 
 ## 2.6 HÅRD GRIND: integritetspolicyns "planerat"-formuleringar (#852)
 
-> Gäller **den första `v*`-taggen till prod** (och varje senare release som
-> aktiverar en behandling policyn ännu beskriver som planerad). Detta är en
+> Gäller **den första `v*`-taggen till prod** och varje senare release som
+> aktiverar en behandling policyn ännu beskriver som planerad. Detta är en
 > **aktiverings**-händelse, inte en copy-händelse — därför bor den här och inte i
 > en PR.
 >
 > **Läget idag är korrekt, inte trasigt.** Policyn beskriver ansökningshistorik/
-> företagsöversikt, SCB-uppslag, Hetzner och Cloudflare som *"planerat och ännu
-> inte i drift"*. Koden är skeppad till dev, men det finns ingen prod-deploy och
-> inga registrerade — policyn styr den *driftsatta* tjänsten, och om den påstod
-> drift nu hade den varit falsk i motsatt riktning. **Flippa alltså aldrig i
-> förväg.** I samma sekund en `v*`-tagg går till prod blir meningarna falska, och
-> en behandling som körs under en policy som förnekar att den körs är enligt
-> ADR 0090 D3 *"unlawful-by-transparency-defect until the policy is honest"*
-> (Art. 12/13). Konsekvensen är juridisk, inte kosmetisk.
+> företagsöversikt, SCB-uppslag, Hetzner och Cloudflare som planerade. Koden är
+> skeppad till dev, men det finns ingen prod-deploy och inga registrerade som når
+> policysidorna — policyn styr den *driftsatta* tjänsten. **Flippa aldrig i
+> förväg**, och för SCB är det inte ens ett val mellan två oriktigheter: prod-
+> providern är `NullCompanyRegistry` och den riktiga adaptern finns inte, så ett
+> presens-påstående skulle hävda en överföring till en myndighet som **bevisligen
+> inte sker**. I samma sekund en release aktiverar en behandling blir dess
+> planerat-mening falsk, och en behandling som körs under en policy som förnekar
+> att den körs är enligt ADR 0090 D3 *"unlawful-by-transparency-defect until the
+> policy is honest"* (Art. 12/13). Konsekvensen är juridisk, inte kosmetisk.
 >
-> **Samma grind och samma ögonblick som #842** (Art. 17-raderingen) — checka av
-> båda i samma cutover.
+> **CC får ALDRIG utföra flippen på eget mandat och aldrig signera ett
+> biträdesavtal** (samma reservation som §2.5). Att publicera ett
+> transparens-påstående är en juridisk handling — CC förbereder diffen, Klas
+> beslutar och släpper.
 
-- [ ] **1. Inventera** — `grep -c "planerat och ännu inte i drift"
-      web/jobbliggaren-web/messages/sv/content-legal.json` och
-      `grep -c "This is planned and not yet in operation."
-      web/jobbliggaren-web/messages/en/content-legal.json`. Vid 2026-07-25:
-      **6 + 6**. Alla 12 måste bedömas — en behandling i taget, inte som klump:
-      ansökningshistorik/företagsöversikt och SCB-uppslaget aktiveras av *koden*,
-      medan Hetzner och Cloudflare aktiveras av *deployen*.
-- [ ] **2. Flippa BARA det releasen faktiskt aktiverar.** Kvarstående "planerat"-
-      meningar för behandlingar som fortfarande inte är i drift ska stå kvar.
-      Släpper releasen ingen av dem är rätt utfall att inte ändra något.
-- [ ] **3. Paritet sv + en** — båda språken i samma ändring (`privacy.sections`
-      Art. 13-kategorilistan **och** avsnittet "Inga automatiserade beslut" bär
-      formuleringen; missa inte den andra).
-- [ ] **4. Bumpa `privacy.updated`** ("Senast uppdaterad: YYYY-MM-DD") i samma
-      ändring, båda språken.
-- [ ] **5. Lockstep** — flippen mergas och deployas **med** aktiveringen, aldrig
-      före (då påstår policyn drift medan lanseringsgrindarna, bl.a. #842, inte
-      passerats) och aldrig efter (då kör behandlingen under en policy som
-      förnekar den).
-- [ ] **6. security-auditor + design-reviewer** på copy-diffen (Art. 12/13
-      + civil ton, CLAUDE.md §10) — det är en renderad juridisk sida.
+- [ ] **1. Inventera hela ytan** (inte bara den avslutande meningen):
+      ```bash
+      grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
+      grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
+      ```
+      Vid 2026-07-25: **7 + 7** (sv rad 37, 49, 71, 75, 76, 96, 131 — alla äkta
+      statuspåståenden, ingen falsk träff med detta mönster). **Grepa INTE bara på
+      `"planerat och ännu inte i drift"`** — det ger 6 och missar retentionsposten
+      på rad 96 (*"Ansökningshistorik (planerat). Dina ansökningar…"*), som bär
+      `(planerat)` utan avslutningsmeningen. Lagringstiden är en egen obligatorisk
+      uppgift (Art. 13(2)(a)) och ADR 0090 D3 räknar uttryckligen upp
+      retentionsraden som del av samma leverans. Flippar du 6 och lämnar 1 säger
+      kategorilistan drift medan retentionsavsnittet säger planerat.
+- [ ] **2. Avgör vad releasen faktiskt aktiverar** — tre olika klasser, blanda dem
+      inte:
+      - **Kod-aktiverad:** ansökningshistorik/företagsöversikt (rad 37, 96, 131).
+        Handlers + endpoints + FE är skeppade utan feature-flagga → aktiveras av
+        att tjänsten alls går i drift.
+      - **Deploy-aktiverad:** Hetzner, Cloudflare (rad 75, 76) → aktiveras av att
+        stacken körs hos dem. Se punkt 3 — dessa får inte flippas på egen hand.
+      - **Konfigurations-grindad:** SCB (rad 49, 71). **Aktiveras INTE av en
+        `v*`-tagg.** Två skilda mekanismer, båda mörka i prod: per-sökningens
+        `ICompanyRegistry` (ADR 0088) får `NullCompanyRegistry` — valet styrs av
+        `CompanyRegistry:Provider`, den riktiga adaptern siktar på SCB:s nya
+        API (~sept 2026) och dess **första verkliga överföring är hårt grindad på
+        DPIA #456 + SCB terms review** (ADR 0088 D3); bulk-populeringen
+        `IScbCompanyRegisterSource` (ADR 0091) är Worker-only och grindad på
+        `ScbRegister:Enabled=true` + klientcert, och skickar aldrig ett
+        användarskrivet org.nr. **Flippa rad 49/71 först när respektive grind är
+        passerad** — inte när koden deployas.
+      Kvarstående planerat-meningar för behandlingar som fortfarande inte är i
+      drift ska stå kvar. Släpper releasen ingen av dem är rätt utfall att **inte
+      ändra något**.
+- [ ] **3. Art. 28 + Kap. V innan Hetzner/Cloudflare flippas** (speglar §2.5
+      punkt 1 — utan detta blir två redan presens-formulerade meningar falska i
+      samma ögonblick):
+      - signerat **personuppgiftsbiträdesavtal** med **Hetzner** och med
+        **Cloudflare** på fil (rad 69 påstår redan *"Med dem har vi
+        personuppgiftsbiträdesavtal"* — idag finns inga aktiva biträden alls);
+      - dokumenterad **Kap. V-grund** för Cloudflare (US-domicilierat bolag; även
+        en EU-only-konfiguration kräver grunden dokumenterad) — rad 82 är ett
+        **absolut** påstående: *"I dagsläget sker inga överföringar av dina
+        personuppgifter till länder utanför EU/EES"*, och det måste omprövas som
+        del av samma flip;
+      - ROPA-posterna uppdaterade + **security-auditor-sign-off**.
+      DPA-signering = **Klas**, aldrig CC.
+- [ ] **4. Paritet sv + en** — båda språken i samma ändring. Formuleringen bärs av
+      **fem** element i `privacy.sections`: kategorilistan (rad 37), ändamåls-/
+      SCB-avsnittet (49), mottagare + tredjeland (71/75/76), retentionslistan (96)
+      och "Inga automatiserade beslut" (131). Missa inte retentionsposten.
+- [ ] **5. Bumpa `privacy.updated`** ("Senast uppdaterad: YYYY-MM-DD"), båda
+      språken. Skopa till **`privacy.updated`** — filen har fem `updated`-nycklar
+      (privacy/terms/cookies/accessibility/recruiterNotice).
+- [ ] **6. Tidsordning — två olika fall, blanda dem inte:**
+      - **(a) Första prod-taggen:** flippen deployas **samtidigt** med
+        aktiveringen. Inga registrerade finns före, så ingen förhandsinformation
+        är möjlig eller krävd.
+      - **(b) Senare release med befintliga registrerade:** informationen
+        publiceras **FÖRE** aktiveringen. Ansökningshistoriken är enligt ADR 0090
+        D3 *"a new purpose section under 6(1)(b)"*, dvs. vidarebehandling för ett
+        nytt ändamål av redan insamlade uppgifter → **Art. 13(3) kräver
+        information "prior to that further processing"**, och policyns eget löfte
+        (rad 150) säger *"Vid mer betydande ändringar informerar vi dig på lämpligt
+        sätt"*. Formulera som förhandsbesked (*"från och med &lt;datum&gt; behandlar vi
+        även …"*), aldrig som påstående om pågående drift.
+      Aldrig **efter** aktiveringen i något av fallen.
+- [ ] **7. Konsistenskontroll efter flippen** (per behandling, båda språken). För
+      varje behandling ska **alla** dess omnämnanden ha samma status.
+      Ansökningshistoriken nämns på fyra ställen (kategorilistan, retentionslistan,
+      "Inga automatiserade beslut" och Art. 30-registret); SCB på tre
+      (ändamålslistan, mottagarstycket, "Överföring till tredje land"). **En
+      mottagare får aldrig stå som planerad medan behandlingen som skickar till
+      den står som i drift, och omvänt.** Kör inventeringsgreppet igen efter
+      flippen: antalet träffar ska minska med **exakt** antalet poster releasen
+      aktiverar, aldrig med fler.
+- [ ] **8. Art. 30-registret speglar flippen** —
+      `docs/runbooks/gdpr-processing-register.md`, Art. 30(1)(d)/(f). OBS: den
+      filen är **gitignorerad**, alltså osynlig för CI och för en PR-granskare.
+      Den är en accountability-spegel, **inte** grinden — den normativa texten bor
+      i den här filen, som är trackad.
+- [ ] **9. security-auditor + design-reviewer** på copy-diffen (Art. 12/13 + civil
+      ton, CLAUDE.md §10) — det är en renderad juridisk sida.
 
 Varför grinden bor här: plikten var tidigare spårad **enbart** i
 `docs/decisions/0090-*.md` och en `docs/reviews/`-rapport — **båda gitignorerade**,
 alltså osynliga för CI, för en PR-granskare och för en parallell CC-session
-(#852:s acceptanskriterium 4). Den här filen är trackad, och Art. 30-registerposten
-för ansökningshistorik (#853) bär samma **Statusgrind**-idiom som `resume_files`.
+(#852:s acceptanskriterium 4). Den här filen är trackad; det är hela poängen.
 
-Källa: #852 · ADR 0090 D3 · #824 PR 4 (som kvalificerade golv-semantiken i samma
-två stycken men medvetet inte flippade dem) · #842 (samma cutover).
+Källa: #852 · ADR 0090 D3 · ADR 0088 D3/D4 (SCB per-sökning, hård grind) ·
+ADR 0091 (SCB bulk-populering) · #824 PR 4 (som kvalificerade golv-semantiken i
+samma stycken men medvetet inte flippade dem).
 
 ---
 

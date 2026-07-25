@@ -72,18 +72,15 @@ internal sealed class CompanyRegisterSearchQuery(AppDbContext db) : ICompanyRegi
 
         var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        // Separate count query BEFORE pagination (CLAUDE.md §3.6). Same composed WHERE, same
-        // bound values — BuildCountCommand and BuildItemsCommand share ComposeFromWhere and
-        // BindPredicate, so the two cannot drift.
-        int totalCount;
-        await using (var countCmd = BuildCountCommand(connection, criteria))
-        {
-            var scalar = await countCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-            totalCount = Convert.ToInt32(scalar, System.Globalization.CultureInfo.InvariantCulture);
-        }
-
         var items = new List<CompanyBrowseResult>();
-        await using (var itemsCmd = BuildItemsCommand(connection, criteria))
+
+        var (itemsCmd, totalCount) =
+            await CountThenBuildPageAsync(connection, criteria, cancellationToken)
+                .ConfigureAwait(false);
+
+        // Taken into `await using` immediately: the seam hands back an UNDISPOSED command, so
+        // nothing may sit between acquiring it and owning it.
+        await using (itemsCmd.ConfigureAwait(false))
         {
             await using var reader = await itemsCmd
                 .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -102,6 +99,47 @@ internal sealed class CompanyRegisterSearchQuery(AppDbContext db) : ICompanyRegi
 
         return new PagedResult<CompanyBrowseResult>(
             items, totalCount, criteria.Page, criteria.PageSize);
+    }
+
+    /// <summary>
+    /// THE two-phase page build: run the pagination count, then build the page command with it —
+    /// measure first, then plan. Returns the count as well, because <see cref="SearchAsync"/> needs
+    /// it for <see cref="PagedResult{T}"/> and re-running it would pay a second round-trip.
+    ///
+    /// <para>
+    /// <b>Do not inline this back into <see cref="SearchAsync"/> (ADR 0119).</b> It looks like a thin
+    /// wrapper, and it is — but it is the seam that makes the plan rule TESTABLE, because it moves
+    /// the plan-bearing value off the call site. Inlined, the third argument to
+    /// <see cref="BuildItemsCommand"/> is written at a place no test observes, and two catastrophic
+    /// mutations there pass the entire suite green: <c>0</c> materializes EVERYTHING, including
+    /// browse-all — the whole Active register collected and sorted per page view, the pre-#875
+    /// 7 066 ms shape — while <c>int.MaxValue</c> materializes NOTHING and turns the rule into a
+    /// silent no-op. Neither can ever be caught semantically, because both branches return identical
+    /// rows in identical order by construction. With the seam, that value is decided in exactly one
+    /// place and <c>CompanyRegisterSearchPlanChoiceTests</c> drives it: its browse-all claim is the
+    /// sole catcher of the first mutation and its sparse-kommun claim the sole catcher of the second.
+    /// </para>
+    ///
+    /// <para>
+    /// Separate count query BEFORE pagination (CLAUDE.md §3.6). Same composed WHERE, same bound
+    /// values — <see cref="BuildCountCommand"/> and <see cref="BuildItemsCommand"/> share
+    /// <c>ComposeFromWhere</c> and <c>BindPredicate</c>, so the two cannot drift.
+    /// </para>
+    /// </summary>
+    internal static async Task<(NpgsqlCommand Items, int TotalCount)> CountThenBuildPageAsync(
+        NpgsqlConnection connection,
+        CompanyRegisterSearchCriteria criteria,
+        CancellationToken cancellationToken)
+    {
+        int totalCount;
+        await using (var countCmd = BuildCountCommand(connection, criteria))
+        {
+            var scalar = await countCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            totalCount = Convert.ToInt32(scalar, System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        // Built LAST and returned undisposed — the caller owns it.
+        return (BuildItemsCommand(connection, criteria, totalCount), totalCount);
     }
 
     /// <summary>
@@ -127,25 +165,139 @@ internal sealed class CompanyRegisterSearchQuery(AppDbContext db) : ICompanyRegi
     /// <c>CompanyRegisterSearchQueryPlanTests</c> can EXPLAIN THIS command rather than a
     /// hand-typed lookalike (the sibling's oracle discipline: a re-typed query is not an oracle,
     /// and the factories carry the parameter TYPES too).
+    ///
+    /// <para>
+    /// <b>Two plan regimes, one rule (ADR 0119).</b> <paramref name="saturatingMatchCount"/> is the
+    /// pagination count <see cref="SearchAsync"/> has already run, and it SATURATES at
+    /// <see cref="CompanyRegisterSearchCriteria.MaxServableRows"/> — so a count below the cap is a
+    /// GUARANTEE (not an estimate) that the whole match set fits inside what the pager can serve.
+    /// The match set is materialized iff we can bound it:
+    /// <c>NamePrefix is not null OR saturatingMatchCount &lt; MaxServableRows(pageSize)</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Why.</b> Unmaterialized, the planner answers <c>LIMIT 20</c> by walking
+    /// <c>ix_company_register_company_name_organization_number</c> in sort order and hoping to stop
+    /// early. Whether that gamble is safe depends on the predicate's relationship to the SORT KEY,
+    /// and there are exactly two cases. Let <i>depth</i> be how far into the ordered index the 20th
+    /// match sits — the walk's real cost.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Klustrad sist</b> (the name prefix). The predicate constrains <c>company_name</c>, which
+    /// IS the sort key, so every match sits in ONE contiguous run and depth is set by where that run
+    /// falls in the alphabet — <b>decoupled from the match count entirely</b>. Nothing available at
+    /// compose time predicts it, so no count threshold can work and materialization is
+    /// unconditional. Measured on the 1 066 938-row dev register (743 654 <c>Active</c>,
+    /// 2026-07-25, plain query, median of five): <c>s%</c> 1 702 ms, <c>m%</c> 1 022 ms, <c>h%</c>
+    /// 671 ms — while <c>a%</c> takes 15 ms at a COMPARABLE match size, purely because 'A' sorts
+    /// first. 19 of 29 single-character prefixes breached ADR 0045's 300 ms class (a), worst
+    /// <c>w%</c> 2 141 ms.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Gles och jämnt utspridd</b> (kommun, SNI, org.nr). The predicate is independent of the
+    /// sort key, so matches are scattered evenly and <c>depth ≈ N_active × pageSize / matches</c> —
+    /// the planner's uniformity model is CORRECT here (predicted 97 200 for kommun 2403, measured
+    /// 104 322). Depth is therefore knowable, and it is INVERSELY proportional to the match count
+    /// while materialization cost is DIRECTLY proportional to it. The two cross over, so the count
+    /// is the sufficient statistic — and only here. Measured: kommun 2403 (153 Active)
+    /// <b>3 966 ms</b> → 25 ms, kommun 2521 (441) 506 ms → 1,3 ms.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Neither clause is redundant, and that is checkable.</b> The count clause's marginal
+    /// coverage is the sparse axes above. The name clause's is exactly the BROAD prefixes, whose
+    /// counts saturate the cap and which the count clause therefore cannot reach. They do not
+    /// overlap in what they rescue, so a future reader who wants to delete one can be answered with
+    /// a measurement rather than an argument.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Why a rule and not an axis list — the big-kommun counter-evidence.</b> Göteborg (49 639
+    /// Active) SATURATES the count and keeps the walk: 9,5 ms, preserved. Stockholm (112 383):
+    /// 0,8 ms. Materialized they would cost 50 ms and 96 ms, so an axis list naming "name + kommun"
+    /// would have made the two biggest kommuner 5× and 120× worse. Browse-all likewise saturates and
+    /// keeps its walk. The rule is not "materialize when in doubt" — it is "materialize when we can
+    /// BOUND it", and a saturated count is precisely the signal that we cannot, and need not.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>SNI belongs to the sparse-and-spread regime too, and the count clause covers it
+    /// PREEMPTIVELY.</b> A narrow SNI (35210, 100 <c>Active</c>) is healthy UNFIXED at 0,4 ms — the
+    /// walk was never chosen there, because that axis is GIN-served and its bitmap estimates are
+    /// honest, so the planner already prices the right plan right. That is not a counter-example to
+    /// the regime: the depth arithmetic is identical, only the planner's INPUT is better. The count
+    /// clause materializes it anyway (100 &lt; cap) at no measurable cost, which is what makes this
+    /// a rule about axes independent of the sort key rather than a kommun patch.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Accepted regression, stated plainly.</b> A prefix that sorts EARLY gets slower:
+    /// <c>a%</c> 15 → 206 ms, <c>b%</c> 155 → 218 ms. That is paid deliberately for a BOUNDED worst
+    /// case instead of a fast average with a 2 141 ms tail. Bounded beats lucky: budgets are p95/p99
+    /// statements, and predictability is the product property.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The new worst case, measured on the five widest match sets</b> (widest ⇒ they bound the
+    /// materialized branch; plain query, median of five): <c>s%</c> 83 267 matches → 264 ms ·
+    /// <c>b%</c> 63 052 → 218 ms · <c>a%</c> 56 050 → 206 ms · <c>m%</c> 47 807 → 198 ms ·
+    /// <c>h%</c> 41 576 → 200 ms. Worst 264 ms, inside ADR 0045's 300 ms class (a). Earlier readings
+    /// of 312 ms (<c>h%</c>) and 305 ms (<c>s%</c>) that tripped a review gate were
+    /// <c>EXPLAIN ANALYZE</c> per-node overhead, not request cost — a budget is a claim about what
+    /// the REQUEST costs, so it must be measured in the shape production emits.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Statistics are not an alternative to this rule — they are orthogonal to it.</b>
+    /// <c>company_register</c> had NEVER been ANALYZEd (zero rows in <c>pg_stats</c>); running
+    /// ANALYZE alone fixed a SELECTIVE prefix (<c>spotify%</c> 2 084 → 0,153 ms) and made the sparse
+    /// kommun case sixteen times WORSE (244 → 3 966 ms), because a better-informed planner commits
+    /// HARDER to a walk whose depth it now believes it can predict. And the planner cannot be
+    /// argued out of it: for <c>w%</c> it prices the walk at 398 and the correct materialized plan
+    /// at 19 842 — 50× more expensive — so no statistics fix and no additional index moves it.
+    /// (A single index cannot serve both halves anyway: the prefix filter needs
+    /// <c>text_pattern_ops</c> byte order and the ordering needs <c>swedish</c> ICU — #884/ADR 0110.)
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Both branches are semantics-identical.</b> The CTE carries NO <c>ORDER BY</c> and NO
+    /// <c>LIMIT</c> — ordering and pagination live in the outer query only, so both branches return
+    /// the same rows in the same order and a wrong branch can only ever be a performance bug, never
+    /// a correctness one. An inner <c>LIMIT</c> would take an arbitrary subset and then order it:
+    /// silently wrong rows, page-dependent, every semantic test green (the #805-3 class).
+    /// <c>CompanyRegisterSearchQueryCompositionTests</c> pins that shape structurally (the branch
+    /// taken per axis, and ORDER BY/LIMIT/OFFSET occurring exactly once, at the very end), and
+    /// <c>CompanyRegisterSearchPlanChoiceTests</c> pins both regimes' PLAN at production
+    /// cardinality with no GUC.
+    /// </para>
     /// </summary>
     internal static NpgsqlCommand BuildItemsCommand(
-        NpgsqlConnection connection, CompanyRegisterSearchCriteria criteria)
+        NpgsqlConnection connection, CompanyRegisterSearchCriteria criteria, int saturatingMatchCount)
     {
         var cmd = connection.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
-        cmd.CommandText =
-            SelectColumns
-            + ComposeFromWhere(criteria)
-            // ORDER BY is TOTAL (duplicate legal names are normal; Postgres sorts are not
-            // stable): organization_number is the PK tiebreak. NO explicit COLLATE — the column
-            // carries `swedish` (ICU sv-SE, #884) and the ORDER BY index was built under it; a
-            // written COLLATE would stop the inheritance and silently Sort the whole match set
-            // (see the sibling plan test's BrokenPlanMessage for the full trap).
-            + """
 
-              ORDER BY company_name, organization_number
-              LIMIT @limit OFFSET @offset;
-              """;
+        // ORDER BY is TOTAL (duplicate legal names are normal; Postgres sorts are not stable):
+        // organization_number is the PK tiebreak. NO explicit COLLATE — the column carries `swedish`
+        // (ICU sv-SE, #884) and the ORDER BY index was built under it; a written COLLATE would stop
+        // the inheritance and silently Sort the whole match set (see the sibling plan test's
+        // BrokenPlanMessage for the full trap). It is written ONCE and shared by both branches, so
+        // the two can never drift in ordering.
+        const string OrderAndPaginate = """
+
+            ORDER BY company_name, organization_number
+            LIMIT @limit OFFSET @offset;
+            """;
+
+        cmd.CommandText = ShouldMaterialize(criteria, saturatingMatchCount)
+            // The outer SELECT repeats the columns rather than `SELECT *`: the reader below reads BY
+            // ORDINAL, and spelling them out keeps that contract identical in both branches.
+            ? "WITH m AS MATERIALIZED (" + SelectColumns + ComposeFromWhere(criteria) + ")\n"
+              + SelectColumns + "FROM m" + OrderAndPaginate
+            : SelectColumns + ComposeFromWhere(criteria) + OrderAndPaginate;
+
         BindPredicate(cmd, criteria);
         cmd.Parameters.AddWithValue("@limit", NpgsqlDbType.Integer, criteria.PageSize);
         cmd.Parameters.AddWithValue(
@@ -190,6 +342,46 @@ internal sealed class CompanyRegisterSearchQuery(AppDbContext db) : ICompanyRegi
         cmd.Parameters.AddWithValue("@count_cap", NpgsqlDbType.Integer, ceiling);
         return cmd;
     }
+
+    /// <summary>
+    /// THE plan rule (ADR 0119), in one named place so the guard exercises production's decision
+    /// rather than re-deriving it: materialize the match set iff we can BOUND it — the predicate
+    /// constrains <c>company_name</c>, or the pagination count did not saturate.
+    ///
+    /// <para>
+    /// No new constant and no tuning knob: the ceiling is
+    /// <see cref="CompanyRegisterSearchCriteria.MaxServableRows"/>, the SAME knowledge piece
+    /// <see cref="BuildCountCommand"/> caps with. A saturated count is precisely the statement
+    /// "we do not know how big this match set is" — and an unsaturated one bounds the match set at
+    /// <c>100 × pageSize</c>: 2 000 rows at the default page size, 10 000 at the largest
+    /// <c>pageSize</c> a caller may request. Only the 2 000-row bound is measured directly; the
+    /// 10 000-row one is bounded from above by the big-kommun measurement (49 639 rows materialize
+    /// in 50 ms).
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The threshold was validated at its own boundary, not extrapolated</b> (ADR 0119): the four
+    /// kommuner bracketing the cap (1 880 / 1 976 / 2 019 / 2 037 <c>Active</c>) measured
+    /// 11,0–17,2 ms unfixed and 3,7–4,1 ms materialized (plain query, median of five). All four take
+    /// the ORDERED WALK unfixed — verified by EXPLAIN, so the boundary was measured on the branch it
+    /// is about — and there is no cliff on either side of the switch.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Why those milliseconds look "too cheap" against the depth model above, reconciled.</b>
+    /// Depth at the cap is ~10 000 rows (kommun 1487, measured: <c>Rows Removed by Filter</c>
+    /// 10 076) — an order of magnitude shallower than the sparse cases — and every buffer was a
+    /// cache hit (<c>shared hit=10065</c>, zero reads). Per-row walk cost is therefore NOT a
+    /// constant to extrapolate with: ~1,3 µs while the walk fits in <c>shared_buffers</c>, ~38 µs
+    /// for the 104 322-row walk that does not. That is why the deep cases are catastrophic and the
+    /// boundary is not, and it is also why these boundary figures are a warm-cache floor rather than
+    /// a p95 claim. The rule does not rest on them: it switches on the count, and both sides of the
+    /// switch were measured in budget.
+    /// </para>
+    /// </summary>
+    private static bool ShouldMaterialize(CompanyRegisterSearchCriteria criteria, int saturatingMatchCount) =>
+        criteria.NamePrefix is not null
+        || saturatingMatchCount < CompanyRegisterSearchCriteria.MaxServableRows(criteria.PageSize);
 
     /// <summary>
     /// The predicate — composed in ONE place for all three commands, so count, page and

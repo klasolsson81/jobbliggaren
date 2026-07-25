@@ -1,4 +1,6 @@
-import { getTranslations } from "next-intl/server";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
+import { pickClientMessages } from "@/i18n/client-messages";
 import { GuestShell } from "@/components/guest/guest-shell";
 import { GuestWelcomeModal } from "@/components/guest/guest-welcome-modal";
 import { SiteFooter } from "@/components/site/site-footer";
@@ -27,8 +29,24 @@ export default async function GuestLayout({
   const welcomed = await hasSeenGuestWelcome();
   const t = await getTranslations("guest");
 
+  // #737 — the guest mirrors run the same client surfaces as the signed-in app
+  // (job list, application views, översikt) on mock data, so this boundary
+  // needs those namespaces — but NOT the signed-in-only ones (resumes,
+  // settings, matchsetup, aktivitetsrapport, pages, validation), which is where
+  // the three measured /gast/* documents lose their weight. Verified for
+  // EQUALITY against the import graph by client-namespace-payload.test.ts.
+  const locale = await getLocale();
+  const messages = pickClientMessages(await getMessages(), [
+    "applications",
+    "common",
+    "guest",
+    "jobads",
+    "landing",
+    "oversikt",
+  ]);
+
   return (
-    <>
+    <NextIntlClientProvider locale={locale} messages={messages}>
       <SkipLink label={t("layout.skipToContent")} />
       <GuestShell>
         {children}
@@ -38,6 +56,6 @@ export default async function GuestLayout({
           handles in-shell footer chrome). */}
       <SiteFooter />
       <GuestWelcomeModal showWelcome={!welcomed} />
-    </>
+    </NextIntlClientProvider>
   );
 }

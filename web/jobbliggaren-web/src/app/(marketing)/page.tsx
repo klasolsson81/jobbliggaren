@@ -8,13 +8,15 @@ import { getLandingStats } from "@/components/landing/landing-stats";
 
 /**
  * Landing route (`/`) — "Liggaren" redesign (epic #267, LP-4 / #257). The
- * (marketing) group has no layout.tsx, so the landing mounts its own header and
- * the shared footer here (LP-4 is the sole owner of the landing header/footer
- * mount; LP-3/LP-5a never touch the landing surface).
+ * (marketing) layout owns ONLY the client i18n payload (#737) and deliberately
+ * renders no chrome, so the landing mounts its own header and the shared footer
+ * here (LP-4 is the sole owner of the landing header/footer mount; LP-3/LP-5a
+ * never touch the landing surface). Moving chrome into that layout would double
+ * the header/footer and produce two skip links.
  *
  * Async RSC shell composing:
  *  - the shared <SkipLink/> to `#main`, rendered first-focusable (the (marketing)
- *    group has no layout to carry it); label resolved via `getTranslations` like
+ *    layout carries no chrome); label resolved via `getTranslations` like
  *    the other async surfaces ((app)/(admin) layouts) — #284 fold-in, epic #267
  *  - <LandingHeader/> (`.jp-head`): brand + live Platsbanken stats, no login link
  *  - <LandingHeroSection/>: the ledger hero with the inline Suspense-wrapped

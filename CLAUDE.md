@@ -65,15 +65,33 @@ interface Infrastructure implements. Infrastructure implements them (EF Core,
 external clients). Api/Worker compose DI only.
 
 **The EF Core dependency rule, precisely** (ADR 0009, enforced by
-`DomainLayerTests`): **Domain = zero EF Core, no exceptions.** **Application MAY
-reference `Microsoft.EntityFrameworkCore`** — the core abstractions only
-(`DbSet<T>`, the `IAppDbContext` surface, `EF.Functions`) — because §3.6 puts
+`tests/Jobbliggaren.Architecture.Tests/DomainLayerTests.cs`). Three axes:
+
+**1. Package.** **Domain = zero EF Core, no exceptions.** **Application MAY
+reference the `Microsoft.EntityFrameworkCore` package** — §3.6 puts
 `IAppDbContext` directly in handlers with no repository layer, and that is
-impossible without them. This is ADR 0009's *"medveten kompromiss"*, not drift.
-**Application must NEVER reference a provider or relational package** —
-`Npgsql`, `Npgsql.EntityFrameworkCore.PostgreSQL`,
-`Microsoft.EntityFrameworkCore.Relational`, `.SqlServer`, `.Sqlite`: those
-belong to Infrastructure, and the architecture test fails the build on them.
+impossible without it. ADR 0009 accepts the coupling knowingly; its
+Konsekvenser/Negativt records "Handlers är direkt beroende av EF Core-interfaces
+(via `IAppDbContext`)". Ratified trade-off, not drift. **Application must NEVER
+reference a provider, relational, or EF-Identity package** — `Npgsql`,
+`Npgsql.EntityFrameworkCore.PostgreSQL`, `Microsoft.EntityFrameworkCore.Relational`,
+`.SqlServer`, `.Sqlite`, `Microsoft.AspNetCore.Identity.EntityFrameworkCore`.
+The architecture test fails the build on every one.
+
+**2. Port.** Application reaches the database only through `IAppDbContext`,
+which exposes `DbSet<T>` per aggregate root, `SaveChangesAsync` and `Detach` —
+and deliberately not `ChangeTracker` or `Database` (ADR 0009 §Beslut). Ordinary
+core EF Core over those `DbSet<T>`s is in bounds and needs no justification:
+`AsNoTracking` (§3.6 default), `Include`, `IgnoreQueryFilters`, `ToListAsync`,
+`ExecuteUpdate`/`ExecuteDelete`, `EF.Property`, `DbUpdateException`.
+
+**3. Member — the trap the package boundary does not catch.** Some members
+behind core-looking names are provider extensions: `EF.Functions.Like` is core,
+but `EF.Functions.JsonExists`/`ILike` ship in the Npgsql package, and
+`AsSplitQuery` is relational-only. When a query needs one, it goes behind an
+Application-owned port implemented in Infrastructure
+(`IJobAdRequirementBackfillFilter`, `IMatchScorer`) — **never** by adding the
+package to `Jobbliggaren.Application.csproj`.
 
 So the line to stop at is the **provider** boundary, not the EF Core boundary.
 If you are importing EF Core in **Domain** — stop. If you are reaching for

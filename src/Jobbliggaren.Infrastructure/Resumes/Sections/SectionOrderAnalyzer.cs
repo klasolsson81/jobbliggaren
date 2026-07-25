@@ -54,7 +54,76 @@ internal static class SectionOrderAnalyzer
         // The 0/1 case is carried where it MEANS something instead: SectionOrderAssessment.OrderObserved.
         var recommended = observed.OrderBy(s => RankOf(s, conventions)).ToList();
 
-        return new SectionOrderAssessment(observed, recommended, !recommended.SequenceEqual(observed));
+        return new SectionOrderAssessment(
+            observed, recommended, !recommended.SequenceEqual(observed),
+            MostDisplacedCore(observed, conventions));
+    }
+
+    /// <summary>
+    /// The worst-buried CORE section and what buries it (#890) — the MEASURE behind the rubric's
+    /// "kreativ ordning som döljer kärninfo", with no verdict attached.
+    ///
+    /// <para><b>Displacement, not depth and not distance.</b> A core section is buried by the sections
+    /// that sit BEFORE it while the convention ranks them AFTER it. Counting absolute depth instead
+    /// would punish a CV for having sections at all ("Kontakt → Profil → Kompetenser → Språk →
+    /// Erfarenhet" is a perfectly ordinary CV with experience at index 4), and a rank-distance metric
+    /// cannot tell a harmless Profil/Kompetenser swap from experience-last — while <i>kärninfo</i> is
+    /// the whole discriminator. Counting only the sections that are out of position RELATIVE TO a core
+    /// section is the measure the criterion's own words describe.</para>
+    ///
+    /// <para><b>The measure lives here; the threshold does not.</b> This analyzer is shared with
+    /// <c>SectionReorderTransform</c> — that sharing is the class's entire thesis — and the
+    /// improvement engine has no business holding a review threshold. So the count is computed here
+    /// and <c>B1SectionsRule</c> compares it against rubric data, exactly as D3 measures font runs and
+    /// applies <c>thresholds.fontBodyPtWarnBelow</c> in the rule.</para>
+    ///
+    /// <para>Ties go to the FIRST core section in document order — deterministic, and it names the
+    /// section the reader meets first.</para>
+    /// </summary>
+    private static CoreSectionDisplacement? MostDisplacedCore(
+        List<ObservedSection> observed, CvConventions conventions)
+    {
+        CoreSectionDisplacement? worst = null;
+
+        for (var i = 0; i < observed.Count; i++)
+        {
+            var section = observed[i];
+            if (!IsCore(section, conventions))
+                continue;
+
+            var rank = RankOf(section, conventions);
+            var displacers = new List<ObservedSection>();
+
+            for (var earlier = 0; earlier < i; earlier++)
+            {
+                // int.MaxValue for a section the convention does not name is CORRECT here: an unnamed
+                // section ("Intressen", "Referenser") sitting above Arbetslivserfarenhet is the
+                // archetype of the fail signal, not an edge case.
+                if (RankOf(observed[earlier], conventions) > rank)
+                    displacers.Add(observed[earlier]);
+            }
+
+            if (displacers.Count > (worst?.Displacers.Count ?? -1))
+                worst = new CoreSectionDisplacement(section, displacers);
+        }
+
+        return worst;
+    }
+
+    private static bool IsCore(ObservedSection section, CvConventions conventions)
+    {
+        foreach (var entry in conventions.SectionOrder)
+        {
+            var isMatch = section.TypedKind is not null
+                ? entry.TypedKind == section.TypedKind
+                : entry.TypedKind is null
+                    && string.Equals(entry.SectionId, section.FreeId, StringComparison.Ordinal);
+
+            if (isMatch)
+                return conventions.CoreSections.Contains(entry.SectionId, StringComparer.Ordinal);
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -138,8 +207,16 @@ internal static class SectionOrderAnalyzer
 internal sealed record SectionOrderAssessment(
     IReadOnlyList<ObservedSection> Observed,
     IReadOnlyList<ObservedSection> Recommended,
-    bool Deviates)
+    bool Deviates,
+    CoreSectionDisplacement? MostDisplacedCore = null)
 {
+    /// <summary>
+    /// How many sections bury the worst-buried CORE section; 0 when no core section was observed or
+    /// none is displaced (#890). A MEASURE, never a verdict — <c>B1SectionsRule</c> owns the
+    /// threshold that turns it into one.
+    /// </summary>
+    public int MaxCoreDisplacement => MostDisplacedCore?.Displacers.Count ?? 0;
+
     /// <summary>
     /// Whether the order could be OBSERVED at all — true only when the text carried at least two
     /// recognisable headings.
@@ -163,6 +240,25 @@ internal sealed record SectionOrderAssessment(
 
     private static string Join(IEnumerable<ObservedSection> sections) =>
         string.Join(", ", sections.Select(s => s.Heading));
+}
+
+/// <summary>
+/// A core section and the sections that bury it (#890): those that PRECEDE it in the document while
+/// the convention ranks them AFTER it.
+///
+/// <para>The displacers are carried, not just counted, because the verdict that reads this must cite
+/// them in the user's own headings — a count on its own is an opaque number attached to a judgement,
+/// which is the §5 sin this criterion is being sharpened to avoid, not to commit.</para>
+/// </summary>
+internal sealed record CoreSectionDisplacement(
+    ObservedSection Section,
+    IReadOnlyList<ObservedSection> Displacers)
+{
+    /// <summary>The buried section's heading, as the user wrote it.</summary>
+    public string Heading => Section.Heading;
+
+    /// <summary>The burying sections' headings, in document order: "Intressen, Referenser".</summary>
+    public string DisplacingHeadings => string.Join(", ", Displacers.Select(d => d.Heading));
 }
 
 /// <summary>One recognised section: its identity (typed OR free, never both) and the heading the

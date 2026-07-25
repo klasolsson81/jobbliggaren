@@ -33,6 +33,10 @@ public class RubricThresholdCompletenessTests
             ["A7"] = [RubricThresholdKeys.PassBelowCount, RubricThresholdKeys.FailFromCount],
             ["A8"] = [RubricThresholdKeys.MaxWords],
             ["A9"] = [RubricThresholdKeys.FailFromCount],
+            // Fas 4b #890: B1's Fail arm ("kreativ ordning som döljer kärninfo"). WHICH sections are
+            // core is a cv-conventions RECOMMENDATION; how many displacing sections turn Warn into
+            // Fail is the threshold, and it lives here (ADR 0108 kind-boundary).
+            ["B1"] = [RubricThresholdKeys.CoreSectionDisplacementFailAtLeast],
             ["B2"] = [RubricThresholdKeys.MaxPages],
             ["B6"] = [RubricThresholdKeys.MaxDistinctDateFormats],
             ["C2"] = [RubricThresholdKeys.WarnFromExclamationCount],

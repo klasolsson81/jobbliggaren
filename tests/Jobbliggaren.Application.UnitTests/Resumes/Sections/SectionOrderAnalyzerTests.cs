@@ -110,7 +110,8 @@ public class SectionOrderAnalyzerTests
             new CvSectionOrderEntry("projekt", TypedKind: null),
             new CvSectionOrderEntry("education", ParsedSectionKind.Education),
         ],
-        ["Arial"]);
+        ["Arial"],
+        ["experience", "education"]);
 
         var order = SectionOrderAnalyzer.Analyze(
             "Utbildning\nKTH\nProjekt\nJobbliggaren\nArbetslivserfarenhet\nDev",
@@ -191,5 +192,68 @@ public class SectionOrderAnalyzerTests
     {
         Analyze("...\n---\nArbetslivserfarenhet\nDev\nUtbildning\nKTH")
             .Observed.Count.ShouldBe(2);
+    }
+
+    // ===============================================================
+    // (e) #890 — core-section DISPLACEMENT, the measure behind B1's Fail arm
+    // ===============================================================
+    //
+    // The measure lives here and the THRESHOLD does not: this analyzer is shared with
+    // SectionReorderTransform, and the improvement engine has no business holding a review threshold
+    // (the same split D3 already has — measure the font runs, apply the rubric value in the rule).
+
+    [Theory]
+    // Recommended order: nothing precedes a core section that should follow it.
+    [InlineData("Kontakt\nanna@x.se\nArbetslivserfarenhet\nDev\nUtbildning\nKTH", 0)]
+    // Student CV: Utbildning before Arbetslivserfarenhet displaces experience by exactly one.
+    [InlineData("Kontakt\nanna@x.se\nUtbildning\nKTH\nArbetslivserfarenhet\nDev", 1)]
+    // Competence-first: Kompetenser ranks after experience, so it displaces it — by one.
+    [InlineData("Kontakt\nanna@x.se\nKompetenser\nC#\nArbetslivserfarenhet\nDev\nUtbildning\nKTH", 1)]
+    // The boundary: Kompetenser AND Språk before experience. Two — and the shipped threshold is 3,
+    // which is exactly what keeps this ordinary CV out of Fail.
+    [InlineData("Kontakt\nanna@x.se\nKompetenser\nC#\nSpråk\nSvenska\nArbetslivserfarenhet\nDev\nUtbildning\nKTH", 2)]
+    // Kontakt last: it ranks FIRST, so every section before it displaces it.
+    [InlineData("Kompetenser\nC#\nSpråk\nSvenska\nArbetslivserfarenhet\nDev\nUtbildning\nKTH\nKontakt\nanna@x.se", 4)]
+    public void Analyze_ShouldCountTheSectionsThatBuryACoreSection(string rawText, int expected) =>
+        Analyze(rawText).MaxCoreDisplacement.ShouldBe(expected);
+
+    [Fact]
+    public void Analyze_ShouldReportZeroDisplacement_WhenNoCoreSectionWasObserved()
+    {
+        // A CV of only non-core sections cannot have hidden kärninfo — there is none to hide. The
+        // measure must be 0 rather than "unknown dressed as 0": MostDisplacedCore stays null, which
+        // is what a caller checks before making any positive claim.
+        var order = Analyze("Kompetenser\nC#\nSpråk\nSvenska");
+
+        order.MostDisplacedCore.ShouldBeNull();
+        order.MaxCoreDisplacement.ShouldBe(0);
+    }
+
+    [Fact]
+    public void Analyze_ShouldCarryTheDisplacingHeadings_SoTheVerdictCanCiteThem()
+    {
+        // A count on its own is an opaque number attached to a judgement (§5). The rule needs the
+        // user's OWN headings to name what buries what, so the analyzer carries them rather than
+        // leaving the rule to re-derive them from a second pass.
+        var buried = Analyze(
+                "Intressen\nLöpning\nKompetenser\nC#\nArbetslivserfarenhet\nDev\nUtbildning\nKTH\nKontakt\nanna@x.se")
+            .MostDisplacedCore.ShouldNotBeNull();
+
+        buried.Heading.ShouldBe("Kontakt");
+        buried.DisplacingHeadings.ShouldBe("Intressen, Kompetenser, Arbetslivserfarenhet, Utbildning");
+    }
+
+    [Fact]
+    public void Analyze_ShouldPickTheWorstBuriedCoreSection_NotTheFirstOne()
+    {
+        // Two core sections are displaced here: Arbetslivserfarenhet by one (Kompetenser) and Kontakt
+        // by four. The verdict must speak about the WORST case, or a CV could bury its contact block
+        // completely and be described by its mildest problem.
+        var buried = Analyze(
+                "Kompetenser\nC#\nArbetslivserfarenhet\nDev\nUtbildning\nKTH\nSpråk\nSvenska\nKontakt\nanna@x.se")
+            .MostDisplacedCore.ShouldNotBeNull();
+
+        buried.Heading.ShouldBe("Kontakt");
+        buried.Displacers.Count.ShouldBe(4);
     }
 }

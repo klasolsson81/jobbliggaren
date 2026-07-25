@@ -109,7 +109,55 @@ internal static class CvConventionsLoader
                 : new CvSectionOrderEntry(sectionId, TypedKind: null));
         }
 
-        return new CvConventions(file.ConventionsVersion, order, file.FontAllowlist);
+        return new CvConventions(
+            file.ConventionsVersion, order, file.FontAllowlist, MapCoreSections(file, seen));
+    }
+
+    /// <summary>
+    /// The CORE sections (#890) — validated against the order this same file declares.
+    ///
+    /// <para><b>Why the containment check is fail-loud and not a fallback.</b> Displacement is defined
+    /// as "how many sections that the convention ranks AFTER this one come BEFORE it", so a core id
+    /// with no position in <c>sectionOrder</c> has no rank — and <c>RankOf</c> would hand it
+    /// <see cref="int.MaxValue"/>, which silently makes it un-displaceable: the criterion would stop
+    /// being able to Fail, and every CV would look fine on the dimension the asset was edited to
+    /// sharpen. A validation that turns a data typo into a permanently green verdict is worse than no
+    /// validation, so it throws at host build.</para>
+    /// </summary>
+    private static IReadOnlyList<string> MapCoreSections(
+        CvConventionsFile file, HashSet<string> orderedSectionIds)
+    {
+        // An empty list is not "no opinion" — it is a Fail arm that can never fire, dressed as data.
+        if (file.CoreSections.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "cv-conventions-assetet saknar coreSections. En tom lista gör B1:s Fail-arm "
+                + "permanent oåtkomlig — kriteriet skulle aldrig kunna rapportera dold kärninfo.");
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var sectionId in file.CoreSections)
+        {
+            if (string.IsNullOrWhiteSpace(sectionId))
+                throw new InvalidOperationException("cv-conventions-assetet har en tom sectionId i coreSections.");
+
+            if (!seen.Add(sectionId))
+            {
+                throw new InvalidOperationException(
+                    $"Sektionen '{sectionId}' står två gånger i coreSections — en sektion är kärna en gång.");
+            }
+
+            if (!orderedSectionIds.Contains(sectionId))
+            {
+                throw new InvalidOperationException(
+                    $"Kärnsektionen '{sectionId}' saknas i sectionOrder. Utan en position har den ingen "
+                    + "rang, och förskjutningen mot den blir odefinierad — B1 skulle tyst sluta kunna "
+                    + "fälla på just den sektionen.");
+            }
+        }
+
+        return file.CoreSections;
     }
 }
 
@@ -126,4 +174,7 @@ internal sealed record CvConventionsFile
 
     [JsonPropertyName("fontAllowlist")]
     public IReadOnlyList<string> FontAllowlist { get; init; } = [];
+
+    [JsonPropertyName("coreSections")]
+    public IReadOnlyList<string> CoreSections { get; init; } = [];
 }

@@ -35,10 +35,21 @@ namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 /// computation <c>SectionReorderTransform</c> proposes against, so the judge and the proposer cannot
 /// disagree about the same CV.</para>
 ///
-/// <para><b>Warn on deviation, never Fail.</b> The rubric's fail signal is "kreativ ordning som
-/// <i>döljer kärninfo</i>" — a STRONGER claim than "deviates", and "döljer" is a knowledge-bank
-/// semantic with real correctness risk (a wrong definition would Fail good CVs). Under-claiming a
-/// measured fact is safe; over-claiming is the §5 sin. The Fail refinement is its own issue.</para>
+/// <para><b>Warn on deviation; Fail only on displacement (#890).</b> The rubric's fail signal is
+/// "kreativ ordning som <i>döljer kärninfo</i>" — a STRONGER claim than "deviates", and 8b.4b
+/// deliberately shipped only the weaker half because choosing the operational definition of "döljer"
+/// carries real correctness risk: <b>a wrong definition FAILS good CVs.</b>
+///
+/// The definition finally bound (senior-cto-advisor 2026-07-25): <i>a core section is hidden when it
+/// is preceded by sections the convention ranks after it</i>, measured as the COUNT of those
+/// displacing sections, with the Fail threshold in rubric data. Three candidate definitions were
+/// rejected on evidence, not taste: "a core section after any non-core section" fails the ordinary
+/// competence-first CV (Kontakt → Profil → Kompetenser → Erfarenhet) and the education-first student
+/// CV; a rank-distance/inversion metric weights a harmless Profil/Kompetenser swap the same as
+/// experience-last, and is an opaque number attached to a verdict (§5); absolute depth punishes a CV
+/// for HAVING sections. Displacement counts only what is out of position relative to the core
+/// section, so richness is never mistaken for burial. Under-claiming a measured fact stays safe;
+/// over-claiming is still the sin, which is why the threshold rounds up rather than down.</para>
 /// </summary>
 internal sealed class B1SectionsRule : ICriterionRule
 {
@@ -99,6 +110,30 @@ internal sealed class B1SectionsRule : ICriterionRule
         // cite BOTH orders in the user's own headings so the verdict is never an opaque judgement
         // (§5: every verdict cites what grounds it).
         var order = context.SectionOrder;
+
+        // ...and its Fail arm (#890): "kreativ ordning som döljer kärninfo". A core section is HIDDEN
+        // when the sections that precede it are ones the convention ranks AFTER it; the count of those
+        // is the measure, and the rubric owns the count at which it stops being a nudge.
+        //
+        // No OrderObserved guard here, deliberately: a displacement of N requires at least N+1
+        // observed sections, so any threshold >= 2 already implies the order was read. A guard that
+        // cannot change an outcome is not a guard (see SectionOrderAnalyzer).
+        var failFrom = context.Criterion.RequiredThreshold(
+            RubricThresholdKeys.CoreSectionDisplacementFailAtLeast);
+
+        if (order.MostDisplacedCore is { } buried && order.MaxCoreDisplacement >= failFrom)
+        {
+            // States only what was measured: a count, and the user's own headings. No "döljer", no
+            // claim about what an ATS does — we observe a section order, we do not observe an ATS.
+            // "döljer kärninfo" is the criterion's LABEL, not a claim we make about her document.
+            return CvCriterionVerdict.Assessed("B1", category, CriterionVerdict.Fail,
+                ReviewText.Cite(ReviewText.Structural(
+                    $"Kärnsektionen \"{buried.Heading}\" står efter {buried.Displacers.Count} "
+                    + $"sektioner som enligt rekommendationen hör efter den: {buried.DisplacingHeadings}. "
+                    + $"Nuvarande ordning: {order.ObservedHeadings}. "
+                    + $"Rekommenderad ordning: {order.RecommendedHeadings}.")));
+        }
+
         if (order.Deviates)
         {
             return CvCriterionVerdict.Assessed("B1", category, CriterionVerdict.Warn,

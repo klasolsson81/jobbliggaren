@@ -63,7 +63,7 @@ public class CvReviewEngineTests
         // bump, RubricVersion doctrine — thresholds added, no new scored criterion); 1.2.0 →
         // 2.0.0 (#655 PR-6a: C7 spelling criterion ADDED → major bump); 1.1.0 → 1.2.0 (#654,
         // thresholds-as-data + styleOnly); #488.
-        result.RubricVersion.ShouldBe(RubricVersion.Parse("2.2.0"));
+        result.RubricVersion.ShouldBe(RubricVersion.Parse("2.3.0"));
         result.Profile.ShouldBe(RenderProfile.Ats);
     }
 

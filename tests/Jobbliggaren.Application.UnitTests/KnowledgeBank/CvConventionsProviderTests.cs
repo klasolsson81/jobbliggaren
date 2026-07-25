@@ -32,7 +32,7 @@ public class CvConventionsProviderTests
         var conventions = LoadConventions();
 
         conventions.ShouldNotBeNull();
-        conventions.Version.ShouldBe("1.1.0");
+        conventions.Version.ShouldBe("1.2.0");
     }
 
     [Fact]
@@ -108,6 +108,27 @@ public class CvConventionsProviderTests
     }
 
     [Fact]
+    public void CoreSections_ShouldBeTheSameThreeB1sPresenceHalfAlreadyCalls_Karnsektioner()
+    {
+        // #890 does NOT mint a definition of "kärnsektion" — B1's presence half has bound it since
+        // F4-9, reporting exactly kontakt/arbetslivserfarenhet/utbildning as "Saknar kärnsektion(er)".
+        // The asset now holds the same set as data, so TWO places hold it, and this pin is what keeps
+        // them from drifting apart silently.
+        //
+        // The presence half is deliberately NOT refactored to iterate the asset: its severity split is
+        // not uniform (missing kontakt → Warn; missing erfarenhet/utbildning → Fail), so "iterate the
+        // data" would not be behaviour-preserving, and re-deriving that split is a second
+        // change-reason. Note the difference from the #898 defect class, because it will be
+        // questioned: there, two holders answered the SAME question with different normalisers and
+        // disagreed silently in production. Here they answer DIFFERENT questions (presence vs burial)
+        // over the same set, and divergence fails CI instead of reaching a user.
+        LoadConventions().CoreSections.ShouldBe(["contact", "experience", "education"],
+            "coreSections måste vara samma tre som B1:s närvaro-halva rapporterar som kärnsektioner "
+            + "(StructureRules: kontakt, arbetslivserfarenhet, utbildning) — annars bedömer kriteriets "
+            + "två halvor olika mängder utan att någon märker det.");
+    }
+
+    [Fact]
     public void Ctor_ShouldConstruct_WhenTheShippedAssetAgreesWithTheShippedLexicon()
     {
         // The pin, run against the REAL pair — this is the guarantee the host gets at build.
@@ -125,7 +146,8 @@ public class CvConventionsProviderTests
             new CvSectionOrderEntry("experience", ParsedSectionKind.Experience),
             new CvSectionOrderEntry("hobbyprojekt-i-tradgarden", TypedKind: null),
         ],
-        ["Arial"]);
+        ["Arial"],
+        ["experience"]);
 
         var ex = Should.Throw<InvalidOperationException>(
             () => CvConventionsProvider.ValidateAgainstLexicon(drifted, RealLexicon()));
@@ -144,7 +166,8 @@ public class CvConventionsProviderTests
             new CvSectionOrderEntry("experience", ParsedSectionKind.Experience),
             new CvSectionOrderEntry("projekt", TypedKind: null),
         ],
-        ["Arial"]);
+        ["Arial"],
+        ["experience"]);
 
         Should.NotThrow(
             () => CvConventionsProvider.ValidateAgainstLexicon(withFreeSection, RealLexicon()));
@@ -159,7 +182,7 @@ public class CvConventionsProviderTests
         RealLexicon().FreeSectionIds.ShouldNotContain("skills");
 
         Should.NotThrow(() => CvConventionsProvider.ValidateAgainstLexicon(
-            new CvConventions("1.0.0", [new CvSectionOrderEntry("skills", ParsedSectionKind.Skills)], ["Arial"]),
+            new CvConventions("1.0.0", [new CvSectionOrderEntry("skills", ParsedSectionKind.Skills)], ["Arial"], ["skills"]),
             RealLexicon()));
     }
 }

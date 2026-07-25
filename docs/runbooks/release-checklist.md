@@ -110,6 +110,184 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
 
 ---
 
+## 2.6 GRIND (mänsklig, interim): integritetspolicyns "planerat"-formuleringar (#852)
+
+> **Detta är en MÄNSKLIG grind, inte en mekanisk.** Ingenting hindrar
+> `git tag v1.0.0 && git push --tags` från att gå igenom med policyn oflippad —
+> en människa måste läsa den här sektionen före taggen. Rubriken säger därför
+> inte "HÅRD": ordet hade hävdat en egenskap instrumentet inte har, och husets
+> egen lärdom (#861, samma epik-uppsättning: en CI-defekt besvaras inte med en
+> mänsklig regel; *fail loud over fail silent*) gäller lika här.
+>
+> **En mekanisk grind är skyldig, och skyldigheten är placerad:** epik #1034
+> (`make the flow's gates mechanically enforced, not remembered`). Den byggs
+> tillsammans med prod-pipelinen (Hetzner-cutover, ADR 0050) — det finns idag
+> **inget tagg-triggat workflow alls** att hänga en grind på (`deploy-dev.yml`:s
+> `push: tags`-trigger är borttagen). Därför är checklistan det rätta
+> *interim*-instrumentet, inte sluttillståndet.
+>
+> **Den mekaniska grinden ska levereras före eller med den första `v*`-taggen.**
+> Den mänskliga grinden får inte vara det enda instrumentet i det ögonblick den
+> först bär verklig risk. Att dokumentera ett gap skapar en skyldighet att stänga
+> det: ett känt gap som överlever sin egen relevans är sämre än ett odokumenterat,
+> eftersom det bevisar kännedom (Art. 5(2)/24(1)). Exponeringsfönstret är tomt i
+> dag — grinden kan inte behövas före en prod-deploy, och #1034:s mekanism rider
+> samma prod-pipeline — men den sammanfallande tidplanen är en tillfällighet tills
+> den skrivs ut, vilket den härmed är.
+>
+> **Grinden bär redan sitt eget maskinläsbara predikat:** punkt 2:s
+> inventeringsgrepp ÄR assertionen. Bygg dock INTE den naiva formen "fäll taggen
+> om någon `planerat` återstår" — planerat-påståenden får legitimt kvarstå för
+> icke-aktiverade behandlingar, så den kontrollen skulle tvinga fram förtidiga
+> flippar, dvs. exakt den skada sektionen finns för att förhindra. Två
+> aktiveringstillstånds-OBEROENDE invarianter kan byggas nu (observe-only per
+> CLAUDE.md §2.5 till en Klas-ratchet): **(a) sv/en-paritet** på planerat-
+> radmängden (fångar mekaniskt det mest sannolika felet — att flippa ett språk;
+> mängderna är idag radidentiska), och **(b) `privacy.updated`-datumparitet**
+> mellan språken. Full form: ett trackat aktiveringstillstånds-manifest per
+> behandling + en CI-assertion på `v*`-ref:en att manifestet matchar policyns
+> planerat-mängd — det inverterar kontrollen rätt (kräver inte en flip, kräver
+> att publicerad copy matchar ett deklarerat tillstånd).
+>
+> Gäller **den första `v*`-taggen till prod** och varje senare release som
+> aktiverar en behandling policyn ännu beskriver som planerad. Detta är en
+> **aktiverings**-händelse, inte en copy-händelse — därför bor den här och inte i
+> en PR.
+>
+> **Läget idag är korrekt, inte trasigt.** Policyn beskriver ansökningshistorik/
+> företagsöversikt, SCB-uppslag, Hetzner och Cloudflare som planerade. Koden är
+> skeppad till dev, men det finns ingen prod-deploy och inga registrerade som når
+> policysidorna — policyn styr den *driftsatta* tjänsten. **Flippa aldrig i
+> förväg**, och för SCB är det inte ens ett val mellan två oriktigheter: prod-
+> providern är `NullCompanyRegistry` och den riktiga adaptern finns inte, så ett
+> presens-påstående skulle hävda en överföring till en myndighet som **bevisligen
+> inte sker**. I samma sekund en release aktiverar en behandling blir dess
+> planerat-mening falsk, och en behandling som körs under en policy som förnekar
+> att den körs är enligt ADR 0090 D3 *"unlawful-by-transparency-defect until the
+> policy is honest"* (Art. 12/13). Konsekvensen är juridisk, inte kosmetisk.
+>
+> **CC får ALDRIG utföra flippen på eget mandat och aldrig signera ett
+> biträdesavtal** (samma reservation som §2.5). Att publicera ett
+> transparens-påstående är en juridisk handling — CC förbereder diffen, Klas
+> beslutar och släpper.
+
+- [ ] **1. Inventera hela ytan** — men gör **punkt 2:s triage FÖRST**: aktiverar
+      releasen ingen av behandlingarna är rätt utfall att bocka hela sektionen och
+      sluta, utan att röra en rad. Inventeringen finns för att punkt 2 sa att det
+      finns något att göra. (Inte bara den avslutande meningen:)
+      ```bash
+      grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
+      grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
+      ```
+      Vid 2026-07-25: **7 + 7** (sv rad 37, 49, 71, 75, 76, 96, 131 — alla äkta
+      statuspåståenden, ingen falsk träff med detta mönster). **Grepa INTE bara på
+      `"planerat och ännu inte i drift"`** — det ger 6 och missar retentionsposten
+      på rad 96 (*"Ansökningshistorik (planerat). Dina ansökningar…"*), som bär
+      `(planerat)` utan avslutningsmeningen. Lagringstiden är en egen obligatorisk
+      uppgift (Art. 13(2)(a)) och ADR 0090 D3 räknar uttryckligen upp
+      retentionsraden som del av samma leverans. Flippar du 6 och lämnar 1 säger
+      kategorilistan drift medan retentionsavsnittet säger planerat.
+- [ ] **2. Avgör vad releasen faktiskt aktiverar** — tre olika klasser, blanda dem
+      inte:
+      - **Kod-aktiverad:** ansökningshistorik/företagsöversikt (rad 37, 96, 131).
+        Handlers + endpoints + FE är skeppade utan feature-flagga → aktiveras av
+        att tjänsten alls går i drift.
+      - **Deploy-aktiverad:** Hetzner, Cloudflare (rad 75, 76) → aktiveras av att
+        stacken körs hos dem. Se punkt 3 — dessa får inte flippas på egen hand.
+      - **Konfigurations-grindad:** SCB (rad 49, 71). **Aktiveras INTE av en
+        `v*`-tagg.** Två skilda mekanismer, båda mörka i prod: per-sökningens
+        `ICompanyRegistry` (ADR 0088) får `NullCompanyRegistry` — valet styrs av
+        `CompanyRegistry:Provider`, den riktiga adaptern siktar på SCB:s nya
+        API (~sept 2026) och dess **första verkliga överföring är hårt grindad på
+        DPIA #456 + SCB terms review** (ADR 0088 D3); bulk-populeringen
+        `IScbCompanyRegisterSource` (ADR 0091) är Worker-only och grindad på
+        `ScbRegister:Enabled=true` + klientcert, och skickar aldrig ett
+        användarskrivet org.nr. **Flippa rad 49/71 först när respektive grind är
+        passerad** — inte när koden deployas.
+      Kvarstående planerat-meningar för behandlingar som fortfarande inte är i
+      drift ska stå kvar. Släpper releasen ingen av dem är rätt utfall att **inte
+      ändra något**.
+- [ ] **3. Art. 28 + Kap. V innan Hetzner/Cloudflare flippas** (speglar §2.5
+      punkt 1 — utan detta blir två redan presens-formulerade meningar falska i
+      samma ögonblick):
+      - signerat **personuppgiftsbiträdesavtal** med **Hetzner** och med
+        **Cloudflare** på fil (rad 69 påstår redan *"Med dem har vi
+        personuppgiftsbiträdesavtal"* — idag finns inga aktiva biträden alls);
+      - dokumenterad **Kap. V-grund** för Cloudflare (US-domicilierat bolag; även
+        en EU-only-konfiguration kräver grunden dokumenterad) — rad 82 är ett
+        **absolut** påstående: *"I dagsläget sker inga överföringar av dina
+        personuppgifter till länder utanför EU/EES"*, och det måste omprövas som
+        del av samma flip;
+      - ROPA-posterna uppdaterade + **security-auditor-sign-off**.
+      DPA-signering = **Klas**, aldrig CC.
+- [ ] **4. Paritet sv + en** — båda språken i samma ändring. Formuleringen bärs av
+      **fem** element i `privacy.sections`: kategorilistan (rad 37), ändamåls-/
+      SCB-avsnittet (49), mottagare + tredjeland (71/75/76), retentionslistan (96)
+      och "Inga automatiserade beslut" (131). Missa inte retentionsposten.
+- [ ] **5. Bumpa `privacy.updated`** ("Senast uppdaterad: YYYY-MM-DD"), båda
+      språken. Skopa till **`privacy.updated`** — filen har fem `updated`-nycklar
+      (privacy/terms/cookies/accessibility/recruiterNotice).
+- [ ] **6. Tidsordning — två olika fall, blanda dem inte:**
+      - **(a) Första prod-taggen:** flippen deployas **samtidigt** med
+        aktiveringen. Inga registrerade finns före, så ingen förhandsinformation
+        är möjlig eller krävd.
+      - **(b) Senare release med befintliga registrerade:** informationen
+        publiceras **FÖRE** aktiveringen. Ansökningshistoriken är enligt ADR 0090
+        D3 *"a new purpose section under 6(1)(b)"*, dvs. vidarebehandling för ett
+        nytt ändamål av redan insamlade uppgifter → **Art. 13(3) kräver
+        information "prior to that further processing"**, och policyns eget löfte
+        (rad 150) säger *"Vid mer betydande ändringar informerar vi dig på lämpligt
+        sätt"*. Formulera som förhandsbesked (*"från och med &lt;datum&gt; behandlar vi
+        även …"*), aldrig som påstående om pågående drift.
+      Aldrig **efter** aktiveringen i något av fallen.
+- [ ] **7. Konsistenskontroll efter flippen** (per behandling, båda språken). För
+      varje behandling ska **alla** dess omnämnanden ha samma status.
+      Ansökningshistoriken nämns på fyra ställen (kategorilistan, retentionslistan,
+      "Inga automatiserade beslut" och Art. 30-registret); SCB på tre
+      (ändamålslistan, mottagarstycket, "Överföring till tredje land"). **En
+      mottagare får aldrig stå som planerad medan behandlingen som skickar till
+      den står som i drift, och omvänt.** Kör inventeringsgreppet igen efter
+      flippen: antalet träffar ska minska med **exakt** antalet poster releasen
+      aktiverar, aldrig med fler.
+      **Rad 131 kräver särskild kontroll — den är den enda rad greppet inte
+      självskyddar.** Dess inledning (`planerar` / `plans`) matchas INTE av
+      inventeringsmönstret (verifierat: 0 träffar), så raden syns bara via sin
+      avslutande mening. Tas bara den bort faller raden ur greppet helt, räkne-
+      testet ovan säger "minskade med exakt 1 — korrekt", och policyn påstår
+      fortfarande *"Jobbliggaren planerar en översikt av din egen
+      ansökningshistorik"* — mitt i avsnittet **"Inga automatiserade beslut"**,
+      dvs. i Art. 22-negationen. Läs rad 131 i sin helhet: hela stycket skrivs om
+      till presens, aldrig trunkeras. (De övriga sex raderna bär `(planerat)`/
+      `planeras` i själva sakpåståendet och lämnar därför kvar en grepp-träff om
+      flippen är ofullständig.)
+- [ ] **8. Art. 30-registret speglar flippen** —
+      `docs/runbooks/gdpr-processing-register.md`, Art. 30(1)(d)/(f). OBS: den
+      filen är **gitignorerad**, alltså osynlig för CI och för en PR-granskare.
+      Den är en accountability-spegel, **inte** grinden — den normativa texten bor
+      i den här filen, som är trackad.
+- [ ] **9. security-auditor + design-reviewer** på copy-diffen (Art. 12/13 + civil
+      ton, CLAUDE.md §10) — det är en renderad juridisk sida.
+
+Varför grinden bor här: plikten var tidigare spårad **enbart** i
+`docs/decisions/0090-*.md` och en `docs/reviews/`-rapport — **båda gitignorerade**,
+alltså osynliga för CI, för en PR-granskare och för en parallell CC-session
+(#852:s acceptanskriterium 4). Den här filen är trackad; det är hela poängen.
+
+Källa: #852 · ADR 0090 D3 · ADR 0088 D3/D4 (SCB per-sökning, hård grind) ·
+ADR 0091 (SCB bulk-populering) · #824 PR 4 (som kvalificerade golv-semantiken i
+samma stycken men medvetet inte flippade dem).
+
+> **OBS om ADR-referenserna ovan:** ADR 0074+ är **gitignorerade** (CLAUDE.md
+> §6.5) och finns bara i huvudkopian — alltså osynliga för CI, för en
+> PR-granskare och för en parallell CC-session, precis som ROPA-filen i punkt 8.
+> Därför är de lastbärande citaten **inlinade ordagrant** i punkterna ovan
+> ("unlawful-by-transparency-defect until the policy is honest", "a new purpose
+> section under 6(1)(b)", "prior to that further processing"): sektionen ska stå
+> självständigt utan sina källor. Citaten finns kvar för Klas' egen
+> revisionskedja, inte som något en granskare kan följa.
+
+---
+
 ## 3. Tagga + deploy
 
 ```bash

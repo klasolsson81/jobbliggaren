@@ -25,8 +25,10 @@ name: codeql
 on:
   push:
     branches: [main]
+  # No base-branch filter (#861) — mirrors build.yml so a stacked PR is scanned too.
+  # Without this, a PR based on another feature branch produced no SARIF at all and the
+  # absence looked like a clean scan.
   pull_request:
-    branches: [main]
   schedule:
     # Måndag 04:23 UTC — udda minut för att undvika runner-rusningstid.
     # Schemalagd full-scan fångar drift mellan PR:er + nya CodeQL-queries.

@@ -24,8 +24,10 @@ name: e2e
 on:
   push:
     branches: [main]
+  # No base-branch filter (#861) — mirrors build.yml so a stacked PR gets the E2E
+  # signal too. This job is observe-only (`continue-on-error`, outside `ci.needs`), so
+  # widening the trigger cannot block a merge; it only makes the signal exist.
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

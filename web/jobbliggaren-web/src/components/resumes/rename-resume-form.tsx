@@ -13,7 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { renameResumeAction, type ActionResult } from "@/lib/actions/resumes";
+import { renameResumeAction } from "@/lib/actions/resumes";
+import type { ActionResult } from "@/lib/actions/_action-result";
 
 interface RenameResumeFormProps {
   resumeId: string;

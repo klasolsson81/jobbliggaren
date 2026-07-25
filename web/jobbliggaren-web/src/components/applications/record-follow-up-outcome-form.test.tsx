@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RecordFollowUpOutcomeForm } from "./record-follow-up-outcome-form";
-import type { ActionResult } from "@/lib/actions/applications";
+import type { ActionResult } from "@/lib/actions/_action-result";
 
 const recordFollowUpOutcomeActionMock: ReturnType<
   typeof vi.fn<(formData: FormData) => Promise<ActionResult>>

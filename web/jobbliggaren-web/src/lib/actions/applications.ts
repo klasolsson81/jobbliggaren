@@ -20,8 +20,6 @@ import { mapActionError } from "./_action-error";
 import { isValidId } from "@/lib/validation/guid";
 import type { ActionResult } from "./_action-result";
 
-export type { ActionResult };
-
 export type CreateApplicationFromJobAdResult =
   | { success: true; applicationId: string }
   | { success: false; error: string };

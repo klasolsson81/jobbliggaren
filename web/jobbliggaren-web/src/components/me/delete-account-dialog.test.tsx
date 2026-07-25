@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DeleteAccountDialog } from "./delete-account-dialog";
-import type { ActionResult } from "@/lib/actions/me";
+import type { ActionResult } from "@/lib/actions/_action-result";
 import type { DeleteMyAccountInput } from "@/lib/actions/me-schemas";
 
 // #822 — the action no longer takes the expected address as an argument: it resolves it

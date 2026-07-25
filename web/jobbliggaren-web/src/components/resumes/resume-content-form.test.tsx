@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { ResumeContentForm } from "./resume-content-form";
 import { emptyContent } from "@/lib/resumes/content-utils";
 import type { ResumeContentDto } from "@/lib/types/resumes";
-import type { ActionResult } from "@/lib/actions/resumes";
+import type { ActionResult } from "@/lib/actions/_action-result";
 
 const updateMasterContentActionMock = vi.fn<
   (resumeId: string, content: ResumeContentDto) => Promise<ActionResult>

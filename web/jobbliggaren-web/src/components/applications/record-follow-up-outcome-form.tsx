@@ -11,10 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useTranslations } from "next-intl";
-import {
-  recordFollowUpOutcomeAction,
-  type ActionResult,
-} from "@/lib/actions/applications";
+import { recordFollowUpOutcomeAction } from "@/lib/actions/applications";
+import type { ActionResult } from "@/lib/actions/_action-result";
 import { followUpOutcomeLabel } from "@/lib/applications/status";
 import type { FollowUpOutcome } from "@/lib/types/applications";
 

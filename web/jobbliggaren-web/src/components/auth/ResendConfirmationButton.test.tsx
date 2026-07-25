@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ResendConfirmationButton } from "./ResendConfirmationButton";
+import type { ActionResult } from "@/lib/actions/_action-result";
 
 // The real server action does fetch() + reads env; mock it so the island calls our spy instead.
-type ActionResult = { success: true } | { success: false; error: string };
 const resendMock = vi.fn<(email: string) => Promise<ActionResult>>();
 
 vi.mock("@/lib/actions/resend-confirmation", () => ({

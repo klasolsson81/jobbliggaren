@@ -8,7 +8,7 @@ import type {
   CvSectionSuggestionsDto,
 } from "@/lib/dto/parsed-resume";
 import type { ResumeContentDto } from "@/lib/types/resumes";
-import type { ActionResult } from "@/lib/actions/resumes";
+import type { ActionResult } from "@/lib/actions/_action-result";
 
 /**
  * Fas 4b PR-8.3 — Slutför-guiden (fyra steg, bekräfta-inte-fyll). Kärnbeteenden,

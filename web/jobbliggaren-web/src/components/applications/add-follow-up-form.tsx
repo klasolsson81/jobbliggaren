@@ -28,7 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { addFollowUpAction, type ActionResult } from "@/lib/actions/applications";
+import { addFollowUpAction } from "@/lib/actions/applications";
+import type { ActionResult } from "@/lib/actions/_action-result";
 import { CHANNEL_KEYS, channelLabel } from "@/lib/applications/status";
 
 interface AddFollowUpFormProps {

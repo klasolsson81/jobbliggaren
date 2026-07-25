@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StatusEditCard } from "./status-edit-card";
-import type { ActionResult } from "@/lib/actions/applications";
+import type { ActionResult } from "@/lib/actions/_action-result";
 import type { ApplicationStatus } from "@/lib/types/applications";
 
 // Server-action mockas per repo-mönster (jfr delete-account-dialog.test /

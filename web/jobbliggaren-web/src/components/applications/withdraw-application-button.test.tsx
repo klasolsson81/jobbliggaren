@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WithdrawApplicationButton } from "./withdraw-application-button";
-import type { ActionResult } from "@/lib/actions/applications";
+import type { ActionResult } from "@/lib/actions/_action-result";
 
 const transitionStatusActionMock =
   vi.fn<(id: string, target: string) => Promise<ActionResult>>();

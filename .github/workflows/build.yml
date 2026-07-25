@@ -316,13 +316,25 @@ jobs:
 
       # Artifact-upload (ersätter treosh uploadArtifacts). path är workspace-
       # relativ — upload-artifact är ett uses-steg och ärver ej working-directory.
+      #
+      # #1048: `include-hidden-files` is load-bearing, not cosmetic. The action
+      # treats any path segment starting with `.` as hidden and excludes it, and
+      # `.lighthouseci` is exactly that — so with the default (false) every report
+      # lhci wrote was dropped and no artifact was ever produced. Measured on run
+      # 30166260225 (main @ 6129c80b): lhci logged "Dumping 24 reports to disk",
+      # the upload logged "No files were found", and the run's artifact list held
+      # only coverage-report. `if-no-files-found: ignore` is what kept that silent
+      # for the job's whole history, so it moves to `warn`: a miss must annotate.
+      # `warn` still cannot block — the job is observe-only (continue-on-error,
+      # not in ci.needs) and stays that way until a Klas ratchet (ADR 0045 Beslut 6).
       - name: Upload Lighthouse results
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: lighthouse-results
           path: web/jobbliggaren-web/.lighthouseci
-          if-no-files-found: ignore
+          include-hidden-files: true
+          if-no-files-found: warn
 
       # Green-but-empty-vakt (§2.5 no-silent-caps): producerade lhci ingen data
       # är mätinstrumentet trasigt (som det var i hela sin historia före denna

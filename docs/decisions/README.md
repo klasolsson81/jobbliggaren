@@ -25,7 +25,7 @@ Architecture Decision Records (ADRs) dokumenterar arkitekturella val som påverk
 | 0011 | Strongly-typed IDs som `readonly record struct` | Accepted | 2026-04-19 | [0011-strongly-typed-ids.md](./0011-strongly-typed-ids.md) |
 | 0012 | Auth-stack: ASP.NET Core Identity + JWT (RS256) | Accepted | 2026-04-19 | [0012-auth-stack-identity-jwt.md](./0012-auth-stack-identity-jwt.md) |
 | 0013 | Separat AppIdentityDbContext för Identity-tabeller | Accepted | 2026-04-19 | [0013-separate-identity-dbcontext.md](./0013-separate-identity-dbcontext.md) |
-| 0014 | Refresh tokens i DB + Redis för access-token jti (avviker från BUILD.md §11.2) | Accepted | 2026-04-19 | [0014-refresh-token-strategy.md](./0014-refresh-token-strategy.md) |
+| 0014 | Refresh tokens i DB + Redis för access-token jti (avviker från BUILD.md §11.2) | Superseded by 0017/0018 | 2026-04-19 | [0014-refresh-token-strategy.md](./0014-refresh-token-strategy.md) |
 | 0015 | Frontend-stack för Jobbliggaren (STEG 4a) | Accepted | 2026-05-06 | [0015-frontend-stack.md](./0015-frontend-stack.md) |
 | 0016 | Civic design language som arkitekturkrav (amended 2026-05-19 av [ADR 0052](./0052-design-system-v3-modern-civic.md) — radius-golv; civic-ton bevarad) | Accepted | 2026-05-06 | [0016-civic-design-language.md](./0016-civic-design-language.md) |
 | 0017 | Frontend Authentication Pattern (Custom, Cookie-Based) (amended 2026-07-04 — dead client-side SessionProvider/useSession helper + orphaned Next.js /api/me proxy route removed per PR #608 / #607, epic #485; core decision unchanged) | Accepted | 2026-05-06 | [0017-frontend-auth-pattern.md](./0017-frontend-auth-pattern.md) |

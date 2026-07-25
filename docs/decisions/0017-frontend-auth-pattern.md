@@ -228,8 +228,11 @@ survive hard deletion (audit #482 / #504a).
   `refresh_tokens` table (migration `DropRefreshTokens`), `IRefreshTokenStore` +
   `RefreshTokenStore` + its DI registration, `RefreshCommand` +
   `RefreshCommandHandler`, `AuthTokensDto`, and the `/auth/refresh` route.
-  `POST /api/v1/auth/refresh` therefore now returns **404** (route removed), not
-  410 — the deletion is the intended Fas 1 end-state per the bullets above.
+  `POST /api/v1/auth/refresh` therefore returned **404** (route removed), not 410 — the
+  deletion was the intended Fas 1 end-state per the bullets above. **Corrected 2026-07-25
+  (#827):** the route is live again and maps to `RefreshSessionCommand` — the opaque-session
+  slide-and-rotate added by #481, a different mechanism that reuses the path. The 404 claim
+  was true when written and is false at HEAD.
 - **Still pending (separate Fas 1 cleanup, no #482-TD):** the JWT-related
   infrastructure — `JwtTokenGenerator`/`IJwtTokenGenerator`,
   `RedisAccessTokenRevocationStore`/`IAccessTokenRevocationStore`, `JwtSettings`
@@ -237,6 +240,27 @@ survive hard deletion (audit #482 / #504a).
   is now consumerless (a stateless dead subsystem with no PII table). Its
   `[Obsolete]` messages still name the deleted `RefreshCommandHandler`; that
   follow-up removes those files and references wholesale.
+
+### Amendment 2026-07-25 (#827/#569) — the "Still pending" bullet is executed
+
+All six types are deleted, along with the singleton `RsaSecurityKey` they were the only
+consumer of, their DI registrations, the four `JOBBLIGGAREN0001` suppression regions whose
+justification named a handler that no longer existed, and the throwaway-keypair step in
+`e2e.yml` that exported `Jwt__PrivateKeyPath`/`Jwt__PublicKeyPath` into a CI run where
+nothing read them. The dead `Jwt` section in `appsettings.Development.json` and the stale
+bullet in `docs/runbooks/e2e-ci.md` went with them.
+
+BUILD.md §11.2 now describes the shipped session model instead of the RS256/refresh-token
+design that was never built, and §6.1's `Authorization: Bearer <JWT>` is corrected to
+`<sessionId>`. ADR 0014 is marked Superseded in the same change.
+
+Not done here, deliberately: renaming the `"Bearer"` authentication scheme to `"Session"`
+and swapping `JwtRegisteredClaimNames.Sub` for `ClaimTypes.NameIdentifier`. Both are
+behavioural — the claim swap touches `CurrentUser` and the scheme rename invalidates live
+sessions — so they belong in their own PR. `Microsoft.AspNetCore.Authentication.JwtBearer`
+also stays: measured, it is the only package giving Infrastructure its
+`Microsoft.AspNetCore.App` framework reference, so removing it breaks the build. That
+coupling is honest to name but not this PR's to fix.
 
 ## Performance Budget
 

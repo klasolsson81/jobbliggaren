@@ -295,6 +295,19 @@ function anyClassResolves(names, definedClasses) {
 }
 
 async function checkExistence() {
+  // With no stylesheet, the definition universe is EMPTY and every `jp-*` name in
+  // the app "does not resolve" — the sweep would report hundreds of violations
+  // that are all artefacts of its own missing input. Refuse instead: a guard that
+  // cannot see the truth must say so, not invent a verdict.
+  if (files.length === 0) {
+    console.error(
+      "guard-css: no stylesheet given. The existence sweeps need at least one CSS " +
+        "file to know what is defined.\n" +
+        "Usage: node scripts/guard-css.mjs <path-to-css> [<path-to-css> ...] [--json]"
+    );
+    process.exit(2);
+  }
+
   const existence = [];
 
   // ---- what the stylesheets DEFINE (union across every guarded entry point:

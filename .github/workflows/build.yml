@@ -9,8 +9,19 @@ name: build
 on:
   push:
     branches: [main]
+  # NO base-branch filter on `pull_request` (#861). A `branches: [main]` filter here
+  # matches NO trigger for a stacked PR (one whose base is another feature branch —
+  # the normal shape when one issue is a precondition for the next), so such a PR got
+  # ZERO checks. That is the dangerous part: "no checks reported" is visually
+  # indistinguishable from "green checks", which silently disarms the house
+  # merge-on-green-`ci` rule (ADR 0065) and the PR-babysitter acting on it (#836) —
+  # there is no `ci` aggregate at all for the guard to evaluate. Fail loud over fail
+  # silent: every PR builds regardless of base. It also removes a second trap — with a
+  # base filter, retargeting an open PR's base fires `pull_request: edited`, which is
+  # NOT in the default activity types, so fixing the base did not start CI either.
+  # Cost: a stacked PR redundantly re-runs its parent's commits (they are in the branch
+  # anyway); `concurrency: cancel-in-progress` below caps the waste.
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 # Ren read-only — inga federation-tokens behövs i build-workflowen.

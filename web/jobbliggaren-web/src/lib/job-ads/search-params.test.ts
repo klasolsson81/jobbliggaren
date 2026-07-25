@@ -8,7 +8,7 @@ import {
   COMMIT_VALUE,
   type JobbUrlState,
   type JobbRawSearchParams,
-  clampSubMinimumQ,
+  parseQParam,
 } from "./search-params";
 
 const empty: JobbUrlState = {
@@ -267,29 +267,49 @@ describe("buildJobbHref #383 → förenklat (Dölj ansökta)", () => {
   });
 });
 
-describe("clampSubMinimumQ (#823)", () => {
-  // SPOT-klampen som BÅDA URL-vägarna på /jobb måste dela: page.tsx vid entry och
+describe("parseQParam (#823 klampen + #847 arity — SPOT-parsern, delad page ↔ buildPageHref)", () => {
+  // SPOT-parsern som BÅDA URL-vägarna på /jobb måste dela: page.tsx vid entry och
   // buildPageHref när den bygger pagineringslänkar. Divergerade de re-emitterade
   // sidlänkarna ett q som sidan självt ignorerar — en URL som påstår ett sök som inte körs.
   it("droppar en söktext under backendens minimum", () => {
-    expect(clampSubMinimumQ("a")).toBeUndefined();
-    expect(clampSubMinimumQ(" a ")).toBeUndefined();
+    expect(parseQParam("a")).toBeUndefined();
+    expect(parseQParam(" a ")).toBeUndefined();
   });
 
   it("normaliserar (trimmar) så båda URL-vägarna emitterar samma q", () => {
     // Utan detta kör sidan "ab" medan pagineringslänken bär "+ab+".
-    expect(clampSubMinimumQ(" ab ")).toBe("ab");
+    expect(parseQParam(" ab ")).toBe("ab");
   });
 
   it("behåller allt som backend faktiskt accepterar", () => {
-    expect(clampSubMinimumQ("ab")).toBe("ab");
+    expect(parseQParam("ab")).toBe("ab");
     // Regeln gäller HELA strängen, aldrig per ord — "a bc" är 4 tecken och giltigt.
-    expect(clampSubMinimumQ("a bc")).toBe("a bc");
-    expect(clampSubMinimumQ("backend")).toBe("backend");
+    expect(parseQParam("a bc")).toBe("a bc");
+    expect(parseQParam("backend")).toBe("backend");
   });
 
   it("lämnar frånvaro av söktext orörd", () => {
-    expect(clampSubMinimumQ(undefined)).toBeUndefined();
+    expect(parseQParam(undefined)).toBeUndefined();
+  });
+
+  it("#847: upprepad param (string[]) → första värdet, ingen krasch", () => {
+    // FÖRE fixen: `q.trim is not a function` (mätt) → teknisk-fel-kortet på
+    // /jobb?q=a&q=b. `q` är enkelvärt (EN söktext), så arity-koerceringen är
+    // första-värdet — samma som parseEmployerParam, INTE toStringList.
+    expect(parseQParam(["backend", "frontend"])).toBe("backend");
+    expect(parseQParam(["ab"])).toBe("ab");
+  });
+
+  it("#847: klampen gäller det koercerade värdet, inte det råa", () => {
+    // Första värdet är under minimum ⇒ ingen söktext. Att i stället plocka
+    // element 1 hade varit en gissning om avsikt (se parseQParam-doccen).
+    expect(parseQParam(["a", "backend"])).toBeUndefined();
+    expect(parseQParam(["", "backend"])).toBeUndefined();
+    expect(parseQParam([" ab ", "frontend"])).toBe("ab");
+  });
+
+  it("#847: tom array = frånvaro av söktext", () => {
+    expect(parseQParam([])).toBeUndefined();
   });
 });
 
@@ -322,6 +342,21 @@ describe("buildPageHref (#823 q-klampen, #846 hemvisten)", () => {
     );
     // Trimmad paritet: annars kör sidan "ab" medan länken bär "+ab+".
     expect(buildPageHref({ ...params, q: " ab " }, 2, 20)).toContain("q=ab");
+  });
+
+  it("#847: ett upprepat ?q= kraschar inte länkbyggaren", () => {
+    // MÄTT före fixen: `TypeError: q.trim is not a function` — buildPageHref var det
+    // andra q-konsumerande stället (page.tsx kraschade först i praktiken, men båda
+    // vägarna bar defekten, vilket är varför koerceringen bor i den delade parsern).
+    const href = buildPageHref({ ...params, q: ["backend", "frontend"] }, 2, 20);
+    expect(href).toContain("q=backend");
+    expect(href).not.toContain("frontend");
+  });
+
+  it("#847: ett upprepat q vars första värde är under minimum droppas", () => {
+    const href = buildPageHref({ ...params, q: ["a", "backend"] }, 2, 20);
+    expect(href).not.toContain("q=");
+    expect(href).toContain("page=2");
   });
 
   // NAMNET beskriver vad testet TÄCKER, inte hur många fält typen har (den bär

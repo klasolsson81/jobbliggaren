@@ -5,6 +5,7 @@
 **Kontext:** Klas-direktiv 2026-05-25 — Pre-launch-disciplin
 **Beslutsfattare:** Klas Olsson
 **Amendment 2026-06-07:** Automerge-default för CC:s egna PR:er — se [§Amendment 2026-06-07](#amendment-2026-06-07--automerge-default-för-ccs-egna-prer).
+**Amendment 2026-07-25:** CI triggras base-oberoende (#861) — se [§Amendment 2026-07-25](#amendment-2026-07-25--ci-triggras-base-oberoende-mekanism-drift-861).
 **Superseder:** ADR 0019 (Solo direct-push till main, 2026-05-07)
 **Amends:** ADR 0007 (Branch protection för main i Fas 0, 2026-04-18) — Fas 0-protectionprofilen utökas till PR-gate-profil när CI-aggregatet `ci` finns på plats; ADR 0007 force-push- och deletion-skydd består.
 **Relaterad:** ADR 0019 §"Trigger för återgång till PR-flöde", `.github/workflows/build.yml` (`ci`-aggregat-job)

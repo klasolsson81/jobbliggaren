@@ -155,6 +155,11 @@ signal available is a discipline miss.
   `ISpecification<T>` only when the same filter is used in 3+ places.
   `.AsNoTracking()` default for reads. `Include()` only when needed.
   Pagination via `.Skip().Take()` + separate count query.
+  **A bulk-load path ANALYZEs the table it loaded** when that table is written
+  by one periodic job and read-only between runs — in the job, once per
+  completed run, never per batch (a table under continuous DML self-heals via
+  autovacuum and is out of scope). Why: `ScbCompanyRegisterStore.AnalyzeAsync`
+  (#560).
 
 ## 4. TypeScript / Next.js standards
 

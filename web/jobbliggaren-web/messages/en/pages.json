@@ -283,19 +283,7 @@
       "loadErrorTitle": "The search could not be loaded",
       "loadErrorBody": "Try again in a moment.",
       "rateLimited": "Too many requests right now. Wait a moment and reload the page.",
-      "loadingResults": "Searching companies…",
-      "followAll": {
-        "heading": "Save the search as a smart watch",
-        "ready": "Save the industries and municipalities as a smart watch. Matching companies appear under your smart watches on Företag.",
-        "button": "Save as smart watch",
-        "saving": "Saving…",
-        "reasonName": "A search by company name cannot be saved as a smart watch. Remove the name and search by industry and municipality.",
-        "reasonEmpty": "Choose at least one industry and one municipality to save the search as a smart watch.",
-        "reasonSni": "Add at least one industry to save the search as a smart watch.",
-        "reasonKommun": "Add at least one municipality to save the search as a smart watch.",
-        "successBody": "The search was saved as a smart watch.",
-        "successLink": "View your smart watches"
-      }
+      "loadingResults": "Searching companies…"
     },
     "watchesHeading": "Followed companies",
     "watchesLede": "Companies you follow. New ads from them appear here and on the overview.",

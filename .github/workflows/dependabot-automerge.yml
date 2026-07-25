@@ -27,6 +27,14 @@ name: dependabot-automerge
 
 on:
   pull_request:
+    # This filter deliberately SURVIVED #861, which dropped the equivalent one from
+    # build/codeql/e2e. Reason: Dependabot only ever opens PRs against the default
+    # branch (`.github/dependabot.yml` sets no `target-branch:` for any of its
+    # ecosystems), so the filter is a no-op today and stacked Dependabot PRs do not
+    # exist. NOT kept for blast-radius reasons — `label-automerge.yml` already runs
+    # with `contents: write` + `pull-requests: write` and no branches filter at all.
+    # If `target-branch:` is ever added, this filter silently means "auto-merge never
+    # runs" for those PRs — the exact silent-failure shape #861 removed elsewhere.
     branches: [main]
 
 # write krävs för att GITHUB_TOKEN ska kunna aktivera auto-merge på PR:n.

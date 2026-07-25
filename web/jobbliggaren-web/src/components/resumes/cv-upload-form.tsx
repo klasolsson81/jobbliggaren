@@ -138,8 +138,14 @@ interface CvUploadFormProps {
   /**
    * Epik #526 polish (Klas rendered-verify 2026-07-03): starta uppladdningen
    * direkt när en giltig fil valts — inget extra "Ladda upp"-klick, och
-   * submit-raden döljs. I detta läge visas inget namnfält (match-setup-railen
-   * behöver inget CV-namn — backend faller tillbaka på kontonamnet). Default false.
+   * submit-raden döljs. Default false.
+   *
+   * Styr ENBART submit-raden och auto-starten. Namnfältet är medvetet INTE
+   * kopplat hit längre (#1060, Klas-beslut 2026-07-25): klicket 2026-07-03 tog
+   * bort var submit-knappen, inte ett fält, och CV-pivotens spår 3 säger att
+   * användarens eget namn ska FÖRESLÅS vid uppladdning — ett dolt fält föreslår
+   * ingenting, och gör dessutom att två uppladdningar via välkomst-modulen ger
+   * två identiskt namngivna CV som inte går att skilja åt i CV-hubben.
    */
   readonly autoUpload?: boolean;
   /**
@@ -150,7 +156,9 @@ interface CvUploadFormProps {
   /**
    * CV-pivot 5c: förifyll namnfältet med kontonamnet (`JobSeeker.DisplayName`). Fältet
    * är redigerbart; skickas som `name`-formfältet och blir CV:ts namn. Tomt → backend
-   * faller tillbaka på kontonamnet (5a CTO-bind R5). Endast synligt i tvåstegsläget.
+   * faller tillbaka på kontonamnet (5a CTO-bind R5). Varje värd som monterar
+   * formuläret ska skicka den — utelämnad blir fältet tomt, vilket är exakt den
+   * uteblivna namngivningen #1060 rapporterar.
    */
   readonly defaultName?: string;
 }
@@ -370,29 +378,29 @@ export function CvUploadForm({
           </div>
         ) : (
           <>
-            {/* CV-namn (CV-pivot 5c) — endast i tvåstegsläget. Rent fält (ingen
-                placeholder), förifyllt med kontonamnet, hint under fältet. */}
-            {!autoUpload && (
-              <div className="jp-cvupload__field">
-                <label htmlFor={nameId} className="jp-label">
-                  {t("nameLabel")}
-                </label>
-                <input
-                  id={nameId}
-                  name="name"
-                  type="text"
-                  className="jp-input"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  aria-describedby={nameHintId}
-                  autoComplete="name"
-                  maxLength={200}
-                />
-                <p id={nameHintId} className="jp-cvupload__help">
-                  {t("nameHint")}
-                </p>
-              </div>
-            )}
+            {/* CV-namn (CV-pivot 5c) — i ALLA lägen (#1060). Rent fält (ingen
+                placeholder), förifyllt med kontonamnet, hint under fältet. Det
+                står före filväljaren, så förslaget hinner både synas och ändras
+                innan auto-uppladdningen startar vid filvalet. */}
+            <div className="jp-cvupload__field">
+              <label htmlFor={nameId} className="jp-label">
+                {t("nameLabel")}
+              </label>
+              <input
+                id={nameId}
+                name="name"
+                type="text"
+                className="jp-input"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                aria-describedby={nameHintId}
+                autoComplete="name"
+                maxLength={200}
+              />
+              <p id={nameHintId} className="jp-cvupload__help">
+                {t("nameHint")}
+              </p>
+            </div>
 
             <div className="jp-cvupload__field">
               <label htmlFor={inputId} className="jp-cvupload__drop">

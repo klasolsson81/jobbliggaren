@@ -187,6 +187,10 @@ export function SettingsForm({
           initialExperienceYears={initialProfile.experienceYears}
           initialOccupationExperience={initialProfile.preferredOccupationExperience}
           degraded={taxonomy === null}
+          // #1060: kontonamnet föreslås som CV-namn i dialogens inline-uppladdning.
+          // Den redigerade staten (inte initialProfile) — skriver användaren ett
+          // nytt namn och laddar upp direkt är förslaget det hon just skrev.
+          accountName={displayName}
         />
       </div>
 

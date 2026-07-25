@@ -50,6 +50,12 @@ interface OccupationSectionProps {
   /** CV-importflödets route (tom-state-länken i CV-förslaget). */
   readonly importCvHref: string;
   /**
+   * Kontonamnet som föreslås som CV-namn i den inline-monterade uppladdningen
+   * (#1060). Utelämnad ⇒ tomt namnfält, vilket är precis den uteblivna
+   * namngivningen issuet rapporterar — varje värd ska skicka den.
+   */
+  readonly accountName?: string;
+  /**
    * Unik DOM-id-prefix så sektionen kan monteras i flera värdar utan
    * id-kollision (dialog vs wizard). Default behåller dialogens tidigare id:n.
    */
@@ -120,6 +126,7 @@ export function OccupationSection({
   onReplace,
   onClear,
   importCvHref,
+  accountName = "",
   idPrefix = "match-dialog",
   headingId,
   showHeading = true,
@@ -326,6 +333,7 @@ export function OccupationSection({
         result={cvResult}
         pending={isCvSuggesting}
         importCvHref={importCvHref}
+        accountName={accountName}
         showTrigger={!autoSuggestFromCv}
         onTrigger={() => runCvSuggest()}
         uploadOpen={uploadOpen}
@@ -610,6 +618,7 @@ function CvSuggestStatus({
   result,
   pending,
   importCvHref,
+  accountName,
   showTrigger,
   onTrigger,
   uploadOpen,
@@ -620,6 +629,8 @@ function CvSuggestStatus({
   readonly result: CvSuggestResult | null;
   readonly pending: boolean;
   readonly importCvHref: string;
+  /** Kontonamnet som föreslås som CV-namn i inline-uppladdningen (#1060). */
+  readonly accountName: string;
   readonly showTrigger: boolean;
   readonly onTrigger: () => void;
   readonly uploadOpen: boolean;
@@ -678,7 +689,7 @@ function CvSuggestStatus({
           role="group"
           aria-label={t("matchPrefs.occupation.uploadGroup")}
         >
-          <CvUploadForm onUploaded={onUploaded} />
+          <CvUploadForm onUploaded={onUploaded} defaultName={accountName} />
           <div className="jp-matchdialog__cvupload-foot">
             {/* Neutral avbryt (backar bara ut — INGEN destruktiv handling, så
                 aldrig .jp-clearlink/röd, WCAG 1.4.1). Ghost-knapp = neutral och

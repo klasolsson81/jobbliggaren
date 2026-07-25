@@ -97,6 +97,11 @@ interface MatchPreferencesCardProps {
    * "kunde inte läsas in just nu"-text i stället för väljarna.
    */
   readonly degraded: boolean;
+  /**
+   * Kontonamnet som föreslås som CV-namn i dialogens inline-CV-uppladdning
+   * (#1060). Kortet använder det inte själv — det trådas vidare till dialogen.
+   */
+  readonly accountName?: string;
 }
 
 /** CV-importflödets route (verifierad on-disk: app/(app)/cv/importera). */
@@ -115,6 +120,7 @@ export function MatchPreferencesCard({
   initialExperienceYears,
   initialOccupationExperience,
   degraded,
+  accountName = "",
 }: MatchPreferencesCardProps) {
   const t = useTranslations("settings");
   const format = useFormatter();
@@ -533,6 +539,7 @@ export function MatchPreferencesCard({
           persistedSkillGroups={skillGroups}
           onSaved={onDialogSaved}
           importCvHref={IMPORT_CV_HREF}
+          accountName={accountName}
           // #748 (WCAG 2.4.3): return focus to the invoking "Lägg till" button
           // when the dialog closes. Radix's default targets a null triggerRef
           // (controlled dialog, no DialogTrigger) and would drop focus to body.

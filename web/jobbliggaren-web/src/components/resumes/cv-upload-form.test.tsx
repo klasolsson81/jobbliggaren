@@ -101,11 +101,15 @@ describe("CvUploadForm — ärlig upload-copy", () => {
     ).toBeInTheDocument();
   });
 
-  it("auto-läget visar inget namnfält (railen behöver inget CV-namn)", () => {
-    render(<CvUploadForm autoUpload />);
-    expect(
-      screen.queryByRole("textbox", { name: "Namn på CV:t" })
-    ).not.toBeInTheDocument();
+  // #1060 (Klas-beslut 2026-07-25): detta test pinnade tidigare motsatsen — att
+  // auto-läget DÖLJER namnfältet. Beslutet är ersatt: CV-pivotens spår 3 säger att
+  // användarens eget namn ska FÖRESLÅS vid uppladdning, och ett dolt fält föreslår
+  // ingenting. `autoUpload` styr numera bara submit-raden och auto-starten.
+  it("auto-läget visar namnfältet förifyllt (förslaget ska synas och gå att ändra)", () => {
+    render(<CvUploadForm autoUpload defaultName="Anna Andersson" />);
+    expect(screen.getByRole("textbox", { name: "Namn på CV:t" })).toHaveValue(
+      "Anna Andersson"
+    );
   });
 });
 

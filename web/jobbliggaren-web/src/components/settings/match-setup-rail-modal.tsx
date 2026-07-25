@@ -113,6 +113,13 @@ interface MatchSetupRailModalProps {
   }>;
   /** CV-importflödets route (tom-state-länken i yrkes-sektionen). */
   readonly importCvHref: string;
+  /**
+   * Kontonamnet som föreslås som CV-namn i modalens CV-uppladdning (#1060 —
+   * CV-pivotens spår 3: "användarens eget namn föreslås som namn"). Utelämnad =
+   * tomt fält, dvs. inget förslag; backend faller då tillbaka på kontonamnet men
+   * användaren har varken sett eller kunnat ändra det.
+   */
+  readonly accountName?: string;
   /** Anropas efter lyckad save med den sparade fulla mängden. */
   readonly onSaved?: (saved: {
     occupations: ReadonlyArray<string>;
@@ -155,6 +162,7 @@ export function MatchSetupRailModal({
   persistedSkillGroups = [],
   persistedOccupationExperience,
   importCvHref,
+  accountName = "",
   onSaved,
   initialStep = STEP_START,
 }: MatchSetupRailModalProps) {
@@ -689,11 +697,15 @@ export function MatchSetupRailModal({
                           {/* Polish (Klas 2026-07-03): auto-upload vid filval
                               (inget extra klick) + formulärets egen hjälptext
                               dold (upload-rubriken/brödtexten ovan bär redan
-                              instruktionen — ingen dubbeltext). */}
+                              instruktionen — ingen dubbeltext). Namnfältet syns
+                              förifyllt (#1060, Klas 2026-07-25) — auto-uppladdningen
+                              startar fortfarande vid filvalet, så det borttagna
+                              klicket är fortsatt borta. */}
                           <CvUploadForm
                             onUploaded={handleCvUploaded}
                             autoUpload
                             showHelp={false}
+                            defaultName={accountName}
                           />
                           <p className="jp-wizard__nocv">
                             {t.rich("start.noCv", {
@@ -759,6 +771,7 @@ export function MatchSetupRailModal({
                         onReplace={(next) => setDraftOccupations(next)}
                         onClear={() => setDraftOccupations([])}
                         importCvHref={importCvHref}
+                        accountName={accountName}
                         idPrefix="match-rail-occ"
                         showHeading={false}
                         experienceByConceptId={draftOccupationExperience}

@@ -160,6 +160,10 @@ export default async function OversiktRoute({
           persistedSkills={profile.data.preferredSkills}
           persistedOccupationExperience={profile.data.preferredOccupationExperience}
           importCvHref={IMPORT_CV_HREF}
+          // #1060: kontonamnet föreslås som CV-namn i välkomst-modulens uppladdning.
+          // Serverburet — klienten har ingen session-/profil-kontext att läsa det ur
+          // (getMyProfile är server-only), och profilen är redan hämtad här.
+          accountName={profile.data.displayName}
         />
       )}
       {/* DEV-ONLY — not rendered in production; remove before launch (Klas).

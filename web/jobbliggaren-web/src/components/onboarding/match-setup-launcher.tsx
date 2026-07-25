@@ -33,6 +33,12 @@ interface MatchSetupLauncherProps {
     readonly years: number | null;
   }>;
   readonly importCvHref: string;
+  /**
+   * Kontonamnet (`JobSeeker.DisplayName`) som föreslås som CV-namn i modalens
+   * CV-uppladdning (#1060). Hämtas server-side på /oversikt, som redan läser
+   * profilen — klienten har ingen session-/profil-kontext att läsa det ur.
+   */
+  readonly accountName: string;
 }
 
 /**
@@ -53,6 +59,7 @@ export function MatchSetupLauncher({
   persistedSkills,
   persistedOccupationExperience,
   importCvHref,
+  accountName,
 }: MatchSetupLauncherProps) {
   const router = useRouter();
   const [open, setOpen] = useState(autoOpen);
@@ -87,6 +94,7 @@ export function MatchSetupLauncher({
       persistedSkills={persistedSkills}
       persistedOccupationExperience={persistedOccupationExperience}
       importCvHref={importCvHref}
+      accountName={accountName}
     />
   );
 }

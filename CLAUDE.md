@@ -156,9 +156,14 @@ signal available is a discipline miss.
   `.AsNoTracking()` default for reads. `Include()` only when needed.
   Pagination via `.Skip().Take()` + separate count query.
   **A bulk-load path ANALYZEs the table it loaded** when that table is written
-  by one periodic job and read-only between runs — in the job, once per
-  completed run, never per batch (a table under continuous DML self-heals via
-  autovacuum and is out of scope). Why: `ScbCompanyRegisterStore.AnalyzeAsync`
+  by one periodic job, is read-only between runs, **and** is read by a query the
+  planner has a choice about — a predicate, join, or sort. In the job, once per
+  completed run, never per batch. Two exclusions: a table under continuous DML
+  (autovacuum self-heals it), and a table only ever read as an unqualified
+  full-table load — that has exactly one possible plan, so statistics cannot
+  change it (measured 2026-07-25: `taxonomy_concepts`/`taxonomy_relations`,
+  whose only readers are the two predicate-free `ToListAsync` calls in
+  `TaxonomyReadModel.LoadAsync`). Why: `ScbCompanyRegisterStore.AnalyzeAsync`
   (#560).
 
 ## 4. TypeScript / Next.js standards

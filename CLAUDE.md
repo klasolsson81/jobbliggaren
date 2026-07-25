@@ -118,6 +118,11 @@ signal available is a discipline miss.
   `ISpecification<T>` only when the same filter is used in 3+ places.
   `.AsNoTracking()` default for reads. `Include()` only when needed.
   Pagination via `.Skip().Take()` + separate count query.
+  **A bulk-load path ANALYZEs the table it loaded** — in the job, once per
+  completed run (never per batch, never in a migration). Autovacuum is not the
+  guarantee: its trigger is change-driven and its counters do not survive an
+  unclean shutdown, `pg_upgrade` or a restore, so a table written by a periodic
+  job and read-only in between can plan blind indefinitely (#560, ADR 0119).
 
 ## 4. TypeScript / Next.js standards
 

@@ -454,3 +454,45 @@ open an issue before re-running.
   which was wrong on both counts — the carried #690/#693 cron question is now
   closed. The sweep then keeps the replica in step week to week.
 - Record the `LogCompleted` summary + query results in the session log.
+
+### Planner statistics — automatic after a sync, manual after a restore
+
+A completed sync now runs `ANALYZE company_register` itself, as its last step
+(#560, ADR 0119 — CLAUDE.md §3.6). You should see it in the run log:
+
+```
+ScbCompanyRegisterRefresher: planerarstatistik uppdaterad (ANALYZE company_register) — 871 ms.
+```
+
+**Do not rely on autovacuum to cover the gaps.** Its analyze trigger is
+change-driven (`n_mod_since_analyze` against `50 + 0.1 × reltuples`), and those
+counters live in the cumulative statistics — which PostgreSQL **discards on an
+unclean shutdown**, and which `pg_upgrade` and a `pg_dump` restore do not carry
+at all. The register is written by one periodic job and read-only in between, so
+a reset anywhere in that window zeroes the counter with nothing left to re-arm
+it: the table then plans blind until the next sync. That is not hypothetical —
+it is what left the register at 1 066 938 rows with zero rows in `pg_stats`,
+and the name-prefix search walking the wrong index at 1 681–6 268 ms.
+
+**Run this manually after any restore, `pg_upgrade`, or statistics reset**, and
+any time the register search is unexpectedly slow:
+
+```sql
+-- 1. Diagnose: zero rows here means the planner has NO statistics for the table.
+SELECT count(*) FROM pg_stats
+WHERE schemaname = 'public' AND tablename = 'company_register';
+
+-- 2. Check when it was last refreshed (NULL on both = never, or counters reset).
+SELECT last_analyze, last_autoanalyze, n_live_tup, n_mod_since_analyze
+FROM pg_stat_user_tables
+WHERE schemaname = 'public' AND relname = 'company_register';
+
+-- 3. Fix. ~871 ms at 1 066 938 rows; safe to run at any time, takes no
+--    exclusive lock. Plain ANALYZE only — vacuuming is autovacuum's business.
+ANALYZE company_register;
+```
+
+A useful tell that the counters were reset rather than merely idle: **every**
+table in `pg_stat_user_tables` reads `n_live_tup = 0` with both timestamps NULL,
+including ones you know hold rows. `pg_stats` survives a reset (it is a catalog),
+so step 1 and step 2 answer different questions — run both.

@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
   buildJobbHref,
+  buildPageHref,
   parseEmployerParam,
   withCommitFlag,
   COMMIT_PARAM,
   COMMIT_VALUE,
   type JobbUrlState,
+  type JobbRawSearchParams,
   clampSubMinimumQ,
 } from "./search-params";
 
@@ -288,5 +290,83 @@ describe("clampSubMinimumQ (#823)", () => {
 
   it("lämnar frånvaro av söktext orörd", () => {
     expect(clampSubMinimumQ(undefined)).toBeUndefined();
+  });
+});
+
+/**
+ * #846 — flyttad hit från `components/job-ads/jobb-results-page-href.test.ts`
+ * tillsammans med `buildPageHref`. I sin gamla hemvist importerade testet från
+ * en Server-Component-modul, vilket drog hela dess graf in i jsdom och bara
+ * fungerade tack vare att `vitest.config.ts` aliasar `server-only` till en shim.
+ *
+ * Q-klamps-fallen är #823:s ursprungliga vakt, ordagrant. Param-bevarande-fallet
+ * är NYTT: varje rad i buildPageHref bär en kommentar om att den finns för att
+ * ett sida-2-klick annars tappar sitt filter (E2b/Klass 2/STEG 5/#454), men
+ * ingen av dem var testad — och e2e:n når dem aldrig, eftersom en tom annons-DB
+ * inte renderar någon paginering alls.
+ */
+describe("buildPageHref (#823 q-klampen, #846 hemvisten)", () => {
+  // Annotering, inte `as`: en assertion hade stängt av kontrollen permanent — läggs ett
+  // required-fält till fortsätter filen kompilera medan buildern tar en annan gren.
+  const params: JobbRawSearchParams = {};
+
+  it("droppar ett q under backendens minimum ur sidlänken", () => {
+    const href = buildPageHref({ ...params, q: "a" }, 2, 20);
+    expect(href).not.toContain("q=");
+    expect(href).toContain("page=2");
+  });
+
+  it("behåller ett giltigt q — och normaliserar det som page.tsx gör", () => {
+    expect(buildPageHref({ ...params, q: "backend" }, 2, 20)).toContain(
+      "q=backend"
+    );
+    // Trimmad paritet: annars kör sidan "ab" medan länken bär "+ab+".
+    expect(buildPageHref({ ...params, q: " ab " }, 2, 20)).toContain("q=ab");
+  });
+
+  it("bär vidare varje filter-dimension så ett sida-2-klick inte tappar filtret", () => {
+    const href = buildPageHref(
+      {
+        occupationGroup: ["2512"],
+        region: ["01"],
+        municipality: ["0180", "0181"],
+        employmentType: ["1"],
+        worktimeExtent: ["2"],
+        matchGrades: ["Strong", "Good"],
+        relaterade: "on",
+        doljAnsokta: "on",
+        baraMatchade: "on",
+        employer: "5565021000",
+        q: "backend",
+        sortBy: "RelevanceDesc",
+      },
+      3,
+      20
+    );
+    expect(href).toContain("page=3");
+    expect(href).toContain("occupationGroup=2512");
+    expect(href).toContain("region=01");
+    expect(href).toContain("municipality=0180");
+    expect(href).toContain("municipality=0181");
+    expect(href).toContain("employmentType=1");
+    expect(href).toContain("worktimeExtent=2");
+    expect(href).toContain("matchGrades=Strong");
+    expect(href).toContain("matchGrades=Good");
+    expect(href).toContain("relaterade=on");
+    expect(href).toContain("doljAnsokta=on");
+    expect(href).toContain("baraMatchade=on");
+    expect(href).toContain("employer=5565021000");
+    expect(href).toContain("q=backend");
+    expect(href).toContain("sortBy=RelevanceDesc");
+  });
+
+  it("utelämnar default-sorten och sida 1 så delningsbara URL:er förblir rena", () => {
+    // Samma default-utelämning som buildJobbHref — och `page` sätts aldrig för sida 1.
+    expect(buildPageHref({ sortBy: "PublishedAtDesc" }, 1, 20)).toBe("/jobb");
+  });
+
+  it("skriver bara ut pageSize när den avviker från sidans default", () => {
+    expect(buildPageHref({ pageSize: "20" }, 2, 20)).not.toContain("pageSize");
+    expect(buildPageHref({ pageSize: "50" }, 2, 20)).toContain("pageSize=50");
   });
 });

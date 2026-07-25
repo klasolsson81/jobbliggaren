@@ -15,8 +15,8 @@ import type { MatchGrade, JobAdMatchBatch } from "@/lib/dto/job-ad-match";
 import { assertNever } from "@/lib/dto/_helpers";
 import {
   buildJobbHref,
-  clampSubMinimumQ,
-  parseEmployerParam,
+  buildPageHref,
+  type JobbRawSearchParams,
 } from "@/lib/job-ads/search-params";
 import { maxCreatedAt } from "@/lib/job-ads/seen-window";
 import { JobAdList } from "@/components/job-ads/job-ad-list";
@@ -109,31 +109,12 @@ interface JobbResultsProps {
    * URL:en efter mount av `StripCommitParam`.
    */
   commit: boolean;
-  /** Råa searchParams — endast för att bygga paginerings-href. */
-  rawParams: {
-    page?: string;
-    pageSize?: string;
-    sortBy?: string;
-    occupationGroup?: string | string[];
-    region?: string | string[];
-    municipality?: string | string[];
-    employmentType?: string | string[];
-    worktimeExtent?: string | string[];
-    matchGrades?: string | string[];
-    // #300 PR-5 — bärs i paginerings-href:en så sida-2-klicket inte tappar
-    // "Visa relaterade också"-toggle:n (samma felklass som matchGrades).
-    relaterade?: string;
-    // #383 → förenklat — bärs i paginerings-href:en så sida-2-klicket inte tappar
-    // "Dölj ansökta" (samma felklass som relaterade/matchGrades).
-    doljAnsokta?: string;
-    // #419 pt1 — bärs i paginerings-href:en så sida-2-klicket inte tappar "Visa bara
-    // matchade" (samma felklass som doljAnsokta/relaterade).
-    baraMatchade?: string;
-    // #454 PR-0 — bärs i paginerings-href:en så sida-2-klicket inte tappar
-    // arbetsgivar-filtret (samma felklass som ovan).
-    employer?: string | string[];
-    q?: string;
-  };
+  /**
+   * Råa searchParams — endast för att bygga paginerings-href. Formen bor i
+   * `lib/job-ads/search-params.ts` tillsammans med `buildPageHref`, dess enda
+   * konsument (#846).
+   */
+  rawParams: JobbRawSearchParams;
 }
 
 export async function JobbResults({
@@ -486,70 +467,4 @@ export async function JobbResults({
     default:
       return assertNever(result);
   }
-}
-
-// Normaliserar string | string[] | undefined → string[] (tomma värden bort).
-function toStringList(raw: string | string[] | undefined): string[] {
-  if (raw === undefined) return [];
-  const arr = Array.isArray(raw) ? raw : [raw];
-  return arr.map((v) => v.trim()).filter((v) => v.length > 0);
-}
-
-// Exporterad ENBART för test (#823): klampen härinne var annars otestad — e2e:n når den
-// aldrig (tom annons-DB ⇒ ingen paginering renderas), så raden hade kunnat tas bort tyst.
-export function buildPageHref(
-  params: JobbResultsProps["rawParams"],
-  targetPage: number,
-  defaultPageSize: number
-): string {
-  const url = new URLSearchParams();
-  if (targetPage !== 1) url.set("page", String(targetPage));
-  if (params.pageSize && Number(params.pageSize) !== defaultPageSize) {
-    url.set("pageSize", params.pageSize);
-  }
-  if (params.sortBy && params.sortBy !== "PublishedAtDesc") {
-    url.set("sortBy", params.sortBy);
-  }
-  for (const v of toStringList(params.occupationGroup))
-    url.append("occupationGroup", v);
-  for (const v of toStringList(params.region)) url.append("region", v);
-  // E2b — utan denna rad tappar sida-2-klicket kommun-filtret (samma
-  // felklass som F3 B-FIX; buildPageHref är en ANDRA URL-builder vid
-  // sidan av buildJobbHref — architect-dom fråga 4.1).
-  for (const v of toStringList(params.municipality))
-    url.append("municipality", v);
-  // Klass 2 — utan dessa tappar sida-2-klicket anställningsform/omfattning
-  // (samma felklass som municipality ovan; buildPageHref är en andra URL-
-  // builder vid sidan av buildJobbHref).
-  for (const v of toStringList(params.employmentType))
-    url.append("employmentType", v);
-  for (const v of toStringList(params.worktimeExtent))
-    url.append("worktimeExtent", v);
-  // STEG 5 — utan denna rad tappar sida-2-klicket grad-filtret (samma felklass
-  // som municipality/Klass-2 ovan; buildPageHref är en andra URL-builder vid
-  // sidan av buildJobbHref). Page-validatorn droppar Top/okänt redan.
-  for (const v of toStringList(params.matchGrades))
-    url.append("matchGrades", v);
-  // #300 PR-5 — utan denna rad tappar sida-2-klicket "Visa relaterade också"-
-  // toggle:n (samma felklass som matchGrades ovan). Bevaras BARA när on (paritet
-  // med buildJobbHref); page.tsx parsar bara on-värdet.
-  if (params.relaterade === "on") url.set("relaterade", "on");
-  // #383 → förenklat — utan denna rad tappar sida-2-klicket "Dölj ansökta" (samma
-  // felklass som relaterade ovan). Bevaras BARA när on (paritet buildJobbHref).
-  if (params.doljAnsokta === "on") url.set("doljAnsokta", "on");
-  // #419 pt1 — utan denna rad tappar sida-2-klicket "Visa bara matchade" (samma felklass
-  // som doljAnsokta ovan). Bevaras BARA när on (paritet buildJobbHref).
-  if (params.baraMatchade === "on") url.set("baraMatchade", "on");
-  // #454 PR-0 — utan denna rad tappar sida-2-klicket arbetsgivar-filtret
-  // (samma felklass som ovan; buildPageHref är en andra URL-builder vid sidan
-  // av buildJobbHref). SPOT-gaten (parseEmployerParam) delas med page-parsern.
-  const employerParam = parseEmployerParam(params.employer);
-  if (employerParam) url.set("employer", employerParam);
-  // #823 — KLAMPA. Utan detta re-emitterar sidlänkarna det råa under-minimum-q:t
-  // (/jobb?q=a → "Nästa sida" = /jobb?page=2&q=a): en URL vi själva genererar som påstår
-  // ett sök sidan inte kör, medan sökfältet står tomt. Samma SPOT-klamp som page.tsx.
-  const clampedQ = clampSubMinimumQ(params.q);
-  if (clampedQ) url.set("q", clampedQ);
-  const qs = url.toString();
-  return qs.length > 0 ? `/jobb?${qs}` : "/jobb";
 }

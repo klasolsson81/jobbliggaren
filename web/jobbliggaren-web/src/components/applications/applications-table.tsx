@@ -200,6 +200,9 @@ export function ApplicationsTable({ rows, now }: ApplicationsTableProps) {
               </caption>
               <colgroup>
                 <col className="jp-apptable__col--check" />
+                {/* guard-allow: no width rule on purpose — the five other
+                    columns are fixed-width and this one absorbs the remainder.
+                    Keeping the class keeps the colgroup symmetric and readable. */}
                 <col className="jp-apptable__col--role" />
                 <col className="jp-apptable__col--status" />
                 <col className="jp-apptable__col--step" />

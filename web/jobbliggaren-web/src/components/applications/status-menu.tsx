@@ -132,7 +132,7 @@ export function StatusMenu({
           // tappar sin röda identitet exakt i interaktionsögonblicket (Radix
           // flyttar fokus vid hover också). Bevara danger genom focus/hover, per
           // repo-precedens ui/select.tsx (design-reviewer Major 1, #782).
-          className="jp-statusmenu__item text-danger-700 focus:bg-danger-50 focus:text-danger-700"
+          className="text-danger-700 focus:bg-danger-50 focus:text-danger-700"
           disabled={pending}
           onSelect={() => deleteApplication(application)}
         >

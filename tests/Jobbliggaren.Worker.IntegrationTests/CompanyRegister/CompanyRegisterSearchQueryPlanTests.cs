@@ -55,7 +55,17 @@ public class CompanyRegisterSearchQueryPlanTests(WorkerTestFixture fixture)
     private const string ProbeSni = "62010";
     private const string FillerSni = "99999";
     private const string ProbeNamePrefix = "Volvo";
-    private const int SeededRows = 2000;
+
+    /// <summary>
+    /// DERIVED, not a hand-picked 2 000, and the derivation is load-bearing for the browse-all pin
+    /// below: browse-all matches every seeded row, so this seed size is exactly what makes its
+    /// pagination count SATURATE — which is the signal the materialization rule (ADR 0119) reads as
+    /// "unbounded", keeping the ordered walk that pin claims. Seed one row fewer and browse-all
+    /// would quietly take the materialized branch, and the pin would fail complaining about a Sort
+    /// node while nothing was actually wrong. Tying the two to one knowledge piece removes the trap.
+    /// </summary>
+    private static readonly int SeededRows = CompanyRegisterSearchCriteria.MaxServableRows(20);
+
     private const int ProbeMatches = 2;
 
     [Fact]
@@ -64,11 +74,7 @@ public class CompanyRegisterSearchQueryPlanTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextAsync(ct);
 
-        var plan = await ExplainAsync(
-            ctx.Db,
-            conn => CompanyRegisterSearchQuery.BuildItemsCommand(
-                conn, Criteria(sni: [ProbeSni])),
-            ct);
+        var plan = await ExplainItemsAsync(ctx.Db, Criteria(sni: [ProbeSni]), ct);
 
         plan.ShouldContain(
             GinIndexName,
@@ -91,11 +97,7 @@ public class CompanyRegisterSearchQueryPlanTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextAsync(ct);
 
-        var plan = await ExplainAsync(
-            ctx.Db,
-            conn => CompanyRegisterSearchQuery.BuildItemsCommand(
-                conn, Criteria(name: ProbeNamePrefix)),
-            ct);
+        var plan = await ExplainItemsAsync(ctx.Db, Criteria(name: ProbeNamePrefix), ct);
 
         plan.ShouldContain(
             NameLowerIndexName,
@@ -119,11 +121,7 @@ public class CompanyRegisterSearchQueryPlanTests(WorkerTestFixture fixture)
         // a choice made inside a prohibition is not production's choice). Browse-all matches
         // EVERY row, which is exactly the shape where a Sort over the whole match set is the
         // 7 066 ms regression and the ordered walk + LIMIT stop is the fix.
-        var plan = await ExplainAsync(
-            ctx.Db,
-            conn => CompanyRegisterSearchQuery.BuildItemsCommand(conn, Criteria()),
-            ct,
-            disableSeqScan: false);
+        var plan = await ExplainItemsAsync(ctx.Db, Criteria(), ct, disableSeqScan: false);
 
         plan.ShouldContain(
             OrderByIndexName,
@@ -145,11 +143,7 @@ public class CompanyRegisterSearchQueryPlanTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextAsync(ct);
 
-        var plan = await ExplainAsync(
-            ctx.Db,
-            conn => CompanyRegisterSearchQuery.BuildItemsCommand(
-                conn, Criteria(orgnr: "5500000001")),
-            ct);
+        var plan = await ExplainItemsAsync(ctx.Db, Criteria(orgnr: "5500000001"), ct);
 
         plan.ShouldContain(
             PkIndexName,
@@ -207,6 +201,38 @@ public class CompanyRegisterSearchQueryPlanTests(WorkerTestFixture fixture)
         string[]? sni = null, string? name = null, string? orgnr = null) =>
         CompanyRegisterSearchCriteria.FromTrusted(
             sni ?? [], [], name, orgnr, page: 1, pageSize: 20);
+
+    /// <summary>
+    /// EXPLAIN of the ITEMS command. <c>matchCount</c> is obtained by RUNNING production's own
+    /// <see cref="CompanyRegisterSearchQuery.BuildCountCommand"/>, never hand-typed (ADR 0119): the
+    /// branch under EXPLAIN must be the branch production would take for this criteria at this
+    /// cardinality, otherwise the pin measures itself. At this class's 2 000-row seed every probed
+    /// axis is selective, so the count stays under the cap and the materialized branch is the one
+    /// exercised — which is production's behaviour for a selective search, and leaves each
+    /// ELIGIBILITY claim (the predicate is emitted in the one shape the index can serve) intact.
+    /// The browse-all CHOICE pin saturates the cap and keeps the ordered walk, unchanged.
+    /// </summary>
+    private static async Task<string> ExplainItemsAsync(
+        AppDbContext db,
+        CompanyRegisterSearchCriteria criteria,
+        CancellationToken ct,
+        bool disableSeqScan = true)
+    {
+        var connection = (NpgsqlConnection)db.Database.GetDbConnection();
+        if (connection.State != System.Data.ConnectionState.Open)
+            await connection.OpenAsync(ct);
+
+        await using var countCmd =
+            CompanyRegisterSearchQuery.BuildCountCommand(connection, criteria);
+        var matchCount = Convert.ToInt32(
+            await countCmd.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
+
+        return await ExplainAsync(
+            db,
+            conn => CompanyRegisterSearchQuery.BuildItemsCommand(conn, criteria, matchCount),
+            ct,
+            disableSeqScan);
+    }
 
     private static async Task<string> ExplainAsync(
         AppDbContext db,

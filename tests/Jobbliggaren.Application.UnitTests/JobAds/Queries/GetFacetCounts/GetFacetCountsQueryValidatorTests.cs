@@ -51,11 +51,13 @@ public class GetFacetCountsQueryValidatorTests
     }
 
     [Fact]
-    public void Q_below_min_length_fails()
+    public void Q_below_parser_minimum_passes()
     {
+        // #831 — symmetriskt med list-vägen: minimum bor i ISearchQueryParser, som
+        // nollar residualen (täckt av GetFacetCountsQueryHandlerTests), inte här.
         var result = _validator.Validate(
             new GetFacetCountsQuery(FacetDimension.Region, Q: "a"));
-        result.IsValid.ShouldBeFalse();
+        result.IsValid.ShouldBeTrue();
     }
 
     [Fact]

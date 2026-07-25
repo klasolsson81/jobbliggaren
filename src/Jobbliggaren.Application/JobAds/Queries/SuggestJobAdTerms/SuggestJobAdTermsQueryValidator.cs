@@ -4,8 +4,17 @@ namespace Jobbliggaren.Application.JobAds.Queries.SuggestJobAdTerms;
 
 /// <summary>
 /// ADR 0042 Beslut C — DoS-floor enforce:as i Validation-pipeline FÖRE
-/// handlern (query körs aldrig med under-floor prefix). Speglar
-/// ListJobAdsQueryValidator-mönstret.
+/// handlern (query körs aldrig med under-floor prefix).
+/// <para><b>#831 — ta INTE bort <c>MinimumLength(2)</c> här som del av en
+/// konsistens-svepning.</b> Den mirroring mot <c>ListJobAdsQueryValidator</c> som
+/// stod här gällde min+max; sedan #831 delas bara MAX. Skillnaden är inte
+/// slarv utan mekanik: list-/facet-/remote-count-vägarna kör sitt <c>q</c> genom
+/// <c>ISearchQueryParser</c>, som NOLLAR en residual under minimum, så där är
+/// validatorns 400 den andra av två regler. Den här vägen har INGEN parser —
+/// <c>SuggestJobAdTermsQueryHandler</c> bygger
+/// <c>LikePattern.EscapePrefix(Prefix) + "%"</c>, alltså en LIKE-prefix-skanning
+/// direkt på användarens tecken. Här är minimum ENDA vakten, och ett 1-tecken-
+/// prefix (<c>a%</c>) är precis den skanning golvet finns för.</para>
 /// </summary>
 public sealed class SuggestJobAdTermsQueryValidator
     : AbstractValidator<SuggestJobAdTermsQuery>

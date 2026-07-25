@@ -74,12 +74,15 @@ public sealed class GetFacetCountsQueryValidator : AbstractValidator<GetFacetCou
             .When(q => q.WorktimeExtent is not null)
             .WithMessage("Omfattning måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
 
-        // Samma Q-gränser som list-vägen (Domain-konstanter, single source) —
-        // residual-konsistensen kräver att även valideringen är symmetrisk.
+        // Samma Q-gräns som list-vägen (Domain-konstant, single source) —
+        // residual-konsistensen kräver att även valideringen är symmetrisk. #831 flyttade
+        // MINIMUM-halvan av den symmetrin till parsern på alla tre parser-backade vägarna
+        // (list/facet/remote-count) samtidigt: den här handlern kör `parser.Parse(query.Q)
+        // .ResidualQ`, som nollar en residual under QMinLength, så ett 400 här hade varit
+        // den andra av två regler för samma input. Symmetrin är alltså bevarad — vid ett
+        // annat läge: MAX valideras, MIN nollas nedströms.
         RuleFor(q => q.Q)
-            .MinimumLength(SearchCriteria.QMinLength)
             .MaximumLength(SearchCriteria.QMaxLength)
-            .When(q => !string.IsNullOrWhiteSpace(q.Q))
-            .WithMessage("Söktext måste vara 2-100 tecken.");
+            .WithMessage($"Söktext får vara högst {SearchCriteria.QMaxLength} tecken.");
     }
 }

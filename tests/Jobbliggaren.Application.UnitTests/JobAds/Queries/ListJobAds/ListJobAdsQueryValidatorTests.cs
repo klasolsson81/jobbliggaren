@@ -414,14 +414,36 @@ public class ListJobAdsQueryValidatorTests
     }
 
     // ---------------------------------------------------------------
-    // Q oförändrat — 2-100 tecken
+    // Q — max 100 tecken. INGEN minimigräns här sedan #831: parsern nollar
+    // en residual under SearchCriteria.QMinLength, validatorn avvisar inte.
     // ---------------------------------------------------------------
 
     [Fact]
-    public void Validate_Q_TooShort_Fails()
+    public void Validate_RelevanceSort_WithSubMinimumQ_Passes_ParserDecidesTheOrder()
     {
+        // #831 — a state that was UNREACHABLE before this change: MinimumLength 400'd
+        // first, so relevance-sort never saw a sub-minimum q. Now it does.
+        //
+        // The relevance rule is `.NotEmpty()` on RAW q, so "a" satisfies it and the query
+        // is valid. The handler then nulls the residual and `ApplyRelevanceSort` falls back
+        // to PublishedAt desc — a deliberate degradation, not a 400, because refusing is
+        // exactly what #831 removes. Pinning it here so the promoted fallback path has
+        // coverage: it used to be described as defense-in-depth and is now the ordinary
+        // route for this input.
+        var result = _validator.Validate(
+            new ListJobAdsQuery(Q: "a", Sort: ListJobAdsSort.Relevance));
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_Q_BelowParserMinimum_Passes()
+    {
+        // #831 — ett under-minimum-q är GILTIGT wire-side. Regeln bor i
+        // ISearchQueryParser, som nollar residualen och kör default-browse-frågan;
+        // ett 400 här vore den andra av två regler för samma input, och det var
+        // varför en bokmärkt /jobb?q=a kunde 400:a alls (#823).
         var result = _validator.Validate(new ListJobAdsQuery(Q: "a"));
-        result.IsValid.ShouldBeFalse();
+        result.IsValid.ShouldBeTrue();
     }
 
     [Fact]

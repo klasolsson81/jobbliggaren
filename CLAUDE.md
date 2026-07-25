@@ -62,8 +62,45 @@ this map; when unsure, ask.
 **2.1 Clean Architecture is non-negotiable.** Domain depends on nothing —
 not Mediator, not EF Core. Application depends on Domain and defines every
 interface Infrastructure implements. Infrastructure implements them (EF Core,
-external clients). Api/Worker compose DI only. If you are importing
-`Microsoft.EntityFrameworkCore` in Domain or Application — stop.
+external clients). Api/Worker compose DI only.
+
+**The EF Core dependency rule, precisely** (ADR 0009, enforced by
+`tests/Jobbliggaren.Architecture.Tests/DomainLayerTests.cs`). Three axes:
+
+**1. Package.** **Domain = zero EF Core, no exceptions.** **Application MAY
+reference the `Microsoft.EntityFrameworkCore` package** — §3.6 puts
+`IAppDbContext` directly in handlers with no repository layer, and that is
+impossible without it. ADR 0009 accepts the coupling knowingly; its
+Konsekvenser/Negativt records "Handlers är direkt beroende av EF Core-interfaces
+(via `IAppDbContext`)". Ratified trade-off, not drift. **Application must NEVER
+reference a provider, relational, or EF-Identity package** — `Npgsql`,
+`Npgsql.EntityFrameworkCore.PostgreSQL`, `Microsoft.EntityFrameworkCore.Relational`,
+`.SqlServer`, `.Sqlite`, `Microsoft.AspNetCore.Identity.EntityFrameworkCore`.
+`DomainLayerTests` fails the build on any of these Application actually uses
+(NetArchTest reads type references in IL, not `PackageReference` entries). The
+list here is a snapshot — the test file is authoritative.
+
+**2. Port.** Application reaches the database only through `IAppDbContext`,
+which exposes `DbSet<T>` per aggregate root and `SaveChangesAsync` — and
+deliberately not `ChangeTracker` or `Database` (ADR 0009 §Beslut) — plus
+`Detach`, added later for the ADR 0032 §5 upsert-retry. Ordinary
+core EF Core over those `DbSet<T>`s is in bounds and needs no justification:
+`AsNoTracking` (§3.6 default), `Include`, `IgnoreQueryFilters`, `ToListAsync`,
+`ExecuteUpdate`/`ExecuteDelete`, `EF.Property`, `DbUpdateException`.
+
+**3. Member — the trap the package boundary does not catch.** Some members
+behind core-looking names are provider extensions: `EF.Functions.Like` is core,
+but `EF.Functions.JsonExists`/`ILike` ship in the Npgsql package, and
+`AsSplitQuery` is relational-only. When a query needs one, it goes behind an
+Application-owned port implemented in Infrastructure
+(`IJobAdRequirementBackfillFilter` — its doc comment cites this rule back) —
+**never** by adding the package to `Jobbliggaren.Application.csproj`. Contrast
+`EF.Property`: shadow-column reads ARE core and belong inline, no port.
+
+So the line to stop at is the **provider** boundary, not the EF Core boundary.
+If you are importing EF Core in **Domain** — stop. If you are reaching for
+`Npgsql` or anything `.Relational` in **Application** — stop; the query belongs
+behind a port.
 
 **2.2 DDD.** Aggregates protect invariants in constructors/methods, not
 handlers. No public setters (private set + EF mappings where forced). Changes

@@ -414,14 +414,19 @@ public class ListJobAdsQueryValidatorTests
     }
 
     // ---------------------------------------------------------------
-    // Q oförändrat — 2-100 tecken
+    // Q — max 100 tecken. INGEN minimigräns här sedan #831: parsern nollar
+    // en residual under SearchCriteria.QMinLength, validatorn avvisar inte.
     // ---------------------------------------------------------------
 
     [Fact]
-    public void Validate_Q_TooShort_Fails()
+    public void Validate_Q_BelowParserMinimum_Passes()
     {
+        // #831 — ett under-minimum-q är GILTIGT wire-side. Regeln bor i
+        // ISearchQueryParser, som nollar residualen och kör default-browse-frågan;
+        // ett 400 här vore den andra av två regler för samma input, och det var
+        // varför en bokmärkt /jobb?q=a kunde 400:a alls (#823).
         var result = _validator.Validate(new ListJobAdsQuery(Q: "a"));
-        result.IsValid.ShouldBeFalse();
+        result.IsValid.ShouldBeTrue();
     }
 
     [Fact]

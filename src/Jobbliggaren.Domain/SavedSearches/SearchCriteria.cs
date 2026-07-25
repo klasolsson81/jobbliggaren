@@ -56,11 +56,18 @@ public sealed record SearchCriteria
         new(@"^[A-Za-z0-9_-]{1,32}\z", RegexOptions.Compiled);
 
     /// <summary>Min/max-längd för fritext-<see cref="Q"/> (CTO-rond 2026-05-13
-    /// Q7c). <c>public const</c> så att ListJobAdsQueryValidator (pre-handler
-    /// defense-in-depth) OCH <c>ISearchQueryParser</c> (ADR 0067 Fas D2 residual-
-    /// normalisering) refererar EN sanningskälla i stället för att duplicera
-    /// literalerna 2/100 (DRY/SPOT, Hunt/Thomas 1999). Speglar
-    /// <see cref="MaxConceptIds"/>-exponeringen.</summary>
+    /// Q7c). <c>public const</c> så att läsarna refererar EN sanningskälla i stället
+    /// för att duplicera literalerna 2/100 (DRY/SPOT, Hunt/Thomas 1999). Speglar
+    /// <see cref="MaxConceptIds"/>-exponeringen.
+    /// <para><b>Vilken läsare läser vilken gräns (#831):</b>
+    /// <see cref="QMaxLength"/> läses av list-/facet-/remote-count-validatorerna
+    /// (pre-handler defense-in-depth, ett pre-work resursgolv) OCH av
+    /// <c>ISearchQueryParser</c> (trunkering). <see cref="QMinLength"/> läses INTE
+    /// längre av någon read-path-validator — #831 flyttade minimum-regeln till
+    /// <c>ISearchQueryParser</c> (ADR 0067 Fas D2), som NOLLAR en residual under
+    /// minimum i stället för att avvisa frågan. Minimum har kvar exakt två läsare:
+    /// parsern, och <see cref="Create"/>-invarianten nedan — den senare för att en
+    /// PERSISTERAD sparad sökning är en annan sak än en degraderbar läsfråga.</para></summary>
     public const int QMinLength = 2;
     public const int QMaxLength = 100;
 

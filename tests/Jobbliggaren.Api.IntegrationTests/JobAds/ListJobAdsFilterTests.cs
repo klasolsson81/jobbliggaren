@@ -334,15 +334,48 @@ public class ListJobAdsFilterTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
+    // #831 — the endpoint contract, and the ONLY place the change is observable
+    // end-to-end. Was GET_job_ads_with_q_too_short_returns_400.
+    //
+    // A status-only assertion ("not a 400") would be too weak: it would still pass if the
+    // handler started applying the sub-minimum q as a filter and returned an empty list,
+    // which is the plausible regression. So the assertion is that the sub-minimum q is
+    // NULLED — the response must be the same unfiltered result the identical request
+    // without q returns.
+    //
+    // Hermetic against the shared Api-collection database via a per-test occupationGroup
+    // concept id (same isolation trick as the filter tests above), so the baseline is an
+    // exact 1 rather than a contaminated count. The seeded text carries no letter "a"
+    // anywhere in title or description: if the q filter DID run, this ad could not come
+    // back, so the counterfactual is real rather than assumed. Mutation-verified — with
+    // SearchQueryParser's nulling branch disabled, this test fails.
     [Fact]
-    public async Task GET_job_ads_with_q_too_short_returns_400()
+    public async Task GET_job_ads_with_q_below_parser_minimum_returns_the_unfiltered_result()
     {
         var ct = TestContext.Current.CancellationToken;
+        var isolatedGroup = $"grp{Guid.NewGuid():N}"[..16];
+
+        await SeedImportedJobAdAsync(
+            "Systemtekniker Öst", "endeplöst", isolatedGroup, regionConceptId: null,
+            externalId: $"ext-{Guid.NewGuid():N}", ct);
+
         await AuthenticateAsync(ct);
 
-        var response = await _client.GetAsync("/api/v1/job-ads?q=a", ct);
+        // Baseline: the same slice WITHOUT q. Asserted non-vacuous (exactly 1) so the
+        // equality below cannot be satisfied by two empty results.
+        var baseline = await _client.GetAsync(
+            $"/api/v1/job-ads?occupationGroup={isolatedGroup}", ct);
+        baseline.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var (baselineCount, _) = await ReadPagedAsync(baseline, ct);
+        baselineCount.ShouldBe(1);
 
-        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        var response = await _client.GetAsync(
+            $"/api/v1/job-ads?occupationGroup={isolatedGroup}&q=a", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var (totalCount, items) = await ReadPagedAsync(response, ct);
+        totalCount.ShouldBe(baselineCount);
+        items[0].GetProperty("title").GetString().ShouldBe("Systemtekniker Öst");
     }
 
     [Fact]

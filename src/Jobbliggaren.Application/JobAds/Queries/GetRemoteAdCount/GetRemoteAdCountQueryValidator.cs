@@ -52,12 +52,17 @@ public sealed class GetRemoteAdCountQueryValidator : AbstractValidator<GetRemote
             .When(q => q.WorktimeExtent is not null)
             .WithMessage("Omfattning måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
 
-        // Samma Q-gränser som list-/facet-vägen (Domain-konstanter, single source) —
-        // residual-konsistensen kräver symmetrisk validering.
+        // Samma Q-gräns som list-/facet-vägen (Domain-konstant, single source) —
+        // residual-konsistensen kräver symmetrisk validering. #831 flyttade MINIMUM-halvan
+        // till parsern på alla tre parser-backade vägarna samtidigt (list/facet/remote-count);
+        // den här handlern kör `parser.Parse(query.Q).ResidualQ`, som nollar en residual under
+        // QMinLength. Symmetrin är bevarad vid ett annat läge: MAX valideras, MIN nollas
+        // nedströms. Nollnings-grenen är täckt av
+        // `GetRemoteAdCountQueryHandlerTests.Handle_SubMinLengthQ_NormalizesToNull` — den
+        // skrevs i #831 just för att parsern blev ENDA vakten på den här vägen.
         RuleFor(q => q.Q)
-            .MinimumLength(SearchCriteria.QMinLength)
             .MaximumLength(SearchCriteria.QMaxLength)
             .When(q => !string.IsNullOrWhiteSpace(q.Q))
-            .WithMessage("Söktext måste vara 2-100 tecken.");
+            .WithMessage("Söktext får vara högst 100 tecken.");
     }
 }

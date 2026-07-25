@@ -103,16 +103,30 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
             .When(q => q.Employer is not null)
             .WithMessage("Organisationsnummer måste vara 10 siffror.");
 
-        // q MinLength(2) hindrar `?q=a` (matchar närapå hela tabellen → DoS-yta).
-        // MaxLength(100) räcker för normal söksträng + safety margin mot injection-
-        // stuffing. CTO-rond 2026-05-13 Q7c. Refererar Domain-konstanterna
-        // (single source) — speglar MaxConceptIds-mönstret ovan; samma gräns
-        // läses av ISearchQueryParser (ADR 0067 Fas D2).
+        // #831 — the q MinLength rule is GONE. The parser, not the validator, owns the
+        // minimum: `SearchQueryParser` nulls a residual below QMinLength and runs on the
+        // dimensions instead (`SearchQueryParser.cs:77-78`), and this handler feeds it every
+        // q (`parser.Parse(query.Q).ResidualQ`). Two rules for one input meant a bookmarked
+        // `/jobb?q=a` 400'd on one path and degraded on the other; the parser wins because a
+        // GET list query should degrade, not refuse.
+        //
+        // The DoS justification the removed rule carried ("matchar närapå hela tabellen →
+        // DoS-yta", CTO-rond 2026-05-13 Q7c) does not survive contact with what nulling
+        // does: a nulled q runs the DEFAULT browse query — indexed, paginated, PageSize ≤
+        // 100 — not a near-full-table scan. The guard was also leaky, which is the stronger
+        // reason: it measured RAW q while the parser normalises first (strips Cc/Cf,
+        // collapses whitespace) and only then compares, so `?q=a<ZWSP>` passed the validator
+        // and got nulled anyway. A bound one invisible character defeats protects nothing.
+        //
+        // MaxLength(100) STAYS and is the load-bearing half: `SearchQueryParser.cs:47`
+        // allocates a StringBuilder(raw.Length) and enumerates every rune BEFORE truncating,
+        // so the max is the only pre-work resource bound. Same shape SearchSkillsQueryValidator
+        // already chose (max only, never a 400 mid-typing). Refererar Domain-konstanten
+        // (single source) — speglar MaxConceptIds-mönstret ovan.
         RuleFor(q => q.Q)
-            .MinimumLength(SearchCriteria.QMinLength)
             .MaximumLength(SearchCriteria.QMaxLength)
             .When(q => !string.IsNullOrWhiteSpace(q.Q))
-            .WithMessage("Söktext måste vara 2-100 tecken.");
+            .WithMessage("Söktext får vara högst 100 tecken.");
 
         // ADR 0042 Beslut D — relevans-sortering kräver söktext (fail-fast,
         // speglar SearchCriteria.Create-invarianten). Match-sorten (MatchDesc)

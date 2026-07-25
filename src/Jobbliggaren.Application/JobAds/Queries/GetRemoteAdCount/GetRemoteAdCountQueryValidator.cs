@@ -62,7 +62,6 @@ public sealed class GetRemoteAdCountQueryValidator : AbstractValidator<GetRemote
         // skrevs i #831 just för att parsern blev ENDA vakten på den här vägen.
         RuleFor(q => q.Q)
             .MaximumLength(SearchCriteria.QMaxLength)
-            .When(q => !string.IsNullOrWhiteSpace(q.Q))
-            .WithMessage("Söktext får vara högst 100 tecken.");
+            .WithMessage($"Söktext får vara högst {SearchCriteria.QMaxLength} tecken.");
     }
 }

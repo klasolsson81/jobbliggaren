@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.RecentJobSearches.Abstractions;
 using Jobbliggaren.Application.RecentJobSearches.Common;
 using Jobbliggaren.Domain.SavedSearches;
@@ -25,6 +26,7 @@ namespace Jobbliggaren.Application.RecentJobSearches.Behaviors;
 public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
     ICurrentUser currentUser,
     IRecentJobSearchCapturer capturer,
+    ISearchQueryParser parser,
     ILogger<RecentJobSearchCaptureBehavior<TMessage, TResponse>> logger)
     : IPipelineBehavior<TMessage, TResponse>
     where TMessage : IMessage
@@ -79,7 +81,28 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         // (bool-semantik). MÅSTE hållas i lockstep med SearchCriteria.Create:s tom-invariant
         // (architect-bind — annars tyst no-capture: guarden släpper igenom men Create avvisar, ELLER
         // guarden blockerar en giltig VO).
-        if (string.IsNullOrWhiteSpace(capt.Q) && occupationGroupCount == 0
+        // #831 — the read-path validators no longer 400 a sub-minimum q; the parser nulls it
+        // and the search runs on the dimensions alone. So `capt.Q` is no longer necessarily
+        // what the search USED, and capturing it raw broke the lockstep the comment above
+        // names: the guard let `q="a"` through, then SearchCriteria.Create rejected it on its
+        // own min-invariant and the whole capture was silently dropped — INCLUDING a
+        // perfectly valid dimension filter. `?q=a&occupationGroup=X&commit=1` returned 200
+        // with results and vanished from "Senaste sökningar" over one character the system
+        // itself ignores.
+        //
+        // `effectiveQ` is therefore what RAN, and BOTH the guard below and Create use it, so
+        // the two cannot disagree again.
+        //
+        // Deliberately NOT `ResidualQ` itself: it also collapses internal whitespace, while
+        // SearchCriteria.NormalizeString only trims — passing it would change FilterHash for
+        // searches that already captured fine, i.e. the dedupe semantics of persisted rows.
+        // That is a different change-reason and belongs in its own PR. This form is strictly
+        // additive: for any q the parser keeps, the captured value is byte-identical to
+        // before; only the previously-unreachable sub-minimum case changes, and it changes
+        // from "silent no-capture" to "capture what actually ran".
+        var effectiveQ = parser.Parse(capt.Q).ResidualQ is null ? null : capt.Q;
+
+        if (string.IsNullOrWhiteSpace(effectiveQ) && occupationGroupCount == 0
             && municipalityCount == 0 && regionCount == 0
             && employmentTypeCount == 0 && worktimeExtentCount == 0
             && employerCount == 0 && !capt.Remote)
@@ -97,11 +120,16 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
                 worktimeExtent: capt.WorktimeExtent ?? [],
                 employer: capt.Employer ?? [],
                 remote: capt.Remote,
-                q: capt.Q,
+                q: effectiveQ,
                 sortBy: capt.SortBy);
 
             // Andra valideringsfel speglar query-validator-brott och bör inte
-            // rendera capture (queryn bör då ha failat i ValidationBehavior).
+            // rendera capture. #831 truth-sync: parentesen sa tidigare "queryn bör då ha
+            // failat i ValidationBehavior" — det är INTE längre sant för q-minimum, som
+            // validatorerna slutade avvisa. Den vägen är i stället stängd uppströms: `q`
+            // som når Create är `effectiveQ`, alltså redan nollad när parsern nollade den,
+            // så Create kan inte längre falla på sin min-invariant för en fråga som kördes.
+            // Kvarvarande failures speglar äkta validator-brott (fortsatt: capture:a inte).
             if (criteriaResult.IsFailure)
                 return response;
 

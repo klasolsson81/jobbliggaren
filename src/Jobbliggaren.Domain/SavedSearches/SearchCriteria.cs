@@ -61,8 +61,9 @@ public sealed record SearchCriteria
     /// <see cref="MaxConceptIds"/>-exponeringen.
     /// <para><b>Vilken läsare läser vilken gräns (#831):</b>
     /// <see cref="QMaxLength"/> läses av list-/facet-/remote-count-validatorerna
-    /// (pre-handler defense-in-depth, ett pre-work resursgolv) OCH av
-    /// <c>ISearchQueryParser</c> (trunkering). <see cref="QMinLength"/> läses INTE
+    /// (pre-handler defense-in-depth, ett pre-work resursgolv), av
+    /// <c>ISearchQueryParser</c> (trunkering) OCH av <see cref="Create"/> nedan.
+    /// <see cref="QMinLength"/> läses INTE
     /// längre av någon read-path-validator — #831 flyttade minimum-regeln till
     /// <c>ISearchQueryParser</c> (ADR 0067 Fas D2), som NOLLAR en residual under
     /// minimum i stället för att avvisa frågan. Minimum har kvar exakt två läsare:

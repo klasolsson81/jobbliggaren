@@ -83,7 +83,6 @@ public sealed class GetFacetCountsQueryValidator : AbstractValidator<GetFacetCou
         // annat läge: MAX valideras, MIN nollas nedströms.
         RuleFor(q => q.Q)
             .MaximumLength(SearchCriteria.QMaxLength)
-            .When(q => !string.IsNullOrWhiteSpace(q.Q))
-            .WithMessage("Söktext får vara högst 100 tecken.");
+            .WithMessage($"Söktext får vara högst {SearchCriteria.QMaxLength} tecken.");
     }
 }

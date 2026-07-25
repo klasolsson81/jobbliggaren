@@ -123,18 +123,35 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
         // so the max is the only pre-work resource bound. Same shape SearchSkillsQueryValidator
         // already chose (max only, never a 400 mid-typing). Refererar Domain-konstanten
         // (single source) — speglar MaxConceptIds-mönstret ovan.
+        // .When() borttagen med minimum-regeln (#831, architect Minor 3): den vaktade
+        // MinimumLength mot ""/"   ". FluentValidations längdvalidator returnerar true för
+        // null, och varje icke-null sträng <= max passerar ändå, så villkoret kan inte längre
+        // ändra utfallet — en död guard är en andra regel på samma input, vilket är precis
+        // det den här PR:en tar bort.
         RuleFor(q => q.Q)
             .MaximumLength(SearchCriteria.QMaxLength)
-            .When(q => !string.IsNullOrWhiteSpace(q.Q))
-            .WithMessage("Söktext får vara högst 100 tecken.");
+            .WithMessage($"Söktext får vara högst {SearchCriteria.QMaxLength} tecken.");
 
-        // ADR 0042 Beslut D — relevans-sortering kräver söktext (fail-fast,
-        // speglar SearchCriteria.Create-invarianten). Match-sorten (MatchDesc)
-        // kräver INGEN söktext — den ordnar på profil-match, inte ts_rank.
+        // ADR 0042 Beslut D — relevans-sortering kräver söktext (fail-fast).
+        // Match-sorten (MatchDesc) kräver INGEN söktext — den ordnar på profil-match,
+        // inte ts_rank.
+        //
+        // #831 — SCOPE, exakt: den här regeln mäter RÅ q och fångar bara den TOMMA
+        // söktexten. Den garanterar INTE en non-null residual, vilket är vad sorten
+        // faktiskt behöver. `?q=a&sort=relevans` passerar alltså här, nollas i handlern
+        // och degraderar medvetet till PublishedAt desc i `ApplyRelevanceSort` — ett
+        // nåbart tillstånd sedan q-minimum flyttade till parsern, pinnat av
+        // `Validate_RelevanceSort_WithSubMinimumQ_Passes_ParserDecidesTheOrder`.
+        //
+        // Att i stället köra parsern här vore CTO:ns avvisade Cut E (validatorn skulle
+        // få ett Application-beroende och duplicera handlerns normalisering). Och att
+        // 400:a vore att återinföra precis den vägran #831 tar bort. Degradering är
+        // rätt beteende; meddelandet nedan är därför formulerat om så det inte längre
+        // påstår mer än regeln kontrollerar.
         RuleFor(q => q.Q)
             .NotEmpty()
             .When(q => q.Sort == ListJobAdsSort.Relevance)
-            .WithMessage("Relevans-sortering kräver en söktext.");
+            .WithMessage("Relevans-sortering kräver att du anger en söktext.");
 
         // ADR 0079 STEG 5 + #300 PR-4 (ADR 0084 §F4) — grad-filtret är Fast-bandet
         // (Grund/Relaterat/Bra/Stark). Cap = 4 (de fyra filtrerbara graderna; defense-in-depth-

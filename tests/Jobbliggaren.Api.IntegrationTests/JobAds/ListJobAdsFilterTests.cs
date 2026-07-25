@@ -345,10 +345,18 @@ public class ListJobAdsFilterTests(ApiFactory factory)
     //
     // Hermetic against the shared Api-collection database via a per-test occupationGroup
     // concept id (same isolation trick as the filter tests above), so the baseline is an
-    // exact 1 rather than a contaminated count. The seeded text carries no letter "a"
-    // anywhere in title or description: if the q filter DID run, this ad could not come
-    // back, so the counterfactual is real rather than assumed. Mutation-verified — with
-    // SearchQueryParser's nulling branch disabled, this test fails.
+    // exact 1 rather than a contaminated count.
+    //
+    // Why the ad could not come back if the filter DID run — the two branches fail for
+    // different reasons, written out so a future maintainer does not think the letters alone
+    // carry it: (1) the `Title ILIKE '%a%'` branch fails because neither "Systemtekniker Öst"
+    // nor "endeplöst" contains an "a"; (2) the FTS branch fails because
+    // `websearch_to_tsquery('swedish','a')` yields the lexeme `a`, which is not in the vector
+    // — not because of substring-freedom. Note the company name ("Test Company AB", set by the
+    // shared seed helper, not by this test) DOES carry an "a", so the conclusion rests on those
+    // two branches, not on the row being free of the letter. Mutation-verified: with
+    // SearchQueryParser's nulling branch disabled this test fails — and it fails on
+    // `totalCount`, not on status, i.e. for the right reason.
     [Fact]
     public async Task GET_job_ads_with_q_below_parser_minimum_returns_the_unfiltered_result()
     {

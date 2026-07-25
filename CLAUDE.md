@@ -76,11 +76,14 @@ Konsekvenser/Negativt records "Handlers är direkt beroende av EF Core-interface
 reference a provider, relational, or EF-Identity package** — `Npgsql`,
 `Npgsql.EntityFrameworkCore.PostgreSQL`, `Microsoft.EntityFrameworkCore.Relational`,
 `.SqlServer`, `.Sqlite`, `Microsoft.AspNetCore.Identity.EntityFrameworkCore`.
-The architecture test fails the build on every one.
+`DomainLayerTests` fails the build on any of these Application actually uses
+(NetArchTest reads type references in IL, not `PackageReference` entries). The
+list here is a snapshot — the test file is authoritative.
 
 **2. Port.** Application reaches the database only through `IAppDbContext`,
-which exposes `DbSet<T>` per aggregate root, `SaveChangesAsync` and `Detach` —
-and deliberately not `ChangeTracker` or `Database` (ADR 0009 §Beslut). Ordinary
+which exposes `DbSet<T>` per aggregate root and `SaveChangesAsync` — and
+deliberately not `ChangeTracker` or `Database` (ADR 0009 §Beslut) — plus
+`Detach`, added later for the ADR 0032 §5 upsert-retry. Ordinary
 core EF Core over those `DbSet<T>`s is in bounds and needs no justification:
 `AsNoTracking` (§3.6 default), `Include`, `IgnoreQueryFilters`, `ToListAsync`,
 `ExecuteUpdate`/`ExecuteDelete`, `EF.Property`, `DbUpdateException`.
@@ -90,8 +93,9 @@ behind core-looking names are provider extensions: `EF.Functions.Like` is core,
 but `EF.Functions.JsonExists`/`ILike` ship in the Npgsql package, and
 `AsSplitQuery` is relational-only. When a query needs one, it goes behind an
 Application-owned port implemented in Infrastructure
-(`IJobAdRequirementBackfillFilter`, `IMatchScorer`) — **never** by adding the
-package to `Jobbliggaren.Application.csproj`.
+(`IJobAdRequirementBackfillFilter` — its doc comment cites this rule back) —
+**never** by adding the package to `Jobbliggaren.Application.csproj`. Contrast
+`EF.Property`: shadow-column reads ARE core and belong inline, no port.
 
 So the line to stop at is the **provider** boundary, not the EF Core boundary.
 If you are importing EF Core in **Domain** — stop. If you are reaching for

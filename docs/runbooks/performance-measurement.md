@@ -474,6 +474,68 @@ without more runs. The five real ones split cleanly into *pages with a client sh
 partial counterexample to the hydration hypothesis and should be the first thing the
 attribution step explains.
 
+### LCP attribution — done 2026-07-25 from the CI artifact (#1048), branch (iii) discharged
+
+The pre-registered flat branch says *attribution, not a fix*, and names the artifact to read.
+That artifact did not exist until #1048: `.lighthouseci` is a dot-directory and
+`actions/upload-artifact` skips hidden files by default, so every report lhci wrote was
+dropped and `if-no-files-found: ignore` kept it quiet. The numbers below are the first ones
+ever read out of the instrument's own output — 24 LHR JSONs, 8 URLs × 3 runs, from run
+30167162198. **Median run per URL:**
+
+| URL | LCP | FCP | TTFB | Load Delay | Load Time | Render Delay | Rnd % | LCP element |
+|---|---|---|---|---|---|---|---|---|
+| `/for-utvecklare` | 2277 | 1068 | 459 | 0 | 0 | 1818 | 80 % | server-rendered text |
+| `/hjalpcenter` | 2278 | 1068 | 459 | 0 | 0 | 1818 | 80 % | server-rendered text |
+| `/matchning` | 2842 | 1215 | 457 | 0 | 0 | 2385 | 84 % | server-rendered text |
+| `/cv-granskning` | 2868 | 1214 | 457 | 0 | 0 | 2411 | 84 % | server-rendered text |
+| `/` | 2989 | 1214 | 457 | 0 | 0 | 2532 | 85 % | server-rendered text |
+| `/gast/oversikt` | 3212 | 1218 | 459 | 0 | 0 | 2753 | 86 % | **client-only dialog** |
+| `/gast/cv` | 3218 | 1220 | 460 | 0 | 0 | 2758 | 86 % | **client-only dialog** |
+| `/gast/jobb` | 3240 | 1217 | 459 | 0 | 0 | 2782 | 86 % | **client-only dialog** |
+
+**1. The hydration hypothesis as stated is refuted, and its counterexample dissolves.** The
+standing hypothesis was *"the red URLs are exactly the ones with a real client shell; the green
+ones are static marketing-inner content"*, with `/hjalpcenter` flagged as the partial
+counterexample to explain. In this run `/hjalpcenter` and `/for-utvecklare` land **1 ms apart**
+(2278 vs 2277) with identical phase profiles. They also ship byte-identical client JS
+(211 663 B gzip, 13 files) and the *green* page carries the *larger* document (7 905 vs
+6 989 B gzip). They were never two populations. The earlier classification put them on
+opposite sides of a line that runs through the instrument's own noise band — "red in two
+consecutive runs" and "distinguishable from the green page" are different claims, and only the
+first was ever established.
+
+**2. What survives, with a mechanism rather than a correlation.** The three `/gast/*` URLs sit
+350–960 ms above everything else *and* have the tightest run-to-run spread in the set (16–160 ms
+against 441–463 ms for the marketing pages). They are the only per-page difference that clears
+the ≥350 ms floor. They are also the only three whose LCP element is **client-only**: the
+description paragraph of the guest welcome modal,
+`body > div#radix-… > div.flex > p#radix-…[data-slot="dialog-description"]`.
+
+`GuestWelcomeModal` is mounted from `(guest)/gast/layout.tsx` with `showWelcome={!welcomed}`,
+`welcomed` being the `GUEST_WELCOMED_COOKIE`. Lighthouse runs a fresh profile every time, so
+the modal opens on every run. Radix renders dialog content into a client portal, and the served
+`/gast/oversikt` document contains **zero** `data-slot="dialog-description"` and zero `radix-`
+ids — so the element Lighthouse credits as LCP cannot exist until React has hydrated. That is
+hydration cost, but sharper than the original hypothesis: not *"this page class is slower"* but
+*"on these three pages the LCP element does not exist before hydration"*. Tracked as **#1052**,
+which separates the product question from the instrument question rather than answering either.
+
+**3. No resource is on the LCP path anywhere.** `Load Delay` and `Load Time` are **0 on all
+eight URLs** — the LCP element is text on every page in the set. Image and font levers are
+therefore structurally inert against LCP, which is an independent confirmation of the manual
+font-preload counterfactual's LCP ±0 recorded further down. Render Delay is 80–86 % everywhere
+and TTFB is a uniform 457–460 ms.
+
+**4. A trap for whoever reads these files next.** Take the median per metric, never the median
+run's other metrics. TBT on `/` reads 83 / 93 / **1883** ms across its three runs, and
+`/gast/oversikt` reads 88 / 104 / **1806** — single-run runner spikes. Reporting the
+median-LCP run's TBT would have produced a landing-page main-thread finding that does not
+exist. Median TBT is 63–140 ms on every URL, inside the 200 ms warn threshold, and CLS is 0
+everywhere (0,005 on `/`).
+
+**Branch (iii) is discharged.** No speculative fix shipped, per the rule.
+
 ### Resolved — the missing font preload is our `--webpack` opt-out, not a Next bug
 
 **Diagnosed 2026-07-25, deterministically.** Building the same tree twice, once with the

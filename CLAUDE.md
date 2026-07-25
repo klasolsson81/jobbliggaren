@@ -62,8 +62,23 @@ this map; when unsure, ask.
 **2.1 Clean Architecture is non-negotiable.** Domain depends on nothing —
 not Mediator, not EF Core. Application depends on Domain and defines every
 interface Infrastructure implements. Infrastructure implements them (EF Core,
-external clients). Api/Worker compose DI only. If you are importing
-`Microsoft.EntityFrameworkCore` in Domain or Application — stop.
+external clients). Api/Worker compose DI only.
+
+**The EF Core dependency rule, precisely** (ADR 0009, enforced by
+`DomainLayerTests`): **Domain = zero EF Core, no exceptions.** **Application MAY
+reference `Microsoft.EntityFrameworkCore`** — the core abstractions only
+(`DbSet<T>`, the `IAppDbContext` surface, `EF.Functions`) — because §3.6 puts
+`IAppDbContext` directly in handlers with no repository layer, and that is
+impossible without them. This is ADR 0009's *"medveten kompromiss"*, not drift.
+**Application must NEVER reference a provider or relational package** —
+`Npgsql`, `Npgsql.EntityFrameworkCore.PostgreSQL`,
+`Microsoft.EntityFrameworkCore.Relational`, `.SqlServer`, `.Sqlite`: those
+belong to Infrastructure, and the architecture test fails the build on them.
+
+So the line to stop at is the **provider** boundary, not the EF Core boundary.
+If you are importing EF Core in **Domain** — stop. If you are reaching for
+`Npgsql` or anything `.Relational` in **Application** — stop; the query belongs
+behind a port.
 
 **2.2 DDD.** Aggregates protect invariants in constructors/methods, not
 handlers. No public setters (private set + EF mappings where forced). Changes

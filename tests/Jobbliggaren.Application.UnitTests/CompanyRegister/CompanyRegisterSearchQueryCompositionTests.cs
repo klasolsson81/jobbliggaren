@@ -84,12 +84,19 @@ public class CompanyRegisterSearchQueryCompositionTests
     [InlineData(SearchAxis.SniOnly, 2000, false)]
     [InlineData(SearchAxis.OrgNr, 1, true)]
     [InlineData(SearchAxis.BrowseAll, 2000, false)]
+    // Browse-all BELOW the cap materializes — it is not an axis, it is a count. Without this row an
+    // "materialize only when some axis is present" mutation (exactly the axis-list design ADR 0119
+    // rejected, and which regresses every small kommun) passes the whole table.
+    [InlineData(SearchAxis.BrowseAll, 1999, true)]
     public void BuildItemsCommand_MaterializesIffTheMatchSetIsBounded(
         SearchAxis axis, int matchCount, bool expectMaterialized)
     {
         // The InlineData counts are written against the cap this page size derives; if MaxPage or
         // MaxPageSize ever moves, this fails loudly here instead of silently re-labelling rows.
-        Cap.ShouldBe(2000);
+        Cap.ShouldBe(
+            2000,
+            "This theory's matchCount arguments are written against MaxServableRows(20) = 2 000. A "
+            + "paging cap change silently re-labels every row above, so it fails here first.");
 
         using var connection = new NpgsqlConnection();
         using var cmd = CompanyRegisterSearchQuery.BuildItemsCommand(
@@ -104,6 +111,37 @@ public class CompanyRegisterSearchQueryCompositionTests
             + "cost structure, and neither is redundant (the name clause rescues broad prefixes "
             + "whose counts saturate; the count clause rescues sparse axes such as a small "
             + $"kommun).{Environment.NewLine}SQL:{Environment.NewLine}{sql}");
+    }
+
+    /// <summary>
+    /// The cap SCALES with the caller's page size — <c>pageSize</c> is client-supplied (validated
+    /// ≤ <see cref="CompanyRegisterSearchCriteria.MaxPageSize"/>), so the rule reads
+    /// <c>MaxServableRows(criteria.PageSize)</c> and NOT a fixed 2 000. Without these rows,
+    /// replacing that call with the literal 2 000 is a green mutation: at <c>pageSize = 100</c> the
+    /// real cap is 10 000, so a 2 000-match search would take the WALK branch when the rule says
+    /// materialize, and at <c>pageSize = 1</c> the cap is 100, so a 100-match search would
+    /// materialize when the rule says walk. Both directions are pinned.
+    /// </summary>
+    [Theory]
+    [InlineData(100, 2000, true)]
+    [InlineData(100, 10_000, false)]
+    [InlineData(1, 99, true)]
+    [InlineData(1, 100, false)]
+    public void BuildItemsCommand_ReadsTheCapFromTheCallersPageSize_NotAFixedTwoThousand(
+        int pageSize, int matchCount, bool expectMaterialized)
+    {
+        var criteria = CompanyRegisterSearchCriteria.FromTrusted(
+            [], ["2403"], null, null, page: 1, pageSize: pageSize);
+
+        using var connection = new NpgsqlConnection();
+        using var cmd = CompanyRegisterSearchQuery.BuildItemsCommand(connection, criteria, matchCount);
+
+        Normalize(cmd.CommandText).StartsWith(MaterializedPrefix, StringComparison.Ordinal).ShouldBe(
+            expectMaterialized,
+            $"At pageSize {pageSize} the servable cap is "
+            + $"{CompanyRegisterSearchCriteria.MaxServableRows(pageSize)}, so matchCount "
+            + $"{matchCount} must {(expectMaterialized ? "" : "not ")}materialize. The rule must "
+            + "read the cap from the CALLER's page size, never a fixed 2 000.");
     }
 
     [Theory]

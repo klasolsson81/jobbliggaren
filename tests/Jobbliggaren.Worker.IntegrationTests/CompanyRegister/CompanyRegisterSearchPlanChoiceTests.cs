@@ -80,6 +80,19 @@ public class CompanyRegisterSearchPlanChoiceTests(CompanyRegisterPlanFixture fix
     public async Task BroadLateSortingNamePrefix_MaterializesAndIsServedByThePrefixIndex()
     {
         var criteria = Criteria(name: CompanyRegisterPlanFixture.ProbeNamePrefix);
+
+        // The corpus checks itself. This probe must stay BROAD — the walk is only chosen when the
+        // planner believes the match set is big enough for LIMIT 20 to stop early, so a shrunken
+        // cluster would quietly stop reproducing the defect and leave the assertions below passing
+        // for a reason unrelated to the fix. The count saturates the cap here, which is also the
+        // point: this regime is precisely the one the count clause CANNOT rescue, so the name
+        // clause carries it alone.
+        (await CountAsync(criteria)).ShouldBe(
+            CompanyRegisterSearchCriteria.MaxServableRows(PageSize),
+            "The late-sorting name cluster no longer saturates the servable cap, so this test has "
+            + "stopped exercising the broad-prefix regime it is named for. Check the fixture's "
+            + "29-letter name spread before trusting a green run here.");
+
         var plan = await ExplainItemsAsync(criteria);
 
         // The barrier held: the match set is collected, then ordered, then cut to 20.
@@ -132,6 +145,29 @@ public class CompanyRegisterSearchPlanChoiceTests(CompanyRegisterPlanFixture fix
             OrderByIndexName,
             Case.Insensitive,
             WalkSurvivedMessage("(b) gles och jämnt utspridd", plan));
+
+        // THE COUNTERFACTUAL — without it, "the ORDER BY index is absent" proves nothing, because a
+        // corpus that never reproduced the defect would satisfy it too (absence proves a gate only
+        // against a counterfactual). Production's own factory gives it for free: feed the SAME
+        // criteria a SATURATING count and the rule takes its walk branch, which emits byte-identical
+        // SQL to the pre-fix query. If the planner still picks the ordered walk there, this corpus
+        // is still reproducing the defect and the assertions above are load-bearing. If it does not,
+        // the corpus has decayed — most likely someone lowered TotalRows below the measured floor —
+        // and the guard has silently become decoration.
+        var walkPlan = await ExplainItemsAsync(
+            criteria, CompanyRegisterSearchCriteria.MaxServableRows(PageSize));
+
+        walkPlan.ShouldContain(
+            "using " + OrderByIndexName,
+            Case.Insensitive,
+            "CORPUS DECAY, not a product regression. Forced onto the walk branch, the planner no "
+            + "longer chooses the ordered walk for this probe kommun — so it would not have chosen "
+            + "it before the fix either, and the assertions above would pass against a corpus that "
+            + "never reproduced the defect. The reproduction condition is that the planner's "
+            + "estimate for the probe (the non-MCV average, ~341 at TotalRows = 100 000) stays "
+            + "above the walk/bitmap crossover (~sqrt(0,68 x N)); at 50 000 it does not. Do not "
+            + $"'fix' this by weakening the assertions above.{Environment.NewLine}Plan:"
+            + $"{Environment.NewLine}{walkPlan}");
     }
 
     [Fact]
@@ -219,13 +255,20 @@ public class CompanyRegisterSearchPlanChoiceTests(CompanyRegisterPlanFixture fix
     /// made inside <c>enable_seqscan = off</c> is not production's choice. No transaction either,
     /// because there is no <c>SET LOCAL</c> to scope.
     /// </summary>
-    private async Task<string> ExplainItemsAsync(CompanyRegisterSearchCriteria criteria)
+    /// <param name="forcedMatchCount">
+    /// Counterfactual seam ONLY — pass a count to force the branch under EXPLAIN rather than letting
+    /// production's count decide it. Used to prove the corpus still reproduces the defect (see the
+    /// sparse-kommun test); never used for the primary assertions, which must run production's rule
+    /// on production's count.
+    /// </param>
+    private async Task<string> ExplainItemsAsync(
+        CompanyRegisterSearchCriteria criteria, int? forcedMatchCount = null)
     {
         var ct = TestContext.Current.CancellationToken;
         await using var scope = _fixture.Services.CreateAsyncScope();
         var connection = await OpenAsync(scope);
 
-        var matchCount = await CountAsync(criteria);
+        var matchCount = forcedMatchCount ?? await CountAsync(criteria);
 
         await using var cmd =
             CompanyRegisterSearchQuery.BuildItemsCommand(connection, criteria, matchCount);

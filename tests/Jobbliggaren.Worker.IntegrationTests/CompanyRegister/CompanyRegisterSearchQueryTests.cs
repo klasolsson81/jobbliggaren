@@ -5,6 +5,7 @@ using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Shouldly;
 
 namespace Jobbliggaren.Worker.IntegrationTests.CompanyRegister;
@@ -241,10 +242,126 @@ public class CompanyRegisterSearchQueryTests(WorkerTestFixture fixture)
 
         var page = await SearchAsync(ctx.Db, Criteria(), ct);
 
-        // The column's `swedish` ICU collation sorts Å/Ö AFTER Z — the browse-all default order
-        // is the alphabetical listing Klas ratified (F2: A→Ö only).
+        // The column's `swedish` ICU collation sorts Å/Ö AFTER Z — the alphabetical listing Klas
+        // ratified (F2: A→Ö only). NOTE: at this corpus size the count does not saturate, so this
+        // exercises the MATERIALIZED branch (ADR 0119) — the collation is inherited through the
+        // CTE's output column. The walk branch's ordering is covered by
+        // BothPlanBranches_ReturnIdenticalRowsInIdenticalOrder below.
         page.Items.Select(i => i.Name).ShouldBe(
             ["Alfa AB", "Zebra AB", "Åkeriet AB", "Örnen AB"]);
+    }
+
+    /// <summary>
+    /// ADR 0119's load-bearing property, as an ORACLE rather than an argument: the materialization
+    /// rule may only ever be a PERFORMANCE decision, so both branches must return identical rows in
+    /// identical order. The composition tests pin that structurally (no ORDER BY or LIMIT inside the
+    /// CTE, one shared ordering tail); this compares the two against a real database and the real
+    /// <c>swedish</c> collation.
+    ///
+    /// <para>
+    /// It also restores coverage the rule silently took away. Every other <c>SearchAsync</c> test in
+    /// this class seeds a small corpus, so its count does not saturate and it now runs the
+    /// MATERIALIZED branch — meaning the walk branch, which is what production runs for browse-all
+    /// and for every large kommun, lost its ordering and pagination coverage entirely. The failure
+    /// mode there is this repo's documented silent one: a sort requested under a collation the index
+    /// was not built under is not an error, Postgres just sorts (#884 / ADR 0110).
+    /// </para>
+    ///
+    /// <para>
+    /// Both branches are forced through production's factory by feeding it a bounded and a saturated
+    /// count for the SAME criteria — the one axis the rule sends both ways.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task BothPlanBranches_ReturnIdenticalRowsInIdenticalOrder()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await FreshContextAsync(ct);
+
+        // Å/Ö plus duplicate names: the collation decides the order and only the org.nr tiebreak
+        // makes it total. Both are properties a branch change could silently break.
+        await SeedAsync(ctx.Db, ct,
+            Entry("5560000012", "Zebra AB", KommunStockholm, [SniIt]),
+            Entry("5560000020", "Åkeriet AB", KommunStockholm, [SniIt]),
+            Entry("5560000038", "Alfa AB", KommunStockholm, [SniIt]),
+            Entry("5560000046", "Örnen AB", KommunStockholm, [SniIt]),
+            Entry("5560000053", "Alfa AB", KommunStockholm, [SniIt]),
+            Entry("5560000061", "Örnen AB", KommunStockholm, [SniIt]));
+
+        var criteria = Criteria(kommun: [KommunStockholm]);
+        var cap = CompanyRegisterSearchCriteria.MaxServableRows(criteria.PageSize);
+
+        var materialized = await ReadItemsAsync(ctx.Db, criteria, matchCount: cap - 1, ct);
+        var walked = await ReadItemsAsync(ctx.Db, criteria, matchCount: cap, ct);
+
+        // Guard the guard: if both calls took the same branch this comparison proves nothing.
+        materialized.Sql.ShouldContain("MATERIALIZED");
+        walked.Sql.ShouldNotContain("MATERIALIZED");
+
+        // Compared as projected VALUES, not as records: CompanyBrowseResult carries a string[], and
+        // record equality compares arrays by REFERENCE — two independently read result sets would
+        // never be equal, and the redacted ToString() makes the diff unreadable on top of that.
+        Project(materialized.Rows).ShouldBe(Project(walked.Rows));
+
+        materialized.Rows.Select(r => r.Name).ShouldBe(
+            ["Alfa AB", "Alfa AB", "Zebra AB", "Åkeriet AB", "Örnen AB", "Örnen AB"]);
+        materialized.Rows.Select(r => r.OrganizationNumber).ShouldBe(
+            ["5560000038", "5560000053", "5560000012", "5560000020", "5560000046", "5560000061"],
+            "The org.nr tiebreak is what makes the order TOTAL — duplicate names are normal in a "
+            + "real register, and without it a page boundary can drop or duplicate a row.");
+
+        // ...and ACROSS A PAGE BOUNDARY, which is where the rejected "bound the CTE with an inner
+        // LIMIT" variant (ADR 0119's E1) actually bites: an inner limit takes an arbitrary subset
+        // and the outer ORDER BY orders THAT, so page 1 can look perfect while page 2 silently
+        // repeats or drops rows. Three pages of two, both branches, compared as one sequence.
+        var pagedMaterialized = new List<string>();
+        var pagedWalked = new List<string>();
+        for (var page = 1; page <= 3; page++)
+        {
+            var paged = Criteria(kommun: [KommunStockholm], page: page, pageSize: 2);
+            var capForPage = CompanyRegisterSearchCriteria.MaxServableRows(paged.PageSize);
+            pagedMaterialized.AddRange(
+                Project((await ReadItemsAsync(ctx.Db, paged, capForPage - 1, ct)).Rows));
+            pagedWalked.AddRange(Project((await ReadItemsAsync(ctx.Db, paged, capForPage, ct)).Rows));
+        }
+
+        pagedMaterialized.ShouldBe(pagedWalked);
+        pagedMaterialized.ShouldBe(Project(materialized.Rows));
+    }
+
+    private static IReadOnlyList<string> Project(IReadOnlyList<CompanyBrowseResult> rows) =>
+        [.. rows.Select(r =>
+            $"{r.OrganizationNumber}|{r.Name}|{r.SeatMunicipalityCode}|{r.SeatMunicipalityName}|"
+            + string.Join(",", r.SniCodes))];
+
+    /// <summary>
+    /// Runs production's items command with a CHOSEN <c>matchCount</c> so a single test can exercise
+    /// both branches, and returns the emitted SQL alongside the rows so the caller can prove the
+    /// branches actually differed.
+    /// </summary>
+    private static async Task<(string Sql, IReadOnlyList<CompanyBrowseResult> Rows)> ReadItemsAsync(
+        AppDbContext db, CompanyRegisterSearchCriteria criteria, int matchCount, CancellationToken ct)
+    {
+        var connection = (NpgsqlConnection)db.Database.GetDbConnection();
+        if (connection.State != System.Data.ConnectionState.Open)
+            await connection.OpenAsync(ct);
+
+        await using var cmd =
+            CompanyRegisterSearchQuery.BuildItemsCommand(connection, criteria, matchCount);
+
+        var rows = new List<CompanyBrowseResult>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            rows.Add(new CompanyBrowseResult(
+                OrganizationNumber: reader.GetString(0),
+                Name: reader.GetString(1),
+                SeatMunicipalityCode: reader.GetString(2),
+                SeatMunicipalityName: await reader.IsDBNullAsync(3, ct) ? null : reader.GetString(3),
+                SniCodes: reader.GetFieldValue<string[]>(4)));
+        }
+
+        return (cmd.CommandText, rows);
     }
 
     [Fact]

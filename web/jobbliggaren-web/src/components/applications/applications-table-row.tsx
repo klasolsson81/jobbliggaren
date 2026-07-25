@@ -152,10 +152,10 @@ export const ApplicationsTableRow = memo(function ApplicationsTableRow({
       <td className="jp-apptable__cell jp-apptable__cell--event">
         <span className="jp-apptable__event">
           <span className="jp-mono jp-apptable__eventdate">{eventDate}</span>
-          <span className="jp-apptable__eventsep" aria-hidden="true">
+          <span aria-hidden="true">
             {" · "}
           </span>
-          <span className="jp-apptable__eventlabel">{eventLabel}</span>
+          <span>{eventLabel}</span>
         </span>
       </td>
 

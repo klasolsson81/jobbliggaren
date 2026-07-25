@@ -83,7 +83,7 @@ export function DrawerStatusActions({
       {/* §8.3 Primär-CTA + ångra-löftet (ADR 0092 D3 gör löftet sant: varje
           byte kan följas av en kompenserande invers). */}
       {ctaLabel != null && next != null && (
-        <div className="jp-drawer-actions__cta">
+        <div>
           <button
             type="button"
             className="jp-btn jp-btn--primary jp-drawer-cta"

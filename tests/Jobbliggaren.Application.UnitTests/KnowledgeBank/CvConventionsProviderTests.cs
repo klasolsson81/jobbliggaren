@@ -120,12 +120,14 @@ public class CvConventionsProviderTests
         // data" would not be behaviour-preserving, and re-deriving that split is a second
         // change-reason. Note the difference from the #898 defect class, because it will be
         // questioned: there, two holders answered the SAME question with different normalisers and
-        // disagreed silently in production. Here they answer DIFFERENT questions (presence vs burial)
-        // over the same set, and divergence fails CI instead of reaching a user.
-        LoadConventions().CoreSections.ShouldBe(["contact", "experience", "education"],
-            "coreSections måste vara samma tre som B1:s närvaro-halva rapporterar som kärnsektioner "
-            + "(StructureRules: kontakt, arbetslivserfarenhet, utbildning) — annars bedömer kriteriets "
-            + "två halvor olika mängder utan att någon märker det.");
+        // disagreed silently in production. Here they answer DIFFERENT questions (presence vs a long
+        // lead-in) over the same set.
+        //
+        // This pin is ONE-WAY, and saying so matters: it catches the ASSET drifting, which is the
+        // half a data edit can change casually. The RULE half is held by its own behavioural tests
+        // (B1LeadInFailArmTests pins the kontakt label and the presence Warn) — before those existed,
+        // renaming the label in StructureRules left all 17806 tests green.
+        LoadConventions().CoreSections.ShouldBe(["contact", "experience", "education"], ignoreOrder: true);
     }
 
     [Fact]
@@ -147,7 +149,7 @@ public class CvConventionsProviderTests
             new CvSectionOrderEntry("hobbyprojekt-i-tradgarden", TypedKind: null),
         ],
         ["Arial"],
-        ["experience"]);
+        new HashSet<string>(StringComparer.Ordinal) { "experience" });
 
         var ex = Should.Throw<InvalidOperationException>(
             () => CvConventionsProvider.ValidateAgainstLexicon(drifted, RealLexicon()));
@@ -167,7 +169,7 @@ public class CvConventionsProviderTests
             new CvSectionOrderEntry("projekt", TypedKind: null),
         ],
         ["Arial"],
-        ["experience"]);
+        new HashSet<string>(StringComparer.Ordinal) { "experience" });
 
         Should.NotThrow(
             () => CvConventionsProvider.ValidateAgainstLexicon(withFreeSection, RealLexicon()));
@@ -182,7 +184,8 @@ public class CvConventionsProviderTests
         RealLexicon().FreeSectionIds.ShouldNotContain("skills");
 
         Should.NotThrow(() => CvConventionsProvider.ValidateAgainstLexicon(
-            new CvConventions("1.0.0", [new CvSectionOrderEntry("skills", ParsedSectionKind.Skills)], ["Arial"], ["skills"]),
+            new CvConventions("1.0.0", [new CvSectionOrderEntry("skills", ParsedSectionKind.Skills)], ["Arial"],
+                new HashSet<string>(StringComparer.Ordinal) { "skills" }),
             RealLexicon()));
     }
 }

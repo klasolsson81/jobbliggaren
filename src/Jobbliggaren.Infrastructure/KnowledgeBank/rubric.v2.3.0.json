@@ -1,6 +1,6 @@
 {
   "rubricVersion": "2.3.0",
-  "effectiveDate": "2026-07-18",
+  "effectiveDate": "2026-07-25",
   "weights": {
     "Kritisk": 3,
     "Hög": 2,
@@ -205,7 +205,7 @@
       "visualPassSignal": "Samma sektionsordning men visuella avdelare OK",
       "visualFailSignal": "Samma",
       "thresholds": {
-        "coreSectionDisplacementFailAtLeast": 3
+        "coreLeadInFailAtLeast": 4
       }
     },
     {

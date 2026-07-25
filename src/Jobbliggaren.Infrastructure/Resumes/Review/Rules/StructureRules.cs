@@ -35,21 +35,31 @@ namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 /// computation <c>SectionReorderTransform</c> proposes against, so the judge and the proposer cannot
 /// disagree about the same CV.</para>
 ///
-/// <para><b>Warn on deviation; Fail only on displacement (#890).</b> The rubric's fail signal is
-/// "kreativ ordning som <i>döljer kärninfo</i>" — a STRONGER claim than "deviates", and 8b.4b
-/// deliberately shipped only the weaker half because choosing the operational definition of "döljer"
-/// carries real correctness risk: <b>a wrong definition FAILS good CVs.</b>
+/// <para><b>Warn on deviation; Fail only on a long lead-in before the first core section (#890).</b>
+/// The rubric's fail signal is "kreativ ordning som <i>döljer kärninfo</i>" — a STRONGER claim than
+/// "deviates", and 8b.4b deliberately shipped only the weaker half because choosing the operational
+/// definition of "döljer" carries real correctness risk: <b>a wrong definition FAILS good CVs.</b>
 ///
-/// The definition finally bound (senior-cto-advisor 2026-07-25): <i>a core section is hidden when it
-/// is preceded by sections the convention ranks after it</i>, measured as the COUNT of those
-/// displacing sections, with the Fail threshold in rubric data. Three candidate definitions were
-/// rejected on evidence, not taste: "a core section after any non-core section" fails the ordinary
-/// competence-first CV (Kontakt → Profil → Kompetenser → Erfarenhet) and the education-first student
-/// CV; a rank-distance/inversion metric weights a harmless Profil/Kompetenser swap the same as
-/// experience-last, and is an opaque number attached to a verdict (§5); absolute depth punishes a CV
-/// for HAVING sections. Displacement counts only what is out of position relative to the core
-/// section, so richness is never mistaken for burial. Under-claiming a measured fact stays safe;
-/// over-claiming is still the sin, which is why the threshold rounds up rather than down.</para>
+/// <b>The first attempt did exactly that, and the correction is worth recording.</b> It counted, per
+/// core section, the sections above it that the convention ranks AFTER it — which treated "the
+/// convention has no opinion about this section" as the strongest possible positional claim, so every
+/// unranked section counted as burial. It Failed the Swedish healthcare CV that leads with
+/// Legitimation, the IT CV with Certifieringar and Kurser, the portfolio CV with several project
+/// sections, and a CV built from two layouts the bind itself called acceptable — telling that user
+/// her own Utbildning section was burying her experience.
+///
+/// The definition finally bound (senior-cto-advisor re-bind 2026-07-25): <b>the LEAD-IN</b> — how many
+/// sections stand before the FIRST core section — with the Fail threshold in rubric data, and measured
+/// only when every core section was observed. Rank plays no part; the only knowledge consumed is the
+/// core/non-core partition, which the asset sources. That is what lets it separate position from
+/// presence: the same seven sections with one heading moved give a lead-in of 0 or of 4.
+///
+/// <b>The arm is narrow, and that is the decision, not an oversight.</b> Burial of
+/// erfarenhet/utbildning is provably unmeasurable this way — healthcare, IT and portfolio CVs each put
+/// four legitimate non-core sections above Arbetslivserfarenhet, so "tolerate 4" and "fire at 4"
+/// contradict at every threshold. Fail where the claim is measurable, Warn where it is not (the same
+/// honesty posture B2 and B5 already take). Nothing here claims to cover "döljer kärninfo" in
+/// general.</para>
 /// </summary>
 internal sealed class B1SectionsRule : ICriterionRule
 {
@@ -111,25 +121,27 @@ internal sealed class B1SectionsRule : ICriterionRule
         // (§5: every verdict cites what grounds it).
         var order = context.SectionOrder;
 
-        // ...and its Fail arm (#890): "kreativ ordning som döljer kärninfo". A core section is HIDDEN
-        // when the sections that precede it are ones the convention ranks AFTER it; the count of those
-        // is the measure, and the rubric owns the count at which it stops being a nudge.
+        // ...and its Fail arm (#890): the LEAD-IN before the first core section. The measure is
+        // position only — how many sections the reader passes before meeting the first of
+        // kontakt/erfarenhet/utbildning — and the rubric owns the count at which it stops being a
+        // nudge. It is present only when EVERY core section was observed (see SectionOrderAnalyzer:
+        // an unlocated core section may sit at position 0, so measuring anyway can only over-count).
         //
-        // No OrderObserved guard here, deliberately: a displacement of N requires at least N+1
-        // observed sections, so any threshold >= 2 already implies the order was read. A guard that
-        // cannot change an outcome is not a guard (see SectionOrderAnalyzer).
+        // No OrderObserved guard here, deliberately: a lead-in of N requires at least N+1 observed
+        // sections, so any threshold >= 2 already implies the order was read. A guard that cannot
+        // change an outcome is not a guard.
         var failFrom = context.Criterion.RequiredThreshold(
-            RubricThresholdKeys.CoreSectionDisplacementFailAtLeast);
+            RubricThresholdKeys.CoreLeadInFailAtLeast);
 
-        if (order.MostDisplacedCore is { } buried && order.MaxCoreDisplacement >= failFrom)
+        if (order.CoreLeadIn is { } leadIn && leadIn.Count >= failFrom)
         {
             // States only what was measured: a count, and the user's own headings. No "döljer", no
             // claim about what an ATS does — we observe a section order, we do not observe an ATS.
             // "döljer kärninfo" is the criterion's LABEL, not a claim we make about her document.
             return CvCriterionVerdict.Assessed("B1", category, CriterionVerdict.Fail,
                 ReviewText.Cite(ReviewText.Structural(
-                    $"Kärnsektionen \"{buried.Heading}\" står efter {buried.Displacers.Count} "
-                    + $"sektioner som enligt rekommendationen hör efter den: {buried.DisplacingHeadings}. "
+                    $"Den första kärnsektionen \"{leadIn.Heading}\" står efter {leadIn.Count} "
+                    + $"andra sektioner: {leadIn.PrecedingHeadings}. "
                     + $"Nuvarande ordning: {order.ObservedHeadings}. "
                     + $"Rekommenderad ordning: {order.RecommendedHeadings}.")));
         }

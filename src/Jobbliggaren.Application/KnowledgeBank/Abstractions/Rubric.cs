@@ -207,16 +207,21 @@ public static class RubricThresholdKeys
     public const string MinMarginPointsFloor = "minMarginPointsFloor";
 
     /// <summary>
-    /// B1: the number of DISPLACING sections at or above which a buried core section turns the
-    /// verdict from Warn to Fail (&gt;=) — Fas 4b #890 (ADR 0108 kind-boundary: WHICH sections are core
-    /// is a recommendation and lives in <c>cv-conventions</c>; HOW FAR is a threshold and lives here).
+    /// B1: how many sections may stand before the FIRST core section (kontakt/erfarenhet/utbildning)
+    /// before the verdict turns from Warn to Fail (&gt;=) — Fas 4b #890 (ADR 0108 kind-boundary: WHICH
+    /// sections are core is a recommendation and lives in <c>cv-conventions</c>; HOW MANY is a
+    /// threshold and lives here).
     ///
-    /// <para>3 is the smallest value that leaves the ordinary competence-and-language-first CV
-    /// (Kontakt → Profil → Kompetenser → Språk → Erfarenhet → Utbildning, displacement 2) at Warn. At
-    /// 2 that CV would Fail, and it is a perfectly good CV — under-claiming a measured fact is safe,
-    /// over-claiming is the §5 sin, so this number rounds UP when in doubt.</para>
+    /// <para>4 is one more than the longest lead-in among the calibration CVs that must NOT fail —
+    /// the two-column sidebar layout, whose linearised order puts Profil, Kompetenser and Språk ahead
+    /// of Kontakt. Under-claiming a measured fact is safe; over-claiming is the §5 sin, so this number
+    /// rounds UP when in doubt.</para>
+    ///
+    /// <para>The measure deliberately replaced a per-core "displacement" count that treated an
+    /// unranked section as ranking last, and therefore failed ordinary healthcare, IT and portfolio
+    /// CVs. See <c>B1SectionsRule</c> for the full record.</para>
     /// </summary>
-    public const string CoreSectionDisplacementFailAtLeast = "coreSectionDisplacementFailAtLeast";
+    public const string CoreLeadInFailAtLeast = "coreLeadInFailAtLeast";
 
     /// <summary>D3: body-text point size BELOW which the font size warns (&lt;) — Fas 4b #891
     /// (ADR 0108). Derived from the D3 prose "10–12 pt brödtext"; the &lt;9 pt FAIL band is a

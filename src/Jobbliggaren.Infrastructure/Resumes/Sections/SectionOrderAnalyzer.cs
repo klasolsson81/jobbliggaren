@@ -56,73 +56,116 @@ internal static class SectionOrderAnalyzer
 
         return new SectionOrderAssessment(
             observed, recommended, !recommended.SequenceEqual(observed),
-            MostDisplacedCore(observed, conventions));
+            CoreLeadInOf(observed, conventions));
     }
 
     /// <summary>
-    /// The worst-buried CORE section and what buries it (#890) — the MEASURE behind the rubric's
-    /// "kreativ ordning som döljer kärninfo", with no verdict attached.
+    /// How far into the document the reader must go before meeting the FIRST core section, and what
+    /// stands ahead of it (#890) — the MEASURE behind the rubric's "kreativ ordning som döljer
+    /// kärninfo", with no verdict attached.
     ///
-    /// <para><b>Displacement, not depth and not distance.</b> A core section is buried by the sections
-    /// that sit BEFORE it while the convention ranks them AFTER it. Counting absolute depth instead
-    /// would punish a CV for having sections at all ("Kontakt → Profil → Kompetenser → Språk →
-    /// Erfarenhet" is a perfectly ordinary CV with experience at index 4), and a rank-distance metric
-    /// cannot tell a harmless Profil/Kompetenser swap from experience-last — while <i>kärninfo</i> is
-    /// the whole discriminator. Counting only the sections that are out of position RELATIVE TO a core
-    /// section is the measure the criterion's own words describe.</para>
+    /// <para><b>Lead-in, not displacement, and the difference cost a re-bind.</b> The first design
+    /// counted, per core section, the sections above it that the convention ranks AFTER it. That
+    /// measure treated <see cref="int.MaxValue"/> — which means "this convention has no opinion about
+    /// where this section goes" — as the strongest possible positional claim, so every unranked
+    /// section ("Certifieringar", "Legitimation", "Projekt") counted as burial by construction. It
+    /// reduced to the absolute-depth measure the bind had explicitly rejected (exactly so for
+    /// <c>contact</c>, whose rank is 0), and it FAILED real CVs: the Swedish healthcare CV that leads
+    /// with Legitimation, the IT CV with Certifieringar and Kurser, the portfolio CV with several
+    /// project sections, and — worst — a CV built from two layouts the bind itself classified as
+    /// acceptable (education-first plus competence-and-language-first), where the evidence sentence
+    /// named her own Utbildning section as one of the things burying her experience.</para>
+    ///
+    /// <para><b>The measure is now position only.</b> Rank plays no part; the only knowledge consumed
+    /// is the core/non-core partition, which the asset sources. That is what makes it able to separate
+    /// position from presence: <c>Kontakt, Profil, Kompetenser, Språk, Intressen, Erfarenhet,
+    /// Utbildning</c> and <c>Profil, Kompetenser, Språk, Intressen, Erfarenhet, Utbildning, Kontakt</c>
+    /// hold the SAME seven sections with one heading moved, and only the second is buried.</para>
+    ///
+    /// <para><b>It refuses to measure unless every core section was observed, and that precondition is
+    /// a proof rather than padding.</b> An unlocated core section may sit at position 0 — an unheaded
+    /// contact block at the top of the page is the COMMON Swedish layout, not an edge case — so a
+    /// lead-in computed over an incomplete core set can only ever OVER-count, and the bias is unbounded
+    /// on a section-rich CV. Refusing is the honest answer; the criterion still Warns on deviation.</para>
     ///
     /// <para><b>The measure lives here; the threshold does not.</b> This analyzer is shared with
-    /// <c>SectionReorderTransform</c> — that sharing is the class's entire thesis — and the
-    /// improvement engine has no business holding a review threshold. So the count is computed here
-    /// and <c>B1SectionsRule</c> compares it against rubric data, exactly as D3 measures font runs and
-    /// applies <c>thresholds.fontBodyPtWarnBelow</c> in the rule.</para>
-    ///
-    /// <para>Ties go to the FIRST core section in document order — deterministic, and it names the
-    /// section the reader meets first.</para>
+    /// <c>SectionReorderTransform</c> — that sharing is the class's entire thesis — and the improvement
+    /// engine has no business holding a review threshold. So the count is computed here and
+    /// <c>B1SectionsRule</c> compares it against rubric data. (D3 has the same measure/threshold split;
+    /// it differs in that D3 also consumes its RECOMMENDATION data in the rule, while the core/non-core
+    /// partition has to be consumed here — a lead-in is undefined without knowing what counts as core.)</para>
     /// </summary>
-    private static CoreSectionDisplacement? MostDisplacedCore(
+    private static CoreLeadIn? CoreLeadInOf(
         List<ObservedSection> observed, CvConventions conventions)
     {
-        CoreSectionDisplacement? worst = null;
+        var observedCoreIds = new HashSet<string>(StringComparer.Ordinal);
+        var firstCoreIndex = -1;
 
         for (var i = 0; i < observed.Count; i++)
         {
-            var section = observed[i];
-            if (!IsCore(section, conventions))
+            if (!TryResolveCoreId(observed[i], conventions, out var coreId))
                 continue;
 
-            var rank = RankOf(section, conventions);
-            var displacers = new List<ObservedSection>();
+            observedCoreIds.Add(coreId);
 
-            for (var earlier = 0; earlier < i; earlier++)
-            {
-                // int.MaxValue for a section the convention does not name is CORRECT here: an unnamed
-                // section ("Intressen", "Referenser") sitting above Arbetslivserfarenhet is the
-                // archetype of the fail signal, not an edge case.
-                if (RankOf(observed[earlier], conventions) > rank)
-                    displacers.Add(observed[earlier]);
-            }
-
-            if (displacers.Count > (worst?.Displacers.Count ?? -1))
-                worst = new CoreSectionDisplacement(section, displacers);
+            if (firstCoreIndex < 0)
+                firstCoreIndex = i;
         }
 
-        return worst;
+        // The validity precondition. The loader guarantees coreSections carries no duplicates, so a
+        // count comparison is a complete check.
+        if (firstCoreIndex < 0 || observedCoreIds.Count != conventions.CoreSections.Count)
+            return null;
+
+        return new CoreLeadIn(observed[firstCoreIndex], observed.Take(firstCoreIndex).ToList());
     }
 
-    private static bool IsCore(ObservedSection section, CvConventions conventions)
+    /// <summary>
+    /// Where the convention places this section, if it names it at all. ONE matcher, two readers
+    /// (<see cref="RankOf"/> and <see cref="TryResolveCoreId"/>) — a second copy of the identity
+    /// predicate would let a section be "core" by one match and take its rank from another entry,
+    /// which is the two-normalisers defect class this lane spent #898 removing.
+    /// </summary>
+    private static bool TryResolveEntry(
+        ObservedSection section, CvConventions conventions, out int index)
     {
-        foreach (var entry in conventions.SectionOrder)
+        for (var i = 0; i < conventions.SectionOrder.Count; i++)
         {
+            var entry = conventions.SectionOrder[i];
+
             var isMatch = section.TypedKind is not null
                 ? entry.TypedKind == section.TypedKind
                 : entry.TypedKind is null
                     && string.Equals(entry.SectionId, section.FreeId, StringComparison.Ordinal);
 
             if (isMatch)
-                return conventions.CoreSections.Contains(entry.SectionId, StringComparer.Ordinal);
+            {
+                index = i;
+                return true;
+            }
         }
 
+        index = -1;
+        return false;
+    }
+
+    /// <summary>The section's core id, when the convention names it AND calls it core. The loader
+    /// pins every core id into <c>sectionOrder</c>, so an id that cannot be resolved here is a data
+    /// error that already failed at host build, never a silent miss.</summary>
+    private static bool TryResolveCoreId(
+        ObservedSection section, CvConventions conventions, out string coreId)
+    {
+        if (TryResolveEntry(section, conventions, out var index))
+        {
+            var candidate = conventions.SectionOrder[index].SectionId;
+            if (conventions.CoreSections.Contains(candidate))
+            {
+                coreId = candidate;
+                return true;
+            }
+        }
+
+        coreId = string.Empty;
         return false;
     }
 
@@ -208,15 +251,8 @@ internal sealed record SectionOrderAssessment(
     IReadOnlyList<ObservedSection> Observed,
     IReadOnlyList<ObservedSection> Recommended,
     bool Deviates,
-    CoreSectionDisplacement? MostDisplacedCore = null)
+    CoreLeadIn? CoreLeadIn)
 {
-    /// <summary>
-    /// How many sections bury the worst-buried CORE section; 0 when no core section was observed or
-    /// none is displaced (#890). A MEASURE, never a verdict — <c>B1SectionsRule</c> owns the
-    /// threshold that turns it into one.
-    /// </summary>
-    public int MaxCoreDisplacement => MostDisplacedCore?.Displacers.Count ?? 0;
-
     /// <summary>
     /// Whether the order could be OBSERVED at all — true only when the text carried at least two
     /// recognisable headings.
@@ -243,22 +279,26 @@ internal sealed record SectionOrderAssessment(
 }
 
 /// <summary>
-/// A core section and the sections that bury it (#890): those that PRECEDE it in the document while
-/// the convention ranks them AFTER it.
+/// The FIRST core section and everything the reader meets before it (#890) — present only when every
+/// core section was observed, because a lead-in over an incomplete core set can only over-count.
 ///
-/// <para>The displacers are carried, not just counted, because the verdict that reads this must cite
-/// them in the user's own headings — a count on its own is an opaque number attached to a judgement,
-/// which is the §5 sin this criterion is being sharpened to avoid, not to commit.</para>
+/// <para>The preceding sections are carried, not merely counted, because the verdict that reads this
+/// must cite them in the user's own headings — a count on its own is an opaque number attached to a
+/// judgement, which is the §5 sin this criterion is being sharpened to avoid, not to commit.</para>
 /// </summary>
-internal sealed record CoreSectionDisplacement(
+internal sealed record CoreLeadIn(
     ObservedSection Section,
-    IReadOnlyList<ObservedSection> Displacers)
+    IReadOnlyList<ObservedSection> Preceding)
 {
-    /// <summary>The buried section's heading, as the user wrote it.</summary>
+    /// <summary>How many sections stand ahead of the first core section. A MEASURE, never a verdict —
+    /// <c>B1SectionsRule</c> owns the threshold that turns it into one.</summary>
+    public int Count => Preceding.Count;
+
+    /// <summary>The first core section's heading, as the user wrote it.</summary>
     public string Heading => Section.Heading;
 
-    /// <summary>The burying sections' headings, in document order: "Intressen, Referenser".</summary>
-    public string DisplacingHeadings => string.Join(", ", Displacers.Select(d => d.Heading));
+    /// <summary>The preceding sections' headings, in document order: "Profil, Kompetenser".</summary>
+    public string PrecedingHeadings => string.Join(", ", Preceding.Select(p => p.Heading));
 }
 
 /// <summary>One recognised section: its identity (typed OR free, never both) and the heading the

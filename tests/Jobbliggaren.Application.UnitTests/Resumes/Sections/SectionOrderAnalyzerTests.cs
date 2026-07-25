@@ -111,7 +111,7 @@ public class SectionOrderAnalyzerTests
             new CvSectionOrderEntry("education", ParsedSectionKind.Education),
         ],
         ["Arial"],
-        ["experience", "education"]);
+        new HashSet<string>(StringComparer.Ordinal) { "experience", "education" });
 
         var order = SectionOrderAnalyzer.Analyze(
             "Utbildning\nKTH\nProjekt\nJobbliggaren\nArbetslivserfarenhet\nDev",
@@ -195,65 +195,67 @@ public class SectionOrderAnalyzerTests
     }
 
     // ===============================================================
-    // (e) #890 — core-section DISPLACEMENT, the measure behind B1's Fail arm
+    // (e) #890 — the core LEAD-IN, the measure behind B1's Fail arm
     // ===============================================================
     //
     // The measure lives here and the THRESHOLD does not: this analyzer is shared with
-    // SectionReorderTransform, and the improvement engine has no business holding a review threshold
-    // (the same split D3 already has — measure the font runs, apply the rubric value in the rule).
+    // SectionReorderTransform, and the improvement engine has no business holding a review threshold.
 
     [Theory]
-    // Recommended order: nothing precedes a core section that should follow it.
+    // Recommended order — the reader meets Kontakt first.
     [InlineData("Kontakt\nanna@x.se\nArbetslivserfarenhet\nDev\nUtbildning\nKTH", 0)]
-    // Student CV: Utbildning before Arbetslivserfarenhet displaces experience by exactly one.
-    [InlineData("Kontakt\nanna@x.se\nUtbildning\nKTH\nArbetslivserfarenhet\nDev", 1)]
-    // Competence-first: Kompetenser ranks after experience, so it displaces it — by one.
-    [InlineData("Kontakt\nanna@x.se\nKompetenser\nC#\nArbetslivserfarenhet\nDev\nUtbildning\nKTH", 1)]
-    // The boundary: Kompetenser AND Språk before experience. Two — and the shipped threshold is 3,
-    // which is exactly what keeps this ordinary CV out of Fail.
-    [InlineData("Kontakt\nanna@x.se\nKompetenser\nC#\nSpråk\nSvenska\nArbetslivserfarenhet\nDev\nUtbildning\nKTH", 2)]
-    // Kontakt last: it ranks FIRST, so every section before it displaces it.
-    [InlineData("Kompetenser\nC#\nSpråk\nSvenska\nArbetslivserfarenhet\nDev\nUtbildning\nKTH\nKontakt\nanna@x.se", 4)]
-    public void Analyze_ShouldCountTheSectionsThatBuryACoreSection(string rawText, int expected) =>
-        Analyze(rawText).MaxCoreDisplacement.ShouldBe(expected);
+    // Healthcare CV: Legitimation and Körkort are free sections, and they change NOTHING here, because
+    // the measure is position and Kontakt is still first. Under the retired displacement measure this
+    // CV Failed.
+    [InlineData("Kontakt\nanna@x.se\nLegitimation\nSocialstyrelsen\nKompetenser\nC#\nKörkort\nB\n"
+        + "Arbetslivserfarenhet\nDev\nUtbildning\nKTH", 0)]
+    // Sidebar CV: Profil, Kompetenser and Språk linearise ahead of Kontakt — the longest lead-in that
+    // must still not Fail, i.e. the calibration boundary the shipped threshold of 4 sits above.
+    [InlineData("Profil\nErfaren\nKompetenser\nC#\nSpråk\nSvenska\nKontakt\nanna@x.se\n"
+        + "Arbetslivserfarenhet\nDev\nUtbildning\nKTH", 3)]
+    // Contact last, behind four sections.
+    [InlineData("Profil\nErfaren\nKompetenser\nC#\nSpråk\nSvenska\nIntressen\nLöpning\n"
+        + "Arbetslivserfarenhet\nDev\nUtbildning\nKTH\nKontakt\nanna@x.se", 4)]
+    public void Analyze_ShouldCountTheSectionsBeforeTheFirstCoreSection(string rawText, int expected) =>
+        Analyze(rawText).CoreLeadIn.ShouldNotBeNull().Count.ShouldBe(expected);
 
     [Fact]
-    public void Analyze_ShouldReportZeroDisplacement_WhenNoCoreSectionWasObserved()
+    public void Analyze_ShouldRefuseToMeasure_WhenACoreSectionWasNotObserved()
     {
-        // A CV of only non-core sections cannot have hidden kärninfo — there is none to hide. The
-        // measure must be 0 rather than "unknown dressed as 0": MostDisplacedCore stays null, which
-        // is what a caller checks before making any positive claim.
-        var order = Analyze("Kompetenser\nC#\nSpråk\nSvenska");
-
-        order.MostDisplacedCore.ShouldBeNull();
-        order.MaxCoreDisplacement.ShouldBe(0);
+        // THE VALIDITY PRECONDITION. Without a Kontakt heading the contact block is unheaded — the
+        // common Swedish top-of-page form — so an unlocated core section may sit at position 0 and a
+        // lead-in can only OVER-count. The measure refuses rather than over-claim, and the refusal is
+        // a null the rule reads, never a zero it could mistake for "nothing precedes the core".
+        Analyze("Profil\nErfaren\nKompetenser\nC#\nArbetslivserfarenhet\nDev\nUtbildning\nKTH")
+            .CoreLeadIn.ShouldBeNull();
     }
 
     [Fact]
-    public void Analyze_ShouldCarryTheDisplacingHeadings_SoTheVerdictCanCiteThem()
+    public void Analyze_ShouldCarryThePrecedingHeadings_SoTheVerdictCanCiteThem()
     {
         // A count on its own is an opaque number attached to a judgement (§5). The rule needs the
-        // user's OWN headings to name what buries what, so the analyzer carries them rather than
-        // leaving the rule to re-derive them from a second pass.
-        var buried = Analyze(
-                "Intressen\nLöpning\nKompetenser\nC#\nArbetslivserfarenhet\nDev\nUtbildning\nKTH\nKontakt\nanna@x.se")
-            .MostDisplacedCore.ShouldNotBeNull();
+        // user's OWN headings to name what stands ahead of her first core section.
+        var leadIn = Analyze(
+                "Intressen\nLöpning\nKompetenser\nC#\nKontakt\nanna@x.se\n"
+                + "Arbetslivserfarenhet\nDev\nUtbildning\nKTH")
+            .CoreLeadIn.ShouldNotBeNull();
 
-        buried.Heading.ShouldBe("Kontakt");
-        buried.DisplacingHeadings.ShouldBe("Intressen, Kompetenser, Arbetslivserfarenhet, Utbildning");
+        leadIn.Heading.ShouldBe("Kontakt");
+        leadIn.PrecedingHeadings.ShouldBe("Intressen, Kompetenser");
+        leadIn.Count.ShouldBe(2);
     }
 
     [Fact]
-    public void Analyze_ShouldPickTheWorstBuriedCoreSection_NotTheFirstOne()
+    public void Analyze_ShouldNameTheFirstCoreSection_NotTheDeepestOne()
     {
-        // Two core sections are displaced here: Arbetslivserfarenhet by one (Kompetenser) and Kontakt
-        // by four. The verdict must speak about the WORST case, or a CV could bury its contact block
-        // completely and be described by its mildest problem.
-        var buried = Analyze(
-                "Kompetenser\nC#\nArbetslivserfarenhet\nDev\nUtbildning\nKTH\nSpråk\nSvenska\nKontakt\nanna@x.se")
-            .MostDisplacedCore.ShouldNotBeNull();
+        // Three core sections are present; the measure is about the FIRST one the reader meets.
+        // Naming the deepest instead would report a number the user cannot act on — she cannot move a
+        // section above one that is already above it.
+        var leadIn = Analyze(
+                "Kompetenser\nC#\nArbetslivserfarenhet\nDev\nUtbildning\nKTH\nKontakt\nanna@x.se")
+            .CoreLeadIn.ShouldNotBeNull();
 
-        buried.Heading.ShouldBe("Kontakt");
-        buried.Displacers.Count.ShouldBe(4);
+        leadIn.Heading.ShouldBe("Arbetslivserfarenhet");
+        leadIn.Count.ShouldBe(1);
     }
 }

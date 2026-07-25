@@ -36,7 +36,7 @@ public class RubricThresholdCompletenessTests
             // Fas 4b #890: B1's Fail arm ("kreativ ordning som döljer kärninfo"). WHICH sections are
             // core is a cv-conventions RECOMMENDATION; how many displacing sections turn Warn into
             // Fail is the threshold, and it lives here (ADR 0108 kind-boundary).
-            ["B1"] = [RubricThresholdKeys.CoreSectionDisplacementFailAtLeast],
+            ["B1"] = [RubricThresholdKeys.CoreLeadInFailAtLeast],
             ["B2"] = [RubricThresholdKeys.MaxPages],
             ["B6"] = [RubricThresholdKeys.MaxDistinctDateFormats],
             ["C2"] = [RubricThresholdKeys.WarnFromExclamationCount],
@@ -76,6 +76,18 @@ public class RubricThresholdCompletenessTests
                     $"{id}.{key} ska vara ett ändligt värde.");
             }
         }
+
+        // B1's lead-in threshold has a DOMAIN, and it is not merely "finite" (#890, architect-fynd).
+        // At 0 the Fail arm fires on every CV whose core set was observed and emits
+        // "…står efter 0 andra sektioner: ." — a verdict citing NOTHING, which is §5's explicit
+        // CV-engine prohibition. At 1 the Swedish evidence sentence reads "1 andra sektioner". The
+        // floor is asserted here rather than guarded at runtime: a runtime guard would only move the
+        // lie one layer down, while this fails the asset that carries it.
+        RealRubric().Criteria.Single(c => c.Id == "B1")
+            .RequiredThreshold(RubricThresholdKeys.CoreLeadInFailAtLeast)
+            .ShouldBeGreaterThanOrEqualTo(2,
+                "en tröskel under 2 gör B1:s Fail-arm till en dom som citerar ingenting eller "
+                + "formulerar sig ogrammatiskt — domänen är en del av datat, inte en detalj.");
     }
 
     [Fact]

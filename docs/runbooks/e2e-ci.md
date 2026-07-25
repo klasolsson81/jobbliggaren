@@ -103,7 +103,7 @@ docker exec jbl-e2e-pg psql -U postgres -d jobbliggaren -c "CREATE EXTENSION IF 
 
 # 2. Migrate, then run the Api in Development with the flag ON + relaxed rate limits
 #    (every spec registers from one IP in a burst -> AuthWrite 429 otherwise), a Local
-#    DEK master key, and throwaway JWT keys. See the workflow's env block for the full set.
+#    DEK master key. See the workflow's env block for the full set.
 #    NB: `dotnet ef`'s -c is --context, NOT --configuration.
 dotnet ef database update --configuration Release --project src/Jobbliggaren.Infrastructure   --startup-project src/Jobbliggaren.Api --context AppDbContext   # + AppIdentityDbContext
 

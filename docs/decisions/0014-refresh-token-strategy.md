@@ -9,13 +9,25 @@ refresh token and no access-token jti to revoke. The text below is retained as t
 a decision that was taken and then abandoned, not as a description of the system. Current
 truth: BUILD.md §11.2.
 
+> **Superseded by:** [ADR 0017](./0017-frontend-auth-pattern.md) + [ADR 0018](./0018-cookie-and-csrf-strategy.md)
+>
 > **Why this needed a status flip and not an amendment (#827):** this ADR declared its own
 > authority over the spec — "BUILD.md §11.2 är nu inaktuell … Denna ADR är auktoritativ tills
 > dess". #827 rewrote §11.2 to the shipped session model, which ends that authority on the
 > ADR's own terms, and removed §11.2's pointer to this ADR — the only cross-reference that
-> warned a reader the two disagreed. Leaving it `Accepted` would have left a wholly false,
-> unreferenced ADR behind. Superseded rather than amended because the decision was abandoned
-> in full, not drifted from.
+> warned a reader the two disagreed. Leaving it `Accepted` would have left a wholly false ADR
+> standing behind that removed warning. Superseded rather than amended because the decision
+> was abandoned in full, not drifted from.
+>
+> **It is not unreferenced, and that is a loose end this change does not close.** Five tracked
+> cross-references survive: ADR 0012, ADR 0013, ADR 0017, this index, and — the ones that
+> matter — **ADR 0028 and ADR 0029, both `Accepted`, which cite this ADR as authority for
+> CURRENT behaviour** ("roller är giltiga tills session refreshas, default 7d per ADR
+> 0014/0017"). That 7d figure is wrong twice over: it points at a superseded ADR, and no
+> profile in `SessionStoreOptions` uses 7 days (Session 24h/24h; Persistent 30d sliding /
+> 180d absolute / 24h rotation). Re-pointing 0028/0029 at BUILD.md §11.2 with the real
+> numbers is its own change-reason — tracked as a #827 follow-up, not silently folded in
+> here.
 **Kontext:** STEG 3 — Auth-stack
 **Beslutsfattare:** Klas Olsson
 **Relaterad:** ADR 0012, BUILD.md §11.2

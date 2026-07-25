@@ -52,7 +52,7 @@
 | Data fetching | TanStack Query | 5.x | Server state |
 | Tabeller | TanStack Table | 8.x | Headless |
 | Form | React Hook Form + Zod | RHF ^7.72, Zod 4.x | Schema-baserad validering |
-| Auth-klient | NextAuth.js (Auth.js) | 5 | Integrerar mot backend Identity-JWT (cookie-sessions) |
+| Auth-klient | Egen cookie-baserad klient (ADR 0017) | – | NextAuth.js/Auth.js AVVISADES och finns inte i `package.json`; backend utfärdar ingen JWT — bäraren är ett opakt session-id (§11.2). Truth-sync #569/#827 |
 | Datum | date-fns | 4.x | Svensk locale |
 | Ikoner | Lucide React | ^1.8 | Minimalistiskt, civic-vänligt |
 | Typografi | Source Sans 3 | Google Fonts | Primär (next/font/google, byte från Hanken Grotesk — ADR 0091 / #549 WS4); systemfont-fallback. JetBrains Mono för kod |
@@ -581,7 +581,7 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `POST /api/v1/admin/users/{id}/suspend`
 - `POST /api/v1/admin/users/{id}/unsuspend`
 - `POST /api/v1/admin/users/{id}/reset-password`
-- `POST /api/v1/admin/users/{id}/impersonate` (SuperAdmin only, returnerar temporär JWT)
+- `POST /api/v1/admin/users/{id}/impersonate` — **OBYGGD.** Endpointen finns inte i `Endpoints/`, och "returnerar temporär JWT" beskriver en mekanism som inte längre existerar (§11.3). Truth-sync #569/#827
 - `GET /api/v1/admin/audit-log?from&to&userId&action&aggregateType`
 - `GET /api/v1/admin/job-sources/status`
 - `POST /api/v1/admin/job-sources/{source}/resync`
@@ -1159,10 +1159,20 @@ Roles lagras i `user_roles` (Identity).
   token. Revokation = ta bort sessionen; ingen separat revokations-lista behövs.
 - **Förnyelse:** `POST /api/v1/auth/refresh` → `RefreshSessionCommand`, som *slidar* sessionen
   och roterar id:t när det är dags (#481 persistent-login). Ingen refresh-token-rotation.
+- **Livslängder** (`SessionStoreOptions`, sanningskälla — inte dupliceras utan läsas där):
+  *Session* (vanlig inloggning) 24 h sliding / 24 h absolut, ingen rotation. *Persistent*
+  ("Håll mig inloggad") 30 d sliding / 180 d absolut / id-rotation var 24:e timme. Den gamla
+  §11.2:s "15 min / 14 dagar" gällde den JWT-design som aldrig byggdes.
 - **Backend sätter inga cookies** (ADR 0018). Next.js-proxyn äger `__Host-`-cookien och
   ersätter dess värde när svaret bär `{ rotated: true }`.
 
 ### 11.3 Impersonation-flöde
+
+> **OBYGGD, och mekaniken nedan gäller INTE (truth-sync #569/#827).** Steg 3 utfärdar en JWT —
+> det finns ingen JWT-utfärdare kvar i kodbasen efter #827, och §11.2 två rader upp säger att
+> JWT-designen aldrig skeppades. Flödet måste omspecas mot session-modellen innan det byggs;
+> tills dess är det här en skiss, inte en specifikation. Lämnas medvetet omskrivet i #827 —
+> att designa om impersonation är en egen change-reason, inte en följd av en radering.
 
 1. SuperAdmin klickar "Logga in som [user]" i admin-UI
 2. Backend verifierar SuperAdmin-roll

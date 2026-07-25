@@ -1349,8 +1349,9 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Identity, sessions, JWT-rester, Redis, HTTP-baserad <see cref="ICurrentUser"/>,
+    /// Identity, sessions, Redis, HTTP-baserad <see cref="ICurrentUser"/>,
     /// auth audit logger. HTTP-only. Worker laddar inte denna modul.
+    /// (#827: "JWT-rester" stod här tills de resterna faktiskt raderades.)
     /// </summary>
     public static IServiceCollection AddIdentityAndSessions(
         this IServiceCollection services,

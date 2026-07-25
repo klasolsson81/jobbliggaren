@@ -18,7 +18,6 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// session-id enumeration. Constant-time comparison is not applicable here because
 /// we use the session-id as a lookup key, not as a value to compare against a known secret.
 ///
-/// Scheme name "Bearer" reflects wire-format (RFC 6750), not token type.
 /// Scheme name "Bearer" reflects the wire format (RFC 6750), not the token type. The JWT
 /// classes were removed in #827; renaming the scheme to "Session" remains outstanding and is
 /// behavioural — it invalidates live sessions — so it is not a follow-on of that deletion.
@@ -76,7 +75,9 @@ public sealed class SessionAuthenticationHandler(
         {
             new(ClaimTypes.NameIdentifier, session.UserId.ToString()),
             // TODO Fas 1: byt JwtRegisteredClaimNames.Sub till NameIdentifier
-            //   när JWT-klasser raderas. Behålls nu för bakåtkompatibilitet med CurrentUser.cs.
+            //   Behålls för bakåtkompatibilitet med CurrentUser.cs. (#827 raderade JWT-klasserna;
+            //   själva claim-bytet återstår och är behavioural — det rör CurrentUser.cs och 17
+            //   anropsställen i RateLimitingExtensions.cs, så det hör i egen PR.)
             new(JwtRegisteredClaimNames.Sub, session.UserId.ToString()),
             new("session_id_prefix", session.Id.ToString()), // 6-char prefix + "…", never raw value
         };

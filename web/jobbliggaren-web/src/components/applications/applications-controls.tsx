@@ -60,7 +60,7 @@ export function ApplicationsControls({
 
       {activeFilterLabel != null && (
         <span className="jp-listfilterchip">
-          <span className="jp-listfilterchip__label">
+          <span>
             {tUi("controls.filterPrefix")} {activeFilterLabel}
           </span>
           <button

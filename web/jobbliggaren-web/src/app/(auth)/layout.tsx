@@ -1,3 +1,6 @@
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
+import { pickClientMessages } from "@/i18n/client-messages";
 import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
 
@@ -13,22 +16,32 @@ import { SiteFooter } from "@/components/site/site-footer";
  * SiteHeader (LP-5a / #258) renderar en första skip-länk till `#main`; denna
  * layouts `<main>` bär det målet (`id="main"`, programmatiskt fokuserbart).
  */
-export default function AuthLayout({
+export default async function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // #737 — see client-messages.ts: this boundary declares the namespaces its
+  // own client subtree reads (login form + shared site chrome). Root carries
+  // nothing, and a nested provider replaces context rather than merging, so the
+  // set must be complete for the subtree. Verified for EQUALITY against the
+  // import graph by client-namespace-payload.test.ts.
+  const locale = await getLocale();
+  const messages = pickClientMessages(await getMessages(), ["common", "pages"]);
+
   return (
-    <div className="flex min-h-screen flex-col bg-surface-secondary text-text-primary">
-      <SiteHeader showLogin={false} />
-      <main
-        id="main"
-        tabIndex={-1}
-        className="flex flex-1 items-center justify-center px-6 py-12 focus:outline-none"
-      >
-        <div className="w-full max-w-sm">{children}</div>
-      </main>
-      <SiteFooter />
-    </div>
+    <NextIntlClientProvider locale={locale} messages={messages}>
+      <div className="flex min-h-screen flex-col bg-surface-secondary text-text-primary">
+        <SiteHeader showLogin={false} />
+        <main
+          id="main"
+          tabIndex={-1}
+          className="flex flex-1 items-center justify-center px-6 py-12 focus:outline-none"
+        >
+          <div className="w-full max-w-sm">{children}</div>
+        </main>
+        <SiteFooter />
+      </div>
+    </NextIntlClientProvider>
   );
 }

@@ -283,19 +283,7 @@
       "loadErrorTitle": "Sökningen kunde inte läsas in",
       "loadErrorBody": "Försök igen om en stund.",
       "rateLimited": "För många förfrågningar just nu. Vänta en stund och ladda om sidan.",
-      "loadingResults": "Söker företag…",
-      "followAll": {
-        "heading": "Spara sökningen som smart bevakning",
-        "ready": "Spara branscherna och kommunerna som en smart bevakning. Du hittar matchande företag under dina smarta bevakningar på Företag.",
-        "button": "Spara som smart bevakning",
-        "saving": "Sparar…",
-        "reasonName": "En sökning på företagsnamn går inte att spara som smart bevakning. Ta bort namnet och sök på bransch och kommun.",
-        "reasonEmpty": "Välj minst en bransch och en kommun för att spara sökningen som smart bevakning.",
-        "reasonSni": "Lägg till minst en bransch för att spara sökningen som smart bevakning.",
-        "reasonKommun": "Lägg till minst en kommun för att spara sökningen som smart bevakning.",
-        "successBody": "Sökningen sparades som smart bevakning.",
-        "successLink": "Visa dina smarta bevakningar"
-      }
+      "loadingResults": "Söker företag…"
     },
     "watchesHeading": "Bevakade företag",
     "watchesLede": "Företag du bevakar. Nya annonser från dem visas här och på Översikt.",

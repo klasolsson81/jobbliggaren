@@ -148,29 +148,55 @@ internal sealed class ScbCompanyRegisterStore(AppDbContext db)
     }
 
     /// <summary>
-    /// Refreshes the planner's statistics for <c>company_register</c> — CLAUDE.md §3.6: a bulk-load path
-    /// ANALYZEs the table it loaded. Plain <c>ANALYZE</c>, this table only; never <c>VACUUM ANALYZE</c>
-    /// (vacuuming is autovacuum's concern and a different change-reason).
+    /// Refreshes the planner's statistics for <c>company_register</c>. <b>This docblock is the canonical
+    /// home for the argument</b> — CLAUDE.md §3.6 states the rule in one line and
+    /// <c>docs/runbooks/scb-live-population.md</c> §7 covers the operational half; both point here
+    /// rather than restating it.
     ///
     /// <para>
-    /// <b>Autovacuum cannot cover this table, and that is the defect this closes.</b> Its analyze trigger
-    /// is change-driven — <c>n_mod_since_analyze</c> against <c>50 + 0.1 × reltuples</c> — and those
-    /// counters live in the CUMULATIVE statistics, which PostgreSQL discards on an unclean shutdown
-    /// (<c>pg_upgrade</c> and a <c>pg_dump</c> restore carry no statistics at all). The register is
-    /// written by ONE periodic job and read-only in between, so a reset anywhere in that window zeroes
-    /// the counter with no subsequent DML left to re-arm it: the table then plans blind until the next
-    /// sync, which for a monthly cadence is a month. A table under continuous DML (<c>job_ads</c>)
-    /// self-heals from the same reset; this one cannot. An explicit ANALYZE at the end of the load does
-    /// not consult those counters at all.
+    /// The rule is the PostgreSQL manual's own (<i>Performance Tips → Populating a Database → "Run
+    /// ANALYZE Afterwards"</i>): whatever bulk-loads a table refreshes its statistics, because the
+    /// loader is the one process that knows the contents just changed wholesale. Plain <c>ANALYZE</c>,
+    /// this table only, schema-qualified to match the runbook's diagnostics; never <c>VACUUM ANALYZE</c>
+    /// (vacuuming is autovacuum's concern and a different change-reason).
     /// </para>
     ///
     /// <para>
-    /// Measured 2026-07-25 on the dev register: <c>company_register</c> held 1 066 938 rows and ZERO rows
-    /// in <c>pg_stats</c> — never analysed — while every table's counters read zero with
-    /// <c>last_autoanalyze</c> NULL. That state is what made the register search walk the wrong index at
-    /// 1 681–6 268 ms (#560, ADR 0119). The command itself costs <b>871 ms</b> at that row count, against
-    /// the <see cref="CommandTimeoutSeconds"/> ceiling — a 137× margin, so the ordinary timeout applies
-    /// and the sweep's raised one is not warranted.
+    /// <b>Why autovacuum cannot be the guarantee.</b> Note this is a claim about the GUARANTEE, not an
+    /// explanation of the state measured below. Its analyze trigger is change-driven —
+    /// <c>n_mod_since_analyze</c> against <c>50 + 0.1 × reltuples</c> — and those counters live in the
+    /// CUMULATIVE statistics, which PostgreSQL discards on an unclean shutdown and which neither
+    /// <c>pg_upgrade</c> nor <c>pg_dump</c> carries. This register is written by ONE periodic job and
+    /// read-only in between, so a reset in that window zeroes the counter with no subsequent DML left to
+    /// re-arm it — nothing re-analyses it until the next sync, a week at the configured cadence. A table
+    /// under continuous DML (<c>job_ads</c>) self-heals from the same reset; this one cannot. An explicit
+    /// ANALYZE at the end of the load does not consult those counters at all.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Two different statistics systems, and they behave differently</b> — verified against the local
+    /// PostgreSQL 18.3 binaries 2026-07-25, because an earlier draft of this comment got it wrong.
+    /// <i>Cumulative</i> statistics (<c>last_analyze</c>, <c>n_mod_since_analyze</c> — autovacuum's
+    /// trigger) survive none of the three events above. <i>Optimizer</i> statistics
+    /// (<c>pg_statistic</c>/<c>pg_stats</c> — what the planner actually reads) are a WAL-logged catalog:
+    /// they survive a crash, PG18's <c>pg_upgrade</c> carries them BY DEFAULT (<c>--no-statistics</c>
+    /// opts out), and <c>pg_dump</c> omits them unless <c>--statistics</c> is passed.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The measured state, recorded without a mechanism.</b> On the dev register 2026-07-25:
+    /// 1 066 938 rows and ZERO rows in <c>pg_stats</c> — never analysed — which is what made the register
+    /// search walk the wrong index at 1 681–6 268 ms (#560, ADR 0119). Why autoanalyze never fired
+    /// through the ~11 h population is NOT established: <c>reloptions</c> on the table is empty,
+    /// <c>autovacuum</c> and <c>track_counts</c> are both on. The emptiness is therefore an observation,
+    /// not evidence for the paragraph above — which stands on its own regardless.
+    /// </para>
+    ///
+    /// <para>
+    /// Cost: <b>871 ms</b> at 1 066 938 rows against the <see cref="CommandTimeoutSeconds"/> ceiling — a
+    /// 137× margin, so the ordinary timeout applies and the sweep's raised one is not warranted. ANALYZE
+    /// takes <c>SHARE UPDATE EXCLUSIVE</c>: it blocks neither reads nor writes, but it does conflict with
+    /// a concurrent VACUUM/ANALYZE and with DDL.
     /// </para>
     /// </summary>
     public async Task AnalyzeAsync(CancellationToken cancellationToken)
@@ -178,7 +204,7 @@ internal sealed class ScbCompanyRegisterStore(AppDbContext db)
         var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var cmd = connection.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
-        cmd.CommandText = "ANALYZE company_register;";
+        cmd.CommandText = "ANALYZE public.company_register;";
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 

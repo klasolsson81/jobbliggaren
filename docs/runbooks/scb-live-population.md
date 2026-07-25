@@ -465,17 +465,30 @@ ScbCompanyRegisterRefresher: planerarstatistik uppdaterad (ANALYZE company_regis
 ```
 
 **Do not rely on autovacuum to cover the gaps.** Its analyze trigger is
-change-driven (`n_mod_since_analyze` against `50 + 0.1 × reltuples`), and those
-counters live in the cumulative statistics — which PostgreSQL **discards on an
-unclean shutdown**, and which `pg_upgrade` and a `pg_dump` restore do not carry
-at all. The register is written by one periodic job and read-only in between, so
-a reset anywhere in that window zeroes the counter with nothing left to re-arm
-it: the table then plans blind until the next sync. That is not hypothetical —
-it is what left the register at 1 066 938 rows with zero rows in `pg_stats`,
-and the name-prefix search walking the wrong index at 1 681–6 268 ms.
+change-driven, and its counters are discarded on an unclean shutdown and carried
+by neither `pg_upgrade` nor `pg_dump`. The register is written by one periodic
+job and read-only in between, so nothing re-arms that trigger until the next
+sync. Full argument: `ScbCompanyRegisterStore.AnalyzeAsync` — it is the
+canonical home and is not restated here.
 
-**Run this manually after any restore, `pg_upgrade`, or statistics reset**, and
-any time the register search is unexpectedly slow:
+**Know which statistics you are missing before you act** (verified against the
+local PostgreSQL 18.3 binaries 2026-07-25 — an earlier draft of this section had
+it wrong):
+
+| | unclean shutdown | `pg_upgrade` (PG18) | `pg_dump` (PG18) |
+|---|---|---|---|
+| cumulative (`last_analyze`, autovacuum's trigger) | lost | not carried | not carried |
+| optimizer (`pg_stats` — what the planner reads) | **survives** | **carried by default** | **omitted** unless `--statistics` |
+
+So a PG18 major upgrade does **not** leave the table planning blind — it carries
+the optimizer statistics over (`--no-statistics` opts out). What it does not
+carry is extended statistics (`CREATE STATISTICS`), and
+`vacuumdb --analyze-in-stages --missing-stats-only` is the right instrument
+there. A `pg_dump` restore and a statistics reset are the cases that genuinely
+leave the planner without statistics.
+
+**Run this after a `pg_dump` restore or a statistics reset**, and any time the
+register search is unexpectedly slow:
 
 ```sql
 -- 1. Diagnose: zero rows here means the planner has NO statistics for the table.
@@ -487,9 +500,11 @@ SELECT last_analyze, last_autoanalyze, n_live_tup, n_mod_since_analyze
 FROM pg_stat_user_tables
 WHERE schemaname = 'public' AND relname = 'company_register';
 
--- 3. Fix. ~871 ms at 1 066 938 rows; safe to run at any time, takes no
---    exclusive lock. Plain ANALYZE only — vacuuming is autovacuum's business.
-ANALYZE company_register;
+-- 3. Fix. ~871 ms at 1 066 938 rows. Takes SHARE UPDATE EXCLUSIVE: it blocks
+--    neither reads nor writes, but it DOES conflict with a concurrent
+--    VACUUM/ANALYZE and with DDL — so do not run it against a sync in flight.
+--    Plain ANALYZE only — vacuuming is autovacuum's business.
+ANALYZE public.company_register;
 ```
 
 A useful tell that the counters were reset rather than merely idle: **every**

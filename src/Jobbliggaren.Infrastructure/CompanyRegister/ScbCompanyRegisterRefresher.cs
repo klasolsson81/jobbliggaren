@@ -146,30 +146,34 @@ internal sealed partial class ScbCompanyRegisterRefresher(
         }
 
         // #560 / ADR 0119 — refresh the planner's statistics for the table this run just bulk-loaded
-        // (CLAUDE.md §3.6). Why HERE, and not in the two places it looks like it belongs:
+        // (CLAUDE.md §3.6). The ARGUMENT lives in ScbCompanyRegisterStore.AnalyzeAsync; what belongs
+        // here is why it sits at THIS point in the run:
         //
-        //   * NOT in ScbCompanyRegisterStore.UpsertBatchAsync — that is per batch, i.e. hundreds of
-        //     ANALYZEs per run, each one measuring a table the run is still halfway through writing.
-        //   * NOT in a migration — a migration runs once, against an empty table, and statistics need
-        //     refreshing after every bulk change, not once in the schema's lifetime.
+        //   * NOT in UpsertBatchAsync — that is per batch, i.e. hundreds of ANALYZEs per run, each one
+        //     measuring a table the run is still halfway through writing.
+        //   * AFTER MaybeDeregisterAsync — the sweep rewrites `status` across the untouched majority,
+        //     so statistics taken before it describe a distribution the run then discards.
+        //   * AFTER the audit row — that row is the run's only DURABLE trace (the log is transient and
+        //     the result object is discarded by the worker), so it must never be conditional on a
+        //     maintenance step. Losing it would also cost the next run its relative sweep-floor
+        //     baseline (GetMaxObservedTotalRowsFetchedAsync reads MAX over 90 days, so one missing row
+        //     loosens the floor rather than removing it — except when the window is otherwise empty,
+        //     where maxObserved goes null and the relative floor is inert for exactly one run).
         //
-        // AFTER MaybeDeregisterAsync, because the sweep rewrites `status` across the untouched
-        // majority: statistics taken before it would describe a status distribution the run then
-        // discards. AFTER the audit row, because a failing ANALYZE must not cost this run its
-        // CompanyRegisterSynced row — the NEXT run's relative sweep floor reads it back
-        // (GetMaxObservedTotalRowsFetchedAsync), so losing it would silently disarm that floor.
         // Deliberately NOT wrapped in a catch: the worker carries AutomaticRetry(Attempts = 0) (#688),
         // so a throw here lands the job Failed and visible WITHOUT re-spending the ~11 h extract — and
         // "the statistics were not refreshed" is precisely the defect this call exists to prevent.
-        // It is the last statement before the completion line, so a failure suppresses "klart" too.
-        var analyzeStartedAt = Stopwatch.GetTimestamp();
+        double analyzeDurationMs;
         await using (var analyzeScope = scopeFactory.CreateAsyncScope())
         {
             var analyzeStore = analyzeScope.ServiceProvider.GetRequiredService<ScbCompanyRegisterStore>();
+            // Timed INSIDE the scope: {DurationMs} names the command's cost, so it must not also carry
+            // scope construction and connection open.
+            var analyzeStartedAt = Stopwatch.GetTimestamp();
             await analyzeStore.AnalyzeAsync(cancellationToken).ConfigureAwait(false);
+            analyzeDurationMs = Stopwatch.GetElapsedTime(analyzeStartedAt).TotalMilliseconds;
         }
 
-        var analyzeDurationMs = Stopwatch.GetElapsedTime(analyzeStartedAt).TotalMilliseconds;
         LogAnalyzed(logger, analyzeDurationMs);
 
         LogCompleted(logger, rowsUpserted, rowsDeregistered, excludedPersonnummerShaped,
@@ -246,7 +250,7 @@ internal sealed partial class ScbCompanyRegisterRefresher(
     // that is otherwise fully narrated. Duration is measured with the MONOTONIC Stopwatch counter, not
     // the injected clock (parity LoggingBehavior) — the clock is fixed in tests and would report zero.
     [LoggerMessage(EventId = 5718, Level = LogLevel.Information,
-        Message = "ScbCompanyRegisterRefresher: planerarstatistik uppdaterad (ANALYZE company_register) — {DurationMs} ms.")]
+        Message = "ScbCompanyRegisterRefresher: planerarstatistik uppdaterad (ANALYZE company_register) — {DurationMs:F0} ms.")]
     private static partial void LogAnalyzed(ILogger logger, double durationMs);
 
     [LoggerMessage(EventId = 5713, Level = LogLevel.Warning,

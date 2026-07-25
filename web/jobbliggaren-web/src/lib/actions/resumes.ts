@@ -19,7 +19,6 @@ import { mapActionError } from "./_action-error";
 import { isValidId } from "@/lib/validation/guid";
 import type { ActionResult } from "./_action-result";
 
-
 export async function createResumeAction(
   _prevState: ActionResult | null,
   formData: FormData

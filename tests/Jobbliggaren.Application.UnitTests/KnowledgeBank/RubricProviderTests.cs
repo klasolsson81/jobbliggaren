@@ -33,14 +33,24 @@ public class RubricProviderTests
 
         rubric.ShouldNotBeNull();
         // The committed rubric is the v1 baseline (ADR 0074). Version is carried as
-        // DATA (RubricVersion), not a C# literal. Bumped 2.1.0 → 2.2.0 (#891: D3 got a reader +
-        // fontBodyPtWarnBelow threshold → MINOR bump, asset renamed rubric.v2.2.0.json). Prior:
-        // 2.0.0 → 2.1.0 (#655 PR-6b: B2/D9/E2 gained geometry thresholds → MINOR bump per the
-        // RubricVersion doctrine — thresholds added, no new scored criterion); 1.2.0 → 2.0.0
-        // (#655 PR-6a: the C7 spelling criterion ADDED → MAJOR bump); 1.1.0 → 1.2.0 (#654,
-        // thresholds-as-data + styleOnly); 1.0.1 → 1.1.0 (#488).
-        rubric.Version.ShouldBe(RubricVersion.Parse("2.2.0"));
-        rubric.EffectiveDate.ShouldBeGreaterThan(default(DateOnly));
+        // DATA (RubricVersion), not a C# literal. Bumped 2.2.0 → 2.3.0 (#890: B1 got its Fail arm +
+        // coreLeadInFailAtLeast threshold → MINOR bump, same shape as #891 — an existing criterion
+        // gains a threshold and new verdict-emitting behaviour, no criterion added, no weights
+        // touched, no schema break; asset renamed rubric.v2.3.0.json). Prior: 2.1.0 → 2.2.0 (#891:
+        // D3 got a reader + fontBodyPtWarnBelow threshold → MINOR bump, asset renamed
+        // rubric.v2.2.0.json); 2.0.0 → 2.1.0 (#655 PR-6b: B2/D9/E2 gained geometry thresholds →
+        // MINOR bump per the RubricVersion doctrine — thresholds added, no new scored criterion);
+        // 1.2.0 → 2.0.0 (#655 PR-6a: the C7 spelling criterion ADDED → MAJOR bump); 1.1.0 → 1.2.0
+        // (#654, thresholds-as-data + styleOnly); 1.0.1 → 1.1.0 (#488).
+        //
+        // THIS CHAIN IS THE LEDGER the next bump argues its magnitude from — #890's own MINOR case
+        // was made by pointing at #891's entry. A stale line here is the argument, wrong.
+        rubric.Version.ShouldBe(RubricVersion.Parse("2.3.0"));
+
+        // The date moves WITH the version. #891's bump did, and without this pin the asset can claim
+        // an effective date a week before the version existed — which is what happened here until a
+        // review caught it (the old assertion, ShouldBeGreaterThan(default), could never see it).
+        rubric.EffectiveDate.ShouldBe(new DateOnly(2026, 7, 25));
     }
 
     // ───────────────────────────────────────────────────────────────────

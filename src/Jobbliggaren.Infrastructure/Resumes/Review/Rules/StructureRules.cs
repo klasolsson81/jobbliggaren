@@ -35,10 +35,31 @@ namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 /// computation <c>SectionReorderTransform</c> proposes against, so the judge and the proposer cannot
 /// disagree about the same CV.</para>
 ///
-/// <para><b>Warn on deviation, never Fail.</b> The rubric's fail signal is "kreativ ordning som
-/// <i>döljer kärninfo</i>" — a STRONGER claim than "deviates", and "döljer" is a knowledge-bank
-/// semantic with real correctness risk (a wrong definition would Fail good CVs). Under-claiming a
-/// measured fact is safe; over-claiming is the §5 sin. The Fail refinement is its own issue.</para>
+/// <para><b>Warn on deviation; Fail only on a long lead-in before the first core section (#890).</b>
+/// The rubric's fail signal is "kreativ ordning som <i>döljer kärninfo</i>" — a STRONGER claim than
+/// "deviates", and 8b.4b deliberately shipped only the weaker half because choosing the operational
+/// definition of "döljer" carries real correctness risk: <b>a wrong definition FAILS good CVs.</b>
+///
+/// <b>The first attempt did exactly that, and the correction is worth recording.</b> It counted, per
+/// core section, the sections above it that the convention ranks AFTER it — which treated "the
+/// convention has no opinion about this section" as the strongest possible positional claim, so every
+/// unranked section counted as burial. It Failed the Swedish healthcare CV that leads with
+/// Legitimation, the IT CV with Certifieringar and Kurser, the portfolio CV with several project
+/// sections, and a CV built from two layouts the bind itself called acceptable — telling that user
+/// her own Utbildning section was burying her experience.
+///
+/// The definition finally bound (senior-cto-advisor re-bind 2026-07-25): <b>the LEAD-IN</b> — how many
+/// sections stand before the FIRST core section — with the Fail threshold in rubric data, and measured
+/// only when every core section was observed. Rank plays no part; the only knowledge consumed is the
+/// core/non-core partition, which the asset sources. That is what lets it separate position from
+/// presence: the same seven sections with one heading moved give a lead-in of 0 or of 4.
+///
+/// <b>The arm is narrow, and that is the decision, not an oversight.</b> Burial of
+/// erfarenhet/utbildning is provably unmeasurable this way — healthcare, IT and portfolio CVs each put
+/// four legitimate non-core sections above Arbetslivserfarenhet, so "tolerate 4" and "fire at 4"
+/// contradict at every threshold. Fail where the claim is measurable, Warn where it is not (the same
+/// honesty posture B2 and B5 already take). Nothing here claims to cover "döljer kärninfo" in
+/// general.</para>
 /// </summary>
 internal sealed class B1SectionsRule : ICriterionRule
 {
@@ -99,6 +120,32 @@ internal sealed class B1SectionsRule : ICriterionRule
         // cite BOTH orders in the user's own headings so the verdict is never an opaque judgement
         // (§5: every verdict cites what grounds it).
         var order = context.SectionOrder;
+
+        // ...and its Fail arm (#890): the LEAD-IN before the first core section. The measure is
+        // position only — how many sections the reader passes before meeting the first of
+        // kontakt/erfarenhet/utbildning — and the rubric owns the count at which it stops being a
+        // nudge. It is present only when EVERY core section was observed (see SectionOrderAnalyzer:
+        // an unlocated core section may sit at position 0, so measuring anyway can only over-count).
+        //
+        // No OrderObserved guard here, deliberately: a lead-in of N requires at least N+1 observed
+        // sections, so any threshold >= 2 already implies the order was read. A guard that cannot
+        // change an outcome is not a guard.
+        var failFrom = context.Criterion.RequiredThreshold(
+            RubricThresholdKeys.CoreLeadInFailAtLeast);
+
+        if (order.CoreLeadIn is { } leadIn && leadIn.Count >= failFrom)
+        {
+            // States only what was measured: a count, and the user's own headings. No "döljer", no
+            // claim about what an ATS does — we observe a section order, we do not observe an ATS.
+            // "döljer kärninfo" is the criterion's LABEL, not a claim we make about her document.
+            return CvCriterionVerdict.Assessed("B1", category, CriterionVerdict.Fail,
+                ReviewText.Cite(ReviewText.Structural(
+                    $"Den första kärnsektionen \"{leadIn.Heading}\" står efter {leadIn.Count} "
+                    + $"andra sektioner: {leadIn.PrecedingHeadings}. "
+                    + $"Nuvarande ordning: {order.ObservedHeadings}. "
+                    + $"Rekommenderad ordning: {order.RecommendedHeadings}.")));
+        }
+
         if (order.Deviates)
         {
             return CvCriterionVerdict.Assessed("B1", category, CriterionVerdict.Warn,

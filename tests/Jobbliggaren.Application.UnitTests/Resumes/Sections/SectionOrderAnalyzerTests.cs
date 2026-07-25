@@ -110,7 +110,8 @@ public class SectionOrderAnalyzerTests
             new CvSectionOrderEntry("projekt", TypedKind: null),
             new CvSectionOrderEntry("education", ParsedSectionKind.Education),
         ],
-        ["Arial"]);
+        ["Arial"],
+        new HashSet<string>(StringComparer.Ordinal) { "experience", "education" });
 
         var order = SectionOrderAnalyzer.Analyze(
             "Utbildning\nKTH\nProjekt\nJobbliggaren\nArbetslivserfarenhet\nDev",
@@ -191,5 +192,70 @@ public class SectionOrderAnalyzerTests
     {
         Analyze("...\n---\nArbetslivserfarenhet\nDev\nUtbildning\nKTH")
             .Observed.Count.ShouldBe(2);
+    }
+
+    // ===============================================================
+    // (e) #890 — the core LEAD-IN, the measure behind B1's Fail arm
+    // ===============================================================
+    //
+    // The measure lives here and the THRESHOLD does not: this analyzer is shared with
+    // SectionReorderTransform, and the improvement engine has no business holding a review threshold.
+
+    [Theory]
+    // Recommended order — the reader meets Kontakt first.
+    [InlineData("Kontakt\nanna@x.se\nArbetslivserfarenhet\nDev\nUtbildning\nKTH", 0)]
+    // Healthcare CV: Legitimation and Körkort are free sections, and they change NOTHING here, because
+    // the measure is position and Kontakt is still first. Under the retired displacement measure this
+    // CV Failed.
+    [InlineData("Kontakt\nanna@x.se\nLegitimation\nSocialstyrelsen\nKompetenser\nC#\nKörkort\nB\n"
+        + "Arbetslivserfarenhet\nDev\nUtbildning\nKTH", 0)]
+    // Sidebar CV: Profil, Kompetenser and Språk linearise ahead of Kontakt — the longest lead-in that
+    // must still not Fail, i.e. the calibration boundary the shipped threshold of 4 sits above.
+    [InlineData("Profil\nErfaren\nKompetenser\nC#\nSpråk\nSvenska\nKontakt\nanna@x.se\n"
+        + "Arbetslivserfarenhet\nDev\nUtbildning\nKTH", 3)]
+    // Contact last, behind four sections.
+    [InlineData("Profil\nErfaren\nKompetenser\nC#\nSpråk\nSvenska\nIntressen\nLöpning\n"
+        + "Arbetslivserfarenhet\nDev\nUtbildning\nKTH\nKontakt\nanna@x.se", 4)]
+    public void Analyze_ShouldCountTheSectionsBeforeTheFirstCoreSection(string rawText, int expected) =>
+        Analyze(rawText).CoreLeadIn.ShouldNotBeNull().Count.ShouldBe(expected);
+
+    [Fact]
+    public void Analyze_ShouldRefuseToMeasure_WhenACoreSectionWasNotObserved()
+    {
+        // THE VALIDITY PRECONDITION. Without a Kontakt heading the contact block is unheaded — the
+        // common Swedish top-of-page form — so an unlocated core section may sit at position 0 and a
+        // lead-in can only OVER-count. The measure refuses rather than over-claim, and the refusal is
+        // a null the rule reads, never a zero it could mistake for "nothing precedes the core".
+        Analyze("Profil\nErfaren\nKompetenser\nC#\nArbetslivserfarenhet\nDev\nUtbildning\nKTH")
+            .CoreLeadIn.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Analyze_ShouldCarryThePrecedingHeadings_SoTheVerdictCanCiteThem()
+    {
+        // A count on its own is an opaque number attached to a judgement (§5). The rule needs the
+        // user's OWN headings to name what stands ahead of her first core section.
+        var leadIn = Analyze(
+                "Intressen\nLöpning\nKompetenser\nC#\nKontakt\nanna@x.se\n"
+                + "Arbetslivserfarenhet\nDev\nUtbildning\nKTH")
+            .CoreLeadIn.ShouldNotBeNull();
+
+        leadIn.Heading.ShouldBe("Kontakt");
+        leadIn.PrecedingHeadings.ShouldBe("Intressen, Kompetenser");
+        leadIn.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public void Analyze_ShouldNameTheFirstCoreSection_NotTheDeepestOne()
+    {
+        // Three core sections are present; the measure is about the FIRST one the reader meets.
+        // Naming the deepest instead would report a number the user cannot act on — she cannot move a
+        // section above one that is already above it.
+        var leadIn = Analyze(
+                "Kompetenser\nC#\nArbetslivserfarenhet\nDev\nUtbildning\nKTH\nKontakt\nanna@x.se")
+            .CoreLeadIn.ShouldNotBeNull();
+
+        leadIn.Heading.ShouldBe("Arbetslivserfarenhet");
+        leadIn.Count.ShouldBe(1);
     }
 }

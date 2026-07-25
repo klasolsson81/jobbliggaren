@@ -58,12 +58,13 @@ public class CvReviewEngineTests
     {
         var result = await ReviewAsync(Resume(), RenderProfile.Ats);
 
-        // Bumped 2.1.0 → 2.2.0 (#891: D3 got a reader + fontBodyPtWarnBelow threshold → minor
-        // bump). Prior: 2.0.0 → 2.1.0 (#655 PR-6b: B2/D9/E2 gained geometry thresholds → minor
-        // bump, RubricVersion doctrine — thresholds added, no new scored criterion); 1.2.0 →
-        // 2.0.0 (#655 PR-6a: C7 spelling criterion ADDED → major bump); 1.1.0 → 1.2.0 (#654,
-        // thresholds-as-data + styleOnly); #488.
-        result.RubricVersion.ShouldBe(RubricVersion.Parse("2.2.0"));
+        // Bumped 2.2.0 → 2.3.0 (#890: B1 got its Fail arm + coreLeadInFailAtLeast threshold → minor
+        // bump, same shape as #891). Prior: 2.1.0 → 2.2.0 (#891: D3 got a reader +
+        // fontBodyPtWarnBelow threshold → minor bump); 2.0.0 → 2.1.0 (#655 PR-6b: B2/D9/E2 gained
+        // geometry thresholds → minor bump, RubricVersion doctrine — thresholds added, no new scored
+        // criterion); 1.2.0 → 2.0.0 (#655 PR-6a: C7 spelling criterion ADDED → major bump); 1.1.0 →
+        // 1.2.0 (#654, thresholds-as-data + styleOnly); #488.
+        result.RubricVersion.ShouldBe(RubricVersion.Parse("2.3.0"));
         result.Profile.ShouldBe(RenderProfile.Ats);
     }
 

@@ -324,13 +324,15 @@ describe("buildPageHref (#823 q-klampen, #846 hemvisten)", () => {
     expect(buildPageHref({ ...params, q: " ab " }, 2, 20)).toContain("q=ab");
   });
 
-  // NAMNET är medvetet avgränsat till "de params typen bär". Det är INTE en
+  // NAMNET beskriver vad testet TÄCKER, inte hur många fält typen har (den bär
+  // fjorton; buildPageHref läser tretton — aldrig `page`, som `targetPage` ersätter;
+  // `pageSize` har sitt eget test nedan). Det är INTE en
   // fullständighetsgaranti för /jobb: `matchning` läses av page.tsx men saknas i
   // `JobbRawSearchParams`, så `?matchning=off` tappas vid ett sida-2-klick
   // (pre-existerande — se ⚠-noten på typen). Ett test som hette "varje
   // dimension" hade lovat mer än det asserterar, vilket är precis den
   // test-fiktion CLAUDE.md §7 förbjuder.
-  it("bär vidare de tolv params typen bär, så ett sida-2-klick inte tappar dem", () => {
+  it("bär vidare varje param den läser utom page, som targetPage ersätter", () => {
     const href = buildPageHref(
       {
         occupationGroup: ["2512"],

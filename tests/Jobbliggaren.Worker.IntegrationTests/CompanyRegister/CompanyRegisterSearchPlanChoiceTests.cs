@@ -257,9 +257,8 @@ public class CompanyRegisterSearchPlanChoiceTests(CompanyRegisterPlanFixture fix
     /// </summary>
     /// <param name="forcedMatchCount">
     /// Counterfactual seam ONLY — pass a count to force the branch under EXPLAIN rather than letting
-    /// production's count decide it. Used to prove the corpus still reproduces the defect (see the
-    /// sparse-kommun test); never used for the primary assertions, which must run production's rule
-    /// on production's count.
+    /// production decide it. Used to prove the corpus still reproduces the defect (see the
+    /// sparse-kommun test); never used for the primary assertions.
     /// </param>
     private async Task<string> ExplainItemsAsync(
         CompanyRegisterSearchCriteria criteria, int? forcedMatchCount = null)
@@ -268,10 +267,15 @@ public class CompanyRegisterSearchPlanChoiceTests(CompanyRegisterPlanFixture fix
         await using var scope = _fixture.Services.CreateAsyncScope();
         var connection = await OpenAsync(scope);
 
-        var matchCount = forcedMatchCount ?? await CountAsync(criteria);
+        // The primary path goes through production's own two-phase seam, so the count that decides
+        // the branch is the count PRODUCTION would pass — not one this test re-derived. Re-deriving
+        // it here is what left the call site unguarded in the first review round: a guard that
+        // reproduces the call site cannot see a mutation AT the call site. The counterfactual path
+        // deliberately bypasses the seam, and the split is written out so the bypass is visible.
+        await using var cmd = forcedMatchCount is { } forced
+            ? CompanyRegisterSearchQuery.BuildItemsCommand(connection, criteria, forced)
+            : (await CompanyRegisterSearchQuery.CountThenBuildPageAsync(connection, criteria, ct)).Items;
 
-        await using var cmd =
-            CompanyRegisterSearchQuery.BuildItemsCommand(connection, criteria, matchCount);
         cmd.CommandText = "EXPLAIN " + cmd.CommandText;
 
         var lines = new List<string>();

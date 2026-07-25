@@ -72,20 +72,12 @@ internal sealed class CompanyRegisterSearchQuery(AppDbContext db) : ICompanyRegi
 
         var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        // Separate count query BEFORE pagination (CLAUDE.md §3.6). Same composed WHERE, same
-        // bound values — BuildCountCommand and BuildItemsCommand share ComposeFromWhere and
-        // BindPredicate, so the two cannot drift.
-        int totalCount;
-        await using (var countCmd = BuildCountCommand(connection, criteria))
-        {
-            var scalar = await countCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-            totalCount = Convert.ToInt32(scalar, System.Globalization.CultureInfo.InvariantCulture);
-        }
+        var (itemsCommand, totalCount) =
+            await CountThenBuildPageAsync(connection, criteria, cancellationToken)
+                .ConfigureAwait(false);
 
-        // The page query's PLAN depends on whether the match set is bounded, and the count above is
-        // exactly that signal (see BuildItemsCommand). Measure first, then plan — no extra round-trip.
         var items = new List<CompanyBrowseResult>();
-        await using (var itemsCmd = BuildItemsCommand(connection, criteria, totalCount))
+        await using (var itemsCmd = itemsCommand)
         {
             await using var reader = await itemsCmd
                 .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -104,6 +96,47 @@ internal sealed class CompanyRegisterSearchQuery(AppDbContext db) : ICompanyRegi
 
         return new PagedResult<CompanyBrowseResult>(
             items, totalCount, criteria.Page, criteria.PageSize);
+    }
+
+    /// <summary>
+    /// THE two-phase page build: run the pagination count, then build the page command with it —
+    /// measure first, then plan. Returns the count as well, because <see cref="SearchAsync"/> needs
+    /// it for <see cref="PagedResult{T}"/> and re-running it would pay a second round-trip.
+    ///
+    /// <para>
+    /// <b>Do not inline this back into <see cref="SearchAsync"/> (ADR 0119).</b> It looks like a thin
+    /// wrapper, and it is — but it is the seam that makes the plan rule TESTABLE, because it moves
+    /// the plan-bearing value off the call site. Inlined, the third argument to
+    /// <see cref="BuildItemsCommand"/> is written at a place no test observes, and two catastrophic
+    /// mutations there pass the entire suite green: <c>0</c> materializes EVERYTHING, including
+    /// browse-all — the whole Active register collected and sorted per page view, the pre-#875
+    /// 7 066 ms shape — while <c>int.MaxValue</c> materializes NOTHING and turns the rule into a
+    /// silent no-op. Neither can ever be caught semantically, because both branches return identical
+    /// rows in identical order by construction. With the seam, that value is decided in exactly one
+    /// place and <c>CompanyRegisterSearchPlanChoiceTests</c> drives it: its browse-all claim is the
+    /// sole catcher of the first mutation and its sparse-kommun claim the sole catcher of the second.
+    /// </para>
+    ///
+    /// <para>
+    /// Separate count query BEFORE pagination (CLAUDE.md §3.6). Same composed WHERE, same bound
+    /// values — <see cref="BuildCountCommand"/> and <see cref="BuildItemsCommand"/> share
+    /// <c>ComposeFromWhere</c> and <c>BindPredicate</c>, so the two cannot drift.
+    /// </para>
+    /// </summary>
+    internal static async Task<(NpgsqlCommand Items, int TotalCount)> CountThenBuildPageAsync(
+        NpgsqlConnection connection,
+        CompanyRegisterSearchCriteria criteria,
+        CancellationToken cancellationToken)
+    {
+        int totalCount;
+        await using (var countCmd = BuildCountCommand(connection, criteria))
+        {
+            var scalar = await countCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            totalCount = Convert.ToInt32(scalar, System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        // Built LAST and returned undisposed — the caller owns it.
+        return (BuildItemsCommand(connection, criteria, totalCount), totalCount);
     }
 
     /// <summary>
@@ -131,12 +164,12 @@ internal sealed class CompanyRegisterSearchQuery(AppDbContext db) : ICompanyRegi
     /// and the factories carry the parameter TYPES too).
     ///
     /// <para>
-    /// <b>Two plan regimes, one rule (ADR 0119).</b> <paramref name="matchCount"/> is the
+    /// <b>Two plan regimes, one rule (ADR 0119).</b> <paramref name="saturatingMatchCount"/> is the
     /// pagination count <see cref="SearchAsync"/> has already run, and it SATURATES at
     /// <see cref="CompanyRegisterSearchCriteria.MaxServableRows"/> — so a count below the cap is a
     /// GUARANTEE (not an estimate) that the whole match set fits inside what the pager can serve.
     /// The match set is materialized iff we can bound it:
-    /// <c>NamePrefix is not null OR matchCount &lt; MaxServableRows(pageSize)</c>.
+    /// <c>NamePrefix is not null OR saturatingMatchCount &lt; MaxServableRows(pageSize)</c>.
     /// </para>
     ///
     /// <para>
@@ -238,7 +271,7 @@ internal sealed class CompanyRegisterSearchQuery(AppDbContext db) : ICompanyRegi
     /// </para>
     /// </summary>
     internal static NpgsqlCommand BuildItemsCommand(
-        NpgsqlConnection connection, CompanyRegisterSearchCriteria criteria, int matchCount)
+        NpgsqlConnection connection, CompanyRegisterSearchCriteria criteria, int saturatingMatchCount)
     {
         var cmd = connection.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
@@ -255,7 +288,7 @@ internal sealed class CompanyRegisterSearchQuery(AppDbContext db) : ICompanyRegi
             LIMIT @limit OFFSET @offset;
             """;
 
-        cmd.CommandText = ShouldMaterialize(criteria, matchCount)
+        cmd.CommandText = ShouldMaterialize(criteria, saturatingMatchCount)
             // The outer SELECT repeats the columns rather than `SELECT *`: the reader below reads BY
             // ORDINAL, and spelling them out keeps that contract identical in both branches.
             ? "WITH m AS MATERIALIZED (" + SelectColumns + ComposeFromWhere(criteria) + ")\n"
@@ -343,9 +376,9 @@ internal sealed class CompanyRegisterSearchQuery(AppDbContext db) : ICompanyRegi
     /// switch were measured in budget.
     /// </para>
     /// </summary>
-    private static bool ShouldMaterialize(CompanyRegisterSearchCriteria criteria, int matchCount) =>
+    private static bool ShouldMaterialize(CompanyRegisterSearchCriteria criteria, int saturatingMatchCount) =>
         criteria.NamePrefix is not null
-        || matchCount < CompanyRegisterSearchCriteria.MaxServableRows(criteria.PageSize);
+        || saturatingMatchCount < CompanyRegisterSearchCriteria.MaxServableRows(criteria.PageSize);
 
     /// <summary>
     /// The predicate — composed in ONE place for all three commands, so count, page and

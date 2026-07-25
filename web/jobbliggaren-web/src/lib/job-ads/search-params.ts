@@ -230,6 +230,17 @@ export function buildJobbHref(state: JobbUrlState): string {
  * den beskriver ostrukturerad extern input, inte vår modell av den.
  *
  * #846 — flyttad hit från `jobb-results.tsx` tillsammans med `buildPageHref`.
+ *
+ * ⚠ OFULLSTÄNDIG mot vad `/jobb` faktiskt läser: `matchning` SAKNAS. `page.tsx`
+ * deklarerar `matchning?: string`, läser `params.matchning === MATCHNING_OFF_VALUE`
+ * och skickar hela `params` som `rawParams` — så värdet NÅR `buildPageHref` och
+ * släpps på golvet. Följd: `/jobb?matchning=off` + "Nästa sida" ⇒ länken saknar
+ * `matchning=off` ⇒ matchningen slås PÅ igen på sida 2 (badges tillbaka) medan
+ * `matchGrades` bärs vidare. Samma felklass som varje bevarande-rad i
+ * `buildPageHref` bär en kommentar om, och samma "en URL vi själva genererar som
+ * påstår ett tillstånd sidan inte kör" som #823. **Pre-existerande** — den gamla
+ * inline-typen saknade fältet också; #846 flyttade defekten, införde den inte.
+ * Bärs som eget steg i epik #1032 (code-reviewer Major, PR #1037).
  */
 export interface JobbRawSearchParams {
   page?: string;
@@ -257,11 +268,15 @@ export interface JobbRawSearchParams {
 }
 
 // Normaliserar string | string[] | undefined → string[] (tomma värden bort).
-// #846 — flyttad hit med `buildPageHref`, oförändrad. OBS: `jobb/page.tsx` har
-// en byte-identisk privat kopia, och `lib/company-search/search-params.ts`
-// exporterar en tredje variant som INTE trimmar. De två /jobb-kopiorna är samma
-// regel på två ställen och bör kollapsa till en; det är en annan change-reason
-// än den här flytten (och company-search-varianten hör till en annan lane).
+// #846 — flyttad hit med `buildPageHref`, oförändrad. Tre kopior finns, med TVÅ
+// beteenden, och bara en av dem är farlig:
+//   - `jobb/page.tsx:371` är BYTE-IDENTISK med denna → ren duplicering, tråkig
+//     men säker. Kollapsen är ett eget steg i epik #1032, inte den här flytten.
+//   - `lib/company-search/search-params.ts:77` är SAMMA NAMN, ANNAT BETEENDE:
+//     den saknar `.map((v) => v.trim())`, och den är exporterad. En framtida
+//     "dedupe by name"-refaktor som pekar /jobb dit tar TYST bort trimningen och
+//     bryter `q=" ab "` → `q=ab`-pariteten som klamp-testet vaktar. Rör den inte
+//     utan att mäta beteendet — och den ligger i en annan lane (CLAUDE.md §6.5).
 function toStringList(raw: string | string[] | undefined): string[] {
   if (raw === undefined) return [];
   const arr = Array.isArray(raw) ? raw : [raw];

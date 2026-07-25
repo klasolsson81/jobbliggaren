@@ -324,7 +324,13 @@ describe("buildPageHref (#823 q-klampen, #846 hemvisten)", () => {
     expect(buildPageHref({ ...params, q: " ab " }, 2, 20)).toContain("q=ab");
   });
 
-  it("bär vidare varje filter-dimension så ett sida-2-klick inte tappar filtret", () => {
+  // NAMNET är medvetet avgränsat till "de params typen bär". Det är INTE en
+  // fullständighetsgaranti för /jobb: `matchning` läses av page.tsx men saknas i
+  // `JobbRawSearchParams`, så `?matchning=off` tappas vid ett sida-2-klick
+  // (pre-existerande — se ⚠-noten på typen). Ett test som hette "varje
+  // dimension" hade lovat mer än det asserterar, vilket är precis den
+  // test-fiktion CLAUDE.md §7 förbjuder.
+  it("bär vidare de tolv params typen bär, så ett sida-2-klick inte tappar dem", () => {
     const href = buildPageHref(
       {
         occupationGroup: ["2512"],
@@ -338,7 +344,7 @@ describe("buildPageHref (#823 q-klampen, #846 hemvisten)", () => {
         baraMatchade: "on",
         employer: "5565021000",
         q: "backend",
-        sortBy: "RelevanceDesc",
+        sortBy: "Relevance",
       },
       3,
       20
@@ -357,7 +363,16 @@ describe("buildPageHref (#823 q-klampen, #846 hemvisten)", () => {
     expect(href).toContain("baraMatchade=on");
     expect(href).toContain("employer=5565021000");
     expect(href).toContain("q=backend");
-    expect(href).toContain("sortBy=RelevanceDesc");
+    expect(href).toContain("sortBy=Relevance");
+    // Exakt form utöver närvaro-assertionerna: en `toContain` kan bara fånga att
+    // något SAKNAS, aldrig att något oavsett lagts TILL. Denna pinnar också
+    // param-ordningen, som är kontrakt för delningsbara URL:er.
+    expect(href).toBe(
+      "/jobb?page=3&sortBy=Relevance&occupationGroup=2512&region=01" +
+        "&municipality=0180&municipality=0181&employmentType=1&worktimeExtent=2" +
+        "&matchGrades=Strong&matchGrades=Good&relaterade=on&doljAnsokta=on" +
+        "&baraMatchade=on&employer=5565021000&q=backend"
+    );
   });
 
   it("utelämnar default-sorten och sida 1 så delningsbara URL:er förblir rena", () => {

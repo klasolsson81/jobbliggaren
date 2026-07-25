@@ -102,9 +102,9 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         // For any q the parser KEEPS, the captured value is byte-identical to before — that is
         // by construction, since `effectiveQ` is then `capt.Q` itself. The class that does
         // change is the one the parser DROPS but Create used to accept: invisible stuffing such
-        // as a letter followed by U+200B ZERO WIDTH SPACE, where `char.IsWhiteSpace` is false
-        // so NormalizeString's Trim keeps it
-        // at length 2 while the parser strips the Cf rune and nulls the 1-char residual. Those
+        // as a letter followed by U+200B ZERO WIDTH SPACE, where `char.IsWhiteSpace` is false so
+        // NormalizeString's Trim keeps it at length 2 while the parser strips the Cf rune and
+        // nulls the 1-char residual. Those
         // rows now capture as q = null (with a dimension) or not at all (without one) — both
         // the honest outcome, since a nulled q is what the search ran on. That class was never
         // unreachable: raw length 2 passed the old MinimumLength too, which is the same leak
@@ -112,8 +112,8 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         var effectiveQ = parser.Parse(capt.Q).ResidualQ is null ? null : capt.Q;
 
         // #831 review round 2 — `Create` has THREE q-dependent invariants, not two. Beyond the
-        // Empty guard and the min-length rule there is RelevanceRequiresQ
-        // (`SearchCriteria.cs:214`): Relevance with a null q is rejected. So
+        // Empty guard and the min-length rule there is the `SearchCriteria.RelevanceRequiresQ`
+        // failure: Relevance with a null q is rejected. So
         // `?q=a&sortBy=Relevance&occupationGroup=X&commit=true` reproduced the very defect
         // `effectiveQ` was added to fix — 200 with the dimension applied, then a silent
         // no-capture one character later.
@@ -157,8 +157,13 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
             // (sorten redan nedgraderad när residualen är null). Grenen är därmed ren
             // defense-in-depth mot en FRAMTIDA q-beroende invariant i Create som inte hålls i
             // lockstep här — vilket är precis den defekt rond 1 och rond 2 hittade en gång var.
-            // Inget test når den i dag, medvetet: att konstruera ett hade krävt ett input som
-            // passerar validatorn OCH failar Create, dvs. exakt den lucka som ska vara stängd.
+            // Inget test når den i dag, medvetet — men skälet är INTE att grenen vore svår att
+            // träffa i test: behaviorn unit-testas mot en fake query som ingen validator ser, så
+            // ett `OccupationGroup: ["!"]` skulle nå den direkt. Skälet är att ett sådant test
+            // inte skulle representera något NÅBART produktions-tillstånd — samtliga sju
+            // failure-paths i Create är onåbara från en query som passerar
+            // ListJobAdsQueryValidator (uppräknade och verifierade i #831:s rond-3-granskning).
+            // Ett test här hade pinnat en fiktion, vilket CLAUDE.md §7 förbjuder.
             if (criteriaResult.IsFailure)
                 return response;
 

@@ -474,20 +474,48 @@ without more runs. The five real ones split cleanly into *pages with a client sh
 partial counterexample to the hydration hypothesis and should be the first thing the
 attribution step explains.
 
-### Known deviation — `next/font` emits no preload links
+### Resolved — the missing font preload is our `--webpack` opt-out, not a Next bug
+
+**Diagnosed 2026-07-25, deterministically.** Building the same tree twice, once with the
+committed `next build --webpack` and once with Next 16's default (Turbopack), and diffing the
+emitted document:
+
+| Build | React Flight font hints | `rel="preload" as="font"` | `/` FCP (median-of-3) |
+|---|---|---|---|
+| `next build --webpack` (committed) | **0** | 0 | 1516 ms |
+| `next build` (Turbopack, the default) | **4** — `:HL[…woff2","font",{crossOrigin,type}]` | emitted from the hints | **1212 ms** |
+
+Document weight is unchanged between them (21 437 vs 21 269 B gzip on `/`), so this is not a
+trade — the webpack path simply **loses `next/font`'s preload emission**. The −304 ms on `/`
+and −302 ms on `/gast/cv` match the manual-preload counterfactual exactly, which is what
+confirms the mechanism rather than a coincidence.
+
+**No rationale for the opt-out is recorded anywhere** — no ADR, no BUILD.md entry, no comment;
+`--webpack` sits in both `dev` and `build` in `package.json`. It is plausibly a leftover from
+the Next 15→16 migration, but that is a guess and should not be treated as one of the facts
+above.
+
+**This is a build-toolchain decision (BUILD.md §3.1), not a perf-lane change**, so nothing was
+flipped here: dropping the flag changes how every route is compiled, and the cost of whatever
+made someone add it is unknown. What is now known is its price — roughly 300 ms of first paint
+on every page. FCP is not an ADR 0045 gate (Beslut 2 lists LCP/CLS/INP/page weight), so this
+does not breach a budget; it is user-visible time that a flag with no written reason is
+spending.
+
+Related and still not authorised here: #749's follow-up candidate (`preload: false` on
+JetBrains Mono, ~31 KB off first paint) assumed preload links exist. On the webpack path they
+do not, so that lever is inert until the toolchain question is settled.
+
+### Original observation (superseded by the diagnosis above)
 
 Next 16.2.9's own docs (`node_modules/next/dist/docs/01-app/03-api-reference/02-components/font.md`,
 lines 148 and 1050) state that a font declared with `subsets` in the **root layout** is
-preloaded on all routes. Measured 2026-07-25: the landing document contains **zero**
-`woff2` references and no `rel="preload" as="font"` — the two font files are discovered only
-after the render-blocking CSS is parsed. Next's own `.p.` filename marker is present on
-exactly the two files the browser fetches, so the loader identifies them; the emission is
-what is missing.
+preloaded on all routes. Measured 2026-07-25 on the committed build: the landing document
+contains **zero** `woff2` references and no `rel="preload" as="font"` — the two font files are
+discovered only after the render-blocking CSS is parsed. Next's own `.p.` filename marker is
+present on exactly the two files the browser fetches, so the loader identifies them; the
+emission was what went missing. The section above explains why.
 
 No local workaround is in the tree, deliberately: the only expressible form is the hashed
 filename, which changes with font config (CLAUDE.md §5 magic strings) and would linger as a
-duplicate hint once upstream is fixed. Leading untested hypothesis: `package.json` builds
-with `next build --webpack`, opting out of Next 16's default Turbopack path. Diffing the
-emitted `<head>` from a build without that flag is the next diagnostic — and if the flag is
-implicated, the fix is a build-toolchain decision (BUILD.md §3.1 class), not a perf-lane
-side effect.
+duplicate hint once the real cause is addressed.

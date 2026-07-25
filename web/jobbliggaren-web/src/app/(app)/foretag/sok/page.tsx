@@ -5,7 +5,6 @@ import { getServerSession } from "@/lib/auth/session";
 import { getCriterionReference } from "@/lib/api/company-criteria";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
 import { ForetagSokSearchbar } from "@/components/company-criteria/foretag-sok-searchbar";
-import { ForetagSokFollowAll } from "@/components/company-criteria/foretag-sok-follow-all";
 import { ForetagSokResults } from "@/components/company-criteria/foretag-sok-results";
 import { ForetagSokResultsSkeleton } from "@/components/company-criteria/foretag-sok-results-skeleton";
 import { ForetagSubnav } from "@/components/foretag/foretag-subnav";
@@ -67,11 +66,10 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
   );
   const page = parseSida(params.sida);
 
-  // The active-filter signature (name + sorted axes), page-independent. Keys the follow-all CTA so a
-  // filter change remounts it (clearing any saved/error state); the results skeleton also re-triggers
-  // on it plus the page (org.nr is outside this boundary).
-  const filterKey = `${namn}|${[...sni].sort().join(",")}|${[...kommun].sort().join(",")}`;
-  const suspenseKey = `${filterKey}|${page}`;
+  // The active-filter signature (name + sorted axes) plus the page: re-triggers the results skeleton
+  // whenever the applied search changes (org.nr is outside this boundary — it answers in client state).
+  const suspenseKey =
+    `${namn}|${[...sni].sort().join(",")}|${[...kommun].sort().join(",")}|${page}`;
 
   return (
     <>
@@ -98,11 +96,6 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
           sni={sni}
           kommun={kommun}
         />
-        {/* #560 PR-D — save the active filter as a criterion watch. Keyed on the filter signature so
-            a filter change remounts it (clearing any saved/error state). Outside the Suspense
-            boundary: it depends only on the URL filter, so it renders instantly while results
-            stream, and disabled-with-explainer whenever the filter is not criterion-shaped. */}
-        <ForetagSokFollowAll key={filterKey} namn={namn} sni={sni} kommun={kommun} />
         <Suspense key={suspenseKey} fallback={<ForetagSokResultsSkeleton />}>
           <ForetagSokResults
             namn={namn}

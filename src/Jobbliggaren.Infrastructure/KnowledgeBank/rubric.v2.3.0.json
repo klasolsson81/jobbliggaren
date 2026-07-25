@@ -1,6 +1,6 @@
 {
-  "rubricVersion": "2.2.0",
-  "effectiveDate": "2026-07-18",
+  "rubricVersion": "2.3.0",
+  "effectiveDate": "2026-07-25",
   "weights": {
     "Kritisk": 3,
     "Hög": 2,
@@ -203,7 +203,10 @@
       "atsPassSignal": "Kontakt → (Profil) → Arbetslivserfarenhet → Utbildning → Kompetenser → Språk → Övrigt. Omvänt kronologiskt",
       "atsFailSignal": "Saknar erfarenhet/utbildning; kreativ ordning som döljer kärninfo",
       "visualPassSignal": "Samma sektionsordning men visuella avdelare OK",
-      "visualFailSignal": "Samma"
+      "visualFailSignal": "Samma",
+      "thresholds": {
+        "coreLeadInFailAtLeast": 4
+      }
     },
     {
       "id": "B2",

@@ -204,4 +204,5 @@ public class B1SectionOrderRuleTests
 
         Verdict(result, "B1").Verdict.ShouldBe(CriterionVerdict.Pass);
     }
+
 }

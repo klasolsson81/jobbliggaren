@@ -5,7 +5,7 @@
   "//form": "and regex/sort FORM lives in C#. fontAllowlist enters here only in the change that",
   "//font": "gives rubric criterion D3 a reader — landed in #891. NO AI/LLM.",
 
-  "conventionsVersion": "1.1.0",
+  "conventionsVersion": "1.2.0",
 
   "//fontAllowlist": "The rubric's D3 atsPassSignal font list ('Arial, Calibri, Helvetica, Roboto,",
   "//fontAllowlist2": "Times New Roman, Georgia, Verdana') made machine-readable — a RECOMMENDATION,",
@@ -29,6 +29,23 @@
   "//sectionOrder4": "mints none of its own. The trailing 'Ovrigt' is NOT a field: it is the stability",
   "//sectionOrder5": "property of the sort (unnamed sections follow, keeping their observed relative",
   "//sectionOrder6": "order), and an algorithm belongs in C#, not in a boolean nobody can vary.",
+  "//coreSections": "The sections whose BURIAL is what the rubric's B1 atsFailSignal means by",
+  "//coreSections2": "'kreativ ordning som doljer karninfo' (#890). NOT a new definition: B1's",
+  "//coreSections3": "presence half already reports exactly these three as 'karnsektion(er)'. Profil,",
+  "//coreSections4": "Kompetenser and Sprak are RECOMMENDED, not core -- a buried Sprak section is not",
+  "//coreSections5": "hidden karninfo, and failing a CV over it would be the over-claim this asset",
+  "//coreSections6": "exists to prevent. Every id here MUST appear in sectionOrder (the loader throws",
+  "//coreSections7": "otherwise): an observed section is resolved to a core id THROUGH sectionOrder, so",
+  "//coreSections8": "an unnamed core id could never match a real CV and B1's Fail arm would go silently",
+  "//coreSections9": "unreachable. The MEASURE is an algorithm (SectionOrderAnalyzer, C#) -- how many",
+  "//coreSections10": "sections stand before the FIRST core section; the THRESHOLD is a rubric value",
+  "//coreSections11": "(B1.thresholds.coreLeadInFailAtLeast) -- ADR 0108 kind-boundary.",
+  "coreSections": [
+    "contact",
+    "experience",
+    "education"
+  ],
+
   "sectionOrder": [
     "contact",
     "profile",

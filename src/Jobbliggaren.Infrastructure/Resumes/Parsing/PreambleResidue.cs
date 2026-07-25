@@ -100,8 +100,9 @@ internal static class PreambleResidue
     /// and INCLUDING the lines that emptied (their position is load-bearing).
     ///
     /// <para>Runs BEFORE <c>DetectName</c>, which then reads the residue: on a rail CV the raw line
-    /// contains an e-mail, so <c>IsNameLike</c> rejects it outright and the name is lost (a live defect
-    /// on main). After subtraction the surviving fragment is just "Anna Andersson", and it is found.
+    /// contains an e-mail, so the name recogniser refuses it outright and the name is lost (a live
+    /// defect on main before #844). After subtraction the surviving fragment is just "Anna Andersson",
+    /// and it is found.
     /// But <c>DetectName</c>'s ANSWER never feeds back into the subtraction — see
     /// <see cref="ToText"/>.</para>
     /// </summary>
@@ -172,18 +173,22 @@ internal static class PreambleResidue
     /// is dropped.</para>
     ///
     /// <para><b>Why it cannot be the name.</b> The first design dropped the line <c>DetectName</c>
-    /// returned. But <c>DetectName</c> is not a recogniser — it is the heuristic "first substantial line
-    /// under 60 characters". Subtracting over a GUESS produced two real defects: a CV with the job title
-    /// above the name ("Systemutvecklare / Anna Andersson / mail") deleted the TITLE and carried the
-    /// NAME, and a CV whose summary sits above a "Kontakt" heading had the first line of that summary
-    /// DELETED — which is #844's own bug, in the exact CV shape #844 is about.
+    /// returned. At the time <c>DetectName</c> was not a recogniser at all — it was the heuristic
+    /// "first substantial line under 60 characters" — and subtracting over a GUESS produced two real
+    /// defects: a CV with the job title above the name ("Systemutvecklare / Anna Andersson / mail")
+    /// deleted the TITLE and carried the NAME, and a CV whose summary sits above a "Kontakt" heading
+    /// had the first line of that summary DELETED — which is #844's own bug, in the exact CV shape
+    /// #844 is about.
     ///
-    /// The root cause is structural and worth stating: <b>a person's name is not recogniser-claimable
-    /// and never will be</b> — the vocabulary is unbounded. So a recogniser-only subtraction CANNOT
-    /// empty the residue, and cannot both refrain from guessing and preserve A8's Fail arm. Position can
-    /// do what identity cannot. This is the same answer <see cref="CvHeadingDetector"/> reached for the
-    /// same class of problem: when shape cannot distinguish the wanted from the unwanted, gate on
-    /// document POSITION (2026-07-01 bind).</para>
+    /// <b>#898 gave the name question a real recogniser</b> (<see cref="ContactPatterns.TryPersonName"/>),
+    /// and the positional rule holds unchanged — a fortiori. The root cause was never the heuristic's
+    /// quality but its coverage: <b>a person's name is not recogniser-claimable in general</b>, the
+    /// vocabulary being unbounded, so an honest recogniser DECLINES on the layouts it cannot read
+    /// (a mononym, a "Namn:"-labelled line). A subtraction driven by identity therefore still cannot
+    /// empty the residue, and still cannot both refrain from guessing and preserve A8's Fail arm.
+    /// Position can do what identity cannot. This is the same answer <see cref="CvHeadingDetector"/>
+    /// reached for the same class of problem: when shape cannot distinguish the wanted from the
+    /// unwanted, gate on document POSITION (2026-07-01 bind).</para>
     ///
     /// <para><b>Accepted residual:</b> prose sitting BETWEEN contact lines (a tagline wedged between the
     /// name and the e-mail) is inside the contact block and is dropped. On a CV WITH headings that is
@@ -419,8 +424,10 @@ internal static class PreambleResidue
     {
         var candidate = InlineSeparators.TrimGlue(fragment);
 
-        // #428: a CV-title banner ("Curriculum Vitae") is document metadata, not content.
-        if (lexicon.NameBanners.Contains(CvParsingLexiconLoader.NormalizeHeading(candidate)))
+        // #428: a CV-title banner ("Curriculum Vitae") is document metadata, not content. #898: asked
+        // through the lexicon's own predicate, which carries the glue trim — this side already
+        // normalised that way, and the segmenter did not. One question, one normalisation.
+        if (lexicon.IsNameBanner(candidate))
             return true;
 
         // A bare kommun — the same taxonomy rung ContactLocationExtractor reads (ADR 0043) — and gated

@@ -49,12 +49,53 @@ public class CvParsingLexiconIntegrityTests
             "En sådan krock ändrar tyst hur varje CV segmenteras.");
     }
 
+    /// <summary>
+    /// The asset's own version integer, pinned (#898). Nothing else reads it except fail-loud message
+    /// text, so a forgotten bump on the next additive edit would be SILENT — and the version is the
+    /// only provenance this asset has (its filename is a stable identifier, unlike the rubric's).
+    /// Bumping it deliberately means changing this line deliberately.
+    /// </summary>
+    [Fact]
+    public void ShippedLexicon_CarriesTheExpectedVersion() =>
+        CvParsingLexiconFixture.ReadFile().Version.ShouldBe(7);
+
+    /// <summary>
+    /// The shipped name particles (v7, #898) must be authored in the form the recogniser can match:
+    /// lowercase, trimmed, single-token, no duplicates. The loader throws on the unreachable shapes,
+    /// but that throw only fires for an asset someone actually loads — this pins the SHIPPED data, and
+    /// duplicates in particular are silently swallowed by the loader's HashSet.
+    /// </summary>
+    [Fact]
+    public void ShippedNameParticles_AreLowercaseSingleTokensWithoutDuplicates()
+    {
+        var particles = CvParsingLexiconFixture.ReadFile().NameParticles ?? [];
+
+        particles.ShouldNotBeEmpty("nameParticles är tomt — testet skulle passera utan att kunna falla.");
+
+        foreach (var particle in particles)
+        {
+            particle.ShouldBe(particle.Trim().ToLowerInvariant(),
+                $"Partikeln '{particle}' är inte lagrad i den form recognisern jämför mot.");
+            particle.ShouldNotContain(c => char.IsWhiteSpace(c),
+                $"Partikeln '{particle}' bär whitespace (mellanslag eller tab) och kan aldrig matcha " +
+                "ett token — samma teckenklass loadern kastar på, kontrollerad på samma sätt.");
+        }
+
+        particles.Distinct(StringComparer.Ordinal).Count().ShouldBe(particles.Length,
+            "Samma partikel står två gånger — loadern sväljer dubbletten tyst.");
+    }
+
     [Fact]
     public void FreeSectionSynonyms_AreDisjointFromTheNameBanners()
     {
-        var file = CvParsingLexiconFixture.ReadFile();
-
-        var banners = (file.NameBanners ?? []).Select(Normalize).ToHashSet();
+        // The banners are read in their STORED form (#898), not re-normalised here with a weaker
+        // function. The loader stores them through NormalizeBanner — NormalizeHeading over a
+        // glue-trimmed line — while this suite's Normalize is NormalizeHeading alone. Guarding with
+        // the weaker one would reproduce the exact defect this file's own header records: a banner
+        // authored as "- projekt" would be STORED as "projekt", collide with the free-section synonym
+        // "projekt", and this test would go green looking at "- projekt". Latent today only because no
+        // shipped banner carries glue — and "latent" is not a guarantee.
+        var banners = CvParsingLexiconFixture.Load().NameBanners.ToHashSet(StringComparer.Ordinal);
         var free = RawFreeSynonyms().Select(Normalize).ToList();
 
         banners.ShouldNotBeEmpty("nameBanners är tomt — testet skulle passera utan att kunna falla.");

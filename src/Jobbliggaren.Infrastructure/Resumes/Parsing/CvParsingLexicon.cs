@@ -41,8 +41,7 @@ internal sealed record CvParsingLexiconData(
     /// different change with a different risk profile, and not this one.</para>
     /// </summary>
     internal bool IsNameBanner(string line) =>
-        NameBanners.Contains(
-            CvParsingLexiconLoader.NormalizeHeading(InlineSeparators.TrimGlue(line)));
+        NameBanners.Contains(CvParsingLexiconLoader.NormalizeBanner(line));
 }
 
 /// <summary>
@@ -206,16 +205,43 @@ internal static partial class CvParsingLexiconLoader
             file.FreeSections.Keys.ToFrozenSet(StringComparer.Ordinal),
             ToHintSet(file.LanguageHints, "sv"),
             ToHintSet(file.LanguageHints, "en"),
-            // The STORE side takes the SAME normalisation the ASK side does (#898) — glue trim
-            // included. Without it an author writing "- Curriculum Vitae" would store a banner that no
-            // line can ever match: dead data, silently. This is the class's own stated doctrine ("every
-            // heading the lexicon STORES and every heading line a CV PRESENTS passes through this one
-            // function") extended to the glue that TrimGlue owns.
-            (file.NameBanners ?? []).Select(b => NormalizeHeading(InlineSeparators.TrimGlue(b)))
-                .Where(b => b.Length > 0).ToFrozenSet(StringComparer.Ordinal),
+            // The STORE side calls the SAME function the ASK side does (#898) — not a second spelling
+            // of it. See NormalizeBanner.
+            LoadNameBanners(file),
             LoadNameParticles(file),
             (file.ContactLabels?.Location ?? []).Select(l => l.Trim().ToLowerInvariant())
                 .Where(l => l.Length > 0).ToFrozenSet(StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// The CV-title banners, stored through <see cref="NormalizeBanner"/> — the same function the ASK
+    /// side calls (#428, #898).
+    ///
+    /// <para><b>Fail-loud on a banner that normalises to nothing</b>, parity
+    /// <see cref="LoadNameParticles"/>: an entry that is only glue or only separators ("- ", ":")
+    /// would be dropped silently and the author would never learn that the banner they wrote does not
+    /// exist. Symmetry matters here specifically because the two rules sit three lines apart — a
+    /// loader that throws for one dead entry and shrugs at another teaches nothing about which
+    /// mistakes it catches.</para>
+    /// </summary>
+    private static FrozenSet<string> LoadNameBanners(LexiconFile file)
+    {
+        var banners = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var raw in file.NameBanners ?? [])
+        {
+            var banner = NormalizeBanner(raw);
+            if (banner.Length == 0)
+            {
+                throw new InvalidOperationException(
+                    $"CV-parsing lexicon v{file.Version}: the name banner '{raw}' normalises to an " +
+                    "empty string, so no line can ever match it. Fail loud, not silently dead.");
+            }
+
+            banners.Add(banner);
+        }
+
+        return banners.ToFrozenSet(StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -224,11 +250,15 @@ internal static partial class CvParsingLexiconLoader
     /// token band and length cap that read it are FORM and stay in <c>ContactPatterns</c>.
     ///
     /// <para><b>Fail-loud on a particle that could never match</b>, parity the dangling-display-form
-    /// throw above: <see cref="ContactPatterns.TryPersonName"/> compares WHITESPACE-SEPARATED tokens, so
-    /// an entry containing whitespace ("van der") can never equal one — it would be dead data that looks
-    /// alive, and the name it was authored for would silently keep being refused. Author the parts
-    /// ("van", "der") instead. An absent block is NOT an error (parity <c>nameBanners</c>): it only
-    /// narrows what is recognised, and narrowing yields an honest gap rather than a wrong answer.</para>
+    /// throw above. Three character classes make an entry unmatchable, and the invariant covers all
+    /// three rather than the first one that came to mind — a partial fail-loud rule is weaker than
+    /// none, because it teaches the reader that the block is guarded:
+    /// <see cref="ContactPatterns.TryPersonName"/> compares WHITESPACE-SEPARATED tokens (so "van der"
+    /// can never equal one — author "van" and "der"), and it refuses the whole candidate on a DIGIT or
+    /// a COLON before it ever tokenises (so "de3" or "de:" can never be reached either). Any of them
+    /// would be dead data that looks alive, and the name it was authored for would silently keep being
+    /// refused. An absent block is NOT an error (parity <c>nameBanners</c>): it only narrows what is
+    /// recognised, and narrowing yields an honest gap rather than a wrong answer.</para>
     /// </summary>
     private static FrozenSet<string> LoadNameParticles(LexiconFile file)
     {
@@ -240,12 +270,14 @@ internal static partial class CvParsingLexiconLoader
             if (particle.Length == 0)
                 continue;
 
-            if (particle.Any(char.IsWhiteSpace))
+            if (particle.Any(c => char.IsWhiteSpace(c) || char.IsAsciiDigit(c) || c == ':'))
             {
                 throw new InvalidOperationException(
-                    $"CV-parsing lexicon v{file.Version}: the name particle '{raw}' contains whitespace. " +
-                    "Particles are matched against whitespace-separated tokens, so a multi-word entry can " +
-                    "never match — author its parts separately. Fail loud, not silently dead.");
+                    $"CV-parsing lexicon v{file.Version}: the name particle '{raw}' can never match a " +
+                    "token. Particles are compared against whitespace-separated tokens of a candidate " +
+                    "the recogniser has already refused on any digit or colon — so whitespace, a digit " +
+                    "or a colon makes the entry unreachable. Author its parts separately. Fail loud, " +
+                    "not silently dead.");
             }
 
             particles.Add(particle);
@@ -273,6 +305,27 @@ internal static partial class CvParsingLexiconLoader
 
         return WhitespaceRegex().Replace(trimmed.ToLowerInvariant(), " ");
     }
+
+    /// <summary>
+    /// THE banner normalizer (#898) — <see cref="NormalizeHeading"/> over a glue-trimmed line.
+    ///
+    /// <para><b>Why it is a named function and not two inlined expressions.</b> The banner question
+    /// had two spellings and they disagreed about "- Curriculum Vitae". Replacing them with the same
+    /// composite written twice fixes today's disagreement and leaves tomorrow's available: the STORE
+    /// side, the ASK side (<see cref="CvParsingLexiconData.IsNameBanner"/>) and the integrity suite
+    /// that GUARDS the shipped data must all ask the identical question, and the only way to make that
+    /// checkable rather than conventional is one function they all call. The integrity suite's own
+    /// header states the rule this closes: "guarding data with a different function than the one that
+    /// consumes it is not a test" — before this, that suite normalised banners WITHOUT the glue trim,
+    /// so a banner authored as "- projekt" would have been stored as <c>projekt</c>, collided with the
+    /// free-section synonym, and the disjointness guard would have gone green looking at "- projekt".</para>
+    ///
+    /// <para>The glue trim is bound to the BANNER question deliberately. <see cref="NormalizeHeading"/>
+    /// stays glue-blind for section headings: giving <c>CvHeadingDetector</c> the same treatment would
+    /// change how every CV is segmented, which is a different change with a different risk profile.</para>
+    /// </summary>
+    internal static string NormalizeBanner(string line) =>
+        NormalizeHeading(InlineSeparators.TrimGlue(line));
 
     private static ParsedSectionKind MapSection(string key) =>
         TryMapTypedSectionId(key, out var kind)

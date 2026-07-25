@@ -491,13 +491,78 @@ public class PreambleResidueTests
 
         content.Preamble.ShouldBeNull();
 
-        // #898 CLOSED the half this comment used to say out loud. Until then DetectName still picked
-        // the TITLE on this layout — a pre-existing defect in the heuristic ("first substantial line
-        // under 60 chars"), untouched by #844, pinned here as ShouldBe("Systemutvecklare") so the
-        // layout could not look handled when only the carrier was. The name question now has a real
-        // recogniser (ContactPatterns.TryPersonName): "Systemutvecklare" is one token, so it is
-        // refused, and the next line is recognised. The layout is handled for BOTH halves.
+        // #898 closed the ONE-TOKEN half of what this comment used to say out loud. Until then
+        // DetectName still picked the TITLE on this layout — a pre-existing defect in the heuristic
+        // ("first substantial line under 60 chars"), untouched by #844, pinned here as
+        // ShouldBe("Systemutvecklare") so the layout could not look handled when only the carrier was.
+        // The name question now has a real recogniser (ContactPatterns.TryPersonName):
+        // "Systemutvecklare" is one token, so it is refused and the next line is recognised.
+        //
+        // And the same discipline applies to the half that is STILL open, so this comment does not
+        // repeat the sin it was written to end: a TWO-token Title-Case title
+        // ("Legitimerad Sjuksköterska") is shape-identical to a name and is still returned as one.
+        // Pinned in Segment_TwoTokenJobTitleAboveTheName_StillReportsTheTitle_KnownResidual below.
         content.Contact.FullName.ShouldBe("Anna Andersson");
+    }
+
+    [Fact]
+    public void Segment_TwoTokenJobTitleAboveTheName_StillReportsTheTitle_KnownResidual()
+    {
+        // The half of the job-title layout #898 did NOT close, pinned so the next person meets it as a
+        // known residual rather than as a surprise — the standard this file set for itself before
+        // #898 ("a test named for this layout must not quietly imply the layout is handled").
+        //
+        // "Legitimerad Sjuksköterska" is two capitalised tokens, no digit, no colon, no e-mail, under
+        // the cap: formally identical to a name, and it wins because the preamble arm returns the
+        // FIRST recognised candidate. Closing it would need a job-title lexicon (a different change
+        // with a different risk profile) or refusing all two-token names (which is most names).
+        //
+        // The carrier half is unaffected and still correct: both lines precede the e-mail, so both are
+        // inside the contact block and nothing is offered back to her as a summary.
+        const string cv =
+            """
+            Legitimerad Sjuksköterska
+            Anna Andersson
+            anna.andersson@example.com
+
+            Arbetslivserfarenhet
+            Undersköterska — Vårdcentralen
+            2015 - 2024
+            """;
+
+        var content = _sut.Segment(cv).Content;
+
+        content.Contact.FullName.ShouldBe("Legitimerad Sjuksköterska");
+        content.Preamble.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Segment_CvBannerBelowTheContactBlock_IsSubtracted_NotCarried()
+    {
+        // The banner arm of IsConsumed — the line #898 rewrote — made observable. Every other banner
+        // test puts the banner ABOVE the e-mail, where the POSITIONAL contact-block drop accounts for
+        // it and the arm is dead weight in the test's eyes: disabling the arm entirely left all 17832
+        // tests green (mutation-verified, test-writer 2026-07-25). Below the last consumed contact
+        // line, only the arm can keep the document title out of the carrier the guide offers her back
+        // as candidate summary text.
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Curriculum Vitae
+            Erfaren backend-utvecklare med tio år i betalbranschen.
+
+            Arbetslivserfarenhet
+            Utvecklare — Acme AB
+            2021 - 2024
+            """;
+
+        var preamble = _sut.Segment(cv).Content.Preamble;
+
+        preamble.ShouldNotBeNull();
+        preamble.ShouldNotContain("Curriculum Vitae");
+        preamble.ShouldContain("betalbranschen");
     }
 
     [Fact]

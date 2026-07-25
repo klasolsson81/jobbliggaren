@@ -139,18 +139,43 @@ internal static partial class ContactPatterns
     /// on a CV whose summary sits above a "Kontakt" heading it returned half that summary. Prose in a
     /// field labelled <i>namn</i>, which B3 then verdicts on.</para>
     ///
-    /// <para><b>The rule.</b> Over the glue-trimmed candidate: no digit, no colon, no e-mail, 2–4
-    /// whitespace tokens, and every token either starts with an uppercase letter or is a known
-    /// <c>nameParticles</c> member (with at least one of the former, so a line of only particles is
-    /// not a name). A token's TAIL is deliberately unconstrained: "ANNA ANDERSSON" is a very common CV
-    /// header and must pass.</para>
+    /// <para><b>The rule.</b> The line must carry exactly ONE item (see the fragmentation note below),
+    /// and over that glue-trimmed item: no digit, no colon, no e-mail, 2–4 whitespace tokens, and every
+    /// token either starts with an uppercase letter or is a known <c>nameParticles</c> member (with at
+    /// least one of the former, so a line of only particles is not a name). A token's TAIL is
+    /// deliberately unconstrained: "ANNA ANDERSSON" is a very common CV header and must pass.</para>
+    ///
+    /// <para><b>It owns its FRAGMENTATION, and that is not a detail</b> — it is the same lesson
+    /// <see cref="TryBareMunicipalityLine"/> was rewritten for: <b>fragmentation IS a normaliser</b>.
+    /// Without it this method had two call sites asking different questions. The preamble arm passes
+    /// residue FRAGMENTS, so "Anna Andersson, Undersköterska" arrives split and resolves to the name;
+    /// the Kontakt-block arm passes RAW LINES, so the same text resolved to
+    /// <c>"Anna Andersson, Undersköterska"</c> — a job title in a field labelled <i>namn</i>, i.e. the
+    /// very defect #898 exists to remove, surviving in the half of the parser nobody re-read.
+    /// ("Göteborg, Sverige" was a name to that arm too.) Both call sites now pass the raw line and get
+    /// the same answer, and the preamble arm is unaffected because splitting an already-split fragment
+    /// is idempotent.</para>
     ///
     /// <para><b>Refusal means <c>false</c>, never a fallback.</b> A recogniser that sometimes declines
     /// beats a heuristic that always answers, because a guess is indistinguishable from knowledge at
-    /// the point of use. Known and accepted false negatives: a mononym ("Zlatan"), a 5+ token name, a
-    /// lowercase-styled name, and a labelled "Namn: Anna Andersson" line. Each yields no name, the gap
-    /// is surfaced honestly (<c>ParsedGapSummary.HasFullName</c>, <c>ContactConfidence</c>, B3), and the
-    /// user fills it in — propose-and-approve (ADR 0040), never invent.</para>
+    /// the point of use.</para>
+    ///
+    /// <para><b>What it declines, in full — the honest list.</b> Accepted false negatives: a mononym
+    /// ("Zlatan"); a 5+ token name; a lowercase-styled name or one whose first token is lowercase and
+    /// not a particle ("d'Angelo"); a labelled "Namn: Anna Andersson" line; a name line carrying a
+    /// digit ("Anna Andersson 1985", a birth year on the header line); and a name glued to a second
+    /// item on the same line ("Andersson, Anna", "Anna Andersson | anna@x.se") outside the preamble,
+    /// where the residue does the splitting. Each yields no name, the gap is surfaced honestly
+    /// (<c>ParsedGapSummary.HasFullName</c>, <c>ContactConfidence</c>, B3), and the user fills it in —
+    /// propose-and-approve (ADR 0040), never invent.</para>
+    ///
+    /// <para><b>And the false POSITIVE class that remains</b>, said out loud rather than left for a
+    /// reader to trust the method name: a 2–4 token title-cased line that is not a name still passes
+    /// ("Front End Developer", "CV Anna Andersson"). No deterministic shape rule separates those from
+    /// "Anna Andersson", and inventing a job-title lexicon would be a different change with a different
+    /// risk profile. Swedish sentence casing keeps the class small ("Senior systemutvecklare" is
+    /// refused on its lowercase second token), and it is strictly smaller than the heuristic's, which
+    /// accepted any line at all.</para>
     ///
     /// <para><b>The phone and date arms of the old heuristic are absent on purpose</b>, not forgotten:
     /// both shapes require digits, which the digit rule already refuses, so re-asking would be a guard
@@ -173,8 +198,26 @@ internal static partial class ContactPatterns
 
         name = string.Empty;
 
-        var candidate = InlineSeparators.TrimGlue(line);
-        if (candidate.Length is 0 or > MaxNameLength)
+        // The line must be ONE item. A second surviving fragment means the line glues the name to
+        // something else ("Andersson, Anna", "Anna Andersson | anna@x.se", "Göteborg, Sverige"), and a
+        // recogniser that answered from the first fragment would be doing the caller's splitting with
+        // the caller's luck — which is exactly how the preamble arm and the Kontakt-block arm came to
+        // disagree about the same text. Identical shape to TryBareMunicipalityLine, for the identical
+        // reason. Idempotent for the preamble arm, which already passes single fragments.
+        string? candidate = null;
+        foreach (var fragment in InlineSeparators.Split(line))
+        {
+            var item = InlineSeparators.TrimGlue(fragment);
+            if (item.Length == 0)
+                continue;
+
+            if (candidate is not null)
+                return false;
+
+            candidate = item;
+        }
+
+        if (candidate is null || candidate.Length > MaxNameLength)
             return false;
 
         foreach (var c in candidate)

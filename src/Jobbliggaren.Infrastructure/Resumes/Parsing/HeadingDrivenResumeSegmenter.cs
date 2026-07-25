@@ -262,9 +262,14 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     /// e-mail, a phone or a date" — a heuristic that ALWAYS answers. On the common layout that puts
     /// the job title above the name it answered "Systemutvecklare"; on a CV whose summary sits above a
     /// "Kontakt" heading it answered half that summary. Both were pinned by tests, as known defects.
-    /// <see cref="ContactPatterns.TryPersonName"/> owns the question, its normalisation and its
-    /// refusal, so those layouts now yield the RIGHT name or no name — never prose in a field labelled
-    /// <i>namn</i>.</para>
+    /// <see cref="ContactPatterns.TryPersonName"/> owns the question, its fragmentation, its
+    /// normalisation and its refusal, so those two layouts now yield the right name.</para>
+    ///
+    /// <para><b>What that does and does not promise.</b> Refused: prose with a lowercase non-particle
+    /// token, anything carrying a digit or a colon, a single token, five or more tokens, and a line
+    /// gluing the name to a second item. NOT refused: a 2–4 token title-cased line that happens not to
+    /// be a name — see the residual class listed on <see cref="ContactPatterns.TryPersonName"/>. The
+    /// claim is "it no longer answers when it does not know", not "it is never wrong".</para>
     ///
     /// <para>No fallback to "the first substantial line" is left behind: deleting it IS the fix. A
     /// refused name is not silent — <c>ContactConfidence</c> drops, <c>ParsedGapSummary.HasFullName</c>
@@ -293,9 +298,18 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     }
 
     // #428: a CV-title banner ("Curriculum Vitae", "Meritförteckning", "CV", ...) is document
-    // metadata, not the person's name — and "CV Anna Andersson" is not one either, which is why the
-    // banner is asked FIRST and the recogniser second. The banner question lives on the lexicon that
-    // owns the vocabulary (#898), so the residue and this class cannot ask it two different ways.
+    // metadata, not the person's name.
+    //
+    // The banner is asked FIRST, and that ordering is load-bearing for a concrete reason: several
+    // shipped banners are TITLE-CASED and 2-token ("Curriculum Vitae", "Cover Letter", "Personligt
+    // brev", "C V"), so TryPersonName would accept them as names if it got there first. #898 made
+    // that sharper, not looser — the 2..4-token rule is exactly the shape those banners have.
+    // (A banner PREFIXED to a name, "CV Anna Andersson", is neither: not a banner by membership, and
+    // accepted verbatim by the recogniser. That residual is listed on TryPersonName, not papered over
+    // here.)
+    //
+    // The banner question lives on the lexicon that owns the vocabulary (#898), so the residue and
+    // this class cannot ask it two different ways.
     private bool TryRecogniseName(string line, out string name)
     {
         name = string.Empty;

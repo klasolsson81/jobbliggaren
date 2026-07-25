@@ -64,8 +64,9 @@ public class ContactPatternsPersonNameTests
     // A rail line before subtraction — the residue is what makes the name reachable, not the recogniser.
     [InlineData("Anna Andersson | anna@example.com")]
     [InlineData("Anna Andersson Anna@example.com")]
-    // Digits are never part of a name, which disposes of phones, periods and street addresses in one
-    // rule (and is why no separate phone/date arm exists).
+    // Phone, period and street lines. NOTE these are refused by the token band / capitalised-token
+    // rule as much as by the digit rule, so they are NOT a pin on the digit rule — see
+    // TryPersonName_RefusesADigit_EvenWhenEveryTokenIsCapitalised for that.
     [InlineData("070-123 45 67")]
     [InlineData("2021 - 2024 Volvo AB")]
     [InlineData("Storgatan 12")]
@@ -85,15 +86,76 @@ public class ContactPatternsPersonNameTests
         name.ShouldBe(string.Empty);
     }
 
-    [Fact]
-    public void TryPersonName_RefusesALineOverTheLengthCap()
-    {
-        // The cap the old heuristic already carried (60), kept. Two tokens, both capitalised, so ONLY
-        // the cap can refuse this — which is what makes the assertion able to fail if the cap goes.
-        var line = new string('A', 40) + " " + new string('B', 40);
-
-        line.Length.ShouldBeGreaterThan(ContactPatterns.MaxNameLength);
+    [Theory]
+    // ONLY the digit rule can refuse these: 2–3 tokens, EVERY token capitalised, no colon, no e-mail,
+    // under the cap. Delete `char.IsAsciiDigit(c)` and they go red — which is what makes them a pin on
+    // the DIGIT rule rather than on the token band it otherwise hides behind. (The first draft of this
+    // suite pinned "070-123 45 67", "2021 - 2024 Volvo AB" and "Storgatan 12", all of which the token
+    // band and the capitalised-token rule refuse on their own: mutation-verified green with the digit
+    // branch deleted. The rule's own doc predicted that failure mode and the tests walked into it.)
+    //
+    // This pin is load-bearing beyond itself: deleting LooksLikePhone and LooksLikeDatePeriod rests
+    // entirely on "the digit rule is a superset of both shapes", and a superset argument is only as
+    // good as the test that can see the rule is alive. A superscript or footnote marker glued onto a
+    // surname is exactly what a PDF extractor produces.
+    [InlineData("Anna Andersson2")]
+    [InlineData("Anna A1 Andersson")]
+    public void TryPersonName_RefusesADigit_EvenWhenEveryTokenIsCapitalised(string line) =>
         ContactPatterns.TryPersonName(line, Particles, out _).ShouldBeFalse();
+
+    [Theory]
+    // The line must be ONE item. Without the fragment rule the two call sites asked different
+    // questions: the preamble arm passes residue fragments (so "Anna Andersson, Undersköterska"
+    // arrives split and resolves to the name), the Kontakt-block arm passes raw lines — and the same
+    // text became the "name" WITH the job title attached. Same class for a city pair.
+    [InlineData("Anna Andersson, Undersköterska")]
+    [InlineData("Göteborg, Sverige")]
+    [InlineData("Anna Andersson | Systemutvecklare")]
+    public void TryPersonName_RefusesALineThatGluesTheNameToASecondItem(string line) =>
+        ContactPatterns.TryPersonName(line, Particles, out _).ShouldBeFalse();
+
+    [Fact]
+    public void TryPersonName_AcceptsATwoTokenCapitalisedJobTitle_AcceptedFalsePositive()
+    {
+        // The trade the token band buys, pinned where the rule lives rather than left for a reader to
+        // discover. A Title-Case two-token job title has the SAME shape as a name — "Legitimerad
+        // Sjuksköterska", "Grafisk Formgivare", "Senior Utvecklare" are ordinary Swedish CV header
+        // lines — and no deterministic rule separates them. Refusing the shape would cost every
+        // two-token name, which is most of them.
+        //
+        // It is pinned because it is the error the USER sees: a false negative yields an honest gap,
+        // a false positive yields a wrong name in a field labelled namn that B3 then verdicts on.
+        // If a future change claims to close this, this test must be the one that goes red.
+        ContactPatterns.TryPersonName("Legitimerad Sjuksköterska", Particles, out var name)
+            .ShouldBeTrue();
+        name.ShouldBe("Legitimerad Sjuksköterska");
+    }
+
+    [Fact]
+    public void TryPersonName_AcceptsAParticleBesideAnyCapitalisedWord_AcceptedFalsePositive()
+    {
+        // The particle vocabulary's own trade, stated. Several particles are ordinary Swedish words
+        // ("de", "den", "du", "la", "le"), so a two-token line whose second token is one of them
+        // passes. The cost is bounded by the same Title-Case class above and buys "Anna von Sydow";
+        // the pin exists so a future particle addition ("och", "för") cannot widen the name field
+        // silently.
+        ContactPatterns.TryPersonName("Ansvarig de", Particles, out _).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void TryPersonName_RefusesAtExactlyOneCharacterOverTheCap()
+    {
+        // The cap is 60, and the boundary is what pins it. The first draft used an 81-char line, so
+        // MaxNameLength could have been changed to anything in 60..80 without a red test — a pin on
+        // "some cap exists", not on THE cap.
+        var exactly60 = new string('A', 29) + " " + new string('B', 30);
+        var exactly61 = new string('A', 30) + " " + new string('B', 30);
+
+        exactly60.Length.ShouldBe(ContactPatterns.MaxNameLength);
+        exactly61.Length.ShouldBe(ContactPatterns.MaxNameLength + 1);
+
+        ContactPatterns.TryPersonName(exactly60, Particles, out _).ShouldBeTrue();
+        ContactPatterns.TryPersonName(exactly61, Particles, out _).ShouldBeFalse();
     }
 
     [Fact]

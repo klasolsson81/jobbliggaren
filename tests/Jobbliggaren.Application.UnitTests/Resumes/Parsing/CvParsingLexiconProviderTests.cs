@@ -384,8 +384,36 @@ public class CvParsingLexiconProviderTests
     /// was authored for would keep being refused with no signal anywhere. Fail loud, parity the
     /// dangling-display-form throw.
     /// </summary>
+    [Theory]
+    // All three character classes that make a particle unreachable, not just the first one that comes
+    // to mind: TryPersonName compares WHITESPACE-SEPARATED tokens of a candidate it has already
+    // refused on any digit or colon. A partial fail-loud rule is weaker than none, because it teaches
+    // the reader that the block is guarded.
+    [InlineData("van der")]
+    [InlineData("de3")]
+    [InlineData("de:")]
+    public void Load_Throws_WhenANameParticleCanNeverMatchAToken(string particle)
+    {
+        var ex = Should.Throw<InvalidOperationException>(() => CvParsingLexiconLoader.LoadFrom(Json(
+            $$"""
+            { "version": 9,
+              "headings": { "skills": ["kompetenser"] },
+              "languageHints": { "sv": ["och"] },
+              "freeSections": { "projekt": ["projekt"] },
+              "nameParticles": ["von", "{{particle}}"] }
+            """)));
+
+        ex.Message.ShouldContain(particle);
+        ex.Message.ShouldContain("never match");
+    }
+
+    /// <summary>
+    /// Parity the particle rule (#898): a banner that normalises to nothing ("- ", ":") can never
+    /// match either, and a loader that throws for one dead entry while silently dropping another
+    /// teaches nothing about which mistakes it catches.
+    /// </summary>
     [Fact]
-    public void Load_Throws_WhenANameParticleContainsWhitespace()
+    public void Load_Throws_WhenANameBannerNormalisesToEmpty()
     {
         var ex = Should.Throw<InvalidOperationException>(() => CvParsingLexiconLoader.LoadFrom(Json(
             """
@@ -393,11 +421,10 @@ public class CvParsingLexiconProviderTests
               "headings": { "skills": ["kompetenser"] },
               "languageHints": { "sv": ["och"] },
               "freeSections": { "projekt": ["projekt"] },
-              "nameParticles": ["von", "van der"] }
+              "nameBanners": ["cv", "- "] }
             """)));
 
-        ex.Message.ShouldContain("van der");
-        ex.Message.ShouldContain("whitespace");
+        ex.Message.ShouldContain("empty string");
     }
 
     /// <summary>Particles are stored lowercased and trimmed, so the recogniser's lookup can be a plain

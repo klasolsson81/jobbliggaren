@@ -219,6 +219,147 @@ export function buildJobbHref(state: JobbUrlState): string {
 }
 
 /**
+ * De RÅA searchParams /jobb tar emot, i den form Next.js levererar dem
+ * (`string | string[] | undefined` per param — en upprepad query-param blir en
+ * array). Används bara för att bygga pagineringslänkar: {@link buildPageHref}
+ * bär vidare exakt de params sidan självt läste, så ett sida-2-klick aldrig
+ * tappar ett filter.
+ *
+ * Skild från {@link JobbUrlState}, som är det TOLKADE tillståndet (listor
+ * normaliserade, flaggor booleaniserade). Den här typen är avsiktligt otolkad:
+ * den beskriver ostrukturerad extern input, inte vår modell av den.
+ *
+ * #846 — flyttad hit från `jobb-results.tsx` tillsammans med `buildPageHref`.
+ *
+ * ⚠ OFULLSTÄNDIG mot vad `/jobb` faktiskt läser: `matchning` SAKNAS. `page.tsx`
+ * deklarerar `matchning?: string`, läser `params.matchning === MATCHNING_OFF_VALUE`
+ * och skickar hela `params` som `rawParams` — så värdet NÅR `buildPageHref` och
+ * släpps på golvet. Följd: `/jobb?matchning=off` + "Nästa sida" ⇒ länken saknar
+ * `matchning=off` ⇒ matchningen slås PÅ igen på sida 2 (badges tillbaka) medan
+ * `matchGrades` bärs vidare. Samma felklass som varje bevarande-rad i
+ * `buildPageHref` bär en kommentar om, och samma "en URL vi själva genererar som
+ * påstår ett tillstånd sidan inte kör" som #823. **Pre-existerande** — den gamla
+ * inline-typen saknade fältet också; #846 flyttade defekten, införde den inte.
+ * Bärs som eget steg i epik #1032 (code-reviewer Major, PR #1037).
+ */
+export interface JobbRawSearchParams {
+  page?: string;
+  pageSize?: string;
+  sortBy?: string;
+  occupationGroup?: string | string[];
+  region?: string | string[];
+  municipality?: string | string[];
+  employmentType?: string | string[];
+  worktimeExtent?: string | string[];
+  matchGrades?: string | string[];
+  // #300 PR-5 — bärs i paginerings-href:en så sida-2-klicket inte tappar
+  // "Visa relaterade också"-toggle:n (samma felklass som matchGrades).
+  relaterade?: string;
+  // #383 → förenklat — bärs i paginerings-href:en så sida-2-klicket inte tappar
+  // "Dölj ansökta" (samma felklass som relaterade/matchGrades).
+  doljAnsokta?: string;
+  // #419 pt1 — bärs i paginerings-href:en så sida-2-klicket inte tappar "Visa bara
+  // matchade" (samma felklass som doljAnsokta/relaterade).
+  baraMatchade?: string;
+  // #454 PR-0 — bärs i paginerings-href:en så sida-2-klicket inte tappar
+  // arbetsgivar-filtret (samma felklass som ovan).
+  employer?: string | string[];
+  q?: string;
+}
+
+// Normaliserar string | string[] | undefined → string[] (tomma värden bort).
+// #846 — flyttad hit med `buildPageHref`, oförändrad. Tre kopior finns, med TVÅ
+// beteenden, och bara en av dem är farlig:
+//   - `jobb/page.tsx:371` är BYTE-IDENTISK med denna → ren duplicering, tråkig
+//     men säker. Kollapsen är ett eget steg i epik #1032, inte den här flytten.
+//   - `lib/company-search/search-params.ts:77` är SAMMA NAMN, ANNAT BETEENDE:
+//     den saknar `.map((v) => v.trim())`, och den är exporterad. En framtida
+//     "dedupe by name"-refaktor som pekar /jobb dit tar TYST bort trimningen och
+//     bryter `q=" ab "` → `q=ab`-pariteten som klamp-testet vaktar. Rör den inte
+//     utan att mäta beteendet — och den ligger i en annan lane (CLAUDE.md §6.5).
+function toStringList(raw: string | string[] | undefined): string[] {
+  if (raw === undefined) return [];
+  const arr = Array.isArray(raw) ? raw : [raw];
+  return arr.map((v) => v.trim()).filter((v) => v.length > 0);
+}
+
+/**
+ * Paginerings-URL-byggaren för /jobb — den ANDRA av sidans två URL-byggare,
+ * vid sidan av {@link buildJobbHref}.
+ *
+ * #846 — flyttad hit ur `jobb-results.tsx`, där den var modul-privat och
+ * exporterades ENBART för sitt test (vilket drog hela Server-Component-grafen
+ * in i jsdom). De två byggarna har divergerat förut: #823 fixade att den här
+ * re-emitterade ett rått under-minimum-`q`, så `/jobb?q=a` genererade
+ * `/jobb?page=2&q=a` — en länk VI producerar som påstår ett sök sidan inte kör.
+ * Nu bor båda i samma fil, så nästa divergens syns i diffen.
+ *
+ * Skillnaden mot `buildJobbHref` är avsiktlig och inte redundans:
+ * `buildJobbHref` skriver ett NYTT tillstånd och utelämnar därför alltid `page`
+ * (ett filterbyte ska tillbaka till sida 1), medan den här BEVARAR tillståndet
+ * och byter bara sida.
+ */
+export function buildPageHref(
+  params: JobbRawSearchParams,
+  targetPage: number,
+  defaultPageSize: number
+): string {
+  const url = new URLSearchParams();
+  if (targetPage !== 1) url.set("page", String(targetPage));
+  if (params.pageSize && Number(params.pageSize) !== defaultPageSize) {
+    url.set("pageSize", params.pageSize);
+  }
+  if (params.sortBy && params.sortBy !== DEFAULT_SORT_BY) {
+    url.set("sortBy", params.sortBy);
+  }
+  for (const v of toStringList(params.occupationGroup))
+    url.append("occupationGroup", v);
+  for (const v of toStringList(params.region)) url.append("region", v);
+  // E2b — utan denna rad tappar sida-2-klicket kommun-filtret (samma
+  // felklass som F3 B-FIX; buildPageHref är en ANDRA URL-builder vid
+  // sidan av buildJobbHref — architect-dom fråga 4.1).
+  for (const v of toStringList(params.municipality))
+    url.append("municipality", v);
+  // Klass 2 — utan dessa tappar sida-2-klicket anställningsform/omfattning
+  // (samma felklass som municipality ovan; buildPageHref är en andra URL-
+  // builder vid sidan av buildJobbHref).
+  for (const v of toStringList(params.employmentType))
+    url.append("employmentType", v);
+  for (const v of toStringList(params.worktimeExtent))
+    url.append("worktimeExtent", v);
+  // STEG 5 — utan denna rad tappar sida-2-klicket grad-filtret (samma felklass
+  // som municipality/Klass-2 ovan; buildPageHref är en andra URL-builder vid
+  // sidan av buildJobbHref). Page-validatorn droppar Top/okänt redan.
+  for (const v of toStringList(params.matchGrades))
+    url.append("matchGrades", v);
+  // #300 PR-5 — utan denna rad tappar sida-2-klicket "Visa relaterade också"-
+  // toggle:n (samma felklass som matchGrades ovan). Bevaras BARA när on (paritet
+  // med buildJobbHref); page.tsx parsar bara on-värdet.
+  if (params.relaterade === RELATERADE_ON_VALUE)
+    url.set(RELATERADE_PARAM, RELATERADE_ON_VALUE);
+  // #383 → förenklat — utan denna rad tappar sida-2-klicket "Dölj ansökta" (samma
+  // felklass som relaterade ovan). Bevaras BARA när on (paritet buildJobbHref).
+  if (params.doljAnsokta === STATUS_ON_VALUE)
+    url.set(DOLJ_ANSOKTA_PARAM, STATUS_ON_VALUE);
+  // #419 pt1 — utan denna rad tappar sida-2-klicket "Visa bara matchade" (samma felklass
+  // som doljAnsokta ovan). Bevaras BARA när on (paritet buildJobbHref).
+  if (params.baraMatchade === STATUS_ON_VALUE)
+    url.set(BARA_MATCHADE_PARAM, STATUS_ON_VALUE);
+  // #454 PR-0 — utan denna rad tappar sida-2-klicket arbetsgivar-filtret
+  // (samma felklass som ovan; buildPageHref är en andra URL-builder vid sidan
+  // av buildJobbHref). SPOT-gaten (parseEmployerParam) delas med page-parsern.
+  const employerParam = parseEmployerParam(params.employer);
+  if (employerParam) url.set("employer", employerParam);
+  // #823 — KLAMPA. Utan detta re-emitterar sidlänkarna det råa under-minimum-q:t
+  // (/jobb?q=a → "Nästa sida" = /jobb?page=2&q=a): en URL vi själva genererar som påstår
+  // ett sök sidan inte kör, medan sökfältet står tomt. Samma SPOT-klamp som page.tsx.
+  const clampedQ = clampSubMinimumQ(params.q);
+  if (clampedQ) url.set("q", clampedQ);
+  const qs = url.toString();
+  return qs.length > 0 ? `/jobb?${qs}` : "/jobb";
+}
+
+/**
  * #823 — en söktext kortare än backendens minimum behandlas som INGEN söktext.
  * Speglar `SearchQueryParser`, som nollar en residual under `SearchCriteria.QMinLength`
  * och kör vidare på dimensionerna i stället för att vägra frågan; `ListJobAdsQueryValidator`

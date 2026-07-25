@@ -30,7 +30,7 @@ export function ApplicationsPager({
   const items = buildPageItems(page, totalPages);
 
   return (
-    <nav aria-label={t("pagination.navLabel")} className="jp-apppager">
+    <nav aria-label={t("pagination.navLabel")}>
       <ol className="jp-apppager__list">
         {page > 1 && (
           <li>

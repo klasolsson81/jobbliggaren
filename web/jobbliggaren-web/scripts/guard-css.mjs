@@ -208,6 +208,17 @@ function lineOf(text, index) {
   return text.slice(0, index).split("\n").length;
 }
 
+/** Every stylesheet under src/ — the definition universe for both sweeps. */
+async function collectStylesheets(dir, acc = []) {
+  const { readdir } = await import("node:fs/promises");
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const child = new URL(entry.name + (entry.isDirectory() ? "/" : ""), dir);
+    if (entry.isDirectory()) await collectStylesheets(child, acc);
+    else if (entry.name.endsWith(".css")) acc.push(child);
+  }
+  return acc;
+}
+
 async function collectSourceFiles(dir, acc = []) {
   const { readdir } = await import("node:fs/promises");
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -241,8 +252,20 @@ async function collectSourceFiles(dir, acc = []) {
  * helper composing them.
  */
 function* classExpressions(text) {
-  const marker = /\bclassName\s*=\s*/g;
-  for (const m of marker.exec(text) ? [...text.matchAll(marker)] : []) {
+  // `[A-Za-z]*[Cc]lassName` so the prop idiom is swept too: `triggerClassName`,
+  // `wrapperClassName`, `inputClassName` all carry jp-* names and a `\bclassName`
+  // pattern never matches them (capital C). Skipping a whole idiom silently is
+  // exactly what the template-prefix counter below exists to prevent.
+  //
+  // NOTE: no `marker.exec(text) ? ... : []` guard here. `exec` advances
+  // `lastIndex`, and `matchAll` COPIES `lastIndex` from the source regex
+  // (RegExp.prototype[@@matchAll]), so such a guard silently drops the FIRST
+  // match in every file. It hid two real violations in this guard's own
+  // introducing PR — one of them the same class name being removed three lines
+  // further down the same file. `matchAll` already yields nothing when there is
+  // no match, so the guard was redundant as well as wrong.
+  const marker = /\b[A-Za-z]*[Cc]lassName\s*=\s*/g;
+  for (const m of text.matchAll(marker)) {
     let i = m.index + m[0].length;
     const opener = text[i];
     if (opener === '"' || opener === "'") {
@@ -312,12 +335,23 @@ async function checkExistence() {
 
   // ---- what the stylesheets DEFINE (union across every guarded entry point:
   // a token declared in globals.css is legitimately consumed from app.css) ----
+  // The definition universe is DISCOVERED, not listed. The argument list names
+  // the literal sweep's targets; using it here too would mean a future
+  // route-group CSS split that nobody remembered to add makes every class it
+  // defines a false positive across the whole tree — and, since this gate blocks,
+  // stops every session's commits at once. Worktree isolation does not help
+  // there: the incomplete list would be committed. A glob keeps the universe
+  // true by construction, which is the same "shapes, not lists" rule the
+  // exclusions follow.
   const definedTokens = new Set();
   const definedClasses = new Set();
   const cssTexts = new Map();
-  for (const file of files) {
+  for (const file of await collectStylesheets(SRC_DIR)) {
     const { text, allowLines } = stripComments(readFileSync(file, "utf-8"));
-    cssTexts.set(file, { text, allowLines });
+    cssTexts.set(file.pathname ? file.pathname.replace(/^\/([A-Za-z]:)/, "$1") : file, {
+      text,
+      allowLines,
+    });
     for (const m of text.matchAll(TOKEN_DEF)) definedTokens.add(m[1]);
     for (const m of text.matchAll(SELECTOR_CLASS)) definedClasses.add(m[1]);
   }

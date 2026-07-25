@@ -5,6 +5,7 @@
 **Kontext:** Klas-direktiv 2026-05-25 — Pre-launch-disciplin
 **Beslutsfattare:** Klas Olsson
 **Amendment 2026-06-07:** Automerge-default för CC:s egna PR:er — se [§Amendment 2026-06-07](#amendment-2026-06-07--automerge-default-för-ccs-egna-prer).
+**Amendment 2026-07-25:** CI triggras base-oberoende (#861) — se [§Amendment 2026-07-25](#amendment-2026-07-25--ci-triggras-base-oberoende-mekanism-drift-861).
 **Superseder:** ADR 0019 (Solo direct-push till main, 2026-05-07)
 **Amends:** ADR 0007 (Branch protection för main i Fas 0, 2026-04-18) — Fas 0-protectionprofilen utökas till PR-gate-profil när CI-aggregatet `ci` finns på plats; ADR 0007 force-push- och deletion-skydd består.
 **Relaterad:** ADR 0019 §"Trigger för återgång till PR-flöde", `.github/workflows/build.yml` (`ci`-aggregat-job)
@@ -80,7 +81,7 @@ JobbPilot återgår till **PR-baserat flöde mot `main`** med följande spärrar
 2. **Commits enligt CLAUDE.md §6.2** (Conventional Commits, svenska eller engelska konsekvent per PR).
 3. **Push feature-branch** till origin. Pre-push-hooks (gitleaks, dotnet format, lint-staged) körs som tidigare.
 4. **PR-skapande** via `gh pr create`. PR-titel = svensk eller engelsk imperativ form, max 70 tecken. Body innehåller Summary + Test plan + agent-review-resultat (inline från STOPP-rapport).
-5. **CI körs automatiskt** mot PR (build.yml `on.pull_request.branches: [main]`).
+5. **CI körs automatiskt** mot PR (build.yml `on.pull_request.branches: [main]`). — *Mekanismen är ändrad: base-filtret är borttaget, se Amendment 2026-07-25 (#861). Originaltexten står kvar som historiskt beslutsunderlag.*
 6. **Klas reviewar diff + agent-reports + CI-resultat** i PR-vyn.
 7. **Merge:**
    - **Squash-merge** för feature-PRs (default — håller `main` ren)
@@ -153,6 +154,16 @@ Grindmekanismen i Beslut §"Operativt flöde" steg 6 (**"Klas reviewar diff + ag
 **Trigger för återgång (pre-merge-review återinförs):** om en regression som en pre-merge diff-läsning hade fångat når `main` via automerge, eller om Klas bedömer post-merge-granskningen otillräcklig → detta amendment rivs (label-default tas bort; #4 återgår till pre-merge). Dokumenteras då i ny amendment.
 
 **Berörda dokument (uppdaterade i samma PR som detta amendment):** CLAUDE.md §6.3 mekanism #4 + §9.1 steg 8.
+
+## Amendment 2026-07-25 — CI triggras base-oberoende (mekanism-drift, #861)
+
+**Kontext:** #861. Beslut §"Operativt flöde" steg 5 beskrev CI-triggern som `build.yml on.pull_request.branches: [main]`. Det base-filtret är **borttaget** (även ur `codeql.yml` och `e2e.yml`); `push` är fortfarande filtrerad till `main`.
+
+**Varför:** filtret gjorde detta ADR:s egen merge-grind overkställbar för en **stackad PR** — en vars base är en annan feature-branch, vilket är den normala formen när ett issue är förutsättning för nästa. En sådan PR matchade ingen trigger, fick **noll checks**, och "inga checks" går inte att skilja från "grön CI" vid en blick. Merge-regeln i steg 5–7 är "merge på grön `ci`", och ett PR utan `ci`-aggregat ger grinden ingenting att utvärdera. Mätt: en PR mot en feature-branch-bas rapporterar efter ändringen `build` + `codeql` + `e2e` (alla `event=pull_request`).
+
+**Räckvidd — signal, inte enforcement:** branch protection ligger bara på `main` (required checks = exakt `["ci"]`, `strict: true`, `enforce_admins: true`; noll repo-rulesets). En stackad PR har alltså fortfarande inga *required* checks. Det ändras inte här; enforcement-halvan är #836 (PR-babysittaren får inte merga före agent-grinden svarat).
+
+**Oförändrat:** allt annat i ADR 0065 och i amendmentet ovan. Required `ci`, linear history, `enforce_admins`, automerge-flödet och undantagen gäller precis som förut — bara *vilka* PR:er som får en `ci` att vara grön har vidgats.
 
 ## Relation till andra beslut
 

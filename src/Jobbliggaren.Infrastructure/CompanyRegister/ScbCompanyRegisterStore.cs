@@ -148,6 +148,41 @@ internal sealed class ScbCompanyRegisterStore(AppDbContext db)
     }
 
     /// <summary>
+    /// Refreshes the planner's statistics for <c>company_register</c> — CLAUDE.md §3.6: a bulk-load path
+    /// ANALYZEs the table it loaded. Plain <c>ANALYZE</c>, this table only; never <c>VACUUM ANALYZE</c>
+    /// (vacuuming is autovacuum's concern and a different change-reason).
+    ///
+    /// <para>
+    /// <b>Autovacuum cannot cover this table, and that is the defect this closes.</b> Its analyze trigger
+    /// is change-driven — <c>n_mod_since_analyze</c> against <c>50 + 0.1 × reltuples</c> — and those
+    /// counters live in the CUMULATIVE statistics, which PostgreSQL discards on an unclean shutdown
+    /// (<c>pg_upgrade</c> and a <c>pg_dump</c> restore carry no statistics at all). The register is
+    /// written by ONE periodic job and read-only in between, so a reset anywhere in that window zeroes
+    /// the counter with no subsequent DML left to re-arm it: the table then plans blind until the next
+    /// sync, which for a monthly cadence is a month. A table under continuous DML (<c>job_ads</c>)
+    /// self-heals from the same reset; this one cannot. An explicit ANALYZE at the end of the load does
+    /// not consult those counters at all.
+    /// </para>
+    ///
+    /// <para>
+    /// Measured 2026-07-25 on the dev register: <c>company_register</c> held 1 066 938 rows and ZERO rows
+    /// in <c>pg_stats</c> — never analysed — while every table's counters read zero with
+    /// <c>last_autoanalyze</c> NULL. That state is what made the register search walk the wrong index at
+    /// 1 681–6 268 ms (#560, ADR 0119). The command itself costs <b>871 ms</b> at that row count, against
+    /// the <see cref="CommandTimeoutSeconds"/> ceiling — a 137× margin, so the ordinary timeout applies
+    /// and the sweep's raised one is not warranted.
+    /// </para>
+    /// </summary>
+    public async Task AnalyzeAsync(CancellationToken cancellationToken)
+    {
+        var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        cmd.CommandText = "ANALYZE company_register;";
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// The largest <c>TotalRowsFetched</c> recorded in prior <c>System.CompanyRegisterSynced</c> audit
     /// rows within the window — the relative-floor baseline for the sweep (parity
     /// <c>GetMaxObservedSnapshotSizeAsync</c>). Null when there is no prior run.

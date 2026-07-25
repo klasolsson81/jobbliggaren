@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Domain.Common;
@@ -169,13 +170,90 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
         tail.Message.ShouldContain("Loggar aldrig org.nr");                       // §5 discipline on the new line
     }
 
+    [Fact]
+    public async Task RefreshAsync_AnalyzesTheRegister_SoThePlannerIsNotBlindAfterTheBulkLoad()
+    {
+        // #560 / ADR 0119 — the ANALYZE-after-bulk-load guard (CLAUDE.md §3.6). The register was
+        // populated to 1 066 938 rows with ZERO rows in pg_stats, and the planner then walked the wrong
+        // index at 1 681-6 268 ms. Autovacuum cannot be the guarantee: its trigger is change-driven and
+        // those counters are discarded on an unclean shutdown, leaving a write-once/read-only table with
+        // nothing left to re-arm it. So the sync must ANALYZE explicitly, and this pins that it does.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        var before = await SettleLastAnalyzeAsync(ct);
+
+        var run = await BuildRefresher(
+            new FakeSource([Legal("5560000501")], fetched: 1000), T0).RefreshAsync(ct);
+
+        run.RowsUpserted.ShouldBe(1);
+        var after = await WaitForLastAnalyzeAfterAsync(before, ct);
+        after.ShouldBeGreaterThan(before,
+            "en lyckad SCB-synk måste uppdatera planerarstatistiken för company_register");
+
+        // The step is narrated: an operator diagnosing a slow register search can see from the run log
+        // alone whether statistics were refreshed.
+        var logger = new CapturingLogger<ScbCompanyRegisterRefresher>();
+        await BuildRefresher(new FakeSource([Legal("5560000502")], fetched: 1000), T1, logger)
+            .RefreshAsync(ct);
+        logger.Entries.ShouldContain(e => e.EventId.Id == 5718);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_AnalyzesAfterTheSweep_SoStatisticsDescribeTheStatusTheRunLeftBehind()
+    {
+        // The ORDERING half, and it is not decoration: the sweep rewrites `status` across the untouched
+        // majority, so statistics collected before it describe a distribution the run then discards.
+        // pg_stats is the oracle that can tell the two orderings apart — after a run that deregistered
+        // every row, the planner's most-common-value list for `status` must say Deregistered. It says
+        // Active both if the ANALYZE ran too early AND if it never ran at all (run 1's statistics
+        // survive), so this claim catches the ordering defect and the removal defect independently.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        // Run 1 (T0): 50 Active rows. No prior baseline → sweep applies; the run's own fresh rows
+        // survive (synced_at == runStartedAt, not < it). Its ANALYZE leaves pg_stats saying "Active".
+        var seeded = Enumerable.Range(1, 50).Select(i => Legal($"55600006{i:D2}")).ToList();
+        await BuildRefresher(new FakeSource(seeded, fetched: 1000), T0).RefreshAsync(ct);
+        (await ReadStatusMostCommonValsAsync(ct)).ShouldContain("Active"); // the pre-state is real
+
+        // Run 2 (T1): touches nothing, fetched 1000 ≥ 0.80 × 1000 → the sweep applies and flips all 50.
+        var run2 = await BuildRefresher(new FakeSource([], fetched: 1000), T1).RefreshAsync(ct);
+        run2.SweepApplied.ShouldBeTrue();
+        run2.RowsDeregistered.ShouldBe(50);
+
+        var mcv = await ReadStatusMostCommonValsAsync(ct);
+        mcv.ShouldContain("Deregistered",
+            "statistiken måste beskriva tabellen EFTER sweepen, inte före");
+        mcv.ShouldNotContain("Active"); // no row is Active any more — stale statistics would still say so
+    }
+
+    [Fact]
+    public async Task RefreshAsync_DoesNotAnalyze_WhenTheSyncIsDisabled()
+    {
+        // The counterweight against over-firing (parity the browse-all claim in the plan guard): the
+        // disabled path loads nothing, so it has no table to ANALYZE. This is what goes red the day the
+        // call is hoisted above the Enabled check.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        var before = await SettleLastAnalyzeAsync(ct);
+
+        var run = await BuildRefresher(
+            new FakeSource([Legal("5560000601")], fetched: 1000), T0, enabled: false).RefreshAsync(ct);
+
+        run.SweepSkipReason.ShouldBe("disabled");
+        var after = await WaitForLastAnalyzeAfterAsync(before, ct);
+        after.ShouldBe(before, "en avstängd körning laddar ingenting och ska inte röra statistiken");
+    }
+
     private ScbCompanyRegisterRefresher BuildRefresher(
         IScbCompanyRegisterSource source, DateTimeOffset now,
-        ILogger<ScbCompanyRegisterRefresher>? logger = null) =>
+        ILogger<ScbCompanyRegisterRefresher>? logger = null, bool enabled = true) =>
         new(source,
             _fixture.Services.GetRequiredService<IServiceScopeFactory>(),
             new FixedClock(now),
-            Options.Create(new ScbRegisterOptions { Enabled = true, FloorAbsolute = 1, FloorRelativeRatio = 0.80 }),
+            Options.Create(new ScbRegisterOptions { Enabled = enabled, FloorAbsolute = 1, FloorRelativeRatio = 0.80 }),
             logger ?? NullLogger<ScbCompanyRegisterRefresher>.Instance);
 
     private static ScbCompanyRecord Legal(string orgNr, string sni = "29100") =>
@@ -235,6 +313,81 @@ public class ScbCompanyRegisterRefresherIntegrationTests(WorkerTestFixture fixtu
             LIMIT 1
             """).ToListAsync(ct);
         return counts.Count == 0 ? null : counts[0];
+    }
+
+    /// <summary>
+    /// <c>last_analyze</c> for <c>company_register</c> as seconds since the epoch, 0 when never analysed.
+    ///
+    /// <para>
+    /// Read as an epoch double deliberately: <c>timestamptz</c> would drag Npgsql's infinity/nullable
+    /// scalar mapping into an assertion that only needs "later than". Two Postgres traps are handled
+    /// here rather than assumed away. (1) <c>stats_fetch_consistency</c> defaults to <c>cache</c> since
+    /// PG15 — a transaction keeps the statistics snapshot it first read, so a poll loop without
+    /// <c>pg_stat_clear_snapshot()</c> re-reads its own stale copy forever. (2) These are CUMULATIVE
+    /// statistics: a backend flushes them at most once per second, and the ANALYZE ran on a POOLED
+    /// connection that returns to the pool instead of exiting, so no backend-exit flush forces them out.
+    /// </para>
+    /// </summary>
+    private async Task<double> ReadLastAnalyzeEpochAsync(CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.ExecuteSqlRawAsync("SELECT pg_stat_clear_snapshot();", ct);
+        var rows = await db.Database.SqlQueryRaw<double>(
+            """
+            SELECT COALESCE(EXTRACT(EPOCH FROM last_analyze), 0)::double precision AS "Value"
+            FROM pg_stat_user_tables
+            WHERE schemaname = 'public' AND relname = 'company_register'
+            """).ToListAsync(ct);
+        return rows.Count == 0 ? 0 : rows[0];
+    }
+
+    // Drains any ANALYZE still pending a flush from an earlier test in this collection, then returns a
+    // baseline that is stable. Without this the negative claim (disabled → unchanged) could observe a
+    // NEIGHBOUR's flush landing and report it as this run's work.
+    private async Task<double> SettleLastAnalyzeAsync(CancellationToken ct)
+    {
+        using (var scope = _fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Database.ExecuteSqlRawAsync("ANALYZE company_register;", ct);
+        }
+
+        var settled = await ReadLastAnalyzeEpochAsync(ct);
+        return await WaitForLastAnalyzeAfterAsync(settled, ct);
+    }
+
+    // Polls until last_analyze advances past the baseline, or the ceiling expires. Returns whatever the
+    // final read saw so the CALLER owns the verdict — a negative claim needs the unchanged value back,
+    // not an exception. Stopwatch (monotonic), never wall-clock.
+    private async Task<double> WaitForLastAnalyzeAfterAsync(double baseline, CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        var latest = baseline;
+        while (sw.Elapsed < TimeSpan.FromSeconds(20))
+        {
+            latest = await ReadLastAnalyzeEpochAsync(ct);
+            if (latest > baseline)
+                return latest;
+            await Task.Delay(200, ct);
+        }
+
+        return latest;
+    }
+
+    // The planner's most-common-value list for `status` — pg_stats, i.e. the statistics the planner
+    // actually reads, not the activity counters. Empty when the column has no statistics yet.
+    private async Task<IReadOnlyList<string>> ReadStatusMostCommonValsAsync(CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var rows = await db.Database.SqlQueryRaw<string>(
+            """
+            SELECT unnest(most_common_vals::text::text[]) AS "Value"
+            FROM pg_stats
+            WHERE schemaname = 'public' AND tablename = 'company_register' AND attname = 'status'
+            """).ToListAsync(ct);
+        return rows;
     }
 
     private sealed class FixedClock(DateTimeOffset now) : IDateTimeProvider

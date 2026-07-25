@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Domain.Common;
@@ -144,6 +145,33 @@ internal sealed partial class ScbCompanyRegisterRefresher(
                 CompletedAt: completedAt), cancellationToken).ConfigureAwait(false);
         }
 
+        // #560 / ADR 0119 — refresh the planner's statistics for the table this run just bulk-loaded
+        // (CLAUDE.md §3.6). Why HERE, and not in the two places it looks like it belongs:
+        //
+        //   * NOT in ScbCompanyRegisterStore.UpsertBatchAsync — that is per batch, i.e. hundreds of
+        //     ANALYZEs per run, each one measuring a table the run is still halfway through writing.
+        //   * NOT in a migration — a migration runs once, against an empty table, and statistics need
+        //     refreshing after every bulk change, not once in the schema's lifetime.
+        //
+        // AFTER MaybeDeregisterAsync, because the sweep rewrites `status` across the untouched
+        // majority: statistics taken before it would describe a status distribution the run then
+        // discards. AFTER the audit row, because a failing ANALYZE must not cost this run its
+        // CompanyRegisterSynced row — the NEXT run's relative sweep floor reads it back
+        // (GetMaxObservedTotalRowsFetchedAsync), so losing it would silently disarm that floor.
+        // Deliberately NOT wrapped in a catch: the worker carries AutomaticRetry(Attempts = 0) (#688),
+        // so a throw here lands the job Failed and visible WITHOUT re-spending the ~11 h extract — and
+        // "the statistics were not refreshed" is precisely the defect this call exists to prevent.
+        // It is the last statement before the completion line, so a failure suppresses "klart" too.
+        var analyzeStartedAt = Stopwatch.GetTimestamp();
+        await using (var analyzeScope = scopeFactory.CreateAsyncScope())
+        {
+            var analyzeStore = analyzeScope.ServiceProvider.GetRequiredService<ScbCompanyRegisterStore>();
+            await analyzeStore.AnalyzeAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        var analyzeDurationMs = Stopwatch.GetElapsedTime(analyzeStartedAt).TotalMilliseconds;
+        LogAnalyzed(logger, analyzeDurationMs);
+
         LogCompleted(logger, rowsUpserted, rowsDeregistered, excludedPersonnummerShaped,
             excludedInvalid, outcome.TotalRowsFetched, sweepApplied,
             outcome.PartitionRequestFailures, (completedAt - startedAt).TotalMinutes);
@@ -212,6 +240,14 @@ internal sealed partial class ScbCompanyRegisterRefresher(
     private static partial void LogCompleted(ILogger logger, int upserted, int deregistered,
         int excludedPnr, int excludedInvalid, int fetched, bool sweepApplied, int failedPartitions,
         double durationMin);
+
+    // #560 — the post-load ANALYZE. An operator diagnosing a slow register search needs to see whether
+    // the last sync refreshed the planner's statistics; without this line the step is invisible in a run
+    // that is otherwise fully narrated. Duration is measured with the MONOTONIC Stopwatch counter, not
+    // the injected clock (parity LoggingBehavior) — the clock is fixed in tests and would report zero.
+    [LoggerMessage(EventId = 5718, Level = LogLevel.Information,
+        Message = "ScbCompanyRegisterRefresher: planerarstatistik uppdaterad (ANALYZE company_register) — {DurationMs} ms.")]
+    private static partial void LogAnalyzed(ILogger logger, double durationMs);
 
     [LoggerMessage(EventId = 5713, Level = LogLevel.Warning,
         Message = "ScbCompanyRegisterRefresher: deregister-sweep SKIPPAD ({Reason}) — fetched={Fetched}. Ingen falsk avregistrering.")]

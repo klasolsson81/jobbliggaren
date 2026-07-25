@@ -126,6 +126,15 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
 > `push: tags`-trigger är borttagen). Därför är checklistan det rätta
 > *interim*-instrumentet, inte sluttillståndet.
 >
+> **Den mekaniska grinden ska levereras före eller med den första `v*`-taggen.**
+> Den mänskliga grinden får inte vara det enda instrumentet i det ögonblick den
+> först bär verklig risk. Att dokumentera ett gap skapar en skyldighet att stänga
+> det: ett känt gap som överlever sin egen relevans är sämre än ett odokumenterat,
+> eftersom det bevisar kännedom (Art. 5(2)/24(1)). Exponeringsfönstret är tomt i
+> dag — grinden kan inte behövas före en prod-deploy, och #1034:s mekanism rider
+> samma prod-pipeline — men den sammanfallande tidplanen är en tillfällighet tills
+> den skrivs ut, vilket den härmed är.
+>
 > **Grinden bär redan sitt eget maskinläsbara predikat:** punkt 2:s
 > inventeringsgrepp ÄR assertionen. Bygg dock INTE den naiva formen "fäll taggen
 > om någon `planerat` återstår" — planerat-påståenden får legitimt kvarstå för

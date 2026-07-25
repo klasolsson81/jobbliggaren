@@ -63,10 +63,20 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const locale = await getLocale();
-  // #740 — the client provider only needs the namespaces client components use;
-  // the full catalog stays available server-side via getTranslations. Strips
-  // content-*/metadata/errors/admin from every document's Flight payload.
-  const messages = pickClientMessages(await getMessages());
+  // #737 — the root boundary's own client subtree (ThemeScript/ThemeProvider)
+  // reads NO messages, so this payload is EMPTY by measurement, not by choice:
+  // the fitness function computes it from the import graph and fails if a
+  // namespace is added here without a client consumer. Root is the one boundary
+  // where that matters most — it wraps every route, so anything it carries is
+  // paid by every document ON TOP of the nested boundary's own set.
+  //
+  // The provider itself stays: it supplies locale + timeZone to client
+  // formatters (useFormatter) even with no messages. Route boundaries below
+  // ((app)/(auth)/(guest)/(marketing)/(marketing-inner)/(admin)) each render
+  // their own provider with their own set — React context replaces, not merges.
+  // Unmatched URLs render app/not-found.tsx, which is a SERVER component
+  // (getTranslations), so it needs nothing here either.
+  const messages = pickClientMessages(await getMessages(), []);
 
   return (
     <html

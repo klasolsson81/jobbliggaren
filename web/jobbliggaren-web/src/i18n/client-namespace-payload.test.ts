@@ -3,223 +3,379 @@ import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as ts from "typescript";
 import { describe, expect, it } from "vitest";
-import svMessages from "../../messages/sv";
-import { pickClientMessages } from "./client-messages";
+import { isServerOnlyNamespace } from "./client-messages";
+import {
+  hasUseClientDirective,
+  reachableNamespaces,
+  toPosix,
+  type ProviderBoundary,
+} from "./client-namespace-reachability";
 
 /**
- * Fitness function for the #740 client-i18n-payload prune (#774, epic #737).
+ * Fitness function for the per-boundary client-i18n payload (#737, epic #737;
+ * supersedes the #740/#774 single-payload guard).
  *
- * `pickClientMessages` (client-messages.ts) trims the `NextIntlClientProvider`
- * payload to the namespaces client components actually use — stripping
- * `content-*`, `metadata`, `errors` from every provider and `admin` from the
- * root provider (re-provided only in the `(admin)` layout). Neither tsc nor
- * vitest sees that prune:
- *   - the augmented next-intl `Messages` type (types/messages.d.ts) is derived
- *     from the FULL sv catalog, and `pickClientMessages` returns `as T`, so the
- *     compiler treats every namespace as referenceable everywhere;
- *   - the render shim (test/render-intl.tsx) feeds every test the FULL catalog,
- *     so a client component reading a stripped namespace still resolves.
+ * Each `NextIntlClientProvider` declares the namespaces its boundary needs as an
+ * array literal at the call site. This test recomputes that set from the import
+ * graph and asserts EQUALITY:
  *
- * So a future `useTranslations("admin")` in a client component outside `(admin)`
- * would fail ONLY at runtime (a blank / `MISSING_MESSAGE` on a specific route).
- * This test closes that gap statically: it parses every `"use client"` file's
- * `useTranslations("<ns>")` calls and asserts the referenced top-level
- * namespaces are a subset of what the applicable client provider carries.
+ *   - declared ⊉ required → a client component reads a namespace the provider
+ *     does not carry: a blank / `MISSING_MESSAGE` at runtime on that route.
+ *     Neither tsc nor vitest sees it — the augmented `Messages` type derives
+ *     from the FULL sv catalog and `pickClientMessages` returns `as T`, and the
+ *     render shim (test/render-intl.tsx) feeds every test the FULL catalog.
+ *   - declared ⊅ required → the payload silently re-inflates toward the ~102 KB
+ *     this change removed. Subset-only checking would permit exactly that: a
+ *     future CC hitting a MISSING_MESSAGE could paste the whole catalog into a
+ *     declaration and stay green. ADR 0045 Beslut 6 is a NON-REGRESSION ratchet,
+ *     so the guard has to bite in both directions.
  *
- * The allowed sets are DERIVED from `pickClientMessages` itself (never a
- * hardcoded list), so the guard stays correct when the prune rule changes —
- * one source of truth.
+ * Deliberate escape hatch: `// payload-allow: <reason>` on the line above a
+ * namespace in the declaration exempts it from the "unused" half (mirroring
+ * scripts/guard-css.mjs's `guard-allow:` idiom). Nothing exempts the "missing"
+ * half — that one is a runtime break.
  *
- * Known limitations (backstopped by `next build`'s `MISSING_MESSAGE` at
- * runtime, so this guard is defense-in-depth, not the only net):
- *   - matches `useTranslations` by identifier name; an aliased import
- *     (`import { useTranslations as t }`) is not seen.
- *   - a client hook/helper in a file WITHOUT its own `"use client"` directive
- *     (client-side only transitively) is not classified as a client file, and
- *     the `(admin)` classification is by file path, not the render graph.
+ * Group membership is a RELATION, not a partition (a shared component reached by
+ * three boundaries is required by all three), which is why the old
+ * `ADMIN_SURFACE` path heuristic is deleted rather than generalised: "which
+ * boundary owns components/job-ads/*" has no true answer.
+ *
+ * Known limitation (backstopped by E2E + `next build`'s runtime
+ * `MISSING_MESSAGE`): `useTranslations` is matched by identifier name, so an
+ * aliased import (`import { useTranslations as t }`) is not seen.
  */
 
-// The two client providers carry different sets: the root provider strips
-// `admin`; the `(admin)` layout re-provides it. A client file is checked
-// against the admin set iff it lives on the admin surface (see ADMIN_SURFACE).
-const rootAllowed = new Set(Object.keys(pickClientMessages(svMessages)));
-const adminAllowed = new Set(
-  Object.keys(pickClientMessages(svMessages, { includeAdmin: true }))
-);
-
 const SRC_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-// Only the top-level src/test shim/setup dir is skipped (anchored below), never
-// an arbitrary directory named "test" at any depth.
 const TEST_DIR = resolve(SRC_ROOT, "test");
 
-// Paths (relative to src/, forward-slash) rendered under the `(admin)` layout's
-// provider, which carries `admin`. Verified: the only admin CLIENT component
-// (AdminNav) is imported solely by app/(admin)/layout.tsx; every other admin
-// consumer under app/(admin)/admin/** is a SERVER component (no "use client")
-// reading the full server-side catalog, so it is skipped by this scan. If an
-// admin client component is ever imported into a non-admin client tree this
-// path heuristic breaks — but the blast radius is exactly one namespace
-// (`admin`), since adminAllowed = rootAllowed ∪ {admin}.
-const ADMIN_SURFACE = ["app/(admin)/", "components/admin/"];
+/**
+ * Every `NextIntlClientProvider` call site in the app, with the route subtree it
+ * wraps. R1: a provider site that is neither listed here nor allowlisted below
+ * fails the test — that is the hole a path heuristic would leave open when a
+ * seventh boundary is added later.
+ */
+const BOUNDARIES: readonly ProviderBoundary[] = [
+  { name: "root", providerFile: "app/layout.tsx", routeRoot: "app" },
+  { name: "(admin)", providerFile: "app/(admin)/layout.tsx", routeRoot: "app/(admin)" },
+  { name: "(app)", providerFile: "app/(app)/layout.tsx", routeRoot: "app/(app)" },
+  { name: "(auth)", providerFile: "app/(auth)/layout.tsx", routeRoot: "app/(auth)" },
+  { name: "(guest)", providerFile: "app/(guest)/gast/layout.tsx", routeRoot: "app/(guest)" },
+  {
+    name: "(marketing)",
+    providerFile: "app/(marketing)/layout.tsx",
+    routeRoot: "app/(marketing)",
+  },
+  {
+    name: "(marketing-inner)",
+    providerFile: "app/(marketing-inner)/layout.tsx",
+    routeRoot: "app/(marketing-inner)",
+  },
+];
 
-function toPosix(p: string): string {
-  return p.split(sep).join("/");
-}
+/**
+ * Provider sites that legitimately do NOT build their payload with
+ * `pickClientMessages`, with the reason each is safe.
+ *
+ * `global-error.tsx` replaces the root layout entirely when the root itself
+ * throws (Next file convention), so it cannot inherit any provider. It seeds a
+ * single namespace straight from the Swedish catalog (`messages/sv/pages.json`)
+ * — a hardcoded one-namespace payload is the point: the error page must not
+ * depend on the request-scoped config that may be what failed.
+ */
+const SELF_SEEDED_PROVIDERS: readonly string[] = ["app/global-error.tsx"];
+
+/**
+ * Every provider site that OWNS a subtree, for exclusion purposes. A self-seeded
+ * provider owns exactly its own file: without this, `global-error.tsx` counts as
+ * part of the root subtree and root is charged the `pages` namespace it seeds
+ * itself — which would put 24 KB back into every document in the app.
+ */
+const ALL_PROVIDER_SUBTREES: readonly ProviderBoundary[] = [
+  ...BOUNDARIES,
+  ...SELF_SEEDED_PROVIDERS.map((file) => ({
+    name: file,
+    providerFile: file,
+    routeRoot: file,
+  })),
+];
+
+/**
+ * Per-boundary floor on reachable client files (R5). If a walk collapses — a
+ * changed route-file convention, a broken resolver — the equality assertion
+ * would pass vacuously against an empty required set, and the payloads would
+ * silently shrink to nothing. "Frånvaro kräver kontrafaktum": set well below
+ * today's counts so ordinary file churn is not brittle.
+ */
+const MIN_CLIENT_FILES: Readonly<Record<string, number>> = {
+  root: 1,
+  "(admin)": 3,
+  "(app)": 120,
+  "(auth)": 10,
+  "(guest)": 20,
+  "(marketing)": 10,
+  "(marketing-inner)": 2,
+};
 
 function collectSourceFiles(dir: string, acc: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const child = resolve(dir, entry.name);
     if (entry.isDirectory()) {
-      const child = resolve(dir, entry.name);
-      // Skip the test-only render shim/setup dir; everything else is product
-      // source. Anchored to src/test so a future product dir merely named
-      // "test" is not silently dropped from the scan.
-      if (child === TEST_DIR) continue;
+      if (child === TEST_DIR) continue; // the render shim, not product source
       collectSourceFiles(child, acc);
     } else if (
       /\.(ts|tsx)$/.test(entry.name) &&
       !/\.(test|spec)\.(ts|tsx)$/.test(entry.name) &&
       !entry.name.endsWith(".d.ts")
     ) {
-      acc.push(resolve(dir, entry.name));
+      acc.push(child);
     }
   }
   return acc;
 }
 
-/** True iff the file opens with a `"use client"` directive prologue entry. */
-function hasUseClientDirective(sourceFile: ts.SourceFile): boolean {
-  for (const stmt of sourceFile.statements) {
-    if (ts.isExpressionStatement(stmt) && ts.isStringLiteralLike(stmt.expression)) {
-      if (stmt.expression.text === "use client") return true;
-      // still inside the string-literal directive prologue — keep scanning
-    } else {
-      break; // the prologue ends at the first non-directive statement
-    }
+function parse(file: string, text: string): ts.SourceFile {
+  return ts.createSourceFile(
+    file,
+    text,
+    ts.ScriptTarget.Latest,
+    false,
+    file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  );
+}
+
+/** Files (relative, posix) that render a `NextIntlClientProvider`. */
+function findProviderSites(): string[] {
+  const sites: string[] = [];
+  for (const file of collectSourceFiles(SRC_ROOT)) {
+    const text = readFileSync(file, "utf8");
+    if (!text.includes("NextIntlClientProvider")) continue;
+    const sourceFile = parse(file, text);
+    let renders = false;
+    const visit = (node: ts.Node): void => {
+      if (
+        (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
+        node.tagName.getText(sourceFile) === "NextIntlClientProvider"
+      ) {
+        renders = true;
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+    if (renders) sites.push(toPosix(relative(SRC_ROOT, file)));
   }
-  return false;
+  return sites.sort();
 }
 
-interface ScanResult {
-  namespaces: Set<string>;
-  // useTranslations() calls whose namespace argument is not a string literal —
-  // the guard cannot statically prove the invariant for these.
-  unresolved: number;
+interface Declaration {
+  readonly namespaces: string[];
+  /** Namespaces carrying a `// payload-allow:` comment on the preceding line. */
+  readonly allowed: Set<string>;
+  readonly nonLiteral: boolean;
+  readonly callCount: number;
 }
 
-function scanUseTranslations(sourceFile: ts.SourceFile): ScanResult {
-  const namespaces = new Set<string>();
-  let unresolved = 0;
+/** Extract the array-literal argument of `pickClientMessages(_, [...])` (R2). */
+function readDeclaration(relPosix: string): Declaration {
+  const file = resolve(SRC_ROOT, relPosix);
+  const text = readFileSync(file, "utf8");
+  const sourceFile = parse(file, text);
+  const lines = text.split(/\r?\n/);
+  const namespaces: string[] = [];
+  const allowed = new Set<string>();
+  let nonLiteral = false;
+  let callCount = 0;
 
   const visit = (node: ts.Node): void => {
-    // A real call `useTranslations("x")` is a CallExpression; the type position
-    // `ReturnType<typeof useTranslations<"validation">>` is a TypeQuery with no
-    // call arguments, so the AST excludes it for free (a regex could not).
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
-      node.expression.text === "useTranslations"
+      node.expression.text === "pickClientMessages"
     ) {
-      const arg = node.arguments[0];
-      if (arg && ts.isStringLiteralLike(arg)) {
-        // Top-level namespace = the segment before the first dot
-        // (`applications.ui` → `applications`; `content-faq` → `content-faq`).
-        const dot = arg.text.indexOf(".");
-        namespaces.add(dot === -1 ? arg.text : arg.text.slice(0, dot));
+      callCount += 1;
+      const arg = node.arguments[1];
+      if (arg && ts.isArrayLiteralExpression(arg)) {
+        for (const element of arg.elements) {
+          if (ts.isStringLiteralLike(element)) {
+            namespaces.push(element.text);
+            const line = sourceFile.getLineAndCharacterOfPosition(element.getStart(sourceFile)).line;
+            const previous = lines[line - 1] ?? "";
+            if (/\/\/\s*payload-allow:/.test(previous)) allowed.add(element.text);
+          } else {
+            nonLiteral = true;
+          }
+        }
       } else {
-        unresolved += 1;
+        nonLiteral = true;
       }
     }
     ts.forEachChild(node, visit);
   };
   visit(sourceFile);
 
-  return { namespaces, unresolved };
+  return { namespaces, allowed, nonLiteral, callCount };
 }
 
-function isAdminSurface(relPosix: string): boolean {
-  return ADMIN_SURFACE.some((prefix) => relPosix.startsWith(prefix));
-}
+describe("client i18n payload is scoped per provider boundary (#737)", () => {
+  it("every NextIntlClientProvider site is a declared boundary or an allowlisted exception (R1)", () => {
+    const sites = findProviderSites();
+    const known = new Set<string>([
+      ...BOUNDARIES.map((b) => b.providerFile),
+      ...SELF_SEEDED_PROVIDERS,
+    ]);
+    const unclassified = sites.filter((s) => !known.has(s));
 
-describe("client i18n namespace payload (#774 — guards the #740 prune)", () => {
-  const missing: string[] = [];
-  const unresolvedCalls: string[] = [];
-  let clientFilesScanned = 0;
-  let clientFilesWithUseTranslations = 0;
+    expect(
+      unclassified,
+      "A NextIntlClientProvider renders in a file this guard does not know about. " +
+        "It ships an unverified client payload — add it to BOUNDARIES (with the " +
+        "route subtree it wraps) or, if it seeds its own messages, to " +
+        "SELF_SEEDED_PROVIDERS with the reason."
+    ).toEqual([]);
 
-  for (const file of collectSourceFiles(SRC_ROOT)) {
-    const text = readFileSync(file, "utf8");
-    // `useTranslations` never reaches a server component's client payload; a
-    // cheap substring pre-filter avoids parsing the whole tree.
-    if (!text.includes("useTranslations")) continue;
-
-    const kind = file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
-    const sourceFile = ts.createSourceFile(
-      file,
-      text,
-      ts.ScriptTarget.Latest,
-      /* setParentNodes — not needed, the walk uses forEachChild only */ false,
-      kind
+    // Counterfactual: if the scan broke, `unclassified` would be empty too.
+    expect(sites.length, "provider-site scan found nothing — the scanner is broken").toBeGreaterThanOrEqual(
+      BOUNDARIES.length
     );
+    for (const boundary of BOUNDARIES) {
+      expect(sites, `${boundary.name}: no NextIntlClientProvider in ${boundary.providerFile}`).toContain(
+        boundary.providerFile
+      );
+    }
+  });
 
-    // Server components legitimately reach the full catalog — skip them.
-    if (!hasUseClientDirective(sourceFile)) continue;
-    clientFilesScanned += 1;
+  it("every boundary declares its namespaces as string literals (R2)", () => {
+    for (const boundary of BOUNDARIES) {
+      const declaration = readDeclaration(boundary.providerFile);
+      expect(
+        declaration.callCount,
+        `${boundary.name}: expected exactly one pickClientMessages() call in ${boundary.providerFile}`
+      ).toBe(1);
+      expect(
+        declaration.nonLiteral,
+        `${boundary.name}: pickClientMessages() must take an array of string literals — ` +
+          "a computed set cannot be verified against the import graph"
+      ).toBe(false);
+    }
+  });
 
-    const relPosix = toPosix(relative(SRC_ROOT, file));
-    const { namespaces, unresolved } = scanUseTranslations(sourceFile);
-    if (namespaces.size > 0 || unresolved > 0) clientFilesWithUseTranslations += 1;
+  it("no boundary declares a server-only namespace (R6)", () => {
+    for (const boundary of BOUNDARIES) {
+      const serverOnly = readDeclaration(boundary.providerFile).namespaces.filter(
+        isServerOnlyNamespace
+      );
+      expect(
+        serverOnly,
+        `${boundary.name}: content-*/metadata/errors are server-rendered only and are ` +
+          "filtered by pickClientMessages regardless — remove them from the declaration"
+      ).toEqual([]);
+    }
+  });
 
-    const admin = isAdminSurface(relPosix);
-    const allowed = admin ? adminAllowed : rootAllowed;
-    const providerName = admin ? "(admin) provider" : "root provider";
+  it("each boundary's declaration EQUALS what its client subtree reaches (R3)", () => {
+    const problems: string[] = [];
 
-    for (const ns of namespaces) {
-      if (!allowed.has(ns)) {
-        missing.push(
-          `  ${relPosix}: useTranslations("${ns}") — "${ns}" is not in the ${providerName} ` +
-            `client payload (the #740 prune strips it). Add it back in pickClientMessages ` +
-            `(accept the payload cost) or move the usage server-side / into the (admin) group.`
+    for (const boundary of BOUNDARIES) {
+      const declaration = readDeclaration(boundary.providerFile);
+      const reach = reachableNamespaces(boundary, ALL_PROVIDER_SUBTREES, SRC_ROOT);
+      const declared = new Set(declaration.namespaces);
+
+      const missing = [...reach.namespaces].filter((ns) => !declared.has(ns)).sort();
+      const unused = [...declared]
+        .filter((ns) => !reach.namespaces.has(ns) && !declaration.allowed.has(ns))
+        .sort();
+
+      if (missing.length > 0) {
+        problems.push(
+          `  ${boundary.name} (${boundary.providerFile}) MISSING [${missing.join(", ")}] — ` +
+            "a client component in this boundary calls useTranslations() for it, so it " +
+            "renders blank / MISSING_MESSAGE at runtime. Add it to the declaration."
+        );
+      }
+      if (unused.length > 0) {
+        problems.push(
+          `  ${boundary.name} (${boundary.providerFile}) UNUSED [${unused.join(", ")}] — ` +
+            "no client component in this boundary reads it, so it is dead payload in every " +
+            "document this boundary serves. Remove it, or justify with a preceding " +
+            "`// payload-allow: <reason>` line."
         );
       }
     }
-    if (unresolved > 0) {
-      unresolvedCalls.push(
-        `  ${relPosix}: ${unresolved} useTranslations() call(s) with a non-literal or missing ` +
-          `namespace argument — the guard cannot verify these. Use a string literal or teach the test.`
-      );
-    }
-  }
 
-  it("scans a non-trivial number of client components (counterfactual for a broken scanner)", () => {
-    // If the scan silently found nothing (wrong root, changed extension, broken
-    // walk), the subset assertion below would pass vacuously. ~114 "use client"
-    // files reference useTranslations today; a FLOOR (not just > 0) also catches
-    // a partial scan collapse — a refactor shrinking collectSourceFiles to a
-    // handful would otherwise let the subset assertion pass vacuously for the
-    // rest ("Frånvaro kräver kontrafaktum"). Set well below today's count so
-    // file churn does not make it brittle.
-    const MIN_CLIENT_FILES = 50;
-    expect(clientFilesScanned).toBeGreaterThanOrEqual(MIN_CLIENT_FILES);
-    expect(clientFilesWithUseTranslations).toBeGreaterThanOrEqual(MIN_CLIENT_FILES);
-  });
-
-  it("every client component only references namespaces its client provider carries", () => {
-    if (missing.length > 0) {
+    if (problems.length > 0) {
       throw new Error(
-        "A client component references an i18n namespace the client provider does not carry " +
-          "(the #740 prune stripped it). This fails at runtime as a blank / MISSING_MESSAGE:\n" +
-          missing.join("\n")
+        "Client i18n payload declarations do not match the import graph:\n" + problems.join("\n")
       );
     }
   });
 
-  it("fails loud on useTranslations() calls the guard cannot statically resolve", () => {
-    if (unresolvedCalls.length > 0) {
+  it("the import graph is fully resolvable — no non-literal import() or useTranslations() (R4)", () => {
+    const problems: string[] = [];
+    for (const boundary of BOUNDARIES) {
+      const reach = reachableNamespaces(boundary, ALL_PROVIDER_SUBTREES, SRC_ROOT);
+      // A non-literal dynamic import makes the walk fail-OPEN: the missed edge
+      // shrinks `required`, and the equality check then green-lights a payload
+      // that is too small.
+      problems.push(...reach.dynamicUnresolved.map((d) => `  ${boundary.name}: ${d.trim()}`));
+      problems.push(...reach.unresolvedCalls.map((d) => `  ${boundary.name}: ${d.trim()}`));
+    }
+    if (problems.length > 0) {
       throw new Error(
-        "useTranslations() called with a non-literal namespace in a client component — " +
-          "the payload-subset invariant cannot be proven statically:\n" +
-          unresolvedCalls.join("\n")
+        "The payload invariant cannot be proven statically — use string literals, or teach " +
+          "the guard:\n" + problems.join("\n")
       );
     }
+  });
+
+  it("each boundary reaches a non-trivial client subtree (R5 counterfactual)", () => {
+    // Without this, a collapsed walk (changed route conventions, broken
+    // resolver) yields an empty required set, equality passes vacuously against
+    // an emptied declaration, and every payload silently drops to nothing.
+    let totalClientFiles = 0;
+    for (const boundary of BOUNDARIES) {
+      const reach = reachableNamespaces(boundary, ALL_PROVIDER_SUBTREES, SRC_ROOT);
+      totalClientFiles += reach.clientFileCount;
+      expect(
+        reach.clientFileCount,
+        `${boundary.name}: reached only ${reach.clientFileCount} client files — the import-graph ` +
+          "walk looks collapsed, so the equality assertion above is vacuous"
+      ).toBeGreaterThanOrEqual(MIN_CLIENT_FILES[boundary.name] ?? 1);
+    }
+    expect(totalClientFiles).toBeGreaterThanOrEqual(150);
+  });
+
+  it("the root boundary carries no namespaces — its payload is paid by every document", () => {
+    // Root wraps every route, and React context REPLACES rather than merges, so
+    // anything root carries is paid on top of the nested boundary's own set.
+    // Root's only client reach is the theme provider, which reads no messages.
+    // This is asserted separately from the equality check because it is the
+    // property the whole change rests on: if root re-acquires a namespace, all
+    // eight measured documents pay for it again.
+    const declaration = readDeclaration("app/layout.tsx");
+    expect(declaration.namespaces).toEqual([]);
+  });
+
+  it("the guard's own escape hatch is not silently in use", () => {
+    // A `payload-allow:` that nobody revisits is how a ratchet rots. Surfacing
+    // the count keeps its use deliberate and reviewable.
+    const inUse = BOUNDARIES.flatMap((boundary) => {
+      const declaration = readDeclaration(boundary.providerFile);
+      return [...declaration.allowed].map((ns) => `${boundary.name}:${ns}`);
+    });
+    expect(inUse, "payload-allow exemptions in use — re-justify or remove").toEqual([]);
+  });
+});
+
+describe("client components only read namespaces their boundary carries", () => {
+  it("scans a non-trivial number of client components (counterfactual)", () => {
+    let clientFiles = 0;
+    for (const file of collectSourceFiles(SRC_ROOT)) {
+      const text = readFileSync(file, "utf8");
+      if (!text.includes("useTranslations")) continue;
+      if (!hasUseClientDirective(parse(file, text))) continue;
+      clientFiles += 1;
+    }
+    // ~114 "use client" files reference useTranslations today; a FLOOR (not just
+    // > 0) also catches a partial scan collapse.
+    expect(clientFiles).toBeGreaterThanOrEqual(50);
   });
 });

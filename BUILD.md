@@ -481,7 +481,7 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - REST, JSON body
 - `/api/v1/...` prefix
 - Kebab-case i URL, camelCase i JSON
-- `Authorization: Bearer <JWT>` för alla skyddade endpoints
+- `Authorization: Bearer <sessionId>` för alla skyddade endpoints (opakt session-id, INTE en JWT — se §11.2; truth-sync #569/#827)
 - Pagination: `?page=1&pageSize=20`, response wrappar med `{ items, page, pageSize, totalCount }`
 - Error response: Problem Details (RFC 7807), alltid `application/problem+json`
 - ETag + If-Match för optimistic concurrency på aggregate-updates
@@ -1144,15 +1144,23 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
 
 Roles lagras i `user_roles` (Identity).
 
-### 11.2 JWT-flöde
+### 11.2 Session-flöde (opaka sessioner — JWT-designen skeppades aldrig)
 
-> (jfr ADR 0014 som förfinar refresh-mekaniken — refresh tokens lagras i DB,
-> access-token-`jti` i Redis; ADR 0014 avviker medvetet från beskrivningen nedan.)
+> **Truth-sync #569/#827 (2026-07-25).** Det som stod här beskrev en RS256-JWT-design med
+> refresh-token-rotation. **Den byggdes aldrig.** ADR 0017/0018 landade i stället opaka,
+> server-lagrade sessioner, och i #827 raderades den kvarvarande JWT-koden (sex typer +
+> DI-registreringar) sedan den stått `[Obsolete]` med fyra suppression-regioner vars
+> motivering — "bevaras för `RefreshCommandHandler`" — pekade på en handler som inte finns.
+> ADR 0014-noten som stod här förfinade en mekanik som aldrig existerade.
 
-- Åtkomsttoken: 15 min, signerad med RS256, claims inkluderar `sub`, `roles`, `impersonating_by` (null vid icke-impersonation)
-- Refresh token: 14 dagar, opaque, lagrad i httpOnly cookie
-- Refresh-rotation: varje användning av refresh token ger ny refresh token, gammal invalideras
-- Revokation-lista i Redis för refresh tokens
+- **Bärartoken är ett session-id, inte en JWT.** `Authorization: Bearer <sessionId>`; sessionen
+  är opak och slås upp server-side. Ingen signatur, inga claims i token.
+- **Session-state ligger i storen** (Redis bakom en resiliens-decorator, #511/#728), inte i
+  token. Revokation = ta bort sessionen; ingen separat revokations-lista behövs.
+- **Förnyelse:** `POST /api/v1/auth/refresh` → `RefreshSessionCommand`, som *slidar* sessionen
+  och roterar id:t när det är dags (#481 persistent-login). Ingen refresh-token-rotation.
+- **Backend sätter inga cookies** (ADR 0018). Next.js-proxyn äger `__Host-`-cookien och
+  ersätter dess värde när svaret bär `{ rotated: true }`.
 
 ### 11.3 Impersonation-flöde
 

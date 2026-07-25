@@ -1442,20 +1442,6 @@ public static class DependencyInjection
         services.AddSingleton<IConnectionMultiplexer>(_ =>
             ConnectionMultiplexer.Connect(redisConnectionString));
 
-#pragma warning disable JOBBLIGGAREN0001 // JwtSettings och RsaSecurityKey bevaras för RefreshCommandHandler tills Fas 1, ADR 0017
-        services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
-
-        // Singleton RSA-nyckel — läses en gång, återanvänds per token-generering.
-        // Förhindrar CNG-handle-läcka vid RSA.Create() per anrop.
-        services.AddSingleton<RsaSecurityKey>(sp =>
-        {
-            var jwt = sp.GetRequiredService<IOptions<JwtSettings>>().Value;
-            var rsa = RSA.Create();
-            rsa.ImportFromPem(File.ReadAllText(jwt.PrivateKeyPath));
-            return new RsaSecurityKey(rsa);
-        });
-#pragma warning restore JOBBLIGGAREN0001
-
         // #746 — bind + validate at startup: SessionStoreOptionsValidator caps SlideThreshold to
         // [0.0, 0.25] (a bad throttle value must fail the boot, not silently widen the Art.17
         // orphan self-heal window). ValidateOnStart() forces the check eagerly.
@@ -1491,11 +1477,6 @@ public static class DependencyInjection
         // Senior-cto-advisor-beslut 2026-05-11 (B1 — IaC over manual psql-script).
         services.Configure<AdminBootstrapOptions>(configuration.GetSection(AdminBootstrapOptions.SectionName));
         services.AddHostedService<IdempotentAdminRoleSeeder>();
-
-#pragma warning disable JOBBLIGGAREN0001 // JWT-klasser bevaras för RefreshCommandHandler tills Fas 1, ADR 0017
-        services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
-        services.AddScoped<IAccessTokenRevocationStore, RedisAccessTokenRevocationStore>();
-#pragma warning restore JOBBLIGGAREN0001
 
         // #511 (senior-cto-advisor Variant C, 2026-07-10): the concrete store is wrapped in a
         // resilience decorator that translates the degraded-Redis exceptions RedisSessionStore

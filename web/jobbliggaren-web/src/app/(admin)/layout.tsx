@@ -26,15 +26,14 @@ export default async function AdminLayout({
   // civic-utility-värde — en uppriktig redirect är rakare).
   if (!user.roles.includes(ROLES.Admin)) redirect("/");
 
-  // #740 — the root provider strips `admin` from the global client payload;
-  // re-provide it here (the ONLY group whose client components use it:
-  // AdminNav + the admin tables/filters). React context replaces rather than
-  // merges, so this provider carries the full client set + admin. timeZone is
-  // inherited from the server request config, same as the root provider.
+  // #737 — this boundary declares the namespaces its own client subtree reads
+  // (AdminNav + the admin tables/filters). React context replaces rather than
+  // merges, so the set must be complete for the subtree, not a delta on root's
+  // (which is empty). timeZone is inherited from the server request config.
+  // The declaration is verified for EQUALITY against the import graph by
+  // client-namespace-payload.test.ts — do not edit it by hand-reasoning.
   const locale = await getLocale();
-  const messages = pickClientMessages(await getMessages(), {
-    includeAdmin: true,
-  });
+  const messages = pickClientMessages(await getMessages(), ["admin", "common"]);
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>

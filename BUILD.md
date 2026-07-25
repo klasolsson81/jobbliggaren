@@ -1341,8 +1341,8 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > Sekvensering: Hetzner sist, vid MVP före beta-testare, med samtliga
 > Pre-beta-data-gates lösta + andra security-granskning först).
 >
-> `infra/terraform/` (den tidigare AWS-stacken) + AWS-deploy-workflowsen
-> (`deploy-dev.yml`, `rds-ca-bundle-check.yml`) refererar **avvecklad infra** —
+> `infra/terraform/` (den tidigare AWS-stacken) + `deploy-dev.yml` refererar
+> **avvecklad infra** —
 > den AWS-baserade dev-stacken (ECS/ECR/RDS/Redis) är **riven** 2026-05-26
 > (ADR 0066, commit `a1d9abd`), inte pausad; bara prod-baseline (~$2/mån: Route 53,
 > KMS, CloudTrail, IAM) kvarstår. Filerna är **bevarade som reversibilitets-/
@@ -1350,6 +1350,16 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > teardown-ADR/PR vid Hetzner-cutover, inte i en städ-PR. `deploy-dev.yml`:s
 > auto-trigger (`push: tags v*-dev`) är **borttagen** 2026-06-28 så den inte kan
 > köra mot riven infra; endast manuell `workflow_dispatch` kvarstår.
+>
+> **#808 (2026-07-25):** `rds-ca-bundle-check.yml` är **raderad**. Till skillnad från
+> `deploy-dev.yml` var den inte passiv historik utan ett **aktivt månadsjobb** (cron
+> `0 3 1 * *`, `issues: write`) som hämtade en AWS-upstream-URL och **öppnade ett
+> GitHub-issue** vid drift — mot en CA-bundle för en RDS-instans som revs 2026-05-26.
+> Den kunde alltså fila spöken i backloggen. `infra/certs/rds-global-bundle.pem`
+> BEHÅLLS: alla tre Dockerfiles `COPY` den fortfarande, och `.dockerignore` bär
+> avsiktliga negationer för att släppa igenom den. Dess borttagning har egen ägare
+> (#196/TD-106, Hetzner-image). `infra/terraform/` är **orörd** — den retireras via
+> egen teardown-ADR/PR enligt stycket ovan, inte här.
 
 ### 15.1 Deploy-layout (ADR 0050, Accepted)
 

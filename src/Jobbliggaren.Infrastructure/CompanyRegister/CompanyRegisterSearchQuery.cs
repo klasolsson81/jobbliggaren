@@ -181,19 +181,36 @@ internal sealed class CompanyRegisterSearchQuery(AppDbContext db) : ICompanyRegi
     /// <b>Why a rule and not an axis list — the big-kommun counter-evidence.</b> Göteborg (49 639
     /// Active) SATURATES the count and keeps the walk: 9,5 ms, preserved. Stockholm (112 383):
     /// 0,8 ms. Materialized they would cost 50 ms and 96 ms, so an axis list naming "name + kommun"
-    /// would have made the two biggest kommuner 5× and 120× worse. Browse-all likewise saturates
-    /// (1,5 ms), and a narrow SNI is healthy UNFIXED at 0,4 ms because that axis is GIN-served and
-    /// its bitmap estimates are honest. The rule is not "materialize when in doubt" — it is
-    /// "materialize when we can BOUND it", and a saturated count is precisely the signal that we
-    /// cannot, and need not.
+    /// would have made the two biggest kommuner 5× and 120× worse. Browse-all likewise saturates and
+    /// keeps its walk. The rule is not "materialize when in doubt" — it is "materialize when we can
+    /// BOUND it", and a saturated count is precisely the signal that we cannot, and need not.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>SNI belongs to the sparse-and-spread regime too, and the count clause covers it
+    /// PREEMPTIVELY.</b> A narrow SNI (35210, 100 <c>Active</c>) is healthy UNFIXED at 0,4 ms — the
+    /// walk was never chosen there, because that axis is GIN-served and its bitmap estimates are
+    /// honest, so the planner already prices the right plan right. That is not a counter-example to
+    /// the regime: the depth arithmetic is identical, only the planner's INPUT is better. The count
+    /// clause materializes it anyway (100 &lt; cap) at no measurable cost, which is what makes this
+    /// a rule about axes independent of the sort key rather than a kommun patch.
     /// </para>
     ///
     /// <para>
     /// <b>Accepted regression, stated plainly.</b> A prefix that sorts EARLY gets slower:
     /// <c>a%</c> 15 → 206 ms, <c>b%</c> 155 → 218 ms. That is paid deliberately for a BOUNDED worst
-    /// case across the whole alphabet (worst measured 264 ms for <c>s%</c>, inside ADR 0045's
-    /// 300 ms class (a)) instead of a fast average with a 2 141 ms tail. Bounded beats lucky:
-    /// budgets are p95/p99 statements, and predictability is the product property.
+    /// case instead of a fast average with a 2 141 ms tail. Bounded beats lucky: budgets are p95/p99
+    /// statements, and predictability is the product property.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The new worst case, measured on the five widest match sets</b> (widest ⇒ they bound the
+    /// materialized branch; plain query, median of five): <c>s%</c> 83 267 matches → 264 ms ·
+    /// <c>b%</c> 63 052 → 218 ms · <c>a%</c> 56 050 → 206 ms · <c>m%</c> 47 807 → 198 ms ·
+    /// <c>h%</c> 41 576 → 200 ms. Worst 264 ms, inside ADR 0045's 300 ms class (a). Earlier readings
+    /// of 312 ms (<c>h%</c>) and 305 ms (<c>s%</c>) that tripped a review gate were
+    /// <c>EXPLAIN ANALYZE</c> per-node overhead, not request cost — a budget is a claim about what
+    /// the REQUEST costs, so it must be measured in the shape production emits.
     /// </para>
     ///
     /// <para>
@@ -299,15 +316,31 @@ internal sealed class CompanyRegisterSearchQuery(AppDbContext db) : ICompanyRegi
     /// No new constant and no tuning knob: the ceiling is
     /// <see cref="CompanyRegisterSearchCriteria.MaxServableRows"/>, the SAME knowledge piece
     /// <see cref="BuildCountCommand"/> caps with. A saturated count is precisely the statement
-    /// "we do not know how big this match set is" — and an unsaturated one bounds it at ≤ 2 000
-    /// rows (default page size).
+    /// "we do not know how big this match set is" — and an unsaturated one bounds the match set at
+    /// <c>100 × pageSize</c>: 2 000 rows at the default page size, 10 000 at the largest
+    /// <c>pageSize</c> a caller may request. Only the 2 000-row bound is measured directly; the
+    /// 10 000-row one is bounded from above by the big-kommun measurement (49 639 rows materialize
+    /// in 50 ms).
     /// </para>
     ///
     /// <para>
     /// <b>The threshold was validated at its own boundary, not extrapolated</b> (ADR 0119): the four
-    /// kommuner bracketing the cap (1 880 / 1 976 / 2 019 / 2 037 <c>Active</c>) measured 5,5–14,2 ms
-    /// unfixed and 1,8–2,5 ms materialized — no cliff on either side of the switch, so a match set
-    /// landing just above saturation is not a latency trap.
+    /// kommuner bracketing the cap (1 880 / 1 976 / 2 019 / 2 037 <c>Active</c>) measured
+    /// 11,0–17,2 ms unfixed and 3,7–4,1 ms materialized (plain query, median of five). All four take
+    /// the ORDERED WALK unfixed — verified by EXPLAIN, so the boundary was measured on the branch it
+    /// is about — and there is no cliff on either side of the switch.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Why those milliseconds look "too cheap" against the depth model above, reconciled.</b>
+    /// Depth at the cap is ~10 000 rows (kommun 1487, measured: <c>Rows Removed by Filter</c>
+    /// 10 076) — an order of magnitude shallower than the sparse cases — and every buffer was a
+    /// cache hit (<c>shared hit=10065</c>, zero reads). Per-row walk cost is therefore NOT a
+    /// constant to extrapolate with: ~1,3 µs while the walk fits in <c>shared_buffers</c>, ~38 µs
+    /// for the 104 322-row walk that does not. That is why the deep cases are catastrophic and the
+    /// boundary is not, and it is also why these boundary figures are a warm-cache floor rather than
+    /// a p95 claim. The rule does not rest on them: it switches on the count, and both sides of the
+    /// switch were measured in budget.
     /// </para>
     /// </summary>
     private static bool ShouldMaterialize(CompanyRegisterSearchCriteria criteria, int matchCount) =>

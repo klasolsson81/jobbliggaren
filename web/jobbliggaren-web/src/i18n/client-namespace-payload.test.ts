@@ -40,9 +40,16 @@ import {
  * `ADMIN_SURFACE` path heuristic is deleted rather than generalised: "which
  * boundary owns components/job-ads/*" has no true answer.
  *
- * Known limitation (backstopped by E2E + `next build`'s runtime
- * `MISSING_MESSAGE`): `useTranslations` is matched by identifier name, so an
- * aliased import (`import { useTranslations as t }`) is not seen.
+ * Known limitations, all matched by IDENTIFIER NAME and all measured at zero
+ * occurrences on 2026-07-25 (backstopped by the e2e workflow and `next build`'s
+ * runtime `MISSING_MESSAGE`):
+ *   - an aliased hook import (`import { useTranslations as t }`) is not seen, so
+ *     its namespaces never enter `required`;
+ *   - an aliased provider import (`import { NextIntlClientProvider as P }`) is
+ *     not seen by `findProviderSites`, so R1 would not classify that site.
+ * `useMessages()` used to belong here; it now fails loud instead (it reads the
+ * whole payload without naming a namespace, so equality cannot see what the
+ * component reads).
  */
 
 const SRC_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -59,7 +66,14 @@ const BOUNDARIES: readonly ProviderBoundary[] = [
   { name: "(admin)", providerFile: "app/(admin)/layout.tsx", routeRoot: "app/(admin)" },
   { name: "(app)", providerFile: "app/(app)/layout.tsx", routeRoot: "app/(app)" },
   { name: "(auth)", providerFile: "app/(auth)/layout.tsx", routeRoot: "app/(auth)" },
-  { name: "(guest)", providerFile: "app/(guest)/gast/layout.tsx", routeRoot: "app/(guest)" },
+  // routeRoot is `(guest)/gast`, NOT `(guest)`: the provider sits on
+  // gast/layout.tsx and wraps only that subtree. Widening it to the group would
+  // be fail-OPEN — a future `(guest)/<x>/page.tsx` would be counted into this
+  // boundary's required set (declaration grows, test green) while runtime renders
+  // it under the root provider's EMPTY payload. With the narrow root, such a file
+  // lands in root's walk instead, where both R3 and the root-empty assertion go
+  // red immediately.
+  { name: "(guest)", providerFile: "app/(guest)/gast/layout.tsx", routeRoot: "app/(guest)/gast" },
   {
     name: "(marketing)",
     providerFile: "app/(marketing)/layout.tsx",
@@ -82,7 +96,9 @@ const BOUNDARIES: readonly ProviderBoundary[] = [
  * — a hardcoded one-namespace payload is the point: the error page must not
  * depend on the request-scoped config that may be what failed.
  */
-const SELF_SEEDED_PROVIDERS: readonly string[] = ["app/global-error.tsx"];
+const SELF_SEEDED_PROVIDERS: readonly { file: string; seeds: readonly string[] }[] = [
+  { file: "app/global-error.tsx", seeds: ["pages"] },
+];
 
 /**
  * Every provider site that OWNS a subtree, for exclusion purposes. A self-seeded
@@ -92,7 +108,7 @@ const SELF_SEEDED_PROVIDERS: readonly string[] = ["app/global-error.tsx"];
  */
 const ALL_PROVIDER_SUBTREES: readonly ProviderBoundary[] = [
   ...BOUNDARIES,
-  ...SELF_SEEDED_PROVIDERS.map((file) => ({
+  ...SELF_SEEDED_PROVIDERS.map(({ file }) => ({
     name: file,
     providerFile: file,
     routeRoot: file,
@@ -220,9 +236,10 @@ describe("client i18n payload is scoped per provider boundary (#737)", () => {
     const sites = findProviderSites();
     const known = new Set<string>([
       ...BOUNDARIES.map((b) => b.providerFile),
-      ...SELF_SEEDED_PROVIDERS,
+      ...SELF_SEEDED_PROVIDERS.map(({ file }) => file),
     ]);
     const unclassified = sites.filter((s) => !known.has(s));
+
 
     expect(
       unclassified,
@@ -317,6 +334,7 @@ describe("client i18n payload is scoped per provider boundary (#737)", () => {
       // that is too small.
       problems.push(...reach.dynamicUnresolved.map((d) => `  ${boundary.name}: ${d.trim()}`));
       problems.push(...reach.unresolvedCalls.map((d) => `  ${boundary.name}: ${d.trim()}`));
+      problems.push(...reach.opaqueReferences.map((d) => `  ${boundary.name}: ${d.trim()}`));
     }
     if (problems.length > 0) {
       throw new Error(
@@ -334,13 +352,42 @@ describe("client i18n payload is scoped per provider boundary (#737)", () => {
     for (const boundary of BOUNDARIES) {
       const reach = reachableNamespaces(boundary, ALL_PROVIDER_SUBTREES, SRC_ROOT);
       totalClientFiles += reach.clientFileCount;
+      // A missing floor must FAIL rather than default to 1: a boundary added
+      // without one would silently carry no counterfactual — exactly the
+      // boundary R1 exists for.
+      const floor = MIN_CLIENT_FILES[boundary.name];
+      expect(
+        floor,
+        `${boundary.name}: no MIN_CLIENT_FILES floor — add one, set well below today's count`
+      ).toBeDefined();
       expect(
         reach.clientFileCount,
         `${boundary.name}: reached only ${reach.clientFileCount} client files — the import-graph ` +
           "walk looks collapsed, so the equality assertion above is vacuous"
-      ).toBeGreaterThanOrEqual(MIN_CLIENT_FILES[boundary.name] ?? 1);
+      ).toBeGreaterThanOrEqual(floor ?? Number.POSITIVE_INFINITY);
     }
     expect(totalClientFiles).toBeGreaterThanOrEqual(150);
+  });
+
+  it("a self-seeded provider reaches no more than the namespaces it seeds", () => {
+    // Otherwise this is the one provider payload in the app nothing verifies.
+    // global-error.tsx is a leaf today (reads pages.common.*, imports only
+    // svPages + globals.css) — but pull a shared <Button>/ui/dialog into the
+    // crash surface and it reads `common`, which the hardcoded seed does not
+    // carry. Neither the equality check (this file is excluded from root's walk
+    // by design), nor global-error.test.tsx (asserts today's three strings), nor
+    // a rendered crawl would see that.
+    for (const { file, seeds } of SELF_SEEDED_PROVIDERS) {
+      const boundary: ProviderBoundary = { name: file, providerFile: file, routeRoot: file };
+      const reach = reachableNamespaces(boundary, ALL_PROVIDER_SUBTREES, SRC_ROOT);
+      const unseeded = [...reach.namespaces].filter((ns) => !seeds.includes(ns)).sort();
+      expect(
+        unseeded,
+        `${file} seeds [${seeds.join(", ")}] but its client subtree also reads ` +
+          `[${unseeded.join(", ")}] — that copy renders blank. Seed it, or keep the ` +
+          "surface a leaf."
+      ).toEqual([]);
+    }
   });
 
   it("the root boundary carries no namespaces — its payload is paid by every document", () => {

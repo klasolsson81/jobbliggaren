@@ -4,13 +4,15 @@
  *
  * A `NextIntlClientProvider` payload is a property of the PROVIDER BOUNDARY —
  * the provider call site plus the route subtree it wraps — not of a route
- * group: `(marketing)` has no layout at all and `(guest)`'s provider sits at
- * `(guest)/gast/layout.tsx`, so "route group" does not name the unit.
+ * group: `(marketing)`'s layout carries no chrome and exists only to own this
+ * payload, and `(guest)`'s provider sits at `(guest)/gast/layout.tsx` — so
+ * "route group" does not name the unit.
  *
  * For a boundary `b`, `requiredNamespaces(b)` is computed as:
- *   entries(b)  = every route file in b's own subtree (page/layout/template/
- *                 error/not-found/default, parallel routes included), EXCLUDING
- *                 subtrees owned by a nested boundary — those pay their own way.
+ *   entries(b)  = every `.ts`/`.tsx` source file in b's own subtree (parallel
+ *                 routes such as `@modal` included), EXCLUDING subtrees owned by
+ *                 a nested boundary — those pay their own way. Not a list of
+ *                 Next's route conventions; see SOURCE_FILE for why.
  *   walk        = transitive static `import` + `import()` edges from entries.
  *   collect     = `useTranslations("<ns>")` string literals in files carrying a
  *                 `"use client"` directive prologue (and in every file reached
@@ -26,7 +28,7 @@
  * means a bug here fails a test loudly instead of shipping a route with missing
  * copy (the reason build-time codegen was rejected — CTO bind D2, 2026-07-25).
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, type Dirent } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 import * as ts from "typescript";
 
@@ -57,9 +59,28 @@ export interface Reachability {
   readonly dynamicUnresolved: string[];
   /** `useTranslations()` with a non-literal namespace — fail loud. */
   readonly unresolvedCalls: string[];
+  /**
+   * A literal specifier that looks like product source but did not resolve, and
+   * `useMessages()` calls. Both defeat the analysis in the fail-OPEN direction:
+   * a missed import edge shrinks `required`, and `useMessages()` reads the whole
+   * payload without naming a namespace, so no namespace enters `required` at all.
+   */
+  readonly opaqueReferences: string[];
 }
 
-const ROUTE_FILE = /^(page|layout|template|error|not-found|default|loading|global-error)\.tsx?$/;
+// Deliberately NOT a list of Next's route-file conventions. An allowlist is a
+// silent hole: a convention it does not recognise (`forbidden.tsx`,
+// `unauthorized.tsx`, `global-not-found.tsx` — all real in Next 16.2.9) is never
+// walked, so its namespaces never enter the required set and may be omitted from
+// a declaration: blank copy, green test. Closing the CLASS instead of the known
+// instances means every source file under the subtree is an entry.
+//
+// Over-approximating is fail-SAFE in this direction: more entries can only make
+// `required` larger, so a declaration must grow, never shrink. Measured
+// 2026-07-25: it changes no boundary's computed set — every non-route file under
+// app/** is already reachable from a route file — so the safety is free today
+// and holds for conventions that do not exist yet.
+const SOURCE_FILE = /\.tsx?$/;
 
 export function toPosix(p: string): string {
   return p.split(sep).join("/");
@@ -92,11 +113,25 @@ function parse(file: string, text: string): ts.SourceFile {
   );
 }
 
-function resolveSpecifier(spec: string, fromFile: string, srcRoot: string): string | null {
+/** Non-source specifiers a product import may legitimately name. */
+const NON_SOURCE_SPECIFIER = /\.(css|json|svg|png|jpe?g|webp|woff2?)$/;
+
+interface Resolution {
+  readonly file: string | null;
+  /**
+   * True when the specifier names product source (relative or `@/`), has no
+   * non-source extension, and still did not resolve — i.e. a graph edge is
+   * missing and `required` is therefore too small. Distinguished from a package
+   * or asset import, which is legitimately not walked.
+   */
+  readonly opaque: boolean;
+}
+
+function resolveSpecifier(spec: string, fromFile: string, srcRoot: string): Resolution {
   let base: string;
   if (spec.startsWith("@/")) base = resolve(srcRoot, spec.slice(2));
   else if (spec.startsWith(".")) base = resolve(dirname(fromFile), spec);
-  else return null; // package import — never product source
+  else return { file: null, opaque: false }; // package import — never product source
 
   for (const candidate of [
     `${base}.tsx`,
@@ -105,12 +140,14 @@ function resolveSpecifier(spec: string, fromFile: string, srcRoot: string): stri
     resolve(base, "index.ts"),
   ]) {
     try {
-      if (statSync(candidate).isFile()) return candidate;
+      if (statSync(candidate).isFile()) return { file: candidate, opaque: false };
     } catch {
       /* not this one */
     }
   }
-  return null;
+  // A `.css`/`.json`/asset import resolves to nothing walkable BY DESIGN; a bare
+  // or `.ts`/`.tsx` specifier that does not resolve is a hole in the graph.
+  return { file: null, opaque: !NON_SOURCE_SPECIFIER.test(spec) };
 }
 
 interface FileScan {
@@ -118,6 +155,7 @@ interface FileScan {
   readonly namespaces: string[];
   readonly unresolvedTranslations: number;
   readonly unresolvedDynamicImports: number;
+  readonly opaque: string[];
   readonly isClient: boolean;
 }
 
@@ -129,8 +167,15 @@ function scanFile(file: string, srcRoot: string, cache: Map<string, FileScan>): 
   const sourceFile = parse(file, text);
   const imports: string[] = [];
   const namespaces: string[] = [];
+  const opaque: string[] = [];
   let unresolvedTranslations = 0;
   let unresolvedDynamicImports = 0;
+
+  const take = (spec: string): void => {
+    const { file: resolved, opaque: isOpaque } = resolveSpecifier(spec, file, srcRoot);
+    if (resolved && !isTestFile(resolved)) imports.push(resolved);
+    else if (isOpaque) opaque.push(`import "${spec}" did not resolve to product source`);
+  };
 
   const visit = (node: ts.Node): void => {
     // static `import ... from "x"` / `export ... from "x"`
@@ -139,8 +184,7 @@ function scanFile(file: string, srcRoot: string, cache: Map<string, FileScan>): 
       node.moduleSpecifier &&
       ts.isStringLiteralLike(node.moduleSpecifier)
     ) {
-      const r = resolveSpecifier(node.moduleSpecifier.text, file, srcRoot);
-      if (r && !isTestFile(r)) imports.push(r);
+      take(node.moduleSpecifier.text);
     }
 
     if (ts.isCallExpression(node)) {
@@ -149,12 +193,8 @@ function scanFile(file: string, srcRoot: string, cache: Map<string, FileScan>): 
       // fail loud rather than be skipped.
       if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
         const arg = node.arguments[0];
-        if (arg && ts.isStringLiteralLike(arg)) {
-          const r = resolveSpecifier(arg.text, file, srcRoot);
-          if (r && !isTestFile(r)) imports.push(r);
-        } else {
-          unresolvedDynamicImports += 1;
-        }
+        if (arg && ts.isStringLiteralLike(arg)) take(arg.text);
+        else unresolvedDynamicImports += 1;
       }
 
       // `useTranslations("ns.path")` — a real call is a CallExpression; the type
@@ -169,6 +209,13 @@ function scanFile(file: string, srcRoot: string, cache: Map<string, FileScan>): 
           unresolvedTranslations += 1;
         }
       }
+
+      // `useMessages()` hands a component the WHOLE payload without naming a
+      // namespace, so nothing enters `required` and the equality check cannot
+      // see what the component reads. Zero occurrences today — this keeps it so.
+      if (ts.isIdentifier(node.expression) && node.expression.text === "useMessages") {
+        opaque.push("useMessages() reads the whole payload without naming a namespace");
+      }
     }
 
     ts.forEachChild(node, visit);
@@ -180,20 +227,16 @@ function scanFile(file: string, srcRoot: string, cache: Map<string, FileScan>): 
     namespaces,
     unresolvedTranslations,
     unresolvedDynamicImports,
+    opaque,
     isClient: hasUseClientDirective(sourceFile),
   };
   cache.set(file, scan);
   return scan;
 }
 
-/** Route files in `dir`, minus subtrees owned by a nested boundary. */
+/** Source files in `dir`, minus subtrees owned by a nested boundary. */
 function collectEntries(dir: string, excluded: string[], acc: string[] = []): string[] {
-  let dirents;
-  try {
-    dirents = readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return acc;
-  }
+  const dirents: Dirent[] = readdirSync(dir, { withFileTypes: true });
   for (const entry of dirents) {
     const child = resolve(dir, entry.name);
     // A nested boundary owns its subtree (directory) or itself (file) — either
@@ -201,7 +244,7 @@ function collectEntries(dir: string, excluded: string[], acc: string[] = []): st
     if (excluded.some((e) => child === e || child.startsWith(e + sep))) continue;
     if (entry.isDirectory()) {
       collectEntries(child, excluded, acc);
-    } else if (ROUTE_FILE.test(entry.name) && !isTestFile(child)) {
+    } else if (SOURCE_FILE.test(entry.name) && !isTestFile(child)) {
       acc.push(child);
     }
   }
@@ -229,6 +272,7 @@ export function reachableNamespaces(
   const allFiles = new Set<string>();
   const dynamicUnresolved: string[] = [];
   const unresolvedCalls: string[] = [];
+  const opaqueReferences: string[] = [];
 
   // (file, inClientSubtree) — a file reached both server-side and through a
   // client boundary must be walked twice; only the client pass contributes.
@@ -247,12 +291,11 @@ export function reachableNamespaces(
     seen.add(key);
     allFiles.add(file);
 
-    let scan: FileScan;
-    try {
-      scan = scanFile(file, srcRoot, cache);
-    } catch {
-      continue; // unreadable file — not a product source we can reason about
-    }
+    // NOT wrapped in a try/catch that continues: swallowing a parse/read error
+    // would drop the file's namespaces from `required` and leave the equality
+    // check green against a payload that is too small. A file under src/ that
+    // cannot be read is a broken tree, and should say so.
+    const scan = scanFile(file, srcRoot, cache);
 
     const nowClient = inClient || scan.isClient;
     if (nowClient) {
@@ -264,6 +307,9 @@ export function reachableNamespaces(
             `useTranslations() call(s) with a non-literal namespace`
         );
       }
+    }
+    for (const reason of scan.opaque) {
+      opaqueReferences.push(`  ${toPosix(relative(srcRoot, file))}: ${reason}`);
     }
     if (scan.unresolvedDynamicImports > 0) {
       dynamicUnresolved.push(
@@ -281,5 +327,6 @@ export function reachableNamespaces(
     fileCount: allFiles.size,
     dynamicUnresolved,
     unresolvedCalls,
+    opaqueReferences,
   };
 }

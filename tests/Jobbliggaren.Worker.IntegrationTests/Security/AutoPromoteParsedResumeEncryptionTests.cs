@@ -225,7 +225,7 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
             // Asserting both here is the point: they are different values in different
             // protection classes, and this test is the one that reads them through the real
             // encryption pipeline.
-            resume.Name.ShouldBe("anna-cv");
+            resume.Name.ShouldStartWith("Importerat CV ");
             resume.Name.ShouldNotBe(AccountDisplayName);
             var content = resume.MasterVersion.Content;
             content.PersonalInfo.FullName.ShouldBe(AccountDisplayName);

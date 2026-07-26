@@ -126,9 +126,9 @@ public static class ResumesEndpoints
             var personnummerAcknowledged =
                 bool.TryParse(form["personnummerAcknowledged"], out var acknowledged) && acknowledged;
 
-            // The CV display name (CV-pivot 5c): the upload form prefills the account holder's
-            // name and lets the user edit it. Absent/blank → the AutoPromote handler resolves
-            // JobSeeker.DisplayName (5a CTO-bind R5). Never the parsed file's contact name.
+            // The CV LABEL (#1060) — not the person's name. The upload form sends this only
+            // when the user typed one; absent/blank → the AutoPromote handler generates a
+            // non-PII default. The person's name in the content is always JobSeeker.DisplayName.
             var nameOverride = form["name"].ToString();
             if (string.IsNullOrWhiteSpace(nameOverride))
                 nameOverride = null;

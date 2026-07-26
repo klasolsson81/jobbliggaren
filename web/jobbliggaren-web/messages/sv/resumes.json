@@ -44,7 +44,7 @@
     "pendingLabel": "Laddar upp och granskar ditt CV",
     "pendingText": "Laddar upp och granskar ditt CV. Det kan ta en liten stund.",
     "nameLabel": "Namn på CV",
-    "nameHint": "Namnet visas i din CV-lista så att du hittar rätt variant. Vi föreslår filens namn.",
+    "nameHint": "Namnet visas i din CV-lista så att du hittar rätt variant. Lämnar du det tomt får CV:t namnet Importerat CV med dagens datum, och du kan byta namn när du vill.",
     "dropText": "Välj en fil att ladda upp",
     "dropHint": "PDF eller Word (DOCX)",
     "help": "Ladda upp en PDF- eller Word-fil (DOCX) på högst 10 MB. Vi tolkar innehållet och skapar ett CV du kan granska och redigera.",

@@ -122,13 +122,17 @@ public sealed class Resume : AggregateRoot<ResumeId>
     // (Personnummer.TryParse) still governs, so an ordinary label is never over-flagged.
     // Returns the trimmed, validated name on success so callers use ONE canonical value
     // (no per-site .Trim(), and the nullable-flow stays sound after the guard).
+    /// <summary>The label's length limit. Exposed because callers that DERIVE a label (the
+    /// import path) must cap against the aggregate's own number, not a copy of it.</summary>
+    public const int MaxNameLength = 200;
+
     private static Result<string> ValidateName(string? name)
     {
         if (string.IsNullOrWhiteSpace(name))
             return Result.Failure<string>(
                 DomainError.Validation("Resume.NameRequired", "Namn på CV är obligatoriskt."));
 
-        if (name.Length > 200)
+        if (name.Length > MaxNameLength)
             return Result.Failure<string>(
                 DomainError.Validation("Resume.NameTooLong", "Namn får vara max 200 tecken."));
 

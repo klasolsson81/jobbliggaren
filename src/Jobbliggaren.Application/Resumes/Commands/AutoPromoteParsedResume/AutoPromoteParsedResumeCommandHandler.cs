@@ -113,25 +113,20 @@ public sealed class AutoPromoteParsedResumeCommandHandler(
         // that printed where her name belongs, and a user who accepted the suggested account
         // name got every import labelled identically in the hub. They are also in different
         // data-protection classes: `Resume.Name` is a PLAINTEXT column that surfaces in CV
-        // lists and exports (Resume.cs:108-115 — its classification rests on it being a
-        // LABEL), while PersonalInfo.FullName lives in the DEK-encrypted content shadow.
-        // Defaulting the plaintext column to the account holder's personal name made
-        // personal data the standard content of exactly that column.
+        // lists (its classification rests on it being a LABEL — see Resume.ValidateName's
+        // remarks), while PersonalInfo.FullName lives in the DEK-encrypted content shadow.
+        // Defaulting the plaintext column to the account holder's personal name made personal
+        // data the standard content of exactly that column.
         //
         // Person name: ALWAYS the account holder's display name. Never the form field, and
         // never the parsed contact name (5a CTO-bind R5, preserved).
         var personName = owner.DisplayName;
 
-        // Label: the form field when given, else the source file name without its extension.
-        // The file name is already personnummer-masked by ParsedResume.Create (:190), so the
-        // derived label cannot carry one; a USER-typed one still can, which is why the scan
-        // below is on the resolved label and not only on the composed content.
-        var label = string.IsNullOrWhiteSpace(command.NameOverride)
-            ? LabelFromSourceFileName(parsed.SourceFileName)
-            : command.NameOverride.Trim();
-
-        if (string.IsNullOrWhiteSpace(label))
-            label = personName;
+        // Label: the form field when the user typed one, else a generated non-PII default. The
+        // file name is deliberately NOT a candidate — ADR 0096 D-B refused it on Resume, and a
+        // filename label would also falsify the documented rule that a filename never reaches
+        // the canonical Resume (PersonnummerScanOutcome), which B4's Warn-not-Fail rests on.
+        var label = ResumeLabelResolver.Resolve(command.NameOverride, clock);
 
         // A personnummer in the LABEL is a personnummer presence, not "incomplete content" —
         // `Resume.ValidateName` would refuse it too, but as a buildability failure, which
@@ -198,16 +193,4 @@ public sealed class AutoPromoteParsedResumeCommandHandler(
 
     private static Result<AutoPromoteOutcome> LeftPending(AutoPromoteBlockReason reason) =>
         Result.Success<AutoPromoteOutcome>(new AutoPromoteOutcome.LeftPending(reason));
-
-    /// <summary>
-    /// The CV label suggested from the uploaded file's name: the name minus its extension,
-    /// capped at the aggregate's 200-char limit. Distinguishable per upload by construction,
-    /// which the account name was not — and it rides an already-plaintext, already-masked
-    /// column (<c>ParsedResume.SourceFileName</c>) rather than moving personal data into one.
-    /// </summary>
-    private static string LabelFromSourceFileName(string sourceFileName)
-    {
-        var name = Path.GetFileNameWithoutExtension(sourceFileName).Trim();
-        return name.Length > 200 ? name[..200] : name;
-    }
 }

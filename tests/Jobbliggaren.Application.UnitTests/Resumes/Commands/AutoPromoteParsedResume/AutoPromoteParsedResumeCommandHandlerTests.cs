@@ -99,9 +99,10 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         JobSeekerId owner,
         ParsedResumeContent? content = null,
         ParseConfidence? confidence = null,
-        PersonnummerScanOutcome? pnr = null) =>
+        PersonnummerScanOutcome? pnr = null,
+        string sourceFileName = "anna-cv.pdf") =>
         ParsedResume.Create(
-            owner, "anna-cv.pdf", "application/pdf", ResumeLanguage.Sv,
+            owner, sourceFileName, "application/pdf", ResumeLanguage.Sv,
             content ?? CleanParsedContent(),
             "raw text",
             confidence ?? Confident(),
@@ -114,11 +115,12 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         ParsedResumeContent? content = null,
         ParseConfidence? confidence = null,
         PersonnummerScanOutcome? pnr = null,
-        string displayName = AccountName)
+        string displayName = AccountName,
+        string sourceFileName = "anna-cv.pdf")
     {
         var seeker = JobSeeker.Register(userId, displayName, FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
-        var parsed = BuildParsed(seeker.Id, content, confidence, pnr);
+        var parsed = BuildParsed(seeker.Id, content, confidence, pnr, sourceFileName);
         db.ParsedResumes.Add(parsed);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return (parsed, seeker);
@@ -248,13 +250,14 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     }
 
     /// <summary>
-    /// The LABEL is suggested from the uploaded file's name, not from the account name
-    /// (#1060, Klas 2026-07-26). The account name would give every import the same label;
-    /// the file name is distinguishable by construction and is already a masked, plaintext
-    /// column (ParsedResume.SourceFileName), so no personal data moves into a new class.
+    /// With no user-typed label the CV gets a GENERATED, non-PII name — not the account name
+    /// and not the file name (CTO-bind D5-REBIND-2). The account name would put the person's
+    /// name back into the plaintext column for every user who never edits it; the file name
+    /// was refused for `Resume` by ADR 0096 D-B (PII-near) and would additionally outlive the
+    /// staging-retention rule written for `SourceFileName`.
     /// </summary>
     [Fact]
-    public async Task Handle_LabelIsTheSourceFileNameWithoutExtension_NotTheAccountName()
+    public async Task Handle_NoNameOverride_GeneratesANonPersonalDatedLabel()
     {
         var db = TestAppDbContextFactory.Create();
         var (parsed, _) = await SeedOwnedAsync(db, _userId); // fixture file: "anna-cv.pdf"
@@ -264,8 +267,10 @@ public class AutoPromoteParsedResumeCommandHandlerTests
 
         result.IsSuccess.ShouldBeTrue();
         var resume = db.Resumes.Local.ShouldHaveSingleItem();
-        resume.Name.ShouldBe("anna-cv");
+        resume.Name.ShouldBe(
+            $"Importerat CV {FakeDateTimeProvider.Default.UtcNow:yyyy-MM-dd}");
         resume.Name.ShouldNotBe(AccountName);
+        resume.Name.ShouldNotContain("anna-cv"); // never the file name either
     }
 
     /// <summary>Every auto-promoted entry is date-less by construction — auto-promote can
@@ -657,16 +662,41 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhitespaceNameOverride_FallsBackToTheFileNameLabel()
+    public async Task Handle_WhitespaceNameOverride_FallsBackToTheGeneratedLabel()
     {
         var db = TestAppDbContextFactory.Create();
-        var (parsed, _) = await SeedOwnedAsync(db, _userId); // fixture file: "anna-cv.pdf"
+        var (parsed, _) = await SeedOwnedAsync(db, _userId);
 
         var result = await CreateSut(db).Handle(
             Command(parsed.Id.Value, nameOverride: "   "), TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        db.Resumes.Local.ShouldHaveSingleItem().Name.ShouldBe("anna-cv");
+        db.Resumes.Local.ShouldHaveSingleItem().Name.ShouldBe(
+            $"Importerat CV {FakeDateTimeProvider.Default.UtcNow:yyyy-MM-dd}");
+    }
+
+    /// <summary>
+    /// A personnummer in the FILE NAME must NOT block promote. The rule is written down in
+    /// `PersonnummerScanOutcome` ("a filename-only detection does NOT set Found, so it does
+    /// NOT block promotion — the filename never reaches the canonical Resume") and B4's
+    /// Warn-instead-of-Fail rests on it. An earlier draft of #1060 derived the label from the
+    /// file name and silently falsified both halves; this pins that it cannot come back.
+    /// </summary>
+    [Fact]
+    public async Task Handle_PersonnummerOnlyInTheFileName_StillPromotes_LabelNeverCarriesIt()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var (parsed, _) = await SeedOwnedAsync(
+            db, _userId, sourceFileName: $"CV_{ValidPersonnummer}.pdf");
+
+        var result = await CreateSut(db).Handle(
+            Command(parsed.Id.Value), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBeOfType<AutoPromoteOutcome.Promoted>();
+        var resume = db.Resumes.Local.ShouldHaveSingleItem();
+        resume.Name.ShouldBe(
+            $"Importerat CV {FakeDateTimeProvider.Default.UtcNow:yyyy-MM-dd}");
     }
 
     /// <summary>

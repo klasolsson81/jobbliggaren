@@ -66,7 +66,9 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
  * Follow-up round (2026-07-26) — the live-review fixes, per
  * `docs/reviews/2026-07-25-foretag-sok-followup-design.md`:
  * - the search hint moved OUT of the form row (`items-end` was bottom-aligning the button against the
- *   hint, not the input), and the button now matches the field's 48px so the row reads as one control;
+ *   hint, not the input). That is HALF of finding 1; the heights still differ (input 48, button 44,
+ *   measured live) and are fixed in PR 4c by bringing `.jp-input` to the 44px DESIGN.md already
+ *   specifies — see the comment at the form row for why a utility cannot do it;
  * - the bransch/ort controls sit in a hairline-separated `role="group"` — the two interaction models
  *   (name SUBMITS, filters narrow) are drawn rather than explained in more prose;
  * - the org.nr answer renders through `CompanyBrowseList` instead of a hand-rolled card, so the two
@@ -85,7 +87,6 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
 
 /** `useSyncExternalStore` with a never-firing subscription: the cheapest "am I hydrated" signal. */
 const emptySubscribe = () => () => {};
-
 
 type OrgNrState =
   | { kind: "idle" }
@@ -353,8 +354,16 @@ export function ForetagSokSearchbar({
           </label>
           {/* The hint lives BELOW the row, not inside the field column: `.jp-field` is a column of
               label → input → hint, so an `items-end` row bottom-aligned the button against the HINT's
-              baseline rather than the input's (finding 1). The button is sized to the field's 48px so
-              the pair reads as one control; `aria-describedby` is position-independent and follows. */}
+              baseline rather than the input's. That half of finding 1 IS fixed here;
+              `aria-describedby` is position-independent and follows the move.
+              The heights still differ (input 48, button 44, measured live) and are NOT fixed here.
+              An `h-12` utility was tried and is a silent no-op: the `.jp-*` system is deliberately
+              unlayered (globals.css:615-624) and unlayered CSS beats Tailwind's `@layer utilities`,
+              so `.jp-btn { height: 44px }` wins. The fix is `.jp-input` 48 → 44 — DESIGN.md:132
+              already specifies 44px and shadcn's Input ships it in 20 files, so 48px is a four-file
+              unratified drift, not a standard. That is its own PR (4c) because it touches three
+              screens this live-review round never covered. CTO bind:
+              docs/reviews/2026-07-26-foretag-sok-pr4b-height-cto.md */}
           <div className="flex gap-2">
             <input
               id={searchInputId}
@@ -373,7 +382,7 @@ export function ForetagSokSearchbar({
             />
             <button
               type="submit"
-              className="jp-btn jp-btn--primary h-12 shrink-0"
+              className="jp-btn jp-btn--primary shrink-0"
               aria-busy={state.kind === "pending" || isNavPending || undefined}
             >
               {t("searchSubmit")}

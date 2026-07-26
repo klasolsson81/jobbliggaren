@@ -19,6 +19,17 @@ function leafPaths(obj: unknown, prefix = ""): string[] {
   return out.sort();
 }
 
+/** Every string leaf under `catalogue` that matches `term`. Shared by the status-marker tripwires. */
+function stringLeaves(catalogue: unknown, term: RegExp): string[] {
+  return leafPaths(catalogue)
+    .map((path) =>
+      path
+        .split(".")
+        .reduce<unknown>((node, key) => (node as Record<string, unknown>)?.[key], catalogue)
+    )
+    .filter((leaf): leaf is string => typeof leaf === "string" && term.test(leaf));
+}
+
 describe("content-legal i18n-paritet (sv ↔ en)", () => {
   it("sv och en har identisk nyckel-struktur", () => {
     expect(leafPaths(enLegal)).toEqual(leafPaths(svLegal));
@@ -45,20 +56,8 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * ändring som flippar copyn, och stäng #852.
    */
   it("ansökningshistoriken bär status-markören 'planerat' i policyn tills #852 flippar den", () => {
-    const historyParagraphs = (catalogue: unknown, term: RegExp) =>
-      leafPaths(catalogue)
-        .map((path) =>
-          path
-            .split(".")
-            .reduce<unknown>(
-              (node, key) => (node as Record<string, unknown>)?.[key],
-              catalogue
-            )
-        )
-        .filter((leaf): leaf is string => typeof leaf === "string" && term.test(leaf));
-
-    const sv = historyParagraphs(svLegal.privacy, /ansökningshistorik/i);
-    const en = historyParagraphs(enLegal.privacy, /application history/i);
+    const sv = stringLeaves(svLegal.privacy, /ansökningshistorik/i);
+    const en = stringLeaves(enLegal.privacy, /application history/i);
 
     // Guard against a vacuous pass: if the paragraphs are ever renamed away, the filter would match
     // nothing and every assertion below would trivially hold. Three known sites today (Art. 13
@@ -67,6 +66,41 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     expect(en.length).toBe(sv.length);
 
     for (const paragraph of sv) expect(paragraph).toMatch(/planerat/i);
+    for (const paragraph of en) expect(paragraph).toMatch(/planned/i);
+  });
+
+  /**
+   * #186 / TD-116 — RESEND-TRIPWIRE (senior-cto-advisor, bindande scope-bind 2026-07-26).
+   *
+   * Två invarianter i ett test, båda riktningarna av samma defekt:
+   *
+   * 1. **Leverantören ÄR namngiven.** Detta är hela #186:s leverans (Art. 13(1)(e)/28 — en
+   *    mottagare av personuppgifter måste framgå). Före den här ändringen bar policyn ett
+   *    e-poststycke som var *sant* men aldrig nämnde en leverantör, vilket gjorde frånvaron
+   *    OSYNLIG för varje token-grep: "Resend" hade noll träffar i hela katalogen, och tre
+   *    nollträffs-scopingar i rad missade därför att stycket alls fanns. Ett räknat golv är
+   *    det enda som fäller en tystnad.
+   * 2. **Varje omnämnande bär status-markören** tills `Email:Provider` flippas. Resend är i dag
+   *    dark i non-dev (`AddEmailSender` → `NullEmailSender`), så ett presens-påstående vore den
+   *    motsatta osanningen — exakt den ansökningshistoriken-fällan som testet ovan finns för.
+   *    Flippen är grindad av `release-checklist.md` §2.5 (signerat DPA + Kap. V-grund +
+   *    security-auditor-sign-off), aldrig av en copy-ändring.
+   *
+   * Testet ska FALLA vid prod-flippen. Ta då bort markör-halvan i samma ändring som flippar
+   * copyn — men BEHÅLL golvet: leverantören måste vara namngiven efter flippen också, och då
+   * hårdare än nu.
+   */
+  it("e-postleverantören Resend är namngiven i policyn och varje omnämnande bär status-markören (#186)", () => {
+    const sv = stringLeaves(svLegal.privacy, /Resend/);
+    const en = stringLeaves(enLegal.privacy, /Resend/);
+
+    // Vacuity guard, and simultaneously invariant 1: three known sites today (consent section,
+    // "Mottagare av uppgifter", "Överföring till tredje land"). A rename or deletion that drops
+    // the disclosure fails here instead of shipping silently.
+    expect(sv.length).toBeGreaterThanOrEqual(3);
+    expect(en.length).toBe(sv.length);
+
+    for (const paragraph of sv) expect(paragraph).toMatch(/planerat|planerad|planeras/i);
     for (const paragraph of en) expect(paragraph).toMatch(/planned/i);
   });
 

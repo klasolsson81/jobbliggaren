@@ -4027,8 +4027,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
      slot där .jp-results-count landar — undviker layout-shift. Stil matchar
      .jp-results-count (17px, --jp-ink-1) så texten visuellt motsvarar den
      träffräknare den ersätter under laddning. Ingen animation.
-   - .jp-skeleton--sort: speglar .jp-select-höjden (40px) + en bredd som
-     rymmer label + select. */
+   - .jp-skeleton--sort: speglar sort-kontrollens höjd (--jp-control-h, 40px) +
+     en bredd som rymmer label + select. (Sa tidigare ".jp-select-höjden" — den
+     klassen städades bort i #1073 och siffran hänger på --jp-control-h.) */
 .jp-skeleton__status-text {
   margin: 0;
   font-size: var(--text-body-lg);

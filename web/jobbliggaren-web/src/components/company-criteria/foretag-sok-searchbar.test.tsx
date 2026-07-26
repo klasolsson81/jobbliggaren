@@ -574,6 +574,23 @@ describe("ForetagSokSearchbar — the live-review fixes", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("stays hidden while the user TYPES — the gate reads applied state, never the draft", async () => {
+    // Reading the draft made the control appear on the first keystroke and shove the results 64px
+    // down mid-typing (measured). Every other clear test clicks without typing, so without this the
+    // gate can be widened back to `value` with the whole suite green.
+    renderBar();
+    const user = userEvent.setup();
+
+    await user.type(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+      "Volvo",
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Rensa sökningen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders the org.nr answer through the shared register table (finding 5)", async () => {
     global.fetch = vi
       .fn()
@@ -655,6 +672,68 @@ describe("ForetagSokSearchbar — the draft re-seeds when the applied URL change
     ).not.toBeInTheDocument();
   });
 
+  it("re-seeds the BRANSCH chip too, not only the name and orter", () => {
+    // Without this, deleting `setBranch(seedBranch(...))` from the re-seed leaves the suite green:
+    // the test above only asserts the ort chip.
+    const { rerender } = render(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn=""
+        sni={["62010", "62020"]}
+        kommun={[]}
+      />,
+    );
+    expect(
+      screen.getByText("Dataprogrammering, datakonsultverksamhet"),
+    ).toBeInTheDocument();
+
+    rerender(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn=""
+        sni={["63110", "63120"]}
+        kommun={[]}
+      />,
+    );
+
+    expect(screen.getByText("Informationstjänster")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Dataprogrammering, datakonsultverksamhet"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("re-seeds when ONLY an axis changes — the signature is not just the name", () => {
+    // Truncating the signature to `${namn}` leaves every other re-seed test green, because none of
+    // them holds the name constant while an axis moves. This one does.
+    const { rerender } = render(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn="Volvo"
+        sni={[]}
+        kommun={["0180"]}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Ta bort Stockholm" })).toBeInTheDocument();
+
+    rerender(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn="Volvo"
+        sni={[]}
+        kommun={["0181"]}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Ta bort Södertälje" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Ta bort Stockholm" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("does NOT clobber what the user is typing when the applied props are unchanged", async () => {
     const { rerender } = render(
       <ForetagSokSearchbar
@@ -683,5 +762,48 @@ describe("ForetagSokSearchbar — the draft re-seeds when the applied URL change
     );
 
     expect(input).toHaveValue("Scania");
+  });
+});
+
+/**
+ * The org.nr answer is client-only state and is deliberately NOT part of the applied signature, so
+ * the re-seed has to drop it explicitly. Reachable: search, search, look up an org.nr, press Back.
+ */
+describe("ForetagSokSearchbar — a standing org.nr answer does not survive a re-seed", () => {
+  it("clears the org.nr result when the applied URL changes", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(orgNrResponse({ company: FOUND_COMPANY, companyWatchId: null }));
+    const { rerender } = render(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn="Volvo"
+        sni={[]}
+        kommun={[]}
+      />,
+    );
+    const user = userEvent.setup();
+
+    await user.clear(screen.getByLabelText("Företagsnamn eller organisationsnummer"));
+    await user.type(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+      VALID_ORGNR,
+    );
+    await user.click(screen.getByRole("button", { name: "Sök företag" }));
+    expect(await screen.findByText("Volvo AB")).toBeInTheDocument();
+
+    // Back: the applied URL moves, and the stale company row must not sit above it.
+    rerender(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn="Saab"
+        sni={[]}
+        kommun={[]}
+      />,
+    );
+
+    expect(screen.queryByText("Volvo AB")).not.toBeInTheDocument();
   });
 });

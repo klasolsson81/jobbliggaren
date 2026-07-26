@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useId,
   useMemo,
   useRef,
@@ -244,6 +245,16 @@ export function ForetagSokSearchbar({
    * cascades nor trips the lint rule that rejects synchronous setState in effects. It is gated on
    * the applied signature actually changing, so it can never clobber what the user is typing: a
    * filter commit that does not change `namn` leaves `value` alone.
+   *
+   * Two limits worth knowing rather than discovering. (1) Characters typed DURING an in-flight
+   * navigation are overwritten when it commits — the window is the navigation itself (~0.9s
+   * measured), and the alternative (not re-seeding) is the bug this fixes. (2) `reference` is not in
+   * the signature: if it arrives after mount, a chip seeded from `sni` stays generic until the next
+   * applied change. Both are narrower than what they replace.
+   *
+   * The signature mirrors `page.tsx`'s `suspenseKey` by hand. If a fourth shareable axis is ever
+   * added, BOTH have to learn it — they are the same knowledge in two places, and that is the known
+   * cost of keeping this component free of a page-level import.
    */
   const appliedSignature = `${namn}|${[...sni].sort().join(",")}|${[...kommun].sort().join(",")}`;
   const [seededFrom, setSeededFrom] = useState(appliedSignature);
@@ -252,7 +263,18 @@ export function ForetagSokSearchbar({
     setValue(namn);
     setBranch(seedBranch(branschOptions, sni, t("branschGeneric")));
     setOrter([...kommun]);
+    // The org.nr answer is client-only state and is NOT in the signature, so it would otherwise
+    // survive a re-seed: search, search, look up an org.nr, press Back, and a stale company row sits
+    // above a page that has moved on. `onClearSearch` already drops it for the same reason.
+    setState({ kind: "idle" });
   }
+
+  // Aborting belongs in an effect, not in the re-seed above: refs may not be touched during render.
+  // Without it, a lookup already in flight when the URL changes would resolve afterwards and put the
+  // row back — hiding it is not the same as cancelling it.
+  useEffect(() => {
+    abortRef.current?.abort();
+  }, [seededFrom]);
 
   // Draft-vs-applied: the chips + field show the DRAFT; the streamed results below show the APPLIED URL
   // filter. Compute the divergence so it can be surfaced honestly (never a second competing button). The

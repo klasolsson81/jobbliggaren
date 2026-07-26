@@ -88,8 +88,13 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 
 > **ETT HEM PER TAL (regel, 2026-07-26).** Varje räknebart påstående i §2.5/§2.6 står på
 > **exakt ett** ställe, tillsammans med greppet som regenererar det. Alla andra omnämnanden är
-> pekare **utan siffra**. De tre hemmen är: rutantalet (blockquoten nedan), punkt 1:s led
-> (punkten själv), och §2.6:s inventering (§2.6 punkt 1).
+> pekare **utan siffra**. Regeln gäller de **grep-regenererbara** talen, och de har tre hem:
+> rutantalet (blockquoten nedan), punkt 1:s led (punkten själv) och §2.6:s inventering (§2.6
+> punkt 1). Övriga tal i sektionerna är **inte** hem och skyddas inte av regeln — den kvarvarande
+> spegeln är mall-antalet (*"sex sorter varav fyra är kontolivscykel"*), som bor på **tre**
+> ställen: blockquoten nedan, `Källa:`-stycket, och `BUILD.md` §13.4. En femte kontolivscykel-mall
+> gör alltså tre meningar falska i två filer — skrivet ut här i stället för att låtsas att
+> uppräkningen ovan är fullständig.
 >
 > **Varför regeln finns, mätt:** under #186 gick **sex** tal stale i den här filen — och två av
 > dem falsifierades av tillägg i **samma commit som skrev siffran**. Rond efter rond synkades
@@ -104,7 +109,8 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > → mottagar-adress **+ meddelandets innehåll** är en tredjelandsöverföring (för notiserna
 > **avslöjar** leveransen opt-in-faktumet, och `EmailTemplates` skriver det dessutom i klartext
 > i själva kroppen — själva *flaggan* i vår DB överförs aldrig, men faktumet gör det). Ett kontolivscykel-mejl har inget opt-in — men adressen och innehållet
-> når providern lika fullt. **VARJE numrerad punkt nedan MÅSTE vara grön innan `Email:Provider` flippas** (ADR 0080
+> når providern lika fullt. **VARJE numrerad punkt i DEN HÄR sektionen (§2.5) MÅSTE vara grön innan `Email:Provider`
+> flippas** (ADR 0080
 > prod-flip-checklista). CC får ALDRIG flippa providern eller signera DPA:t.
 >
 > **"Grön" = INGET led i punkten bär KVAR — inte att rutan är bockad.** (Negation med flit:
@@ -117,7 +123,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > bärs av **KLAR**-markeringarna. Punkt 1:s led står uppräknade i punkten själv, och ett led kan
 > vara **delvis** KVAR
 > (ROPA-ledet är det i dag) — **ett delvis KVAR led är KVAR**, så punkten är grön först när
-> inget av de fem bär KVAR i någon form. Läs aldrig en obockad ruta som "inte levererat",
+> inget av **punktens led** bär KVAR i någon form. Läs aldrig en obockad ruta som "inte levererat",
 > och bocka aldrig en ruta för att en förutsättning är levererad.
 >
 > **Grinden gäller ALL utgående e-post, inte bara bakgrundsmatchnings-notiserna**
@@ -133,7 +139,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > tvingar inte i sig flippen: `AuthOptions.RequireEmailConfirmation` defaultar
 > **false** och sätts `true` bara i `appsettings.Development.json`.)
 
-- [ ] **1. Tredjelands-grund** — **fem** led, per behandling-status (ägare: **#183**):
+- [ ] **1. Tredjelands-grund** — **fem** led, per behandling-status (ägare: **#183**).
+      *Detta är talets hem: räkna om leden i punkten efter varje tillägg, och lägg det inte någon
+      annanstans.*
       - signerad **DPA** med Resend på fil — **KVAR** (Klas, aldrig CC);
       - dokumenterad **Kap. V-grund** — **KVAR**, och disjunktionen "SCC **eller**
         adekvans/DPF" måste upplösas till **en** grund före första överföringen;

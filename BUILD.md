@@ -1272,7 +1272,7 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   **avslöjar** leveransen opt-in-faktumet, och `EmailTemplates` skriver det dessutom i klartext
   i själva kroppen — själva *flaggan* i vår DB överförs aldrig, men faktumet gör det), och Resends konto-data
   (metadata, leverans-loggar) lagras i USA oavsett sändande region. Kräver före flippen
-  fyra eller fler led — **antalet och uppräkningen bor på ett ställe, inte här**:
+  flera led — **antalet och uppräkningen bor på ett ställe, inte här**:
   `docs/runbooks/release-checklist.md` §2.5 punkt 1 (DPA-signering = Klas, aldrig CC).
 - **Ingen AI-subprocessor** (ADR 0071): produkten har ingen AI/LLM, så ingen CV-PII och
   ingen matchningsdata lämnar systemet till någon **AI-leverantör**, och det finns inget

@@ -43,8 +43,8 @@
   "upload": {
     "pendingLabel": "Laddar upp och granskar ditt CV",
     "pendingText": "Laddar upp och granskar ditt CV. Det kan ta en liten stund.",
-    "nameLabel": "Namn på CV:t",
-    "nameHint": "Namnet visas överst på ditt CV. Vi föreslår ditt kontonamn.",
+    "nameLabel": "Namn på CV (valfritt)",
+    "nameHint": "Namnet visas i din CV-lista så att du hittar rätt variant. Lämnar du det tomt döper vi CV:t efter dagens datum.",
     "dropText": "Välj en fil att ladda upp",
     "dropHint": "PDF eller Word (DOCX)",
     "help": "Ladda upp en PDF- eller Word-fil (DOCX) på högst 10 MB. Vi tolkar innehållet och skapar ett CV du kan granska och redigera.",

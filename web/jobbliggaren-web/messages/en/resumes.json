@@ -43,8 +43,8 @@
   "upload": {
     "pendingLabel": "Uploading and reviewing your CV",
     "pendingText": "Uploading and reviewing your CV. This may take a moment.",
-    "nameLabel": "Name on the CV",
-    "nameHint": "The name appears at the top of your CV. We suggest your account name.",
+    "nameLabel": "CV name (optional)",
+    "nameHint": "The name appears in your CV list so you can find the right variant. Leave it empty and we name the CV after today's date.",
     "dropText": "Choose a file to upload",
     "dropHint": "PDF or Word (DOCX)",
     "help": "Upload a PDF or Word file (DOCX) of at most 10 MB. We read the contents and create a CV you can review and edit.",

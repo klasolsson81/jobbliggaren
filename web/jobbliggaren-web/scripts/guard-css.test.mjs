@@ -4,6 +4,7 @@ import {
   blankParens,
   selectorBranches,
   selectorCompounds,
+  branchDefinitions,
 } from "./guard-css.mjs";
 
 /**
@@ -111,5 +112,49 @@ describe("stripJs", () => {
   it("does not treat // inside a template literal as a comment", () => {
     const src = "const u = `https://x`; const c = `jp-alive`;";
     expect(stripJs(src)).toContain("jp-alive");
+  });
+});
+
+/**
+ * CALL-SITE tests (re-review M5). The helper tests above all stayed green when
+ * the `blankParens(...)` wrappers were deleted from the place that uses them,
+ * and the whole pre-fix finding set came back. These pin the use, not the rule:
+ * each case is one of the three violations that returned.
+ */
+describe("branchDefinitions — the call site, not just the helpers", () => {
+  it(":is() members are NOT required ancestors (it is a disjunction)", () => {
+    // Pre-fix this made .jp-t1 unreachable unless BOTH :is() members were used.
+    expect(branchDefinitions(":is(.jp-ghost, .jp-beta) .jp-t1")).toEqual({
+      subjects: ["jp-t1"],
+      ancestors: [],
+    });
+  });
+
+  it(":not() members are NOT required ancestors — requiring them is inverted", () => {
+    // The LESS .jp-ghost is used, the MORE this matches.
+    expect(branchDefinitions(":not(.jp-ghost) .jp-t2")).toEqual({
+      subjects: ["jp-t2"],
+      ancestors: [],
+    });
+  });
+
+  it(":has() contents do not become the subject", () => {
+    // Live in this repo: .jp-cvupload__drop:has(+ .jp-cvupload__input:focus-visible)
+    expect(branchDefinitions(".jp-drop:has(+ .jp-input:focus-visible)")).toEqual({
+      subjects: ["jp-drop"],
+      ancestors: [],
+    });
+  });
+
+  it("still requires a genuine ancestor outside the pseudo-class", () => {
+    // The fix must not over-blank: .jp-parent IS a required ancestor here.
+    expect(branchDefinitions(".jp-parent:not(.jp-x) .jp-child")).toEqual({
+      subjects: ["jp-child"],
+      ancestors: ["jp-parent"],
+    });
+  });
+
+  it("handles a plain descendant chain", () => {
+    expect(branchDefinitions(".jp-a .jp-b")).toEqual({ subjects: ["jp-b"], ancestors: ["jp-a"] });
   });
 });

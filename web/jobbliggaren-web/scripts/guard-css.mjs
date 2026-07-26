@@ -30,6 +30,7 @@
  * add each new per-route-group split file here as it is introduced.
  */
 import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 const asJson = process.argv.includes("--json");
 const files = process.argv.slice(2).filter((a) => a !== "--json");
@@ -523,9 +524,55 @@ function selectorBranches(sel) {
   return out;
 }
 
-/** Split a branch into compounds on descendant/child/sibling combinators. */
+/**
+ * Blank the contents of every (...) group, LENGTH-PRESERVING, so a functional
+ * pseudo-class contributes no names.
+ *
+ * This is a correctness requirement, not tidiness. `:not()` INVERTS: the less
+ * `.jp-ghost` is referenced, the MORE `:not(.jp-ghost) .jp-target` matches — so
+ * treating it as a required ancestor is exactly backwards. `:is()`/`:where()`
+ * are disjunctions where a conjunction would be wrong. And `:has(+ .jp-x)`
+ * would otherwise mis-split and make `.jp-x` the subject: live today at
+ * `.jp-cvupload__drop:has(+ .jp-cvupload__input:focus-visible)`.
+ *
+ * Both errors produce a BLOCKING false positive whose message says "unscope a
+ * rule, drop the class" — i.e. it would talk someone into deleting live CSS.
+ */
+function blankParens(sel) {
+  let out = "";
+  let depth = 0;
+  for (const ch of sel) {
+    if (ch === "(") {
+      depth++;
+      out += ch;
+    } else if (ch === ")") {
+      depth--;
+      out += ch;
+    } else out += depth > 0 ? " " : ch;
+  }
+  return out;
+}
+
+/**
+ * Split a branch into compounds on descendant/child/sibling combinators,
+ * ignoring combinator characters inside (...) and [...].
+ */
 function selectorCompounds(branch) {
-  return branch.split(/\s*[>+~]\s*|\s+/).map((c) => c.trim()).filter(Boolean);
+  const out = [];
+  let depth = 0;
+  let cur = "";
+  const flush = () => {
+    if (cur.trim()) out.push(cur.trim());
+    cur = "";
+  };
+  for (const ch of branch) {
+    if (ch === "(" || ch === "[") depth++;
+    else if (ch === ")" || ch === "]") depth--;
+    if (depth === 0 && (ch === ">" || ch === "+" || ch === "~" || /\s/.test(ch))) flush();
+    else cur += ch;
+  }
+  flush();
+  return out;
 }
 
 /**
@@ -559,13 +606,18 @@ const winPath = (u) => (u.pathname ? u.pathname.replace(/^\/([A-Za-z]:)/, "$1") 
 async function checkInverseExistence() {
   const inverse = [];
   const advisories = [];
-  const roots = [new URL("../src/", import.meta.url), new URL("../tests/", import.meta.url)];
+  // The package root, not src/ + tests/. #1056's own trap list measured the
+  // universe at "810 non-CSS files across web/ and tests/"; src/+tests/ is 64
+  // files short, and scripts/visual-verify.ts already carries four jp-* names.
+  const roots = [new URL("../", import.meta.url)];
 
   /* ---- reference side: every non-CSS file, comments stripped ---- */
   const referencedClasses = new Set();
   const referencedTokens = new Set();
   const composedPrefixes = new Set();
   const classSeenIn = new Map(); // name -> Set("prod" | "test")
+  const rawOnlyClasses = new Set(); // seen before comment-stripping (see below)
+  const rawOnlyTokens = new Set();
   const isTestPath = (p) => /(\.test\.|\.spec\.|\/tests?\/)/i.test(p);
   let refFileCount = 0;
 
@@ -581,6 +633,32 @@ async function checkInverseExistence() {
       if (!raw.includes("jp-")) continue;
       const p = url.pathname;
       const text = /\.(ts|tsx|js|jsx|mjs|cjs)$/.test(p) ? stripJs(raw) : raw;
+      // `stripJs` is a scanner, not a parser: a `//` inside a regex literal
+      // (`/https?:\/\//`), inside raw JSX text, or an unspaced `2/*3` can blank
+      // live code. Measured over the whole tree today the delta is 68 files and
+      // every removal is a genuine comment — but "no live instances" is not
+      // "cannot happen", and blanking live code would report a LIVE class as
+      // dead, the one error direction this sweep must never take. So any name
+      // present in the RAW text is recorded too, and a name that survives only
+      // there degrades to an advisory instead of a blocking finding.
+      for (const m of raw.matchAll(JP_ANY_IDENT)) {
+        const name = m[0];
+        if (raw.startsWith("${", m.index + name.length)) continue;
+        // Only an occurrence we CANNOT confidently call a comment degrades the
+        // verdict. A line whose first non-space characters are `//`, `/*` or `*`
+        // is a comment under any reading, so a name found only there stays a
+        // blocking finding — that is the `.jp-app__statusbadge` case, and
+        // keeping it blocking is the whole point of stripping comments. What
+        // degrades is a name on a CODE line that the stripper nonetheless
+        // blanked: the regex-literal / raw-JSX / `2/*3` shapes, where the
+        // stripper may have eaten something live.
+        const lineStart = raw.lastIndexOf(String.fromCharCode(10), m.index) + 1;
+        const head = raw.slice(lineStart, m.index).trimStart();
+        const confidentComment = head.startsWith("//") || head.startsWith("/*") || head.startsWith("*");
+        if (confidentComment) continue;
+        if (!name.startsWith("--jp-")) rawOnlyClasses.add(name);
+        else rawOnlyTokens.add(name);
+      }
       for (const m of text.matchAll(JP_ANY_IDENT)) {
         const name = m[0];
         if (text.startsWith("${", m.index + name.length)) {
@@ -638,8 +716,11 @@ async function checkInverseExistence() {
     for (const br of selectorBranches(r.selector)) {
       const comps = selectorCompounds(br);
       if (comps.length === 0) continue;
-      const subjects = [...comps[comps.length - 1].matchAll(SELECTOR_CLASS)].map((m) => m[1]);
-      const ancestors = comps.slice(0, -1).flatMap((c) => [...c.matchAll(SELECTOR_CLASS)].map((m) => m[1]));
+      // Names inside :is()/:not()/:where()/:has() are blanked — see blankParens.
+      const subjects = [...blankParens(comps[comps.length - 1]).matchAll(SELECTOR_CLASS)].map((m) => m[1]);
+      const ancestors = comps
+        .slice(0, -1)
+        .flatMap((c) => [...blankParens(c).matchAll(SELECTOR_CLASS)].map((m) => m[1]));
       for (const s of subjects) {
         if (!classDefs.has(s)) classDefs.set(s, []);
         classDefs.get(s).push({ ancestors, file: r.file, line: r.line, allow: allowed(r) });
@@ -710,13 +791,21 @@ async function checkInverseExistence() {
     }
     const d = defs.find((x) => !x.allow) ?? defs[0];
     if (d.allow) continue;
+    if (rawOnlyClasses.has(name)) {
+      advisories.push(
+        `${name} — appears in a source file only BEFORE comment-stripping. Almost certainly a ` +
+          `comment (not consumption), but it could be a line the stripper blanked, so this is ` +
+          `reported rather than failed.`
+      );
+      continue;
+    }
     inverse.push({
       file: winPath(d.file),
       line: d.line,
       selector: `.${name}`,
       decl:
-        `.${name} is defined in CSS but no non-CSS file under src/ or tests/ references it ` +
-        `(comments are not consumption). Delete the rule, or add \`guard-allow: <reason>\`.`,
+        `.${name} is defined in CSS but nothing in the package references it (comments are not ` +
+        `consumption). Delete the rule, or add \`guard-allow: <reason>\`.`,
       rule: "unused-class",
     });
   }
@@ -724,6 +813,13 @@ async function checkInverseExistence() {
   /* ---- sweep 4: a token nothing transitively reads ---- */
   for (const [name, at] of definedTokens) {
     if (aliveTokens.has(name) || at.allow) continue;
+    if (rawOnlyTokens.has(name)) {
+      advisories.push(
+        `${name} — appears in a source file only BEFORE comment-stripping; reported rather than ` +
+          `failed, for the same reason as the class case above.`
+      );
+      continue;
+    }
     inverse.push({
       file: winPath(at.file),
       line: at.line,
@@ -764,29 +860,45 @@ async function checkInverseExistence() {
   return { inverse, advisories, refFileCount, composedCount: composedPrefixes.size };
 }
 
-const findings = files.flatMap(checkFile);
-const { existence, dynamicPrefixes } = await checkExistence();
-findings.push(...existence);
-const { inverse, advisories, refFileCount, composedCount } = await checkInverseExistence();
-findings.push(...inverse);
+/* ------------------------------------------------------------------------- *
+ * Test seam (#1056, code-reviewer M3). The pure selector/comment helpers are
+ * where the blocking false positives live — an unparenthesised `:not()` read as
+ * a required ancestor talks a reader into deleting live CSS — so they are
+ * exported and unit-tested. The sweep itself only runs when this file is the
+ * entry point, so importing it in a test does not execute it or call exit().
+ * ------------------------------------------------------------------------- */
+export { stripJs, blankParens, selectorBranches, selectorCompounds };
 
-if (asJson) {
-  console.log(JSON.stringify(findings, null, 1));
-} else {
-  for (const f of findings)
-    console.log(`${f.file}:${String(f.line).padStart(5)}  [${f.rule}]  ${f.selector}  →  ${f.decl.slice(0, 80)}`);
-  // Report what the sweep could NOT verify, so a skipped class never reads as a
-  // checked one ("no silent caps").
-  if (dynamicPrefixes > 0)
+const isMain = () => {
+  const entry = process.argv[1];
+  return typeof entry === "string" && import.meta.url === pathToFileURL(entry).href;
+};
+
+if (isMain()) {
+  const findings = files.flatMap(checkFile);
+  const { existence, dynamicPrefixes } = await checkExistence();
+  findings.push(...existence);
+  const { inverse, advisories, refFileCount, composedCount } = await checkInverseExistence();
+  findings.push(...inverse);
+
+  if (asJson) {
+    console.log(JSON.stringify(findings, null, 1));
+  } else {
+    for (const f of findings)
+      console.log(`${f.file}:${String(f.line).padStart(5)}  [${f.rule}]  ${f.selector}  →  ${f.decl.slice(0, 80)}`);
+    // Report what the sweep could NOT verify, so a skipped class never reads as a
+    // checked one ("no silent caps").
+    if (dynamicPrefixes > 0)
+      console.log(
+        `\nnote: ${dynamicPrefixes} template-literal class prefix(es) skipped — composed names cannot be verified statically.`
+      );
+    // The inverse sweep's undecidables, reported for the same reason: a name it
+    // cannot rule on must not read as one it checked.
     console.log(
-      `\nnote: ${dynamicPrefixes} template-literal class prefix(es) skipped — composed names cannot be verified statically.`
+      `note: inverse sweep read ${refFileCount} non-CSS file(s); ${composedCount} composition prefix(es) shield names it cannot decide.`
     );
-  // The inverse sweep's undecidables, reported for the same reason: a name it
-  // cannot rule on must not read as one it checked.
-  console.log(
-    `note: inverse sweep read ${refFileCount} non-CSS file(s); ${composedCount} composition prefix(es) shield names it cannot decide.`
-  );
-  for (const a of advisories) console.log(`note: ${a}`);
-  console.log(`\n${findings.length} violation(s).`);
+    for (const a of advisories) console.log(`note: ${a}`);
+    console.log(`\n${findings.length} violation(s).`);
+  }
+  process.exit(findings.length ? 1 : 0);
 }
-process.exit(findings.length ? 1 : 0);

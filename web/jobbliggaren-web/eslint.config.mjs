@@ -61,6 +61,48 @@ const MUTED_RESTRICTIONS = [
   { selector: "TemplateElement[value.cooked=/\\btext-muted-foreground\\b/]", message: TYPO_MSG_MUTED },
 ];
 
+// ── `"use server"` export shape (#1053, from #1059) ────────────────────────
+// Next error E352: a `"use server"` module may only export async functions.
+// Turbopack's server-actions loader enumerates the module's exports and emits a
+// hashed re-export per specifier; TypeScript has already erased any type-only
+// binding, so the generated re-export points at nothing and the module fails to
+// LINK. Webpack only checks at runtime, which is why #1059 lived three weeks on
+// main with `pnpm build` green — both CI jobs that build, build for production.
+//
+// Shape, not enumeration. The previous attempt at this rule listed two of at
+// least five expressible forms and missed `export { type X }` (a different AST
+// node); a rule that enumerates forms IS the defect class. The predicate is
+// "does this export carry specifiers", which collapses `export type { X }`,
+// `export { type X }`, `export { x }`, `export { x } from "…"` and
+// `export * from "…"` into two selectors.
+//
+// It deliberately does NOT fire on `export type X = …` (declaration form,
+// `specifiers` empty): TypeScript erases that whole node, so it never enters the
+// loader's enumeration. Measured 2026-07-26: 17 `"use server"` modules carry 50
+// `export async function` + 14 `export type X = …` + ZERO specifiers, so this
+// calibrates to zero today.
+//
+// The gate is the module's DIRECTIVE, never the file path or the text. A path
+// glob (`src/lib/actions/**`) reaches only 12 of the 17 — an enumeration that
+// narrows silently — and a text match false-positives on 6 files that carry the
+// string in prose, including `_action-result.ts`, whose docstring teaches this
+// very rule.
+const USE_SERVER_MODULE = 'Program:has(> ExpressionStatement[directive="use server"])';
+const E352_MSG =
+  'A `"use server"` module may only export async function DECLARATIONS (Next error E352). ' +
+  "This export carries specifiers, and Turbopack generates a re-export for each one at " +
+  "module-link time — a type-only binding has already been erased by TypeScript, so the " +
+  "re-export resolves to nothing and every page whose graph reaches this module 500s in " +
+  "`next dev` (#1059). `pnpm build` does NOT catch this: both CI builds are production " +
+  "builds and webpack only checks at runtime. Write `export async function foo() {}` " +
+  "directly. Shared types belong in a non-`use server` module — see " +
+  "src/lib/actions/_action-result.ts (SSOT).";
+
+const SERVER_ACTION_RESTRICTIONS = [
+  { selector: `${USE_SERVER_MODULE} > ExportNamedDeclaration[specifiers.length>0]`, message: E352_MSG },
+  { selector: `${USE_SERVER_MODULE} > ExportAllDeclaration`, message: E352_MSG },
+];
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -81,6 +123,7 @@ const eslintConfig = defineConfig([
         ...COPY_RESTRICTIONS,
         ...TYPOGRAPHY_RESTRICTIONS,
         ...MUTED_RESTRICTIONS,
+        ...SERVER_ACTION_RESTRICTIONS,
       ],
     },
   },
@@ -94,6 +137,7 @@ const eslintConfig = defineConfig([
         "error",
         ...COPY_RESTRICTIONS,
         ...TYPOGRAPHY_RESTRICTIONS,
+        ...SERVER_ACTION_RESTRICTIONS,
       ],
     },
   },

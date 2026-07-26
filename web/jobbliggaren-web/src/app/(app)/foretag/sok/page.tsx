@@ -52,19 +52,30 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
   const t = await getTranslations("pages.foretag.sok");
   const params = await searchParams;
 
-  // The org.nr gate (ADR 0087 D8(c); CTO bind 2026-07-26) runs BEFORE anything else this request
-  // does. A ten-digit `?namn=` arrives here from every client state the browser guard cannot cover:
-  // JS disabled, Enter before hydration, or a hand-typed/shared link with no form involved at all.
-  // Redirecting here rather than rendering a refusal in place is what closes the channels D8(c)
-  // names: the address bar settles on the washed URL, so it is the washed URL that enters history
-  // and any re-share — and because `ForetagSokResults` never runs, the value never reaches
-  // `body.name` either. The one channel this does NOT close is the access log of the request that
-  // already carried it; that is irreducible in-process and accepted, on the record.
+  // The org.nr gate (ADR 0087 D8(c); CTO bind 2026-07-26). It runs before the reference fetch and
+  // before any results render — after only the auth check and the translator, both of which must
+  // precede it. A ten-digit `?namn=` arrives here from every client state the browser guard cannot
+  // cover: JS disabled, Enter before hydration, or a hand-typed/shared link with no form at all.
+  //
+  // HOW THIS ACTUALLY BEHAVES, measured 2026-07-26 in Chromium with JS DISABLED against the local
+  // stack — not assumed, because the mechanism is not the one `redirect()` suggests. The (app)
+  // layout has already begun streaming when this runs, so Next cannot answer with a 3xx. It answers
+  // **200** and emits `<meta http-equiv="refresh" content="1;url=/foretag/sok?avvisat=orgnr">`.
+  // Measured consequences:
+  //   - the address bar settles on the washed URL (meta refresh needs no JS);
+  //   - ONE Back press lands on `/foretag/sok`, NOT on the refused URL — no pre-redirect entry
+  //     survives the back stack, so history is closed, and now by measurement rather than by
+  //     inference from "it is a redirect";
+  //   - the rendered DOM carries no trace of the value (`ForetagSokResults` never runs, so it never
+  //     reaches `body.name` either). The delivered HTML does echo it inside Next's own router-state
+  //     payload, which is Next reflecting the requested URL, not markup of ours;
+  //   - the refused URL is visible in the address bar for the refresh's ~1s before it is replaced.
+  //     That, and the access log of the request that already carried the value, are what remain
+  //     open. Both are accepted on the record rather than papered over.
   const parsedNamn = parseNamn(params.namn);
   if (parsedNamn.kind === "orgNrShaped") {
     redirect(
       buildOrgNrRefusedHref({
-        namn: "",
         // Reference-free normalisation (dedupe + cap): the SCB reference is deliberately NOT fetched
         // on a request that is about to redirect, and the reference-based drop-unknown applies on
         // the next render anyway.

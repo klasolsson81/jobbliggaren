@@ -265,7 +265,7 @@
       "orgNrNotFoundTitle": "Inget företag med det numret",
       "orgNrNotFoundBody": "Kontrollera numret, eller sök på namn i stället.",
       "orgNrUrlRefusedTitle": "Numret togs bort ur adressen",
-      "orgNrUrlRefusedBody": "Organisationsnummer söks direkt i sökfältet, inte via webbadressen. Skriv numret i fältet och välj Sök företag.",
+      "orgNrUrlRefusedBody": "Organisationsnummer hamnar aldrig i webbadressen. Sökning på organisationsnummer görs i sökfältet och kräver att JavaScript är påslaget. Du kan söka på företagsnamn som vanligt.",
       "orgNrRefusedTitle": "Numret kan inte sökas",
       "orgNrRefusedBody": "Det ser ut som ett personnummer. Enskilda firmor söker du fram via deras annonser.",
       "orgNrRateLimitedTitle": "För många sökningar",

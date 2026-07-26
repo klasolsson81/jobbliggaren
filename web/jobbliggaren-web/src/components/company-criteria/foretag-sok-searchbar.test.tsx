@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
+import { NextIntlClientProvider } from "next-intl";
 import userEvent from "@testing-library/user-event";
+import svPages from "../../../messages/sv/pages.json";
 import { ForetagSokSearchbar } from "./foretag-sok-searchbar";
 import { buildForetagSokHref } from "@/lib/company-search/search-params";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
@@ -468,6 +471,33 @@ describe("ForetagSokSearchbar — what a NATIVE GET would carry (D8(c) call-site
     const input = screen.getByLabelText("Företagsnamn eller organisationsnummer");
     expect(input).toHaveValue("Volvo");
     expect(input).not.toHaveAttribute("name");
+  });
+
+  /**
+   * The OTHER side of the hydration split, which `render()` can never reach: every RTL render is a
+   * client render, so `hydrated` is `true` in all of the tests above. Server-render the component
+   * instead, which is what `getServerSnapshot` (false) actually drives.
+   *
+   * Without this, replacing `name={hydrated ? undefined : "namn"}` with a bare `name={undefined}`
+   * leaves the whole suite green — and silently kills no-JS name search, because the field would
+   * submit nothing and every no-JS search would return the entire register.
+   */
+  it("KEEPS the name attribute before hydration, so a no-JS search still works", () => {
+    const html = renderToString(
+      <NextIntlClientProvider locale="sv" messages={{ pages: svPages }}>
+        <ForetagSokSearchbar
+          reference={REFERENCE}
+          referenceOk
+          namn=""
+          sni={[]}
+          kommun={[]}
+        />
+      </NextIntlClientProvider>,
+    );
+    // The visible input carries the name pre-hydration...
+    expect(html).toContain('name="namn"');
+    // ...and the hidden applied-name input is NOT emitted, so the two can never both submit.
+    expect(html).not.toContain('type="hidden" name="namn"');
   });
 });
 

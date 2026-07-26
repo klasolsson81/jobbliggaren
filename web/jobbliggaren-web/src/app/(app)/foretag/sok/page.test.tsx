@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svPages from "../../../../../messages/sv/pages.json";
 import ForetagSokPage from "./page";
@@ -18,6 +19,16 @@ vi.mock("@/lib/auth/session", () => ({
 
 vi.mock("@/lib/api/company-criteria", () => ({
   getCriterionReference: () => getCriterionReference(),
+}));
+
+// The page's two heavy children are irrelevant to what this suite pins (the gate and the refusal
+// panel), and the results child is an async Server Component jsdom cannot render. Stub both so the
+// page's OWN output is what is asserted.
+vi.mock("@/components/company-criteria/foretag-sok-searchbar", () => ({
+  ForetagSokSearchbar: () => <div data-testid="searchbar" />,
+}));
+vi.mock("@/components/company-criteria/foretag-sok-results", () => ({
+  ForetagSokResults: () => <div data-testid="results" />,
 }));
 
 // The real `redirect()` throws NEXT_REDIRECT to halt the render — mirror that, so the gate
@@ -109,5 +120,43 @@ describe("/foretag/sok — the org.nr gate on the URL axis", () => {
     getServerSession.mockResolvedValue(null);
     await expect(renderPage({ namn: "1010101010" })).rejects.toThrow("NEXT_REDIRECT");
     expect(redirect).toHaveBeenCalledWith("/logga-in");
+  });
+});
+
+/**
+ * The refusal must be EXPLAINED, not washed silently (CTO bind §3.2): answering a specific typed
+ * query with the whole register reads as "everything matched", which is the silent-drop class the
+ * search island was built to eliminate. The URL-level tests above cannot see the panel — delete the
+ * JSX and they all stay green — so this renders the page's own output.
+ */
+describe("/foretag/sok — the refusal is explained on the wash target", () => {
+  beforeEach(() => {
+    redirect.mockReset();
+    getServerSession.mockReset();
+    getCriterionReference.mockReset();
+    getServerSession.mockResolvedValue({ email: "a@b.se", roles: [] });
+    getCriterionReference.mockResolvedValue({
+      kind: "ok",
+      data: { sniVersion: "2025", kommunVersion: "2025", sni: [], lan: [] },
+    });
+  });
+
+  it("renders the refusal panel when the flag is present", async () => {
+    render(await renderPage({ avvisat: "orgnr" }));
+
+    expect(screen.getByText("Numret togs bort ur adressen")).toBeInTheDocument();
+    const body = screen.getByText(/Organisationsnummer hamnar aldrig i webbadressen/);
+    expect(body).toBeInTheDocument();
+    // Binding copy constraints: never accuse the user of typing a personnummer (the gate covers the
+    // whole ten-digit class), and never echo a value back into the DOM.
+    expect(body.textContent).not.toMatch(/personnummer/i);
+    expect(document.body.textContent).not.toContain("1010101010");
+  });
+
+  it("does not render the refusal panel on an ordinary search", async () => {
+    render(await renderPage({ namn: "Volvo" }));
+    expect(
+      screen.queryByText("Numret togs bort ur adressen"),
+    ).not.toBeInTheDocument();
   });
 });

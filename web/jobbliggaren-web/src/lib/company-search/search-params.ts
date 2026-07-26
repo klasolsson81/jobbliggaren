@@ -134,8 +134,16 @@ export type ParsedNamn =
  * takes the org.nr branch, so the gate removes an inconsistency rather than adding a restriction.
  */
 export function parseNamn(raw: string | string[] | undefined): ParsedNamn {
-  const first = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? "";
-  if (normalizeOrgNrInput(first) !== null) return { kind: "orgNrShaped" };
+  const values = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+  // EVERY value is gated, not just the one this function goes on to use. A repeated
+  // `?namn=&namn=1010101010` puts the ten digits in a position `raw[0]` never reads — measured
+  // 2026-07-26 against the running dev server: it rendered the page with no wash at all. What
+  // reaches history, a re-shared link and the access log is the WHOLE query string, not the slice
+  // of it the parser happens to consume, so the gate has to read the whole thing too.
+  if (values.some((value) => normalizeOrgNrInput(value.trim()) !== null)) {
+    return { kind: "orgNrShaped" };
+  }
+  const first = values[0]?.trim() ?? "";
   return { kind: "name", value: first.slice(0, MAX_NAME_PREFIX_LENGTH) };
 }
 
@@ -151,9 +159,14 @@ export function parseNamn(raw: string | string[] | undefined): ParsedNamn {
  * The target carries no `namn`, so parsing it returns `{ kind: "name", value: "" }` and the redirect
  * terminates. That is pinned by a test rather than reasoned about.
  */
-export function buildOrgNrRefusedHref(state: ForetagSokUrlState): string {
+export function buildOrgNrRefusedHref(
+  state: Omit<ForetagSokUrlState, "namn">,
+): string {
   const params = new URLSearchParams();
-  appendFilterAxes(params, state);
+  // `namn: ""` is supplied here, not accepted from the caller: this builder's whole purpose is to
+  // produce a URL WITHOUT a name, so taking one would be the same type-level/value-level slip this
+  // change exists to close.
+  appendFilterAxes(params, { ...state, namn: "" });
   params.set(ORG_NR_REFUSED_PARAM, ORG_NR_REFUSED_VALUE);
   return `${ROUTE}?${params.toString()}`;
 }

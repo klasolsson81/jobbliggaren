@@ -151,8 +151,23 @@ describe("parseNamn — the org.nr gate", () => {
     expect(parseNamn("101010-1010")).toEqual({ kind: "orgNrShaped" });
     expect(parseNamn("10 10 10 1010")).toEqual({ kind: "orgNrShaped" });
     expect(parseNamn("  556012-5790  ")).toEqual({ kind: "orgNrShaped" });
-    // A repeated param is gated on its FIRST value, the one the parser would otherwise use.
     expect(parseNamn(["1010101010", "volvo"])).toEqual({ kind: "orgNrShaped" });
+  });
+
+  /**
+   * The gate reads EVERY repeated value, not just `raw[0]`. Reproduced against the running dev
+   * server before the fix: `/foretag/sok?namn=&namn=1010101010` rendered the page with no wash at
+   * all, because the parser only ever looked at the value it was going to use. What reaches history,
+   * a re-shared link and the access log is the whole query string.
+   */
+  it("refuses a ten-digit value in ANY repeated position, not only the first", () => {
+    expect(parseNamn(["", "1010101010"])).toEqual({ kind: "orgNrShaped" });
+    expect(parseNamn(["volvo", "1010101010"])).toEqual({ kind: "orgNrShaped" });
+    expect(parseNamn(["volvo", "saab", "556012-5790"])).toEqual({
+      kind: "orgNrShaped",
+    });
+    // ...and an all-clean repetition still parses to the first value, unchanged.
+    expect(parseNamn(["volvo", "saab"])).toEqual({ kind: "name", value: "volvo" });
   });
 
   it("leaves real name prefixes alone — the gate is exact, not a digit heuristic", () => {
@@ -170,7 +185,6 @@ describe("parseNamn — the org.nr gate", () => {
 describe("buildOrgNrRefusedHref", () => {
   it("drops the name, preserves the filter axes, and never emits sida", () => {
     const href = buildOrgNrRefusedHref({
-      namn: "",
       sni: ["62020", "62010"],
       kommun: ["0180"],
     });
@@ -183,7 +197,7 @@ describe("buildOrgNrRefusedHref", () => {
   });
 
   it("carries the flag even when there is no filter to preserve", () => {
-    expect(buildOrgNrRefusedHref({ namn: "", sni: [], kommun: [] })).toBe(
+    expect(buildOrgNrRefusedHref({ sni: [], kommun: [] })).toBe(
       "/foretag/sok?avvisat=orgnr",
     );
   });
@@ -194,7 +208,6 @@ describe("buildOrgNrRefusedHref", () => {
    */
   it("produces a target whose own `namn` parses as a name, not as orgNrShaped", () => {
     const href = buildOrgNrRefusedHref({
-      namn: "",
       sni: ["62010"],
       kommun: [],
     });

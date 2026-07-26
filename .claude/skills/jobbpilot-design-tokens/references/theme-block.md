@@ -95,12 +95,6 @@ names, not class sets.
                   "Segoe UI", system-ui, sans-serif;
   --jp-font-mono: var(--font-mono), "SF Mono", Menlo, Consolas, monospace;
 
-  /* Density multiplier — set via [data-density] on <html> */
-  --jp-density:1;
-  --jp-row-h:     calc(36px * var(--jp-density));
-  --jp-section-y: calc(28px * var(--jp-density));
-  --jp-pad-x:     calc(28px * var(--jp-density));
-
   /* Shadows (v3 — undantag: popover/modal får skugga) */
   --jp-shadow-card:  0 1px 2px rgba(15,27,45,0.05), 0 1px 0 rgba(15,27,45,0.04);
   --jp-shadow-pop:   0 10px 30px rgba(8,23,48,0.16), 0 2px 6px rgba(8,23,48,0.08);
@@ -123,10 +117,6 @@ names, not class sets.
   --jp-success-50:var(--jp-success-bg); --jp-success-600:var(--jp-success); /* … */
   --jp-border-modal:var(--jp-border); --jp-border-structural:var(--jp-border);
 }
-
-[data-density="compact"]  { --jp-density:0.85; }
-[data-density="standard"] { --jp-density:1;    }
-[data-density="luftig"]   { --jp-density:1.18; }
 
 /* ── Dark (mörk navy-grå canvas, ljusa input-fält) ──────────── */
 [data-theme="dark"] {

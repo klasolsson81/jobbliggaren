@@ -202,23 +202,9 @@ hero-plattan, inte H1-skalan. Mono caps-labels och mono inline-data på
 | 12px | Mellan formelement, inom rad |
 | 16px | Stat-värde till label, mellan tabellrader |
 | 24px | Mellan sektionsblock, panel-padding |
-| 28px | Sidpadding (`--jp-pad-x`) |
+| 28px | Sidpadding |
 | 48px | Mellan major sections |
 | 64px | Mellan fristående kapitel |
-
-## Density-multiplikator
-
-Sätts via `[data-density]` på `<html>`:
-
-| Mode | `--jp-density` |
-|---|---|
-| `compact` | `0.85` |
-| `standard` | `1` (default) |
-| `luftig` | `1.18` |
-
-Påverkar `--jp-row-h` = `calc(36px * var(--jp-density))`, `--jp-section-y` =
-`calc(28px * var(--jp-density))`, `--jp-pad-x` = `calc(28px * var(--jp-density))`.
-Hårdkoda aldrig padding där density gäller.
 
 ## v2-kompat-alias → v3-kanon (städas i F-städ efter nollkonsumtion)
 

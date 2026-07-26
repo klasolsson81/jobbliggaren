@@ -74,7 +74,7 @@ export default function GlobalError({
   unstable_retry: () => void;
 }) {
   return (
-    <html lang="sv" data-density="standard" className="h-full font-sans">
+    <html lang="sv" className="h-full font-sans">
       {/* global-error replaces the root layout, so Next's metadata /
           generateMetadata does not apply — set the document title explicitly
           (from the sv-pinned catalog) so the catastrophic surface is not left

@@ -143,10 +143,8 @@ utropstecken (utom i felmeddelanden där de signalerar verklig urgency). Tonen
 
 ### 7. Densitet med respekt
 
-Tätt nog att skanna, luftigt nog att läsa. Använd
-`--jp-density`-multiplikatorn (`compact`/`standard`/`luftig`) hellre än att
-hårdkoda padding. Riktlinjer: tabellrader minst 36px höga; stats-värden 28+px;
-text-tracking -0.005em globalt för optisk täthet.
+Tätt nog att skanna, luftigt nog att läsa. Riktlinjer: tabellrader minst 36px
+höga; stats-värden 28+px; text-tracking -0.005em globalt för optisk täthet.
 
 **Förtydligande (ADR 0038):** "respekt" betyder läsbarhetsgolv för §1.1-
 målanvändaren (55-åringen i Alingsås). Densitet (regel 7 mening 1, "tätt nog

@@ -1891,6 +1891,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 .jp-btn--sm { height: 36px; padding: 0 14px; font-size: var(--text-body-sm); }
+/* Höjd-parad med .jp-input (48px) för en sökrad där fält + knapp ska läsas som EN kontroll.
+   Finns för att en Tailwind-utility INTE kan göra det: .jp-* är olagrat och vinner över
+   @layer utilities, så `className="jp-btn h-12"` ger 44px utan fel eller varning (mätt
+   2026-07-26 på /foretag/sok). DESIGN.md §Komponenter bär regeln. Ändra aldrig .jp-btn
+   eller .jp-input till varandras höjd — båda är live och båda är dokumenterade. */
+.jp-btn--field { height: 48px; }
 /* Avstängd knapp får inte signalera en affordans den inte har (design-reviewer
    Major — paritet med .jp-segment__opt:disabled / .jp-togglerow__switch:disabled).
    Gäller både :disabled och aria-disabled (för länk-knappar). */

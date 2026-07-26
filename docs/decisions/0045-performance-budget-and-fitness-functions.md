@@ -246,3 +246,55 @@ prose still says:
 ---
 
 *ADR-index underhålls av docs-keeper (index-uppdatering sker centralt vid session-end — 3-CC-koordinationsregel, ej denna leverans).*
+
+---
+
+## Amendment 2026-07-25 — what the LCP instrument can adjudicate (Beslut 2/5/6)
+
+**Status: amendment. Beslut 2's LCP budget is unchanged at 2500 ms.** This records what the
+instrument measuring it can and cannot decide, so a future session does not read a red LCP as a
+verdict it was never able to give.
+
+### What was measured
+
+Epic #737's LCP attribution (runbook §F, branch (iii), discharged 2026-07-25 on the CI artifact
+#1048 restored) produced, median of 3 per URL:
+
+- **`Load Delay` and `Load Time` are 0 on all eight URLs.** The LCP element is text everywhere;
+  no resource sits on the LCP path. Image, font and preload levers are therefore structurally
+  inert against LCP — which independently confirms the manual font-preload counterfactual's
+  LCP ±0 recorded in §F.
+- **TTFB is a uniform 457–460 ms and Render Delay 80–86 % on every URL.** The residual is a
+  property of the application, not of individual pages.
+- Two URLs the earlier classification separated — `/hjalpcenter` (red) and `/for-utvecklare`
+  (green) — landed **1 ms apart** with identical phase profiles and byte-identical client JS.
+  The distinction was the instrument's noise, not a finding.
+- The only per-page difference exceeding the instrument's own floor was the three `/gast/*`
+  mirrors, whose LCP element was a client-only modal (#1052) rather than page content.
+
+### What follows for Beslut 5 and Beslut 6
+
+The instrument's run-to-run swing at the threshold was measured at **≥350 ms** (§F, two runs of
+the same commit swapped which URL failed). That is larger than most of the margins involved.
+
+**Alternativ 5 already anticipated this**: shared runners make absolute timing thresholds
+inherently flaky, which is why BenchmarkDotNet was rejected for this project. Beslut 5 states
+that a flaky perf gate is worse than none, and Beslut 6 requires dedicated hardware plus an
+explicit Klas GO before any perf job becomes blocking.
+
+**Consequence, stated so it is not re-litigated:** a red LCP on this runner is a *signal to
+attribute*, not a verdict to act on, and it is **not** a condition for closing perf work. Epic
+#737 closed on attribution rather than on green, deliberately — holding it open until a number
+the instrument cannot adjudicate turns green is the Goodhart failure this ADR names in its own
+Kontext.
+
+The byte metrics are unaffected and remain the admissible evidence class: `resource-summary:*`
+was byte-identical across repeat runs, and `document:size` is closed 8/8.
+
+### What still stands
+
+- Beslut 2's budgets are unchanged, LCP included.
+- The Lighthouse job stays **observe-only** (`continue-on-error`, outside `ci.needs`).
+- Flipping it to blocking remains Beslut 6's ratchet: dedicated hardware, a stable distribution,
+  and Klas's GO. This amendment does not anticipate that decision — it narrows what may be
+  claimed from the instrument in the meantime.

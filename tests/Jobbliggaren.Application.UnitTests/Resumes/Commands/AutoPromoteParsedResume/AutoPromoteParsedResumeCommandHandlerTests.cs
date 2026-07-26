@@ -232,7 +232,8 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     /// "Backend-CV 2026" printed that where the person's name belongs, and accepting the
     /// suggested account name labelled every import identically. They are also in different
     /// data-protection classes — Resume.Name is a plaintext column that surfaces in lists
-    /// and exports, PersonalInfo.FullName rides the DEK-encrypted shadow.
+    /// (list + detail DTOs, both owner-scoped), PersonalInfo.FullName rides the DEK-encrypted
+    /// shadow.
     /// </summary>
     [Fact]
     public async Task Handle_PersonNameIsTheAccountDisplayName_NeverTheParsedContactName()
@@ -686,8 +687,15 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     public async Task Handle_PersonnummerOnlyInTheFileName_StillPromotes_LabelNeverCarriesIt()
     {
         var db = TestAppDbContextFactory.Create();
+        // The oracle must run the shape production emits: ImportResumeCommandHandler computes
+        // FoundInFileName from the ORIGINAL filename before ParsedResume.Create masks it, so a
+        // "CV_811218-9876.pdf" upload really does arrive with the flag SET and the body clean.
+        // With the default None the "StillPromotes" half would assert non-blocking against an
+        // outcome that cannot block, and would stay green if the flag ever gated promote.
         var (parsed, _) = await SeedOwnedAsync(
-            db, _userId, sourceFileName: $"CV_{ValidPersonnummer}.pdf");
+            db, _userId,
+            pnr: PersonnummerScanOutcome.FromMatches([], foundInFileName: true),
+            sourceFileName: $"CV_{ValidPersonnummer}.pdf");
 
         var result = await CreateSut(db).Handle(
             Command(parsed.Id.Value), TestContext.Current.CancellationToken);

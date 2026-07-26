@@ -1,9 +1,9 @@
 // "use client": filväljaren behöver lokal state (vald fil, namn, klient-validering,
 // samtyckesdialogens state), en submit-handler som bygger FormData + fetch:ar BFF:en,
 // och programmatisk navigation efter utfallet. Inget CV-PII passerar klienten — bara
-// File-objektet (bytesen), CV-ETIKETTEN (härledd ur filnamnet, se labelFromFileName —
-// aldrig kontonamnet, #1060) och det returnerade, PII-fria utfallet (ids +
-// count/kinds-fyndet, aldrig personnummer-värdet).
+// File-objektet (bytesen), CV-ETIKETTEN när användaren SJÄLV skrivit en (#1060 — aldrig
+// kontonamnet, aldrig filnamnet; utelämnad genererar servern ett icke-PII-namn) och det
+// returnerade, PII-fria utfallet (ids + count/kinds-fyndet, aldrig personnummer-värdet).
 "use client";
 
 import { useId, useState, useTransition } from "react";
@@ -162,9 +162,8 @@ export function CvUploadForm({
   const [isPending, startTransition] = useTransition();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [name, setName] = useState("");
-  // Har användaren själv rört namnfältet? Filvalet föreslår en etikett, men bara så
-  // länge förslaget fortfarande är vårt — ett eget namn skrivs aldrig över av ett
-  // senare filbyte (propose-and-approve: motorn föreslår, användaren bestämmer).
+  // Har användaren själv rört namnfältet? Enda grinden för om `name` skickas alls: ett
+  // orört fält betyder "ingen människa döpte det här", och servern genererar då etiketten.
   const [nameTouched, setNameTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -210,9 +209,10 @@ export function CvUploadForm({
   // ("Vi hittade 0 personnummer i filen"). Det skulle dessutom falsifiera den skrivna regeln
   // i `PersonnummerScanOutcome` att ett filnamns-fynd ALDRIG blockerar promote.
   //
-  // Utelämnat fält ⇒ servern härleder etiketten ur sitt EGET, redan maskerade
-  // `SourceFileName`. Ett personnummer kan därmed aldrig nå etikett-kanalen, och scanen i
-  // handlern får göra det den är rätt för: refusera en ANVÄNDARSKRIVEN etikett.
+  // Utelämnat fält ⇒ servern genererar ett icke-PII-namn ("Importerat CV {datum}").
+  // Filnamnet är inte heller en serverkandidat: ADR 0096 D-B avvisade filnamnet för
+  // `Resume` (PII-nära). Etikett-kanalen bär därmed BARA text en människa skrivit, och
+  // handlerns scan får göra det den är rätt för: refusera en ANVÄNDARSKRIVEN etikett.
   async function postImport(
     file: File,
     acknowledged: boolean,
@@ -348,8 +348,6 @@ export function CvUploadForm({
     setError(validationError ? t(validationError) : null);
     setSelectedFile(validationError ? null : file);
 
-    // Föreslå CV-etiketten ur filnamnet (#1060). Sker även i auto-läget, där fältet
-    // inte visas: etiketten följer med POST:en i stället för att backend måste gissa.
     // Nollställ input-värdet så att SAMMA fil kan väljas om (change fyrar inte
     // på oförändrat värde) — utan detta blir en same-file-retry efter t.ex. 429
     // tyst död i auto-läget. UI:t läser `selectedFile`-staten, aldrig input-värdet.
@@ -407,7 +405,11 @@ export function CvUploadForm({
                 </label>
                 <input
                   id={nameId}
-                  name="name"
+                  // INTE name="name": attributet är dött här (FormData byggs
+                  // programmatiskt, aldrig ur formuläret) men är en primär signal till
+                  // webbläsarens autofyll-klassificering, som kan köra över
+                  // autocomplete="off" på fält den tror är personnamn.
+                  name="cvLabel"
                   type="text"
                   className="jp-input"
                   value={name}

@@ -108,7 +108,8 @@ public sealed class Resume : AggregateRoot<ResumeId>
     // #668 (STEG 1 pnr-scanner hardening; ADR 0074 Invariant 1, CLAUDE.md §5 — the
     // highest-priority PII rule): the shared name-invariant enforced on EVERY name-write path
     // (Create / CreateFromParsed / Rename). Resume.Name is a PLAINTEXT, UNENCRYPTED column that
-    // surfaces in CV lists and exports, so a personnummer/samordningsnummer typed into the CV
+    // surfaces in CV lists (measured: list + detail DTOs, both owner-scoped — NOT exports; the
+    // PDF/ATS header comes from PersonalInfo.FullName), so a personnummer typed into the CV
     // LABEL must be refused. This is a structural AGGREGATE invariant (DDD §2.2), not a boundary
     // guard: enforcing it here closes the name channel for every caller by construction (Mediator
     // handler or not), fail-closed, so a future name-write path cannot silently forget it

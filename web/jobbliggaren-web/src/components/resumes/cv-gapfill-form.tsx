@@ -168,7 +168,12 @@ export function CvGapFillForm({
   const [serverError, setServerError] = useState<FieldError | null>(null);
 
   const { register, control, handleSubmit, getValues } = useForm<FormValues>({
-    defaultValues: toFormValues(content.contact.fullName ?? "", content),
+    // #1060: the CV NAME is a label (`Resume.Name`, a plaintext column), not the person's
+    // name — defaulting it to the parsed contact name put file-derived personal data into
+    // that column as a value the user need not touch. This form is currently unmounted
+    // (its route is notFound(), CV-pivot 5c R4) but is kept revert-ready, so the default is
+    // corrected here rather than left as a loaded gun for whoever revives it.
+    defaultValues: toFormValues("", content),
     shouldUnregister: false,
   });
 

@@ -419,9 +419,356 @@ async function checkExistence() {
   return { existence, dynamicPrefixes };
 }
 
+/* ------------------------------------------------------------------------- *
+ * INVERSE existence sweep (#1056) — DEFINED but consumed by nothing.
+ *
+ * The mirror of the two sweeps above, and the asymmetry it closes is the point:
+ * since #877 the build breaks on an identifier that is REFERENCED but never
+ * DEFINED, and had no check whatsoever for the reverse. Both are the same
+ * defect — an identifier that does not connect — and #1054 measured what the
+ * missing half let accumulate: 86 dead classes and 19 dead tokens.
+ *
+ * Three things make this harder than "definitions minus references", and each
+ * is a measured false verdict, not a hypothetical:
+ *
+ *   1. TRANSITIVITY. `--jp-density` WAS referenced — by the three calc() tokens
+ *      derived from it — and those three by nothing. Internally consistent,
+ *      externally orphaned; a one-hop sweep passes it. Tokens are therefore
+ *      resolved as a reachability graph from real roots, not a set difference.
+ *      (#1055 removed that instance; the mechanism remains.)
+ *   2. COMPOSITION. `jp-statusDot--${tone}` never appears as a complete
+ *      identifier, so complete-identifier matching — the discipline that stops
+ *      `jp-attention` reading as alive because `jp-attentionqueue` exists —
+ *      reports all six variants as dead. Measured on #1054: 13 LIVE classes
+ *      across four families. This direction fails DANGEROUSLY (deleting them
+ *      strips colour from every status dot in every table), so any name behind
+ *      a captured `${` prefix is never reportable as dead.
+ *   3. A REFERENCE IS NOT ALWAYS A CONSUMER. `.jp-land-top` survived #1054's
+ *      sweep on `expect(...querySelector(".jp-land-top")).toBeNull()` — an
+ *      assertion that it is ABSENT — plus a comment; `.jp-land-top__stat__num`
+ *      on a single code comment, itself the written justification for loading a
+ *      font weight and false twice over. Comments are stripped from the
+ *      reference side; test-only references are REPORTED rather than trusted,
+ *      because a static sweep cannot tell a positive assertion from a negative
+ *      one (`jp-job__newflag` is dead and `jp-pill--warning` is alive, and both
+ *      appear only inside a negated assertion).
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Strip JS/TS comments WITHOUT corrupting string and template literals.
+ *
+ * `stripComments(..., {lineComments: true})` above blanks the rest of the line
+ * at the `//` inside `"https://…"`. On the reference side that would hide a real
+ * class reference sharing such a line and report a LIVE class as dead — the one
+ * error direction this sweep must never make. Offsets are preserved.
+ */
+function stripJs(src) {
+  let out = "";
+  let i = 0;
+  const n = src.length;
+  while (i < n) {
+    const c = src[i];
+    const d = src[i + 1];
+    if (c === "/" && d === "*") {
+      const end = src.indexOf("*/", i + 2);
+      const body = src.slice(i, end === -1 ? n : end + 2);
+      for (const ch of body) out += ch === "\n" ? "\n" : " ";
+      i += body.length;
+    } else if (c === "/" && d === "/") {
+      let j = i;
+      while (j < n && src[j] !== "\n") j++;
+      out += " ".repeat(j - i);
+      i = j;
+    } else if (c === '"' || c === "'" || c === "`") {
+      const quote = c;
+      let j = i + 1;
+      out += c;
+      while (j < n) {
+        if (src[j] === "\\") {
+          out += src[j] + (src[j + 1] ?? "");
+          j += 2;
+          continue;
+        }
+        if (src[j] === quote) {
+          out += quote;
+          j++;
+          break;
+        }
+        out += src[j];
+        j++;
+      }
+      i = j;
+    } else {
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
+
+/** Split a selector list on top-level commas (not inside parens/brackets). */
+function selectorBranches(sel) {
+  const out = [];
+  let depth = 0;
+  let cur = "";
+  for (const ch of sel) {
+    if (ch === "(" || ch === "[") depth++;
+    else if (ch === ")" || ch === "]") depth--;
+    if (ch === "," && depth === 0) {
+      out.push(cur);
+      cur = "";
+    } else cur += ch;
+  }
+  if (cur.trim()) out.push(cur);
+  return out;
+}
+
+/** Split a branch into compounds on descendant/child/sibling combinators. */
+function selectorCompounds(branch) {
+  return branch.split(/\s*[>+~]\s*|\s+/).map((c) => c.trim()).filter(Boolean);
+}
+
+/**
+ * The reference universe is NOT src/. E2E specs live in tests/e2e, outside it,
+ * and a src/-only sweep reports names as dead that Playwright selects on.
+ */
+async function collectReferenceFiles(dir, acc = []) {
+  const { readdir } = await import("node:fs/promises");
+  const SKIP = new Set(["node_modules", ".next", "dist", "coverage", "playwright-report", "test-results"]);
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return acc;
+  }
+  for (const entry of entries) {
+    const child = new URL(entry.name + (entry.isDirectory() ? "/" : ""), dir);
+    if (entry.isDirectory()) {
+      if (!SKIP.has(entry.name)) await collectReferenceFiles(child, acc);
+    } else if (!entry.name.endsWith(".css")) {
+      acc.push(child);
+    }
+  }
+  return acc;
+}
+
+const JP_ANY_IDENT = /(--jp-[A-Za-z0-9_-]+|(?<!-)\bjp-[A-Za-z0-9_-]+)/g;
+const TOKEN_ANY = /--jp-[A-Za-z0-9_-]+/g;
+const winPath = (u) => (u.pathname ? u.pathname.replace(/^\/([A-Za-z]:)/, "$1") : String(u));
+
+async function checkInverseExistence() {
+  const inverse = [];
+  const advisories = [];
+  const roots = [new URL("../src/", import.meta.url), new URL("../tests/", import.meta.url)];
+
+  /* ---- reference side: every non-CSS file, comments stripped ---- */
+  const referencedClasses = new Set();
+  const referencedTokens = new Set();
+  const composedPrefixes = new Set();
+  const classSeenIn = new Map(); // name -> Set("prod" | "test")
+  const isTestPath = (p) => /(\.test\.|\.spec\.|\/tests?\/)/i.test(p);
+  let refFileCount = 0;
+
+  for (const root of roots) {
+    for (const url of await collectReferenceFiles(root)) {
+      let raw;
+      try {
+        raw = readFileSync(url, "utf-8");
+      } catch {
+        continue;
+      }
+      refFileCount++;
+      if (!raw.includes("jp-")) continue;
+      const p = url.pathname;
+      const text = /\.(ts|tsx|js|jsx|mjs|cjs)$/.test(p) ? stripJs(raw) : raw;
+      for (const m of text.matchAll(JP_ANY_IDENT)) {
+        const name = m[0];
+        if (text.startsWith("${", m.index + name.length)) {
+          composedPrefixes.add(name);
+          continue;
+        }
+        if (name.startsWith("--jp-")) referencedTokens.add(name);
+        else {
+          referencedClasses.add(name);
+          if (!classSeenIn.has(name)) classSeenIn.set(name, new Set());
+          classSeenIn.get(name).add(isTestPath(p) ? "test" : "prod");
+        }
+      }
+    }
+  }
+
+  const isComposed = (n) => [...composedPrefixes].some((p) => n.startsWith(p) && n.length > p.length);
+  const classIsReferenced = (n) => referencedClasses.has(n) || isComposed(n);
+
+  /* ---- definition side: parse every guarded stylesheet into rules ---- */
+  const parsed = [];
+  for (const file of await collectStylesheets(SRC_DIR)) {
+    const { text, allowLines } = stripComments(readFileSync(file, "utf-8"));
+    const stack = [];
+    let selStart = 0;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === "{") {
+        stack.push({ sel: text.slice(selStart, i).trim(), open: i });
+        selStart = i + 1;
+      } else if (ch === "}") {
+        const b = stack.pop();
+        if (b)
+          parsed.push({
+            file,
+            text,
+            allowLines,
+            selector: b.sel,
+            body: text.slice(b.open + 1, i),
+            bodyStart: b.open + 1,
+            line: lineOf(text, b.open),
+            insideAt: stack.some((s) => s.sel.startsWith("@")),
+          });
+        selStart = i + 1;
+      } else if (ch === ";" && stack.length === 0) selStart = i + 1;
+    }
+  }
+
+  const allowed = (r) => r.allowLines.has(r.line) || r.allowLines.has(r.line - 1);
+
+  /* ---- class definitions, with the ancestors each depends on (AC 6) ---- */
+  const classDefs = new Map(); // subject -> [{ancestors, file, line, allow}]
+  for (const r of parsed) {
+    if (!r.selector || r.selector.startsWith("@")) continue;
+    for (const br of selectorBranches(r.selector)) {
+      const comps = selectorCompounds(br);
+      if (comps.length === 0) continue;
+      const subjects = [...comps[comps.length - 1].matchAll(SELECTOR_CLASS)].map((m) => m[1]);
+      const ancestors = comps.slice(0, -1).flatMap((c) => [...c.matchAll(SELECTOR_CLASS)].map((m) => m[1]));
+      for (const s of subjects) {
+        if (!classDefs.has(s)) classDefs.set(s, []);
+        classDefs.get(s).push({ ancestors, file: r.file, line: r.line, allow: allowed(r) });
+      }
+    }
+  }
+
+  /* ---- token reachability graph (transitivity) ---- */
+  const definedTokens = new Map(); // name -> {file, line, allow}
+  const edges = new Map();
+  const tokenRoots = new Set(referencedTokens);
+
+  for (const r of parsed) {
+    const inTheme = r.selector.startsWith("@theme") || r.insideAt;
+    // Nested blocks blanked, but LENGTH-PRESERVING so each declaration keeps its
+    // offset — a gate that reports the enclosing rule's line instead of the
+    // declaration's own makes the reader hunt for what it is complaining about.
+    const body = r.body.replace(/\{[^{}]*\}/g, (m) => " ".repeat(m.length));
+    let cursor = 0;
+    for (const decl of body.split(";")) {
+      const declStart = cursor;
+      cursor += decl.length + 1;
+      const c = decl.indexOf(":");
+      if (c === -1) continue;
+      const prop = decl.slice(0, c).trim();
+      const value = decl.slice(c + 1);
+      const declLine = lineOf(r.text, r.bodyStart + declStart + decl.indexOf(prop));
+      if (prop.startsWith("--jp-") && !definedTokens.has(prop)) {
+        definedTokens.set(prop, {
+          file: r.file,
+          line: declLine,
+          allow: r.allowLines.has(declLine) || r.allowLines.has(declLine - 1),
+        });
+      }
+      const refs = [...value.matchAll(TOKEN_ANY)].map((m) => m[0]);
+      if (refs.length === 0) continue;
+      if (prop.startsWith("--jp-") && !inTheme) {
+        if (!edges.has(prop)) edges.set(prop, new Set());
+        for (const b of refs) edges.get(prop).add(b);
+      } else {
+        // an ordinary property, or anything inside @theme — the Tailwind bridge
+        // re-exports tokens under shadcn names and generates utilities with no
+        // var() anywhere, so a token consumed only through it is alive.
+        for (const b of refs) tokenRoots.add(b);
+      }
+    }
+  }
+
+  const aliveTokens = new Set();
+  const queue = [...tokenRoots];
+  while (queue.length) {
+    const t = queue.pop();
+    if (aliveTokens.has(t)) continue;
+    aliveTokens.add(t);
+    for (const b of edges.get(t) ?? []) queue.push(b);
+  }
+
+  /* ---- sweep 3: a class definition nothing can ever use ---- */
+  for (const [name, defs] of classDefs) {
+    if (classIsReferenced(name)) {
+      const seen = classSeenIn.get(name);
+      if (seen && seen.has("test") && !seen.has("prod"))
+        advisories.push(
+          `${name} — referenced ONLY from test files. A static sweep cannot tell a positive ` +
+            `assertion from a negative one, so this is reported, not judged.`
+        );
+      continue;
+    }
+    const d = defs.find((x) => !x.allow) ?? defs[0];
+    if (d.allow) continue;
+    inverse.push({
+      file: winPath(d.file),
+      line: d.line,
+      selector: `.${name}`,
+      decl:
+        `.${name} is defined in CSS but no non-CSS file under src/ or tests/ references it ` +
+        `(comments are not consumption). Delete the rule, or add \`guard-allow: <reason>\`.`,
+      rule: "unused-class",
+    });
+  }
+
+  /* ---- sweep 4: a token nothing transitively reads ---- */
+  for (const [name, at] of definedTokens) {
+    if (aliveTokens.has(name) || at.allow) continue;
+    inverse.push({
+      file: winPath(at.file),
+      line: at.line,
+      selector: name,
+      decl:
+        `${name} is defined but nothing transitively reads it — no ordinary declaration, no ` +
+        `@theme entry, no source reference, and no live token derives from it. A token read only ` +
+        `by other dead tokens is dead: that is the shape --jp-density had. Delete it, or add ` +
+        `\`guard-allow: <reason>\`.`,
+      rule: "unused-token",
+    });
+  }
+
+  /* ---- AC 6: the FORWARD sweep's blind spot ----
+   * guard-css builds definedClasses from a flat regex with no selector model, so
+   * `.jp-dead .jp-alive` registers `jp-alive` as defined even when no element can
+   * carry `jp-dead`. Measured 2026-07-26: `.jp-empty__kicker`/`__body` had rules
+   * ONLY under `.jp-empty--brand`, removed from all markup on 2026-06-10 — five
+   * elements rendered unstyled for 46 days with this gate green. */
+  for (const [name, defs] of classDefs) {
+    if (!classIsReferenced(name)) continue; // already reported by sweep 3
+    if (defs.some((d) => d.ancestors.every((a) => classIsReferenced(a)))) continue;
+    const d = defs.find((x) => !x.allow) ?? defs[0];
+    if (d.allow) continue;
+    inverse.push({
+      file: winPath(d.file),
+      line: d.line,
+      selector: `.${name}`,
+      decl:
+        `.${name} is used in the app, but EVERY rule defining it sits under an ancestor ` +
+        `(${d.ancestors.map((a) => "." + a).join(", ")}) that nothing references — so no element ` +
+        `can match, and it renders unstyled while the source claims otherwise. Unscope a rule, ` +
+        `drop the class, or add \`guard-allow: <reason>\`.`,
+      rule: "unreachable-definition",
+    });
+  }
+
+  return { inverse, advisories, refFileCount, composedCount: composedPrefixes.size };
+}
+
 const findings = files.flatMap(checkFile);
 const { existence, dynamicPrefixes } = await checkExistence();
 findings.push(...existence);
+const { inverse, advisories, refFileCount, composedCount } = await checkInverseExistence();
+findings.push(...inverse);
 
 if (asJson) {
   console.log(JSON.stringify(findings, null, 1));
@@ -434,6 +781,12 @@ if (asJson) {
     console.log(
       `\nnote: ${dynamicPrefixes} template-literal class prefix(es) skipped — composed names cannot be verified statically.`
     );
+  // The inverse sweep's undecidables, reported for the same reason: a name it
+  // cannot rule on must not read as one it checked.
+  console.log(
+    `note: inverse sweep read ${refFileCount} non-CSS file(s); ${composedCount} composition prefix(es) shield names it cannot decide.`
+  );
+  for (const a of advisories) console.log(`note: ${a}`);
   console.log(`\n${findings.length} violation(s).`);
 }
 process.exit(findings.length ? 1 : 0);

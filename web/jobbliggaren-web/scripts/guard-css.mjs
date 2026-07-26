@@ -1,4 +1,11 @@
-#!/usr/bin/env node
+/*
+ * NO SHEBANG. Vite's SSR transform hoists the node: interop onto line 1, in
+ * front of a shebang, and the file then fails to PARSE — so importing it from
+ * a test yields "no tests" rather than a failure anyone reads as one. The 15
+ * tests in guard-css.test.mjs silently did not run on Windows because of it
+ * (#1056 re-review B2). The only call site is package.json's
+ * `node scripts/guard-css.mjs`, so the shebang was decorative.
+ */
 /**
  * CSS typography/color literal regression guard (#549 WS5, CTO D3).
  *
@@ -576,12 +583,34 @@ function selectorCompounds(branch) {
 }
 
 /**
+ * The subject and required-ancestor names of ONE selector branch.
+ *
+ * Extracted so the CALL SITE is testable, not merely the helpers. The re-review
+ * measured why that matters: deleting the two `blankParens(...)` wrappers here
+ * reproduced the entire pre-fix finding set — `:is()` read as a conjunction,
+ * `:not()` read inverted, `:has(+ …)` mis-attributed as subject — while all 15
+ * helper unit tests stayed GREEN. Pinning the rule is not pinning its use.
+ */
+function branchDefinitions(branch) {
+  const comps = selectorCompounds(branch);
+  if (comps.length === 0) return { subjects: [], ancestors: [] };
+  // Names inside :is()/:not()/:where()/:has() are blanked — see blankParens.
+  const subjects = [...blankParens(comps[comps.length - 1]).matchAll(SELECTOR_CLASS)].map((m) => m[1]);
+  const ancestors = comps
+    .slice(0, -1)
+    .flatMap((c) => [...blankParens(c).matchAll(SELECTOR_CLASS)].map((m) => m[1]));
+  return { subjects, ancestors };
+}
+
+/**
  * The reference universe is NOT src/. E2E specs live in tests/e2e, outside it,
  * and a src/-only sweep reports names as dead that Playwright selects on.
  */
 async function collectReferenceFiles(dir, acc = []) {
   const { readdir } = await import("node:fs/promises");
-  const SKIP = new Set(["node_modules", ".next", "dist", "coverage", "playwright-report", "test-results"]);
+  // `out` and `build` are gitignored too: a leftover one would be READ as part
+  // of the reference universe and could keep a dead name alive — silencing the gate.
+  const SKIP = new Set(["node_modules", ".next", "dist", "build", "out", ".turbo", "coverage", "playwright-report", "test-results"]);
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
@@ -716,11 +745,7 @@ async function checkInverseExistence() {
     for (const br of selectorBranches(r.selector)) {
       const comps = selectorCompounds(br);
       if (comps.length === 0) continue;
-      // Names inside :is()/:not()/:where()/:has() are blanked — see blankParens.
-      const subjects = [...blankParens(comps[comps.length - 1]).matchAll(SELECTOR_CLASS)].map((m) => m[1]);
-      const ancestors = comps
-        .slice(0, -1)
-        .flatMap((c) => [...blankParens(c).matchAll(SELECTOR_CLASS)].map((m) => m[1]));
+      const { subjects, ancestors } = branchDefinitions(br);
       for (const s of subjects) {
         if (!classDefs.has(s)) classDefs.set(s, []);
         classDefs.get(s).push({ ancestors, file: r.file, line: r.line, allow: allowed(r) });
@@ -841,7 +866,13 @@ async function checkInverseExistence() {
    * elements rendered unstyled for 46 days with this gate green. */
   for (const [name, defs] of classDefs) {
     if (!classIsReferenced(name)) continue; // already reported by sweep 3
-    if (defs.some((d) => d.ancestors.every((a) => classIsReferenced(a)))) continue;
+    // An ancestor whose only occurrence sits on a line `stripJs` may have blanked
+    // must count as referenced HERE too. Without this the mitigation covered
+    // sweeps 3 and 4 but not AC 6 — the one rule whose message says "unscope a
+    // rule, drop the class" — so a regex literal eating the sole reference to an
+    // ancestor still produced a blocking false positive (#1056 re-review M6).
+    const ancestorReferenced = (a) => classIsReferenced(a) || rawOnlyClasses.has(a);
+    if (defs.some((d) => d.ancestors.every((a) => ancestorReferenced(a)))) continue;
     const d = defs.find((x) => !x.allow) ?? defs[0];
     if (d.allow) continue;
     inverse.push({
@@ -867,7 +898,7 @@ async function checkInverseExistence() {
  * exported and unit-tested. The sweep itself only runs when this file is the
  * entry point, so importing it in a test does not execute it or call exit().
  * ------------------------------------------------------------------------- */
-export { stripJs, blankParens, selectorBranches, selectorCompounds };
+export { stripJs, blankParens, selectorBranches, selectorCompounds, branchDefinitions };
 
 const isMain = () => {
   const entry = process.argv[1];

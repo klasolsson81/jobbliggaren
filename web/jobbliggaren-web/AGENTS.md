@@ -31,8 +31,19 @@ broken production build now fails `ci` instead of reporting success.
 **A green production build does NOT mean `next dev` compiles.** Both CI jobs
 that build, build for production; webpack defers `"use server"` export checks
 to runtime while Turbopack rejects at module-link time — which is how #1059
-lived three weeks on `main` with every build green. That specific invariant (a
-`"use server"` module may only export async function *declarations* — Next
-error **E352**) is enforced by `pnpm lint`, which runs in `.husky/pre-commit`
-and in the same blocking job. Shared types belong in a module without the
-directive: `src/lib/actions/_action-result.ts` is the SSOT.
+lived three weeks on `main` with every build green.
+
+`pnpm lint` enforces **one part** of Next's E352 rule — the part that broke:
+a `"use server"` module may not use *specifier* exports (`export { x }`,
+`export type { X }`, `export { type X }`, `export * from …` and the
+`export default`-specifier variants). That is the form a type-only binding can
+leave a module by, so it is the form TypeScript's erasure turns into a
+re-export pointing at nothing. Write `export async function foo() {}` directly,
+and put shared types in a module without the directive —
+`src/lib/actions/_action-result.ts` is the SSOT.
+
+It does **not** check that every export is async: `export const x = 1`,
+a synchronous `export function`, and `export default function` all pass lint
+today, and `export const x = 1` is caught by no gate at all (Next's
+`action-validate.js` states in its own header that it checks *during the
+runtime*). Do not read a green lint as "this module satisfies E352".

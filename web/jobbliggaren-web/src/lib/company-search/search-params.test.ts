@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   buildForetagSokHref,
   buildPageHref,
+  buildOrgNrRefusedHref,
+  parseOrgNrRefused,
   toStringList,
   parseNamn,
   parseSida,
@@ -117,15 +119,121 @@ describe("toStringList", () => {
 
 describe("parseNamn", () => {
   it("takes the first value, trims, and returns '' when absent", () => {
-    expect(parseNamn(undefined)).toBe("");
-    expect(parseNamn("  volvo  ")).toBe("volvo");
-    expect(parseNamn(["volvo", "saab"])).toBe("volvo");
+    expect(parseNamn(undefined)).toEqual({ kind: "name", value: "" });
+    expect(parseNamn("  volvo  ")).toEqual({ kind: "name", value: "volvo" });
+    expect(parseNamn(["volvo", "saab"])).toEqual({ kind: "name", value: "volvo" });
   });
 
   it("truncates to the max prefix length (no sub-minimum — a 1-char prefix is valid)", () => {
-    expect(parseNamn("a")).toBe("a");
+    expect(parseNamn("a")).toEqual({ kind: "name", value: "a" });
     const long = "x".repeat(MAX_NAME_PREFIX_LENGTH + 50);
-    expect(parseNamn(long)).toHaveLength(MAX_NAME_PREFIX_LENGTH);
+    const parsed = parseNamn(long);
+    expect(parsed.kind).toBe("name");
+    expect(parsed.kind === "name" && parsed.value).toHaveLength(
+      MAX_NAME_PREFIX_LENGTH,
+    );
+  });
+});
+
+/**
+ * ADR 0087 D8(c) — the `namn` axis must refuse the whole ten-digit class, not merely the
+ * personnummer-shaped subclass. The gate fires on the SAME predicate the search island uses to route
+ * a value to the org.nr branch, so the two paths cannot drift into two rules.
+ */
+describe("parseNamn — the org.nr gate", () => {
+  it("refuses the ten-digit class in every form the org.nr normaliser accepts", () => {
+    // Personnummer-shaped (3rd digit < 2) — the highest-priority case.
+    expect(parseNamn("1010101010")).toEqual({ kind: "orgNrShaped" });
+    // A legitimate legal-entity org.nr is refused on this axis too: it is an org.nr, and org.nr
+    // never enters a URL. Gating on the pnr heuristic instead would make one rule into two.
+    expect(parseNamn("5560125790")).toEqual({ kind: "orgNrShaped" });
+    // Hyphenated and spaced forms normalise to the same ten digits.
+    expect(parseNamn("101010-1010")).toEqual({ kind: "orgNrShaped" });
+    expect(parseNamn("10 10 10 1010")).toEqual({ kind: "orgNrShaped" });
+    expect(parseNamn("  556012-5790  ")).toEqual({ kind: "orgNrShaped" });
+    expect(parseNamn(["1010101010", "volvo"])).toEqual({ kind: "orgNrShaped" });
+  });
+
+  /**
+   * The gate reads EVERY repeated value, not just `raw[0]`. Reproduced against the running dev
+   * server before the fix: `/foretag/sok?namn=&namn=1010101010` rendered the page with no wash at
+   * all, because the parser only ever looked at the value it was going to use. What reaches history,
+   * a re-shared link and the access log is the whole query string.
+   */
+  it("refuses a ten-digit value in ANY repeated position, not only the first", () => {
+    expect(parseNamn(["", "1010101010"])).toEqual({ kind: "orgNrShaped" });
+    expect(parseNamn(["volvo", "1010101010"])).toEqual({ kind: "orgNrShaped" });
+    expect(parseNamn(["volvo", "saab", "556012-5790"])).toEqual({
+      kind: "orgNrShaped",
+    });
+    // ...and an all-clean repetition still parses to the first value, unchanged.
+    expect(parseNamn(["volvo", "saab"])).toEqual({ kind: "name", value: "volvo" });
+  });
+
+  it("leaves real name prefixes alone — the gate is exact, not a digit heuristic", () => {
+    expect(parseNamn("volvo")).toEqual({ kind: "name", value: "volvo" });
+    expect(parseNamn("101010101")).toEqual({ kind: "name", value: "101010101" }); // 9
+    expect(parseNamn("10101010101")).toEqual({ kind: "name", value: "10101010101" }); // 11
+    expect(parseNamn("1010101010ab")).toEqual({ kind: "name", value: "1010101010ab" });
+    expect(parseNamn("Bolag 1010101010")).toEqual({
+      kind: "name",
+      value: "Bolag 1010101010",
+    });
+  });
+});
+
+describe("buildOrgNrRefusedHref", () => {
+  it("drops the name, preserves the filter axes, and never emits sida", () => {
+    const href = buildOrgNrRefusedHref({
+      sni: ["62020", "62010"],
+      kommun: ["0180"],
+    });
+    expect(href).toContain("avvisat=orgnr");
+    expect(href).not.toContain("namn=");
+    expect(href).toContain("sni=62010");
+    expect(href).toContain("sni=62020");
+    expect(href).toContain("kommun=0180");
+    expect(href).not.toContain("sida=");
+  });
+
+  it("carries the flag even when there is no filter to preserve", () => {
+    expect(buildOrgNrRefusedHref({ sni: [], kommun: [] })).toBe(
+      "/foretag/sok?avvisat=orgnr",
+    );
+  });
+
+  /**
+   * The no-loop pin. The redirect target must parse back to a plain empty name — otherwise the wash
+   * redirect would re-trigger its own gate and the page would loop. Pinned, not reasoned about.
+   */
+  it("produces a target whose own `namn` parses as a name, not as orgNrShaped", () => {
+    const href = buildOrgNrRefusedHref({
+      sni: ["62010"],
+      kommun: [],
+    });
+    const target = new URLSearchParams(href.slice(href.indexOf("?") + 1));
+    expect(parseNamn(target.get("namn") ?? undefined)).toEqual({
+      kind: "name",
+      value: "",
+    });
+    expect(parseOrgNrRefused(target.get("avvisat") ?? undefined)).toBe(true);
+  });
+});
+
+describe("parseOrgNrRefused", () => {
+  it("recognises only the exact flag value", () => {
+    expect(parseOrgNrRefused("orgnr")).toBe(true);
+    expect(parseOrgNrRefused(["orgnr", "x"])).toBe(true);
+    expect(parseOrgNrRefused(undefined)).toBe(false);
+    expect(parseOrgNrRefused("1")).toBe(false);
+    expect(parseOrgNrRefused("ORGNR")).toBe(false);
+  });
+
+  /** The flag is a wash artefact: neither commit builder may emit it, so it dies on the next action. */
+  it("is never emitted by either commit builder", () => {
+    const state = { namn: "volvo", sni: ["62010"], kommun: ["0180"] };
+    expect(buildForetagSokHref(state)).not.toContain("avvisat");
+    expect(buildPageHref(state, 3)).not.toContain("avvisat");
   });
 });
 

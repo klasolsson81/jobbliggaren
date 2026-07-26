@@ -34,8 +34,8 @@ JobbPilots designsystem migreras till **v2**: en slate-baserad civic-utility-pal
 **App shell Variant B:** sektionerad sidebar, 4 px brand left-border på aktiv nav. JetBrains Mono + Hanken via `next/font`. Nytt `.jp-*` civic component utility-system.
 
 **Amendment 2026-07-26 (#1055) — the density system is retired, unimplemented
-and unconsumed.** No status change, no supersede; the Beslut clause above and
-the Konsekvenser line are left exactly as written. The dark-mode mechanism
+and unconsumed.** No status change, no supersede; the Beslut clause above, the
+Konsekvenser line and the Implementation bullet are left exactly as written. The dark-mode mechanism
 (`data-theme`, the blocking inline script, `useSyncExternalStore`), the slate
 palette and the app shell all remain in force — this narrows one clause, not the
 ADR.
@@ -67,7 +67,6 @@ manufactured a fresh instance of the defect class this retirement closes.
 
 Grounds and rejected alternatives (wire it up / park it):
 `docs/reviews/2026-07-25-density-system-cto.md`.
-
 
 ## Alternativ som övervägdes
 

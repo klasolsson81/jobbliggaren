@@ -15,6 +15,9 @@ import "./globals.css";
 // budget (CLAUDE.md §5 / §2.5 / ADR 0045). Mono carries 400–700: 700 backs the
 // (mono) stat numbers (.jp-land-top__stat__num, live). Mono has NO 800 consumer,
 // so it is not loaded.
+// #1053 AC 2 counterfactual — reverted in the next commit.
+import "@/lib/__build-counterfactual";
+
 const sourceSans3 = Source_Sans_3({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],

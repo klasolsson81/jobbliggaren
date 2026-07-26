@@ -6,6 +6,14 @@ import {
   SESSION_COOKIE_NAME,
 } from "@/lib/auth/cookie-names";
 import { env } from "@/lib/env";
+import {
+  parseNamn,
+  buildOrgNrRefusedHref,
+  normalizeCodes,
+  FORETAG_SOK_ROUTE,
+  MAX_SNI_CODES,
+  MAX_MUNICIPALITY_CODES,
+} from "@/lib/company-search/search-params";
 
 // Defense-in-depth (ADR 0017): this proxy (Next 16's renamed middleware; runs on
 // the nodejs runtime) blocks unauthenticated noise before it reaches the BE; the
@@ -72,6 +80,34 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     const loginUrl = new URL("/logga-in", request.url);
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // ADR 0087 D8(c) — the org.nr wash, at the EARLIEST layer that can still refuse to SERVE the
+  // refused URL at all. Placed above the prefetch branch on purpose: a speculative prefetch is a
+  // request that carries the value just as a navigation does.
+  //
+  // Why here and not only in the page (measured 2026-07-26, Chromium, JS disabled): a page-level
+  // `redirect()` runs after the `(app)` layout has begun streaming, so Next cannot answer 3xx — it
+  // answers **200 and serves a document** carrying a meta refresh. That document loads subresources,
+  // and `Referrer-Policy: strict-origin-when-cross-origin` puts the refused URL in the `Referer` of
+  // SIX requests, including the log line for the washed URL itself. A genuine 307 here serves no
+  // document at all.
+  //
+  // The page-level gate STAYS, and both are load-bearing on different properties: this one keeps the
+  // URL from being served; that one keeps the value out of `body.name` should a render ever be
+  // reached without passing here. That is not two rules — the RULE lives in `search-params.ts` and
+  // neither call site may ever grow an inline predicate of its own.
+  if (pathname === FORETAG_SOK_ROUTE) {
+    const params = request.nextUrl.searchParams;
+    if (parseNamn(params.getAll("namn")).kind === "orgNrShaped") {
+      const washed = buildOrgNrRefusedHref({
+        // Reference-free (dedupe + cap only): the proxy has no SCB reference, and the
+        // reference-based drop-unknown applies on the render that follows the redirect.
+        sni: normalizeCodes(params.getAll("sni"), MAX_SNI_CODES),
+        kommun: normalizeCodes(params.getAll("kommun"), MAX_MUNICIPALITY_CODES),
+      });
+      return NextResponse.redirect(new URL(washed, request.url));
+    }
   }
 
   // Never rotate on a speculative prefetch: it is not a real navigation, and

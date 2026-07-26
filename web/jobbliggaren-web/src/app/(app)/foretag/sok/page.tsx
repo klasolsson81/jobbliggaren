@@ -52,34 +52,22 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
   const t = await getTranslations("pages.foretag.sok");
   const params = await searchParams;
 
-  // The org.nr gate (ADR 0087 D8(c); CTO bind 2026-07-26). It runs before the reference fetch and
-  // before any results render — after only the auth check and the translator, both of which must
-  // precede it. A ten-digit `?namn=` arrives here from every client state the browser guard cannot
-  // cover: JS disabled, Enter before hydration, or a hand-typed/shared link with no form at all.
+  // The org.nr gate (ADR 0087 D8(c)) — the SECOND of two, and deliberately not the primary one.
+  // `src/proxy.ts` runs the same rule one layer earlier and answers a genuine 307, so in practice a
+  // refused URL never reaches this function at all. This copy exists for the case where a render is
+  // somehow reached without passing the proxy, and it gates a DIFFERENT property: the proxy keeps
+  // the URL from being served, this keeps the value out of `body.name` — a worse channel than an FE
+  // access log, since it would reach the backend and run a name-prefix scan.
   //
-  // HOW THIS ACTUALLY BEHAVES, measured 2026-07-26 in Chromium with JS DISABLED against the local
-  // stack — not assumed, because the mechanism is not the one `redirect()` suggests. The (app)
-  // layout has already begun streaming when this runs, so Next cannot answer with a 3xx. It answers
-  // **200** and emits `<meta http-equiv="refresh" content="1;url=/foretag/sok?avvisat=orgnr">`.
-  // Measured consequences:
-  //   - the address bar settles on the washed URL (meta refresh needs no JS);
-  //   - ONE Back press lands on `/foretag/sok`, NOT on the refused URL — no pre-redirect entry
-  //     survives the back stack, so history is closed, and now by measurement rather than by
-  //     inference from "it is a redirect";
-  //   - the rendered DOM carries no trace of the value (`ForetagSokResults` never runs, so it never
-  //     reaches `body.name` either). The delivered HTML does echo it inside Next's own router-state
-  //     payload, which is Next reflecting the requested URL, not markup of ours;
-  //   - the refused URL is visible in the address bar for the refresh's ~1s before it is replaced.
+  // Two call sites, one rule. `parseNamn` and `buildOrgNrRefusedHref` live in `search-params.ts`;
+  // neither gate may ever grow an inline predicate of its own, or this becomes two rules that drift.
   //
-  // What remains OPEN, also measured rather than inferred. Because this is a document and not a
-  // redirect, the browser loads subresources from it, and `Referrer-Policy:
-  // strict-origin-when-cross-origin` (security-headers.ts) sends the FULL url same-origin. Measured:
-  // SIX requests carry the refused URL as their `Referer` — two fonts, two stylesheets, a script,
-  // and the meta-refresh navigation itself. So the access-log exposure is not one line, and the log
-  // line for the WASHED url carries the unwashed value in its own `Referer`. A true 3xx at the proxy
-  // layer would cost exactly one line and no document; that this one does not is the price of the
-  // gate sitting inside a route whose layout has already begun streaming. Recorded as measured and
-  // accepted here rather than understated.
+  // Why the proxy is the primary one, measured 2026-07-26 in Chromium with JS disabled: a
+  // page-level `redirect()` runs after the `(app)` layout has begun streaming, so Next CANNOT answer
+  // 3xx — it answers 200 and serves a document carrying a meta refresh. That document loads
+  // subresources, and `Referrer-Policy: strict-origin-when-cross-origin` put the refused URL in the
+  // `Referer` of six requests, including the log line for the washed URL itself. With the gate at
+  // the proxy the same probe measures: one 307, no document, and ZERO requests carrying the value.
   const parsedNamn = parseNamn(params.namn);
   if (parsedNamn.kind === "orgNrShaped") {
     redirect(

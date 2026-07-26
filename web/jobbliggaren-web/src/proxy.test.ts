@@ -263,3 +263,81 @@ describe("proxy refresh driver (PR2b-3b)", () => {
     expect(res.headers.get("x-middleware-next")).toBe("1");
   });
 });
+
+/**
+ * ADR 0087 D8(c) — the org.nr wash at the proxy layer.
+ *
+ * The same rule runs in `foretag/sok/page.tsx`, but a page-level `redirect()` cannot produce a 3xx:
+ * measured 2026-07-26, the `(app)` layout has already begun streaming, so Next answers 200 and
+ * SERVES A DOCUMENT with a meta refresh — which loads subresources that carry the refused URL in
+ * their `Referer`. Here the answer is a real redirect and no document is served at all. These tests
+ * pin that it is this layer, on a genuine `NextRequest`.
+ */
+describe("proxy — the org.nr wash on /foretag/sok (D8(c))", () => {
+  const authed = { cookies: { [SESSION_COOKIE_NAME]: "sess-1" } };
+
+  it("redirects a ten-digit ?namn= to the washed URL, without calling the backend", async () => {
+    const res = await proxy(makeRequest("/foretag/sok?namn=1010101010", authed));
+
+    expect(res.status).toBe(307);
+    const location = res.headers.get("location") ?? "";
+    expect(location).toContain("/foretag/sok?avvisat=orgnr");
+    expect(location).not.toContain("1010101010");
+    // No document is served and no refresh round-trip is spent on a refused URL.
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("washes a repeated param where the value is NOT in first position", async () => {
+    const res = await proxy(
+      makeRequest("/foretag/sok?namn=&namn=1010101010", authed),
+    );
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location") ?? "").not.toContain("1010101010");
+  });
+
+  it("preserves the filter axes and drops sida when it washes", async () => {
+    const res = await proxy(
+      makeRequest(
+        "/foretag/sok?namn=101010-1010&sni=62020&sni=62010&kommun=0180&sida=4",
+        authed,
+      ),
+    );
+    const location = res.headers.get("location") ?? "";
+    expect(location).toContain("sni=62010");
+    expect(location).toContain("sni=62020");
+    expect(location).toContain("kommun=0180");
+    expect(location).toContain("avvisat=orgnr");
+    expect(location).not.toContain("sida");
+    expect(location).not.toContain("namn");
+  });
+
+  it("washes a speculative PREFETCH too — it carries the value like any other request", async () => {
+    const res = await proxy(
+      makeRequest("/foretag/sok?namn=1010101010", {
+        ...authed,
+        headers: { "next-router-prefetch": "1" },
+      }),
+    );
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location") ?? "").not.toContain("1010101010");
+  });
+
+  /** The no-loop pin at this layer: the wash target must pass through, not redirect again. */
+  it("passes the wash target through instead of redirecting again", async () => {
+    fetchMock.mockResolvedValue(refreshResponse({ rotated: false }));
+    const res = await proxy(makeRequest("/foretag/sok?avvisat=orgnr", authed));
+    expect(res.status).not.toBe(307);
+  });
+
+  it("leaves an ordinary name search alone", async () => {
+    fetchMock.mockResolvedValue(refreshResponse({ rotated: false }));
+    const res = await proxy(makeRequest("/foretag/sok?namn=Volvo", authed));
+    expect(res.status).not.toBe(307);
+  });
+
+  it("does not gate other routes", async () => {
+    fetchMock.mockResolvedValue(refreshResponse({ rotated: false }));
+    const res = await proxy(makeRequest("/jobb?namn=1010101010", authed));
+    expect(res.status).not.toBe(307);
+  });
+});

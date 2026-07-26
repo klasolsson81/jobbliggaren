@@ -42,7 +42,9 @@
 
 import { normalizeOrgNrInput } from "@/lib/dto/company-registry";
 
-const ROUTE = "/foretag/sok";
+/** The route these builders serialize. Exported so the proxy can match it without a second literal. */
+export const FORETAG_SOK_ROUTE = "/foretag/sok";
+const ROUTE = FORETAG_SOK_ROUTE;
 
 /**
  * The PII-FREE flag the wash redirect carries so the refusal can be explained instead of silently

@@ -4003,15 +4003,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-weight: var(--jp-fw-bold);
   margin: 0 0 4px;
 }
-/* Empty-state explanation. .jp-empty is centred and sets NO measure, so inside
-   .jp-container (1200px) this prose ran ~136ch — about double the ~68ch cap the
-   a11y skill sets for running prose (WCAG 1.4.8). The only thing that ever
-   capped it was the .jp-empty--brand rule (52ch), and that scope was withdrawn
-   from the markup in #43 (2026-06-10, design-reviewer M2 dubbel-grön), which
-   left the element with no rule at all — measured and removed in #1054.
-   60ch matches the house's centred-lede pattern (.jp-pagehero__lede, .jp-lede)
-   rather than inventing a value; margin-inline keeps it centred under the
-   parent's text-align. */
+/* Empty-state explanation. .jp-empty is centred and sets no measure, so the
+   prose ran the full 1088px of the container (1200 - 2x32 - 2x24) — roughly
+   double the ~68ch cap jobbpilot-design-a11y sets for running prose
+   (WCAG 1.4.8). 60ch rather than 68: centred prose sits in the lower half of
+   the 45-75 CPL band, because a ragged left edge makes the eye hunt for the
+   next line start. margin-inline because the parent centres via text-align,
+   which would otherwise leave the capped block hanging left. */
 .jp-empty__body {
   max-width: 60ch;
   margin-inline: auto;
@@ -5358,8 +5356,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    (inga nya färger/radier/skuggor). Dark mode auto-skiftar via token-systemet.
    ══════════════════════════════════════════════════════════════════════════ */
 
-/* Bas-layout för empty-state-actions (icke-brand) — multipla knappar.
-   --brand-varianten har egen regel ovan; detta är den neutrala basen. */
+/* Bas-layout för empty-state-actions — multipla knappar. */
 .jp-empty__actions {
   display: flex;
   gap: 10px;

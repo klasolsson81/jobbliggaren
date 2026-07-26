@@ -29,7 +29,7 @@ export function CompanyWatchList({ items, regions }: CompanyWatchListProps) {
     return (
       <div className="jp-empty">
         <div className="jp-empty__title">{t("emptyTitle")}</div>
-        {t.rich("emptyBody", { i: (chunks) => <i>{chunks}</i> })}
+        <p className="jp-empty__body">{t.rich("emptyBody", { i: (chunks) => <i>{chunks}</i> })}</p>
       </div>
     );
   }

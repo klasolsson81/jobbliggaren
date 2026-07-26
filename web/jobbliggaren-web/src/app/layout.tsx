@@ -84,7 +84,6 @@ export default async function RootLayout({
   return (
     <html
       lang={locale}
-      data-density="standard"
       suppressHydrationWarning
       className={`${sourceSans3.variable} ${jetBrainsMono.variable} h-full font-sans`}
     >

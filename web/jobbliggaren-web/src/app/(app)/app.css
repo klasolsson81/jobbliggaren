@@ -98,10 +98,6 @@
   border-radius: var(--jp-r-lg);
   box-shadow: var(--jp-shadow-modal);
 }
-.jp-stdmodal--wide {
-  width: min(840px, 94vw);
-  max-width: min(840px, 94vw);
-}
 
 /* Matchnings-dialogen (STEG A) komponerar på .jp-stdmodal. Behåller sin
    tidigare exakta bredd min(840px, 100%) — oförändrad rendering. */
@@ -839,17 +835,15 @@
   display: none;
 }
 
-/* ── Vald-chip (.jp-chip--valid) + de återanvända borttagbara sektions-chipsen ──
+/* ── De återanvända borttagbara sektions-chipsen ──
    accent-50-bg + 1.5px accent-800-ram + ledande grön bock. Texten läser --jp-ink-1
    (bas-chippen) → tema-adaptiv (≈#0B2A1E i ljust, ljus i dark) i st f accent-900
    som skulle bli osynlig mot accent-50-dark. */
-.jp-chip--valid,
 .jp-wizard--rail .jp-chip--removable {
   background: var(--jp-accent-50);
   border: 1.5px solid var(--jp-accent-800);
   font-weight: var(--jp-fw-semibold);
 }
-.jp-chip--valid::before,
 .jp-wizard--rail .jp-chip--removable::before {
   content: "";
   flex: 0 0 auto;
@@ -863,41 +857,10 @@
 }
 /* Dark: vald-chipens ram + bock läser accent-700 (text/border-tiern), inte den
    tema-stabila accent-800-fyllnaden (som blir osynlig ram i dark). */
-[data-theme="dark"] .jp-chip--valid,
 [data-theme="dark"] .jp-wizard--rail .jp-chip--removable {
   border-color: var(--jp-accent-700);
 }
-[data-theme="dark"] .jp-chip--valid::before,
 [data-theme="dark"] .jp-wizard--rail .jp-chip--removable::before {
-  background-color: var(--jp-accent-700);
-}
-
-/* ── Förslags-chip (.jp-chip--suggest) — vit, streckad ram, ledande plus ──
-   Definierad per CSS-planen. Sektionerna renderar i dag inga förslags-chips
-   (CV-förslagen pre-addas som valda; manuell tillägg sker via "Lägg till"-CTA +
-   sök/kaskad) — klassen finns tillgänglig för framtida förslags-ytor. */
-.jp-chip--suggest {
-  background: var(--jp-surface);
-  border: 1px dashed var(--jp-border-input);
-  color: var(--jp-ink-1);
-  font-weight: var(--jp-fw-medium);
-}
-.jp-chip--suggest::before {
-  content: "";
-  flex: 0 0 auto;
-  width: 12px;
-  height: 12px;
-  background-color: var(--jp-accent-800);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='3'%20stroke-linecap='round'%3E%3Cpath%20d='M12%205v14M5%2012h14'/%3E%3C/svg%3E")
-    center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='3'%20stroke-linecap='round'%3E%3Cpath%20d='M12%205v14M5%2012h14'/%3E%3C/svg%3E")
-    center / contain no-repeat;
-}
-.jp-chip--suggest:hover {
-  background: var(--jp-accent-50);
-  border-color: var(--jp-accent-700);
-}
-[data-theme="dark"] .jp-chip--suggest::before {
   background-color: var(--jp-accent-700);
 }
 
@@ -1862,7 +1825,7 @@
    mot VITT) faller till ~1,2-1,5:1 → accentlinjerna och HELA Mork panels sidopanel
    blir osynliga, dvs kortens enda sarskiljande signal dor. Vi pinnar darfor
    dokument-tokens till sina LJUSA varden inuti figuren. Samma scoped-token-override-
-   mekanism som [data-theme="dark"] .jp-header / .jp-land-top. */
+   mekanism som [data-theme="dark"] .jp-header. */
 .jp-mallcard__figure {
   --jp-surface: #FFFFFF;
   --jp-ink-1: #0C1A2E;

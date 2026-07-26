@@ -121,6 +121,28 @@ Identitetsbytet tas som egen fas **"G1"** (egen PR) FÖRE ADR 0067:s återståen
 - **Dark mode: headings stay ink-1, deliberately not navy.** `--jp-heading-1`/`--jp-heading-2` resolve to `--jp-ink-1` under `[data-theme="dark"]`. Not an oversight: navy-as-heading-colour is a light-mode-only feature — a dark canvas needs light text, and a navy heading on a dark surface would fight legibility rather than aid it — and dark mode is lowest priority per Klas (`feedback_dark_mode_lowest_prio_dont_verify`), not rendered-verified for this change.
 - **Status: ACCEPTED — Klas GO 2026-07-03 (PR #562 merged).** The amendment rode CLAUDE.md §12's STOPP class (E2f override, coloured headings) and was merged manually by Klas, never automerge. design-reviewer rendered-verify: APPROVE_WITH_MINORS (2 rounds; the two remaining Minors — navy-800 near the perceptual navy floor on h2, /jobb row weight-only hierarchy — are within-doctrine notes, revisitable in the post-font consolidation pass). See also the accompanying ADR 0052 amendment note (Beslut 5, `--text-h1` 28→32 re-alignment), merged in the same PR.
 
+**Amendment 2026-07-26 (#1054) — `.jp-empty--brand` retired; Beslut 4 and the G2
+dubbel-grön note narrowed accordingly.** No status change, no supersede; the
+original clauses above are left as written.
+
+Beslut 4 lists `.jp-empty--brand` among the gradient surfaces that scope
+`--jp-focus: #FFFFFF`, and the G2 note (dubbel-grön, design-reviewer M2) ends
+"Modifiern behålls definierad (0 konsumenter)". Both were accurate when written.
+Measured 2026-07-26 on `95a0be24`: the modifier still had zero consumers 46 days
+later, so #1054 removed the rules together with the rest of the unconsumed
+`.jp-*` surface. **The sanctioned gradient scope is therefore
+`.jp-hero__plate` / `.jp-pagehero` / `.jp-land-hero`** — the dubbel-grön decision
+itself is unchanged and is now enforced by the modifier's absence rather than by
+a convention not to apply it.
+
+Consequence recorded because it outlived the cleanup: `.jp-empty__kicker` and
+`.jp-empty__body` had rules **only** under that modifier, so when `351d87e0`
+(PR #43) stripped it from the markup on /ansokningar and /cv, those two elements
+began rendering unstyled — for 46 days, with `guard:css` green, because the guard
+counts a descendant-scoped selector as a definition. #1054 removes the now-unreachable
+rules and the matching `className`s; the guard's blind spot is tracked as #1056 AC 6.
+
+
 ## Implementation
 
 G1-PR: token-block + alias-flip + mekanisk rename + F4-banner (/jobb) + pagehero/empty-brand/landing-gradient + fokus-scoping + spec-filer + skills-sync. Referens-facit: `docs/handoff-banner/referens/F4-banner-referens.html` (komposition; neutraler/placeholder per CTO Beslut 1 + Klas-regel). Reviews: design-reviewer (med dessa dokumenterade undantag som granskningsbas), code-reviewer, security-auditor.

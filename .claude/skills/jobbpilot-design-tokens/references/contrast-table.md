@@ -76,7 +76,7 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 
 ---
 
-## Gradient-ytor (hero-plattan, pagehero, empty-brand, land-hero)
+## Gradient-ytor (hero-plattan, pagehero, land-hero)
 
 Gradienten är tema-stabil (samma i light + dark). Fokusringen i
 gradient-scope är **VIT** (`--jp-focus: #FFFFFF`) — grön ring syns inte

@@ -129,7 +129,7 @@ mycket mindre än Platsbankens header.
   vikt 500, `--jp-ink-2`) — konsekvent med `opengraph-image.tsx`, INTE versal.
   Variant B (versal/tecken-spärrad, Platsbanken-trogen) övervägdes och valdes bort.
 - Mark 32 → 40px, wordmark 19 → 24px, båda header-barerna (`.jp-header__inner` =
-  app + gäst-shell, `.jp-land-top__inner` = landing + site-header) 68 → 88px.
+  app + gäst-shell, `.jp-head__inner` = landing + site-header) 68 → 88px.
   Appliceras konsekvent på alla fyra brand-headers via `BrandLogo` (Platsbanken
   visar taglinen överallt).
 - `mark`-varianten (minimala kontexter) oförändrad — bara sigillet, ingen tagline.

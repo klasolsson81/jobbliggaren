@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -28,20 +27,8 @@ public sealed class ListReadRateLimitApiFactory : WebApplicationFactory<Program>
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
     private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
 
-    private readonly string _privateKeyPath;
-    private readonly string _publicKeyPath;
-
     private string _postgresCs = string.Empty;
     private string _redisCs = string.Empty;
-
-    public ListReadRateLimitApiFactory()
-    {
-        var rsa = RSA.Create(2048);
-        _privateKeyPath = Path.Combine(Path.GetTempPath(), $"jobbliggaren-listread-rl-private-{Guid.NewGuid()}.pem");
-        _publicKeyPath = Path.Combine(Path.GetTempPath(), $"jobbliggaren-listread-rl-public-{Guid.NewGuid()}.pem");
-        File.WriteAllText(_privateKeyPath, rsa.ExportRSAPrivateKeyPem());
-        File.WriteAllText(_publicKeyPath, rsa.ExportSubjectPublicKeyInfoPem());
-    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -91,9 +78,6 @@ public sealed class ListReadRateLimitApiFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
 
-        Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", _privateKeyPath);
-        Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", _publicKeyPath);
-
         // AuthWrite höjs så registration-flödet inte rate-limit:as (delade
         // 127.0.0.1-bucket med övriga tester).
         Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__PermitLimit", "10000");
@@ -116,15 +100,10 @@ public sealed class ListReadRateLimitApiFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
-        Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", null);
-        Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", null);
         Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__WindowSeconds", null);
-
-        if (File.Exists(_privateKeyPath)) File.Delete(_privateKeyPath);
-        if (File.Exists(_publicKeyPath)) File.Delete(_publicKeyPath);
 
         await Task.WhenAll(_postgres.StopAsync(), _redis.StopAsync());
         await base.DisposeAsync();

@@ -282,7 +282,7 @@ export const ATTENTION_SIGNAL_ORDER: Exclude<
 
 /**
  * Colour bucket for the feed item's leading indicator, emitted as a
- * `data-signal` attribute the `.jp-attention__dot` CSS resolves to a status
+ * `data-signal` attribute the `.jp-actioncard__dot` CSS resolves to a status
  * token. NEVER green (green = interaction/grade, design-reviewer bind), mirroring
  * design §11 "Urgensregler": offer → success, the overdue/draft-deadline pair →
  * warning, the no-response trio (ghost-suggest, no-response nudge, silent-after-

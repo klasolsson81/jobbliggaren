@@ -38,14 +38,8 @@ F-städ-fas.
 
 | Token | Light | Dark |
 |---|---|---|
-| `--jp-navy-900` | `#08213F` | (skiftas EJ) |
 | `--jp-navy-800` | `#0A2647` | (skiftas EJ) |
 | `--jp-navy-700` | `#133F73` | `#4F8AD0` |
-| `--jp-navy-600` | `#1B5396` | `#6FA4E3` |
-| `--jp-navy-500` | `#2E6CC2` | `#3D75B8` |
-| `--jp-navy-300` | `#7FA9DF` | `#2C5894` |
-| `--jp-navy-100` | `#D6E3F4` | `#1F3866` |
-| `--jp-navy-50` | `#EAF1FA` | `#1F3866` |
 
 ## Surface tokens
 
@@ -71,7 +65,7 @@ F-städ-fas.
 | Token | Light | Dark | Tailwind class (alias) | Use |
 |---|---|---|---|---|
 | `--jp-border` | `#C9D2E0` | `#44598A` | `border-border-default` | Standardvalet |
-| `--jp-border-soft` | `#E3E8F0` | `#2C3F65` | — (alias `--jp-border-hairline`) | Mjukaste avgränsare |
+| `--jp-border-soft` | `#E3E8F0` | `#2C3F65` | — | Mjukaste avgränsare |
 | `--jp-border-strong` | `#97A4B8` | `#6F86A8` | `border-border-strong` | Starkare avgränsare (checkbox-box) |
 | `--jp-border-input` | `#7C8AA0` | `#6F86A8` | — | Input-vila — samma hex som ink-3 light (medveten tonalitet, separat semantik) |
 | `--jp-border-modal` | `var(--jp-border)` | (följer) | `border-border-modal` | ADR 0041-token, re-homed på v3-border |
@@ -109,16 +103,12 @@ parallel `--jp-grade-*` vocabulary); all chip text is 13px/700 = standard text
 | `--jp-leaf-600` | `#1C7530` | `#5BCB7B` | Stark fill (white 5.8:1 / canvas-ink 9.0:1) + chip border |
 | `--jp-leaf-100` | `#BFE6CC` | `#1F6E3E` | Bra fill (leaf-900 11.3:1 / 4.95:1) |
 | `--jp-leaf-50` | `#DFF3E5` | `#143E29` | Grund fill (leaf-900 13.3:1 / 9.5:1) + "Ny"-tag legacy |
-| `--jp-coral-600` | `#DA2A47` | `#F47185` | — (decorative) |
-| `--jp-coral-50` | `#FCE4E9` | `#3A1722` | — (decorative) |
-| `--jp-amber-500` | `#E89A1A` | (skiftas EJ) | — (decorative) |
-| `--jp-amber-50` | `#FBEBC8` | (skiftas EJ) | — (decorative) |
 
 ## Hero / gradient (G1 "F4 Hybrid", ADR 0068 — dokumenterat undantag)
 
 Tema-stabila (omdefinieras INTE i dark; plattan får 1px
 `--jp-border-soft`-hairline i dark). Gradient ENBART `.jp-hero__plate` /
-`.jp-pagehero` / `.jp-empty--brand` / `.jp-land-hero`.
+`.jp-pagehero` / `.jp-land-hero`.
 
 | Token | Värde | Use |
 |---|---|---|
@@ -141,8 +131,8 @@ Tema-stabila (omdefinieras INTE i dark; plattan får 1px
 | `--jp-focus` | `var(--jp-accent-700)` → `#15603F` | (samma var) → `#6EE7A8` |
 | `--color-focus-ring-offset` | `var(--jp-surface-primary)` | (följer) |
 
-Gradient-ytor (`.jp-hero__plate`, `.jp-pagehero`, `.jp-empty--brand`,
-`.jp-land-hero`) scopar `--jp-focus: #FFFFFF`. `.jp-popover` återställer till
+Gradient-ytor (`.jp-hero__plate`, `.jp-pagehero`, `.jp-land-hero`) scopar
+`--jp-focus: #FFFFFF`. `.jp-popover` återställer till
 `var(--jp-accent-700)`. shadcn `--ring`/`--sidebar-ring` = `var(--jp-focus)`.
 
 ## Shadows (v3 — undantag: popover/modal får skugga)
@@ -152,8 +142,6 @@ Gradient-ytor (`.jp-hero__plate`, `.jp-pagehero`, `.jp-empty--brand`,
 | `--jp-shadow-card` | `0 1px 2px rgba(15,27,45,0.05), 0 1px 0 rgba(15,27,45,0.04)` | `0 1px 2px rgba(0,0,0,0.5), 0 1px 0 rgba(0,0,0,0.4)` | Kort |
 | `--jp-shadow-pop` | `0 10px 30px rgba(8,23,48,0.16), 0 2px 6px rgba(8,23,48,0.08)` | `0 10px 30px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.4)` | Popover/dropdown |
 | `--jp-shadow-modal` | `0 30px 80px rgba(8,23,48,0.35)` | `0 30px 80px rgba(0,0,0,0.7)` | Modal/drawer |
-| `--jp-shadow-sm` | `0 1px 2px rgba(0,0,0,0.04)` | `0 1px 2px rgba(0,0,0,0.6)` | v2-alias-nivå (bridge/inline) |
-| `--jp-shadow-md` | `0 2px 4px rgba(0,0,0,0.06)` | `0 2px 4px rgba(0,0,0,0.7)` | v2-alias-nivå (bridge/inline) |
 
 Aldrig drop-shadows på knappar eller godtyckliga ytor — djup via border.
 
@@ -164,10 +152,9 @@ Aldrig drop-shadows på knappar eller godtyckliga ytor — djup via border.
 | `--jp-r-sm` | `4px` | `rounded-sm` | Inputs, checkboxar, hero-pills |
 | `--jp-r-md` | `6px` | `rounded-md` | **DEFAULT** — knappar, kort, rader, popovers |
 | `--jp-r-lg` | `8px` | `rounded-lg` | Modal, större paneler |
-| `--jp-r-xl` | `12px` | `rounded-xl` | **ENDAST hero-plattan** — shadcn `--radius-xl` cappas till `--jp-r-lg` (8px) |
 | `--jp-r-pill` | `9999px` | `rounded-pill` | Status dots, pills, avatar |
 
-ADR 0052: 6px rad/kort, 4px inputs, 8px modal, 12px ENDAST hero.
+ADR 0052: 6px rad/kort, 4px inputs, 8px modal.
 
 ## Typografi-familjer
 
@@ -258,7 +245,6 @@ Hårdkoda aldrig padding där density gäller.
 | `--jp-warning-50` | `var(--jp-warning-bg)` — `-500/-600/-700` → `var(--jp-warning)` |
 | `--jp-danger-50` | `var(--jp-danger-bg)` — `-500/-600/-700` → `var(--jp-danger)` |
 | `--jp-info-50` | `var(--jp-info-bg)` — `-500/-600/-700` → `var(--jp-info)` |
-| `--jp-border-hairline` | `var(--jp-border-soft)` |
 | `--jp-border-modal` | `var(--jp-border)` |
 | `--jp-border-structural` | `var(--jp-border)` |
 
@@ -266,8 +252,8 @@ Hårdkoda aldrig padding där density gäller.
 
 | Komponent | Höjd | Varianter |
 |---|---|---|
-| `.jp-input` / `.jp-select` / `.jp-textarea` | 48px (textarea min 110px) | — |
-| `.jp-btn` | 44px | `--sm` 36px, `--lg` 52px |
+| `.jp-input` | 48px | — |
+| `.jp-btn` | 44px | `--sm` 36px |
 | Hero-sökrad (`.jp-hero__input`/`__searchbtn`) | 52px | — |
 
 Dark mode: input-fälten är LJUSA (`#F0F4FB` bg, `#0C1A2E` text, border

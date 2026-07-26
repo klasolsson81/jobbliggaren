@@ -613,3 +613,75 @@ describe("ForetagSokSearchbar — the live-review fixes", () => {
     expect(screen.getByText("Skriv och välj en bransch.")).toBeInTheDocument();
   });
 });
+
+/**
+ * The island is rendered without a `key`, so it never remounts, and all three draft pieces are
+ * `useState` initialisers that run once. Without a re-seed, Back after a search leaves the field and
+ * chips showing what you just left while the URL and results show something else. "Rensa sökningen"
+ * makes that reachable in one click.
+ */
+describe("ForetagSokSearchbar — the draft re-seeds when the applied URL changes", () => {
+  it("re-seeds the field and chips when the applied props change (Back)", () => {
+    const { rerender } = render(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn="Volvo"
+        sni={["62020"]}
+        kommun={["0180"]}
+      />,
+    );
+    expect(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+    ).toHaveValue("Volvo");
+    expect(screen.getByRole("button", { name: "Ta bort Stockholm" })).toBeInTheDocument();
+
+    // Same component instance, new applied URL — what Back does.
+    rerender(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn="Saab"
+        sni={[]}
+        kommun={[]}
+      />,
+    );
+
+    expect(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+    ).toHaveValue("Saab");
+    expect(
+      screen.queryByRole("button", { name: "Ta bort Stockholm" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does NOT clobber what the user is typing when the applied props are unchanged", async () => {
+    const { rerender } = render(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn="Volvo"
+        sni={[]}
+        kommun={[]}
+      />,
+    );
+    const user = userEvent.setup();
+    const input = screen.getByLabelText("Företagsnamn eller organisationsnummer");
+    await user.clear(input);
+    await user.type(input, "Scania");
+
+    // A re-render that does not change the applied search — the draft must survive it, or the
+    // re-seed would fight the user on every keystroke-adjacent render.
+    rerender(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn="Volvo"
+        sni={[]}
+        kommun={[]}
+      />,
+    );
+
+    expect(input).toHaveValue("Scania");
+  });
+});

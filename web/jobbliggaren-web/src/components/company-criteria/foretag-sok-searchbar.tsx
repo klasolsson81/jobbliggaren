@@ -231,6 +231,29 @@ export function ForetagSokSearchbar({
   const [state, setState] = useState<OrgNrState>({ kind: "idle" });
   const [isNavPending, startNavTransition] = useTransition();
 
+  /**
+   * Re-seed the draft when the APPLIED URL changes underneath us.
+   *
+   * All three pieces above are `useState` initialisers, which run once at mount — and the island is
+   * rendered without a `key`, so it never remounts. Press Back and the URL, the results and the
+   * draft controls disagree: the chips and the field keep showing the search you just left.
+   *
+   * Latent since S2, but "Rensa sökningen" makes it reachable in one click (clear → Back), which is
+   * why it is fixed here rather than left to the live-commit round. This is React's documented
+   * "adjust state when props change" pattern — during render, not in an effect, so it neither
+   * cascades nor trips the lint rule that rejects synchronous setState in effects. It is gated on
+   * the applied signature actually changing, so it can never clobber what the user is typing: a
+   * filter commit that does not change `namn` leaves `value` alone.
+   */
+  const appliedSignature = `${namn}|${[...sni].sort().join(",")}|${[...kommun].sort().join(",")}`;
+  const [seededFrom, setSeededFrom] = useState(appliedSignature);
+  if (seededFrom !== appliedSignature) {
+    setSeededFrom(appliedSignature);
+    setValue(namn);
+    setBranch(seedBranch(branschOptions, sni, t("branschGeneric")));
+    setOrter([...kommun]);
+  }
+
   // Draft-vs-applied: the chips + field show the DRAFT; the streamed results below show the APPLIED URL
   // filter. Compute the divergence so it can be surfaced honestly (never a second competing button). The
   // dirty line is meaningless for an org.nr-shaped value (that path ignores the filter), so it is gated

@@ -199,11 +199,11 @@ export function CvUploadForm({
     );
   }
 
-  // `name` skickas ENDAST när användaren själv skrivit det. Det förifyllda förslaget är
-  // display-only och stannar i klienten.
+  // `name` skickas ENDAST när användaren själv skrivit det. Fältet förifylls inte alls —
+  // varken ur profilen eller ur filnamnet.
   //
-  // Varför: `File.name` här är RÅTT — maskeringen av personnummer i filnamn sitter
-  // server-side i `ParsedResume.Create`. Skickade vi förslaget skulle "CV_811218-9876.pdf"
+  // Varför inte ur filnamnet: `File.name` här är RÅTT — maskeringen av personnummer i
+  // filnamn sitter server-side i `ParsedResume.Create`. Föreslog vi det skulle "CV_811218-9876.pdf"
   // bli en NameOverride som handlerns etikett-scan fäller, och FE:t skulle öppna ADR 0114:s
   // juridiskt bärande samtyckesdialog på ett fynd serverns egen kroppsscan säger inte finns
   // ("Vi hittade 0 personnummer i filen"). Det skulle dessutom falsifiera den skrivna regeln

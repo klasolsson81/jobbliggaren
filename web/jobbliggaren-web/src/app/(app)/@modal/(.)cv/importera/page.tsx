@@ -28,8 +28,9 @@ export default async function InterceptedCvImportModal() {
 
   const t = await getTranslations("pages");
 
-  // Samma namn-hantering som fullsidan (ADR 0053, DRY): etiketten föreslås ur filnamnet
-  // i formuläret, ingen profil-hämtning (#1060).
+  // Samma namn-hantering som fullsidan (ADR 0053, DRY): fältet är CV:ts ETIKETT och står
+  // tomt: lämnas det tomt genererar servern ett icke-PII-namn. Varken profilen eller
+  // filnamnet används (#1060; ADR 0096 D-B).
   return (
     <RouteModalShell
       title={t("cv.import.title")}

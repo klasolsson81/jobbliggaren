@@ -17,9 +17,9 @@ export default async function CvImportPage() {
 
   const t = await getTranslations("pages");
 
-  // #1060: CV-namnet är en ETIKETT (`Resume.Name`, okrypterad kolumn som syns i listor
-  // som syns i CV-listan), inte personens namn — lämnas fältet tomt genererar servern
-  // ett icke-PII-namn.
+  // #1060: CV-namnet är en ETIKETT (`Resume.Name`, okrypterad kolumn som syns i
+  // CV-listan), inte personens namn — lämnas fältet tomt genererar servern ett
+  // icke-PII-namn. Filnamnet används inte (ADR 0096 D-B).
   // Ingen profil-hämtning behövs längre; personnamnet i CV:t sätts alltid från kontot
   // på serversidan.
   return (

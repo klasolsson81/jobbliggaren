@@ -613,33 +613,3 @@ describe("ForetagSokSearchbar — the live-review fixes", () => {
     expect(screen.getByText("Skriv och välj en bransch.")).toBeInTheDocument();
   });
 });
-
-/**
- * Finding 2 — the pending line. Measured by Klas: submit → painted results was 2 403 ms with NO
- * visible pending state, because the navigation resolves in ~190 ms while the view keeps the old
- * rows. The delay itself is driven by `useTransition`'s `isNavPending`, which a mocked router never
- * enters — so what is pinned here is the structural property that makes the line work at all.
- */
-describe("ForetagSokSearchbar — the pending line", () => {
-  it("mounts its live region UNCONDITIONALLY, empty, so the announcement is reliable", () => {
-    renderBar();
-    // A live region injected together with its content is not reliably announced — the trap is
-    // documented in jobb-hero-search.tsx. The region must already be in the DOM, empty, before the
-    // text is swapped in.
-    const region = screen.getByRole("status");
-    expect(region).toBeInTheDocument();
-    expect(region).toBeEmptyDOMElement();
-    expect(region).toHaveAttribute("aria-live", "polite");
-  });
-
-  it("reserves the row's height so nothing below shifts when the text appears", () => {
-    renderBar();
-    const slot = screen.getByRole("status").parentElement;
-    expect(slot).toHaveClass("min-h-6");
-  });
-
-  it("uses no spinner — the doctrine reserves BrandSpinner for formless waits", () => {
-    const { container } = renderBar();
-    expect(container.querySelector(".jp-spinner, .jp-brandspinner")).toBeNull();
-  });
-});

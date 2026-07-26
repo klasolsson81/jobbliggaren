@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useEffect,
   useId,
   useMemo,
   useRef,
@@ -74,18 +73,19 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
  *   surfaces cannot drift in columns, masking or Bevaka affordance;
  * - "Rensa sökningen" NAVIGATES and clears the name too — it previously nulled two draft fields and
  *   was hidden behind `hasFilter`, so a pure name search had no clear path at all;
- * - a delayed, height-reserved pending line (measured: submit → painted results was 2 403 ms with no
- *   visible pending state, because the URL resolves in ~190 ms while the view keeps the old rows).
+ * Finding 2 (loading indication) is deliberately NOT here, and the reason is measured rather than
+ * argued. `page.tsx` wraps the results in `<Suspense key={suspenseKey}>`, and the key changes on
+ * every applied search — so the fallback REMOUNTS and suspends immediately, which ends the
+ * transition long before any delay could elapse. Probed against the running stack: the skeleton
+ * appears at 158 ms already carrying `loadingResults` in its own `role="status"`, while an island
+ * pending line sampled every 60 ms across the whole navigation never rendered a single character.
+ * A second line here would at best be dead code and at worst a duplicate announcement of the same
+ * sentence. The design framing assumed the fallback does not show on a soft navigation; it does.
  */
 
 /** `useSyncExternalStore` with a never-firing subscription: the cheapest "am I hydrated" signal. */
 const emptySubscribe = () => () => {};
 
-/**
- * Delay before the pending line appears. Below this a search is perceived as instant, and a line that
- * flashes for 80 ms is noise; above it the view is silently stale, which is what Klas measured.
- */
-const PENDING_DELAY_MS = 250;
 
 type OrgNrState =
   | { kind: "idle" }
@@ -247,28 +247,12 @@ export function ForetagSokSearchbar({
   const hasOrgNrResult = state.kind !== "idle";
   // The clear control's gate is the WHOLE search, not just the filter axes: gated on `hasFilter` alone
   // (as it was), a pure name search — the most common one — had no clear path at all (finding 6).
-  const showClear =
-    hasFilter || hasOrgNrResult || value.trim().length > 0 || namn.length > 0;
+  // Gated on what is APPLIED (plus a standing org.nr answer), never on the draft `value`. Reading
+  // the draft made the control appear on the first keystroke and shove the whole result list 64px
+  // down mid-typing — measured. There is also nothing to clear yet at that point: an unsubmitted
+  // field is cleared by deleting the text, which is what the user is already doing.
+  const showClear = hasFilter || hasOrgNrResult || namn.length > 0;
 
-  /**
-   * The pending line is DELAYED, not immediate: a soft navigation resolves in ~190 ms, so an
-   * undelayed line would flash on every fast search. `isNavPending` is the only available signal —
-   * the Suspense fallback (the skeleton) renders on a HARD load only, so "the skeleton appears"
-   * is not the indication (design-review V3).
-   */
-  const [showPending, setShowPending] = useState(false);
-  useEffect(() => {
-    // Early-return rather than resetting here: a synchronous setState in an effect body triggers
-    // cascading renders (and the lint rule that lands it). The reset belongs in cleanup, which runs
-    // when the navigation settles — so the line clears itself and the next search starts delayed
-    // again rather than flashing on instantly.
-    if (!isNavPending) return;
-    const timer = window.setTimeout(() => setShowPending(true), PENDING_DELAY_MS);
-    return () => {
-      window.clearTimeout(timer);
-      setShowPending(false);
-    };
-  }, [isNavPending]);
 
   async function onOrgNrSubmit(orgNr: string) {
     // Refuse a personnummer-shaped value LOCALLY, before any transmission (it never leaves the browser —
@@ -430,7 +414,14 @@ export function ForetagSokSearchbar({
         aria-labelledby={filterGroupId}
         className="border-t border-border pt-5"
       >
-        <span id={filterGroupId} className="jp-label">
+        {/* Deliberately NOT `.jp-label`: the two field labels below use it, so a third identical
+            label stacked above them draws no grouping at all — it just reads as a label with no
+            control (design-review M4). This is the section-caption treatment the system already
+            uses for `.jp-popover__title`, composed from the same tokens rather than adding CSS. */}
+        <span
+          id={filterGroupId}
+          className="text-caption font-semibold tracking-[0.06em] text-text-secondary uppercase"
+        >
           {t("filterGroupLabel")}
         </span>
         <div className="mt-3 grid gap-4 md:grid-cols-2">
@@ -667,19 +658,6 @@ export function ForetagSokSearchbar({
         )}
       </section>
 
-      {/* Finding 2 — the pending line, immediately above the streamed results. Measured: submit →
-          painted results 2 403 ms with NO visible pending state, because the navigation resolves in
-          ~190 ms while the view keeps the old rows.
-          Deliberate form (design-review V3): no spinner (the doctrine reserves BrandSpinner for
-          formless waits and forbids it where the wait is short), no opacity dimming of the stale list
-          (dimmed body text falls below 4.5:1, and stale is not disabled), and the region is mounted
-          UNCONDITIONALLY with the text swapped in — a live region injected together with its content
-          is not reliably announced. The slot reserves its own height so nothing below shifts. */}
-      <div className="min-h-6">
-        <p role="status" aria-live="polite" className="text-body-sm text-text-primary">
-          {showPending ? t("loadingResults") : ""}
-        </p>
-      </div>
     </div>
   );
 }

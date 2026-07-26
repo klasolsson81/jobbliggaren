@@ -179,17 +179,19 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
       grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
       grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
       ```
-      Vid 2026-07-25: **7 + 7** (sv rad 37, 49, 71, 75, 76, 96, 131 — alla äkta
+      Vid 2026-07-26: **8 + 8** (sv rad 37, 49, 71, 75, 76, 95, 96, 131 — alla äkta
       statuspåståenden, ingen falsk träff med detta mönster). **Grepa INTE bara på
-      `"planerat och ännu inte i drift"`** — det ger 6 och missar retentionsposten
-      på rad 96 (*"Ansökningshistorik (planerat). Dina ansökningar…"*), som bär
-      `(planerat)` utan avslutningsmeningen. Lagringstiden är en egen obligatorisk
+      `"planerat och ännu inte i drift"`** — det ger 6 och missar de TVÅ
+      retentionsposterna på rad 95 och 96, som bär `(planerat)` utan
+      avslutningsmeningen. Rad 95 (annonskorpusens lagringsrad, #880) nämner
+      ansökningshistoriken som ett ÄNDAMÅL med att arbetsgivarens identitet
+      sparas; rad 96 är ansökningshistorikens egen post. Lagringstiden är en egen obligatorisk
       uppgift (Art. 13(2)(a)) och ADR 0090 D3 räknar uttryckligen upp
       retentionsraden som del av samma leverans. Flippar du 6 och lämnar 1 säger
       kategorilistan drift medan retentionsavsnittet säger planerat.
 - [ ] **2. Avgör vad releasen faktiskt aktiverar** — tre olika klasser, blanda dem
       inte:
-      - **Kod-aktiverad:** ansökningshistorik/företagsöversikt (rad 37, 96, 131).
+      - **Kod-aktiverad:** ansökningshistorik/företagsöversikt (rad 37, 95, 96, 131).
         Handlers + endpoints + FE är skeppade utan feature-flagga → aktiveras av
         att tjänsten alls går i drift.
       - **Deploy-aktiverad:** Hetzner, Cloudflare (rad 75, 76) → aktiveras av att

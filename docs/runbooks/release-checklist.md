@@ -158,7 +158,8 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       security-auditor rutade uttryckligen resten dit. Utfallet var rätt, skälet fel.
       **Divergens att inte tillskriva CTO:n:** dess bind sa ordagrant *"Item 3 keeps `[x]`"*.
       Rutan är återställd till `- [ ]` på dotnet-architects och code-reviewers grund i stället
-      — filens konvention är 35 obockade rutor, och boxen bockas av den som **utför** releasen,
+      — filens konvention är **obockade** rutor (antalet står i blockquoten ovan, med sitt grep;
+      det står med flit inte här), och boxen bockas av den som **utför** releasen,
       inte av den som levererar en förutsättning. Sakinnehållet (förutsättningen ÄR uppfylld)
       är CTO:ns; idiomet är granskarnas.
       Den consent-copyn ska **aldrig** bära en `planerat`-markör: samtyckestext måste
@@ -173,10 +174,13 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       `content-legal.json` och ROPA:n, och nämnde **aldrig** `BUILD.md` som flip-yta. Vid flippen
       blir följande falska utan att något kräver att de rörs: **§13.4**:s e-postpost
       (*"planerad, ännu inte aktiverad … ingen e-post lämnar systemet"*), **§3.1 rad 39**
-      (*"prod-utskick grindat"*), **rad 126** (*"Resend, grindad"*) och **rad 761**.
+      (*"prod-utskick grindat"*) och **rad 126** (*"Resend, grindad"*). Rad 761 är
+      provider-neutral och blir INTE falsk — kontrollera den, ändra sannolikt inget.
       `BUILD.md` läses av varje CC-invokation (CLAUDE.md §9.1), så en oflippad rad där får varje
       efterföljande session att resonera från en falsk premiss om en **levande**
-      tredjelandsöverföring. Hör här (aktiveringshändelse), inte i §2.6 (policy-copy).
+      tredjelandsöverföring. **Hör här på TRIGGERN, inte på sektionskaraktären** — §2.6 kallar
+      sig själv också en aktiveringshändelse. Raderna blir falska när `Email:Provider` flippas
+      (§2.5), inte vid första `v*`-taggen (§2.6).
       Tillagt 2026-07-26 på dotnet-architects mätning — och just denna PR **ökade** ytan.
 
 Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen

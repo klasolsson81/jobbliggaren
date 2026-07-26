@@ -17,10 +17,12 @@ namespace Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 /// <c>ValidateContent</c>. Anything not clean is NOT an error — the artifact stays pending
 /// and the caller routes the user to the review flow (<see cref="AutoPromoteOutcome"/>).
 ///
-/// <para><see cref="NameOverride"/> is the optional 5c form value (prefilled account name,
-/// user-editable). Absent, the handler resolves the account holder's
-/// <c>JobSeeker.DisplayName</c> — the bound name source (Klas 2026-07-16): the CV's name
-/// field is ALWAYS the account holder's name, never the parsed file's contact name.</para>
+/// <para><see cref="NameOverride"/> is the optional upload-form value and it is the CV's
+/// LABEL only (<c>Resume.Name</c>), never the person's name (#1060). The form sends it only
+/// when the user actually typed one, so absent means "no human named this" and the handler
+/// generates a non-PII default (<c>ResumeLabelResolver</c>). The person's name inside the
+/// content is ALWAYS <c>JobSeeker.DisplayName</c> — never this field, and never the parsed
+/// file's contact name (5a CTO-bind R5).</para>
 ///
 /// <para><see cref="IRequiresFieldEncryptionKey"/> is mandatory twice over: the handler
 /// reads the parse's encrypted content shadow (Form B decrypt on load) and writes the new

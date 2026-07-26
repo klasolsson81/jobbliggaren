@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { ChevronLeft } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
-import { getMyProfile } from "@/lib/api/me";
 import { CvUploadForm } from "@/components/resumes/cv-upload-form";
 
 /**
@@ -18,12 +17,11 @@ export default async function CvImportPage() {
 
   const t = await getTranslations("pages");
 
-  // CV-pivot 5c: förifyll namnfältet med kontonamnet (JobSeeker.DisplayName). Rådgivande —
-  // går profil-hämtningen fel startar fältet tomt och backend faller tillbaka på kontonamnet
-  // (5a CTO-bind R5); uppladdningen ska aldrig blockeras av en trasig prefill.
-  const profile = await getMyProfile();
-  const defaultName = profile.kind === "ok" ? profile.data.displayName : "";
-
+  // #1060: CV-namnet är en ETIKETT (`Resume.Name`, okrypterad kolumn som syns i
+  // CV-listan), inte personens namn — lämnas fältet tomt genererar servern ett
+  // icke-PII-namn. Filnamnet används inte (ADR 0096 D-B).
+  // Ingen profil-hämtning behövs längre; personnamnet i CV:t sätts alltid från kontot
+  // på serversidan.
   return (
     <div className="flex flex-col gap-6">
       <Link
@@ -39,7 +37,7 @@ export default async function CvImportPage() {
         <p className="jp-lede">{t("cv.import.lede")}</p>
       </header>
 
-      <CvUploadForm defaultName={defaultName} />
+      <CvUploadForm />
     </div>
   );
 }

@@ -24,15 +24,6 @@ vi.mock("@/lib/auth/session", () => ({
   getServerSession: () => getServerSession(),
 }));
 
-// Namn-prefillen (CV-pivot 5c) hämtar profilen server-side. Mockas på API-lagret
-// (inte session-lagret) så testet pinnar sidans beteende, inte me.ts-kedjan.
-vi.mock("@/lib/api/me", () => ({
-  getMyProfile: async () => ({
-    kind: "ok",
-    data: { displayName: "Anna Andersson" },
-  }),
-}));
-
 // Modal-chromet (RouteModalShell) och CvUploadForm använder useRouter;
 // redirect används av auth-grinden. Mockas så det async server-trädet kan
 // pre-resolvas och renderas i jsdom.
@@ -77,9 +68,8 @@ describe("@modal/(.)cv/importera intercepting route", () => {
       screen.getByRole("button", { name: "Ladda upp och granska CV" })
     ).toBeInTheDocument();
 
-    // Namn-prefillen (CV-pivot 5c): kontonamnet flödar från profilen in i fältet.
-    expect(screen.getByRole("textbox", { name: "Namn på CV:t" })).toHaveValue(
-      "Anna Andersson"
-    );
+    // #1060: fältet är CV:ts ETIKETT och står ALLTID tomt — varken profilen eller
+    // filnamnet förifyller det. Lämnas det tomt genererar servern ett icke-PII-namn.
+    expect(screen.getByRole("textbox", { name: "Namn på CV (valfritt)" })).toHaveValue("");
   });
 });

@@ -108,7 +108,8 @@ public sealed class Resume : AggregateRoot<ResumeId>
     // #668 (STEG 1 pnr-scanner hardening; ADR 0074 Invariant 1, CLAUDE.md §5 — the
     // highest-priority PII rule): the shared name-invariant enforced on EVERY name-write path
     // (Create / CreateFromParsed / Rename). Resume.Name is a PLAINTEXT, UNENCRYPTED column that
-    // surfaces in CV lists and exports, so a personnummer/samordningsnummer typed into the CV
+    // surfaces in CV lists (measured: list + detail DTOs, both owner-scoped — NOT exports; the
+    // PDF/ATS header comes from PersonalInfo.FullName), so a personnummer typed into the CV
     // LABEL must be refused. This is a structural AGGREGATE invariant (DDD §2.2), not a boundary
     // guard: enforcing it here closes the name channel for every caller by construction (Mediator
     // handler or not), fail-closed, so a future name-write path cannot silently forget it
@@ -122,13 +123,17 @@ public sealed class Resume : AggregateRoot<ResumeId>
     // (Personnummer.TryParse) still governs, so an ordinary label is never over-flagged.
     // Returns the trimmed, validated name on success so callers use ONE canonical value
     // (no per-site .Trim(), and the nullable-flow stays sound after the guard).
+    /// <summary>The label's length limit. Exposed because callers that DERIVE a label (the
+    /// import path) must cap against the aggregate's own number, not a copy of it.</summary>
+    public const int MaxNameLength = 200;
+
     private static Result<string> ValidateName(string? name)
     {
         if (string.IsNullOrWhiteSpace(name))
             return Result.Failure<string>(
                 DomainError.Validation("Resume.NameRequired", "Namn på CV är obligatoriskt."));
 
-        if (name.Length > 200)
+        if (name.Length > MaxNameLength)
             return Result.Failure<string>(
                 DomainError.Validation("Resume.NameTooLong", "Namn får vara max 200 tecken."));
 

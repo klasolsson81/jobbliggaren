@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Auditing;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Mediator;
@@ -106,14 +107,35 @@ public sealed class AutoPromoteParsedResumeCommandHandler(
         if (parsed.Confidence.RequiresManualReview)
             return LeftPending(AutoPromoteBlockReason.ParseNotConfident);
 
-        // Bound name source: the 5c form override when present, else the account holder's
-        // display name — NEVER the parsed contact name (Klas 2026-07-16).
-        var name = string.IsNullOrWhiteSpace(command.NameOverride)
-            ? owner.DisplayName
-            : command.NameOverride.Trim();
+        // ── The two names are DIFFERENT concepts and are resolved separately (#1060).
+        //
+        // Until now one string fed both, so a user who named the CV "Backend-CV 2026" got
+        // that printed where her name belongs, and a user who accepted the suggested account
+        // name got every import labelled identically in the hub. They are also in different
+        // data-protection classes: `Resume.Name` is a PLAINTEXT column that surfaces in CV
+        // lists (its classification rests on it being a LABEL — see Resume.ValidateName's
+        // remarks), while PersonalInfo.FullName lives in the DEK-encrypted content shadow.
+        // Defaulting the plaintext column to the account holder's personal name made personal
+        // data the standard content of exactly that column.
+        //
+        // Person name: ALWAYS the account holder's display name. Never the form field, and
+        // never the parsed contact name (5a CTO-bind R5, preserved).
+        var personName = owner.DisplayName;
+
+        // Label: the form field when the user typed one, else a generated non-PII default. The
+        // file name is deliberately NOT a candidate — ADR 0096 D-B refused it on Resume, and a
+        // filename label would also falsify the documented rule that a filename never reaches
+        // the canonical Resume (PersonnummerScanOutcome), which B4's Warn-not-Fail rests on.
+        var label = ResumeLabelResolver.Resolve(command.NameOverride, clock);
+
+        // A personnummer in the LABEL is a personnummer presence, not "incomplete content" —
+        // `Resume.ValidateName` would refuse it too, but as a buildability failure, which
+        // would mis-report the reason (§5: never mis-report a verdict).
+        if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(label)).Count > 0)
+            return LeftPending(AutoPromoteBlockReason.PersonnummerPresent);
 
         // ── Tier 2: buildability, through the ONE existing promote pipeline.
-        var dto = AutoPromoteContentMapper.ToContentDto(parsed.Content, name);
+        var dto = AutoPromoteContentMapper.ToContentDto(parsed.Content, personName);
 
         // DQ6 on the COMPOSED content (arch-tripwire-required for every CreateFromParsed
         // caller). The import scan covered the raw-text superset of everything the parse
@@ -125,7 +147,7 @@ public sealed class AutoPromoteParsedResumeCommandHandler(
             return LeftPending(AutoPromoteBlockReason.PersonnummerPresent);
 
         var content = ResumeContentMapper.ToDomain(dto);
-        var created = Resume.CreateFromParsed(owner.Id, name, content, parsed.Id, clock);
+        var created = Resume.CreateFromParsed(owner.Id, label, content, parsed.Id, clock);
         if (created.IsFailure)
             return LeftPending(AutoPromoteBlockReason.IncompleteContent);
 

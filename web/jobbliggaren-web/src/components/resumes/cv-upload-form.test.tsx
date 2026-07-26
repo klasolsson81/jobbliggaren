@@ -89,22 +89,37 @@ describe("CvUploadForm — ärlig upload-copy", () => {
     expect(input).not.toHaveAttribute("placeholder");
   });
 
-  it("namnfältet renderas med label + hint, förifyllt, utan placeholder (5c)", () => {
-    render(<CvUploadForm defaultName="Anna Andersson" />);
-    const name = screen.getByRole("textbox", { name: "Namn på CV:t" });
-    expect(name).toHaveValue("Anna Andersson");
+  it("namnfältet renderas med label + hint, utan placeholder (5c)", () => {
+    render(<CvUploadForm />);
+    const name = screen.getByRole("textbox", { name: "Namn på CV (valfritt)" });
+    // Tomt = "ingen människa döpte det här" → servern genererar ett icke-PII-namn (#1060).
+    expect(name).toHaveValue("");
     expect(name).not.toHaveAttribute("placeholder");
     expect(
       screen.getByText(
-        "Namnet visas överst på ditt CV. Vi föreslår ditt kontonamn."
+        "Namnet visas i din CV-lista så att du hittar rätt variant. Lämnar du det tomt döper vi CV:t efter dagens datum."
       )
     ).toBeInTheDocument();
   });
 
-  it("auto-läget visar inget namnfält (railen behöver inget CV-namn)", () => {
+  // #1060: webbläsarens autofyll erbjuder kontoinnehavarens namn på ett fält märkt
+  // autoComplete="name" — och skulle därmed skriva personuppgiften rakt in i den
+  // okrypterade etikett-kolumnen ändringen finns till för att hålla fri från den.
+  // Risken ökade av att fältet numera startar tomt.
+  it("namnfältet är INTE autofyllbart som personnamn", () => {
+    render(<CvUploadForm />);
+    expect(screen.getByRole("textbox", { name: "Namn på CV (valfritt)" })).toHaveAttribute(
+      "autocomplete",
+      "off"
+    );
+  });
+
+  // #1060 (Klas 2026-07-26, alternativ 1): auto-läget behåller sitt ett-klick och visar
+  // inget namnfält. Servern genererar etiketten; namnbyte sker på /cv.
+  it("auto-läget visar inget namnfält (servern genererar etiketten)", () => {
     render(<CvUploadForm autoUpload />);
     expect(
-      screen.queryByRole("textbox", { name: "Namn på CV:t" })
+      screen.queryByRole("textbox", { name: "Namn på CV (valfritt)" })
     ).not.toBeInTheDocument();
   });
 });
@@ -148,20 +163,74 @@ describe("CvUploadForm — utfalls-baserad ruttning (CV-pivot 5c)", () => {
     );
   });
 
-  it("skickar namnet som formfält när det är satt", async () => {
+  it("skickar det redigerade namnet som formfält", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockResolvedValue(promotedResponse());
     global.fetch = fetchMock;
 
-    render(<CvUploadForm defaultName="Anna Andersson" />);
+    render(<CvUploadForm />);
+    await user.type(
+      screen.getByRole("textbox", { name: "Namn på CV (valfritt)" }),
+      "Backend-CV 2026"
+    );
     await selectFile(fileInput());
     await submit(user);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const body = formDataOfCall(fetchMock, 0);
-    expect(body.get("name")).toBe("Anna Andersson");
+    expect(body.get("name")).toBe("Backend-CV 2026");
     // Fail-closed: flaggan skickas ALDRIG utan uttryckligt samtycke.
     expect(body.get("personnummerAcknowledged")).toBeNull();
+  });
+
+  // #1060: ett ORÖRT fält skickas ALDRIG. Det är den regel som håller det råa filnamnet
+  // ute ur etikett-kanalen — masken mot personnummer i filnamn sitter server-side, så ett
+  // klient-härlett förslag hade kunnat bära ett personnummer in i handlerns etikett-scan
+  // och rest samtyckesdialogen på ett fynd serverns kroppsscan säger inte finns.
+  it("orört namnfält skickar inget name-fält alls", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue(promotedResponse());
+    global.fetch = fetchMock;
+
+    render(<CvUploadForm />);
+    await selectFile(fileInput());
+    await submit(user);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(formDataOfCall(fetchMock, 0).get("name")).toBeNull();
+  });
+
+  it("auto-läget skickar inget namn (servern genererar det)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(promotedResponse());
+    global.fetch = fetchMock;
+
+    render(<CvUploadForm onUploaded={vi.fn()} autoUpload />);
+    await selectFile(fileInput());
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(formDataOfCall(fetchMock, 0).get("name")).toBeNull();
+  });
+
+  // Samtyckesdialogen är juridiskt bärande (ADR 0114) och dess copy säger "Vi hittade N
+  // personnummer i FILEN". Samma orsaks-token kan komma från ett fynd i ETIKETTEN, och då
+  // är serverns kroppsscan ren (count = 0) — att resa dialogen då vore ett felrapporterat
+  // verdikt och ett samtycke inhämtat på fel premiss.
+  it("etikett-fynd (count 0) reser INTE samtyckesdialogen utan rutar till granskningen", async () => {
+    const user = userEvent.setup();
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(pendingResponse("PersonnummerPresent", 0));
+
+    render(<CvUploadForm />);
+    await selectFile(fileInput());
+    await submit(user);
+
+    await waitFor(() =>
+      expect(pushMock).toHaveBeenCalledWith(`/cv/granska/${PARSED_ID}`)
+    );
+    expect(
+      screen.queryByText("Filen innehåller ett personnummer")
+    ).not.toBeInTheDocument();
   });
 
   it("onUploaded får det sammansatta utfallet + filnamnet i stället för navigation", async () => {

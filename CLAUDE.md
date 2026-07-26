@@ -155,11 +155,20 @@ signal available is a discipline miss.
   `ISpecification<T>` only when the same filter is used in 3+ places.
   `.AsNoTracking()` default for reads. `Include()` only when needed.
   Pagination via `.Skip().Take()` + separate count query.
-  **A bulk-load path ANALYZEs the table it loaded** when that table is written
-  by one periodic job and read-only between runs — in the job, once per
-  completed run, never per batch (a table under continuous DML self-heals via
-  autovacuum and is out of scope). Why: `ScbCompanyRegisterStore.AnalyzeAsync`
-  (#560).
+  **A bulk-load path ANALYZEs the table it loaded** — in the job, once per
+  completed run, never per batch — when that table is written by one periodic
+  job or startup seeder, is read-only between runs, **and** has some column
+  reaching a `WHERE`, join, `ORDER BY`, `GROUP BY` or `DISTINCT`. Those are the
+  clauses whose estimates statistics inform; where no column reaches one, no
+  *column* statistic can change the plan (verified 2026-07-25: the only **`src`**
+  readers of `taxonomy_concepts`/`taxonomy_relations` are two predicate-free
+  `ToListAsync` calls in `TaxonomyReadModel.LoadAsync`). Continuous DML excuses
+  the table only where autovacuum **demonstrably** re-arms — check
+  `last_autoanalyze`, never assume: `company_register` held zero statistics at a
+  million rows. Place the call where its failure is survivable: fail-loud in a
+  retry-bounded job, typed-catch-and-log at host startup (a typed catch that
+  logs is not the §5 catch-all ban). Why:
+  `ScbCompanyRegisterStore.AnalyzeAsync` (#560).
 
 ## 4. TypeScript / Next.js standards
 

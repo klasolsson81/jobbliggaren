@@ -87,7 +87,6 @@ localhost as a secure context.
 - Field-encryption master key: `FieldEncryption__Provider=Local` +
   `FieldEncryption__LocalMasterKeyBase64=$(openssl rand -base64 32)` into
   `$GITHUB_ENV`.
-- Throwaway RSA JWT keys generated per-run (`Jwt__PrivateKeyPath`/`__PublicKeyPath`).
 - `Email__Provider=Console` (no outbound mail). Never depend on the gitignored
   `appsettings.Local.json` (absent in CI).
 
@@ -104,7 +103,7 @@ docker exec jbl-e2e-pg psql -U postgres -d jobbliggaren -c "CREATE EXTENSION IF 
 
 # 2. Migrate, then run the Api in Development with the flag ON + relaxed rate limits
 #    (every spec registers from one IP in a burst -> AuthWrite 429 otherwise), a Local
-#    DEK master key, and throwaway JWT keys. See the workflow's env block for the full set.
+#    DEK master key. See the workflow's env block for the full set.
 #    NB: `dotnet ef`'s -c is --context, NOT --configuration.
 dotnet ef database update --configuration Release --project src/Jobbliggaren.Infrastructure   --startup-project src/Jobbliggaren.Api --context AppDbContext   # + AppIdentityDbContext
 

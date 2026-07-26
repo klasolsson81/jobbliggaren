@@ -58,7 +58,9 @@ builder.Services.AddMediatorPipelineBehaviors();
 
 // Scheme-namnet "Bearer" speglar wire-format (Authorization: Bearer <token>), inte token-typ.
 // Backend lagrar opaque session-id i Redis sedan Turn 4 (ADR 0017).
-// Schemnamnet byter till "Session" när JWT-klasserna raderas i Fas 1.
+// Schemanamnet "Bearer" speglar wire-formatet (RFC 6750), inte token-typen. #827 raderade
+// JWT-klasserna; bytet till "Session" återstår och är behavioural (ogiltigförklarar levande
+// sessioner), så det är inte en följd av raderingen.
 //
 // ARKITEKTUR-VARNING: Lägg INTE till AddCookie() på backend. CSRF-modellen (ADR 0018)
 // förutsätter att backend är icke-browser-reachable och alltid tar emot Bearer-header.

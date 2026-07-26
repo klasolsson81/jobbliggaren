@@ -43,10 +43,18 @@ RUN dotnet publish src/Jobbliggaren.Api/Jobbliggaren.Api.csproj \
 # ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS runtime
 
-# RDS CA-bundle för TLS-validering mot Postgres (TD-38).
-# global-bundle.pem täcker alla AWS-regions för portability dev→staging→prod.
-# Persisterade CS:er (skrivna av Migrate till Secrets Manager) använder
-# SSL Mode=VerifyFull;Root Certificate=/etc/ssl/certs/rds-global-bundle.pem.
+# AWS-residual: RDS CA-bundle för TLS-validering mot Postgres (TD-38-eran).
+# Motiveringen som stod här — "täcker alla AWS-regions för portability
+# dev→staging→prod" — gäller inte längre: AWS-stacken revs 2026-05-26 (ADR 0066)
+# och Secrets Manager-vägen är borta med den. COPY:n är kvar tills #196 (TD-106)
+# bygger om imagen för Hetzner, där cert-strategin avgörs (privat bridge utan TLS,
+# eller intern CA + VerifyFull) — samma ägare och samma villkor som Migrate-imagens.
+# Rör den inte i en städ-PR: #808 verifierade att alla tre Dockerfiles COPY:ar den
+# och att .dockerignore bär negationer för just det, medan den enda docker build i
+# CI pekar på pre-rename-sökvägar. Skyddet är dessutom dubbelt: den workflowen är
+# `workflow_dispatch`-only sedan 2026-06-28, så ingen `docker build` körs i CI
+# överhuvudtaget. En radering går alltså GRÖN av två oberoende skäl och faller
+# först vid Hetzner-cutovern.
 COPY infra/certs/rds-global-bundle.pem /etc/ssl/certs/rds-global-bundle.pem
 
 WORKDIR /app

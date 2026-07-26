@@ -1,7 +1,8 @@
 // "use client": filväljaren behöver lokal state (vald fil, namn, klient-validering,
 // samtyckesdialogens state), en submit-handler som bygger FormData + fetch:ar BFF:en,
 // och programmatisk navigation efter utfallet. Inget CV-PII passerar klienten — bara
-// File-objektet (bytesen), det valda namnet (kontonamnet, användarens eget) och det
+// File-objektet (bytesen), CV-ETIKETTEN när användaren SJÄLV skrivit en (#1060 — aldrig
+// kontonamnet, aldrig filnamnet; utelämnad genererar servern ett icke-PII-namn) och det
 // returnerade, PII-fria utfallet (ids + count/kinds-fyndet, aldrig personnummer-värdet).
 "use client";
 
@@ -139,7 +140,8 @@ interface CvUploadFormProps {
    * Epik #526 polish (Klas rendered-verify 2026-07-03): starta uppladdningen
    * direkt när en giltig fil valts — inget extra "Ladda upp"-klick, och
    * submit-raden döljs. I detta läge visas inget namnfält (match-setup-railen
-   * behöver inget CV-namn — backend faller tillbaka på kontonamnet). Default false.
+   * behöver ingen CV-etikett — servern genererar ett icke-PII-namn när fältet
+   * saknas). Default false.
    */
   readonly autoUpload?: boolean;
   /**
@@ -147,25 +149,21 @@ interface CvUploadFormProps {
    * instruktionen. Hjälptexten förblir describedby via sr-only. Default true.
    */
   readonly showHelp?: boolean;
-  /**
-   * CV-pivot 5c: förifyll namnfältet med kontonamnet (`JobSeeker.DisplayName`). Fältet
-   * är redigerbart; skickas som `name`-formfältet och blir CV:ts namn. Tomt → backend
-   * faller tillbaka på kontonamnet (5a CTO-bind R5). Endast synligt i tvåstegsläget.
-   */
-  readonly defaultName?: string;
 }
 
 export function CvUploadForm({
   onUploaded,
   autoUpload = false,
   showHelp = true,
-  defaultName = "",
 }: CvUploadFormProps = {}) {
   const t = useTranslations("resumes.upload");
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [name, setName] = useState(defaultName);
+  const [name, setName] = useState("");
+  // Har användaren själv rört namnfältet? Enda grinden för om `name` skickas alls: ett
+  // orört fält betyder "ingen människa döpte det här", och servern genererar då etiketten.
+  const [nameTouched, setNameTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Samtyckesvalet (personnummer i filen): den fil + parse + antal som väntar på
@@ -200,13 +198,27 @@ export function CvUploadForm({
     );
   }
 
+  // `name` skickas ENDAST när användaren själv skrivit det. Fältet förifylls inte alls —
+  // varken ur profilen eller ur filnamnet.
+  //
+  // Varför inte ur filnamnet: `File.name` här är RÅTT — maskeringen av personnummer i
+  // filnamn sitter server-side i `ParsedResume.Create`. Föreslog vi det skulle "CV_811218-9876.pdf"
+  // bli en NameOverride som handlerns etikett-scan fäller, och FE:t skulle öppna ADR 0114:s
+  // juridiskt bärande samtyckesdialog på ett fynd serverns egen kroppsscan säger inte finns
+  // ("Vi hittade 0 personnummer i filen"). Det skulle dessutom falsifiera den skrivna regeln
+  // i `PersonnummerScanOutcome` att ett filnamns-fynd ALDRIG blockerar promote.
+  //
+  // Utelämnat fält ⇒ servern genererar ett icke-PII-namn ("Importerat CV {datum}").
+  // Filnamnet är inte heller en serverkandidat: ADR 0096 D-B avvisade filnamnet för
+  // `Resume` (PII-nära). Etikett-kanalen bär därmed BARA text en människa skrivit, och
+  // handlerns scan får göra det den är rätt för: refusera en ANVÄNDARSKRIVEN etikett.
   async function postImport(
     file: File,
     acknowledged: boolean,
   ): Promise<{ status: number; body: unknown } | null> {
     const formData = new FormData();
     formData.append("file", file);
-    const trimmedName = name.trim();
+    const trimmedName = nameTouched ? name.trim() : "";
     if (trimmedName) formData.append("name", trimmedName);
     // Fail-closed: vi skickar flaggan ENDAST vid ett uttryckligt samtycke (aldrig som
     // default på varje uppladdning — ADR 0114 §D3).
@@ -262,10 +274,20 @@ export function CvUploadForm({
       return;
     }
 
-    // Personnummer i filen + inget samtycke ännu → res samtyckesdialogen (ADR 0114): ska
+    // Personnummer i FILEN + inget samtycke ännu → res samtyckesdialogen (ADR 0114): ska
     // originalfilen LAGRAS? Ruttningen väntar tills användaren valt. Andra pending-skäl
     // (preambel, ej pålitlig parse, ofullständigt) rutar direkt till granskningen.
-    if (outcome.kind === "pending" && outcome.blockReason === "PersonnummerPresent") {
+    //
+    // Grinden läser `personnummerCount`, INTE bara orsaks-tokenen: samma token kan komma
+    // från ett fynd i CV-ETIKETTEN, och då är serverns kroppsscan ren (count = 0). Att resa
+    // en juridiskt bärande samtyckesdialog som säger "Vi hittade 0 personnummer i filen"
+    // vore ett felrapporterat verdikt (§5) och ett samtycke inhämtat på fel premiss
+    // (GDPR art. 7(2)) — dessutom skulle ja-svaret skapa en andra, överflödig parse.
+    if (
+      outcome.kind === "pending" &&
+      outcome.blockReason === "PersonnummerPresent" &&
+      outcome.personnummerCount > 0
+    ) {
       setConsent({
         file,
         parsedResumeId: outcome.parsedResumeId,
@@ -286,6 +308,8 @@ export function CvUploadForm({
     const file = consent.file;
     setConsentSaving(true);
     startTransition(async () => {
+      // Samma namnkälla som första försöket (`nameTouched ? name : inget`) — CV:t får
+      // inte byta namn beroende på om användaren sa ja eller nej till att lagra filen.
       const result = await postImport(file, true);
       setConsentSaving(false);
       setConsent(null);
@@ -370,22 +394,39 @@ export function CvUploadForm({
           </div>
         ) : (
           <>
-            {/* CV-namn (CV-pivot 5c) — endast i tvåstegsläget. Rent fält (ingen
-                placeholder), förifyllt med kontonamnet, hint under fältet. */}
+            {/* CV-namn = CV:ts ETIKETT (#1060), inte personens namn. Endast i
+                tvåstegsläget. Rent fält utan placeholder; lämnas det tomt genererar
+                servern ett icke-PII-namn (hinten säger vilket). Systemets
+                .jp-field-primitiv bär label/input/hint-stacken — inte
+                .jp-cvupload__field, vars enda deklaration (`position: relative`) finns
+                för den absolutpositionerade filväljaren och är betydelselös här. */}
             {!autoUpload && (
-              <div className="jp-cvupload__field">
+              <div className="jp-field">
                 <label htmlFor={nameId} className="jp-label">
                   {t("nameLabel")}
                 </label>
                 <input
                   id={nameId}
-                  name="name"
+                  // INTE name="name": attributet är dött här (FormData byggs
+                  // programmatiskt, aldrig ur formuläret) men är en primär signal till
+                  // webbläsarens autofyll-klassificering, som kan köra över
+                  // autocomplete="off" på fält den tror är personnamn.
+                  name="cvLabel"
                   type="text"
                   className="jp-input"
                   value={name}
-                  onChange={(event) => setName(event.target.value)}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                    setNameTouched(true);
+                  }}
                   aria-describedby={nameHintId}
-                  autoComplete="name"
+                  // INTE autoComplete="name" (#1060): fältet är CV:ts ETIKETT, inte ett
+                  // personnamn. Med "name" erbjuder webbläsarens autofyll kontoinnehavarens
+                  // namn — och skriver därmed in personuppgiften i den okrypterade kolumn
+                  // ändringen finns till för att hålla fri från den. Risken ÖKADE av att
+                  // fältet numera startar tomt. Token:et vore dessutom falskt deklarerat
+                  // mot WCAG 1.3.5 (fältets syfte är inte "name").
+                  autoComplete="off"
                   maxLength={200}
                 />
                 <p id={nameHintId} className="jp-cvupload__help">

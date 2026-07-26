@@ -24,3 +24,15 @@ it is the only mechanism that catches serialization and RSC-runtime errors.
 vitest, tsc and eslint cannot: jsdom isolates the component from the RSC
 boundary, so a non-serializable prop (e.g. a function passed to a client
 component) passes unit tests but fails at server render in production.
+
+Since #1053 `pnpm build` also runs in the **blocking** `frontend` CI job, so a
+broken production build now fails `ci` instead of reporting success.
+
+**A green production build does NOT mean `next dev` compiles.** Both CI jobs
+that build, build for production; webpack defers `"use server"` export checks
+to runtime while Turbopack rejects at module-link time — which is how #1059
+lived three weeks on `main` with every build green. That specific invariant (a
+`"use server"` module may only export async function *declarations* — Next
+error **E352**) is enforced by `pnpm lint`, which runs in `.husky/pre-commit`
+and in the same blocking job. Shared types belong in a module without the
+directive: `src/lib/actions/_action-result.ts` is the SSOT.

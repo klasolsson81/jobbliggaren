@@ -434,28 +434,27 @@ doubt, in-block wins (quality > tempo) and senior-cto-advisor decides.
 - `.editorconfig` + committed `.vscode/` settings/extensions.
 - Dev env: Docker Compose (`postgres`, `redis`, `seq`) — MEL logs to console
   **and to Seq**: `AddJobbliggarenLogging` (shared by Api + Worker) attaches the
-  Seq provider **only when `Seq:ServerUrl` is set**, so an environment without
-  that key stays console-only; dev points at `http://localhost:5341`. Serilog
-  was rejected as YAGNI, and TD-104 is closed — the sink is wired; what remains
-  for the Hetzner phase is the *production* Seq (EU residency, access control,
-  retention). Everything runs locally (AWS retired, ADR 0066):
-  `LocalDataKeyProvider` (AES-256-GCM) for field encryption, and mail through
-  `AddEmailSender`'s `Email:Provider` switch — **three** `IEmailSender` impls,
-  not one: `ConsoleEmailSender` (Development/Test **only** — it logs the
-  plaintext token, which a durable sink would turn into durable PII),
-  `NullEmailSender` (the fallback in every other environment), and
-  `ResendEmailSender` (`Provider=Resend`, fail-loud without `Email:ApiKey`).
-  Frontend `.env.local`; backend `appsettings.Development.json` + gitignored
-  `appsettings.Local.json`.
-- **Production config is still ALB/ECS-shaped, and that is stale wording around
-  a live mechanism — not AWS residue to delete.** `AlbOptions`
-  (`Alb:HttpsEnabled`) gates `UseHttpsRedirection` and `UseHsts` in
-  `Api/Program.cs` and is pinned by `UseHttpsRedirectionGateTests`;
-  `appsettings.Production.json` configures forwarded headers and HSTS alongside
-  it (and carries comments — it does not parse as plain JSON). What ADR 0066
-  tore down is the *injection path* those doc comments describe (Terraform → ECS
-  task-def env var), not the flag itself. Rename or retire it with the Hetzner
-  cutover work (TD-106) — never in a cleanup sweep.
+  Seq provider **only when `Seq:ServerUrl` is set**; the Hetzner residual is the
+  *production* Seq (EU residency, access control, retention), not the wiring.
+  Everything runs locally (AWS retired, ADR 0066): `LocalDataKeyProvider`
+  (AES-256-GCM) for field encryption, and mail via `AddEmailSender`'s
+  `Email:Provider` switch — **three** `IEmailSender` impls, not one:
+  `ConsoleEmailSender` (Development/Test **only**; it logs the recipient address
+  and the whole body, confirmation and activation links included — the gate is
+  real recipients, not sink durability, since dev's Seq does persist that line
+  and is accepted only as a loopback holding no real-user PII),
+  `NullEmailSender` (what `Provider=Console` falls back to outside Dev/Test),
+  and `ResendEmailSender` (`Provider=Resend`, fail-loud without
+  `Email:ApiKey`). Frontend `.env.local`; backend
+  `appsettings.Development.json` + gitignored `appsettings.Local.json`.
+- `AlbOptions`/`Alb:HttpsEnabled` is **live despite its AWS name** — it co-gates
+  `UseHsts` and `UseHttpsRedirection` with the environment in `Api/Program.cs`,
+  and gates the fail-loud HSTS config validation; `UseHttpsRedirectionGateTests`
+  pins all of it in both polarities. ADR 0066 destroyed the *deployed* AWS dev
+  stack and deliberately **preserved** `infra/terraform/`, which still carries
+  the `Alb__HttpsEnabled` injection — so neither the flag nor the tree is
+  residue. Retirement is a Hetzner-cutover ADR, never a cleanup sweep
+  (BUILD.md §15); TD-106 owns the rename to `ReverseProxyOptions`.
 - **Dev-boot config contract.** A new fail-fast option (a `ValidateOnStart` secret,
   usually in the Infrastructure DI both hosts share) that a fresh dev-stack boot needs —
   a required key, secret, or pepper the API/Worker refuses to start without — MUST be added to

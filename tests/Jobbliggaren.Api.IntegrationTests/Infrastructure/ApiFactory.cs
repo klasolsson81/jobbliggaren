@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using Jobbliggaren.Application.Admin.BackgroundJobs;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -23,9 +22,6 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
     private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
-
-    private readonly string _privateKeyPath;
-    private readonly string _publicKeyPath;
 
     // #241 — last-wins IEmailSender override so the host never composes the real Resend provider.
     // Held as a field (not just type-registered) so tests can read the recorded sends via Emails.
@@ -66,19 +62,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     private string _postgresCs = string.Empty;
     private string _redisCs = string.Empty;
 
-    public ApiFactory()
-    {
-        var rsa = RSA.Create(2048);
-        _privateKeyPath = Path.Combine(Path.GetTempPath(), $"jobbliggaren-test-private-{Guid.NewGuid()}.pem");
-        _publicKeyPath = Path.Combine(Path.GetTempPath(), $"jobbliggaren-test-public-{Guid.NewGuid()}.pem");
-        File.WriteAllText(_privateKeyPath, rsa.ExportRSAPrivateKeyPem());
-        File.WriteAllText(_publicKeyPath, rsa.ExportSubjectPublicKeyInfoPem());
-    }
-
     // Replaces DbContext registrations (which are registered before ConfigureWebHost runs)
     // with Testcontainer connection strings. Redis is replaced the same way.
-    // JWT key paths + rate-limit overrides är handled via environment variables i
-    // InitializeAsync — Program.cs läser dem direkt från builder.Configuration vid
+    // Rate-limit overrides är handled via environment variables i InitializeAsync —
+    // Program.cs läser dem direkt från builder.Configuration vid
     // service-registration-tid (innan ConfigureWebHost-services körs).
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -258,12 +245,6 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
 
-        // JWT key paths are read at service-registration time in Program.cs via
-        // builder.Configuration. Setting env vars here (before Services is accessed, which
-        // triggers Program.cs to run) makes them available to WebApplication.CreateBuilder().
-        Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", _privateKeyPath);
-        Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", _publicKeyPath);
-
         // Höj IP-baserade rate-limits drastiskt för testkörning så befintliga
         // tester (alla från 127.0.0.1) inte rate-limit:as på varandras gemen-
         // samma IP-partition (TD-21). Account-deletion-policy (UserId-baserad)
@@ -345,8 +326,6 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
-        Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", null);
-        Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", null);
         Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__AuthLoose__PermitLimit", null);
@@ -363,9 +342,6 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__WindowSeconds", null);
-
-        if (File.Exists(_privateKeyPath)) File.Delete(_privateKeyPath);
-        if (File.Exists(_publicKeyPath)) File.Delete(_publicKeyPath);
 
         await Task.WhenAll(_postgres.StopAsync(), _redis.StopAsync());
         await base.DisposeAsync();

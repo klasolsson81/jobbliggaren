@@ -36,7 +36,7 @@
 | Stavning | WeCantSpell.Hunspell | 7.x | Hunspell-port — tri-licens **MPL 1.1 / GPL 2.0 / LGPL 2.1**; licensval MPL 1.1 (LGPL 2.1 fallback), aldrig GPL; server-side + oförändrad binär → ingen copyleft på produkten (se §3.1-notis) |
 | Svensk ordlista | sv_SE Hunspell-ordlista (DSSO) | datafil | **LGPL-3.0** — oförändrad separat datafil, ej statiskt länkad/inbäddad/modifierad → copyleft smittar ej produkten (se §3.1-notis) |
 | HTTP | HttpClientFactory + Refit | 10.x | JobTech-klient |
-| Transaktionell e-post | Resend | 0.5.x | MIT; officiella .NET-SDK:n, Infrastructure-confined (IResend/EmailMessage korsar aldrig IEmailSender-porten, paritet Refit/QuestPDF); bakgrundsmatchnings-notiser (ADR 0080 Vag 4 PR-4); wrappar IHttpClientFactory; dev = test-mode (`onboarding@resend.dev`); prod-utskick kräver DPA/SCC + security-auditor-sign-off |
+| Transaktionell e-post | Resend | 0.5.x | MIT; officiella .NET-SDK:n, Infrastructure-confined (IResend/EmailMessage korsar aldrig IEmailSender-porten, paritet Refit/QuestPDF); **all** utgående e-post: notiser (ADR 0080 Vag 4 PR-4) + kontolivscykel (§13.4); wrappar IHttpClientFactory; dev = test-mode (`onboarding@resend.dev`); prod-utskick kräver DPA/SCC + security-auditor-sign-off |
 | Database | PostgreSQL | 18.3 | lokal Docker Compose nu; co-tenant container på Hetzner CAX31 (ADR 0050, ingen separat managed-DB) |
 | Cache | Redis | 8.6 | lokal Docker Compose nu; co-tenant container på Hetzner CAX31 (ADR 0050) |
 | Test-assertions | Shouldly | 4.3.x | MIT, ersätter commercial FluentAssertions |
@@ -123,7 +123,7 @@
 | Cache | Redis 8.6 (Docker Compose) | Redis co-tenant container på CAX31 |
 | Object storage | lokal disk / ej aktiverat | TBD — roll/behov ej fastställt |
 | AI inferens | Ingen — produkten har ingen AI/LLM (ADR 0071) | Ingen (deterministiska motorer på BE/VPS) |
-| Email | `ConsoleEmailSender` (ADR 0066) | Transaktionell mejlväg (TD-101) |
+| Email | `ConsoleEmailSender` (ADR 0066) | Resend, grindad (§13.4, TD-101) |
 | Secrets | `appsettings.Local.json` (gitignored) | Self-managed på VPS (systemd-credentials / sops+age, TD-106) |
 | Encryption keys | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | Self-managed master-nyckelmodell + rotation (TD-102) |
 | Frontend | `pnpm dev` (localhost:3000) | Next.js `next start` co-tenant container på CAX31 (bakom Caddy) |
@@ -758,7 +758,7 @@ email_log
   subject (text)
   template (text)
   sent_at (timestamptz)
-  provider_message_id (text null)   -- provider-neutralt (SES borttaget, ADR 0066; transaktionell väg = TD-101)
+  provider_message_id (text null)   -- provider-neutralt (SES borttaget, ADR 0066; transaktionell väg = Resend, TD-101/§13.4)
   status (text)
 
 -- Integrations
@@ -1261,25 +1261,28 @@ Upprätthålls i publik lista på `/integritet#subprocessors` (publiceras när
 permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0050):
 - Infrastruktur (hosting/databas/backup): Hetzner Cloud (EU — Falkenstein/Nuremberg/Helsinki) inkl. Hetzner-EU Storage Box för krypterad backup
 - DNS / CDN / proxy: Cloudflare (gratis-tier, "Full (strict)")
-- Transaktionell e-post: **Resend, Inc. (USA)** — beslutad (ADR 0080), **planerad, ännu inte
+- Transaktionell e-post: **Resend, Inc. (USA)** — beslutad (Klas 2026-06-24; ADR 0080 Våg 4 PR-4,
+  se §3.1), **planerad, ännu inte
   aktiverad**: `Email:Provider` defaultar till `Console`, vilket i non-dev löser till
   `NullEmailSender`, så ingen e-post lämnar systemet. Gäller **all** utgående e-post, inte bara
   notiser: `EmailTemplates` har sex sorter varav fyra är kontolivscykel (bekräfta e-post,
   byta e-post, ändrad-e-post-avisering, konto-finns-redan). **Tredjelandsöverföring** —
-  mottagar-adressen och opt-in-faktumet går till en US-processor, och Resends konto-data
-  (metadata, leverans-loggar) lagras i USA oavsett sändande region. Kräver före flippen:
-  signerad DPA + dokumenterad Kap. V-grund (SCC eller adekvans/DPF) + security-auditor-sign-off
-  (`docs/runbooks/release-checklist.md` §2.5 punkt 1; DPA-signering = Klas, aldrig CC).
+  mottagar-adressen, meddelandets innehåll och (för notiserna) opt-in-faktumet går till en
+  US-processor, och Resends konto-data
+  (metadata, leverans-loggar) lagras i USA oavsett sändande region. Kräver före flippen
+  **fyra** led — uppräkningen bor på ett ställe:
+  `docs/runbooks/release-checklist.md` §2.5 punkt 1 (DPA-signering = Klas, aldrig CC).
 - **Ingen AI-subprocessor** (ADR 0071): produkten har ingen AI/LLM, ingen
-  CV-PII lämnar systemet, inget tredjelands-transfer. CV- och matchnings-motorerna
-  är deterministiska och körs på egen infra.
+  CV-PII lämnar systemet, inget tredjelands-transfer **för CV- eller matchnings-data**.
+  CV- och matchnings-motorerna
+  är deterministiska och körs på egen infra. (Okvalificerat vore ledet falskt en rad
+  under e-postposten ovan, som ÄR en tredjelandsöverföring.)
 - Google (Gmail/Calendar, frivilligt, global)
 - Sentry (errors, EU) — planerat
 - PostHog self-hosted (analytics, EU — inte subprocessor)
 
 > AWS (infrastruktur + SES) är avvecklat (ADR 0066) och utgår ur subprocessor-
-> kedjan; **SES:s ersättare är Resend** (ADR 0080) och står i listan ovan — utan
-> den raden implicerade noteringen att inget e-post-underbiträde alls är beslutat.
+> kedjan; **SES:s ersättare är Resend** (ADR 0080) och står i listan ovan.
 > Hetzner/Cloudflare läggs till i den publika listan vid faktisk
 > provisionering (ADR 0050 Sekvensering).
 

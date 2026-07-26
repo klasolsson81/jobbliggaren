@@ -100,29 +100,58 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > två är notiser (`MatchNotification`, `FollowedCompanyNotification`). En release som
 > aktiverar providern **bara** för e-postbekräftelse triggar därför varje punkt nedan
 > lika fullt — mottagar-adressen når en US-processor oavsett vilken mall som skickas.
-> Att läsa rubrikens "notiser" som en avgränsning vore alltså fel. (Prod-lansering
+> Den tidigare avgränsningen "(bakgrundsmatchnings-notiser)" i den här blockquoten är
+> därför borttagen: den var ingen avgränsning, och ingenting annat i sektionen skopar
+> grinden till notis-vägen. (Prod-lansering
 > tvingar inte i sig flippen: `AuthOptions.RequireEmailConfirmation` defaultar
 > **false** och sätts `true` bara i `appsettings.Development.json`.)
 
-- [ ] **1. Tredjelands-grund** — signerad **DPA** med Resend på fil +
-      dokumenterad **SCC/adekvans**-grund + Resend-posten i
-      `docs/runbooks/gdpr-processing-register.md` (ROPA, lokal) +
-      **security-auditor-sign-off** på prod-e-post-konfigen. (DPA-signering =
-      Klas; ROPA + sign-off = #183.)
+- [ ] **1. Tredjelands-grund** — fyra led, per behandling-status (ägare: **#183**):
+      - signerad **DPA** med Resend på fil — **KVAR** (Klas, aldrig CC);
+      - dokumenterad **Kap. V-grund** — **KVAR**, och disjunktionen "SCC **eller**
+        adekvans/DPF" måste upplösas till **en** grund före första överföringen;
+      - Resend-posten i `docs/runbooks/gdpr-processing-register.md` (ROPA, lokal) —
+        **KLAR** (PR #213). Registret speglar, det grindar inte (#1040);
+      - **integritetspolicy-post som namnger Resend** — **KLAR** (#186 / PR #1083).
+        Denna halva stod tidigare inte i punkten alls: transkriberingen ur ADR 0080
+        punkt 1 tappade den och behöll bara ROPA-halvan;
+      - **security-auditor-sign-off på prod-e-post-konfigen** — **KVAR**. `tech-debt.md`
+        TD-116:s sign-off är PR-4:s, inte prod-konfigens; bocka aldrig punkten på den.
+
+      **Kvarstående policy-residualer under denna punkt, inte under punkt 3:**
+      (i) flytta Resend in i `Mottagare`-listan när biträdesavtalet är signerat —
+      prosaformen är vald just för att listrubriken påstår ett tecknat avtal, och det
+      förbudet **upphör med signeringen**; (ii) **Art. 13(1)(f)** — "means to obtain a
+      copy" av skyddsåtgärderna saknas i policyn; (iii) upplös SCC/adekvans-
+      disjunktionen. **Ordning: (iii) före (ii)** — Art. 13(1)(f):s kopia-formulering
+      hänger på Art. 46/47-grunden, så skriver du (ii) först påstår du en SCC-grund som
+      kanske inte används.
 - [ ] **2. TD-115** — legacy opt-OUT-default sanerad (#185 / PR #211 — **KLAR**).
-- [x] **3. TD-116** — consent-/disclosure-copy avslöjar e-postleverans för
-      användaren (#186 — **KLAR**). Integritetspolicyn namnger Resend, Inc.
-      (USA) i `planerat`-idiomet på tre ställen (samtyckesavsnittet, Mottagare av
-      uppgifter, Överföring till tredje land), båda språken; `content-legal-parity.test.ts`
-      bär en tripwire med golv **och** markörkrav. **Flippen är fortfarande grindad** —
-      punkt 3 var en förutsättning för den, inte en konsekvens av den, och copyn
-      flippas till presens först per §2.6.
+- [ ] **3. TD-116** — consent-/disclosure-copy avslöjar e-postleverans för
+      användaren (**#185 / PR #182 — KLAR**). ADR 0080 punkt 3 skopar posten till
+      `messages/{sv,en}/settings.json backgroundMatch.*`, och PR #182 levererade exakt
+      det: `intro`/`toggleDescription`/`cadenceHint` namnger e-post explicit.
+      **Rättelse 2026-07-26:** #186 bockades först här. Fel punkt — #186:s
+      integritetspolicy-post är **punkt 1:s** fjärde led (se ovan), och PR #182:s egen
+      security-auditor rutade uttryckligen resten dit. Utfallet var rätt, skälet fel.
+      Den consent-copyn ska **aldrig** bära en `planerat`-markör: samtyckestext måste
+      beskriva den behandling samtycket auktoriserar, i auktorisationens tempus — en
+      markör där skulle svaga Art. 7(2). Den ligger dessutom utanför §2.6:s grep-scope
+      (som bara täcker `content-legal.json`), så en glömd markör-borttagning vid flippen
+      skulle falla i den farliga riktningen.
 - [ ] **4. TD-114** — stranded-Queued-reaper (#184 / PR #212 — **KLAR**) +
       **Resend `Idempotency-Key`** på real-send-vägen (#187 / PR #230 — **KLAR**;
       VO `MatchNotificationIdempotencyKey`, ad-scoped Direct + content-hash Digest).
 
 Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
-"Bakgrundsmatchnings-notiser via e-post (Resend)".
+"Bakgrundsmatchnings-notiser via e-post (Resend)" — som i dag täcker **endast**
+notis-vägen. Efter wideningen ovan gäller grinden all utgående e-post, men ingen
+Art. 30-behandling täcker de **fyra kontolivscykel-mallarna**, och `EmailConfirmation`
+är den mall som skickas vid varje registrering. Det är samma lucka som den redan
+eskalerade frågan om att ROPA:n saknar behandling för användarkontot/autentiseringen
+helt (Art. 30(1)) — punkt 1:s Resend-led kan inte bli grönt före den är stängd.
+Registret är gitignorerat och kan inte rida en PR (ADR 0072), så residualen står här,
+i den trackade filen, och åtgärdas lokalt före flippen.
 
 ---
 
@@ -195,14 +224,14 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
       grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
       grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
       ```
-      Vid 2026-07-26 (efter #186): **11 + 11** (rad 37, 49, 63, 72, 73, 76, 77, 84,
-      98, 99, 134 — identiska i
+      Vid 2026-07-26 (efter #186 + dess remediation): **11 + 11** (rad 37, 49, 63, 72,
+      73, 77, 78, 85, 99, 100, 135 — identiska i
       sv och en, alla äkta statuspåståenden, ingen falsk träff med detta mönster).
       **Grepa INTE bara på `"planerat och ännu inte i drift"`** — det ger 9 och
-      missar de TVÅ retentionsposterna på rad 98 och 99, som bär `(planerat)` utan
-      avslutningsmeningen. Rad 98 (organisationsnumret i en annons, #880) nämner
+      missar de TVÅ retentionsposterna på rad 99 och 100, som bär `(planerat)` utan
+      avslutningsmeningen. Rad 99 (organisationsnumret i en annons, #880) nämner
       ansökningshistoriken som ett ÄNDAMÅL med att arbetsgivarens identitet sparas;
-      rad 99 är ansökningshistorikens egen post. **Regenerera den här listan ur
+      rad 100 är ansökningshistorikens egen post. **Regenerera den här listan ur
       greppen ovan efter varje redigering av `privacy`-sektionerna** — inte bara
       retentionsavsnittet: #880 delade en
       punkt i två och flyttade fyra av åtta rader, och #186 rörde tre andra avsnitt
@@ -214,12 +243,12 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
       kategorilistan drift medan retentionsavsnittet säger planerat.
 - [ ] **2. Avgör vad releasen faktiskt aktiverar** — tre olika klasser, blanda dem
       inte:
-      - **Kod-aktiverad:** ansökningshistorik/företagsöversikt (rad 37, 98, 99, 134).
+      - **Kod-aktiverad:** ansökningshistorik/företagsöversikt (rad 37, 99, 100, 135).
         Handlers + endpoints + FE är skeppade utan feature-flagga → aktiveras av
         att tjänsten alls går i drift.
-      - **Deploy-aktiverad:** Hetzner, Cloudflare (rad 76, 77) → aktiveras av att
+      - **Deploy-aktiverad:** Hetzner, Cloudflare (rad 77, 78) → aktiveras av att
         stacken körs hos dem. Se punkt 3 — dessa får inte flippas på egen hand.
-      - **Konfigurations-grindad:** SCB (rad 49, 72) **och Resend (rad 63, 73, 84,
+      - **Konfigurations-grindad:** SCB (rad 49, 72) **och Resend (rad 63, 73, 85,
         #186)**. **Aktiveras INTE av en
         `v*`-tagg.** Tre skilda mekanismer, alla mörka i prod: per-sökningens
         `ICompanyRegistry` (ADR 0088) får `NullCompanyRegistry` — valet styrs av
@@ -231,7 +260,7 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
         användarskrivet org.nr. Resend styrs av `Email:Provider`, som defaultar till
         `Console` och i non-dev löser till `NullEmailSender` — flippen är grindad av
         **§2.5** (signerat DPA + Kap. V-grund + security-auditor-sign-off), inte av en
-        tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa rad 49/72 först när respektive grind är
+        tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa rad 49/72 (SCB) respektive 63/73/85 (Resend) först när respektive grind är
         passerad** — inte när koden deployas.
       Kvarstående planerat-meningar för behandlingar som fortfarande inte är i
       drift ska stå kvar. Släpper releasen ingen av dem är rätt utfall att **inte
@@ -245,11 +274,11 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
         #186:s Resend-stycke säger uttryckligen att avtalet tecknas *innan* utskicken
         börjar, just för att inte ärva den raden);
       - dokumenterad **Kap. V-grund** för Cloudflare (US-domicilierat bolag; även
-        en EU-only-konfiguration kräver grunden dokumenterad) — rad 83 är ett
+        en EU-only-konfiguration kräver grunden dokumenterad) — rad 84 är ett
         **absolut** påstående: *"I dagsläget sker inga överföringar av dina
         personuppgifter till länder utanför EU/EES"*, och det måste omprövas som
         del av samma flip. **Detsamma gäller Resend-flippen** (§2.5), som är den
-        andra av två oberoende händelser som gör rad 83 falsk; #186 la därför rad 84
+        andra av två oberoende händelser som gör rad 84 falsk; #186 la därför rad 85
         **bredvid** den absoluta meningen i stället för att ersätta den — båda är
         sanna samtidigt så länge inget skickas;
       - ROPA-posterna uppdaterade + **security-auditor-sign-off**.
@@ -258,8 +287,8 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
       **sex** element i `privacy.sections`, tillsammans alla elva rader ur punkt 1:
       kategorilistan (rad 37), ändamåls-/SCB-avsnittet (49), samtyckesavsnittet
       "Bevakningsnotiser i bakgrunden" (63, #186), mottagare + tredjeland
-      (72/73/76/77/84), retentionslistan (98/99) och "Inga automatiserade beslut"
-      (134). Missa inte retentionsposten — och notera att retentionslistan bär
+      (72/73/77/78/85), retentionslistan (99/100) och "Inga automatiserade beslut"
+      (135). Missa inte retentionsposten — och notera att retentionslistan bär
       **två** rader, inte en.
 - [ ] **5. Bumpa `privacy.updated`** ("Senast uppdaterad: YYYY-MM-DD"), båda
       språken. Skopa till **`privacy.updated`** — filen har fem `updated`-nycklar
@@ -273,7 +302,7 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
         D3 *"a new purpose section under 6(1)(b)"*, dvs. vidarebehandling för ett
         nytt ändamål av redan insamlade uppgifter → **Art. 13(3) kräver
         information "prior to that further processing"**, och policyns eget löfte
-        (rad 153) säger *"Vid mer betydande ändringar informerar vi dig på lämpligt
+        (rad 154) säger *"Vid mer betydande ändringar informerar vi dig på lämpligt
         sätt"*. Formulera som förhandsbesked (*"från och med &lt;datum&gt; behandlar vi
         även …"*), aldrig som påstående om pågående drift.
       Aldrig **efter** aktiveringen i något av fallen.
@@ -289,14 +318,14 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
       den står som i drift, och omvänt.** Kör inventeringsgreppet igen efter
       flippen: antalet träffar ska minska med **exakt** antalet poster releasen
       aktiverar, aldrig med fler.
-      **Rad 134 kräver särskild kontroll — den är den enda rad greppet inte
+      **Rad 135 kräver särskild kontroll — den är den enda rad greppet inte
       självskyddar.** Dess inledning (`planerar` / `plans`) matchas INTE av
       inventeringsmönstret (verifierat: 0 träffar), så raden syns bara via sin
       avslutande mening. Tas bara den bort faller raden ur greppet helt, räkne-
       testet ovan säger "minskade med exakt 1 — korrekt", och policyn påstår
       fortfarande *"Jobbliggaren planerar en översikt av din egen
       ansökningshistorik"* — mitt i avsnittet **"Inga automatiserade beslut"**,
-      dvs. i Art. 22-negationen. Läs rad 134 i sin helhet: hela stycket skrivs om
+      dvs. i Art. 22-negationen. Läs rad 135 i sin helhet: hela stycket skrivs om
       till presens, aldrig trunkeras. (De övriga tio raderna bär `(planerat)`/
       `planeras` i själva sakpåståendet och lämnar därför kvar en grepp-träff om
       flippen är ofullständig.)

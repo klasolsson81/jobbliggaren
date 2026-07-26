@@ -21,13 +21,27 @@ function leafPaths(obj: unknown, prefix = ""): string[] {
 
 /** Every string leaf under `catalogue` that matches `term`. Shared by the status-marker tripwires. */
 function stringLeaves(catalogue: unknown, term: RegExp): string[] {
+  return matchingLeaves(catalogue, term).map(([, leaf]) => leaf);
+}
+
+/**
+ * `[path, leaf]` for every string leaf matching `term`. The path half exists so a tripwire can pin
+ * sv/en parity by LOCATION, not merely by count: `en.length === sv.length` passes when one locale
+ * moves its disclosure to a different section while the other keeps it (3 === 3), and losing the
+ * disclosure from one locale's consent section is the single most likely real error (#880 class).
+ */
+function matchingLeaves(catalogue: unknown, term: RegExp): [string, string][] {
   return leafPaths(catalogue)
-    .map((path) =>
-      path
-        .split(".")
-        .reduce<unknown>((node, key) => (node as Record<string, unknown>)?.[key], catalogue)
+    .map(
+      (path) =>
+        [
+          path,
+          path
+            .split(".")
+            .reduce<unknown>((node, key) => (node as Record<string, unknown>)?.[key], catalogue),
+        ] as const
     )
-    .filter((leaf): leaf is string => typeof leaf === "string" && term.test(leaf));
+    .filter((entry): entry is [string, string] => typeof entry[1] === "string" && term.test(entry[1]));
 }
 
 describe("content-legal i18n-paritet (sv ↔ en)", () => {
@@ -86,22 +100,34 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    *    Flippen är grindad av `release-checklist.md` §2.5 (signerat DPA + Kap. V-grund +
    *    security-auditor-sign-off), aldrig av en copy-ändring.
    *
+   * **Markören måste bindas till STATUS-MENINGEN, inte till stycket** (code-reviewer Major 2,
+   * mätt: den första formen passerade VACUÖST i två av tre leaves i BÅDA språken). Orsaken är att
+   * disclosure-meningens egna participform mättar en bred assertion — "Notiserna **planeras** att
+   * skickas", "All e-post **planeras** att levereras" / "are **planned** to be sent". Med
+   * `/planerat|planerad|planeras/` respektive `/planned/` kunde markörmeningen strykas ur rad 63
+   * och 73 med testet grönt, medan §2.6:s smala grep tyst föll 9+9 → 7+7. Mönstren nedan är därför
+   * de RATIFIERADE markörformerna och inget bredare: `planerat` är exakt vad
+   * ansökningshistorik-tripwiren ovan redan använder, och "not yet in operation" är den engelska
+   * markörens bärande led (`/planned/` är otillräcklig oavsett bredd).
+   *
    * Testet ska FALLA vid prod-flippen. Ta då bort markör-halvan i samma ändring som flippar
-   * copyn — men BEHÅLL golvet: leverantören måste vara namngiven efter flippen också, och då
-   * hårdare än nu.
+   * copyn — men BEHÅLL golvet OCH path-pariteten: leverantören måste vara namngiven efter flippen
+   * också, och då hårdare än nu.
    */
   it("e-postleverantören Resend är namngiven i policyn och varje omnämnande bär status-markören (#186)", () => {
-    const sv = stringLeaves(svLegal.privacy, /Resend/);
-    const en = stringLeaves(enLegal.privacy, /Resend/);
+    const sv = matchingLeaves(svLegal.privacy, /Resend/);
+    const en = matchingLeaves(enLegal.privacy, /Resend/);
 
     // Vacuity guard, and simultaneously invariant 1: three known sites today (consent section,
     // "Mottagare av uppgifter", "Överföring till tredje land"). A rename or deletion that drops
     // the disclosure fails here instead of shipping silently.
     expect(sv.length).toBeGreaterThanOrEqual(3);
-    expect(en.length).toBe(sv.length);
 
-    for (const paragraph of sv) expect(paragraph).toMatch(/planerat|planerad|planeras/i);
-    for (const paragraph of en) expect(paragraph).toMatch(/planned/i);
+    // Parity by LOCATION, not count — see `matchingLeaves`.
+    expect(en.map(([path]) => path)).toEqual(sv.map(([path]) => path));
+
+    for (const [path, paragraph] of sv) expect(paragraph, path).toMatch(/planerat/i);
+    for (const [path, paragraph] of en) expect(paragraph, path).toMatch(/not yet in operation/i);
   });
 
   it("integritetspolicyn har minst tio sektioner med rubrik i båda katalogerna", () => {

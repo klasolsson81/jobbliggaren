@@ -90,7 +90,7 @@ Vit canvas. Hairlines mellan rader och sektioner. **Inga floating cards. Inga
 drop shadows utan funktion** (skuggor finns bara på popovers/dropdowns för att
 signalera lager). **Inga gradients** — med ETT dokumenterat undantag:
 hero-banner-plattans mörkgröna gradient (`--jp-hero-gradient`, scoped till
-`.jp-hero__plate`/`.jp-pagehero`/`.jp-empty--brand`/`.jp-land-hero` per
+`.jp-hero__plate`/`.jp-pagehero`/`.jp-land-hero` per
 [ADR 0068](../../../docs/decisions/0068-gron-accent-identitet-f4-banner.md));
 gradients förblir förbjudna på knappar, badges, kort och alla andra bakgrunder.
 Tänk på UI:t som ett dokument, inte en glasplatta med widgets ovanpå.
@@ -143,10 +143,8 @@ utropstecken (utom i felmeddelanden där de signalerar verklig urgency). Tonen
 
 ### 7. Densitet med respekt
 
-Tätt nog att skanna, luftigt nog att läsa. Använd
-`--jp-density`-multiplikatorn (`compact`/`standard`/`luftig`) hellre än att
-hårdkoda padding. Riktlinjer: tabellrader minst 36px höga; stats-värden 28+px;
-text-tracking -0.005em globalt för optisk täthet.
+Tätt nog att skanna, luftigt nog att läsa. Riktlinjer: tabellrader minst 36px
+höga; stats-värden 28+px; text-tracking -0.005em globalt för optisk täthet.
 
 **Förtydligande (ADR 0038):** "respekt" betyder läsbarhetsgolv för §1.1-
 målanvändaren (55-åringen i Alingsås). Densitet (regel 7 mening 1, "tätt nog

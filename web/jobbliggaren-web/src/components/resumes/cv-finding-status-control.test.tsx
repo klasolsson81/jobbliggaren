@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CvFindingStatusControl } from "./cv-finding-status-control";
-import type { ActionResult } from "@/lib/actions/resumes";
+import type { ActionResult } from "@/lib/actions/_action-result";
 
 /**
  * Fas 4b PR-8.4 (CTO-bind Q3/Q4) — per-anmärkning statuskontrollen på den KANONISKA

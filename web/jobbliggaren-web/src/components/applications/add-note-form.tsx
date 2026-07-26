@@ -5,7 +5,8 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { addNoteAction, type ActionResult } from "@/lib/actions/applications";
+import { addNoteAction } from "@/lib/actions/applications";
+import type { ActionResult } from "@/lib/actions/_action-result";
 
 interface AddNoteFormProps {
   applicationId: string;

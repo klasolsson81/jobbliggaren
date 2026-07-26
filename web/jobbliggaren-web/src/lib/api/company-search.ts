@@ -16,8 +16,13 @@ import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
  * `authedFetch` forces `cache: "no-store"`, matching the endpoint's `Cache-Control: private, no-store`.
  *
  * TWO disjoint entry points over the one endpoint, by design:
- * - {@link searchCompanies} takes {@link CompanySearchCriteria}, which has NO `organizationNumber`
- *   field — so the URL-reflected RSC search graph is structurally incapable of forwarding an org.nr.
+ * - {@link searchCompanies} takes {@link CompanySearchCriteria}, which has no `organizationNumber`
+ *   FIELD. Note precisely what that does and does not buy (corrected 2026-07-26): it prevents the
+ *   RSC graph from forwarding an org.nr *under that name*. It does NOT prevent it forwarding the
+ *   VALUE — a ten-digit `?namn=` used to arrive here as `body.name` and get a name-prefix scan run
+ *   on it. Type-level absence is not value-level absence; reading this paragraph as the latter is
+ *   exactly how the `namn` axis went unguarded. What holds the invariant now is the gate in
+ *   `parseNamn` + the wash redirect in `foretag/sok/page.tsx`, not this type's shape.
  * - {@link searchCompanyByOrgNr} is the BFF-only org.nr lookup, reached only from the
  *   `/api/foretag/sok` route handler after it has refused personnummer-shaped input.
  * List semantics (ADR 0030): a 404 collapses to `error`, never `notFound`.
@@ -30,9 +35,11 @@ const ORGNR_PAGE_SIZE = 20;
 /**
  * The wire body for a URL-driven search. Absent axis = "don't filter" → the key is OMITTED (never sent
  * as an empty list): the backend treats a missing axis as no constraint, and omitting keeps the body
- * minimal. `page`/`pageSize` are always present. Exported for a unit test that pins the org.nr
- * invariant: `"organizationNumber" in buildSearchBody(...)` is always false — the type has no such
- * field, so it cannot leak into the body.
+ * minimal. `page`/`pageSize` are always present. Exported for a unit test that pins one narrow thing:
+ * `"organizationNumber" in buildSearchBody(...)` is always false, because the type has no such field.
+ * Read that for exactly what it is — an assertion about a KEY, not about a VALUE. It says nothing
+ * about an org.nr arriving as `name`, which is precisely what used to happen; see the paragraph
+ * above and the gate in `search-params.ts`.
  */
 export function buildSearchBody(
   criteria: CompanySearchCriteria,

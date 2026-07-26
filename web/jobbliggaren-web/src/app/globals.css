@@ -25,14 +25,8 @@
      helt utan konsument. F-städ-planen därifrån är HÄVD (ADR 0068 impl-notat
      2026-07-03, #549 WS1): rampen är nu rubrikrollens bärare (--jp-heading-1/
      --jp-heading-2 nedan) vid sidan av logo-substratet (.jp-brand currentColor). */
-  --jp-navy-900: #08213F;
   --jp-navy-800: #0A2647;
   --jp-navy-700: #133F73;
-  --jp-navy-600: #1B5396;
-  --jp-navy-500: #2E6CC2;
-  --jp-navy-300: #7FA9DF;
-  --jp-navy-100: #D6E3F4;
-  --jp-navy-50:  #EAF1FA;
 
   /* Accent — mörkgrön (G1, ADR 0068; ersätter navy som interaktionsfärg).
      Hue-neutral namnrymd. 800/800-hover/900 dark-skiftas ALDRIG
@@ -120,13 +114,11 @@
   --jp-leaf-900:  #0B2A1E;
   --jp-leaf-700:  #0B3D1B;
   --jp-leaf-100:  #BFE6CC;
-  --jp-coral-600: #DA2A47;   --jp-coral-50: #FCE4E9;
-  --jp-amber-500: #E89A1A;   --jp-amber-50: #FBEBC8;
 
   /* Hero (G1 "F4 Hybrid", ADR 0068 — mörkgrön diagonal gradient, tema-
      stabil i light + dark). Gradient + 6px-radie på plattan är MEDVETNA,
      dokumenterade undantag från civic-utility-reglerna — gäller ENBART
-     hero-plattan/.jp-pagehero/.jp-empty--brand. Ersätter E1a:s varma
+     hero-plattan/.jp-pagehero. Ersätter E1a:s varma
      papperston-canvas (--jp-hero-canvas UTGÅR; wrappern läser --jp-canvas). */
   --jp-hero-from: #0B2A1E;
   --jp-hero-mid:  #14503A;
@@ -178,11 +170,10 @@
   --jp-heading-1: var(--jp-navy-700);
   --jp-heading-2: var(--jp-navy-800);
 
-  /* Radius (v3-kanon — ADR 0052: 6 rad/kort, 4 inputs, 8 modal, 12 ENDAST hero) */
+  /* Radius (v3-kanon — ADR 0052: 6 rad/kort, 4 inputs, 8 modal) */
   --jp-r-sm:   4px;
   --jp-r-md:   6px;
   --jp-r-lg:   8px;
-  --jp-r-xl:  12px;
   --jp-r-pill: 9999px;
 
   /* Typografi — font-familjer kommer från next/font (--font-sans/--font-mono) */
@@ -223,7 +214,6 @@
 
   /* Landing-displayens clamp()-storlekar (dokumenterade, ADR 0068 Beslut 3):
      komponentbundna display-tokens — ingår INTE i H-skalan. */
-  --jp-fs-land-title:   clamp(40px, 5vw, 56px);   /* .jp-land-hero__title */
   --jp-fs-land-section: clamp(28px, 3.5vw, 38px); /* .jp-land-section__title */
   --jp-fs-land-verb:    clamp(40px, 4.6vw, 66px); /* .jp-land-hero__stack-verb (förslag 3a) */
 
@@ -237,19 +227,10 @@
   --jp-control-fs: var(--text-body-sm);  /* #549 WS2: = body-sm-golvet, nu via skalan */
   --jp-control-px: 14px;
 
-  /* Density-multiplikator — v2-system, behålls (v3 har ingen density men
-     befintliga .jp-*-klasser konsumerar tokens; harmlöst, städas senare) */
-  --jp-density:   1;
-  --jp-row-h:     calc(36px * var(--jp-density));
-  --jp-section-y: calc(28px * var(--jp-density));
-  --jp-pad-x:     calc(28px * var(--jp-density));
-
   /* Skuggor (v3-kanon — undantag: popover/modal får skugga) */
   --jp-shadow-card:  0 1px 2px rgba(15, 27, 45, 0.05), 0 1px 0 rgba(15, 27, 45, 0.04);
   --jp-shadow-pop:   0 10px 30px rgba(8, 23, 48, 0.16), 0 2px 6px rgba(8, 23, 48, 0.08);
   --jp-shadow-modal: 0 30px 80px rgba(8, 23, 48, 0.35);
-  --jp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);  /* v2-alias-nivå (bridge/inline) */
-  --jp-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.06);  /* v2-alias-nivå (bridge/inline) */
 
   /* ── v2-kompat-alias → v3-kanon (städas i F-städ efter nollkonsumtion) ── */
   --jp-surface-primary:   var(--jp-surface);
@@ -273,29 +254,20 @@
   /* --jp-brand-accent (#FFCD00, kompass-prick) utgår — sigillet använder --jp-mark-accent
      (= --jp-gold). Logo-översyn 2026-06-13. */
   --jp-success-50:  var(--jp-success-bg);
-  --jp-success-500: var(--jp-success);
   --jp-success-600: var(--jp-success);
   --jp-success-700: var(--jp-success);
   --jp-warning-50:  var(--jp-warning-bg);
-  --jp-warning-500: var(--jp-warning);
   --jp-warning-600: var(--jp-warning);
   --jp-warning-700: var(--jp-warning);
   --jp-danger-50:   var(--jp-danger-bg);
-  --jp-danger-500:  var(--jp-danger);
   --jp-danger-600:  var(--jp-danger);
   --jp-danger-700:  var(--jp-danger);
   --jp-info-50:     var(--jp-info-bg);
-  --jp-info-500:    var(--jp-info);
   --jp-info-600:    var(--jp-info);
   --jp-info-700:    var(--jp-info);
-  --jp-border-hairline: var(--jp-border-soft);
   --jp-border-modal:      var(--jp-border);  /* ADR 0041-token re-homed på v3-border (skiftar med tema) */
   --jp-border-structural: var(--jp-border);  /* ADR 0041-amendment-token re-homed på v3-border */
 }
-
-[data-density="compact"]  { --jp-density: 0.85; }
-[data-density="standard"] { --jp-density: 1;    }
-[data-density="luftig"]   { --jp-density: 1.18; }
 
 /* ── Dark mode (v3-kanon — mörk navy-grå canvas, ljusa input-fält) ──
    Källa: jobbliggaren-v3.css §2.2. navy-800/-900 omdefinieras INTE i dark
@@ -333,11 +305,6 @@
      .jp-brand currentColor); inga interaktions-konsumenter kvar.
      800/900 medvetet ej skiftade. Städas vid logo-översynen. */
   --jp-navy-700: #4F8AD0;
-  --jp-navy-600: #6FA4E3;
-  --jp-navy-500: #3D75B8;
-  --jp-navy-300: #2C5894;
-  --jp-navy-100: #1F3866;
-  --jp-navy-50:  #1F3866;
 
   /* Accent-ramp i dark (G1, ADR 0068): #6EE7A8 ENDAST text/länk/fokus/
      border — ALDRIG fill bakom vit text. 800/800-hover/900 skiftas EJ
@@ -375,7 +342,6 @@
   --jp-leaf-900:  #C7EED4;
   --jp-leaf-700:  #1E7D40;
   --jp-leaf-100:  #1F6E3E;
-  --jp-coral-600: #F47185;  --jp-coral-50: #3A1722;
 
   /* --jp-focus omdefinieras EJ här (G1): :root-värdet var(--jp-accent-700)
      resolvar själv till #6EE7A8 i dark via accent-skiftet ovan. */
@@ -383,8 +349,6 @@
   --jp-shadow-card:  0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(0, 0, 0, 0.4);
   --jp-shadow-pop:   0 10px 30px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
   --jp-shadow-modal: 0 30px 80px rgba(0, 0, 0, 0.7);
-  --jp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);  /* v2-alias-nivå */
-  --jp-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.7);  /* v2-alias-nivå */
 }
 
 /* ── Tailwind @theme inline — utilities (bg-surface-primary m.fl.) ──── */
@@ -748,9 +712,6 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   --jp-border-soft: #E3E8F0;
   /* Navy-pins behålls för .jp-brand (logo currentColor) på vit remsa */
   --jp-navy-700: #133F73;
-  --jp-navy-600: #1B5396;
-  --jp-navy-100: #D6E3F4;
-  --jp-navy-50:  #EAF1FA;
   /* G1: light-accent-pins — utan dessa skulle dark-accent (#6EE7A8) ge
      ljusgröna länkar/aktiv-nav på den vita headern (AA-fail). */
   --jp-accent-700: #15603F;
@@ -781,7 +742,7 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   text-decoration: none;
   /* Logo-översyn 2026-06-13 (ADR 0068-amendment): sigillet sätter sina egna fyll via
      --jp-mark-* (ej currentColor). .jp-brand color driver nu bara wordmarken → ink.
-     Override för scoped-vit-header se [data-theme="dark"] .jp-land-top .jp-brand nedan. */
+     Override för scoped-vit-header se [data-theme="dark"] .jp-header nedan. */
   color: var(--jp-ink-1);
 }
 .jp-brand:focus-visible {
@@ -1037,8 +998,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* App-header live-stats (ADR 0064 — inloggad-paritet med landing-topbar).
    Klient-polling var 10:e min i HeaderStats.tsx; delta-pill fade-in:as när
    newToday ökar sedan senaste polling (Klas-direktiv 2026-05-24 — variant
-   "Fade-in + stay"). Storlek + flex-column-layout är exakt paritet med
-   .jp-land-top__stat* (CSS rad 2366-2391) per Klas-direktiv 2026-05-24
+   "Fade-in + stay"). Storlek + flex-column-layout sattes per Klas-direktiv
+   2026-05-24
    "samma stil, font, färger, placering till höger". Döljs på <900px
    paritet med .jp-nav. */
 .jp-header-stats {
@@ -1568,25 +1529,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   flex: 0 0 auto; display: flex; align-items: center;
   gap: 12px; flex-wrap: wrap;
 }
-.jp-pagehero-chip {
-  display: inline-flex; align-items: baseline; gap: 8px;
-  padding: 10px 14px;
-  border-radius: var(--jp-r-md);
-  background: rgba(255,255,255,0.06); /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
-  border: 1px solid rgba(255,255,255,0.14); /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
-  color: var(--jp-hero-ink);
-}
-.jp-pagehero-chip__value {
-  font-family: var(--jp-font-sans); font-weight: var(--jp-fw-bold);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--text-h3); letter-spacing: -0.01em;
-  color: var(--jp-hero-ink);
-}
-.jp-pagehero-chip__label {
-  font-family: var(--jp-font-mono); font-size: var(--text-overline);
-  letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--jp-hero-ink-soft);
-}
 .jp-pagehero .jp-btn {
   white-space: nowrap;
 }
@@ -1609,11 +1551,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* G2 (design-reviewer Minor 1): scopet sitter på GRADIENT-ELEMENTEN
    (inner-plattorna), inte wrappers — wrappers är numera canvas och ett
    framtida fokuserbart element mellan wrapper-kant och platta ska INTE
-   få vit ring mot ljus canvas. .jp-empty--brand behålls definierad
-   (sanktionerad gradient-konsument; 0 konsumenter efter G2 M2). */
+   få vit ring mot ljus canvas. */
 .jp-hero__plate,
-.jp-pagehero__inner,
-.jp-empty--brand {
+.jp-pagehero__inner {
   --jp-focus: #FFFFFF;
 }
 /* G4: .jp-land-hero__inner är inte längre en gradient-yta (ljus canvas) —
@@ -1622,8 +1562,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    (aria-hidden, ren markup) → behöver ingen ring-override. */
 /* Tema-stabilitets-pins för gradient-ytornas vita knappar: accent-50/-100
    skiftar mörkgrönt i dark — det hade gjort vit-knapp-hovern oläsbar. */
-.jp-pagehero__inner,
-.jp-empty--brand {
+.jp-pagehero__inner {
   --jp-accent-50:  #E9F2ED;
   --jp-accent-100: #D3E7DC;
 }
@@ -1654,12 +1593,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   top: 0;
   background: var(--jp-surface);
   z-index: 1;
-}
-.jp-popover__group {
-  padding-bottom: 4px;
-}
-.jp-popover__group + .jp-popover__group {
-  border-top: 1px solid var(--jp-border-soft);
 }
 .jp-checkitem--all {
   border-bottom: 1px solid var(--jp-border-soft);
@@ -1957,14 +1890,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: var(--jp-surface-3);
   color: var(--jp-ink-1);
 }
-.jp-btn--danger {
-  background: var(--jp-danger);
-  color: var(--jp-on-fill);
-  border-color: var(--jp-danger);
-}
 .jp-btn--sm { height: 36px; padding: 0 14px; font-size: var(--text-body-sm); }
-.jp-btn--lg { height: 52px; padding: 0 24px; font-size: var(--text-body); }
-.jp-btn--block { width: 100%; }
 /* Avstängd knapp får inte signalera en affordans den inte har (design-reviewer
    Major — paritet med .jp-segment__opt:disabled / .jp-togglerow__switch:disabled).
    Gäller både :disabled och aria-disabled (för länk-knappar). */
@@ -1989,9 +1915,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-caption);
   color: var(--jp-ink-2);
 }
-.jp-input,
-.jp-select,
-.jp-textarea {
+.jp-input {
   width: 100%;
   height: 48px;
   padding: 0 14px;
@@ -2004,29 +1928,18 @@ a.jp-adminnav__link[aria-current="page"]::after {
   outline: 0;
   transition: border-color 80ms, box-shadow 80ms;
 }
-.jp-textarea {
-  height: auto;
-  min-height: 110px;
-  padding: 12px 14px;
-  resize: vertical;
-}
-.jp-input:focus,
-.jp-select:focus,
-.jp-textarea:focus {
+.jp-input:focus {
   border-color: var(--jp-accent-700);
   /* G1: glow-tint = accent-500 #2E8B63 i rgb (var navy-500 rgb(46,108,194)) */
   box-shadow: 0 0 0 3px var(--jp-focus-glow);
 }
-[data-theme="dark"] .jp-input,
-[data-theme="dark"] .jp-select,
-[data-theme="dark"] .jp-textarea {
+[data-theme="dark"] .jp-input {
   /* User-krav: ljusa input-fält med mörk text i dark mode */
   background: var(--jp-dark-field-bg);
   color: var(--jp-dark-field-ink);
   border-color: var(--jp-dark-field-border);
 }
-[data-theme="dark"] .jp-input::placeholder,
-[data-theme="dark"] .jp-textarea::placeholder { color: var(--jp-ink-3); }
+[data-theme="dark"] .jp-input::placeholder { color: var(--jp-ink-3); }
 
 /* B4/M1-reparation (CTO 2026-05-19): HANDOVER §5.2 "icke-förhandlingsbart:
    dark input ljus bg #F0F4FB" gäller ALLA inputs, men shadcn-primitiverna
@@ -2100,20 +2013,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: var(--jp-follow);
   border-top-left-radius: var(--jp-r-md);
   border-bottom-left-radius: var(--jp-r-md);
-}
-.jp-job__newflag {
-  display: inline-flex;
-  align-items: center;
-  background: var(--jp-leaf-50);
-  color: var(--jp-leaf-600);
-  font-size: var(--text-overline);
-  font-weight: var(--jp-fw-bold);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 2px 8px;
-  border-radius: var(--jp-r-sm);
-  margin-right: 8px;
-  flex-shrink: 0;
 }
 /* ── Tagg-system (pre-F6 Prompt 1, 2026-05-20) ─────────
    Generisk rektangulär tagg-rad för rad-komponenter (.jp-job /
@@ -2469,33 +2368,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
   font-weight: var(--jp-fw-bold);
 }
-[data-theme="dark"] .jp-save[data-saved="true"] {
-  /* G1: fill bakom vit text → accent-800 (EJ dark-skiftad; accent-700
-     hade gett #6EE7A8-fyll bakom vit text = kontraktsbrott). */
-  background: var(--jp-accent-800);
-  border-color: var(--jp-accent-800);
-  color: var(--jp-on-fill);
-}
-.jp-save {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 12px;
-  background: transparent;
-  border: 1px solid var(--jp-border);
-  border-radius: var(--jp-r-md);
-  color: var(--jp-ink-2);
-  font-size: var(--text-body-sm);
-  font-weight: var(--jp-fw-medium);
-  cursor: pointer;
-}
-.jp-save:hover { background: var(--jp-surface-3); color: var(--jp-ink-1); }
-.jp-save[data-saved="true"] {
-  background: var(--jp-accent-50);
-  border-color: var(--jp-accent-700);
-  color: var(--jp-accent-700);
-}
 
 @media (max-width: 720px) {
   .jp-job {
@@ -2549,7 +2421,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   box-shadow: 0 0 0 3px var(--jp-focus-glow);
 }
 [data-theme="dark"] .jp-sortfield__select {
-  /* Paritet .jp-select dark: ljust fält, mörk text (HANDOVER §5.2). */
+  /* Paritet .jp-input dark: ljust fält, mörk text (HANDOVER §5.2). */
   background: var(--jp-dark-field-bg);
   color: var(--jp-dark-field-ink);
   border-color: var(--jp-dark-field-border);
@@ -2582,12 +2454,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
    .jp-togglerow__switch-tokens (samma yta/border/thumb/fokus, ingen ny färg).
    Kryssrutorna återbrukar .jp-checkitem-boxen men packas horisontellt och
    kompakt (ingen popover-rad-padding). Wrappar på smala skärmar. */
-.jp-gradefilter {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-}
 .jp-gradefilter__switch {
   flex-shrink: 0;
   width: 36px;
@@ -2625,34 +2491,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-gradefilter__label {
   font-size: var(--text-label);
   color: var(--jp-ink-1);
-}
-.jp-gradefilter__grades {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-}
-/* Kompakt kryssruta i kontroll-raden: samma indikator-box som popovern men
-   utan dess 11px/16px rad-padding (här är raderna inline-taggar, inte en
-   vertikal lista). Behåll fokus-ringen (.jp-checkitem saknar egen). */
-.jp-gradefilter__grade {
-  gap: 8px;
-  padding: 6px 10px;
-  font-size: var(--text-body-sm);
-  border-radius: var(--jp-r-sm);
-  /* Hit-target-golv (ADR 0038) — primära innehållsval, inte toolbar-knappar,
-     så 32px in-app-golv (44px touch nedan), explicit i stället för line-height-
-     beroende. */
-  min-height: 32px;
-}
-.jp-gradefilter__grade:focus-visible {
-  outline: 2px solid var(--jp-focus);
-  outline-offset: -2px;
-}
-@media (max-width: 768px) {
-  .jp-gradefilter__grade {
-    min-height: 44px;
-  }
 }
 .jp-results-count {
   font-size: var(--text-body-lg);
@@ -2701,14 +2539,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   display: inline-flex;
 }
 .jp-filterchip__rm:hover { color: var(--jp-ink-1); }
-
-/* Saved-search row */
-.jp-savedsearch-bar {
-  margin-top: 18px;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
 
 /* ── Modal ───────────────────────────────────────── */
 .jp-modal-scrim {
@@ -3528,63 +3358,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
     opacity: 0.4;
   }
 }
-/* ── /cv match-setup-bar + post-promote-prompt (ADR 0077 STEG 5) ──
-   Bar = kort med ledtext + wizard-trigger; prompten wrap:ar full bredd under. */
-/* Post-promote-prompten: full bredd under baren, vänster accent-kant
-   (information bärs av text + struktur, inte enbart färg). Dismissbar. */
-.jp-matchnudge {
-  position: relative;
-  flex-basis: 100%;
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  margin-top: 4px;
-  padding: 14px 44px 14px 16px;
-  background: var(--jp-surface-2);
-  border: 1px solid var(--jp-border);
-  border-left: 3px solid var(--jp-accent-700);
-  border-radius: var(--jp-r-md);
-}
-.jp-matchnudge__body {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.jp-matchnudge__title {
-  margin: 0;
-  font-size: var(--text-ui);
-  font-weight: var(--jp-fw-bold);
-  color: var(--jp-ink-1);
-}
-.jp-matchnudge__text {
-  margin: 4px 0 0;
-  max-width: 68ch;
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-1);
-}
-.jp-matchnudge__actions {
-  margin-top: 12px;
-}
-.jp-matchnudge__dismiss {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  color: var(--jp-ink-2);
-  background: transparent;
-  border: 0;
-  border-radius: var(--jp-r-md);
-  cursor: pointer;
-}
-.jp-matchnudge__dismiss:hover {
-  background: var(--jp-surface-3);
-  color: var(--jp-ink-1);
-}
-
 .jp-modal__foot {
   display: flex;
   gap: 10px;
@@ -3629,63 +3402,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
    navigerings-/skalningsmekanismen (RULING 2). "Kräver åtgärd"-feeden pinnas
    överst (boxlös), statussektioner kollapsar via en knapp-head. */
 
-/* "Kräver åtgärd"-feed: boxlös (transparent, ingen kant/radie/skugga på
-   blocket). Rubriken bär den ENDA emfasen mot statussektionerna via en
-   STARKARE 2px-underlinje (--jp-border-strong vs sektionernas --jp-border). */
-.jp-attention {
-  margin-top: 8px;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-}
-.jp-attention__title {
-  font-size: var(--text-h2);
-  font-weight: var(--jp-fw-bold);
-  margin: 0 0 14px;
-  padding-bottom: 10px;
-  letter-spacing: -0.01em;
-  color: var(--jp-heading-2);
-  border-bottom: 2px solid var(--jp-border-strong);
-}
-/* Varje lyft item: en orsaksrad ÖVANFÖR den återbrukade rad-noden. All
-   feed-unik dekoration bor i wrappern. Rad-noden (.jp-app) delas med ledgern
-   och rörs ALDRIG (design-reviewer-bind). */
-.jp-attention__item {
-  margin-bottom: 12px;
-}
-.jp-attention__reason {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 6px;
-  font-size: var(--text-body-sm);
-  font-weight: var(--jp-fw-semibold);
-  /* Aldrig grå: informationsbärande text, hög kontrast (WCAG 1.4.1). */
-  color: var(--jp-ink-1);
-}
-.jp-attention__text {
-  /* Löpande prosa capad till ~68ch (WCAG 1.4.8). */
-  max-width: 68ch;
-}
-/* Liten färgkodad indikator. Färgen REINFORCERAR; texten bär meningen.
-   ALDRIG grön (grön = interaktion/grad). Buckets: success/warning/info. */
-.jp-attention__dot {
-  flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--jp-r-pill);
-  background: var(--jp-ink-3);
-}
-.jp-attention__reason[data-signal="success"] .jp-attention__dot {
-  background: var(--jp-success);
-}
-.jp-attention__reason[data-signal="warning"] .jp-attention__dot {
-  background: var(--jp-warning);
-}
-.jp-attention__reason[data-signal="info"] .jp-attention__dot {
-  background: var(--jp-info);
-}
 
 .jp-section {
   margin-top: 32px;
@@ -3763,36 +3479,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 /* ── Application row (mina ansökningar) ───────────
    .jp-applist/.jp-app chassi delas med .jp-jobs/.jp-job ovan
-   (HANDOVER §9 — se delad-selektor-kommentaren där). Endast
-   app-specifik statusbadge nedan. */
-.jp-app__statusbadge {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--jp-r-pill);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  margin-top: 2px;
-  border: 2px solid;
-}
-.jp-app__statusbadge svg { width: 24px; height: 24px; }
+   (HANDOVER §9 — se delad-selektor-kommentaren där). */
 
 /* .jp-app__title/company/meta/meta-b: konsoliderade till DELADE
    .jp-job__*,.jp-app__*-selektorer ovan (F5 B2, HANDOVER §9 /
    F4 CTO-doktrin 2026-05-19). Separata block borttagna här —
    återinför dem ALDRIG (skulle drifta isär jp-job≡jp-app). Endast
    genuint app-unika element (id-chip, actions-layout) nedan. */
-.jp-app__id {
-  font-family: var(--jp-font-sans);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--text-micro);
-  color: var(--jp-ink-2);
-  background: var(--jp-surface-2);
-  border: 1px solid var(--jp-border-soft);
-  padding: 2px 8px;
-  border-radius: var(--jp-r-sm);
-}
 .jp-app__actions {
   display: flex;
   flex-direction: column;
@@ -4284,55 +3977,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin: 0 0 4px;
 }
 
-/* ── v4: brand-tonad empty-state (CV / pipeline tomma)
-   Modifier på .jp-empty. Används när hela sidan annars vore vit
-   (CV-listan tom, pipeline tom). HANDOVER-v4 §1.2 + §2.1. */
-.jp-empty--brand {
-  background: var(--jp-hero-gradient);
-  border: 1px solid var(--jp-hero-bg);
-  color: var(--jp-hero-ink-soft);
-  padding: 56px 32px;
-  display: flex; flex-direction: column; align-items: center;
-  gap: 14px; text-align: center;
-}
-.jp-empty--brand .jp-empty__kicker {
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-overline); font-weight: var(--jp-fw-semibold);
-  letter-spacing: 0.10em; text-transform: uppercase;
-  color: var(--jp-hero-ink-soft); margin: 0;
-}
-.jp-empty--brand .jp-empty__title {
-  color: var(--jp-hero-ink);
-  font-size: var(--text-h2); font-weight: var(--jp-fw-bold);
-  letter-spacing: -0.015em; margin: 0;
-  text-wrap: balance;
-}
-.jp-empty--brand .jp-empty__body {
-  color: var(--jp-hero-ink-soft);
-  max-width: 52ch; margin: 0;
-  font-size: var(--text-ui); line-height: 1.5;
-}
-.jp-empty--brand .jp-empty__actions {
-  display: flex; gap: 10px; margin-top: 6px;
-  flex-wrap: wrap; justify-content: center;
-}
-.jp-empty--brand .jp-btn--primary {
-  background: #fff; color: var(--jp-hero-bg); border-color: #fff; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
-}
-.jp-empty--brand .jp-btn--primary:hover {
-  background: var(--jp-accent-50); color: var(--jp-accent-900); border-color: var(--jp-accent-50);
-}
-.jp-empty--brand .jp-btn--ghost {
-  color: var(--jp-hero-ink); background: transparent;
-  border-color: rgba(255,255,255,0.30); /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
-}
-.jp-empty--brand .jp-btn--ghost:hover {
-  background: rgba(255,255,255,0.08); color: #fff; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
-  border-color: rgba(255,255,255,0.45); /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
-}
-/* :focus-visible-specialregeln borttagen (G1) — vit ring kommer via
-   --jp-focus-scopingen i gradient-blocket (se .jp-pagehero-sektionen). */
-
 /* ── Skeleton (laddningstillstånd) ───────────────────
    Platt neutral platshållare för /jobb-sökresultatet (F6 P4).
    Civic-utility: ingen shimmer, ingen puls, ingen gradient, ingen
@@ -4420,12 +4064,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-body-sm);
 }
 .jp-notif__item:hover { background: var(--jp-surface-3); }
-.jp-notif__item__time {
-  font-family: var(--jp-font-sans);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--text-micro);
-  color: var(--jp-ink-3);
-}
 
 /* Toast */
 .jp-toast {
@@ -4482,43 +4120,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-toast--error { background: var(--jp-danger); }
 
-/* Auth screen */
-.jp-auth-wrap {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  background: var(--jp-canvas);
-}
-.jp-auth-card {
-  width: 100%;
-  max-width: 440px;
-  background: var(--jp-surface);
-  border: 1px solid var(--jp-border);
-  border-radius: var(--jp-r-lg);
-  padding: 36px 36px 32px;
-  box-shadow: var(--jp-shadow-card);
-}
-.jp-auth-card h1 {
-  margin: 0 0 6px;
-  font-size: var(--text-h1);  /* #549 WS1: enad sidtitel-tier (var 26px) */
-  font-weight: var(--jp-fw-bold);
-  letter-spacing: -0.02em;
-  color: var(--jp-heading-1);
-}
-.jp-auth-card p.lede {
-  margin: 0 0 24px;
-  color: var(--jp-ink-1);
-}
-.jp-auth-form { display: flex; flex-direction: column; gap: 14px; }
-.jp-auth-foot {
-  margin-top: 16px;
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-1);
-  text-align: center;
-}
-
 /* Cards generic */
 .jp-card {
   background: var(--jp-surface);
@@ -4536,124 +4137,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* ============================================================
    Landing page (v3)
    ============================================================ */
-.jp-land-top {
-  background: var(--jp-surface);
-  border-bottom: 1px solid var(--jp-border);
-  position: sticky;
-  top: 0;
-  z-index: 30;
-}
-[data-theme="dark"] .jp-land-top {
-  background: var(--jp-surface);
-  border-bottom-color: var(--jp-border);
-  --jp-surface:    #FFFFFF;
-  --jp-surface-3:  #E8EDF4;
-  --jp-ink-1: #0C1A2E;
-  --jp-ink-2: #455366;
-  --jp-ink-3: #4F5D72;  /* #296: mirror :root tertiary darken — always-light top-bar */
-  --jp-border: #C9D2E0;
-  /* G1: light-accent-pins (paritet med [data-theme="dark"] .jp-header) —
-     dark-accent #6EE7A8 vore AA-fail som länk/aktiv-färg på vit remsa. */
-  --jp-accent-700: #15603F;
-  --jp-accent-600: #1E6B4C;
-  --jp-accent-100: #D3E7DC;
-  --jp-accent-50:  #E9F2ED;
-  --jp-focus: var(--jp-accent-700); /* se .jp-header-pin-kommentaren */
-  color: var(--jp-ink-1);
-}
-[data-theme="dark"] .jp-land-top .jp-brand {
-  /* scoped-vit-topbar är vit-på-vit oavsett tema → wordmarken måste vara mörk även i
-     dark (ink-1 skiftar annars till ljust och blir osynligt). Lås till ink-1 light-värde
-     (#0C1A2E, ~16:1 mot vit). Logo-översyn 2026-06-13. */
-  color: var(--jp-ink-1);
-}
-.jp-land-top__inner {
-  max-width: 1200px;
-  margin-inline: auto;
-  padding: 0 32px;
-  height: 88px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-}
-.jp-land-top__nav {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-/* Höger-grupp: live-stats + login-länk (G4). */
-.jp-land-top__right {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-.jp-land-top__stats {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-}
-.jp-land-top__stat {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.1;
-}
-.jp-land-top__stat__num {
-  font-family: var(--jp-font-sans);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--text-body-lg);
-  font-weight: var(--jp-fw-bold);
-  color: var(--jp-ink-1);
-  letter-spacing: -0.01em;
-}
-.jp-land-top__stat__label {
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-overline);
-  font-weight: var(--jp-fw-semibold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--jp-ink-2);
-  margin-top: 2px;
-}
-.jp-land-top__stat__sep {
-  width: 1px;
-  height: 28px;
-  background: var(--jp-border);
-}
-@media (max-width: 560px) {
-  .jp-land-top__stats { display: none; }
-}
-.jp-land-foot__settings {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.jp-land-top__link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: transparent;
-  border: 0;
-  padding: 10px 16px;
-  font-size: var(--text-ui);
-  font-weight: var(--jp-fw-medium);
-  color: var(--jp-ink-2);
-  text-decoration: none;
-  cursor: pointer;
-  border-radius: var(--jp-r-md);
-}
-.jp-land-top__link:hover { background: var(--jp-surface-3); color: var(--jp-accent-700); }
-.jp-land-top__link.is-active { color: var(--jp-accent-700); font-weight: var(--jp-fw-semibold); }
 
-@media (max-width: 720px) {
-  .jp-land-top__inner { padding: 0 20px; }
-}
 
 /* Hero (G4-redesign — produkt-forward LJUS hero, CTO Riktning A) ──────
    Tidigare gröna gradient-platta bakom H1 är BORTTAGEN: canvasen är ljus
    (`--jp-surface`), inga gröna bakgrundsboxar. Den enda gröna ytan i hero
-   är primär-CTA:ns fill plus ett scoped band-fragment INUTI produkt-peeken
-   (ADR 0068-undantaget, se .jp-land-peek__band). */
+   är primär-CTA:ns fill. */
 .jp-land-hero {
   background: var(--jp-surface);
   padding: 56px 32px 64px;
@@ -4669,139 +4158,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-land-hero__copy {
   min-width: 0;
 }
-.jp-land-hero__title {
-  margin: 0;
-  font-size: var(--jp-fs-land-title);
-  font-weight: var(--jp-fw-bold);
-  letter-spacing: -0.03em;
-  line-height: 1.05;
-  color: var(--jp-ink-1);
-}
-.jp-land-hero__lede {
-  margin: 24px 0 0;
-  font-size: var(--text-h3);
-  line-height: 1.55;
-  color: var(--jp-ink-1);
-  max-width: 56ch;
-}
-.jp-land-hero__ctas {
-  margin-top: 28px;
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
 
 @media (max-width: 980px) {
   .jp-land-hero { padding: 36px 24px 44px; }
   .jp-land-hero__inner { grid-template-columns: 1fr; gap: 40px; }
 }
 
-/* Produkt-peek (G4) — STATISK dekorativ produkt-illustration (aria-hidden).
-   Visar produkten i miniatyr: scoped grönt band-fragment + sökfält-attrapp
-   ovanför två flat/papper-resultatkort. Ingen interaktivitet, ingen JS. */
-.jp-land-peek {
-  min-width: 0;
-  border: 1px solid var(--jp-border);
-  border-radius: var(--jp-r-lg);
-  background: var(--jp-surface);
-  overflow: hidden;
-}
-/* Scoped hero-band-fragment — ADR 0068-undantaget (gradient ENDAST här). */
-.jp-land-peek__band {
-  background: var(--jp-hero-gradient);
-  padding: 20px 20px 22px;
-}
-.jp-land-peek__band-kicker {
-  display: block;
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-overline);
-  font-weight: var(--jp-fw-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--jp-hero-ink-soft);
-  margin-bottom: 12px;
-}
-/* Sökfält-ATTRAPP — ren markup (ingen riktig input), tema-stabilt vitt
-   fält + ink-knapp (samma mönster som /jobb-bannerns sökrad). */
-.jp-land-peek__search {
-  display: flex;
-  align-items: stretch;
-  background: var(--jp-hero-pill-bg);
-  border-radius: var(--jp-r-sm);
-  overflow: hidden;
-}
-.jp-land-peek__search-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  padding: 0 14px;
-  height: 44px;
-  font-size: var(--text-body-sm);
-  color: var(--jp-hero-pill-ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.jp-land-peek__search-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  background: var(--jp-hero-sok-bg);
-  color: var(--jp-on-fill);
-  height: 44px;
-  padding: 0 18px;
-  font-size: var(--text-body-sm);
-  font-weight: var(--jp-fw-semibold);
-  letter-spacing: -0.005em;
-}
-/* Resultat-kort: flat/papper, hairline-separerade (regel 1 + 2). */
-.jp-land-peek__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.jp-land-peek__card {
-  padding: 14px 20px;
-  border-top: 1px solid var(--jp-border-soft);
-}
-.jp-land-peek__card:first-child {
-  border-top: 0;
-}
-.jp-land-peek__card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-micro);
-  color: var(--jp-ink-2);
-  margin-bottom: 6px;
-}
-.jp-land-peek__card-title {
-  font-size: var(--text-ui);
-  font-weight: var(--jp-fw-semibold);
-  letter-spacing: -0.005em;
-  /* E2f: ink — peeken avbildar jobbkorten, vars titlar nu är ink. */
-  color: var(--jp-ink-1);
-}
-.jp-land-peek__card-meta {
-  margin-top: 3px;
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
-}
-
-@media (max-width: 980px) {
-  /* Peek under copy på mobil — behåll den (statisk, billig); CTO-spec
-     staplar i stället för att gömma. */
-  .jp-land-peek { max-width: 420px; }
-}
-
 /* Sektioner */
 .jp-land-section {
   padding: 80px 0;
 }
-.jp-land-section--alt { background: var(--jp-surface-2); }
 .jp-land-section__head { text-align: center; margin-bottom: 48px; }
 .jp-land-kicker {
   font-family: var(--jp-font-mono);
@@ -4824,50 +4190,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
    togs bort i #517 efter Plattan-cutover (#518). Den live 3×2-griden bor i
    .jp-land-features--grid / .jp-land-featcell* längre ned. */
 
-/* Footer */
-.jp-land-foot {
-  background: var(--jp-surface-2);
-  border-top: 1px solid var(--jp-border);
-  padding: 22px 0;
-}
-.jp-land-foot__inner {
-  max-width: 1200px;
-  margin-inline: auto;
-  padding: 0 32px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  flex-wrap: wrap;
-}
-.jp-land-foot__links {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
-}
-.jp-land-foot__links a {
-  color: var(--jp-ink-2);
-  text-decoration: none;
-  padding: 4px 0;
-}
-.jp-land-foot__links a:hover { color: var(--jp-ink-1); text-decoration: underline; }
-.jp-land-foot__dot { padding: 0 10px; color: var(--jp-border); }
-.jp-land-foot__status {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--text-mono);
-  color: var(--jp-ink-2);
-  font-family: var(--jp-font-mono);
-}
-.jp-land-foot__dot-on {
-  width: 7px; height: 7px; border-radius: 999px;
-  background: var(--jp-success); margin-right: 6px;
-}
-.jp-land-foot__sep { padding: 0 8px; color: var(--jp-border); }
-
 /* ============================================================
    Liggaren landing redesign — LP-1 FOUNDATION (#254)
    ------------------------------------------------------------
@@ -4878,43 +4200,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
    (hero/features), LP-5a #258 (header), LP-6 #260 (auth card);
    adopted across shells in LP-5b #259.
 
-   These are NEW names. The legacy .jp-land-top* / .jp-land-hero* /
-   .jp-land-foot* / .jp-auth-* classes above are LEFT INTACT (still
-   consumed by the live landing + auth pages until those waves swap
-   the components) — nothing here renames or overrides them.
+   These are NEW names. The legacy landing/auth rules those waves
+   superseded were removed in #1054 once the sweep measured zero
+   consumers; what remains of those families is still live and is
+   neither renamed nor overridden here.
 
    K2 (epic #267): NO grey ink-2/ink-3 on new landing body/labels —
    everything resolves to --jp-ink-1 (#0C1A2E). Hierarchy comes from
    size/weight/font, not washed-out colour.
    ============================================================ */
-
-/* ── Liggar-chip (egen signatur — sigill-prick + label) ──────
-   .jp-land-chip (INTE .jp-chip — den är den generiska removable-
-   chippen ovan; namnet är taget). Landnings-scopad signatur-tagg. */
-.jp-land-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.jp-land-chip {
-  display: inline-flex; align-items: center; gap: 8px;
-  height: 30px; padding: 0 12px 0 9px;
-  background: var(--jp-surface);
-  border: 1px solid var(--jp-border);
-  border-radius: var(--jp-r-pill);
-  font-size: var(--text-caption); font-weight: var(--jp-fw-semibold); color: var(--jp-ink-1);
-  white-space: nowrap;
-}
-.jp-land-chip__seal {
-  position: relative; flex: 0 0 auto;
-  width: 15px; height: 15px; border-radius: 50%;
-  background: var(--jp-accent-800);
-}
-.jp-land-chip__seal::after {
-  content: ""; position: absolute; left: 3.5px; top: 6.7px;
-  width: 8px; height: 1.7px; border-radius: 1px; background: var(--jp-gold);
-}
-/* --free = sidans enda gratis-omnämnande (accent-900 på accent-50, hög kontrast) */
-.jp-land-chip--free { border-color: var(--jp-accent-300); background: var(--jp-accent-50); color: var(--jp-accent-900); }
-.jp-land-chip--free .jp-land-chip__seal { background: var(--jp-accent-800); }
-/* --ghost = för mörk/grön yta (literal vit, tema-stabil) */
-.jp-land-chip--ghost { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.28); color: #FFFFFF; } /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 
 /* ── Delad publik header (.jp-head-*) ────────────────────────
    Shell-agnostisk: brand vänster + live-stats höger, INGEN login-länk
@@ -4965,8 +4259,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-land-hero__guestlink:hover { color: var(--jp-accent-600); text-decoration: underline; text-underline-offset: 3px; }
 
 /* ── On-page auth-kort med flikar (.jp-auth-tabcard) ─────────
-   Distinkt från .jp-auth-card/-wrap/-form/-foot (auth-SIDORNA ovan,
-   orörda). Flik-kort i heron som återanvänder LoginForm/RegisterForm.
+   Flik-kort i heron som återanvänder LoginForm/RegisterForm.
    INGEN OAuth/Namn (döda affordanser, borttagna per epic #267). */
 .jp-auth-tabcard {
   background: var(--jp-surface); border: 1px solid var(--jp-border);
@@ -4983,8 +4276,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   content: ""; position: absolute; inset-inline: 0; bottom: -1px; height: 2px; background: var(--jp-accent-700);
 }
 .jp-auth-panel { padding: 22px 24px 24px; display: flex; flex-direction: column; gap: 14px; }
-.jp-auth-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.jp-auth-title { margin: 0; font-size: var(--text-h3); font-weight: var(--jp-fw-bold); letter-spacing: -0.01em; color: var(--jp-ink-1); }
 .jp-auth-fine { margin: 0; font-size: var(--text-caption); color: var(--jp-ink-1); line-height: 1.5; }
 .jp-auth-fine a { font-weight: var(--jp-fw-semibold); }
 /* Gratis-rad i auth-kortet (förslag 3a) — direkt under submit, före fine
@@ -5109,11 +4400,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
    text on the green footer (same class as the 2026-06-10 green-on-green button
    fix). Mirrors `.jp-foot__legal a:hover`. */
 .jp-foot__links a:hover { color: #FFFFFF; text-decoration: underline; text-underline-offset: 3px; } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
-.jp-foot__tag {
-  margin-left: 7px; font-family: var(--jp-font-mono); font-size: var(--text-overline); font-weight: var(--jp-fw-bold);
-  letter-spacing: 0.06em; text-transform: uppercase; color: var(--jp-accent-900);
-  background: var(--jp-gold); border-radius: 3px; padding: 1px 5px; vertical-align: middle;
-}
 .jp-foot__bar { border-top: 1px solid rgba(255, 255, 255, 0.20); } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 .jp-foot__bar-inner {
   max-width: 1200px; margin-inline: auto; padding: 22px 32px;
@@ -5172,12 +4458,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-heading-2);
   margin: 0;
 }
-.jp-h3 {
-  font-size: var(--text-h3);
-  font-weight: var(--jp-fw-bold);
-  color: var(--jp-text-primary);
-  margin: 0;
-}
 .jp-lede {
   color: var(--jp-text-secondary);
   font-size: var(--text-body-lg);
@@ -5204,17 +4484,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-iconbtn:hover {
   background: var(--jp-surface-tertiary);
   color: var(--jp-text-primary);
-}
-
-/* jp-sidebar__tag — marketing v2 versions-chip (refaktoreras F6) */
-.jp-sidebar__tag {
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-micro);
-  color: var(--jp-text-secondary);
-  letter-spacing: 0;
-  padding: 1px 5px;
-  border: 1px solid var(--jp-border-hairline);
-  border-radius: var(--jp-r-sm);
 }
 
 /* jp-statusDot — status-dot.tsx (refaktoreras i F3/F5 till v3-mönster) */
@@ -5298,26 +4567,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
    gäller INTE här (per-user auth-gated, ej publik anonym).
    ============================================================ */
 
-.jp-oversikt__head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-.jp-oversikt__head > :first-child {
-  flex: 1 1 280px;
-  min-width: 0;
-}
-.jp-oversikt__kicker {
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-overline);
-  font-weight: var(--jp-fw-semibold);
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-  color: var(--jp-ink-2);
-  margin-bottom: 8px;
-}
 /* "I dag" — kalenderblock i toppen.
    Visar dagens planerade händelser (mockas; senare Google Calendar). */
 .jp-oversikt__today {
@@ -6773,24 +6022,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   overflow-wrap: break-word;
 }
 
-.jp-cv-cta {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 8px;
-  border-top: 1px solid var(--jp-border-soft);
-}
-.jp-cv-cta__hint {
-  margin: 0;
-  font-size: var(--text-body-sm);
-}
-/* Förbättra-CTA (sekundär) + spara-CTA (primär) sida vid sida; staplas på smal skärm. */
-.jp-cv-cta__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
 /* ── CV-förbättringsförslag (F4-10, propose-and-approve) ──────────
    Display-only diffar. Återanvänder granskningens .jp-criterion__quote/__note/__id
    och .jp-cvreview-skalet; egna klasser bara för diff-paret + provenance-foten. */
@@ -6879,8 +6110,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   flex-wrap: wrap;
   gap: 14px;
   margin: 0;
-  /* Hairline-fot i paritet med .jp-cv-cta — förankrar versions-bandet som fot
-     under kategorikorten snarare än löst hängande mono-text (CTO Q3). */
+  /* Hairline-fot — förankrar versions-bandet som fot under kategorikorten
+     snarare än löst hängande mono-text (CTO Q3). */
   padding-top: 8px;
   border-top: 1px solid var(--jp-border-soft);
   font-family: var(--jp-font-mono);

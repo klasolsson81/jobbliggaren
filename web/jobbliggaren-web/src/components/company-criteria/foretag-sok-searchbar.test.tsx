@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
+import { NextIntlClientProvider } from "next-intl";
 import userEvent from "@testing-library/user-event";
+import svPages from "../../../messages/sv/pages.json";
 import { ForetagSokSearchbar } from "./foretag-sok-searchbar";
 import { buildForetagSokHref } from "@/lib/company-search/search-params";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
@@ -405,6 +408,100 @@ describe("ForetagSokSearchbar — unified name/org.nr field", () => {
       /Sökningen kunde inte genomföras/i,
     );
     expect(push).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * ADR 0087 D8(c) — the CALL-SITE pin, not only the rule.
+ *
+ * `parseNamn`'s gate is unit-tested next door, but a rule test cannot see what the FORM hands the
+ * browser. This suite serialises the form exactly as a native GET would and asserts the URL it
+ * produces — which is the instrument that measured the defect in the first place: on HEAD before the
+ * fix, typing `1010101010` and reading `new FormData(form)` produced
+ * `/foretag/sok?namn=1010101010`. Without this, a later edit could restore `name="namn"` on the
+ * visible input and every other test in this file would stay green.
+ */
+describe("ForetagSokSearchbar — what a NATIVE GET would carry (D8(c) call-site pin)", () => {
+  function nativeGetHref(input: HTMLElement): string {
+    const form = input.closest("form");
+    if (form === null) throw new Error("the search input is not inside a form");
+    const params = new URLSearchParams();
+    for (const [key, value] of new FormData(form).entries()) {
+      params.append(key, String(value));
+    }
+    return `${form.getAttribute("action")}?${params.toString()}`;
+  }
+
+  it("never carries the TYPED value — a ten-digit draft cannot reach ?namn=", async () => {
+    renderBar();
+    const user = userEvent.setup();
+    const input = screen.getByLabelText("Företagsnamn eller organisationsnummer");
+
+    await user.type(input, PNR_SHAPED);
+
+    const href = nativeGetHref(input);
+    expect(href).not.toContain(PNR_SHAPED);
+    expect(href).not.toContain("namn=");
+  });
+
+  it("does not carry a typed ORDINARY name either — only what is already applied", async () => {
+    // The rule is not "gate the pnr class in the form"; it is "the form never carries the draft".
+    // A draft-carrying form would be one predicate away from leaking again.
+    renderBar();
+    const user = userEvent.setup();
+    const input = screen.getByLabelText("Företagsnamn eller organisationsnummer");
+
+    await user.type(input, "Volvo");
+
+    expect(nativeGetHref(input)).not.toContain("Volvo");
+  });
+
+  it("carries the APPLIED name (which has passed the server gate) via a hidden input", () => {
+    renderBar({ namn: "Volvo", kommun: ["0180"] });
+    const input = screen.getByLabelText("Företagsnamn eller organisationsnummer");
+
+    const href = nativeGetHref(input);
+    expect(href).toContain("namn=Volvo");
+    expect(href).toContain("kommun=0180");
+  });
+
+  it("strips the name attribute from the visible input once hydrated", () => {
+    renderBar({ namn: "Volvo" });
+    // The visible field still SHOWS the applied name; it just does not submit it.
+    const input = screen.getByLabelText("Företagsnamn eller organisationsnummer");
+    expect(input).toHaveValue("Volvo");
+    expect(input).not.toHaveAttribute("name");
+  });
+
+  /**
+   * The OTHER side of the hydration split, which `render()` can never reach: every RTL render is a
+   * client render, so `hydrated` is `true` in all of the tests above. Server-render the component
+   * instead, which is what `getServerSnapshot` (false) actually drives.
+   *
+   * Without this, replacing `name={hydrated ? undefined : "namn"}` with a bare `name={undefined}`
+   * leaves the whole suite green — and silently kills no-JS name search, because the field would
+   * submit nothing and every no-JS search would return the entire register.
+   */
+  it("KEEPS the name attribute before hydration, so a no-JS search still works", () => {
+    // The fixture carries an APPLIED name deliberately. With `namn=""` the second assertion would be
+    // vacuous — the hidden input is gated on `namn.length > 0`, so it is absent whatever `hydrated`
+    // says, and dropping the `hydrated &&` guard would leave the test green.
+    const html = renderToString(
+      <NextIntlClientProvider locale="sv" messages={{ pages: svPages }}>
+        <ForetagSokSearchbar
+          reference={REFERENCE}
+          referenceOk
+          namn="Volvo"
+          sni={[]}
+          kommun={[]}
+        />
+      </NextIntlClientProvider>,
+    );
+    // Exactly ONE `name="namn"` pre-hydration — the visible input. Counting rather than matching a
+    // literal attribute order: two would mean the visible input and the hidden applied-name input
+    // both submit, which is the state the hydration split exists to make impossible.
+    expect(html.match(/name="namn"/g) ?? []).toHaveLength(1);
+    expect(html).toContain('value="Volvo"');
   });
 });
 

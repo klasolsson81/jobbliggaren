@@ -17,8 +17,6 @@ import {
 import { mapActionError } from "./_action-error";
 import type { ActionResult } from "./_action-result";
 
-export type { ActionResult };
-
 /**
  * F4-12 PR-B (ADR 0076) — sparar användarens matchnings-önskemål
  * (yrkesgrupper + regioner + kommuner + anställningsformer) via

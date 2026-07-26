@@ -8,7 +8,10 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // scripts/ carries the CSS guard, which is a BLOCKING gate; its selector and
+    // comment helpers are unit-tested because a wrong answer there fails an
+    // innocent commit and tells the author to delete live CSS (#1056).
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{test,spec}.mjs"],
     exclude: ["node_modules", ".next"],
   },
   resolve: {

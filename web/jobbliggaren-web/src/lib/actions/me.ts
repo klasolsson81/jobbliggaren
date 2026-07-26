@@ -30,8 +30,6 @@ import {
 import { mapActionError } from "./_action-error";
 import type { ActionResult } from "./_action-result";
 
-export type { ActionResult };
-
 export async function updateMyProfileAction(
   input: UpdateMyProfileInput
 ): Promise<ActionResult> {

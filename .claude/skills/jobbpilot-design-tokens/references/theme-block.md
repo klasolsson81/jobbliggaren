@@ -37,10 +37,9 @@ names, not class sets.
 
 /* ── v3-kanon (ADR 0052) + G1 grön accent (ADR 0068) ───────── */
 :root {
-  /* Navy — utan konsument sedan ADR 0070 (kompassen pensionerad); städas F-städ */
-  --jp-navy-900:#08213F; --jp-navy-800:#0A2647; --jp-navy-700:#133F73;
-  --jp-navy-600:#1B5396; --jp-navy-500:#2E6CC2; --jp-navy-300:#7FA9DF;
-  --jp-navy-100:#D6E3F4; --jp-navy-50:#EAF1FA;
+  /* Navy — kvar som rubrikrollens bärare (--jp-heading-1/-2); de
+     konsumentlösa stegen togs bort i #1054 */
+  --jp-navy-800:#0A2647; --jp-navy-700:#133F73;
 
   /* Accent — mörkgrön (G1). 800/800-hover/900 dark-skiftas ALDRIG. */
   --jp-accent-900:#0B2A1E;
@@ -71,10 +70,8 @@ names, not class sets.
 
   /* Dekorativa accenter */
   --jp-leaf-600:#2C8A3F; --jp-leaf-50:#DFF3E5;
-  --jp-coral-600:#DA2A47; --jp-coral-50:#FCE4E9;
-  --jp-amber-500:#E89A1A; --jp-amber-50:#FBEBC8;
 
-  /* Hero (G1 "F4 Hybrid" — gradient ENBART hero/pagehero/empty-brand/land-hero) */
+  /* Hero (G1 "F4 Hybrid" — gradient ENBART hero/pagehero/land-hero) */
   --jp-hero-from:#0B2A1E; --jp-hero-mid:#14503A; --jp-hero-to:#1E6B4C;
   --jp-hero-gradient: linear-gradient(118deg, var(--jp-hero-from) 0%,
                       var(--jp-hero-mid) 60%, var(--jp-hero-to) 100%);
@@ -89,8 +86,8 @@ names, not class sets.
   /* Focus — följer accent-700 (#15603F light → #6EE7A8 dark automatiskt) */
   --jp-focus: var(--jp-accent-700);
 
-  /* Radius (ADR 0052: 6 rad/kort, 4 inputs, 8 modal, 12 ENDAST hero) */
-  --jp-r-sm:4px; --jp-r-md:6px; --jp-r-lg:8px; --jp-r-xl:12px;
+  /* Radius (ADR 0052: 6 rad/kort, 4 inputs, 8 modal) */
+  --jp-r-sm:4px; --jp-r-md:6px; --jp-r-lg:8px;
   --jp-r-pill:9999px;
 
   /* Typography — families from next/font (--font-sans/--font-mono) */
@@ -98,18 +95,10 @@ names, not class sets.
                   "Segoe UI", system-ui, sans-serif;
   --jp-font-mono: var(--font-mono), "SF Mono", Menlo, Consolas, monospace;
 
-  /* Density multiplier — set via [data-density] on <html> */
-  --jp-density:1;
-  --jp-row-h:     calc(36px * var(--jp-density));
-  --jp-section-y: calc(28px * var(--jp-density));
-  --jp-pad-x:     calc(28px * var(--jp-density));
-
   /* Shadows (v3 — undantag: popover/modal får skugga) */
   --jp-shadow-card:  0 1px 2px rgba(15,27,45,0.05), 0 1px 0 rgba(15,27,45,0.04);
   --jp-shadow-pop:   0 10px 30px rgba(8,23,48,0.16), 0 2px 6px rgba(8,23,48,0.08);
   --jp-shadow-modal: 0 30px 80px rgba(8,23,48,0.35);
-  --jp-shadow-sm: 0 1px 2px rgba(0,0,0,0.04);   /* v2-alias-nivå */
-  --jp-shadow-md: 0 2px 4px rgba(0,0,0,0.06);   /* v2-alias-nivå */
 
   /* ── v2-kompat-alias → v3-kanon (städas efter nollkonsumtion) ── */
   --jp-surface-primary:var(--jp-surface); --jp-surface-secondary:var(--jp-surface-2);
@@ -126,13 +115,8 @@ names, not class sets.
   --jp-brand-accent:#FFCD00;           /* kompass-prick — UTGÅR (ADR 0070) */
   /* status-alias: *-50 → *-bg; *-500/600/700 → bastoken (alla tre samma) */
   --jp-success-50:var(--jp-success-bg); --jp-success-600:var(--jp-success); /* … */
-  --jp-border-hairline:var(--jp-border-soft);
   --jp-border-modal:var(--jp-border); --jp-border-structural:var(--jp-border);
 }
-
-[data-density="compact"]  { --jp-density:0.85; }
-[data-density="standard"] { --jp-density:1;    }
-[data-density="luftig"]   { --jp-density:1.18; }
 
 /* ── Dark (mörk navy-grå canvas, ljusa input-fält) ──────────── */
 [data-theme="dark"] {
@@ -142,9 +126,8 @@ names, not class sets.
   --jp-ink-inverse:#0C1A2E;
   --jp-border:#44598A; --jp-border-soft:#2C3F65; --jp-border-strong:#6F86A8;
   --jp-border-input:#6F86A8;
-  /* Navy-ramp ljusare i dark (LOGO-ONLY; 800/900 ej skiftade) */
-  --jp-navy-700:#4F8AD0; --jp-navy-600:#6FA4E3; --jp-navy-500:#3D75B8;
-  --jp-navy-300:#2C5894; --jp-navy-100:#1F3866; --jp-navy-50:#1F3866;
+  /* Navy-ramp ljusare i dark (800/900 ej skiftade) */
+  --jp-navy-700:#4F8AD0;
   /* Accent i dark: #6EE7A8 ENDAST text/länk/fokus/border — ALDRIG fill.
      800/800-hover/900 skiftas EJ (knapp-kontraktet). */
   --jp-accent-700:#6EE7A8; --jp-accent-600:#A7F3D0; --jp-accent-500:#3E8E68;
@@ -155,15 +138,12 @@ names, not class sets.
   --jp-danger:#FB8989;  --jp-danger-bg:#3F1419;
   --jp-info:#8FBEEF;    --jp-info-bg:#1B3358;
   --jp-leaf-600:#5BCB7B; --jp-leaf-50:#143E29;
-  --jp-coral-600:#F47185; --jp-coral-50:#3A1722;
   /* --jp-focus omdefinieras EJ: var(--jp-accent-700) resolvar själv
      till #6EE7A8 via accent-skiftet. Hero-tokens omdefinieras EJ
      (gradienten är tema-stabil). */
   --jp-shadow-card:  0 1px 2px rgba(0,0,0,0.5), 0 1px 0 rgba(0,0,0,0.4);
   --jp-shadow-pop:   0 10px 30px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.4);
   --jp-shadow-modal: 0 30px 80px rgba(0,0,0,0.7);
-  --jp-shadow-sm: 0 1px 2px rgba(0,0,0,0.6);
-  --jp-shadow-md: 0 2px 4px rgba(0,0,0,0.7);
 }
 
 /* ── Tailwind @theme inline — semantic utilities via var() ──── */
@@ -226,7 +206,8 @@ a:hover { color: var(--jp-accent-600); }
 
 shadcn tokens map to `--jp-*` (via v2-aliasen), so light/dark follow
 automatically. Radii are clamped to the civic scale — `--radius-xl` cappas
-till `--jp-r-lg` (8px); 12px är ENDAST hero (ej shadcn-primitiv).
+till `--jp-r-lg` (8px). Det finns inget 12px-steg: hero-plattan är 6px sedan
+ADR 0068, och `--jp-r-xl` togs bort i #1054.
 
 ```css
 @theme inline {
@@ -238,7 +219,7 @@ till `--jp-r-lg` (8px); 12px är ENDAST hero (ej shadcn-primitiv).
   --radius-sm: var(--jp-r-sm);   /* 4px */
   --radius-md: var(--jp-r-md);   /* 6px */
   --radius-lg: var(--jp-r-lg);   /* 8px */
-  --radius-xl: var(--jp-r-lg);   /* cappad — 12px är ENDAST hero */
+  --radius-xl: var(--jp-r-lg);   /* cappad — inget 12px-steg finns */
   --radius-pill: var(--jp-r-pill);
 }
 
@@ -272,12 +253,12 @@ till `--jp-r-lg` (8px); 12px är ENDAST hero (ej shadcn-primitiv).
 
 ## Scoped overrides (längre ner i globals.css — medvetna undantag)
 
-- **Gradient-fokus-scope:** `.jp-hero__plate, .jp-pagehero, .jp-empty--brand,
+- **Gradient-fokus-scope:** `.jp-hero__plate, .jp-pagehero,
   .jp-land-hero { --jp-focus: #FFFFFF; }` — vit ring på gradient (grön syns
   inte mot grönt). `.jp-popover` återställer `var(--jp-accent-700)`.
-- **Tema-stabilitets-pins:** `.jp-pagehero, .jp-empty--brand` pinnar
+- **Tema-stabilitets-pins:** `.jp-pagehero` pinnar
   `--jp-accent-50/-100` till light-värdena (vit-knapp-hover på gradienten).
-- **Vit header i dark:** `[data-theme="dark"] .jp-header` (och `.jp-land-top`)
+- **Vit header i dark:** `[data-theme="dark"] .jp-header`
   pinnar om hela light-paletten scoped — inkl. light-accent `#15603F` och
   re-deklarerad `--jp-focus` (ärvs annars som färdigberäknat dark-värde).
 - **Ljusa input-fält i dark:** `#F0F4FB` bg + `#0C1A2E` text — `.jp-input`-

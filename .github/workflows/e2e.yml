@@ -149,13 +149,6 @@ jobs:
           echo "CompanyWatchPseudonymization__PepperBase64=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
           echo "CvReviewFingerprintPseudonymization__PepperBase64=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
 
-      - name: Generate throwaway JWT keys
-        run: |
-          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/jwt-private.pem
-          openssl rsa -in /tmp/jwt-private.pem -pubout -out /tmp/jwt-public.pem
-          echo "Jwt__PrivateKeyPath=/tmp/jwt-private.pem" >> "$GITHUB_ENV"
-          echo "Jwt__PublicKeyPath=/tmp/jwt-public.pem" >> "$GITHUB_ENV"
-
       - name: Restore + build backend (Api)
         run: |
           dotnet restore Jobbliggaren.sln

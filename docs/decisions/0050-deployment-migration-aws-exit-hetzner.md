@@ -448,6 +448,16 @@ in-block (CTO axel 6) men `.github/`-touch kräver egen Klas-GO + egen
 PR). `AWSSDK.KeyManagementService` BEHÅLLS (KMS referens-impl, ADR 0066-
 reversibilitet). `AWSSDK.SecretsManager` rensas när Migrate re-homas (TD-105).
 
+> **Truth-sync 2026-07-25 (#808):** `rds-ca-bundle-check.yml` är **raderad** (egen
+> `chore(ci)`-PR, BUILD.md §15). Den var inte passiv historik utan ett aktivt
+> månadsjobb (cron `0 3 1 * *`, `issues: write`) som kunde fila spöken i backloggen
+> om en riven RDS-instans. `deploy-dev.yml` **består** — den är passiv historik
+> (`workflow_dispatch`-only sedan 2026-06-28) och retireras i AWS-teardown-PR:en.
+> Klas-GO-kravet ovan för `.github/`-touch föregår det autonoma flödet (CLAUDE.md
+> §6, 2026-06-25) och gäller inte längre; kravet på **egen `chore(ci)`/
+> `chore(infra)`-commit** består och är uppfyllt. `infra/certs/rds-global-bundle.pem`
+> BEHÅLLS — tre Dockerfiles `COPY` den; ägare för borttagning är #196/TD-106.
+
 > **Truth-sync 2026-07-12 (#802):** ovanstående "`AWSSDK.KeyManagementService`
 > BEHÅLLS ... ADR 0066-reversibilitet" gäller **inte längre**. Klas bekräftade
 > "no AWS, ever" (2026-07-12) → `AWSSDK.KeyManagementService` + `AWSSDK.Core` +

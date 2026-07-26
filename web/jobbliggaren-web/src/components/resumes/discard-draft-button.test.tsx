@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DiscardDraftButton } from "./discard-draft-button";
-import type { ActionResult } from "@/lib/actions/resumes";
+import type { ActionResult } from "@/lib/actions/_action-result";
 
 /**
  * Fas 4b PR-8.3 — hubbens åtgärdskorts "Ta bort utkastet". Confirm-dialog-ö som

@@ -226,6 +226,33 @@ jobs:
       - name: Typecheck
         run: pnpm exec tsc --noEmit
 
+      # #1053: the production build is a BLOCKING check. Until now `pnpm build`
+      # ran only in `lighthouse` and `playwright e2e`, both `continue-on-error`,
+      # so a broken production build reported success, `ci` went green, and an
+      # `automerge` label landed it. Same defect class as #877 / #861 / #1048:
+      # an absent signal reads as success.
+      #
+      # It lives HERE, not in its own job, on purpose:
+      #   - `backend` already runs restore -> build -> test in ONE job. This job
+      #     is its analogue and was the only one missing the build; that
+      #     asymmetry IS the defect #1053 reported.
+      #   - a separate job would make a FIFTH copy of the pnpm/Node setup block
+      #     (frontend / lighthouse / audit / e2e already carry it), and drift
+      #     between those copies is silent.
+      #   - it costs nothing observable. Measured 2026-07-26 across six runs:
+      #     `coverage` is the critical path at ~913 s, this job ~275 s, and
+      #     `pnpm build` ~31 s cold (24-38 s, 7 observations). 275 -> 306 s
+      #     against 913 s leaves `ci` wall-clock unchanged.
+      # Placed BEFORE Vitest (~207 s) so a broken build reports red at ~75 s
+      # instead of ~285 s — mirroring `backend`'s build-before-test order.
+      #
+      # NOTE: this does NOT close the `next dev` class (#1059). Both jobs that
+      # build, build for PRODUCTION, and `pnpm build` was measurably green WITH
+      # that bug. That invariant is enforced by the `"use server"` export-shape
+      # rule in eslint.config.mjs, which rides the `Lint` step above.
+      - name: Build (production)
+        run: pnpm build
+
       - name: Test (Vitest)
         run: pnpm test
 

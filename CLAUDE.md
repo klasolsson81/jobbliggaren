@@ -155,11 +155,20 @@ signal available is a discipline miss.
   `ISpecification<T>` only when the same filter is used in 3+ places.
   `.AsNoTracking()` default for reads. `Include()` only when needed.
   Pagination via `.Skip().Take()` + separate count query.
-  **A bulk-load path ANALYZEs the table it loaded** when that table is written
-  by one periodic job and read-only between runs — in the job, once per
-  completed run, never per batch (a table under continuous DML self-heals via
-  autovacuum and is out of scope). Why: `ScbCompanyRegisterStore.AnalyzeAsync`
-  (#560).
+  **A bulk-load path ANALYZEs the table it loaded** — in the job, once per
+  completed run, never per batch — when that table is written by one periodic
+  job or startup seeder, is read-only between runs, **and** has some column
+  reaching a `WHERE`, join, `ORDER BY`, `GROUP BY` or `DISTINCT`. Those are the
+  clauses whose estimates statistics inform; where no column reaches one, no
+  *column* statistic can change the plan (verified 2026-07-25: the only **`src`**
+  readers of `taxonomy_concepts`/`taxonomy_relations` are two predicate-free
+  `ToListAsync` calls in `TaxonomyReadModel.LoadAsync`). Continuous DML excuses
+  the table only where autovacuum **demonstrably** re-arms — check
+  `last_autoanalyze`, never assume: `company_register` held zero statistics at a
+  million rows. Place the call where its failure is survivable: fail-loud in a
+  retry-bounded job, typed-catch-and-log at host startup (a typed catch that
+  logs is not the §5 catch-all ban). Why:
+  `ScbCompanyRegisterStore.AnalyzeAsync` (#560).
 
 ## 4. TypeScript / Next.js standards
 
@@ -423,12 +432,30 @@ doubt, in-block wins (quality > tempo) and senior-cto-advisor decides.
   (ESLint, no `--fix`) + `pnpm tsc --noEmit`. No Prettier; `json`/`md`/`yaml`
   not auto-formatted.
 - `.editorconfig` + committed `.vscode/` settings/extensions.
-- Dev env: Docker Compose (`postgres`, `redis`, `seq`) — logging is console
-  via MEL; no Serilog/Seq sink wired yet (full observability = TD-104,
-  Hetzner phase). Everything runs locally (AWS retired, ADR 0066):
-  `ConsoleEmailSender` for mail, `LocalDataKeyProvider` (AES-256-GCM) for
-  field encryption. Frontend `.env.local`; backend
+- Dev env: Docker Compose (`postgres`, `redis`, `seq`) — MEL logs to console
+  **and to Seq**: `AddJobbliggarenLogging` (shared by Api + Worker) attaches the
+  Seq provider **only when `Seq:ServerUrl` is set**; the Hetzner residual is the
+  *production* Seq, not the wiring. Everything runs locally (AWS retired,
+  ADR 0066): `LocalDataKeyProvider`
+  (AES-256-GCM) for field encryption, and mail via `AddEmailSender`'s
+  `Email:Provider` switch — **three** `IEmailSender` impls, not one:
+  `ConsoleEmailSender` (Development/Test **only**; it logs the recipient address
+  and the whole body, confirmation and activation links included — the gate is
+  real recipients, not sink durability, since dev's Seq does persist that line
+  and is accepted only as a loopback holding no real-user PII),
+  `NullEmailSender` (what `Provider=Console` falls back to outside Dev/Test),
+  and `ResendEmailSender` (`Provider=Resend`, fail-loud without
+  `Email:ApiKey`). Frontend `.env.local`; backend
   `appsettings.Development.json` + gitignored `appsettings.Local.json`.
+- `AlbOptions`/`Alb:HttpsEnabled` is **live despite its AWS name** — it co-gates
+  `UseHsts` and `UseHttpsRedirection` with the environment in `Api/Program.cs`,
+  and gates the fail-loud HSTS config validation. `UseHttpsRedirectionGateTests`
+  pins both middleware gates in both polarities; the validation gate itself is
+  unpinned. ADR 0066 destroyed the *deployed* AWS dev stack and deliberately
+  **preserved** `infra/terraform/`, which still carries
+  the `Alb__HttpsEnabled` injection — so neither the flag nor the tree is
+  residue. Retirement is a Hetzner-cutover ADR, never a cleanup sweep
+  (BUILD.md §15); TD-106 owns the rename to `ReverseProxyOptions`.
 - **Dev-boot config contract.** A new fail-fast option (a `ValidateOnStart` secret,
   usually in the Infrastructure DI both hosts share) that a fresh dev-stack boot needs —
   a required key, secret, or pepper the API/Worker refuses to start without — MUST be added to

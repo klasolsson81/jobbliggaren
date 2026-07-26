@@ -16,7 +16,8 @@ import "./globals.css";
 // (mono) stat numbers (.jp-land-top__stat__num, live). Mono has NO 800 consumer,
 // so it is not loaded.
 // #1053 AC 2 counterfactual — reverted in the next commit.
-import "@/lib/__build-counterfactual";
+import { BuildCounterfactual } from "@/components/__build-counterfactual";
+void BuildCounterfactual;
 
 const sourceSans3 = Source_Sans_3({
   subsets: ["latin"],

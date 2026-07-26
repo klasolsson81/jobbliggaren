@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
 import userEvent from "@testing-library/user-event";
@@ -532,5 +532,114 @@ describe("ForetagSokSearchbar — degraded reference", () => {
       buildForetagSokHref({ namn: "Acme", sni: [], kommun: [] }),
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The live-review fixes (Klas, 2026-07-25). Each of these was a measured complaint about the shipped
+ * S2 surface, not a hypothetical — the design framing is
+ * `docs/reviews/2026-07-25-foretag-sok-followup-design.md`.
+ */
+describe("ForetagSokSearchbar — the live-review fixes", () => {
+  it("CLEARS the whole search and NAVIGATES, not just the draft filter (finding 6)", async () => {
+    renderBar({ namn: "Volvo", kommun: ["0180"] });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Rensa sökningen" }));
+
+    // It navigates: the old version nulled two draft fields and left the applied URL filter in
+    // place, so the results below kept answering a search the controls no longer showed.
+    expect(push).toHaveBeenCalledWith(
+      buildForetagSokHref({ namn: "", sni: [], kommun: [] }),
+    );
+    // ...and the name field is cleared too, which it never was.
+    expect(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+    ).toHaveValue("");
+  });
+
+  it("offers the clear control for a PURE NAME search, which had no clear path at all", () => {
+    // The old gate was `hasFilter` (bransch or ort), so the most common search — a name — could not
+    // be cleared. That is the whole of finding 6.
+    renderBar({ namn: "Volvo" });
+    expect(
+      screen.getByRole("button", { name: "Rensa sökningen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the clear control when there is genuinely nothing to clear", () => {
+    renderBar();
+    expect(
+      screen.queryByRole("button", { name: "Rensa sökningen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the org.nr answer through the shared register table (finding 5)", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(orgNrResponse({ company: FOUND_COMPANY, companyWatchId: null }));
+    renderBar();
+    const user = userEvent.setup();
+
+    await user.type(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+      VALID_ORGNR,
+    );
+    await user.click(screen.getByRole("button", { name: "Sök företag" }));
+
+    // A real table with the register's own columns — not a hand-rolled card that can drift from it.
+    const table = await screen.findByRole("table", {
+      name: "Företag som matchar organisationsnumret",
+    });
+    expect(table).toBeInTheDocument();
+    expect(within(table).getByText("Volvo AB")).toBeInTheDocument();
+    // The seat renders WITHOUT the SCB code (finding 7) — it used to read "Göteborg (1480)".
+    expect(within(table).queryByText(/\(1480\)/)).not.toBeInTheDocument();
+  });
+
+  it("groups the narrowing controls under their own labelled section (finding 4)", () => {
+    renderBar();
+    // The two interaction models differ — the name SUBMITS, these narrow — so the difference is
+    // drawn as a group rather than explained in more hint prose (which finding 9 asked to reduce).
+    expect(screen.getByRole("group", { name: "Avgränsa" })).toBeInTheDocument();
+  });
+
+  it("drops the ort hint, whose trigger already says the same thing (finding 9)", () => {
+    renderBar();
+    expect(
+      screen.queryByText("Välj ett eller flera län eller kommuner."),
+    ).not.toBeInTheDocument();
+    // The bransch hint STAYS while the control is still a typeahead — it goes with PR 5.
+    expect(screen.getByText("Skriv och välj en bransch.")).toBeInTheDocument();
+  });
+});
+
+/**
+ * Finding 2 — the pending line. Measured by Klas: submit → painted results was 2 403 ms with NO
+ * visible pending state, because the navigation resolves in ~190 ms while the view keeps the old
+ * rows. The delay itself is driven by `useTransition`'s `isNavPending`, which a mocked router never
+ * enters — so what is pinned here is the structural property that makes the line work at all.
+ */
+describe("ForetagSokSearchbar — the pending line", () => {
+  it("mounts its live region UNCONDITIONALLY, empty, so the announcement is reliable", () => {
+    renderBar();
+    // A live region injected together with its content is not reliably announced — the trap is
+    // documented in jobb-hero-search.tsx. The region must already be in the DOM, empty, before the
+    // text is swapped in.
+    const region = screen.getByRole("status");
+    expect(region).toBeInTheDocument();
+    expect(region).toBeEmptyDOMElement();
+    expect(region).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("reserves the row's height so nothing below shifts when the text appears", () => {
+    renderBar();
+    const slot = screen.getByRole("status").parentElement;
+    expect(slot).toHaveClass("min-h-6");
+  });
+
+  it("uses no spinner — the doctrine reserves BrandSpinner for formless waits", () => {
+    const { container } = renderBar();
+    expect(container.querySelector(".jp-spinner, .jp-brandspinner")).toBeNull();
   });
 });

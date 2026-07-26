@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useId,
   useMemo,
   useRef,
@@ -20,13 +21,12 @@ import {
   type OrgNrSearchResult,
 } from "@/lib/dto/company-search";
 import { buildForetagSokHref } from "@/lib/company-search/search-params";
-import { formatOrgNr } from "@/lib/company-follows/org-nr";
-import { CompanyFollowButton } from "@/components/company-follows/company-follow-button";
 import {
   JobbFilterPopover,
   type PopoverGroup,
 } from "@/components/job-ads/jobb-filter-popover";
 import { BranschTypeahead, type BranschOption } from "./bransch-typeahead";
+import { CompanyBrowseList } from "./company-browse-list";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
 
 /**
@@ -63,10 +63,29 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
  * closed on the SERVER, by `parseNamn`'s org.nr gate + the wash redirect in `page.tsx` — the only
  * layer all three client states (JS off, pre-hydration, hand-typed URL) pass through. CTO bind:
  * `docs/reviews/2026-07-26-foretag-sok-pr4-nojs-pnr-cto.md`.
+ *
+ * Follow-up round (2026-07-26) — the live-review fixes, per
+ * `docs/reviews/2026-07-25-foretag-sok-followup-design.md`:
+ * - the search hint moved OUT of the form row (`items-end` was bottom-aligning the button against the
+ *   hint, not the input), and the button now matches the field's 48px so the row reads as one control;
+ * - the bransch/ort controls sit in a hairline-separated `role="group"` — the two interaction models
+ *   (name SUBMITS, filters narrow) are drawn rather than explained in more prose;
+ * - the org.nr answer renders through `CompanyBrowseList` instead of a hand-rolled card, so the two
+ *   surfaces cannot drift in columns, masking or Bevaka affordance;
+ * - "Rensa sökningen" NAVIGATES and clears the name too — it previously nulled two draft fields and
+ *   was hidden behind `hasFilter`, so a pure name search had no clear path at all;
+ * - a delayed, height-reserved pending line (measured: submit → painted results was 2 403 ms with no
+ *   visible pending state, because the URL resolves in ~190 ms while the view keeps the old rows).
  */
 
 /** `useSyncExternalStore` with a never-firing subscription: the cheapest "am I hydrated" signal. */
 const emptySubscribe = () => () => {};
+
+/**
+ * Delay before the pending line appears. Below this a search is perceived as instant, and a line that
+ * flashes for 80 ms is noise; above it the view is silently stale, which is what Klas measured.
+ */
+const PENDING_DELAY_MS = 250;
 
 type OrgNrState =
   | { kind: "idle" }
@@ -176,7 +195,7 @@ export function ForetagSokSearchbar({
   const branschInputId = useId();
   const branschHintId = useId();
   const branschNoticeId = useId();
-  const ortHintId = useId();
+  const filterGroupId = useId();
   const orgNrLabelId = useId();
 
   const abortRef = useRef<AbortController | null>(null);
@@ -225,6 +244,31 @@ export function ForetagSokSearchbar({
       !sameCodeSet(orter, appliedKommun));
 
   const hasFilter = branch !== null || orter.length > 0;
+  const hasOrgNrResult = state.kind !== "idle";
+  // The clear control's gate is the WHOLE search, not just the filter axes: gated on `hasFilter` alone
+  // (as it was), a pure name search — the most common one — had no clear path at all (finding 6).
+  const showClear =
+    hasFilter || hasOrgNrResult || value.trim().length > 0 || namn.length > 0;
+
+  /**
+   * The pending line is DELAYED, not immediate: a soft navigation resolves in ~190 ms, so an
+   * undelayed line would flash on every fast search. `isNavPending` is the only available signal —
+   * the Suspense fallback (the skeleton) renders on a HARD load only, so "the skeleton appears"
+   * is not the indication (design-review V3).
+   */
+  const [showPending, setShowPending] = useState(false);
+  useEffect(() => {
+    // Early-return rather than resetting here: a synchronous setState in an effect body triggers
+    // cascading renders (and the lint rule that lands it). The reset belongs in cleanup, which runs
+    // when the navigation settles — so the line clears itself and the next search starts delayed
+    // again rather than flashing on instantly.
+    if (!isNavPending) return;
+    const timer = window.setTimeout(() => setShowPending(true), PENDING_DELAY_MS);
+    return () => {
+      window.clearTimeout(timer);
+      setShowPending(false);
+    };
+  }, [isNavPending]);
 
   async function onOrgNrSubmit(orgNr: string) {
     // Refuse a personnummer-shaped value LOCALLY, before any transmission (it never leaves the browser —
@@ -296,47 +340,65 @@ export function ForetagSokSearchbar({
     });
   }
 
-  const hasOrgNrResult = state.kind !== "idle";
+  /**
+   * ONE clear control for the WHOLE search (finding 6). It must NAVIGATE, not merely null the draft:
+   * the old version left the applied URL filter in place, so the results below kept answering a search
+   * the controls no longer showed. It also drops a standing org.nr answer and aborts an in-flight
+   * lookup — otherwise a stale org.nr row survives over a cleared page.
+   */
+  function onClearSearch() {
+    abortRef.current?.abort();
+    setValue("");
+    setBranch(null);
+    setOrter([]);
+    setState({ kind: "idle" });
+    startNavTransition(() => {
+      router.push(buildForetagSokHref({ namn: "", sni: [], kommun: [] }));
+    });
+  }
 
   return (
     <div className="mt-2 flex max-w-2xl flex-col gap-5">
       {/* Row 1 — the unified name/org.nr field + the ONE submit. No-JS fallback: a native GET to
           /foretag/sok as a NAME search (?namn=…), with the APPLIED sni/kommun preserved via hidden
           inputs. With JS, onSubmit intercepts and reads the whole draft from state. */}
-      <form
-        action="/foretag/sok"
-        method="get"
-        onSubmit={onSubmit}
-        className="flex items-end gap-2"
-      >
-        <div className="jp-field grow">
+      <form action="/foretag/sok" method="get" onSubmit={onSubmit}>
+        <div className="jp-field">
           <label htmlFor={searchInputId} className="jp-label">
             {t("searchLabel")}
           </label>
-          <input
-            id={searchInputId}
-            // NAMELESS once hydrated: a native GET must never carry whatever is currently typed —
-            // the hidden input below carries the already-applied name instead. Before hydration it
-            // keeps the name so a no-JS submit still works.
-            name={hydrated ? undefined : "namn"}
-            className="jp-input"
-            type="text"
-            autoComplete="off"
-            aria-describedby={searchHintId}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-          />
+          {/* The hint lives BELOW the row, not inside the field column: `.jp-field` is a column of
+              label → input → hint, so an `items-end` row bottom-aligned the button against the HINT's
+              baseline rather than the input's (finding 1). The button is sized to the field's 48px so
+              the pair reads as one control; `aria-describedby` is position-independent and follows. */}
+          <div className="flex gap-2">
+            <input
+              id={searchInputId}
+              // NAMELESS once hydrated: a native GET must never carry whatever is currently typed —
+              // the hidden input below carries the already-applied name instead. Before hydration it
+              // keeps the name so a no-JS submit still works. Do NOT hardcode `name="namn"` here:
+              // that is the exact leak #1078 closed, and `foretag-sok-searchbar.test.tsx`'s
+              // call-site pin goes red on it.
+              name={hydrated ? undefined : "namn"}
+              className="jp-input grow"
+              type="text"
+              autoComplete="off"
+              aria-describedby={searchHintId}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+            />
+            <button
+              type="submit"
+              className="jp-btn jp-btn--primary h-12 shrink-0"
+              aria-busy={state.kind === "pending" || isNavPending || undefined}
+            >
+              {t("searchSubmit")}
+            </button>
+          </div>
           <span id={searchHintId} className="jp-hint">
             {t("searchHint")}
           </span>
         </div>
-        <button
-          type="submit"
-          className="jp-btn jp-btn--primary"
-          aria-busy={state.kind === "pending" || isNavPending || undefined}
-        >
-          {t("searchSubmit")}
-        </button>
 
         {/* Post-hydration: the APPLIED name rides a hidden input, so a native GET (an onSubmit that
             failed to run) re-submits what the server already accepted — never the current draft.
@@ -355,60 +417,74 @@ export function ForetagSokSearchbar({
         ))}
       </form>
 
-      {/* Row 2 — bransch (single-select typeahead) + ort (multi-select cascade popover), side by side.
+      {/* Row 2 — bransch (single-select typeahead) + ort (multi-select cascade popover), side by side,
+          behind a hairline and a caption. The two interaction models on this surface differ — the name
+          is SUBMITTED, these narrow an ongoing browse — and after the live review the fix was to DRAW
+          that difference (a group with its own caption) rather than explain it in more hint prose,
+          which was the opposite finding (9). `role="group"` + `aria-labelledby` against the visible
+          caption; deliberately NOT a third <h2>, which would be heading noise for two controls.
           Deliberately OUTSIDE the <form>: these are JS-only draft controls with no submitted name, and
           keeping them out of the form means a keystroke in them can never trigger a native GET. */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="jp-field">
-          <label htmlFor={branschInputId} className="jp-label">
-            {t("branschLabel")}
-          </label>
-          <BranschTypeahead
-            id={branschInputId}
-            options={branschOptions}
-            onSelect={(option) =>
-              setBranch({ label: option.label, leafCodes: option.leafCodes })
-            }
-            disabled={!referenceOk}
-            ariaDescribedBy={
-              referenceOk ? branschHintId : `${branschHintId} ${branschNoticeId}`
-            }
-          />
-          <span id={branschHintId} className="jp-hint">
-            {t("branschHint")}
-          </span>
-          {!referenceOk && (
-            <p
-              id={branschNoticeId}
-              role="status"
-              className="text-body-sm text-text-primary"
-            >
-              {t("branschUnavailable")}
-            </p>
-          )}
-        </div>
+      <div
+        role="group"
+        aria-labelledby={filterGroupId}
+        className="border-t border-border pt-5"
+      >
+        <span id={filterGroupId} className="jp-label">
+          {t("filterGroupLabel")}
+        </span>
+        <div className="mt-3 grid gap-4 md:grid-cols-2">
+          <div className="jp-field">
+            <label htmlFor={branschInputId} className="jp-label">
+              {t("branschLabel")}
+            </label>
+            <BranschTypeahead
+              id={branschInputId}
+              options={branschOptions}
+              onSelect={(option) =>
+                setBranch({ label: option.label, leafCodes: option.leafCodes })
+              }
+              disabled={!referenceOk}
+              ariaDescribedBy={
+                referenceOk ? branschHintId : `${branschHintId} ${branschNoticeId}`
+              }
+            />
+            {/* Kept for now — unlike `ortHint`, this one is still load-bearing: the control is a
+                typeahead whose affordance is not self-evident. It goes when PR 5 replaces the
+                typeahead with a self-naming "Välj bransch"-trigger (#999). */}
+            <span id={branschHintId} className="jp-hint">
+              {t("branschHint")}
+            </span>
+            {!referenceOk && (
+              <p
+                id={branschNoticeId}
+                role="status"
+                className="text-body-sm text-text-primary"
+              >
+                {t("branschUnavailable")}
+              </p>
+            )}
+          </div>
 
-        <div className="jp-field">
-          {/* The trigger is a <button>; buttons are labelable, so a <label htmlFor> would make the
-              label text the button's ACCESSIBLE NAME and override its visible text ("Välj ort eller län")
-              — a WCAG 2.5.3 label-in-name break. The field heading is therefore a plain span; the button
-              is self-named by its own text, and the hint rides aria-describedby. */}
-          <span className="jp-label">{t("ortLabel")}</span>
-          <button
-            ref={ortBtnRef}
-            type="button"
-            className="jp-input flex cursor-pointer items-center justify-between gap-2 text-left"
-            aria-haspopup="dialog"
-            aria-expanded={ortOpen}
-            aria-describedby={ortHintId}
-            onClick={() => setOrtOpen((o) => !o)}
-          >
-            {t("ortTrigger")}
-            <ChevronDown size={16} aria-hidden="true" />
-          </button>
-          <span id={ortHintId} className="jp-hint">
-            {t("ortHint")}
-          </span>
+          <div className="jp-field">
+            {/* The trigger is a <button>; buttons are labelable, so a <label htmlFor> would make the
+                label text the button's ACCESSIBLE NAME and override its visible text ("Välj ort eller län")
+                — a WCAG 2.5.3 label-in-name break. The field heading is therefore a plain span; the button
+                is self-named by its own text. The former `ortHint` ("Välj ett eller flera län eller
+                kommuner") is GONE: the trigger already says it, so it was prose paying no rent (9). */}
+            <span className="jp-label">{t("ortLabel")}</span>
+            <button
+              ref={ortBtnRef}
+              type="button"
+              className="jp-input flex cursor-pointer items-center justify-between gap-2 text-left"
+              aria-haspopup="dialog"
+              aria-expanded={ortOpen}
+              onClick={() => setOrtOpen((o) => !o)}
+            >
+              {t("ortTrigger")}
+              <ChevronDown size={16} aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -434,58 +510,58 @@ export function ForetagSokSearchbar({
         counts={null}
       />
 
-      {/* Row 3 — the DRAFT chips (bransch + orter) + Rensa filter. Editing a chip or clearing edits the
-          draft only; the filter is applied on the next "Sök företag". */}
-      {hasFilter && (
+      {/* Row 3 — the DRAFT chips (bransch + orter) + the ONE clear control. Editing a chip edits the
+          draft only; the filter is applied on the next "Sök företag". The clear control is NOT gated on
+          there being chips — see `showClear`. */}
+      {showClear && (
         <div className="flex flex-wrap items-center gap-3">
-          <ul className="jp-chiplist">
-            {branch && (
-              <li>
-                <span className="jp-chip jp-chip--removable">
-                  <span className="jp-chip__label" title={branch.label}>
-                    {branch.label}
-                  </span>
-                  <button
-                    type="button"
-                    className="jp-chip__remove"
-                    aria-label={t("branschRemove")}
-                    onClick={() => setBranch(null)}
-                  >
-                    <X size={14} aria-hidden="true" />
-                  </button>
-                </span>
-              </li>
-            )}
-            {orter.map((code) => {
-              const name = kommunNameByCode.get(code) ?? code;
-              return (
-                <li key={code}>
+          {hasFilter && (
+            <ul className="jp-chiplist">
+              {branch && (
+                <li>
                   <span className="jp-chip jp-chip--removable">
-                    <span className="jp-chip__label" title={name}>
-                      {name}
+                    <span className="jp-chip__label" title={branch.label}>
+                      {branch.label}
                     </span>
                     <button
                       type="button"
                       className="jp-chip__remove"
-                      aria-label={t("ortRemove", { namn: name })}
-                      onClick={() =>
-                        setOrter((prev) => prev.filter((c) => c !== code))
-                      }
+                      aria-label={t("branschRemove")}
+                      onClick={() => setBranch(null)}
                     >
                       <X size={14} aria-hidden="true" />
                     </button>
                   </span>
                 </li>
-              );
-            })}
-          </ul>
+              )}
+              {orter.map((code) => {
+                const name = kommunNameByCode.get(code) ?? code;
+                return (
+                  <li key={code}>
+                    <span className="jp-chip jp-chip--removable">
+                      <span className="jp-chip__label" title={name}>
+                        {name}
+                      </span>
+                      <button
+                        type="button"
+                        className="jp-chip__remove"
+                        aria-label={t("ortRemove", { namn: name })}
+                        onClick={() =>
+                          setOrter((prev) => prev.filter((c) => c !== code))
+                        }
+                      >
+                        <X size={14} aria-hidden="true" />
+                      </button>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
           <button
             type="button"
             className="jp-btn jp-btn--ghost"
-            onClick={() => {
-              setBranch(null);
-              setOrter([]);
-            }}
+            onClick={onClearSearch}
           >
             {t("clearButton")}
           </button>
@@ -501,7 +577,7 @@ export function ForetagSokSearchbar({
       )}
 
       {/* The org.nr answer (transient client state): programmatic focus after a submit + a polite live
-          region so the found card is announced. Kept visually SEPARATED from the streamed filter results
+          region so the found row is announced. Kept visually SEPARATED from the streamed filter results
           below (a top rule + its own labelled section) so the two never read as one fused result set. A
           nested role=alert on error/rateLimited overrides the politeness. */}
       <section
@@ -524,52 +600,28 @@ export function ForetagSokSearchbar({
           </h2>
         )}
 
+        {/* The org.nr hit renders through the SAME table as the streamed results (finding 5). The old
+            hand-rolled card re-implemented the identical knowledge — name, mono org.nr, protected-identity
+            badge, seat kommun, Bevaka — as a second rendering that could drift from the first, and it
+            carried the SCB kommun code the live review flagged (7). `followStateByOrgNr` is always a Map
+            (possibly empty) so the Bevaka column renders here too; a masked row is correctly
+            non-followable, exactly as in the list. */}
         {state.kind === "found" && (
-          <article className="rounded-md border border-border px-6 py-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h3 className="text-h4 font-semibold text-text-primary">
-                  {state.result.company.name}
-                </h3>
-                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-body-sm text-text-primary">
-                  {/* org.nr renders only for an unmasked legal entity (D8(c)); a refused pnr-shaped
-                      value never reaches here, so this is defense-in-depth. */}
-                  {state.result.company.isProtectedIdentity ? (
-                    <span className="inline-flex items-center gap-1 text-warning-700">
-                      <ShieldAlert size={13} aria-hidden="true" />
-                      {t("orgNrProtected")}
-                    </span>
-                  ) : (
-                    state.result.company.organizationNumber && (
-                      <span className="font-mono">
-                        {t("orgNrCardOrgNr", {
-                          orgNr: formatOrgNr(state.result.company.organizationNumber),
-                        })}
-                      </span>
-                    )
-                  )}
-                  <span>
-                    {state.result.company.seatMunicipalityName ??
-                      state.result.company.seatMunicipalityCode}{" "}
-                    <span className="font-mono text-text-secondary">
-                      ({state.result.company.seatMunicipalityCode})
-                    </span>
-                  </span>
-                </div>
-              </div>
-
-              {/* Bevaka — only an unmasked legal entity carries the org.nr follow key (D8(c)). Reuses the
-                  same per-row toggle the streamed results use (#997 caveat: follow-via-org.nr preserved). */}
-              {state.result.company.organizationNumber &&
-                !state.result.company.isProtectedIdentity && (
-                  <CompanyFollowButton
-                    orgNr={state.result.company.organizationNumber}
-                    companyName={state.result.company.name}
-                    initialCompanyWatchId={state.result.companyWatchId}
-                  />
-                )}
-            </div>
-          </article>
+          <CompanyBrowseList
+            items={[state.result.company]}
+            reference={reference}
+            followStateByOrgNr={
+              new Map(
+                state.result.company.organizationNumber
+                  ? [[state.result.company.organizationNumber, state.result.companyWatchId]]
+                  : [],
+              )
+            }
+            labels={{
+              tableAria: t("orgNrTableAria"),
+              tableCaption: t("orgNrTableCaption"),
+            }}
+          />
         )}
 
         {state.kind === "notFound" && (
@@ -614,6 +666,20 @@ export function ForetagSokSearchbar({
           </div>
         )}
       </section>
+
+      {/* Finding 2 — the pending line, immediately above the streamed results. Measured: submit →
+          painted results 2 403 ms with NO visible pending state, because the navigation resolves in
+          ~190 ms while the view keeps the old rows.
+          Deliberate form (design-review V3): no spinner (the doctrine reserves BrandSpinner for
+          formless waits and forbids it where the wait is short), no opacity dimming of the stale list
+          (dimmed body text falls below 4.5:1, and stale is not disabled), and the region is mounted
+          UNCONDITIONALLY with the text swapped in — a live region injected together with its content
+          is not reliably announced. The slot reserves its own height so nothing below shifts. */}
+      <div className="min-h-6">
+        <p role="status" aria-live="polite" className="text-body-sm text-text-primary">
+          {showPending ? t("loadingResults") : ""}
+        </p>
+      </div>
     </div>
   );
 }

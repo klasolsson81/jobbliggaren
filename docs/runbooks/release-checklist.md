@@ -89,9 +89,18 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > Gäller ENDAST en release som aktiverar `Email:Provider=Resend` i non-dev.
 > Tills dess kör `NullEmailSender` — ingen
 > e-post skickas, och denna grind är inte relevant. Resend är en **US-processor**
-> → mottagar-adress + opt-in-faktum är en tredjelandsöverföring. **Alla fyra
+> → mottagar-adress **+ meddelandets innehåll** är en tredjelandsöverföring (för notiserna
+> **avslöjar** leveransen dessutom opt-in-faktumet; flaggan själv stannar i vår DB och
+> överförs aldrig). Ett kontolivscykel-mejl har inget opt-in — men adressen och innehållet
+> når providern lika fullt. **Alla fyra
 > punkter MÅSTE vara gröna innan `Email:Provider` flippas** (ADR 0080
 > prod-flip-checklista). CC får ALDRIG flippa providern eller signera DPA:t.
+>
+> **"Grön" = varje led i punkten bär fetstilt KLAR — inte att rutan är bockad.** Rutorna i
+> hela den här filen är obockade (35 av 35) och bockas av den som **utför** releasen; statusen
+> bärs av **KLAR**-markeringarna. Punkt 1 har fem led som var för sig kan vara KLAR eller KVAR,
+> så punkten är grön först när alla fem är det. Läs aldrig en obockad ruta som "inte levererat",
+> och bocka aldrig en ruta för att en förutsättning är levererad.
 >
 > **Grinden gäller ALL utgående e-post, inte bara bakgrundsmatchnings-notiserna**
 > (widening 2026-07-26, #186). `Email:Provider` är EN switch, och `EmailTemplates`
@@ -106,26 +115,30 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > tvingar inte i sig flippen: `AuthOptions.RequireEmailConfirmation` defaultar
 > **false** och sätts `true` bara i `appsettings.Development.json`.)
 
-- [ ] **1. Tredjelands-grund** — fyra led, per behandling-status (ägare: **#183**):
+- [ ] **1. Tredjelands-grund** — **fem** led, per behandling-status (ägare: **#183**):
       - signerad **DPA** med Resend på fil — **KVAR** (Klas, aldrig CC);
       - dokumenterad **Kap. V-grund** — **KVAR**, och disjunktionen "SCC **eller**
         adekvans/DPF" måste upplösas till **en** grund före första överföringen;
       - Resend-posten i `docs/runbooks/gdpr-processing-register.md` (ROPA, lokal) —
-        **KLAR** (PR #213). Registret speglar, det grindar inte (#1040);
+        **KLAR för notis-vägen** (PR #213), **KVAR för kontolivscykel-mallarna** (se `Källa:`
+        nedan). Registret speglar och grindar inte (#1040) — men sign-off-ledet nedan kan
+        inte ges utan en behandling att signera mot;
       - **integritetspolicy-post som namnger Resend** — **KLAR** (#186 / PR #1083).
         Denna halva stod tidigare inte i punkten alls: transkriberingen ur ADR 0080
         punkt 1 tappade den och behöll bara ROPA-halvan;
       - **security-auditor-sign-off på prod-e-post-konfigen** — **KVAR**. `tech-debt.md`
         TD-116:s sign-off är PR-4:s, inte prod-konfigens; bocka aldrig punkten på den.
 
-      **Kvarstående policy-residualer under denna punkt, inte under punkt 3:**
+      **Kvarstående policy-residualer under denna punkt, inte under punkt 3.**
+      **ORDNINGEN STÅR FÖRST, för att den styr posterna under sig:** upplös
+      SCC/adekvans-disjunktionen **före** du skriver Art. 13(1)(f)-formuleringen —
+      kopia-formuleringen hänger på Art. 46/47-grunden, så tvärtom påstår du en SCC-grund
+      som kanske inte används. Alltså **(iii) → (ii)**, och (i) när avtalet signeras.
       (i) flytta Resend in i `Mottagare`-listan när biträdesavtalet är signerat —
       prosaformen är vald just för att listrubriken påstår ett tecknat avtal, och det
       förbudet **upphör med signeringen**; (ii) **Art. 13(1)(f)** — "means to obtain a
       copy" av skyddsåtgärderna saknas i policyn; (iii) upplös SCC/adekvans-
-      disjunktionen. **Ordning: (iii) före (ii)** — Art. 13(1)(f):s kopia-formulering
-      hänger på Art. 46/47-grunden, så skriver du (ii) först påstår du en SCC-grund som
-      kanske inte används.
+      disjunktionen.
 - [ ] **2. TD-115** — legacy opt-OUT-default sanerad (#185 / PR #211 — **KLAR**).
 - [ ] **3. TD-116** — consent-/disclosure-copy avslöjar e-postleverans för
       användaren (**#185 / PR #182 — KLAR**). ADR 0080 punkt 3 skopar posten till
@@ -134,6 +147,11 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       **Rättelse 2026-07-26:** #186 bockades först här. Fel punkt — #186:s
       integritetspolicy-post är **punkt 1:s** fjärde led (se ovan), och PR #182:s egen
       security-auditor rutade uttryckligen resten dit. Utfallet var rätt, skälet fel.
+      **Divergens att inte tillskriva CTO:n:** dess bind sa ordagrant *"Item 3 keeps `[x]`"*.
+      Rutan är återställd till `- [ ]` på dotnet-architects och code-reviewers grund i stället
+      — filens konvention är 35 obockade rutor, och boxen bockas av den som **utför** releasen,
+      inte av den som levererar en förutsättning. Sakinnehållet (förutsättningen ÄR uppfylld)
+      är CTO:ns; idiomet är granskarnas.
       Den consent-copyn ska **aldrig** bära en `planerat`-markör: samtyckestext måste
       beskriva den behandling samtycket auktoriserar, i auktorisationens tempus — en
       markör där skulle svaga Art. 7(2). Den ligger dessutom utanför §2.6:s grep-scope
@@ -146,12 +164,18 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
 "Bakgrundsmatchnings-notiser via e-post (Resend)" — som i dag täcker **endast**
 notis-vägen. Efter wideningen ovan gäller grinden all utgående e-post, men ingen
-Art. 30-behandling täcker de **fyra kontolivscykel-mallarna**, och `EmailConfirmation`
-är den mall som skickas vid varje registrering. Det är samma lucka som den redan
-eskalerade frågan om att ROPA:n saknar behandling för användarkontot/autentiseringen
-helt (Art. 30(1)) — punkt 1:s Resend-led kan inte bli grönt före den är stängd.
-Registret är gitignorerat och kan inte rida en PR (ADR 0072), så residualen står här,
-i den trackade filen, och åtgärdas lokalt före flippen.
+Art. 30-behandling täcker de **fyra kontolivscykel-mallarna** — och den **ogrindade**
+av dem är `EmailChangeConfirmation`: `ChangeEmailCommandHandler` skickar utan
+flaggkontroll. (`EmailConfirmation` är däremot grindad på `RequireEmailConfirmation`,
+`RegisterCommandHandler.cs:81`, som defaultar **false** — se blockquoten ovan. En
+prod-lansering tvingar alltså inte i sig grinden.)
+
+Det är samma lucka som den redan eskalerade frågan om att ROPA:n saknar behandling för
+användarkontot/autentiseringen helt (Art. 30(1)). **Luckan grindar inte via registret** —
+registret speglar (#1040) — men den blockerar **security-auditor-sign-off-ledet** i punkt 1:
+det finns ingen Art. 30-behandling att signera prod-e-post-konfigen mot för
+kontolivscykel-vägen. Registret är gitignorerat och kan inte rida en PR (ADR 0072), så
+residualen står här, i den trackade filen, och åtgärdas lokalt före flippen.
 
 ---
 
@@ -224,10 +248,10 @@ i den trackade filen, och åtgärdas lokalt före flippen.
       grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
       grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
       ```
-      Vid 2026-07-26 (efter #186 + dess remediation): **11 + 11** (rad 37, 49, 63, 72,
-      73, 77, 78, 85, 99, 100, 135 — identiska i
+      Vid 2026-07-26 (efter #186 + dess remediation): **12 + 12** (rad 37, 49, 63, 72,
+      73, 74, 77, 78, 85, 99, 100, 135 — identiska i
       sv och en, alla äkta statuspåståenden, ingen falsk träff med detta mönster).
-      **Grepa INTE bara på `"planerat och ännu inte i drift"`** — det ger 9 och
+      **Grepa INTE bara på `"planerat och ännu inte i drift"`** — det ger 10 och
       missar de TVÅ retentionsposterna på rad 99 och 100, som bär `(planerat)` utan
       avslutningsmeningen. Rad 99 (organisationsnumret i en annons, #880) nämner
       ansökningshistoriken som ett ÄNDAMÅL med att arbetsgivarens identitet sparas;
@@ -248,7 +272,7 @@ i den trackade filen, och åtgärdas lokalt före flippen.
         att tjänsten alls går i drift.
       - **Deploy-aktiverad:** Hetzner, Cloudflare (rad 77, 78) → aktiveras av att
         stacken körs hos dem. Se punkt 3 — dessa får inte flippas på egen hand.
-      - **Konfigurations-grindad:** SCB (rad 49, 72) **och Resend (rad 63, 73, 85,
+      - **Konfigurations-grindad:** SCB (rad 49, 72) **och Resend (rad 63, 73, 74, 85,
         #186)**. **Aktiveras INTE av en
         `v*`-tagg.** Tre skilda mekanismer, alla mörka i prod: per-sökningens
         `ICompanyRegistry` (ADR 0088) får `NullCompanyRegistry` — valet styrs av
@@ -260,7 +284,7 @@ i den trackade filen, och åtgärdas lokalt före flippen.
         användarskrivet org.nr. Resend styrs av `Email:Provider`, som defaultar till
         `Console` och i non-dev löser till `NullEmailSender` — flippen är grindad av
         **§2.5** (signerat DPA + Kap. V-grund + security-auditor-sign-off), inte av en
-        tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa rad 49/72 (SCB) respektive 63/73/85 (Resend) först när respektive grind är
+        tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa rad 49/72 (SCB) respektive 63/73/74/85 (Resend) först när respektive grind är
         passerad** — inte när koden deployas.
       Kvarstående planerat-meningar för behandlingar som fortfarande inte är i
       drift ska stå kvar. Släpper releasen ingen av dem är rätt utfall att **inte
@@ -284,12 +308,12 @@ i den trackade filen, och åtgärdas lokalt före flippen.
       - ROPA-posterna uppdaterade + **security-auditor-sign-off**.
       DPA-signering = **Klas**, aldrig CC.
 - [ ] **4. Paritet sv + en** — båda språken i samma ändring. Formuleringen bärs av
-      **sex** element i `privacy.sections`, tillsammans alla elva rader ur punkt 1:
+      **sex** element i `privacy.sections`, tillsammans alla tolv rader ur punkt 1:
       kategorilistan (rad 37), ändamåls-/SCB-avsnittet (49), samtyckesavsnittet
       "Bevakningsnotiser i bakgrunden" (63, #186), mottagare + tredjeland
-      (72/73/77/78/85), retentionslistan (99/100) och "Inga automatiserade beslut"
-      (135). Missa inte retentionsposten — och notera att retentionslistan bär
-      **två** rader, inte en.
+      (72/**73/74**/77/78/85), retentionslistan (99/100) och "Inga automatiserade beslut"
+      (135). Missa inte retentionsposten — och notera att **både** retentionslistan **och**
+      Resend-prosan i mottagaravsnittet bär **två** rader var, inte en.
 - [ ] **5. Bumpa `privacy.updated`** ("Senast uppdaterad: YYYY-MM-DD"), båda
       språken. Skopa till **`privacy.updated`** — filen har fem `updated`-nycklar
       (privacy/terms/cookies/accessibility/recruiterNotice).
@@ -310,8 +334,9 @@ i den trackade filen, och åtgärdas lokalt före flippen.
       varje behandling ska **alla** dess omnämnanden ha samma status.
       Ansökningshistoriken nämns på fyra ställen (kategorilistan, retentionslistan,
       "Inga automatiserade beslut" och Art. 30-registret); SCB på tre
-      (ändamålslistan, mottagarstycket, "Överföring till tredje land"); **Resend på
-      tre** (samtyckesavsnittet, mottagarstycket, "Överföring till tredje land") —
+      (ändamålslistan, mottagarstycket — tredjelandsavsnittet nämner INTE SCB; uppräkningen
+      sa "tre" ända till 2026-07-26); **Resend på fyra** (samtyckesavsnittet, TVÅ stycken i
+      mottagaravsnittet, "Överföring till tredje land") —
       och Resend-flippen styrs av **§2.5**, inte av taggen, så den kan mycket väl
       inte höra till releasen alls medan de andra gör det. **En
       mottagare får aldrig stå som planerad medan behandlingen som skickar till
@@ -326,7 +351,7 @@ i den trackade filen, och åtgärdas lokalt före flippen.
       fortfarande *"Jobbliggaren planerar en översikt av din egen
       ansökningshistorik"* — mitt i avsnittet **"Inga automatiserade beslut"**,
       dvs. i Art. 22-negationen. Läs rad 135 i sin helhet: hela stycket skrivs om
-      till presens, aldrig trunkeras. (De övriga tio raderna bär `(planerat)`/
+      till presens, aldrig trunkeras. (De övriga elva raderna bär `(planerat)`/
       `planeras` i själva sakpåståendet och lämnar därför kvar en grepp-träff om
       flippen är ofullständig.)
 - [ ] **8. Art. 30-registret speglar flippen** —

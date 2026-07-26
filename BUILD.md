@@ -1267,22 +1267,25 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   `NullEmailSender`, så ingen e-post lämnar systemet. Gäller **all** utgående e-post, inte bara
   notiser: `EmailTemplates` har sex sorter varav fyra är kontolivscykel (bekräfta e-post,
   byta e-post, ändrad-e-post-avisering, konto-finns-redan). **Tredjelandsöverföring** —
-  mottagar-adressen, meddelandets innehåll och (för notiserna) opt-in-faktumet går till en
-  US-processor, och Resends konto-data
+  mottagar-adressen och meddelandets innehåll går till en US-processor (för notiserna
+  **avslöjar** leveransen dessutom opt-in-faktumet — flaggan stannar i vår DB och överförs
+  aldrig), och Resends konto-data
   (metadata, leverans-loggar) lagras i USA oavsett sändande region. Kräver före flippen
-  **fyra** led — uppräkningen bor på ett ställe:
+  **fem** led — uppräkningen bor på ett ställe:
   `docs/runbooks/release-checklist.md` §2.5 punkt 1 (DPA-signering = Klas, aldrig CC).
-- **Ingen AI-subprocessor** (ADR 0071): produkten har ingen AI/LLM, ingen
-  CV-PII lämnar systemet, inget tredjelands-transfer **för CV- eller matchnings-data**.
-  CV- och matchnings-motorerna
-  är deterministiska och körs på egen infra. (Okvalificerat vore ledet falskt en rad
-  under e-postposten ovan, som ÄR en tredjelandsöverföring.)
+- **Ingen AI-subprocessor** (ADR 0071): produkten har ingen AI/LLM, så ingen CV-PII och
+  ingen matchningsdata lämnar systemet till någon **AI-leverantör**, och det finns inget
+  AI-relaterat tredjelands-transfer. CV-innehåll lämnar aldrig systemet alls. CV- och
+  matchnings-motorerna är deterministiska och körs på egen infra. Notis-kropparna
+  (jobbtitel, företagsnamn, grad-label) går till Resend per e-postposten ovan — det är
+  inte en AI-överföring, men det ÄR matchningsdata, så ledet får inte skopas på dataklass.
 - Google (Gmail/Calendar, frivilligt, global)
 - Sentry (errors, EU) — planerat
 - PostHog self-hosted (analytics, EU — inte subprocessor)
 
 > AWS (infrastruktur + SES) är avvecklat (ADR 0066) och utgår ur subprocessor-
-> kedjan; **SES:s ersättare är Resend** (ADR 0080) och står i listan ovan.
+> kedjan; **SES:s ersättare är Resend** — se e-postposten i listan ovan för
+> attribution och grindvillkor (en auktoritativ citering per sektion).
 > Hetzner/Cloudflare läggs till i den publika listan vid faktisk
 > provisionering (ADR 0050 Sekvensering).
 

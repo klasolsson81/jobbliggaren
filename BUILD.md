@@ -1261,6 +1261,15 @@ Upprätthålls i publik lista på `/integritet#subprocessors` (publiceras när
 permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0050):
 - Infrastruktur (hosting/databas/backup): Hetzner Cloud (EU — Falkenstein/Nuremberg/Helsinki) inkl. Hetzner-EU Storage Box för krypterad backup
 - DNS / CDN / proxy: Cloudflare (gratis-tier, "Full (strict)")
+- Transaktionell e-post: **Resend, Inc. (USA)** — beslutad (ADR 0080), **planerad, ännu inte
+  aktiverad**: `Email:Provider` defaultar till `Console`, vilket i non-dev löser till
+  `NullEmailSender`, så ingen e-post lämnar systemet. Gäller **all** utgående e-post, inte bara
+  notiser: `EmailTemplates` har sex sorter varav fyra är kontolivscykel (bekräfta e-post,
+  byta e-post, ändrad-e-post-avisering, konto-finns-redan). **Tredjelandsöverföring** —
+  mottagar-adressen och opt-in-faktumet går till en US-processor, och Resends konto-data
+  (metadata, leverans-loggar) lagras i USA oavsett sändande region. Kräver före flippen:
+  signerad DPA + dokumenterad Kap. V-grund (SCC eller adekvans/DPF) + security-auditor-sign-off
+  (`docs/runbooks/release-checklist.md` §2.5 punkt 1; DPA-signering = Klas, aldrig CC).
 - **Ingen AI-subprocessor** (ADR 0071): produkten har ingen AI/LLM, ingen
   CV-PII lämnar systemet, inget tredjelands-transfer. CV- och matchnings-motorerna
   är deterministiska och körs på egen infra.
@@ -1269,7 +1278,9 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 - PostHog self-hosted (analytics, EU — inte subprocessor)
 
 > AWS (infrastruktur + SES) är avvecklat (ADR 0066) och utgår ur subprocessor-
-> kedjan. Hetzner/Cloudflare läggs till i den publika listan vid faktisk
+> kedjan; **SES:s ersättare är Resend** (ADR 0080) och står i listan ovan — utan
+> den raden implicerade noteringen att inget e-post-underbiträde alls är beslutat.
+> Hetzner/Cloudflare läggs till i den publika listan vid faktisk
 > provisionering (ADR 0050 Sekvensering).
 
 ### 13.5 Säkerhetshygien

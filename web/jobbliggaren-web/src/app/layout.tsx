@@ -12,9 +12,12 @@ import "./globals.css";
 // landing hero verb stack (.jp-land-hero__stack-verb, förslag 3a) +
 // .jp-pagehero__title, 700 = brand wordmark + stat numbers. Unused weights are
 // deliberately not loaded — dead weight + an extra font-fetch against the CWV
-// budget (CLAUDE.md §5 / §2.5 / ADR 0045). Mono carries 400–700: 700 backs the
-// (mono) stat numbers (.jp-land-top__stat__num, live). Mono has NO 800 consumer,
-// so it is not loaded.
+// budget (CLAUDE.md §5 / §2.5 / ADR 0045). Mono carries 400–700. NOTE (#1054):
+// mono 700's written justification was ".jp-land-top__stat__num (mono, live)" —
+// false twice over: that rule had no consumer (removed in #1054) and it set
+// --jp-font-sans, not mono. Whether mono 700 still has a consumer is an open
+// perf-lane question; changing the weight list is a rendering/perf change-reason
+// and is deliberately NOT made here. Mono has NO 800 consumer, so it is not loaded.
 const sourceSans3 = Source_Sans_3({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],

@@ -20,8 +20,7 @@ description: >
 > mobil) följer F4-platta-komponenten var den används (/jobb-hero + pagehero på
 > alla inre sidor; landing-plattan 56px-clamp). Innehållsbredd-kanon app-wide =
 > **1136px** (header = platta = innehåll; `.jp-page` använder `padding-block`).
-> `.jp-empty--brand` har 0 konsumenter — dubbel-grön (två staplade gradient-
-> plattor på samma sida) är förbjuden.
+> Dubbel-grön (två staplade gradient-plattor på samma sida) är förbjuden.
 >
 > - Civic-utility aesthetic context → `jobbpilot-design-principles`
 > - Component-specific token usage → `jobbpilot-design-components`
@@ -39,12 +38,11 @@ description: >
    `border-border-default`, not `bg-white`, `text-black`, `bg-slate-50`
 4. **Radius per ADR 0052:** 6px default (knappar, kort, rader), 4px inputs/
    checkboxar, 8px modal. F4-hero-plattan är 6px (`--jp-r-md`, ADR 0068);
-   `--jp-r-xl` (12px) har noll konsumenter on-disk och städas i F-städ. Pills/badges =
-   `rounded-pill`
+   Pills/badges = `rounded-pill`
 5. **Gradient-undantaget (ADR 0068):** `--jp-hero-gradient` får ENBART användas
-   på hero-plattan (`.jp-hero__plate`), `.jp-pagehero`, `.jp-empty--brand` och
-   `.jp-land-hero`. Gradients är förbjudna överallt annars — civic-utility-
-   regeln gäller fortsatt för all övrig UI
+   på hero-plattan (`.jp-hero__plate`), `.jp-pagehero` och `.jp-land-hero`.
+   Gradients är förbjudna överallt annars — civic-utility-regeln gäller
+   fortsatt för all övrig UI
 6. **Knapp-kontraktet (G1):** primärknapp = `--jp-accent-800` fill (#15603F,
    dark-skiftas ALDRIG) + vit text. `#6EE7A8` (dark-accent-700) används ENDAST
    som text/länk/fokus/border — ALDRIG som fill bakom vit text. Aldrig "ljus
@@ -151,7 +149,7 @@ Dekorativa accenter (leaf/coral/amber) → `references/tokens-full.md`.
 | `--jp-hero-from` | `#0B2A1E` | Gradient-start (= accent-900) |
 | `--jp-hero-mid` | `#14503A` | Gradient-mitt (60%) |
 | `--jp-hero-to` | `#1E6B4C` | Gradient-slut |
-| `--jp-hero-gradient` | `linear-gradient(118deg, from 0%, mid 60%, to 100%)` | **ENBART** `.jp-hero__plate` / `.jp-pagehero` / `.jp-empty--brand` / `.jp-land-hero` |
+| `--jp-hero-gradient` | `linear-gradient(118deg, from 0%, mid 60%, to 100%)` | **ENBART** `.jp-hero__plate` / `.jp-pagehero` / `.jp-land-hero` |
 | `--jp-hero-bg` | `#14503A` | SOLID ankare — pagehero-knapp-text/border läser denna |
 | `--jp-hero-ink` / `-ink-soft` | `#FFFFFF` / `rgba(255,255,255,0.78)` | Text på gradienten |
 
@@ -174,7 +172,7 @@ Applied globally via CSS — do not set manually per component:
 
 `--jp-focus: var(--jp-accent-700)` — ingen separat dark-hex; accent-700
 skiftar själv. **Gradient-ytor scopar om till VIT ring**
-(`.jp-hero__plate`, `.jp-pagehero`, `.jp-empty--brand`, `.jp-land-hero`
+(`.jp-hero__plate`, `.jp-pagehero`, `.jp-land-hero`
 sätter `--jp-focus: #FFFFFF` — grön ring syns inte mot grönt). Popovers
 återställer till `var(--jp-accent-700)`. shadcn `--ring` följer `--jp-focus`.
 
@@ -269,7 +267,6 @@ padding/row-height where density applies — read the token.
 | `rounded-sm` | `--jp-r-sm` | 4px | Inputs, checkboxar, hero-pills/chips |
 | `rounded-md` | `--jp-r-md` | 6px | **DEFAULT** — knappar, kort, rader, popovers |
 | `rounded-lg` | `--jp-r-lg` | 8px | Modal, större paneler |
-| `rounded-xl` | `--jp-r-xl` | 12px | **Oanvänd** (F4-plattan är 6px per ADR 0068; tokenen kvar tills F-städ) — aldrig shadcn-primitiver (shadcn `--radius-xl` cappas till 8px) |
 | `rounded-pill` | `--jp-r-pill` | 9999px | Status dots, pills, avatar |
 
 ADR 0052-regeln: 6px rad/kort-default, 4px inputs, 8px modal, 12px ENDAST

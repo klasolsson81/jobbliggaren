@@ -68,7 +68,7 @@ a11y-skillen.)
 
 ## Input / Textarea / Select
 
-Civic spec (matches `.jp-input` / `.jp-select`, recalibrated per ADR 0038):
+Civic spec (matches `.jp-input`, recalibrated per ADR 0038):
 height **44px**, sm **40px**, `border-radius: 4px` (`var(--jp-r-md)`),
 `bg-surface-primary` (white in light), font 16px. Beskrivande
 placeholder-exempel i sök-/filterfält tas bort — label ovanför och hint
@@ -289,18 +289,18 @@ last row td:  border-bottom 2px border-strong (thicker bottom rule)
 NO zebra. NO celled/per-cell borders. Hairlines between rows only; the frame is
 the 2px top/bottom rule.
 
-### `.jp-attention` (row feed, no box)
+### `.jp-attentionqueue` (row feed, no box)
 
 ```
-container:  margin-top 28px; border-top 1px border
-row:        flex; gap 16px; padding 18px 4px; border-bottom 1px border
-dot:        8px circle, margin-top 8px (status color)
-text:       flex 1; 16px; line-height 1.55; max-width 68ch
-link:       accent-700 underlined (dark: #6EE7A8 auto via token; hover accent-600 #A7F3D0 i dark), thicker underline on hover
-dismiss:    22px ghost button, opacity 0 → 1 on row hover
+container:  margin-top 8px
+lede:       margin 10px 0 14px; 14px; max-width 68ch
+row:        the SHARED ledger row `.jp-app` — the queue adds no row of its own
+more:       ghost button (`.jp-btn .jp-btn--secondary`)
+empty:      muted single line
 ```
 
-No card, no shadow — hairlines only. Text capped at 68ch (newspaper column).
+No card, no shadow — hairlines come from the shared row. Lede capped at 68ch
+(newspaper column).
 
 ### `.jp-pipeline` / `.jp-col` / `.jp-appRow` (kanban as ledger)
 
@@ -340,7 +340,7 @@ font 11.5px/500; 6px dot
 --success: success-700 on success-50
 --warning: warning-700 on warning-50
 --danger:  danger-700 on danger-50
---neutral: text-secondary on surface-secondary, border-hairline
+--neutral: text-secondary on surface-tertiary, border-default
 ```
 
 Use when status is an entity's headline at one point — not for dense table

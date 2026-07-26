@@ -126,7 +126,6 @@ function validateFile(file: File): UploadErrorKey | null {
   return null;
 }
 
-
 interface CvUploadFormProps {
   /**
    * ADR 0077 STEG 5 — om satt anropas denna med det sammansatta {@link UploadOutcome}:t
@@ -397,9 +396,12 @@ export function CvUploadForm({
           <>
             {/* CV-namn = CV:ts ETIKETT (#1060), inte personens namn. Endast i
                 tvåstegsläget. Rent fält utan placeholder; lämnas det tomt genererar
-                servern ett icke-PII-namn (hinten säger vilket). */}
+                servern ett icke-PII-namn (hinten säger vilket). Systemets
+                .jp-field-primitiv bär label/input/hint-stacken — inte
+                .jp-cvupload__field, vars enda deklaration (`position: relative`) finns
+                för den absolutpositionerade filväljaren och är betydelselös här. */}
             {!autoUpload && (
-              <div className="jp-cvupload__field jp-cvupload__field--name">
+              <div className="jp-field">
                 <label htmlFor={nameId} className="jp-label">
                   {t("nameLabel")}
                 </label>

@@ -70,6 +70,6 @@ describe("@modal/(.)cv/importera intercepting route", () => {
 
     // #1060: fältet är CV:ts ETIKETT och står ALLTID tomt — varken profilen eller
     // filnamnet förifyller det. Lämnas det tomt genererar servern ett icke-PII-namn.
-    expect(screen.getByRole("textbox", { name: "Namn på CV" })).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "Namn på CV (valfritt)" })).toHaveValue("");
   });
 });

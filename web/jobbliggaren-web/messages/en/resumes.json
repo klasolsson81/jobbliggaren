@@ -43,8 +43,8 @@
   "upload": {
     "pendingLabel": "Uploading and reviewing your CV",
     "pendingText": "Uploading and reviewing your CV. This may take a moment.",
-    "nameLabel": "CV name",
-    "nameHint": "The name appears in your CV list so you can find the right variant. Leave it empty and the CV is named Importerat CV with today's date; you can rename it whenever you like.",
+    "nameLabel": "CV name (optional)",
+    "nameHint": "The name appears in your CV list so you can find the right variant. Leave it empty and we name the CV after today's date.",
     "dropText": "Choose a file to upload",
     "dropHint": "PDF or Word (DOCX)",
     "help": "Upload a PDF or Word file (DOCX) of at most 10 MB. We read the contents and create a CV you can review and edit.",

@@ -91,13 +91,13 @@ describe("CvUploadForm — ärlig upload-copy", () => {
 
   it("namnfältet renderas med label + hint, utan placeholder (5c)", () => {
     render(<CvUploadForm />);
-    const name = screen.getByRole("textbox", { name: "Namn på CV" });
+    const name = screen.getByRole("textbox", { name: "Namn på CV (valfritt)" });
     // Tomt = "ingen människa döpte det här" → servern genererar ett icke-PII-namn (#1060).
     expect(name).toHaveValue("");
     expect(name).not.toHaveAttribute("placeholder");
     expect(
       screen.getByText(
-        "Namnet visas i din CV-lista så att du hittar rätt variant. Lämnar du det tomt får CV:t namnet Importerat CV med dagens datum, och du kan byta namn när du vill."
+        "Namnet visas i din CV-lista så att du hittar rätt variant. Lämnar du det tomt döper vi CV:t efter dagens datum."
       )
     ).toBeInTheDocument();
   });
@@ -108,7 +108,7 @@ describe("CvUploadForm — ärlig upload-copy", () => {
   // Risken ökade av att fältet numera startar tomt.
   it("namnfältet är INTE autofyllbart som personnamn", () => {
     render(<CvUploadForm />);
-    expect(screen.getByRole("textbox", { name: "Namn på CV" })).toHaveAttribute(
+    expect(screen.getByRole("textbox", { name: "Namn på CV (valfritt)" })).toHaveAttribute(
       "autocomplete",
       "off"
     );
@@ -119,7 +119,7 @@ describe("CvUploadForm — ärlig upload-copy", () => {
   it("auto-läget visar inget namnfält (servern genererar etiketten)", () => {
     render(<CvUploadForm autoUpload />);
     expect(
-      screen.queryByRole("textbox", { name: "Namn på CV" })
+      screen.queryByRole("textbox", { name: "Namn på CV (valfritt)" })
     ).not.toBeInTheDocument();
   });
 });
@@ -170,7 +170,7 @@ describe("CvUploadForm — utfalls-baserad ruttning (CV-pivot 5c)", () => {
 
     render(<CvUploadForm />);
     await user.type(
-      screen.getByRole("textbox", { name: "Namn på CV" }),
+      screen.getByRole("textbox", { name: "Namn på CV (valfritt)" }),
       "Backend-CV 2026"
     );
     await selectFile(fileInput());

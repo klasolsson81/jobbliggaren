@@ -86,26 +86,44 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 
 ## 2.5 HÅRD GRIND: Resend e-post-prod-flip (ADR 0080)
 
+> **ETT HEM PER TAL (regel, 2026-07-26).** Varje räknebart påstående i §2.5/§2.6 står på
+> **exakt ett** ställe, tillsammans med greppet som regenererar det. Alla andra omnämnanden är
+> pekare **utan siffra**. Regeln gäller de **grep-regenererbara** talen, och de har tre hem:
+> rutantalet (blockquoten nedan), punkt 1:s led (punkten själv) och §2.6:s inventering (§2.6
+> punkt 1). Övriga tal i sektionerna är **inte** hem och skyddas inte av regeln — den kvarvarande
+> spegeln är mall-antalet, som bor på: blockquoten nedan, `Källa:`-stycket och `BUILD.md` §13.4.
+> En femte kontolivscykel-mall gör alltså **varje mening i den uppräkningen** falsk, i två filer —
+> skrivet ut här i stället för att låtsas att uppräkningen ovan är fullständig. (Citatet av själva
+> talet är struket: ett tal i ett citat är fortfarande ett tal på en andra plats — samma skäl som
+> att rutgreppet nedan räknar prosacitatet av `- [ ]`.)
+>
+> **Varför regeln finns, mätt:** under #186 gick **sex** tal stale i den här filen — och två av
+> dem falsifierades av tillägg i **samma commit som skrev siffran**. Rond efter rond synkades
+> speglarna, vilket botar instansen och inte generatorn: så länge ett tal bor på fler än ett
+> ställe är nästa tillagda punkt garanterad att producera nästa fynd. **Lägg aldrig till ett tal
+> på en andra plats** — skriv "antalet står i ‹hem›" i stället.
+
 > Gäller ENDAST en release som aktiverar `Email:Provider=Resend` i non-dev.
 > Tills dess kör `NullEmailSender` — ingen
 > e-post skickas, och denna grind är inte relevant. Resend är en **US-processor**
 > → mottagar-adress **+ meddelandets innehåll** är en tredjelandsöverföring (för notiserna
 > **avslöjar** leveransen opt-in-faktumet, och `EmailTemplates` skriver det dessutom i klartext
 > i själva kroppen — själva *flaggan* i vår DB överförs aldrig, men faktumet gör det). Ett kontolivscykel-mejl har inget opt-in — men adressen och innehållet
-> når providern lika fullt. **Alla FEM
-> punkter MÅSTE vara gröna innan `Email:Provider` flippas** (ADR 0080
+> når providern lika fullt. **VARJE numrerad punkt i DEN HÄR sektionen (§2.5) MÅSTE vara grön innan `Email:Provider`
+> flippas** (ADR 0080
 > prod-flip-checklista). CC får ALDRIG flippa providern eller signera DPA:t.
 >
 > **"Grön" = INGET led i punkten bär KVAR — inte att rutan är bockad.** (Negation med flit:
 > ett led kan bära **båda** markeringarna — ROPA-ledet är **KLAR för notis-vägen** och **KVAR
 > för kontolivscykel-mallarna** — och "bär KLAR" hade då räknat det som grönt.) Rutorna i
 > hela den här filen är obockade (**37 av 37** vid 2026-07-26 — greppa **radinitialt**
-> (`^- \[ \]`); ett rått grep ger 38 och räknar prosacitatet av literalen längre ned.
+> (`^- \[ \]`); ett rått grep ger 39 och räknar prosacitaten av literalen längre ned.
 > **Regenerera siffran ur greppet efter varje tillagd punkt** — punkt 5.5 tillkom i samma
 > ändring som skrev "35", och punkt 5 i den som skrev "36" — båda gjordes falska i samma andetag) och bockas av den som **utför** releasen; statusen
-> bärs av **KLAR**-markeringarna. Punkt 1 har fem led, och ett led kan vara **delvis** KVAR
+> bärs av **KLAR**-markeringarna. Punkt 1:s led står uppräknade i punkten själv, och ett led kan
+> vara **delvis** KVAR
 > (ROPA-ledet är det i dag) — **ett delvis KVAR led är KVAR**, så punkten är grön först när
-> inget av de fem bär KVAR i någon form. Läs aldrig en obockad ruta som "inte levererat",
+> inget av **punktens led** bär KVAR i någon form. Läs aldrig en obockad ruta som "inte levererat",
 > och bocka aldrig en ruta för att en förutsättning är levererad.
 >
 > **Grinden gäller ALL utgående e-post, inte bara bakgrundsmatchnings-notiserna**
@@ -121,7 +139,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > tvingar inte i sig flippen: `AuthOptions.RequireEmailConfirmation` defaultar
 > **false** och sätts `true` bara i `appsettings.Development.json`.)
 
-- [ ] **1. Tredjelands-grund** — **fem** led, per behandling-status (ägare: **#183**):
+- [ ] **1. Tredjelands-grund** — **fem** led, per behandling-status (ägare: **#183**).
+      *Detta är talets hem: räkna om leden i punkten efter varje tillägg, och lägg det inte någon
+      annanstans.*
       - signerad **DPA** med Resend på fil — **KVAR** (Klas, aldrig CC);
       - dokumenterad **Kap. V-grund** — **KVAR**, och disjunktionen "SCC **eller**
         adekvans/DPF" måste upplösas till **en** grund före första överföringen;
@@ -308,7 +328,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         `ScbRegister:Enabled=true` + klientcert, och skickar aldrig ett
         användarskrivet org.nr. Resend styrs av `Email:Provider`, som defaultar till
         `Console` och i non-dev löser till `NullEmailSender` — flippen är grindad av
-        **§2.5 punkt 1** (fem led — uppräkningen bor DÄR, inte här), inte av en
+        **§2.5 punkt 1** (uppräkningen bor DÄR, inte här — och därför står antalet inte heller här), inte av en
         tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa rad 49/72 (SCB) respektive 63/73/74/85 (Resend) först när respektive grind är
         passerad** — inte när koden deployas.
       Kvarstående planerat-meningar för behandlingar som fortfarande inte är i
@@ -333,7 +353,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       - ROPA-posterna uppdaterade + **security-auditor-sign-off**.
       DPA-signering = **Klas**, aldrig CC.
 - [ ] **4. Paritet sv + en** — båda språken i samma ändring. Formuleringen bärs av
-      **sju** element i `privacy.sections`, tillsammans alla tolv rader ur punkt 1:
+      elementen i `privacy.sections` som bär formuleringen — tillsammans **exakt den radmängd
+      punkt 1 producerar** (antalet står där, med sitt grep; det står med flit inte här):
       kategorilistan (rad 37), ändamåls-/SCB-avsnittet (49), samtyckesavsnittet
       "Bevakningsnotiser i bakgrunden" (63, #186), mottagare + tredjeland
       — mottagaravsnittet (72/**73/74**/77/78) och tredjelandsavsnittet (85) är TVÅ skilda
@@ -395,7 +416,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       fortfarande *"Jobbliggaren planerar en översikt av din egen
       ansökningshistorik"* — mitt i avsnittet **"Inga automatiserade beslut"**,
       dvs. i Art. 22-negationen. Läs rad 135 i sin helhet: hela stycket skrivs om
-      till presens, aldrig trunkeras. (De övriga elva raderna bär `(planerat)`/
+      till presens, aldrig trunkeras. (Varje **annan** rad ur punkt 1:s mängd bär `(planerat)`/
       `planeras` i själva sakpåståendet och lämnar därför kvar en grepp-träff om
       flippen är ofullständig.)
 - [ ] **8. Art. 30-registret speglar flippen** —

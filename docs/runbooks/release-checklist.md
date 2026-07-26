@@ -90,21 +90,22 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > Tills dess kör `NullEmailSender` — ingen
 > e-post skickas, och denna grind är inte relevant. Resend är en **US-processor**
 > → mottagar-adress **+ meddelandets innehåll** är en tredjelandsöverföring (för notiserna
-> **avslöjar** leveransen dessutom opt-in-faktumet; flaggan själv stannar i vår DB och
-> överförs aldrig). Ett kontolivscykel-mejl har inget opt-in — men adressen och innehållet
-> når providern lika fullt. **Alla fyra
+> **avslöjar** leveransen opt-in-faktumet, och `EmailTemplates` skriver det dessutom i klartext
+> i själva kroppen — själva *flaggan* i vår DB överförs aldrig, men faktumet gör det). Ett kontolivscykel-mejl har inget opt-in — men adressen och innehållet
+> når providern lika fullt. **Alla FEM
 > punkter MÅSTE vara gröna innan `Email:Provider` flippas** (ADR 0080
 > prod-flip-checklista). CC får ALDRIG flippa providern eller signera DPA:t.
 >
 > **"Grön" = INGET led i punkten bär KVAR — inte att rutan är bockad.** (Negation med flit:
 > ett led kan bära **båda** markeringarna — ROPA-ledet är **KLAR för notis-vägen** och **KVAR
 > för kontolivscykel-mallarna** — och "bär KLAR" hade då räknat det som grönt.) Rutorna i
-> hela den här filen är obockade (**36 av 36** vid 2026-07-26 — greppa **radinitialt**
-> (`^- \[ \]`); ett rått grep ger 37 och räknar prosacitatet av literalen längre ned.
+> hela den här filen är obockade (**37 av 37** vid 2026-07-26 — greppa **radinitialt**
+> (`^- \[ \]`); ett rått grep ger 38 och räknar prosacitatet av literalen längre ned.
 > **Regenerera siffran ur greppet efter varje tillagd punkt** — punkt 5.5 tillkom i samma
-> ändring som skrev "35" och gjorde den falsk i samma andetag) och bockas av den som **utför** releasen; statusen
-> bärs av **KLAR**-markeringarna. Punkt 1 har fem led som var för sig kan vara KLAR eller KVAR,
-> så punkten är grön först när alla fem är det. Läs aldrig en obockad ruta som "inte levererat",
+> ändring som skrev "35", och punkt 5 i den som skrev "36" — båda gjordes falska i samma andetag) och bockas av den som **utför** releasen; statusen
+> bärs av **KLAR**-markeringarna. Punkt 1 har fem led, och ett led kan vara **delvis** KVAR
+> (ROPA-ledet är det i dag) — **ett delvis KVAR led är KVAR**, så punkten är grön först när
+> inget av de fem bär KVAR i någon form. Läs aldrig en obockad ruta som "inte levererat",
 > och bocka aldrig en ruta för att en förutsättning är levererad.
 >
 > **Grinden gäller ALL utgående e-post, inte bara bakgrundsmatchnings-notiserna**
@@ -138,7 +139,8 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       **ORDNINGEN STÅR FÖRST, för att den styr posterna under sig:** upplös
       SCC/adekvans-disjunktionen **före** du skriver Art. 13(1)(f)-formuleringen —
       kopia-formuleringen hänger på Art. 46/47-grunden, så tvärtom påstår du en SCC-grund
-      som kanske inte används. Alltså **(iii) → (ii)**, och (i) när avtalet signeras.
+      som kanske inte används. Alltså **(iii) → (ii)**, och listans första post — flytten in i `Mottagare`-listan —
+      när avtalet signeras.
       (i) flytta Resend in i `Mottagare`-listan när biträdesavtalet är signerat —
       prosaformen är vald just för att listrubriken påstår ett tecknat avtal, och det
       förbudet **upphör med signeringen**; (ii) **Art. 13(1)(f)** — "means to obtain a
@@ -167,6 +169,15 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 - [ ] **4. TD-114** — stranded-Queued-reaper (#184 / PR #212 — **KLAR**) +
       **Resend `Idempotency-Key`** på real-send-vägen (#187 / PR #230 — **KLAR**;
       VO `MatchNotificationIdempotencyKey`, ad-scoped Direct + content-hash Digest).
+- [ ] **5. `BUILD.md` flippas i SAMMA ändring** — den här checklistan räknade tidigare bara upp
+      `content-legal.json` och ROPA:n, och nämnde **aldrig** `BUILD.md` som flip-yta. Vid flippen
+      blir följande falska utan att något kräver att de rörs: **§13.4**:s e-postpost
+      (*"planerad, ännu inte aktiverad … ingen e-post lämnar systemet"*), **§3.1 rad 39**
+      (*"prod-utskick grindat"*), **rad 126** (*"Resend, grindad"*) och **rad 761**.
+      `BUILD.md` läses av varje CC-invokation (CLAUDE.md §9.1), så en oflippad rad där får varje
+      efterföljande session att resonera från en falsk premiss om en **levande**
+      tredjelandsöverföring. Hör här (aktiveringshändelse), inte i §2.6 (policy-copy).
+      Tillagt 2026-07-26 på dotnet-architects mätning — och just denna PR **ökade** ytan.
 
 Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
 "Bakgrundsmatchnings-notiser via e-post (Resend)" — som i dag täcker **endast**
@@ -318,10 +329,11 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       - ROPA-posterna uppdaterade + **security-auditor-sign-off**.
       DPA-signering = **Klas**, aldrig CC.
 - [ ] **4. Paritet sv + en** — båda språken i samma ändring. Formuleringen bärs av
-      **sex** element i `privacy.sections`, tillsammans alla tolv rader ur punkt 1:
+      **sju** element i `privacy.sections`, tillsammans alla tolv rader ur punkt 1:
       kategorilistan (rad 37), ändamåls-/SCB-avsnittet (49), samtyckesavsnittet
       "Bevakningsnotiser i bakgrunden" (63, #186), mottagare + tredjeland
-      (72/**73/74**/77/78/85), retentionslistan (99/100) och "Inga automatiserade beslut"
+      — mottagaravsnittet (72/**73/74**/77/78) och tredjelandsavsnittet (85) är TVÅ skilda
+      sections, inte ett — retentionslistan (99/100) och "Inga automatiserade beslut"
       (135). Missa inte retentionsposten — och notera att **både** retentionslistan **och**
       Resend-prosan i mottagaravsnittet bär **två** rader var, inte en.
 - [ ] **5. Bumpa `privacy.updated`** ("Senast uppdaterad: YYYY-MM-DD"), båda

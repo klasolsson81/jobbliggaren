@@ -1285,7 +1285,7 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 
 > AWS (infrastruktur + SES) är avvecklat (ADR 0066) och utgår ur subprocessor-
 > kedjan; **SES:s ersättare är Resend** — se e-postposten i listan ovan för
-> attribution och grindvillkor (en auktoritativ citering per sektion).
+> attribution och grindvillkor.
 > Hetzner/Cloudflare läggs till i den publika listan vid faktisk
 > provisionering (ADR 0050 Sekvensering).
 

@@ -96,8 +96,13 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > punkter MÅSTE vara gröna innan `Email:Provider` flippas** (ADR 0080
 > prod-flip-checklista). CC får ALDRIG flippa providern eller signera DPA:t.
 >
-> **"Grön" = varje led i punkten bär fetstilt KLAR — inte att rutan är bockad.** Rutorna i
-> hela den här filen är obockade (35 av 35) och bockas av den som **utför** releasen; statusen
+> **"Grön" = INGET led i punkten bär KVAR — inte att rutan är bockad.** (Negation med flit:
+> ett led kan bära **båda** markeringarna — ROPA-ledet är **KLAR för notis-vägen** och **KVAR
+> för kontolivscykel-mallarna** — och "bär KLAR" hade då räknat det som grönt.) Rutorna i
+> hela den här filen är obockade (**36 av 36** vid 2026-07-26 — greppa **radinitialt**
+> (`^- \[ \]`); ett rått grep ger 37 och räknar prosacitatet av literalen längre ned.
+> **Regenerera siffran ur greppet efter varje tillagd punkt** — punkt 5.5 tillkom i samma
+> ändring som skrev "35" och gjorde den falsk i samma andetag) och bockas av den som **utför** releasen; statusen
 > bärs av **KLAR**-markeringarna. Punkt 1 har fem led som var för sig kan vara KLAR eller KVAR,
 > så punkten är grön först när alla fem är det. Läs aldrig en obockad ruta som "inte levererat",
 > och bocka aldrig en ruta för att en förutsättning är levererad.
@@ -141,7 +146,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       disjunktionen.
 - [ ] **2. TD-115** — legacy opt-OUT-default sanerad (#185 / PR #211 — **KLAR**).
 - [ ] **3. TD-116** — consent-/disclosure-copy avslöjar e-postleverans för
-      användaren (**#185 / PR #182 — KLAR**). ADR 0080 punkt 3 skopar posten till
+      användaren (**PR #182 — KLAR**; TD-116:s consent-copy-halva, fast-follow till #181,
+      ingen closing issue). **Citera INTE #185 här** — det är TD-115, punkt 2:s issue, och stod
+      felaktigt här till 2026-07-26. ADR 0080 punkt 3 skopar posten till
       `messages/{sv,en}/settings.json backgroundMatch.*`, och PR #182 levererade exakt
       det: `intro`/`toggleDescription`/`cadenceHint` namnger e-post explicit.
       **Rättelse 2026-07-26:** #186 bockades först här. Fel punkt — #186:s
@@ -164,9 +171,12 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
 "Bakgrundsmatchnings-notiser via e-post (Resend)" — som i dag täcker **endast**
 notis-vägen. Efter wideningen ovan gäller grinden all utgående e-post, men ingen
-Art. 30-behandling täcker de **fyra kontolivscykel-mallarna** — och den **ogrindade**
-av dem är `EmailChangeConfirmation`: `ChangeEmailCommandHandler` skickar utan
-flaggkontroll. (`EmailConfirmation` är däremot grindad på `RequireEmailConfirmation`,
+Art. 30-behandling täcker de **fyra kontolivscykel-mallarna** — och **TVÅ**
+av dem är ogrindade: `EmailChangeConfirmation` (`ChangeEmailCommandHandler:66`) och
+`EmailChangedNotification` (`ConfirmEmailChangeCommandHandler:45`, vars enda villkor är att
+den gamla adressen finns). **Den senare går till den GAMLA adressen** — en annan
+mottagarklass än den användaren just skrev, så en Art. 30-behandling som bara skopas till
+den första lämnar en mottagare oregistrerad. (`EmailConfirmation` är däremot grindad på `RequireEmailConfirmation`,
 `RegisterCommandHandler.cs:81`, som defaultar **false** — se blockquoten ovan. En
 prod-lansering tvingar alltså inte i sig grinden.)
 
@@ -283,7 +293,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         `ScbRegister:Enabled=true` + klientcert, och skickar aldrig ett
         användarskrivet org.nr. Resend styrs av `Email:Provider`, som defaultar till
         `Console` och i non-dev löser till `NullEmailSender` — flippen är grindad av
-        **§2.5** (signerat DPA + Kap. V-grund + security-auditor-sign-off), inte av en
+        **§2.5 punkt 1** (fem led — uppräkningen bor DÄR, inte här), inte av en
         tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa rad 49/72 (SCB) respektive 63/73/74/85 (Resend) först när respektive grind är
         passerad** — inte när koden deployas.
       Kvarstående planerat-meningar för behandlingar som fortfarande inte är i
@@ -317,6 +327,24 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 - [ ] **5. Bumpa `privacy.updated`** ("Senast uppdaterad: YYYY-MM-DD"), båda
       språken. Skopa till **`privacy.updated`** — filen har fem `updated`-nycklar
       (privacy/terms/cookies/accessibility/recruiterNotice).
+- [ ] **5.5 TVÅ VILLKOR SOM UPPHÖR VID FÖRSTA PRODUKTIONSANVÄNDAREN — de hör HÄR, inte i
+      §2.5.** Båda accepteras i dag enbart därför att det finns **noll registrerade
+      produktionsanvändare**. Triggern är **den första `v*`-taggen som öppnar registrering**,
+      och den passerar **inte** §2.5: en prod-tagg med `Email:Provider` osatt (dokumenterad
+      default) ger `NullEmailSender`, registrering fungerar (`RequireEmailConfirmation`
+      defaultar `false`), och Resend-flippen kan ligga månader senare. Villkoren upphör alltså
+      **strikt före** §2.5 någonsin läses (security-auditor 2026-07-26).
+      - **(a) `settings.json` påstår ett utskick som inte sker.** Fyra publicerade strängar
+        (`:218`, `:220`, `:224`, `:229`) säger att en bekräftelselänk skickats, medan
+        `ChangeEmailCommandHandler:66` skickar ogrindat in i `NullEmailSender`: `Result.Success`,
+        auditrad stämplad, **adressen byts aldrig**, ingen väg framåt. Ägare **#1087**
+        (port-capability-predikat). Copyn får INTE mjukas upp först — det falska påståendet är
+        enda användarsynliga tecknet att flödet är trasigt. Art. 5(1)(a) + 12(1).
+      - **(b) ROPA:n saknar behandling för användarkontot/autentiseringen HELT** (Art. 30(1)).
+        Mätt: nio behandlingar, ingen för konto/auth. Registret är gitignorerat (ADR 0072) och
+        speglar (#1040), så skyldigheten bor här. Den kristalliseras vid **produktionsstart**,
+        inte vid e-postflippen.
+      Bocka aldrig 5.5 på att §2.5 är ogrindad — det är två olika trigger.
 - [ ] **6. Tidsordning — två olika fall, blanda dem inte:**
       - **(a) Första prod-taggen:** flippen deployas **samtidigt** med
         aktiveringen. Inga registrerade finns före, så ingen förhandsinformation

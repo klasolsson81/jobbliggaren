@@ -100,8 +100,8 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * 2. **Varje omnämnande bär status-markören** tills `Email:Provider` flippas. Resend är i dag
    *    dark i non-dev (`AddEmailSender` → `NullEmailSender`), så ett presens-påstående vore den
    *    motsatta osanningen — exakt den ansökningshistoriken-fällan som testet ovan finns för.
-   *    Flippen är grindad av `release-checklist.md` §2.5 (signerat DPA + Kap. V-grund +
-   *    security-auditor-sign-off), aldrig av en copy-ändring.
+   *    Flippen är grindad av `release-checklist.md` §2.5 punkt 1 (FEM led — uppräkningen bor
+   *    där, aldrig här), aldrig av en copy-ändring.
    *
    * **Markören måste bindas till STATUS-MENINGEN, inte till stycket** (code-reviewer Major 2,
    * mätt: den första formen passerade VACUÖST i två av tre leaves i BÅDA språken). Orsaken är att
@@ -109,8 +109,10 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * skickas", "All e-post **planeras** att levereras" / "are **planned** to be sent". Med
    * `/planerat|planerad|planeras/` respektive `/planned/` kunde markörmeningen strykas ur rad 63
    * och 73 med testet grönt, medan §2.6:s smala grep tyst föll 9+9 → 7+7. Mönstren nedan är därför
-   * de RATIFIERADE markörformerna och inget bredare: `planerat` är exakt vad
-   * ansökningshistorik-tripwiren ovan redan använder, och "not yet in operation" är den engelska
+   * de RATIFIERADE markörformerna och inget bredare — och de binder hela MENINGEN
+   * (`planerat och ännu inte i drift`), **avsiktligt smalare** än ansökningshistorik-tripwirens
+   * `planerat`. Systern kan INTE följa med: rad 99/100 bär `(planerat)` utan markörmeningen, så
+   * meningsformen hade fällt dem. Bredda aldrig tillbaka. Och "not yet in operation" är den engelska
    * markörens bärande led (`/planned/` är otillräcklig oavsett bredd).
    *
    * Testet ska FALLA vid prod-flippen. Ta då bort markör-halvan i samma ändring som flippar

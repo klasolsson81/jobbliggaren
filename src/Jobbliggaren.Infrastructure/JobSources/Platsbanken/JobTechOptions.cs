@@ -31,10 +31,11 @@ public sealed class JobTechOptions
     public string ApiKey { get; set; } = string.Empty;
 
     /// <summary>
-    /// Purge-<b>berättigandetröskel</b> i dagar för <c>raw_payload</c>, mätt från
-    /// <c>published_at</c>. Default 30. <b>Inte</b> en garanterad livstid — sync-jobbet
-    /// skriver om kolumnen, så tröskeln ensam är inte raderingsregeln.
-    /// Regeln står på ett ställe: ADR 0032 Amendment 2026-07-26 §C2.
+    /// Purge-<b>eligibility threshold</b> in days for <c>raw_payload</c>, measured from
+    /// <c>published_at</c>. Default 30. <b>Not</b> a guaranteed lifetime — the sync job
+    /// rewrites the column, so the threshold alone is not the deletion rule. Consumed by
+    /// <c>PurgeStaleRawPayloadsJob</c> (Application layer).
+    /// The rule lives in one place: ADR 0032 Amendment 2026-07-26 §C2 (GDPR Art. 5(1)(c)/(e)).
     /// </summary>
     [Range(1, 365)]
     public int RawPayloadRetentionDays { get; set; } = 30;

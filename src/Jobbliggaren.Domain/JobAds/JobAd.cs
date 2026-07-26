@@ -41,7 +41,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     //
     // Until 2026-07-13 these were Postgres STORED generated columns derived from
     // raw_payload. Postgres recomputes a stored generated column on every UPDATE of
-    // its base, so the 30-day raw_payload purge silently nulled all seven — and the
+    // its base, so the raw_payload purge silently nulled all seven — and the
     // 02:00 sync rewrote the payload and resurrected them. Net effect, proven against
     // real Postgres: filtered search, the per-user matching engine and the
     // company-watch scan dropped still-ACTIVE ads ~21.5 h out of every 24, every day.

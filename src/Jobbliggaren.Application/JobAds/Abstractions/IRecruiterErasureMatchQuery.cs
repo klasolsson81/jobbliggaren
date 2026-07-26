@@ -39,14 +39,14 @@ public interface IRecruiterErasureMatchQuery
     /// natural person's name, and it is not in <c>search_vector</c> (built from title + description
     /// only). <c>PurgeStaleRawPayloadsJob</c> NULLs <c>raw_payload</c> eventually (rule:
     /// ADR 0032 Amendment 2026-07-26 §C2), so without
-    /// this channel every ad older than a month would report no match while her name sat in
+    /// this channel a delisted ad would report no match while her name sat in
     /// plaintext in a column we scan.</item>
     /// <item><b>Exact match on <c>organization_number</c></b> — when the identifier IS an org.nr
     /// (normalised in Domain: <c>OrganizationNumber.TryFromWrittenForm</c>), it is matched exactly
-    /// against the materialised column (#841). Forced by the SAME 30-day logic as channel 3: after
+    /// against the materialised column (#841). Forced by the SAME payload-retention logic as channel 3 (ADR 0032 Amendment 2026-07-26 §C2): after
     /// the <c>raw_payload</c> purge, this column is the ONLY place a sole trader's org.nr — which
     /// IS her personnummer — survives in the row. Without it, an org.nr request would be answered
-    /// <i>"no ads"</i> about every ad older than a month while we held her personnummer in a column
+    /// <i>"no ads"</i> for every ad whose payload had been purged while we held her personnummer in a column
     /// we never looked at (#842 CTO ruling 2026-07-14).</item>
     /// </list>
     /// <para>

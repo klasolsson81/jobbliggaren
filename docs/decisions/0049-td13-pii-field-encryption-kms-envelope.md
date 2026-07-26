@@ -252,7 +252,9 @@ the nightly full backfill (`SyncPlatsbankenSnapshotJob`) and the 10-minute strea
 funnel through `UpdateFromSource`, which **unconditionally reassigns `RawPayload`**
 (`JobAd.cs:155-159`), so a purged payload is **restored within ≤24 h for any ad still in
 the feed** (#845; already recorded at ADR 0032 A2 `:1090-1092`). The real rule is *"30
-days after the ad leaves the feed"*, not *"30 days after publication"*.
+the deletion rule for `raw_payload` lives in exactly one place —
+**ADR 0032 Amendment 2026-07-26 §C2** — and is neither *"30 days after publication"* nor *"30 days after the ad leaves
+the feed"*; both are false. Do not restate a duration here.
 
 **Layer 3 — *"Art. 17-null-out:ad (`RecruiterPiiPurger`)"*: FALSE, completely.**
 `RecruiterPiiPurger` probed jsonb containment on `{"employer":{"contact_email": …}}`

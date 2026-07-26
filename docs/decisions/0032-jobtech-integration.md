@@ -412,6 +412,10 @@ public sealed class JobTechPayloadSanitizer
 **2. Retention-policy för raw_payload (P8c-leverans eller separat batch)**
 
 > ⚠ **Superseded by the 2026-07-12 (#824, A1/A2) and 2026-07-13 (#842) amendments — see below.** Three
+> **SUPERSEDED IN PART, 2026-07-26 (#845):** the replacement rule in this banner is **also false** —
+> an ad delisted on day 10 is purged on day 30, twenty days before it. The rule's home is
+> **ADR 0032 Amendment 2026-07-26 §C2**. The diagnosis below (three drifts) stands.
+>
 > drifts: the 02:00 backfill restores the payload nightly, so the real rule is "30 days after the ad
 > **leaves the feed**"; the cron is `30 4 * * *`, not 03:00; and the job never touches
 > `job_ads.description`, which is where the recruiter PII actually is.
@@ -538,6 +542,10 @@ Original §8 specade ett `JobAdsSyncedDomainEvent` som skulle skrivas till `audi
 - Handler söker matchande JobAds via `EF.Functions.JsonContains` (säkrare än `.Contains()` mot EF Core 10 Issue #3745) och null:ar `raw_payload` via `ExecuteUpdateAsync(SetProperty(j => j.RawPayload, _ => null))`.
 - En aggregerad audit-rad per request (CTO Q3=B, ADR 0024 D4-precedens — "användaren begärde *en* handling").
 - Admin-endpoint `POST /api/v1/admin/job-ads/redact-recruiter-pii` med `AuthorizationPolicies.Admin`.
+
+> **Note 2026-07-26 (#845):** the "30d-retention" duration cited in this paragraph is superseded
+> (ADR 0032 Amendment 2026-07-26 §C2), and the `RedactRecruiterPii` mechanism it motivates was **deleted** by #842 PR1.
+> Historical record; do not act on it.
 
 **Total null-out vs surgical jsonb_set:** CTO Q2 = total null-out. Skäl: GDPR Art. 5(1)(c) data-minimisation > debug-värde. 30d-retention via `PurgeStaleRawPayloadsJob` null:ar ändå hela `raw_payload` efter 30 dagar — surgical redaction räddar non-PII i max 30 dagar för en handfull rader. KISS + Saltzer/Schroeder default-deny.
 
@@ -1231,6 +1239,10 @@ still contradict them, and it re-imposes the gate that one of those passages rel
 
 ### B1 — `:540` is WITHDRAWN. The prod gate it released is RE-IMPOSED.
 
+> **SUPERSEDED IN PART, 2026-07-26 (#845):** the gate's sole written condition — Tier B shipped with
+> green provable-erasure tests — was met on 2026-07-17 (`269a4603`). Whether the gate is therefore
+> lifted is **ADR 0106's call, not this ADR's**; see ADR 0032 Amendment 2026-07-26 §C6.
+
 > *"v0.2-prod-tag är inte längre gated på TD-73. **PurgeStaleRawPayloadsJob + audit-wire +
 > Email-only-erasure tillsammans täcker GDPR Art. 5/17/30 för rekryterar-PII i raw_payload.**"* — `:540`
 
@@ -1385,6 +1397,14 @@ merits; its stated justification cannot.
 
 ### B7 — What replaces §8's PII story: ADR 0106's two-tier contract (BOUND, **not yet shipped**).
 
+> **SUPERSEDED IN PART, 2026-07-26 (#845):** both tiers **shipped 2026-07-17** — Tier B in
+> `269a4603`, Tier A in `daa4b51d`, with the command, handler, validator and
+> `ErasureCascadeRegistry` under `src/Jobbliggaren.Application/JobAds/Commands/EraseRecruiterAds/`.
+> The "UNSHIPPED" tense below, and B8's *"no automated erasure path exists"*, are false as of that
+> date. **The prod gate's status is owned solely by ADR 0106 and is not restated here** — this entry
+> neither declares it lifted nor re-asserts it. See ADR 0032 Amendment 2026-07-26 §C6, and the
+> Art. 12(3)/17 routing risk flagged to Klas on PR #1089.
+
 > **Tense discipline, deliberately:** neither tier exists in the code today. Describing a control we do
 > not have is the exact defect this amendment corrects. **Tier A and Tier B are BOUND (CTO 2026-07-13) and
 > UNSHIPPED.** What has already landed on this branch is PR1 only: the endpoint now returns **501** with a
@@ -1457,81 +1477,128 @@ plainly that no automated erasure path exists.
 - **Law:** GDPR Art. 5(1)(c)/(2), 12(3), 17(1)/(2), 25(2), 30 — https://gdpr-info.eu (accessed 2026-07-13) · CJEU **C-131/12** *Google Spain* (13 May 2014)
 - **Issues:** #842 (this) · #843 (test fiction) · #845 (retention rule, doc-only) · #824/#841 (generated-column blast radius) · #821 (`DeletedAt` never written)
 
-## Amendment 2026-07-26 — the retention rule, stated once and correctly (#845)
+## Amendment 2026-07-26 - the retention rule, stated once and correctly (#845)
 
-**Status:** Accepted · **Ersätter inte** A2/B4(a); de var rätt om att den dokumenterade regeln var
-falsk, och fel om vad som ersätter den. Den här posten är **regelns hem**. Alla `src/`-kommentarer
-som tidigare upprepade en retention-regel för `raw_payload` pekar hit i stället — se C3.
+**Status:** Accepted - does **not** supersede A2/B4(a) wholesale. They were right that the documented
+rule was false, and wrong about what replaces it. This entry is the **rule's home**. Every `src/`
+comment that used to restate a `raw_payload` retention rule now points here - see C3.
 
-### C1 — A2:s och B4(a):s ersättningsregel är också falsk
+### C1 - A2's and B4(a)'s replacement rule is also false
 
-A2 och B4(a) skriver *"30 dagar efter att annonsen lämnat flödet"*. Det är närmare än
-`published_at`-regeln men fortfarande fel, och det är fel i **båda** riktningarna:
+A2 and B4(a) write *"30 days after the ad leaves the feed"*. That is closer than the `published_at`
+rule and still wrong, in **both** directions:
 
-- En annons som **avlistas dag 10** purgeras vid dag 30 — tjugo dagar **före** den regeln påstår.
-- En annons som legat **listad ett år** får sin payload borta ungefär ett dygn efter avlistning —
-  tjugonio dagar **före** den regeln påstår.
+- an ad **delisted on day 10** is purged on day 30 - twenty days **before** that rule claims;
+- an ad **listed for a year** loses its payload about a day after delisting - twenty-nine days
+  **before** it.
 
-Regeln var alltså aldrig "N dagar efter händelse X". Att skriva in den hade gett ADR:n en **fjärde**
-falsk retention-mening, och formuleringen hade spridits vidare: den stod redan i fem `src/`-filer när
-#845 filades.
+The rule was never "N days after event X". Writing it in would have given this ADR a **fourth** false
+retention sentence, and the wording had already spread: five `src/` files, `ADR 0049`, the ROPA and
+two test files carried it by the time #845 was filed.
 
-### C2 — regeln
+### C2 - the rule
 
-> `raw_payload` nollas av `PurgeStaleRawPayloadsJob` (04:30 UTC) på varje annons äldre än
-> `RawPayloadRetentionDays` (default 30, mätt från `published_at`). **Purgen är inte varaktig så länge
-> annonsen re-ingesteras:** 02:00-snapshoten och 10-minuters-strömmen skriver båda genom
-> `JobAd.UpdateFromSource`, som tilldelar om payloaden. **Payloaden är därför varaktigt borta från den
-> första 04:30-körningen efter att BÅDA (a) annonsen är äldre än retention-fönstret OCH (b) ingenting
-> re-ingesterar den** — det som inträffar sist. En Art. 17-radering kortsluter båda klausulerna:
-> `JobAd.Erase` nollar payloaden omedelbart och `UpdateFromSource` vägrar på `Erased`, så ingenting
-> återställer den.
+> `raw_payload` is nulled by `PurgeStaleRawPayloadsJob` (registered as
+> `RecurringJobIds.PurgeStaleRawPayloads` in `RecurringJobRegistrar`; cron times are UTC, Hangfire
+> default) on every ad older than `RawPayloadRetentionDays` (default 30, measured from
+> `published_at`). **The purge is not durable while the ad is being re-ingested:** every re-ingest
+> route writes through `JobAd.UpdateFromSource`, which reassigns the payload - the nightly full
+> snapshot, the 10-minute stream, the `JobAdRefetchBackfillRunner` backfills and the admin refetch
+> endpoint alike. **The payload is therefore durably absent from the first purge run after BOTH
+> (a) the ad is older than the retention window AND (b) nothing is re-ingesting it** - whichever
+> comes later. An Art. 17 erasure short-circuits both clauses: `JobAd.Erase` nulls the payload
+> immediately and `UpdateFromSource` refuses on `Erased`, so nothing restores it.
 
-**Den generaliserbara regeln — tillämpa den, kopiera inte bara stycket ovan:**
+Deliberately **no cron literals and no writer list** above. A grep for `0 2 * * *` finds nothing (the
+snapshot is registered as `Cron.Daily(2)`), and an enumeration of writers goes stale the moment a
+fifth one is added; clause (b) is written to cover any re-ingest route, named or not.
 
-> **Ett retention-påstående om en kolumn som ett periodiskt jobb SKRIVER OM måste ange omskrivningen
-> som del av regeln. Det effektiva raderingsdatumet för en omskriven kolumn är
-> `max(purge-berättigande-datum, senaste-skrivning + purge-period)`, aldrig purge-predikatet ensamt.**
+**The generalisable rule - apply this, do not just copy the paragraph above:**
 
-Den fångar nästa instans, inte bara den här: `audit_log`-partitioner, `ParsedResume`-staging-rader,
-`job_ad_snapshot_misses` — allt där en retention-cron och en ingest-cron skriver samma kolumn.
+> **A retention claim about a column that a periodic job REWRITES must state the rewrite as part of
+> the rule. The effective deletion date of a re-written column is `max(purge-eligibility-date,
+> last-write + purge-period)`, never the purge predicate alone.**
 
-**Koden ändras inte.** A2:s ursprungliga skäl att inte införa en hash-kortslutning är dött (#841
-skeppade, så att undertrycka omskrivningen gör inte längre en intermittent defekt permanent), men
-skälet **ersätts, inte upphävs**: en kortslutning bryter ADR 0106 D4:s varaktighetsargument — scrubben
-är strukturell just därför att varje omskrivning ovillkorligen når `ApplyContactRedaction`. Den skulle
-dessutom frysa `ExtractedTerms` mot en föränderlig taxonomi (#874) och missläsa `Remote`-fältets
-PRESERVE-semantik (#551). En dokumentationsdefekt byttes mot en arkitekturdefekt — avvisat.
+It discriminates rather than alarming everywhere. For `audit_log` partitions and `ParsedResume`
+staging rows no ingest cron rewrites the column: the rewrite term is zero, `max()` collapses to the
+purge predicate, and the rule is correctly silent. For `job_ad_snapshot_misses` - written on the
+nightly sync, consumed by `RetainPlatsbankenJobAdsJob` - it fires.
 
-### C3 — ett hem för regeln; `src/` bär pekare
+**Purpose, because Art. 5(1)(e) needs something to measure necessity against.** `raw_payload` exists
+for debug and replay of ingest and matching determinism **while the ad is live and searchable**. That
+purpose ends at delisting, which is exactly why the rule's long regime ends about a day after the last
+re-ingest rather than thirty days later. Retaining the sanitized payload of a currently-published,
+publicly-listed ad is necessary for a stated purpose; retaining it past delisting is not, and the rule
+does not.
 
-Regeln stod i **tretton filer** när #845 mättes (25 påståenden totalt; greppen är auktoriteten, inte
-en filuppräkning). Tio källfiler påstod fortfarande `published_at`-varianten. De upprepar inte längre
-regeln — de pekar hit. **Lägg aldrig tillbaka en retention-varaktighet i en `src/`-kommentar:** en
-regel som bor på tretton ställen går stale på tolv av dem, och det är precis hur den här ADR:n samlade
-fyra olika falska versioner av samma mening.
+**The code does not change.** A2's original ground for refusing a hash short-circuit is dead - #841
+shipped, so suppressing the rewrite no longer converts an intermittent defect into a permanent one -
+but the ground is **replaced, not repealed**: a short-circuit breaks ADR 0106 D4's durability
+argument, because the ingest scrub is structural only while every rewrite unconditionally reaches
+`ApplyContactRedaction`. It would also freeze `ExtractedTerms` against a changing taxonomy (#874) and
+misread `Remote`'s PRESERVE semantics (#551). A documentation defect traded for an architecture defect
+- rejected.
 
-### C4 — riskregistret: defekten är motsatsen till den #845 påstod
+### C3 - one home; `src/` carries pointers
 
-#845 skriver att båda mitigations *"är verkningslösa"* och att det ska redovisas ärligt. **Det är inte
-längre sant vid HEAD** — #842 stängde 2026-07-17 (Tier A `daa4b51d`, Tier B `269a4603`), så den
-försvårande omständigheten issuen bygger på gäller inte. Att skriva in "ingen verksam mitigering" hade
-skapat en **ny** falsk mening i registret. Rätt form är räckvidd per kontroll:
+**Scope of the done-condition, written down because getting it wrong is how this defect survives:**
+the claim-shaped grep runs over `src/`, `tests/`, `docs/decisions/` **and** `docs/runbooks/`. The
+first pass of this amendment measured only the first and third and reported "zero live false claims"
+on that basis - scoped-true and globally false, with live claims left in `tests/` and in the ROPA.
 
-| Kontroll | Når | Når INTE | Täcks av |
+**The grep is the authority, never a file list.** Search for the claim's *shape* - any co-occurrence
+of `raw_payload`/`RawPayload` with a duration, or with `purge`/`retention` - and require zero
+un-truth-synced hits at your HEAD. #845's own body named three files; the rule found thirteen.
+
+**Never put a retention duration back into a `src/` comment.** A rule living in thirteen places goes
+stale in twelve of them, and that is precisely how this ADR accumulated four different false versions
+of one sentence. State the *consequence* locally where the local reader needs it; name this section
+for the rule.
+
+### C4 - the risk register: the defect is the inverse of the one #845 reports
+
+#845 says both mitigations *"are ineffective"* and asks for that to be recorded honestly. **That is no
+longer true at HEAD** - #842 closed 2026-07-17 (Tier A `daa4b51d`, Tier B `269a4603`), so the
+aggravating circumstance the issue rests on does not hold, and writing "no effective mitigation" would
+have created a **new** false sentence. The honest form is reach per control:
+
+| Control | Reaches | Does NOT reach | Covered by |
 |---|---|---|---|
-| `JobTechPayloadSanitizer` (allowlist) | strukturerade kontakt-**nycklar** | varje **värde**; fritextnycklar behålls med flit | defense-in-depth, aldrig en fritext-kontroll |
-| `PurgeStaleRawPayloadsJob` (04:30) | `raw_payload`, per C2-regeln | `description`, `search_vector`, `extracted_terms`, `applications.snapshot_description` | inte en PII-kontroll — payload-retention, vilket är allt den någonsin var |
-| `RecruiterContactRedactor` vid ingest (Tier A) | detekterade **e-post- och telefon**-spann i `Title`/`Description`/`RawPayload`, vid varje skrivning, i varje status | rekryterar**namn** (ingen NER, ADR 0106 D5); obfuskerade former (`anna(at)acme.se`); kontakter i bilder | Tier B |
-| Helposts-radering (Tier B) | **bäraren** — namnet inkluderat; bevisbar; re-import blockerad | sökandes frysta `AdSnapshot` (ADR 0106 D9, nedtecknat undantag); kräver en **begäran** | ingenting — detta är golvet |
+| `JobTechPayloadSanitizer` (allowlist) | structured contact **keys** | every **value**; free-text keys are retained by design | defense-in-depth, never a free-text control |
+| `PurgeStaleRawPayloadsJob` | `raw_payload`, per C2 | every other surface carrying the same text - `description`, `search_vector`, `extracted_terms`, and the frozen `applications.snapshot_*` columns among them | not a PII control - payload retention, which is all it ever was |
+| `RecruiterContactRedactor` at ingest (Tier A) | detected **email and Swedish phone** spans in `Title`/`Description`/`RawPayload`, on every write, in every status | recruiter **names** (no NER - ADR 0106 D5); obfuscated forms; contacts inside images | Tier B |
+| Whole-record erasure (Tier B) | the **carrier**, name included; provable; re-import blocked | applicants' frozen `AdSnapshot` (ADR 0106 D9, recorded exception); requires a **request** | nothing - this is the floor |
 
-**Nedskriven residual:** namn och obfuskerade former nås inte av Tier A **med flit**; Tier B är
-begäran-driven. Det är inte "ingen mitigering", och det är inte "täckt".
+**Written residual.** Names and obfuscated forms are outside Tier A **by design**; Tier B is
+request-driven. Two further residuals that are ours and owned: (a) `AdSnapshot` copies frozen
+**before 2026-07-17** hold un-scrubbed contact text and are reached by neither tier - Tier A never
+rewrites them, Tier B exempts them per D9; (b) a nulled payload survives in database backups for the
+backup retention period. Neither is "no mitigation", and neither is "covered".
 
-### C5 — axeln står. Ruled, inte deferrad.
+### C5 - the axis stands. Ruled, not deferred.
 
-`RawPayloadRetentionDays` mätt från `published_at` behålls. Felriktningen är alltid **mindre**
-retention, inte mer — fail-safe under Art. 5(1)(e). Det som var fel är dokumentationens **verb**
-("Dagar att behålla"), inte aritmetiken: värdet är en purge-**berättigandetröskel**, inte en
-garanterad livstid. #845 punkt 4 är därmed **stängd**, inte öppen.
+`RawPayloadRetentionDays` measured from `published_at` is kept, and the doc's **verb** was the defect,
+not the arithmetic: the value is a purge-**eligibility threshold**, never a guaranteed lifetime. Both
+options classes now say so. #845 task 4 is therefore **closed**, not open.
 
+The argument for keeping it is the purpose test in C2, **not** "the error direction is always less
+retention". That comparative claim was in this amendment's first draft and is withdrawn: a rule is not
+lawful under Art. 5(1)(e) because it could have been worse, and in the regime where retention is
+*longest* - a long-listed ad - the binding term is `last-write + purge-period`, not the axis at all.
+Defending the threshold as though it were the rule contradicts C2, which proves it is not.
+
+### C6 - what #842 actually shipped, and who owns the gate
+
+B7 and B8 still describe both tiers as **BOUND and UNSHIPPED** and state that *"no automated erasure
+path exists"*. Measured: `269a4603` shipped Tier B (Art. 17 whole-record erasure, durable against
+re-import) and `daa4b51d` shipped Tier A (Art. 25 at ingest), both on **2026-07-17**, and
+`src/Jobbliggaren.Application/JobAds/Commands/EraseRecruiterAds/` carries the command, handler,
+validator and `ErasureCascadeRegistry`.
+
+This entry records only that. It does **not** declare the prod gate lifted and does **not** re-assert
+it: **ADR 0106 is the gate's sole owner** and its status is described only there. The reason this
+matters today rather than at a future tag is that B8 directs whoever receives an Art. 17 request to
+escalate and handle it manually *"because no automated erasure path exists"* - so a false record in
+the governing ADR routes a live rights request away from the automated path that exists. Art. 5(2)/24
+with an Art. 12(3)/17 consequence. Flagged to Klas on PR #1089; the gate-status judgement is his, the
+tense correction is not.

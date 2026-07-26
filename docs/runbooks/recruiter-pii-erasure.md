@@ -122,8 +122,8 @@ miss something:
 3. **Substring over `company_name`** — and this one is not redundant. An *enskild
    firma*'s company name IS a natural person's name, `search_vector` is built from
    title + description only (so channel 1 cannot see it), and `raw_payload` is
-   NULLed 30 days after publication (so channel 2 loses it for most of the corpus).
-   Without channel 3, every ad older than a month would report no match while her
+   NULLed per ADR 0032 Amendment 2026-07-26 §C2 (so channel 2 loses it for any ad whose payload has been purged).
+   Without channel 3, any ad whose payload had been purged would report no match while her
    name sat in plaintext in a column we scan.
 4. **Exact match on `organization_number`** — when the identifier is an org.nr.
    Forced by the same 30-day logic as channel 3: after the `raw_payload` purge,

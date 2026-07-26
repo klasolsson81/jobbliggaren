@@ -366,9 +366,10 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
     // anywhere in src/ (#821), so it pinned a state production can never reach — and the false model it
     // encoded was then written into the handler docs and DPIA #456 as fact. See #843.
     //
-    // The real mechanism: `organization_number` is a STORED generated column derived from raw_payload,
-    // and PurgeStaleRawPayloadsJob nulls raw_payload 30 days after PublishedAt -> Postgres recomputes
-    // the column to NULL -> the row is dropped. Both tests below reach their state through PRODUCTION
+    // The real mechanism, as it was BEFORE #841: `organization_number` WAS a STORED generated column
+    // derived from raw_payload, and PurgeStaleRawPayloadsJob nulls raw_payload (rule: ADR 0032 Amendment 2026-07-26 §C2)
+    // -> Postgres recomputed the column to NULL -> the row was dropped. #841 materialised the column,
+    // so the recompute no longer happens; these tests pin that it stays fixed. Both tests below reach their state through PRODUCTION
     // writes: the real Archive() domain method, and the purge job's own ExecuteUpdate (scoped to one
     // provably-eligible ad — see PurgeThisAdsPayloadAsync for why the table-wide job cannot be run
     // against the shared Api Postgres). Never a state that has no writer in src/.
@@ -452,7 +453,7 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
         var result = await CreateHandler(db, userId).Handle(Query, ct);
         result.Count.ShouldBe(1,
             "a submitted application to a still-ACTIVE ad must not disappear from the user's history " +
-            "because a background job deleted a debug artefact 30 days after publication (#824/#841).");
+            "because a background job deleted a debug artefact (#824/#841).");
         result[0].OrganizationNumber.ShouldBe("5560360794");
         result[0].ApplicationCount.ShouldBe(1);
     }

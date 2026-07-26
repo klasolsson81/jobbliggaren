@@ -10,6 +10,7 @@ import {
   parseNamn,
   buildOrgNrRefusedHref,
   normalizeCodes,
+  toStringList,
   FORETAG_SOK_ROUTE,
   MAX_SNI_CODES,
   MAX_MUNICIPALITY_CODES,
@@ -95,18 +96,34 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   //
   // The page-level gate STAYS, and both are load-bearing on different properties: this one keeps the
   // URL from being served; that one keeps the value out of `body.name` should a render ever be
-  // reached without passing here. That is not two rules — the RULE lives in `search-params.ts` and
-  // neither call site may ever grow an inline predicate of its own.
+  // reached without passing here — Next's own docs warn that a `matcher` change can silently remove
+  // proxy coverage, and rewrites resolve after this layer. That is not two rules — the RULE lives in
+  // `search-params.ts` and neither call site may ever grow an inline predicate of its own.
+  //
+  // BELOW the auth branch deliberately: for an unauthenticated request the login redirect discards
+  // the ENTIRE query string, which is a stronger wash than this one (every axis, not just `namn`).
+  // That makes the ordering load-bearing rather than incidental — building `next` from `pathname +
+  // search`, an ordinary change so a user returns to their search after login, would put the value
+  // into `?next=` and from there into the login page's DOM. Pinned in both directions in
+  // `proxy.test.ts`.
   if (pathname === FORETAG_SOK_ROUTE) {
     const params = request.nextUrl.searchParams;
     if (parseNamn(params.getAll("namn")).kind === "orgNrShaped") {
       const washed = buildOrgNrRefusedHref({
+        // `toStringList`, not raw `getAll`, so this marshals byte-identically to the page gate —
+        // otherwise `?sni=&sni=62010` would yield two different wash targets from the one rule.
         // Reference-free (dedupe + cap only): the proxy has no SCB reference, and the
         // reference-based drop-unknown applies on the render that follows the redirect.
-        sni: normalizeCodes(params.getAll("sni"), MAX_SNI_CODES),
-        kommun: normalizeCodes(params.getAll("kommun"), MAX_MUNICIPALITY_CODES),
+        sni: normalizeCodes(toStringList(params.getAll("sni")), MAX_SNI_CODES),
+        kommun: normalizeCodes(
+          toStringList(params.getAll("kommun")),
+          MAX_MUNICIPALITY_CODES,
+        ),
       });
-      return NextResponse.redirect(new URL(washed, request.url));
+      const response = NextResponse.redirect(new URL(washed, request.url));
+      // A refusal must never be served from a cache — the value is in the request line.
+      response.headers.set("Cache-Control", "no-store");
+      return response;
     }
   }
 

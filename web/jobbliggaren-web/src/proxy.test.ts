@@ -341,3 +341,65 @@ describe("proxy — the org.nr wash on /foretag/sok (D8(c))", () => {
     expect(res.status).not.toBe(307);
   });
 });
+
+/**
+ * The ordering property, pinned in BOTH directions.
+ *
+ * The wash sits BELOW the auth branch, which is only safe because the login redirect builds `next`
+ * from `pathname` alone and so discards the whole query string — a stronger wash than the gate's
+ * own, since it drops every axis rather than just `namn`. That is a property of how `next` is
+ * built, not of the gate, so it needs its own pin: preserving the query so a user returns to their
+ * search after login is an ordinary, reasonable change, and it would put the value into `?next=`
+ * and from there into the login page's DOM. `code-reviewer` raised exactly that mutation.
+ */
+describe("proxy — the unauthenticated path never carries the value into ?next=", () => {
+  it("drops the query string when redirecting an unauthenticated request to /logga-in", async () => {
+    const res = await proxy(makeRequest("/foretag/sok?namn=1010101010&sni=62010"));
+
+    expect(res.status).toBe(307);
+    const location = res.headers.get("location") ?? "";
+    expect(location).toContain("/logga-in");
+    expect(location).toContain("next=%2Fforetag%2Fsok");
+    // Neither raw nor percent-encoded, and no other axis either.
+    expect(location).not.toContain("1010101010");
+    expect(location).not.toContain("namn");
+    expect(location).not.toContain("62010");
+    // Not washed via the gate — the auth branch returned first, which is the point.
+    expect(location).not.toContain("avvisat");
+  });
+
+  it("washes an AUTHENTICATED request instead of sending it to /logga-in", async () => {
+    // The other direction: with a session the gate is what answers, so the ordering above cannot be
+    // "fixed" by simply deleting the auth branch.
+    const res = await proxy(
+      makeRequest("/foretag/sok?namn=1010101010", {
+        cookies: { [SESSION_COOKIE_NAME]: "sess-1" },
+      }),
+    );
+    const location = res.headers.get("location") ?? "";
+    expect(location).toContain("avvisat=orgnr");
+    expect(location).not.toContain("logga-in");
+  });
+
+  it("marks the wash redirect no-store — a refusal must not be served from a cache", async () => {
+    const res = await proxy(
+      makeRequest("/foretag/sok?namn=1010101010", {
+        cookies: { [SESSION_COOKIE_NAME]: "sess-1" },
+      }),
+    );
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("marshals the axes identically to the page gate (empty repeated values dropped)", async () => {
+    const res = await proxy(
+      makeRequest("/foretag/sok?namn=1010101010&sni=&sni=62010", {
+        cookies: { [SESSION_COOKIE_NAME]: "sess-1" },
+      }),
+    );
+    const location = res.headers.get("location") ?? "";
+    expect(location).toContain("sni=62010");
+    // An empty repeated value must not survive as `sni=` — that is what `toStringList` drops, and
+    // the page gate has always dropped it.
+    expect(location).not.toMatch(/sni=(&|$)/);
+  });
+});

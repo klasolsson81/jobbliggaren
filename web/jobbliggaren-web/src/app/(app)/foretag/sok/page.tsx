@@ -62,12 +62,21 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
   // Two call sites, one rule. `parseNamn` and `buildOrgNrRefusedHref` live in `search-params.ts`;
   // neither gate may ever grow an inline predicate of its own, or this becomes two rules that drift.
   //
-  // Why the proxy is the primary one, measured 2026-07-26 in Chromium with JS disabled: a
+  // Why the proxy is the primary one, measured 2026-07-26 in Chromium with JS disabled. A
   // page-level `redirect()` runs after the `(app)` layout has begun streaming, so Next CANNOT answer
-  // 3xx — it answers 200 and serves a document carrying a meta refresh. That document loads
-  // subresources, and `Referrer-Policy: strict-origin-when-cross-origin` put the refused URL in the
-  // `Referer` of six requests, including the log line for the washed URL itself. With the gate at
-  // the proxy the same probe measures: one 307, no document, and ZERO requests carrying the value.
+  // 3xx — it answers 200 and serves a document carrying
+  // `<meta http-equiv="refresh" content="1;url=…?avvisat=orgnr">`. What that costs, and therefore
+  // what this backstop costs on the day it is the one that fires, all measured:
+  //   - the refused URL dwells ~1s in the address bar before the refresh replaces it;
+  //   - the document loads subresources, and `Referrer-Policy: strict-origin-when-cross-origin`
+  //     put the refused URL in the `Referer` of SIX requests — two fonts, two stylesheets, a
+  //     script, and the meta-refresh navigation itself, so even the log line for the WASHED url
+  //     carried the unwashed value;
+  //   - the delivered HTML echoes the value inside Next's own router-state payload (Next
+  //     reflecting the requested URL, not markup of ours); the rendered DOM does not;
+  //   - one Back press still lands on `/foretag/sok`, not on the refused URL.
+  // With the gate at the proxy the same probe measures one 307, no document, and ZERO requests
+  // carrying the value. Keep these numbers: they are what makes "backstop" a cost and not a freebie.
   const parsedNamn = parseNamn(params.namn);
   if (parsedNamn.kind === "orgNrShaped") {
     redirect(

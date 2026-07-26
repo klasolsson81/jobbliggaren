@@ -99,9 +99,8 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > **Varför regeln finns, mätt:** under #186 gick **sex** tal stale i den här filen — och två av
 > dem falsifierades av tillägg i **samma commit som skrev siffran**. Rond efter rond synkades
 > speglarna, vilket botar instansen och inte generatorn: så länge ett tal bor på fler än ett
-> ställe är nästa tillagda punkt garanterad att producera nästa fynd. Fyra platser att hålla
-> aktuella blev tre; elva omnämnanden blev pekare. **Lägg aldrig till ett tal på en andra
-> plats** — skriv "antalet står i ‹hem›" i stället.
+> ställe är nästa tillagda punkt garanterad att producera nästa fynd. **Lägg aldrig till ett tal
+> på en andra plats** — skriv "antalet står i ‹hem›" i stället.
 
 > Gäller ENDAST en release som aktiverar `Email:Provider=Resend` i non-dev.
 > Tills dess kör `NullEmailSender` — ingen

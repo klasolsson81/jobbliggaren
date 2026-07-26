@@ -14,8 +14,9 @@ import { SkipLink } from "@/components/site/skip-link";
  * difference is the right slot: the landing header shows live Platsbanken
  * stats; this minimal header shows an optional "Logga in" link (inner pages
  * never repeat stats outside the landing context). The legacy `.jp-land-top`
- * class this component used before #258 is now dormant (its last consumer);
- * the alias CSS is retired by the landing lane, not here.
+ * class this component used before #258 lost its last consumer then; its CSS
+ * was removed in #1054. `site-header.test.tsx` still asserts the markup is
+ * absent — that assertion is the contract, not a consumer.
  *
  * `variant="minimal"` (issue #258) is honored as INTENT — there is exactly one
  * public header variant in this wave, so the component simply IS the minimal

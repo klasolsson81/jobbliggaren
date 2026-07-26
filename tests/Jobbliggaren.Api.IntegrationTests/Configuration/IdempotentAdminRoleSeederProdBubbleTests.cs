@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -42,20 +41,8 @@ public sealed class ProdSeederBubbleFactory : WebApplicationFactory<Program>, IA
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
     private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
 
-    private readonly string _privateKeyPath;
-    private readonly string _publicKeyPath;
-
     private string _postgresCs = string.Empty;
     private string _redisCs = string.Empty;
-
-    public ProdSeederBubbleFactory()
-    {
-        var rsa = RSA.Create(2048);
-        _privateKeyPath = Path.Combine(Path.GetTempPath(), $"jobbliggaren-prodseederbubble-private-{Guid.NewGuid()}.pem");
-        _publicKeyPath = Path.Combine(Path.GetTempPath(), $"jobbliggaren-prodseederbubble-public-{Guid.NewGuid()}.pem");
-        File.WriteAllText(_privateKeyPath, rsa.ExportRSAPrivateKeyPem());
-        File.WriteAllText(_publicKeyPath, rsa.ExportSubjectPublicKeyInfoPem());
-    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -100,8 +87,6 @@ public sealed class ProdSeederBubbleFactory : WebApplicationFactory<Program>, IA
         _redisCs = _redis.GetConnectionString();
 
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production");
-        Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", _privateKeyPath);
-        Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", _publicKeyPath);
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", "127.0.0.1/32");
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
@@ -113,15 +98,10 @@ public sealed class ProdSeederBubbleFactory : WebApplicationFactory<Program>, IA
     public new async ValueTask DisposeAsync()
     {
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
-        Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", null);
-        Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", null);
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
         Environment.SetEnvironmentVariable("Hsts__MaxAgeDays", null);
-
-        if (File.Exists(_privateKeyPath)) File.Delete(_privateKeyPath);
-        if (File.Exists(_publicKeyPath)) File.Delete(_publicKeyPath);
 
         GC.SuppressFinalize(this);
 

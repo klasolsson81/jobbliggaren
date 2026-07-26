@@ -39,7 +39,7 @@ layouts. Light/dark follow the `--jp-*` tokens automatically.
 | Pattern | What it is | When |
 |---|---|---|
 | `.jp-table--flat` | Print-ledger table. **NO zebra**, **NO celled borders**, hairlines between rows, thicker (2px) top/bottom rule, mono uppercase header. | Default for data lists. |
-| `.jp-attention` | Row-based feed: 8px dot + text (`max-width: 68ch`) + hover dismiss. Hairlines top/between, **no box**. | Översikt / "Aktuellt" feed. |
+| `.jp-attentionqueue` | Prioritised lift list. Reuses the shared ledger row `.jp-app`; lede capped at `max-width: 68ch`, hairlines, **no box**. | Ansökningar / "Aktuellt" queue. |
 | `.jp-pipeline` | Kanban as ledger rows. Columns separated by `--jp-border-strong` (stronger than row hairlines), **NO floating cards** (`.jp-appCard` is `display:none`). Rows are `.jp-appRow`. | Application pipeline. |
 | `.jp-statusDot` | Dot + text, **no background**. `--brand`/`--info`/`--success`/`--warning`/`--danger`/`--neutral`. | **First choice in tables** for status. |
 | `.jp-pill` | Pill: colored `*-50` bg + 6px dot + `*-700` text, `rounded-pill`. | Status **at an entity** (accent moment), not in dense table columns. |
@@ -115,7 +115,7 @@ Not in v1: column resize, column reorder, inline editing.
 
 ### Input / Textarea / Select
 
-Spec (matches `.jp-input` / `.jp-select`, recalibrated per ADR 0038):
+Spec (matches `.jp-input`, recalibrated per ADR 0038):
 - Height: **44px**, sm **40px**
 - Border: `border-border-default` (slate-200), `border-radius: 4px`
   (`var(--jp-r-md)`)

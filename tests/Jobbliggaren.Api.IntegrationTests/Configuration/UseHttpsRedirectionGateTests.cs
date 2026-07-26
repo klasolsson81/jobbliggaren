@@ -1,5 +1,4 @@
 using System.Net;
-using System.Security.Cryptography;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -65,9 +64,6 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
     private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
 
-    private readonly string _privateKeyPath;
-    private readonly string _publicKeyPath;
-
     private string _postgresCs = string.Empty;
     private string _redisCs = string.Empty;
 
@@ -76,15 +72,6 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
 
     /// <summary>ASP.NET environment-name. Override:s av Development-factory; default Production.</summary>
     protected virtual string EnvironmentName => "Production";
-
-    protected HttpsRedirectionGateFactoryBase()
-    {
-        var rsa = RSA.Create(2048);
-        _privateKeyPath = Path.Combine(Path.GetTempPath(), $"jobbliggaren-httpsgate-private-{Guid.NewGuid()}.pem");
-        _publicKeyPath = Path.Combine(Path.GetTempPath(), $"jobbliggaren-httpsgate-public-{Guid.NewGuid()}.pem");
-        File.WriteAllText(_privateKeyPath, rsa.ExportRSAPrivateKeyPem());
-        File.WriteAllText(_publicKeyPath, rsa.ExportSubjectPublicKeyInfoPem());
-    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -146,8 +133,6 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
         // kräver populerad ConnectionStrings + KnownNetworks (per ForwardedHeadersConfig.
         // EnsureSafeForEnvironment) + IConnectionMultiplexer-string (TD-37-läxa).
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", EnvironmentName);
-        Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", _privateKeyPath);
-        Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", _publicKeyPath);
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", "127.0.0.1/32");
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
@@ -173,17 +158,12 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
     public new async ValueTask DisposeAsync()
     {
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
-        Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", null);
-        Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", null);
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
         Environment.SetEnvironmentVariable("Alb__HttpsEnabled", null);
         Environment.SetEnvironmentVariable("Hsts__MaxAgeDays", null);
         Environment.SetEnvironmentVariable("Hsts__IncludeSubDomains", null);
-
-        if (File.Exists(_privateKeyPath)) File.Delete(_privateKeyPath);
-        if (File.Exists(_publicKeyPath)) File.Delete(_publicKeyPath);
 
         // SuppressFinalize FÖRE base.DisposeAsync (idempotent, men rätt ordning enligt
         // CA1816 — undviker dubbel-anrop då base själv anropar SuppressFinalize internt).

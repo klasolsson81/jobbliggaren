@@ -285,7 +285,11 @@
       "loadErrorTitle": "The search could not be loaded",
       "loadErrorBody": "Try again in a moment.",
       "rateLimited": "Too many requests right now. Wait a moment and reload the page.",
-      "loadingResults": "Searching companies…"
+      "loadingResults": "Searching companies…",
+      "tableAria": "Companies matching the search",
+      "tableCaption": "Companies with name, organisation number, registered seat and industries.",
+      "orgNrTableAria": "Company matching the organisation number",
+      "orgNrTableCaption": "The company with name, organisation number, registered seat and industries."
     },
     "watchesHeading": "Followed companies",
     "watchesLede": "Companies you follow. New ads from them appear here and on the overview.",

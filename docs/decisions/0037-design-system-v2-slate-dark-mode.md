@@ -33,6 +33,42 @@ JobbPilots designsystem migreras till **v2**: en slate-baserad civic-utility-pal
 
 **App shell Variant B:** sektionerad sidebar, 4 px brand left-border på aktiv nav. JetBrains Mono + Hanken via `next/font`. Nytt `.jp-*` civic component utility-system.
 
+**Amendment 2026-07-26 (#1055) — the density system is retired, unimplemented
+and unconsumed.** No status change, no supersede; the Beslut clause above and
+the Konsekvenser line are left exactly as written. The dark-mode mechanism
+(`data-theme`, the blocking inline script, `useSyncExternalStore`), the slate
+palette and the app shell all remain in force — this narrows one clause, not the
+ADR.
+
+Measured on `main` 2026-07-25 and re-measured at delivery: `--jp-density` and
+its three derived tokens (`--jp-row-h`, `--jp-section-y`, `--jp-pad-x`) had
+**zero `var()` consumers** anywhere in `src/`, `data-density="standard"` was
+hardcoded on `<html>` in both root documents, and nothing else ever set it. So
+switching to `compact` or `luftig` did nothing at all, and this ADR's rule
+*"hårdkoda aldrig padding där density gäller"* could not be followed by anyone.
+
+**Wiring it up instead was not merely unrequested — a third of it is
+unbuildable.** `compact` 0.85 yields `--jp-row-h` 30,6px and `--jp-pad-x`
+23,8px, against ADR 0038's and the a11y skill's 44px touch / 40px button floors;
+ADR 0038's own clarification of design-principles rule 7 states that density is
+**subordinate** to legibility on conflict. Implementing `compact` as specified
+would breach WCAG 2.5.5 and the house's own floor.
+
+**Reintroduction requires a new ADR** — the same bar this ADR's own §Kontext
+records for dark mode, which is what produced ADR 0037 in the first place.
+Retire by deletion, gate re-entry behind a decision.
+
+The hardcoded `data-density="standard"` attribute was removed in the same PR,
+deliberately and non-negotiably: leaving it would have left an attribute on
+`<html>` in both root documents that no selector matches — #877's
+referenced-but-never-defined shape moved from custom properties to HTML
+attributes, where #877's sweeps do not look. Splitting that removal would have
+manufactured a fresh instance of the defect class this retirement closes.
+
+Grounds and rejected alternatives (wire it up / park it):
+`docs/reviews/2026-07-25-density-system-cto.md`.
+
+
 ## Alternativ som övervägdes
 
 ### Alt A — `data-theme`-attribut + inline blockerande script + client provider (valt)

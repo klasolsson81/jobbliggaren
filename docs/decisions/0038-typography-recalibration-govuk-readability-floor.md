@@ -84,6 +84,12 @@ Typografin och fältstorlekarna i designsystem v2 omkalibreras till ett GOV.UK-f
 ## Relation till andra ADR:er
 
 - **ADR 0037 — DELVIS supersederad.** Endast typografi/density-aspekten ersätts. ADR 0037:s beslut om dark-mode-mekanik (`data-theme`, inline blockerande script, `useSyncExternalStore`), slate-palett och `[data-density]`-systemet står ORÖRDA. Detta är en dokumenterad partiell supersession — **ingen statusändring på ADR 0037** (den är inte ersatt i sin helhet). Den partiella ersättningen dokumenteras här i ADR 0038.
+- **Daterad framåtpekare 2026-07-26 (#1055):** meningen ovan säger att
+  `[data-density]`-systemet står ORÖRT. Det gällde när den skrevs. Systemet är
+  sedan dess **retirerat** (ADR 0037-amendment 2026-07-26) — det hade noll
+  konsumenter, och dess `compact`-läge var oimplementerbart mot just det
+  läsbarhetsgolv den här ADR:n satte. Originalmeningen skrivs inte om; den är en
+  daterad observation, det här är noteringen att den inte längre beskriver HEAD.
 - **ADR 0016** — civic-restriktionen gäller fortsatt; civic-ledger-FORMEN ändras inte.
 
 ## Referenser

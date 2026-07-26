@@ -432,12 +432,30 @@ doubt, in-block wins (quality > tempo) and senior-cto-advisor decides.
   (ESLint, no `--fix`) + `pnpm tsc --noEmit`. No Prettier; `json`/`md`/`yaml`
   not auto-formatted.
 - `.editorconfig` + committed `.vscode/` settings/extensions.
-- Dev env: Docker Compose (`postgres`, `redis`, `seq`) — logging is console
-  via MEL; no Serilog/Seq sink wired yet (full observability = TD-104,
-  Hetzner phase). Everything runs locally (AWS retired, ADR 0066):
-  `ConsoleEmailSender` for mail, `LocalDataKeyProvider` (AES-256-GCM) for
-  field encryption. Frontend `.env.local`; backend
+- Dev env: Docker Compose (`postgres`, `redis`, `seq`) — MEL logs to console
+  **and to Seq**: `AddJobbliggarenLogging` (shared by Api + Worker) attaches the
+  Seq provider **only when `Seq:ServerUrl` is set**; the Hetzner residual is the
+  *production* Seq, not the wiring. Everything runs locally (AWS retired,
+  ADR 0066): `LocalDataKeyProvider`
+  (AES-256-GCM) for field encryption, and mail via `AddEmailSender`'s
+  `Email:Provider` switch — **three** `IEmailSender` impls, not one:
+  `ConsoleEmailSender` (Development/Test **only**; it logs the recipient address
+  and the whole body, confirmation and activation links included — the gate is
+  real recipients, not sink durability, since dev's Seq does persist that line
+  and is accepted only as a loopback holding no real-user PII),
+  `NullEmailSender` (what `Provider=Console` falls back to outside Dev/Test),
+  and `ResendEmailSender` (`Provider=Resend`, fail-loud without
+  `Email:ApiKey`). Frontend `.env.local`; backend
   `appsettings.Development.json` + gitignored `appsettings.Local.json`.
+- `AlbOptions`/`Alb:HttpsEnabled` is **live despite its AWS name** — it co-gates
+  `UseHsts` and `UseHttpsRedirection` with the environment in `Api/Program.cs`,
+  and gates the fail-loud HSTS config validation. `UseHttpsRedirectionGateTests`
+  pins both middleware gates in both polarities; the validation gate itself is
+  unpinned. ADR 0066 destroyed the *deployed* AWS dev stack and deliberately
+  **preserved** `infra/terraform/`, which still carries
+  the `Alb__HttpsEnabled` injection — so neither the flag nor the tree is
+  residue. Retirement is a Hetzner-cutover ADR, never a cleanup sweep
+  (BUILD.md §15); TD-106 owns the rename to `ReverseProxyOptions`.
 - **Dev-boot config contract.** A new fail-fast option (a `ValidateOnStart` secret,
   usually in the Infrastructure DI both hosts share) that a fresh dev-stack boot needs —
   a required key, secret, or pepper the API/Worker refuses to start without — MUST be added to

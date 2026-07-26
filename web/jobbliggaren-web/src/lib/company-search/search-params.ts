@@ -19,9 +19,41 @@
  * The reference-based drop-unknown for `sni`/`kommun` (the dynamic SCB allowlist) is applied in
  * `page.tsx` via {@link normalizeCodes}, not in the builder — so the builder stays reference-free and
  * unit-testable, exactly as `matchGrades` filtering lives in `jobb/page.tsx`, not `search-params.ts`.
+ *
+ * ENFORCING the org.nr exclusion (2026-07-26, CTO bind
+ * `docs/reviews/2026-07-26-foretag-sok-pr4-nojs-pnr-cto.md`). The paragraph above was true at the
+ * TYPE level and false at the VALUE level: `ForetagSokUrlState` has no `organizationNumber` field,
+ * but a ten-digit value forwarded perfectly well as `namn` — into `body.name`, into a name-prefix
+ * scan, into the address bar, into history. `parseNamn` was `trim` + `slice` and nothing else, so
+ * the guard CLAUDE.md §5 ranks highest existed only in the two places that require the client to
+ * run (`ForetagSokSearchbar`, the BFF route). The `namn` axis had no guard at any layer, and a
+ * native GET (JS off, or Enter before hydration) or a hand-typed URL walked straight through it.
+ * Measured 2026-07-26 against HEAD: typing `1010101010` and serialising the form as a browser
+ * would produced `/foretag/sok?namn=1010101010`.
+ *
+ * {@link parseNamn} now returns a discriminated union so the refusal cannot be forgotten at the
+ * call site — the compiler pins it, rather than a second `isOrgNrShaped…` predicate a caller may
+ * simply never call. The gate fires on the class {@link normalizeOrgNrInput} accepts (the EXACT
+ * ten-digit class), not on the narrower personnummer heuristic: the JS path already routes every
+ * such value away from the name branch, and gating the two paths on different predicates would
+ * make one rule into two. It is deliberately fail-safe in this direction and must not later be
+ * narrowed to "pnr-shaped only" — that inverts the posture.
  */
 
-const ROUTE = "/foretag/sok";
+import { normalizeOrgNrInput } from "@/lib/dto/company-registry";
+
+/** The route these builders serialize. Exported so the proxy can match it without a second literal. */
+export const FORETAG_SOK_ROUTE = "/foretag/sok";
+const ROUTE = FORETAG_SOK_ROUTE;
+
+/**
+ * The PII-FREE flag the wash redirect carries so the refusal can be explained instead of silently
+ * swallowing what the user typed. It names WHAT was refused, never the value. Neither
+ * {@link buildForetagSokHref} nor {@link buildPageHref} emits it, so it cannot survive the user's
+ * next action.
+ */
+export const ORG_NR_REFUSED_PARAM = "avvisat";
+const ORG_NR_REFUSED_VALUE = "orgnr";
 
 /** Caps mirroring the backend `CompanyRegisterSearchCriteria` (the last barrier is still the server). */
 export const MAX_NAME_PREFIX_LENGTH = 100;
@@ -80,13 +112,71 @@ export function toStringList(raw: string | string[] | undefined): string[] {
 }
 
 /**
- * Parse the `namn` param: first value, trimmed, truncated to {@link MAX_NAME_PREFIX_LENGTH}. Returns
- * "" when absent. Unlike /jobb's `clampSubMinimumQ` there is NO sub-minimum: the backend has no
- * `NameTooShort` — a one-character prefix is a valid, index-served range scan.
+ * The outcome of parsing `?namn=`. A union rather than a bare string so a call site cannot read the
+ * name without deciding what to do about the refusal — the compiler pins it (ADR 0087 D8(c);
+ * CLAUDE.md §5 ranks the personnummer guard highest, and an axis with no guard at any layer is the
+ * defect this closes). Named `orgNrShaped`, not `refused`: the island already uses "refused" for the
+ * narrower personnummer-shaped case, and the two are not the same class.
  */
-export function parseNamn(raw: string | string[] | undefined): string {
-  const first = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? "";
-  return first.slice(0, MAX_NAME_PREFIX_LENGTH);
+export type ParsedNamn =
+  | { readonly kind: "name"; readonly value: string }
+  | { readonly kind: "orgNrShaped" };
+
+/**
+ * Parse the `namn` param: first value, trimmed, truncated to {@link MAX_NAME_PREFIX_LENGTH}. Returns
+ * `{ kind: "name", value: "" }` when absent. Unlike /jobb's `clampSubMinimumQ` there is NO
+ * sub-minimum: the backend has no `NameTooShort` — a one-character prefix is a valid, index-served
+ * range scan.
+ *
+ * The org.nr gate runs FIRST, on the untruncated trimmed value, and on the SAME predicate the search
+ * island uses to route a value to the org.nr branch ({@link normalizeOrgNrInput}: strip spaces and
+ * hyphens, then require exactly ten digits). One knowledge piece, one place — the two paths agree by
+ * construction instead of by two normalisers that can drift. Nothing is lost: a company whose name
+ * normalises to exactly ten digits is not a Swedish name class, and with JS on that input already
+ * takes the org.nr branch, so the gate removes an inconsistency rather than adding a restriction.
+ */
+export function parseNamn(raw: string | string[] | undefined): ParsedNamn {
+  const values = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+  // EVERY value is gated, not just the one this function goes on to use. A repeated
+  // `?namn=&namn=1010101010` puts the ten digits in a position `raw[0]` never reads — measured
+  // 2026-07-26 against the running dev server: it rendered the page with no wash at all. What
+  // reaches history, a re-shared link and the access log is the WHOLE query string, not the slice
+  // of it the parser happens to consume, so the gate has to read the whole thing too.
+  if (values.some((value) => normalizeOrgNrInput(value.trim()) !== null)) {
+    return { kind: "orgNrShaped" };
+  }
+  const first = values[0]?.trim() ?? "";
+  return { kind: "name", value: first.slice(0, MAX_NAME_PREFIX_LENGTH) };
+}
+
+/**
+ * Build the wash target for a refused ten-digit `?namn=`: the filter axes WITHOUT the name, plus the
+ * PII-free refusal flag. It shares {@link appendFilterAxes} with both commit builders deliberately —
+ * concatenating a flag suffix onto `buildForetagSokHref(...)` at the redirect site would create a
+ * second serialisation site for this route, the exact drift that helper exists to prevent.
+ *
+ * `sida` is NOT carried: dropping the name filter changes the result set, so a page number from the
+ * old one can be out of range — the same reason the filter builder never emits it.
+ *
+ * The target carries no `namn`, so parsing it returns `{ kind: "name", value: "" }` and the redirect
+ * terminates. That is pinned by a test rather than reasoned about.
+ */
+export function buildOrgNrRefusedHref(
+  state: Omit<ForetagSokUrlState, "namn">,
+): string {
+  const params = new URLSearchParams();
+  // `namn: ""` is supplied here, not accepted from the caller: this builder's whole purpose is to
+  // produce a URL WITHOUT a name, so taking one would be the same type-level/value-level slip this
+  // change exists to close.
+  appendFilterAxes(params, { ...state, namn: "" });
+  params.set(ORG_NR_REFUSED_PARAM, ORG_NR_REFUSED_VALUE);
+  return `${ROUTE}?${params.toString()}`;
+}
+
+/** Whether the URL carries the refusal flag {@link buildOrgNrRefusedHref} sets. */
+export function parseOrgNrRefused(raw: string | string[] | undefined): boolean {
+  const first = Array.isArray(raw) ? raw[0] : raw;
+  return first === ORG_NR_REFUSED_VALUE;
 }
 
 /** Parse the `sida` param to a positive integer in [1, {@link MAX_PAGE}], defaulting to 1. */

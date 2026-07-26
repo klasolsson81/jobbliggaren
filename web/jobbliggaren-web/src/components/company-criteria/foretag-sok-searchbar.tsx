@@ -1,6 +1,13 @@
 "use client";
 
-import { useId, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ChevronDown, ShieldAlert, X } from "lucide-react";
@@ -43,7 +50,23 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
  * The invariant: a pnr-shaped 10-digit value can NEVER reach `?namn=` and NEVER POST — only a NON-10-digit
  * value takes the name branch. No-JS degrades to a native GET name search (`namn` + hidden `sni`/`kommun`
  * from the applied URL); the org.nr branch and the JS controls (typeahead, popover) require JS.
+ *
+ * HYDRATION SPLIT (2026-07-26, the `/jobb` mirror — `jobb-hero-search.tsx:545-568`, `:641-643`).
+ * Once hydrated the visible input is NAMELESS and a hidden input carries the APPLIED name (the
+ * `namn` prop, which has already passed the server gate), so a native GET can only ever re-submit a
+ * value that was already accepted — never whatever is currently typed. Before hydration the input
+ * keeps `name="namn"` so no-JS submits work at all.
+ *
+ * Read the scope of this honestly: it is defence-in-depth for the case where `onSubmit` fails to
+ * run, NOT the fix for the no-JS window. With JS disabled `hydrated` never becomes true, so the
+ * input keeps its name forever and a typed ten-digit value still reaches `?namn=`. That window is
+ * closed on the SERVER, by `parseNamn`'s org.nr gate + the wash redirect in `page.tsx` — the only
+ * layer all three client states (JS off, pre-hydration, hand-typed URL) pass through. CTO bind:
+ * `docs/reviews/2026-07-26-foretag-sok-pr4-nojs-pnr-cto.md`.
  */
+
+/** `useSyncExternalStore` with a never-firing subscription: the cheapest "am I hydrated" signal. */
+const emptySubscribe = () => () => {};
 
 type OrgNrState =
   | { kind: "idle" }
@@ -142,6 +165,11 @@ export function ForetagSokSearchbar({
 }: ForetagSokSearchbarProps) {
   const t = useTranslations("pages.foretag.sok");
   const router = useRouter();
+  const hydrated = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
 
   const searchInputId = useId();
   const searchHintId = useId();
@@ -287,7 +315,10 @@ export function ForetagSokSearchbar({
           </label>
           <input
             id={searchInputId}
-            name="namn"
+            // NAMELESS once hydrated: a native GET must never carry whatever is currently typed —
+            // the hidden input below carries the already-applied name instead. Before hydration it
+            // keeps the name so a no-JS submit still works.
+            name={hydrated ? undefined : "namn"}
             className="jp-input"
             type="text"
             autoComplete="off"
@@ -306,6 +337,13 @@ export function ForetagSokSearchbar({
         >
           {t("searchSubmit")}
         </button>
+
+        {/* Post-hydration: the APPLIED name rides a hidden input, so a native GET (an onSubmit that
+            failed to run) re-submits what the server already accepted — never the current draft.
+            The prop cannot be org.nr-shaped: `parseNamn` refuses that class before this renders. */}
+        {hydrated && namn.length > 0 && (
+          <input type="hidden" name="namn" value={namn} />
+        )}
 
         {/* No-JS: preserve the APPLIED code axes so a native name submit does not erase the filter
             (ignored when JS handles onSubmit — then the draft is the source of truth). */}

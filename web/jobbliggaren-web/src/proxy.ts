@@ -105,7 +105,8 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   // That makes the ordering load-bearing rather than incidental — building `next` from `pathname +
   // search`, an ordinary change so a user returns to their search after login, would put the value
   // into `?next=` and from there into the login page's DOM. Pinned in both directions in
-  // `proxy.test.ts`.
+  // `proxy.test.ts`. One test suffices because this line is the repo's ONLY producer of `?next=`
+  // (the login and register forms consume it); if a second producer appears, it needs its own pin.
   if (pathname === FORETAG_SOK_ROUTE) {
     const params = request.nextUrl.searchParams;
     if (parseNamn(params.getAll("namn")).kind === "orgNrShaped") {

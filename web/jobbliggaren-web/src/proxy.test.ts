@@ -352,7 +352,7 @@ describe("proxy — the org.nr wash on /foretag/sok (D8(c))", () => {
  * search after login is an ordinary, reasonable change, and it would put the value into `?next=`
  * and from there into the login page's DOM. `code-reviewer` raised exactly that mutation.
  */
-describe("proxy — the unauthenticated path never carries the value into ?next=", () => {
+describe("proxy — the wash ordering, no-store and axis marshalling", () => {
   it("drops the query string when redirecting an unauthenticated request to /logga-in", async () => {
     const res = await proxy(makeRequest("/foretag/sok?namn=1010101010&sni=62010"));
 
@@ -369,8 +369,10 @@ describe("proxy — the unauthenticated path never carries the value into ?next=
   });
 
   it("washes an AUTHENTICATED request instead of sending it to /logga-in", async () => {
-    // The other direction: with a session the gate is what answers, so the ordering above cannot be
-    // "fixed" by simply deleting the auth branch.
+    // The other direction, stated for what it actually pins: that a session takes the gate branch,
+    // not the login branch. It does NOT kill "delete the auth branch" — an authenticated request
+    // never enters that branch, so this test stays green under that mutation; the test above is the
+    // one that goes red.
     const res = await proxy(
       makeRequest("/foretag/sok?namn=1010101010", {
         cookies: { [SESSION_COOKIE_NAME]: "sess-1" },

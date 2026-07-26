@@ -18,7 +18,13 @@
         "http://localhost:3000/gast/jobb",
         "http://localhost:3000/gast/oversikt",
         "http://localhost:3000/gast/cv"
-      ]
+      ],
+      "//extraHeaders": "#1052: the three /gast/* mirrors were not measuring the guest pages — they were measuring the welcome modal. `GuestWelcomeModal` is mounted from (guest)/gast/layout.tsx with `showWelcome={!welcomed}`, gated on the `__Host-jobbliggaren_guest_welcomed` cookie; Lighthouse runs a clean profile every time, so the modal opened on every run. Radix portals dialog content client-side, so its <DialogDescription> became the largest contentful element AND could not exist until React had hydrated — measured 3212/3218/3240 ms against 2277-2989 ms for the five URLs whose LCP element is server-rendered text (CI artifact, run 30167162198). This header sets the cookie so the collect phase measures the pages, which is what the //urls note above says these mirrors are here for: to exercise the same layout/bundle surfaces as the authed pages — and no authed page has a first-visit overlay. It is set for all eight URLs because lhci applies collect.settings globally; the five non-guest URLs never read the cookie. WHAT THIS IS NOT: it is not a fix and nothing got faster. A real first-time guest still sees the modal and still has that LCP; Klas decided 2026-07-25 that the welcome stays a modal. The expected outcome here is the 2,8-3,0 s band, NOT green — if a /gast/* URL comes back under 2500 ms, re-run before believing it (§F: the instrument swings >=350 ms at the threshold).",
+      "settings": {
+        "extraHeaders": {
+          "Cookie": "__Host-jobbliggaren_guest_welcomed=1"
+        }
+      }
     },
     "assert": {
       "//lcp": "Google good < 2,5 s (ADR 0045) — gate-intent (error)",

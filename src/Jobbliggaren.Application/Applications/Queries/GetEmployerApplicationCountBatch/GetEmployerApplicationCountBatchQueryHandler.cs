@@ -36,7 +36,7 @@ namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationCo
 /// <b>The count UNDERCOUNTS, and it is not yet honest about it (#824).</b> Attribution here is
 /// governed by the ad's AGE — not by archival and not by soft delete. The org.nr on both sides of the
 /// join is a STORED generated column derived from <c>raw_payload</c>; <c>PurgeStaleRawPayloadsJob</c>
-/// nulls <c>raw_payload</c> 30 days after <c>PublishedAt</c>, and Postgres then RECOMPUTES that column
+/// nulls <c>raw_payload</c> (rule: ADR 0032 Amendment 2026-07-26 §C2), and Postgres then RECOMPUTES that column
 /// to NULL. So an ARCHIVED but recent ad still counts (archival hides no row — <c>JobAd</c> has no
 /// soft-delete axis and no query filter, #821), while an ACTIVE but old ad does not.
 /// Worse, until #841 lands the value <b>thrashes daily for an ad still listed in the Platsbanken feed</b>

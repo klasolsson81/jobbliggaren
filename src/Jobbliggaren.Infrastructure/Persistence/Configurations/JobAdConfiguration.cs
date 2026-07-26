@@ -75,8 +75,8 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         // WHAT THEY WERE, AND WHY THAT WAS WRONG. Until 2026-07-13 all seven were Postgres
         // STORED generated columns reading raw_payload (F2P9 / F6P6 / F6P7 / #311 D1). The
         // justification on record was "drift omöjlig, ingen C#-skrivväg" — true, and
-        // catastrophic: PurgeStaleRawPayloadsJob nulls raw_payload 30 days after published_at
-        // (GDPR Art. 5(1)(c)/(e), ADR 0032 §8), and Postgres RECOMPUTES a stored generated
+        // catastrophic: PurgeStaleRawPayloadsJob nulls raw_payload (rule:
+        // ADR 0032 Amendment 2026-07-26 §C2), and Postgres RECOMPUTES a stored generated
         // column on every UPDATE of its base. So the purge silently nulled all seven, and the
         // 02:00 snapshot sync rewrote the payload and resurrected them. Measured against real
         // Postgres: facet-filtered search, the per-user matching engine and the company-watch

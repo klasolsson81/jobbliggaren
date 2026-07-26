@@ -29,8 +29,9 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     public ExternalReference? External { get; private set; }
 
     // ADR 0032 §4 — raw JobTech-payload för debug/replay (jsonb i DB).
-    // RETENTION: PurgeStaleRawPayloadsJob nulls this 30 days after published_at
-    // (GDPR Art. 5(1)(c)/(e), ADR 0032 §8). It is the ONLY column on this aggregate
+    // RETENTION: PurgeStaleRawPayloadsJob nulls this, but the sync rewrites it — the rule is
+    // NOT "30 days after published_at" and lives in one place: ADR 0032 Amendment 2026-07-26 §C2
+    // (GDPR Art. 5(1)(c)/(e)). It is the ONLY column on this aggregate
     // with a TTL — which is why nothing durable may be derived from it in the
     // database. See SetSourcePayload.
     public string? RawPayload { get; private set; }

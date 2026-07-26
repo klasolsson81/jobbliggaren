@@ -68,14 +68,17 @@ namespace Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 /// </para>
 ///
 /// <para>
-/// <b>⚠ The retention rule this job implements is NOT the documented one (#845).</b> The daily
-/// full-backfill sync (<c>SyncPlatsbankenSnapshotJob</c>, cron <c>0 2 * * *</c>) rewrites
-/// <c>raw_payload</c> unconditionally for every ad still in the feed, so for a still-listed ad this
-/// purge is undone ~21.5h later, every day. The de-facto rule is "30 days after the ad LEAVES the
-/// feed", not "30 days after publication". <b>And the mitigation is largely illusory (#842):</b> the
-/// recruiter free-text this job exists to scrub also lives in the ordinary <c>job_ads.description</c>
-/// column, which is never purged — so the identical text survives, and remains FTS-searchable via
-/// <c>search_vector</c>.
+/// <b>This job's threshold is not the deletion rule.</b> The daily full-backfill sync
+/// (<c>SyncPlatsbankenSnapshotJob</c>) rewrites <c>raw_payload</c> unconditionally for every ad
+/// still in the feed, so for a still-listed ad this purge is undone ~21.5h later, every day.
+/// <b>The rule lives in ONE place — ADR 0032 Amendment 2026-07-26 §C2</b> (#845). Do not restate a
+/// duration here: "30 days after publication" was false, and so is "30 days after the ad leaves the
+/// feed" (an ad delisted on day 10 is purged on day 30, twenty days before that wording claims).
+/// <b>On the mitigation:</b> the recruiter free-text this job cannot reach lives in the ordinary
+/// <c>job_ads.description</c> column, which this job never touches. That is no longer un-mitigated —
+/// #842 shipped Tier A (ingest-time redaction of email/phone spans on every write) and Tier B
+/// (whole-record erasure) on 2026-07-17. Per-control reach is tabulated in §C4 of the same
+/// amendment; this job was never a PII control, it is payload retention.
 /// </para>
 ///
 /// <para>

@@ -1159,6 +1159,11 @@ with no current reader).
 
 ### A2 — the retention rule is "30 days after the ad leaves the feed", not "30 days after publication".
 
+> **SUPERSEDED IN PART, 2026-07-26 (#845):** the replacement rule named in this heading is **also
+> false** — an ad delisted on day 10 is purged on day 30, twenty days before it. The rule's home is now
+> the **Amendment 2026-07-26 §C2**. This section's diagnosis (the documented rule is not the
+> implemented one) stands; its replacement wording does not.
+
 `SyncPlatsbankenSnapshotJob` (cron `0 2 * * *`) is a **daily full backfill** and
 `UpsertExternalJobAdCommandHandler` has **no unchanged/hash short-circuit** — it always calls
 `UpdateFromSource`, which rewrites `RawPayload`. So for any ad still present in the Platsbanken feed the
@@ -1320,6 +1325,9 @@ truth-synced in PR1), and (c) the addition of a free-text control that does not 
 
 ### B4 — `:404-407` + `:413`: both halves of the retention rule are false, plus a cron drift.
 
+> **SUPERSEDED IN PART, 2026-07-26 (#845):** B4(a) repeats A2's replacement wording, which is itself
+> false. See **Amendment 2026-07-26 §C2** for the rule.
+
 > *"`raw_payload` null:as via Hangfire-job **30 dagar efter** `job_ads.published_at`"* … *"lagringstid
 > (**30 dagar för raw_payload, indefinitively för sanitized fields**)"* — `:404-407`, `:413`
 
@@ -1448,3 +1456,82 @@ plainly that no automated erasure path exists.
 - **Governing contract:** **ADR 0106** (local/gitignored per ADR 0072) · amendments shipped with #842: **ADR 0024** (`:467-472`, Art. 17 cascade registry) · **ADR 0049** (`:148-184`, DEK-envelope exclusion) · **ADR 0087** D8(a) withdrawal (drafted verbatim in A3 above)
 - **Law:** GDPR Art. 5(1)(c)/(2), 12(3), 17(1)/(2), 25(2), 30 — https://gdpr-info.eu (accessed 2026-07-13) · CJEU **C-131/12** *Google Spain* (13 May 2014)
 - **Issues:** #842 (this) · #843 (test fiction) · #845 (retention rule, doc-only) · #824/#841 (generated-column blast radius) · #821 (`DeletedAt` never written)
+
+## Amendment 2026-07-26 — the retention rule, stated once and correctly (#845)
+
+**Status:** Accepted · **Ersätter inte** A2/B4(a); de var rätt om att den dokumenterade regeln var
+falsk, och fel om vad som ersätter den. Den här posten är **regelns hem**. Alla `src/`-kommentarer
+som tidigare upprepade en retention-regel för `raw_payload` pekar hit i stället — se C3.
+
+### C1 — A2:s och B4(a):s ersättningsregel är också falsk
+
+A2 och B4(a) skriver *"30 dagar efter att annonsen lämnat flödet"*. Det är närmare än
+`published_at`-regeln men fortfarande fel, och det är fel i **båda** riktningarna:
+
+- En annons som **avlistas dag 10** purgeras vid dag 30 — tjugo dagar **före** den regeln påstår.
+- En annons som legat **listad ett år** får sin payload borta ungefär ett dygn efter avlistning —
+  tjugonio dagar **före** den regeln påstår.
+
+Regeln var alltså aldrig "N dagar efter händelse X". Att skriva in den hade gett ADR:n en **fjärde**
+falsk retention-mening, och formuleringen hade spridits vidare: den stod redan i fem `src/`-filer när
+#845 filades.
+
+### C2 — regeln
+
+> `raw_payload` nollas av `PurgeStaleRawPayloadsJob` (04:30 UTC) på varje annons äldre än
+> `RawPayloadRetentionDays` (default 30, mätt från `published_at`). **Purgen är inte varaktig så länge
+> annonsen re-ingesteras:** 02:00-snapshoten och 10-minuters-strömmen skriver båda genom
+> `JobAd.UpdateFromSource`, som tilldelar om payloaden. **Payloaden är därför varaktigt borta från den
+> första 04:30-körningen efter att BÅDA (a) annonsen är äldre än retention-fönstret OCH (b) ingenting
+> re-ingesterar den** — det som inträffar sist. En Art. 17-radering kortsluter båda klausulerna:
+> `JobAd.Erase` nollar payloaden omedelbart och `UpdateFromSource` vägrar på `Erased`, så ingenting
+> återställer den.
+
+**Den generaliserbara regeln — tillämpa den, kopiera inte bara stycket ovan:**
+
+> **Ett retention-påstående om en kolumn som ett periodiskt jobb SKRIVER OM måste ange omskrivningen
+> som del av regeln. Det effektiva raderingsdatumet för en omskriven kolumn är
+> `max(purge-berättigande-datum, senaste-skrivning + purge-period)`, aldrig purge-predikatet ensamt.**
+
+Den fångar nästa instans, inte bara den här: `audit_log`-partitioner, `ParsedResume`-staging-rader,
+`job_ad_snapshot_misses` — allt där en retention-cron och en ingest-cron skriver samma kolumn.
+
+**Koden ändras inte.** A2:s ursprungliga skäl att inte införa en hash-kortslutning är dött (#841
+skeppade, så att undertrycka omskrivningen gör inte längre en intermittent defekt permanent), men
+skälet **ersätts, inte upphävs**: en kortslutning bryter ADR 0106 D4:s varaktighetsargument — scrubben
+är strukturell just därför att varje omskrivning ovillkorligen når `ApplyContactRedaction`. Den skulle
+dessutom frysa `ExtractedTerms` mot en föränderlig taxonomi (#874) och missläsa `Remote`-fältets
+PRESERVE-semantik (#551). En dokumentationsdefekt byttes mot en arkitekturdefekt — avvisat.
+
+### C3 — ett hem för regeln; `src/` bär pekare
+
+Regeln stod i **tretton filer** när #845 mättes (25 påståenden totalt; greppen är auktoriteten, inte
+en filuppräkning). Tio källfiler påstod fortfarande `published_at`-varianten. De upprepar inte längre
+regeln — de pekar hit. **Lägg aldrig tillbaka en retention-varaktighet i en `src/`-kommentar:** en
+regel som bor på tretton ställen går stale på tolv av dem, och det är precis hur den här ADR:n samlade
+fyra olika falska versioner av samma mening.
+
+### C4 — riskregistret: defekten är motsatsen till den #845 påstod
+
+#845 skriver att båda mitigations *"är verkningslösa"* och att det ska redovisas ärligt. **Det är inte
+längre sant vid HEAD** — #842 stängde 2026-07-17 (Tier A `daa4b51d`, Tier B `269a4603`), så den
+försvårande omständigheten issuen bygger på gäller inte. Att skriva in "ingen verksam mitigering" hade
+skapat en **ny** falsk mening i registret. Rätt form är räckvidd per kontroll:
+
+| Kontroll | Når | Når INTE | Täcks av |
+|---|---|---|---|
+| `JobTechPayloadSanitizer` (allowlist) | strukturerade kontakt-**nycklar** | varje **värde**; fritextnycklar behålls med flit | defense-in-depth, aldrig en fritext-kontroll |
+| `PurgeStaleRawPayloadsJob` (04:30) | `raw_payload`, per C2-regeln | `description`, `search_vector`, `extracted_terms`, `applications.snapshot_description` | inte en PII-kontroll — payload-retention, vilket är allt den någonsin var |
+| `RecruiterContactRedactor` vid ingest (Tier A) | detekterade **e-post- och telefon**-spann i `Title`/`Description`/`RawPayload`, vid varje skrivning, i varje status | rekryterar**namn** (ingen NER, ADR 0106 D5); obfuskerade former (`anna(at)acme.se`); kontakter i bilder | Tier B |
+| Helposts-radering (Tier B) | **bäraren** — namnet inkluderat; bevisbar; re-import blockerad | sökandes frysta `AdSnapshot` (ADR 0106 D9, nedtecknat undantag); kräver en **begäran** | ingenting — detta är golvet |
+
+**Nedskriven residual:** namn och obfuskerade former nås inte av Tier A **med flit**; Tier B är
+begäran-driven. Det är inte "ingen mitigering", och det är inte "täckt".
+
+### C5 — axeln står. Ruled, inte deferrad.
+
+`RawPayloadRetentionDays` mätt från `published_at` behålls. Felriktningen är alltid **mindre**
+retention, inte mer — fail-safe under Art. 5(1)(e). Det som var fel är dokumentationens **verb**
+("Dagar att behålla"), inte aritmetiken: värdet är en purge-**berättigandetröskel**, inte en
+garanterad livstid. #845 punkt 4 är därmed **stängd**, inte öppen.
+

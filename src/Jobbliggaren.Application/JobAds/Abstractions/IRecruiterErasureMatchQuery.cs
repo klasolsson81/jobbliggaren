@@ -37,7 +37,8 @@ public interface IRecruiterErasureMatchQuery
     /// sits in the body in plain words.</item>
     /// <item><b>Substring over <c>company_name</c></b> — an <i>enskild firma</i>'s company name IS a
     /// natural person's name, and it is not in <c>search_vector</c> (built from title + description
-    /// only). <c>PurgeStaleRawPayloadsJob</c> NULLs <c>raw_payload</c> after 30 days, so without
+    /// only). <c>PurgeStaleRawPayloadsJob</c> NULLs <c>raw_payload</c> eventually (rule:
+    /// ADR 0032 Amendment 2026-07-26 §C2), so without
     /// this channel every ad older than a month would report no match while her name sat in
     /// plaintext in a column we scan.</item>
     /// <item><b>Exact match on <c>organization_number</c></b> — when the identifier IS an org.nr

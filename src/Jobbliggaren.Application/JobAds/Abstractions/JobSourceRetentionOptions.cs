@@ -19,8 +19,12 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 public sealed class JobSourceRetentionOptions
 {
     /// <summary>
-    /// Dagar att behålla <c>raw_payload</c> efter <c>published_at</c>.
-    /// Default 30 (ADR 0032 §8-amendment 2026-05-12). Range-validerat.
+    /// Purge-<b>berättigandetröskel</b> i dagar för <c>raw_payload</c>, mätt från
+    /// <c>published_at</c> — <b>inte</b> en garanterad livstid. Default 30. Range-validerat.
+    /// <para>
+    /// Den faktiska raderingsregeln står på <b>ett</b> ställe: ADR 0032 Amendment 2026-07-26 §C2.
+    /// Upprepa den inte här — sync-jobbet skriver om kolumnen, så tröskeln ensam är inte regeln.
+    /// </para>
     /// </summary>
     [Range(1, 365)]
     public int RawPayloadRetentionDays { get; set; } = 30;

@@ -31,9 +31,10 @@ public sealed class JobTechOptions
     public string ApiKey { get; set; } = string.Empty;
 
     /// <summary>
-    /// Retention för <c>raw_payload</c>-kolumnen i dagar (ADR 0032 §8-amendment).
-    /// Default 30 dagar. PurgeStaleRawPayloadsJob (P8c) null:ar raw_payload när
-    /// published_at är äldre än denna tröskel.
+    /// Purge-<b>berättigandetröskel</b> i dagar för <c>raw_payload</c>, mätt från
+    /// <c>published_at</c>. Default 30. <b>Inte</b> en garanterad livstid — sync-jobbet
+    /// skriver om kolumnen, så tröskeln ensam är inte raderingsregeln.
+    /// Regeln står på ett ställe: ADR 0032 Amendment 2026-07-26 §C2.
     /// </summary>
     [Range(1, 365)]
     public int RawPayloadRetentionDays { get; set; } = 30;

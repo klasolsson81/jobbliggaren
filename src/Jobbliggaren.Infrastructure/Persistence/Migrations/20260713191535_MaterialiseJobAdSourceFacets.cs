@@ -9,8 +9,8 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// columns, written in C# at the ingest funnel (<c>JobAd.SetSourcePayload</c>).
     ///
     /// <para>
-    /// <b>Why.</b> <c>PurgeStaleRawPayloadsJob</c> nulls <c>raw_payload</c> 30 days after publication
-    /// (ADR 0032 §8). Postgres RECOMPUTES a stored generated column on every UPDATE of its base, so the
+    /// <b>Why.</b> <c>PurgeStaleRawPayloadsJob</c> nulls <c>raw_payload</c> (rule:
+    /// ADR 0032 Amendment 2026-07-26 §C2). Postgres RECOMPUTES a stored generated column on every UPDATE of its base, so the
     /// purge nulled all seven — and the 02:00 snapshot sync rewrote the payload and resurrected them.
     /// Facet-filtered search, the per-user matching engine and the company-watch location filter therefore
     /// dropped still-ACTIVE ads ~21.5 h out of every 24, every day. These seven ARE the "sanitized fields"

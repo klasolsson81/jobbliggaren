@@ -174,7 +174,7 @@ miljö-topologi är fastställd i ADR 0050; pipelinen byggs vid Hetzner-cutover.
 │  ├─ Identity                                        │
 │  ├─ JobSources.Platsbanken                          │
 │  ├─ CvEngines (parsing, lokal NLP, render — Fas 4)  │
-│  ├─ Email (ConsoleEmailSender; SES borttagen)       │
+│  ├─ Email (Console/Null/Resend, ADR 0080)           │
 │  ├─ Security (Local/Kms DEK-provider, ADR 0066)     │
 │  ├─ CalendarIntegration.Google                      │
 │  ├─ GmailSync                                       │

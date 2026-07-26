@@ -64,9 +64,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     // Replaces DbContext registrations (which are registered before ConfigureWebHost runs)
     // with Testcontainer connection strings. Redis is replaced the same way.
-    // Rate-limit overrides är handled via environment variables i InitializeAsync —
-    // Program.cs läser dem direkt från builder.Configuration vid
-    // service-registration-tid (innan ConfigureWebHost-services körs).
+    // Everything Program.cs reads from builder.Configuration at service-registration time —
+    // ASPNETCORE_ENVIRONMENT, ConnectionStrings, rate-limit overrides — is set as an
+    // environment variable in InitializeAsync instead, because that read happens before
+    // this ConfigureWebHost callback runs.
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // Tvinga Development-env. Production-env tripper

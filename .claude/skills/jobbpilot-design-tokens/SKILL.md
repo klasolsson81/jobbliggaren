@@ -269,8 +269,10 @@ padding/row-height where density applies — read the token.
 | `rounded-lg` | `--jp-r-lg` | 8px | Modal, större paneler |
 | `rounded-pill` | `--jp-r-pill` | 9999px | Status dots, pills, avatar |
 
-ADR 0052-regeln: 6px rad/kort-default, 4px inputs, 8px modal, 12px ENDAST
-hero. Radier > 8px utanför hero-plattan är förbjudna.
+ADR 0052-regeln: 6px rad/kort-default, 4px inputs, 8px modal. Radier > 8px
+är förbjudna — hero-plattan är 6px (`--jp-r-md`) sedan ADR 0068, och det
+12px-steg ADR 0052 reserverade för den hade noll konsumenter och togs bort i
+#1054.
 
 ---
 

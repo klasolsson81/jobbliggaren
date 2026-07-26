@@ -118,6 +118,26 @@ mätbara konventioner; ADR 0038-läsbarhetsgolv).
   explicitgjorda; dark-mode-mekanismen från ADR 0037 lämnas orörd för att
   begränsa blast radius.
 
+**Amendment 2026-07-26 (#1054) — two Beslut clauses narrowed by measurement.**
+No status change, no supersede; the clauses above are left as written.
+
+- **Radie-skalan's `--jp-r-xl` (12px, "endast hero") is removed.** ADR 0068
+  made the hero plate 6px (`--jp-r-md`), which left the 12px rung with no
+  consumer; the shadcn bridge already capped `--radius-xl` to `--jp-r-lg`.
+  ADR 0067's impl-note (line 138) declined a 0052 amendment at the time
+  *expressly because the token was preserved in the token layer* — that premise
+  no longer holds, which is why this note exists. The canon is now 4 / 6 / 8 /
+  pill, and radii above 8px are forbidden outright rather than hero-excepted.
+- **The navy scale is `--jp-navy-700` and `-800` only.** The other six rungs of
+  "`--jp-navy-50` … `--jp-navy-900` (primär skala)" had zero consumers. The two
+  that remain are load-bearing and untouched: they back `--jp-heading-1` /
+  `--jp-heading-2` (ADR 0068's E2f amendment, which explicitly revoked the
+  earlier plan to clean up the ramp) and the `.jp-brand` logo substrate.
+
+Reintroducing either requires a new decision, not a re-add — the same bar
+ADR 0037 §12 documents for dark mode.
+
+
 ## Alternativ övervägda
 
 ### Alternativ A — Behåll v2-namnrymd, värdeskifta tokens

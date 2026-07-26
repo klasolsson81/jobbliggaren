@@ -296,7 +296,7 @@ container:  margin-top 8px
 lede:       margin 10px 0 14px; 14px; max-width 68ch
 row:        the SHARED ledger row `.jp-app` — the queue adds no row of its own
 more:       ghost button (`.jp-btn .jp-btn--secondary`)
-empty:      muted single line
+empty:      dashed box (20/22px padding, --jp-border-strong, r-md)
 ```
 
 No card, no shadow — hairlines come from the shared row. Lede capped at 68ch

@@ -216,7 +216,8 @@ a:hover { color: var(--jp-accent-600); }
 
 shadcn tokens map to `--jp-*` (via v2-aliasen), so light/dark follow
 automatically. Radii are clamped to the civic scale — `--radius-xl` cappas
-till `--jp-r-lg` (8px); 12px är ENDAST hero (ej shadcn-primitiv).
+till `--jp-r-lg` (8px). Det finns inget 12px-steg: hero-plattan är 6px sedan
+ADR 0068, och `--jp-r-xl` togs bort i #1054.
 
 ```css
 @theme inline {
@@ -228,7 +229,7 @@ till `--jp-r-lg` (8px); 12px är ENDAST hero (ej shadcn-primitiv).
   --radius-sm: var(--jp-r-sm);   /* 4px */
   --radius-md: var(--jp-r-md);   /* 6px */
   --radius-lg: var(--jp-r-lg);   /* 8px */
-  --radius-xl: var(--jp-r-lg);   /* cappad — 12px är ENDAST hero */
+  --radius-xl: var(--jp-r-lg);   /* cappad — inget 12px-steg finns */
   --radius-pill: var(--jp-r-pill);
 }
 
@@ -267,7 +268,7 @@ till `--jp-r-lg` (8px); 12px är ENDAST hero (ej shadcn-primitiv).
   inte mot grönt). `.jp-popover` återställer `var(--jp-accent-700)`.
 - **Tema-stabilitets-pins:** `.jp-pagehero` pinnar
   `--jp-accent-50/-100` till light-värdena (vit-knapp-hover på gradienten).
-- **Vit header i dark:** `[data-theme="dark"] .jp-header` (och `.jp-land-top`)
+- **Vit header i dark:** `[data-theme="dark"] .jp-header`
   pinnar om hela light-paletten scoped — inkl. light-accent `#15603F` och
   re-deklarerad `--jp-focus` (ärvs annars som färdigberäknat dark-värde).
 - **Ljusa input-fält i dark:** `#F0F4FB` bg + `#0C1A2E` text — `.jp-input`-

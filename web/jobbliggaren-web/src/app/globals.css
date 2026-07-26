@@ -2517,9 +2517,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-label);
   color: var(--jp-ink-1);
 }
-/* Kompakt kryssruta i kontroll-raden: samma indikator-box som popovern men
-   utan dess 11px/16px rad-padding (här är raderna inline-taggar, inte en
-   vertikal lista). Behåll fokus-ringen (.jp-checkitem saknar egen). */
 .jp-results-count {
   font-size: var(--text-body-lg);
   color: var(--jp-ink-1);
@@ -2567,8 +2564,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   display: inline-flex;
 }
 .jp-filterchip__rm:hover { color: var(--jp-ink-1); }
-
-/* Saved-search row */
 
 /* ── Modal ───────────────────────────────────────── */
 .jp-modal-scrim {
@@ -3388,11 +3383,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
     opacity: 0.4;
   }
 }
-/* ── /cv match-setup-bar + post-promote-prompt (ADR 0077 STEG 5) ──
-   Bar = kort med ledtext + wizard-trigger; prompten wrap:ar full bredd under. */
-/* Post-promote-prompten: full bredd under baren, vänster accent-kant
-   (information bärs av text + struktur, inte enbart färg). Dismissbar. */
-
 .jp-modal__foot {
   display: flex;
   gap: 10px;
@@ -3437,21 +3427,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
    navigerings-/skalningsmekanismen (RULING 2). "Kräver åtgärd"-feeden pinnas
    överst (boxlös), statussektioner kollapsar via en knapp-head. */
 
-/* "Kräver åtgärd"-feed: boxlös (transparent, ingen kant/radie/skugga på
-   blocket). Rubriken bär den ENDA emfasen mot statussektionerna via en
-   STARKARE 2px-underlinje (--jp-border-strong vs sektionernas --jp-border). */
-/* Varje lyft item: en orsaksrad ÖVANFÖR den återbrukade rad-noden. All
-   feed-unik dekoration bor i wrappern. Rad-noden (.jp-app) delas med ledgern
-   och rörs ALDRIG (design-reviewer-bind). */
-/* Liten färgkodad indikator. Färgen REINFORCERAR; texten bär meningen.
-   ALDRIG grön (grön = interaktion/grad). Buckets: success/warning/info. */
-.jp-attention__dot {
-  flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--jp-r-pill);
-  background: var(--jp-ink-3);
-}
 
 .jp-section {
   margin-top: 32px;
@@ -4183,8 +4158,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-toast--error { background: var(--jp-danger); }
 
-/* Auth screen */
-
 /* Cards generic */
 .jp-card {
   background: var(--jp-surface);
@@ -4229,15 +4202,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-land-hero__inner { grid-template-columns: 1fr; gap: 40px; }
 }
 
-/* Produkt-peek (G4) — STATISK dekorativ produkt-illustration (aria-hidden).
-   Visar produkten i miniatyr: scoped grönt band-fragment + sökfält-attrapp
-   ovanför två flat/papper-resultatkort. Ingen interaktivitet, ingen JS. */
-/* Scoped hero-band-fragment — ADR 0068-undantaget (gradient ENDAST här). */
-/* Sökfält-ATTRAPP — ren markup (ingen riktig input), tema-stabilt vitt
-   fält + ink-knapp (samma mönster som /jobb-bannerns sökrad). */
-/* Resultat-kort: flat/papper, hairline-separerade (regel 1 + 2). */
-
-
 /* Sektioner */
 .jp-land-section {
   padding: 80px 0;
@@ -4263,8 +4227,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* Funktioner: den gamla mono-key/val-raden (.jp-land-features / .jp-land-feature*)
    togs bort i #517 efter Plattan-cutover (#518). Den live 3×2-griden bor i
    .jp-land-features--grid / .jp-land-featcell* längre ned. */
-
-/* Footer */
 
 /* ============================================================
    Liggaren landing redesign — LP-1 FOUNDATION (#254)
@@ -6097,8 +6059,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   white-space: pre-wrap;
   overflow-wrap: break-word;
 }
-
-/* Förbättra-CTA (sekundär) + spara-CTA (primär) sida vid sida; staplas på smal skärm. */
 
 /* ── CV-förbättringsförslag (F4-10, propose-and-approve) ──────────
    Display-only diffar. Återanvänder granskningens .jp-criterion__quote/__note/__id

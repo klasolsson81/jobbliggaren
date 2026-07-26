@@ -77,7 +77,7 @@ Paletten är medvetet begränsad. Civic-produkter bygger tillit genom konsekvens
 
 Dark mode **stöds** (designsystem v2, Klas-GO 2026-05-16 + ADR — ersätter Fas 0-borttagningen som skedde pga shadcn-presetens oklch indigo-violetter). v2 använder en **civic slate-skala utan dekorativ hue** (`data-theme="dark"` på `<html>`). Light är default; `prefers-color-scheme: dark` honoreras **automatiskt och utan flash** (inline pre-paint-script), manuell toggle överrider och persisteras i localStorage. Sunken-ytor är mörkare än canvas i båda lägen (samma papper-metafor). Light och dark valideras parallellt — aldrig dark som efterhandstillägg.
 
-Exakta tokens och hex-värden (light+dark), kontrast-tabell, density-system och deploy-ready `@theme`/`--jp-*`-block → **jobbpilot-design-tokens**.
+Exakta tokens och hex-värden (light+dark), kontrast-tabell och deploy-ready `@theme`/`--jp-*`-block → **jobbpilot-design-tokens**.
 
 ---
 
@@ -105,7 +105,6 @@ Komplett skala, line-heights och Tailwind-mappning → **jobbpilot-design-tokens
 
 - **4px-baserad skala.** Vanliga värden: 8, 12, 16, 24, 28, 48, 64.
 - **Border-radius:** sm 2px (inputs/badges), md 4px (default — knappar, panels, sökruta), lg 6px (större paneler/dropdowns), pill 9999px (endast statusprickar/pills). Inga andra radier — inga 8/10/12px.
-- **Density-system:** `[data-density]` på `<html>` — `compact` 0.85 / `standard` 1.0 (default) / `luftig` 1.18. Multiplicerar `--jp-row-h` (36px), `--jp-section-y` (28px), `--jp-pad-x` (28px). Hårdkoda aldrig padding där density gäller.
 - **App shell (Variant B):** vänster sidebar 240px med `border-right` hairline, topbar 56px, innehåll max-width 1080px.
 - **Formulär:** max-width 640px, labels alltid ovanför inputs.
 - Desktop-first — touch (≤768px) bumpar hit-targets till 44px, ledger-tabeller stackas (utvecklaransvar).

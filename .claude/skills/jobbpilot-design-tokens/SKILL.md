@@ -244,22 +244,6 @@ Use Tailwind spacing utilities — all values are multiples of 4px:
 
 ---
 
-## Density multiplier
-
-Set via `[data-density]` on `<html>`. Multiplies layout rhythm tokens:
-
-| Mode | `--jp-density` |
-|---|---|
-| `compact` | 0.85 |
-| `standard` | 1.0 (default) |
-| `luftig` | 1.18 |
-
-Affects: `--jp-row-h` = `calc(36px * density)`, `--jp-section-y` =
-`calc(28px * density)`, `--jp-pad-x` = `calc(28px * density)`. Never hardcode
-padding/row-height where density applies — read the token.
-
----
-
 ## Radius (v3-kanon — ADR 0052)
 
 | Class | Token | Value | Use |

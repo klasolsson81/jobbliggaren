@@ -77,9 +77,8 @@ describe("@modal/(.)cv/importera intercepting route", () => {
       screen.getByRole("button", { name: "Ladda upp och granska CV" })
     ).toBeInTheDocument();
 
-    // Namn-prefillen (CV-pivot 5c): kontonamnet flödar från profilen in i fältet.
-    expect(screen.getByRole("textbox", { name: "Namn på CV:t" })).toHaveValue(
-      "Anna Andersson"
-    );
+    // #1060: fältet är CV:ts ETIKETT och föreslås ur den valda FILEN, inte ur profilen —
+    // det står därför tomt tills en fil valts, och sidan hämtar ingen profil längre.
+    expect(screen.getByRole("textbox", { name: "Namn på CV" })).toHaveValue("");
   });
 });

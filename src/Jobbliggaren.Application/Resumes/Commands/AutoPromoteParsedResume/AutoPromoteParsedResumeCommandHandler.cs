@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Auditing;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Mediator;
@@ -106,14 +107,40 @@ public sealed class AutoPromoteParsedResumeCommandHandler(
         if (parsed.Confidence.RequiresManualReview)
             return LeftPending(AutoPromoteBlockReason.ParseNotConfident);
 
-        // Bound name source: the 5c form override when present, else the account holder's
-        // display name — NEVER the parsed contact name (Klas 2026-07-16).
-        var name = string.IsNullOrWhiteSpace(command.NameOverride)
-            ? owner.DisplayName
+        // ── The two names are DIFFERENT concepts and are resolved separately (#1060).
+        //
+        // Until now one string fed both, so a user who named the CV "Backend-CV 2026" got
+        // that printed where her name belongs, and a user who accepted the suggested account
+        // name got every import labelled identically in the hub. They are also in different
+        // data-protection classes: `Resume.Name` is a PLAINTEXT column that surfaces in CV
+        // lists and exports (Resume.cs:108-115 — its classification rests on it being a
+        // LABEL), while PersonalInfo.FullName lives in the DEK-encrypted content shadow.
+        // Defaulting the plaintext column to the account holder's personal name made
+        // personal data the standard content of exactly that column.
+        //
+        // Person name: ALWAYS the account holder's display name. Never the form field, and
+        // never the parsed contact name (5a CTO-bind R5, preserved).
+        var personName = owner.DisplayName;
+
+        // Label: the form field when given, else the source file name without its extension.
+        // The file name is already personnummer-masked by ParsedResume.Create (:190), so the
+        // derived label cannot carry one; a USER-typed one still can, which is why the scan
+        // below is on the resolved label and not only on the composed content.
+        var label = string.IsNullOrWhiteSpace(command.NameOverride)
+            ? LabelFromSourceFileName(parsed.SourceFileName)
             : command.NameOverride.Trim();
 
+        if (string.IsNullOrWhiteSpace(label))
+            label = personName;
+
+        // A personnummer in the LABEL is a personnummer presence, not "incomplete content" —
+        // `Resume.ValidateName` would refuse it too, but as a buildability failure, which
+        // would mis-report the reason (§5: never mis-report a verdict).
+        if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(label)).Count > 0)
+            return LeftPending(AutoPromoteBlockReason.PersonnummerPresent);
+
         // ── Tier 2: buildability, through the ONE existing promote pipeline.
-        var dto = AutoPromoteContentMapper.ToContentDto(parsed.Content, name);
+        var dto = AutoPromoteContentMapper.ToContentDto(parsed.Content, personName);
 
         // DQ6 on the COMPOSED content (arch-tripwire-required for every CreateFromParsed
         // caller). The import scan covered the raw-text superset of everything the parse
@@ -125,7 +152,7 @@ public sealed class AutoPromoteParsedResumeCommandHandler(
             return LeftPending(AutoPromoteBlockReason.PersonnummerPresent);
 
         var content = ResumeContentMapper.ToDomain(dto);
-        var created = Resume.CreateFromParsed(owner.Id, name, content, parsed.Id, clock);
+        var created = Resume.CreateFromParsed(owner.Id, label, content, parsed.Id, clock);
         if (created.IsFailure)
             return LeftPending(AutoPromoteBlockReason.IncompleteContent);
 
@@ -171,4 +198,16 @@ public sealed class AutoPromoteParsedResumeCommandHandler(
 
     private static Result<AutoPromoteOutcome> LeftPending(AutoPromoteBlockReason reason) =>
         Result.Success<AutoPromoteOutcome>(new AutoPromoteOutcome.LeftPending(reason));
+
+    /// <summary>
+    /// The CV label suggested from the uploaded file's name: the name minus its extension,
+    /// capped at the aggregate's 200-char limit. Distinguishable per upload by construction,
+    /// which the account name was not — and it rides an already-plaintext, already-masked
+    /// column (<c>ParsedResume.SourceFileName</c>) rather than moving personal data into one.
+    /// </summary>
+    private static string LabelFromSourceFileName(string sourceFileName)
+    {
+        var name = Path.GetFileNameWithoutExtension(sourceFileName).Trim();
+        return name.Length > 200 ? name[..200] : name;
+    }
 }

@@ -1,8 +1,9 @@
 // "use client": filväljaren behöver lokal state (vald fil, namn, klient-validering,
 // samtyckesdialogens state), en submit-handler som bygger FormData + fetch:ar BFF:en,
 // och programmatisk navigation efter utfallet. Inget CV-PII passerar klienten — bara
-// File-objektet (bytesen), det valda namnet (kontonamnet, användarens eget) och det
-// returnerade, PII-fria utfallet (ids + count/kinds-fyndet, aldrig personnummer-värdet).
+// File-objektet (bytesen), CV-ETIKETTEN (härledd ur filnamnet, se labelFromFileName —
+// aldrig kontonamnet, #1060) och det returnerade, PII-fria utfallet (ids +
+// count/kinds-fyndet, aldrig personnummer-värdet).
 "use client";
 
 import { useId, useState, useTransition } from "react";
@@ -125,6 +126,21 @@ function validateFile(file: File): UploadErrorKey | null {
   return null;
 }
 
+/**
+ * CV-etiketten som föreslås ur den valda filen (#1060, Klas 2026-07-26): filnamnet
+ * utan tillägg, kapat till domänens 200-teckengräns (`Resume.ValidateName`).
+ *
+ * Kontonamnet föreslås INTE längre. `Resume.Name` är en OKRYPTERAD kolumn som syns i
+ * CV-listan och i exporter, och dess klassificering vilar på att fältet är en ETIKETT
+ * (`Resume.cs:108-115`); att göra användarens personnamn till dess default gjorde
+ * personuppgiften till standardinnehåll i just den kolumnen. Filnamnet är dessutom
+ * särskiljande av sig självt — kontonamnet gav varje importerat CV samma etikett.
+ */
+function labelFromFileName(fileName: string): string {
+  const withoutExtension = fileName.replace(/\.(pdf|docx)$/i, "");
+  return withoutExtension.trim().slice(0, 200);
+}
+
 interface CvUploadFormProps {
   /**
    * ADR 0077 STEG 5 — om satt anropas denna med det sammansatta {@link UploadOutcome}:t
@@ -138,14 +154,8 @@ interface CvUploadFormProps {
   /**
    * Epik #526 polish (Klas rendered-verify 2026-07-03): starta uppladdningen
    * direkt när en giltig fil valts — inget extra "Ladda upp"-klick, och
-   * submit-raden döljs. Default false.
-   *
-   * Styr ENBART submit-raden och auto-starten. Namnfältet är medvetet INTE
-   * kopplat hit längre (#1060, Klas-beslut 2026-07-25): klicket 2026-07-03 tog
-   * bort var submit-knappen, inte ett fält, och CV-pivotens spår 3 säger att
-   * användarens eget namn ska FÖRESLÅS vid uppladdning — ett dolt fält föreslår
-   * ingenting, och gör dessutom att två uppladdningar via välkomst-modulen ger
-   * två identiskt namngivna CV som inte går att skilja åt i CV-hubben.
+   * submit-raden döljs. I detta läge visas inget namnfält (match-setup-railen
+   * behöver inget CV-namn — backend faller tillbaka på kontonamnet). Default false.
    */
   readonly autoUpload?: boolean;
   /**
@@ -153,33 +163,31 @@ interface CvUploadFormProps {
    * instruktionen. Hjälptexten förblir describedby via sr-only. Default true.
    */
   readonly showHelp?: boolean;
-  /**
-   * CV-pivot 5c: förifyll namnfältet med kontonamnet (`JobSeeker.DisplayName`). Fältet
-   * är redigerbart; skickas som `name`-formfältet och blir CV:ts namn. Tomt → backend
-   * faller tillbaka på kontonamnet (5a CTO-bind R5). Varje värd som monterar
-   * formuläret ska skicka den — utelämnad blir fältet tomt, vilket är exakt den
-   * uteblivna namngivningen #1060 rapporterar.
-   */
-  readonly defaultName?: string;
 }
 
 export function CvUploadForm({
   onUploaded,
   autoUpload = false,
   showHelp = true,
-  defaultName = "",
 }: CvUploadFormProps = {}) {
   const t = useTranslations("resumes.upload");
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [name, setName] = useState(defaultName);
+  const [name, setName] = useState("");
+  // Har användaren själv rört namnfältet? Filvalet föreslår en etikett, men bara så
+  // länge förslaget fortfarande är vårt — ett eget namn skrivs aldrig över av ett
+  // senare filbyte (propose-and-approve: motorn föreslår, användaren bestämmer).
+  const [nameTouched, setNameTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Samtyckesvalet (personnummer i filen): den fil + parse + antal som väntar på
   // användarens beslut om att LAGRA originalfilen (ADR 0114). `null` = ingen väntande fråga.
   const [consent, setConsent] = useState<{
     file: File;
+    // Etiketten som skickades i det första försöket — re-POST:en efter samtycke måste
+    // skicka SAMMA etikett, annars byter CV:t namn beroende på om du sa ja eller nej.
+    label: string;
     parsedResumeId: string;
     count: number;
   } | null>(null);
@@ -208,13 +216,18 @@ export function CvUploadForm({
     );
   }
 
+  // Etiketten skickas som ARGUMENT, aldrig läst ur `name`-staten: i auto-läget sätts
+  // förslaget och uppladdningen startas i samma händelse, så en state-läsning här hade
+  // sett det gamla värdet (React batchar) och skickat tom etikett. Pinnat av testet
+  // "auto-läget skickar etiketten ur filnamnet".
   async function postImport(
     file: File,
     acknowledged: boolean,
+    label: string,
   ): Promise<{ status: number; body: unknown } | null> {
     const formData = new FormData();
     formData.append("file", file);
-    const trimmedName = name.trim();
+    const trimmedName = label.trim();
     if (trimmedName) formData.append("name", trimmedName);
     // Fail-closed: vi skickar flaggan ENDAST vid ett uttryckligt samtycke (aldrig som
     // default på varje uppladdning — ADR 0114 §D3).
@@ -259,8 +272,8 @@ export function CvUploadForm({
     return false;
   }
 
-  async function uploadFile(file: File): Promise<void> {
-    const result = await postImport(file, false);
+  async function uploadFile(file: File, label: string): Promise<void> {
+    const result = await postImport(file, false, label);
     if (!result) return;
     if (handleErrorStatus(result.status, result.body)) return;
 
@@ -276,6 +289,7 @@ export function CvUploadForm({
     if (outcome.kind === "pending" && outcome.blockReason === "PersonnummerPresent") {
       setConsent({
         file,
+        label,
         parsedResumeId: outcome.parsedResumeId,
         count: outcome.personnummerCount,
       });
@@ -291,10 +305,10 @@ export function CvUploadForm({
   // som TD-111-svepet städar — accepterad ADR 0114-vårta).
   function onConsentConfirm() {
     if (!consent) return;
-    const file = consent.file;
+    const { file, label } = consent;
     setConsentSaving(true);
     startTransition(async () => {
-      const result = await postImport(file, true);
+      const result = await postImport(file, true, label);
       setConsentSaving(false);
       setConsent(null);
       if (!result) return;
@@ -331,6 +345,13 @@ export function CvUploadForm({
     setError(validationError ? t(validationError) : null);
     setSelectedFile(validationError ? null : file);
 
+    // Föreslå CV-etiketten ur filnamnet (#1060). Sker även i auto-läget, där fältet
+    // inte visas: etiketten följer med POST:en i stället för att backend måste gissa.
+    const label = nameTouched ? name : labelFromFileName(file.name);
+    if (!validationError && !nameTouched) {
+      setName(label);
+    }
+
     // Nollställ input-värdet så att SAMMA fil kan väljas om (change fyrar inte
     // på oförändrat värde) — utan detta blir en same-file-retry efter t.ex. 429
     // tyst död i auto-läget. UI:t läser `selectedFile`-staten, aldrig input-värdet.
@@ -339,7 +360,7 @@ export function CvUploadForm({
     // Epik #526 polish: auto-upload — giltig fil valdes → ladda upp direkt.
     if (autoUpload && !validationError && !isPending) {
       startTransition(async () => {
-        await uploadFile(file);
+        await uploadFile(file, label);
       });
     }
   }
@@ -360,7 +381,7 @@ export function CvUploadForm({
 
     setError(null);
     startTransition(async () => {
-      await uploadFile(selectedFile);
+      await uploadFile(selectedFile, name);
     });
   }
 
@@ -378,29 +399,32 @@ export function CvUploadForm({
           </div>
         ) : (
           <>
-            {/* CV-namn (CV-pivot 5c) — i ALLA lägen (#1060). Rent fält (ingen
-                placeholder), förifyllt med kontonamnet, hint under fältet. Det
-                står före filväljaren, så förslaget hinner både synas och ändras
-                innan auto-uppladdningen startar vid filvalet. */}
-            <div className="jp-cvupload__field">
-              <label htmlFor={nameId} className="jp-label">
-                {t("nameLabel")}
-              </label>
-              <input
-                id={nameId}
-                name="name"
-                type="text"
-                className="jp-input"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                aria-describedby={nameHintId}
-                autoComplete="name"
-                maxLength={200}
-              />
-              <p id={nameHintId} className="jp-cvupload__help">
-                {t("nameHint")}
-              </p>
-            </div>
+            {/* CV-namn (CV-pivot 5c) — endast i tvåstegsläget. Rent fält (ingen
+                placeholder), förifyllt med kontonamnet, hint under fältet. */}
+            {!autoUpload && (
+              <div className="jp-cvupload__field jp-cvupload__field--name">
+                <label htmlFor={nameId} className="jp-label">
+                  {t("nameLabel")}
+                </label>
+                <input
+                  id={nameId}
+                  name="name"
+                  type="text"
+                  className="jp-input"
+                  value={name}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                    setNameTouched(true);
+                  }}
+                  aria-describedby={nameHintId}
+                  autoComplete="name"
+                  maxLength={200}
+                />
+                <p id={nameHintId} className="jp-cvupload__help">
+                  {t("nameHint")}
+                </p>
+              </div>
+            )}
 
             <div className="jp-cvupload__field">
               <label htmlFor={inputId} className="jp-cvupload__drop">

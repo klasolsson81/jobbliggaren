@@ -156,7 +156,7 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
     // ── 1. Clean parse → encrypted Resume, account name, Promoted artifact, distinct audit ─
 
     [Fact]
-    public async Task AutoPromote_CleanConfidentParse_PersistsEncryptedResume_AccountNamed_AuditedDistinctly()
+    public async Task AutoPromote_CleanConfidentParse_PersistsEncryptedResume_FileLabelledAccountNamed_AuditedDistinctly()
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
@@ -220,7 +220,13 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
                 .AsNoTracking().Include(r => r.Versions)
                 .SingleAsync(r => r.Id == resumeId, ct);
 
-            resume.Name.ShouldBe(AccountDisplayName);
+            // #1060: the LABEL comes from the file name (a plaintext, personnummer-masked
+            // column), the PERSON name from the account (inside the DEK-encrypted shadow).
+            // Asserting both here is the point: they are different values in different
+            // protection classes, and this test is the one that reads them through the real
+            // encryption pipeline.
+            resume.Name.ShouldBe("anna-cv");
+            resume.Name.ShouldNotBe(AccountDisplayName);
             var content = resume.MasterVersion.Content;
             content.PersonalInfo.FullName.ShouldBe(AccountDisplayName);
             content.PersonalInfo.FullName.ShouldNotBe(ParsedContactName);

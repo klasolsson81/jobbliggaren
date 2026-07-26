@@ -89,27 +89,50 @@ describe("CvUploadForm — ärlig upload-copy", () => {
     expect(input).not.toHaveAttribute("placeholder");
   });
 
-  it("namnfältet renderas med label + hint, förifyllt, utan placeholder (5c)", () => {
-    render(<CvUploadForm defaultName="Anna Andersson" />);
-    const name = screen.getByRole("textbox", { name: "Namn på CV:t" });
-    expect(name).toHaveValue("Anna Andersson");
+  it("namnfältet renderas med label + hint, utan placeholder (5c)", () => {
+    render(<CvUploadForm />);
+    const name = screen.getByRole("textbox", { name: "Namn på CV" });
+    // Tomt innan en fil valts — det finns inget att föreslå ännu (#1060: etiketten
+    // härleds ur filen, inte ur kontonamnet).
+    expect(name).toHaveValue("");
     expect(name).not.toHaveAttribute("placeholder");
     expect(
       screen.getByText(
-        "Namnet visas överst på ditt CV. Vi föreslår ditt kontonamn."
+        "Namnet visas i din CV-lista så att du hittar rätt variant. Vi föreslår filens namn."
       )
     ).toBeInTheDocument();
   });
 
-  // #1060 (Klas-beslut 2026-07-25): detta test pinnade tidigare motsatsen — att
-  // auto-läget DÖLJER namnfältet. Beslutet är ersatt: CV-pivotens spår 3 säger att
-  // användarens eget namn ska FÖRESLÅS vid uppladdning, och ett dolt fält föreslår
-  // ingenting. `autoUpload` styr numera bara submit-raden och auto-starten.
-  it("auto-läget visar namnfältet förifyllt (förslaget ska synas och gå att ändra)", () => {
-    render(<CvUploadForm autoUpload defaultName="Anna Andersson" />);
-    expect(screen.getByRole("textbox", { name: "Namn på CV:t" })).toHaveValue(
-      "Anna Andersson"
-    );
+  // #1060: fältet är en ETIKETT (Resume.Name — okrypterad kolumn som syns i CV-listan och
+  // i exporter), inte personens namn. Kontonamnet som default gav både identiska etiketter
+  // för varje import och personuppgift som standardinnehåll i just den kolumnen.
+  it("filvalet föreslår etiketten ur filnamnet, utan tillägg", async () => {
+    render(<CvUploadForm />);
+    await selectFile(fileInput()); // cv.pdf
+
+    expect(screen.getByRole("textbox", { name: "Namn på CV" })).toHaveValue("cv");
+  });
+
+  it("ett eget skrivet namn skrivs ALDRIG över av ett senare filval", async () => {
+    const user = userEvent.setup();
+    render(<CvUploadForm />);
+
+    const name = screen.getByRole("textbox", { name: "Namn på CV" });
+    await user.type(name, "Backend-CV 2026");
+    await selectFile(fileInput());
+
+    expect(name).toHaveValue("Backend-CV 2026");
+  });
+
+  // #1060 (Klas 2026-07-26, alternativ 1): auto-läget behåller sitt ett-klick och visar
+  // inget namnfält — etiketten finns inte förrän filen valts, och i det ögonblicket har
+  // uppladdningen redan startat. Etiketten härleds ändå ur filnamnet och följer med
+  // POST:en (se "auto-läget skickar etiketten ur filnamnet"); namnbyte sker på /cv.
+  it("auto-läget visar inget namnfält (etiketten härleds ur filen)", () => {
+    render(<CvUploadForm autoUpload />);
+    expect(
+      screen.queryByRole("textbox", { name: "Namn på CV" })
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -152,20 +175,38 @@ describe("CvUploadForm — utfalls-baserad ruttning (CV-pivot 5c)", () => {
     );
   });
 
-  it("skickar namnet som formfält när det är satt", async () => {
+  it("skickar det redigerade namnet som formfält", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockResolvedValue(promotedResponse());
     global.fetch = fetchMock;
 
-    render(<CvUploadForm defaultName="Anna Andersson" />);
+    render(<CvUploadForm />);
+    await user.type(
+      screen.getByRole("textbox", { name: "Namn på CV" }),
+      "Backend-CV 2026"
+    );
     await selectFile(fileInput());
     await submit(user);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const body = formDataOfCall(fetchMock, 0);
-    expect(body.get("name")).toBe("Anna Andersson");
+    expect(body.get("name")).toBe("Backend-CV 2026");
     // Fail-closed: flaggan skickas ALDRIG utan uttryckligt samtycke.
     expect(body.get("personnummerAcknowledged")).toBeNull();
+  });
+
+  // Stale-closure-fällan: i auto-läget sätts etiketten och uppladdningen startas i SAMMA
+  // händelse, så en state-läsning i postImport hade skickat det gamla (tomma) värdet.
+  // Etiketten skickas därför som argument — detta test är pinnen för det.
+  it("auto-läget skickar etiketten ur filnamnet", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(promotedResponse());
+    global.fetch = fetchMock;
+
+    render(<CvUploadForm onUploaded={vi.fn()} autoUpload />);
+    await selectFile(fileInput()); // cv.pdf
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(formDataOfCall(fetchMock, 0).get("name")).toBe("cv");
   });
 
   it("onUploaded får det sammansatta utfallet + filnamnet i stället för navigation", async () => {

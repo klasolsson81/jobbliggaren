@@ -6187,6 +6187,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-cvupload__field {
   position: relative;
 }
+/* Namnfältet: label/input/hint är tre block, inte en inline-rad. Utan detta ärver
+   de radboxens strut som avstånd (~0px label→input, ~4-8px input→hint) — en
+   biprodukt av inline-layout, inte ett designbeslut, och utanför 4px-rutnätet.
+   Samma stack som systemets .jp-field-primitiv. */
+.jp-cvupload__field--name {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 /* Civic drop-zone-label: tangentbordsnåbar via det associerade <input>:et
    (label[for]). Ingen drag-drop-only — input:et är den riktiga kontrollen. */
 .jp-cvupload__drop {

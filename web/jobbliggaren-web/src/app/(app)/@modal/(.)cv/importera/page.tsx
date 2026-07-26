@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
-import { getMyProfile } from "@/lib/api/me";
 import { CvUploadForm } from "@/components/resumes/cv-upload-form";
 import { RouteModalShell } from "@/components/modals/route-modal-shell";
 
@@ -29,18 +28,15 @@ export default async function InterceptedCvImportModal() {
 
   const t = await getTranslations("pages");
 
-  // Samma namn-prefill som fullsidan (ADR 0053, DRY): rådgivande — en trasig
-  // profil-hämtning ger tomt fält, aldrig en blockerad uppladdning.
-  const profile = await getMyProfile();
-  const defaultName = profile.kind === "ok" ? profile.data.displayName : "";
-
+  // Samma namn-hantering som fullsidan (ADR 0053, DRY): etiketten föreslås ur filnamnet
+  // i formuläret, ingen profil-hämtning (#1060).
   return (
     <RouteModalShell
       title={t("cv.import.title")}
       description={t("cv.import.modalDescription")}
     >
       <div className="jp-modal__body">
-        <CvUploadForm defaultName={defaultName} />
+        <CvUploadForm />
       </div>
     </RouteModalShell>
   );

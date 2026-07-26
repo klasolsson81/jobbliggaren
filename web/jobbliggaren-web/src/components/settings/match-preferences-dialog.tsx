@@ -85,8 +85,6 @@ interface MatchPreferencesDialogProps {
   }) => void;
   /** URL till CV-importflödet (tom-state-länken). */
   readonly importCvHref: string;
-  /** Kontonamnet som föreslås som CV-namn i yrkes-sektionens inline-uppladdning (#1060). */
-  readonly accountName?: string;
   /**
    * #748 (WCAG 2.4.3): forwarded to Radix `DialogContent`. This is a CONTROLLED
    * dialog with no `DialogTrigger`, so Radix's default close-autofocus targets a
@@ -112,7 +110,6 @@ export function MatchPreferencesDialog({
   persistedSkillGroups = [],
   onSaved,
   importCvHref,
-  accountName = "",
   onCloseAutoFocus,
 }: MatchPreferencesDialogProps) {
   const t = useTranslations("settings");
@@ -279,7 +276,6 @@ export function MatchPreferencesDialog({
               onReplace={(next) => setDraftOccupations(next)}
               onClear={() => setDraftOccupations([])}
               importCvHref={importCvHref}
-              accountName={accountName}
               idPrefix="match-dialog"
               headingId="match-dialog-occ-head"
               // exp-per-occ (ADR 0079-amendment PR-4): per-yrke-år-fält, konsekvent

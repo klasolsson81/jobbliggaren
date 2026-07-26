@@ -36,7 +36,7 @@
 | Stavning | WeCantSpell.Hunspell | 7.x | Hunspell-port — tri-licens **MPL 1.1 / GPL 2.0 / LGPL 2.1**; licensval MPL 1.1 (LGPL 2.1 fallback), aldrig GPL; server-side + oförändrad binär → ingen copyleft på produkten (se §3.1-notis) |
 | Svensk ordlista | sv_SE Hunspell-ordlista (DSSO) | datafil | **LGPL-3.0** — oförändrad separat datafil, ej statiskt länkad/inbäddad/modifierad → copyleft smittar ej produkten (se §3.1-notis) |
 | HTTP | HttpClientFactory + Refit | 10.x | JobTech-klient |
-| Transaktionell e-post | Resend | 0.5.x | MIT; officiella .NET-SDK:n, Infrastructure-confined (IResend/EmailMessage korsar aldrig IEmailSender-porten, paritet Refit/QuestPDF); **all** utgående e-post: notiser (ADR 0080 Vag 4 PR-4) + kontolivscykel (§13.4); wrappar IHttpClientFactory; dev = test-mode (`onboarding@resend.dev`); prod-utskick grindat — fem led, se §13.4 + release-checklist.md §2.5 punkt 1 |
+| Transaktionell e-post | Resend | 0.5.x | MIT; officiella .NET-SDK:n, Infrastructure-confined (IResend/EmailMessage korsar aldrig IEmailSender-porten, paritet Refit/QuestPDF); **all** utgående e-post: notiser (ADR 0080 Vag 4 PR-4) + kontolivscykel (§13.4); wrappar IHttpClientFactory; dev = test-mode (`onboarding@resend.dev`); prod-utskick grindat — se §13.4 + release-checklist.md §2.5 punkt 1 |
 | Database | PostgreSQL | 18.3 | lokal Docker Compose nu; co-tenant container på Hetzner CAX31 (ADR 0050, ingen separat managed-DB) |
 | Cache | Redis | 8.6 | lokal Docker Compose nu; co-tenant container på Hetzner CAX31 (ADR 0050) |
 | Test-assertions | Shouldly | 4.3.x | MIT, ersätter commercial FluentAssertions |
@@ -1272,7 +1272,7 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   **avslöjar** leveransen opt-in-faktumet, och `EmailTemplates` skriver det dessutom i klartext
   i själva kroppen — själva *flaggan* i vår DB överförs aldrig, men faktumet gör det), och Resends konto-data
   (metadata, leverans-loggar) lagras i USA oavsett sändande region. Kräver före flippen
-  **fem** led — uppräkningen bor på ett ställe:
+  fyra eller fler led — **antalet och uppräkningen bor på ett ställe, inte här**:
   `docs/runbooks/release-checklist.md` §2.5 punkt 1 (DPA-signering = Klas, aldrig CC).
 - **Ingen AI-subprocessor** (ADR 0071): produkten har ingen AI/LLM, så ingen CV-PII och
   ingen matchningsdata lämnar systemet till någon **AI-leverantör**, och det finns inget

@@ -13,6 +13,9 @@ import {
   parseNamn,
   parseSida,
   normalizeCodes,
+  buildOrgNrRefusedHref,
+  parseOrgNrRefused,
+  ORG_NR_REFUSED_PARAM,
   MAX_SNI_CODES,
   MAX_MUNICIPALITY_CODES,
 } from "@/lib/company-search/search-params";
@@ -49,6 +52,28 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
   const t = await getTranslations("pages.foretag.sok");
   const params = await searchParams;
 
+  // The org.nr gate (ADR 0087 D8(c); CTO bind 2026-07-26) runs BEFORE anything else this request
+  // does. A ten-digit `?namn=` arrives here from every client state the browser guard cannot cover:
+  // JS disabled, Enter before hydration, or a hand-typed/shared link with no form involved at all.
+  // Redirecting here rather than rendering a refusal in place is what closes the channels D8(c)
+  // names: the address bar settles on the washed URL, so it is the washed URL that enters history
+  // and any re-share — and because `ForetagSokResults` never runs, the value never reaches
+  // `body.name` either. The one channel this does NOT close is the access log of the request that
+  // already carried it; that is irreducible in-process and accepted, on the record.
+  const parsedNamn = parseNamn(params.namn);
+  if (parsedNamn.kind === "orgNrShaped") {
+    redirect(
+      buildOrgNrRefusedHref({
+        namn: "",
+        // Reference-free normalisation (dedupe + cap): the SCB reference is deliberately NOT fetched
+        // on a request that is about to redirect, and the reference-based drop-unknown applies on
+        // the next render anyway.
+        sni: normalizeCodes(toStringList(params.sni), MAX_SNI_CODES),
+        kommun: normalizeCodes(toStringList(params.kommun), MAX_MUNICIPALITY_CODES),
+      }),
+    );
+  }
+
   const referenceResult = await getCriterionReference();
   const referenceOk = referenceResult.kind === "ok";
   const reference = referenceOk ? referenceResult.data : EMPTY_REFERENCE;
@@ -57,7 +82,8 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
   const sniAllowed = referenceOk ? collectSniLeafCodes(reference) : undefined;
   const kommunAllowed = referenceOk ? collectKommunCodes(reference) : undefined;
 
-  const namn = parseNamn(params.namn);
+  const namn = parsedNamn.value;
+  const orgNrRefused = parseOrgNrRefused(params[ORG_NR_REFUSED_PARAM]);
   const sni = normalizeCodes(toStringList(params.sni), MAX_SNI_CODES, sniAllowed);
   const kommun = normalizeCodes(
     toStringList(params.kommun),
@@ -96,6 +122,21 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
           sni={sni}
           kommun={kommun}
         />
+        {/* The refusal, explained rather than washed silently. A silent wash would answer a specific
+            typed query with the ENTIRE register, which does not read as "we refused" — it reads as
+            "your search matched everything", and it is the same silent-drop class the search island
+            was built to eliminate (its own docblock records that Blocker).
+            Deliberately: it never echoes the value (echoing it back into the DOM would defeat the
+            wash), and it never says "personnummer" — the gate fires on the whole ten-digit class, so
+            that word would be factually wrong for a legitimate company org.nr and would advertise
+            the heuristic besides. Server-rendered on a fresh document, so no aria-live and no
+            role="alert": nothing failed dangerously, and it is ordinary content in reading order. */}
+        {orgNrRefused && (
+          <div className="mt-6 rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4 text-warning-700">
+            <p className="text-body font-medium">{t("orgNrUrlRefusedTitle")}</p>
+            <p className="mt-1 text-body-sm">{t("orgNrUrlRefusedBody")}</p>
+          </div>
+        )}
         <Suspense key={suspenseKey} fallback={<ForetagSokResultsSkeleton />}>
           <ForetagSokResults
             namn={namn}

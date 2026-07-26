@@ -1,0 +1,113 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createTranslator } from "next-intl";
+import svPages from "../../../../../messages/sv/pages.json";
+import ForetagSokPage from "./page";
+
+const redirect = vi.fn();
+const getServerSession = vi.fn();
+const getCriterionReference = vi.fn();
+
+vi.mock("next-intl/server", () => ({
+  getTranslations: async (namespace?: "pages") =>
+    createTranslator({ locale: "sv", messages: { pages: svPages }, namespace }),
+}));
+
+vi.mock("@/lib/auth/session", () => ({
+  getServerSession: () => getServerSession(),
+}));
+
+vi.mock("@/lib/api/company-criteria", () => ({
+  getCriterionReference: () => getCriterionReference(),
+}));
+
+// The real `redirect()` throws NEXT_REDIRECT to halt the render — mirror that, so the gate
+// short-circuits exactly as it does in production instead of falling through and rendering.
+vi.mock("next/navigation", () => ({
+  redirect: (url: string) => {
+    redirect(url);
+    throw new Error(`NEXT_REDIRECT:${url}`);
+  },
+}));
+
+function renderPage(params: Record<string, string | string[] | undefined>) {
+  return ForetagSokPage({ searchParams: Promise.resolve(params) });
+}
+
+/**
+ * ADR 0087 D8(c) — the org.nr gate at its CALL SITE.
+ *
+ * `parseNamn` returning `{ kind: "orgNrShaped" }` is pinned in `search-params.test.ts`, and the form
+ * not carrying the draft is pinned in `foretag-sok-searchbar.test.tsx`. Neither of those can see
+ * whether the PAGE acts on the refusal. This suite pins that: it is the only layer all three client
+ * states pass through (JS disabled, Enter before hydration, a hand-typed or shared URL), so if the
+ * redirect is ever removed the guard is gone for every one of them at once.
+ */
+describe("/foretag/sok — the org.nr gate on the URL axis", () => {
+  beforeEach(() => {
+    redirect.mockReset();
+    getServerSession.mockReset();
+    getCriterionReference.mockReset();
+    getServerSession.mockResolvedValue({ email: "a@b.se", roles: [] });
+    getCriterionReference.mockResolvedValue({
+      kind: "ok",
+      data: { sniVersion: "2025", kommunVersion: "2025", sni: [], lan: [] },
+    });
+  });
+
+  it("washes a ten-digit ?namn= out of the URL and never renders the search", async () => {
+    await expect(renderPage({ namn: "1010101010" })).rejects.toThrow("NEXT_REDIRECT");
+
+    const target = redirect.mock.calls[0]?.[0] as string;
+    expect(target).toBe("/foretag/sok?avvisat=orgnr");
+    // The value is gone from the target — this is what keeps it out of the address bar, out of
+    // history, and out of a re-shared link.
+    expect(target).not.toContain("1010101010");
+  });
+
+  it("refuses BEFORE the reference is fetched — a redirecting request does no upstream work", async () => {
+    await expect(renderPage({ namn: "5560125790" })).rejects.toThrow("NEXT_REDIRECT");
+    expect(getCriterionReference).not.toHaveBeenCalled();
+  });
+
+  it("preserves the filter axes and drops sida when it washes the name", async () => {
+    await expect(
+      renderPage({
+        namn: "101010-1010",
+        sni: ["62020", "62010"],
+        kommun: "0180",
+        sida: "4",
+      }),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    const target = redirect.mock.calls[0]?.[0] as string;
+    expect(target).toContain("sni=62010");
+    expect(target).toContain("sni=62020");
+    expect(target).toContain("kommun=0180");
+    expect(target).toContain("avvisat=orgnr");
+    // `sida` is dropped deliberately: removing the name changes the result set, so a page number
+    // from the old one can be out of range.
+    expect(target).not.toContain("sida");
+    expect(target).not.toContain("namn");
+  });
+
+  it("does not redirect on an ordinary name prefix", async () => {
+    await renderPage({ namn: "Volvo" });
+    expect(redirect).not.toHaveBeenCalled();
+    expect(getCriterionReference).toHaveBeenCalled();
+  });
+
+  /**
+   * The no-loop pin at the call site. The wash target is fed straight back in: it must render, not
+   * redirect again. A gate that refuses its own escape hatch is an infinite redirect.
+   */
+  it("renders the wash target itself rather than redirecting again", async () => {
+    await renderPage({ avvisat: "orgnr" });
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("still redirects an unauthenticated request to /logga-in", async () => {
+    getServerSession.mockResolvedValue(null);
+    await expect(renderPage({ namn: "1010101010" })).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirect).toHaveBeenCalledWith("/logga-in");
+  });
+});

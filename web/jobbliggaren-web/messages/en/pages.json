@@ -264,6 +264,8 @@
       "orgNrProtected": "Protected identity",
       "orgNrNotFoundTitle": "No company with that number",
       "orgNrNotFoundBody": "Check the number, or search by name instead.",
+      "orgNrUrlRefusedTitle": "The number was removed from the address",
+      "orgNrUrlRefusedBody": "An organisation number is searched directly in the search field, not via the web address. Type the number in the field and choose Search companies.",
       "orgNrRefusedTitle": "The number cannot be searched",
       "orgNrRefusedBody": "It looks like a personal identity number. Sole traders are found via their job ads.",
       "orgNrRateLimitedTitle": "Too many searches",

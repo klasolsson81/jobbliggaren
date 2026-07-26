@@ -91,10 +91,11 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > pekare **utan siffra**. Regeln gäller de **grep-regenererbara** talen, och de har tre hem:
 > rutantalet (blockquoten nedan), punkt 1:s led (punkten själv) och §2.6:s inventering (§2.6
 > punkt 1). Övriga tal i sektionerna är **inte** hem och skyddas inte av regeln — den kvarvarande
-> spegeln är mall-antalet (*"sex sorter varav fyra är kontolivscykel"*), som bor på **tre**
-> ställen: blockquoten nedan, `Källa:`-stycket, och `BUILD.md` §13.4. En femte kontolivscykel-mall
-> gör alltså tre meningar falska i två filer — skrivet ut här i stället för att låtsas att
-> uppräkningen ovan är fullständig.
+> spegeln är mall-antalet, som bor på: blockquoten nedan, `Källa:`-stycket och `BUILD.md` §13.4.
+> En femte kontolivscykel-mall gör alltså **varje mening i den uppräkningen** falsk, i två filer —
+> skrivet ut här i stället för att låtsas att uppräkningen ovan är fullständig. (Citatet av själva
+> talet är struket: ett tal i ett citat är fortfarande ett tal på en andra plats — samma skäl som
+> att rutgreppet nedan räknar prosacitatet av `- [ ]`.)
 >
 > **Varför regeln finns, mätt:** under #186 gick **sex** tal stale i den här filen — och två av
 > dem falsifierades av tillägg i **samma commit som skrev siffran**. Rond efter rond synkades
@@ -116,7 +117,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > ett led kan bära **båda** markeringarna — ROPA-ledet är **KLAR för notis-vägen** och **KVAR
 > för kontolivscykel-mallarna** — och "bär KLAR" hade då räknat det som grönt.) Rutorna i
 > hela den här filen är obockade (**37 av 37** vid 2026-07-26 — greppa **radinitialt**
-> (`^- \[ \]`); ett rått grep ger 38 och räknar prosacitatet av literalen längre ned.
+> (`^- \[ \]`); ett rått grep ger 39 och räknar prosacitaten av literalen längre ned.
 > **Regenerera siffran ur greppet efter varje tillagd punkt** — punkt 5.5 tillkom i samma
 > ändring som skrev "35", och punkt 5 i den som skrev "36" — båda gjordes falska i samma andetag) och bockas av den som **utför** releasen; statusen
 > bärs av **KLAR**-markeringarna. Punkt 1:s led står uppräknade i punkten själv, och ett led kan

@@ -2014,20 +2014,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-top-left-radius: var(--jp-r-md);
   border-bottom-left-radius: var(--jp-r-md);
 }
-.jp-job__newflag {
-  display: inline-flex;
-  align-items: center;
-  background: var(--jp-leaf-50);
-  color: var(--jp-leaf-600);
-  font-size: var(--text-overline);
-  font-weight: var(--jp-fw-bold);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 2px 8px;
-  border-radius: var(--jp-r-sm);
-  margin-right: 8px;
-  flex-shrink: 0;
-}
 /* ── Tagg-system (pre-F6 Prompt 1, 2026-05-20) ─────────
    Generisk rektangulär tagg-rad för rad-komponenter (.jp-job /
    .jp-app i Prompt 2+). Placeras inom .jp-job__title h3 som en
@@ -3493,20 +3479,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 /* ── Application row (mina ansökningar) ───────────
    .jp-applist/.jp-app chassi delas med .jp-jobs/.jp-job ovan
-   (HANDOVER §9 — se delad-selektor-kommentaren där). Endast
-   app-specifik statusbadge nedan. */
-.jp-app__statusbadge {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--jp-r-pill);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  margin-top: 2px;
-  border: 2px solid;
-}
-.jp-app__statusbadge svg { width: 24px; height: 24px; }
+   (HANDOVER §9 — se delad-selektor-kommentaren där). */
 
 /* .jp-app__title/company/meta/meta-b: konsoliderade till DELADE
    .jp-job__*,.jp-app__*-selektorer ovan (F5 B2, HANDOVER §9 /

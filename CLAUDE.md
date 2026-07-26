@@ -432,12 +432,30 @@ doubt, in-block wins (quality > tempo) and senior-cto-advisor decides.
   (ESLint, no `--fix`) + `pnpm tsc --noEmit`. No Prettier; `json`/`md`/`yaml`
   not auto-formatted.
 - `.editorconfig` + committed `.vscode/` settings/extensions.
-- Dev env: Docker Compose (`postgres`, `redis`, `seq`) — logging is console
-  via MEL; no Serilog/Seq sink wired yet (full observability = TD-104,
-  Hetzner phase). Everything runs locally (AWS retired, ADR 0066):
-  `ConsoleEmailSender` for mail, `LocalDataKeyProvider` (AES-256-GCM) for
-  field encryption. Frontend `.env.local`; backend
-  `appsettings.Development.json` + gitignored `appsettings.Local.json`.
+- Dev env: Docker Compose (`postgres`, `redis`, `seq`) — MEL logs to console
+  **and to Seq**: `AddJobbliggarenLogging` (shared by Api + Worker) attaches the
+  Seq provider **only when `Seq:ServerUrl` is set**, so an environment without
+  that key stays console-only; dev points at `http://localhost:5341`. Serilog
+  was rejected as YAGNI, and TD-104 is closed — the sink is wired; what remains
+  for the Hetzner phase is the *production* Seq (EU residency, access control,
+  retention). Everything runs locally (AWS retired, ADR 0066):
+  `LocalDataKeyProvider` (AES-256-GCM) for field encryption, and mail through
+  `AddEmailSender`'s `Email:Provider` switch — **three** `IEmailSender` impls,
+  not one: `ConsoleEmailSender` (Development/Test **only** — it logs the
+  plaintext token, which a durable sink would turn into durable PII),
+  `NullEmailSender` (the fallback in every other environment), and
+  `ResendEmailSender` (`Provider=Resend`, fail-loud without `Email:ApiKey`).
+  Frontend `.env.local`; backend `appsettings.Development.json` + gitignored
+  `appsettings.Local.json`.
+- **Production config is still ALB/ECS-shaped, and that is stale wording around
+  a live mechanism — not AWS residue to delete.** `AlbOptions`
+  (`Alb:HttpsEnabled`) gates `UseHttpsRedirection` and `UseHsts` in
+  `Api/Program.cs` and is pinned by `UseHttpsRedirectionGateTests`;
+  `appsettings.Production.json` configures forwarded headers and HSTS alongside
+  it (and carries comments — it does not parse as plain JSON). What ADR 0066
+  tore down is the *injection path* those doc comments describe (Terraform → ECS
+  task-def env var), not the flag itself. Rename or retire it with the Hetzner
+  cutover work (TD-106) — never in a cleanup sweep.
 - **Dev-boot config contract.** A new fail-fast option (a `ValidateOnStart` secret,
   usually in the Infrastructure DI both hosts share) that a fresh dev-stack boot needs —
   a required key, secret, or pepper the API/Worker refuses to start without — MUST be added to

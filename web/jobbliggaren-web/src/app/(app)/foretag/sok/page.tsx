@@ -13,6 +13,9 @@ import {
   parseNamn,
   parseSida,
   normalizeCodes,
+  buildOrgNrRefusedHref,
+  parseOrgNrRefused,
+  ORG_NR_REFUSED_PARAM,
   MAX_SNI_CODES,
   MAX_MUNICIPALITY_CODES,
 } from "@/lib/company-search/search-params";
@@ -49,6 +52,44 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
   const t = await getTranslations("pages.foretag.sok");
   const params = await searchParams;
 
+  // The org.nr gate (ADR 0087 D8(c)) — the SECOND of two, and deliberately not the primary one.
+  // `src/proxy.ts` runs the same rule one layer earlier and answers a genuine 307, so in practice a
+  // refused URL never reaches this function at all. This copy exists for the case where a render is
+  // somehow reached without passing the proxy, and it gates a DIFFERENT property: the proxy keeps
+  // the URL from being served, this keeps the value out of `body.name` — a worse channel than an FE
+  // access log, since it would reach the backend and run a name-prefix scan.
+  //
+  // Two call sites, one rule. `parseNamn` and `buildOrgNrRefusedHref` live in `search-params.ts`;
+  // neither gate may ever grow an inline predicate of its own, or this becomes two rules that drift.
+  //
+  // Why the proxy is the primary one, measured 2026-07-26 in Chromium with JS disabled. A
+  // page-level `redirect()` runs after the `(app)` layout has begun streaming, so Next CANNOT answer
+  // 3xx — it answers 200 and serves a document carrying
+  // `<meta http-equiv="refresh" content="1;url=…?avvisat=orgnr">`. What that costs, and therefore
+  // what this backstop costs on the day it is the one that fires, all measured:
+  //   - the refused URL dwells ~1s in the address bar before the refresh replaces it;
+  //   - the document loads subresources, and `Referrer-Policy: strict-origin-when-cross-origin`
+  //     put the refused URL in the `Referer` of SIX requests — two fonts, two stylesheets, a
+  //     script, and the meta-refresh navigation itself, so even the log line for the WASHED url
+  //     carried the unwashed value;
+  //   - the delivered HTML echoes the value inside Next's own router-state payload (Next
+  //     reflecting the requested URL, not markup of ours); the rendered DOM does not;
+  //   - one Back press still lands on `/foretag/sok`, not on the refused URL.
+  // With the gate at the proxy the same probe measures one 307, no document, and ZERO requests
+  // carrying the value. Keep these numbers: they are what makes "backstop" a cost and not a freebie.
+  const parsedNamn = parseNamn(params.namn);
+  if (parsedNamn.kind === "orgNrShaped") {
+    redirect(
+      buildOrgNrRefusedHref({
+        // Reference-free normalisation (dedupe + cap): the SCB reference is deliberately NOT fetched
+        // on a request that is about to redirect, and the reference-based drop-unknown applies on
+        // the next render anyway.
+        sni: normalizeCodes(toStringList(params.sni), MAX_SNI_CODES),
+        kommun: normalizeCodes(toStringList(params.kommun), MAX_MUNICIPALITY_CODES),
+      }),
+    );
+  }
+
   const referenceResult = await getCriterionReference();
   const referenceOk = referenceResult.kind === "ok";
   const reference = referenceOk ? referenceResult.data : EMPTY_REFERENCE;
@@ -57,7 +98,8 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
   const sniAllowed = referenceOk ? collectSniLeafCodes(reference) : undefined;
   const kommunAllowed = referenceOk ? collectKommunCodes(reference) : undefined;
 
-  const namn = parseNamn(params.namn);
+  const namn = parsedNamn.value;
+  const orgNrRefused = parseOrgNrRefused(params[ORG_NR_REFUSED_PARAM]);
   const sni = normalizeCodes(toStringList(params.sni), MAX_SNI_CODES, sniAllowed);
   const kommun = normalizeCodes(
     toStringList(params.kommun),
@@ -96,6 +138,21 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
           sni={sni}
           kommun={kommun}
         />
+        {/* The refusal, explained rather than washed silently. A silent wash would answer a specific
+            typed query with the ENTIRE register, which does not read as "we refused" — it reads as
+            "your search matched everything", and it is the same silent-drop class the search island
+            was built to eliminate (its own docblock records that Blocker).
+            Deliberately: it never echoes the value (echoing it back into the DOM would defeat the
+            wash), and it never says "personnummer" — the gate fires on the whole ten-digit class, so
+            that word would be factually wrong for a legitimate company org.nr and would advertise
+            the heuristic besides. Server-rendered on a fresh document, so no aria-live and no
+            role="alert": nothing failed dangerously, and it is ordinary content in reading order. */}
+        {orgNrRefused && (
+          <div className="mt-6 rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4 text-warning-700">
+            <p className="text-body font-medium">{t("orgNrUrlRefusedTitle")}</p>
+            <p className="mt-1 text-body-sm">{t("orgNrUrlRefusedBody")}</p>
+          </div>
+        )}
         <Suspense key={suspenseKey} fallback={<ForetagSokResultsSkeleton />}>
           <ForetagSokResults
             namn={namn}

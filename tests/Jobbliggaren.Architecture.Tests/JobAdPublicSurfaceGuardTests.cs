@@ -67,8 +67,9 @@ public class JobAdPublicSurfaceGuardTests
         ["DomainEvents"] = "aggregate plumbing (EF-ignored)",
 
         // --- the TTL column, and the state derived from it ---
-        ["RawPayload"] = "THE ONLY COLUMN WITH A RETENTION TTL. PurgeStaleRawPayloadsJob nulls it 30 days " +
-                         "after publication (ADR 0032 §8). NOTHING DURABLE MAY BE DERIVED FROM IT IN THE " +
+        ["RawPayload"] = "THE ONLY COLUMN WITH A RETENTION TTL. PurgeStaleRawPayloadsJob nulls it on a " +
+                         "criterion, not a fixed period (rule: ADR 0032 Amendment 2026-07-26 §C2). " +
+                         "NOTHING DURABLE MAY BE DERIVED FROM IT IN THE " +
                          "DATABASE — see JobAdRawPayloadDerivationGuardTests. Written only by " +
                          "SetSourcePayload, atomically with the seven facets below.",
 
@@ -142,8 +143,9 @@ public class JobAdPublicSurfaceGuardTests
             "A new public property has appeared on the JobAd aggregate and nobody has answered the " +
             "question that four column additions in a row failed to ask:\n\n" +
             "    IS IT DERIVED FROM raw_payload?\n\n" +
-            "If yes: it must NOT be a database generated column (the purge nulls raw_payload after 30 " +
-            "days and Postgres recomputes the derived column to NULL — that is #841, which silently cost " +
+            "If yes: it must NOT be a database generated column (the purge nulls raw_payload per " +
+            "ADR 0032 Amendment 2026-07-26 §C2 and Postgres recomputes the derived column to NULL — " +
+            "that is #841, which silently cost " +
             "filtered search and the matching engine ~21.5h of every 24). Parse it in the ACL and write " +
             "it through JobAd.SetSourcePayload, atomically with the payload.\n\n" +
             "And if it can hold an organisation number, it can hold a sole proprietor's personnummer — " +

@@ -21,7 +21,7 @@ public interface IJobAdEmployerReader
     /// Returns a map <c>jobAdId → organization_number</c> for the given ads. An ad present with a
     /// <c>null</c> value carries no employer org.nr — either the B2 not-yet-re-ingested case, OR (the
     /// common case in practice) its <c>raw_payload</c> has been purged (rule: ADR 0032 Amendment 2026-07-26 §C2), which
-    /// makes Postgres recompute the STORED generated org.nr column to NULL (#824; root cause #841).
+    /// made Postgres recompute the then-STORED generated org.nr column to NULL (#824; #841 materialised
     /// Archival does NOT remove an ad from this map — <c>JobAd</c> has no soft-delete axis at all (#821
     /// retired it) and no query filter. An ad is ABSENT only if it does not exist. The value
     /// is the raw 10-digit org.nr — see the type remarks: server-side only, never surfaced.

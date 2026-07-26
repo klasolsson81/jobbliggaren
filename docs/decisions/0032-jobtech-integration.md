@@ -239,6 +239,11 @@ DB är källan. Hangfire upserter dit. `GET /api/v1/job-ads` (P7) läser DB dire
 
 ### 8. GDPR: PII-fri externtrafik + sync-audit-events
 
+> **SUPERSEDED IN PART, 2026-07-26 (#845):** the replacement rule this banner states is **also
+> false**. An ad delisted on day 10 is purged on day 30 — ten days *before* "30 days after the ad
+> leaves the feed" claims, not after it. The rule's home is **ADR 0032 Amendment 2026-07-26 §C2**;
+> the three drifts diagnosed below stand.
+>
 > ⚠ **Superseded by the 2026-07-13 amendment (#842) — see below.** The heading reads as a blanket PII
 > guarantee. It holds for **outbound** traffic only. The **inbound** surface — recruiter contact details
 > in the ad body, stored verbatim in `job_ads.description` — is real, was never mitigated, and is
@@ -412,10 +417,6 @@ public sealed class JobTechPayloadSanitizer
 **2. Retention-policy för raw_payload (P8c-leverans eller separat batch)**
 
 > ⚠ **Superseded by the 2026-07-12 (#824, A1/A2) and 2026-07-13 (#842) amendments — see below.** Three
-> **SUPERSEDED IN PART, 2026-07-26 (#845):** the replacement rule in this banner is **also false** —
-> an ad delisted on day 10 is purged on day 30, twenty days before it. The rule's home is
-> **ADR 0032 Amendment 2026-07-26 §C2**. The diagnosis below (three drifts) stands.
->
 > drifts: the 02:00 backfill restores the payload nightly, so the real rule is "30 days after the ad
 > **leaves the feed**"; the cron is `30 4 * * *`, not 03:00; and the job never touches
 > `job_ads.description`, which is where the recruiter PII actually is.
@@ -543,7 +544,7 @@ Original §8 specade ett `JobAdsSyncedDomainEvent` som skulle skrivas till `audi
 - En aggregerad audit-rad per request (CTO Q3=B, ADR 0024 D4-precedens — "användaren begärde *en* handling").
 - Admin-endpoint `POST /api/v1/admin/job-ads/redact-recruiter-pii` med `AuthorizationPolicies.Admin`.
 
-> **Note 2026-07-26 (#845):** the "30d-retention" duration cited in this paragraph is superseded
+> **Note 2026-07-26 (#845):** the "30d-retention" duration cited in the paragraph below is superseded
 > (ADR 0032 Amendment 2026-07-26 §C2), and the `RedactRecruiterPii` mechanism it motivates was **deleted** by #842 PR1.
 > Historical record; do not act on it.
 
@@ -1240,7 +1241,9 @@ still contradict them, and it re-imposes the gate that one of those passages rel
 ### B1 — `:540` is WITHDRAWN. The prod gate it released is RE-IMPOSED.
 
 > **SUPERSEDED IN PART, 2026-07-26 (#845):** the gate's sole written condition — Tier B shipped with
-> green provable-erasure tests — was met on 2026-07-17 (`269a4603`). Whether the gate is therefore
+> green provable-erasure tests — was met on **2026-07-15** (`269a4603`; #842 itself closed
+> 2026-07-17, and that issue date is what this amendment's first draft wrongly attached to the
+> commit). Whether the gate is therefore
 > lifted is **ADR 0106's call, not this ADR's**; see ADR 0032 Amendment 2026-07-26 §C6.
 
 > *"v0.2-prod-tag är inte längre gated på TD-73. **PurgeStaleRawPayloadsJob + audit-wire +
@@ -1397,8 +1400,8 @@ merits; its stated justification cannot.
 
 ### B7 — What replaces §8's PII story: ADR 0106's two-tier contract (BOUND, **not yet shipped**).
 
-> **SUPERSEDED IN PART, 2026-07-26 (#845):** both tiers **shipped 2026-07-17** — Tier B in
-> `269a4603`, Tier A in `daa4b51d`, with the command, handler, validator and
+> **SUPERSEDED IN PART, 2026-07-26 (#845):** both tiers shipped — Tier B in `269a4603` on
+> **2026-07-15** and Tier A in `daa4b51d` on **2026-07-17**, with the command, handler, validator and
 > `ErasureCascadeRegistry` under `src/Jobbliggaren.Application/JobAds/Commands/EraseRecruiterAds/`.
 > The "UNSHIPPED" tense below, and B8's *"no automated erasure path exists"*, are false as of that
 > date. **The prod gate's status is owned solely by ADR 0106 and is not restated here** — this entry
@@ -1459,6 +1462,21 @@ migration lane**, and `db-migration-writer` is deliberately not invoked.
 
 ### B8 — Shipping order and what lifts the gate
 
+> **SUPERSEDED IN PART, 2026-07-26 (#845) — read this before acting on anything below.** Every
+> shipping claim in this section is false as of 2026-07-15/17: **PR2 (Tier A) shipped** `daa4b51d`
+> on **2026-07-17** and **PR3 (Tier B) shipped** `269a4603` on **2026-07-15**, with the command,
+> handler, validator and `ErasureCascadeRegistry` under
+> `src/Jobbliggaren.Application/JobAds/Commands/EraseRecruiterAds/`.
+>
+> **An Art. 17 request must NOT be routed to the manual workaround this section prescribes.** The
+> sentence *"no automated erasure path exists"* is untrue, and the runbook it cites was rewritten by
+> PR3 and no longer says it. Use `EraseRecruiterAdsCommand` (dry-run, then confirm) — it is provable
+> and blocks re-import. Routing a live request to a manual workaround on the strength of this section
+> is an Art. 12(3)/17(1) failure, which is why this pointer sits here and not only in the amendment.
+>
+> **The prod gate's status is owned solely by ADR 0106** and is neither declared lifted nor
+> re-asserted here; see Amendment 2026-07-26 §C6.
+
 | PR | Scope | Status | Gate |
 |---|---|---|---|
 | **PR1** | Containment + truth: endpoint → **501**; purger + command **deleted**; test fiction rewritten (#843); source docs + this amendment truth-synced | **Committed on this branch** | Does not lift |
@@ -1493,8 +1511,8 @@ rule and still wrong, in **both** directions:
   **before** it.
 
 The rule was never "N days after event X". Writing it in would have given this ADR a **fourth** false
-retention sentence, and the wording had already spread: five `src/` files, `ADR 0049`, the ROPA and
-two test files carried it by the time #845 was filed.
+retention sentence, and the wording had already spread well past the three files #845 named - into
+source, ADRs, the ROPA, the runbooks and the test suites alike.
 
 ### C2 - the rule
 
@@ -1502,14 +1520,12 @@ two test files carried it by the time #845 was filed.
 > `RecurringJobIds.PurgeStaleRawPayloads` in `RecurringJobRegistrar`; cron times are UTC, Hangfire
 > default) on every ad older than `RawPayloadRetentionDays` (default 30, measured from
 > `published_at`). **The purge is not durable while the ad is being re-ingested:** every re-ingest
-> route writes through `JobAd.UpdateFromSource`, which reassigns the payload - the nightly full
-> snapshot, the 10-minute stream, the `JobAdRefetchBackfillRunner` backfills and the admin refetch
-> endpoint alike. **The payload is therefore durably absent from the first purge run after BOTH
+> route writes through `JobAd.UpdateFromSource`, which reassigns the payload. **The payload is
 > (a) the ad is older than the retention window AND (b) nothing is re-ingesting it** - whichever
 > comes later. An Art. 17 erasure short-circuits both clauses: `JobAd.Erase` nulls the payload
 > immediately and `UpdateFromSource` refuses on `Erased`, so nothing restores it.
 
-Deliberately **no cron literals and no writer list** above. A grep for `0 2 * * *` finds nothing (the
+A grep for `0 2 * * *` finds no registration (the
 snapshot is registered as `Cron.Daily(2)`), and an enumeration of writers goes stale the moment a
 fifth one is added; clause (b) is written to cover any re-ingest route, named or not.
 
@@ -1528,8 +1544,11 @@ nightly sync, consumed by `RetainPlatsbankenJobAdsJob` - it fires.
 for debug and replay of ingest and matching determinism **while the ad is live and searchable**. That
 purpose ends at delisting, which is exactly why the rule's long regime ends about a day after the last
 re-ingest rather than thirty days later. Retaining the sanitized payload of a currently-published,
-publicly-listed ad is necessary for a stated purpose; retaining it past delisting is not, and the rule
-does not.
+publicly-listed ad is necessary for a stated purpose. Retaining it past delisting is not, and the
+rule's **long** regime does not - it ends about a day after the last re-ingest. Its **short** regime
+does retain past delisting, by up to the threshold: an ad delisted on day 10 keeps its payload until
+day 30. That window is bounded, stated here rather than glossed, and it is the honest limit of the
+necessity argument.
 
 **The code does not change.** A2's original ground for refusing a hash short-circuit is dead - #841
 shipped, so suppressing the rewrite no longer converts an intermittent defect into a permanent one -
@@ -1548,7 +1567,10 @@ on that basis - scoped-true and globally false, with live claims left in `tests/
 
 **The grep is the authority, never a file list.** Search for the claim's *shape* - any co-occurrence
 of `raw_payload`/`RawPayload` with a duration, or with `purge`/`retention` - and require zero
-un-truth-synced hits at your HEAD. #845's own body named three files; the rule found thirteen.
+un-truth-synced hits at your HEAD. **Do not record a site count here.** Every count this amendment's
+drafts wrote was falsified by the next pass, including one that claimed the sweep was complete while
+`tests/` still carried six live claims - three inside architecture-guard messages, which a green
+suite cannot catch because they are prose. The grep is the record.
 
 **Never put a retention duration back into a `src/` comment.** A rule living in thirteen places goes
 stale in twelve of them, and that is precisely how this ADR accumulated four different false versions
@@ -1566,7 +1588,7 @@ have created a **new** false sentence. The honest form is reach per control:
 |---|---|---|---|
 | `JobTechPayloadSanitizer` (allowlist) | structured contact **keys** | every **value**; free-text keys are retained by design | defense-in-depth, never a free-text control |
 | `PurgeStaleRawPayloadsJob` | `raw_payload`, per C2 | every other surface carrying the same text - `description`, `search_vector`, `extracted_terms`, and the frozen `applications.snapshot_*` columns among them | not a PII control - payload retention, which is all it ever was |
-| `RecruiterContactRedactor` at ingest (Tier A) | detected **email and Swedish phone** spans in `Title`/`Description`/`RawPayload`, on every write, in every status | recruiter **names** (no NER - ADR 0106 D5); obfuscated forms; contacts inside images | Tier B |
+| `RecruiterContactRedactor` at ingest (Tier A) | detected **email and Swedish phone** spans in `Title`/`Description`/`RawPayload`, on every write, in every status | recruiter **names** (no NER - ADR 0106 D5); obfuscated forms such as `anna(at)acme.se`; contacts inside images | Tier B |
 | Whole-record erasure (Tier B) | the **carrier**, name included; provable; re-import blocked | applicants' frozen `AdSnapshot` (ADR 0106 D9, recorded exception); requires a **request** | nothing - this is the floor |
 
 **Written residual.** Names and obfuscated forms are outside Tier A **by design**; Tier B is
@@ -1590,8 +1612,10 @@ Defending the threshold as though it were the rule contradicts C2, which proves 
 ### C6 - what #842 actually shipped, and who owns the gate
 
 B7 and B8 still describe both tiers as **BOUND and UNSHIPPED** and state that *"no automated erasure
-path exists"*. Measured: `269a4603` shipped Tier B (Art. 17 whole-record erasure, durable against
-re-import) and `daa4b51d` shipped Tier A (Art. 25 at ingest), both on **2026-07-17**, and
+path exists"*. Measured against `git log`: `269a4603` shipped Tier B (Art. 17 whole-record erasure,
+durable against re-import) on **2026-07-15** and `daa4b51d` shipped Tier A (Art. 25 at ingest) on
+**2026-07-17**. #842 itself closed 2026-07-17 - the issue date, which this amendment's first draft
+wrongly attached to both commits. And
 `src/Jobbliggaren.Application/JobAds/Commands/EraseRecruiterAds/` carries the command, handler,
 validator and `ErasureCascadeRegistry`.
 

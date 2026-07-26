@@ -174,7 +174,7 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         // 2026-07-13.
         //
         // RETENTION CHANGED HERE, DELIBERATELY: while this was a generated column it self-nulled
-        // with the purge, so an ad that left the feed lost its org.nr after ~30 days by accident.
+        // with the purge, so an ad lost its org.nr once its payload became purge-eligible
         // It now persists INDEFINITELY — which is what ADR 0032 §8 always specified for sanitized
         // fields, and what #824 requires (an application filed in 2026 must still be attributable
         // to its employer in 2028). Any Art. 17 erasure path must now clear this column EXPLICITLY;

@@ -126,7 +126,7 @@ miss something:
    Without channel 3, any ad whose payload had been purged would report no match while her
    name sat in plaintext in a column we scan.
 4. **Exact match on `organization_number`** — when the identifier is an org.nr.
-   Forced by the same 30-day logic as channel 3: after the `raw_payload` purge,
+   **Forced by the same payload-retention logic as channel 3** (ADR 0032 Amendment 2026-07-26 §C2):
    the materialised `organization_number` column (#841) is the ONLY place a sole
    trader's org.nr — which is her personnummer — survives in the row.
 

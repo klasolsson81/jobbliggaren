@@ -251,7 +251,7 @@ erase precisely the PII it cannot reach. And the 30-day clock does not run as do
 the nightly full backfill (`SyncPlatsbankenSnapshotJob`) and the 10-minute stream both
 funnel through `UpdateFromSource`, which **unconditionally reassigns `RawPayload`**
 (`JobAd.cs:155-159`), so a purged payload is **restored within ≤24 h for any ad still in
-the feed** (#845; already recorded at ADR 0032 A2 `:1090-1092`). The real rule is *"30
+the feed** (#845; already recorded at ADR 0032 A2 `:1090-1092`).
 the deletion rule for `raw_payload` lives in exactly one place —
 **ADR 0032 Amendment 2026-07-26 §C2** — and is neither *"30 days after publication"* nor *"30 days after the ad leaves
 the feed"*; both are false. Do not restate a duration here.
@@ -365,7 +365,14 @@ it** wherever they conflict:
 | **Validering** | *"`JsonContains`-Art.17 (`RecruiterPiiPurger`) verifieras gröna efter implementation"* | **Void** — the mechanism is deleted; there is no green to verify. The generated-column and SPOT non-regression checks stand |
 | **Relaterade beslut — ADR 0032 §8** | *"ADR 0049 Beslut 3 motiverar raw_payload-exklusionen delvis på ADR 0032:s sanitizer-allowlist + 30d-purge"* | Both cited grounds are falsified (§B Layers 1-2). ADR 0032 carries its own dated amendments A2/A3 for the same drift |
 
-#### F. The replacement contract (BOUND, NOT YET SHIPPED)
+#### F. The replacement contract (**BOUND, NOT YET SHIPPED**)
+
+> **SUPERSEDED IN PART, 2026-07-26 (#845).** Both tiers shipped: Tier B in `269a4603` on 2026-07-15,
+> Tier A in `daa4b51d` on 2026-07-17. The statements below that neither tier exists, and that the
+> launch gate stays closed until PR3 lands, are false as of those dates. **The gate's status is owned
+> solely by ADR 0106** and is neither declared lifted nor re-asserted here — see ADR 0032 Amendment
+> 2026-07-26 §C6. Do not route an Art. 17 request to a manual workaround on the strength of this
+> section.
 
 The Art. 17 recruiter-PII contract is now **ADR 0106** (local per ADR 0072), a two-tier
 design. **Neither tier is shipped yet — do not read this ADR as describing a control we

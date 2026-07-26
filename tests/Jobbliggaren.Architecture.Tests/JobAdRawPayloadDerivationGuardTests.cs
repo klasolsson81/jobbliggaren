@@ -16,7 +16,8 @@ namespace Jobbliggaren.Architecture.Tests;
 /// precise, minimal, true rule. It is NOT "no generated columns": <c>search_vector</c> (from
 /// <c>title</c>/<c>description</c>) and <c>extracted_lexemes</c> (from <c>extracted_terms</c>) are
 /// legitimate and must keep passing. What makes <c>raw_payload</c> different is that it is the only
-/// column on <c>job_ads</c> with a retention TTL — <c>PurgeStaleRawPayloadsJob</c> nulls it after 30 days
+/// column on <c>job_ads</c> with a retention TTL — <c>PurgeStaleRawPayloadsJob</c> nulls it on a
+/// criterion, not a fixed period (rule: ADR 0032 Amendment 2026-07-26 §C2)
 /// (ADR 0032 §8) — and <b>anything computed from it silently inherits that TTL</b>. Seven columns did,
 /// and filtered search plus the matching engine lost still-active ads ~21.5 h/day for two releases.
 /// </para>
@@ -41,7 +42,7 @@ public class JobAdRawPayloadDerivationGuardTests
 
     /// <summary>
     /// The ONLY file permitted to bulk-write <c>JobAd.RawPayload</c> outside the aggregate. It writes
-    /// NULL (the 30-day retention control, GDPR Art. 5(1)(c)/(e)) and — since #841 — leaves the seven
+    // the payload-retention control (GDPR Art. 5(1)(c)/(e); rule: ADR 0032 Amendment 2026-07-26 §C2)
     /// facet columns untouched, which is the entire point of the change.
     /// </summary>
     private const string PurgeJobPath =

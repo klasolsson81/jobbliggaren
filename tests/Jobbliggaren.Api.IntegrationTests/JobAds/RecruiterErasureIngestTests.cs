@@ -479,7 +479,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// <c>PurgeStaleRawPayloadsJob</c> NULLs <c>raw_payload</c> (rule: ADR 0032 Amendment 2026-07-26 §C2). The
     /// original matcher reached <c>employer.name</c> ONLY through <c>raw_payload</c>, and
     /// <c>company_name</c> is not in <c>search_vector</c> (which is built from title and description
-    /// only). So for every ad older than 30 days — i.e. most of 93 469 ads collected over months —
+    /// So for every ad whose payload has been purged (rule: ADR 0032 Amendment 2026-07-26 §C2)
     /// she would have been answered <i>"we hold no data matching this identifier"</i> while her name
     /// sat in plaintext in a column we scan on every erasure.
     /// </para>
@@ -500,7 +500,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         {
             var db = purge.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            // Exactly what PurgeStaleRawPayloadsJob does at 30 days.
+            // Exactly what PurgeStaleRawPayloadsJob does once the payload is purge-eligible.
             await db.Database.ExecuteSqlRawAsync("UPDATE job_ads SET raw_payload = NULL;", ct);
 
             var ad = await db.JobAds.AsNoTracking()

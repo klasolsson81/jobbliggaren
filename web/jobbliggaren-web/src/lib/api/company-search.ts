@@ -35,9 +35,11 @@ const ORGNR_PAGE_SIZE = 20;
 /**
  * The wire body for a URL-driven search. Absent axis = "don't filter" → the key is OMITTED (never sent
  * as an empty list): the backend treats a missing axis as no constraint, and omitting keeps the body
- * minimal. `page`/`pageSize` are always present. Exported for a unit test that pins the org.nr
- * invariant: `"organizationNumber" in buildSearchBody(...)` is always false — the type has no such
- * field, so it cannot leak into the body.
+ * minimal. `page`/`pageSize` are always present. Exported for a unit test that pins one narrow thing:
+ * `"organizationNumber" in buildSearchBody(...)` is always false, because the type has no such field.
+ * Read that for exactly what it is — an assertion about a KEY, not about a VALUE. It says nothing
+ * about an org.nr arriving as `name`, which is precisely what used to happen; see the paragraph
+ * above and the gate in `search-params.ts`.
  */
 export function buildSearchBody(
   criteria: CompanySearchCriteria,

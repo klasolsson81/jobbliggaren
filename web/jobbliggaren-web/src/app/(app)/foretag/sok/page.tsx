@@ -70,8 +70,16 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
   //     reaches `body.name` either). The delivered HTML does echo it inside Next's own router-state
   //     payload, which is Next reflecting the requested URL, not markup of ours;
   //   - the refused URL is visible in the address bar for the refresh's ~1s before it is replaced.
-  //     That, and the access log of the request that already carried the value, are what remain
-  //     open. Both are accepted on the record rather than papered over.
+  //
+  // What remains OPEN, also measured rather than inferred. Because this is a document and not a
+  // redirect, the browser loads subresources from it, and `Referrer-Policy:
+  // strict-origin-when-cross-origin` (security-headers.ts) sends the FULL url same-origin. Measured:
+  // SIX requests carry the refused URL as their `Referer` — two fonts, two stylesheets, a script,
+  // and the meta-refresh navigation itself. So the access-log exposure is not one line, and the log
+  // line for the WASHED url carries the unwashed value in its own `Referer`. A true 3xx at the proxy
+  // layer would cost exactly one line and no document; that this one does not is the price of the
+  // gate sitting inside a route whose layout has already begun streaming. Recorded as measured and
+  // accepted here rather than understated.
   const parsedNamn = parseNamn(params.namn);
   if (parsedNamn.kind === "orgNrShaped") {
     redirect(

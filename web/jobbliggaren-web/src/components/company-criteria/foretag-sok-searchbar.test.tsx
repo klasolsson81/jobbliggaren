@@ -483,21 +483,25 @@ describe("ForetagSokSearchbar — what a NATIVE GET would carry (D8(c) call-site
    * submit nothing and every no-JS search would return the entire register.
    */
   it("KEEPS the name attribute before hydration, so a no-JS search still works", () => {
+    // The fixture carries an APPLIED name deliberately. With `namn=""` the second assertion would be
+    // vacuous — the hidden input is gated on `namn.length > 0`, so it is absent whatever `hydrated`
+    // says, and dropping the `hydrated &&` guard would leave the test green.
     const html = renderToString(
       <NextIntlClientProvider locale="sv" messages={{ pages: svPages }}>
         <ForetagSokSearchbar
           reference={REFERENCE}
           referenceOk
-          namn=""
+          namn="Volvo"
           sni={[]}
           kommun={[]}
         />
       </NextIntlClientProvider>,
     );
-    // The visible input carries the name pre-hydration...
-    expect(html).toContain('name="namn"');
-    // ...and the hidden applied-name input is NOT emitted, so the two can never both submit.
-    expect(html).not.toContain('type="hidden" name="namn"');
+    // Exactly ONE `name="namn"` pre-hydration — the visible input. Counting rather than matching a
+    // literal attribute order: two would mean the visible input and the hidden applied-name input
+    // both submit, which is the state the hydration split exists to make impossible.
+    expect(html.match(/name="namn"/g) ?? []).toHaveLength(1);
+    expect(html).toContain('value="Volvo"');
   });
 });
 

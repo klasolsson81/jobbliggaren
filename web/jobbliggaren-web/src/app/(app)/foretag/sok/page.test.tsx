@@ -147,10 +147,13 @@ describe("/foretag/sok — the refusal is explained on the wash target", () => {
     expect(screen.getByText("Numret togs bort ur adressen")).toBeInTheDocument();
     const body = screen.getByText(/Organisationsnummer hamnar aldrig i webbadressen/);
     expect(body).toBeInTheDocument();
-    // Binding copy constraints: never accuse the user of typing a personnummer (the gate covers the
-    // whole ten-digit class), and never echo a value back into the DOM.
+    // Binding copy constraint: never accuse the user of typing a personnummer — the gate covers the
+    // whole ten-digit class, so the word would be wrong for a legitimate company number and would
+    // advertise the heuristic. (The "never echo the value" constraint is NOT assertable here and a
+    // check for it would be vacuous by construction: the page redirects, so a refused value and this
+    // panel can never occupy the same request. The real pin for that is the redirect target itself,
+    // asserted above.)
     expect(body.textContent).not.toMatch(/personnummer/i);
-    expect(document.body.textContent).not.toContain("1010101010");
   });
 
   it("does not render the refusal panel on an ordinary search", async () => {

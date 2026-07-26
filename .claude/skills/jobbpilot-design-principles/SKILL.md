@@ -90,7 +90,7 @@ Vit canvas. Hairlines mellan rader och sektioner. **Inga floating cards. Inga
 drop shadows utan funktion** (skuggor finns bara på popovers/dropdowns för att
 signalera lager). **Inga gradients** — med ETT dokumenterat undantag:
 hero-banner-plattans mörkgröna gradient (`--jp-hero-gradient`, scoped till
-`.jp-hero__plate`/`.jp-pagehero`/`.jp-empty--brand`/`.jp-land-hero` per
+`.jp-hero__plate`/`.jp-pagehero`/`.jp-land-hero` per
 [ADR 0068](../../../docs/decisions/0068-gron-accent-identitet-f4-banner.md));
 gradients förblir förbjudna på knappar, badges, kort och alla andra bakgrunder.
 Tänk på UI:t som ett dokument, inte en glasplatta med widgets ovanpå.

@@ -96,7 +96,7 @@ Full hex per token in `tokens-full.md`. Key shifts:
 ### Komponent-undantag i dark
 
 - **Input-fälten är LJUSA i dark** (user-krav): `#F0F4FB` bg + `#0C1A2E`
-  text + `#94A3B8` border — gäller `.jp-input`/`.jp-select`/`.jp-textarea`
+  text + `#94A3B8` border — gäller `.jp-input`
   och shadcn `data-slot="input|textarea|select-trigger"`.
 - **Headern förblir ljus i dark** (vit remsa): `[data-theme="dark"]
   .jp-header` pinnar om hela light-paletten scoped (inkl. light-accent

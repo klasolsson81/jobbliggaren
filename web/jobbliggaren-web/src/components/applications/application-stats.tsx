@@ -32,7 +32,7 @@ export function ApplicationStats({ data }: { data: ApplicationStatsDto }) {
     return (
       <div className="jp-empty">
         <div className="jp-empty__title">{t("empty.title")}</div>
-        <p>{t("empty.body")}</p>
+        <p className="jp-empty__body">{t("empty.body")}</p>
         <div className="jp-empty__actions">
           <Link href="/ny-ansokan" className="jp-btn jp-btn--primary">
             {t("empty.createFirst")}

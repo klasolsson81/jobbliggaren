@@ -163,7 +163,7 @@ export default async function CvListPage() {
           <div className="jp-empty">
             <div>{t("cv.emptyKicker")}</div>
             <div className="jp-empty__title">{t("cv.emptyTitle")}</div>
-            <p>{t("cv.emptyBody")}</p>
+            <p className="jp-empty__body">{t("cv.emptyBody")}</p>
             <div className="jp-empty__actions">
               <Link href="/cv/ny" className="jp-btn jp-btn--primary">
                 <Plus size={14} aria-hidden="true" /> {t("cv.emptyCreateFirst")}

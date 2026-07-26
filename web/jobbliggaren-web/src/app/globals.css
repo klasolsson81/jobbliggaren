@@ -4003,6 +4003,19 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-weight: var(--jp-fw-bold);
   margin: 0 0 4px;
 }
+/* Empty-state explanation. .jp-empty is centred and sets NO measure, so inside
+   .jp-container (1200px) this prose ran ~136ch — about double the ~68ch cap the
+   a11y skill sets for running prose (WCAG 1.4.8). The only thing that ever
+   capped it was the .jp-empty--brand rule (52ch), and that scope was withdrawn
+   from the markup in #43 (2026-06-10, design-reviewer M2 dubbel-grön), which
+   left the element with no rule at all — measured and removed in #1054.
+   60ch matches the house's centred-lede pattern (.jp-pagehero__lede, .jp-lede)
+   rather than inventing a value; margin-inline keeps it centred under the
+   parent's text-align. */
+.jp-empty__body {
+  max-width: 60ch;
+  margin-inline: auto;
+}
 
 /* ── Skeleton (laddningstillstånd) ───────────────────
    Platt neutral platshållare för /jobb-sökresultatet (F6 P4).

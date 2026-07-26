@@ -435,7 +435,7 @@ doubt, in-block wins (quality > tempo) and senior-cto-advisor decides.
 - Dev env: Docker Compose (`postgres`, `redis`, `seq`) — MEL logs to console
   **and to Seq**: `AddJobbliggarenLogging` (shared by Api + Worker) attaches the
   Seq provider **only when `Seq:ServerUrl` is set**; the Hetzner residual is the
-  *production* Seq (EU residency, access control, retention), not the wiring.
+  *production* Seq, not the wiring.
   Everything runs locally (AWS retired, ADR 0066): `LocalDataKeyProvider`
   (AES-256-GCM) for field encryption, and mail via `AddEmailSender`'s
   `Email:Provider` switch — **three** `IEmailSender` impls, not one:
@@ -449,8 +449,9 @@ doubt, in-block wins (quality > tempo) and senior-cto-advisor decides.
   `appsettings.Development.json` + gitignored `appsettings.Local.json`.
 - `AlbOptions`/`Alb:HttpsEnabled` is **live despite its AWS name** — it co-gates
   `UseHsts` and `UseHttpsRedirection` with the environment in `Api/Program.cs`,
-  and gates the fail-loud HSTS config validation; `UseHttpsRedirectionGateTests`
-  pins all of it in both polarities. ADR 0066 destroyed the *deployed* AWS dev
+  and gates the fail-loud HSTS config validation. `UseHttpsRedirectionGateTests`
+  pins both middleware gates in both polarities; the validation gate itself is
+  unpinned. ADR 0066 destroyed the *deployed* AWS dev
   stack and deliberately **preserved** `infra/terraform/`, which still carries
   the `Alb__HttpsEnabled` injection — so neither the flag nor the tree is
   residue. Retirement is a Hetzner-cutover ADR, never a cleanup sweep

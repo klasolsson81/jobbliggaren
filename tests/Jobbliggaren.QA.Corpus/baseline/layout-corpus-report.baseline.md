@@ -131,7 +131,7 @@ literal "no" on every row forever, which is a decoration rather than a measureme
 | 2 | `pdf-interleaved-baseline-fusion` | **Blocked** | 5 | 0 | — | — | 3 | 1 | — | UnclassifiedPreamble |
 | 3 | `pdf-zero-xgap-concat` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 4 | `pdf-single-column-sv` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 5 | `pdf-single-column-spaced` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 5 | `pdf-single-column-spaced` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
 | 6 | `pdf-sidebar-spaced` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 7 | `pdf-single-column-en` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 8 | `pdf-nonsequential-decorative` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | UnclassifiedPreamble |
@@ -188,13 +188,13 @@ row is the finding: the product said the CV was saved and this employment is gon
 | `pdf-single-column-sv` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
 | `pdf-single-column-sv` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
 | `pdf-single-column-spaced` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-spaced` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-spaced` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-spaced` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-spaced` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-spaced` | Employment | Volvo Cars | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-spaced` | Employment | Västra Götalandsregionen | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-spaced` | Employment | Consid AB | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-spaced` | Employment | Sigma IT | yes | yes | yes | — | **Survived** |
 | `pdf-single-column-spaced` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-spaced` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-spaced` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-spaced` | Education | Göteborgs universitet | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-spaced` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | — | **Survived** |
 | `pdf-sidebar-spaced` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
 | `pdf-sidebar-spaced` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
 | `pdf-sidebar-spaced` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
@@ -316,7 +316,7 @@ row is the finding: the product said the CV was saved and this employment is gon
 | 2 | `pdf-interleaved-baseline-fusion` | yes | Extracted | 1269 | 28 | **0** | yes | Sv | 1 | 1055 chars |
 | 3 | `pdf-zero-xgap-concat` | yes | Extracted | 844 | 22 | **0** | yes | Sv | 2 | null |
 | 4 | `pdf-single-column-sv` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
-| 5 | `pdf-single-column-spaced` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
+| 5 | `pdf-single-column-spaced` | yes | Extracted | 1547 | 66 | **18** | yes | Sv | 5 | null |
 | 6 | `pdf-sidebar-spaced` | yes | Extracted | 1653 | 59 | **0** | yes | Sv | 5 | null |
 | 7 | `pdf-single-column-en` | yes | Extracted | 1557 | 48 | **0** | yes | En | 5 | null |
 | 8 | `pdf-nonsequential-decorative` | yes | Extracted | 1537 | 49 | **0** | yes | Sv | 5 | 7 chars |
@@ -345,7 +345,7 @@ reader's inference, never an emitted ratio.
 | 2 | `pdf-interleaved-baseline-fusion` | `5921426B6D89` | no | yes | `Anna Andersson PROFIL` |
 | 3 | `pdf-zero-xgap-concat` | `4729D90AC94E` | yes | no | `Anna Andersson` |
 | 4 | `pdf-single-column-sv` | `05CD8018BF8A` | no | no | `Anna Andersson` |
-| 5 | `pdf-single-column-spaced` | `05CD8018BF8A` | no | no | `Anna Andersson` |
+| 5 | `pdf-single-column-spaced` | `287B16C4A3B5` | no | no | `Anna Andersson` |
 | 6 | `pdf-sidebar-spaced` | `F4AE38C36604` | no | no | `Anna Andersson` |
 | 7 | `pdf-single-column-en` | `1EF60B042871` | no | no | `Anna Andersson` |
 | 8 | `pdf-nonsequential-decorative` | `B25148E1CC6B` | no | no | `CV 2026` |
@@ -367,7 +367,7 @@ table and a flat paragraph sequence in the same order should produce identical t
 ordering assertion would restate our own writer; equal digests are a fact about the
 extractor.
 
-- `pdf-single-column-spaced` vs `pdf-single-column-sv` — digests **EQUAL** (`05CD8018BF8A` / `05CD8018BF8A`)
+- `pdf-single-column-spaced` vs `pdf-single-column-sv` — digests differ (`287B16C4A3B5` / `05CD8018BF8A`)
 - `pdf-sidebar-spaced` vs `pdf-sidebar-emitted-first` — digests differ (`F4AE38C36604` / `F8D2FF82DFDE`)
 - `pdf-known-heading-after-profile` vs `pdf-unknown-heading-after-profile` — digests differ (`151E7C68EC39` / `4BA9EB7A1A94`)
 - `pdf-clean-body-pnr-in-account-name` vs `pdf-single-column-sv` — digests **EQUAL** (`05CD8018BF8A` / `05CD8018BF8A`)
@@ -481,8 +481,8 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: Confident — heading 'profil' matched; summary text present`
-- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: Confident — heading 'språk' matched; 8 entries`
 

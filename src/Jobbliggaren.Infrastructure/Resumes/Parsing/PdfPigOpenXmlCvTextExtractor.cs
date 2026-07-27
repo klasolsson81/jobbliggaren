@@ -4,7 +4,6 @@ using System.Xml;
 using DocumentFormat.OpenXml.Packaging;
 using Jobbliggaren.Application.Resumes.Abstractions;
 using UglyToad.PdfPig;
-using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
@@ -32,23 +31,6 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
     // Defence-in-depth bounds (the validator already caps the input at 10 MiB).
     private const int MaxPages = 50;
     private const int MaxOutputChars = 1_000_000;
-
-    // #1060 PR E — the paragraph-boundary rule. See the block comment above
-    // InsertParagraphBoundaries for what these mean and for the measurements behind them.
-
-    // How much clear space above a line makes it a new paragraph, in line heights, ON TOP OF the
-    // page's own body pitch. The ONE authored number in the rule; the two values it combines
-    // (body pitch, line height) are both read from the page. A ratio of the body pitch was tried
-    // instead and measured wrong — corpus baseline appendix C.
-    private const double ParagraphGapInLineHeights = 0.5;
-
-    // Below this many text lines a page has too few gaps for a median to mean anything, so no
-    // boundary is inferred at all (a two-line page has one gap, which is its own median).
-    private const int MinLinesForParagraphBoundary = 4;
-
-    // Baselines are rounded to a tenth of a point before grouping so sub-glyph jitter cannot
-    // split one visual line into two.
-    private const int BaselineRoundingDigits = 1;
 
     // #268 SEC-1 (DOCX decompression/zip bomb): DOCX is a ZIP/OPC container and the
     // validator caps only the COMPRESSED input at 10 MiB. DEFLATE permits ~1000:1, so a
@@ -124,10 +106,6 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                 var pageText = ContentOrderTextExtractor.GetText(page);
                 if (!string.IsNullOrEmpty(pageText))
                 {
-                    // #1060 PR E: restore the paragraph boundaries the author put in the page
-                    // and this API discards. Adds blank lines ONLY; never alters a character.
-                    pageText = InsertParagraphBoundaries(page, pageText);
-
                     // #272 SEC-2: bound EACH page to the remaining char budget so a single
                     // pathological page is truncated to the cap, not appended whole.
                     var remaining = MaxOutputChars - builder.Length;
@@ -170,189 +148,6 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             return new CvExtractionResult(string.Empty, CvExtractionStatus.Empty);
         }
     }
-
-    // ---- #1060 PR E: the paragraph boundary -------------------------------------------------
-    //
-    // WHAT THIS FIXES. `SplitEntries` in the segmenter splits a section block into entries on
-    // BLANK LINES and on nothing else. A PDF page carries the boundary between two employments
-    // geometrically — as extra vertical space — and `ContentOrderTextExtractor` emits one '\n'
-    // per visual line regardless, so the boundary is discarded before the segmenter ever sees it.
-    // Five employments arrive as one entry, `SplitTitleOrganization` reads job 1's header line,
-    // `ValidateContent` passes, and the CV promotes CONFIDENTLY with four employments missing.
-    //
-    // WHY NOT `GetText(page, addDoubleNewline: true)`, which looks like the one-line version of
-    // this (measured 2026-07-26, recorded in the corpus baseline appendix A): the flag is a LINE
-    // signal, not a paragraph one. It inserts a blank line after EVERY visual line, so the same
-    // bytes go 0 -> 42 blank lines and 5 -> 15 parsed experiences, one of them literally
-    // title=<null> org=<null> period="2021 - 2026". Such a fragment projects as an empty Company
-    // and `Resume.ValidateContent` returns on the first one, so every PDF whose periods sit on
-    // their own line would stop promoting entirely. An honest block is the better outcome for ONE
-    // document; it is not a policy for a container format.
-    //
-    // WHY THE CUT IS `median gap + 0.5 * median line height` AND NOT A RATIO (measured
-    // 2026-07-27, corpus baseline appendix C). A 1.5x multiple of the body pitch was tried first
-    // and is WRONG on the most realistic document built: at 1.35 line spacing with 6 pt paragraph
-    // gaps the body pitch is 14.9 pt and the paragraph gaps are 20.8 pt, while 1.5x is 22.35 pt —
-    // it catches nothing. The half-line form catches every authored boundary on that document
-    // (cut 18.95) and on a wider-spaced one (cut 17.24, boundaries 27.4 and 31.4), and yields
-    // ZERO boundaries on a document with uniform leading. Both quantities are read from the page;
-    // 0.5 is the only authored number here, it means "half a line of extra whitespace", and the
-    // measurement above is what a future reader tempted to retune it should read first.
-    //
-    // WHY IT CANNOT CORRUPT TEXT. The emitted string is always `ContentOrderTextExtractor`'s own
-    // output with blank lines INSERTED; geometry contributes positions and never characters. The
-    // insertion happens only when this method's independently-derived line list matches that
-    // output line for line, so a page whose reading order is not top-to-bottom (a two-column
-    // sidebar, a layered decorative page) falls through to today's behaviour instead of being
-    // silently misaligned. That guard is per-page.
-    //
-    // WHAT IT DOES NOT FIX (deliberate, measured): a two-column/sidebar CV. The two columns share
-    // baselines, so the line list cannot match the extractor's column-sequential order and the
-    // guard trips by construction — the corpus carries this as `pdf-sidebar-spaced`, a document
-    // WITH authored spacing that still does not improve. Same-baseline column merging and
-    // negative-x-gap concatenation are likewise untouched; all three need column-aware layout
-    // analysis, which is named here and not promised.
-
-    /// <summary>
-    /// Returns <paramref name="pageText"/> with a blank line inserted at each authored paragraph
-    /// boundary, or <paramref name="pageText"/> unchanged when the page carries no usable signal.
-    /// Never removes or rewrites a character.
-    /// </summary>
-    private static string InsertParagraphBoundaries(Page page, string pageText)
-    {
-        try
-        {
-            // Split on '\n' only; a trailing '\r' stays attached to its line and is folded by
-            // Normalize() later, exactly as it is today.
-            var emitted = pageText.Split('\n');
-
-            // The extractor's own lines, with blanks ignored — the authority for both ORDER and
-            // TEXT. Only their positions are in question here.
-            var authority = new List<int>();
-            for (var i = 0; i < emitted.Length; i++)
-            {
-                if (emitted[i].Trim().Length > 0)
-                    authority.Add(i);
-            }
-
-            if (authority.Count < MinLinesForParagraphBoundary)
-                return pageText;
-
-            var lines = GeometricLines(page);
-            if (lines.Count != authority.Count)
-                return pageText;
-
-            for (var i = 0; i < lines.Count; i++)
-            {
-                if (!SameIgnoringWhitespace(emitted[authority[i]], lines[i].Text))
-                    return pageText;
-            }
-
-            var boundaries = BoundaryIndices(lines);
-            if (boundaries.Count == 0)
-                return pageText;
-
-            var builder = new StringBuilder(pageText.Length + boundaries.Count + 1);
-            var ordinal = 0;
-            for (var i = 0; i < emitted.Length; i++)
-            {
-                if (i > 0)
-                    builder.Append('\n');
-
-                if (emitted[i].Trim().Length > 0)
-                {
-                    if (boundaries.Contains(ordinal))
-                        builder.Append('\n');
-
-                    ordinal++;
-                }
-
-                builder.Append(emitted[i]);
-            }
-
-            return builder.ToString();
-        }
-        catch (Exception)
-        {
-            // The page geometry is unreadable for this page. Fall back to the text the extractor
-            // already produced — NOT to the enclosing fail-soft Empty path, which would throw away
-            // text we successfully extracted and make this a regression on a contract whose whole
-            // point is that it never loses more than it has to. (Not a bare catch-all: the action
-            // is a defined fallback to the pre-#1060 output.)
-            return pageText;
-        }
-    }
-
-    /// <summary>One entry per visual line: its baseline, its words joined left to right, and the
-    /// tallest glyph box on it. Independent of the extractor's own line assembly on purpose — the
-    /// caller compares the two and only proceeds when they agree.</summary>
-    private static List<GeometricLine> GeometricLines(Page page) =>
-        [.. page.GetWords()
-            .GroupBy(w => Math.Round(w.BoundingBox.Bottom, BaselineRoundingDigits))
-            .OrderByDescending(g => g.Key)
-            .Select(g => new GeometricLine(
-                g.Key,
-                string.Join(' ', g.OrderBy(w => w.BoundingBox.Left).Select(w => w.Text)),
-                g.Max(w => w.BoundingBox.Height)))];
-
-    /// <summary>The line indices that START a new paragraph: those whose gap to the previous line
-    /// exceeds the page's own body pitch by at least half a line. Both reference values are
-    /// medians of the page, so a densely-set page and an airy one are judged by their own
-    /// spacing.</summary>
-    private static HashSet<int> BoundaryIndices(List<GeometricLine> lines)
-    {
-        var gaps = new double[lines.Count - 1];
-        for (var i = 1; i < lines.Count; i++)
-            gaps[i - 1] = lines[i - 1].Baseline - lines[i].Baseline;
-
-        var bodyPitch = Median(gaps);
-        var lineHeight = Median([.. lines.Select(l => l.Height)]);
-        var cut = bodyPitch + (ParagraphGapInLineHeights * lineHeight);
-
-        var boundaries = new HashSet<int>();
-        for (var i = 1; i < lines.Count; i++)
-        {
-            if (gaps[i - 1] > cut)
-                boundaries.Add(i);
-        }
-
-        return boundaries;
-    }
-
-    private static double Median(double[] values)
-    {
-        if (values.Length == 0)
-            return 0;
-
-        var sorted = (double[])values.Clone();
-        Array.Sort(sorted);
-        return sorted[sorted.Length / 2];
-    }
-
-    private static bool SameIgnoringWhitespace(string left, string right)
-    {
-        int i = 0, j = 0;
-        while (true)
-        {
-            while (i < left.Length && char.IsWhiteSpace(left[i]))
-                i++;
-            while (j < right.Length && char.IsWhiteSpace(right[j]))
-                j++;
-
-            if (i == left.Length || j == right.Length)
-                return i == left.Length && j == right.Length;
-
-            if (left[i] != right[j])
-                return false;
-
-            i++;
-            j++;
-        }
-    }
-
-    /// <summary>A visual line's geometry: PDF baseline (y grows upward), its text, and the
-    /// tallest glyph box on it.</summary>
-    private readonly record struct GeometricLine(double Baseline, string Text, double Height);
 
     private static CvExtractionResult ExtractDocx(ReadOnlyMemory<byte> file, CancellationToken cancellationToken)
     {

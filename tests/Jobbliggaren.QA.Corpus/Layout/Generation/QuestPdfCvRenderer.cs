@@ -81,6 +81,66 @@ internal static class QuestPdfCvRenderer
         }));
 
     /// <summary>
+    /// <see cref="SingleColumnSpaced"/> with the SAME paragraph spacing applied INSIDE each
+    /// employment as well as between them, plus a long tightly-leaded skills list. One-variable
+    /// step from <c>pdf-single-column-spaced</c>: the only change is that spacing now also falls
+    /// between the lines of one entry.
+    ///
+    /// <para><b>This is the arm the corpus was missing, and its absence hid a regression</b>
+    /// (#1060 PR E, measured 2026-07-27). Every other spaced case renders an employment as ONE
+    /// block with spacing only between blocks, so no fixture could exhibit a paragraph gap INSIDE
+    /// an entry. A geometry-derived boundary rule was built against that fixture set, passed every
+    /// clause of its pre-committed acceptance rule, and was then measured on this shape to split
+    /// entries apart — producing fragments with no organization, which
+    /// <c>Resume.ValidateContent</c> rejects, turning a CV that promoted into a hard
+    /// <c>IncompleteContent</c> block. The rule was withdrawn; this fixture is what makes the next
+    /// attempt measurable instead of plausible.</para>
+    ///
+    /// <para><b>Why both knobs.</b> The intra-block spacing supplies the false-boundary candidate;
+    /// the tight-leaded list supplies the population that keeps the page's MEDIAN gap at bare
+    /// leading. Neither alone reproduces it — the failure is a window, not a threshold: with the
+    /// list short the median rises to absorb the intra spacing, and with it very long the median
+    /// falls back. Both are ordinary word-processor defaults (Normal's space-after; a list style
+    /// that suppresses spacing between items of the same style).</para>
+    /// </summary>
+    internal static byte[] SingleColumnIntraBlockSpaced(CvModel m) =>
+        Render(page => page.Content().Column(col =>
+        {
+            col.Spacing(WordDefaultParagraphSpacingPoints);
+
+            Block(col, [m.PersonName, m.Email, m.Phone, m.City]);
+            Block(col, [m.Headings.Profile]);
+            Block(col, m.ProfileLines);
+
+            // The tight-leaded list: no spacing between items, so these gaps hold the page median
+            // down at bare leading. Emitted as ONE block, before the experience section.
+            Block(col, [m.Headings.Skills]);
+            Block(col, [.. m.Skills, .. m.Skills, .. m.Skills]);
+
+            Block(col, [m.Headings.Experience]);
+            foreach (var e in m.Employments)
+            {
+                // Each LINE of the employment is its own block, so Word's paragraph spacing falls
+                // between them. That is the one variable this case adds.
+                Block(col, [$"{e.Role} - {e.Marker}"]);
+                Block(col, [e.Period]);
+                Block(col, [e.Bullet]);
+            }
+
+            Block(col, [m.Headings.Education]);
+            foreach (var e in m.Educations)
+            {
+                Block(col, [$"{e.Degree} - {e.Marker}"]);
+                Block(col, [e.Period]);
+            }
+
+            Block(col, [m.Headings.Languages]);
+            Block(col, m.Languages);
+            Block(col, [m.Headings.UnknownProjects]);
+            Block(col, m.ProjectLines);
+        }));
+
+    /// <summary>
     /// <see cref="SidebarEmittedFirst"/> with the same paragraph spacing as
     /// <see cref="SingleColumnSpaced"/> — a one-variable step from <c>pdf-sidebar-emitted-first</c>.
     ///

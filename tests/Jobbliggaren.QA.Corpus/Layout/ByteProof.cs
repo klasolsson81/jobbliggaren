@@ -156,54 +156,126 @@ public sealed partial class ByteProofContext(string caseId, ReadOnlyMemory<byte>
     ///
     /// <para>Deliberately NOT the production rule. The extractor's boundary cut is a median plus
     /// half a median line height; this reads the tightest gap and a flat point excess. Two
-    /// independent statements about the same bytes — if this restated the cut, it would pass
-    /// whenever the cut passed and prove nothing about the document.</para>
+    /// different statements about the same bytes, so this cannot become a restatement of the cut.
+    /// (It is not fully independent either: on a single-column page where the tightest gap IS the
+    /// median, this proof holding implies the cut fires. That makes it a good detector of a fixture
+    /// that has ROTTED — which is its job — and a poor independent confirmation that the rule
+    /// works. The corpus verdict columns are what confirm the rule.)</para>
+    ///
+    /// <para><b>Columns are separated, and that is load-bearing.</b> On a multi-column page the two
+    /// columns carry independent baseline series. Merged into one sequence, the tightest "gap"
+    /// becomes the smallest offset BETWEEN columns rather than a line pitch — it can be a fraction
+    /// of a point — and the threshold collapses so far that ordinary leading counts as authored
+    /// spacing. The proof would then hold on a document with no block spacing at all, and
+    /// <c>pdf-sidebar-spaced</c>'s claim ("any failure to recover entries here is NOT the document
+    /// withholding the boundary") would be silently false. Pass <paramref name="splitX"/> for any
+    /// page with a vertical gutter; the gap statistics are then computed WITHIN each column and the
+    /// qualifying gaps summed. Same partitioning idea as
+    /// <see cref="RequireSharedBaselines"/>.</para>
     /// </summary>
-    public void RequireAuthoredParagraphSpacing(int minCount, double minExtraPoints)
+    /// <param name="minCount">Minimum number of qualifying gaps, summed across columns.</param>
+    /// <param name="minExtraPoints">How far a gap must exceed its own column's tightest gap.</param>
+    /// <param name="splitX">X coordinate separating two columns, or null for a single-column page.</param>
+    public void RequireAuthoredParagraphSpacing(int minCount, double minExtraPoints, double? splitX = null)
     {
-        var gaps = InterBaselineGaps();
-        if (gaps.Count == 0)
+        var columns = BaselineColumns(splitX);
+        if (columns.Count == 0)
         {
             Require(false, "expected authored paragraph spacing; the page carries fewer than two baselines");
             return;
         }
 
-        var tightest = gaps.Min();
-        var spaced = gaps.Count(g => g >= tightest + minExtraPoints);
+        var spaced = 0;
+        var tightestPerColumn = new List<string>();
+        foreach (var gaps in columns)
+        {
+            var tightest = gaps.Min();
+            spaced += gaps.Count(g => g >= tightest + minExtraPoints);
+            tightestPerColumn.Add(Invariant($"{tightest:F1}"));
+        }
 
+        var tightestList = string.Join(" / ", tightestPerColumn);
         Require(spaced >= minCount, Invariant(
-            $"expected at least {minCount} gaps exceeding the tightest ({tightest:F1} pt) by {minExtraPoints} pt or more, found {spaced}"));
+            $"expected at least {minCount} gaps exceeding their own column's tightest ({tightestList} pt) by {minExtraPoints} pt or more, found {spaced}"));
+    }
+
+    /// <summary>
+    /// Proves an authored gap sits between two NAMED lines: the line carrying
+    /// <paramref name="upperWord"/> and the line carrying <paramref name="lowerWord"/> are
+    /// vertically separated by at least <paramref name="minExtraPoints"/> more than the page's
+    /// tightest gap.
+    ///
+    /// <para>Needed because <see cref="RequireAuthoredParagraphSpacing"/> counts gaps without
+    /// knowing WHERE they fall, so it cannot tell a gap BETWEEN two employments from a gap INSIDE
+    /// one. <c>pdf-single-column-intra-block-spaced</c> exists precisely to carry the second, and a
+    /// case whose distinguishing property no proof establishes is the defect this corpus keeps
+    /// finding in itself — a claim that reads as measured and is only authored.</para>
+    /// </summary>
+    public void RequireGapBetweenLines(string upperWord, string lowerWord, double minExtraPoints)
+    {
+        var anchors = PdfBlockAnchors();
+
+        var upper = anchors.FirstOrDefault(a => a.Text.Contains(upperWord, StringComparison.Ordinal))
+            ?? throw new ByteProofException(CaseId, Invariant($"the word '{upperWord}' is absent from page 1"));
+        var lower = anchors.FirstOrDefault(a => a.Text.Contains(lowerWord, StringComparison.Ordinal))
+            ?? throw new ByteProofException(CaseId, Invariant($"the word '{lowerWord}' is absent from page 1"));
+
+        Require(upper.Y > lower.Y, Invariant(
+            $"expected '{upperWord}' above '{lowerWord}'; found y = {upper.Y:F1} and {lower.Y:F1}"));
+
+        var columns = BaselineColumns(null);
+        var tightest = columns.Count == 0 ? 0 : columns[0].Min();
+        var gap = upper.Y - lower.Y;
+
+        Require(gap >= tightest + minExtraPoints, Invariant(
+            $"expected a gap of at least {minExtraPoints} pt over the tightest ({tightest:F1} pt) between '{upperWord}' and '{lowerWord}', found {gap:F1} pt"));
     }
 
     /// <summary>Proves the page carries NO authored paragraph spacing — the exact negation of
-    /// <see cref="RequireAuthoredParagraphSpacing"/>, so a case cannot claim both.</summary>
-    public void RequireUniformLineSpacing(double tolerancePoints)
+    /// <see cref="RequireAuthoredParagraphSpacing"/>, so a case cannot claim both. Declared on the
+    /// unspaced twins so the corpus's negative control is STATED rather than assumed: without it,
+    /// "this case authors no spacing" is a property of the renderer that no artifact records.
+    /// </summary>
+    public void RequireUniformLineSpacing(double tolerancePoints, double? splitX = null)
     {
-        var gaps = InterBaselineGaps();
-        if (gaps.Count == 0)
-            return;
-
-        var spread = gaps.Max() - gaps.Min();
-        Require(spread <= tolerancePoints, Invariant(
-            $"expected uniform leading (spread at most {tolerancePoints} pt), found a spread of {spread:F1} pt"));
+        foreach (var gaps in BaselineColumns(splitX))
+        {
+            var spread = gaps.Max() - gaps.Min();
+            Require(spread <= tolerancePoints, Invariant(
+                $"expected uniform leading (spread at most {tolerancePoints} pt), found a spread of {spread:F1} pt"));
+        }
     }
 
-    /// <summary>Gaps between consecutive text baselines on page 1, top to bottom. Baselines are
+    /// <summary>Inter-baseline gaps on page 1, top to bottom, as one list per column. Baselines are
     /// rounded to a tenth of a point so glyph-level jitter does not split one visual line in two.
-    /// </summary>
-    private List<double> InterBaselineGaps()
+    /// A column contributing fewer than two baselines yields no gaps and is omitted.</summary>
+    private List<List<double>> BaselineColumns(double? splitX)
     {
-        var baselines = PdfBlockAnchors()
-            .Select(a => Math.Round(a.Y, 1))
-            .Distinct()
-            .OrderByDescending(y => y)
-            .ToList();
+        var anchors = PdfBlockAnchors();
+        var partitions = splitX is null
+            ? new[] { anchors }
+            : [anchors.Where(a => a.X < splitX.Value).ToList(), anchors.Where(a => a.X >= splitX.Value).ToList()];
 
-        var gaps = new List<double>();
-        for (var i = 1; i < baselines.Count; i++)
-            gaps.Add(baselines[i - 1] - baselines[i]);
+        var columns = new List<List<double>>();
+        foreach (var partition in partitions)
+        {
+            var baselines = partition
+                .Select(a => Math.Round(a.Y, 1))
+                .Distinct()
+                .OrderByDescending(y => y)
+                .ToList();
 
-        return gaps;
+            if (baselines.Count < 2)
+                continue;
+
+            var gaps = new List<double>();
+            for (var i = 1; i < baselines.Count; i++)
+                gaps.Add(baselines[i - 1] - baselines[i]);
+
+            columns.Add(gaps);
+        }
+
+        return columns;
     }
 
     private double WidestGutter()

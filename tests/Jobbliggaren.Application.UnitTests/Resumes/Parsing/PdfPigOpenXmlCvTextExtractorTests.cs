@@ -93,10 +93,25 @@ public class PdfPigOpenXmlCvTextExtractorTests
         new("2010 - 2015", 0),
     ];
 
-    private const string SpacedCvFirstEmployer = "Klarna AB";
-
     private static readonly string[] SpacedCvEmployers =
         ["Klarna AB", "Volvo Cars", "Västra Götalandsregionen"];
+
+    /// <summary>The same CV with paragraph spacing ALSO inside each employment — above the period
+    /// line and above the description line. A word processor produces this whenever those lines
+    /// are ordinary paragraphs rather than line breaks, which is the common case.
+    ///
+    /// <para>It exists because a geometry-derived boundary rule was built for #1060 PR E, passed
+    /// every fixture then available, and was measured on this shape to split entries apart —
+    /// yielding fragments with no organization, which <c>Resume.ValidateContent</c> rejects,
+    /// turning a CV that promoted into a hard block. Nothing in the suite could exhibit that,
+    /// because every fixture put spacing only BETWEEN employments. The rule was withdrawn; this
+    /// fixture is what makes the next attempt measurable.</para></summary>
+    private static readonly CvLine[] IntraBlockSpacedCv =
+        [.. SpacedCv.Select(l => l.Text is "2021 - 2026" or "2018 - 2021" or "2015 - 2018"
+                or "2010 - 2015" or "Ledde teamet för betalflöden."
+                or "Byggde tjänster för uppkopplade fordon." or "Journalsystem i .NET."
+            ? l with { GapAbove = 8 }
+            : l)];
 
     private static byte[] BuildCvPdf(IReadOnlyList<CvLine> lines) =>
         QuestDocument.Create(container =>
@@ -116,38 +131,6 @@ public class PdfPigOpenXmlCvTextExtractorTests
     /// The document carries no paragraph signal, so nothing may be inferred from it.</summary>
     private static byte[] BuildUniformLeadingCvPdf() =>
         BuildCvPdf([.. SpacedCv.Select(l => l with { GapAbove = 0 })]);
-
-    /// <summary>The same content in a narrow sidebar plus a main column, WITH the same authored
-    /// spacing. The layout class of the CV that filed #1060.</summary>
-    private static byte[] BuildTwoColumnCvPdf() =>
-        QuestDocument.Create(container =>
-            container.Page(page =>
-            {
-                page.Size(PageSizes.A4);
-                page.Margin(2, Unit.Centimetre);
-                page.DefaultTextStyle(t => t.FontSize(11));
-                page.Content().Row(row =>
-                {
-                    row.ConstantItem(150).Column(col =>
-                    {
-                        col.Item().Text("Anna Andersson");
-                        col.Item().Text("Göteborg");
-                        col.Item().PaddingTop(18).Text("TEKNISKA KOMPETENSER");
-                        col.Item().PaddingTop(6).Text("C#");
-                        col.Item().Text("PostgreSQL");
-                    });
-                    row.RelativeItem().PaddingLeft(20).Column(col =>
-                    {
-                        col.Item().Text("PROFIL");
-                        col.Item().PaddingTop(6).Text("Erfaren backend-utvecklare.");
-                        col.Item().PaddingTop(18).Text("ARBETSLIVSERFARENHET");
-                        col.Item().PaddingTop(6).Text("Senior backend-utvecklare — Klarna AB");
-                        col.Item().Text("2021 - 2026");
-                        col.Item().PaddingTop(14).Text("Backend-utvecklare — Volvo Cars");
-                        col.Item().Text("2018 - 2021");
-                    });
-                });
-            })).GeneratePdf();
 
     [Fact]
     public void Extract_SynthesizedDocx_StatusExtracted_RawTextContainsParagraphs()
@@ -316,80 +299,35 @@ public class PdfPigOpenXmlCvTextExtractorTests
         result.RawText.ShouldContain("tjänster");
     }
 
-    // ---- #1060 PR E: the paragraph boundary ----------------------------------------------
-    // Asserted as FORM (where blank lines are), never as entry counts — `ParsedExperience` is
-    // the segmenter's output and asserting it here would run two units in one test, so a red
-    // would not say which one broke. The end-to-end fidelity claim is the corpus's job.
-
-    private static string[] ExtractedLines(byte[] pdf)
+    // #1060 PR E — THE BASE, pinned. Three documents with the same words and three different
+    // authored spacings: none at all, spacing between employments, and spacing between AND inside
+    // them. `ContentOrderTextExtractor.GetText(page)` emits one newline per visual line regardless,
+    // so all three produce the same shape — zero blank lines — and the segmenter, which splits
+    // entries on blank lines and nothing else, cannot tell them apart.
+    //
+    // That is the #1060 defect stated at the layer that owns it, and this test is deliberately an
+    // assertion about TODAY. A future PR that restores the boundary MUST turn the first two rows
+    // red; if it lands and this test still passes, it did not do what it claims. The third row is
+    // the one that failed the first attempt (a rule that fired here split entries apart and turned
+    // a promoting CV into a hard block), so it is pinned separately rather than folded in.
+    [Theory]
+    [InlineData("uniform leading — no authored spacing at all")]
+    [InlineData("spacing BETWEEN employments")]
+    [InlineData("spacing between AND INSIDE employments")]
+    public void Extract_PdfSpacingIsInvisibleInTheExtractedText_TodaysBase(string shape)
     {
-        var result = new PdfPigOpenXmlCvTextExtractor()
-            .Extract(pdf, CvFileKind.Pdf, CancellationToken.None);
+        var bytes = shape switch
+        {
+            "uniform leading — no authored spacing at all" => BuildUniformLeadingCvPdf(),
+            "spacing BETWEEN employments" => BuildCvPdf(SpacedCv),
+            _ => BuildCvPdf(IntraBlockSpacedCv),
+        };
+
+        var result = _sut.Extract(bytes, CvFileKind.Pdf, CancellationToken.None);
 
         result.Status.ShouldBe(CvExtractionStatus.Extracted);
-        return result.RawText.Split('\n');
-    }
-
-    private static int IndexOfLine(string[] lines, string startsWith) =>
-        Array.FindIndex(lines, l => l.StartsWith(startsWith, StringComparison.Ordinal));
-
-    [Fact]
-    public void Extract_PdfWithAuthoredParagraphSpacing_BlankLineStartsEachBlock()
-    {
-        var lines = ExtractedLines(BuildCvPdf(SpacedCv));
-
-        // A blank line above every line the fixture authored a gap above, and above no other.
-        // SpacedCv authors eight; the count is asserted from the fixture rather than hard-coded
-        // so adding a block to the fixture cannot silently weaken the test.
-        var authoredGaps = SpacedCv.Count(l => l.GapAbove > 0);
-        lines.Count(l => l.Trim().Length == 0).ShouldBe(authoredGaps);
-
-        foreach (var authored in SpacedCv.Where(l => l.GapAbove > 0))
-        {
-            var at = IndexOfLine(lines, authored.Text);
-            at.ShouldBeGreaterThan(0, $"'{authored.Text}' should have been extracted");
-            lines[at - 1].Trim().ShouldBeEmpty(
-                $"'{authored.Text}' was authored with {authored.GapAbove} pt above it");
-        }
-    }
-
-    // THE REGRESSION PIN FOR THE addDoubleNewline CLASS. `GetText(page, addDoubleNewline: true)`
-    // — the one-line change this mechanism replaced — inserts a blank line after EVERY visual
-    // line, which splits one employment into three entries and blocks the whole PDF population.
-    // If anyone ever reintroduces a per-line boundary, this is what fails.
-    [Fact]
-    public void Extract_PdfWithAuthoredParagraphSpacing_NoBlankLineInsideAnEmploymentBlock()
-    {
-        var lines = ExtractedLines(BuildCvPdf(SpacedCv));
-
-        // Role line, then period, then bullet — one employment, no blank line anywhere in it.
-        var role = IndexOfLine(lines, "Senior backend-utvecklare");
-        role.ShouldBeGreaterThanOrEqualTo(0);
-
-        lines[role + 1].Trim().ShouldBe("2021 - 2026");
-        lines[role + 2].Trim().ShouldNotBeEmpty();
-        lines[role + 2].ShouldContain("Ledde teamet");
-    }
-
-    [Fact]
-    public void Extract_PdfWithUniformLeading_EmitsNoBlankLines()
-    {
-        var lines = ExtractedLines(BuildUniformLeadingCvPdf());
-
-        // Same content, every authored gap removed. The document states no boundary, so none may
-        // be invented — this is the failure mode the rule degrades to, pinned.
-        lines.ShouldAllBe(l => l.Trim().Length > 0);
-    }
-
-    [Fact]
-    public void Extract_TwoColumnPdf_EmitsNoBlankLines_EvenWithAuthoredSpacing()
-    {
-        var lines = ExtractedLines(BuildTwoColumnCvPdf());
-
-        // A sidebar's two columns share baselines, so a top-to-bottom line list cannot match the
-        // extractor's column-sequential order and the alignment guard trips. Recorded as a LIMIT:
-        // this is the layout class of the CV that filed #1060, and it does not improve.
-        lines.ShouldAllBe(l => l.Trim().Length > 0);
+        result.RawText.Split('\n').ShouldAllBe(l => l.Trim().Length > 0,
+            $"the extractor emits no blank line for '{shape}' — authored spacing is discarded");
     }
 
     [Fact]

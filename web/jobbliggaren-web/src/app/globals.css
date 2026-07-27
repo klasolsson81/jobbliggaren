@@ -220,7 +220,11 @@
   /* Kontroll-storlek (SSOT — ändra HÄR, aldrig inline per komponent).
      /jobb-filterraden (hero-pills + sort-select) läser dessa två så alla
      kontroller delar EN höjd och EN textstorlek (Klas 2026-06-30: symmetri +
-     ingen hårdkodning + läsbarhet). Höjd 40px = DESIGN.md §6 standard-knapphöjd;
+     ingen hårdkodning + läsbarhet). Höjd 40px styrs av `--jp-control-h`, vars värde
+     är ratificerat i DESIGN.md §Komponenter (Klas 2026-06-30). SSOT för värdet är
+     deklarationen ovan, inte specen; alla konsumenter av tokenen är `.jp-*`.
+     Det är INTE "standard-knapphöjd": `.jp-btn` är 44px, och en systemlös höjdutsaga
+     är numera förbjuden (ADR 0052 Amendment 2026-07-27, #1095);
      textstorlek 14px = body-sm-golvet (DESIGN.md §4 — aldrig informationsbärande
      kontrolltext < 14px). Mobil bumpar hit-targets till 44px nedan (WCAG 2.5.5). */
   --jp-control-h:  40px;
@@ -1896,7 +1900,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
    Finns för att en Tailwind-utility INTE kan göra det: .jp-* är olagrat och vinner över
    @layer utilities, så `className="jp-btn h-12"` ger 44px utan fel eller varning (mätt
    2026-07-26 på /foretag/sok). DESIGN.md §Komponenter bär regeln. Ändra aldrig .jp-btn
-   eller .jp-input till varandras höjd — båda är live och båda är dokumenterade. */
+   eller .jp-input till varandras höjd. Deltat är RATIFICERAT, inte drift: .jp-btn 44px och
+   .jp-input 48px kommer båda från HANDOVER-v3 §5.1/§5.2 (Klas-beslutad designspec med veto
+   över ADR:er), protokollfört i ADR 0052 Amendment 2026-07-27 (#1095). ADR 0038:s 44/40 står
+   kvar och styr shadcn-primitiverna. Den här modifieraren parar de två som de är. */
 .jp-btn--field { height: 48px; }
 /* Avstängd knapp får inte signalera en affordans den inte har (design-reviewer
    Major — paritet med .jp-segment__opt:disabled / .jp-togglerow__switch:disabled).

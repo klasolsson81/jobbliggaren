@@ -27,3 +27,7 @@ docs/decisions/01[0-9][0-9]-*.md
 # GDPR Art. 30 processing-register (ROPA) — local-only (ADR 0072 / #183), internal
 # accountability record. Worktrees need it for GDPR context; never a secret.
 docs/runbooks/gdpr-processing-register.md
+# The v3 design spec ADR 0052 transcribes from and cites as authoritative (#1095/#1103).
+# Gitignored (.gitignore:104) but load-bearing: without it a reviewer greps, finds nothing, and
+# re-derives "drift" — which is exactly how #1095 was born.
+docs/handoff-oversikt/

@@ -461,9 +461,12 @@ jobs:
       # Skälet är vad en felaktig UTVÄRDERING producerar: ett `${{ }}` i `BODY`
       # postar kommentaren ändå, nu med ett falskt påstående om huruvida
       # auto-merge är av — alltså en overifierad utfästelse i tråden, exakt det
-      # här steget finns för att ta bort. Ett eget steg kan i värsta fall utebli
-      # (huvudkommentaren är fortfarande sann om labeln, och grinden är fortfarande
-      # korrekt avväpnad) eller postas i onödan (brus, säker riktning).
+      # här steget finns för att ta bort. Ett eget steg som uteblir ändrar inte
+      # maskintillståndet — vilket det än är — det kostar bara tråden sin varning;
+      # `${{ }}`-formens felutvärdering injicerar i stället ett falskt påstående.
+      # (Skriv inte "grinden är ändå avväpnad" här: grenen som beskrivs är per
+      # konstruktion den där `disable` INTE lyckades, så auto-merge kan mycket väl
+      # vara kvar på — och en borttagen label gör ingenting då, se huvudet.)
       # Att `if:`-idiomet redan är bevisat i jobbets fyra andra steg är en
       # riskreduktion ovanpå det — men det är en egenskap hos idiomet, inte hos
       # stegformen, och stegformen är inte strukturellt immun mot något.

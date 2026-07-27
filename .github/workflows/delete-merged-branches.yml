@@ -337,12 +337,15 @@ jobs:
           # total. NOTE the hidden term: the fetch rounds cost ~1 min at today's
           # 692 merged PRs, but that scales with the MERGED-PR population, not
           # with the branch count -- at the raised ceiling they would cost 100-200
-          # s and the wall would fall to roughly 300. Still ~7x the measured
-          # backlog, so no operational risk; recorded because this arithmetic
-          # would otherwise expire silently against the very premise the ceiling
-          # comment above names as the thing that expires. If the backlog ever passed that, the run would
-          # silently do only a prefix -- safe and recomputable, since the next run
-          # re-derives everything, but worth knowing before reading a short log.
+          # s and the wall would fall to roughly 300 branches. Still ~7x the
+          # measured backlog, so no operational risk; recorded because this
+          # arithmetic would otherwise expire silently against the very premise
+          # the ceiling comment above names as the thing that expires.
+          #
+          # If a backlog ever exceeded that wall, the run would silently do only a
+          # prefix -- safe and recomputable, since the next run re-derives
+          # everything from current state, but worth knowing before reading a
+          # short log as if it were a complete one.
           while IFS= read -r branch || [ -n "${branch:-}" ]; do
             [ -n "${branch:-}" ] || continue
             if err=$(gh api -X DELETE "repos/$REPO/git/refs/heads/$branch" 2>&1 >/dev/null); then

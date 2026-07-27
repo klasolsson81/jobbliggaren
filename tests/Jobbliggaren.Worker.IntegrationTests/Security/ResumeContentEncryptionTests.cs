@@ -359,7 +359,8 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
     [Fact]
     public async Task RoundTrip_ImportedPreamble_SurvivesTheDekEnvelope_Verbatim()
     {
-        const string preamble = "Anna Andersson\nErfaren backend-utvecklare — Göteborg, Västra Götaland.";
+        const string preamble =
+            $"Anna Andersson\nErfaren backend-utvecklare — Göteborg, Västra Götaland. {PreambleAtRestMarker}";
         var ct = TestContext.Current.CancellationToken;
         var seeker = await SeedJobSeekerAsync(ct);
         var clock = new FixedClock(DateTimeOffset.UtcNow);
@@ -394,7 +395,38 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
         // Positive control: the whole blob round-tripped, so the line above is about the
         // preamble rather than about a lucky default.
         ShouldDeepEqual(loaded, original);
+
+        // AT-REST CONFINEMENT, which is a DIFFERENT property from the round-trip above and is
+        // the one this repo has actually been burned by: the CV name field once wrote both an
+        // unencrypted label AND the DEK-encrypted person name, and no round-trip test could see
+        // it, because a value can be correct on the way back and still have left a copy in a
+        // plaintext column on the way in. So assert the marker's ABSENCE from the raw columns,
+        // not only its presence after decrypt.
+        var versionId = loadedResume.MasterVersion.Id;
+        var contentEnc = await RawScalarAsync(
+            readDb, $"SELECT content_enc FROM resume_versions WHERE id = '{versionId.Value}'", ct);
+        contentEnc.ShouldNotBeNull();
+        contentEnc.ShouldStartWith("v1:");
+        contentEnc.ShouldNotContain(PreambleAtRestMarker, Case.Sensitive);
+
+        var legacyContent = await RawScalarAsync(
+            readDb, $"SELECT content FROM resume_versions WHERE id = '{versionId.Value}'", ct);
+        legacyContent.ShouldBeNull();
+
+        // And nowhere on the aggregate root either — resumes carries only plain non-PII columns
+        // (ADR 0059/0096), and the preamble must never be derived into one of them.
+        var rootRow = await RawScalarAsync(
+            readDb,
+            $"SELECT name || ' ' || coalesce(latest_role, '') || ' ' || coalesce(array_to_string(top_skills, ' '), '') " +
+            $"FROM resumes WHERE id = '{resumeId.Value}'",
+            ct);
+        rootRow.ShouldNotBeNull();
+        rootRow.ShouldNotContain(PreambleAtRestMarker, Case.Sensitive);
     }
+
+    /// <summary>A marker inside the preamble that appears nowhere else in the fixture, so its
+    /// presence in any raw column is unambiguous evidence of a plaintext copy.</summary>
+    private const string PreambleAtRestMarker = "PREAMBEL-KLARTEXT-4471";
 
     // ── 1b. Round-trip deep equality — Fas 4b AppCopy superset (#651, ADR 0095) ──────────
     // The superset fields (languages incl. Native + NotStated, a skill group, a dynamic section)

@@ -150,10 +150,18 @@ höga; stats-värden 28+px; text-tracking -0.005em globalt för optisk täthet.
 målanvändaren (55-åringen i Alingsås). Densitet (regel 7 mening 1, "tätt nog
 att skanna") är **underordnad** läsbarhet (mening 2, "luftigt nog att läsa")
 när de står i konflikt. Brödtextgolv 16px (GOV.UK-linjerat — skillens egen
-först-rankade referens), hit-target/input-golv 44px (knappar 40px). Bloomberg-
+först-rankade referens), hit-target-golv **44px på touch ≤768px** (WCAG 2.5.5) och
+**32px in-app** (se a11y-skillen). 44 är INTE ett in-app-golv: shadcn `Button` 40,
+`.jp-btn--sm` 36, `.jp-iconbtn` 36 och `--jp-control-h` 40 ligger alla under det
+och är alla ratificerade. (Exakta höjder skiljer per system:
+`.jp-btn` 44 / shadcn `Button` 40 / `.jp-input` 48 — se ADR 0052 Amendment
+2026-07-27. Golvet är ett minimum, inte ett värde.) Bloomberg-
 tätheten gäller tabell-**tonen**, aldrig som ett brödtext-fontgolv. Toolbar-
-knappar kvarstår som dokumenterat undantag (28px) — men inputs/knappar i
-innehållsytor är 44/40. Cross-ref ADR 0038.
+knappar kvarstår som dokumenterat undantag (28px). Innehållsytor har TVÅ
+ratificerade system och du måste namnge vilket: shadcn `Input` 44 / `Button` 40
+(ADR 0038) och `.jp-input` 48 / `.jp-btn` 44 (HANDOVER-v3 §5.1/§5.2 via ADR 0052
+Amendment 2026-07-27, #1095). "44/40" utan system är falskt genom utelämnande —
+`.jp-input`s fyra konsumenter är alla innehållsytor.
 
 ---
 
@@ -240,7 +248,7 @@ Innan en PR lämnas, gå igenom:
 12. ✓ Informationsbärande dividers (kolumngränser) använder `--jp-border-strong`, inte `--jp-border`?
 13. ✓ Status-information har både färg OCH textetikett (aldrig endast färg)?
 14. ✓ Brödtext har `max-width` runt 68ch så rader inte sträcks ut på breda skärmar?
-15. ✓ Brödtext minst 16px och hit-targets/inputs minst 44px (knappar 40px; 28px endast för toolbar-knappar)? (ADR 0038)
+15. ✓ Brödtext minst 16px · hit-targets **≥32px in-app** och **≥44px på touch ≤768px**? De två golven har olika scope och båda gäller. Höj INTE en in-app-kontroll till 44 för att klara touch-golvet: shadcn `Button` 40, `.jp-btn--sm` 36, `.jp-iconbtn` 36 och `--jp-control-h` 40 är alla ratificerade och alla under 44. Exakta höjder skiljer per system (`.jp-btn` 44, `.jp-input` 48) — se ADR 0052 Amendment 2026-07-27 (#1095) innan du "rättar" en höjd. (ADR 0038 + ADR 0052 + a11y-skillen)
 
 ---
 

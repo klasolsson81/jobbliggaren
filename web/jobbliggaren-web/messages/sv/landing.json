@@ -92,36 +92,5 @@
       "cookies": "Cookies",
       "accessibility": "Tillgänglighet"
     }
-  },
-  "cookies": {
-    "kicker": "Integritet",
-    "title": "Cookies",
-    "intro": "Jobbliggaren använder endast nödvändiga cookies för att tjänsten ska fungera.",
-    "meansLabel": "Det innebär:",
-    "sessionTerm": "Session-cookies",
-    "sessionBody": " håller dig inloggad när du har ett konto.",
-    "csrfTerm": "CSRF-skydd",
-    "csrfBody": " skyddar dina uppgifter från manipulation.",
-    "languageTerm": "Språkval",
-    "languageBody": " kommer ihåg om du valt svenska eller engelska.",
-    "noTracking": "Inga cookies används för analys, spårning eller marknadsföring.",
-    "fullPolicyNote": "En fullständig cookie-policy håller på att tas fram."
-  },
-  "terms": {
-    "kicker": "Juridik",
-    "title": "Användarvillkor",
-    "intro": "Fullständiga användarvillkor håller på att tas fram.",
-    "duringBeta": "Tills vidare gäller följande:",
-    "asIs": "Tjänsten levereras i befintligt skick. Funktioner kan ändras eller tillkomma.",
-    "dataRetention": "Vi sparar dina uppgifter endast så länge det krävs för att hantera din anmälan eller ditt konto.",
-    "dataDeletion": "Du kan be oss radera dina uppgifter när som helst genom att svara på bekräftelsemejlet eller kontakta oss."
-  },
-  "meta": {
-    "cookiesTitle": "Cookies",
-    "cookiesDescription": "Information om cookies på Jobbliggaren. Endast nödvändiga cookies används.",
-    "termsTitle": "Användarvillkor",
-    "termsDescription": "Jobbliggarens användarvillkor. Fullständig text håller på att tas fram.",
-    "homeTitle": "Hitta, sök och följ upp jobb",
-    "homeDescription": "Sök bland alla aktiva annonser från Platsbanken, få ditt CV granskat och följ upp varje ansökan, från utkast till svar."
   }
 }

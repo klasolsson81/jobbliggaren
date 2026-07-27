@@ -702,10 +702,16 @@ public sealed class Resume : AggregateRoot<ResumeId>
         // may diverge, and coupling them would be spurious DRY), and deliberately NOT coupled
         // to PreambleResidue.MaxPreambleChars either — the parse-side cap answers "how much
         // residue is worth carrying out of a file" and this one answers "how much may live on
-        // the canonical CV". Two knowledge pieces, two homes. It is unreachable from any user
-        // write path (the field is write-once, set only by CreateFromParsed), so its subject
-        // is the parser, and a parse that would trip it becomes an honest IncompleteContent
-        // block rather than a silently truncated CV.
+        // the canonical CV". Two knowledge pieces, two homes.
+        //
+        // Measured: it cannot fire today. The field's only ingress is CreateFromParsed, fed by
+        // a parse whose own writer truncates at 2 000 first, and UpdateMasterContent is
+        // write-once while CreateTailored clears it. So this is the AUTHORITY half of a
+        // mirrored pair — the same relationship the 100/200 caps below have with the client
+        // zod schemas — and it earns its place by being the number a SECOND ingress would have
+        // to respect, not by rejecting anything now. Said plainly rather than left to read as
+        // a live rejection path: the two caps currently happen to be equal, and a reader who
+        // believes this one fires would draw the wrong conclusion from that coincidence.
         if (content.Preamble is { Length: > 2_000 })
             return Result.Failure(DomainError.Validation(
                 "Resume.PreambleTooLong", "Inledande text får vara max 2 000 tecken."));

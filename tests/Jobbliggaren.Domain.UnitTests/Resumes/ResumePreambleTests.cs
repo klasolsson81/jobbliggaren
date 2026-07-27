@@ -138,13 +138,29 @@ public class ResumePreambleTests
     // Bounded, like every other free-text field
     // ---------------------------------------------------------------
 
+    /// <summary>
+    /// The cap is the Domain's, and the argument that trips it is hand-built — so §5's `Tests:`
+    /// rule applies and the actor is named rather than left implicit.
+    ///
+    /// <para><b>No path in `src/` produces a preamble longer than 2 000 today.</b> The only
+    /// writer is <c>PreambleResidue.Extract</c>, which truncates at its own
+    /// <c>MaxPreambleChars = 2000</c> before the value ever reaches
+    /// <c>AutoPromoteContentMapper</c>, and that truncation is pinned where the writer lives —
+    /// <c>PreambleResidueTests.Segment_HeadinglessCv_CarriesAtMostTheCap</c> and
+    /// <c>…_TruncatesOnALineBoundary_NeverMidSentence</c>. The field has no other ingress:
+    /// <c>UpdateMasterContent</c> is write-once and <c>CreateTailored</c> clears it.</para>
+    ///
+    /// <para>That makes this the AUTHORITY half of a mirrored pair, not a live rejection path —
+    /// the same relationship <c>Resume.cs</c> already documents for the 100/200-char caps the
+    /// client zod schemas mirror, where the Domain holds the number and the upstream writer
+    /// respects it. What is asserted here is the aggregate's OWN predicate over its OWN
+    /// argument; nothing downstream is claimed, and no production behaviour is inferred from an
+    /// impossible premise. It is what keeps the number honest if a SECOND ingress is ever added
+    /// — which is the only circumstance in which it can fire.</para>
+    /// </summary>
     [Fact]
     public void CreateFromParsed_WithOverLongPreamble_ReturnsFailure_NoResume()
     {
-        // "We never wrote it" is not a reason to store an unbounded string under the DEK. The
-        // subject of this cap is the PARSER, not a user — the field is unreachable from every
-        // user write path — so a parse that trips it becomes an honest LeftPending, never a
-        // silently truncated CV.
         var result = Resume.CreateFromParsed(
             Owner, "Importerat CV", Content(preamble: new string('a', 2_001)),
             new ParsedResumeId(Guid.NewGuid()), Clock);
@@ -156,6 +172,10 @@ public class ResumePreambleTests
     [Fact]
     public void CreateFromParsed_WithPreambleExactlyAtTheCap_Succeeds()
     {
+        // 2 000 IS producible — it is exactly what PreambleResidue emits for a headingless CV,
+        // whose preamble is the whole document. So this row is the boundary the two caps share,
+        // and it must not be off by one in either direction: a Domain cap one char tighter than
+        // the writer's would block the most common shape the writer produces.
         var result = Resume.CreateFromParsed(
             Owner, "Importerat CV", Content(preamble: new string('a', 2_000)),
             new ParsedResumeId(Guid.NewGuid()), Clock);

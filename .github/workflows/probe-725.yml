@@ -1,0 +1,30 @@
+# THROWAWAY PROBE (#725) — never merges to main, lives only on ci/probe-725-*.
+#
+# Question: does `pull_request: closed` start a workflow run when the PR was
+# merged by the `github-actions` app via GITHUB_TOKEN (which is what
+# label-automerge.yml's `arm` does)?
+#
+# The answer decides #725's architecture: an event-driven fix is only possible
+# if this run appears. Measured with a counterfactual — an identical PR merged
+# by a PAT — because absence alone proves nothing (a misconfigured workflow and
+# a suppressed one look the same).
+name: probe-725
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: I ran
+        run: |
+          echo "pr=${{ github.event.pull_request.number }}"
+          echo "merged=${{ github.event.pull_request.merged }}"
+          echo "merged_by=${{ github.event.pull_request.merged_by.login }}"
+          echo "head=${{ github.event.pull_request.head.ref }}"
+          echo "actor=${{ github.actor }}"

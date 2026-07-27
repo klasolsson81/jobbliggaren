@@ -165,10 +165,10 @@ Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-com
 - Inga utropstecken i info/success. OK i error om det förstärker brådska — sparsamt.
 - Inga emojis, inga engelska fraser i svensk copy
 - Svenska locale-format: "14 apr 2026", "14:32", "33 456 kr"
-- Matchning och CV-omdömen presenteras som kategori: en namngiven grad plus
-  matchar/saknas per dimension. Aldrig procenttal, mätare eller ring
-  (ADR 0076 Decision 4, ADR 0053 Amendment 2026-06-19)
-- Varje omdöme pekar ut sitt underlag i CV:t, som citat eller som observation;
+- Matchning och CV-omdömen presenteras som kategori, aldrig som procenttal,
+  mätare eller ring (ADR 0076 Decision 4, ADR 0053 Amendment 2026-06-19). För
+  matchning är formen en namngiven grad plus matchar/saknas per dimension
+- Varje CV-omdöme pekar ut sitt underlag i CV:t, som citat eller som observation;
   "Ej bedömt" redovisas som ej bedömt, aldrig som en gissad grad (CLAUDE.md §5)
 - Ingen AI/LLM i produkten (ADR 0071) — det finns ingen AI-samtyckescopy att skriva
 

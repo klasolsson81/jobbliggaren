@@ -218,8 +218,10 @@ visar dem:
 
 Slå inte ihop formerna till en sträng, och påstå aldrig ett citat du inte har.
 
-**Stavning: `ska-krav`.** Sex förekomster i `messages/sv/` (skiftlägesokänsligt —
-en är versal "Ska-krav"); "skallkrav" finns i noll skeppade strängar. ADR 0076:s prosa skriver "skallkrav" — följ inte den
+**Stavning: `ska-krav`.** Sex förekomster i `messages/sv/`: fyra gemena i meningar
+(`jobads.json` mustHaveSummary) och två versala som rubrik-etiketter
+(`content-matchning.json:43`, `jobads.json:216`). "skallkrav" finns i noll
+skeppade strängar. ADR 0076:s prosa skriver "skallkrav" — följ inte den
 stavningen i UI.
 
 Två ytor säger regeln till användaren med produktens egna ord, och copy får inte
@@ -246,7 +248,7 @@ Specifik knapp-text. Konkret konsekvens.
 
 (Gmail-raden är ett **mönsterexempel, inte skeppad copy** — Gmail-synk är uppskjuten,
 inte borttagen: BUILD.md §6.2 listar fem endpoints, §9.2:s not (:1006-1013) säger
-"skjuts upp … specarna bevaras som framtida referens", och :1489 listar `SyncGmailJob`
+"skjuts upp … specarna ovan bevaras som framtida referens", och :1489 listar `SyncGmailJob`
 som "Ej byggt (Fas 5, #321)".)
 
 ### 7. Påminnelser

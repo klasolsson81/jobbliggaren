@@ -125,7 +125,9 @@ Aldrig byt ut mot: Material UI, Chakra, Mantine, Headless UI.
 - `.jp-pipeline` — kanban som ledger-rader, kolumner åtskilda av `border-strong`, INGA floating cards
 - `.jp-statusDot` (förstaval i tabeller — prick + text, ingen bg) vs `.jp-pill` (accent vid entitet — färgad 50-bg + prick + text)
 - `.jp-matchchip` — namngiven matchningsgrad (Toppmatch/Stark/Bra/Grundmatch),
-  plus `--related` "Relaterat yrke" som **märkning, inte en femte grad** (ADR 0084).
+  plus `--related` "Relaterat yrke", som är en egen grad men får den **neutrala**
+  status-behandlingen — **inte ett femte grönt steg** (en femte fyllning hade krävt
+  en ny leaf-hue; ADR 0084 F2).
   Enda tillåtna formen för **graden**: aldrig mätare, procenttal eller ring (§8,
   ADR 0076 Decision 4, ADR 0053 Amendment 2026-06-19). Matchar/saknas **per
   dimension** är en egen form (`.jp-modal__matchrow`, hålig prick för "Ej bedömt")

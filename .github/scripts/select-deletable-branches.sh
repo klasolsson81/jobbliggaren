@@ -298,9 +298,9 @@ while IFS=$'\t' read -r branch protected tip_sha _rest || [ -n "${branch:-}" ]; 
   # refused anyway. That is deliberate: an allow-list is cheaper to reason about
   # than an exhaustive deny-list, and EVERY branch name live in this repository
   # today passes it (44 at the time of writing -- a count this very sweep changes
-  # within a day of merging, which is why the claim is the ratio). If a legitimate name is ever refused, the
-  # verdict is a SKIP, which costs a branch that lingers -- never a wrong
-  # deletion.
+  # within a day of merging, which is why the claim is the ratio). If a
+  # legitimate name is ever refused, the verdict is a SKIP, which costs a branch
+  # that lingers -- never a wrong deletion.
   #
   # `*..*` IS NOT REDUNDANT, and the reason is worth stating because it is the
   # one leg that would otherwise rest on somebody else's validator. A character

@@ -334,16 +334,38 @@ jobs:
           # claim is measured rather than felt: ~1.3 s per branch including the
           # API round trip, minus the two fetch rounds, puts the wall at roughly
           # 400 branches against a measured backlog of 36-44 and 44 branches in
-          # total. NOTE the hidden term: the fetch rounds cost ~1 min at today's
-          # 692 merged PRs, but that scales with the MERGED-PR population, not
-          # with the branch count -- at the raised ceiling they would cost 100-200
-          # s and the wall would fall to roughly 300 branches. Still ~7x the
-          # measured backlog, so no operational risk; recorded because this
-          # arithmetic would otherwise expire silently against the very premise
-          # the ceiling comment above names as the thing that expires.
+          # total.
           #
-          # If a backlog ever exceeded that wall, the run would silently do only a
-          # prefix -- safe and recomputable, since the next run re-derives
+          # NOTE THE HIDDEN TERM -- and note that it is deliberately NOT
+          # extrapolated. The fetch rounds cost ~1 min at today's 692 merged PRs,
+          # and that cost scales with the MERGED-PR population rather than with
+          # the branch count: 692 PRs is 7 merged-list pages per round, so the
+          # page-proportional part multiplies by ~29 at the 20000 the ceiling now
+          # permits. What that does to the wall is NOT computed here, because the
+          # ~1 min has never been decomposed into fixed and per-page cost, and a
+          # number derived from an undecomposed measurement is the exact defect
+          # this file has now caught in itself three times. An earlier draft said
+          # "100-200 s and the wall would fall to roughly 300"; that followed from
+          # neither reading of its own premise -- if the cost scales, ~29x is not
+          # 2-3x; if it does not scale, the premise is false -- so it is struck
+          # rather than adjusted.
+          #
+          # WHAT IS DERIVABLE MATTERS MORE THAN THE MISSING NUMBER: at any
+          # population near that ceiling the binding constraint is
+          # `timeout-minutes: 10`, NOT the ceiling. The fetch saturates the job
+          # budget well below 20000, so the ceiling's 2.0-4.1 years is the horizon
+          # of the TRUNCATION assert, not of this workflow -- and that expiry
+          # lands on the timeout path which the `!cancelled()` note below
+          # explicitly declines to claim is covered. Two hedges in this file point
+          # at each other, and this is the sentence that says so.
+          #
+          # To replace the hedge with a figure: one `workflow_dispatch` with
+          # `dry_run=true`, read the step timings, and the minute decomposes into
+          # fixed and per-page cost -- which names the population where the budget
+          # saturates.
+          #
+          # If a backlog ever exceeded the wall above, the run would silently do
+          # only a prefix -- safe and recomputable, since the next run re-derives
           # everything from current state, but worth knowing before reading a
           # short log as if it were a complete one.
           while IFS= read -r branch || [ -n "${branch:-}" ]; do
@@ -378,9 +400,11 @@ jobs:
       # for deletion and still exists": a red alarm naming the wrong cause.
       #
       # Whether a job-level `timeout-minutes` sets `cancelled()` is UNDOCUMENTED
-      # and NOT measured here -- GitHub documents `cancelled()` for the workflow,
-      # and says nothing about job timeouts. `!cancelled()` is therefore chosen as
-      # the stricter default rather than because that path is proven; on the
+      # and NOT measured here. GitHub documents that `timeout-minutes` CANCELS the
+      # job -- that part is not in doubt; what is undocumented is whether that
+      # cancellation sets the `cancelled()` context the condition reads.
+      # `!cancelled()` is therefore chosen as the stricter default rather than
+      # because that path is proven; on the
       # manual-cancel path it is proven, and if the timeout path turns out not to
       # set it, this is a no-op rather than a regression. Said plainly instead of
       # letting a plausible mechanism read as a measured one. Keyed on the delete step's own

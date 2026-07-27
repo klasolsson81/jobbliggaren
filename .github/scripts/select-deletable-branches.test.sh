@@ -22,10 +22,11 @@
 # is a shape the real producer does emit -- `gh pr list --json ...` and
 # `jq '[.name,(.protected|tostring),.commit.sha]|@tsv'`. Where a fixture uses a
 # shape production CANNOT emit, it says so and names the measurement that proves
-# it unreachable, and asserts only that the read side degrades safely. Three
-# fixtures are in that class: `unknownprot_unreachable`, `both_unknown` and
-# `dotsegments`/`dotsingle`/`dotlead`. This list is part of the file's contract
-# -- a fixture that changes class must change it here too.
+# it unreachable, and asserts only that the read side degrades safely. FIVE
+# fixtures in THREE groups are in that class: `unknownprot_unreachable`;
+# `both_unknown`; and `dotsegments`/`dotsingle`/`dotlead`. This list is part of
+# the file's contract -- a fixture that changes class must change it here too,
+# and the count must match the names, which it did not for one revision.
 #
 # Each case names the SHAPE it builds. The shapes are the argument: they are the
 # ways a branch can look on a repository that merges through an app, stacks pull
@@ -283,7 +284,11 @@ expect "a path-traversal ref name is refused by us, not only by git" \
   $'skip\tfeat/../../tags/v1\tunsupported-name' 0
 
 # 11a-bis. The SINGLE-dot forms, which the first version of that clause let
-# through. Measured then: both reached a `delete` verdict.
+# through. Measured then: both reached a `delete` verdict. Unreachable for the
+# same borrowed reason as `..`, spelled out rather than inherited:
+# `git check-ref-format` rejects any path component beginning with `.`, so
+# neither name can exist on the remote -- which is precisely why the clause
+# refuses them locally instead of trusting that rule to stay someone else's.
 run dotsingle "[$(mine 46 'x/./y' "$SHA1")]" '[]' "$(printf 'x/./y\tfalse\t%s\n' "$SHA1")"
 expect "a /./ segment is refused" $'skip\tx/./y\tunsupported-name' 0
 
@@ -382,9 +387,20 @@ expect "a field-incomplete merged-PR list decides nothing" '' 1
 # a delete verdict. The branch chosen was still correct, but the reason column
 # and the step summary read `merged-pr-#null`, so the log could not say which PR
 # authorised the deletion. Measured before the fix.
-run fields_missing_number '[{"headRefName":"fix/x","headRefOid":"'"$SHA1"'","headRepositoryOwner":{"login":"acme"},"headRepository":{"name":"widget"}}]'   '[]' "$(printf 'fix/x	false	%s
-' "$SHA1")"
+run fields_missing_number '[{"headRefName":"fix/x","headRefOid":"'"$SHA1"'","headRepositoryOwner":{"login":"acme"},"headRepository":{"name":"widget"}}]' \
+  '[]' "$(printf 'fix/x\tfalse\t%s\n' "$SHA1")"
 expect "a merged PR without a number decides nothing" '' 1
+
+# And the OPEN side of the same guard. `fields_missing_open` above does NOT kill
+# it -- that fixture carries `number` and fires on the other two clauses -- so
+# without this case, removing `has("number")` from the open guard leaves the
+# whole suite green. Measured: it did. NOTE the class difference, which the
+# merged-side comment depends on being true: on the open side a missing `number`
+# was never a delete, only an unreadable `open-pr-#null` on a skip.
+run fields_missing_number_open "[$(mine 48 'fix/other' "$SHA1")]" \
+  '[{"headRefName":"fix/x","baseRefName":"main"}]' \
+  "$(printf 'fix/x\tfalse\t%s\n' "$SHA1")"
+expect "an open PR without a number decides nothing" '' 1
 
 # TRUNCATION IS UNDETECTABLE FROM CONTENT and the two directions are NOT
 # symmetric. A short merged.json degrades to `no-merged-pr` (safe); a short

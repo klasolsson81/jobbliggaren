@@ -270,7 +270,8 @@ jobs:
   # destruktivt svep: skillnaden är bara att dess felutfall är oåterkalleligt.
   #
   # Inget toolchain-steg: bara bash, git och `jq` (den senare krävs hårt av
-  # `select-deletable-branches.sh`) — alla tre finns förinstallerade på
+  # BÅDA de nya skripten — `select-deletable-branches.sh` och
+  # `assert-not-truncated.sh`) — alla tre finns förinstallerade på
   # ubuntu-runnern. Mätt 2026-07-27 på ubuntu-runner: **9 s när jobbet körde
   # ENBART `is-pure-base-merge`-fixturerna**; siffran är alltså ett golv, inte
   # jobbets nuvarande varaktighet. Storleksordningen är det som bär: mot

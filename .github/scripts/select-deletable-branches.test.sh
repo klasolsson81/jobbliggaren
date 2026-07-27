@@ -134,19 +134,31 @@ expect "branch reused after its PR merged survives" \
 run unknown_tip "[$(mine 12 'fix/done' "$SHA1")]" '[]' $'fix/done\tfalse\t\n'
 expect "unknown tip is not permission" $'skip\tfix/done\ttip-moved-since-merge-#12' 0
 
-# 3c. BOTH SIDES UNKNOWN -- the only shape the emptiness checks carry alone, and
-#     a producible one. `.commit.sha` renders as an EMPTY third column when the
-#     API returns null (measured: `[.name,(.protected|tostring),.commit.sha]|@tsv`
-#     -> `fix/x<TAB>false<TAB>`), and the script's own `(.headRefOid // "")`
-#     produces the empty string on the other side. Without the emptiness checks
-#     `"" != ""` is FALSE and the branch is DELETED on two unknowns.
-#     Found by mutation testing: removing both clauses left the entire suite
-#     green and flipped this verdict from skip to delete.
-#     (Either clause alone is sufficient, so removing just one is an equivalent
+# 3c. BOTH SIDES UNKNOWN -- DECLARED UNREACHABLE (CLAUDE.md 5 `Tests:`).
+#     An earlier version of this comment called the shape "producible". That was
+#     unproven, and measuring it disproved it. GitHub's GraphQL schema, read
+#     2026-07-27 via `gh api graphql`:
+#
+#         headRefName   NON_NULL String
+#         headRefOid    NON_NULL GitObjectID
+#
+#     so `gh pr list --json headRefOid` can never emit null, and the script's own
+#     `(.headRefOid // "")` can never yield "". The other side is no better: REST
+#     `commit.sha` is required, and 0 of this repository's live branches have a
+#     null one. NO actor produces two unknown commit ids.
+#
+#     Kept as an UNREACHABLE-state fixture, which the rule permits only to assert
+#     that the read side DEGRADES SAFELY -- skip, never delete -- and which may
+#     claim nothing about what production does. That is exactly what it asserts.
+#     Its value is unchanged: mutation testing showed that removing both
+#     emptiness clauses left the whole suite green, and this case kills that
+#     mutation. A guard against an impossible state is still worth pinning; it
+#     was the provenance label that had to be honest, not the guard.
+#     (Either clause alone suffices, so removing just one is an equivalent
 #     mutant -- the redundancy is for readability, and only the pair is pinned.)
 run both_unknown '[{"number":13,"headRefName":"fix/done","headRefOid":null,"headRepositoryOwner":{"login":"acme"},"headRepository":{"name":"widget"}}]' \
   '[]' $'fix/done\tfalse\t\n'
-expect "two unknown commit ids are not a match" \
+expect "unreachable: two unknown commit ids degrade to skip, never delete" \
   $'skip\tfix/done\ttip-moved-since-merge-#13' 0
 
 # ---------------------------------------------------------------------------
@@ -267,6 +279,14 @@ run dotsegments "[$(mine 42 'feat/../../tags/v1' "$SHA1")]" '[]' \
 expect "a path-traversal ref name is refused by us, not only by git" \
   $'skip\tfeat/../../tags/v1\tunsupported-name' 0
 
+# 11a-bis. The SINGLE-dot forms, which the first version of that clause let
+# through. Measured then: both reached a `delete` verdict.
+run dotsingle "[$(mine 46 'x/./y' "$SHA1")]" '[]' "$(printf 'x/./y\tfalse\t%s\n' "$SHA1")"
+expect "a /./ segment is refused" $'skip\tx/./y\tunsupported-name' 0
+
+run dotlead "[$(mine 47 './evil' "$SHA1")]" '[]' "$(printf './evil\tfalse\t%s\n' "$SHA1")"
+expect "a leading dot component is refused" $'skip\t./evil\tunsupported-name' 0
+
 # 11b. The house's real naming convention must survive all of the above.
 run slashes "[$(mine 30 'chore/v1.2.x/re-sync' "$SHA1")]" '[]' \
   "$(printf 'chore/v1.2.x/re-sync\tfalse\t%s\n' "$SHA1")"
@@ -338,6 +358,22 @@ expect "an empty open-PR file is not an empty open-PR list" '' 1
 
 run empty_merged '' '[]' "$(printf 'fix/parent\tfalse\t%s\n' "$SHA1")"
 expect "an empty merged-PR file decides nothing" '' 1
+
+# A WELL-FORMED ARRAY OF FIELD-INCOMPLETE OBJECTS. It passes the type check,
+# and then `select(.baseRefName != null ...)` filters every element away -- so
+# the open-PR guards get built from nothing and a stacked base becomes
+# deletable. Measured before the fix: `open.json = [{"number":77}]` against a
+# merged head at its merge commit returned `delete fix/parent merged-pr-#78`.
+# Fail-OPEN reached through a plausible drift: editing the `--json` field list.
+run fields_missing_open "[$(mine 43 'fix/parent' "$SHA1")]" '[{"number":44}]' \
+  "$(printf 'fix/parent\tfalse\t%s\n' "$SHA1")"
+expect "a field-incomplete open-PR list decides nothing" '' 1
+
+# The merged side degrades safely under the same drift, but is checked too, so
+# a reader does not have to re-derive which direction was the dangerous one.
+run fields_missing_merged '[{"number":45}]' '[]' \
+  "$(printf 'fix/parent\tfalse\t%s\n' "$SHA1")"
+expect "a field-incomplete merged-PR list decides nothing" '' 1
 
 # TRUNCATION IS UNDETECTABLE FROM CONTENT and the two directions are NOT
 # symmetric. A short merged.json degrades to `no-merged-pr` (safe); a short

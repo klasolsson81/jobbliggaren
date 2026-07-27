@@ -66,6 +66,15 @@ check "an API error object refuses"        "$(mk errobj '{"message":"Bad credent
 check "malformed JSON refuses"             "$(mk bad 'not json')"      10 1
 check "a JSON object is not an array"      "$(mk obj '{"number":1}')"  10 1
 
+# A MULTI-DOCUMENT STREAM. `jq -e 'type == "array"'` takes its exit code from the
+# LAST document, so a stream whose first document is AT the ceiling passes the
+# type check; `jq length` then prints one line per document and `[` returns 2,
+# which `if` cannot tell from "false". Fail-OPEN on a truncated list. Unreachable
+# from `gh pr list` (it emits one document) but pinned because the failure shape
+# is the one the sweep already legislates about elsewhere.
+check "a two-document stream refuses"      "$(mk stream '[1,2,3,4,5,6,7,8,9,10,11,12] []')" 10 1
+check "a stream of two empty arrays refuses" "$(mk stream2 '[] []')"  10 1
+
 # --- argument hygiene ------------------------------------------------------
 check "missing file refuses"               "$TMPROOT/nope.json"        10 1
 check "non-numeric limit refuses"          "$(mk lim "$(arr 1)")"      abc 1
@@ -81,6 +90,18 @@ if [ "$rc" = 1 ]; then echo "ok   [wrong argument count refuses]"; else
   echo "FAIL [wrong argument count refuses]: exit $rc, want 1" >&2
   failures=$((failures + 1))
 fi
+
+# THE MESSAGE IS PART OF THE CONTRACT. The extraction's stated purpose is "so
+# there is one message"; mutation testing showed that replacing the refusal text
+# with `fail "x"` left every other case green, so the one property the file
+# exists to protect was the one property nothing checked.
+cases=$((cases + 1))
+msg=$(bash "$SUT" "$(mk msgcase "$(arr 10)")" 10 2>&1 >/dev/null || true)
+case "$msg" in
+  *"may be truncated"*"fail-OPEN"*"Raise the ceiling"*) echo "ok   [the refusal names the hazard and the remedy]" ;;
+  *) echo "FAIL [the refusal names the hazard and the remedy]: got: $msg" >&2
+     failures=$((failures + 1)) ;;
+esac
 
 echo
 if [ "$failures" -eq 0 ]; then

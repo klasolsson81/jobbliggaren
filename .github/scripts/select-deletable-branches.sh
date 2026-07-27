@@ -86,10 +86,11 @@
 # LISTED BY ROLE, NOT BY EVALUATION ORDER -- the order lives in the code and is
 # deliberate, because the FIRST guard that matches owns the reason column. So
 # `unsupported-name` runs first (nothing may be decided about a name we cannot
-# carry), and `tip-moved-since-merge` runs last, partly because the more
-# informative reason should win when several apply, and partly because its reason
-# embeds the merged PR number and therefore cannot be formed before the merged
-# lookup has happened.
+# carry), and `tip-moved-since-merge` runs last because the guards above it carry
+# the more ACTIONABLE reason when several apply -- a stacked PR that would be
+# silently retargeted matters more to a reader than a moved tip -- and because
+# its reason embeds the merged PR number and therefore cannot be formed before
+# the merged lookup has happened.
 #
 #   default-branch     never delete the trunk, whatever the API says about it.
 #                      Read from the API rather than hardcoded, so it is
@@ -197,6 +198,19 @@ command -v jq >/dev/null 2>&1 || fail "jq is required"
 jq -e 'type == "array"' "$MERGED_JSON" >/dev/null 2>&1 || fail "not a JSON array: $MERGED_JSON"
 jq -e 'type == "array"' "$OPEN_JSON" >/dev/null 2>&1 || fail "not a JSON array: $OPEN_JSON"
 
+# TYPE IS NOT ENOUGH -- THE FIELDS MUST BE THERE TOO, and the asymmetry is the
+# same one the truncation note describes, one level up. A well-formed array of
+# objects MISSING the keys (a changed `--json` list, a partial fetch) passes the
+# type check, and then `select(.baseRefName != null …)` quietly filters every
+# element away: `open_bases` comes out empty and a stacked base becomes
+# deletable. That is fail-OPEN. The merged side degrades safely under the same
+# drift (missing keys read as null -> `no-merged-pr` or `tip-moved`), but it is
+# checked too, because a guard that only covers the dangerous direction invites
+# the reader to assume the other one was considered and found safe -- which it
+# was, and saying so is cheaper than leaving it to be re-derived.
+jq -e 'all(.[]; has("baseRefName") and has("headRefName"))' "$OPEN_JSON" >/dev/null 2>&1   || fail "$OPEN_JSON lacks baseRefName/headRefName -- the open-PR guards cannot be built"
+jq -e 'all(.[]; has("headRefName") and has("headRefOid") and has("headRepository") and has("headRepositoryOwner"))'   "$MERGED_JSON" >/dev/null 2>&1   || fail "$MERGED_JSON is missing fields the predicate needs"
+
 # `<branch>\t<pr-number>\t<head-oid>` for merged PRs whose head repo is THIS
 # repository. `headRepositoryOwner` is null on a PR whose head repository has
 # been deleted; null is neither this owner nor this repo, so such a PR
@@ -271,8 +285,9 @@ while IFS=$'\t' read -r branch protected tip_sha _rest || [ -n "${branch:-}" ]; 
   # It excludes considerably MORE than those two -- `+ @ , ( ) = & ! ; { '` and
   # every non-ASCII character are all git-legal and REST-harmless, and are
   # refused anyway. That is deliberate: an allow-list is cheaper to reason about
-  # than an exhaustive deny-list, and every one of the 44 branch names live in
-  # this repository today passes it. If a legitimate name is ever refused, the
+  # than an exhaustive deny-list, and EVERY branch name live in this repository
+  # today passes it (44 at the time of writing -- a count this very sweep changes
+  # within a day of merging, which is why the claim is the ratio). If a legitimate name is ever refused, the
   # verdict is a SKIP, which costs a branch that lingers -- never a wrong
   # deletion.
   #
@@ -284,8 +299,14 @@ while IFS=$'\t' read -r branch protected tip_sha _rest || [ -n "${branch:-}" ]; 
   # rejects any ref containing `..`, which is a rule of GIT'S, not of ours, and
   # is nowhere else in this file. Refusing it here keeps the guarantee local and
   # fixture-tested. Anyone widening the character class must keep this clause.
+  # The SINGLE-dot forms (`x/./y`, `./evil`) are refused for the same reason and
+  # were the two thirds of the hole that survived the first fix -- git rejects a
+  # component beginning with `.` too, so no legitimate name is affected.
+  # Whether GitHub's gateway actually resolves these dot-segments is NOT verified
+  # here, and deliberately not relied on: the clause refuses the name either way,
+  # which is what makes the guarantee local rather than borrowed.
   case "$branch" in
-    -* | *..* | *[!A-Za-z0-9._/-]*)
+    -* | .* | */.* | *..* | *[!A-Za-z0-9._/-]*)
       emit "$(printf 'skip\t%s\tunsupported-name' "$branch")"
       continue ;;
   esac

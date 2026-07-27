@@ -332,11 +332,13 @@ if [ "$REAPED_N" -gt 0 ] || [ "$REMOTE_N" -gt 0 ] || [ "$RESCUED_N" -gt 0 ] || [
   [ "$RESCUED_N" -gt 0 ] && printf '%s' "$RESCUED_LIST"
   [ "$REAPED_N" -gt 0 ] && printf '%s' "$REAPED_LIST"
   if [ "$REMOTE_N" -gt 0 ]; then
-    # Sedan #725 raderas de här av `delete-merged-branches.yml` (dagligt svep +
-    # `workflow_dispatch`). REAPERN rör dem fortfarande aldrig — ADR 0094:s
-    # invariant är oförändrad; det är en ANNAN aktör som gör det. Raden får
-    # därför inte längre säga "aldrig automatiskt", men den får heller inte
-    # antyda att hooken börjat röra remoten.
+    # Since #725 these are deleted by `delete-merged-branches.yml` (daily sweep
+    # plus `workflow_dispatch`). THE REAPER still never touches them -- ADR 0094's
+    # invariant is unchanged; a DIFFERENT actor does it. So this line may no
+    # longer say "aldrig automatiskt", and equally may not imply that the hook has
+    # started reaching for the remote.
+    # (English per CLAUDE.md §1: new comments are English even in a file whose
+    # user-facing output is Swedish.)
     echo "  remote-grenar (raderas av svepet; 'gh workflow run delete-merged-branches.yml -f dry_run=false' om du vill ha det gjort nu):"
     printf '%s' "$REMOTE_LIST"
   fi

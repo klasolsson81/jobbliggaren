@@ -20,7 +20,8 @@ shared dev DB. **EF migrations** are owned by one session at a time (the most
 dangerous hotspot). Work is partitioned by **bounded context** (§4) so two
 sessions rarely touch the same files; shared **hotspot files** (§5) are owned
 by one session at a time, coordinated via issue assignment. Each merged PR
-gets `automerge`; a cloud `/schedule` **PR-babysitter** reviews + merges.
+gets `automerge`; a cloud `/schedule` **PR-babysitter** keeps them up-to-base and
+reports. `agents-done` — the review gate — is the owning session's alone (§8, #836).
 
 ---
 
@@ -145,12 +146,9 @@ gh pr edit <nr> --add-label automerge      # INTENT — set it now
 gh pr edit <nr> --add-label agents-done    # PERMISSION — only after they report
 ```
 
-**Two labels, two meanings (#836).** `automerge` says *"this should merge when ready"* and is true at
-creation; `agents-done` says *"the mandatory agents have reported and nothing Blocker/Major is
-unresolved"* and is the owning session's alone. `label-automerge.yml` arms only when both are present,
-so the babysitter — which never touches `agents-done` — cannot merge unreviewed code. **A new push
-removes `agents-done` and disables auto-merge**: the reviewers answered against a diff that is no
-longer the one merging.
+**Two labels, two meanings — the rule and the reasoning live in [`CLAUDE.md` §6](../../CLAUDE.md) and
+`label-automerge.yml`'s header (#836); they are not restated here.** The one thing to carry into this
+step: `agents-done` goes on **last**, and **a new push takes it off again**.
 
 Pathspec-scoped commits (`git commit -- <paths>`) are required because parallel
 worktrees can share the index state — never `git commit -a` (memory
@@ -301,7 +299,7 @@ test:  Postgres 5433 · Redis 6380                (DB "jobbliggaren_test", profi
 
 ## 8. PR-babysitter (cloud `/schedule`)
 
-A cloud-scheduled agent watches PR events and runs review + automerge so the
+A cloud-scheduled agent watches PR events and keeps them up-to-base so the
 local sessions stay heads-down. Set up once:
 
 ```

@@ -47,7 +47,7 @@ name: label-automerge
 
 on:
   pull_request:
-    types: [labeled, synchronize]
+    types: [labeled, unlabeled, synchronize]
 
 # write krävs för att GITHUB_TOKEN ska kunna aktivera/stänga av auto-merge och ta
 # bort `agents-done`.
@@ -65,35 +65,102 @@ jobs:
     # PR:en i ett halvarmerat läge.
     if: >-
       github.event.action == 'labeled' &&
-      (github.event.label.name == 'automerge' || github.event.label.name == 'agents-done') &&
-      contains(github.event.pull_request.labels.*.name, 'automerge') &&
-      contains(github.event.pull_request.labels.*.name, 'agents-done')
+      (github.event.label.name == 'automerge' || github.event.label.name == 'agents-done')
+    timeout-minutes: 5
+    concurrency:
+      group: automerge-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
     steps:
-      - name: Aktivera auto-merge
-        run: gh pr merge --auto --squash "$PR_URL"
+      # Saknad label är en NO-OP med en synlig notis, aldrig ett skippat jobb.
+      # Ett skippat jobb säger inte VILKEN label som saknas, och tystnad som läses
+      # som "ingenting hände" är den grammatik #861 dömde i just det här
+      # subsystemet.
+      - name: Rapportera om grinden inte är komplett
+        if: >-
+          !(contains(github.event.pull_request.labels.*.name, 'automerge') &&
+            contains(github.event.pull_request.labels.*.name, 'agents-done'))
+        run: |
+          if [ "$HAS_AGENTS_DONE" != "true" ]; then
+            echo "::notice::Armerar INTE — 'agents-done' saknas. De obligatoriska granskarna (CLAUDE.md §9.2) ska svara först; den ägande sessionen sätter labeln. (#836)"
+          else
+            echo "::notice::Armerar INTE — 'automerge' saknas. Sätt den när PR:en är avsedd att mergas. (#836)"
+          fi
+        env:
+          HAS_AGENTS_DONE: ${{ contains(github.event.pull_request.labels.*.name, 'agents-done') }}
+
+      - name: Aktivera auto-merge (eller merga direkt om PR:en redan är mergebar)
+        if: >-
+          contains(github.event.pull_request.labels.*.name, 'automerge') &&
+          contains(github.event.pull_request.labels.*.name, 'agents-done')
+        # GitHub tillåter INTE att auto-merge aktiveras på en PR som kan mergas
+        # direkt ("The option to enable auto-merge is shown only on pull requests
+        # that cannot be merged immediately"). Delningen flyttar armeringen till
+        # EFTER att granskarna svarat, och de tar 12–18 min mot `ci`:s ~13 — så
+        # CLEAN är nu normalfallet, inte undantaget. Repots hela historik av det
+        # här workflow:t armerade medan `ci` var pending eller grenen BEHIND, så
+        # den vägen är obeprövad här. Grenen nedan är korrekt oavsett vilket
+        # beteende GitHub har: vi mergar direkt bara när PR:en ÄR mergebar, och
+        # branch protection (required `ci`, `enforce_admins`,
+        # `required_conversation_resolution`) gatar den mergen precis som den
+        # gatar auto-mergen.
+        run: |
+          set -euo pipefail
+          state=$(gh pr view "$PR_URL" --json mergeStateStatus --jq .mergeStateStatus)
+          if [ "$state" = "CLEAN" ]; then
+            echo "::notice::PR:en är CLEAN — auto-merge kan inte aktiveras på en PR som redan är mergebar. Mergar direkt; branch protection är fortfarande grinden."
+            gh pr merge --squash "$PR_URL"
+          else
+            gh pr merge --auto --squash "$PR_URL"
+          fi
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   disarm:
-    name: auto-merge (disarm — ny push ogiltigförklarar granskningen)
+    name: auto-merge (disarm — grinden bröts)
     runs-on: ubuntu-latest
-    # Ny commit på grenen ⇒ granskarna svarade mot en annan diff.
+    timeout-minutes: 5
+    # TVÅ vägar, båda måste finnas för att `agents-done` ska vara en fail-safe
+    # symbol: den som GER tillstånd måste också kunna ÅTERKALLA det.
+    #   synchronize — ny commit ⇒ granskarna svarade mot en annan diff.
+    #   unlabeled   — någon tog tillbaka en label ⇒ tillståndet är återkallat.
+    # Utan `unlabeled` gör en borttagen `agents-done` ingenting: auto-merge är
+    # redan aktiverat på PR-objektet och mergar på grön `ci` oavsett labelmängd.
+    # Det scenariot är inte hypotetiskt — en granskare återkommer med en Blocker
+    # efter att labeln satts, sessionen tar bort den för att stoppa mergen, och
+    # PR:en mergar ändå. Det är #836:s incident återuppstådd GENOM kontrollen.
     if: >-
-      github.event.action == 'synchronize' &&
-      contains(github.event.pull_request.labels.*.name, 'agents-done')
+      (github.event.action == 'synchronize' &&
+       contains(github.event.pull_request.labels.*.name, 'agents-done')) ||
+      (github.event.action == 'unlabeled' &&
+       (github.event.label.name == 'agents-done' || github.event.label.name == 'automerge'))
     steps:
-      - name: Stäng av auto-merge och ta bort agents-done
-        # `--disable-auto` är en no-op om auto-merge inte var aktiverat; `|| true`
-        # så att no-op:en inte fäller jobbet och lämnar labeln kvar.
+      - name: Stäng av auto-merge
+        # INGET `|| true`. `--disable-auto` felar när auto-merge aldrig var
+        # aktiverat, men ett svalt fel här är fail-OPEN: varje annan orsak
+        # (token, rate limit, nätverk) lämnar auto-merge på och PR:en mergar
+        # ogranskad. Avgör tillståndet i stället för att svälja felet
+        # (`build.yml`: fail loud över fail silent).
         run: |
-          gh pr merge --disable-auto "$PR_URL" || true
-          gh pr edit "$PR_URL" --remove-label agents-done
+          set -euo pipefail
+          if [ -n "$(gh pr view "$PR_URL" --json autoMergeRequest --jq '.autoMergeRequest // ""')" ]; then
+            gh pr merge --disable-auto "$PR_URL"
+          else
+            echo "::notice::auto-merge var inte aktiverat — inget att stänga av."
+          fi
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ta bort agents-done (endast när en push bröt grinden)
+        if: github.event.action == 'synchronize'
+        run: gh pr edit "$PR_URL" --remove-label agents-done
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Förklara i PR:en varför den avväpnades
+        if: github.event.action == 'synchronize'
         run: gh pr comment "$PR_URL" --body "$BODY"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -106,3 +173,10 @@ jobs:
             Vänta in de obligatoriska granskarna mot den nya headen och sätt
             `agents-done` igen. `automerge` sitter kvar — avsikten har inte
             ändrats.
+
+            **Var det `gh pr update-branch` som orsakade den här pushen?** Då
+            ändrades ingen rad av författarens kod, bara basen. Grinden nollställs
+            ändå, avsiktligt: granskarna svarade mot ett annat träd. Det är också
+            därför babysittern inte ska `update-branch`:a en PR som bär
+            `agents-done` — den uppdateringen tillhör den ägande sessionen
+            (playbook §8).

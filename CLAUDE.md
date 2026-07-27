@@ -259,12 +259,10 @@ for authorization (use policies via `[Authorize(Policy = ...)]`).
   locally (§6.5).
 
   *Why the split exists:* one label carried both meanings, so any actor legitimately
-  expressing intent unavoidably granted permission. Measured twice — PR #832
-  (2026-07-12) merged with **1 Blocker + 2 Major** after the babysitter labelled a PR
-  deliberately left unlabelled during review, and PR #1083 (2026-07-26) with
-  **1 Blocker + 13 Major** because the label waits on CI (~13 min), not on the agents
-  (12–18 min). The rule was never missing; it was unenforceable, so **§12 gains no new
-  class here.**
+  expressing intent unavoidably granted permission. **The two incidents that measured
+  it, and the mechanics, live in one place — `label-automerge.yml`'s header (#836)** —
+  and are deliberately not restated here. The rule was never missing; it was
+  unenforceable, so **§12 gains no new class here.**
 
 ## 6.5 Parallel sessions (autonomous multi-session flow)
 
@@ -322,8 +320,9 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   `wip` so no other CC duplicates it (lighter coordination model, playbook §9 —
   soft lane affinity + claim signal, not hard per-CC ownership). A PR-babysitter
   runs via cloud `/schedule` on PR events (rebase + `automerge`); it **must never
-  set `agents-done`** — that label is the owning session's review gate, and
-  `label-automerge.yml` will not arm without it (#836). It should also
+  set `agents-done`**, and **must not `update-branch` a PR that carries it** — that
+  push disarms the gate, and the update is the owning session's to make (§6). It
+  should also
   `gh issue close` referenced issues (the automerge squash can drop the
   `Closes #N` keyword → the issue stays open; see playbook §8.1/§9). Side-track
   PRs you own are shepherded to green before new scope.
@@ -334,9 +333,14 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   PRs to MERGE, then close out** (`gh issue close`, drop `wip`, unassign).
   Mechanics and all four `mergeStateStatus` states: playbook §8.1 — read it, it
   also carries the `gh pr update-branch` form (a local rebase + force-push is
-  deny-listed and 422s). *(2026-07-14 hygiene pass, all measured: 44 dead local
-  + 44 dead remote branches; #800/#801 shipped and still `wip` two days on;
-  9 `wip` claims against 4 running CCs.)*
+  deny-listed and 422s). **Since #836 the symptom has a SECOND cause:** a PR with
+  `automerge` but no `agents-done` is armed-but-gated **by design** and is not
+  stuck — it is waiting for the mandatory agents, and the fix is to wait them in,
+  not to rebase. Check which cause before acting, because **`update-branch` itself
+  disarms the gate** (a `synchronize` event removes `agents-done`), so reaching for
+  it on the wrong diagnosis costs a full review round. *(2026-07-14 hygiene pass,
+  all measured: 44 dead local + 44 dead remote branches; #800/#801 shipped and
+  still `wip` two days on; 9 `wip` claims against 4 running CCs.)*
 - **Never reap a worktree you did not create — and never one whose PR has not
   merged.** The general case belongs to the SessionStart reaper: a PR usually
   merges *after* its session has ended, so "clean up when it merges" is not a

@@ -90,6 +90,17 @@ export const resumeContentDtoSchema = z.object({
   // okända nycklar ignoreras av zod (icke-strict).
   languages: z.array(spokenLanguageDtoSchema).optional(),
   sections: z.array(resumeSectionDtoSchema).optional(),
+  // #1060: den ordagranna, OKLASSIFICERADE text ett IMPORTERAT CV bar ovanför sin
+  // första rubrik (#844, ADR 0109). Null för mall-skapade CV och för äldre innehåll.
+  // Visas bara — aldrig i /render, aldrig i ATS-vyn, aldrig betygsatt.
+  //
+  // Skrivvägen rör den inte, och behöver inte göra det: `Resume.UpdateMasterContent`
+  // bär det lagrade värdet vidare och ignorerar transportens. Det är avsiktligt —
+  // schemat är icke-strict, så `.parse()` STRYPER okända nycklar, och utan regeln i
+  // aggregatet hade första CV-redigeringen raderat texten. Att modellera fältet här
+  // gör den läsbar på granskningssidan; att den överlever en redigering är
+  // aggregatets ansvar, inte det här schemats.
+  preamble: z.string().nullable().optional(),
 });
 export type ResumeContentDto = z.infer<typeof resumeContentDtoSchema>;
 

@@ -48,11 +48,16 @@ public sealed record ParsedResumeDetailDto(
 /// once hosted it is retired (ADR 0112), so the affordance is display-only; the path to adopt the
 /// text is to give it a heading in the file and upload again.
 /// <para>ADR 0109 Amendment (2026-07-27, #1060): this residue no longer blocks auto-promote —
-/// <c>AutoPromoteBlockReason.UnclassifiedPreamble</c> is retired. The same carrier is read back on
-/// the PROMOTED CV's review surface past the artifact's soft-delete, so the affordance follows the
-/// CV instead of holding it in staging. This DTO's own guard is unchanged and still applies: it is
-/// the staging surface's egress, and the promoted surface carries its own copy of the same
-/// two-layer control.</para>
+/// <c>AutoPromoteBlockReason.UnclassifiedPreamble</c> is retired — and the text is projected onto
+/// <c>ResumeContent.Preamble</c> at promote, so the affordance follows the CV instead of holding it
+/// in staging.</para>
+/// <para>This DTO's own two-layer guard is unchanged and still load-bearing HERE, and the promoted
+/// surface deliberately does NOT copy it. The two arms are not in the same guarantee class: a
+/// flagged parse PERSISTS (only promote is gated), so the staging egress needs fail-closed
+/// suppression on read; canonical content is guaranteed clean at the WRITE boundary by
+/// <c>ResumeContentPersonnummerGuard</c>, which is architecture-enforced on every content write
+/// surface and scans the preamble too. A second read-side redactor over there would be two
+/// normalisers of the product's highest-priority PII rule, which is worse than one.</para>
 /// </param>
 public sealed record ParsedContentDto(
     ParsedContactDto Contact,

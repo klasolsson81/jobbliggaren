@@ -56,9 +56,13 @@ internal static class ResumeContentMapper
                     .ToList()))
             .ToList();
 
+        // #1060: carried verbatim, like every other free-text field. On the user-submitted
+        // write paths the value is irrelevant — Resume.UpdateMasterContent overwrites it with
+        // the stored one (write-once, enforced in the aggregate) — but mapping it keeps this
+        // projection lossless, which is what the ToDto→ToDomain round-trip test pins.
         return new ResumeContent(
             personalInfo, experiences, educations, skills, dto.Summary,
-            languages, skillGroups, sections);
+            languages, skillGroups, sections, dto.Preamble);
     }
 
     /// <summary>
@@ -102,7 +106,8 @@ internal static class ResumeContentMapper
                 .Select(s => new ResumeSectionDto(
                     s.Heading,
                     s.Entries.Select(e => new SectionEntryDto(e.Title, e.Lines)).ToList()))
-                .ToList());
+                .ToList(),
+            content.Preamble);
     }
 
     private static LanguageProficiency ToProficiency(string? token) =>

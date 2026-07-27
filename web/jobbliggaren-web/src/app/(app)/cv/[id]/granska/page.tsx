@@ -11,6 +11,8 @@ import {
   type RenderProfile,
 } from "@/lib/dto/parsed-resume";
 import { CvReviewPanel } from "@/components/resumes/cv-review-panel";
+import { CvPreamble } from "@/components/resumes/cv-preamble";
+import { findMasterVersion } from "@/lib/resumes/content-utils";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -120,6 +122,15 @@ export default async function CanonicalCvReviewPage({
         </p>
         <p className="jp-lede">{t("cv.granska.lede")}</p>
       </header>
+
+      {/* #1060 — samma neutrala, visnings-bara affordance som stagingvyn, nu på det
+          SPARADE CV:t. Texten kommer från innehållet sidan redan hämtar (ingen extra
+          request); den bärs på ResumeContent.Preamble sedan importen och är därmed
+          garanterat personnummer-fri vid SKRIVGRINDEN (ResumeContentPersonnummerGuard),
+          inte via en redigerare på läsvägen — se ResumeContentDto för varför de två
+          armarna inte delar kontroll. Renderas server-side, aldrig i en klient-ö.
+          Null för mall-skapade CV, så komponenten renderar ingenting där. */}
+      <CvPreamble preamble={findMasterVersion(resume)?.content.preamble ?? null} />
 
       <CvReviewPanel
         review={review}

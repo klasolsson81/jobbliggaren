@@ -129,10 +129,19 @@ public sealed record CvReviewContext(
                     .ToList(),
                 content.Skills.Select(s => s.Name).ToList(),
                 content.Languages.Select(l => l.Name).ToList(),
-                // #844: null BY CONSTRUCTION, not from inability. The linearizer emits every section
-                // under a heading (ADR 0097 §2), so an app-managed CV has no region above its first
-                // one — there is nothing here to be unclassified.
-                Preamble: null),
+                // #844/#1060: null for a TEMPLATE-origin CV, by construction and not from
+                // inability — the linearizer emits every section under a heading (ADR 0097 §2),
+                // so an app-built CV has no region above its first one. An IMPORT-origin CV does
+                // have one, and since #1060 it is carried on the content itself, so this arm
+                // reads it like any other field.
+                //
+                // This line is what stops the retired preamble gate re-creating #844 one layer
+                // up. Without it A8 sees Profile == null (the file had no "Profil" heading) with
+                // Preamble == null, takes its second arm, and tells the author as a HARD FAIL
+                // that "Profiltext saknas helt." about a summary she wrote and the product is
+                // holding. With it, A8 lands ADR 0109 §5's third row — NotAssessed, structural
+                // reason only, no quote.
+                content.Preamble),
             linearized.Text,
             MapSectionKinds(linearized.Sections),
             language,

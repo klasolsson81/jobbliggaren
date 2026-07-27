@@ -39,7 +39,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     // #841 — the seven SOURCE FACETS. Ordinary columns, written in C# from the ACL's
     // parse of the payload, ATOMICALLY with RawPayload (SetSourcePayload below).
     //
-    // Until 2026-07-13 these were Postgres STORED generated columns derived from
+    // Until #841 these were Postgres STORED generated columns derived from
     // raw_payload. Postgres recomputes a stored generated column on every UPDATE of
     // its base, so the raw_payload purge silently nulled all seven — and the
     // 02:00 sync rewrote the payload and resurrected them. Net effect, proven against

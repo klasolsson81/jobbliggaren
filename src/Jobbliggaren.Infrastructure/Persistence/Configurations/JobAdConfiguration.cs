@@ -72,7 +72,7 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
 
         // ── #841 — THE SEVEN SOURCE FACETS. Ordinary columns, written in C#. ────────────
         //
-        // WHAT THEY WERE, AND WHY THAT WAS WRONG. Until 2026-07-13 all seven were Postgres
+        // WHAT THEY WERE, AND WHY THAT WAS WRONG. Until #841 all seven were Postgres
         // STORED generated columns reading raw_payload (F2P9 / F6P6 / F6P7 / #311 D1). The
         // justification on record was "drift omöjlig, ingen C#-skrivväg" — true, and
         // catastrophic: PurgeStaleRawPayloadsJob nulls raw_payload (GDPR Art. 5(1)(c)/(e); rule:

@@ -1088,7 +1088,7 @@ truth; the code conformance work is tracked in #841/#842/#845 and is **not** don
 
 ### A1 — "indefinitively för sanitized fields" is false. Seven of them self-destruct after 30 days.
 
-> ✅ **FIXED BY #841 (2026-07-13, PR — `MaterialiseJobAdSourceFacets`).** The seven are no longer
+> ✅ **FIXED BY #841 (`da29255f`, PR #882 — migration `MaterialiseJobAdSourceFacets`).** The seven are no longer
 > derived in the database. They are ordinary columns written in C# at the single ingest funnel
 > (`JobAd.SetSourcePayload`, atomically with the payload they are parsed from), so they OUTLIVE
 > `raw_payload` and §8's stated retention model is true for the first time. The rule is now

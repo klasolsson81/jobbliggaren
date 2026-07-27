@@ -369,6 +369,7 @@ dot:       7px, currentColor, radius --jp-r-pill, flex-shrink 0;
            aria-hidden="true" (decorative — repeats the label)
 modifier -> label (NOT positional — read it, do not infer it):
   --top Toppmatch · --high Stark match · --mid Bra match · --low Grundmatch
+  --related Relaterat yrke
 --top      leaf-700 fill, --jp-on-fill text, leaf-600 border
 --high     leaf-600 fill, --jp-on-fill text (dark theme: --jp-canvas), leaf-600 border
 --mid      leaf-100 fill, leaf-900 text, leaf-600 border
@@ -378,8 +379,9 @@ modifier -> label (NOT positional — read it, do not infer it):
 
 All four grades are solid fills on the SAME locked leaf ramp — hierarchy comes
 from fill weight on one hue, never from a second colour (#290, CTO bind).
-`--related` is a **marking, not a fifth grade**: a fifth green fill would have
-required a new leaf hue (ADR 0084, design-reviewer bind #300 PR-5).
+`--related` **is a grade** that takes the neutral status treatment. What it is
+not is a fifth *green* step: a fill between leaf-50 and leaf-100 would have
+required a new leaf hue (ADR 0084 F2, design-reviewer bind #300 PR-5).
 
 The visible label IS the accessible name — colour never carries meaning alone.
 The matched/missing **per-dimension** half is a separate form

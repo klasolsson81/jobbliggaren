@@ -353,12 +353,36 @@ font 11.5px/500; 6px dot
 Use when status is an entity's headline at one point — not for dense table
 columns (use `.jp-statusDot` there).
 
-### `.jp-match` (score bar) — BORTTAGEN
+### `.jp-match` — REMOVED (was: score bar)
 
-Klassen och dess komponent `match-bar.tsx` är borta. En 0–100-fyllnadsgrad är
-ett opakt aggregat och därmed förbjuden (ADR 0076 Decision 4, ADR 0053
-Amendment 2026-06-19, CLAUDE.md §5). Matchning visas som **namngiven grad** via
-`.jp-matchchip` plus matchar/saknas per dimension — se DESIGN.md §8.
+The class and its component `MatchBar` (`match-bar.tsx`) are deleted. A number
+between 0 and 100 is an opaque aggregate and is forbidden however it is rendered
+(ADR 0076 Decision 4, ADR 0053 Amendment 2026-06-19, CLAUDE.md §5). Replaced by
+`.jp-matchchip` below.
+
+### `.jp-matchchip` (named grade)
+
+```
+inline-flex; gap 7px; mono --text-mono/bold; padding 3px 9px; radius --jp-r-sm
+base:      surface-2 fill, ink-2 text, 1px --jp-border
+dot:       7px, currentColor, flex-shrink 0 (decorative — repeats the label)
+--top      leaf-700 fill, --jp-on-fill text, leaf-600 border
+--high     leaf-600 fill, --jp-on-fill text (dark theme: --jp-canvas), leaf-600 border
+--mid      leaf-100 fill, leaf-900 text, leaf-600 border
+--low      leaf-50  fill, leaf-900 text, leaf-600 border
+--related  neutral status treatment (surface-2 / ink-2 / border-strong)
+```
+
+All four grades are solid fills on the SAME locked leaf ramp — hierarchy comes
+from fill weight on one hue, never from a second colour (#290, CTO bind).
+`--related` is a **marking, not a fifth grade**: a fifth green fill would have
+required a new leaf hue (ADR 0084, design-reviewer bind #300 PR-5).
+
+The visible label IS the accessible name — colour never carries meaning alone.
+The matched/missing **per-dimension** half is a separate form
+(`.jp-modal__matchrow`, with a hollow dot reserved for "Ej bedömt" so it can
+never be mistaken for "Saknas"). Both halves are required: ADR 0076 Decision 4
+is "the user always sees WHY".
 
 ### `.jp-filterBar` (flat, no chrome box)
 

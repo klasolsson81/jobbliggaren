@@ -196,6 +196,24 @@ expect "an API error object is not an empty open-PR list" '' 1
 run object_not_array '{"number":28}' '[]' $'fix/done\tfalse\n'
 expect "a JSON object is not a JSON array" '' 1
 
+# AN EMPTY FILE IS THE SHAPE A FAILED FETCH ACTUALLY LEAVES. `gh` writes its
+# errors to stderr and NOTHING to stdout, so `gh pr list ... >open.json` on a
+# rate limit, an expired token or a network fault leaves a zero-byte file --
+# not an error object. That is the realistic input, and it is the dangerous
+# one: an empty open-PR list reads as "no open PRs", which silently dissolves
+# BOTH open-PR guards at once. The shape below is built so the difference is
+# visible rather than incidental -- `fix/parent` is a merged head, so without
+# the array check it would be DELETED while an open PR is stacked on it.
+#
+# These two cases were added because mutation testing found the gap: deleting
+# the array validation left the whole suite green, since every other failure
+# fixture happened to be caught by jq erroring on a non-iterable value instead.
+run empty_open "[$(mine 29 'fix/parent')]" '' $'fix/parent\tfalse\n'
+expect "an empty open-PR file is not an empty open-PR list" '' 1
+
+run empty_merged '' '[]' $'fix/parent\tfalse\n'
+expect "an empty merged-PR file decides nothing" '' 1
+
 # A truncated merged.json is NOT an error -- it cannot be detected from the
 # content, and it degrades to `no-merged-pr`, which skips. Pinned so the safe
 # direction is a decision this file made rather than an accident.

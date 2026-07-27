@@ -40,6 +40,14 @@
 # here therefore degrades to "delete nothing", which is the behaviour that
 # preceded this script.
 #
+# THE BUFFERING IS DECLARED UNEXERCISED, NOT DEMONSTRATED. Every input is
+# validated BEFORE the loop, so there is today no reachable failure inside it --
+# which means no fixture can distinguish buffering from streaming, and mutation
+# testing confirmed it: replacing the buffer with a direct `printf` leaves the
+# whole suite green. It is kept anyway, as structural insurance against a future
+# edit that introduces a mid-loop failure, and it is recorded here as untested
+# rather than left to read as proven.
+#
 # WHY THE PREDICATE IS "HEAD OF A MERGED PR" AND NEVER AGE. A branch with no
 # merged PR is somebody's work in progress -- possibly in a worktree on another
 # machine, possibly not yet pushed anywhere else. #725's own text names two
@@ -91,6 +99,10 @@
 set -euo pipefail
 
 fail() { # fail <message>
+  # Clear the trap FIRST: `exit` below re-enters it otherwise, and every error
+  # prints twice -- with the second copy saying "unexpected exit", which is a
+  # worse description of the failure than the real one it follows.
+  trap - EXIT
   echo "select-deletable-branches: $1" >&2
   echo "selector-error" >&2
   exit 1

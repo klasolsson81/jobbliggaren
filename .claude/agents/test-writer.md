@@ -74,12 +74,13 @@ in full — that produces confirmation tests, not specification tests.
 - Empty test stubs referencing tests that belong in other projects — either
   create them in the correct location or note the absence in the report,
   never leave stubs behind
-- Test seams that bypass the production route without naming the actor that
-  produces the state — follow CLAUDE.md §5 `Tests:`. Where that actor is
-  callable in the test, assert its own predicate admits the state; where it is
-  retired, pin that the current writer does not produce the shape. **"No domain
-  method exists" is a reject, not a disclosure** — if no actor can be named at
-  any tier, reach the state honestly or do not write the test
+- An assertion that rests on a state no path in `src/` produces, without naming
+  the actor that produced it — follow CLAUDE.md §5 `Tests:`. Where that actor is
+  callable in the test, assert its predicate or transform admits the state;
+  where it is retired, pin that the current writer does not produce the shape —
+  the pin belongs in the writer's own test class, cited by name. **"No domain
+  method exists" is a reject, not a disclosure** — if no actor can be named,
+  reach the state honestly or do not write the test
 
 ---
 

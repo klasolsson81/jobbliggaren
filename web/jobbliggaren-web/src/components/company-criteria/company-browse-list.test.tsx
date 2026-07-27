@@ -89,3 +89,37 @@ describe("CompanyBrowseList — #560 PR-C follow-column gate", () => {
     expect(screen.getByText("Kan inte bevakas")).toBeInTheDocument();
   });
 });
+
+/**
+ * The accessible name is CALLER-SPECIFIC, and that is the whole point of the prop.
+ *
+ * The defaults ("Företag som matchar din bevakning") belong to the criterion browse. Rendered on
+ * `/foretag/sok`, which answers a SEARCH, they are simply false — and they were false there for as
+ * long as both surfaces shared this component, because nothing sighted showed it.
+ */
+describe("CompanyBrowseList — the table's accessible name", () => {
+  it("defaults to the criterion-browse wording when no labels are given", () => {
+    render(<CompanyBrowseList items={[LEGAL]} reference={REFERENCE} />);
+    expect(
+      screen.getByRole("table", { name: "Företag som matchar bevakningen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("uses the caller's wording when given, for BOTH the name and the caption", () => {
+    render(
+      <CompanyBrowseList
+        items={[LEGAL]}
+        reference={REFERENCE}
+        labels={{ tableAria: "Företag som matchar sökningen", tableCaption: "Sökträffar." }}
+      />,
+    );
+    const table = screen.getByRole("table", { name: "Företag som matchar sökningen" });
+    expect(table).toBeInTheDocument();
+    // The caption is sr-only, so it is asserted through the accessible description rather than sight.
+    expect(table.querySelector("caption")).toHaveTextContent("Sökträffar.");
+    // ...and the default must be GONE, not merely joined by the override.
+    expect(
+      screen.queryByRole("table", { name: "Företag som matchar bevakningen" }),
+    ).not.toBeInTheDocument();
+  });
+});

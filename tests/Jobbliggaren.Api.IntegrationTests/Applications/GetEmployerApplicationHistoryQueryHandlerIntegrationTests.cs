@@ -366,9 +366,10 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
     // anywhere in src/ (#821), so it pinned a state production can never reach — and the false model it
     // encoded was then written into the handler docs and DPIA #456 as fact. See #843.
     //
-    // The real mechanism: `organization_number` is a STORED generated column derived from raw_payload,
-    // and PurgeStaleRawPayloadsJob nulls raw_payload 30 days after PublishedAt -> Postgres recomputes
-    // the column to NULL -> the row is dropped. Both tests below reach their state through PRODUCTION
+    // The real mechanism, as it was BEFORE #841: `organization_number` WAS a STORED generated column
+    // derived from raw_payload, and PurgeStaleRawPayloadsJob nulls raw_payload (rule: ADR 0032 Amendment 2026-07-26 §C2)
+    // -> Postgres recomputed the column to NULL -> the row was dropped. #841 materialised the column,
+    // so the recompute no longer happens; these tests pin that it stays fixed. Both tests below reach their state through PRODUCTION
     // writes: the real Archive() domain method, and the purge job's own ExecuteUpdate (scoped to one
     // provably-eligible ad — see PurgeThisAdsPayloadAsync for why the table-wide job cannot be run
     // against the shared Api Postgres). Never a state that has no writer in src/.
@@ -406,7 +407,7 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
         // #841 — THIS TEST WAS BUILT TO FAIL TODAY, and it did.
         //
         // It was `Handle_ActiveButPurgedAd_IsNotAttributed`, a characterization test from the #824 lane
-        // pinning the shipped defect: a still-ACTIVE ad past the 30-day payload horizon lost its
+        // pinning the shipped defect: a still-ACTIVE ad past the payload-retention threshold lost its
         // organization_number (a STORED generated column that Postgres recomputed to NULL when the purge
         // deleted its base), so the user's OWN SUBMITTED APPLICATION silently vanished from her history —
         // the very drop DPIA #456 §8 forbade. Its closing comment said so: *"#841 removes the root cause.
@@ -423,7 +424,8 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
         var userId = Guid.NewGuid();
         var seeker = await SeedSeekerAsync(db, clock, userId, ct);
 
-        // Published PAST the 30-day RawPayloadRetentionDays horizon, but the deadline is 30 days out:
+        // Published PAST the RawPayloadRetentionDays threshold (default 30 d — the purge THRESHOLD, not
+        // the deletion rule; rule: ADR 0032 Amendment 2026-07-26 §C2), but the deadline is 30 days out:
         // the ad is ACTIVE and perfectly applicable. Nothing archives it, nothing deletes it.
         var ad = await SeedJobAdAsync(
             db, clock, "5560360794", "Stale AB", ct, publishedDaysAgo: 40);
@@ -452,7 +454,7 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
         var result = await CreateHandler(db, userId).Handle(Query, ct);
         result.Count.ShouldBe(1,
             "a submitted application to a still-ACTIVE ad must not disappear from the user's history " +
-            "because a background job deleted a debug artefact 30 days after publication (#824/#841).");
+            "because a background job deleted a debug artefact (#824/#841).");
         result[0].OrganizationNumber.ShouldBe("5560360794");
         result[0].ApplicationCount.ShouldBe(1);
     }

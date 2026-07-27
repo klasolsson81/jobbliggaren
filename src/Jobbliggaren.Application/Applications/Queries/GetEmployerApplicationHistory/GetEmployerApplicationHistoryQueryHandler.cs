@@ -18,7 +18,7 @@ namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationHi
 /// <para>
 /// <b>Attribution no longer degrades with the ad's age (#841, 2026-07-13).</b> It used to. The org.nr
 /// column was a STORED generated column derived from <c>raw_payload</c>, and
-/// <c>PurgeStaleRawPayloadsJob</c> nulls <c>raw_payload</c> 30 days after <c>PublishedAt</c> — at which
+/// <c>PurgeStaleRawPayloadsJob</c> nulls <c>raw_payload</c> (rule: ADR 0032 Amendment 2026-07-26 §C2) — at which
 /// point Postgres RECOMPUTED the generated column to NULL. So an ACTIVE but old ad simply lost its
 /// employer, and the value <b>thrashed daily</b>: the 02:00 sync rewrote the payload and resurrected the
 /// org.nr, the 04:30 purge destroyed it again, giving ~2.5h of attribution and ~21.5h of none. The same

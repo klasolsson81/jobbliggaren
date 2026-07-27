@@ -633,12 +633,33 @@ Any erasure of recruiter PII from an ad must account for **every** surface below
 | 7 | `job_ads.title` / `job_ads.url` | text | Tier A scrubs `title`; Tier B clears both. (`mailto:` is already filtered out of `url` at ingest.) |
 | 8 | `applications.snapshot_description` (`ApplicationConfiguration.cs:104-105`) | text, **a different aggregate**, one frozen copy **per applicant** | **Explicitly OUT of Tier B — a recorded decision, see §3.3.** Tier A reaches *new* snapshots for free: `AdSnapshot.Capture` copies `jobAdData.Description` (`CreateApplicationFromJobAdCommandHandler.cs:83-92`), which post-Tier-A is already scrubbed. |
 | 9 | Second-order: `recent_job_searches.q`, `saved_searches.criteria` | text / jsonb | Already in this ADR's **user** cascade (Amendment 2026-05-20) — but that cascade is keyed to the *searching user*, not to the recruiter. If a user searches the recruiter's email (which §1 proves works), the string persists in **another user's** row. Whether any such row exists is **UNPROVEN** (no query run). **PR3 queries the DB and cascades if so** (STOPP-4). |
-| 10 | Postgres MVCC residue: pre-update heap tuple, WAL, replicas, base backups/PITR | — | VACUUM reclaims the heap; the rest is a **disclosure** obligation, not a bug. **The backup/PITR retention window is not yet stated, and CC must not invent it** (STOPP-4): the DPIA cannot be signed and no `v*` tag cut until Klas fills it. EDPB CEF 2025 singles out exactly this gap. |
+| 10 | Postgres MVCC residue: pre-update heap tuple, WAL, replicas, base backups/PITR | — | VACUUM reclaims the heap; the rest is a **disclosure** obligation, not a bug. **The backup/PITR retention window is not yet stated, and CC must not invent it** (STOPP-4): the DPIA cannot be signed and no `v*` tag cut until Klas fills it. EDPB CEF 2025 singles out exactly this gap. **⚠ 2026-07-26 (#845): the `v*` clause in this cell is superseded — the launch gate's status is owned solely by ADR 0106 and is not stated here. The DPIA clause STANDS: STOPP-4 is still open and still blocks the DPIA signature, which is a separate instrument from the launch gate.** |
 
 **The durability constraint that binds every row above.** The nightly full backfill (`sync-platsbanken-snapshot`, 02:00) and the 10-minute stream both funnel through `UpdateFromSource`, which **unconditionally reassigns** `Title`/`Description`/`Url`/`RawPayload` and then re-runs the extractor. ⇒ **Any one-shot redacting UPDATE is undone within ≤24 h — within ≤10 min for a still-streaming ad.** This is why the failed cascade could not have been repaired by "make the purger null `description` too". A durable erasure must either live **inside the ingest path** (Tier A) or **remove the carrier and block its re-import** (Tier B). There is no third shape.
 
-### 3. The governing contract — ADR 0106 (BOUND, NOT YET SHIPPED)
+> **Corrected 2026-07-26 (#845):** `UpdateFromSource` no longer reassigns **unconditionally** — it
+> **refuses on `Erased`** (`JobAd.cs:382-384`), and `JobAd.Erase` nulls `RawPayload` outright
+> (`JobAd.cs:267`). That refusal is the mechanism the paragraph above calls for, and it shipped with
+> Tier B (`269a4603`). The durability constraint still binds every row above for every **non-erased**
+> ad. The `raw_payload` deletion rule itself lives in one place — ADR 0032 Amendment 2026-07-26 §C2.
 
+### 3. The governing contract — ADR 0106 (BOUND, NOT YET SHIPPED as of 2026-07-13)
+
+> **SUPERSEDED IN PART, 2026-07-26 (#845) — read this before acting on anything below.** Both tiers
+> have since SHIPPED: **Tier B** `269a4603` (2026-07-15) and **Tier A** `daa4b51d` (2026-07-17), with
+> the command, handler, validator and `ErasureCascadeRegistry` under
+> `src/Jobbliggaren.Application/JobAds/Commands/EraseRecruiterAds/`.
+>
+> **An Art. 17 request must NOT be routed to the manual containment this section prescribes.** The
+> sentence *"Today the product has no working Art. 17 erasure path for recruiter PII"* stopped being
+> true on 2026-07-15. Use `EraseRecruiterAdsCommand` (dry-run, then confirm) — it is provable and
+> blocks re-import. **This ADR owns the Art. 17 cascade registry**, so it is among the first documents
+> an operator handling an erasure request opens; routing a live request away from the shipped path on
+> the strength of this section is an Art. 12(3)/17(1) failure.
+>
+> **The prod gate's status is owned solely by ADR 0106** and is not restated in this ADR; see ADR 0032
+> Amendment 2026-07-26 §C6. This banner covers every shipping and gate claim in §3 and §3.2 below.
+>
 > ⚠ **Tense matters here, and it is the exact defect this issue is about.** ADR 0106's two tiers are **bound** (CTO ruling 2026-07-13, executable without further GO). **Neither is shipped.** Tier A ships in PR2, Tier B in PR3. **Today the product has no working Art. 17 erasure path for recruiter PII** — only the containment in §1 (a 501 and a truthful runbook). A doc that describes a control we do not yet have is precisely the failure being corrected; this section must not be read as describing present behaviour.
 
 **Tier A — Art. 25, everyone, no request needed, heuristic, DISCLOSED.** We do not *store* recruiter contact details. Email and phone are stripped from the ad body **at ingest, as a `JobAd` aggregate invariant** (`RecruiterContactRedactor` — deterministic, no LLM per ADR 0071), and replaced by a marker pointing to the canonical ad at Arbetsförmedlingen. Placement in the aggregate (not the handler, not the ACL) is what closes durability and completeness for free: the nightly rewrite goes through the same invariant, and `extracted_terms` is re-derived from the already-scrubbed aggregate values.
@@ -662,12 +683,14 @@ The second sentence of the Tier-B text is **mandatory**. *Google Spain* (C-131/1
 | PR | Scope | Status |
 |---|---|---|
 | **PR1** | Containment + truth: endpoint → **501**; `RecruiterPiiPurger` + `IRecruiterPiiPurger` + the command deleted; test fiction rewritten (#843); runbook's false confirmation pulled; source docs and ADRs 0032/0024/0049 truth-synced | **COMMITTED** |
-| **PR2** | **Tier A** — ingest scrub as a `JobAd` aggregate invariant + backfill of all 93 469 ads + measured recall/precision | **NOT SHIPPED** |
-| **PR3** | **Tier B** — `JobAdStatus.Erased`, re-import tombstone, 410 Gone on detail, audit payload + failure audit; **lifts the launch gate** | **NOT SHIPPED** |
+| **PR2** | **Tier A** — ingest scrub as a `JobAd` aggregate invariant + backfill of all 93 469 ads + measured recall/precision | **SHIPPED 2026-07-17** (`daa4b51d`) — status corrected 2026-07-26, #845 |
+| **PR3** | **Tier B** — `JobAdStatus.Erased`, re-import tombstone, 410 Gone on detail, audit payload + failure audit | **SHIPPED 2026-07-15** (`269a4603`) — status corrected 2026-07-26, #845 |
 
 **No migrations in any of the three** (`JobAdStatus` is a string-converted SmartEnum with no CHECK constraint; `audit_log.payload` jsonb already exists — `AuditLogEntryConfiguration.cs:57`). The #821/#841 migration lane is not touched, not blocked and not waited on. `db-migration-writer` is therefore **not** invoked for #842 — its absence is a ruling, not a skipped gate.
 
-**Launch gate: no `v*` prod tag until Tier B ships** (STOPP-6).
+**Launch gate (2026-07-13 wording): no `v*` prod tag until Tier B ships** (STOPP-6). Tier B shipped
+`269a4603` on 2026-07-15. **The gate's status is owned solely by ADR 0106** and is not restated here;
+see ADR 0032 Amendment 2026-07-26 §C6 (#845).
 
 #### 3.3 RECORDED SCOPE DECISION — Tier B does NOT cascade into `applications.snapshot_description`
 

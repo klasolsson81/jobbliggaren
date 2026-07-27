@@ -111,6 +111,12 @@ export async function ForetagSokResults({
               items={companies.items}
               reference={reference}
               followStateByOrgNr={followStateByOrgNr}
+              // The shared table's DEFAULT accessible name says "matchar din bevakning" — false here.
+              // This surface answers a search; the labels name what the table actually is.
+              labels={{
+                tableAria: t("tableAria"),
+                tableCaption: t("tableCaption"),
+              }}
             />
             <JobAdPagination
               page={companies.page}

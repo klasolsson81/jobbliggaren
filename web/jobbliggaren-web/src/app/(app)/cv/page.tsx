@@ -161,7 +161,6 @@ export default async function CvListPage() {
 
         {sorted.length === 0 ? (
           <div className="jp-empty">
-            <div>{t("cv.emptyKicker")}</div>
             <div className="jp-empty__title">{t("cv.emptyTitle")}</div>
             <p className="jp-empty__body">{t("cv.emptyBody")}</p>
             <div className="jp-empty__actions">

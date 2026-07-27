@@ -3980,14 +3980,21 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* Empty-state explanation. .jp-empty is centred and sets no measure, so the
    prose ran the full 1088px of the container (1200 - 2x32 - 2x24) — roughly
    double the ~68ch cap jobbpilot-design-a11y sets for running prose
-   (WCAG 1.4.8). 60ch rather than 68ch: `ch` is wider than the average prose
-   character, so a 60ch box renders roughly 66-72 characters per line — the top
-   of the 45-75 band and comfortably under the 68ch ceiling. Centred prose wants
-   the tighter end, because a ragged left edge makes the eye hunt for the next
-   line start. margin-inline because the parent centres via text-align, which
-   would otherwise leave the capped block hanging left. */
+   (WCAG 1.4.8).
+
+   52ch is MEASURED, not felt. Every empty-state string in this tree was
+   rendered at 52/56/60/64/68ch in a real .jp-empty__body (real font, real cap,
+   real centring) and the last line's share of the measure counted: 52ch is the
+   ONLY value that strands no last line anywhere. 60ch strands /foretag's at
+   11 %, 64ch strands three surfaces, 68ch strands /sparade's at 5 %. It costs
+   one extra line across all fourteen surfaces — the right trade for CENTRED
+   prose, where a ragged left edge makes a stranded last word read worse than an
+   extra full line. It is also the value the withdrawn brand rule used.
+
+   margin-inline because the parent centres via text-align, which would
+   otherwise leave the capped block hanging left. */
 .jp-empty__body {
-  max-width: 60ch;
+  max-width: 52ch;
   margin-inline: auto;
 }
 

@@ -5,7 +5,14 @@ using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Jobbliggaren.Application.Resumes.Abstractions;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 using Shouldly;
+// `Document` is ambiguous between QuestPDF and OpenXml (both are used here — QuestPDF builds
+// the PDF fixtures, OpenXml the DOCX ones). Alias the QuestPDF one; OpenXml's `Document` stays
+// bare in BuildDocx. Same convention as PdfPigCvLayoutAnalyzerTests.
+using QuestDocument = QuestPDF.Fluent.Document;
 
 namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 
@@ -13,13 +20,26 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 // impl (PdfPig/OpenXml confined behind it; internal, visible via InternalsVisibleTo).
 // Contract: fail-SOFT — a corrupt/empty file NEVER throws, it returns
 // Empty/NoTextLayer so the handler routes to manual fallback (OQ5). The DOCX path is
-// exercised with a synthesized in-memory WordprocessingDocument (incl. åäö); the PDF
-// path's happy case is exercised by the integration/manual path — here we only assert
-// the malformed-PDF fail-soft contract (a faked valid PDF would not be a real test).
+// exercised with a synthesized in-memory WordprocessingDocument (incl. åäö).
+//
+// #1060 PR E — the PDF path now has a HAPPY PATH here, and the comment that used to stand in
+// its place ("synthesizing a VALID PDF in-memory is impractical … a faked valid PDF would not
+// be a real test") was false when written and is deleted. This project has referenced QuestPDF
+// since Fas 4b PR-6b precisely so PDFs can be synthesized for real, and the .csproj says so:
+// "the margin-math is only honestly testable against genuine PDF bytes, never a faked buffer".
+// PdfPigCvLayoutAnalyzerTests has been doing it in this same assembly ever since. The cost of
+// the false comment was measured: until #1060 the extractor's ONLY PDF coverage was
+// Extract_MalformedBytesAsPdf_StatusEmpty_NeverThrows, so every behavioural change to the PDF
+// path shipped unmeasured (CTO-bind 2026-07-27 §C.1).
 [Xunit.Collection("QuestPdfRendering")]
 public class PdfPigOpenXmlCvTextExtractorTests
 {
     private readonly PdfPigOpenXmlCvTextExtractor _sut = new();
+
+    // QuestPDF requires the licence declared once before any document is generated. Idempotent;
+    // PdfPigCvLayoutAnalyzerTests and CvRenderer set it too.
+    static PdfPigOpenXmlCvTextExtractorTests() =>
+        QuestPDF.Settings.License = LicenseType.Community;
 
     private static byte[] BuildDocx(params string[] paragraphs)
     {
@@ -31,12 +51,71 @@ public class PdfPigOpenXmlCvTextExtractorTests
             var body = new Body();
             foreach (var text in paragraphs)
                 body.AppendChild(new Paragraph(new Run(new Text(text))));
-            mainPart.Document = new Document(body);
+            // Fully qualified: `Document` is ambiguous once QuestPDF.Fluent is in scope (same
+            // resolution PdfPigCvLayoutAnalyzerTests:99 uses).
+            mainPart.Document = new DocumentFormat.OpenXml.Wordprocessing.Document(body);
             mainPart.Document.Save();
         }
 
         return stream.ToArray();
     }
+
+    // ---- PDF fixtures (#1060 PR E) ------------------------------------------------------
+    // A REAL single-column Swedish CV, rendered with QuestPDF. The employers are the markers
+    // the assertions trace; åäö is load-bearing (§10 — UTF-8 must survive the whole chain).
+
+    /// <summary>One rendered line, and the extra vertical space authored ABOVE it (points).
+    /// <c>GapAbove: 0</c> means "the next line of the same block" — ordinary leading.</summary>
+    private readonly record struct CvLine(string Text, int GapAbove);
+
+    // Section gaps 18 pt, in-block gaps 6 pt, employment gaps 14 pt, everything else ordinary
+    // leading. This is what a word processor emits for a CV with paragraph spacing; the
+    // *absence* of that spacing is a different document and has its own fixture below.
+    private static readonly CvLine[] SpacedCv =
+    [
+        new("Anna Andersson", 0),
+        new("anna.andersson@example.com | 070-123 45 67", 0),
+        new("Göteborg", 0),
+        new("PROFIL", 18),
+        new("Erfaren backend-utvecklare med djup kunskap om betalsystem.", 6),
+        new("ARBETSLIVSERFARENHET", 18),
+        new("Senior backend-utvecklare — Klarna AB", 6),
+        new("2021 - 2026", 0),
+        new("Ledde teamet för betalflöden.", 0),
+        new("Backend-utvecklare — Volvo Cars", 14),
+        new("2018 - 2021", 0),
+        new("Byggde tjänster för uppkopplade fordon.", 0),
+        new("Systemutvecklare — Västra Götalandsregionen", 14),
+        new("2015 - 2018", 0),
+        new("Journalsystem i .NET.", 0),
+        new("UTBILDNING", 18),
+        new("Civilingenjör Datateknik — Chalmers", 6),
+        new("2010 - 2015", 0),
+    ];
+
+    private const string SpacedCvFirstEmployer = "Klarna AB";
+
+    private static readonly string[] SpacedCvEmployers =
+        ["Klarna AB", "Volvo Cars", "Västra Götalandsregionen"];
+
+    private static byte[] BuildCvPdf(IReadOnlyList<CvLine> lines) =>
+        QuestDocument.Create(container =>
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(2, Unit.Centimetre);
+                page.DefaultTextStyle(t => t.FontSize(11));
+                page.Content().Column(col =>
+                {
+                    foreach (var line in lines)
+                        col.Item().PaddingTop(line.GapAbove).Text(line.Text);
+                });
+            })).GeneratePdf();
+
+    /// <summary>The same content with EVERY authored gap removed — uniform leading end to end.
+    /// The document carries no paragraph signal, so nothing may be inferred from it.</summary>
+    private static byte[] BuildUniformLeadingCvPdf() =>
+        BuildCvPdf([.. SpacedCv.Select(l => l with { GapAbove = 0 })]);
 
     [Fact]
     public void Extract_SynthesizedDocx_StatusExtracted_RawTextContainsParagraphs()
@@ -180,13 +259,36 @@ public class PdfPigOpenXmlCvTextExtractorTests
         result.RawText.ShouldContain("Systemutvecklare");
     }
 
+    // #1060 PR E — THE PDF HAPPY PATH. Until this test the PDF branch had no happy-path
+    // coverage at all: the only PDF case in the suite was the malformed-bytes one below, so
+    // "a real CV comes out of a real PDF" was an unmeasured claim through two phases. Asserted
+    // against GENUINE PDF bytes (QuestPDF), not a faked buffer.
+    [Fact]
+    public void Extract_SynthesizedSingleColumnCvPdf_StatusExtracted_CarriesEveryEmployerAndAaO()
+    {
+        var bytes = BuildCvPdf(SpacedCv);
+
+        var result = _sut.Extract(bytes, CvFileKind.Pdf, CancellationToken.None);
+
+        result.Status.ShouldBe(CvExtractionStatus.Extracted);
+
+        // Every authored employer survives extraction verbatim. This is the marker trace the
+        // corpus runs end-to-end, asserted here at the one layer that owns bytes→text.
+        foreach (var employer in SpacedCvEmployers)
+            result.RawText.ShouldContain(employer);
+
+        // åäö must survive the whole chain (§10 — UTF-8 everywhere). "Västra Götalandsregionen"
+        // above already carries them; these pin the lower-case forms too.
+        result.RawText.ShouldContain("Göteborg");
+        result.RawText.ShouldContain("betalflöden");
+        result.RawText.ShouldContain("tjänster");
+    }
+
     [Fact]
     public void Extract_MalformedBytesAsPdf_StatusEmpty_NeverThrows()
     {
-        // NOTE: synthesizing a VALID PDF in-memory is impractical, so the happy DOCX
-        // path stands in for the structured-extraction contract above. Real-PDF text
-        // extraction is exercised by the integration/manual path (architect advisory).
-        // Here we pin only the fail-soft contract for a malformed PDF: never throws.
+        // The fail-soft contract for a malformed PDF: never throws, reports Empty. (The happy
+        // PDF path is the test above — it is no longer stood in for by the DOCX path.)
         byte[] malformed = [0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x37, 0x00, 0xDE, 0xAD];
 
         CvExtractionResult result = default!;

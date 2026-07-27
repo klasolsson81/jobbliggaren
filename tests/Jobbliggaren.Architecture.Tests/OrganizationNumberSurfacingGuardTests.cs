@@ -102,7 +102,7 @@ public class OrganizationNumberSurfacingGuardTests
         "src/Jobbliggaren.Application/Companies/Queries/LookupCompany/LookupCompanyQueryHandler.cs",
         "src/Jobbliggaren.Infrastructure/CompanyRegistry/CachedCompanyRegistry.cs",
         "src/Jobbliggaren.Infrastructure/CompanyRegistry/FakeCompanyRegistry.cs",
-        // #841 — THE INGEST FUNNEL, and it is a genuinely NEW read path: before 2026-07-13 no C# code
+        // #841 — THE INGEST FUNNEL, and it is a genuinely NEW read path: before that change no C# code
         // ever held an inbound org.nr, because Postgres derived organization_number straight out of the
         // raw_payload JSON blob. The ACL now parses it (PlatsbankenJobSource.MapFacets reads
         // hit.Employer?.OrganizationNumber), and the upsert handler carries it transitively on

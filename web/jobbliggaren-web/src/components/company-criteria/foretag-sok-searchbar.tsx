@@ -670,7 +670,7 @@ export function ForetagSokSearchbar({
         {state.kind === "notFound" && (
           <div role="status" className="jp-empty">
             <div className="jp-empty__title">{t("orgNrNotFoundTitle")}</div>
-            <p className="text-body-sm text-text-primary">{t("orgNrNotFoundBody")}</p>
+            <p className="jp-empty__body text-body-sm text-text-primary">{t("orgNrNotFoundBody")}</p>
           </div>
         )}
 

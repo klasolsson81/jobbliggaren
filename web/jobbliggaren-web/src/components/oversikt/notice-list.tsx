@@ -91,7 +91,7 @@ export function NoticeList({
       {visibleCount === 0 ? (
         <div className="jp-empty">
           <div className="jp-empty__title">{t("notices.emptyTitle")}</div>
-          {t("notices.emptyBody")}
+          <p className="jp-empty__body">{t("notices.emptyBody")}</p>
         </div>
       ) : (
         <>

@@ -129,7 +129,7 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
         {companies.items.length === 0 ? (
           <div className="jp-empty mt-6">
             <div className="jp-empty__title">{t("browse.emptyTitle")}</div>
-            <p className="text-body-sm text-text-primary">{t("browse.emptyBody")}</p>
+            <p className="jp-empty__body text-body-sm text-text-primary">{t("browse.emptyBody")}</p>
           </div>
         ) : (
           <div className="mt-6 flex flex-col gap-4">

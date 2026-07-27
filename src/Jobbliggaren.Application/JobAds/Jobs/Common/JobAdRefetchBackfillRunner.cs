@@ -35,7 +35,7 @@ namespace Jobbliggaren.Application.JobAds.Jobs.Common;
 ///
 /// <para>
 /// <b>#841 — this runner is the DEPLOY REPAIR TOOL, and that is a load-bearing role, not a side effect.</b>
-/// Since 2026-07-13 the ingest funnel re-writes the seven facet columns in C#
+/// Since that change the ingest funnel re-writes the seven facet columns in C#
 /// (<c>JobAd.SetSourcePayload</c>, atomically with the payload). So an ad whose facets the raw_payload
 /// purge had already nulled matches the NULL predicate, gets re-fetched, and has all seven written afresh.
 /// (This paragraph previously said "Postgres STORED computed columns re-evaluate" — the sentence that

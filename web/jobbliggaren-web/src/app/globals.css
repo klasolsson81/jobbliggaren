@@ -220,9 +220,9 @@
   /* Kontroll-storlek (SSOT — ändra HÄR, aldrig inline per komponent).
      /jobb-filterraden (hero-pills + sort-select) läser dessa två så alla
      kontroller delar EN höjd och EN textstorlek (Klas 2026-06-30: symmetri +
-     ingen hårdkodning + läsbarhet). Höjd 40px styrs av `--jp-control-h`, vars värde är
-     RATIFICERAT i DESIGN.md §Komponenter (Klas 2026-06-30) — SSOT för värdet är
-     tokendeklarationen ovan, inte specen — alla dess konsumenter är `.jp-*`.
+     ingen hårdkodning + läsbarhet). Höjd 40px styrs av `--jp-control-h`, vars värde
+     är ratificerat i DESIGN.md §Komponenter (Klas 2026-06-30). SSOT för värdet är
+     deklarationen ovan, inte specen; alla konsumenter av tokenen är `.jp-*`.
      Det är INTE "standard-knapphöjd": `.jp-btn` är 44px, och en systemlös höjdutsaga
      är numera förbjuden (ADR 0052 Amendment 2026-07-27, #1095);
      textstorlek 14px = body-sm-golvet (DESIGN.md §4 — aldrig informationsbärande

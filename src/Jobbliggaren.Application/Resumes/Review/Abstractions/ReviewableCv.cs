@@ -18,9 +18,16 @@ namespace Jobbliggaren.Application.Resumes.Review.Abstractions;
 /// writing is exactly the misclaim this field exists to prevent, and routing it there would
 /// reintroduce, through the back door, the auto-classification the design refused.</para>
 ///
-/// <para><c>null</c> on the CANONICAL arm BY CONSTRUCTION, not from inability: an app-managed CV is
-/// emitted by the linearizer with every section under a heading (ADR 0097 §2), so it has no region
-/// above its first one.</para>
+/// <para>On the CANONICAL arm, <c>null</c> for a TEMPLATE-origin CV — by construction, not from
+/// inability: an app-built CV is emitted by the linearizer with every section under a heading
+/// (ADR 0097 §2), so it has no region above its first one. An IMPORT-origin CV does have one, and
+/// since #1060 it rides <c>ResumeContent.Preamble</c>, so ADR 0109 §5's table applies identically
+/// on both arms and A8 never claims a summary "saknas helt" about text the product is holding.</para>
+///
+/// <para>It is NOT part of the canonical arm's <c>LinearText</c>, so a rule cannot cite a span
+/// inside it there. A8 is structural-only and unaffected; a future rule that wants to quote the
+/// preamble must decide deliberately to put it in the citation substrate, which is a decision
+/// about grading unclassified text and therefore ADR 0109 §1's subject.</para>
 /// </param>
 public sealed record ReviewableCv(
     ReviewableContact? Contact,

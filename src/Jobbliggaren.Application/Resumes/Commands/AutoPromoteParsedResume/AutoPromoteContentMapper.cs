@@ -75,10 +75,22 @@ internal static class AutoPromoteContentMapper
                     .ToList()))
             .ToList();
 
-        // Preamble is deliberately NOT mapped: the policy gate has already blocked any parse
-        // that carries one (ADR 0109 — only the user classifies unheaded text), so by the
-        // time this projection runs there is nothing to carry. SkillGroups: the parse has
-        // no grouping concept — an empty overlay, never an invented one.
+        // Preamble → Preamble, the IDENTITY projection, and it is the whole of #1060's carrier
+        // bind (CTO 2026-07-27). Until then the preamble was deliberately not mapped, because a
+        // policy gate had already refused every parse that carried one; retiring that gate
+        // without carrying the text would have been ADR 0109 §3's "dropping is the bug" — and
+        // reading it back off the staging artifact instead (the earlier D2(d) bind) would have
+        // been the same drop on a 30-day timer, because the promoted parse is hard-deleted then.
+        //
+        // Identity is the only honest mapping available. → Summary would MINT "this IS your
+        // profile", ADR 0109 §1's one absolute prohibition. → Section is impossible without
+        // minting a heading the user never wrote (Resume.SectionHeadingRequired), and that
+        // heading would render into a document she sends to employers. Carrying it under its
+        // own name asserts nothing about what it is, which is exactly what the doctrine asks:
+        // the engine describes, the user classifies.
+        //
+        // SkillGroups: the parse has no grouping concept — an empty overlay, never an
+        // invented one.
         return new ResumeContentDto(
             new PersonalInfoDto(fullName, contact.Email, contact.Phone, contact.Location),
             experiences,
@@ -87,6 +99,7 @@ internal static class AutoPromoteContentMapper
             Summary: parsed.Profile,
             Languages: languages,
             SkillGroups: [],
-            Sections: sections);
+            Sections: sections,
+            Preamble: parsed.Preamble);
     }
 }

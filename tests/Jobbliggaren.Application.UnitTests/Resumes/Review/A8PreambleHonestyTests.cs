@@ -234,4 +234,137 @@ public class A8PreambleHonestyTests
         string.Join(" ", unheadedResult.Verdicts.SelectMany(v => v.Evidence.Select(e => e.ToString())))
             .ShouldNotContain(RealCliche);
     }
+
+    // ===============================================================
+    // #1060 — the same rule, one layer up: the CANONICAL arm
+    // ===============================================================
+
+    /// <summary>
+    /// The regression pin for #844-at-one-layer-up, and the reason the gate retirement and the
+    /// carrier had to ship in one PR.
+    ///
+    /// <para>Before #1060 an un-headed summary could never reach a saved CV: the preamble gate
+    /// held the whole import in staging. Retiring that gate lets it through, and the canonical
+    /// adapter used to hard-code <c>Preamble: null</c> — justified at the time, because an
+    /// app-BUILT CV really has no region above its first heading. An IMPORT-origin CV does. So
+    /// lifting the gate without this would have had A8 read <c>Profile == null</c> (the file
+    /// carried no "Profil" heading) beside <c>Preamble == null</c>, take its second arm, and
+    /// emit the hard Fail "Profiltext saknas helt." about the summary the user wrote and the
+    /// product is now storing. That is #844's headline defect, resurrected by its own fix.</para>
+    /// </summary>
+    private static ResumeContent ContentWithPreamble(string? preamble) => new(
+        new PersonalInfo("Anna Andersson", "anna.andersson@example.com", "070-123 45 67", "Stockholm"),
+        experiences:
+        [
+            new Experience(
+                "Acme AB", "Backend-utvecklare", null, null,
+                "Ansvarade för betaltjänster och ökade genomströmningen med 30 procent.", "2021 - 2024"),
+        ],
+        educations: [new Education("KTH", "Civilingenjör", null, null, "2016 - 2021")],
+        skills: [new Skill("C#", null)],
+        // No Summary: the file had no "Profil" heading, which is precisely the population this
+        // pin is about. Give it one and A8 takes a different arm and the test proves nothing.
+        summary: null,
+        languages: [],
+        skillGroups: [],
+        sections: [],
+        preamble: preamble);
+
+    private static async Task<CvCriterionVerdict> CanonicalA8Async(string? preamble)
+    {
+        var content = ContentWithPreamble(preamble);
+        var result = await Engine().ReviewAsync(
+            CvReviewContext.FromCanonical(
+                content, ResumeContentLinearizer.Linearize(content), ResumeLanguage.Sv),
+            RenderProfile.Ats,
+            TestContext.Current.CancellationToken);
+
+        return result.Verdicts.Single(v => v.CriterionId == "A8");
+    }
+
+    [Fact]
+    public async Task CanonicalA8_ImportOriginCvWithPreamble_IsNotAssessed_NeverAFalseFail()
+    {
+        var a8 = await CanonicalA8Async(
+            "Erfaren backend-utvecklare med tio år i betalbranschen. Jag bygger driftsäkra tjänster.");
+
+        a8.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
+        var said = string.Join(" ", a8.Evidence.Select(e => e.ToString())) + " " + a8.NotAssessedReason;
+        said.ShouldNotContain("saknas helt");
+    }
+
+    [Fact]
+    public async Task CanonicalA8_ImportOriginCvWithPreamble_ReasonCarriesNoCvText()
+    {
+        // Parity with the staging arm: the preamble is the most personnummer-dense region of a
+        // CV, so a verdict's reason says THAT text was unclassifiable, never WHAT it said.
+        var a8 = await CanonicalA8Async(
+            "Erfaren backend-utvecklare med tio år i betalbranschen. Jag bygger driftsäkra tjänster.");
+
+        a8.NotAssessedReason.ShouldNotBeNull();
+        a8.NotAssessedReason.ShouldNotContain("betalbranschen");
+        a8.NotAssessedReason.ShouldNotContain("driftsäkra");
+        a8.Evidence.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// The counterfactual that makes the pin above mean something. Identical content, preamble
+    /// absent, and the earned Fail must survive. (`ResumeContent` carries no origin, so what the
+    /// argument actually says is "no preamble" — which is true of every template-origin CV, but
+    /// the assertion is about the field, not about a provenance the fixture cannot express.) Without
+    /// this row the NotAssessed test would also pass if A8 had simply stopped failing, and it
+    /// would be pinning nothing. Withdrawing this arm too would delete a working signal, which
+    /// is a regression dressed as honesty.
+    /// </summary>
+    [Fact]
+    public async Task CanonicalA8_TemplateOriginCvWithNoPreamble_StillFails_TheEarnedFailSurvives()
+    {
+        var a8 = await CanonicalA8Async(preamble: null);
+
+        a8.Verdict.ShouldBe(CriterionVerdict.Fail);
+        string.Join(" ", a8.Evidence.Select(e => e.ToString())).ShouldContain("Profiltext saknas helt");
+    }
+
+    /// <summary>
+    /// The canonical-arm twin of <see cref="Preamble_IsNeverGradedAsProse_WhileTheSameSentenceUnderAHeadingIs"/>.
+    /// The carrier reaching <c>ResumeContent</c> must not turn it into graded prose: A7, A9 and
+    /// the language rules read <c>ReviewText.AllProse</c>, and routing an address block or OCR
+    /// noise there would grade it as the user's own writing — the auto-classification the
+    /// carrier exists to refuse, arriving through the back door on the arm that renders CVs.
+    /// </summary>
+    [Fact]
+    public async Task CanonicalPreamble_IsNeverGradedAsProse()
+    {
+        const string sentence = $"{RealCliche} som söker nya utmaningar.";
+
+        // POSITIVE CONTROL FIRST, and it is not optional here — the staging twin above carries
+        // one for a reason it states in as many words: without it, this test would also pass if
+        // A7 were simply broken on the canonical arm, and it would be pinning nothing. The
+        // identical sentence in SUMMARY is the user's own prose, so A7 must see it and cite it.
+        var headed = ContentWithPreamble(preamble: null) with { Summary = sentence };
+        var headedResult = await Engine().ReviewAsync(
+            CvReviewContext.FromCanonical(
+                headed, ResumeContentLinearizer.Linearize(headed), ResumeLanguage.Sv),
+            RenderProfile.Ats,
+            TestContext.Current.CancellationToken);
+
+        string.Join(" ", headedResult.Verdicts.Single(v => v.CriterionId == "A7")
+            .Evidence.Select(e => e.ToString()))
+            .ShouldContain(RealCliche);
+
+        // THE GUARD: the same sentence as an UNCLASSIFIED preamble. The engine was never told it
+        // is prose the user wrote about herself, so it must not enter ReviewText.AllProse and
+        // must not be graded — not by A7, not by A9, not by anything. Grading an address block
+        // or OCR noise as her writing is the auto-classification the carrier exists to refuse,
+        // arriving through the back door on the arm that renders CVs.
+        var unheaded = ContentWithPreamble(sentence);
+        var result = await Engine().ReviewAsync(
+            CvReviewContext.FromCanonical(
+                unheaded, ResumeContentLinearizer.Linearize(unheaded), ResumeLanguage.Sv),
+            RenderProfile.Ats,
+            TestContext.Current.CancellationToken);
+
+        string.Join(" ", result.Verdicts.SelectMany(v => v.Evidence.Select(e => e.ToString())))
+            .ShouldNotContain(RealCliche);
+    }
 }

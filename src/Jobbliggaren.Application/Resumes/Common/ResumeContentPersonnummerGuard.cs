@@ -57,7 +57,8 @@ internal static class ResumeContentPersonnummerGuard
     /// <summary>
     /// Concatenates every user free-text field of the submitted content so the personnummer scan
     /// sees the whole surface (DQ6 — name/contact, summary, experience company/role/description,
-    /// education institution/degree, skill names, and the Fas 4b superset free text: spoken-language
+    /// education institution/degree, skill names, the imported preamble (#1060), and the Fas 4b
+    /// superset free text: spoken-language
     /// names, skill-group names + members, and dynamic-section headings/entry titles/lines —
     /// ADR 0095 D-E, mandatory: a personnummer typed into any of these must be flagged). Order is
     /// irrelevant — the scanner only flags. The superset collections (top-level AND nested) are
@@ -78,6 +79,16 @@ internal static class ResumeContentPersonnummerGuard
         }
 
         sb.AppendLine(content.Summary);
+
+        // #1060 — MANDATORY (CLAUDE.md §5, highest priority). The preamble is the most
+        // personnummer-dense region of a CV (ContentRules.cs, A8's own note): it is the
+        // un-headed top-of-document block where a Swedish CV puts its contact details, and
+        // nothing upstream subtracts a personnummer from it (PreambleResidue subtracts only
+        // what a recogniser claimed, and no recogniser knows that shape). This enumeration is
+        // hand-written and FAIL-OPEN — a field it does not list is silently unscanned, and the
+        // architecture tripwire keys on handlers CALLING the guard, never on fields being
+        // COLLECTED — so the line has to be here for the field to be covered at all.
+        sb.AppendLine(content.Preamble);
 
         foreach (var e in content.Experiences)
         {

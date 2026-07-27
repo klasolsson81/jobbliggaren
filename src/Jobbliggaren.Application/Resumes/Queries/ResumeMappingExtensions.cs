@@ -33,7 +33,10 @@ internal static class ResumeMappingExtensions
             .Select(s => new ResumeSectionDto(
                 s.Heading,
                 s.Entries.Select(e => new SectionEntryDto(e.Title, e.Lines.ToList())).ToList()))
-            .ToList());
+            .ToList(),
+        // #1060: the imported preamble reaches the promoted CV's review surface on this
+        // transport — the same content query the staging arm uses for the same string.
+        c.Preamble);
 
     public static ResumeVersionDto ToDto(this ResumeVersion v) => new(
         v.Id.Value,

@@ -17,6 +17,7 @@
     "meta": {
       "frivilligtCv": "CV optional",
       "cvInlast": "CV read",
+      "cvSparat": "CV saved",
       "ejIfyllt": "Not filled in",
       "allaYrken": "All occupations",
       "ingaValda": "None selected",
@@ -42,6 +43,7 @@
     "uploadBody": "PDF or Word (DOCX), max 10 MB. We suggest occupations and skills from the content. Your CV is not changed.",
     "noCv": "No CV to hand? <b>Continue without a CV</b> and choose everything yourself.",
     "cvDoneTitle": "CV read: {filename}",
+    "cvSavedTitle": "CV saved: {filename}",
     "cvDoneBody": "We have filled in suggested occupations and skills in the steps. The suggestions are not saved to your CV."
   },
   "yrken": {

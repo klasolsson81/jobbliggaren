@@ -271,11 +271,25 @@ public sealed class Resume : AggregateRoot<ResumeId>
 
     public Result UpdateMasterContent(ResumeContent content, IDateTimeProvider clock)
     {
+        ArgumentNullException.ThrowIfNull(content);
+
+        // #1060 — the preamble is WRITE-ONCE, and the rule lives here rather than in a client
+        // contract (§2.2: aggregates protect their own invariants). This method replaces the
+        // Master's content wholesale from a transport DTO, and `resumeContentDtoSchema` is
+        // non-strict, so `.parse()` silently STRIPS an unmodelled key: without this line the
+        // user's first CV edit would erase the text her file carried above its first heading —
+        // #844's drop, arriving one screen later. Carrying the existing value forward makes the
+        // wipe structurally impossible instead of test-covered, keeps `CreateFromParsed` the
+        // only ingress (already personnummer-gated), and means the FE write path needs no
+        // change at all. It is also what keeps ADR 0109's FAS-DEFERRED classify step deferred:
+        // no in-app path can alter this text, so nothing can classify it by accident.
+        var master = MasterVersion;
+        content = content with { Preamble = master.Content.Preamble };
+
         var validation = ValidateContent(content);
         if (validation.IsFailure)
             return validation;
 
-        var master = MasterVersion;
         var now = clock.UtcNow;
         master.UpdateContent(content, clock);
         ApplyDenormalizedProjection(content);
@@ -310,6 +324,17 @@ public sealed class Resume : AggregateRoot<ResumeId>
     /// </summary>
     public Result<ResumeVersionId> CreateTailored(ResumeContent content, IDateTimeProvider clock)
     {
+        ArgumentNullException.ThrowIfNull(content);
+
+        // #1060 — a tailored version does NOT inherit the Master's preamble, and this is a
+        // decision, not an omission. The preamble is provenance about the imported FILE, not
+        // content of a variant the user composed for one advert; a tailored version has no
+        // source file and therefore no region above its first heading. It is also never
+        // rendered, so inheriting it would carry CV-PII into a second version for no surface
+        // to show it on. Set explicitly rather than left to the caller so the value cannot
+        // arrive by accident from a round-tripped Master DTO.
+        content = content with { Preamble = null };
+
         var validation = ValidateContent(content);
         if (validation.IsFailure)
             return Result.Failure<ResumeVersionId>(validation.Error);
@@ -670,6 +695,30 @@ public sealed class Resume : AggregateRoot<ResumeId>
         if (content.Summary is { Length: > 2_000 })
             return Result.Failure(DomainError.Validation(
                 "Resume.SummaryTooLong", "Sammanfattning får vara max 2 000 tecken."));
+
+        // #1060 — the imported preamble is bounded like every other free-text field, because
+        // "we never wrote it" is not a reason to store an unbounded string under the DEK.
+        // Inline, NOT coupled to Summary's 2 000 (same precedent as Description below: they
+        // may diverge, and coupling them would be spurious DRY), and deliberately NOT coupled
+        // to PreambleResidue.MaxPreambleChars either — the parse-side cap answers "how much
+        // residue is worth carrying out of a file" and this one answers "how much may live on
+        // the canonical CV". Two knowledge pieces, two homes.
+        //
+        // Whether it can fire depends on a fact one layer away, so state the fact rather than
+        // the conclusion: every ingress DERIVES the value from the source parse (both
+        // CreateFromParsed callers substitute it before their guard; UpdateMasterContent is
+        // write-once; CreateTailored clears it), and PreambleResidue.ToText truncates at its
+        // own 2 000 on a LINE boundary — so what reaches here is <= 2 000 and this cap does not
+        // reject anything today. It is the authority half of a mirrored pair, like the 100/200
+        // caps below against the client zod schemas.
+        //
+        // It is NOT decoration, and the review round proved why: before that derivation existed,
+        // the manual promote endpoint accepted a client-supplied preamble that NO request
+        // validator capped, and this line was the only thing standing between that endpoint and
+        // an unbounded string under the DEK. Remove the derivation and this cap goes live again.
+        if (content.Preamble is { Length: > 2_000 })
+            return Result.Failure(DomainError.Validation(
+                "Resume.PreambleTooLong", "Inledande text får vara max 2 000 tecken."));
 
         foreach (var skill in content.Skills)
         {

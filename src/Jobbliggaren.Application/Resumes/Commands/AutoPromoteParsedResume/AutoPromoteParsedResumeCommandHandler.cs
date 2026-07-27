@@ -16,8 +16,8 @@ namespace Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 /// <summary>
 /// The "spara direkt" mechanism (CV-pivot PR 5a, CTO-bind 2026-07-17). Flow: resolve owner
 /// (id + display name in one projection) → owner-scoped tracked load (IDOR fail-closed,
-/// parity <c>PromoteParsedResumeCommandHandler</c>) → the THREE policy gates, cheapest and
-/// highest-PII-priority first (personnummer → preamble → parser confidence) → project the
+/// parity <c>PromoteParsedResumeCommandHandler</c>) → the TWO policy gates, cheapest and
+/// highest-PII-priority first (personnummer → extraction failure) → project the
 /// parse verbatim to the transport shape → the shared personnummer guard (DQ6; the one text
 /// this composition adds over the import-scanned raw superset is the account display name)
 /// → <c>ResumeContentMapper.ToDomain</c> → <c>Resume.CreateFromParsed</c> (the ONE
@@ -95,16 +95,25 @@ public sealed class AutoPromoteParsedResumeCommandHandler(
                 DomainError.NotFound("ParsedResume", parsedResumeId.Value));
         }
 
-        // ── Tier 1: the three POLICY gates (CTO-bind §2) — all read-only, all before any
-        // mutation. Order: highest PII priority first, then the Klas-bound preamble rule,
-        // then the parser's own cleanliness verdict.
+        // ── Tier 1: the two POLICY gates (CTO-bind §2; narrowed from three by #1060's D1
+        // bind) — both read-only, both before any mutation. Order: highest PII priority
+        // first, then extraction failure.
         if (parsed.Personnummer.Found)
             return LeftPending(AutoPromoteBlockReason.PersonnummerPresent);
 
-        if (!string.IsNullOrWhiteSpace(parsed.Content.Preamble))
-            return LeftPending(AutoPromoteBlockReason.UnclassifiedPreamble);
-
-        if (parsed.Confidence.RequiresManualReview)
+        // #1060 D1.3: `Failed` ONLY, not `RequiresManualReview`. A `Degraded` parse found
+        // something and is honest that the document was messy — under ADR 0112 that is the CV
+        // the reviewer has most to say about, so blocking it gives the least product to the
+        // user who needs it most. `Failed` still blocks: extraction produced nothing usable, so
+        // the promote would build a CV that says less than the file did. The enum member's
+        // docblock records the reversal of the 5a bind's R3 — read it before re-tightening.
+        //
+        // #1060 D1.2: the preamble gate that stood between these two is RETIRED. Text above the
+        // first heading no longer blocks; it rides the source parse and is shown back on the
+        // promoted CV's review surface (ADR 0109 amendment 2026-07-27). Nothing is minted here —
+        // AutoPromoteContentMapper still never maps Preamble into Summary or a Section, which is
+        // the prohibition the gate was standing in for, enforced where it belongs.
+        if (parsed.Confidence.Overall == OverallConfidenceLevel.Failed)
             return LeftPending(AutoPromoteBlockReason.ParseNotConfident);
 
         // ── The two names are DIFFERENT concepts and are resolved separately (#1060).

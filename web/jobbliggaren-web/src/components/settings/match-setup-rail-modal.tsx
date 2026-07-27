@@ -211,9 +211,19 @@ export function MatchSetupRailModal({
   // ett auto-promotat CV visa uppladdningsformen igen (dubblett-CV-risk,
   // code-reviewer 5c minor 1).
   const [hasUploadedCv, setHasUploadedCv] = useState(false);
-  // Filnamnet för "CV inläst: {filnamn}"-plattan (bärs av onUploaded sedan
-  // epik #526-utökningen; null → plattan faller tillbaka på "CV inläst").
+  // Filnamnet för bekräftelse-plattan (bärs av onUploaded sedan epik
+  // #526-utökningen; null → plattan faller tillbaka på texten utan filnamn).
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  // #1060: plattan säger nu vad som FAKTISKT hände, inte vad som brukade hända.
+  // Innan gate-retireringen stannade nästan varje uppladdning i staging, så
+  // "CV inläst" var sant för alla; nu sparas den vanliga uppladdningen direkt
+  // och "inläst" underdriver den. Utfallet läses av — det bärs redan av
+  // onUploaded — i stället för att härledas ur uploadedParsedId === null:
+  // "saknar parse-id" är en proxy för "sparat", och en proxy som råkar stämma
+  // idag är precis vad §5:s mis-report-förbud siktar på. Blockerade
+  // uppladdningar behåller "inläst", som fortfarande är sant om dem; VARFÖR de
+  // blockerades ägs av PR C (D6), inte av den här raden.
+  const [cvWasSaved, setCvWasSaved] = useState(false);
 
   // Kompetens-steget: en remount-nyckel som "Återställ förslagen" bumpar för att
   // montera om SkillSection → dess en-gångs auto-suggest kör igen (pre-addar CV-
@@ -339,6 +349,7 @@ export function MatchSetupRailModal({
     setUploadedParsedId(outcome.kind === "pending" ? outcome.parsedResumeId : null);
     setHasUploadedCv(true);
     setUploadedFileName(fileName ?? null);
+    setCvWasSaved(outcome.kind === "promoted");
   }
 
   function onSave() {
@@ -720,10 +731,17 @@ export function MatchSetupRailModal({
                           <div>
                             <p className="jp-wizard__cvdone-title">
                               {uploadedFileName
-                                ? t("start.cvDoneTitle", {
-                                    filename: uploadedFileName,
-                                  })
-                                : t("rail.meta.cvInlast")}
+                                ? t(
+                                    cvWasSaved
+                                      ? "start.cvSavedTitle"
+                                      : "start.cvDoneTitle",
+                                    { filename: uploadedFileName }
+                                  )
+                                : t(
+                                    cvWasSaved
+                                      ? "rail.meta.cvSparat"
+                                      : "rail.meta.cvInlast"
+                                  )}
                             </p>
                             <p className="jp-wizard__cvdone-body">
                               {t("start.cvDoneBody")}

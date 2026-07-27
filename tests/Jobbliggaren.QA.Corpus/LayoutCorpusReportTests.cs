@@ -42,7 +42,7 @@ public sealed class LayoutCorpusReportTests
     /// committed baseline's own header — and nothing checks them against each other, so bump it
     /// DELIBERATELY when regenerating, never as a side effect. A stale value would make the
     /// provenance string F3 exists for untrustworthy.</summary>
-    private const string BaseCommit = "43f931fa";
+    private const string BaseCommit = "7a5496fe";
 
     [Fact]
     public async Task LayoutCorpus_FromBytes_EmitsReport()

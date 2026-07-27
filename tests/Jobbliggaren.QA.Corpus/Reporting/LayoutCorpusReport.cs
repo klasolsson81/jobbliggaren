@@ -240,11 +240,16 @@ public static class LayoutCorpusReport
         L("`no verdict` means the handler returned a genuine FAULT, so no gate decided anything;");
         L("that is deliberately distinct from `not evaluated`, where an earlier GATE stopped control.");
         L();
-        var header = d.Cases.Count > 0
-            ? string.Join(" | ", d.Cases[0].Gates.Select(g => $"{g.GateId} ({g.CallSite})"))
-            : "G1 | G2 | G3 | G3b | G4a | G4b";
-        L($"| # | Case | {header} | FIRST BLOCK | Promote fault | Promoted |");
-        L("|---|---|---|---|---|---|---|---|---|---|");
+        var gateHeaders = d.Cases.Count > 0
+            ? d.Cases[0].Gates.Select(g => $"{g.GateId} ({g.CallSite})").ToList()
+            : [];
+        L($"| # | Case | {string.Join(" | ", gateHeaders)} | FIRST BLOCK | Promote fault | Promoted |");
+        // DERIVED, never a literal. The rung count changed with #1060's gate retirement, and the
+        // hardcoded delimiter this replaces was already one cell short of its own header — under
+        // GFM a delimiter row that does not match the header cell count means the block is not
+        // recognised as a table at all, so §5 rendered as raw pipes on GitHub. Deriving it makes
+        // the next rung change unable to reintroduce that.
+        L($"|{string.Concat(Enumerable.Repeat("---|", gateHeaders.Count + 5))}");
         for (var i = 0; i < d.Cases.Count; i++)
         {
             var c = d.Cases[i];
@@ -259,11 +264,11 @@ public static class LayoutCorpusReport
         L("a column printing only the declaration would hide it behind the very content loss this");
         L("corpus measures. The value itself is never printed.");
         L();
-        L("| Case | Confidence overall | Preamble present | pnr authored (body / account) | pnr OBSERVED on parse |");
-        L("|---|---|---|---|---|");
+        L("| Case | Confidence overall | Preamble on parse | Preamble ON THE PROMOTED CV | pnr authored (body / account) | pnr OBSERVED on parse |");
+        L("|---|---|---|---|---|---|");
         foreach (var c in d.Cases)
         {
-            LI($"| `{c.Case.Id}` | {c.ConfidenceOverall ?? "—"} | {Y(c.PreambleChars is not null)} | {AuthoredPnr(c)} | {YN(c.PersonnummerFoundOnParse)} |");
+            LI($"| `{c.Case.Id}` | {c.ConfidenceOverall ?? "—"} | {Y(c.PreambleChars is not null)} | {(c.Promoted ? Y(c.PromotedPreambleChars is not null) : "—")} | {AuthoredPnr(c)} | {YN(c.PersonnummerFoundOnParse)} |");
         }
 
         L();

@@ -35,7 +35,7 @@
 > ./Jobbliggaren.QA.Corpus.exe -class "Jobbliggaren.QA.Corpus.LayoutCorpusReportTests"
 > ```
 >
-> Base commit: `43f931fa`.
+> Base commit: `7a5496fe`.
 > Deterministic; NO AI/LLM anywhere in the measured chain (ADR 0071).
 
 ## Claim discipline (ADR 0109 §4)
@@ -135,7 +135,7 @@ literal "no" on every row forever, which is a decoration rather than a measureme
 | # | Case | Verdict | GT emp | Parsed exp | Promoted exp | Well-formed | GT edu | Parsed edu | Promoted edu | First blocking gate |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 1 | `pdf-sidebar-emitted-first` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 2 | `pdf-interleaved-baseline-fusion` | **Blocked** | 5 | 0 | — | — | 3 | 1 | — | UnclassifiedPreamble |
+| 2 | `pdf-interleaved-baseline-fusion` | **PromotedLossy** | 5 | 0 | 0 | 0 | 3 | 1 | 1 | — |
 | 3 | `pdf-zero-xgap-concat` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 4 | `pdf-single-column-sv` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 5 | `pdf-single-column-spaced` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
@@ -143,8 +143,8 @@ literal "no" on every row forever, which is a decoration rather than a measureme
 | 7 | `pdf-single-column-intra-block-spaced-tight-list` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 8 | `pdf-sidebar-spaced` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 9 | `pdf-single-column-en` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 10 | `pdf-nonsequential-decorative` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | UnclassifiedPreamble |
-| 11 | `pdf-headingless` | **Blocked** | 5 | 0 | — | — | 3 | 0 | — | UnclassifiedPreamble |
+| 10 | `pdf-nonsequential-decorative` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 11 | `pdf-headingless` | **PromotedLossy** | 5 | 0 | 0 | 0 | 3 | 0 | 0 | — |
 | 12 | `pdf-unknown-heading-after-profile` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 13 | `pdf-known-heading-after-profile` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 14 | `pdf-decorated-heading-glue` | **PromotedLossy** | 5 | 0 | 0 | 0 | 3 | 1 | 1 | — |
@@ -172,14 +172,14 @@ row is the finding: the product said the CV was saved and this employment is gon
 | `pdf-sidebar-emitted-first` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
 | `pdf-sidebar-emitted-first` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
 | `pdf-sidebar-emitted-first` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-interleaved-baseline-fusion` | Employment | Klarna AB | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-interleaved-baseline-fusion` | Employment | Volvo Cars | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-interleaved-baseline-fusion` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-interleaved-baseline-fusion` | Employment | Consid AB | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-interleaved-baseline-fusion` | Employment | Sigma IT | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-interleaved-baseline-fusion` | Education | Chalmers tekniska högskola | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-interleaved-baseline-fusion` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-interleaved-baseline-fusion` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedNotPromoted** |
+| `pdf-interleaved-baseline-fusion` | Employment | Klarna AB | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-interleaved-baseline-fusion` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-interleaved-baseline-fusion` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-interleaved-baseline-fusion` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-interleaved-baseline-fusion` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-interleaved-baseline-fusion` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
+| `pdf-interleaved-baseline-fusion` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-interleaved-baseline-fusion` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
 | `pdf-zero-xgap-concat` | Employment | Klarna AB | yes | yes | yes | — | **RetainedButOrphaned** |
 | `pdf-zero-xgap-concat` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
 | `pdf-zero-xgap-concat` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
@@ -236,22 +236,22 @@ row is the finding: the product said the CV was saved and this employment is gon
 | `pdf-single-column-en` | Education | Chalmers University of Technology | yes | yes | yes | — | **Survived** |
 | `pdf-single-column-en` | Education | University of Gothenburg | yes | yes | no | — | **RetainedButOrphaned** |
 | `pdf-single-column-en` | Education | Hvitfeldtska Upper Secondary | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-nonsequential-decorative` | Employment | Klarna AB | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-nonsequential-decorative` | Employment | Volvo Cars | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-nonsequential-decorative` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-nonsequential-decorative` | Employment | Consid AB | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-nonsequential-decorative` | Employment | Sigma IT | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-nonsequential-decorative` | Education | Chalmers tekniska högskola | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-nonsequential-decorative` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-nonsequential-decorative` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-headingless` | Employment | Klarna AB | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-headingless` | Employment | Volvo Cars | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-headingless` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-headingless` | Employment | Consid AB | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-headingless` | Employment | Sigma IT | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-headingless` | Education | Chalmers tekniska högskola | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-headingless` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-headingless` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedNotPromoted** |
+| `pdf-nonsequential-decorative` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
+| `pdf-nonsequential-decorative` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-nonsequential-decorative` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-nonsequential-decorative` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-nonsequential-decorative` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-nonsequential-decorative` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
+| `pdf-nonsequential-decorative` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-nonsequential-decorative` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-headingless` | Employment | Klarna AB | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-headingless` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-headingless` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-headingless` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-headingless` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-headingless` | Education | Chalmers tekniska högskola | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-headingless` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-headingless` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
 | `pdf-unknown-heading-after-profile` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
 | `pdf-unknown-heading-after-profile` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
 | `pdf-unknown-heading-after-profile` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
@@ -416,29 +416,29 @@ settle the label rung, and whatever remains is the DQ6 guard — there is no fou
 `no verdict` means the handler returned a genuine FAULT, so no gate decided anything;
 that is deliberately distinct from `not evaluated`, where an earlier GATE stopped control.
 
-| # | Case | G1 pnr(parse) (pnr on parse) | G2 preamble (preamble) | G3 confidence (confidence) | G3b pnr(label) (pnr in label) | G4a pnr(DQ6) (pnr DQ6) | G4b buildability (buildability) | FIRST BLOCK | Promote fault | Promoted |
+| # | Case | G1 pnr(parse) (pnr on parse) | G2 confidence (confidence) | G2b pnr(label) (pnr in label) | G3a pnr(DQ6) (pnr DQ6) | G3b buildability (buildability) | FIRST BLOCK | Promote fault | Promoted |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | `pdf-sidebar-emitted-first` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 2 | `pdf-interleaved-baseline-fusion` | passed | **BLOCKED** | not evaluated | not evaluated | not evaluated | not evaluated | UnclassifiedPreamble | — | no |
-| 3 | `pdf-zero-xgap-concat` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 4 | `pdf-single-column-sv` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 5 | `pdf-single-column-spaced` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 6 | `pdf-single-column-intra-block-spaced` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 7 | `pdf-single-column-intra-block-spaced-tight-list` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 8 | `pdf-sidebar-spaced` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 9 | `pdf-single-column-en` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 10 | `pdf-nonsequential-decorative` | passed | **BLOCKED** | not evaluated | not evaluated | not evaluated | not evaluated | UnclassifiedPreamble | — | no |
-| 11 | `pdf-headingless` | passed | **BLOCKED** | not evaluated | not evaluated | not evaluated | not evaluated | UnclassifiedPreamble | — | no |
-| 12 | `pdf-unknown-heading-after-profile` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 13 | `pdf-known-heading-after-profile` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 14 | `pdf-decorated-heading-glue` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 15 | `pdf-two-page-seam` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 16 | `pdf-pnr-bearing` | **BLOCKED** | not evaluated | not evaluated | not evaluated | not evaluated | not evaluated | PersonnummerPresent | — | no |
-| 17 | `pdf-clean-body-pnr-in-account-name` | passed | passed | passed | passed | **BLOCKED** | not evaluated | PersonnummerPresent | — | no |
-| 18 | `docx-table-label-first-no-blanks` | passed | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | — | no |
-| 19 | `docx-flat-label-first-no-blanks` | passed | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | — | no |
-| 20 | `docx-table-label-first-with-blanks` | passed | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | — | no |
-| 21 | `docx-role-first-with-blanks` | passed | passed | passed | passed | passed | passed | — | — | yes |
+| 1 | `pdf-sidebar-emitted-first` | passed | passed | passed | passed | passed | — | — | yes |
+| 2 | `pdf-interleaved-baseline-fusion` | passed | passed | passed | passed | passed | — | — | yes |
+| 3 | `pdf-zero-xgap-concat` | passed | passed | passed | passed | passed | — | — | yes |
+| 4 | `pdf-single-column-sv` | passed | passed | passed | passed | passed | — | — | yes |
+| 5 | `pdf-single-column-spaced` | passed | passed | passed | passed | passed | — | — | yes |
+| 6 | `pdf-single-column-intra-block-spaced` | passed | passed | passed | passed | passed | — | — | yes |
+| 7 | `pdf-single-column-intra-block-spaced-tight-list` | passed | passed | passed | passed | passed | — | — | yes |
+| 8 | `pdf-sidebar-spaced` | passed | passed | passed | passed | passed | — | — | yes |
+| 9 | `pdf-single-column-en` | passed | passed | passed | passed | passed | — | — | yes |
+| 10 | `pdf-nonsequential-decorative` | passed | passed | passed | passed | passed | — | — | yes |
+| 11 | `pdf-headingless` | passed | passed | passed | passed | passed | — | — | yes |
+| 12 | `pdf-unknown-heading-after-profile` | passed | passed | passed | passed | passed | — | — | yes |
+| 13 | `pdf-known-heading-after-profile` | passed | passed | passed | passed | passed | — | — | yes |
+| 14 | `pdf-decorated-heading-glue` | passed | passed | passed | passed | passed | — | — | yes |
+| 15 | `pdf-two-page-seam` | passed | passed | passed | passed | passed | — | — | yes |
+| 16 | `pdf-pnr-bearing` | **BLOCKED** | not evaluated | not evaluated | not evaluated | not evaluated | PersonnummerPresent | — | no |
+| 17 | `pdf-clean-body-pnr-in-account-name` | passed | passed | passed | **BLOCKED** | not evaluated | PersonnummerPresent | — | no |
+| 18 | `docx-table-label-first-no-blanks` | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | — | no |
+| 19 | `docx-flat-label-first-no-blanks` | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | — | no |
+| 20 | `docx-table-label-first-with-blanks` | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | — | no |
+| 21 | `docx-role-first-with-blanks` | passed | passed | passed | passed | passed | — | — | yes |
 
 **Observed Domain state** (this is aggregate state, NOT a gate verdict). The personnummer
 column prints the AUTHORED declaration and the OBSERVED aggregate flag side by side: if
@@ -446,29 +446,29 @@ extraction ever loses an authored personnummer, that divergence is itself the fi
 a column printing only the declaration would hide it behind the very content loss this
 corpus measures. The value itself is never printed.
 
-| Case | Confidence overall | Preamble present | pnr authored (body / account) | pnr OBSERVED on parse |
-|---|---|---|---|---|
-| `pdf-sidebar-emitted-first` | Confident | no | none | no |
-| `pdf-interleaved-baseline-fusion` | Confident | yes | none | no |
-| `pdf-zero-xgap-concat` | Confident | no | none | no |
-| `pdf-single-column-sv` | Confident | no | none | no |
-| `pdf-single-column-spaced` | Confident | no | none | no |
-| `pdf-single-column-intra-block-spaced` | Confident | no | none | no |
-| `pdf-single-column-intra-block-spaced-tight-list` | Confident | no | none | no |
-| `pdf-sidebar-spaced` | Confident | no | none | no |
-| `pdf-single-column-en` | Confident | no | none | no |
-| `pdf-nonsequential-decorative` | Degraded | yes | none | no |
-| `pdf-headingless` | Degraded | yes | none | no |
-| `pdf-unknown-heading-after-profile` | Confident | no | none | no |
-| `pdf-known-heading-after-profile` | Confident | no | none | no |
-| `pdf-decorated-heading-glue` | Confident | no | none | no |
-| `pdf-two-page-seam` | Confident | no | none | no |
-| `pdf-pnr-bearing` | Confident | yes | body (synthetic, not printed) | yes |
-| `pdf-clean-body-pnr-in-account-name` | Confident | no | account name (synthetic, not printed) | no |
-| `docx-table-label-first-no-blanks` | Confident | no | none | no |
-| `docx-flat-label-first-no-blanks` | Confident | no | none | no |
-| `docx-table-label-first-with-blanks` | Confident | no | none | no |
-| `docx-role-first-with-blanks` | Confident | no | none | no |
+| Case | Confidence overall | Preamble on parse | Preamble ON THE PROMOTED CV | pnr authored (body / account) | pnr OBSERVED on parse |
+|---|---|---|---|---|---|
+| `pdf-sidebar-emitted-first` | Confident | no | no | none | no |
+| `pdf-interleaved-baseline-fusion` | Confident | yes | yes | none | no |
+| `pdf-zero-xgap-concat` | Confident | no | no | none | no |
+| `pdf-single-column-sv` | Confident | no | no | none | no |
+| `pdf-single-column-spaced` | Confident | no | no | none | no |
+| `pdf-single-column-intra-block-spaced` | Confident | no | no | none | no |
+| `pdf-single-column-intra-block-spaced-tight-list` | Confident | no | no | none | no |
+| `pdf-sidebar-spaced` | Confident | no | no | none | no |
+| `pdf-single-column-en` | Confident | no | no | none | no |
+| `pdf-nonsequential-decorative` | Degraded | yes | yes | none | no |
+| `pdf-headingless` | Degraded | yes | yes | none | no |
+| `pdf-unknown-heading-after-profile` | Confident | no | no | none | no |
+| `pdf-known-heading-after-profile` | Confident | no | no | none | no |
+| `pdf-decorated-heading-glue` | Confident | no | no | none | no |
+| `pdf-two-page-seam` | Confident | no | no | none | no |
+| `pdf-pnr-bearing` | Confident | yes | — | body (synthetic, not printed) | yes |
+| `pdf-clean-body-pnr-in-account-name` | Confident | no | — | account name (synthetic, not printed) | no |
+| `docx-table-label-first-no-blanks` | Confident | no | — | none | no |
+| `docx-flat-label-first-no-blanks` | Confident | no | — | none | no |
+| `docx-table-label-first-with-blanks` | Confident | no | — | none | no |
+| `docx-role-first-with-blanks` | Confident | no | no | none | no |
 
 ## 6. Section confidence, verbatim
 

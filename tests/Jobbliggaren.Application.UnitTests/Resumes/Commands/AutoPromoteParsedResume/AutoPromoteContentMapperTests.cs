@@ -60,6 +60,54 @@ public class AutoPromoteContentMapperTests
             .Summary.ShouldBeNull(); // no profile → honest null, never invented
     }
 
+    // ── Preamble ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// #1060 — the IDENTITY projection, and this row is load-bearing in a way the others are
+    /// not: `Preamble: null` here compiles, promotes cleanly, passes every gate and every other
+    /// test in this file, and silently throws away the whole of the text the gate retirement
+    /// exists to save. It was measured to survive before this test was written.
+    /// </summary>
+    [Fact]
+    public void ToContentDto_PreambleCarriesVerbatim_NeverDropped()
+    {
+        const string preamble = "Erfaren backend-utvecklare med tio år i betalbranschen.";
+
+        AutoPromoteContentMapper.ToContentDto(
+                FullParse() with { Preamble = preamble }, AccountName)
+            .Preamble.ShouldBe(preamble);
+    }
+
+    /// <summary>
+    /// And the two mappings that would MINT rather than carry: → Summary claims the text IS the
+    /// user's profile (ADR 0109 §1's one absolute prohibition), → Section needs a heading she
+    /// never wrote and would render it into a document she sends to employers. The preamble
+    /// travels under its own name or not at all.
+    /// </summary>
+    [Fact]
+    public void ToContentDto_PreambleIsNeverFoldedIntoSummaryOrASection()
+    {
+        const string preamble = "Erfaren backend-utvecklare med tio år i betalbranschen.";
+
+        // A parse with a preamble and NO profile — the exact shape that tempts the fold.
+        var dto = AutoPromoteContentMapper.ToContentDto(
+            new ParsedResumeContent(ParsedContact.Empty) with { Preamble = preamble },
+            AccountName);
+
+        dto.Summary.ShouldBeNull();
+        (dto.Sections ?? []).ShouldBeEmpty();
+        dto.Preamble.ShouldBe(preamble);
+    }
+
+    [Fact]
+    public void ToContentDto_NoPreamble_MapsToNull_NeverEmptyString()
+    {
+        // Null means "no region above the first heading" and drives the affordance's ABSENCE;
+        // collapsing it to "" would render an empty quote box on every imported CV.
+        AutoPromoteContentMapper.ToContentDto(FullParse(), AccountName)
+            .Preamble.ShouldBeNull();
+    }
+
     // ── Experience ───────────────────────────────────────────────────────
 
     [Fact]

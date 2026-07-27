@@ -181,6 +181,7 @@ public sealed class LayoutCorpusEmitterTests
             ParsedExperience: 1, ParsedEducation: 1,
             GroundTruthExperience: 5, GroundTruthEducation: 3,
             PromotedExperience: 1, PromotedEducation: 1, WellFormedPromotedExperience: 1,
+            PromotedPreambleChars: null,
             BlockReason: null, Promoted: true,
             Gates: GateLadder.From(null, true, false, false, false),
             Markers: [],

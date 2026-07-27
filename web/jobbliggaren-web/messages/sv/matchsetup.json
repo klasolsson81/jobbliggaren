@@ -17,6 +17,7 @@
     "meta": {
       "frivilligtCv": "Frivilligt CV",
       "cvInlast": "CV inläst",
+      "cvSparat": "CV sparat",
       "ejIfyllt": "Ej ifyllt",
       "allaYrken": "Alla yrken",
       "ingaValda": "Inga valda",
@@ -42,6 +43,7 @@
     "uploadBody": "PDF eller Word (DOCX), max 10 MB. Vi föreslår yrken och kompetenser utifrån innehållet. Ditt CV ändras inte.",
     "noCv": "Inget CV till hands? <b>Fortsätt utan CV</b> och välj allt själv.",
     "cvDoneTitle": "CV inläst: {filename}",
+    "cvSavedTitle": "CV sparat: {filename}",
     "cvDoneBody": "Vi har fyllt i förslag på yrken och kompetenser i stegen. Förslagen sparas inte i ditt CV."
   },
   "yrken": {

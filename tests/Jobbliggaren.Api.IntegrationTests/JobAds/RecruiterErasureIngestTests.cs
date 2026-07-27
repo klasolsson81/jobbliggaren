@@ -1,7 +1,9 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 using Jobbliggaren.Application.JobAds.Commands.UpsertExternalJobAd;
+using Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
@@ -500,8 +502,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         {
             var db = purge.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            // Exactly what PurgeStaleRawPayloadsJob does once the payload is purge-eligible.
-            await db.Database.ExecuteSqlRawAsync("UPDATE job_ads SET raw_payload = NULL;", ct);
+            await PurgeRawPayloadsThroughTheJobAsync(db, ct);
 
             var ad = await db.JobAds.AsNoTracking()
                 .SingleAsync(j => j.External!.ExternalId == SoleTraderExternalId, ct);
@@ -1781,7 +1782,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         using (var purge = _provider.CreateScope())
         {
             var db = purge.ServiceProvider.GetRequiredService<AppDbContext>();
-            await db.Database.ExecuteSqlRawAsync("UPDATE job_ads SET raw_payload = NULL;", ct);
+            await PurgeRawPayloadsThroughTheJobAsync(db, ct);
         }
 
         // The WRITTEN form, hyphen and all — round 5's arm would never have matched it against
@@ -2132,5 +2133,59 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     private sealed class FixedClock : IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = new(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);
+    }
+
+    /// <summary>Collaborator, not a premise — nothing here is asserted against.</summary>
+    private sealed class NoOpSystemEventAuditor : ISystemEventAuditor
+    {
+        public Task RecordAsync(SystemAuditEvent evt, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Purges the corpus's raw payloads by RUNNING <see cref="PurgeStaleRawPayloadsJob"/>, which is
+    /// the actor, instead of emulating it with <c>UPDATE job_ads SET raw_payload = NULL</c>.
+    ///
+    /// <para>
+    /// The SQL seam this replaces claimed to be "exactly what the job does once the payload is
+    /// purge-eligible", and that was <b>false for the rows it ran on</b>: the fixture publishes
+    /// 2026-07-01…05 against a 2026-07-13 clock, so at the 30-day default the job's cutoff is
+    /// 2026-06-13 and it would have selected <b>none</b> of them. These tests assert an Art. 17
+    /// production fact — that a named person is still found, and that reporting otherwise would be
+    /// a false "we hold nothing about you" — so the premise may not be one production cannot
+    /// produce (CLAUDE.md §5 <c>Tests:</c>).
+    /// </para>
+    ///
+    /// <para>
+    /// Retention is bound to 1 day through <see cref="IOptions{T}"/>, inside the
+    /// <c>[Range(1,365)]</c> contract, so the cutoff is 2026-07-12 and the whole corpus is
+    /// genuinely eligible. The job then does the table-wide purge itself — which is the point of
+    /// these tests, and why narrowing to a single provably-eligible ad would have weakened them.
+    /// </para>
+    /// </summary>
+    private static async Task PurgeRawPayloadsThroughTheJobAsync(
+        AppDbContext db, CancellationToken ct)
+    {
+        var carriedPayloadBefore = await db.JobAds.CountAsync(j => j.RawPayload != null, ct);
+        carriedPayloadBefore.ShouldBeGreaterThan(0,
+            "the purge must have something to purge, or the test proves nothing about purging");
+
+        var job = new PurgeStaleRawPayloadsJob(
+            db,
+            new FixedClock(),
+            Options.Create(new JobSourceRetentionOptions { RawPayloadRetentionDays = 1 }),
+            new NoOpSystemEventAuditor(),
+            NullLogger<PurgeStaleRawPayloadsJob>.Instance);
+
+        await job.RunAsync(ct);
+        db.ChangeTracker.Clear();
+
+        // The real job must null the SAME set the old table-wide UPDATE did. If it leaves any
+        // payload behind, the seam was purging rows production would have kept, and that
+        // difference is a finding rather than a detail.
+        (await db.JobAds.CountAsync(j => j.RawPayload != null, ct)).ShouldBe(0,
+            "PurgeStaleRawPayloadsJob must reach every ad in this corpus at a 1-day retention; "
+            + "any survivor means the corpus is not uniformly eligible and the old SQL seam was "
+            + "nulling payloads the job would have kept");
     }
 }

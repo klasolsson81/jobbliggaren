@@ -47,8 +47,10 @@ public sealed record LayoutCase(
     /// guard sees that the import scan did not already cover.</summary>
     string AccountDisplayName = LayoutCaseCatalog.DefaultAccountName);
 
-/// <summary>The 16 authored cases. Ordered PDF then DOCX, controls adjacent to what they
-/// control.</summary>
+/// <summary>The authored cases, ordered PDF then DOCX with controls adjacent to what they
+/// control. The count is deliberately NOT written here: two revisions of this comment carried a
+/// stale number (16 while 17 existed, then 19 while 20 existed), and a third revision replaced
+/// them with a claim about where the count is emitted that was itself false. Count the list.</summary>
 public static class LayoutCaseCatalog
 {
     private const string Pdf = "application/pdf";
@@ -84,8 +86,16 @@ public static class LayoutCaseCatalog
             "two geometric columns, emitted column-sequentially (sidebar block before main block)",
             "(a) two-column/sidebar — answered",
             "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SidebarEmittedFirst, CvModel.Swedish,
-            p => p.RequireVerticalGutter(15),
-            "a vertical gutter of at least 15 pt exists, which a single-column render cannot produce",
+            p =>
+            {
+                p.RequireVerticalGutter(15);
+                // #1060 PR E: the UNSPACED half of the pair with pdf-sidebar-spaced, per column
+                // (see RequireAuthoredParagraphSpacing on why a merged baseline series lies here).
+                p.RequireUniformLineSpacing(tolerancePoints: 2, splitX: ColumnSplitX);
+            },
+            "a vertical gutter of at least 15 pt exists (a single-column render cannot produce it), "
+            + "AND within each column every inter-baseline gap is within 2 pt of every other "
+            + "(uniform leading — no authored block spacing)",
             SpikeMeasuredExtractSegment: true,
             ProjectHeadingRendered: UnknownProjectHeading),
 
@@ -109,9 +119,106 @@ public static class LayoutCaseCatalog
             "single-column chronological, blocks in document order",
             "(b) single-column chronological — answered",
             "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SingleColumn, CvModel.Swedish,
-            p => p.RequireNoVerticalGutter(15),
-            "no vertical gutter of 15 pt or more exists, so the page is not multi-column",
+            p =>
+            {
+                p.RequireNoVerticalGutter(15);
+                // #1060 PR E: the UNSPACED half of the one-variable pair with
+                // pdf-single-column-spaced. Declared, not assumed: without this the claim "this
+                // document authors no paragraph spacing" was a property of the renderer that no
+                // artifact recorded, which is exactly how the corpus came to be blind to spacing
+                // in the first place. It is the exact negation of the spaced twin's proof, so the
+                // two cannot both hold.
+                p.RequireUniformLineSpacing(tolerancePoints: 2);
+            },
+            "no vertical gutter of 15 pt or more exists (not multi-column), AND every inter-baseline "
+            + "gap is within 2 pt of every other (uniform leading — no authored block spacing)",
             SpikeMeasuredExtractSegment: true,
+            ProjectHeadingRendered: UnknownProjectHeading),
+
+        // #1060 PR E — the SPACED cases. Every case above authors uniform leading, which made the
+        // corpus unable to separate "the extractor discards the paragraph boundary" from "the
+        // document never carried one". These supply the missing control. A geometry-derived
+        // boundary rule was built against them and WITHDRAWN when a later arm measured it turning
+        // a promoting CV into a hard block, so nothing in the tree reads them today. They exist so
+        // the NEXT attempt is measured rather than plausible (CTO-bind 2026-07-27 §A1.1 +
+        // amendment 2).
+        new("pdf-single-column-spaced",
+            "single-column chronological, authored as blocks with paragraph spacing between them "
+            + "(the way a word processor lays a CV out)",
+            "(b) single-column chronological — the SPACED arm, which the class was missing",
+            "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SingleColumnSpaced, CvModel.Swedish,
+            p =>
+            {
+                p.RequireNoVerticalGutter(15);
+                p.RequireAuthoredParagraphSpacing(minCount: 8, minExtraPoints: 6);
+            },
+            "no vertical gutter of 15 pt or more exists (still one column), AND at least eight "
+            + "inter-baseline gaps exceed the tightest by 6 pt or more (the authored block spacing)",
+            SpikeMeasuredExtractSegment: false,
+            OneVariableStepFrom: "pdf-single-column-sv",
+            ProjectHeadingRendered: UnknownProjectHeading),
+
+        new("pdf-single-column-intra-block-spaced",
+            "single-column chronological, paragraph spacing between AND inside employments",
+            "(b) single-column chronological — the arm that exhibits an intra-ENTRY paragraph gap",
+            "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SingleColumnIntraBlockSpaced, CvModel.Swedish,
+            p =>
+            {
+                p.RequireNoVerticalGutter(15);
+                p.RequireAuthoredParagraphSpacing(minCount: 8, minExtraPoints: 6);
+                // The distinguishing claim, PROVED rather than authored: a gap sits between the
+                // first employment's period line and its description line — INSIDE one entry.
+                // Without this the case would differ from pdf-single-column-spaced only in the
+                // renderer, and no artifact would record it.
+                p.RequireGapBetweenLines("2026", "Ansvarig", minExtraPoints: 6);
+            },
+            "no vertical gutter of 15 pt or more exists (still one column), at least eight "
+            + "inter-baseline gaps exceed the tightest by 6 pt or more, AND one of those gaps falls "
+            + "INSIDE an employment (between its period line and its description line) — the "
+            + "distinction no other case can make",
+            SpikeMeasuredExtractSegment: false,
+            OneVariableStepFrom: "pdf-single-column-spaced",
+            ProjectHeadingRendered: UnknownProjectHeading),
+
+        new("pdf-single-column-intra-block-spaced-tight-list",
+            "the same, with the skills list lengthened so bare leading is the page's MEDIAN gap",
+            "(b) single-column chronological — the second knob, isolated from the first",
+            "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SingleColumnIntraBlockSpacedTightList,
+            CvModel.Swedish,
+            p =>
+            {
+                p.RequireNoVerticalGutter(15);
+                p.RequireAuthoredParagraphSpacing(minCount: 8, minExtraPoints: 6);
+                p.RequireGapBetweenLines("2026", "Ansvarig", minExtraPoints: 6);
+            },
+            "the same form as its predecessor, with a longer tightly-leaded list — so the two "
+            + "knobs the withdrawn boundary rule failed on are separated into two measured rows "
+            + "instead of asserted together in prose",
+            SpikeMeasuredExtractSegment: false,
+            OneVariableStepFrom: "pdf-single-column-intra-block-spaced",
+            ProjectHeadingRendered: UnknownProjectHeading),
+
+        new("pdf-sidebar-spaced",
+            "two geometric columns emitted column-sequentially, WITH paragraph spacing between "
+            + "blocks — the shape the real CV in #1060 was measured to have",
+            "(a) two-column/sidebar — the SPACED arm; carries a LIMIT, not a fix",
+            "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SidebarSpaced, CvModel.Swedish,
+            p =>
+            {
+                p.RequireVerticalGutter(15);
+                // splitX separates the sidebar (page margin 40 + width 150 = ends at 190) from the
+                // main column (starts at 210). Passing it is REQUIRED here: merged into one
+                // baseline series the two columns' interleaving makes the "tightest gap" an
+                // inter-column offset rather than a line pitch, and the proof would hold on a
+                // document carrying no block spacing at all — silently certifying this case's
+                // whole claim.
+                p.RequireAuthoredParagraphSpacing(minCount: 8, minExtraPoints: 6, splitX: ColumnSplitX);
+            },
+            "a vertical gutter of at least 15 pt exists (still two columns), AND at least eight "
+            + "inter-baseline gaps exceed the tightest by 6 pt or more — so any failure to recover "
+            + "entries here is NOT the document withholding the boundary",
+            SpikeMeasuredExtractSegment: false,
+            OneVariableStepFrom: "pdf-sidebar-emitted-first",
             ProjectHeadingRendered: UnknownProjectHeading),
 
         new("pdf-single-column-en",

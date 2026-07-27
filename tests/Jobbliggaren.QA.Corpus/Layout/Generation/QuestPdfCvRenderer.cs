@@ -31,6 +31,21 @@ internal static class QuestPdfCvRenderer
     private const float SidebarWidthPoints = 150f;
     private const float PageMarginPoints = 40f;
 
+    /// <summary>
+    /// Word's documented default paragraph spacing (8 pt after a Normal paragraph). Used by the
+    /// SPACED cases and by nothing else.
+    ///
+    /// <para><b>Why this number and not another (#1060 PR E).</b> Every other case in this file
+    /// authored NO vertical spacing whatsoever — measured 2026-07-27, all thirteen PDF cases that
+    /// predate this PR emit
+    /// exactly one inter-baseline gap value (12.0 pt) across every page. That was invisible until
+    /// PR E needed it, and it made the corpus unable to distinguish "the extractor discards the
+    /// paragraph boundary" from "the document never had one". This value is taken from the word
+    /// processor most Swedish CVs are written in, NOT chosen by trying values until a downstream
+    /// rule fires; the rule that reads it must never appear in this file.</para>
+    /// </summary>
+    private const float WordDefaultParagraphSpacingPoints = 8f;
+
     /// <summary>The plainest possible chronological CV: one column, headings, blocks in document
     /// order. The point of this mechanic is its ORDINARINESS — if the entry collapse reproduces
     /// here, the defect is a property of the container, not of exotic layout.</summary>
@@ -44,6 +59,108 @@ internal static class QuestPdfCvRenderer
             Section(col, m.Headings.Skills, m.Skills);
             Section(col, m.Headings.Languages, m.Languages);
             Section(col, m.Headings.UnknownProjects, m.ProjectLines);
+        }));
+
+    /// <summary>
+    /// The same chronological CV as <see cref="SingleColumn"/>, authored the way a word processor
+    /// actually lays one out: as BLOCKS with paragraph spacing between them, not as a flat run of
+    /// equally-spaced lines. One-variable step from <c>pdf-single-column-sv</c> — same content,
+    /// same order, same single column; the only difference is that the vertical boundary between
+    /// two employments exists in the geometry.
+    ///
+    /// <para>The corpus needed this case and did not have it. Its thirteen sibling PDF cases carry
+    /// a single gap value end to end, so "zero blank lines" had two candidate causes — the
+    /// extractor call suppressing them and the generator never authoring any — and the fixture set
+    /// could only ever observe the pair. This case controls the second, which is what makes the
+    /// first measurable.</para>
+    /// </summary>
+    internal static byte[] SingleColumnSpaced(CvModel m) =>
+        Render(page => page.Content().Column(col =>
+        {
+            col.Spacing(WordDefaultParagraphSpacingPoints);
+            SpacedBody(col, m);
+        }));
+
+    /// <summary>
+    /// <see cref="SingleColumnSpaced"/> with the same paragraph spacing applied INSIDE each
+    /// employment and education as well as between them. <b>True one-variable step from
+    /// <c>pdf-single-column-spaced</c>:</b> identical content, identical order, identical section
+    /// sequence — every line of an entry is simply its own block, so Word's space-after falls
+    /// between them. Nothing else moves.
+    ///
+    /// <para><b>This is the arm the corpus was missing, and its absence hid a regression</b>
+    /// (#1060 PR E, measured 2026-07-27). Every other spaced case renders an employment as ONE
+    /// block with spacing only between blocks, so no fixture could exhibit a paragraph gap INSIDE
+    /// an entry — which a word processor emits whenever a period or description line is an
+    /// ordinary paragraph. A geometry-derived boundary rule was built against that fixture set,
+    /// passed every clause of its pre-committed acceptance rule, and was then measured on this
+    /// shape to split entries apart, producing fragments with no organization that
+    /// <c>Resume.ValidateContent</c> rejects. The rule was withdrawn; this fixture is what makes
+    /// the next attempt measurable instead of plausible.</para>
+    ///
+    /// <para>This knob ALONE was measured NOT to reproduce the failure — the page median rises to
+    /// absorb the intra-entry spacing. The second knob lives in
+    /// <see cref="SingleColumnIntraBlockSpacedTightList"/>, one further single-variable step, so
+    /// that "neither knob alone reproduces it" is a pair of measured rows rather than a
+    /// sentence.</para>
+    /// </summary>
+    internal static byte[] SingleColumnIntraBlockSpaced(CvModel m) =>
+        Render(page => page.Content().Column(col =>
+        {
+            col.Spacing(WordDefaultParagraphSpacingPoints);
+            SpacedBody(col, m, lineBlocked: true);
+        }));
+
+    /// <summary>
+    /// <see cref="SingleColumnIntraBlockSpaced"/> with the skills list lengthened to hold the
+    /// page's MEDIAN inter-baseline gap down at bare leading. <b>One-variable step from
+    /// <c>pdf-single-column-intra-block-spaced</c>:</b> same structure, same order, more list
+    /// items — and the extra items are DISTINCT strings, so the case cannot be mistaken for a
+    /// repetition artifact.
+    ///
+    /// <para>The two knobs together are what the withdrawn rule failed on, and the failure is a
+    /// WINDOW rather than a threshold: with the list short the median rises and absorbs the
+    /// intra-entry spacing; with it very long the median falls back. Both knobs are ordinary
+    /// word-processor defaults — Normal's space-after, and a list style that suppresses spacing
+    /// between items of the same style.</para>
+    /// </summary>
+    internal static byte[] SingleColumnIntraBlockSpacedTightList(CvModel m) =>
+        Render(page => page.Content().Column(col =>
+        {
+            col.Spacing(WordDefaultParagraphSpacingPoints);
+            SpacedBody(col, m, lineBlocked: true, tightListPadding: TightListPadding);
+        }));
+
+    /// <summary>
+    /// <see cref="SidebarEmittedFirst"/> with the same paragraph spacing as
+    /// <see cref="SingleColumnSpaced"/> — a one-variable step from <c>pdf-sidebar-emitted-first</c>.
+    ///
+    /// <para>This case exists to record a LIMIT, not a fix. The two-column shape is the one PR K
+    /// anchored to the real CV that filed #1060, and a reader who one day sees the spaced
+    /// single-column case improve will reasonably assume the spaced sidebar does too. It will not.
+    /// The governing reason is ORDER, not shared baselines: a top-to-bottom line list interleaves
+    /// the two columns while <c>ContentOrderTextExtractor</c> emits them column-sequentially, so
+    /// the two disagree at the first crossing even when no baseline coincides. (Coinciding
+    /// baselines do occur — both columns start at the same top y — but they are not what carries
+    /// it, and the report records "a line carries both columns: no" for this case.) It matters
+    /// because someone who believes shared baselines are the cause may think a baseline dedup
+    /// fixes the sidebar. It does not. Carrying that as a measured row rather than a sentence in a
+    /// PR body is the whole point — prose is not
+    /// regenerated when the code changes.</para>
+    /// </summary>
+    internal static byte[] SidebarSpaced(CvModel m) =>
+        Render(page => page.Content().Row(row =>
+        {
+            row.ConstantItem(SidebarWidthPoints).Column(col =>
+            {
+                col.Spacing(WordDefaultParagraphSpacingPoints);
+                Block(col, SidebarBlocks(m));
+            });
+            row.RelativeItem().PaddingLeft(20).Column(col =>
+            {
+                col.Spacing(WordDefaultParagraphSpacingPoints);
+                SpacedBody(col, m, includeIdentity: false);
+            });
         }));
 
     /// <summary>Geometrically two-column, emitted column-sequentially: QuestPDF's
@@ -265,6 +382,115 @@ internal static class QuestPdfCvRenderer
             page.DefaultTextStyle(t => t.FontSize(10));
             build(page);
         })).GeneratePdf();
+
+    // ---- SPACED authoring (#1060 PR E) --------------------------------------------------
+    // The spaced cases differ from their unspaced twins in exactly one thing: lines are grouped
+    // into BLOCKS and the parent column spaces the blocks apart. Within a block the lines keep
+    // ordinary leading, so the gap that appears between two employments is the only new signal.
+    // These helpers are used ONLY by the spaced cases — every pre-existing case still renders
+    // through the unspaced helpers below and its bytes are unchanged.
+
+    /// <summary>One block: its lines at ordinary leading, spaced from its neighbours by the
+    /// parent column. An empty block renders nothing (no stray gap).</summary>
+    private static void Block(ColumnDescriptor col, IReadOnlyList<string> lines)
+    {
+        if (lines.Count == 0)
+            return;
+
+        col.Item().Column(block =>
+        {
+            foreach (var line in lines)
+                block.Item().Text(line);
+        });
+    }
+
+    private static void Block(ColumnDescriptor col, IReadOnlyList<IReadOnlyList<string>> blocks)
+    {
+        foreach (var block in blocks)
+            Block(col, block);
+    }
+
+    /// <summary>
+    /// The spaced document body, in the same order <see cref="SingleColumn"/> emits it. Headings
+    /// are their own blocks, as a word processor's heading style produces.
+    ///
+    /// <para>Every spaced case routes through here so the differences between them are exactly the
+    /// PARAMETERS and nothing else — an earlier revision hand-rolled a second body and silently
+    /// moved the skills section as well, which turned a declared one-variable step into a
+    /// three-variable one.</para>
+    /// </summary>
+    /// <param name="lineBlocked">When true, each LINE of an employment or education is its own
+    /// block, so the parent column's spacing falls INSIDE the entry as well as between entries.
+    /// That is the single variable <c>pdf-single-column-intra-block-spaced</c> adds.</param>
+    /// <param name="tightListPadding">Extra DISTINCT skill lines appended to the skills block, at
+    /// ordinary leading. They hold the page's median gap down at bare leading — the single variable
+    /// <c>pdf-single-column-intra-block-spaced-tight-list</c> adds. Distinct rather than repeated
+    /// so the case cannot be read as a repetition artifact.</param>
+    private static void SpacedBody(
+        ColumnDescriptor col,
+        CvModel m,
+        bool includeIdentity = true,
+        bool lineBlocked = false,
+        IReadOnlyList<string>? tightListPadding = null)
+    {
+        if (includeIdentity)
+            Block(col, [m.PersonName, m.Email, m.Phone, m.City]);
+
+        Block(col, [m.Headings.Profile]);
+        Block(col, m.ProfileLines);
+
+        Block(col, [m.Headings.Experience]);
+        foreach (var e in m.Employments)
+            Entry(col, [$"{e.Role} - {e.Marker}", e.Period, e.Bullet], lineBlocked);
+
+        Block(col, [m.Headings.Education]);
+        foreach (var e in m.Educations)
+            Entry(col, [$"{e.Degree} - {e.Marker}", e.Period], lineBlocked);
+
+        Block(col, [m.Headings.Skills]);
+        Block(col, tightListPadding is null ? m.Skills : [.. m.Skills, .. tightListPadding]);
+        Block(col, [m.Headings.Languages]);
+        Block(col, m.Languages);
+        Block(col, [m.Headings.UnknownProjects]);
+        Block(col, m.ProjectLines);
+    }
+
+    /// <summary>One entry: as a single block (spacing only around it) or one block per line
+    /// (spacing also between its lines).</summary>
+    private static void Entry(ColumnDescriptor col, IReadOnlyList<string> lines, bool lineBlocked)
+    {
+        if (!lineBlocked)
+        {
+            Block(col, lines);
+            return;
+        }
+
+        foreach (var line in lines)
+            Block(col, [line]);
+    }
+
+    /// <summary>Extra skill lines for the tight-list arm: real tool names, so the lengthened list
+    /// is a longer LIST rather than the same seven items repeated. Distinct from each other AND
+    /// from <see cref="CvModel.Swedish"/>'s own <c>Skills</c> — an earlier revision included
+    /// Kubernetes and Terraform, which are already in that list, so the report counted 21 entries
+    /// of which only 19 were unique while the doc comment claimed distinctness.</summary>
+    private static readonly string[] TightListPadding =
+    [
+        "RabbitMQ", "Redis", "Grafana", "OpenTelemetry", "Azure DevOps",
+        "GitHub Actions", "Playwright", "xUnit", "Entity Framework Core", "Dapper",
+        "SignalR", "MassTransit", "OpenSearch", "Keycloak",
+    ];
+
+    /// <summary>The sidebar's blocks, mirroring <see cref="SidebarLines"/>'s content exactly so the
+    /// spaced and unspaced sidebar cases differ only in spacing.</summary>
+    private static List<IReadOnlyList<string>> SidebarBlocks(CvModel m) =>
+    [
+        [m.PersonName, m.Email, m.Phone, m.City],
+        [m.Headings.Skills],
+        m.Skills,
+        [m.Headings.Languages],
+        m.Languages,
+    ];
 
     private static void Identity(ColumnDescriptor col, CvModel m)
     {

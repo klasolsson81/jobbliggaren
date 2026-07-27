@@ -27,8 +27,9 @@ namespace Jobbliggaren.QA.Corpus;
 /// asserted.</i></para>
 ///
 /// <para>That rule is what stops this suite from blocking its own remedy: asserting
-/// <c>BlankLineCount == 0</c> would turn every PDF case red the day PR E lands, on a suite whose
-/// whole purpose is to measure PR E's effect. THREE asserts do touch production, each argued at
+/// <c>BlankLineCount == 0</c> would turn every PDF case red the day a boundary fix lands, on a
+/// suite whose whole purpose is to measure that fix's effect. (PR E built one and withdrew it;
+/// the rule matters exactly as much for the attempt that follows.) THREE asserts do touch production, each argued at
 /// the assert block below — crash-safety, kind resolution, and marker visibility. No parsing
 /// OUTCOME is asserted anywhere.</para>
 ///
@@ -41,7 +42,7 @@ public sealed class LayoutCorpusReportTests
     /// committed baseline's own header — and nothing checks them against each other, so bump it
     /// DELIBERATELY when regenerating, never as a side effect. A stale value would make the
     /// provenance string F3 exists for untrustworthy.</summary>
-    private const string BaseCommit = "0eb6f7f2";
+    private const string BaseCommit = "43f931fa";
 
     [Fact]
     public async Task LayoutCorpus_FromBytes_EmitsReport()

@@ -29,7 +29,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Applications;
 //
 //   2) Soft-raderad EGEN version → NotFound (global query filter genom SelectMany).
 //      Bevisar att ResumeVersion-filtret (DeletedAt == null,
-//      ResumeVersionConfiguration.cs:67) flödar genom HasMany().WithOne()-
+//      ResumeVersionConfiguration.Configure) flödar genom HasMany().WithOne()-
 //      navigationen (riktig relation, ej owned) ut i handlerns ownership-uppslag.
 //
 // Varför Npgsql och inte InMemory: EF InMemory modellerar INTE global query filter
@@ -80,13 +80,15 @@ public class AttachResumeVersionHandlerIntegrationTests(ApiFactory factory)
     /// Seedar ett CV vars TAILORED-version är soft-raderad genom produktionsvägen:
     /// <see cref="Resume.CreateTailored"/> skapar den, <see cref="Resume.DeleteVersion"/>
     /// raderar den. Ingen SQL, ingen kolumn-seed — aktören som skriver
-    /// <c>deleted_at</c> är domänmetoden själv, och testet asserterar att dess eget
-    /// predikat släpper igenom tillståndet (CLAUDE.md §5 <c>Tests:</c>, Tier 1).
+    /// <c>deleted_at</c> är domänmetoden själv, och eftersom den är anropbar här
+    /// asserterar testet att dess eget predikat släpper igenom tillståndet
+    /// (CLAUDE.md §5 <c>Tests:</c>).
     ///
     /// Versionen är avsiktligt Tailored och inte Master: <c>DeleteVersion</c> vägrar
     /// Master (<c>Resume.MasterCannotBeDeleted</c>), så en soft-raderad Master är ett
     /// invariant-förbjudet tillstånd. Query-filtret som testas är detsamma för båda —
-    /// det sitter på <c>ResumeVersion.DeletedAt</c> och känner inte till <c>Kind</c> —
+    /// det sitter på <c>ResumeVersion.DeletedAt</c> (se
+    /// <c>ResumeVersionConfiguration.Configure</c>) och känner inte till <c>Kind</c> —
     /// så den relationella egenskapen bevisas lika starkt av det nåbara fallet.
     /// </summary>
     private static async Task<ResumeVersionId> SeedResumeWithSoftDeletedTailoredAsync(
@@ -97,8 +99,14 @@ public class AttachResumeVersionHandlerIntegrationTests(ApiFactory factory)
         var resume = Resume.Create(seekerId, "Mitt CV", "Klas Olsson", clock).Value;
 
         var tailored = resume.CreateTailored(TailoredContent, clock);
-        tailored.IsSuccess.ShouldBeTrue();
+        tailored.IsSuccess.ShouldBeTrue(
+            "ValidateContent måste acceptera TailoredContent — annars är premissen " +
+            "för det här testet inte nåbar via domänen.");
 
+        // `false` är inte ett antagande: ansökan skapas FÖRST efter den här
+        // hjälparen, så ingen öppen ansökan kan referera versionen ännu. Det är
+        // samma värde produktionens DeleteResumeVersionCommandHandler skulle
+        // härleda för det här tillståndet.
         var deleted = resume.DeleteVersion(
             tailored.Value, isReferencedByOpenApplication: false, clock);
         deleted.IsSuccess.ShouldBeTrue(
@@ -107,6 +115,23 @@ public class AttachResumeVersionHandlerIntegrationTests(ApiFactory factory)
 
         db.Resumes.Add(resume);
         await db.SaveChangesAsync(ct);
+
+        // Premissen måste nå DATABASEN, inte bara aggregatets minne. Utan den här
+        // assertionen skulle en framtida hard-delete i DeleteVersion (`_versions
+        // .Remove`) göra handlerns `AnyAsync` falsk därför att RADEN SAKNAS — testet
+        // stannar grönt medan query-filtret aldrig utövas, och filhuvudets påstående
+        // om SelectMany-filtret blir tyst falskt. `IgnoreQueryFilters` är enda sättet
+        // att se raden som filtret är till för att dölja.
+        db.ChangeTracker.Clear();
+        var persisted = await db.Resumes
+            .AsNoTracking()
+            .IgnoreQueryFilters()
+            .SelectMany(r => r.Versions)
+            .SingleAsync(v => v.Id == tailored.Value, ct);
+        persisted.DeletedAt.ShouldNotBeNull(
+            "Raden måste finnas kvar med deleted_at satt — annars testar det som " +
+            "följer frånvaro av en rad, inte query-filtret.");
+
         return tailored.Value;
     }
 
@@ -201,6 +226,14 @@ public class AttachResumeVersionHandlerIntegrationTests(ApiFactory factory)
         // SelectMany → ownership-uppslaget missar → NotFound.
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("ResumeVersion.NotFound");
+
+        // Handlern gör TVÅ uppslag: ownership och en existens-probe som avgör om
+        // ett miss ska loggas som cross-user. Att lägga IgnoreQueryFilters på ENBART
+        // proben (en rimlig "täpp till audit-blindfläcken"-ändring) skulle emittera
+        // en cross-user-post för användarens EGET soft-raderade CV — en falsk post i
+        // säkerhetsloggen (ADR 0031) som annars förblir osynlig för alla tre testerna.
+        failedAccessLogger.DidNotReceive().LogCrossUserAttempt(
+            Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>());
 
         db.ChangeTracker.Clear();
         var reloaded = await db.Applications

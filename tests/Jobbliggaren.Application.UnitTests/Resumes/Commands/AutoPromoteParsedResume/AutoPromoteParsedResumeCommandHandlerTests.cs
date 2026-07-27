@@ -379,6 +379,12 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         result.IsSuccess.ShouldBeTrue();
         var content = db.Resumes.Local.ShouldHaveSingleItem().MasterVersion.Content;
 
+        // It IS carried — under its own name. Asserting only the two negatives below would
+        // pass just as happily on a promote that dropped the text entirely, which is the
+        // failure this whole PR exists to prevent and which a mutation run confirmed no other
+        // test in this file catches.
+        content.Preamble.ShouldBe(preamble);
+
         // The file's OWN "Profil" block still lands in Summary, verbatim — the preamble does not.
         content.Summary.ShouldBe("Erfaren backend-utvecklare.");
         content.Sections.ShouldAllBe(s => s.Heading != preamble);

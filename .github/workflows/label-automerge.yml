@@ -42,6 +42,11 @@
 # auto-merge: granskarna svarade mot en diff som inte längre är den som mergas.
 # `automerge` lämnas kvar — avsikten har inte ändrats.
 #
+# ÅTERKALLAD LABEL AVVÄPNAR OCKSÅ. Tas `agents-done` (eller `automerge`) bort
+# stängs auto-merge av — den symbol som GER tillstånd måste också kunna ÅTERKALLA
+# det. Det är vägen en session ska använda när en sen granskarrapport kommer in
+# med ett Blocker: ta bort `agents-done`, inte pusha en tom commit.
+#
 # Säkerhet: `pull_request` (ej `pull_request_target`) → fork-PRs får read-only
 # token. Required `ci` gatar fortfarande mergen via branch protection (ADR 0065).
 # GitHub har INGEN per-label-behörighet, så `agents-done` är en konvention med en
@@ -116,15 +121,41 @@ jobs:
         # gatar auto-mergen.
         run: |
           set -euo pipefail
-          state=$(gh pr view "$PR_URL" --json mergeStateStatus --jq .mergeStateStatus)
-          if [ "$state" = "CLEAN" ]; then
-            echo "::notice::PR:en är CLEAN — auto-merge kan inte aktiveras på en PR som redan är mergebar. Mergar direkt; branch protection är fortfarande grinden."
-            gh pr merge --squash "$PR_URL"
-          else
-            gh pr merge --auto --squash "$PR_URL"
-          fi
+          # Predikatet är "kan den mergas NU", vilket är en MÄNGD, inte ett värde.
+          # `UNSTABLE` = mergebar, men någon icke-required check är röd eller kör.
+          # Det är husets NORMALTILLSTÅND vid den här tidpunkten: CLAUDE.md §6 säger
+          # att observe-only-jobb inte blockerar, och de (CodeQL, e2e, audit,
+          # fitness) är långsammare än `ci`. Ett test mot enbart CLEAN hade därför
+          # missat det vanligaste fallet och fallit till `--auto` igen.
+          # `UNKNOWN` betyder att GitHub inte räknat klart mergebarheten — den
+          # beräknas lazily och är typiskt UNKNOWN strax efter en push. Vi väntar
+          # in den och failar högljutt hellre än att gissa.
+          for _ in 1 2 3 4 5; do
+            state=$(gh pr view "$PR_URL" --json mergeStateStatus --jq .mergeStateStatus)
+            [ "$state" != "UNKNOWN" ] && break
+            sleep 3
+          done
+          # `--match-head-commit` binder mergen till DEN SHA eventet bar. Utan den
+          # kan `arm` och `disarm` (separata workflow-runs, ingen delad ordning)
+          # korsa varandra: sätt `agents-done`, pusha en fixup några sekunder
+          # senare, och hinner disarm:s avstängning före arm:s aktivering blir
+          # nettot ARMERAT med `agents-done` borttagen — ser grindat ut, är det
+          # inte, och inget framtida event avväpnar det. Med SHA-bindningen failar
+          # anropet högljutt i stället. Den stänger också TOCTOU-fönstret mellan
+          # tillståndsläsningen ovan och mergen nedan.
+          case "$state" in
+            CLEAN|UNSTABLE|HAS_HOOKS)
+              echo "::notice::mergeStateStatus=$state — PR:en är mergebar nu, så auto-merge kan inte aktiveras. Mergar direkt; branch protection är fortfarande grinden."
+              gh pr merge --squash --match-head-commit "$HEAD_SHA" "$PR_URL" ;;
+            UNKNOWN)
+              echo "::error::mergeStateStatus är UNKNOWN efter 5 försök — GitHub har inte räknat klart mergebarheten. Kör om jobbet."
+              exit 1 ;;
+            *)
+              gh pr merge --auto --squash --match-head-commit "$HEAD_SHA" "$PR_URL" ;;
+          esac
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   disarm:
@@ -168,6 +199,11 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Mätt 2026-07-27: `gh pr edit --remove-label agents-done` på en PR som inte
+      # bär labeln ger EXIT 0 (labeln finns i repot; det är bara medlemskapet som
+      # saknas). Ingen guard behövs alltså för två samtidiga disarm-runs. En label
+      # som inte finns i REPOT ger exit 1 — vilket är rätt, det vore en äkta
+      # felkonfiguration.
       - name: Ta bort agents-done (endast när en push bröt grinden)
         if: github.event.action == 'synchronize'
         run: gh pr edit "$PR_URL" --remove-label agents-done

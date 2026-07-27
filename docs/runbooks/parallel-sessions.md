@@ -310,6 +310,9 @@ local sessions stay heads-down. Set up once:
    label and its author intends automerge, add `automerge`.
    NEVER add or remove `agents-done` — that label is the owning session's
    review gate and is not yours to set (#836).
+   And if a PR carries `agents-done`, do NOT `update-branch` it — that push
+   disarms the review gate and costs a full round of every mandatory agent.
+   Leave it, report it, and let the owning session update it.
    Report a one-line status per PR. Do not attempt to merge a PR whose ci
    is red."
 ```
@@ -319,9 +322,9 @@ assertion with no machine-readable signal anywhere in the repo — a condition t
 the organ meant to enforce a gate (#836, CTO ruling 2026-07-27). The old prompt was also
 self-contradictory: it filtered to PRs *with* the label and then said *"ensure automerge is set"*.
 
-**The prompt is not the control.** `label-automerge.yml` arms auto-merge only when **both**
-`automerge` and `agents-done` are present, so the babysitter cannot merge unreviewed code no matter
-what its deployed prompt says. That property is deliberate: the routine is billed and user-triggered,
+**The prompt is not the control.** `label-automerge.yml` will not arm without `agents-done`
+(CLAUDE.md §6), so the babysitter cannot merge unreviewed code no matter what its deployed prompt
+says. That property is deliberate: the routine is billed and user-triggered,
 CC can neither read nor version nor test it, so a fix resting on its behaviour is a fix CC cannot
 ship — and because **the cloud routine authenticates as the user, a prompt breach leaves no trace in
 the audit log at all.** The measurement behind that, and the rest of the reasoning, is in the CTO
@@ -421,8 +424,10 @@ NOT a hand-ranked per-CC sequence (that drifts every merge):
 4. **`blocked`** = blocked by another open issue/decision (e.g. #291 ⟵ #298) —
    skip until unblocked.
 5. **Side-track PRs FIRST.** At session start, before new scope, shepherd your own
-   open/red PRs to green (CI rerun on a known Docker-Hub flake; rebase a `BEHIND`
-   PR via `git merge origin/main`). New work waits behind a stuck PR you own.
+   open/red PRs to green (CI rerun on a known Docker-Hub flake; for `BEHIND`, use
+   the single command form in §8.1 — **not** a local `git merge origin/main` — and
+   note that it disarms `agents-done` if the PR carries it). New work waits behind
+   a stuck PR you own.
 6. **`steg-tracker.md` §2.1 holds the strategic sequence** — ONE place, not three
    per-CC lists. It is updated by one session (stack-owner / a designated
    docs-owner) when Klas sets the order.

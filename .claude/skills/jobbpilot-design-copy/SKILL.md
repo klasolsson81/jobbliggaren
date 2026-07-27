@@ -94,7 +94,7 @@ civic-utility-regeln "information är design" (se `jobbpilot-design-principles`)
 | Datum ISO | 2026-04-14 | 14-04-2026 |
 | Tid | 14:32 | 2:32 PM, 14.32 |
 | Valuta | 33 456 kr | 33,456 SEK, 33456 kr |
-| Decimaler | 4,5 stjärnor | 4.5 stjärnor |
+| Decimaler | 4,5 km | 4.5 km |
 | Tusental | 12 345 | 12,345 eller 12.345 |
 | Relativ tid | 3 dagar sen | for 3 days, 3 days ago |
 | Företagsnamn | Volvo Cars Sverige AB | Volvo AB (förkortat utan grund) |
@@ -159,24 +159,81 @@ Kortfattad. Trepunkt (…) — Unicode `\u2026`, inte tre separata punkter `...`
 |---|---|---|
 | Hämtar listor | "Hämtar jobbannonser…" | "Letar efter ditt drömjobb ✨" |
 | Sparar | "Sparar…" | "Sparar dina fantastiska ändringar!" |
-| AI-generering | "Genererar utkast…" | "Magin händer! 🪄" |
+| Renderar | "Förhandsvisningen renderas…" | "Magin händer! 🪄" |
 | Laddar upp | "Laddar upp CV…" | "Bearbetar…" (vad bearbetar?) |
 
-### 5. AI-samtycken
+Skeppade former att återanvända: "CV:t läses in…", "Jobbannonsen läses in…",
+"Ansökningarna läses in…", "Hämtar förslag…".
 
-Explicit om vad som skickas vart. Juridiskt krav (GDPR Art. 7).
+### 5. Matchning och omdömen
 
-| Situation | ✅ Ja |
-|---|---|
-| Genererat utkast | "Utkast genererat av AI. Läs igenom och redigera innan du skickar." |
-| Matchningspoäng | "89 % matchning mot din profil." |
-| Första AI-användning | "Denna åtgärd skickar ditt CV till AI för bearbetning. Data stannar inom EU och används inte för modellträning. Läs integritetspolicyn." |
-| BYOK informerande | "Du använder din egen API-nyckel. Anthropic fakturerar dig direkt." |
+Produkten innehåller **ingen AI/LLM** (ADR 0071 — ADR 0051 superseded). CV- och
+matchningsmotorerna är deterministiska. Det finns alltså ingen AI-copy att skriva:
+inga samtyckesrutor för modellbearbetning, ingen BYOK-nyckel, ingen leverantör att
+namnge. Skriv aldrig copy som tillskriver produkten ett omdöme den inte fäller.
+
+**Aldrig ett tal.** Matchning visas som **kategori först** — ett omdöme plus vad som
+matchar och vad som saknas per dimension. Aldrig "92 % matchning", aldrig en mätare,
+aldrig en procent-ring (ADR 0053 Beslut 5 + Amendment 2026-06-19; ADR 0076 Decision 4,
+Goodhart-vakten; CLAUDE.md §5 — "a match score as an opaque number" är en namngiven
+anti-pattern, arkitekturtestad).
+
+| Situation | ✅ Ja | ❌ Nej |
+|---|---|---|
+| Matchningsgrad | "Stark match" | "89 % matchning mot din profil." |
+| Varför graden | "Du uppfyller alla ska-krav i annonsen." | "Vår analys ger dig 4 av 5 stjärnor." |
+| Annons utan ska-krav | "Annonsen anger inga särskilda ska-krav." | "Du uppfyller alla ska-krav" (falskt: inget krävdes) |
+| Dimension utan underlag | "Ej bedömt" | En gissad grad, eller en dold nolla |
+| CV-omdöme, citerbart | "Delvis" + citat ur CV:t + åtgärd: *"Driven och engagerad person som gillar utmaningar."* / "Profiltexten är vag. Lägg till vad du faktiskt gör och vad du har åstadkommit." | "Ditt CV känns lite tunt." |
+| CV-omdöme, frånvaro | "Underkänt" + observation: "Ingen e-postadress hittades i CV:t." | Ett omdöme som påstår ett citat men citerar inget |
+
+**Allt nedan är skeppat — återanvänd, skriv inte nytt.**
+
+- **Matchningsgrad** (`jobads.ui.match.grade`): **Toppmatch · Stark match · Bra
+  match · Grundmatch**, plus **Relaterat yrke** (en märkning, inte en av de fyra
+  gröna graderna).
+- **Per dimension** (`jobads.ui.match.verdict`): **Matchar · Delvis · Saknas ·
+  Ej bedömt · Inga angivna**. Femmedlemsmängden är arkitekturpinnad
+  (`MatchDimensionVerdict_is_the_locked_five_member_set`) — utelämna ingen.
+  "Uppfyllt"/"Ej uppfyllt" är **något annat**: `requirements`-radens etiketter per
+  enskilt krav, inte dimensionens omdöme.
+- **Ska-krav-raden** (`jobads.ui.match.mustHaveSummary`): fyra grenar, en per
+  utfall, inklusive den vakuösa. ADR 0076 Amendment 2026-06-20 §2(b) förbjuder
+  uttryckligen den affirmativa raden när annonsen inte angav några krav.
+- **CV-granskning** (`resumes.enums`): omdöme **Godkänt · Delvis · Underkänt · Ej
+  bedömt**; nivå per kategori **Ej redo · Behöver omarbetning · Konkurrenskraftigt ·
+  Toppskikt**.
+
+Ett CV-fynd har **tre skeppade former** — auktoriteten är `citedEvidenceDtoSchema`
+(`src/lib/dto/parsed-resume.ts`) och `cv-criterion-verdict.tsx`; `content-cv-granskning.json`
+visar dem:
+
+1. `kind: "TextSpan"` — `quote` ur CV:t, renderad som blockquote. `note` med åtgärden
+   är **valfri**: ett "Godkänt" med enbart citat är en skeppad form.
+2. `kind: "Structural"` — `observation` när det som saknas inte går att citera
+   ("Ingen e-postadress hittades i CV:t").
+3. `verdict: "NotAssessed"` — `notAssessedReason` på **kriterienivå**, varken `note`
+   eller `observation`. Det är formen som gör "Ej bedömt" ärligt i stället för gissat
+   (ADR 0071 OQ3, CLAUDE.md §5 "not assessed v1").
+
+Slå inte ihop formerna till en sträng, och påstå aldrig ett citat du inte har.
+
+**Stavning: `ska-krav`.** Sex förekomster i `messages/sv/`: fyra gemena i meningar
+(`jobads.json` mustHaveSummary) och två versala som rubrik-etiketter
+(`content-matchning.json:43`, `jobads.json:216`). "skallkrav" finns i noll
+skeppade strängar. ADR 0076:s prosa skriver "skallkrav" — följ inte den
+stavningen i UI.
+
+Två ytor säger regeln till användaren med produktens egna ord, och copy får inte
+motsäga dem: *"Du får ingen svart låda som säger att du är en ”92-procentig
+matchning”"* (`content-matchning.json`) och *"Du får inget poäng mellan 0 och 100,
+ingen mätare och ingen ring"* (`content-cv-granskning.json`).
 
 Aldrig:
-- "Vår AI har analyserat ditt CV och tycker att…"
-- "Powered by Claude ✨"
-- Persuasivt språk kring AI-kapacitet
+- Ett procenttal, en mätare, en ring eller något annat opakt aggregat
+- "Ej bedömt" maskerat som en låg grad — frånvaro rapporteras som frånvaro
+- Ett CV-omdöme utan citerat textställe (CLAUDE.md §5)
+- Formuleringar som antyder att något resonerar åt användaren
 
 ### 6. Destruktiva bekräftelser
 
@@ -188,6 +245,11 @@ Specifik knapp-text. Konkret konsekvens.
 | Dialog-text | "Radera Klas-CV-v3? Detta kan inte ångras efter 30 dagar." | "Är du säker?" |
 | Frånkoppla Gmail | "Koppla bort Gmail? JobbPilot kommer inte längre läsa inkorgen." | "Vill du verkligen?" |
 | Avsluta konto | "Avsluta konto? All data raderas permanent inom 30 dagar." | "Är du säker på att du vill fortsätta?" |
+
+(Gmail-raden är ett **mönsterexempel, inte skeppad copy** — Gmail-synk är uppskjuten,
+inte borttagen: BUILD.md §6.2 listar fem endpoints, §9.2:s not (:1006-1013) säger
+"skjuts upp … specarna ovan bevaras som framtida referens", och :1489 listar `SyncGmailJob`
+som "Ej byggt (Fas 5, #321)".)
 
 ### 7. Påminnelser
 

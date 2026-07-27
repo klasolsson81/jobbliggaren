@@ -80,7 +80,8 @@ in full — that produces confirmation tests, not specification tests.
   where it is retired, pin that the current writer does not produce the shape —
   the pin belongs in the writer's own test class, cited by name. **"No domain
   method exists" is a reject, not a disclosure** — if no actor can be named,
-  reach the state honestly or do not write the test
+  reach the state honestly, **declare it unreachable per §5** (and then assert
+  only that the read side degrades safely), or do not write the test
 
 ---
 

@@ -145,6 +145,8 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
         // row in the same (per-test) container, and that row must keep its non-null terms so the
         // backfill predicate (extracted_lexemes IS NULL) skips it. The STORED extracted_lexemes shadow
         // follows extracted_terms to NULL, reproducing the pre-F4-4 legacy state.
+        // The complement — that the current writer never produces this shape — is pinned in
+        // JobAdExtractionCouplingTests.
         await db.Database.ExecuteSqlAsync(
             $"UPDATE job_ads SET extracted_terms = NULL WHERE id = ANY({seededIds})", ct);
         return count;

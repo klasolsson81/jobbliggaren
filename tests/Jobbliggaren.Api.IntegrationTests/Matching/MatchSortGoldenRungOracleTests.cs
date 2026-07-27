@@ -239,6 +239,7 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
             // (Empty at worst); the never-extracted NULL state is legacy-only and unreachable through
             // the aggregate. Null the column directly to reproduce it (the STORED extracted_lexemes
             // shadow follows extracted_terms to NULL).
+            // The complement — that the current writer never produces this shape — is pinned in JobAdExtractionCouplingTests.
             await db.Database.ExecuteSqlAsync(
                 $"UPDATE job_ads SET extracted_terms = NULL WHERE id = {jobAd.Id.Value}", ct);
         }

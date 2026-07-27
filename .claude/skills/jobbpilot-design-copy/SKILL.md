@@ -159,24 +159,47 @@ Kortfattad. Trepunkt (…) — Unicode `\u2026`, inte tre separata punkter `...`
 |---|---|---|
 | Hämtar listor | "Hämtar jobbannonser…" | "Letar efter ditt drömjobb ✨" |
 | Sparar | "Sparar…" | "Sparar dina fantastiska ändringar!" |
-| AI-generering | "Genererar utkast…" | "Magin händer! 🪄" |
+| Renderar | "Förhandsvisningen renderas…" | "Magin händer! 🪄" |
 | Laddar upp | "Laddar upp CV…" | "Bearbetar…" (vad bearbetar?) |
 
-### 5. AI-samtycken
+Skeppade former att återanvända: "CV:t läses in…", "Jobbannonsen läses in…",
+"Ansökningarna läses in…", "Hämtar förslag…".
 
-Explicit om vad som skickas vart. Juridiskt krav (GDPR Art. 7).
+### 5. Matchning och omdömen
 
-| Situation | ✅ Ja |
-|---|---|
-| Genererat utkast | "Utkast genererat av AI. Läs igenom och redigera innan du skickar." |
-| Matchningspoäng | "89 % matchning mot din profil." |
-| Första AI-användning | "Denna åtgärd skickar ditt CV till AI för bearbetning. Data stannar inom EU och används inte för modellträning. Läs integritetspolicyn." |
-| BYOK informerande | "Du använder din egen API-nyckel. Anthropic fakturerar dig direkt." |
+Produkten innehåller **ingen AI/LLM** (ADR 0071 — ADR 0051 superseded). CV- och
+matchningsmotorerna är deterministiska. Det finns alltså ingen AI-copy att skriva:
+inga samtyckesrutor för modellbearbetning, ingen BYOK-nyckel, ingen leverantör att
+namnge. Skriv aldrig copy som tillskriver produkten ett omdöme den inte fäller.
+
+**Aldrig ett tal.** Matchning visas som **kategori först** — ett omdöme plus vad som
+matchar och vad som saknas per dimension. Aldrig "92 % matchning", aldrig en mätare,
+aldrig en procent-ring (ADR 0053 Beslut 5 + Amendment 2026-06-19; ADR 0076 Decision 4,
+Goodhart-vakten; CLAUDE.md §5 — "a match score as an opaque number" är en namngiven
+anti-pattern, arkitekturtestad).
+
+| Situation | ✅ Ja | ❌ Nej |
+|---|---|---|
+| Matchningsgrad | "Stark match" | "89 % matchning mot din profil." |
+| Varför graden | "Du uppfyller alla skallkrav." | "Vår analys ger dig 4 av 5 stjärnor." |
+| Saknad dimension | "Ej bedömt" | En gissad grad, eller en dold nolla |
+| CV-omdöme | "Delvis: rubriken saknar datum" (citerar stället) | "Ditt CV känns lite tunt." |
+
+**Skeppad** vokabulär: graderna **Toppmatch · Stark match · Bra match · Grundmatch**;
+per dimension **Uppfyllt · Delvis · Saknas · Ej bedömt**. Raden "Du uppfyller alla
+skallkrav" är **ratificerad men ännu inte skeppad** — den är specificerad i ADR 0076
+Amendment 2026-06-20 §6 som modal-copy. Citera den som form, inte som befintlig sträng.
+
+Två ytor säger regeln till användaren med produktens egna ord, och copy får inte
+motsäga dem: *"Du får ingen svart låda som säger att du är en ”92-procentig
+matchning”"* (`content-matchning.json`) och *"Du får inget poäng mellan 0 och 100,
+ingen mätare och ingen ring"* (`content-cv-granskning.json`).
 
 Aldrig:
-- "Vår AI har analyserat ditt CV och tycker att…"
-- "Powered by Claude ✨"
-- Persuasivt språk kring AI-kapacitet
+- Ett procenttal, en mätare, en ring eller något annat opakt aggregat
+- "Ej bedömt" maskerat som en låg grad — frånvaro rapporteras som frånvaro
+- Ett CV-omdöme utan citerat textställe (CLAUDE.md §5)
+- Formuleringar som antyder att något resonerar åt användaren
 
 ### 6. Destruktiva bekräftelser
 

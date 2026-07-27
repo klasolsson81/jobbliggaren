@@ -378,6 +378,17 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   assuming either of the other two. *(2026-07-14 hygiene pass,
   all measured: 44 dead local + 44 dead remote branches; #800/#801 shipped and
   still `wip` two days on; 9 `wip` claims against 4 running CCs.)*
+  **The dead-REMOTE-branch half is mechanised since #725** —
+  `.github/workflows/delete-merged-branches.yml` deletes remote branches whose PR
+  has merged, daily or on `workflow_dispatch`. Do not re-file it, and do not read
+  a surviving branch as a *new* defect before checking the sweep's last run. It is
+  a **scheduled** sweep and not a merge-event handler for a measured reason:
+  events triggered by `GITHUB_TOKEN` do not start workflow runs, so the merges
+  that leave branches behind — every app-merge — are exactly the ones whose
+  `pull_request: closed` event never fires. The same suppression is why
+  `delete_branch_on_merge` never fires here despite being `true`, and why CodeQL
+  stopped running on main. **Your LOCAL branches are still yours**, as is the
+  `wip`/issue-close half of that measurement.
 - **Never reap a worktree you did not create — and never one whose PR has not
   merged.** The general case belongs to the SessionStart reaper: a PR usually
   merges *after* its session has ended, so "clean up when it merges" is not a

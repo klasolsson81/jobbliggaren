@@ -385,10 +385,13 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   a **scheduled** sweep and not a merge-event handler for a measured reason:
   events triggered by `GITHUB_TOKEN` do not start workflow runs, so the merges
   that leave branches behind — every app-merge — are exactly the ones whose
-  `pull_request: closed` event never fires. The same suppression is why
-  `delete_branch_on_merge` never fires here despite being `true`, and why CodeQL
-  stopped running on main. **Your LOCAL branches are still yours**, as is the
-  `wip`/issue-close half of that measurement.
+  `pull_request: closed` event never fires. **Two mechanisms, one cause — don't
+  collapse them:** that suppressed *workflow run* is also why CodeQL stopped
+  running on main, whereas `delete_branch_on_merge` is a repo *setting* that
+  never travels through the workflow engine at all — it simply follows the
+  merging identity, and the app is not it. Same actor, different machinery; a fix
+  aimed at the wrong one of the two does nothing. **Your LOCAL branches are still
+  yours**, as is the `wip`/issue-close half of that measurement.
 - **Never reap a worktree you did not create — and never one whose PR has not
   merged.** The general case belongs to the SessionStart reaper: a PR usually
   merges *after* its session has ended, so "clean up when it merges" is not a

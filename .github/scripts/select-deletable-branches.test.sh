@@ -17,9 +17,16 @@
 # and no credentials, and it is why the workflow keeps the fetch (fail-loud) and
 # the deletion (state-verified) outside the script.
 #
+# THE FIXTURES MUST BE SHAPES PRODUCTION CAN EMIT (CLAUDE.md §5 `Tests:`). The
+# inputs here are hand-built JSON/TSV, which is legitimate ONLY because each one
+# is a shape the real producer does emit -- `gh pr list --json ...` and
+# `jq '[.name,(.protected|tostring),.commit.sha]|@tsv'`. Where a fixture uses a
+# shape production CANNOT emit, it says so and names the actor; see
+# `unknownprot_unreachable`.
+#
 # Each case names the SHAPE it builds. The shapes are the argument: they are the
 # ways a branch can look on a repository that merges through an app, stacks pull
-# requests, and takes contributions from forks.
+# requests, reuses branches, and takes contributions from forks.
 
 set -euo pipefail
 
@@ -32,7 +39,13 @@ readonly TMPROOT
 trap 'rm -rf "$TMPROOT"' EXIT
 
 readonly OWNER=acme
+readonly REPO=widget
 readonly DEFAULT=main
+# A stable stand-in for a commit id. The script compares for equality only, so
+# the value is opaque -- but it must LOOK like what the API returns, so nobody
+# reads these fixtures as testing a parser that does not exist.
+readonly SHA1=1111111111111111111111111111111111111111
+readonly SHA2=2222222222222222222222222222222222222222
 
 failures=0
 cases=0
@@ -41,9 +54,7 @@ cases=0
 # Harness
 # ---------------------------------------------------------------------------
 
-# run <name> <merged.json body> <open.json body> <branches.tsv body>
-#   -> sets REPLY_OUT / REPLY_RC
-run() {
+run() { # run <name> <merged.json> <open.json> <branches.tsv>
   local name=$1 merged=$2 open=$3 branches=$4
   local dir="$TMPROOT/$name"
   mkdir -p "$dir"
@@ -51,7 +62,8 @@ run() {
   printf '%s' "$open" >"$dir/open.json"
   printf '%s' "$branches" >"$dir/branches.tsv"
   set +e
-  REPLY_OUT=$(bash "$SUT" "$dir/merged.json" "$dir/open.json" "$dir/branches.tsv" "$DEFAULT" "$OWNER" 2>/dev/null)
+  REPLY_OUT=$(bash "$SUT" "$dir/merged.json" "$dir/open.json" "$dir/branches.tsv" \
+    "$DEFAULT" "$OWNER" "$REPO" 2>/dev/null)
   REPLY_RC=$?
   set -e
 }
@@ -74,126 +86,208 @@ expect() { # expect <case name> <expected stdout> <expected rc>
   echo "ok   [$name]"
 }
 
-# A merged PR by this repo's owner.
-mine() { printf '{"number":%s,"headRefName":"%s","headRepositoryOwner":{"login":"%s"}}' "$1" "$2" "$OWNER"; }
-# A merged PR whose head lives in a fork.
-theirs() { printf '{"number":%s,"headRefName":"%s","headRepositoryOwner":{"login":"outsider"}}' "$1" "$2"; }
-# An open PR.
+# A merged PR whose head is in THIS repository.
+mine() { # mine <number> <headRef> <headOid>
+  printf '{"number":%s,"headRefName":"%s","headRefOid":"%s","headRepositoryOwner":{"login":"%s"},"headRepository":{"name":"%s"}}' \
+    "$1" "$2" "$3" "$OWNER" "$REPO"
+}
+# A merged PR whose head lives in a fork (different owner).
+theirs() {
+  printf '{"number":%s,"headRefName":"%s","headRefOid":"%s","headRepositoryOwner":{"login":"outsider"},"headRepository":{"name":"%s"}}' \
+    "$1" "$2" "$3" "$REPO"
+}
+# A merged PR from a SIBLING repository under the SAME owner.
+sibling() {
+  printf '{"number":%s,"headRefName":"%s","headRefOid":"%s","headRepositoryOwner":{"login":"%s"},"headRepository":{"name":"other-repo"}}' \
+    "$1" "$2" "$3" "$OWNER"
+}
 openpr() { printf '{"number":%s,"headRefName":"%s","baseRefName":"%s"}' "$1" "$2" "$3"; }
 
 # ---------------------------------------------------------------------------
-# 1. The happy path: a branch whose PR merged, nothing else claims it.
+# 1. The happy path: PR merged, tip still the merged commit, nothing else claims it.
 # ---------------------------------------------------------------------------
-run happy "[$(mine 10 'fix/done')]" '[]' $'fix/done\tfalse\n'
-expect "merged head is deleted" $'delete\tfix/done\tmerged-pr-#10' 0
+run happy "[$(mine 10 'fix/done' "$SHA1")]" '[]' "$(printf 'fix/done\tfalse\t%s\n' "$SHA1")"
+expect "merged head at the merged commit is deleted" $'delete\tfix/done\tmerged-pr-#10' 0
 
 # ---------------------------------------------------------------------------
 # 2. Work in progress. No PR has ever been opened from this branch. This is the
 #    case #725's own text protects: a branch is not garbage for lacking a PR.
 # ---------------------------------------------------------------------------
-run wip '[]' '[]' $'feat/in-progress\tfalse\n'
+run wip '[]' '[]' "$(printf 'feat/in-progress\tfalse\t%s\n' "$SHA1")"
 expect "branch with no merged PR survives" $'skip\tfeat/in-progress\tno-merged-pr' 0
 
 # ---------------------------------------------------------------------------
-# 3. The default branch. Guarded by name even though `main` is also protected --
-#    two independent reasons, because either one alone can be misconfigured.
+# 3. THE REUSED BRANCH. PR merged at SHA1; someone then pushed new work and has
+#    not opened the next PR yet, so the tip is SHA2. Deleting it would destroy
+#    commits that "Restore branch" cannot bring back -- GitHub would restore the
+#    MERGED commit. This is the only path to unrecoverable loss in the design.
 # ---------------------------------------------------------------------------
-run trunk "[$(mine 11 'main')]" '[]' $'main\tfalse\n'
+run reused_tip "[$(mine 11 'feat/reused' "$SHA1")]" '[]' \
+  "$(printf 'feat/reused\tfalse\t%s\n' "$SHA2")"
+expect "branch reused after its PR merged survives" \
+  $'skip\tfeat/reused\ttip-moved-since-merge-#11' 0
+
+# 3b. An unknown tip is not permission either.
+run unknown_tip "[$(mine 12 'fix/done' "$SHA1")]" '[]' $'fix/done\tfalse\t\n'
+expect "unknown tip is not permission" $'skip\tfix/done\ttip-moved-since-merge-#12' 0
+
+# ---------------------------------------------------------------------------
+# 4. The default branch, guarded by name-from-API even though it is also
+#    protected -- two independent reasons, because either can be misconfigured.
+# ---------------------------------------------------------------------------
+run trunk "[$(mine 13 'main' "$SHA1")]" '[]' "$(printf 'main\tfalse\t%s\n' "$SHA1")"
 expect "default branch is never deleted" $'skip\tmain\tdefault-branch' 0
 
 # ---------------------------------------------------------------------------
-# 4. Branch protection is somebody's stated intent.
+# 5. Branch protection is somebody's stated intent.
 # ---------------------------------------------------------------------------
-run protected "[$(mine 12 'release/v1')]" '[]' $'release/v1\ttrue\n'
+run protected "[$(mine 14 'release/v1' "$SHA1")]" '[]' \
+  "$(printf 'release/v1\ttrue\t%s\n' "$SHA1")"
 expect "protected branch is never deleted" $'skip\trelease/v1\tprotected' 0
 
-# ---------------------------------------------------------------------------
-# 4b. Unknown protection state. A missing column must read as protected, not as
-#     unprotected: "the API did not say" may not authorise a delete.
-# ---------------------------------------------------------------------------
-run unknownprot "[$(mine 13 'fix/done')]" '[]' $'fix/done\n'
-expect "missing protected column reads as protected" $'skip\tfix/done\tprotected' 0
+# 5b. THE SHAPE PRODUCTION ACTUALLY EMITS when the field is absent. `jq`'s
+#     `(.protected|tostring)` renders a missing field as the STRING "null" --
+#     never as a missing column. Measured 2026-07-27:
+#     `[{"name":"b"}] | .[] | [.name,(.protected|tostring)] | @tsv` -> "b<TAB>null".
+run nullprot "[$(mine 15 'fix/done' "$SHA1")]" '[]' "$(printf 'fix/done\tnull\t%s\n' "$SHA1")"
+expect "a null protected flag reads as protected" $'skip\tfix/done\tprotected' 0
+
+# 5c. DECLARED UNREACHABLE (CLAUDE.md §5 `Tests:`). A one-column row is a shape
+#     NO producer in this repository emits -- the jq expression above always
+#     writes every column. There is therefore no actor to name, so this case
+#     asserts only that the read side DEGRADES SAFELY if the invariant were ever
+#     broken by a future caller; it does not claim production can reach it. The
+#     producible sibling that carries the real assertion is `nullprot` above.
+run unknownprot_unreachable "[$(mine 16 'fix/done' "$SHA1")]" '[]' $'fix/done\n'
+expect "unreachable: a truncated row degrades to protected" $'skip\tfix/done\tprotected' 0
 
 # ---------------------------------------------------------------------------
-# 5. THE STACKED PR. `fix/parent` merged, but `fix/child` is still open against
+# 6. THE STACKED PR. `fix/parent` merged, but `fix/child` is still open against
 #    it. Deleting the parent retargets the child silently (GitHub, 2020-05-19),
 #    moving the merge base under a review that already happened.
 # ---------------------------------------------------------------------------
-run stacked "[$(mine 14 'fix/parent')]" "[$(openpr 15 'fix/child' 'fix/parent')]" \
-  $'fix/parent\tfalse\n'
-expect "base of an open PR survives" $'skip\tfix/parent\tbase-of-open-pr-#15' 0
+run stacked "[$(mine 17 'fix/parent' "$SHA1")]" "[$(openpr 18 'fix/child' 'fix/parent')]" \
+  "$(printf 'fix/parent\tfalse\t%s\n' "$SHA1")"
+expect "base of an open PR survives" $'skip\tfix/parent\tbase-of-open-pr-#18' 0
 
 # ---------------------------------------------------------------------------
-# 6. Branch reuse: the same branch owns a merged PR AND a newer open one. The
-#    open PR wins -- deleting the branch would destroy unmerged work.
+# 7. Branch reuse WITH a PR open. The open PR wins.
 # ---------------------------------------------------------------------------
-run reused "[$(mine 16 'fix/recycled')]" "[$(openpr 17 'fix/recycled' 'main')]" \
-  $'fix/recycled\tfalse\n'
-expect "head of an open PR survives" $'skip\tfix/recycled\thead-of-open-pr-#17' 0
+run reused_pr "[$(mine 19 'fix/recycled' "$SHA1")]" "[$(openpr 20 'fix/recycled' 'main')]" \
+  "$(printf 'fix/recycled\tfalse\t%s\n' "$SHA1")"
+expect "head of an open PR survives" $'skip\tfix/recycled\thead-of-open-pr-#20' 0
 
 # ---------------------------------------------------------------------------
-# 7. NAME COLLISION WITH A FORK. A contributor's merged PR came from their own
-#    `fix/done`. Ours is a different branch that merely shares the name, so
-#    their PR must not authorise deleting it.
+# 8. NAME COLLISION WITH A FORK, and with a SIBLING REPOSITORY. Neither may
+#    authorise deleting ours.
 # ---------------------------------------------------------------------------
-run forkonly "[$(theirs 18 'fix/done')]" '[]' $'fix/done\tfalse\n'
+run forkonly "[$(theirs 21 'fix/done' "$SHA1")]" '[]' "$(printf 'fix/done\tfalse\t%s\n' "$SHA1")"
 expect "a fork's merged head does not authorise deleting ours" \
   $'skip\tfix/done\tfork-head-only' 0
 
-# ---------------------------------------------------------------------------
-# 7b. Deleted head repository. `headRepositoryOwner` is null; it is not this
-#     owner, so it authorises nothing.
-# ---------------------------------------------------------------------------
-run nullowner '[{"number":19,"headRefName":"fix/done","headRepositoryOwner":null}]' '[]' \
-  $'fix/done\tfalse\n'
+run siblingrepo "[$(sibling 22 'fix/done' "$SHA1")]" '[]' \
+  "$(printf 'fix/done\tfalse\t%s\n' "$SHA1")"
+expect "a sibling repo's merged head does not authorise deleting ours" \
+  $'skip\tfix/done\tfork-head-only' 0
+
+run nullowner "[{\"number\":23,\"headRefName\":\"fix/done\",\"headRefOid\":\"$SHA1\",\"headRepositoryOwner\":null,\"headRepository\":null}]" '[]' \
+  "$(printf 'fix/done\tfalse\t%s\n' "$SHA1")"
 expect "null head-repository owner authorises nothing" \
   $'skip\tfix/done\tfork-head-only' 0
 
 # ---------------------------------------------------------------------------
-# 8. Mixed input. The partition must be exact and the order must follow the
-#    branches file, so the log reads in a stable order.
+# 9. THE SUBSTRING TRAP -- the fixture that kills `$1 == key` -> `$1 ~ key`.
+#    awk's `~` is a regex match, hence a SUBSTRING match: the live branch
+#    `feat/x` would find the merged row for `feat/x-2` and be DELETED. Mutation
+#    testing found this survived the entire suite; this case is why it no longer
+#    does. Both verdicts matter -- the merged one must still go.
+# ---------------------------------------------------------------------------
+run substring "[$(mine 24 'feat/x-2' "$SHA1")]" '[]' \
+  "$(printf 'feat/x-2\tfalse\t%s\nfeat/x\tfalse\t%s\n' "$SHA1" "$SHA2")"
+expect "a live branch is not matched by a longer merged name" \
+  "$(printf 'delete\tfeat/x-2\tmerged-pr-#24\nskip\tfeat/x\tno-merged-pr')" 0
+
+# ---------------------------------------------------------------------------
+# 10. TWO MERGED PRs ON ONE HEAD (branch reused and merged twice). Without the
+#     `exit` in the lookup, awk emits both rows, the reason column swallows a
+#     newline, and the branch drops out of BOTH downstream lists. First match
+#     wins and the input is newest-first, so the newest PR is the referent.
+# ---------------------------------------------------------------------------
+run double_merge "[$(mine 25 'fix/twice' "$SHA2"),$(mine 26 'fix/twice' "$SHA1")]" '[]' \
+  "$(printf 'fix/twice\tfalse\t%s\n' "$SHA2")"
+expect "a head with two merged PRs yields exactly one verdict" \
+  $'delete\tfix/twice\tmerged-pr-#25' 0
+
+# ---------------------------------------------------------------------------
+# 11. UNSUPPORTED NAMES. Git permits `#` and `%` in ref names; a REST path does
+#     not survive them -- `feat/x#main` would send DELETE to `.../heads/feat/x`,
+#     destroying a branch with no merged PR and therefore no Restore button.
+#     Refused in the tested layer rather than escaped in YAML.
+# ---------------------------------------------------------------------------
+run hashname "[$(mine 27 'feat/x#main' "$SHA1")]" '[]' \
+  "$(printf 'feat/x#main\tfalse\t%s\n' "$SHA1")"
+expect "a ref name with # is refused, not escaped downstream" \
+  $'skip\tfeat/x#main\tunsupported-name' 0
+
+run percentname "[$(mine 28 'feat/a%2fb' "$SHA1")]" '[]' \
+  "$(printf 'feat/a%%2fb\tfalse\t%s\n' "$SHA1")"
+expect "a ref name with % is refused" $'skip\tfeat/a%2fb\tunsupported-name' 0
+
+run dashname "[$(mine 29 '-dashed' "$SHA1")]" '[]' "$(printf -- '-dashed\tfalse\t%s\n' "$SHA1")"
+expect "a leading dash is refused so it cannot read as an option" \
+  $'skip\t-dashed\tunsupported-name' 0
+
+# 11b. The house's real naming convention must survive all of the above.
+run slashes "[$(mine 30 'chore/v1.2.x/re-sync' "$SHA1")]" '[]' \
+  "$(printf 'chore/v1.2.x/re-sync\tfalse\t%s\n' "$SHA1")"
+expect "slashes, dots and dashes survive" \
+  $'delete\tchore/v1.2.x/re-sync\tmerged-pr-#30' 0
+
+run dependabotname "[$(mine 31 'dependabot/npm_and_yarn/web/next-16.2.11' "$SHA1")]" '[]' \
+  "$(printf 'dependabot/npm_and_yarn/web/next-16.2.11\tfalse\t%s\n' "$SHA1")"
+expect "a real dependabot branch name survives" \
+  $'delete\tdependabot/npm_and_yarn/web/next-16.2.11\tmerged-pr-#31' 0
+
+# ---------------------------------------------------------------------------
+# 12. Mixed input. The partition must be exact and in file order, so the log
+#     reads stably.
 # ---------------------------------------------------------------------------
 run mixed \
-  "[$(mine 20 'fix/a'),$(mine 21 'fix/b'),$(mine 22 'fix/parent')]" \
-  "[$(openpr 23 'feat/live' 'main'),$(openpr 24 'feat/child' 'fix/parent')]" \
-  $'fix/a\tfalse\nfeat/live\tfalse\nfix/parent\tfalse\nmain\tfalse\nfix/b\tfalse\nfeat/orphan\tfalse\n'
+  "[$(mine 32 'fix/a' "$SHA1"),$(mine 33 'fix/b' "$SHA1"),$(mine 34 'fix/parent' "$SHA1")]" \
+  "[$(openpr 35 'feat/live' 'main'),$(openpr 36 'feat/child' 'fix/parent')]" \
+  "$(printf 'fix/a\tfalse\t%s\nfeat/live\tfalse\t%s\nfix/parent\tfalse\t%s\nmain\tfalse\t%s\nfix/b\tfalse\t%s\nfeat/orphan\tfalse\t%s\n' \
+     "$SHA1" "$SHA1" "$SHA1" "$SHA1" "$SHA1" "$SHA1")"
 expect "mixed input partitions exactly, in file order" \
-  "$(printf 'delete\tfix/a\tmerged-pr-#20\nskip\tfeat/live\thead-of-open-pr-#23\nskip\tfix/parent\tbase-of-open-pr-#24\nskip\tmain\tdefault-branch\ndelete\tfix/b\tmerged-pr-#21\nskip\tfeat/orphan\tno-merged-pr')" 0
+  "$(printf 'delete\tfix/a\tmerged-pr-#32\nskip\tfeat/live\thead-of-open-pr-#35\nskip\tfix/parent\tbase-of-open-pr-#36\nskip\tmain\tdefault-branch\ndelete\tfix/b\tmerged-pr-#33\nskip\tfeat/orphan\tno-merged-pr')" 0
 
 # ---------------------------------------------------------------------------
-# 9. Branch names containing slashes and dots -- the house's actual convention
-#    (`<type>/<short-slug>`, CLAUDE.md §6) -- must not word-split.
+# 13. No trailing newline on the last line. Without the read-loop guard the last
+#     branch is dropped silently -- a safe verdict reached by a wrong mechanism.
 # ---------------------------------------------------------------------------
-run slashes "[$(mine 25 'chore/v1.2.x/re-sync')]" '[]' $'chore/v1.2.x/re-sync\tfalse\n'
-expect "slashes and dots survive" $'delete\tchore/v1.2.x/re-sync\tmerged-pr-#25' 0
-
-# ---------------------------------------------------------------------------
-# 10. No trailing newline on the last line. Without the read-loop guard the last
-#     branch is dropped silently -- a safe verdict reached by a wrong mechanism,
-#     and the log would not say it happened.
-# ---------------------------------------------------------------------------
-run notrailing "[$(mine 26 'fix/last')]" '[]' $'fix/first\tfalse\nfix/last\tfalse'
+run notrailing "[$(mine 37 'fix/last' "$SHA1")]" '[]' \
+  "$(printf 'fix/first\tfalse\t%s\nfix/last\tfalse\t%s' "$SHA1" "$SHA1")"
 expect "final line without newline is still decided" \
-  "$(printf 'skip\tfix/first\tno-merged-pr\ndelete\tfix/last\tmerged-pr-#26')" 0
+  "$(printf 'skip\tfix/first\tno-merged-pr\ndelete\tfix/last\tmerged-pr-#37')" 0
 
 # ---------------------------------------------------------------------------
-# 11. Nothing to do. Empty is a legitimate answer, not an error.
+# 14. Nothing to do. Empty is a legitimate answer, not an error.
 # ---------------------------------------------------------------------------
 run empty '[]' '[]' ''
 expect "no branches is a clean no-op" '' 0
 
 # ---------------------------------------------------------------------------
-# 12. THE FAIL-CLOSED CASES. Every one must exit 1 with EMPTY stdout: an empty
+# 15. THE FAIL-CLOSED CASES. Every one must exit 1 with EMPTY stdout: an empty
 #     stdout is what makes "delete nothing" the default, so a failure that still
 #     printed verdicts would be the whole design defeated.
 # ---------------------------------------------------------------------------
-run malformed_merged 'not json at all' '[]' $'fix/done\tfalse\n'
+run malformed_merged 'not json at all' '[]' "$(printf 'fix/done\tfalse\t%s\n' "$SHA1")"
 expect "malformed merged.json decides nothing" '' 1
 
-run malformed_open "[$(mine 27 'fix/done')]" '{"message":"Bad credentials"}' $'fix/done\tfalse\n'
+run malformed_open "[$(mine 38 'fix/done' "$SHA1")]" '{"message":"Bad credentials"}' \
+  "$(printf 'fix/done\tfalse\t%s\n' "$SHA1")"
 expect "an API error object is not an empty open-PR list" '' 1
 
-run object_not_array '{"number":28}' '[]' $'fix/done\tfalse\n'
+run object_not_array '{"number":39}' '[]' "$(printf 'fix/done\tfalse\t%s\n' "$SHA1")"
 expect "a JSON object is not a JSON array" '' 1
 
 # AN EMPTY FILE IS THE SHAPE A FAILED FETCH ACTUALLY LEAVES. `gh` writes its
@@ -202,29 +296,39 @@ expect "a JSON object is not a JSON array" '' 1
 # not an error object. That is the realistic input, and it is the dangerous
 # one: an empty open-PR list reads as "no open PRs", which silently dissolves
 # BOTH open-PR guards at once. The shape below is built so the difference is
-# visible rather than incidental -- `fix/parent` is a merged head, so without
-# the array check it would be DELETED while an open PR is stacked on it.
+# visible rather than incidental -- `fix/parent` is a merged head at its merged
+# commit, so without the array check it would be DELETED while an open PR is
+# stacked on it.
 #
 # These two cases were added because mutation testing found the gap: deleting
 # the array validation left the whole suite green, since every other failure
 # fixture happened to be caught by jq erroring on a non-iterable value instead.
-run empty_open "[$(mine 29 'fix/parent')]" '' $'fix/parent\tfalse\n'
+run empty_open "[$(mine 40 'fix/parent' "$SHA1")]" '' "$(printf 'fix/parent\tfalse\t%s\n' "$SHA1")"
 expect "an empty open-PR file is not an empty open-PR list" '' 1
 
-run empty_merged '' '[]' $'fix/parent\tfalse\n'
+run empty_merged '' '[]' "$(printf 'fix/parent\tfalse\t%s\n' "$SHA1")"
 expect "an empty merged-PR file decides nothing" '' 1
 
-# A truncated merged.json is NOT an error -- it cannot be detected from the
-# content, and it degrades to `no-merged-pr`, which skips. Pinned so the safe
-# direction is a decision this file made rather than an accident.
-run truncated '[]' '[]' $'fix/done\tfalse\n'
-expect "truncated merged input degrades to skip, not to delete" \
+# TRUNCATION IS UNDETECTABLE FROM CONTENT and the two directions are NOT
+# symmetric. A short merged.json degrades to `no-merged-pr` (safe); a short
+# open.json would dissolve both open-PR guards (FAIL-OPEN). The script cannot
+# tell either from a genuinely short list, so the CALLER must assert it did not
+# hit its page ceiling. Both directions are pinned here so the asymmetry is a
+# decision this file records rather than an accident.
+run truncated_merged_safe '[]' '[]' "$(printf 'fix/done\tfalse\t%s\n' "$SHA1")"
+expect "a truncated merged list degrades to skip, never to delete" \
   $'skip\tfix/done\tno-merged-pr' 0
+
+run truncated_open_dangerous "[$(mine 41 'fix/parent' "$SHA1")]" '[]' \
+  "$(printf 'fix/parent\tfalse\t%s\n' "$SHA1")"
+expect "a truncated open list CANNOT be detected here -- the caller must assert it" \
+  $'delete\tfix/parent\tmerged-pr-#41' 0
 
 # Missing files, and the argument count itself.
 cases=$((cases + 1))
 set +e
-out=$(bash "$SUT" "$TMPROOT/nope.json" "$TMPROOT/nope2.json" "$TMPROOT/nope3.tsv" "$DEFAULT" "$OWNER" 2>/dev/null)
+out=$(bash "$SUT" "$TMPROOT/nope.json" "$TMPROOT/nope2.json" "$TMPROOT/nope3.tsv" \
+  "$DEFAULT" "$OWNER" "$REPO" 2>/dev/null)
 rc=$?
 set -e
 if [ "$rc" = 1 ] && [ -z "$out" ]; then echo "ok   [missing input files decide nothing]"; else
@@ -242,19 +346,24 @@ if [ "$rc" = 1 ] && [ -z "$out" ]; then echo "ok   [wrong argument count decides
   failures=$((failures + 1))
 fi
 
-# An empty default-branch argument would make the `default-branch` guard match
-# nothing, so it is rejected rather than tolerated.
-cases=$((cases + 1))
-dir="$TMPROOT/emptydefault"; mkdir -p "$dir"
-printf '[]' >"$dir/merged.json"; printf '[]' >"$dir/open.json"; printf 'main\tfalse\n' >"$dir/branches.tsv"
-set +e
-out=$(bash "$SUT" "$dir/merged.json" "$dir/open.json" "$dir/branches.tsv" "" "$OWNER" 2>/dev/null)
-rc=$?
-set -e
-if [ "$rc" = 1 ] && [ -z "$out" ]; then echo "ok   [empty default branch decides nothing]"; else
-  echo "FAIL [empty default branch decides nothing]: rc=$rc out=$(printf '%q' "$out")" >&2
-  failures=$((failures + 1))
-fi
+# Empty identity arguments would make the guards that depend on them match
+# nothing, so they are rejected rather than tolerated.
+for empty_arg in default owner repo; do
+  cases=$((cases + 1))
+  dir="$TMPROOT/empty-$empty_arg"; mkdir -p "$dir"
+  printf '[]' >"$dir/merged.json"; printf '[]' >"$dir/open.json"
+  printf 'main\tfalse\t%s\n' "$SHA1" >"$dir/branches.tsv"
+  d=$DEFAULT; o=$OWNER; r=$REPO
+  case "$empty_arg" in default) d="" ;; owner) o="" ;; repo) r="" ;; esac
+  set +e
+  out=$(bash "$SUT" "$dir/merged.json" "$dir/open.json" "$dir/branches.tsv" "$d" "$o" "$r" 2>/dev/null)
+  rc=$?
+  set -e
+  if [ "$rc" = 1 ] && [ -z "$out" ]; then echo "ok   [empty $empty_arg decides nothing]"; else
+    echo "FAIL [empty $empty_arg decides nothing]: rc=$rc out=$(printf '%q' "$out")" >&2
+    failures=$((failures + 1))
+  fi
+done
 
 # ---------------------------------------------------------------------------
 echo

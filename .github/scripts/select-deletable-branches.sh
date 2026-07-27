@@ -4,17 +4,20 @@
 # because the pull request that owned them has already merged?
 #
 # Usage:  bash select-deletable-branches.sh <merged.json> <open.json> \
-#                                           <branches.tsv> <default-branch> <owner>
+#                                           <branches.tsv> <default-branch> <owner> <repo>
 #         (invoked through `bash`; the file is mode 100644, so the shebang is
 #          documentation, not an entry point -- same convention as
 #          is-pure-base-merge.sh)
 #
-#   <merged.json>     `gh pr list --state merged --json number,headRefName,headRepositoryOwner`
-#   <open.json>       `gh pr list --state open   --json number,headRefName,baseRefName`
-#   <branches.tsv>    `name<TAB>protected` per line, one per branch that EXISTS
-#                     on the remote (`gh api repos/{o}/{r}/branches --paginate`)
+#   <merged.json>     `gh pr list --state merged
+#                        --json number,headRefName,headRefOid,headRepositoryOwner,headRepository`
+#   <open.json>       `gh pr list --state open --json number,headRefName,baseRefName`
+#   <branches.tsv>    `name<TAB>protected<TAB>tip-sha` per line, one per branch
+#                     that EXISTS on the remote
+#                     (`gh api repos/{o}/{r}/branches --paginate`)
 #   <default-branch>  the repository default branch, e.g. `main`
 #   <owner>           the repository owner login, for the fork check
+#   <repo>            the repository NAME, for the fork check
 #
 #   Exit 0  every branch was decided. Verdicts on stdout.
 #   Exit 1  the input could not be trusted. NOTHING on stdout.
@@ -48,19 +51,44 @@
 # edit that introduces a mid-loop failure, and it is recorded here as untested
 # rather than left to read as proven.
 #
-# WHY THE PREDICATE IS "HEAD OF A MERGED PR" AND NEVER AGE. A branch with no
-# merged PR is somebody's work in progress -- possibly in a worktree on another
-# machine, possibly not yet pushed anywhere else. #725's own text names two
-# CLOSED-not-merged heads that are restorable from the PR page and must survive.
-# Age, "looks stale", and "already contained in main" are all proxies for
-# liveness, and ADR 0094 rejected liveness proxies outright for exactly this
-# class of destructive sweep: doubt resolves to skip, never to "probably fine".
+# WHY THE PREDICATE IS "HEAD OF A MERGED PR, AT THE COMMIT THAT MERGED" AND
+# NEVER AGE. A branch with no merged PR is somebody's work in progress --
+# possibly in a worktree on another machine, possibly not yet pushed anywhere
+# else. #725's own text names two CLOSED-not-merged heads that are restorable
+# from the PR page and must survive. Age, "looks stale", and "already contained
+# in main" are all proxies for liveness, and ADR 0094 rejected liveness proxies
+# outright for exactly this class of destructive sweep: doubt resolves to skip,
+# never to "probably fine".
 #
-# THE FIVE SKIPS, AND WHY EACH ONE IS LOAD-BEARING
+# THE SHA HALF OF THAT PREDICATE IS THE ONE THAT IS EASY TO LEAVE OUT, and
+# leaving it out is the only way this script can destroy work that is not
+# recoverable from the PR page. `delete_branch_on_merge`, which this replaces,
+# acts at the instant the tip IS the merge tip by construction. A deferred sweep
+# re-decides a day later against a tip that may have moved: a branch reused
+# after its PR merged -- commits pushed, next PR not opened yet -- is still
+# "head of a merged PR" by name. GitHub's "Restore branch" would then restore
+# the MERGED commit, not the work that was on the branch. `head-of-open-pr`
+# catches reuse WITH a PR open; nothing but the SHA check catches reuse before
+# the PR exists. Measured 2026-07-27: 36 of 36 candidates had tip == merge tip,
+# so the guard is a no-op on today's population -- which prices it at zero, and
+# says nothing about whether it is needed (Saltzer & Schroeder 1975 §3, the same
+# citation `label-automerge.yml` leans on: fail-safe defaults are not weighed
+# against probability).
+#
+# THE SEVEN SKIPS, AND WHY EACH ONE IS LOAD-BEARING
 #
 #   default-branch     never delete the trunk, whatever the API says about it.
+#                      Read from the API rather than hardcoded, so it is
+#                      name-independent.
 #   protected          branch protection is somebody's stated intent; a hygiene
-#                      job does not overrule it.
+#                      job does not overrule it. NOTE: this flag reflects branch
+#                      protection; a ruleset-based "Restrict deletions" may not
+#                      appear in it. That gap is deliberately NOT patched with a
+#                      name list -- a ruleset is enforced server-side, so the
+#                      DELETE fails, the branch survives, and the workflow's
+#                      verify step goes RED on it. An invisible ruleset is a
+#                      loud signal, not a silent deletion.
+#   tip-moved-since-merge  the branch was reused after its PR merged. See above.
 #   base-of-open-pr    THE ONE THAT IS EASY TO GET WRONG. Deleting the base of
 #                      an open PR does not close it -- since Pull Request
 #                      Retargeting (2020-05-19) GitHub silently RETARGETS it to
@@ -77,24 +105,37 @@
 #                      equality with one of ours is a COLLISION, not a match.
 #                      Without this check a fork PR from a branch called
 #                      `main`, or `fix/x`, would authorise deleting ours.
+#   unsupported-name   a ref name this script cannot vouch for downstream. Git
+#                      permits `#` and `%` in ref names; the caller interpolates
+#                      the name into a REST path, where `#` starts a fragment --
+#                      so `feat/x#main` would send DELETE to `.../heads/feat/x`
+#                      and destroy a branch that has no merged PR and therefore
+#                      no Restore button. Refused here rather than escaped
+#                      there, so the guard sits in the fixture-tested layer.
 #
 # WHAT IT DELIBERATELY DOES NOT DO (stated, not hidden):
 #   * It does not delete anything. It decides; the workflow deletes and then
 #     verifies the state afterwards. Keeping the decision pure is what makes it
 #     fixture-testable without a network or a repository.
-#   * It does not paginate or call an API. Truncated input is the caller's
-#     failure mode; a short <merged.json> makes branches look like `no-merged-pr`
-#     and skips them, which is the safe direction.
+#   * It does not paginate or call an API, and it CANNOT detect truncation --
+#     a short list is well-formed. The two directions are NOT symmetric, and the
+#     asymmetry is the point: a truncated <merged.json> makes branches look like
+#     `no-merged-pr` and skips them (safe), while a truncated <open.json>
+#     dissolves BOTH open-PR guards for the PRs that fell off the end (FAIL-OPEN
+#     -- a stacked base becomes deletable). The caller must therefore assert it
+#     did not hit its page ceiling; this script cannot do it for them.
 #   * It does not rank or cap. Every branch that exists gets a verdict.
 #
 # REASONS (third column)
-#   merged-pr-#N        delete -- head of merged PR N, and nothing else objected
-#   no-merged-pr        skip -- no merged PR in the input has this head
-#   fork-head-only      skip -- the only merged PRs with this head are forks'
-#   default-branch      skip -- this is the repository default branch
-#   protected           skip -- branch protection is on
-#   base-of-open-pr-#N  skip -- open PR N would be silently retargeted
-#   head-of-open-pr-#N  skip -- open PR N still owns this branch
+#   merged-pr-#N            delete -- head of merged PR N at the merged commit
+#   no-merged-pr            skip -- no merged PR in the input has this head
+#   fork-head-only          skip -- the only merged PRs with this head are forks'
+#   default-branch          skip -- this is the repository default branch
+#   protected               skip -- branch protection is on
+#   tip-moved-since-merge-#N  skip -- reused after PR N merged
+#   base-of-open-pr-#N      skip -- open PR N would be silently retargeted
+#   head-of-open-pr-#N      skip -- open PR N still owns this branch
+#   unsupported-name        skip -- cannot be expressed safely in a REST path
 
 set -euo pipefail
 
@@ -113,13 +154,14 @@ fail() { # fail <message>
 # an empty stdout is what makes "delete nothing" the default.
 trap 'fail "undecided (unexpected exit)"' EXIT
 
-[ "$#" -eq 5 ] || fail "expected 5 arguments, got $#"
+[ "$#" -eq 6 ] || fail "expected 6 arguments, got $#"
 
 readonly MERGED_JSON=$1
 readonly OPEN_JSON=$2
 readonly BRANCHES_TSV=$3
 readonly DEFAULT_BRANCH=$4
 readonly OWNER=$5
+readonly REPO=$6
 
 for f in "$MERGED_JSON" "$OPEN_JSON" "$BRANCHES_TSV"; do
   [ -f "$f" ] || fail "input file not found: $f"
@@ -127,6 +169,7 @@ for f in "$MERGED_JSON" "$OPEN_JSON" "$BRANCHES_TSV"; do
 done
 [ -n "$DEFAULT_BRANCH" ] || fail "default branch must not be empty"
 [ -n "$OWNER" ] || fail "owner must not be empty"
+[ -n "$REPO" ] || fail "repo must not be empty"
 
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 
@@ -134,20 +177,31 @@ command -v jq >/dev/null 2>&1 || fail "jq is required"
 # not an array at all -- an API error object, a truncated file, HTML from a
 # proxy -- is not, and must not read as "nothing to worry about". This is the
 # difference between "no open PRs" and "we could not find out", and collapsing
-# the two is precisely how a fail-closed guard turns fail-open.
+# the two is precisely how a fail-closed guard turns fail-open. An EMPTY FILE is
+# the realistic shape of that failure: `gh` writes errors to stderr and nothing
+# to stdout, so a failed fetch leaves zero bytes, not an error object.
 jq -e 'type == "array"' "$MERGED_JSON" >/dev/null 2>&1 || fail "not a JSON array: $MERGED_JSON"
 jq -e 'type == "array"' "$OPEN_JSON" >/dev/null 2>&1 || fail "not a JSON array: $OPEN_JSON"
 
-# `<branch>\t<pr-number>` for merged PRs whose head repo is THIS repo's owner.
-# `headRepositoryOwner` is null on a PR whose head repository has been deleted;
-# null is not this owner, so such a PR contributes nothing and its branch falls
-# through to `no-merged-pr` -- the safe direction, and the reason the comparison
-# is written as an equality against the owner rather than as `!= fork`.
-merged_heads=$(jq -r --arg owner "$OWNER" '
+# `<branch>\t<pr-number>\t<head-oid>` for merged PRs whose head repo is THIS
+# repository. `headRepositoryOwner` is null on a PR whose head repository has
+# been deleted; null is neither this owner nor this repo, so such a PR
+# contributes nothing and its branch falls through to `no-merged-pr` -- the safe
+# direction, and the reason the comparison is written as an equality against the
+# owner rather than as `!= fork`.
+#
+# BOTH halves of the identity are compared, not just the owner: two repositories
+# under the same owner can carry the same branch name, so owner equality alone
+# would let a merged PR in a SIBLING repository authorise deleting a branch
+# here. Unreachable on a user account (GitHub will not fork your repo to
+# yourself) but reachable under an org, and the header promised the repository
+# property -- so the code now delivers the property the comment claims.
+merged_heads=$(jq -r --arg owner "$OWNER" --arg repo "$REPO" '
   .[]
-  | select(.headRepositoryOwner.login == $owner)
+  | select(.headRepositoryOwner.login == $owner and .headRepository.name == $repo)
   | select(.headRefName != null and .headRefName != "")
-  | [.headRefName, (.number|tostring)] | @tsv' "$MERGED_JSON") || fail "cannot read $MERGED_JSON"
+  | [.headRefName, (.number|tostring), (.headRefOid // "")] | @tsv' "$MERGED_JSON") \
+  || fail "cannot read $MERGED_JSON"
 
 open_bases=$(jq -r '
   .[] | select(.baseRefName != null and .baseRefName != "")
@@ -162,8 +216,21 @@ open_heads=$(jq -r '
   .[] | select(.headRefName != null and .headRefName != "")
   | [.headRefName, (.number|tostring)] | @tsv' "$OPEN_JSON") || fail "cannot read $OPEN_JSON"
 
-lookup() { # lookup <table> <key> -> prints first matching value, or nothing
-  awk -F'\t' -v key="$2" '$1 == key { print $2; exit }' <<<"$1"
+# EXACT match on field 1, and the `exit` is load-bearing twice over.
+#
+# `==` not `~`: awk's `~` is a REGEX match, and a regex match is a SUBSTRING
+# match. With `~`, the live branch `feat/x` finds the merged row for `feat/x-2`
+# and gets deleted -- a skip silently turned into a delete on a branch nobody
+# had merged. Mutation testing found that this survived the whole suite; the
+# fixture that kills it is named in the test file.
+#
+# `exit`: a branch can head TWO merged PRs (reused, merged twice). Without the
+# early exit awk prints both rows, the caller's `$(...)` becomes multi-line, and
+# the reason column silently swallows a newline -- which drops the branch out of
+# BOTH the delete and skip lists downstream. First match wins, and the input is
+# newest-first, so the newest merged PR is the one the SHA is compared against.
+lookup() { # lookup <table> <key> -> prints first matching row's remaining fields
+  awk -F'\t' -v key="$2" '$1 == key { print $2 "\t" $3; exit }' <<<"$1"
 }
 
 # Buffered, never streamed -- see the all-or-nothing note in the header.
@@ -173,11 +240,22 @@ emit() { verdicts+="$1"$'\n'; }
 # `|| [ -n "${branch:-}" ]` so a final line without a trailing newline is still
 # processed. Without it the last branch in the file is silently dropped, which
 # would be a skip -- safe, but silently wrong, and the log would not say so.
-while IFS=$'\t' read -r branch protected _rest || [ -n "${branch:-}" ]; do
+while IFS=$'\t' read -r branch protected tip_sha _rest || [ -n "${branch:-}" ]; do
   # `git ls-remote` and the branches API both round-trip refs verbatim, so a
   # blank line means a malformed input file rather than a branch, and a branch
   # is never legitimately empty.
   [ -n "${branch:-}" ] || continue
+
+  # FIRST, before any verdict that could authorise a deletion: can this name be
+  # carried safely by the caller? Git's own rules already forbid space, `~`,
+  # `^`, `:`, `?`, `*`, `[`, `\` and control characters, so this allow-list only
+  # has to exclude what git permits and REST paths mangle -- `#` and `%`. A
+  # leading `-` is refused too, so the name can never be read as an option.
+  case "$branch" in
+    -* | *[!A-Za-z0-9._/-]*)
+      emit "$(printf 'skip\t%s\tunsupported-name' "$branch")"
+      continue ;;
+  esac
 
   if [ "$branch" = "$DEFAULT_BRANCH" ]; then
     emit "$(printf 'skip\t%s\tdefault-branch' "$branch")"
@@ -185,7 +263,8 @@ while IFS=$'\t' read -r branch protected _rest || [ -n "${branch:-}" ]; do
   fi
 
   # Only the exact string `false` counts as unprotected. A missing column, a
-  # `null`, or anything the API did not say is treated as protected, because
+  # `null` (which is what the API emits for a branch whose `protected` field is
+  # absent), or anything the API did not say is treated as protected, because
   # "we do not know" must not authorise a delete.
   if [ "${protected:-}" != "false" ]; then
     emit "$(printf 'skip\t%s\tprotected' "$branch")"
@@ -193,18 +272,22 @@ while IFS=$'\t' read -r branch protected _rest || [ -n "${branch:-}" ]; do
   fi
 
   base_pr=$(lookup "$open_bases" "$branch")
+  base_pr=${base_pr%%$'\t'*}
   if [ -n "$base_pr" ]; then
     emit "$(printf 'skip\t%s\tbase-of-open-pr-#%s' "$branch" "$base_pr")"
     continue
   fi
 
   head_pr=$(lookup "$open_heads" "$branch")
+  head_pr=${head_pr%%$'\t'*}
   if [ -n "$head_pr" ]; then
     emit "$(printf 'skip\t%s\thead-of-open-pr-#%s' "$branch" "$head_pr")"
     continue
   fi
 
-  merged_pr=$(lookup "$merged_heads" "$branch")
+  merged_row=$(lookup "$merged_heads" "$branch")
+  merged_pr=${merged_row%%$'\t'*}
+  merged_oid=${merged_row#*$'\t'}
   if [ -z "$merged_pr" ]; then
     # Distinguish "no PR at all" from "only a fork's PR" so the log says which.
     # Both skip; only the wording differs, and the wording is what tells a
@@ -214,6 +297,13 @@ while IFS=$'\t' read -r branch protected _rest || [ -n "${branch:-}" ]; do
     else
       emit "$(printf 'skip\t%s\tno-merged-pr' "$branch")"
     fi
+    continue
+  fi
+
+  # The tip must still be the commit that merged. Empty on either side means we
+  # could not establish it, which is not permission -- same rule as `protected`.
+  if [ -z "${tip_sha:-}" ] || [ -z "$merged_oid" ] || [ "$tip_sha" != "$merged_oid" ]; then
+    emit "$(printf 'skip\t%s\ttip-moved-since-merge-#%s' "$branch" "$merged_pr")"
     continue
   fi
 

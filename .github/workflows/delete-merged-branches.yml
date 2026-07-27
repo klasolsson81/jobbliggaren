@@ -36,17 +36,20 @@
 #   * #1108, merged by `klasolsson81` at 18:40:48Z -> run started 18:40:53Z, and
 #     the head branch was auto-deleted at 18:40:50Z, +2 s, by the setting.
 #
-# The same suppression is visible in this repository's own history without any
-# probe: `build.yml` runs on `push: branches: [main]`, and its five most recent
-# push-event runs carry head SHAs that are, one for one, the merge commits of
-# the five PRs Klas merged himself -- 9f4df643/#1070, 1f023aae/#1064,
-# 492fb825/#1057, fb30b0ff/#1049, 6129c80b/#1045, each run starting 2-3 s after
-# its merge. That is SHA equality, not a timestamp coincidence. Between
-# 9f4df643 and main at 2461276f there are 25 further commits, every one of them
-# merged by the app, and they produced ZERO push-event runs. (The count is
-# pinned to that tip because it grows; the ratio is the claim, not the integer.)
-# Same root cause, already recorded in memory as the reason CodeQL stopped
-# running on main.
+# TWO DISTINCT MECHANISMS SHARE ONE CAUSE -- do not collapse them. The suppressed
+# WORKFLOW RUN is why a `closed` handler cannot work, and why CodeQL stopped
+# running on main. The un-fired BRANCH DELETION is a repository SETTING that
+# follows the merging identity; it does not travel through the workflow engine at
+# all. Same cause (the app is the actor), different machinery. The workflow-run
+# half is independently visible in this repository's own history: `build.yml`
+# runs on `push: branches: [main]`, and its five most recent push-event runs
+# carry head SHAs that are, one for one, the merge commits of the five PRs Klas
+# merged himself -- 9f4df643/#1070, 1f023aae/#1064, 492fb825/#1057,
+# fb30b0ff/#1049, 6129c80b/#1045, each run starting 2-3 s after its merge. That
+# is SHA equality, not a timestamp coincidence. Between 9f4df643 and main at
+# 2461276f there are 25 further commits, every one merged by the app, and they
+# produced ZERO push-event runs. (The count is pinned to that tip because it
+# grows; the ratio is the claim, not the integer.)
 #
 # THE SYMMETRY THAT JUSTIFIES THE SHAPE: the event fires exactly where the
 # setting already works, and is suppressed exactly where the setting fails. A
@@ -63,26 +66,38 @@
 # check read as proof.
 #
 # THE DELETION IS NOT DECIDED HERE. `.github/scripts/select-deletable-branches.sh`
-# decides, is fixture-tested (20 cases), and is gated by the blocking `scripts`
-# job in `ci` -- the precedent `is-pure-base-merge.sh` set in the same directory
-# (#836). This file fetches, hands over, deletes what it is told, and then
-# VERIFIES THE STATE rather than trusting an exit code. That split is what makes
-# the interesting logic testable without a network.
+# decides, is fixture-tested, and is gated by the blocking `scripts` job in `ci`
+# -- the precedent `is-pure-base-merge.sh` set in the same directory (#836). That
+# gating is only true of code on the default branch, which is why the checkout
+# below is PINNED to it: a `workflow_dispatch` against an arbitrary branch would
+# otherwise run that branch's selector with `contents: write`, and the sentence
+# above would be false for exactly the path a human is most likely to use.
+#
+# This file fetches, hands over, deletes what it is told, and then VERIFIES THE
+# STATE rather than trusting an exit code. That split is what makes the
+# interesting logic testable without a network.
 #
 # A NOTE ON THE CONCURRENCY GROUP, because the neighbouring file argues the
 # opposite. `label-automerge.yml`'s `disarm` deliberately has NO group: each run
-# there is a statement about its own `before..after` span, so a cancelled run is
-# a span nobody reviewed, and the loss is unrecoverable. This job has no such
-# property. It recomputes the entire candidate set from current state on every
-# run, deletes nothing that a later run would not also delete, and is therefore
-# idempotent and monotone -- a cancelled run costs a day, not a guarantee. The
-# group is safe HERE for a reason that does not generalise; do not carry it back.
+# there is a statement about a span `before..after` whose inputs are GONE once
+# the run is cancelled -- it is not recomputable, so a cancelled run is a span
+# nobody ever reviewed. This job's inputs are always derivable from current
+# state. A cancelled run performs no deletion at all, and the next run decides
+# again from scratch; a deferred deletion is never a lost guarantee. It is
+# RECOMPUTABILITY that makes the group safe here, not any ordering property of
+# the deletions -- a later run may well decline what an earlier one would have
+# deleted, because a new stacked PR can appear overnight. Do not carry the group
+# back to `disarm`.
 name: delete-merged-branches
 
 on:
   schedule:
-    # Daily, deliberately off the hour and clear of the existing crons
-    # (`25 3` ad scan, `20 3` background matching, 06:00 digests).
+    # 04:40 UTC daily. The offset is cosmetic, not load-bearing: GitHub-hosted
+    # runners do not contend with anything else here, and the only other Actions
+    # cron in this repository is `codeql.yml` at `23 4 * * 1`. (An earlier draft
+    # justified the slot against the Hangfire crons in the Worker process --
+    # they share no resource with a GitHub runner, so that reasoning was
+    # evidence for a claim it could not support.)
     - cron: '40 4 * * *'
   workflow_dispatch:
     inputs:
@@ -93,7 +108,8 @@ on:
         default: 'true'
 
 # `contents: write` deletes refs; `pull-requests: read` enumerates the PRs the
-# predicate is built from. Nothing else.
+# predicate is built from. Nothing else. GitHub has no per-step permissions, so
+# this is the narrowest expressible grant.
 permissions:
   contents: write
   pull-requests: read
@@ -102,14 +118,27 @@ concurrency:
   group: delete-merged-branches
   cancel-in-progress: false
 
+env:
+  # The page ceiling asked for below. A list that comes back exactly this long
+  # may have been truncated, and truncation is undetectable from content.
+  PR_PAGE_LIMIT: 1000
+
 jobs:
   sweep:
     name: sweep merged head branches
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout (the selector script)
+      # PINNED to the default branch, and with the token left out of `.git`.
+      # Pinning is what makes the header's "gated by the blocking `scripts` job"
+      # true on the dispatch path too; `persist-credentials: false` keeps a
+      # `contents: write` token out of the runner's git config in a job that
+      # never uses git.
+      - name: Checkout the selector (default branch only)
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
 
       # A scheduled run sends NO inputs, so `inputs.dry_run` is the EMPTY string
       # there -- not `false`. A naive `inputs.dry_run != 'false'` would make the
@@ -132,48 +161,125 @@ jobs:
 
       # Fail-loud on every fetch. A partial or failed fetch must never reach the
       # selector as if it were an answer: an empty open-PR list would authorise
-      # deleting the base of every stacked PR in the repository. `set -e` plus
-      # `gh`'s non-zero exit on API failure is the whole guard, and the selector
-      # re-checks that each file is a JSON array as a second, independent net.
+      # deleting the base of every stacked PR in the repository.
+      #
+      # THE CEILING ASSERTION IS NOT DECORATION. `gh` exits 0 on a truncated
+      # list, and the two directions are not symmetric: a short merged list
+      # degrades to `no-merged-pr` (safe), while a short OPEN list dissolves both
+      # open-PR guards for the PRs that fell off the end (fail-open). The
+      # selector cannot detect either -- a short list is well-formed -- so the
+      # assertion belongs here, at the only place that knows a ceiling was asked
+      # for. Measured 2026-07-27: 690 merged PRs against a ceiling of 1000, on a
+      # repository merging 13-27 PRs a day.
       - name: Fetch merged PRs, open PRs and existing branches
+        id: fetch
         run: |
           set -euo pipefail
-          gh pr list --repo "$REPO" --state merged --limit 1000 \
-            --json number,headRefName,headRepositoryOwner >merged.json
-          gh pr list --repo "$REPO" --state open --limit 1000 \
-            --json number,headRefName,baseRefName >open.json
-          gh api "repos/$REPO/branches" --paginate \
-            --jq '.[] | [.name, (.protected|tostring)] | @tsv' >branches.tsv
-          echo "merged=$(jq length merged.json) open=$(jq length open.json) branches=$(wc -l <branches.tsv)"
+          fetch_round() { # fetch_round <suffix>
+            gh pr list --repo "$REPO" --state merged --limit "$PR_PAGE_LIMIT" \
+              --json number,headRefName,headRefOid,headRepositoryOwner,headRepository >"merged$1.json"
+            gh pr list --repo "$REPO" --state open --limit "$PR_PAGE_LIMIT" \
+              --json number,headRefName,baseRefName >"open$1.json"
+            gh api "repos/$REPO/branches" --paginate \
+              --jq '.[] | [.name, (.protected|tostring), .commit.sha] | @tsv' >"branches$1.tsv"
+            for f in "merged$1.json" "open$1.json"; do
+              n=$(jq length "$f")
+              if [ "$n" -ge "$PR_PAGE_LIMIT" ]; then
+                echo "::error::$f returned $n entries against a ceiling of $PR_PAGE_LIMIT -- the list may be truncated, and a truncated open-PR list is fail-OPEN. Refusing to decide. Raise PR_PAGE_LIMIT."
+                exit 1
+              fi
+            done
+          }
+          fetch_round 1
+          echo "round 1: merged=$(jq length merged1.json) open=$(jq length open1.json) branches=$(wc -l <branches1.tsv)"
         env:
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Decide which branches are deletable
-        id: select
+      - name: Decide which branches are deletable (round 1)
         run: |
           set -euo pipefail
           bash .github/scripts/select-deletable-branches.sh \
-            merged.json open.json branches.tsv "$DEFAULT_BRANCH" "$OWNER" >verdicts.tsv
+            merged1.json open1.json branches1.tsv "$DEFAULT_BRANCH" "$OWNER" "$REPO_NAME" >verdicts1.tsv
           {
             echo "## Branch sweep"
             echo
             echo "| verdict | branch | reason |"
             echo "|---|---|---|"
-            awk -F'\t' '{ printf "| %s | `%s` | %s |\n", $1, $2, $3 }' verdicts.tsv
+            awk -F'\t' '{ gsub(/`/, "", $2); printf "| %s | `%s` | %s |\n", $1, $2, $3 }' verdicts1.tsv
           } >>"$GITHUB_STEP_SUMMARY"
-          awk -F'\t' '$1 == "delete" { print $2 }' verdicts.tsv >to-delete.txt
-          awk -F'\t' '$1 == "skip"   { print $2 }' verdicts.tsv >to-skip.txt
-          n_delete=$(wc -l <to-delete.txt)
-          n_skip=$(wc -l <to-skip.txt)
-          echo "count=$n_delete" >>"$GITHUB_OUTPUT"
-          echo "::notice::$n_delete branch(es) selected for deletion, $n_skip skipped."
+          awk -F'\t' '$1 == "delete" { print $2 }' verdicts1.tsv | sort -u >round1.txt
+          echo "::notice::round 1: $(wc -l <round1.txt) selected for deletion, $(awk -F'\t' '$1 == "skip"' verdicts1.tsv | wc -l) skipped."
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+
+      # SECOND READING, AND ONLY THE INTERSECTION IS DELETED. Between the first
+      # reading and the DELETE there is a window of tens of seconds in which
+      # somebody can open a PR -- and a PR opened in that window loses its base
+      # to silent retargeting (#836's defect class) or its head outright.
+      #
+      # This runs the SAME fixture-tested selector a second time rather than
+      # re-implementing the open-PR predicate in YAML: re-implementing it here
+      # would break this file's own rule that the deletion is not decided here,
+      # and would cover only the open-PR guards, not `protected`, the fork check
+      # or the tip check.
+      #
+      # It NARROWS the window to [round 2 -> DELETE]; it does not close it. Said
+      # plainly rather than left for a green check to imply.
+      - name: Re-read and intersect (narrows the TOCTOU window)
+        run: |
+          set -euo pipefail
+          fetch_round() {
+            gh pr list --repo "$REPO" --state merged --limit "$PR_PAGE_LIMIT" \
+              --json number,headRefName,headRefOid,headRepositoryOwner,headRepository >"merged$1.json"
+            gh pr list --repo "$REPO" --state open --limit "$PR_PAGE_LIMIT" \
+              --json number,headRefName,baseRefName >"open$1.json"
+            gh api "repos/$REPO/branches" --paginate \
+              --jq '.[] | [.name, (.protected|tostring), .commit.sha] | @tsv' >"branches$1.tsv"
+            for f in "merged$1.json" "open$1.json"; do
+              n=$(jq length "$f")
+              if [ "$n" -ge "$PR_PAGE_LIMIT" ]; then
+                echo "::error::$f returned $n entries against a ceiling of $PR_PAGE_LIMIT -- refusing to decide."
+                exit 1
+              fi
+            done
+          }
+          fetch_round 2
+          bash .github/scripts/select-deletable-branches.sh \
+            merged2.json open2.json branches2.tsv "$DEFAULT_BRANCH" "$OWNER" "$REPO_NAME" >verdicts2.tsv
+          awk -F'\t' '$1 == "delete" { print $2 }' verdicts2.tsv | sort -u >round2.txt
+          comm -12 round1.txt round2.txt >to-delete.txt
+
+          # The intersection can only SHRINK the set -- so assert exactly that.
+          # A mis-written `comm`, or a `cat round1.txt round2.txt | sort -u`,
+          # silently yields the UNION, which is the one mistake here that is
+          # dangerous rather than merely wrong.
+          for round in round1.txt round2.txt; do
+            extra=$(comm -23 to-delete.txt "$round")
+            if [ -n "$extra" ]; then
+              echo "::error::final list is not a subset of $round -- refusing to delete. Offending: $extra"
+              exit 1
+            fi
+          done
+
+          dropped=$(comm -23 round1.txt round2.txt)
+          if [ -n "$dropped" ]; then
+            echo "::notice::dropped between readings (state changed): $dropped"
+            { echo; echo "Dropped between readings:"; echo '```'; echo "$dropped"; echo '```'; } >>"$GITHUB_STEP_SUMMARY"
+          fi
+          echo "count=$(wc -l <to-delete.txt)" >>"$GITHUB_OUTPUT"
+        id: select
+        env:
+          REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Delete (skipped on a dry run)
-        if: steps.mode.outputs.dry == 'false'
+        if: steps.mode.outputs.dry == 'false' && steps.select.outputs.count != '0'
         run: |
           set -uo pipefail
           # NO `set -e` around the loop, deliberately: one branch that refuses to
@@ -182,12 +288,17 @@ jobs:
           # `label-automerge.yml` applies to `--disable-auto`, and the reason
           # `reference_exit_code_after_a_pipe_measures_the_pipe_not_the_tool`
           # exists.
+          #
+          # The failure OUTPUT is kept: 403 (a ruleset refusing the deletion),
+          # 404 (already gone) and 429 (rate limited) are three different stories
+          # and swallowing them makes the log useless. `gh` never writes the
+          # token to stderr, so there is nothing to hide.
           while IFS= read -r branch || [ -n "${branch:-}" ]; do
             [ -n "${branch:-}" ] || continue
-            if gh api -X DELETE "repos/$REPO/git/refs/heads/$branch" >/dev/null 2>&1; then
+            if err=$(gh api -X DELETE "repos/$REPO/git/refs/heads/$branch" 2>&1 >/dev/null); then
               echo "deleted: $branch"
             else
-              echo "delete call failed (verified against state below): $branch"
+              echo "delete call failed for $branch (verified against state below): ${err//$'\n'/ }"
             fi
           done <to-delete.txt
         env:
@@ -205,12 +316,26 @@ jobs:
       # channel that just failed. One listing call either succeeds -- and then
       # says authoritatively which branches exist -- or fails and takes the step
       # red with it.
+      #
+      # `always()` so the state is reported even if the delete step died: a
+      # deletion nobody verified is exactly what this step exists to prevent.
       - name: Verify the refs are actually gone
-        if: steps.mode.outputs.dry == 'false'
+        if: always() && steps.mode.outputs.dry == 'false' && steps.select.outputs.count != '0'
         run: |
           set -euo pipefail
           gh api "repos/$REPO/branches" --paginate --jq '.[].name' >after.txt
-          survivors=$(grep -Fxf to-delete.txt after.txt || true)
+          # `grep` returns 0 (match), 1 (no match) and 2 (ERROR). A bare
+          # `|| true` swallows 2 and reports an I/O failure as "no survivors" --
+          # the backstop failing open through the same shape it was built to
+          # catch. Decide on the code explicitly.
+          set +e
+          survivors=$(grep -Fxf to-delete.txt after.txt)
+          rc=$?
+          set -e
+          if [ "$rc" -gt 1 ]; then
+            echo "::error::grep failed (exit $rc) while checking survivors -- state unverified."
+            exit 1
+          fi
           if [ -n "$survivors" ]; then
             echo "::error::These branches were selected for deletion and still exist:"
             echo "$survivors"

@@ -266,9 +266,13 @@ jobs:
   # den defektklass kontrollen finns för att stänga. Samma sak gäller ett
   # destruktivt svep: skillnaden är bara att dess felutfall är oåterkalleligt.
   #
-  # Inget toolchain-steg: bara bash + git, som redan finns på runnern. Mätt
-  # 2026-07-27 på ubuntu-runner: hela jobbet 9 s, mot `coverage` som är kritisk
-  # väg på ~913 s. ci:s väggklocka är alltså oförändrad.
+  # Inget toolchain-steg: bara bash, git och `jq` (den senare krävs hårt av
+  # `select-deletable-branches.sh`) — alla tre finns förinstallerade på
+  # ubuntu-runnern. Mätt 2026-07-27 på ubuntu-runner: **9 s när jobbet körde
+  # ENBART `is-pure-base-merge`-fixturerna**; siffran är alltså ett golv, inte
+  # jobbets nuvarande varaktighet. Storleksordningen är det som bär: mot
+  # `coverage` på ~913 s (kritisk väg) är ci:s väggklocka oförändrad oavsett
+  # vilken av de två siffrorna som gäller.
   scripts:
     name: scripts (bash fixtures)
     runs-on: ubuntu-latest

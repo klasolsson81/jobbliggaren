@@ -343,7 +343,7 @@ row is the finding: the product said the CV was saved and this employment is gon
 | 4 | `pdf-single-column-sv` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
 | 5 | `pdf-single-column-spaced` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
 | 6 | `pdf-single-column-intra-block-spaced` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
-| 7 | `pdf-single-column-intra-block-spaced-tight-list` | yes | Extracted | 1681 | 62 | **0** | yes | Sv | 5 | null |
+| 7 | `pdf-single-column-intra-block-spaced-tight-list` | yes | Extracted | 1680 | 62 | **0** | yes | Sv | 5 | null |
 | 8 | `pdf-sidebar-spaced` | yes | Extracted | 1653 | 59 | **0** | yes | Sv | 5 | null |
 | 9 | `pdf-single-column-en` | yes | Extracted | 1557 | 48 | **0** | yes | En | 5 | null |
 | 10 | `pdf-nonsequential-decorative` | yes | Extracted | 1537 | 49 | **0** | yes | Sv | 5 | 7 chars |
@@ -374,7 +374,7 @@ reader's inference, never an emitted ratio.
 | 4 | `pdf-single-column-sv` | `05CD8018BF8A` | no | no | `Anna Andersson` |
 | 5 | `pdf-single-column-spaced` | `05CD8018BF8A` | no | no | `Anna Andersson` |
 | 6 | `pdf-single-column-intra-block-spaced` | `05CD8018BF8A` | no | no | `Anna Andersson` |
-| 7 | `pdf-single-column-intra-block-spaced-tight-list` | `B853B5B6C71E` | no | no | `Anna Andersson` |
+| 7 | `pdf-single-column-intra-block-spaced-tight-list` | `F2BBB87DDE72` | no | no | `Anna Andersson` |
 | 8 | `pdf-sidebar-spaced` | `F4AE38C36604` | no | no | `Anna Andersson` |
 | 9 | `pdf-single-column-en` | `1EF60B042871` | no | no | `Anna Andersson` |
 | 10 | `pdf-nonsequential-decorative` | `B25148E1CC6B` | no | no | `CV 2026` |
@@ -398,7 +398,7 @@ extractor.
 
 - `pdf-single-column-spaced` vs `pdf-single-column-sv` — digests **EQUAL** (`05CD8018BF8A` / `05CD8018BF8A`)
 - `pdf-single-column-intra-block-spaced` vs `pdf-single-column-spaced` — digests **EQUAL** (`05CD8018BF8A` / `05CD8018BF8A`)
-- `pdf-single-column-intra-block-spaced-tight-list` vs `pdf-single-column-intra-block-spaced` — digests differ (`B853B5B6C71E` / `05CD8018BF8A`)
+- `pdf-single-column-intra-block-spaced-tight-list` vs `pdf-single-column-intra-block-spaced` — digests differ (`F2BBB87DDE72` / `05CD8018BF8A`)
 - `pdf-sidebar-spaced` vs `pdf-sidebar-emitted-first` — digests differ (`F4AE38C36604` / `F8D2FF82DFDE`)
 - `pdf-known-heading-after-profile` vs `pdf-unknown-heading-after-profile` — digests differ (`151E7C68EC39` / `4BA9EB7A1A94`)
 - `pdf-clean-body-pnr-in-account-name` vs `pdf-single-column-sv` — digests **EQUAL** (`05CD8018BF8A` / `05CD8018BF8A`)
@@ -942,8 +942,17 @@ the first adds spacing inside entries only, the second lengthens the tight-leade
 is deliberate — it turns "neither knob alone reproduces it" from a sentence into two rows, and the
 first arm's digest is EQUAL to `pdf-single-column-spaced`'s, which is itself the measurement that
 intra-entry spacing is invisible to the extractor today. And the extractor suite's `Extract_PdfSpacingIsInvisibleInTheExtractedText_TodaysBase`
-pins today's behaviour on all three spacings. **A future boundary rule must turn those rows red;
-if it lands and they stay green, it did not do what it claims.**
+pins today's behaviour on all three spacings.
+
+**What a future boundary rule must do to those rows, per row.** `BetweenEntries` and
+`BetweenAndInsideEntries` must go red — those documents state a boundary and a fix must find it.
+**`UniformLeading` must stay green, PERMANENTLY:** that document authors no boundary at all, so a
+rule that emits a blank line there has INVENTED one. The withdrawn rule did preserve that property,
+and it is the one property that must never be traded for recall. And red on
+`BetweenAndInsideEntries` is necessary, NOT sufficient — the withdrawn rule turned it red by
+splitting entries apart, which is the regression itself. Judge that row by the parsed-entry counts
+of `pdf-single-column-intra-block-spaced` and `pdf-single-column-intra-block-spaced-tight-list`,
+which say whether the boundaries landed between entries or inside them.
 
 ### D. Position dependence of the unknown-heading pin (measured 2026-07-26, PR K)
 

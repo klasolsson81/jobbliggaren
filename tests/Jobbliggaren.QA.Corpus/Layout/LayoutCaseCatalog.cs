@@ -48,9 +48,9 @@ public sealed record LayoutCase(
     string AccountDisplayName = LayoutCaseCatalog.DefaultAccountName);
 
 /// <summary>The authored cases, ordered PDF then DOCX with controls adjacent to what they
-/// control. The count is deliberately not written here: two revisions of this comment carried a
-/// stale number (16 while 17 existed, then 19 while 20 existed). The report emits
-/// <c>All.Count</c>.</summary>
+/// control. The count is deliberately NOT written here: two revisions of this comment carried a
+/// stale number (16 while 17 existed, then 19 while 20 existed), and a third revision replaced
+/// them with a claim about where the count is emitted that was itself false. Count the list.</summary>
 public static class LayoutCaseCatalog
 {
     private const string Pdf = "application/pdf";

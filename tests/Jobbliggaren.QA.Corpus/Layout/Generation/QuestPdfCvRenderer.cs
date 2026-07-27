@@ -469,14 +469,16 @@ internal static class QuestPdfCvRenderer
             Block(col, [line]);
     }
 
-    /// <summary>Distinct extra skill lines for the tight-list arm. Real tool names rather than
-    /// repetitions of <see cref="CvModel.Skills"/>, so the lengthened list is a longer LIST and not
-    /// the same seven items three times.</summary>
+    /// <summary>Extra skill lines for the tight-list arm: real tool names, so the lengthened list
+    /// is a longer LIST rather than the same seven items repeated. Distinct from each other AND
+    /// from <see cref="CvModel.Swedish"/>'s own <c>Skills</c> — an earlier revision included
+    /// Kubernetes and Terraform, which are already in that list, so the report counted 21 entries
+    /// of which only 19 were unique while the doc comment claimed distinctness.</summary>
     private static readonly string[] TightListPadding =
     [
-        "Kubernetes", "Terraform", "RabbitMQ", "Redis", "Grafana",
-        "OpenTelemetry", "Azure DevOps", "GitHub Actions", "Playwright", "xUnit",
-        "Entity Framework Core", "Dapper", "SignalR", "MassTransit",
+        "RabbitMQ", "Redis", "Grafana", "OpenTelemetry", "Azure DevOps",
+        "GitHub Actions", "Playwright", "xUnit", "Entity Framework Core", "Dapper",
+        "SignalR", "MassTransit", "OpenSearch", "Keycloak",
     ];
 
     /// <summary>The sidebar's blocks, mirroring <see cref="SidebarLines"/>'s content exactly so the

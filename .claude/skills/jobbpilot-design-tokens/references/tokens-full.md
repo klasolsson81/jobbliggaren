@@ -238,7 +238,7 @@ hero-plattan, inte H1-skalan. Mono caps-labels och mono inline-data på
 
 | Komponent | Höjd | Varianter |
 |---|---|---|
-| `.jp-input` | 48px | — |
+| `.jp-input` | 48px | HANDOVER-v3 §5.2 via ADR 0052 (Amendment 2026-07-27, #1095) — NOT drift; shadcn `Input` is 44px per ADR 0038 |
 | `.jp-btn` | 44px | `--sm` 36px |
 | Hero-sökrad (`.jp-hero__input`/`__searchbtn`) | 52px | — |
 

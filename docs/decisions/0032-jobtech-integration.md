@@ -1199,6 +1199,13 @@ converting an intermittent defect into a permanent one.
 
 ### A3 — both PII mitigations §8 relies on are largely ineffective against the PII they target.
 
+> **SUPERSEDED IN PART, 2026-07-26 (#845).** Two things below have moved. **(1)** *"this 30-day
+> purge"* names the control by a duration that is not the rule; the rule lives in §C2 and the purge is
+> not a PII control at all. **(2)** A3's finding was correct when written and is **no longer the
+> whole picture**: the two controls it judges are still as weak as it says, but they are no longer
+> the only ones — Tier A (`daa4b51d`) and Tier B (`269a4603`) shipped, and per-control reach is
+> tabulated in §C4. Do not quote A3 as the current state of our PII defences in either direction.
+
 §8's risk register presents two controls against recruiter PII: the ingest **allowlist sanitizer** and
 this **30-day purge**. Neither works against the form the PII actually takes.
 
@@ -1648,12 +1655,16 @@ wrongly attached to both commits. The shipped surface is
 validator and `ErasureCascadeRegistry`; `RecruiterErasureIngestTests` and `ErasedAdReadPathTests` run
 green against Testcontainers Postgres (34 tests, re-verified 2026-07-26).
 
-**The ship DATES are stated here and nowhere else.** Other sites name the tier and its commit hash -
-a hash is a stable identifier and cannot go stale - but none of them restates a date. The date is what
-went stale: *"both shipped 2026-07-17"* survived two review rounds precisely because one date sat in
-four homes. Sites that used to carry a date and now point here: ADR 0024 §3 and §3.2, ADR 0049 §F, the
-erasure runbook §0, `PurgeStaleRawPayloadsJob`, and B7/B8's own banners above. See C3 for the same
-rule applied to the retention arithmetic, and C1 for the arithmetic's single home.
+**This is the authoritative home of the ship dates, and the rule is a rule, not a claim about the
+tree: prefer tier + commit hash wherever a ship is referenced, and cite this section for the date.**
+A hash is a stable identifier and cannot go stale; the date is precisely what did - *"both shipped
+2026-07-17"* survived two review rounds because one date sat in several homes.
+
+**No count and no file list appears here, deliberately.** Four consecutive drafts of this amendment
+asserted that some enumerated set of sites had been cleaned, and the tree falsified every one of them
+- the fourth while the same commit was adding fresh dated mentions elsewhere in its own diff. C3
+states this discipline for the retention arithmetic and gives the reason: **the grep is the record,
+never an enumeration.** It applies here unchanged. C1 holds the arithmetic's single home.
 
 This entry records only what shipped. It does **not** declare the prod gate lifted and does **not**
 re-assert it: **ADR 0106 is the gate's sole owner** and its status is described only there. The reason

@@ -96,7 +96,8 @@ public sealed record JobAdRemoval(
 /// #841 — <see cref="Facets"/> carries the seven taxonomy/employer concept ids the ACL parsed out of the
 /// same payload. It travels WITH the payload because the aggregate writes the two atomically: the JSON
 /// paths (and the <c>working_hours_type</c> → <c>worktime_extent</c> rename) are ACL knowledge and stay in
-/// the ACL, but the VALUES are the domain's, and they must outlive the payload's 30-day TTL. Before #841
+/// the ACL, but the VALUES are the domain's, and they must outlive the payload's retention TTL
+/// (rule: ADR 0032 Amendment 2026-07-26 §C2). Before #841
 /// these seven were Postgres STORED generated columns and self-destructed with the purge.
 /// </para>
 ///

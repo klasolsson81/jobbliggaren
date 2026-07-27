@@ -55,7 +55,7 @@ public sealed class JobAdFacetsSurvivePurgeTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
 
-        // An ad PAST the 30-day horizon — so the purge takes it — but still ACTIVE and still listed.
+        // An ad PAST the payload-retention threshold — so the purge takes it — but still ACTIVE and still listed.
         // That combination is the whole point: this is not an expired ad, it is a live one the product
         // is supposed to keep showing.
         var title = await SeedImportedAdAsync(publishedDaysAgo: 40, ct);
@@ -109,7 +109,7 @@ public sealed class JobAdFacetsSurvivePurgeTests(ApiFactory factory)
             .CountAsync(ct);
 
         found.ShouldBe(1,
-            "a still-ACTIVE ad past the 30-day payload horizon must remain findable by its municipality " +
+            "a still-ACTIVE ad past the payload-retention threshold must remain findable by its municipality " +
             "facet. Before #841 the purge nulled municipality_concept_id and this ad disappeared from " +
             "filtered search and from the matching engine for ~21.5h of every day.");
     }

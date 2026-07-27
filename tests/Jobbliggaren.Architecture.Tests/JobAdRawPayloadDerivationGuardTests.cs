@@ -114,8 +114,9 @@ public class JobAdRawPayloadDerivationGuardTests
 
         offenders.ShouldBeEmpty(
             "A migration creates a GENERATED column derived from raw_payload in raw SQL. raw_payload is " +
-            "the only column on job_ads with a retention TTL (PurgeStaleRawPayloadsJob nulls it after 30 " +
-            "days, ADR 0032 §8), and Postgres RECOMPUTES any stored generated column when its base " +
+            "the only column on job_ads with a retention TTL (PurgeStaleRawPayloadsJob nulls it on a " +
+            "criterion, not a fixed period; rule: ADR 0032 Amendment 2026-07-26 §C2), and Postgres " +
+            "RECOMPUTES any stored generated column when its base " +
             "changes — so the new column would be silently destroyed on still-ACTIVE ads, exactly as the " +
             "seven facets were for two releases (#841). Parse it in the ACL and write it in C# at the " +
             "ingest funnel instead. Offending migrations: " + string.Join(", ", offenders));

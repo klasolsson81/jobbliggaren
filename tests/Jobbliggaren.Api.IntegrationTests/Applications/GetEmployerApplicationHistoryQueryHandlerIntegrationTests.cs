@@ -407,7 +407,7 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
         // #841 — THIS TEST WAS BUILT TO FAIL TODAY, and it did.
         //
         // It was `Handle_ActiveButPurgedAd_IsNotAttributed`, a characterization test from the #824 lane
-        // pinning the shipped defect: a still-ACTIVE ad past the 30-day payload horizon lost its
+        // pinning the shipped defect: a still-ACTIVE ad past the payload-retention threshold lost its
         // organization_number (a STORED generated column that Postgres recomputed to NULL when the purge
         // deleted its base), so the user's OWN SUBMITTED APPLICATION silently vanished from her history —
         // the very drop DPIA #456 §8 forbade. Its closing comment said so: *"#841 removes the root cause.

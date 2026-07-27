@@ -1776,7 +1776,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             await db.SaveChangesAsync(ct);
         }
 
-        // The purge: after 30 days her org.nr survives ONLY in organization_number (#841
+        // The purge: once the payload is gone her org.nr survives ONLY in organization_number (#841
         // materialised it; raw_payload is NULL for most of the corpus).
         using (var purge = _provider.CreateScope())
         {
@@ -2034,7 +2034,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         probe.Matched.JobAds.ShouldBe(1,
             "the token lives in raw_payload alone (a municipality NAME; only its concept-id is "
             + "projected). If this is 0, the raw_payload arm is gone — and it is the ONLY channel "
-            + "that reaches allowlisted-but-unprojected payload fields for the <30-day window.");
+            + "that reaches allowlisted-but-unprojected payload fields while the payload is still present.");
 
         var match = probe.Matches.Single();
         match.MatchedChannel.ShouldBe(ErasureMatchChannel.FullTextOrRawPayload);

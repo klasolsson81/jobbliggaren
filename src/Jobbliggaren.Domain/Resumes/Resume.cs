@@ -283,13 +283,13 @@ public sealed class Resume : AggregateRoot<ResumeId>
         // only ingress (already personnummer-gated), and means the FE write path needs no
         // change at all. It is also what keeps ADR 0109's FAS-DEFERRED classify step deferred:
         // no in-app path can alter this text, so nothing can classify it by accident.
-        content = content with { Preamble = MasterVersion.Content.Preamble };
+        var master = MasterVersion;
+        content = content with { Preamble = master.Content.Preamble };
 
         var validation = ValidateContent(content);
         if (validation.IsFailure)
             return validation;
 
-        var master = MasterVersion;
         var now = clock.UtcNow;
         master.UpdateContent(content, clock);
         ApplyDenormalizedProjection(content);
@@ -704,14 +704,18 @@ public sealed class Resume : AggregateRoot<ResumeId>
         // residue is worth carrying out of a file" and this one answers "how much may live on
         // the canonical CV". Two knowledge pieces, two homes.
         //
-        // Measured: it cannot fire today. The field's only ingress is CreateFromParsed, fed by
-        // a parse whose own writer truncates at 2 000 first, and UpdateMasterContent is
-        // write-once while CreateTailored clears it. So this is the AUTHORITY half of a
-        // mirrored pair — the same relationship the 100/200 caps below have with the client
-        // zod schemas — and it earns its place by being the number a SECOND ingress would have
-        // to respect, not by rejecting anything now. Said plainly rather than left to read as
-        // a live rejection path: the two caps currently happen to be equal, and a reader who
-        // believes this one fires would draw the wrong conclusion from that coincidence.
+        // Whether it can fire depends on a fact one layer away, so state the fact rather than
+        // the conclusion: every ingress DERIVES the value from the source parse (both
+        // CreateFromParsed callers substitute it before their guard; UpdateMasterContent is
+        // write-once; CreateTailored clears it), and PreambleResidue.Extract truncates at its
+        // own 2 000 on a LINE boundary — so what reaches here is <= 2 000 and this cap does not
+        // reject anything today. It is the authority half of a mirrored pair, like the 100/200
+        // caps below against the client zod schemas.
+        //
+        // It is NOT decoration, and the review round proved why: before that derivation existed,
+        // the manual promote endpoint accepted a client-supplied preamble that NO request
+        // validator capped, and this line was the only thing standing between that endpoint and
+        // an unbounded string under the DEK. Remove the derivation and this cap goes live again.
         if (content.Preamble is { Length: > 2_000 })
             return Result.Failure(DomainError.Validation(
                 "Resume.PreambleTooLong", "Inledande text får vara max 2 000 tecken."));

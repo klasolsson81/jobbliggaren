@@ -169,6 +169,83 @@ public class PromoteParsedResumeCommandHandlerTests
 
         var resume = db.Resumes.Local.ShouldHaveSingleItem();
         resume.MasterVersion.Content.Summary.ShouldBeNull();
+
+        // #1060 — and it is not dropped either. Until the review round measured it, this arm
+        // silently lost the text: the approved payload above omits `preamble` (no write schema
+        // models it), so the mapper carried null and ADR 0109 §3's "dropping is the bug"
+        // survived on the manual arm of the very PR that retires it. The handler now DERIVES
+        // the value from the parse.
+        resume.MasterVersion.Content.Preamble.ShouldBe(UnclassifiedPreamble);
+    }
+
+    /// <summary>
+    /// The other half of the same rule, and the half a "fill it in when the client omits it"
+    /// implementation would fail: a client that SUPPLIES a preamble must not win. This endpoint
+    /// binds <c>ResumeContentDto</c> straight off the HTTP body, so without the derivation an
+    /// authenticated user could author a permanent, unremovable preamble on her own CV —
+    /// falsifying the write-once rule the aggregate enforces on every other path, and reopening
+    /// by the back door the classify step ADR 0109's amendment FAS-DEFERRED.
+    /// </summary>
+    [Fact]
+    public async Task Handle_ClientSuppliesItsOwnPreamble_IsIgnored_TheParsesValueWins()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var (parsed, _) = await SeedOwnedAsync(db, _userId);
+
+        var approved = CleanContent() with { Preamble = "Text användaren skrev in själv" };
+
+        var result = await CreateSut(db).Handle(
+            Command(parsed.Id.Value, approved), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        db.Resumes.Local.ShouldHaveSingleItem()
+            .MasterVersion.Content.Preamble.ShouldBe(UnclassifiedPreamble);
+    }
+
+    /// <summary>
+    /// The ORDERING, which is the part of the derivation that is easy to get wrong: the
+    /// substitution happens BEFORE the personnummer guard, not after.
+    ///
+    /// <para>The parse's preamble is not a substring of <c>RawText</c> — <c>PreambleResidue</c>
+    /// splices the fragments that survive subtraction — so a personnummer straddling a
+    /// subtracted fragment was never visible to the import scan that sets
+    /// <c>Personnummer.Found</c>, and G1 cannot have caught it. DQ6 on the composed content is
+    /// the only control that can. Substituting after the guard would hand
+    /// <c>CreateFromParsed</c> a preamble nothing on this path had scanned.</para>
+    /// </summary>
+    [Fact]
+    public async Task Handle_PreambleFromTheParseCarriesAPersonnummer_IsRefused_ScannedNotBypassed()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = JobSeeker.Register(_userId, "Anna Andersson", FakeDateTimeProvider.Default).Value;
+        db.JobSeekers.Add(seeker);
+
+        // The parse is NOT flagged — PersonnummerScanOutcome.None — which is the whole point:
+        // this is the population G1 lets through and only DQ6 can stop.
+        var content = new ParsedResumeContent(
+            new ParsedContact("Anna Andersson", "anna@example.com", "070-1234567", "Stockholm"),
+            profile: "Erfaren backend-utvecklare.",
+            experience: [new ParsedExperience("Backend-utvecklare", "Beta AB", "2021–", "raw entry")],
+            preamble: "Anna Andersson, 811218-9876, Stockholm");
+        var parsed = ParsedResume.Create(
+            seeker.Id, "anna-cv.pdf", "application/pdf", ResumeLanguage.Sv,
+            content, "Anna Andersson\nBackend-utvecklare, Beta AB",
+            ParseConfidence.FromSections(
+            [
+                new SectionConfidence(ParsedSectionKind.Contact, SectionConfidenceLevel.Confident, []),
+                new SectionConfidence(ParsedSectionKind.Experience, SectionConfidenceLevel.Confident, []),
+            ]),
+            PersonnummerScanOutcome.None, [], FakeDateTimeProvider.Default).Value;
+        db.ParsedResumes.Add(parsed);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await CreateSut(db).Handle(
+            Command(parsed.Id.Value), TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.PersonnummerMustBeRemoved");
+        db.Resumes.Local.ShouldBeEmpty();
+        parsed.Status.ShouldBe(ParsedResumeStatus.PendingReview);
     }
 
     // ===============================================================

@@ -62,19 +62,29 @@ public sealed record ResumeContent
     /// first one. <c>null</c> is also what a pre-field ciphertext payload deserialises to, and
     /// that is the semantically correct value rather than merely a tolerated one.
     ///
-    /// <para><b>Write-once.</b> The ONLY ingress is <see cref="Resume.CreateFromParsed"/>;
-    /// <see cref="Resume.UpdateMasterContent"/> carries the existing value forward and ignores
-    /// whatever the transport says, so no user-authored preamble exists or can exist and the
-    /// classify step stays FAS-DEFERRED structurally rather than by convention (ADR 0109
-    /// Amendment 2026-07-18, ADR 0112). It is the identity projection of
-    /// <c>ParsedResumeContent.Preamble</c> — the only mapping that neither MINTS a section
-    /// identity (ADR 0109 §1) nor DROPS the text (§3).</para>
+    /// <para><b>Write-once, and DERIVED on every ingress.</b> The value always comes from the
+    /// source parse, never from a transport. <see cref="Resume.CreateFromParsed"/> has TWO
+    /// callers — auto-promote and the manual promote endpoint, the latter fed by a
+    /// client-supplied DTO — and both substitute <c>ParsedResumeContent.Preamble</c> before the
+    /// personnummer guard runs. <see cref="Resume.UpdateMasterContent"/> then carries the stored
+    /// value forward and ignores whatever the transport says. So no user-authored preamble
+    /// exists or can exist, and the classify step stays FAS-DEFERRED structurally rather than by
+    /// convention (ADR 0109 Amendment 2026-07-18, ADR 0112).
+    ///
+    /// <para>The projection is the IDENTITY mapping — the only one that neither MINTS a section
+    /// identity (ADR 0109 §1) nor DROPS the text (§3). Both prohibitions bind both arms: the
+    /// manual arm dropped it until #1060's review round measured that it did.</para></para>
     ///
     /// <para><b>Never rendered.</b> Not by <c>ResumeContentLinearizer</c>, not by the PDF
     /// renderer, not in the ATS view — an unclassified page number, OCR header or address
     /// block must never appear in a document the user sends to employers. ADR 0109's accepted
-    /// junk cost is DISPLAY, never RENDER. Pinned by test; nothing in those paths reflects, so
-    /// the pin is what keeps it true rather than what makes it true.</para>
+    /// junk cost is DISPLAY, never RENDER. Nothing in those paths reflects, so a pin is what
+    /// keeps this true rather than what makes it true — and there are TWO independent
+    /// enumerations to keep true: <c>ResumeContentLinearizer</c> (pinned by
+    /// <c>ResumePreambleTests.Linearize_NeverEmitsThePreamble</c>, and covering the ATS view
+    /// transitively because <c>GetResumeAtsTextQueryHandler</c> linearizes) and
+    /// <c>CvDocumentModel.From</c>, the PDF's own projection, pinned in
+    /// <c>CvDocumentModelCompletenessTests</c>.</para>
     /// </summary>
     public string? Preamble { get; init; }
 

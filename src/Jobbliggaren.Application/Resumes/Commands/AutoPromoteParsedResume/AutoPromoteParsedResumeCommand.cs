@@ -11,10 +11,15 @@ namespace Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 /// bound 2026-07-16). Unlike <c>PromoteParsedResumeCommand</c> (whose content is the USER'S
 /// gap-filled, human-curated payload) this command derives the content FROM THE PARSE via a
 /// bound verbatim projection — the machine promotes only what the file already said, never
-/// synthesises (ADR 0071/CLAUDE.md §5), and only when the parse is clean: no personnummer
-/// (fail-closed until the 5b consent path), no unclassified preamble (ADR 0109 — only the
-/// user classifies), parser-confident, and buildable against the canonical
-/// <c>ValidateContent</c>. Anything not clean is NOT an error — the artifact stays pending
+/// synthesises (ADR 0071/CLAUDE.md §5), and only when the parse is clean. **What "clean" means
+/// NARROWED on 2026-07-27 (#1060), and this sentence is the Art. 22 record of the automated
+/// decision, so it has to track it:** no personnummer (fail-closed until the 5b consent path),
+/// extraction did not FAIL outright (`ParseConfidence.Overall != Failed` — a `Degraded` parse
+/// now promotes; see <c>AutoPromoteBlockReason.ParseNotConfident</c>), and buildable against the
+/// canonical <c>ValidateContent</c>. An unclassified preamble no longer blocks: it is carried
+/// onto the CV verbatim under its own name (ADR 0109 amendment 2026-07-27), so the user still
+/// classifies it and the machine still asserts nothing about what it is.
+/// Anything not clean is NOT an error — the artifact stays pending
 /// and the caller routes the user to the review flow (<see cref="AutoPromoteOutcome"/>).
 ///
 /// <para><see cref="NameOverride"/> is the optional upload-form value and it is the CV's

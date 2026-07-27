@@ -10,15 +10,28 @@ import { useTranslations } from "next-intl";
  * is non-empty (null = the residue was fully accounted for by name/e-mail/phone/location, the
  * common case, and the case that keeps A8's honest Fail alive).
  *
- * CV-PII: `preamble` is already pnr-redacted at the GetParsedResume mapper egress (parity with
- * GetResumeAtsText's belt-and-braces redaction). It is rendered here in the SERVER component
- * only — never hydrated into a client island (parity with the review page's parsed.content rule).
+ * TWO CALLERS, TWO GUARANTEE CLASSES (#1060). Rendered in the SERVER component only on both —
+ * never hydrated into a client island — but the personnummer control differs by arm and the
+ * difference is deliberate, so read it here rather than assume parity:
+ *
+ *  - STAGING (`/cv/granska/[parsedId]`, from `ParsedResumeDetailDto.Preamble`): pnr-redacted at
+ *    the `GetParsedResume` mapper egress, in two layers. It has to be — a FLAGGED parse
+ *    persists, since only promote is gated, so the read side is where suppression must happen.
+ *  - CANONICAL (`/cv/[id]/granska`, from `ResumeContentDto.Preamble`): NOT read-redacted, by
+ *    design. Canonical content is clean at the WRITE boundary — every `ResumeContent` in the
+ *    product is built from a `ResumeContentDto`, and every write surface calls
+ *    `ResumeContentPersonnummerGuard`, enforced by an architecture tripwire. See that DTO's
+ *    docblock for why a second read-side redactor there would be worse, not safer.
  *
  * ADR 0109 Amendment (5c-b): the adopt/classify ACTION is FAS-DEFERRED. The Slutför guide that
  * once hosted it is retired (ADR 0112) and the review is read-only, so the affordance is
- * display-only. The honest path to adopt the text is to give it a heading in the file and upload
- * again — the same residue blocks auto-promote (AutoPromoteBlockReason.UnclassifiedPreamble), so
- * this is precisely the explanation the pending outcome owes the user, never an in-app rewrite.
+ * display-only. The honest path to adopt the text is still to give it a heading in the file and
+ * upload again.
+ *
+ * ADR 0109 Amendment (2026-07-27, #1060): the residue no longer BLOCKS auto-promote — that gate
+ * is retired. So this component is no longer "the explanation a pending outcome owes the user";
+ * on the canonical arm it is the affordance following a CV that saved, and the text it shows is
+ * part of that saved CV rather than a loan from a staging row.
  */
 export function CvPreamble({ preamble }: { preamble: string | null }) {
   const t = useTranslations("resumes");

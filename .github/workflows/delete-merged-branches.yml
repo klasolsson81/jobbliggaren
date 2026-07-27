@@ -350,14 +350,18 @@ jobs:
           # 2-3x; if it does not scale, the premise is false -- so it is struck
           # rather than adjusted.
           #
-          # WHAT IS DERIVABLE MATTERS MORE THAN THE MISSING NUMBER: at any
-          # population near that ceiling the binding constraint is
-          # `timeout-minutes: 10`, NOT the ceiling. The fetch saturates the job
-          # budget well below 20000, so the ceiling's 2.0-4.1 years is the horizon
-          # of the TRUNCATION assert, not of this workflow -- and that expiry
-          # lands on the timeout path which the `!cancelled()` note below
-          # explicitly declines to claim is covered. Two hedges in this file point
-          # at each other, and this is the sentence that says so.
+          # WHAT IS DERIVABLE, stated as the inequality rather than as a
+          # conclusion it does not support. With t(pages) = F + p*pages and the
+          # measured t(7) ~ 60 s, the 10-minute job budget is exhausted at 200
+          # pages IFF p > 2.8 s/page -- that is, iff more than about a third of
+          # today's minute is page-proportional. Which constraint binds at the
+          # ceiling, `timeout-minutes` or the ceiling itself, therefore turns on
+          # exactly the number this comment does not have. An earlier draft
+          # asserted "the fetch saturates the job budget well below 20000"; that
+          # requires p > 5.8 s/page, or ~68% of the minute, and is no more derived
+          # than the figure struck above -- so it is struck too. The `dry_run`
+          # dispatch below is how to get p, and the wrong guess costs a loud
+          # `assert-not-truncated`, never a wrong deletion.
           #
           # To replace the hedge with a figure: one `workflow_dispatch` with
           # `dry_run=true`, read the step timings, and the minute decomposes into

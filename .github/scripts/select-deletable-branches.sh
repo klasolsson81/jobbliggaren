@@ -216,7 +216,7 @@ jq -e 'type == "array"' "$OPEN_JSON" >/dev/null 2>&1 || fail "not a JSON array: 
 # the reader to assume the other one was considered and found safe -- which it
 # was, and saying so is cheaper than leaving it to be re-derived.
 jq -e 'all(.[]; has("number") and has("baseRefName") and has("headRefName"))' "$OPEN_JSON" >/dev/null 2>&1 \
-  || fail "$OPEN_JSON lacks number/baseRefName/headRefName -- the open-PR guards cannot be built"
+  || fail "$OPEN_JSON lacks number/baseRefName/headRefName -- the open-PR guards and the reason column cannot be built"
 
 jq -e 'all(.[]; has("number") and has("headRefName") and has("headRefOid") and has("headRepository") and has("headRepositoryOwner"))' \
   "$MERGED_JSON" >/dev/null 2>&1 \

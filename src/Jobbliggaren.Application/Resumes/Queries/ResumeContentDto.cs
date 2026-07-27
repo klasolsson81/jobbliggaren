@@ -25,12 +25,15 @@ namespace Jobbliggaren.Application.Resumes.Queries;
 /// read-side personnummer redaction, and that is deliberate rather than an omission
 /// (security-auditor, 2026-07-27). Three grounds, and the first is the one that actually
 /// carries it: <b>every write surface that can put a non-null <c>Preamble</c> on a
-/// <c>ResumeContent</c> runs <c>ResumeContentPersonnummerGuard</c> over the value that lands</b>,
-/// enforced by a sink-keyed architecture tripwire (<c>ResumeContentPersonnummerGuardTests</c>,
-/// #499/#650, fail-closed with an empty exemption list) rather than by discipline. The one
-/// construction path that does NOT go through this DTO — <c>Resume.Create</c> via
-/// <c>ResumeContent.Empty</c> — is covered twice over: its handler runs the same guard on the
-/// name it passes, and it sets <c>Preamble</c> to null by construction.
+/// <c>ResumeContent</c> either runs <c>ResumeContentPersonnummerGuard</c> over the value that
+/// lands, or carries forward a value this guard already scanned at its only ingress</b>
+/// (<c>UpdateMasterContent</c>, write-once) — the first enforced by a sink-keyed architecture
+/// tripwire (<c>ResumeContentPersonnummerGuardTests</c>, #499/#650, fail-closed with an empty
+/// exemption list) rather than by discipline. Three paths do NOT go through this DTO, and all
+/// three are covered: <c>Resume.Create</c> via <c>ResumeContent.Empty</c> (its handler runs the
+/// same guard on the name it passes, and <c>Preamble</c> is null by construction),
+/// <c>UpdateMasterContent</c>'s carry-forward (already scanned), and <c>CreateTailored</c>
+/// (nulls it deliberately).
 ///
 /// Second, the staging arm is genuinely a different
 /// guarantee class: a FLAGGED parse persists there (only promote is gated), so it needs

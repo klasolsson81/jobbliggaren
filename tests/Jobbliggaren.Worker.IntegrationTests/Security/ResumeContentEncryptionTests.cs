@@ -402,12 +402,23 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
         // it, because a value can be correct on the way back and still have left a copy in a
         // plaintext column on the way in. So assert the marker's ABSENCE from the raw columns,
         // not only its presence after decrypt.
+        // Whole-ROW casts, not a hand-written column list. An enumeration here would be
+        // fail-open in exactly the way ResumeContentPersonnummerGuard.CollectFreeText's own
+        // comment warns about — "a field it does not list is silently unscanned" — so a future
+        // denormalized column would be uncovered with this test still green. `::text` sweeps
+        // present and future columns for one line (security-auditor, 2026-07-27).
         var versionId = loadedResume.MasterVersion.Id;
+        var versionRow = await RawScalarAsync(
+            readDb, $"SELECT resume_versions::text FROM resume_versions WHERE id = '{versionId.Value}'", ct);
+        versionRow.ShouldNotBeNull();
+        versionRow.ShouldNotContain(PreambleAtRestMarker, Case.Sensitive);
+
+        // The sentinel is the control that content_enc really is ciphertext rather than an
+        // empty column the sweep would pass over.
         var contentEnc = await RawScalarAsync(
             readDb, $"SELECT content_enc FROM resume_versions WHERE id = '{versionId.Value}'", ct);
         contentEnc.ShouldNotBeNull();
         contentEnc.ShouldStartWith("v1:");
-        contentEnc.ShouldNotContain(PreambleAtRestMarker, Case.Sensitive);
 
         var legacyContent = await RawScalarAsync(
             readDb, $"SELECT content FROM resume_versions WHERE id = '{versionId.Value}'", ct);
@@ -416,10 +427,7 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
         // And nowhere on the aggregate root either — resumes carries only plain non-PII columns
         // (ADR 0059/0096), and the preamble must never be derived into one of them.
         var rootRow = await RawScalarAsync(
-            readDb,
-            $"SELECT name || ' ' || coalesce(latest_role, '') || ' ' || coalesce(array_to_string(top_skills, ' '), '') " +
-            $"FROM resumes WHERE id = '{resumeId.Value}'",
-            ct);
+            readDb, $"SELECT resumes::text FROM resumes WHERE id = '{resumeId.Value}'", ct);
         rootRow.ShouldNotBeNull();
         rootRow.ShouldNotContain(PreambleAtRestMarker, Case.Sensitive);
     }

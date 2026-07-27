@@ -161,6 +161,12 @@ jobs:
       # is not an escalation (dispatch already requires `contents: write`, and
       # anyone holding it can delete refs directly) but it is not covered by the
       # pin, and the sentence above should not be read as if it were.
+      # That "not an escalation" holds BECAUSE branch protection and rulesets
+      # apply to `GITHUB_TOKEN` as well -- a borrowed guarantee, named here rather
+      # than leaned on silently. If a ruleset ever granted the `github-actions`
+      # app a bypass, this sentence goes quietly false while still reading as
+      # verified, which is exactly what the selector's `*..*` clause refuses to do
+      # with git's own validator.
       # `persist-credentials: false` keeps a `contents: write` token out of the
       # runner's git config in a job that never uses git.
       - name: Checkout the selector (default branch only)
@@ -326,9 +332,15 @@ jobs:
           # result everybody reads. A second per branch is free here; the job
           # has a 10-minute budget and nothing waits on it. Arithmetic, so the
           # claim is measured rather than felt: ~1.3 s per branch including the
-          # API round trip, minus ~1 min for the two fetch rounds, puts the wall
-          # at roughly 400 branches against a measured backlog of 36-44 and 44
-          # branches in total. If the backlog ever passed that, the run would
+          # API round trip, minus the two fetch rounds, puts the wall at roughly
+          # 400 branches against a measured backlog of 36-44 and 44 branches in
+          # total. NOTE the hidden term: the fetch rounds cost ~1 min at today's
+          # 692 merged PRs, but that scales with the MERGED-PR population, not
+          # with the branch count -- at the raised ceiling they would cost 100-200
+          # s and the wall would fall to roughly 300. Still ~7x the measured
+          # backlog, so no operational risk; recorded because this arithmetic
+          # would otherwise expire silently against the very premise the ceiling
+          # comment above names as the thing that expires. If the backlog ever passed that, the run would
           # silently do only a prefix -- safe and recomputable, since the next run
           # re-derives everything, but worth knowing before reading a short log.
           while IFS= read -r branch || [ -n "${branch:-}" ]; do

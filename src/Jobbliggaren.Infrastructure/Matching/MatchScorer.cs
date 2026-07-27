@@ -792,9 +792,9 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     private static MatchDimension Vacuous() =>
         new(MatchDimensionVerdict.Vacuous, [], []);
 
-    // The minimal row the scorer needs — title + the three facet values (#841: ordinary,
-    // C#-written ingest columns since #841; they used to be STORED generated columns that
-    // the raw_payload purge silently nulled).
+    // The minimal row the scorer needs — title + the four facet concept ids and Remote (#841:
+    // ordinary, C#-written ingest columns since that change; they used to be STORED generated
+    // columns that the raw_payload purge silently nulled).
     // A constructor-projected type (EF maps the ctor); shadow values are nullable
     // (NULL ⇒ the ad has no value on that dimension ⇒ NotAssessed).
     private sealed record AdFacetRow(

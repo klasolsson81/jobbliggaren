@@ -22,7 +22,7 @@ namespace Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJo
 /// B2) into a frozen <see cref="AdSnapshot"/> stored on the Application, so the
 /// ad content survives the source JobAd being archived. The municipality is
 /// captured as the raw <c>MunicipalityConceptId</c> column (#841: an ordinary, C#-written
-/// ingest column since #841 — it used to be a STORED generated column derived from
+/// ingest column since that change — it used to be a STORED generated column derived from
 /// raw_payload, so applying to an ad whose payload had already been purged (rule: ADR 0032
 /// Amendment 2026-07-26 §C2) froze a permanent NULL into the
 /// snapshot that exists precisely to OUTLIVE the ad. That is fixed at the root) (read

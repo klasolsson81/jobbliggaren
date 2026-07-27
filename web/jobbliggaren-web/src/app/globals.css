@@ -1891,6 +1891,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 .jp-btn--sm { height: 36px; padding: 0 14px; font-size: var(--text-body-sm); }
+/* Höjd-parad med .jp-input (48px) för en sökrad där fält + knapp ska läsas som EN kontroll.
+   Finns för att en Tailwind-utility INTE kan göra det: .jp-* är olagrat och vinner över
+   @layer utilities, så `className="jp-btn h-12"` ger 44px utan fel eller varning (mätt
+   2026-07-26 på /foretag/sok). DESIGN.md §Komponenter bär regeln. Ändra aldrig .jp-btn
+   eller .jp-input till varandras höjd — båda är live och båda är dokumenterade. */
+.jp-btn--field { height: 48px; }
 /* Avstängd knapp får inte signalera en affordans den inte har (design-reviewer
    Major — paritet med .jp-segment__opt:disabled / .jp-togglerow__switch:disabled).
    Gäller både :disabled och aria-disabled (för länk-knappar). */
@@ -4021,15 +4027,19 @@ a.jp-adminnav__link[aria-current="page"]::after {
      slot där .jp-results-count landar — undviker layout-shift. Stil matchar
      .jp-results-count (17px, --jp-ink-1) så texten visuellt motsvarar den
      träffräknare den ersätter under laddning. Ingen animation.
-   - .jp-skeleton--sort: speglar .jp-select-höjden (40px) + en bredd som
-     rymmer label + select. */
+   - .jp-skeleton--sort: speglar sort-kontrollens höjd genom att LÄSA
+     --jp-control-h, inte genom att upprepa dess värde. Höjden satt tidigare
+     40px hårdkodat medan .jp-sortfield__select läser tokenen — en ratchet av
+     tokenen hade flyttat kontrollen och lämnat skelettet kvar, alltså exakt den
+     layout-shift den här klassen finns för att undvika. (Kommentaren sa dessutom
+     ".jp-select-höjden"; den klassen städades bort i #1073.) */
 .jp-skeleton__status-text {
   margin: 0;
   font-size: var(--text-body-lg);
   color: var(--jp-ink-1);
 }
 .jp-skeleton--sort {
-  height: 40px;
+  height: var(--jp-control-h);
   width: 232px;
 }
 

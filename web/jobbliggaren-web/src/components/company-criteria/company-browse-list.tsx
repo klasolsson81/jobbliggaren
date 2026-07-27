@@ -21,6 +21,13 @@ interface CompanyBrowseListProps {
    * the other consumer, is unchanged. Masked/sole-prop rows (no org.nr key) are never followable.
    */
   readonly followStateByOrgNr?: ReadonlyMap<string, string | null>;
+  /**
+   * The table's accessible name + caption. The default strings belong to the criterion-run browse
+   * ("Företag som matchar bevakningen"), which is FALSE on `/foretag/sok` — that surface answers a
+   * search, not a bevakning, and a screen reader was hearing the wrong context on every result table.
+   * Overridden there; omitted by `bevakningar/[id]`, which keeps its own wording.
+   */
+  readonly labels?: { readonly tableAria: string; readonly tableCaption: string };
 }
 
 /**
@@ -37,9 +44,12 @@ export function CompanyBrowseList({
   items,
   reference,
   followStateByOrgNr,
+  labels,
 }: CompanyBrowseListProps) {
   const t = useTranslations("pages.foretag.criteria.browse");
   const showFollow = followStateByOrgNr !== undefined;
+  const tableAria = labels?.tableAria ?? t("tableAria");
+  const tableCaption = labels?.tableCaption ?? t("tableCaption");
 
   // Leaf-code → Swedish name, built once for the whole table.
   const sniNameByCode = new Map<string, string>();
@@ -51,8 +61,8 @@ export function CompanyBrowseList({
 
   return (
     <div className="overflow-x-auto">
-      <table className="jp-table w-full" aria-label={t("tableAria")}>
-        <caption className="sr-only">{t("tableCaption")}</caption>
+      <table className="jp-table w-full" aria-label={tableAria}>
+        <caption className="sr-only">{tableCaption}</caption>
         <thead>
           <tr>
             <th scope="col">{t("colName")}</th>
@@ -80,11 +90,11 @@ export function CompanyBrowseList({
                   </span>
                 )}
               </td>
+              {/* The SCB kommun CODE is not rendered: Swedish kommun names are unique, so it
+                  disambiguates nothing, and mono type is reserved for signal (DESIGN.md rule 4). The
+                  code is the FALLBACK only — a row never renders blank when the name is missing. */}
               <td className="whitespace-nowrap text-text-primary">
-                {company.seatMunicipalityName ?? company.seatMunicipalityCode}{" "}
-                <span className="font-mono text-body-sm text-text-secondary">
-                  ({company.seatMunicipalityCode})
-                </span>
+                {company.seatMunicipalityName ?? company.seatMunicipalityCode}
               </td>
               <td className="text-text-primary">
                 {(() => {

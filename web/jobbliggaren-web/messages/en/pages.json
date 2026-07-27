@@ -238,7 +238,7 @@
       "title": "Search companies",
       "lede": "Search the company register by name, industry or municipality.",
       "searchLabel": "Company name or organisation number",
-      "searchHint": "Ten digits are searched as an organisation number, otherwise as a company name.",
+      "searchHint": "Ten digits are searched as an organisation number, any other text as a company name.",
       "searchSubmit": "Search companies",
       "filterGroupLabel": "Narrow down",
       "branschLabel": "Industry",

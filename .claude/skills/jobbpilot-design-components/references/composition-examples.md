@@ -276,7 +276,7 @@ export function GmailConnect() {
               </p>
               <p>Vi begär följande behörigheter:</p>
               <ul className="list-disc pl-5 space-y-1 text-body-sm">
-                <li>Läsa e-post (gmail.readonly) — inte skriva eller skicka</li>
+                <li>Läsa e-post (gmail.readonly), inte skriva eller skicka</li>
               </ul>
               <p className="text-body-sm text-text-secondary">
                 Läs{" "}

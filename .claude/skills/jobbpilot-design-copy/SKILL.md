@@ -189,15 +189,15 @@ anti-pattern, arkitekturtestad).
 
 **Allt nedan är skeppat — återanvänd, skriv inte nytt.**
 
-- **Matchningsgrad** (`jobads.matchDetail.grade`): **Toppmatch · Stark match · Bra
+- **Matchningsgrad** (`jobads.ui.match.grade`): **Toppmatch · Stark match · Bra
   match · Grundmatch**, plus **Relaterat yrke** (en märkning, inte en av de fyra
   gröna graderna).
-- **Per dimension** (`jobads.matchDetail.verdict`): **Matchar · Delvis · Saknas ·
+- **Per dimension** (`jobads.ui.match.verdict`): **Matchar · Delvis · Saknas ·
   Ej bedömt · Inga angivna**. Femmedlemsmängden är arkitekturpinnad
   (`MatchDimensionVerdict_is_the_locked_five_member_set`) — utelämna ingen.
   "Uppfyllt"/"Ej uppfyllt" är **något annat**: `requirements`-radens etiketter per
   enskilt krav, inte dimensionens omdöme.
-- **Ska-krav-raden** (`jobads.matchDetail.mustHaveSummary`): fyra grenar, en per
+- **Ska-krav-raden** (`jobads.ui.match.mustHaveSummary`): fyra grenar, en per
   utfall, inklusive den vakuösa. ADR 0076 Amendment 2026-06-20 §2(b) förbjuder
   uttryckligen den affirmativa raden när annonsen inte angav några krav.
 - **CV-granskning** (`resumes.enums`): omdöme **Godkänt · Delvis · Underkänt · Ej
@@ -232,10 +232,10 @@ Specifik knapp-text. Konkret konsekvens.
 | Radera CV-knapp | "Radera CV" | "Bekräfta" eller "OK" |
 | Dialog-text | "Radera Klas-CV-v3? Detta kan inte ångras efter 30 dagar." | "Är du säker?" |
 | Frånkoppla Gmail | "Koppla bort Gmail? JobbPilot kommer inte längre läsa inkorgen." | "Vill du verkligen?" |
+| Avsluta konto | "Avsluta konto? All data raderas permanent inom 30 dagar." | "Är du säker på att du vill fortsätta?" |
 
 (Gmail-raden är ett **mönsterexempel, inte skeppad copy** — Gmail-synk är uppskjuten,
 inte borttagen: BUILD.md §9.2 specificerar fem endpoints och kallar den "ännu obyggd".)
-| Avsluta konto | "Avsluta konto? All data raderas permanent inom 30 dagar." | "Är du säker på att du vill fortsätta?" |
 
 ### 7. Påminnelser
 

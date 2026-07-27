@@ -81,7 +81,8 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
         ]);
 
     private async Task<(ParsedResumeId Id, JobSeekerId Owner)> SeedPendingReviewAsync(
-        Guid userId, CancellationToken ct, string? preamble = null)
+        Guid userId, CancellationToken ct, string? preamble = null,
+        ParseConfidence? confidence = null)
     {
         var seeker = await SeedJobSeekerAsync(userId, ct);
         var clock = new FixedClock(DateTimeOffset.UtcNow);
@@ -95,7 +96,7 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
             var parsed = ParsedResume.Create(
                 seeker.Id, "anna-cv.pdf", "application/pdf", ResumeLanguage.Sv,
                 CleanParsedContent(preamble), $"{ParsedContactName}\nBackend-utvecklare, Beta AB",
-                ConfidentConfidence(), PersonnummerScanOutcome.None, [], clock).Value;
+                confidence ?? ConfidentConfidence(), PersonnummerScanOutcome.None, [], clock).Value;
             id = parsed.Id;
             db.ParsedResumes.Add(parsed);
             await db.SaveChangesAsync(ct);
@@ -241,13 +242,18 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
 
     // ── 2. LeftPending persists NOTHING — proven relationally, not on the tracker ─
 
+    // The trigger moved with #1060's D1 bind: a preamble no longer blocks (D1.2 retired that
+    // gate) and `Degraded` no longer blocks (D1.3 narrowed the confidence gate to `Failed`).
+    // The SUBJECT of this test is unchanged and is not the trigger — it is that a LeftPending
+    // persists nothing, proven RELATIONALLY rather than on the change tracker. `Failed` is the
+    // surviving non-personnummer blocker, so it is what exercises that contract now.
     [Fact]
-    public async Task AutoPromote_PreambleCarryingParse_LeftPending_NothingPersisted()
+    public async Task AutoPromote_FailedExtraction_LeftPending_NothingPersisted()
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
         var (parsedId, owner) = await SeedPendingReviewAsync(
-            userId, ct, preamble: "Driven utvecklare nära produktionen.");
+            userId, ct, confidence: ParseConfidence.Failed(ParseFallbackReason.ExtractionFailed));
 
         using (var scope = _fixture.Services.CreateScope())
         {
@@ -259,7 +265,7 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
 
             result.IsSuccess.ShouldBeTrue();
             result.Value.ShouldBeOfType<AutoPromoteOutcome.LeftPending>()
-                .Reason.ShouldBe(AutoPromoteBlockReason.UnclassifiedPreamble);
+                .Reason.ShouldBe(AutoPromoteBlockReason.ParseNotConfident);
 
             // The unconditional UnitOfWork save runs in production regardless of outcome —
             // run it here too and prove it is a relational no-op.

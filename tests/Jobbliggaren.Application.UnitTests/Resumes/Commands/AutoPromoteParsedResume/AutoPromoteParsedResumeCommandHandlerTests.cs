@@ -18,7 +18,8 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Commands.AutoPromoteParsedR
 // CV-pivot PR 5a (CTO-bind 2026-07-17) — the "spara direkt" auto-promote of a CLEAN
 // PendingReview ParsedResume, verbatim, no synthesis. The handler orchestrates: auth →
 // owner {Id, DisplayName} projection → owner-scoped tracked load (IDOR fail-closed, parity
-// PromoteParsedResume) → THREE policy gates (pnr → preamble → parser confidence) → verbatim
+// PromoteParsedResume) → TWO policy gates (pnr → extraction failure; #1060 retired the
+// preamble gate and narrowed confidence to Failed) → verbatim
 // projection → shared pnr guard on the COMPOSED dto → ToDomain → CreateFromParsed
 // (buildability) → parsed.Promote → Add → reconciler-seed → in-handler Art. 22 audit row
 // (Promoted branch ONLY). Every non-promote exit is Result.Success(LeftPending(reason)) and
@@ -328,13 +329,18 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     }
 
     /// <summary>
-    /// The #844 carrier rule, auto-promote side: user-promote may promote past a preamble
-    /// because the USER approved content that leaves it unadopted — auto-promote has no
-    /// user in the loop, so a preamble-carrying parse must never be silently promoted
-    /// (ADR 0109: only the user classifies unheaded text; the 5c affordance owns adoption).
+    /// #1060 D1.2 — the RETIRED preamble gate, pinned by its inverse. Text above the first
+    /// heading is the most common Swedish CV layout, and blocking on it enforced nothing
+    /// ADR 0109 forbids: §1 forbids MINTING section identity, not promoting. Nothing is
+    /// minted here — the mapper still never maps <c>Preamble</c> into <c>Summary</c> or a
+    /// <c>Section</c> (pinned separately below) — and nothing is dropped, because the
+    /// carrier is read back past the soft-delete on the promoted CV's review surface.
+    ///
+    /// <para>If this goes red the gate is back, and with it the P1 Klas filed: his own CV
+    /// came back "Kräver åtgärd" and <c>CV-varianter</c> said "Inga CV ännu".</para>
     /// </summary>
     [Fact]
-    public async Task Handle_PreambleCarryingParse_LeftPendingUnclassifiedPreamble()
+    public async Task Handle_PreambleCarryingParse_Promotes_TheGateIsRetired()
     {
         var db = TestAppDbContextFactory.Create();
         var (parsed, _) = await SeedOwnedAsync(
@@ -343,15 +349,53 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         var result = await CreateSut(db).Handle(
             Command(parsed.Id.Value), TestContext.Current.CancellationToken);
 
-        await AssertLeftPendingAsync(db, result, parsed, AutoPromoteBlockReason.UnclassifiedPreamble);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBeOfType<AutoPromoteOutcome.Promoted>();
+        parsed.Status.ShouldBe(ParsedResumeStatus.Promoted);
     }
 
-    /// <summary>Condition 3 is the parser's OWN cleanliness verdict (RequiresManualReview —
-    /// anything below Confident), not a weaker "not Failed": a Degraded parse is one the
-    /// parser itself says needs review, and auto-promoting it would push a low-confidence
-    /// PII extraction to canonical with nobody looking (CTO-bind R3).</summary>
+    /// <summary>
+    /// #1060 D1.2 — the prohibition the retired gate was standing in for, enforced where it
+    /// belongs. The preamble promotes PAST the mapper, never THROUGH it: an un-headed region
+    /// must not become the canonical CV's <c>Summary</c> (that mints "this IS your profile",
+    /// ADR 0109 §1's one absolute prohibition) and must not become a <c>Section</c> (which
+    /// would need a heading the user never wrote, and would render in <c>/render</c> and the
+    /// ATS view — a section the user did not write, in a document she sends to employers).
+    ///
+    /// <para>This is the assertion that makes retiring the gate safe. Without it, the gate's
+    /// removal and a one-line mapper change would silently become adoption.</para>
+    /// </summary>
     [Fact]
-    public async Task Handle_DegradedParse_LeftPendingParseNotConfident()
+    public async Task Handle_PreambleCarryingParse_NeverAdoptsItAsSummaryOrSection()
+    {
+        const string preamble = "Driven utvecklare nära produktionen.";
+        var db = TestAppDbContextFactory.Create();
+        var (parsed, _) = await SeedOwnedAsync(
+            db, _userId, content: CleanParsedContent(preamble: preamble));
+
+        var result = await CreateSut(db).Handle(
+            Command(parsed.Id.Value), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        var content = db.Resumes.Local.ShouldHaveSingleItem().MasterVersion.Content;
+
+        // The file's OWN "Profil" block still lands in Summary, verbatim — the preamble does not.
+        content.Summary.ShouldBe("Erfaren backend-utvecklare.");
+        content.Sections.ShouldAllBe(s => s.Heading != preamble);
+        content.Sections.SelectMany(s => s.Entries).SelectMany(e => e.Lines)
+            .ShouldNotContain(preamble);
+    }
+
+    /// <summary>
+    /// #1060 D1.3 — the confidence gate NARROWED to <c>Failed</c>, and this reverses the 5a
+    /// bind's R3. A <c>Degraded</c> parse means the parser found something and is honest that
+    /// the document was messy; under ADR 0112 the reviewer IS the product, so that is exactly
+    /// the CV the reviewer has most to say about, and blocking it gave the least product to
+    /// the user who needs it most. R3's PII ground does not reach this: <c>Personnummer.Found</c>
+    /// and the DQ6 guard are the PII controls, they are unconditional, and both still run.
+    /// </summary>
+    [Fact]
+    public async Task Handle_DegradedParse_Promotes_TheGateNarrowedToFailed()
     {
         var db = TestAppDbContextFactory.Create();
         var (parsed, _) = await SeedOwnedAsync(db, _userId, confidence: Degraded());
@@ -359,9 +403,15 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         var result = await CreateSut(db).Handle(
             Command(parsed.Id.Value), TestContext.Current.CancellationToken);
 
-        await AssertLeftPendingAsync(db, result, parsed, AutoPromoteBlockReason.ParseNotConfident);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBeOfType<AutoPromoteOutcome.Promoted>();
+        parsed.Status.ShouldBe(ParsedResumeStatus.Promoted);
     }
 
+    /// <summary>The arm that must NOT be narrowed away: extraction produced nothing usable,
+    /// so promoting would build a canonical CV out of the account display name and nothing
+    /// else — a CV that says LESS than the file did, the same dishonesty class as dropping
+    /// (ADR 0109 §3). Narrowing this too would delete a working signal.</summary>
     [Fact]
     public async Task Handle_FailedExtraction_LeftPendingParseNotConfident()
     {
@@ -378,19 +428,19 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     }
 
     /// <summary>The bound gate ORDER (CTO §2: highest PII priority first) is behavior, not
-    /// style: a parse tripping ALL THREE gates must report the personnummer — the most
-    /// sensitive blocker — to telemetry/copy, never the confidence verdict. A reorder of
-    /// the three ifs would survive every single-gate test; this one catches it.</summary>
+    /// style: a parse tripping BOTH surviving gates must report the personnummer — the most
+    /// sensitive blocker — to telemetry/copy, never the confidence verdict. A reorder of the
+    /// two ifs would survive every single-gate test; this one catches it.</summary>
     [Fact]
-    public async Task Handle_ParseTripsAllThreeGates_ReportsPersonnummerPresent_HighestPriorityFirst()
+    public async Task Handle_ParseTripsBothGates_ReportsPersonnummerPresent_HighestPriorityFirst()
     {
         var flagged = PersonnummerScanOutcome.FromMatches(
             PersonnummerScanner.Scan($"Pnr {ValidPersonnummer} i CV."));
         var db = TestAppDbContextFactory.Create();
         var (parsed, _) = await SeedOwnedAsync(
             db, _userId,
-            content: CleanParsedContent(preamble: "Driven utvecklare."),
-            confidence: Degraded(),
+            content: ParsedResumeContent.Empty,
+            confidence: ParseConfidence.Failed(ParseFallbackReason.ExtractionFailed),
             pnr: flagged);
 
         var result = await CreateSut(db).Handle(
@@ -399,10 +449,15 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         await AssertLeftPendingAsync(db, result, parsed, AutoPromoteBlockReason.PersonnummerPresent);
     }
 
-    /// <summary>Second rung of the order: with no personnummer, the Klas-bound preamble
-    /// rule outranks the confidence verdict.</summary>
+    /// <summary>
+    /// #1060's own reproduction, and the reason B's two gate changes are ONE PR. This is the
+    /// shape corpus rows 10 (`pdf-nonsequential-decorative`) and 11 (`pdf-headingless`) carry:
+    /// a preamble AND a Degraded parse. Retiring the preamble gate alone leaves them blocked
+    /// one rung lower on <c>ParseNotConfident</c>, so the P1 would read as unfixed on exactly
+    /// the documents it was filed about. Both changes are jointly load-bearing here.
+    /// </summary>
     [Fact]
-    public async Task Handle_PreambleAndDegraded_ReportsUnclassifiedPreamble_BeforeConfidence()
+    public async Task Handle_PreambleAndDegraded_Promotes_BothGateChangesAreLoadBearing()
     {
         var db = TestAppDbContextFactory.Create();
         var (parsed, _) = await SeedOwnedAsync(
@@ -413,7 +468,9 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         var result = await CreateSut(db).Handle(
             Command(parsed.Id.Value), TestContext.Current.CancellationToken);
 
-        await AssertLeftPendingAsync(db, result, parsed, AutoPromoteBlockReason.UnclassifiedPreamble);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBeOfType<AutoPromoteOutcome.Promoted>();
+        parsed.Status.ShouldBe(ParsedResumeStatus.Promoted);
     }
 
     // ===============================================================

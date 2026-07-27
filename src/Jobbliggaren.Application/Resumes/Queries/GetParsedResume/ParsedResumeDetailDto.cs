@@ -46,8 +46,13 @@ public sealed record ParsedResumeDetailDto(
 /// <c>PersonnummerRedactor</c> on the unflagged path (belt-and-braces, parity <c>GetResumeAtsText</c>).
 /// ADR 0109 Amendment (5c-b): the adopt/classify action is FAS-DEFERRED — the Slutför guide that
 /// once hosted it is retired (ADR 0112), so the affordance is display-only; the path to adopt the
-/// text is to give it a heading in the file and upload again (auto-promote, which blocks on this
-/// exact residue via <c>AutoPromoteBlockReason.UnclassifiedPreamble</c>).
+/// text is to give it a heading in the file and upload again.
+/// <para>ADR 0109 Amendment (2026-07-27, #1060): this residue no longer blocks auto-promote —
+/// <c>AutoPromoteBlockReason.UnclassifiedPreamble</c> is retired. The same carrier is read back on
+/// the PROMOTED CV's review surface past the artifact's soft-delete, so the affordance follows the
+/// CV instead of holding it in staging. This DTO's own guard is unchanged and still applies: it is
+/// the staging surface's egress, and the promoted surface carries its own copy of the same
+/// two-layer control.</para>
 /// </param>
 public sealed record ParsedContentDto(
     ParsedContactDto Contact,

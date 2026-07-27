@@ -35,7 +35,7 @@ namespace Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 /// </para>
 ///
 /// <para>
-/// <b>THE BLAST RADIUS IS CLOSED (#841, 2026-07-13) — and this paragraph now records why, because its
+/// <b>THE BLAST RADIUS IS CLOSED (#841) — and this paragraph now records why, because its
 /// previous version was the most important warning in the repo and it is no longer true.</b>
 /// Until #841, <c>job_ads</c> carried SEVEN STORED generated columns derived from <c>raw_payload</c>
 /// (<c>organization_number</c>, <c>municipality_concept_id</c>, <c>ssyk_concept_id</c>,

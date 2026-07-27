@@ -16,7 +16,8 @@ namespace Jobbliggaren.Architecture.Tests;
 /// genuine security property nobody wrote down: reading the org.nr required a deliberate, greppable
 /// <c>EF.Property&lt;string?&gt;(j, "OrganizationNumber")</c>, and <c>IAppDbContext</c> exposes no
 /// <c>Entry()</c>, so there was no other route. #841 promotes them to ordinary properties (it must — a
-/// value derived in the database from a column with a retention TTL cannot survive that TTL), and
+/// value derived in the database from a column with a retention TTL cannot survive that TTL — the
+/// rule for that TTL is ADR 0032 Amendment 2026-07-26 §C2), and
 /// <c>jobAd.OrganizationNumber</c> is now reachable from anything holding a <see cref="JobAd"/>, offered
 /// by autocomplete. <b>A sole proprietor's org.nr IS the owner's personnummer, in plaintext</b>
 /// (ADR 0087 D8; CLAUDE.md §5 makes the personnummer guard the highest-priority rule).

@@ -16,7 +16,7 @@ namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationHi
 /// (<c>AppliedAt != null</c>) are history; drafts are intent (Art. 6(1)(b) purpose, ADR 0090 D1).
 ///
 /// <para>
-/// <b>Attribution no longer degrades with the ad's age (#841, 2026-07-13).</b> It used to. The org.nr
+/// <b>Attribution no longer degrades with the ad's age (#841).</b> It used to. The org.nr
 /// column was a STORED generated column derived from <c>raw_payload</c>, and
 /// <c>PurgeStaleRawPayloadsJob</c> nulls <c>raw_payload</c> (rule: ADR 0032 Amendment 2026-07-26 §C2) — at which
 /// point Postgres RECOMPUTED the generated column to NULL. So an ACTIVE but old ad simply lost its

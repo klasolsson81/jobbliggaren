@@ -150,7 +150,9 @@ höga; stats-värden 28+px; text-tracking -0.005em globalt för optisk täthet.
 målanvändaren (55-åringen i Alingsås). Densitet (regel 7 mening 1, "tätt nog
 att skanna") är **underordnad** läsbarhet (mening 2, "luftigt nog att läsa")
 när de står i konflikt. Brödtextgolv 16px (GOV.UK-linjerat — skillens egen
-först-rankade referens), hit-target/input-golv 44px (knappar 40px). Bloomberg-
+först-rankade referens), hit-target-GOLV 44px. (Exakta höjder skiljer per system:
+`.jp-btn` 44 / shadcn `Button` 40 / `.jp-input` 48 — se ADR 0052 Amendment
+2026-07-27. Golvet är ett minimum, inte ett värde.) Bloomberg-
 tätheten gäller tabell-**tonen**, aldrig som ett brödtext-fontgolv. Toolbar-
 knappar kvarstår som dokumenterat undantag (28px) — men inputs/knappar i
 innehållsytor är 44/40. Cross-ref ADR 0038.
@@ -240,7 +242,7 @@ Innan en PR lämnas, gå igenom:
 12. ✓ Informationsbärande dividers (kolumngränser) använder `--jp-border-strong`, inte `--jp-border`?
 13. ✓ Status-information har både färg OCH textetikett (aldrig endast färg)?
 14. ✓ Brödtext har `max-width` runt 68ch så rader inte sträcks ut på breda skärmar?
-15. ✓ Brödtext minst 16px och hit-targets/inputs minst 44px (knappar 40px; 28px endast för toolbar-knappar)? (ADR 0038)
+15. ✓ Brödtext minst 16px och hit-targets minst 44px (28px endast för toolbar-knappar)? Detta är ett GOLV — de exakta höjderna skiljer per system (`.jp-btn` 44, shadcn `Button` 40, `.jp-input` 48) och ingen av dem är drift; se ADR 0052 Amendment 2026-07-27 (#1095) innan du "rättar" en höjd. (ADR 0038 + ADR 0052)
 
 ---
 

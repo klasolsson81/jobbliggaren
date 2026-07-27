@@ -68,8 +68,10 @@ a11y-skillen.)
 
 ## Input / Textarea / Select
 
-Civic spec (matches `.jp-input`, recalibrated per ADR 0038):
-height **44px**, sm **40px**, `border-radius: 4px` (`var(--jp-r-md)`),
+Civic spec — **two ratified systems, name which** (ADR 0052 Amendment 2026-07-27, #1095):
+shadcn `Input` height **44px** (no size prop; `SelectTrigger` sm 36) per ADR 0038;
+`.jp-input` height **48px**, sm 40, per HANDOVER-v3 §5.2 via ADR 0052.
+`border-radius: 6px` (`var(--jp-r-md)`),
 `bg-surface-primary` (white in light), font 16px. Beskrivande
 placeholder-exempel i sök-/filterfält tas bort — label ovanför och hint
 nedanför bär informationen. Auth-formulärens format-placeholders

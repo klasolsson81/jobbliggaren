@@ -58,8 +58,10 @@ colored accent is warranted. Never both for the same datum.
 
 ### Button
 
-Spec (matches `.jp-btn`, recalibrated per ADR 0038): height **40px**, sm
-**36px**; `border-radius: 4px` (`var(--jp-r-md)`); `transition: 80ms linear`;
+**TWO ratified systems — name which one you mean (ADR 0052 Amendment 2026-07-27, #1095).**
+shadcn `Button`: height **40px**, sm 36, lg 44 (ADR 0038), `transition: duration-75`.
+`.jp-btn`: height **44px**, `--sm` 36, `--lg` 52 (HANDOVER-v3 §5.1 via ADR 0052);
+`border-radius: 6px` (`var(--jp-r-md)`); `transition: 90ms linear`;
 font 16px/500 sans; `letter-spacing: -0.005em`. Toolbar-knappar kvarstår som
 dokumenterat undantag (28px).
 
@@ -115,10 +117,12 @@ Not in v1: column resize, column reorder, inline editing.
 
 ### Input / Textarea / Select
 
-Spec (matches `.jp-input`, recalibrated per ADR 0038):
-- Height: **44px**, sm **40px**
-- Border: `border-border-default` (slate-200), `border-radius: 4px`
-  (`var(--jp-r-md)`)
+**TWO ratified systems — name which one you mean (ADR 0052 Amendment 2026-07-27, #1095).**
+- Height: shadcn `Input` **44px** (no size prop) / `SelectTrigger` 44, sm 36 (ADR 0038);
+  `.jp-input` **48px**, sm 40 (HANDOVER-v3 §5.2 via ADR 0052 — bumped because a v2 user
+  test failed for the §1.1 target user)
+- Border: `--jp-border-input` (navy since ADR 0052 Beslut 1, NOT slate-200),
+  `border-radius: 6px` (`var(--jp-r-md)`)
 - Background: `bg-surface-primary` (white in light — distinct from the
   slate-50 chrome)
 - Focus: `border-brand-600` + `box-shadow: 0 0 0 3px var(--jp-brand-50)`

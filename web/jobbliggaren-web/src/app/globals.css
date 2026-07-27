@@ -1896,9 +1896,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
    Finns för att en Tailwind-utility INTE kan göra det: .jp-* är olagrat och vinner över
    @layer utilities, så `className="jp-btn h-12"` ger 44px utan fel eller varning (mätt
    2026-07-26 på /foretag/sok). DESIGN.md §Komponenter bär regeln. Ändra aldrig .jp-btn
-   eller .jp-input till varandras höjd HÄR — värdena är en öppen fråga (#1095: ADR 0038 band
-   44/40, koden kör 48/44 sedan v3-utrullningen 2e6af29b, vars ADR 0052 aldrig protokollförde
-   höjderna). Den här modifieraren parar dem som de ÄR i dag; den tar inte ställning. */
+   eller .jp-input till varandras höjd. Deltat är RATIFICERAT, inte drift: .jp-btn 44px och
+   .jp-input 48px kommer båda från HANDOVER-v3 §5.1/§5.2 (Klas-beslutad designspec med veto
+   över ADR:er), protokollfört i ADR 0052 Amendment 2026-07-27 (#1095). ADR 0038:s 44/40 står
+   kvar och styr shadcn-primitiverna. Den här modifieraren parar de två som de är. */
 .jp-btn--field { height: 48px; }
 /* Avstängd knapp får inte signalera en affordans den inte har (design-reviewer
    Major — paritet med .jp-segment__opt:disabled / .jp-togglerow__switch:disabled).

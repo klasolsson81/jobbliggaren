@@ -21,7 +21,7 @@
     "step1": "Find the job.",
     "step2": "Apply for the job.",
     "step3": "Follow up on the application.",
-    "ledgerLede": "Search every active job ad from Platsbanken, build your CV and keep track of every application, from draft to response. All in one place.",
+    "ledgerLede": "Search every active job ad from Platsbanken, get your CV reviewed and keep track of every application, from draft to response. All in one place.",
     "source": "Built on open data from the Swedish Public Employment Service",
     "guest": "Explore as a guest, without an account"
   },
@@ -34,7 +34,7 @@
     },
     "matching": {
       "key": "Matching",
-      "body": "Every job ad is matched against your profile with a clear percentage, so you can spend your time on the right applications."
+      "body": "Ads that match your profile get one of four grades, from Basic match up to Top match. Upload a CV and you also see which requirements you meet."
     },
     "applications": {
       "key": "Applications",
@@ -46,11 +46,11 @@
     },
     "companyWatch": {
       "key": "Company watch",
-      "body": "Follow employers you want to work for and get notified as soon as they publish a new job ad."
+      "body": "Follow employers you want to work for and see their new ads on your overview. A smart watch finds companies by industry and municipality to follow."
     },
     "reminders": {
       "key": "Reminders",
-      "body": "Interviews and application deadlines are captured automatically from your applications, so you do not miss a deadline."
+      "body": "You get a notice when saved ads approach their application deadline. Interviews, offers and unanswered applications also appear on your overview."
     }
   },
   "auth": {
@@ -122,6 +122,6 @@
     "termsTitle": "Terms of use",
     "termsDescription": "Jobbliggaren's terms of use. Full text is being prepared.",
     "homeTitle": "Find, apply for and follow up on jobs",
-    "homeDescription": "Search every active job ad from Platsbanken, build your CV and follow up on every application, from draft to response."
+    "homeDescription": "Search every active job ad from Platsbanken, get your CV reviewed and follow up on every application, from draft to response."
   }
 }

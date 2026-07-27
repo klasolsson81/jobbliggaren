@@ -11,10 +11,10 @@
     "canDoHeading": "Det här kan du göra som gäst:",
     "canDoBrowse": "Bläddra i översikten över ansökningar och CV",
     "canDoPipeline": "Se hur pipeline-vyn fungerar",
-    "canDoResumes": "Granska CV-varianter och formgivning",
+    "canDoResumes": "Granska exempel på CV-varianter",
     "needsAccountHeading": "Det här kräver ett konto:",
     "needsAccountSearch": "Söka och spara annonser från Platsbanken",
-    "needsAccountEdit": "Skapa eller redigera CV och ansökningar",
+    "needsAccountEdit": "Ladda upp ditt CV för granskning och följa upp egna ansökningar",
     "needsAccountNotices": "Få notiser och uppföljning",
     "startExploring": "Börja utforska"
   },
@@ -88,7 +88,7 @@
   "cv": {
     "kicker": "Demo-CV",
     "title": "CV",
-    "lede": "Exempel på CV-varianter. När du har konto kan du skapa egna, redigera fritt och ladda upp PDF.",
+    "lede": "Exempel på CV-varianter. När du har konto kan du ladda upp ditt eget CV och få det granskat.",
     "primaryTag": "Primär",
     "languageLabel": "Språk",
     "languageSwedish": "Svenska",

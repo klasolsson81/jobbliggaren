@@ -11,10 +11,10 @@
     "canDoHeading": "Here is what you can do as a guest:",
     "canDoBrowse": "Browse the overview of applications and CVs",
     "canDoPipeline": "See how the pipeline view works",
-    "canDoResumes": "Review CV variants and layout",
+    "canDoResumes": "Review example CV variants",
     "needsAccountHeading": "Here is what requires an account:",
     "needsAccountSearch": "Search and save job ads from Platsbanken",
-    "needsAccountEdit": "Create or edit CVs and applications",
+    "needsAccountEdit": "Upload your CV for review and follow up on your own applications",
     "needsAccountNotices": "Get notices and follow-ups",
     "startExploring": "Start exploring"
   },
@@ -88,7 +88,7 @@
   "cv": {
     "kicker": "Demo CV",
     "title": "CV",
-    "lede": "Examples of CV variants. Once you have an account you can create your own, edit freely and upload a PDF.",
+    "lede": "Examples of CV variants. Once you have an account you can upload your own CV and have it reviewed.",
     "primaryTag": "Primary",
     "languageLabel": "Language",
     "languageSwedish": "Swedish",

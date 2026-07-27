@@ -80,8 +80,9 @@ namespace Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 /// <b>On the mitigation:</b> the recruiter free-text this job cannot reach lives in the ordinary
 /// <c>job_ads.description</c> column, which this job never touches. That is no longer un-mitigated —
 /// #842 shipped Tier A (ingest-time redaction of email/phone spans on every write) and Tier B
-/// (whole-record erasure) on 2026-07-17. Per-control reach is tabulated in §C4 of the same
-/// amendment; this job was never a PII control, it is payload retention.
+/// (whole-record erasure); the ship dates and commits are recorded once, in §C6 of the same
+/// amendment. Per-control reach is tabulated in §C4 there; this job was never a PII control, it is
+/// payload retention.
 /// </para>
 ///
 /// <para>

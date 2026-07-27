@@ -252,9 +252,14 @@ the nightly full backfill (`SyncPlatsbankenSnapshotJob`) and the 10-minute strea
 funnel through `UpdateFromSource`, which **unconditionally reassigns `RawPayload`**
 (`JobAd.cs:155-159`), so a purged payload is **restored within ≤24 h for any ad still in
 the feed** (#845; already recorded at ADR 0032 A2 `:1090-1092`).
-the deletion rule for `raw_payload` lives in exactly one place —
-**ADR 0032 Amendment 2026-07-26 §C2** — and is neither *"30 days after publication"* nor *"30 days after the ad leaves
-the feed"*; both are false. Do not restate a duration here.
+
+> **Corrected 2026-07-26 (#845) — two claims in the paragraph above are no longer true.**
+> **(1)** The deletion rule for `raw_payload` lives in exactly one place — **ADR 0032 Amendment
+> 2026-07-26 §C2** — and is neither *"30 days after publication"* nor *"30 days after the ad leaves
+> the feed"*; both are false. Do not restate a duration here.
+> **(2)** `UpdateFromSource` no longer reassigns the payload **unconditionally**: it **refuses on
+> `Erased`** (`JobAd.cs:382-384`), and `JobAd.Erase` nulls the payload outright (`JobAd.cs:267`) —
+> which is precisely what makes an Art. 17 erasure durable against re-ingest.
 
 **Layer 3 — *"Art. 17-null-out:ad (`RecruiterPiiPurger`)"*: FALSE, completely.**
 `RecruiterPiiPurger` probed jsonb containment on `{"employer":{"contact_email": …}}`
@@ -328,6 +333,9 @@ pillar**:
    replacement token carrying no JSON-structural character, so the document stays valid
    JSONB and the seven generated columns keep computing. **Tense discipline: Tier A is
    BOUND but NOT YET SHIPPED (PR2). Today `raw_payload` still holds those addresses.**
+   ⚠ **Corrected 2026-07-26 (#845): Tier A SHIPPED** (`daa4b51d`), with the corpus backfill —
+   so *"today"* in the sentence above means 2026-07-13, not now. Ship dates and commits are
+   recorded once, in ADR 0032 Amendment 2026-07-26 §C6.
 
 **OPEN — whether `raw_payload` should now be encrypted is re-openable on the merits, and
 is NOT decided by this amendment.** It is genuinely live, for reasons the original Beslut
@@ -365,7 +373,7 @@ it** wherever they conflict:
 | **Validering** | *"`JsonContains`-Art.17 (`RecruiterPiiPurger`) verifieras gröna efter implementation"* | **Void** — the mechanism is deleted; there is no green to verify. The generated-column and SPOT non-regression checks stand |
 | **Relaterade beslut — ADR 0032 §8** | *"ADR 0049 Beslut 3 motiverar raw_payload-exklusionen delvis på ADR 0032:s sanitizer-allowlist + 30d-purge"* | Both cited grounds are falsified (§B Layers 1-2). ADR 0032 carries its own dated amendments A2/A3 for the same drift |
 
-#### F. The replacement contract (**BOUND, NOT YET SHIPPED**)
+#### F. The replacement contract (BOUND, NOT YET SHIPPED)
 
 > **SUPERSEDED IN PART, 2026-07-26 (#845).** Both tiers shipped: Tier B in `269a4603` on 2026-07-15,
 > Tier A in `daa4b51d` on 2026-07-17. The statements below that neither tier exists, and that the

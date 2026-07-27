@@ -33,20 +33,21 @@ namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationCo
 /// </para>
 ///
 /// <para>
-/// <b>The count UNDERCOUNTS, and it is not yet honest about it (#824).</b> Attribution here is
-/// governed by the ad's AGE — not by archival and not by soft delete. The org.nr on both sides of the
-/// join WAS a STORED generated column derived from <c>raw_payload</c> until #841 materialised it
-/// (2026-07-13); before that, Postgres RECOMPUTED that column
-/// to NULL. So an ARCHIVED but recent ad still counts (archival hides no row — <c>JobAd</c> has no
-/// soft-delete axis and no query filter, #821), while an ACTIVE but old ad does not.
-/// Worse, until #841 lands the value <b>thrashes daily for an ad still listed in the Platsbanken feed</b>
-/// (the 02:00 full-backfill sync rewrites <c>raw_payload</c>; the 04:30 purge nulls it again) — so the
-/// same application is counted for ~2.5h/day and not for the other ~21.5h, which makes the number the
-/// user is shown NON-DETERMINISTIC. (An ad that has LEFT the feed does not thrash: it is never rewritten,
-/// so its org.nr is permanently NULL.) That is the
+/// <b>The count UNDERCOUNTED, and #824 found it dishonest about that.</b> Attribution here USED TO
+/// BE governed by the ad's AGE — not by archival and not by soft delete. The org.nr on both sides of
+/// the join WAS a STORED generated column derived from <c>raw_payload</c>, so once the payload became
+/// purge-eligible Postgres RECOMPUTED that column to NULL. An ARCHIVED but recent ad still counted
+/// (archival hides no row — <c>JobAd</c> has no soft-delete axis and no query filter, #821), while an
+/// ACTIVE but old ad did not. Worse, the value <b>thrashed daily for an ad still listed in the
+/// Platsbanken feed</b> (the 02:00 full-backfill sync rewrites <c>raw_payload</c>; the 04:30 purge
+/// nulls it again) — so the same application was counted for ~2.5h/day and not for the other ~21.5h,
+/// which made the number the user is shown NON-DETERMINISTIC. (An ad that had LEFT the feed did not
+/// thrash: it was never rewritten, so its org.nr stayed NULL.) That was the
 /// substance of #824's Art. 5(1)(d) finding: <c>"Du har {count} tidigare ansökningar till detta
-/// företag"</c> is an unhedged factual claim to the data subject about her own data, and it is not
-/// reliably true. The copy is hedged in #824 PR 4; the root cause is fixed in #841.
+/// företag"</c> is an unhedged factual claim to the data subject about her own data, and it was not
+/// reliably true. The copy is hedged in #824 PR 4; <b>the root cause is fixed — #841 materialised the
+/// column as an ordinary one, so it no longer self-nulls with the payload purge.</b> The residue is
+/// the ads whose org.nr was already NULL at that point; see #824.
 /// </para>
 ///
 /// <para>

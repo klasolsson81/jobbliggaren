@@ -424,7 +424,8 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
         var userId = Guid.NewGuid();
         var seeker = await SeedSeekerAsync(db, clock, userId, ct);
 
-        // Published PAST the 30-day RawPayloadRetentionDays horizon, but the deadline is 30 days out:
+        // Published PAST the RawPayloadRetentionDays threshold (default 30 d — the purge THRESHOLD, not
+        // the deletion rule; rule: ADR 0032 Amendment 2026-07-26 §C2), but the deadline is 30 days out:
         // the ad is ACTIVE and perfectly applicable. Nothing archives it, nothing deletes it.
         var ad = await SeedJobAdAsync(
             db, clock, "5560360794", "Stale AB", ct, publishedDaysAgo: 40);

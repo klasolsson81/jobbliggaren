@@ -4,7 +4,7 @@
 **Status:** Accepted 2026-05-12 (Klas-GO mottaget)
 **Kontext:** F2-P8 JobTech/Platsbanken-integration (BUILD.md §9.1)
 **Beslutsfattare:** senior-cto-advisor 2026-05-12 (decision) + Klas Olsson (godkänd 2026-05-12)
-**Relaterad:** JobAd-katalog auth-gated (Fas 2), ADR 0022 (audit log-pipeline), ADR 0024 (audit retention), ADR 0023 (Hangfire-infrastruktur), BUILD.md §3.1 (HTTP-stack), §9.1 (JobTech-integration), §16 (job_ads-schema), ADR 0049 (Accepted — TD-13 PII-fält-kryptering: Beslut 3 motiverar `raw_payload`-exklusion ur envelope-scopet delvis på denna ADR:s §8 sanitizer-allowlist + 30d-purge), TD-56 (stängd P7), TD-70 (search/filter, kommande)
+**Relaterad:** JobAd-katalog auth-gated (Fas 2), ADR 0022 (audit log-pipeline), ADR 0024 (audit retention), ADR 0023 (Hangfire-infrastruktur), BUILD.md §3.1 (HTTP-stack), §9.1 (JobTech-integration), §16 (job_ads-schema), ADR 0049 (Accepted — TD-13 PII-fält-kryptering: Beslut 3 motiverade `raw_payload`-exklusion ur envelope-scopet delvis på denna ADR:s §8 sanitizer-allowlist + "30d-purge" — **båda grunderna är falsifierade**, se ADR 0049 §B och Amendment 2026-07-26 §C2 för regeln), TD-56 (stängd P7), TD-70 (search/filter, kommande)
 
 ## Kontext
 
@@ -239,10 +239,11 @@ DB är källan. Hangfire upserter dit. `GET /api/v1/job-ads` (P7) läser DB dire
 
 ### 8. GDPR: PII-fri externtrafik + sync-audit-events
 
-> **SUPERSEDED IN PART, 2026-07-26 (#845):** the replacement rule this banner states is **also
-> false**. An ad delisted on day 10 is purged on day 30 — ten days *before* "30 days after the ad
-> leaves the feed" claims, not after it. The rule's home is **ADR 0032 Amendment 2026-07-26 §C2**;
-> the three drifts diagnosed below stand.
+> **SUPERSEDED IN PART, 2026-07-26 (#845):** §8's retention statements below (`raw_payload` nulled
+> *"30 dagar efter `published_at`"*, and the Art. 30 line's *"30 dagar för raw_payload"*) are false,
+> and so is the *"30 days after the ad leaves the feed"* wording that A2/B4(a) proposed to replace
+> them with. The rule's home is **ADR 0032 Amendment 2026-07-26 §C2**; the arithmetic behind both
+> falsehoods is worked once in **§C1**. The three drifts diagnosed below stand.
 >
 > ⚠ **Superseded by the 2026-07-13 amendment (#842) — see below.** The heading reads as a blanket PII
 > guarantee. It holds for **outbound** traffic only. The **inbound** surface — recruiter contact details
@@ -420,6 +421,11 @@ public sealed class JobTechPayloadSanitizer
 > drifts: the 02:00 backfill restores the payload nightly, so the real rule is "30 days after the ad
 > **leaves the feed**"; the cron is `30 4 * * *`, not 03:00; and the job never touches
 > `job_ads.description`, which is where the recruiter PII actually is.
+>
+> **SUPERSEDED IN PART, 2026-07-26 (#845):** the replacement rule stated immediately above — *"30 days
+> after the ad leaves the feed"* — is **also false**, in both directions; the arithmetic is worked once
+> in **Amendment 2026-07-26 §C1**. The rule's home is **§C2**. This banner's other two drifts (the cron
+> and the untouched `description`) stand.
 
 `raw_payload` null:as via Hangfire-job 30 dagar efter `job_ads.published_at`. Job-spec:
 - `PurgeStaleRawPayloadsJob` (Hangfire daglig cron 03:00)
@@ -595,9 +601,13 @@ Original §8 specade ett `JobAdsSyncedDomainEvent` som skulle skrivas till `audi
 ### Operativa konsekvenser
 
 > ⚠ **WITHDRAWN by the 2026-07-13 amendment (#842) — see below.** The first bullet is the sentence that
-> released the prod gate, and **all three controls it names are falsified.** The gate is **RE-IMPOSED**:
-> no `v*` prod tag until ADR 0106 Tier B ships. The second bullet is false too: the manual runbook
-> fallback searched `description` and then deleted only `raw_payload`, and TD-75 is closed as void.
+> released the prod gate, and **all three controls it names are falsified.** The gate was **RE-IMPOSED**
+> on 2026-07-13, on the condition that ADR 0106 Tier B ship. The second bullet is false too: the manual
+> runbook fallback searched `description` and then deleted only `raw_payload`, and TD-75 is closed as void.
+>
+> **2026-07-26 (#845):** Tier B shipped (`269a4603`, 2026-07-15) and Tier A shipped (`daa4b51d`,
+> 2026-07-17). **The prod gate's status is owned solely by ADR 0106** and is not restated here; see
+> Amendment 2026-07-26 §C6.
 
 - v0.2-prod-tag är inte längre gated på TD-73. PurgeStaleRawPayloadsJob + audit-wire + Email-only-erasure tillsammans täcker GDPR Art. 5/17/30 för rekryterar-PII i raw_payload.
 - Name-baserad erasure hanteras manuellt via runbook (`docs/runbooks/recruiter-pii-erasure.md`) tills TD-75 levereras.
@@ -1169,8 +1179,8 @@ with no current reader).
 ### A2 — the retention rule is "30 days after the ad leaves the feed", not "30 days after publication".
 
 > **SUPERSEDED IN PART, 2026-07-26 (#845):** the replacement rule named in this heading is **also
-> false** — an ad delisted on day 10 is purged on day 30, twenty days before it. The rule's home is now
-> the **Amendment 2026-07-26 §C2**. This section's diagnosis (the documented rule is not the
+> false**, in both directions; the arithmetic is worked once in the **Amendment 2026-07-26 §C1**. The
+> rule's home is now **§C2**. This section's diagnosis (the documented rule is not the
 > implemented one) stands; its replacement wording does not.
 
 `SyncPlatsbankenSnapshotJob` (cron `0 2 * * *`) is a **daily full backfill** and
@@ -1238,13 +1248,13 @@ still contradict them, and it re-imposes the gate that one of those passages rel
 > **Line-number note:** the `:NNN` references below are as at HEAD `64e4c654`, i.e. **before** the inline
 > "⚠ superseded" pointers this amendment adds shifted them.
 
-### B1 — `:540` is WITHDRAWN. The prod gate it released is RE-IMPOSED.
+### B1 — `:540` is WITHDRAWN. The prod gate it released was RE-IMPOSED (2026-07-13; status now owned by ADR 0106 — see §C6).
 
-> **SUPERSEDED IN PART, 2026-07-26 (#845):** the gate's sole written condition — Tier B shipped with
-> green provable-erasure tests — was met on **2026-07-15** (`269a4603`; #842 itself closed
-> 2026-07-17, and that issue date is what this amendment's first draft wrongly attached to the
-> commit). Whether the gate is therefore
-> lifted is **ADR 0106's call, not this ADR's**; see ADR 0032 Amendment 2026-07-26 §C6.
+> **SUPERSEDED IN PART, 2026-07-26 (#845):** the gate's sole written condition **as stated in this
+> section** — Tier B shipped with green provable-erasure tests — has been met (`269a4603`; dates in
+> §C6). Note that ADR 0106 states the gate as more than this one leg, which is why the status is not
+> derivable from this section. Whether the gate is therefore lifted is **ADR 0106's call, not this
+> ADR's**; see ADR 0032 Amendment 2026-07-26 §C6.
 
 > *"v0.2-prod-tag är inte längre gated på TD-73. **PurgeStaleRawPayloadsJob + audit-wire +
 > Email-only-erasure tillsammans täcker GDPR Art. 5/17/30 för rekryterar-PII i raw_payload.**"* — `:540`
@@ -1400,12 +1410,13 @@ merits; its stated justification cannot.
 
 ### B7 — What replaces §8's PII story: ADR 0106's two-tier contract (BOUND, **not yet shipped**).
 
-> **SUPERSEDED IN PART, 2026-07-26 (#845):** both tiers shipped — Tier B in `269a4603` on
-> **2026-07-15** and Tier A in `daa4b51d` on **2026-07-17**, with the command, handler, validator and
-> `ErasureCascadeRegistry` under `src/Jobbliggaren.Application/JobAds/Commands/EraseRecruiterAds/`.
-> The "UNSHIPPED" tense below, and B8's *"no automated erasure path exists"*, are false as of that
-> date. **The prod gate's status is owned solely by ADR 0106 and is not restated here** — this entry
-> neither declares it lifted nor re-asserts it. See ADR 0032 Amendment 2026-07-26 §C6, and the
+> **SUPERSEDED IN PART, 2026-07-26 (#845):** both tiers have shipped — **Tier B** in `269a4603` and
+> **Tier A** in `daa4b51d`, with the command, handler, validator and `ErasureCascadeRegistry` under
+> `src/Jobbliggaren.Application/JobAds/Commands/EraseRecruiterAds/`. **The ship dates live in one
+> place — Amendment 2026-07-26 §C6** (the dates are what went stale; the commit hashes do not).
+> The "UNSHIPPED" tense below, and B8's *"no automated erasure path exists"*, are **false from the
+> earlier of those two commits onward**. **The prod gate's status is owned solely by ADR 0106 and is
+> not restated here** — this entry neither declares it lifted nor re-asserts it. See §C6, and the
 > Art. 12(3)/17 routing risk flagged to Klas on PR #1089.
 
 > **Tense discipline, deliberately:** neither tier exists in the code today. Describing a control we do
@@ -1463,19 +1474,22 @@ migration lane**, and `db-migration-writer` is deliberately not invoked.
 ### B8 — Shipping order and what lifts the gate
 
 > **SUPERSEDED IN PART, 2026-07-26 (#845) — read this before acting on anything below.** Every
-> shipping claim in this section is false as of 2026-07-15/17: **PR2 (Tier A) shipped** `daa4b51d`
-> on **2026-07-17** and **PR3 (Tier B) shipped** `269a4603` on **2026-07-15**, with the command,
+> shipping claim in this section is false: **Tier A shipped** in `daa4b51d` and **Tier B shipped** in
+> `269a4603` — **ship dates in §C6, which is their one home** — with the command,
 > handler, validator and `ErasureCascadeRegistry` under
-> `src/Jobbliggaren.Application/JobAds/Commands/EraseRecruiterAds/`.
+> `src/Jobbliggaren.Application/JobAds/Commands/EraseRecruiterAds/`. **Tier + commit is the only
+> unambiguous identification** — the commit subjects number the two tiers in the reverse order from
+> this section's table, so the PR ordinals are deliberately not restated here.
 >
 > **An Art. 17 request must NOT be routed to the manual workaround this section prescribes.** The
-> sentence *"no automated erasure path exists"* is untrue, and the runbook it cites was rewritten by
-> PR3 and no longer says it. Use `EraseRecruiterAdsCommand` (dry-run, then confirm) — it is provable
+> sentence *"no automated erasure path exists"* is untrue, and the runbook it cites no longer says
+> it. Use `EraseRecruiterAdsCommand` (dry-run, then confirm) — it is provable
 > and blocks re-import. Routing a live request to a manual workaround on the strength of this section
 > is an Art. 12(3)/17(1) failure, which is why this pointer sits here and not only in the amendment.
 >
-> **The prod gate's status is owned solely by ADR 0106** and is neither declared lifted nor
-> re-asserted here; see Amendment 2026-07-26 §C6.
+> **This banner covers every GATE claim below, not only the shipping claims** — the `Gate` column and
+> the closing *"Until PR3 is merged … no `v*` prod tag"* sentence included. **The prod gate's status
+> is owned solely by ADR 0106** and is not restated in this ADR; see Amendment 2026-07-26 §C6.
 
 | PR | Scope | Status | Gate |
 |---|---|---|---|
@@ -1498,17 +1512,29 @@ plainly that no automated erasure path exists.
 ## Amendment 2026-07-26 - the retention rule, stated once and correctly (#845)
 
 **Status:** Accepted - does **not** supersede A2/B4(a) wholesale. They were right that the documented
-rule was false, and wrong about what replaces it. This entry is the **rule's home**. Every `src/`
-comment that used to restate a `raw_payload` retention rule now points here - see C3.
+rule was false, and wrong about what replaces it. This entry is the **rule's home**; **C3 defines the
+sweep that is supposed to keep it the only one, and is deliberately the only place that says anything
+about coverage.** Three drafts of this amendment asserted completeness here and were falsified by the
+next review pass - the last of them while six live claims stood in `tests/`. A completeness claim in
+the record's own status line is the defect this amendment exists to remove, written in the register
+that removes it.
 
 ### C1 - A2's and B4(a)'s replacement rule is also false
 
 A2 and B4(a) write *"30 days after the ad leaves the feed"*. That is closer than the `published_at`
 rule and still wrong, in **both** directions:
 
-- an ad **delisted on day 10** is purged on day 30 - twenty days **before** that rule claims;
-- an ad **listed for a year** loses its payload about a day after delisting - twenty-nine days
-  **before** it.
+- an ad **delisted on day 10** is purged on day 30, while that rule claims day 40 - **ten days
+  before** it;
+- an ad **listed for a year** loses its payload about a day after delisting - **twenty-nine days
+  before** it.
+
+**This is the single home of that arithmetic.** Every banner correcting a retention wording elsewhere
+in this ADR, and the Art. 30 register's retention entry, point here rather than restating a day count -
+the restatement is what produced four versions of one rule. Note the trap the first two attempts both
+fell into: *"the purge happens twenty days after the ad left the feed"* is a true statement about **when
+the purge fires**, and is **not** the error in the rule. The error is the gap between what the rule
+**claims** (day 40) and what the code **does** (day 30), which is ten.
 
 The rule was never "N days after event X". Writing it in would have given this ADR a **fourth** false
 retention sentence, and the wording had already spread well past the three files #845 named - into
@@ -1521,8 +1547,10 @@ source, ADRs, the ROPA, the runbooks and the test suites alike.
 > default) on every ad older than `RawPayloadRetentionDays` (default 30, measured from
 > `published_at`). **The purge is not durable while the ad is being re-ingested:** every re-ingest
 > route writes through `JobAd.UpdateFromSource`, which reassigns the payload. **The payload is
-> (a) the ad is older than the retention window AND (b) nothing is re-ingesting it** - whichever
-> comes later. An Art. 17 erasure short-circuits both clauses: `JobAd.Erase` nulls the payload
+> therefore durably absent only from the first purge run after BOTH (a) the ad is older than the
+> retention window AND (b) nothing is re-ingesting it** - whichever comes later. Equivalently:
+> **effective erasure = `max(published_at + threshold, last re-ingest + one purge period)`.** An
+> Art. 17 erasure short-circuits both clauses: `JobAd.Erase` nulls the payload
 > immediately and `UpdateFromSource` refuses on `Erased`, so nothing restores it.
 
 A grep for `0 2 * * *` finds no registration (the
@@ -1615,14 +1643,22 @@ B7 and B8 still describe both tiers as **BOUND and UNSHIPPED** and state that *"
 path exists"*. Measured against `git log`: `269a4603` shipped Tier B (Art. 17 whole-record erasure,
 durable against re-import) on **2026-07-15** and `daa4b51d` shipped Tier A (Art. 25 at ingest) on
 **2026-07-17**. #842 itself closed 2026-07-17 - the issue date, which this amendment's first draft
-wrongly attached to both commits. And
-`src/Jobbliggaren.Application/JobAds/Commands/EraseRecruiterAds/` carries the command, handler,
-validator and `ErasureCascadeRegistry`.
+wrongly attached to both commits. The shipped surface is
+`src/Jobbliggaren.Application/JobAds/Commands/EraseRecruiterAds/`, which carries the command, handler,
+validator and `ErasureCascadeRegistry`; `RecruiterErasureIngestTests` and `ErasedAdReadPathTests` run
+green against Testcontainers Postgres (34 tests, re-verified 2026-07-26).
 
-This entry records only that. It does **not** declare the prod gate lifted and does **not** re-assert
-it: **ADR 0106 is the gate's sole owner** and its status is described only there. The reason this
-matters today rather than at a future tag is that B8 directs whoever receives an Art. 17 request to
-escalate and handle it manually *"because no automated erasure path exists"* - so a false record in
+**The ship DATES are stated here and nowhere else.** Other sites name the tier and its commit hash -
+a hash is a stable identifier and cannot go stale - but none of them restates a date. The date is what
+went stale: *"both shipped 2026-07-17"* survived two review rounds precisely because one date sat in
+four homes. Sites that used to carry a date and now point here: ADR 0024 §3 and §3.2, ADR 0049 §F, the
+erasure runbook §0, `PurgeStaleRawPayloadsJob`, and B7/B8's own banners above. See C3 for the same
+rule applied to the retention arithmetic, and C1 for the arithmetic's single home.
+
+This entry records only what shipped. It does **not** declare the prod gate lifted and does **not**
+re-assert it: **ADR 0106 is the gate's sole owner** and its status is described only there. The reason
+this matters today rather than at a future tag is that B8 directs whoever receives an Art. 17 request
+to escalate and handle it manually *"because no automated erasure path exists"* - so a false record in
 the governing ADR routes a live rights request away from the automated path that exists. Art. 5(2)/24
-with an Art. 12(3)/17 consequence. Flagged to Klas on PR #1089; the gate-status judgement is his, the
-tense correction is not.
+with an Art. 12(3)/17 consequence. **Klas ruled on the gate's status on 2026-07-26 (PR #1089); the
+ruling is recorded in ADR 0106, which is gitignored per ADR 0072 - not restated here.**

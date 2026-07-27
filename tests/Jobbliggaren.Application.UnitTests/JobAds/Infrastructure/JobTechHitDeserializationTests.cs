@@ -27,7 +27,7 @@ public class JobTechHitDeserializationTests
         //
         // It is pinned now, and the stake is higher than for the other six: this column went from
         // self-destructing with the payload purge (the #841 defect, working as an accidental erasure
-        // persisting INDEFINITELY. A silent [JsonPropertyName] drift here would mean the canonical employer
+        // control) to persisting INDEFINITELY. A silent [JsonPropertyName] drift here would mean the canonical employer
         // key — and the one value that can be a sole proprietor's PERSONNUMMER (ADR 0087 D8) — quietly
         // stops being ingested at all: no error, no failing test, company-follow and employer attribution
         // simply going empty.

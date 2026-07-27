@@ -4,37 +4,47 @@
 > from an ad we imported from Platsbanken.
 > Contract: **ADR 0106** (two-tier). Issue: **#842**.
 
-**Last updated:** 2026-07-13 (#842 PR2 — Tier B: provable erasure on request)
-**Applies to:** the state of the system **today** (post-PR2, pre-PR3).
+**Last updated:** 2026-07-26 (#845 — status truth-sync; both tiers shipped)
+**Applies to:** the state of the system **today** — both tiers shipped, `269a4603` (Tier B,
+2026-07-15) and `daa4b51d` (Tier A, 2026-07-17).
 
 ---
 
 ## 0. STATUS — read this before anything else
 
-**There is now a working erasure path. It removes the whole ad record and blocks
-its re-import.** That is new as of PR2, and it is the first time in this
-product's life that a confirmation sent under Art. 12(3) is a true statement.
+**There is a working erasure path. It removes the whole ad record and blocks
+its re-import.** It is the first time in this product's life that a confirmation
+sent under Art. 12(3) is a true statement.
 
-What is **still missing**, and what it means:
+**Both tiers have now shipped:**
 
 | | State |
 |---|---|
-| **Tier B — erasure on request (Art. 17)** | ✅ **SHIPPED.** `POST /api/v1/admin/job-ads/redact-recruiter-pii`. §2 is the procedure. |
-| **Tier A — not storing the contact at all (Art. 25)** | ❌ **NOT SHIPPED** (PR3, sequenced behind #841). We still ingest and store ~27 000 recruiters' contact details in plaintext free text, full-text indexed. |
-| **Launch gate** | 🔒 **CLOSED. No `v*` prod tag until BOTH tiers have shipped.** See below — this is not negotiable and it is not a product decision. |
+| **Tier B — erasure on request (Art. 17)** | ✅ **SHIPPED 2026-07-15** (`269a4603`). `POST /api/v1/admin/job-ads/redact-recruiter-pii`. §2 is the procedure. |
+| **Tier A — not storing the contact at all (Art. 25)** | ✅ **SHIPPED 2026-07-17** (`daa4b51d`), with the corpus backfill. Email and phone spans are stripped from the ad body at ingest, as a `JobAd` aggregate invariant, on every write. |
+| **Launch gate** | **Owned solely by ADR 0106** — its status is not restated here. See ADR 0032 Amendment 2026-07-26 §C6. |
 
-### Why the gate stays closed even though erasure now works
+**What Tier A still does not reach**, because an operator will be asked: recruiter
+**names** (there is no NER — ADR 0106 D5), textually obfuscated forms such as
+`anna(at)acme.se`, and contacts embedded in images. Tier B is the remedy for
+those, and it is request-driven — which is why §2 below still matters.
+
+### Why BOTH tiers were required (historical, 2026-07-13)
+
+*(Status corrected 2026-07-26, #845. The section below was written when Tier A was
+unshipped and the gate was closed on that ground. It is kept because it is the
+reasoning, not the status — both tiers have since shipped.)*
 
 An Art. 17 endpoint answers the people who **ask**. Art. 25(2) is about the
 ~37 000 recruiters who will **never know we exist and will never ask**, and
-whose addresses sit in `job_ads.description` in plaintext, inside a GIN-backed
+whose addresses sat in `job_ads.description` in plaintext, inside a GIN-backed
 `search_vector` that **any logged-in user can reverse-query**. Tier B does not
 touch that population, and **an Art. 17 endpoint does not discharge an Art. 25
-duty.** Shipping to production with the ingest scrub un-shipped would be the same
-category of claim this issue exists to stop making.
+duty.** Shipping to production with the ingest scrub un-shipped would have been
+the same category of claim this issue exists to stop making.
 
-*(This corrects the CTO re-bind, which carried STOPP-6 over verbatim while
-reordering the PRs, and so read as though Tier B alone lifted the gate. It does
+*(This corrected the CTO re-bind, which carried STOPP-6 over verbatim while
+reordering the PRs, and so read as though Tier B alone lifted the gate. It did
 not. Amended by the security-auditor's B2, 2026-07-13.)*
 
 ### The history, kept because it is the reason for every rule below

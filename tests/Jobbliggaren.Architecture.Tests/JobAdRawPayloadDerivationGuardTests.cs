@@ -17,8 +17,8 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <c>title</c>/<c>description</c>) and <c>extracted_lexemes</c> (from <c>extracted_terms</c>) are
 /// legitimate and must keep passing. What makes <c>raw_payload</c> different is that it is the only
 /// column on <c>job_ads</c> with a retention TTL — <c>PurgeStaleRawPayloadsJob</c> nulls it on a
-/// criterion, not a fixed period (rule: ADR 0032 Amendment 2026-07-26 §C2)
-/// (ADR 0032 §8) — and <b>anything computed from it silently inherits that TTL</b>. Seven columns did,
+/// criterion, not a fixed period (rule: ADR 0032 Amendment 2026-07-26 §C2) — and <b>anything computed
+/// from it silently inherits that TTL</b>. Seven columns did,
 /// and filtered search plus the matching engine lost still-active ads ~21.5 h/day for two releases.
 /// </para>
 ///
@@ -42,8 +42,9 @@ public class JobAdRawPayloadDerivationGuardTests
 
     /// <summary>
     /// The ONLY file permitted to bulk-write <c>JobAd.RawPayload</c> outside the aggregate. It writes
-    // the payload-retention control (GDPR Art. 5(1)(c)/(e); rule: ADR 0032 Amendment 2026-07-26 §C2)
-    /// facet columns untouched, which is the entire point of the change.
+    /// NULL (the payload-retention control, GDPR Art. 5(1)(c)/(e); rule: ADR 0032 Amendment 2026-07-26
+    /// §C2) and — since #841 — leaves the seven facet columns untouched, which is the entire point of
+    /// the change.
     /// </summary>
     private const string PurgeJobPath =
         "src/Jobbliggaren.Application/JobAds/Jobs/PurgeRawPayloads/PurgeStaleRawPayloadsJob.cs";
@@ -73,7 +74,8 @@ public class JobAdRawPayloadDerivationGuardTests
             .ToList();
 
         offenders.ShouldBeEmpty(
-            "A generated column derived from raw_payload INHERITS raw_payload's 30-day retention TTL: " +
+            "A generated column derived from raw_payload INHERITS raw_payload's retention TTL " +
+            "(criterion-based, not a fixed period; rule: ADR 0032 Amendment 2026-07-26 §C2): " +
             "PurgeStaleRawPayloadsJob nulls the payload, Postgres recomputes the generated column, and " +
             "the value is destroyed — silently, on a still-ACTIVE ad. That is #841, which cost filtered " +
             "search and the matching engine ~21.5h of every 24 for two releases. If you need a durable " +

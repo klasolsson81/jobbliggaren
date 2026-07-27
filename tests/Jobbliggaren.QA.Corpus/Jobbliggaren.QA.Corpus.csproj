@@ -33,6 +33,19 @@
     <PackageReference Include="Shouldly" />
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="xunit.v3.mtp-v2" />
+    <!-- PR K (#1060) — the layout corpus AUTHORS its own CV bytes and drives the real
+         import + auto-promote handlers over them. QuestPDF renders the PDF cases and
+         DocumentFormat.OpenXml the DOCX cases (precedent: PdfPigCvLayoutAnalyzerTests,
+         which already synthesizes genuine PDF/DOCX bytes rather than shipping binary
+         fixtures). EF InMemory hosts the handlers: IAppDbContext exposes DbSet<T> and the
+         handlers call FirstOrDefaultAsync/AnyAsync, which need a real IAsyncQueryProvider —
+         a substituted DbSet over a plain IQueryable throws. No database server, no
+         container, no network (parity AutoPromoteParsedResumeCommandHandlerTests).
+         All three are ALREADY centrally pinned in Directory.Packages.props, so this adds
+         no version decision and does not touch that §6.5 hotspot. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="QuestPDF" />
+    <PackageReference Include="DocumentFormat.OpenXml" />
   </ItemGroup>
 
   <ItemGroup>

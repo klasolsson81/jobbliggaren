@@ -47,8 +47,10 @@ public sealed record LayoutCase(
     /// guard sees that the import scan did not already cover.</summary>
     string AccountDisplayName = LayoutCaseCatalog.DefaultAccountName);
 
-/// <summary>The authored cases (19 as of #1060 PR E). Ordered PDF then DOCX, controls adjacent to what they
-/// control.</summary>
+/// <summary>The authored cases, ordered PDF then DOCX with controls adjacent to what they
+/// control. The count is deliberately not written here: two revisions of this comment carried a
+/// stale number (16 while 17 existed, then 19 while 20 existed). The report emits
+/// <c>All.Count</c>.</summary>
 public static class LayoutCaseCatalog
 {
     private const string Pdf = "application/pdf";
@@ -133,11 +135,13 @@ public static class LayoutCaseCatalog
             SpikeMeasuredExtractSegment: true,
             ProjectHeadingRendered: UnknownProjectHeading),
 
-        // #1060 PR E — the two SPACED cases. Every case above authors uniform leading, which made
-        // the corpus unable to separate "the extractor discards the paragraph boundary" from "the
-        // document never carried one". These two supply the missing control. They are declared
-        // here, and their PromotedLossy rows entered the baseline, BEFORE the rule that reads them
-        // existed — the ordering is the point (CTO-bind 2026-07-27 §A1.1).
+        // #1060 PR E — the SPACED cases. Every case above authors uniform leading, which made the
+        // corpus unable to separate "the extractor discards the paragraph boundary" from "the
+        // document never carried one". These supply the missing control. A geometry-derived
+        // boundary rule was built against them and WITHDRAWN when a later arm measured it turning
+        // a promoting CV into a hard block, so nothing in the tree reads them today. They exist so
+        // the NEXT attempt is measured rather than plausible (CTO-bind 2026-07-27 §A1.1 +
+        // amendment 2).
         new("pdf-single-column-spaced",
             "single-column chronological, authored as blocks with paragraph spacing between them "
             + "(the way a word processor lays a CV out)",
@@ -155,9 +159,8 @@ public static class LayoutCaseCatalog
             ProjectHeadingRendered: UnknownProjectHeading),
 
         new("pdf-single-column-intra-block-spaced",
-            "single-column chronological with paragraph spacing BOTH between and inside "
-            + "employments, plus a long tightly-leaded skills list",
-            "(b) single-column chronological — the arm that exhibits an intra-entry paragraph gap",
+            "single-column chronological, paragraph spacing between AND inside employments",
+            "(b) single-column chronological — the arm that exhibits an intra-ENTRY paragraph gap",
             "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SingleColumnIntraBlockSpaced, CvModel.Swedish,
             p =>
             {
@@ -175,6 +178,24 @@ public static class LayoutCaseCatalog
             + "distinction no other case can make",
             SpikeMeasuredExtractSegment: false,
             OneVariableStepFrom: "pdf-single-column-spaced",
+            ProjectHeadingRendered: UnknownProjectHeading),
+
+        new("pdf-single-column-intra-block-spaced-tight-list",
+            "the same, with the skills list lengthened so bare leading is the page's MEDIAN gap",
+            "(b) single-column chronological — the second knob, isolated from the first",
+            "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SingleColumnIntraBlockSpacedTightList,
+            CvModel.Swedish,
+            p =>
+            {
+                p.RequireNoVerticalGutter(15);
+                p.RequireAuthoredParagraphSpacing(minCount: 8, minExtraPoints: 6);
+                p.RequireGapBetweenLines("2026", "Ansvarig", minExtraPoints: 6);
+            },
+            "the same form as its predecessor, with a longer tightly-leaded list — so the two "
+            + "knobs the withdrawn boundary rule failed on are separated into two measured rows "
+            + "instead of asserted together in prose",
+            SpikeMeasuredExtractSegment: false,
+            OneVariableStepFrom: "pdf-single-column-intra-block-spaced",
             ProjectHeadingRendered: UnknownProjectHeading),
 
         new("pdf-sidebar-spaced",

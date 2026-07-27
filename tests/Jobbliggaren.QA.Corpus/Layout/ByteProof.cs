@@ -154,13 +154,14 @@ public sealed partial class ByteProofContext(string caseId, ReadOnlyMemory<byte>
     /// exactly like a working one: it would simply stop improving, and read as the mechanism
     /// failing rather than the fixture rotting. This proof fails loudly instead.</para>
     ///
-    /// <para>Deliberately NOT the production rule. The extractor's boundary cut is a median plus
-    /// half a median line height; this reads the tightest gap and a flat point excess. Two
-    /// different statements about the same bytes, so this cannot become a restatement of the cut.
-    /// (It is not fully independent either: on a single-column page where the tightest gap IS the
-    /// median, this proof holding implies the cut fires. That makes it a good detector of a fixture
-    /// that has ROTTED — which is its job — and a poor independent confirmation that the rule
-    /// works. The corpus verdict columns are what confirm the rule.)</para>
+    /// <para>Deliberately NOT a restatement of any boundary rule. There is no boundary rule in the
+    /// tree — one was built for #1060 PR E and withdrawn — but when the next attempt lands, this
+    /// proof must stay a DIFFERENT statement about the same bytes: it reads the tightest gap and a
+    /// flat point excess, where the withdrawn cut read a median plus half a median line height.
+    /// (It would not be fully independent even so: on a single-column page where the tightest gap
+    /// IS the median, this proof holding would imply such a cut fires. That makes it a good
+    /// detector of a fixture that has ROTTED — which is its job — and a poor confirmation that any
+    /// rule works. The corpus verdict columns are what confirm a rule.)</para>
     ///
     /// <para><b>Columns are separated, and that is load-bearing.</b> On a multi-column page the two
     /// columns carry independent baseline series. Merged into one sequence, the tightest "gap"
@@ -211,24 +212,61 @@ public sealed partial class ByteProofContext(string caseId, ReadOnlyMemory<byte>
     /// case whose distinguishing property no proof establishes is the defect this corpus keeps
     /// finding in itself — a claim that reads as measured and is only authored.</para>
     /// </summary>
-    public void RequireGapBetweenLines(string upperWord, string lowerWord, double minExtraPoints)
+    /// <param name="splitX">X coordinate separating two columns, or null for a single-column page.
+    /// Required for the same reason <see cref="RequireAuthoredParagraphSpacing"/> needs it: the
+    /// reference "tightest gap" is meaningless when two columns' baselines are merged into one
+    /// series.</param>
+    public void RequireGapBetweenLines(
+        string upperWord, string lowerWord, double minExtraPoints, double? splitX = null)
     {
         var anchors = PdfBlockAnchors();
 
-        var upper = anchors.FirstOrDefault(a => a.Text.Contains(upperWord, StringComparison.Ordinal))
-            ?? throw new ByteProofException(CaseId, Invariant($"the word '{upperWord}' is absent from page 1"));
-        var lower = anchors.FirstOrDefault(a => a.Text.Contains(lowerWord, StringComparison.Ordinal))
-            ?? throw new ByteProofException(CaseId, Invariant($"the word '{lowerWord}' is absent from page 1"));
+        // Both anchors must be UNIQUE. Without this, editing an unrelated fixture line so that it
+        // also contains the word would silently re-point the proof at a different pair of lines and
+        // it would keep passing — the "proves something, but not the claim" failure this corpus
+        // exists to catch.
+        var uppers = anchors.Where(a => a.Text.Contains(upperWord, StringComparison.Ordinal)).ToList();
+        var lowers = anchors.Where(a => a.Text.Contains(lowerWord, StringComparison.Ordinal)).ToList();
+
+        Require(uppers.Count == 1, Invariant(
+            $"expected '{upperWord}' to occur exactly once on page 1, found {uppers.Count}"));
+        Require(lowers.Count == 1, Invariant(
+            $"expected '{lowerWord}' to occur exactly once on page 1, found {lowers.Count}"));
+
+        var upper = uppers[0];
+        var lower = lowers[0];
 
         Require(upper.Y > lower.Y, Invariant(
             $"expected '{upperWord}' above '{lowerWord}'; found y = {upper.Y:F1} and {lower.Y:F1}"));
 
-        var columns = BaselineColumns(null);
-        var tightest = columns.Count == 0 ? 0 : columns[0].Min();
+        // The two must be ADJACENT lines. A multi-line span trivially exceeds any gap threshold, so
+        // without this the proof would pass on a document where the claimed boundary does not exist
+        // and two unrelated lines happen to sit far apart.
+        var baselines = BaselineSeries(anchors, splitX, upper.X);
+        var upperIndex = baselines.IndexOf(Math.Round(upper.Y, 1));
+        var lowerIndex = baselines.IndexOf(Math.Round(lower.Y, 1));
+
+        Require(upperIndex >= 0 && lowerIndex == upperIndex + 1, Invariant(
+            $"expected '{upperWord}' and '{lowerWord}' on ADJACENT lines; they are {lowerIndex - upperIndex} lines apart"));
+
+        var columns = BaselineColumns(splitX);
+        var tightest = columns.Count == 0 ? 0 : columns.Min(c => c.Min());
         var gap = upper.Y - lower.Y;
 
         Require(gap >= tightest + minExtraPoints, Invariant(
             $"expected a gap of at least {minExtraPoints} pt over the tightest ({tightest:F1} pt) between '{upperWord}' and '{lowerWord}', found {gap:F1} pt"));
+    }
+
+    /// <summary>The rounded baselines of the column containing <paramref name="atX"/>, top to
+    /// bottom.</summary>
+    private static List<double> BaselineSeries(
+        IReadOnlyList<BlockAnchor> anchors, double? splitX, double atX)
+    {
+        var partition = splitX is null
+            ? anchors
+            : [.. anchors.Where(a => (a.X < splitX.Value) == (atX < splitX.Value))];
+
+        return [.. partition.Select(a => Math.Round(a.Y, 1)).Distinct().OrderByDescending(y => y)];
     }
 
     /// <summary>Proves the page carries NO authored paragraph spacing — the exact negation of

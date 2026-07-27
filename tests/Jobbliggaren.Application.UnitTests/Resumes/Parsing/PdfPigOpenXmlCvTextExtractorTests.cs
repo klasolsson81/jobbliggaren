@@ -106,12 +106,37 @@ public class PdfPigOpenXmlCvTextExtractorTests
     /// turning a CV that promoted into a hard block. Nothing in the suite could exhibit that,
     /// because every fixture put spacing only BETWEEN employments. The rule was withdrawn; this
     /// fixture is what makes the next attempt measurable.</para></summary>
-    private static readonly CvLine[] IntraBlockSpacedCv =
-        [.. SpacedCv.Select(l => l.Text is "2021 - 2026" or "2018 - 2021" or "2015 - 2018"
-                or "2010 - 2015" or "Ledde teamet för betalflöden."
-                or "Byggde tjänster för uppkopplade fordon." or "Journalsystem i .NET."
-            ? l with { GapAbove = 8 }
-            : l)];
+    private static readonly CvLine[] IntraBlockSpacedCv = BuildIntraBlockSpacedCv();
+
+    /// <summary>Adds Word's 8 pt space-after above every line that CONTINUES an entry — i.e. every
+    /// line the fixture authored at ordinary leading (<c>GapAbove == 0</c>) other than the identity
+    /// block at the top.
+    ///
+    /// <para>Derived from <see cref="SpacedCv"/>'s own structure rather than by matching literal
+    /// strings. A string-matching version was written first and is the wrong shape: correcting a
+    /// typo in one of those literals would silently stop selecting it, degrading this fixture
+    /// toward a copy of <see cref="SpacedCv"/> with nothing turning red. The count assertion below
+    /// makes the degradation impossible rather than unlikely.</para></summary>
+    private static CvLine[] BuildIntraBlockSpacedCv()
+    {
+        // Everything from the first section heading onward; the identity lines above it are one
+        // block by construction and must stay at ordinary leading.
+        var firstHeading = Array.FindIndex(SpacedCv, l => l.GapAbove > 0);
+
+        var lines = SpacedCv
+            .Select((l, i) => i > firstHeading && l.GapAbove == 0 ? l with { GapAbove = 8 } : l)
+            .ToArray();
+
+        var changed = lines.Count(l => l.GapAbove > 0) - SpacedCv.Count(l => l.GapAbove > 0);
+        if (changed < 5)
+        {
+            throw new InvalidOperationException(
+                $"IntraBlockSpacedCv must add spacing to at least 5 continuation lines; it added {changed}. "
+                + "SpacedCv's shape changed and this fixture has silently degraded toward a copy of it.");
+        }
+
+        return lines;
+    }
 
     private static byte[] BuildCvPdf(IReadOnlyList<CvLine> lines) =>
         QuestDocument.Create(container =>
@@ -299,28 +324,56 @@ public class PdfPigOpenXmlCvTextExtractorTests
         result.RawText.ShouldContain("tjänster");
     }
 
+    /// <summary>The three authored spacings this base pin covers. Dispatch is on the ENUM, never
+    /// on a display string: an earlier revision switched on the label with a catch-all arm, so
+    /// editing one label would have silently routed two cases to the same document and left the
+    /// suite green with a control it was no longer running.</summary>
+    public enum CvSpacing
+    {
+        /// <summary>No authored spacing anywhere — the document states no boundary.</summary>
+        UniformLeading,
+
+        /// <summary>Paragraph spacing between employments only.</summary>
+        BetweenEntries,
+
+        /// <summary>Paragraph spacing between AND inside employments.</summary>
+        BetweenAndInsideEntries,
+    }
+
     // #1060 PR E — THE BASE, pinned. Three documents with the same words and three different
-    // authored spacings: none at all, spacing between employments, and spacing between AND inside
-    // them. `ContentOrderTextExtractor.GetText(page)` emits one newline per visual line regardless,
-    // so all three produce the same shape — zero blank lines — and the segmenter, which splits
-    // entries on blank lines and nothing else, cannot tell them apart.
+    // authored spacings. `ContentOrderTextExtractor.GetText(page)` emits one newline per visual
+    // line regardless, so all three produce the same shape — zero blank lines — and the segmenter,
+    // which splits entries on blank lines and nothing else, cannot tell them apart. That is #1060
+    // stated at the layer that owns it.
     //
-    // That is the #1060 defect stated at the layer that owns it, and this test is deliberately an
-    // assertion about TODAY. A future PR that restores the boundary MUST turn the first two rows
-    // red; if it lands and this test still passes, it did not do what it claims. The third row is
-    // the one that failed the first attempt (a rule that fired here split entries apart and turned
-    // a promoting CV into a hard block), so it is pinned separately rather than folded in.
+    // WHAT A FUTURE BOUNDARY FIX MUST DO TO THESE ROWS, stated precisely because getting it wrong
+    // is how the next attempt repeats this one:
+    //
+    //   BetweenEntries          MUST go red. The document states a boundary; a fix must find it.
+    //   BetweenAndInsideEntries MUST go red — and see below for the part that is NOT about colour.
+    //   UniformLeading          MUST STAY GREEN, PERMANENTLY. This document authors no boundary at
+    //                           all, so a rule that emits a blank line here has INVENTED one. The
+    //                           withdrawn rule preserved this property and it is the one property
+    //                           that must never be traded for recall.
+    //
+    // The third row needs more than a colour: a rule may legitimately place a boundary between its
+    // employments while placing NONE between a period line and its own description line. Turning it
+    // red is necessary and not sufficient — the withdrawn rule turned it red by splitting entries
+    // apart, which is precisely the regression. Judge that row by the corpus arms
+    // `pdf-single-column-intra-block-spaced[-tight-list]`, whose parsed-entry counts say whether
+    // the boundaries landed between entries or inside them.
     [Theory]
-    [InlineData("uniform leading — no authored spacing at all")]
-    [InlineData("spacing BETWEEN employments")]
-    [InlineData("spacing between AND INSIDE employments")]
-    public void Extract_PdfSpacingIsInvisibleInTheExtractedText_TodaysBase(string shape)
+    [InlineData(CvSpacing.UniformLeading)]
+    [InlineData(CvSpacing.BetweenEntries)]
+    [InlineData(CvSpacing.BetweenAndInsideEntries)]
+    public void Extract_PdfSpacingIsInvisibleInTheExtractedText_TodaysBase(CvSpacing shape)
     {
         var bytes = shape switch
         {
-            "uniform leading — no authored spacing at all" => BuildUniformLeadingCvPdf(),
-            "spacing BETWEEN employments" => BuildCvPdf(SpacedCv),
-            _ => BuildCvPdf(IntraBlockSpacedCv),
+            CvSpacing.UniformLeading => BuildUniformLeadingCvPdf(),
+            CvSpacing.BetweenEntries => BuildCvPdf(SpacedCv),
+            CvSpacing.BetweenAndInsideEntries => BuildCvPdf(IntraBlockSpacedCv),
+            _ => throw new ArgumentOutOfRangeException(nameof(shape)),
         };
 
         var result = _sut.Extract(bytes, CvFileKind.Pdf, CancellationToken.None);

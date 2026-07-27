@@ -27,8 +27,9 @@ namespace Jobbliggaren.QA.Corpus;
 /// asserted.</i></para>
 ///
 /// <para>That rule is what stops this suite from blocking its own remedy: asserting
-/// <c>BlankLineCount == 0</c> would turn every PDF case red the day PR E lands, on a suite whose
-/// whole purpose is to measure PR E's effect. THREE asserts do touch production, each argued at
+/// <c>BlankLineCount == 0</c> would turn every PDF case red the day a boundary fix lands, on a
+/// suite whose whole purpose is to measure that fix's effect. (PR E built one and withdrew it;
+/// the rule matters exactly as much for the attempt that follows.) THREE asserts do touch production, each argued at
 /// the assert block below — crash-safety, kind resolution, and marker visibility. No parsing
 /// OUTCOME is asserted anywhere.</para>
 ///

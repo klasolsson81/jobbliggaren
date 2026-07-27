@@ -43,7 +43,7 @@ layouts. Light/dark follow the `--jp-*` tokens automatically.
 | `.jp-pipeline` | Kanban as ledger rows. Columns separated by `--jp-border-strong` (stronger than row hairlines), **NO floating cards** (`.jp-appCard` is `display:none`). Rows are `.jp-appRow`. | Application pipeline. |
 | `.jp-statusDot` | Dot + text, **no background**. `--brand`/`--info`/`--success`/`--warning`/`--danger`/`--neutral`. | **First choice in tables** for status. |
 | `.jp-pill` | Pill: colored `*-50` bg + 6px dot + `*-700` text, `rounded-pill`. | Status **at an entity** (accent moment), not in dense table columns. |
-| `.jp-match` | 6px progress bar: brand fill ≥75, `--mid` (info) 50–74, `--low` (warning) <50. | Match-score. |
+| `.jp-matchchip` | Named match grade: `--top`/`--high`/`--mid`/`--low` on the locked leaf ramp, plus `--related`, a grade in its own right that takes the **neutral** status treatment — NOT a fifth *green* step (a fifth fill would have needed a new leaf hue; ADR 0084 F2). | The match **grade**. Never a percentage, meter or ring (DESIGN.md §8, ADR 0076 Decision 4, ADR 0053 Amendment 2026-06-19). The matched/missing **per-dimension** half is a separate form (`.jp-modal__matchrow`); both are required. |
 | `.jp-filterBar` | Flat grid between two hairlines, fields at natural width, **no chrome box**. | Filter rows. |
 | `.jp-banner` | Brand-50 bg + 3px `brand-600` left border. Use sparingly. | Non-blocking info notice. |
 

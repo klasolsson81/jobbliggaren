@@ -62,7 +62,6 @@ the Unknown Error pattern at the bottom of this file.
 
 ---
 
-
 ## Integrationer (INTEGRATION_*)
 
 | Code | Meddelande | Kommentar |

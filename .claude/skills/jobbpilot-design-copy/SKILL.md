@@ -94,7 +94,7 @@ civic-utility-regeln "information är design" (se `jobbpilot-design-principles`)
 | Datum ISO | 2026-04-14 | 14-04-2026 |
 | Tid | 14:32 | 2:32 PM, 14.32 |
 | Valuta | 33 456 kr | 33,456 SEK, 33456 kr |
-| Decimaler | 4,5 stjärnor | 4.5 stjärnor |
+| Decimaler | 4,5 km | 4.5 km |
 | Tusental | 12 345 | 12,345 eller 12.345 |
 | Relativ tid | 3 dagar sen | for 3 days, 3 days ago |
 | Företagsnamn | Volvo Cars Sverige AB | Volvo AB (förkortat utan grund) |
@@ -183,7 +183,7 @@ anti-pattern, arkitekturtestad).
 | Matchningsgrad | "Stark match" | "89 % matchning mot din profil." |
 | Varför graden | "Du uppfyller alla ska-krav i annonsen." | "Vår analys ger dig 4 av 5 stjärnor." |
 | Annons utan ska-krav | "Annonsen anger inga särskilda ska-krav." | "Du uppfyller alla ska-krav" (falskt: inget krävdes) |
-| Saknad dimension | "Ej bedömt" | En gissad grad, eller en dold nolla |
+| Dimension utan underlag | "Ej bedömt" | En gissad grad, eller en dold nolla |
 | CV-omdöme, citerbart | "Delvis" + citat ur CV:t + åtgärd: *"Driven och engagerad person som gillar utmaningar."* / "Profiltexten är vag. Lägg till vad du faktiskt gör och vad du har åstadkommit." | "Ditt CV känns lite tunt." |
 | CV-omdöme, frånvaro | "Underkänt" + observation: "Ingen e-postadress hittades i CV:t." | Ett omdöme som påstår ett citat men citerar inget |
 
@@ -204,12 +204,22 @@ anti-pattern, arkitekturtestad).
   bedömt**; nivå per kategori **Ej redo · Behöver omarbetning · Konkurrenskraftigt ·
   Toppskikt**.
 
-Ett CV-fynd har **två skeppade former** (`content-cv-granskning.json`): med `quote`
-ur CV:t plus `note` med åtgärden, eller — när något saknas helt — `quote: null` plus
-`observation`. Slå inte ihop dem till en sträng, och påstå aldrig ett citat du inte har.
+Ett CV-fynd har **tre skeppade former** — auktoriteten är `citedEvidenceDtoSchema`
+(`src/lib/dto/parsed-resume.ts`) och `cv-criterion-verdict.tsx`; `content-cv-granskning.json`
+visar dem:
 
-**Stavning: `ska-krav`.** Skeppad copy säger så på sex ställen; "skallkrav" finns i
-noll skeppade strängar. ADR 0076:s prosa skriver "skallkrav" — följ inte den
+1. `kind: "TextSpan"` — `quote` ur CV:t, renderad som blockquote. `note` med åtgärden
+   är **valfri**: ett "Godkänt" med enbart citat är en skeppad form.
+2. `kind: "Structural"` — `observation` när det som saknas inte går att citera
+   ("Ingen e-postadress hittades i CV:t").
+3. `verdict: "NotAssessed"` — `notAssessedReason` på **kriterienivå**, varken `note`
+   eller `observation`. Det är formen som gör "Ej bedömt" ärligt i stället för gissat
+   (ADR 0071 OQ3, CLAUDE.md §5 "not assessed v1").
+
+Slå inte ihop formerna till en sträng, och påstå aldrig ett citat du inte har.
+
+**Stavning: `ska-krav`.** Sex förekomster i `messages/sv/` (skiftlägesokänsligt —
+en är versal "Ska-krav"); "skallkrav" finns i noll skeppade strängar. ADR 0076:s prosa skriver "skallkrav" — följ inte den
 stavningen i UI.
 
 Två ytor säger regeln till användaren med produktens egna ord, och copy får inte
@@ -235,7 +245,9 @@ Specifik knapp-text. Konkret konsekvens.
 | Avsluta konto | "Avsluta konto? All data raderas permanent inom 30 dagar." | "Är du säker på att du vill fortsätta?" |
 
 (Gmail-raden är ett **mönsterexempel, inte skeppad copy** — Gmail-synk är uppskjuten,
-inte borttagen: BUILD.md §9.2 specificerar fem endpoints och kallar den "ännu obyggd".)
+inte borttagen: BUILD.md §6.2 listar fem endpoints, §9.2:s not (:1006-1013) säger
+"skjuts upp … specarna bevaras som framtida referens", och :1489 listar `SyncGmailJob`
+som "Ej byggt (Fas 5, #321)".)
 
 ### 7. Påminnelser
 

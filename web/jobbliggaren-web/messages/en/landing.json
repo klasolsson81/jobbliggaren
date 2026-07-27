@@ -92,36 +92,5 @@
       "cookies": "Cookies",
       "accessibility": "Accessibility"
     }
-  },
-  "cookies": {
-    "kicker": "Privacy",
-    "title": "Cookies",
-    "intro": "Jobbliggaren uses only necessary cookies for the service to work.",
-    "meansLabel": "This means:",
-    "sessionTerm": "Session cookies",
-    "sessionBody": " keep you signed in when you have an account.",
-    "csrfTerm": "CSRF protection",
-    "csrfBody": " protects your details from tampering.",
-    "languageTerm": "Language choice",
-    "languageBody": " remembers whether you chose Swedish or English.",
-    "noTracking": "No cookies are used for analytics, tracking or marketing.",
-    "fullPolicyNote": "A full cookie policy is being prepared."
-  },
-  "terms": {
-    "kicker": "Legal",
-    "title": "Terms of use",
-    "intro": "Full terms of use are being prepared.",
-    "duringBeta": "Until further notice the following applies:",
-    "asIs": "The service is provided as is. Features may change or be added.",
-    "dataRetention": "We store your details only for as long as is needed to handle your registration or your account.",
-    "dataDeletion": "You can ask us to delete your details at any time by replying to the confirmation email or contacting us."
-  },
-  "meta": {
-    "cookiesTitle": "Cookies",
-    "cookiesDescription": "Information about cookies on Jobbliggaren. Only necessary cookies are used.",
-    "termsTitle": "Terms of use",
-    "termsDescription": "Jobbliggaren's terms of use. Full text is being prepared.",
-    "homeTitle": "Find, apply for and follow up on jobs",
-    "homeDescription": "Search every active job ad from Platsbanken, get your CV reviewed and follow up on every application, from draft to response."
   }
 }

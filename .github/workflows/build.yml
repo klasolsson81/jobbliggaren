@@ -289,8 +289,8 @@ jobs:
   # ---------------------------------------------------------------------------
   # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).
   #
-  # ALLA tre jobben nedan är OBSERVE-ONLY: de ligger MEDVETET UTANFÖR ci.needs
-  # (ci-aggregatet oförändrat: [backend, frontend, coverage]). Coverage-gaten
+  # ALLA tre jobben nedan är OBSERVE-ONLY: de ligger MEDVETET UTANFÖR ci.needs.
+  # Coverage-gaten
   # (ADR 0044) är orörd — dessa är rent additiva. continue-on-error + explicit
   # exit 0 → de kan aldrig blockera merge Fas 1. Budget-överskridande/CVE-fynd
   # emitteras som ::warning:: + job-summary, inte som fail.

@@ -16,8 +16,9 @@
 # the tests answer the same way in five years as they do today.
 #
 # Each case names the SHAPE it builds, because the shapes are the argument: they
-# are the seven ways a `synchronize` event can look, and only the first of them
-# may keep the gate.
+# are the ways a `synchronize` event can look. Only a base merge whose tree IS
+# the automatic merge's tree may keep the gate -- which is a rule about trees,
+# not a position in this list, and cases 1 and 1b are both members of it.
 
 set -euo pipefail
 
@@ -171,6 +172,17 @@ base line 3
 git -C "$repo" checkout -q feature
 git -C "$repo" merge -q --no-ff -m "Merge branch 'main' into feature" main
 after=$(git -C "$repo" rev-parse HEAD)
+# Verify the fixture built the shape it is named after, the way case 2 does.
+# Without this, simplifying it back to disjoint files would make it a silent
+# duplicate of case 1 and the suite would keep passing -- the merged blob must
+# differ from BOTH sides, which is what "a real line-level automerge happened"
+# means and is exactly the shape that defeated the patch-comparison predicate.
+merged_blob=$(git -C "$repo" rev-parse "$after:base.txt")
+if [ "$merged_blob" = "$(git -C "$repo" rev-parse "$before:base.txt")" ] ||
+  [ "$merged_blob" = "$(git -C "$repo" rev-parse "main:base.txt")" ]; then
+  echo 'fixture broken: case 1b did not produce a line-level merge of base.txt' >&2
+  exit 1
+fi
 run_predicate "$repo" "$before" "$after" main
 expect 'line-level automerge of one file keeps the gate' pure-base-merge 0
 
@@ -337,7 +349,7 @@ run_predicate "$notrepo" "$head" "$head" main
 expect 'outside a git repository disarms' predicate-error 1
 
 # ---------------------------------------------------------------------------
-# 9. git itself misbehaving. These four are the reason the design can accept git
+# 9. git itself misbehaving. These shims are the reason the design can accept git
 #    plumbing inside a merge control at all, so none of them may be left as an
 #    assertion: each is provoked for real, from outside the script.
 # ---------------------------------------------------------------------------

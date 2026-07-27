@@ -6,6 +6,7 @@ import type {
   TaxonomyOption,
   TaxonomyRegion,
 } from "@/lib/dto/taxonomy";
+import type { UploadOutcome } from "@/components/resumes/cv-upload-form";
 
 /**
  * #1060 — bekräftelse-plattan i välkomstmodulen säger vad som FAKTISKT hände.
@@ -58,21 +59,17 @@ vi.mock("next/navigation", () => ({
 }));
 
 // Stubbad uppladdningsform: två knappar, ett utfall var.
+//
+// `UploadOutcome` importeras som TYP från produktionsmodulen i stället för att skrivas av
+// strukturellt. `vi.mock` typkollas inte, så en handskriven kopia hade lämnat testet grönt
+// om produktionsformen drev — och då hade stubben drivit modalen med ett utfall den aldrig
+// får, vilket är precis "testa mocken" i stället för koden. Med `import type` bryter en drift
+// i `tsc` i stället.
 vi.mock("@/components/resumes/cv-upload-form", () => ({
   CvUploadForm: ({
     onUploaded,
   }: {
-    onUploaded: (
-      outcome:
-        | { kind: "promoted"; resumeId: string; parsedResumeId: string }
-        | {
-            kind: "pending";
-            parsedResumeId: string;
-            blockReason: string;
-            personnummerCount: number;
-          },
-      fileName?: string,
-    ) => void;
+    onUploaded: (outcome: UploadOutcome, fileName?: string) => void;
   }) => (
     <div>
       <button

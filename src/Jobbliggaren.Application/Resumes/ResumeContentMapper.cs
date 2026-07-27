@@ -56,10 +56,13 @@ internal static class ResumeContentMapper
                     .ToList()))
             .ToList();
 
-        // #1060: carried verbatim, like every other free-text field. On the user-submitted
-        // write paths the value is irrelevant — Resume.UpdateMasterContent overwrites it with
-        // the stored one (write-once, enforced in the aggregate) — but mapping it keeps this
-        // projection lossless, which is what the ToDto→ToDomain round-trip test pins.
+        // #1060: carried verbatim, like every other free-text field, and whether the value
+        // MATTERS depends on the caller — so do not describe it as though it never does.
+        // On the UpdateMasterContent path it is indeed overwritten by the aggregate's stored
+        // value (write-once). On the PROMOTE path it is decisive: the handler has already
+        // substituted the parse's preamble into the DTO, UpdateMasterContent never runs, and
+        // this line is what carries it into the Resume. Dropping it here would silently
+        // re-open the manual arm's drop.
         return new ResumeContent(
             personalInfo, experiences, educations, skills, dto.Summary,
             languages, skillGroups, sections, dto.Preamble);

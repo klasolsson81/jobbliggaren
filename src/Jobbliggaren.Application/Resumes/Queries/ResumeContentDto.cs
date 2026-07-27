@@ -24,16 +24,25 @@ namespace Jobbliggaren.Application.Resumes.Queries;
 /// <para>Unlike the staging egress (<c>GetParsedResumeMapper</c>), this one carries NO
 /// read-side personnummer redaction, and that is deliberate rather than an omission
 /// (security-auditor, 2026-07-27). Three grounds, and the first is the one that actually
-/// carries it: <b>every</b> <c>ResumeContent</c> in the product is built from a
-/// <c>ResumeContentDto</c> — there is exactly one <c>new ResumeContent(</c> in <c>src/</c> — and
-/// every write surface that reaches it calls <c>ResumeContentPersonnummerGuard</c>, enforced by
-/// a sink-keyed architecture tripwire rather than by discipline. So the guarantee does not rest
-/// on any claim about how many ingresses exist. Second, the staging arm is genuinely a different
+/// carries it: <b>every write surface that can put a non-null <c>Preamble</c> on a
+/// <c>ResumeContent</c> runs <c>ResumeContentPersonnummerGuard</c> over the value that lands</b>,
+/// enforced by a sink-keyed architecture tripwire (<c>ResumeContentPersonnummerGuardTests</c>,
+/// #499/#650, fail-closed with an empty exemption list) rather than by discipline. The one
+/// construction path that does NOT go through this DTO — <c>Resume.Create</c> via
+/// <c>ResumeContent.Empty</c> — is covered twice over: its handler runs the same guard on the
+/// name it passes, and it sets <c>Preamble</c> to null by construction.
+///
+/// Second, the staging arm is genuinely a different
 /// guarantee class: a FLAGGED parse persists there (only promote is gated), so it needs
 /// fail-closed suppression on read. Third, nothing else on this transport is read-redacted
 /// either — <c>PersonalInfo.FullName</c>, <c>Summary</c> and every description travel verbatim;
 /// the belt-and-braces sites (<c>GetResumeAtsText</c>) are DERIVED one-way views, a different
 /// class from the content transport itself.</para>
+/// <para>An earlier revision of this paragraph supported the same conclusion by counting
+/// <c>new ResumeContent(</c> occurrences in <c>src/</c>. That count is accurate and does not
+/// mean what it was made to mean — <c>ResumeContent.Empty</c> constructs via a target-typed
+/// <c>new(...)</c>, which the grep cannot see. The guarantee never rested on an ingress count,
+/// so it does not need one.</para>
 /// <para>Adding a second redactor here would be two normalisers of the product's
 /// highest-priority PII rule. And on the one hazard specific to this field — a personnummer
 /// straddling a subtracted fragment, which <c>PreambleResidue.Subtract</c> can splice into a

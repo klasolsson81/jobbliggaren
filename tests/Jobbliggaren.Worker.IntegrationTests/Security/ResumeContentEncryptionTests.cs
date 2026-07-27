@@ -7,6 +7,7 @@ using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Persistence.Migrations;
@@ -180,12 +181,15 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
                     new SectionEntry("Betalplattform", ["Ledde ett team om 8.", "Ökade konvertering."]),
                 ]),
             ],
-            // #1060 — the imported preamble is CV-PII inside the same Form B blob as everything
-            // above, so it must survive the same real-Postgres DEK round-trip. One line here
-            // buys the whole guarantee: the superset round-trip test compares the deep-equal
-            // aggregate, so a field the serializer drops fails there rather than in production.
-            // Åäö and a line break on purpose — the affordance quotes this text back verbatim.
-            Preamble = "Anna Andersson\nErfaren backend-utvecklare — Göteborg, Västra Götaland.",
+            // #1060 — the imported preamble is DELIBERATELY absent from this fixture, and the
+            // reason is worth stating because putting it here is the obvious move and it fails.
+            // SeedEncryptedMasterAsync builds a template-origin Resume with Resume.Create and
+            // then calls UpdateMasterContent, which is WRITE-ONCE for the preamble: it carries
+            // the stored value (null) forward and ignores the transport's. So the field cannot
+            // reach content_enc through this path, by design rather than by accident — CI
+            // measured exactly that when an earlier revision of this PR tried it.
+            // The preamble's own round-trip therefore seeds through CreateFromParsed instead:
+            // RoundTrip_ImportedPreamble_SurvivesTheDekEnvelope_Verbatim below.
         };
 
     /// <summary>
@@ -335,6 +339,60 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
         var loaded = resume.MasterVersion.Content;
         loaded.ShouldNotBeNull(
             "Content måste materialiseras via #1c-read-interceptorn (decrypt → FromJson)");
+        ShouldDeepEqual(loaded, original);
+    }
+
+    // ── 1a-bis. The imported preamble through the real DEK envelope (#1060) ─────────────
+
+    /// <summary>
+    /// The preamble is CV-PII inside the same Form B blob as everything else, so it has to
+    /// survive encrypt → <c>content_enc</c> → decrypt like every other field — and VERBATIM,
+    /// because the affordance quotes the text back to its author under a label that claims
+    /// nothing about it. Line break and åäö are in the fixture on purpose (CLAUDE.md §10).
+    ///
+    /// <para>Seeded through <c>CreateFromParsed</c> rather than the shared
+    /// <c>SeedEncryptedMasterAsync</c> helper, because that helper updates a template-origin
+    /// Master and <c>UpdateMasterContent</c> is write-once for this field. That is not a
+    /// limitation to work around — it is the invariant, and this test is the only place in the
+    /// suite where the field can legitimately reach the database at all.</para>
+    /// </summary>
+    [Fact]
+    public async Task RoundTrip_ImportedPreamble_SurvivesTheDekEnvelope_Verbatim()
+    {
+        const string preamble = "Anna Andersson\nErfaren backend-utvecklare — Göteborg, Västra Götaland.";
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedJobSeekerAsync(ct);
+        var clock = new FixedClock(DateTimeOffset.UtcNow);
+
+        var original = RichContent("Anna Andersson RT-preamble") with { Preamble = preamble };
+
+        ResumeId resumeId;
+        using (var writeScope = _fixture.Services.CreateScope())
+        {
+            await PrefetchOwnerDekAsync(writeScope, seeker.Id, ct);
+            var db = writeScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var resume = Resume.CreateFromParsed(
+                seeker.Id, "Importerat CV", original,
+                new ParsedResumeId(Guid.NewGuid()), clock).Value;
+            resumeId = resume.Id;
+            db.Resumes.Add(resume);
+            await db.SaveChangesAsync(ct);
+        }
+
+        using var readScope = _fixture.Services.CreateScope();
+        await PrefetchOwnerDekAsync(readScope, seeker.Id, ct);
+        var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var loadedResume = await readDb.Resumes
+            .AsNoTracking()
+            .Include(r => r.Versions)
+            .SingleAsync(r => r.Id == resumeId, ct);
+
+        var loaded = loadedResume.MasterVersion.Content;
+        loaded.ShouldNotBeNull();
+        loaded.Preamble.ShouldBe(preamble);
+        // Positive control: the whole blob round-tripped, so the line above is about the
+        // preamble rather than about a lucky default.
         ShouldDeepEqual(loaded, original);
     }
 

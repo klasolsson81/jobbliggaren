@@ -707,7 +707,7 @@ public sealed class Resume : AggregateRoot<ResumeId>
         // Whether it can fire depends on a fact one layer away, so state the fact rather than
         // the conclusion: every ingress DERIVES the value from the source parse (both
         // CreateFromParsed callers substitute it before their guard; UpdateMasterContent is
-        // write-once; CreateTailored clears it), and PreambleResidue.Extract truncates at its
+        // write-once; CreateTailored clears it), and PreambleResidue.ToText truncates at its
         // own 2 000 on a LINE boundary — so what reaches here is <= 2 000 and this cap does not
         // reject anything today. It is the authority half of a mirrored pair, like the 100/200
         // caps below against the client zod schemas.

@@ -16,8 +16,9 @@ namespace Jobbliggaren.Domain.UnitTests.Resumes;
 /// by <c>CreateFromParsed</c>, whose two callers both DERIVE it from the parse), it is BOUNDED
 /// like every other free-text field, and it is NEVER LINEARIZED.</para>
 ///
-/// <para>"Never linearized" is only half the render story and this class only pins that half:
-/// the linearized text is what the ATS view and the citation substrate are built from, but
+/// <para>"Never linearized" is only half the render story and this class only pins that half.
+/// The linearized text is what the ATS view and the citation substrate are built from — NOT
+/// <c>/render</c>, whose PDF is a separate story:
 /// <c>/render</c> goes through <c>CvDocumentModel.From</c>, a SECOND independent enumeration of
 /// <c>ResumeContent</c>. That half is pinned in <c>CvDocumentModelCompletenessTests</c>, against
 /// the rendered PDF's own extracted text. Both are needed; neither implies the other.</para>
@@ -147,7 +148,7 @@ public class ResumePreambleTests
     /// rule applies and the actor is named rather than left implicit.
     ///
     /// <para><b>No path in `src/` produces a preamble longer than 2 000 — but only because of a
-    /// derivation this PR had to add.</b> The sole writer is <c>PreambleResidue.Extract</c>,
+    /// derivation this PR had to add.</b> The sole writer is <c>PreambleResidue.ToText</c>,
     /// which truncates at its own <c>MaxPreambleChars = 2000</c>, pinned where the writer lives
     /// (<c>PreambleResidueTests.Segment_HeadinglessCv_CarriesAtMostTheCap</c> and
     /// <c>…_TruncatesOnALineBoundary_NeverMidSentence</c>). Nothing else can reach the field:

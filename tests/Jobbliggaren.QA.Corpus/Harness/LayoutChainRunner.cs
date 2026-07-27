@@ -358,9 +358,51 @@ internal static partial class LayoutChainRunner
 
     private static LayoutCaseObservation Crashed(
         LayoutCase c, IReadOnlyList<string> fixtureProblems, string exceptionType) =>
-        new(c, null, fixtureProblems, false, null, 0, 0, 0, false, null, 0, null, null, [],
-            null, null, false, false, string.Empty, [],
-            null, null, c.Model.GroundTruthEmployments, c.Model.GroundTruthEducations,
-            null, null, null, null, null, false, [], [], [], null, null, null, null,
-            exceptionType, FidelityVerdict.Crashed);
+        // Named, not positional. The record has 39 parameters and positions 21-28 are eight
+        // consecutive int/int? — ParsedExperience, ParsedEducation, the two ground truths, the
+        // two promoted counts, WellFormedPromotedExperience, PromotedPreambleChars — with an
+        // implicit int -> int? conversion between them. Inserting one more in that run shifts
+        // every following nullable-int SILENTLY and the compiler accepts it. A corpus that
+        // reports promoted-education under "promoted experience" is the exact class of quiet
+        // content loss this instrument exists to measure.
+        new(
+            Case: c,
+            ByteProofFailure: null,
+            FixtureProblems: fixtureProblems,
+            KindResolved: false,
+            ExtractionStatus: null,
+            CharCount: 0,
+            LineCount: 0,
+            BlankLineCount: 0,
+            SegmentRan: false,
+            DetectedLanguage: null,
+            HeadingsDetected: 0,
+            PreambleChars: null,
+            ConfidenceOverall: null,
+            SectionEvidence: [],
+            PersonnummerFoundOnParse: null,
+            FirstExtractedLine: null,
+            ContainsFusedPeriodRole: false,
+            AnyLineCarriesBothColumns: false,
+            ExtractedTextDigest: string.Empty,
+            ParsedFreeSectionHeadings: [],
+            ParsedExperience: null,
+            ParsedEducation: null,
+            GroundTruthExperience: c.Model.GroundTruthEmployments,
+            GroundTruthEducation: c.Model.GroundTruthEducations,
+            PromotedExperience: null,
+            PromotedEducation: null,
+            WellFormedPromotedExperience: null,
+            PromotedPreambleChars: null,
+            BlockReason: null,
+            Promoted: false,
+            Gates: [],
+            Markers: [],
+            CrossSectionContamination: [],
+            SummaryContainsRenderedProjectHeading: null,
+            RenderedProjectHeadingIsOwnSection: null,
+            PromotedSummaryChars: null,
+            PromoteFailureCode: null,
+            CrashedWithExceptionType: exceptionType,
+            Verdict: FidelityVerdict.Crashed);
 }

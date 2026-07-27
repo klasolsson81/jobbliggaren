@@ -15,15 +15,24 @@ namespace Jobbliggaren.Application.Resumes.Commands.PromoteParsedResume;
 /// Promotes a <c>PendingReview</c> <c>ParsedResume</c> into a canonical <c>Resume</c>
 /// (Fas 4 STEG A, ADR 0071/0074 — NO AI/LLM). Flow (CTO `a24324c841f84c8be`):
 /// resolve owner → owner-scoped load of the staging artifact (IDOR fail-closed, parity
-/// with <c>ReviewParsedResumeQueryHandler</c>) → re-run the personnummer guard on the
-/// user-submitted gap-fill content BEFORE construction (DQ6 — the parse gate only saw the
-/// ORIGINAL parse; the user could have typed a new personnummer) → build the Resume from
-/// the user-approved payload via <c>Resume.CreateFromParsed</c> (DQ1 Variant A / DQ5b —
-/// the approved content IS the Resume; the backend never synthesises from the parse,
+/// with <c>ReviewParsedResumeQueryHandler</c>) → <b>derive the preamble from the parse</b>
+/// (#1060 — never from the transport) → re-run the personnummer guard on the resulting
+/// content BEFORE construction (DQ6 — the parse gate only saw the ORIGINAL parse; the user
+/// could have typed a new personnummer, and the derived preamble is not a substring of the
+/// text that gate scanned) → build the Resume from the user-approved payload via
+/// <c>Resume.CreateFromParsed</c> (DQ1 Variant A / DQ5b — the approved content IS the Resume
+/// for every field the user can edit; the backend never synthesises from the parse,
 /// CLAUDE.md §5) → <c>ParsedResume.Promote</c> (the aggregate owns the gate; soft-deletes
-/// the artifact, DQ7) → persist. The handler never reads or logs the decrypted parsed
-/// content; the warmed owner DEK (<c>IRequiresFieldEncryptionKey</c>) encrypts the new
-/// Master content on write (ADR 0074 Invariant 3).
+/// the artifact, DQ7) → persist.
+///
+/// <para><b>The handler DOES read one decrypted parsed field</b> — <c>Content.Preamble</c>,
+/// since #1060 — and it never logs it. That sentence used to say the handler reads nothing
+/// decrypted at all, which the derivation made false; corrected rather than left standing,
+/// because a docblock claiming a PII path does not exist is how the next reader decides not
+/// to look. The read happens inside the warmed owner DEK
+/// (<c>IRequiresFieldEncryptionKey</c>), which also encrypts the new Master content on write
+/// (ADR 0074 Invariant 3); the value goes straight into the guard and then into the
+/// aggregate, and no logger, telemetry property or error message touches it.</para>
 /// </summary>
 public sealed class PromoteParsedResumeCommandHandler(
     IAppDbContext db,

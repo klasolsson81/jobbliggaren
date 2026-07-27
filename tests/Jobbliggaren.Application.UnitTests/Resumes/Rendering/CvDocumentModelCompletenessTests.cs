@@ -75,7 +75,11 @@ public class CvDocumentModelCompletenessTests
     /// <summary>The verbatim unclassified region an imported CV carried above its first heading
     /// (ADR 0109). Deliberately distinctive so a substring match cannot pass by accident, and
     /// deliberately NOT in <c>ExpectedTokens</c>.</summary>
-    private const string PreambleNeverRendered = "Zebrafisk-kvartalsrapport 1998 Storgatan 1";
+    /// <remarks>A SINGLE token, matching this file's convention for the positive tokens above:
+    /// the extractor reconstructs word spacing, so a multi-word needle is fail-open — a future
+    /// renderer that line-broke the text would leave the assertion green while the preamble was
+    /// on the page.</remarks>
+    private const string PreambleNeverRendered = "Zebrafiskkvartalsrapport1998";
 
     private static CvDocumentModel From(ResumeContent content) =>
         CvDocumentModel.From(

@@ -140,8 +140,17 @@ git commit -- <explicit paths>  # pathspec-scoped — shared index across worktr
 git show --stat HEAD            # verify exactly the intended files landed
 git push -u origin feat/<context>-<slug>
 gh pr create --fill
-gh pr edit <nr> --add-label automerge
+gh pr edit <nr> --add-label automerge      # INTENT — set it now
+# ... run the mandatory agents (§9.2), wait in ALL of them, fix Blocker/Major ...
+gh pr edit <nr> --add-label agents-done    # PERMISSION — only after they report
 ```
+
+**Two labels, two meanings (#836).** `automerge` says *"this should merge when ready"* and is true at
+creation; `agents-done` says *"the mandatory agents have reported and nothing Blocker/Major is
+unresolved"* and is the owning session's alone. `label-automerge.yml` arms only when both are present,
+so the babysitter — which never touches `agents-done` — cannot merge unreviewed code. **A new push
+removes `agents-done` and disables auto-merge**: the reviewers answered against a diff that is no
+longer the one merging.
 
 Pathspec-scoped commits (`git commit -- <paths>`) are required because parallel
 worktrees can share the index state — never `git commit -a` (memory
@@ -297,12 +306,28 @@ local sessions stay heads-down. Set up once:
 
 ```
 /schedule  → recurring cloud routine, e.g. every 15 min:
-  "List open PRs with the automerge label on klasolsson81/jobbliggaren.
-   For each with green required `ci` and no unresolved agent Blocker/Major,
-   run /code-review; if clean, ensure automerge is set. Report a one-line
-   status per PR. Do not merge a PR whose ci is red or that is BEHIND —
-   leave a comment to rebase."
+  "List open PRs on klasolsson81/jobbliggaren.
+   For each: if required `ci` is green and the PR is BEHIND, bring it
+   up-to-base with `gh pr update-branch`. If it carries no `automerge`
+   label and its author intends automerge, add `automerge`.
+   NEVER add or remove `agents-done` — that label is the owning session's
+   review gate and is not yours to set (#836).
+   Report a one-line status per PR. Do not attempt to merge a PR whose ci
+   is red."
 ```
+
+**The prompt no longer asserts *"no unresolved agent Blocker/Major"*.** It used to, and that was an
+assertion with no machine-readable signal anywhere in the repo — a condition that cannot fail, inside
+the organ meant to enforce a gate (#836, CTO ruling 2026-07-27). The old prompt was also
+self-contradictory: it filtered to PRs *with* the label and then said *"ensure automerge is set"*.
+
+**The prompt is not the control.** `label-automerge.yml` arms auto-merge only when **both**
+`automerge` and `agents-done` are present, so the babysitter cannot merge unreviewed code no matter
+what its deployed prompt says. That property is deliberate: the routine is billed and user-triggered,
+CC can neither read nor version nor test it, so a fix resting on its behaviour is a fix CC cannot
+ship. Measured on PR #832 — `labeled automerge klasolsson81` 17:08:40, `merged github-actions[bot]`
+17:12:41: **the cloud routine authenticates as the user, so a prompt breach leaves no trace in the
+audit log and post-hoc detection is impossible in principle.**
 
 Notes: the babysitter is **billed** and **user-triggered** (you cannot launch
 `/code-review ultra` yourself). Mythos is blocked in Claude Code → use **Fable 5

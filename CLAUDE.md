@@ -237,17 +237,34 @@ for authorization (use policies via `[Authorize(Policy = ...)]`).
   transitions → agent invocation (§9.2) with reports in the PR body → CI gate
   (`ci` aggregate green; observe-only jobs don't block) → pre-commit gates
   (`dotnet format`, web ESLint + `tsc`) + pre-push gitleaks secret scan.
-- **Automerge (ADR 0065 Amendment 2026-06-07; autonomous flow 2026-06-25):** CC
-  creates PRs and pushes without asking, and sets the `automerge` label on its
-  own PRs (`gh pr edit <nr> --add-label automerge`); merge on green `ci`; Klas
-  reviews the diff **post-merge**. Spec-edits to BUILD/CLAUDE/DESIGN no longer
-  require pre-approval (§9.2) — they ride the same flow. Exception (STOPP
-  instead): an unresolved agent Blocker/Major, **or any §12 merge-blocking
-  condition** (a §5 anti-pattern, Clean-Architecture boundary violation,
-  non-BUILD.md library, design-token change outside DESIGN.md, or
-  security-critical change without tests). Docs-sync lives in the same PR as
-  the scope (tracked docs); gitignored session-state docs are updated locally
-  (§6.5).
+- **Automerge (ADR 0065 Amendment 2026-06-07; autonomous flow 2026-06-25; two-label
+  split #836, 2026-07-27):** CC creates PRs and pushes without asking. **Two labels,
+  two meanings, and they are not interchangeable:**
+  - **`automerge` = INTENT** — *"this PR should merge when it is ready."* True at
+    `gh pr create`; set it then. CC sets it; the PR-babysitter may set it too.
+  - **`agents-done` = PERMISSION** — *"the mandatory agents (§9.2) have reported and
+    no Blocker/Major is unresolved."* **Only the owning session sets this**, and only
+    after actually waiting them in. Never the babysitter.
+
+  `label-automerge.yml` arms auto-merge only when **both** are present; merge on
+  green `ci`; Klas reviews the diff **post-merge**. **A new push removes
+  `agents-done` and disables auto-merge** — the reviewers answered against a diff
+  that is no longer the one merging; wait them in against the new head and set it
+  again. Spec-edits to BUILD/CLAUDE/DESIGN no longer require pre-approval (§9.2) —
+  they ride the same flow. Exception (STOPP instead): an unresolved agent
+  Blocker/Major, **or any §12 merge-blocking condition** (a §5 anti-pattern,
+  Clean-Architecture boundary violation, non-BUILD.md library, design-token change
+  outside DESIGN.md, or security-critical change without tests). Docs-sync lives in
+  the same PR as the scope (tracked docs); gitignored session-state docs are updated
+  locally (§6.5).
+
+  *Why the split exists:* one label carried both meanings, so any actor legitimately
+  expressing intent unavoidably granted permission. Measured twice — PR #832
+  (2026-07-12) merged with **1 Blocker + 2 Major** after the babysitter labelled a PR
+  deliberately left unlabelled during review, and PR #1083 (2026-07-26) with
+  **1 Blocker + 13 Major** because the label waits on CI (~13 min), not on the agents
+  (12–18 min). The rule was never missing; it was unenforceable, so **§12 gains no new
+  class here.**
 
 ## 6.5 Parallel sessions (autonomous multi-session flow)
 
@@ -304,7 +321,9 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   map. **Claim-on-pickup:** the moment you start an issue, assign yourself + add
   `wip` so no other CC duplicates it (lighter coordination model, playbook §9 —
   soft lane affinity + claim signal, not hard per-CC ownership). A PR-babysitter
-  runs via cloud `/schedule` on PR events (review + automerge); it should also
+  runs via cloud `/schedule` on PR events (rebase + `automerge`); it **must never
+  set `agents-done`** — that label is the owning session's review gate, and
+  `label-automerge.yml` will not arm without it (#836). It should also
   `gh issue close` referenced issues (the automerge squash can drop the
   `Closes #N` keyword → the issue stays open; see playbook §8.1/§9). Side-track
   PRs you own are shepherded to green before new scope.
@@ -366,7 +385,8 @@ review done.
 patterns (reuse, don't invent) → identify the layer → test-first for new
 domain logic → implement minimally → `dotnet test` + lint → conventional
 commit → push branch, `gh pr create` with agent reports inline, set the
-`automerge` label (§6).
+`automerge` label → **run the mandatory agents, wait in ALL of them, resolve every
+Blocker/Major, and only then set `agents-done`** (§6).
 
 **9.2 Boundaries.** CC writes code, tests, migrations, CI config, docs;
 proposes refactorings; reads prompts from `/prompts/` (does not rewrite them);

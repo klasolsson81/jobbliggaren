@@ -1,39 +1,108 @@
 # Label-baserad auto-merge för egna PRs (opt-in per PR) — Klas-GO 2026-06-07.
 #
-# Sätt label:n "automerge" på en PR → den auto-mergas FÖRST när required
-# `ci`-aggregatet är grönt (branch protection, ADR 0065). PRs UTAN labeln
-# granskas/mergas manuellt som default — ADR 0065 #4 (manuell diff-granskning)
-# bevaras för allt du inte uttryckligen opt-in:ar.
+# TVÅ labels krävs, och de betyder OLIKA saker (#836, CTO-bind 2026-07-27):
 #
-# Säkerhet: endast collaborators (Klas) kan sätta labels på repot → labeln =
-# medveten Klas-opt-in. `pull_request` (ej `pull_request_target`) → fork-PRs får
-# read-only token och kan inte missbruka steget. CI (build+test+coverage) gatar
-# fortfarande mergen via branch protection.
+#   automerge    = AVSIKT. "Den här PR:en ska mergas när den är klar."
+#                  Sann redan vid `gh pr create`. Sätts av CC eller av
+#                  PR-babysittern.
+#   agents-done  = TILLSTÅND. "De obligatoriska granskarna (CLAUDE.md §9.2) har
+#                  svarat och inget Blocker/Major är oåtgärdat."
+#                  Sätts ENBART av sessionen som äger PR:en, efter att den
+#                  faktiskt väntat in dem — ibland sex granskningsrundor senare.
+#
+# Auto-merge armeras först när BÅDA sitter. Workflow:t lyssnar på båda labelarna,
+# så ordningen spelar ingen roll: den som sätts sist ser den andra och armerar.
+#
+# VARFÖR delningen finns: `automerge` bar tidigare båda betydelserna, så varje
+# aktör som legitimt uttryckte AVSIKT ofrivilligt beviljade TILLSTÅND. Det hände
+# på riktigt i #813 (PR #832, 2026-07-12): PR:en skapades medvetet UTAN label
+# medan code-reviewer kördes, babysittern satte labeln på PR-eventet, PR:en
+# auto-mergade på grön `ci`, och granskningen kom tillbaka med 1 Blocker +
+# 2 Major — båda landade i main. Igen i #1083 (2026-07-26): 1 Blocker + 13 Major,
+# eftersom labeln väntar på CI (~13 min) och inte på agenterna (12–18 min).
+#
+# Den avgörande egenskapen: **babysittern behöver inte ändras för att bli
+# säker.** Den får fortsätta labela allt som är grönt och kan ändå inte merga
+# ogranskad kod, eftersom den aldrig rör `agents-done`. Det spelar roll därför
+# att den cloud-routinen är billed och user-triggered — CC kan varken läsa,
+# versionera eller testa den, så en fix som vilar på dess beteende är en fix CC
+# inte kan skeppa.
+#
+# NY PUSH AVVÄPNAR. Ett `synchronize`-event tar bort `agents-done` och stänger av
+# auto-merge: granskarna svarade mot en diff som inte längre är den som mergas.
+# `automerge` lämnas kvar — avsikten har inte ändrats.
+#
+# Säkerhet: `pull_request` (ej `pull_request_target`) → fork-PRs får read-only
+# token. Required `ci` gatar fortfarande mergen via branch protection (ADR 0065).
+# GitHub har INGEN per-label-behörighet, så `agents-done` är en konvention med en
+# ägare, inte en spärr — designens svagaste led, namngivet i stället för gömt.
+# Layer 2 (required status check `agent-review`) är Klas-ägd och stänger både det
+# och den manuella "Enable auto-merge"-knappen, som detta workflow inte når.
 #
 # OBS: detta workflow har INGEN egen vuln-gate (till skillnad från
 # dependabot-automerge.yml) — dina egna PRs är medvetet kod du själv skrivit och
 # labelat; required `ci` är grinden. Ändrar du dependencies i en egen PR, väg
-# audit-utfallet manuellt innan du sätter labeln.
+# audit-utfallet manuellt innan du sätter labelarna.
 name: label-automerge
 
 on:
   pull_request:
-    types: [labeled]
+    types: [labeled, synchronize]
 
-# write krävs för att GITHUB_TOKEN ska kunna aktivera auto-merge på PR:n.
+# write krävs för att GITHUB_TOKEN ska kunna aktivera/stänga av auto-merge och ta
+# bort `agents-done`.
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  automerge:
-    name: auto-merge (label)
+  arm:
+    name: auto-merge (arm — kräver automerge + agents-done)
     runs-on: ubuntu-latest
-    # Kör ENBART när just "automerge"-labeln sätts.
-    if: ${{ github.event.label.name == 'automerge' }}
+    # Kör bara när en av DE TVÅ labelarna precis sattes, och båda nu sitter.
+    # `github.event.pull_request.labels` är PR:ens fulla label-mängd vid eventet,
+    # så den som sätts sist ser den andra. Ordningen kan därför inte stranda
+    # PR:en i ett halvarmerat läge.
+    if: >-
+      github.event.action == 'labeled' &&
+      (github.event.label.name == 'automerge' || github.event.label.name == 'agents-done') &&
+      contains(github.event.pull_request.labels.*.name, 'automerge') &&
+      contains(github.event.pull_request.labels.*.name, 'agents-done')
     steps:
       - name: Aktivera auto-merge
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  disarm:
+    name: auto-merge (disarm — ny push ogiltigförklarar granskningen)
+    runs-on: ubuntu-latest
+    # Ny commit på grenen ⇒ granskarna svarade mot en annan diff.
+    if: >-
+      github.event.action == 'synchronize' &&
+      contains(github.event.pull_request.labels.*.name, 'agents-done')
+    steps:
+      - name: Stäng av auto-merge och ta bort agents-done
+        # `--disable-auto` är en no-op om auto-merge inte var aktiverat; `|| true`
+        # så att no-op:en inte fäller jobbet och lämnar labeln kvar.
+        run: |
+          gh pr merge --disable-auto "$PR_URL" || true
+          gh pr edit "$PR_URL" --remove-label agents-done
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Förklara i PR:en varför den avväpnades
+        run: gh pr comment "$PR_URL" --body "$BODY"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BODY: |
+            **Auto-merge avstängd och `agents-done` borttagen** — en ny commit
+            pushades efter att granskningsgrinden godkänts, så granskarnas svar
+            gäller en diff som inte längre är den som skulle mergas (#836).
+
+            Vänta in de obligatoriska granskarna mot den nya headen och sätt
+            `agents-done` igen. `automerge` sitter kvar — avsikten har inte
+            ändrats.

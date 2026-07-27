@@ -365,7 +365,10 @@ between 0 and 100 is an opaque aggregate and is forbidden however it is rendered
 ```
 inline-flex; gap 7px; mono --text-mono/bold; padding 3px 9px; radius --jp-r-sm
 base:      surface-2 fill, ink-2 text, 1px --jp-border
-dot:       7px, currentColor, flex-shrink 0 (decorative — repeats the label)
+dot:       7px, currentColor, radius --jp-r-pill, flex-shrink 0;
+           aria-hidden="true" (decorative — repeats the label)
+modifier -> label (NOT positional — read it, do not infer it):
+  --top Toppmatch · --high Stark match · --mid Bra match · --low Grundmatch
 --top      leaf-700 fill, --jp-on-fill text, leaf-600 border
 --high     leaf-600 fill, --jp-on-fill text (dark theme: --jp-canvas), leaf-600 border
 --mid      leaf-100 fill, leaf-900 text, leaf-600 border

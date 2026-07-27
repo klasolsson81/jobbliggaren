@@ -48,9 +48,14 @@ registration.
 **4. Tests (§2.4, §7):** new aggregate → unit tests; new handler → tests with
 faked `IAppDbContext` + NSubstitute (happy path + validation failure); new PII
 entity → GDPR tests (soft delete, audit trail); migrations → Testcontainers
-integration test. *Blocker:* PII handling without GDPR test. *Major:* handler
-without test (→ test-writer), InMemory provider use, `DateTime.Now`
-non-determinism.
+integration test. **For every test assertion that rests on a state no path in
+`src/` produces, verify CLAUDE.md §5 `Tests:` — is the producing actor named,
+and if it is callable in the test, is its predicate or transform asserted — and
+where the actor is retired, does the seam name the pin?**
+*Blocker:* PII handling without GDPR test; a production fact asserted off a
+premise production cannot produce (§5 `Tests:`, hence §12 — a §5 finding is
+never graded below merge-blocking). *Major:* handler without test (→
+test-writer), InMemory provider use, `DateTime.Now` non-determinism.
 
 **5. Conventions (§3–4):** C# — file-scoped namespaces, NRT without bare `!`,
 `Async` suffix, `CancellationToken` propagated end-to-end, `IReadOnlyList<T>`

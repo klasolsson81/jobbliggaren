@@ -215,8 +215,10 @@ public sealed class JobAdExtractedTermsPersistenceTests : IAsyncLifetime
             await db.SaveChangesAsync(ct);
             id = jobAd.Id.Value;
             // #874 — Import folds extraction in, so NewJobAd() now persists Empty terms; the
-            // never-extracted NULL state this test asserts is legacy-only and unreachable through the
+            // never-extracted NULL state this test asserts is legacy-only: produced by ingest before #874, and unreachable through the
             // aggregate. Null the column directly (the STORED extracted_lexemes follows to NULL).
+            // The complement — that the current writer never produces this shape — is pinned in
+            // JobAdExtractionCouplingTests.
             await db.Database.ExecuteSqlAsync(
                 $"UPDATE job_ads SET extracted_terms = NULL WHERE id = {id}", ct);
         }

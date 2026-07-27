@@ -26,15 +26,24 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// DE-LISTED tail the nightly sync never rewrites, against real Postgres (Testcontainers).
 /// </summary>
 /// <remarks>
-/// <b>THE ONE SANCTIONED HAND-SEED (V20/#843).</b> Every other test in this suite builds state
-/// through the production write path, because a test that constructs a state production cannot
-/// construct proves nothing about production. This job is the exception the rule itself names: its
-/// ENTIRE SUBJECT is the ~93k rows imported BEFORE the aggregate invariant landed — PRE-INVARIANT
-/// rows the funnel can no longer create (a scrubbed body is a fixed point; a fresh Import always
-/// scrubs). So the legacy state — a recruiter address sitting in <c>description</c>/<c>raw_payload</c>
-/// with <c>contacts = NULL</c> — is seeded by a raw SQL UPDATE that bypasses the aggregate, exactly
-/// as the task instruction sanctions for this job alone. The clean ad and the surrounding assertions
-/// still go through the real aggregate and the real extractor.
+/// <b>A RETIRED-ACTOR SEAM (CLAUDE.md §5 <c>Tests:</c>).</b> Every other test in this suite builds
+/// state through the production write path, because a test that constructs a state production
+/// cannot construct proves nothing about production. This job's ENTIRE SUBJECT is the ~93k rows
+/// imported BEFORE the aggregate invariant landed — PRE-INVARIANT rows the funnel can no longer
+/// create (a scrubbed body is a fixed point; a fresh Import always scrubs). So the legacy state — a
+/// recruiter address sitting in <c>description</c>/<c>raw_payload</c> with <c>contacts = NULL</c> —
+/// is seeded by a raw SQL UPDATE that bypasses the aggregate.
+///
+/// §5 issues no exceptions, only branches, and this is the retired-actor branch: the actor is
+/// "ads imported before #842 Tier A". The branch requires the complement to be pinned — that the
+/// CURRENT writer cannot produce this shape — and that pin lives in
+/// <c>JobAdContactRedactionTests.Import_scrubs_body_and_payload_and_promotes_the_detected_contact</c>,
+/// so it is named here rather than left for a reader to find. Plain text, not a
+/// <c>see cref</c>: this project does not reference <c>Jobbliggaren.Domain.UnitTests</c>, so a cref
+/// would not resolve — and with no documentation file generated for test projects, CS1574 never
+/// fires to say so. A citation that looks machine-checked and is not is precisely the accepted
+/// limitation this clause carries. The clean ad and the surrounding assertions still go through
+/// the real aggregate and the real extractor.
 /// </remarks>
 public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
 {
@@ -219,8 +228,9 @@ public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
 
         // Drop the two legacy rows to PRE-INVARIANT state: the address back in the body/payload,
         // contacts NULL — the shape a fresh Import can no longer produce (it always scrubs). The
-        // Archived row also loses its Active status. Raw SQL, bypassing the aggregate — the one
-        // sanctioned exception.
+        // Archived row also loses its Active status. Raw SQL, bypassing the aggregate: the actor is
+        // "ads imported before #842 Tier A", and the complement — that the current writer cannot
+        // produce this shape — is pinned in JobAdContactRedactionTests (see the class remarks).
         var legacyDescription =
             $"Kontakta {LegacyEmail} eller ring {LegacyPhone} för mer information om tjänsten.";
         // Plain concatenation, not a raw-string literal: the JSON's trailing "}}" collides with the

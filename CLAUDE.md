@@ -203,6 +203,34 @@ glassmorphism — **sole exception:** the hero plate's dark-green gradient
 · `localStorage` for sensitive data · hardcoded UI strings (use `next-intl` +
 `messages/sv.json`) · direct DOM manipulation.
 
+**Tests:** a **production fact asserted off a premise production cannot produce**
+— a hand-seeded row, a hand-built argument to a production entry point, or a
+stubbed port return whose value the real adapter never emits. The obligation
+attaches to the **assertion, not to the seam**: a stub, a `db.X.Add`, or a direct
+`UPDATE` carries none when the state it creates is one `src/` does produce —
+convenience is not the offence — and going *through* a production entry point is
+no exemption when the argument is not (a hand-built `rawPayload` carrying the key
+the ingest sanitizer strips is the measured case). Read the trigger against **the
+state the assertion actually rests on**, neither a generalisation of it nor an
+incidental detail beside it: a soft-deleted `ResumeVersion` is producible where a
+soft-deleted **Master** is not, while a plan guard rests on a table's statistics
+— a statistics regime production's own writers do produce — and never on the
+identity of the rows its fixture generated. Where that state is produced by **no
+path in `src/`**, the test **names the actor that produced it**
+(`ResumeVersion.SoftDelete()`, `PurgeStaleRawPayloadsJob`, "the clock", "rows
+written before migration X"); where that actor is callable in the test, the test
+**asserts the actor's own predicate or transform admits the state**
+(`PurgeThisAdsPayloadAsync` is the worked form); where the actor is retired, the
+test **pins that the current writer does not produce the shape**
+(`Write_EmitsNewKeys_AndNeverSsyk`) — the pin lives wherever the writer is
+testable, and the seam **names the pin when it lives elsewhere**. A genuinely
+unreachable state is permitted **only when declared unreachable**, and then may
+assert only that the read side degrades safely if the invariant breaks — never
+what production does.
+**"No domain method exists" is a reject, not a disclosure**, and seam parity with
+another test is not provenance: #843's fiction was authorised by explicit parity
+with a legitimate seam whose SQL was identical.
+
 **CV & matching engines (deterministic, no AI/LLM — ADR 0071):** any
 LLM/AI inference call in the product (no `IAiProvider`, no Anthropic/BYOK/credit
 system — ADR 0051 superseded) · hardcoded rubric thresholds, cliché lists, or
@@ -374,7 +402,8 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
 Every new domain class: at least one invariant test. Every new handler: happy
 path + validation failure. Every new endpoint: integration test. Lowered
 Domain coverage: justified in the PR or rejected. Snapshot tests only for
-stable components; E2E updated when critical flows change.
+stable components; E2E updated when critical flows change. Test premises follow
+§5 `Tests:`.
 
 ```bash
 dotnet test                                  # backend

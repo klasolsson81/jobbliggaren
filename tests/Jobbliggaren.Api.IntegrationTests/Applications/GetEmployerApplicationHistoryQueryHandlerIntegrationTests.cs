@@ -161,8 +161,17 @@ public class GetEmployerApplicationHistoryQueryHandlerIntegrationTests(ApiFactor
     /// Pins an application's applied_at at the DB level so ordering / most-recent assertions are
     /// deterministic. The registered real clock stamps ~identical timestamps on fast successive submits
     /// (why <see cref="Handle_EntriesCarryAppliedAtAndCurrentStatusName_MostRecentFirst"/> uses
-    /// ignoreOrder), and no domain method backdates AppliedAt — so this uses the same ExecuteSqlRaw seam
-    /// as the retract test.
+    /// ignoreOrder).
+    ///
+    /// The actor is THE CLOCK: an application submitted at any earlier moment carries that
+    /// moment's applied_at, so this is ordinary production data and only the elapsed time is out
+    /// of reach here (CLAUDE.md §5 <c>Tests:</c>).
+    ///
+    /// Two earlier justifications were deleted rather than reworded, and both are worth naming so
+    /// they are not restored: "no domain method backdates AppliedAt" is the disclosure form §5
+    /// rejects, and "the same ExecuteSqlRaw seam as the retract test" cited a test that no longer
+    /// exists — seam parity standing in for provenance, which is the laundering #843 was raised
+    /// about.
     /// </summary>
     private static async Task SetAppliedAtAsync(
         AppDbContext db, Jobbliggaren.Domain.Applications.ApplicationId appId, DateTimeOffset appliedAt,

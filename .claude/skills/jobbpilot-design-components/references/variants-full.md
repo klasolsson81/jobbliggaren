@@ -353,15 +353,41 @@ font 11.5px/500; 6px dot
 Use when status is an entity's headline at one point — not for dense table
 columns (use `.jp-statusDot` there).
 
-### `.jp-match` (score bar)
+### `.jp-match` — REMOVED (was: score bar)
+
+The class and its component `MatchBar` (`match-bar.tsx`) are deleted. A number
+between 0 and 100 is an opaque aggregate and is forbidden however it is rendered
+(ADR 0076 Decision 4, ADR 0053 Amendment 2026-06-19, CLAUDE.md §5). Replaced by
+`.jp-matchchip` below.
+
+### `.jp-matchchip` (named grade)
 
 ```
-inline-flex; gap 8px; mono 13px; color text-secondary
-bar:  72px × 6px; bg surface-tertiary; border-radius 2px
-fill: brand-600   (default, score ≥ 75)
-fill--mid:  info-600    (50–74)
-fill--low:  warning-600 (< 50)
+inline-flex; gap 7px; mono --text-mono/bold; padding 3px 9px; radius --jp-r-sm
+base:      surface-2 fill, ink-2 text, 1px --jp-border
+dot:       7px, currentColor, radius --jp-r-pill, flex-shrink 0;
+           aria-hidden="true" (decorative — repeats the label)
+modifier -> label (NOT positional — read it, do not infer it):
+  --top Toppmatch · --high Stark match · --mid Bra match · --low Grundmatch
+  --related Relaterat yrke
+--top      leaf-700 fill, --jp-on-fill text, leaf-600 border
+--high     leaf-600 fill, --jp-on-fill text (dark theme: --jp-canvas), leaf-600 border
+--mid      leaf-100 fill, leaf-900 text, leaf-600 border
+--low      leaf-50  fill, leaf-900 text, leaf-600 border
+--related  neutral status treatment (surface-2 / ink-2 / border-strong)
 ```
+
+All four green grades are solid fills on the SAME locked leaf ramp — hierarchy comes
+from fill weight on one hue, never from a second colour (#290, CTO bind).
+`--related` **is a grade** that takes the neutral status treatment. What it is
+not is a fifth *green* step: a fill between leaf-50 and leaf-100 would have
+required a new leaf hue (ADR 0084 F2, design-reviewer bind #300 PR-5).
+
+The visible label IS the accessible name — colour never carries meaning alone.
+The matched/missing **per-dimension** half is a separate form
+(`.jp-modal__matchrow`, with a hollow dot reserved for "Ej bedömt" so it can
+never be mistaken for "Saknas"). Both halves are required: ADR 0076 Decision 4
+is "the user always sees WHY".
 
 ### `.jp-filterBar` (flat, no chrome box)
 

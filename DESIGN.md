@@ -124,7 +124,14 @@ Aldrig byt ut mot: Material UI, Chakra, Mantine, Headless UI.
 - `.jp-attentionqueue` — prioriterad lyft-lista (Ansökningar). Återanvänder ledger-raden `.jp-app`; lede max 68ch, hairlines, ingen låda
 - `.jp-pipeline` — kanban som ledger-rader, kolumner åtskilda av `border-strong`, INGA floating cards
 - `.jp-statusDot` (förstaval i tabeller — prick + text, ingen bg) vs `.jp-pill` (accent vid entitet — färgad 50-bg + prick + text)
-- `.jp-match` — progress-bar 6px: brand ≥75, info 50–74, warning <50
+- `.jp-matchchip` — namngiven matchningsgrad (Toppmatch/Stark/Bra/Grundmatch),
+  plus `--related` "Relaterat yrke", som är en egen grad men får den **neutrala**
+  status-behandlingen — **inte ett femte grönt steg** (en femte fyllning hade krävt
+  en ny leaf-hue; ADR 0084 F2).
+  Enda tillåtna formen för **graden**: aldrig mätare, procenttal eller ring (§8,
+  ADR 0076 Decision 4, ADR 0053 Amendment 2026-06-19). Matchar/saknas **per
+  dimension** är en egen form (`.jp-modal__matchrow`, hålig prick för "Ej bedömt")
+  — båda halvorna krävs. Föregångaren `.jp-match` (6px score bar) är borttagen.
 - `.jp-filterBar` — flat rad mellan två hairlines, fält i naturlig bredd, ingen chrome-box
 - `.jp-banner` — info-banner med 3px brand-vänsterkant, används sparsamt
 - **Knapphöjd — TVÅ ratificerade system, båda korrekta. Namnge alltid vilket du menar.** `.jp-btn` = **44px** (`--sm` 36; `--lg` 52 är ratificerad men **oimplementerad** — klassen finns inte, så `jp-btn--lg` ger tyst 44px) i 46 filer (42 produktionsfiler) — ratificerad av HANDOVER-v3 §5.1 via ADR 0052 (Amendment 2026-07-27). shadcn `Button` = **40px** (`sm` 36, `lg` 44) — ratificerad av ADR 0038. **Ingen av dem är drift.** En blank mening som "knapphöjd = 40px" är falsk genom utelämnande oavsett siffra; skriv ut systemet. Radius `--jp-r-md` = **6px** (ADR 0052 Beslut 4: knappar 6px). Transition **90ms** (`.jp-btn`; shadcn `Button` `duration-75` = 75ms). Max EN `--primary` per skärm (ADR 0038).
@@ -163,7 +170,12 @@ Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-com
 - Inga utropstecken i info/success. OK i error om det förstärker brådska — sparsamt.
 - Inga emojis, inga engelska fraser i svensk copy
 - Svenska locale-format: "14 apr 2026", "14:32", "33 456 kr"
-- AI-samtycken alltid explicita om vad som skickas vart (GDPR Art. 7)
+- Matchning och CV-omdömen presenteras som kategori, aldrig som procenttal,
+  mätare eller ring (ADR 0076 Decision 4, ADR 0053 Amendment 2026-06-19). För
+  matchning är formen en namngiven grad plus matchar/saknas per dimension
+- Varje CV-omdöme pekar ut sitt underlag i CV:t, som citat eller som observation;
+  "Ej bedömt" redovisas som ej bedömt, aldrig som en gissad grad (CLAUDE.md §5)
+- Ingen AI/LLM i produkten (ADR 0071) — det finns ingen AI-samtyckescopy att skriva
 
 Microcopy-library, felkoder (40+ med svenska translations) och locale-formatting-funktioner → **jobbpilot-design-copy**.
 

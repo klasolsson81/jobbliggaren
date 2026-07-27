@@ -4475,7 +4475,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    v2 STRUKTURELL KOMPAT-SHIM (branch-by-abstraction, CTO Beslut 3).
    Verbatim-bevarade v2-klasser som ännu konsumeras av sidor/komponenter
    som refaktoreras i F3-F6 (jobb/ansökningar/cv/mig/sökningar +
-   match-bar/status-dot/status-pill/applications-pipeline) samt admin-
+   status-dot/status-pill/applications-pipeline) samt admin-
    granskning (utanför v3-scope, HANDOVER §7 = 5 användarrouter).
    Tas bort per sida när dess fas refaktorerar; helt borta vid F-städ.
    ============================================================ */
@@ -4546,32 +4546,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-statusDot--warning  .jp-statusDot__d { background: var(--jp-warning-600); }
 .jp-statusDot--danger   .jp-statusDot__d { background: var(--jp-danger-600); }
 .jp-statusDot--neutral  .jp-statusDot__d { background: var(--jp-text-tertiary); }
-
-/* jp-match — match-bar.tsx (refaktoreras F3 till v3 jp-matchchip) */
-.jp-match {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-mono);
-  font-weight: var(--jp-fw-medium);
-  color: var(--jp-text-secondary);
-}
-.jp-match__bar {
-  width: 72px;
-  height: 6px;
-  background: var(--jp-surface-tertiary);
-  border-radius: 2px;
-  overflow: hidden;
-  flex: 0 0 auto;
-}
-.jp-match__fill {
-  height: 100%;
-  background: var(--jp-brand-600);
-  border-radius: 2px;
-}
-.jp-match__fill--low { background: var(--jp-warning-600); }
-.jp-match__fill--mid { background: var(--jp-info-600); }
 
 /* jp-table — admin-granskning ledger (utanför v3-scope, behålls v2) */
 .jp-table { width: 100%; border-collapse: collapse; font-size: var(--text-body); }

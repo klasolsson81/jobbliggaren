@@ -75,8 +75,8 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         // WHAT THEY WERE, AND WHY THAT WAS WRONG. Until 2026-07-13 all seven were Postgres
         // STORED generated columns reading raw_payload (F2P9 / F6P6 / F6P7 / #311 D1). The
         // justification on record was "drift omöjlig, ingen C#-skrivväg" — true, and
-        // catastrophic: PurgeStaleRawPayloadsJob nulls raw_payload 30 days after published_at
-        // (GDPR Art. 5(1)(c)/(e), ADR 0032 §8), and Postgres RECOMPUTES a stored generated
+        // catastrophic: PurgeStaleRawPayloadsJob nulls raw_payload (GDPR Art. 5(1)(c)/(e); rule:
+        // ADR 0032 Amendment 2026-07-26 §C2), and Postgres RECOMPUTES a stored generated
         // column on every UPDATE of its base. So the purge silently nulled all seven, and the
         // 02:00 snapshot sync rewrote the payload and resurrected them. Measured against real
         // Postgres: facet-filtered search, the per-user matching engine and the company-watch
@@ -174,7 +174,7 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         // 2026-07-13.
         //
         // RETENTION CHANGED HERE, DELIBERATELY: while this was a generated column it self-nulled
-        // with the purge, so an ad that left the feed lost its org.nr after ~30 days by accident.
+        // with the purge, so an ad lost its org.nr once its payload became purge-eligible.
         // It now persists INDEFINITELY — which is what ADR 0032 §8 always specified for sanitized
         // fields, and what #824 requires (an application filed in 2026 must still be attributable
         // to its employer in 2028). Any Art. 17 erasure path must now clear this column EXPLICITLY;

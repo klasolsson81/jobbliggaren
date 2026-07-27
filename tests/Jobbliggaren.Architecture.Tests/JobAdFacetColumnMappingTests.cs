@@ -66,8 +66,8 @@ public class JobAdFacetColumnMappingTests
 
         property.GetComputedColumnSql().ShouldBeNull(
             $"JobAd.{propertyName} must not be a computed column. It was one, derived from raw_payload — " +
-            "which PurgeStaleRawPayloadsJob nulls after 30 days, causing Postgres to recompute it to " +
-            "NULL and silently erase it on still-ACTIVE ads. That is the whole of #841.");
+            "which PurgeStaleRawPayloadsJob nulls per ADR 0032 Amendment 2026-07-26 §C2, so Postgres " +
+            "would recompute it to NULL and silently erase it on still-ACTIVE ads. That is the whole of #841.");
 
         property.GetColumnName().ShouldBe(columnName,
             "the column name is load-bearing: the seven partial indexes are raw-SQL and reference these " +

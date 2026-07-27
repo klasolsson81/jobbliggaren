@@ -19,8 +19,14 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 public sealed class JobSourceRetentionOptions
 {
     /// <summary>
-    /// Dagar att behålla <c>raw_payload</c> efter <c>published_at</c>.
-    /// Default 30 (ADR 0032 §8-amendment 2026-05-12). Range-validerat.
+    /// Purge-<b>eligibility threshold</b> in days for <c>raw_payload</c>, measured from
+    /// <c>published_at</c> — <b>not</b> a guaranteed lifetime. Default 30, range-validated.
+    /// Consumed by <see cref="Jobs.PurgeRawPayloads.PurgeStaleRawPayloadsJob"/>.
+    /// <para>
+    /// The actual deletion rule lives in <b>one</b> place: ADR 0032 Amendment 2026-07-26 §C2 (GDPR
+    /// Art. 5(1)(c)/(e)). Do not restate it here — the sync job rewrites the column, so the
+    /// threshold alone is not the rule.
+    /// </para>
     /// </summary>
     [Range(1, 365)]
     public int RawPayloadRetentionDays { get; set; } = 30;

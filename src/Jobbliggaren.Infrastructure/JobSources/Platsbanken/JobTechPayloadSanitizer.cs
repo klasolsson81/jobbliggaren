@@ -37,8 +37,8 @@ namespace Jobbliggaren.Infrastructure.JobSources.Platsbanken;
 /// <para>
 /// <b>PII in free text was never a gap in this design. It IS this design.</b> The control
 /// that will actually remove it is <c>RecruiterContactRedactor</c>, applied as a
-/// <c>JobAd</c> aggregate invariant at ingest (ADR 0106 Tier A, PR2 — not shipped as of
-/// this PR). This allowlist survives as defense-in-depth against structured contact keys,
+/// <c>JobAd</c> aggregate invariant at ingest (ADR 0106 Tier A — <b>shipped 2026-07-17</b>,
+/// commit <c>daa4b51d</c>). This allowlist survives as defense-in-depth against structured contact keys,
 /// which is all it ever did. It is not, and never was, a free-text control.
 /// </para>
 /// </remarks>

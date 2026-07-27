@@ -31,9 +31,11 @@ public sealed class JobTechOptions
     public string ApiKey { get; set; } = string.Empty;
 
     /// <summary>
-    /// Retention för <c>raw_payload</c>-kolumnen i dagar (ADR 0032 §8-amendment).
-    /// Default 30 dagar. PurgeStaleRawPayloadsJob (P8c) null:ar raw_payload när
-    /// published_at är äldre än denna tröskel.
+    /// Purge-<b>eligibility threshold</b> in days for <c>raw_payload</c>, measured from
+    /// <c>published_at</c>. Default 30. <b>Not</b> a guaranteed lifetime — the sync job
+    /// rewrites the column, so the threshold alone is not the deletion rule. Consumed by
+    /// <c>PurgeStaleRawPayloadsJob</c> (Application layer).
+    /// The rule lives in one place: ADR 0032 Amendment 2026-07-26 §C2 (GDPR Art. 5(1)(c)/(e)).
     /// </summary>
     [Range(1, 365)]
     public int RawPayloadRetentionDays { get; set; } = 30;

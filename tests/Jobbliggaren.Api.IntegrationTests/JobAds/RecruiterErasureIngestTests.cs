@@ -476,12 +476,12 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// <b>The enskild firma, AFTER <c>raw_payload</c> is gone — which is the state MOST of the corpus
     /// is in.</b>
     /// <para>
-    /// <c>PurgeStaleRawPayloadsJob</c> NULLs <c>raw_payload</c> 30 days after publication. The
+    /// <c>PurgeStaleRawPayloadsJob</c> NULLs <c>raw_payload</c> (rule: ADR 0032 Amendment 2026-07-26 §C2). The
     /// original matcher reached <c>employer.name</c> ONLY through <c>raw_payload</c>, and
     /// <c>company_name</c> is not in <c>search_vector</c> (which is built from title and description
-    /// only). So for every ad older than 30 days — i.e. most of 93 469 ads collected over months —
-    /// she would have been answered <i>"we hold no data matching this identifier"</i> while her name
-    /// sat in plaintext in a column we scan on every erasure.
+    /// only). So for every ad whose payload has been purged — most of the 93 469 ads collected over
+    /// months — she would have been answered <i>"we hold no data matching this identifier"</i> while
+    /// her name sat in plaintext in a column we scan on every erasure.
     /// </para>
     /// <para>
     /// The earlier enskild-firma test passed only because its <c>raw_payload</c> was fresh. Its own
@@ -500,7 +500,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         {
             var db = purge.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            // Exactly what PurgeStaleRawPayloadsJob does at 30 days.
+            // Exactly what PurgeStaleRawPayloadsJob does once the payload is purge-eligible.
             await db.Database.ExecuteSqlRawAsync("UPDATE job_ads SET raw_payload = NULL;", ct);
 
             var ad = await db.JobAds.AsNoTracking()
@@ -1776,7 +1776,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             await db.SaveChangesAsync(ct);
         }
 
-        // The purge: after 30 days her org.nr survives ONLY in organization_number (#841
+        // The purge: once the payload is gone her org.nr survives ONLY in organization_number (#841
         // materialised it; raw_payload is NULL for most of the corpus).
         using (var purge = _provider.CreateScope())
         {
@@ -2034,7 +2034,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         probe.Matched.JobAds.ShouldBe(1,
             "the token lives in raw_payload alone (a municipality NAME; only its concept-id is "
             + "projected). If this is 0, the raw_payload arm is gone — and it is the ONLY channel "
-            + "that reaches allowlisted-but-unprojected payload fields for the <30-day window.");
+            + "that reaches allowlisted-but-unprojected payload fields while the payload is still present.");
 
         var match = probe.Matches.Single();
         match.MatchedChannel.ShouldBe(ErasureMatchChannel.FullTextOrRawPayload);

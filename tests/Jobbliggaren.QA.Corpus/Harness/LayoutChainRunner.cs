@@ -75,6 +75,12 @@ public sealed record LayoutCaseObservation(
     int? PromotedExperience,
     int? PromotedEducation,
     int? WellFormedPromotedExperience,
+
+    // #1060 — what the PROMOTED CV holds, not what the parse held. Without this the corpus
+    // cannot distinguish "promoted carrying the preamble" from "promoted having dropped it":
+    // PreambleChars above reads ParsedResumeContent, so a mutation that discards the carrier
+    // on the way to the canonical CV leaves every row byte-identical. Measured — it did.
+    int? PromotedPreambleChars,
     AutoPromoteBlockReason? BlockReason,
     bool Promoted,
     IReadOnlyList<GateCell> Gates,
@@ -204,6 +210,7 @@ internal static partial class LayoutChainRunner
             PromotedExperience: promotedContent?.Experiences.Count,
             PromotedEducation: promotedContent?.Educations.Count,
             WellFormedPromotedExperience: wellFormed,
+            PromotedPreambleChars: promotedContent?.Preamble?.Length,
             BlockReason: o.BlockReason,
             Promoted: o.Promoted,
             Gates: gates,
@@ -353,7 +360,7 @@ internal static partial class LayoutChainRunner
         LayoutCase c, IReadOnlyList<string> fixtureProblems, string exceptionType) =>
         new(c, null, fixtureProblems, false, null, 0, 0, 0, false, null, 0, null, null, [],
             null, null, false, false, string.Empty, [],
-            null, null, c.Model.GroundTruthEmployments, c.Model.GroundTruthEducations,
-            null, null, null, null, false, [], [], [], null, null, null, null,
+            null, null, c.Model.GroundTruthEmployments, c.Model.GroundTruthEducations,
+            null, null, null, null, null, false, [], [], [], null, null, null, null,
             exceptionType, FidelityVerdict.Crashed);
 }

@@ -446,29 +446,29 @@ extraction ever loses an authored personnummer, that divergence is itself the fi
 a column printing only the declaration would hide it behind the very content loss this
 corpus measures. The value itself is never printed.
 
-| Case | Confidence overall | Preamble present | pnr authored (body / account) | pnr OBSERVED on parse |
-|---|---|---|---|---|
-| `pdf-sidebar-emitted-first` | Confident | no | none | no |
-| `pdf-interleaved-baseline-fusion` | Confident | yes | none | no |
-| `pdf-zero-xgap-concat` | Confident | no | none | no |
-| `pdf-single-column-sv` | Confident | no | none | no |
-| `pdf-single-column-spaced` | Confident | no | none | no |
-| `pdf-single-column-intra-block-spaced` | Confident | no | none | no |
-| `pdf-single-column-intra-block-spaced-tight-list` | Confident | no | none | no |
-| `pdf-sidebar-spaced` | Confident | no | none | no |
-| `pdf-single-column-en` | Confident | no | none | no |
-| `pdf-nonsequential-decorative` | Degraded | yes | none | no |
-| `pdf-headingless` | Degraded | yes | none | no |
-| `pdf-unknown-heading-after-profile` | Confident | no | none | no |
-| `pdf-known-heading-after-profile` | Confident | no | none | no |
-| `pdf-decorated-heading-glue` | Confident | no | none | no |
-| `pdf-two-page-seam` | Confident | no | none | no |
-| `pdf-pnr-bearing` | Confident | yes | body (synthetic, not printed) | yes |
-| `pdf-clean-body-pnr-in-account-name` | Confident | no | account name (synthetic, not printed) | no |
-| `docx-table-label-first-no-blanks` | Confident | no | none | no |
-| `docx-flat-label-first-no-blanks` | Confident | no | none | no |
-| `docx-table-label-first-with-blanks` | Confident | no | none | no |
-| `docx-role-first-with-blanks` | Confident | no | none | no |
+| Case | Confidence overall | Preamble on parse | Preamble ON THE PROMOTED CV | pnr authored (body / account) | pnr OBSERVED on parse |
+|---|---|---|---|---|---|
+| `pdf-sidebar-emitted-first` | Confident | no | no | none | no |
+| `pdf-interleaved-baseline-fusion` | Confident | yes | yes | none | no |
+| `pdf-zero-xgap-concat` | Confident | no | no | none | no |
+| `pdf-single-column-sv` | Confident | no | no | none | no |
+| `pdf-single-column-spaced` | Confident | no | no | none | no |
+| `pdf-single-column-intra-block-spaced` | Confident | no | no | none | no |
+| `pdf-single-column-intra-block-spaced-tight-list` | Confident | no | no | none | no |
+| `pdf-sidebar-spaced` | Confident | no | no | none | no |
+| `pdf-single-column-en` | Confident | no | no | none | no |
+| `pdf-nonsequential-decorative` | Degraded | yes | yes | none | no |
+| `pdf-headingless` | Degraded | yes | yes | none | no |
+| `pdf-unknown-heading-after-profile` | Confident | no | no | none | no |
+| `pdf-known-heading-after-profile` | Confident | no | no | none | no |
+| `pdf-decorated-heading-glue` | Confident | no | no | none | no |
+| `pdf-two-page-seam` | Confident | no | no | none | no |
+| `pdf-pnr-bearing` | Confident | yes | — | body (synthetic, not printed) | yes |
+| `pdf-clean-body-pnr-in-account-name` | Confident | no | — | account name (synthetic, not printed) | no |
+| `docx-table-label-first-no-blanks` | Confident | no | — | none | no |
+| `docx-flat-label-first-no-blanks` | Confident | no | — | none | no |
+| `docx-table-label-first-with-blanks` | Confident | no | — | none | no |
+| `docx-role-first-with-blanks` | Confident | no | no | none | no |
 
 ## 6. Section confidence, verbatim
 

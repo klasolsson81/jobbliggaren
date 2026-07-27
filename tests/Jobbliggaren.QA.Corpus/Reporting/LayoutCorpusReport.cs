@@ -264,11 +264,11 @@ public static class LayoutCorpusReport
         L("a column printing only the declaration would hide it behind the very content loss this");
         L("corpus measures. The value itself is never printed.");
         L();
-        L("| Case | Confidence overall | Preamble present | pnr authored (body / account) | pnr OBSERVED on parse |");
-        L("|---|---|---|---|---|");
+        L("| Case | Confidence overall | Preamble on parse | Preamble ON THE PROMOTED CV | pnr authored (body / account) | pnr OBSERVED on parse |");
+        L("|---|---|---|---|---|---|");
         foreach (var c in d.Cases)
         {
-            LI($"| `{c.Case.Id}` | {c.ConfidenceOverall ?? "—"} | {Y(c.PreambleChars is not null)} | {AuthoredPnr(c)} | {YN(c.PersonnummerFoundOnParse)} |");
+            LI($"| `{c.Case.Id}` | {c.ConfidenceOverall ?? "—"} | {Y(c.PreambleChars is not null)} | {(c.Promoted ? Y(c.PromotedPreambleChars is not null) : "—")} | {AuthoredPnr(c)} | {YN(c.PersonnummerFoundOnParse)} |");
         }
 
         L();

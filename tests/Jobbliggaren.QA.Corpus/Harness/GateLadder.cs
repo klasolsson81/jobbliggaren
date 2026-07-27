@@ -30,9 +30,15 @@ public sealed record GateCell(string GateId, string CallSite, GateState State);
 /// is removed rather than kept as a permanently-passing column: a ladder that prints a rung the
 /// handler no longer has would claim control passed a gate that does not exist, which is the
 /// mis-report this type's <see cref="GateState.NotEvaluated"/> state exists to prevent. The
-/// retirement itself stays visible in the report through §5's "Preamble present" column, which is
-/// aggregate STATE and is now the more informative reading: it says whether the carrier the
-/// promoted CV's review surface reads is there at all.</para>
+/// retirement itself stays visible in the report through §5's two preamble columns.</para>
+///
+/// <para><b>One of those columns was added because this docblock was wrong.</b> It claimed the
+/// existing "Preamble present" column said "whether the carrier the promoted CV's review surface
+/// reads is there at all". It does not: it reads <c>ParsedResumeContent.Preamble</c>, i.e. the
+/// STAGING side. So the corpus could not tell "promoted carrying the preamble" from "promoted
+/// having dropped it", and the byte-identical baseline that this PR cited as evidence the carrier
+/// was safe was measuring nothing of the sort — a number true of its evidence and misleading
+/// about its subject. §5 now prints the promoted side beside the parsed one.</para>
 ///
 /// <para><b>No predicate expression is written anywhere in this corpus.</b> The states below are
 /// derived from what the REAL handler returned, using only the handler's own control flow as

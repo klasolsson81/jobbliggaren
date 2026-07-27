@@ -248,11 +248,20 @@ while IFS=$'\t' read -r branch protected tip_sha _rest || [ -n "${branch:-}" ]; 
 
   # FIRST, before any verdict that could authorise a deletion: can this name be
   # carried safely by the caller? Git's own rules already forbid space, `~`,
-  # `^`, `:`, `?`, `*`, `[`, `\` and control characters, so this allow-list only
-  # has to exclude what git permits and REST paths mangle -- `#` and `%`. A
-  # leading `-` is refused too, so the name can never be read as an option.
+  # `^`, `:`, `?`, `*`, `[`, `\` and control characters, so this allow-list
+  # mainly has to exclude what git permits and REST paths mangle -- `#` and `%`.
+  # A leading `-` is refused too, so the name can never be read as an option.
+  #
+  # `*..*` IS NOT REDUNDANT, and the reason is worth stating because it is the
+  # one leg that would otherwise rest on somebody else's validator. A character
+  # allow-list admits `feat/../../tags/v1` -- every character in it is legal --
+  # and that path would redirect a DELETE from `git/refs/heads/` to
+  # `git/refs/tags/`. Today it is unreachable only because `git check-ref-format`
+  # rejects any ref containing `..`, which is a rule of GIT'S, not of ours, and
+  # is nowhere else in this file. Refusing it here keeps the guarantee local and
+  # fixture-tested. Anyone widening the character class must keep this clause.
   case "$branch" in
-    -* | *[!A-Za-z0-9._/-]*)
+    -* | *..* | *[!A-Za-z0-9._/-]*)
       emit "$(printf 'skip\t%s\tunsupported-name' "$branch")"
       continue ;;
   esac

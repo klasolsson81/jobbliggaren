@@ -180,7 +180,7 @@ jobs:
               --json number,headRefName,headRefOid,headRepositoryOwner,headRepository >"merged$1.json"
             gh pr list --repo "$REPO" --state open --limit "$PR_PAGE_LIMIT" \
               --json number,headRefName,baseRefName >"open$1.json"
-            gh api "repos/$REPO/branches" --paginate \
+            gh api "repos/$REPO/branches?per_page=100" --paginate \
               --jq '.[] | [.name, (.protected|tostring), .commit.sha] | @tsv' >"branches$1.tsv"
             for f in "merged$1.json" "open$1.json"; do
               n=$(jq length "$f")
@@ -206,7 +206,7 @@ jobs:
             echo
             echo "| verdict | branch | reason |"
             echo "|---|---|---|"
-            awk -F'\t' '{ gsub(/`/, "", $2); printf "| %s | `%s` | %s |\n", $1, $2, $3 }' verdicts1.tsv
+            awk -F'\t' '{ gsub(/[`|]/, "", $2); printf "| %s | `%s` | %s |\n", $1, $2, $3 }' verdicts1.tsv
           } >>"$GITHUB_STEP_SUMMARY"
           awk -F'\t' '$1 == "delete" { print $2 }' verdicts1.tsv | sort -u >round1.txt
           echo "::notice::round 1: $(wc -l <round1.txt) selected for deletion, $(awk -F'\t' '$1 == "skip"' verdicts1.tsv | wc -l) skipped."
@@ -236,7 +236,7 @@ jobs:
               --json number,headRefName,headRefOid,headRepositoryOwner,headRepository >"merged$1.json"
             gh pr list --repo "$REPO" --state open --limit "$PR_PAGE_LIMIT" \
               --json number,headRefName,baseRefName >"open$1.json"
-            gh api "repos/$REPO/branches" --paginate \
+            gh api "repos/$REPO/branches?per_page=100" --paginate \
               --jq '.[] | [.name, (.protected|tostring), .commit.sha] | @tsv' >"branches$1.tsv"
             for f in "merged$1.json" "open$1.json"; do
               n=$(jq length "$f")
@@ -320,10 +320,10 @@ jobs:
       # `always()` so the state is reported even if the delete step died: a
       # deletion nobody verified is exactly what this step exists to prevent.
       - name: Verify the refs are actually gone
-        if: always() && steps.mode.outputs.dry == 'false' && steps.select.outputs.count != '0'
+        if: always() && steps.mode.outputs.dry == 'false' && steps.select.outputs.count != '' && steps.select.outputs.count != '0'
         run: |
           set -euo pipefail
-          gh api "repos/$REPO/branches" --paginate --jq '.[].name' >after.txt
+          gh api "repos/$REPO/branches?per_page=100" --paginate --jq '.[].name' >after.txt
           # `grep` returns 0 (match), 1 (no match) and 2 (ERROR). A bare
           # `|| true` swallows 2 and reports an I/O failure as "no survivors" --
           # the backstop failing open through the same shape it was built to

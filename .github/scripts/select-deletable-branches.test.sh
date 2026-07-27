@@ -237,6 +237,18 @@ run dashname "[$(mine 29 '-dashed' "$SHA1")]" '[]' "$(printf -- '-dashed\tfalse\
 expect "a leading dash is refused so it cannot read as an option" \
   $'skip\t-dashed\tunsupported-name' 0
 
+# 11a. DOT-SEGMENTS. Every character here is in the allow-list, so only the
+#      explicit `*..*` clause refuses it. The target shape is the dangerous one:
+#      `git/refs/heads/feat/../../tags/v1` resolves to `git/refs/tags/v1`, which
+#      would send a DELETE at a TAG. `git check-ref-format` also rejects `..`,
+#      so this is unreachable today -- but that is git's rule, not this script's,
+#      and a guard that depends on an unnamed third party is a guard that
+#      disappears when somebody widens the character class.
+run dotsegments "[$(mine 42 'feat/../../tags/v1' "$SHA1")]" '[]' \
+  "$(printf 'feat/../../tags/v1\tfalse\t%s\n' "$SHA1")"
+expect "a path-traversal ref name is refused by us, not only by git" \
+  $'skip\tfeat/../../tags/v1\tunsupported-name' 0
+
 # 11b. The house's real naming convention must survive all of the above.
 run slashes "[$(mine 30 'chore/v1.2.x/re-sync' "$SHA1")]" '[]' \
   "$(printf 'chore/v1.2.x/re-sync\tfalse\t%s\n' "$SHA1")"

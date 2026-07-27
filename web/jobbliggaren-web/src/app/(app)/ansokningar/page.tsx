@@ -128,9 +128,8 @@ export default async function AnsokningarPage() {
       <div className="jp-container jp-page">
         {total === 0 ? (
           <div className="jp-empty">
-            <div>{t("ansokningar.emptyKicker")}</div>
             <div className="jp-empty__title">{t("ansokningar.emptyTitle")}</div>
-            <p>{t("ansokningar.emptyBody")}</p>
+            <p className="jp-empty__body">{t("ansokningar.emptyBody")}</p>
             <div className="jp-empty__actions">
               <Link href="/ny-ansokan" className="jp-btn jp-btn--primary">
                 <Plus size={14} aria-hidden="true" /> {t("ansokningar.emptyCreateFirst")}

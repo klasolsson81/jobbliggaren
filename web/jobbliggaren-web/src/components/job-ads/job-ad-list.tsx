@@ -69,7 +69,7 @@ export function JobAdList({
     return (
       <div className="jp-empty">
         <div className="jp-empty__title">{t("list.emptyTitle")}</div>
-        {t("list.emptyBody")}
+        <p className="jp-empty__body">{t("list.emptyBody")}</p>
       </div>
     );
   }

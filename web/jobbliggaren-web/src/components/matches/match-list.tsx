@@ -55,7 +55,7 @@ export function MatchList({ items }: MatchListProps) {
     return (
       <div className="jp-empty">
         <div className="jp-empty__title">{t("emptyTitle")}</div>
-        <p>{t("emptyBody")}</p>
+        <p className="jp-empty__body">{t("emptyBody")}</p>
       </div>
     );
   }

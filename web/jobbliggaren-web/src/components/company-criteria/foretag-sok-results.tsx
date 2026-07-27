@@ -85,7 +85,7 @@ export async function ForetagSokResults({
         // reference a table that is not shown).
         <div className="jp-empty">
           <div className="jp-empty__title">{t("emptyTitle")}</div>
-          <p className="text-body-sm text-text-primary">{t("emptyBody")}</p>
+          <p className="jp-empty__body text-body-sm text-text-primary">{t("emptyBody")}</p>
         </div>
       ) : (
         <>

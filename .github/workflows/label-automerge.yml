@@ -151,28 +151,44 @@ jobs:
           # en återkallad label flyttar inte SHA:n. Det är #836:s incident
           # återuppstådd GENOM kontrollen, och det är gratis att stänga: samma
           # `gh pr view`-anrop hämtar labelmängden.
-          for _ in 1 2 3 4 5; do
-            data=$(gh pr view "$PR_URL" --json mergeStateStatus,labels)
+          for i in 1 2 3 4 5; do
+            data=$(gh pr view "$PR_URL" --json mergeStateStatus,labels,headRefOid)
             state=$(echo "$data" | jq -r .mergeStateStatus)
             [ "$state" != "UNKNOWN" ] && break
-            sleep 3
+            [ "$i" -lt 5 ] && sleep 3
           done
+          # HEADEN FLYTTADE ⇒ no-op med notis, inte rött jobb. Grinden gjorde då
+          # exakt rätt, och ett korrekt avvisande får inte rendera som ett trasigt
+          # workflow (V5(a): "a no-op, not a failure"). Vi jämför SHA:er i stället
+          # för att greppa GitHubs felsträng — en prosa-matchning är precis det V1
+          # avvisade, och den skulle dessutom låsas mot en gissad formulering.
+          current=$(echo "$data" | jq -r .headRefOid)
+          if [ "$current" != "$HEAD_SHA" ]; then
+            echo "::notice::Headen flyttade sedan labeln sattes ($HEAD_SHA → $current). Armerar INTE — granskningen gällde en annan diff. Sätt 'agents-done' igen mot den nya headen."
+            exit 0
+          fi
           labels=$(echo "$data" | jq -r '.labels[].name')
           if ! grep -qx 'automerge' <<<"$labels" || ! grep -qx 'agents-done' <<<"$labels"; then
             echo "::notice::Grinden ändrades efter att eventet skapades — en label är borta. Armerar INTE. (#836)"
             exit 0
           fi
-          # `--match-head-commit` binder mergen till DEN SHA eventet bar, och
-          # täcker PUSH-axeln: hinner en fixup in mellan tillståndsläsningen och
-          # mergen failar anropet högljutt i stället för att merga en diff ingen
-          # granskat. Label-axeln täcks av omläsningen ovan — de två axlarna är
-          # olika och behöver var sin mekanism.
+          # `--match-head-commit` binder DIREKT-mergen nedan till den SHA eventet
+          # bar. På `--auto`-grenen är den däremot en precondition vid AKTIVERINGEN,
+          # inte ett stående villkor: `AutoMergeRequest` lagrar ingen
+          # `expectedHeadOid`, och auto-merge överlever pushar från någon MED
+          # write-access. Efter aktiveringen är `disarm` hela skyddet — ta inte bort
+          # det i tron att SHA-bindningen räcker. Båda anropen behöver den ändå:
+          # den stänger TOCTOU-fönstret mellan tillståndsläsningen och anropet.
+          # De två axlarna är olika: PUSH täcks här, LABEL av omläsningen ovan.
           case "$state" in
             CLEAN|UNSTABLE|HAS_HOOKS)
               echo "::notice::mergeStateStatus=$state — PR:en är mergebar nu, så auto-merge kan inte aktiveras. Mergar direkt; branch protection är fortfarande grinden."
               gh pr merge --squash --match-head-commit "$HEAD_SHA" "$PR_URL" ;;
+            DRAFT)
+              echo "::notice::PR:en är en DRAFT — GitHub tillåter inte auto-merge på drafts. Armerar INTE; markera den ready och sätt 'agents-done' igen."
+              exit 0 ;;
             UNKNOWN)
-              echo "::error::mergeStateStatus är UNKNOWN efter 5 försök — GitHub har inte räknat klart mergebarheten. Kör om jobbet."
+              echo "::error::mergeStateStatus är UNKNOWN efter 5 försök. Är headen oförändrad: kör om jobbet. Har den flyttat — vanligast, UNKNOWN kommer typiskt EFTER en push — återanvänder en omkörning samma inaktuella SHA och failar igen; ta i stället bort och sätt tillbaka 'agents-done' så fyras eventet om med aktuell SHA."
               exit 1 ;;
             *)
               gh pr merge --auto --squash --match-head-commit "$HEAD_SHA" "$PR_URL" ;;

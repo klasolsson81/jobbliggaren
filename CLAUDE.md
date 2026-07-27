@@ -338,7 +338,11 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   stuck — it is waiting for the mandatory agents, and the fix is to wait them in,
   not to rebase. Check which cause before acting, because **`update-branch` itself
   disarms the gate** (a `synchronize` event removes `agents-done`), so reaching for
-  it on the wrong diagnosis costs a full review round. *(2026-07-14 hygiene pass,
+  it on the wrong diagnosis costs a full review round. **And a THIRD cause since
+  #836: the `arm` job itself failed** (head moved, `UNKNOWN` exhausted, or a real
+  API error) — the PR carries both labels and was never armed. `label-automerge`
+  is not a required check, so nothing surfaces it; read the job log before
+  assuming either of the other two. *(2026-07-14 hygiene pass,
   all measured: 44 dead local + 44 dead remote branches; #800/#801 shipped and
   still `wip` two days on; 9 `wip` claims against 4 running CCs.)*
 - **Never reap a worktree you did not create — and never one whose PR has not
